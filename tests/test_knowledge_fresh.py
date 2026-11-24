@@ -33,8 +33,9 @@ class Server:
             if tag and headers.get("If-None-Match") == tag:
                 return web.Raw(304, {"etag": tag}, b"")
             kind = "application/xml" if url.endswith(".xml") else MD
-            return web.Raw(200, {"content-type": kind, **({"etag": tag} if tag else {})},
-                           text.encode())
+            return web.Raw(
+                200, {"content-type": kind, **({"etag": tag} if tag else {})}, text.encode()
+            )
 
         monkeypatch.setattr(web, "raw", raw)
         monkeypatch.setattr(web, "resolve", lambda host: ["93.184.216.34"])
@@ -50,8 +51,9 @@ def learn(root, kept, extend=True, said="## What it offers\n- pay() takes a paym
     async def run():
         knowledge.begin(str(root), kept)
         try:
-            return await knowledge.learn(str(root), kept, ask, None, "Fake · fake-model",
-                                         extend=extend)
+            return await knowledge.learn(
+                str(root), kept, ask, None, "Fake · fake-model", extend=extend
+            )
         finally:
             knowledge.end(str(root), kept)
 
@@ -73,12 +75,15 @@ def listed(*paths):
 def test_a_page_answered_304_is_kept_as_read_and_nothing_unchanged_asks_a_model(
     monkeypatch, project_dir
 ):
-    site = Server(monkeypatch, {
-        f"{SITE}/pay/llms.txt": listed("a", "b"),
-        f"{SITE}/pay/a": ("Refunds: refund() undoes a payment.", 'W/"a1"'),
-        # (No ETag: read again, and kept by its text being the same.)
-        f"{SITE}/pay/b": ("Payouts: payout() sends money.", None),
-    })
+    site = Server(
+        monkeypatch,
+        {
+            f"{SITE}/pay/llms.txt": listed("a", "b"),
+            f"{SITE}/pay/a": ("Refunds: refund() undoes a payment.", 'W/"a1"'),
+            # (No ETag: read again, and kept by its text being the same.)
+            f"{SITE}/pay/b": ("Payouts: payout() sends money.", None),
+        },
+    )
     kept = known()
     first, asked = learn(project_dir, kept)
     assert len(asked) == 1 and first["changed"] is None  # (a first learning: nothing to compare)
@@ -107,15 +112,20 @@ def test_a_page_answered_304_is_kept_as_read_and_nothing_unchanged_asks_a_model(
 
 def test_an_unchanged_sitemap_lastmod_is_not_fetched_a_moved_one_is(monkeypatch, project_dir):
     def sitemap(a_mod):
-        return (f"<urlset><url><loc>{SITE}/pay/a</loc><lastmod>{a_mod}</lastmod></url>"
-                f"<url><loc>{SITE}/pay/b</loc><lastmod>2026-10-01</lastmod></url></urlset>",
-                None)
+        return (
+            f"<urlset><url><loc>{SITE}/pay/a</loc><lastmod>{a_mod}</lastmod></url>"
+            f"<url><loc>{SITE}/pay/b</loc><lastmod>2026-10-01</lastmod></url></urlset>",
+            None,
+        )
 
-    site = Server(monkeypatch, {
-        SITEMAP: sitemap("2026-10-01"),
-        f"{SITE}/pay/a": ("Refunds: refund() undoes a payment.", None),
-        f"{SITE}/pay/b": ("Payouts: payout() sends money.", None),
-    })
+    site = Server(
+        monkeypatch,
+        {
+            SITEMAP: sitemap("2026-10-01"),
+            f"{SITE}/pay/a": ("Refunds: refund() undoes a payment.", None),
+            f"{SITE}/pay/b": ("Payouts: payout() sends money.", None),
+        },
+    )
     kept = known()
     learn(project_dir, kept)
     site.asked.clear()
@@ -129,17 +139,18 @@ def test_an_unchanged_sitemap_lastmod_is_not_fetched_a_moved_one_is(monkeypatch,
     assert moved["changed"] == 1 and len(asked) == 1
 
 
-def test_a_changed_page_is_read_again_and_only_its_slice_is_written_again(
-    monkeypatch, project_dir
-):
+def test_a_changed_page_is_read_again_and_only_its_slice_is_written_again(monkeypatch, project_dir):
     # Each page a slice of its own (one more part of it would pass `MAX_GUIDE_INPUT`): two
     # sections and the map.
     size = 55_000
-    site = Server(monkeypatch, {
-        f"{SITE}/pay/llms.txt": listed("a", "b"),
-        f"{SITE}/pay/a": ("a" * size, '"a1"'),
-        f"{SITE}/pay/b": ("b" * size, '"b1"'),
-    })
+    site = Server(
+        monkeypatch,
+        {
+            f"{SITE}/pay/llms.txt": listed("a", "b"),
+            f"{SITE}/pay/a": ("a" * size, '"a1"'),
+            f"{SITE}/pay/b": ("b" * size, '"b1"'),
+        },
+    )
     kept = known()
     first, asked = learn(project_dir, kept)
     assert len(asked) == 3 and len(first["sections"]) == 2
@@ -158,10 +169,13 @@ def test_a_changed_page_is_read_again_and_only_its_slice_is_written_again(
 
 
 def test_a_validator_a_server_could_smuggle_a_header_with_is_not_kept(monkeypatch, project_dir):
-    Server(monkeypatch, {
-        f"{SITE}/pay/llms.txt": listed("a"),
-        f"{SITE}/pay/a": ("pay()", '"x"\r\nX-Evil: 1'),
-    })
+    Server(
+        monkeypatch,
+        {
+            f"{SITE}/pay/llms.txt": listed("a"),
+            f"{SITE}/pay/a": ("pay()", '"x"\r\nX-Evil: 1'),
+        },
+    )
     record, _asked = learn(project_dir, known())
     (page,) = [one for one in record["pages"] if one["read"]]
     assert "etag" not in page
@@ -200,10 +214,13 @@ def test_a_folder_reads_again_only_the_file_that_changed_and_keeps_the_others_se
 def test_a_weekly_site_is_old_after_a_week_and_its_check_spends_nothing_unchanged(
     monkeypatch, project_dir
 ):
-    Server(monkeypatch, {
-        f"{SITE}/pay/llms.txt": listed("a"),
-        f"{SITE}/pay/a": ("Refunds: refund() undoes a payment.", '"a1"'),
-    })
+    Server(
+        monkeypatch,
+        {
+            f"{SITE}/pay/llms.txt": listed("a"),
+            f"{SITE}/pay/a": ("Refunds: refund() undoes a payment.", '"a1"'),
+        },
+    )
     kept = known(weekly=True)
     learn(project_dir, kept)
     path = folder(project_dir) / "learned.json"
@@ -225,14 +242,21 @@ def test_a_page_whose_address_is_cut_in_learned_json_is_never_given_anothers_tex
     a, b = f"{SITE}/pay/{long}a", f"{SITE}/pay/{long}b"
 
     def sitemap(*urls):
-        return ("<urlset>" + "".join(f"<url><loc>{one}</loc><lastmod>2026-10-01</lastmod></url>"
-                                     for one in urls) + "</urlset>", None)
+        return (
+            "<urlset>"
+            + "".join(f"<url><loc>{one}</loc><lastmod>2026-10-01</lastmod></url>" for one in urls)
+            + "</urlset>",
+            None,
+        )
 
-    site = Server(monkeypatch, {
-        SITEMAP: sitemap(a),
-        a: ("Refunds: refund() undoes a payment.", None),
-        b: ("Payouts: payout() sends money.", None),
-    })
+    site = Server(
+        monkeypatch,
+        {
+            SITEMAP: sitemap(a),
+            a: ("Refunds: refund() undoes a payment.", None),
+            b: ("Payouts: payout() sends money.", None),
+        },
+    )
     kept = known()
     learn(project_dir, kept)
     site.pages[SITEMAP] = sitemap(a, b)  # (b comes, with a's lastmod)
@@ -244,11 +268,16 @@ def test_a_page_whose_address_is_cut_in_learned_json_is_never_given_anothers_tex
 
 
 def test_a_lastmod_that_never_moves_is_asked_again_after_30_days(monkeypatch, project_dir):
-    site = Server(monkeypatch, {
-        SITEMAP: (f"<urlset><url><loc>{SITE}/pay/a</loc><lastmod>2026-01-01</lastmod></url>"
-                  "</urlset>", None),
-        f"{SITE}/pay/a": ("Refunds: refund() undoes a payment.", '"a1"'),
-    })
+    site = Server(
+        monkeypatch,
+        {
+            SITEMAP: (
+                f"<urlset><url><loc>{SITE}/pay/a</loc><lastmod>2026-01-01</lastmod></url></urlset>",
+                None,
+            ),
+            f"{SITE}/pay/a": ("Refunds: refund() undoes a payment.", '"a1"'),
+        },
+    )
     kept = known()
     learn(project_dir, kept)
     path = folder(project_dir) / "learned.json"

@@ -9,7 +9,7 @@ It works the same for every model and CLI.
 
 ![The Checked section under an answer: Tests passed: python check.py - 2 passed; No review: a small change (3 lines, 2 files); No new test: the Orchestrator said "Updated the greeting in hello.py."](../images/checked-section.png)
 
-[![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides and pages, a Reviewer's look (long documents read against the request), the live try, a test for the change, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
+[![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides, config files and scripts, the project's own code style and type checks and pages (console, width, accessibility), a Reviewer's look (long documents read against the request), the live try, a test for the change, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; apart from them, a sub-agent's own tests before its work is taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
 
 *What KOLONİ checks at a turn's end, and where you set each part. ([full size](../diagrams/proven-finish.svg))*
 
@@ -20,10 +20,11 @@ checked again:
    ([Which tests](#which-tests), [Asking](#asking), [How long it waits](#how-long-it-waits)). What
    is not this turn's - a flaky test, one failing before - is told apart
    ([Not this turn's](#not-this-turns-flaky-tests-and-failures-from-before)).
-2. **What it wrote besides code** - documents, diagrams, data, slides
+2. **What it wrote besides code** - documents, diagrams, data, slides, config files and scripts,
+   and the changed code by the project's own ruff, eslint, tsc and mypy
    ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)), and a changed
-   page opened in KOLONİ's own browser at a phone's, a tablet's and a desktop's width
-   ([Pages](#pages)).
+   page opened in KOLONİ's own browser at a phone's, a tablet's and a desktop's width - its
+   console, its width and its accessibility ([Pages](#pages)).
 3. **A Reviewer's look** at a big or security-touching change ([The review](#the-review)); long
    documents are read once against your request
    ([Documents read against your request](#documents-read-against-your-request)).
@@ -47,7 +48,7 @@ step ([The Checks step](../agents/recipes.md#the-checks-step)).
   command (`python -c "open(…).write(…)"`, `sed -i`, a heredoc to a file, a redirection into one
   - `cat a > b`, `git show HEAD:f > f`, not `2>&1` or `> /dev/null` -, a formatter,
   `black . && pytest -q`, a test run that writes - `jest -u`, `pytest --snapshot-update`,
-  `--junitxml=a.py` -, a line handed to a shell that does) is on no record, so KOLONİ runs the tests all the same and says "A
+  `--junitxml=a.py`, a coverage report that is a file, `--cov-report=html` -, a line handed to a shell that does) is on no record, so KOLONİ runs the tests all the same and says "A
   command of this turn may have changed files KOLONİ did not record: …", with "No review: changes
   made by a command are not recorded". In a git project such commands count only where git lists
   a file written since the first of them began, or one committed during the turn, and the line
@@ -75,15 +76,15 @@ project:
 - **Nothing** runs nothing and sends nothing back. The Checked section still says that nothing
   was checked, and names the last test run an agent made in the turn.
 
-![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data and Pages](../images/settings-checks.png)
+![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data, Pages, Config, Scripts and Code style and types](../images/settings-checks.png)
 
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
 the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands,
 is read by a Reviewer (one more model request). Failing work goes back until it passes, while
 each round makes progress." It names
-your check command; else each test command you set for a part on the project map ("npm test in
-web/"), then what KOLONİ saved for any other folder - and changes as you save one there. Before a
+each test command you set for a part on the project map ("npm test in web/"), then what KOLONİ
+saved for any other folder - and changes as you save one there. Before a
 test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads here.
 
 ### For one chat
@@ -111,12 +112,15 @@ A project that had turned off the old **Finish only when the tests pass** switch
 
 ## Which tests
 
-1. The project's own **Test before adding** command, if it has one - and then only it: nothing is
-   guessed, found or saved beside it.
-2. Otherwise each part's test command from the project map (yours, or the map's guess), run in
-   that part's folder. A part you set to no test is never guessed.
-3. Otherwise the test command KOLONİ saved before (below).
-4. Otherwise a command KOLONİ guesses from each part's files, in any language: `python -m pytest
+1. Each part's test command from the project map (yours, or the map's guess), run in that part's
+   folder - the whole project's too, set on the map's first row (**the whole project**) where no
+   project file makes the root a part. It runs beside the other parts' commands, not instead of
+   them: where it runs every test, a Python part's tests run twice - in its own command and in the
+   whole project's. A part you set to no test is never guessed - the whole project set to no test
+   stops the guess (3-5) too. (0.1.7: **Test before adding** is gone, and the command you had in it
+   was not kept: write it here.)
+2. Otherwise the test command KOLONİ saved before (below).
+3. Otherwise a command KOLONİ guesses from each part's files, in any language: `python -m pytest
    -q` (a `pyproject.toml`, `pytest.ini` or `tests/`), `npm test` (a test script in
    `package.json`), `go test ./...` (`go.mod`), `cargo test` (`Cargo.toml`), `mvn test`
    (`pom.xml`), `./gradlew test` or `gradle test` (`build.gradle`), `dotnet test` (a `.sln` or
@@ -124,16 +128,16 @@ A project that had turned off the old **Finish only when the tests pass** switch
    `vendor/bin/phpunit` (`composer.json`), `mix test` (`mix.exs`), `swift test`
    (`Package.swift`), `ctest --test-dir build` (`CMakeLists.txt`), `make test` (a `test:` target
    in the `Makefile`).
-5. Otherwise a test command an agent ran in this turn that really ran tests, in a turn you are
+4. Otherwise a test command an agent ran in this turn that really ran tests, in a turn you are
    there for (not while you're away, not a trigger's).
-6. Otherwise KOLONİ asks the project's **Fast** tier's model once, in a turn you are there for,
+5. Otherwise KOLONİ asks the project's **Fast** tier's model once, in a turn you are there for,
    where its tests are. KOLONİ shows it the project's parts and languages, its test files and the
    start of its README, CONTRIBUTING and Makefile (never a secret file, nor one reached through a
    link), with no tool. It answers with command lines, which are read as data. The request shows
    in Usage. It is asked again only when the project's parts change; until then the commands it
    named are tried again. With no Fast-tier model the section says so.
 
-A line an agent ran (5) or the model named (6) is tried only if it is one of the commands in 4,
+A line an agent ran (4) or the model named (5) is tried only if it is one of the commands in 3,
 or `pytest`, `npx vitest run`, `npx jest`, `yarn test`, `pnpm test`, `bun test`, `tox`, `nox` or
 `ctest` - with at most `-q` or `-v` after it, in a folder of the project. Any other line (more options, a wrapper, a chain) is never run: the look's row says
 how many it named that were not tried.
@@ -164,8 +168,7 @@ the lines that row shows.
 nothing is approved and they are offered again after the next change. From the next change on they are the turn's test run, one line each, said "(from
 CI)". Until you approve them they are not run - at **Full auto** and while you're away too. A
 change to a workflow file asks again; a workflow changed in the turn itself is not used ("CI
-commands not used: a workflow changed in this turn"). Your own **Test before adding** command wins
-over them. Each still goes through KOLONİ's reading of commands: a harmful one is asked as your
+commands not used: a workflow changed in this turn"). Each still goes through KOLONİ's reading of commands: a harmful one is asked as your
 level says. An approved line runs as your own command does: `make test`, `npm test` or `tox` run
 the project's own Makefile, package scripts or tox file, whatever they hold. A trigger's turn runs
 one only with the trigger's own leave for that line.
@@ -186,7 +189,9 @@ back by itself. **Put back** on that row does, for each file still as the run le
 when the run started. One changed before the run comes back byte for byte; one that was as
 committed comes back from its commit through git's own filters, so its line ends are git's (CRLF
 where `core.autocrlf` is on) - `git diff` shows nothing, though the bytes may differ from before
-the run. One changed again since is not put back, and says so; while a test run of the turn still
+the run. One changed again since is not put back, and says so. Each turn's **Put back** is for its
+own run - its tip says "as they were before this turn's run" -, so an older turn's puts back only
+what is still as its run left it. While a test run of the turn still
 goes on, Put back waits ("put back once it ends"). A file the run made that git does not track (a
 report, a cache), and one an agent wrote on record meanwhile, are not listed; nor is a secret file
 (`.env`, a key) - KOLONİ keeps no copy of one, so putting it back is yours. What Put back keeps
@@ -202,9 +207,8 @@ test, or no test tool, is never saved, and a command of yours is never replaced.
 Settings › This project › Checks and git shows each saved command under **Found by KOLONİ** as
 soon as it is saved, where it came from and when. **Forget it** clears them; they are found again
 at the next change. A saved command runs as the project's for this check only, and below **Full
-auto** on a card until you say **Always** on it (see [Asking](#asking)). It is not your **Test before adding**:
-it does not check a sub-agent's work before it is taken in, and agents and triggers do not get to
-run it unasked. To make it yours, set it there.
+auto** on a card until you say **Always** on it (see [Asking](#asking)). Agents and triggers do
+not get to run it unasked. To make it yours, set it as a part's test command on the project map.
 
 Where KOLONİ reads a count from the runner's summary (pytest, jest, vitest, go, cargo, dotnet,
 Maven, Gradle, RSpec, PHPUnit), the line gives it. Any other runner is judged by its exit code
@@ -222,7 +226,7 @@ A change to a configuration file (`requirements.txt`, `package.json`, a CI workf
 
 KOLONİ's test run is asked about as the Orchestrator's own command would be:
 
-- Your own command (the check command, or a part's test command you set) runs without a card.
+- Your own command (a part's test command you set on the project map) runs without a card.
 - A guessed command at **Ask before changes** or **Auto-edit files** waits on one command card.
   Your yes holds for the rest of the turn, for that command in that folder only: the same command
   in another part of the project is asked again. At **Full auto**, or under an **Always run**
@@ -268,12 +272,28 @@ is kept. **Fix it**, on the newest turn, sends a new message that asks for the f
 until you click it.
 
 Rounds never stack: where a recipe of the turn has already run its own test-and-fix rounds to
-the end (Bugfix's **Test it** back to **Fix it**), KOLONİ does not send the Orchestrator round
+the end (a recipe's **Test it** back to **Fix it**), KOLONİ does not send the Orchestrator round
 again on top of them. A recipe's review loop that ran out leaves KOLONİ's own rounds. The section says "Still failing
 after the recipe's fix rounds: you decide (Fix it)".
 
-The check before a sub-agent's work is taken in (**Test before adding**) is a separate check with
-its own two rounds. A turn can have both.
+The check before a sub-agent's work is taken in is a separate check with its own two rounds: the
+tests that sub-agent wrote or changed, only those (`test_x.py`, `x.test.ts`, `x_test.go`,
+`FooTest.java`, `FooTests.cs`, Rust's `tests/*.rs`, `x_spec.rb` …) - each part's test command
+narrowed to them (`python -m pytest -q tests/test_new.py`), in its working copy. Those tests are
+the sub-agent's own code, so they run by themselves only at **Full auto**, or where every part's
+command is yours (yours on the map, or a saved one an **Always** rule covers). Otherwise - KOLONİ's
+guess at **Ask before changes** or **Auto-edit files** - the card shows the command, "not run",
+and waits for your **Run the test**; nothing is taken before. While you are away, or in a
+trigger's turn, a guess never runs them (the work is taken as without a test, said "not run");
+your own command runs there - a trigger's tick for a saved one covers its line with the files
+added. A sub-agent that wrote no test is added with no test before (its card says "No tests of
+its own to run before it is added"). A part whose test command cannot run just those files is
+not run, and the card and Checked say which and why ("web/: its test command (npm test) cannot
+run just these files (its test script is not vitest or jest alone) - not run") - beside a pass
+of the other parts, never hidden in it. Tests that ran none (pytest's "no tests collected",
+vitest's "No test files found") are a note, not a pass. Where the sub-agent changed its part's
+`package.json` test scripts or `.npmrc`, they are not run (they would run instead of yours). The check at
+the turn's end runs every test. A turn can have both.
 
 ### Not this turn's: flaky tests and failures from before
 
@@ -314,18 +334,45 @@ Before a failure goes back, KOLONİ tells what is not this turn's:
 
 ### The last green state
 
-When a whole suite passes, KOLONİ keeps what it counted - the tests that ran and the skipped ones
-- as the project's last green state. A later pass with fewer tests, or more skipped ones, is a
+When a whole suite passes, KOLONİ keeps what it counted - the tests that ran and the skipped
+ones - as the project's last green state. A later pass with fewer tests, or more skipped ones, is a
 failure unless the Orchestrator's answer says why - in one sentence that says it removed, deleted,
 dropped or skipped them and names the tests (test, tests, skip, xfail; for more skipped ones, skip
 or xfail): "Tests went from 214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a
 failing test. Said why, it is still shown, as a note quoting that sentence - "Tests went from 4 to
 3 (1 removed) - the answer says why: “I removed the obsolete test of the old parser”" - and the
-new counts are the green state from then on. Where the
-green run listed its passes (pytest with `-v`, jest's and vitest's files), KOLONİ keeps those
-names too (at most 5 000): a test that passed then and fails now is named, "Regression: `test`
-passed at the last green run and fails now" - never one added since. Where it listed none, the
-counts are kept and a failing test in a file the turn did not add is named "… (by file)".
+new counts are the green state from then on. Fewer tests are put down to something outside the
+turn only where KOLONİ can show it, test by test: the green run listed each of its passes by name
+and this run does too (pytest with `-v`; jest and vitest list files, not tests, so theirs never
+add up), and every test missing now lives in a file the turn did not touch in any way - nor did
+any of these happen:
+
+- a command of the turn that may write files ran, in the project or in a recipe's copy (a script,
+  `sed -i`, `git rm … && git commit`, `git mv` - a test run alone writes nothing);
+- it changed what decides which tests run (a `conftest.py`, `pytest.ini`, `pyproject.toml`,
+  `setup.cfg`, `tox.ini`, `package.json`, a Makefile, a Vitest, Jest or Cypress config or setup, a
+  Python file in a tests folder not named as a test, the script the test command runs);
+- it touched a test file at all - changed, made, deleted or renamed one, or anything in a tests
+  folder (a new spec's `.only` switches the others off, wherever they are; a test added to a file
+  is the turn's too, with tests deleted by hand elsewhere);
+- a change on KOLONİ's record since that green run took lines out of a test file.
+
+Then it is said and not sent back, "Tests went from 48 to 45 (3 removed) - not this turn's
+change", and the new counts are the green state: tests deleted by hand, a pull, another branch
+checked out. Anything less sure is the turn's, as a turn's own removal always is: a test file it
+touched in any way, a runner that lists no names, names that do not add up to the drop; more
+skipped tests are the turn's too (no runner here lists what it skipped by name). Not seen: a test
+generated from data the turn changed elsewhere - a parametrize list built from the app's data, a
+flag a `skipif` reads - lives in a file it did not touch, and its drop reads as outside. A whole
+suite that goes on after the answer is held to the green run too: a drop of the turn's is said on
+its Checked as failed, and the green state stays where it was. Where the rounds end with no test
+failing but fewer run, or more skipped, the line says so: "Still fewer tests, or more skipped,
+after 2 fix rounds: you decide (Fix it)"; work in a copy is then not taken in, "Not taken in:
+fewer of its tests run, or more are skipped, after its fix rounds". Where the green run listed its
+passes, KOLONİ keeps those names (at most 5 000): a test that passed then and fails now is named,
+"Regression: `test` passed at the last green run and fails now" - never one added since. Where it
+listed none, the counts are kept and a failing test in a file the turn did not add is named "…
+(by file)".
 
 ### A bug fix
 
@@ -380,6 +427,9 @@ or a file that steers the tests (a `conftest.py` that leaves one out), without a
 pass: "Not a pass: `model` changed a test without leave (`file`)", and that test is not listed as
 one of the turn's new tests. A round whose work fails the project's own check before Take in stays
 in its copy: "Not taken in: `model`'s round - the project's check failed on it before Take in".
+Work its rounds make pass gets the look the failing tests held back, once, by the same rule (a
+big or security-touching change): its Review line takes the place of "No review: the tests still
+fail"; a hold that stands keeps work in a copy out, as below.
 
 Failing work is never taken in, at any level - Full auto and while you're away too. Where nothing
 passes after the strongest tier (or none is set, or the switch is off), the work stays in its
@@ -393,7 +443,20 @@ there, and its report lists it. Work that is already in the project (no copy) ge
 model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
 own check ran nothing still waits on its Ready for you card, as before - never taken in unasked.
 A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model yet: the user
-decides, as before (Fix it).
+decides (Fix it). Work in a copy - a recipe's, before Ready for you - that a look still holds is
+not taken in by itself either, at any level: no Ready for you card, not even at Auto-edit, and
+not at Full auto; the section says "Not taken in: on hold - a look's findings still stand after
+its fix rounds", with **Take in anyway** and **Fix it**. **Fix it** goes on in the kept work's
+copy, and that turn's end check covers the whole kept work as Take in would bring it - the held
+change and the fix, by the same rule (a big or security-touching change gets the look), never
+the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
+That turn keeps the held turn's checks - never fewer than the tests and the review, whatever this
+chat's switch or the project's After a change say since; its old code, for "were failing before",
+is the project's, so the held work's own failure is never excused; and a room its Orchestrator
+opens takes nothing in when it ends. The Reviewer sees the kept work as Take in shows it: what
+Take in leaves out is not in it, and a secret file, one holding a secret you gave on a card, or
+one that is not text is named, never shown.
+**Take in anyway** is your word: the work goes in as it is, with no look first.
 
 The order is always the same: KOLONİ's checks first, on the work where it is (a recipe's copy), then
 **Ready for you**. Its card, or Full auto's own Take in, comes only after the Checked section - never
@@ -402,18 +465,47 @@ Ask for changes would: its own roles fix it in its copy, and its end checks it a
 
 ## Documents, diagrams, data and slides
 
-Under **Test and review**, a turn that wrote documents, diagrams, data or slides gets KOLONİ's
-checks of them, with no model and nothing installed: each file its own line under the answer.
-They come after the tests and before the review. A turn that wrote only such files runs no tests
-("No tests: only documents, slides, diagrams or data changed") and gets these checks. Under
-**Tests only**, **Nothing**, or where checks are off for the chat, they do not run.
+Under **Test and review**, a turn that wrote documents, diagrams, data, slides, config files or
+shell scripts gets KOLONİ's checks of them, with no model and nothing installed: each file its own line under
+the answer. Which kind a file is, its ending says.
+They come after the tests and before the review. A turn that wrote only documents, slides,
+diagrams or data runs no tests ("No tests: only documents, slides, diagrams or data changed") and
+gets these checks; a config file or a script counts as code, and the tests run. Changed code also
+goes to the project's own ruff, eslint, tsc and mypy, where it has them (**Code style and types**,
+below). Under **Tests only**, **Nothing**, or where checks are off for the chat, they do not run.
 
 | Kind | Checked | Said, not failed |
 |---|---|---|
+| Code style and types (`.py`, `.js`, `.ts`, `.tsx`, `.vue` …) | a problem the project's own ruff, eslint, tsc or mypy finds on a line the turn added or changed, in a file it changed ("app/x.py:12: ruff F401 - `os` imported but unused") - a file it cannot parse too ("ruff invalid-syntax - …") | the problems on lines the turn did not change, counted; eslint's and tsc's warnings on its lines, counted; a tool set up but not installed here; one the project's own check ran this turn (its CI lines, its test command - the tool as a command's program there, never `pip install ruff` or `pytest -k mypy`); a tsconfig that names no files (a solution's `references`) or is composite - tsc is not run on it; a file too large to compare in time ("not judged"); the tool's settings the turn changed ("ruff's settings changed this turn (pyproject.toml)"); a run that found none of the turn's files to check (ruff's "No Python files found", eslint's ignored file) - never "no problems" |
 | Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file (a site's page name, `guide` for `guide.md`, counts as found; a link in code does not count); a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
 | Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without `@startuml` … `@enduml` (or `@startmindmap` … `@endmindmap` and the like) | labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid |
 | Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
+| Scripts (`.sh`, `.bash`, `.ps1`, `.psm1`) | a script that does not parse, with its shell's first complaint and line ("build.sh:4: does not parse - syntax error near unexpected token `fi'") - read by `bash -n` or PowerShell's own parser, never run | no bash or no PowerShell here; a secret file, one over 1 MB, more than 20 a turn: not read |
 | Slides (`.pptx`) | a file that does not open; a slide with no text and no picture | the slides and how many have notes; "overflow and contrast: not checked"; `.odp` and `.key` are not read |
+| Config (`.json`, `.yaml`, `.yml`, `.toml`) | a file that does not parse, with its parser's first complaint and line ("package.json:3: does not parse - Expecting property name enclosed in double quotes") - `NaN` or `Infinity` in a `.json` too, which npm's reader and `JSON.parse` break on; a `package.json` that is no object, or whose `name`, `version` or a script is no string; a `pyproject.toml` whose `[project]` has no name or whose `[tool.…]` is no table; a GitHub workflow (`.github/workflows/*.yml`) with no `on:` or no jobs, or a job with neither `runs-on` nor `uses`, or with no list of steps; a Compose file (`compose.yaml`, `docker-compose*.yml`) whose `services` is no mapping | a secret file (`.env.json`, `secrets.yaml`) is never read, nor one whose name often holds a secret (`credentials.json`, `token.json`, `kubeconfig…`, `client_secret….json`); a file nested over 100 deep (a TOML key of over 100 dotted parts too), a YAML or TOML file over 256 KB, YAML past 1 MB in all in a turn, or YAML with aliases is not read; a YAML tag KOLONİ does not know (`!!python/name:`, `!reset`) is read as the value under it; JSON with comments and trailing commas passes where its tool reads them (`tsconfig.json`, `.vscode/*.json`; a comment after the last comma too), never a `package.json`; a key twice in a `.json` passes (JavaScript reads the last); a value a YAML tag cannot read (`!!int "x"`) is not checked, and never said back |
+
+**Code style and types** runs the project's own tools - only where the project sets one up and
+has it installed here, never a download: ruff (`[tool.ruff]`, `ruff.toml`; the project's `.venv`,
+else one on PATH) and mypy (`[tool.mypy]`, `mypy.ini`; the `.venv`'s) on the changed `.py` files,
+eslint (its config and `node_modules/.bin/eslint`) on the changed scripts, and tsc
+(`tsconfig.json` and `node_modules/.bin/tsc`) on its project - eslint and tsc from the nearest
+folder up from a file that has them. Running one runs the project's code (an `eslint.config.js`
+is JavaScript), so it goes as the project's test command goes: at Full auto it runs; at Ask and
+Auto-edit it waits on a card - your yes covers that very line in that folder for the rest of
+the turn, and **Always** keeps that line (the program and its options, never the bare program:
+a line that adds another config, a plugin folder or a report elsewhere asks again); while you are
+away, or in a turn a trigger started without its leave for that line, it is not run and its line
+says "needs your leave once". A program the turn wrote itself - in the folder a tool is installed
+in (`node_modules`, `.venv`), in any case of its name, or through a link - is never run, nor one
+whose real place is outside the project, nor a tool where the turn wrote a `node.cmd` or
+`python.exe` (a name a tool's shim runs bare) in the folder it runs in. A file's lines are
+compared with what it was before the turn only where a tool says a problem in it, within the 2
+minutes: one too large to compare in that time is said "not judged", never passed. It waits for KOLONİ's test-run slot (Settings › The
+app), so a type check never runs beside the whole test suite. tsc is told not to build
+incrementally and mypy to keep its cache in the folder (`.mypy_cache`). In a
+recipe's copy it runs there, and what it writes (a cache, a report) is put back - never taken
+in. At most 50 files a run, 2 minutes for them all, its wait for the slot too. Where the project
+sets none of them up, nothing at all is said of it.
 
 A deck, Word file or other file a command made (a script that writes a `.pptx`) is checked too,
 when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix
@@ -428,6 +520,30 @@ CSV field over the reader's limit) is said as not checked; one file gives at mos
 for this project". Where the turn ended before the check, or changed such a file after it, the
 section says so instead of an old result. On the canvas, the Checks node shows each kind as one
 line: "documents · 2 ✓ · 1 ✗".
+
+A script is code too: the turn's tests run and the review reads it as before - **Scripts** only
+adds whether it parses. KOLONİ reads it as its shell would and runs nothing of it: a `.sh` or
+`.bash` file with `bash -n` (on Windows Git's bash, never WSL's), a `.ps1` or `.psm1` file with
+PowerShell's own parser - the script's text given on its input, never in a command line, the
+shell started with none of your variables in an empty folder of its own, 10 s (bash) or 20 s
+(PowerShell) at most, then stopped with all it started; its folder is removed after it. bash
+reads with `extglob` on. A `.sh` whose first line names another shell or language (`#!/bin/zsh`,
+`#!/usr/bin/env fish`, `python3`) is not bash's to read: "not checked: its first line says it is
+a zsh script" - one with no such line, or `sh`, `bash` or `dash`, is. What bash only warns of
+(a here-document ended by the file's end) is said as a note, never as a failure; where bash
+also fails, its error is said. A `using assembly`, `using module` or `#requires` statement that
+names modules or assemblies is left out before PowerShell reads it, so nothing is looked up or
+loaded; a script that would still make its parser look one up - a `using` it cannot take out (a
+comment between its words, a line continued with a backtick, any `using` but `using namespace`,
+an English "using" in a comment or a string too), an `Import-DscResource` - is not read: "not
+checked: it may load a module or an assembly (it names `using` or Import-DscResource)". KOLONİ
+looks at the whole text for these, none of it taken for a comment or a string first: only
+PowerShell's own parser knows where those end, and it is the very reader that would look the
+module up. A type of a module left out is said, not failed. With Windows PowerShell 5.1 alone (no
+PowerShell 7 here), a `Configuration` or PowerShell 7's own syntax (`??`, `&&`) is "not checked:
+it needs PowerShell 7". A `.sh` with Windows line endings (CR LF) is read as Git's bash reads it,
+and said: bash on Linux will not run it as it is. Where this machine has no bash or no
+PowerShell, its scripts are said as not checked.
 
 ### Pages
 
@@ -448,6 +564,55 @@ Edge here: "Pages not checked: no Chrome or Edge here". Each page's screenshots,
 kept for you in the project's `.koloni/tmp/checked/<turn>/` - never shown to a model; what reaches
 the Orchestrator of a page is only these lines, as data. **Pages** is switched off with the other
 kinds.
+
+At each width the page, as it loaded, is also read for accessibility - by KOLONİ, in the page, with
+no model and nothing installed:
+
+- an image with no text for it: "index.html: 2 images without alt text at 375, 768, 1280 px -
+  logo.png, hero.jpg". `alt=""` marks a picture as decoration, and one hidden from screen readers
+  (`aria-hidden`, `role="presentation"`) is not counted;
+- a button, link or field with no name - no words of its own, `aria-label`, `aria-labelledby`,
+  `title`, label, placeholder, a button's value or an image's `alt` in it: "1 buttons, links or
+  fields with no name at 375, 768, 1280 px - input[type=email]#email";
+- a page hidden whole from screen readers (`aria-hidden` on `html` or `body`), and a control one
+  can tab to inside `aria-hidden` (a button, a link, a field, `tabindex` 0 or more, not disabled,
+  not inside `inert`): "2 controls one can tab to inside aria-hidden at 375, 768, 1280 px -
+  button, a[href=/x]".
+
+These are failed and go back as a fix round, the page's words in them as data; the "no console
+errors" line stays with them.
+
+Contrast is a warning: said with its ratio, never sent back - a colour is the page's design, and a
+reading of it is not sure enough to send work back for. Text below the contrast WCAG 2 asks -
+4.5:1, or 3:1 for large text (24 px, or 18.66 px bold) - its colour over the backgrounds under it,
+up to the first opaque one (the page's white where there is none), any CSS colour: "3 texts below
+the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1)". Each colour, background,
+size and weight is named once, the lowest first. Its colour is `-webkit-text-fill-color` where
+that is set. Read with the light colour scheme (`prefers-color-scheme: light`, set before the page
+first loads), whatever this machine's is. What the read cannot judge is said, not sent back, never
+guessed:
+
+- text with something drawn under it - an image, a gradient, gradient text (its fill
+  see-through), or a picture or a layer of another element over its words, drawn inside the
+  background found under it, or anywhere where none is (a positioned overlay, a hero image under
+  a dark layer, a fixed backdrop): "contrast not checked … on 2 texts with something drawn under
+  them". A fixed header or bottom bar counts only where it is at the page's top; a backdrop that
+  is hidden (`visibility: hidden`, `opacity: 0`), as a closed modal's is, not at all;
+- a page whose colour scheme is dark only (`color-scheme: dark`): "contrast not checked … the
+  page's colour scheme is dark only" - its canvas is dark, not the white the rule reads under it;
+- frames and shadow roots: counted, not read ("accessibility not read inside 1 frames or shadow
+  roots"); a closed shadow root is not seen at all;
+- a page whose script took its body away: "accessibility not read … the page has no body". One
+  that moved its content out of the body is read all the same: the read starts at the page's root;
+- a page's first 2,000 elements are read (an inline `<svg>` counts as one, not its shapes), for 3
+  seconds at most a width, and a text's words are compared with the 200 drawn elements over its
+  box at most; past that: "accessibility checked only in part", with which limit it met ("only its
+  first 2000 elements are read", "a text has more than 200 drawn elements over it" …).
+
+The read goes through the browser's own getters, so a field named after one of the page's
+properties (`<input name="parentElement">`) cannot steer it. Hidden and disabled elements are left
+out. A text's opacity (its own or a parent's), its shadow, an outline drawn by a parent's
+`::before` or `::after`, and a field's typed value are not looked at.
 
 ## A test for the change
 
@@ -520,10 +685,11 @@ also what does not fit in the diff the Reviewer is shown.
 
 - They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
   left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
-  the project they open. They get read tools only and no MCP server, whatever their role is
+  the project they open - where the work is: in a recipe's turn, the recipe's copy, as KOLONİ's own
+  tests there; what their commands write there (a report, a cache, a file a test rewrites) is put back, never taken in - so is what KOLONİ's own test runs write there, one run at a time in a copy. What an agent's own command writes there (a Coder's test run) is that agent's work, and goes in with it. They get read tools only and no MCP server, whatever their role is
   given: they change nothing. They may run two kinds of command, never asked about: one that only
   reads (`git diff`, `cat a.py`, `ls src`), and the project's approved test command exactly as it
-  is set, in its folder - your check command or a part's test command, a saved one an **Always**
+  is set, in its folder - a part's test command you set on the map, a saved one an **Always**
   rule covers, or a CI line you approved with **Run these**. Any other (`rm`, `pip install`, the
   test command with an option added) is refused, and they are told which test commands they may
   run; no card is ever opened for a Reviewer's command. One whose model is a CLI that works with
@@ -537,7 +703,19 @@ also what does not fit in the diff the Reviewer is shown.
   change - until MERGE with the tests passing, or the **Fix rounds** are spent. Then the section
   lists the findings and says "Still on hold after 2 fix rounds: you decide (Fix it)"; **Fix it**
   sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
-  as data, never as your words.
+  as data, never as your words. The findings are the rows of all its **Findings** sections - a
+  `## Findings` heading (or "## Findings (2)", "## Review findings") or a "Findings:" line, each
+  to the next heading of its level or above (a `### Blocking` or `### Suggestions` under
+  `## Findings` is part of it; after a "Findings:" line, any heading ends it). A line that starts
+  with `#` and no space, or an indented `# comment`, is no heading. A fenced code block in it is
+  not read, and the section goes on after it - a code span at a line's start is no fence; a
+  label line in it (`Checked: ran pytest`) ends nothing. A "Findings:" line that
+  sums up - "Findings: 1 blocking" above the rows, "Findings: see above, nothing blocking."
+  closing the report - takes no row away; "Findings: none" says it found nothing where no
+  section has a row. A section quoted from an earlier look (indented four spaces, or after `>`)
+  opens none: alone it is not read, and inside a section of this look's it ends nothing - its
+  rows are read with the rest. Rows nested under a section of its own are read; the
+  instruction's own row echoed back (`<what> | kind: <kind>`) is not.
 - Each look is an agent's work on its model: on the canvas, in its window and in Usage. In the
   chat its step reads "KOLONİ's look: Reviewer", not as one of the Orchestrator's. KOLONİ's looks
   - a review, a look again, the live try's Tester, a stronger model's diagnosis and fix - use none
@@ -558,13 +736,14 @@ also what does not fit in the diff the Reviewer is shown.
   REQUEST CHANGES, REJECT and BLOCK hold, unless a "not" or "no" stands just before it ("MERGE -
   no reason to hold this back", "I'd not block: MERGE" merge); a MERGE negated or said not to be
   ("do not MERGE", "MERGE is not possible yet", "MERGE? No - HOLD", "not ready to merge",
-  "MERGE is unsafe") holds, and so does a MERGE on a condition ("MERGE once the SQL injection is
+  "MERGE is unsafe", "MERGE - blocked", "MERGE (blocked)") holds, and so does a MERGE on a condition ("MERGE once the SQL injection is
   fixed", "MERGE only after the fix"); NEEDS CHANGES and FAIL hold, APPROVE and LGTM merge. A negation reaches no
   further than a comma, a full stop or a dash: "No. HOLD until the test is fixed" holds. A
   "Previous verdict" line is not this look's. Any HOLD wins; a report with no verdict is "Review
   gave no verdict: not counted".
 - **Stop this check** ends a look that runs now too: "Review stopped by you - not checked".
-- No look: a small change, **Tests only**, tests that still fail (they are fixed first), a turn
+- No look: a small change, **Tests only**, tests that still fail (they are fixed first - not those
+  that were failing before this turn: said, not sent back, they hold no look back), a turn
   over its token limit, or a recipe whose own Review step looked already - rounds never stack.
   A recipe without a Review step gets this review at its end.
 
@@ -615,11 +794,12 @@ a user would:
   and stops it after the try. Starting it is asked below Full auto, as any server is. A preview
   runs in the project itself only: where the work waits in a working copy, "Not tried: the work
   waits in a working copy…".
-- Not tried, and said: while the tests still fail, in a turn nobody watches (Away, a trigger, a
+- Not tried, and said: while the turn's tests still fail (not those failing before it), in a turn
+  nobody watches (Away, a trigger, a
   To-do task), or where the Tester's role has no browser tools.
 
-On the canvas the Tester is an agent node after the Checks node; KOLONİ's own runs of the try
-(the `--help`, the dev server) are not counted as test runs there.
+On the canvas the Tester is drawn in the Checks box ([On the canvas](#on-the-canvas)); KOLONİ's own
+runs of the try (the `--help`, the dev server) are not counted as test runs there.
 
 ## How long it waits
 
@@ -718,28 +898,65 @@ it, up to 16) is given to each of KOLONİ's runs where its runner reads it: pyte
 
 ## On the canvas
 
-![The canvas after a checked turn: the Orchestrator's box says checked, and a short line down from it the Checks node lists check.py · 2 passed, No review and No new test](../images/checks-node.png)
+![A turn sent back twice: right of the Orchestrator's three Coders, an arrow into the dashed Checks · KOLONİ loop, its tag on the frame's top edge saying 3 looks · 2 fix rounds · on hold; in it Reviewer ×3 and Security reviewer ×3 with their earlier rounds as shadows behind them, ⇄, Coder · fix ×2, check.py 2 passed and three red dots at its foot; the frame amber, and the inspector beside it lists the tests, then Round 1, 2 and 3: who looked, MERGE or HOLD · 3 blocking, the first finding, fixed by Coder 4 and Coder 5, Still on hold after 2 fix rounds, with Fix it and Open the Checked section](../images/checks-loop.png)
 
-A checked turn has a **Checks** node under its Orchestrator. While KOLONİ's test run works, it
-shows the tool and how long it has run; once the turn is over, each line of the Checked section,
-with the runner's counts ("pytest · 214 ✓ · 2 ✗"), the related step's ("related tests · 12
-passed"), and a whole suite running after the answer with its clock from its own start ("full
-tests · 2:14 …"), or "full tests · waiting for another test run to end", then its result or
-"full tests · stopped by you at 1:02 - not checked", and the coverage line where it was measured. Each fix round is a line back to the
-Orchestrator, "round 1 of 2: tests fail" - or, for the Reviewer's, "round 1 of 2: 1 blocking
-finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes after it. The
-Orchestrator's own box gets one line: "● checking…"
-while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
-not run), "✗ still failing", "✗ on hold" (the tests passed, a Reviewer or the Tester holds) or "not
-checked". In a recipe's turn the node is the recipe's last step,
-inside its frame, and says "end of the recipe". A turn KOLONİ did not check has no Checks node: off
-for this chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's
-Checks step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
+A checked turn has a **Checks** node. While KOLONİ's test run works, it shows the tool and how long it
+has run; once the turn is over, each line of the Checked section, with the runner's counts ("pytest ·
+214 ✓ · 2 ✗"), the related step's ("related tests · 12 passed"), and a whole suite running after the
+answer with its clock from its own start ("full tests · 2:14 …"), or "full tests · waiting for
+another test run to end", then its result or "full tests · stopped by you at 1:02 - not checked", and
+the coverage line where it was measured. It stands under the Orchestrator - or, where the
+Orchestrator opened agents of its own, under them, in their column.
+
+The agents KOLONİ's checks opened - the Reviewer and the Security reviewer, a look again, the live
+try's Tester, a stronger model's diagnosis and fixer - are drawn **in** it, not as agents of the
+Orchestrator's, each role once as a card of its own: then it is the **Checks · KOLONİ** box, right of
+the Orchestrator's work with an arrow from it, its title on its frame's top edge, the test runs short
+at its foot ("✓ related 19 · ✓ pytest 36"). Where KOLONİ sent the work back, the box is a loop,
+dashed as a recipe's "back, at most N rounds": the agents the Orchestrator opened to fix what was
+sent back are in it too ("Coder · fix"), the looks in a column ⇄ the fixes; each role is its latest
+agent, the earlier ones shadows behind it with a count (×3). Its title says the rounds - "⟲ 3 looks ·
+2 fix rounds · on hold", "✓ checked" -, or at work "● round 2 · looking…" ("· waits for you" where
+one of them asks you something: the card says it too); its foot a dot a round (red: it went back or
+held, green: passed, amber: at work, grey: it only asked for a test - no fix round). One look and nothing sent back is a plain box: no count, no
+shadows, no loop. Who is in it, and each round, is what KOLONİ wrote down as its checks went - each
+pass's tests, its looks and their verdicts, why it went back, and the agents its send-back had the
+Orchestrator open -, never guessed from the order agents were opened in: an agent of a room or a
+discussion, or one written for KOLONİ's ask for a test (which is no fix round), stays the
+Orchestrator's; what a fixer opened under it is in the box with it; a stronger model's diagnosis is
+a card of its own kind, not a look. That record comes with the Checked section at the turn's end:
+while the turn works, the box holds the agents KOLONİ's own checks opened, and the Orchestrator's
+fixers join it then. A turn checked by an older version has its plain box of lines. The box's title
+and each card are buttons: Enter or Space opens its panel, or that agent's window.
+
+**Click the box** for its panel on the right - the canvas stays as it is, the box's frame amber: **Tests**, the Checked
+section's test runs; then **Round 1, 2, …**: who looked (its name opens its window), what each said
+("MERGE", "HOLD · 3 blocking", "HOLD · 1 blocking - its report said MERGE"), the first blocking finding, and "→ fixed by Coder 4 · 3 files" - or,
+where the Orchestrator fixed it itself, what sent it back; under the last round why it was the last
+("Still on hold after 2 fix rounds: you decide (Fix it)", "Stopped after round 3: no progress").
+**Fix it** is the one under the answer (on the chat's latest turn), and **Open the Checked section** -
+once it is written - brings that section into view in the chat, the focus on it.
+
+The Orchestrator's own box gets one line: "● checking…" while a run goes on, "✓ checked · 1 round",
+"✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "✗ on hold" (the
+tests passed, a Reviewer or the Tester holds) or "not checked". In a recipe's turn the box is the
+frame's last part - inside it, right of the recipe's steps; the Orchestrator's line reaches the
+frame at its door only. The frame keeps the recipe's own steps and its own loop (a Tester's
+findings back to the Coder, a grey dashed line - KOLONİ's loop is red); KOLONİ's looks and the
+Coders of its send-back rounds are in the box ("Coder · fix ×2"). Where KOLONİ sent the work back
+for the tests alone, nothing looking, the loop's left end is the tests - "48 → 45 (3 removed)" ⇄
+Coder · fix -, and "⟲ 2 fix rounds · not taken in" where the work stayed in its copy for it. With
+nothing opened the box is plain and says "end of the recipe". A turn KOLONİ did not check has no
+Checks box: off for this
+chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's Checks
+step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
 **Nothing**, it says nothing of it - the Checked section does.
+
+![A recipe's turn: the Orchestrator's line reaches the Web app frame at its door; in the frame the recipe's Coder, then, right of it with an arrow from it, the Checks · KOLONİ box - its Reviewer, MERGE, and check.py 2 passed at its foot - the frame's last part; the frame's line on to Ready for you](../images/checks-recipe.png)
 
 ![A check at work: the Orchestrator's box says checking…, and the Checks node's ⋯ menu offers Stop this check, Off for this chat and Open its log](../images/checks-running.png)
 
-![A reviewed turn on the canvas: the Checks node with the Reviewer's line, and the Reviewer KOLONİ opened as an agent node after it](../images/checks-reviewer.png)
+![A reviewed turn on the canvas: right of the Orchestrator, an arrow into the plain Checks · KOLONİ box with the Reviewer KOLONİ opened in it - MERGE - and check.py 2 passed at its foot](../images/checks-reviewer.png)
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
 answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this
@@ -768,14 +985,18 @@ the Orchestrator's window, whose record holds the runs.
 | – Tests not finished: `why` | Stopped, a newer run took its place, or KOLONİ restarted while it ran. |
 | – `…` - the project changed while they ran | The project changed under the run. Its result stands for no state of the work, and a pass is not shown as passed. |
 | – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. |
-| – No test command | There was nothing to run. |
+| – No test command | There was nothing to run; the line says where to set one: the project map's whole project's row or a part's (Settings › This project › This folder). |
 | – Were failing before this turn: `files` (from CI: `command`) | A lint, format or type check failed only on files the turn did not change, and each of its findings is there on the old code too. Not sent back. |
 | – Sent back to fix: round 3 (until it passes, 3 failing → 1) | Until it passes: the rounds sent back, and how many failed at the first and fail now. |
 | ✗ Stopped after round 4: `why` - you decide (Fix it) | Until it passes, the rounds stopped short of a pass: no progress in two rounds, at most 20 rounds, the turn's token limit or the project's monthly budget. ("Still on hold after round 4: …" where a review's hold stood.) |
 | – `model`'s rounds stopped: no progress in two rounds | Until it passes, a stronger model's round left the same tests failing. |
 | – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn, of the project's Fix rounds; "(tests fail; 1 blocking finding)" after it where a review sent one back. |
+| ✗ Still failing after 1 fix rounds: you decide (Fix it) | The Fix rounds were spent with a test still failing - or the Orchestrator answered a round without changing anything, which ends its turn there. |
+| ✗ Still fewer tests, or more skipped, after 1 fix rounds: you decide (Fix it) | As above, where no test fails but fewer ran, or more were skipped, than at the last green run. |
+| – Tests went from 48 to 45 (3 removed) - not this turn's change | Fewer tests, or more skipped, than at the last green run, where nothing of the turn's could take them away (deleted by hand, a pull, a branch): said, the new counts the green state. |
 | ✓ Review: Reviewer (`provider · model`) - MERGE, no findings | The Reviewer looked over the whole change and let it stand ("after 1 round" where it held it first). |
 | ✗ Review: Reviewer (`provider · model`) - HOLD, 2 findings, 1 blocking | It held the change; each finding follows as "Blocking: …" or "Suggestion: …". |
+| ✗ Review: Security reviewer (`provider · model`) - 1 blocking finding, though its verdict said MERGE | A blocking finding holds the change, whatever its verdict word says. |
 | – Review: … in the part it saw (3000 of 15000 characters; not shown: …) | The diff was cut: what it said is of that part only, never a pass. |
 | – Review gave no findings section: not counted | Its report had no findings section: nothing was sent back. |
 | – Review gave no verdict: not counted (`role`, `provider · model`) | Its report had no verdict line KOLONİ could read: nothing was sent back. |
@@ -790,10 +1011,14 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Still on hold: `role` could not look again (`why`) - you decide (Fix it) | A look after a fix round could not be had: the hold stands. |
 | ✓ `file`: 3 links, all found · `file`: 120 rows × 4 columns · `file`: 12 slides, 3 with notes | A document, diagram, data file or deck KOLONİ checked and found right. |
 | ✗ `file`: link to `target` not found · edge `id` points at nothing · rows 3, 7 have 2 fields, not 4 · slide 2 is empty | A problem in what the turn wrote: sent back as a fix round while Fix rounds are left. |
-| – `file`: … - so before this turn | A problem the file already had: said, not sent back. |
+| – `file`: … - so before this turn | A problem the file already had - the same complaint on a line of the same text, where a line added above moved it: said, not sent back. The same complaint on a line the turn wrote is the turn's. |
 | – Not checked: `kind` switched off for this project | Its kind is off in Check by kind of work. |
 | ✓ `page`: no console errors at 375, 768, 1280 px | A page the turn changed, opened in KOLONİ's own browser at each width. |
 | ✗ `page`: 2 console errors at 375 px - `first` · `page`: wider than the screen at 375 px | A page that logs errors, or scrolls sideways: sent back as a fix round. |
+| ✗ `page`: 2 images without alt text · 1 buttons, links or fields with no name … | The page is hard to use with a screen reader: sent back as a fix round. |
+| – `page`: 3 texts below the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1) | A warning: hard to read, said with its ratio - never sent back. |
+| ✗ `page`: the whole page is hidden from screen readers (aria-hidden) · 2 controls one can tab to inside aria-hidden … | A screen reader is told nothing of the page, or a control one tabs to is not there for it: sent back as a fix round. |
+| – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body) | What the accessibility read could not judge: said, not sent back. |
 | – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |
 | ✓ Tried `python 'bin/tool.py' --help`: exit 0, 12 lines | A command-line tool the turn changed answered its `--help`. |
 | ✗ Tried `line`: exit 2 · Tried `line`: it did not end in 30 s | Its `--help` failed or ran on: sent back as a fix round. |
@@ -818,6 +1043,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Started over in a fresh copy: `why` | The stronger model said approach-wrong: the copy's changes were dropped and the work began again from the start state. |
 | – Strongest skipped: over its limit | That tier's provider is past its limit of spend: it is not handed the fix. |
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
+| ✗ Not taken in: on hold - a look's findings still stand after its fix rounds | Work in a copy (a recipe's) that the Reviewer or Security reviewer still holds stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
 | – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |

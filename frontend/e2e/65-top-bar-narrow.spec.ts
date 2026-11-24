@@ -10,7 +10,9 @@ for (const [width, title] of [
   // (Wide letters: with the gear and Your data gone from the bar - tek-ev - a plain sixty fit at 900 px.)
   [900, 'A CONVERSATION WITH A TITLE FAR TOO LONG FOR THE TOP BAR OF A WINDOW THIS NARROW TO SHOW IT WHOLE'],
 ] as const)
-  test(`at ${width} px Recent and WAITS FOR YOU do not overlap, and both are on the screen${title ? ', with a long title' : ''}`, async ({ page }) => {
+  test(`at ${width} px Recent and WAITS FOR YOU do not overlap, and both are on the screen${title ? ', with a long title' : ''}`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width, height: 800 })
     await openFreshConversation(page)
     // (The first message is the conversation's title.)
@@ -22,7 +24,9 @@ for (const [width, title] of [
     await expect(turns).toBeVisible()
     // the title is cut short: what was too long for the line gave way
     if (title) {
-      await expect.poll(() => page.locator('.topbar-title strong').evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true)
+      await expect
+        .poll(() => page.locator('.topbar-title strong').evaluate(el => el.scrollWidth > el.clientWidth))
+        .toBe(true)
       // (a long title never takes the bar to a second line)
       expect((await box(page.locator('.topbar'))).height).toBe(52)
     }

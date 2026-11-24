@@ -58,11 +58,16 @@ NOT_CHECKED = "nothing was checked"
 # step of candidates runs one round: nothing reaches a target, and no later round beats the first
 # pick with no score to compare (`advance`), up to its loop's rounds of agents spent for nothing.
 NO_MEASURE = "no measure command"
-ONE_ROUND = ("No measure command: one round only - set one in Settings › This project › Checks "
-             "and git to let the candidates try again until the target.")
+ONE_ROUND = (
+    "No measure command: one round only - set one in Settings › This project › Checks "
+    "and git to let the candidates try again until the target."
+)
 # Why the team's experts' step is passed, nobody there to fill it (`_ahead`): by which it takes.
-NO_EXPERT = {"learned": "no expert has learned yet", "stale": "no expert's guide is to be learned",
-             "all": "the team has no expert"}
+NO_EXPERT = {
+    "learned": "no expert has learned yet",
+    "stale": "no expert's guide is to be learned",
+    "all": "the team has no expert",
+}
 
 # The roles that may fill a step's slots, one tuple a slot, from the step (the caller reads them).
 Slots = Callable[[RecipeStep], list[tuple[str, ...]]]
@@ -71,8 +76,10 @@ Slots = Callable[[RecipeStep], list[tuple[str, ...]]]
 def slot_map(graph: RecipeGraph, who: Slots) -> dict[str, list[list]]:
     """Each part's slots, as [the step it is of, its roles], from the roles there are now."""
     parts = {part_of(graph, step.id) for step in graph.steps}
-    return {part: [[step.id, list(roles)] for step in steps_of(graph, part) for roles in who(step)]
-            for part in parts}
+    return {
+        part: [[step.id, list(roles)] for step in steps_of(graph, part) for roles in who(step)]
+        for part in parts
+    }
 
 
 def begin(graph: RecipeGraph, run_id: str, name: str, who: Slots) -> dict:
@@ -82,11 +89,21 @@ def begin(graph: RecipeGraph, run_id: str, name: str, who: Slots) -> dict:
     slots = slot_map(graph, who)
     passed, at = _ahead(graph, slots, START)
     end = next((e for e in graph.ends if e.id == at), None)
-    return {"run_id": run_id, "recipe": name, "graph": graph.model_dump(mode="json", by_alias=True),
-            "slots": slots, "at": at, "done": passed, "rounds": {}, "agents": [], "here": [],
-            "unmet": {part: _skipped(graph, slots, part, NO_PROBLEM) for part in passed},
-            "status": RUNNING if end is None else READY if end.then == "in" else DONE,
-            "why": None, "ended_ready": False}
+    return {
+        "run_id": run_id,
+        "recipe": name,
+        "graph": graph.model_dump(mode="json", by_alias=True),
+        "slots": slots,
+        "at": at,
+        "done": passed,
+        "rounds": {},
+        "agents": [],
+        "here": [],
+        "unmet": {part: _skipped(graph, slots, part, NO_PROBLEM) for part in passed},
+        "status": RUNNING if end is None else READY if end.then == "in" else DONE,
+        "why": None,
+        "ended_ready": False,
+    }
 
 
 def graph_of(state: dict) -> RecipeGraph:
@@ -96,8 +113,11 @@ def graph_of(state: dict) -> RecipeGraph:
 def _next(graph: RecipeGraph, at: str) -> str:
     if (fork := _fork(graph, at)) is not None:
         return fork[1]
-    return f"{at}+" if at in forks(graph) else next(
-        arrow.to for arrow in graph.arrows if arrow.from_ == at)
+    return (
+        f"{at}+"
+        if at in forks(graph)
+        else next(arrow.to for arrow in graph.arrows if arrow.from_ == at)
+    )
 
 
 def ways(graph: RecipeGraph) -> dict[str, list[tuple[list[str], str]]]:
@@ -132,9 +152,10 @@ def forks(graph: RecipeGraph) -> dict[str, tuple[list[list[str]], str]]:
     found = {}
     for at, lines in ways(graph).items():
         join = lines[0][1]
-        if all(stop == join and line and (
-                line[0] in groups and len(line) == 1 or set(line) <= plain) for line, stop in lines
-               ) and sum(a.to == join for a in graph.arrows) == len(lines):
+        if all(
+            stop == join and line and (line[0] in groups and len(line) == 1 or set(line) <= plain)
+            for line, stop in lines
+        ) and sum(a.to == join for a in graph.arrows) == len(lines):
             found[at] = ([line for line, _stop in lines], join)
     return found
 
@@ -182,13 +203,17 @@ def fixed_next(state: dict) -> bool:
     """Whether its part goes on to one that runs only if a problem was found: its review is
     told every failing test is a finding (`AgentRunner._found`)."""
     graph = graph_of(state)
-    to = _next(graph, state["at"]) if _fork(graph, state["at"]) else next(
-        (a.to for a in graph.arrows if a.from_ == state["at"]), None)
+    to = (
+        _next(graph, state["at"])
+        if _fork(graph, state["at"])
+        else next((a.to for a in graph.arrows if a.from_ == state["at"]), None)
+    )
     return to is not None and _if_found(graph, to)
 
 
-def _ahead(graph: RecipeGraph, slots: dict[str, list[list]], at: str,
-           found: bool = False) -> tuple[list[str], str]:
+def _ahead(
+    graph: RecipeGraph, slots: dict[str, list[list]], at: str, found: bool = False
+) -> tuple[list[str], str]:
     """The parts after `at` passed - for having no slot at all (K-uzman's experts' step, where
     the team has none or none is to learn), or as one that runs only if the part before it found
     a problem where it found none (`found`: `at` did; a part passed found none) - and the part it
@@ -206,15 +231,22 @@ def part_of(graph: RecipeGraph, at: str) -> str:
     it is on a way of."""
     step = next((s for s in graph.steps if s.id == at), None)
     part = step.group if step is not None and step.group else at
-    return next((f"{fork}+" for fork, (lines, _join) in forks(graph).items()
-                 if any(part in line for line in lines)), part)
+    return next(
+        (
+            f"{fork}+"
+            for fork, (lines, _join) in forks(graph).items()
+            if any(part in line for line in lines)
+        ),
+        part,
+    )
 
 
 def goes_round(state: dict) -> bool:
     """Whether the part at work loops back to itself (a step of candidates' rounds)."""
     graph, at = graph_of(state), state["at"]
-    return any(part_of(graph, one.from_) == at and part_of(graph, one.to) == at
-               for one in graph.loops)
+    return any(
+        part_of(graph, one.from_) == at and part_of(graph, one.to) == at for one in graph.loops
+    )
 
 
 def steps_of(graph: RecipeGraph, part: str) -> list[RecipeStep]:
@@ -227,10 +259,16 @@ def _inner(graph: RecipeGraph) -> dict[str, str]:
     """K-tarif-kol: a group's arrows between its own steps, each step to the next of its branch -
     and a fork's between the steps of a way (B-375)."""
     group = {s.id: s.group for s in graph.steps if s.group}
-    return {a.from_: a.to for a in graph.arrows
-            if a.from_ in group and group[a.from_] == group.get(a.to)} | {
-        one: after for lines, _join in forks(graph).values() for line in lines
-        for one, after in zip(line, line[1:], strict=False)}
+    return {
+        a.from_: a.to
+        for a in graph.arrows
+        if a.from_ in group and group[a.from_] == group.get(a.to)
+    } | {
+        one: after
+        for lines, _join in forks(graph).values()
+        for line in lines
+        for one, after in zip(line, line[1:], strict=False)
+    }
 
 
 def branches(graph: RecipeGraph, part: str) -> list[list[str]]:
@@ -253,18 +291,23 @@ def _filled(state: dict, step_id: str) -> bool:
     return all(e["ok"] is not None for e in here) and all(
         any(e["slot"] == i and e["ok"] for e in here)
         for i, (step, _roles) in enumerate(state["slots"].get(state["at"], []))
-        if step == step_id and i not in out)
+        if step == step_id and i not in out
+    )
 
 
-def _done(state: dict, graph: RecipeGraph, step_id: str, seen: frozenset[str] = frozenset()
-          ) -> bool:
+def _done(
+    state: dict, graph: RecipeGraph, step_id: str, seen: frozenset[str] = frozenset()
+) -> bool:
     """A step of its part is done: filled, its candidates picked (K-evrim), and so is the step
     before it in its branch. (Arrows that go round, which `problems` refuses, are done never.)"""
     before = next((a for a, b in _inner(graph).items() if b == step_id), None)
     who = next(s.who for s in graph.steps if s.id == step_id)
-    return step_id not in seen and (
-        before is None or _done(state, graph, before, seen | {step_id})) and _filled(
-        state, step_id) and (not isinstance(who, WhoCandidates) or bool(state.get("picked")))
+    return (
+        step_id not in seen
+        and (before is None or _done(state, graph, before, seen | {step_id}))
+        and _filled(state, step_id)
+        and (not isinstance(who, WhoCandidates) or bool(state.get("picked")))
+    )
 
 
 def _open(state: dict, graph: RecipeGraph) -> set[int]:
@@ -274,8 +317,11 @@ def _open(state: dict, graph: RecipeGraph) -> set[int]:
     opened by KOLONİ as the one before ends - `follows` - so a branch never waits for the step
     beside it. A CLI's Lead hears each as it ends, and opens it itself.)"""
     before, gone = {b: a for a, b in _inner(graph).items()}, lost(state)
-    return {i for i, (step, _roles) in enumerate(state["slots"].get(state["at"], []))
-            if step not in gone and (step not in before or _done(state, graph, before[step]))}
+    return {
+        i
+        for i, (step, _roles) in enumerate(state["slots"].get(state["at"], []))
+        if step not in gone and (step not in before or _done(state, graph, before[step]))
+    }
 
 
 def follows(state: dict, step_id: str) -> list[tuple[str, str, int]]:
@@ -294,11 +340,20 @@ def follows(state: dict, step_id: str) -> list[tuple[str, str, int]]:
     at, now, step = state["at"], _open(state, graph), next(s for s in graph.steps if s.id == to)
     off, out = _kept_off(state, graph, at), state.get("left_out", {}).get(at, ())
     held = {e["slot"] for e in at_work(state) if e["ok"] is not False}
-    return [(roles[0], step.name, _draws(graph, to, roles) if isinstance(
-                step.who, WhoCandidates) else 1)
-            for i, (one, roles) in enumerate(state["slots"].get(at, []))
-            if one == to and i in now and i not in held and i not in out and len(roles) == 1
-            and _fits(off, [one, roles], roles[0])]
+    return [
+        (
+            roles[0],
+            step.name,
+            _draws(graph, to, roles) if isinstance(step.who, WhoCandidates) else 1,
+        )
+        for i, (one, roles) in enumerate(state["slots"].get(at, []))
+        if one == to
+        and i in now
+        and i not in held
+        and i not in out
+        and len(roles) == 1
+        and _fits(off, [one, roles], roles[0])
+    ]
 
 
 def still_follows(state: dict, step_id: str, role: str) -> bool:
@@ -323,10 +378,16 @@ def lead_picks(state: dict) -> list[str]:
     now, out = _open(state, graph), state.get("left_out", {}).get(at, ())
     held = {e["slot"] for e in at_work(state) if e["ok"] is not False}
     groups = {g.id: f"{g.name}: " for g in graph.groups}
-    names = {s.id: groups.get(s.group or "", "") + s.name
-             for s in graph.steps if isinstance(s.who, WhoLead)}
-    return [names[one] for i, (one, _roles) in enumerate(state["slots"].get(at, []))
-            if one in names and i in now and i not in held and i not in out]
+    names = {
+        s.id: groups.get(s.group or "", "") + s.name
+        for s in graph.steps
+        if isinstance(s.who, WhoLead)
+    }
+    return [
+        names[one]
+        for i, (one, _roles) in enumerate(state["slots"].get(at, []))
+        if one in names and i in now and i not in held and i not in out
+    ]
 
 
 def _won(state: dict, graph: RecipeGraph, race: str) -> list[str] | None:
@@ -337,9 +398,15 @@ def _won(state: dict, graph: RecipeGraph, race: str) -> list[str] | None:
     if (kept := state.get("won", {}).get(race)) and _done(state, graph, kept[-1]):
         return kept
     out, held = state.get("left_out", {}).get(state["at"], ()), state["slots"].get(state["at"], [])
-    line = next((line for line in branches(graph, race) if _done(state, graph, line[-1])
-                 and any(step in line and i not in out for i, (step, _r) in enumerate(held))),
-                None)
+    line = next(
+        (
+            line
+            for line in branches(graph, race)
+            if _done(state, graph, line[-1])
+            and any(step in line and i not in out for i, (step, _r) in enumerate(held))
+        ),
+        None,
+    )
     if line is not None:
         state.setdefault("won", {})[race] = line
     return line
@@ -349,30 +416,47 @@ def gives_up(state: dict, step_id: str) -> bool:
     """A "first" group's step failed while another of its branches may still be done first: its
     branch is only out of the race, nobody asked. Once none is left, its If it fails holds."""
     graph = graph_of(state)
-    race = next((one for one in races(graph, state["at"])
-                 if any(s.id == step_id for s in steps_of(graph, one))), None)
+    race = next(
+        (
+            one
+            for one in races(graph, state["at"])
+            if any(s.id == step_id for s in steps_of(graph, one))
+        ),
+        None,
+    )
     if race is None:
         return False
     here, held = at_work(state), state["slots"].get(state["at"], [])
     left = state.get("left_out", {}).get(state["at"], ())
 
     def out(line: list[str]) -> bool:  # (a step of it failed, its place filled by none)
-        return any(e["ok"] is False and e["step"] in line and not any(
-            o["ok"] and o["slot"] == e["slot"] for o in here) for e in here)
+        return any(
+            e["ok"] is False
+            and e["step"] in line
+            and not any(o["ok"] and o["slot"] == e["slot"] for o in here)
+            for e in here
+        )
 
     lines = branches(graph, race)
     return any(step_id in line and out(line) for line in lines) and any(
-        step_id not in line and not out(line) and any(
-            step in line and i not in left for i, (step, _r) in enumerate(held))
-        for line in lines)
+        step_id not in line
+        and not out(line)
+        and any(step in line and i not in left for i, (step, _r) in enumerate(held))
+        for line in lines
+    )
 
 
 def lost(state: dict) -> set[str]:
     """The steps of its part another branch of a "first" group was done before: their agents are
     stopped, and what they report counts for nothing."""
     graph = graph_of(state)
-    return {s.id for race in races(graph, state["at"]) if (won := _won(state, graph, race))
-            for s in steps_of(graph, race) if s.id not in won}
+    return {
+        s.id
+        for race in races(graph, state["at"])
+        if (won := _won(state, graph, race))
+        for s in steps_of(graph, race)
+        if s.id not in won
+    }
 
 
 def outrun(state: dict) -> list[str]:
@@ -391,13 +475,28 @@ def branch_strip(state: dict, graph: RecipeGraph, part: str, shown: str) -> list
     if shown == "done":
         if not stopped:
             return None  # ("Checks ✓" says it all)
-        return [[{"name": names[s], "state": "stopped" if s in stopped else "done"} for s in line]
-                for line in branches(graph, part)]
+        return [
+            [{"name": names[s], "state": "stopped" if s in stopped else "done"} for s in line]
+            for line in branches(graph, part)
+        ]
     gone, held = lost(state), state["slots"].get(part, [])
     now = {held[i][0] for i in _open(state, graph)}
-    return [[{"name": names[s], "state": "done" if _done(state, graph, s) else "stopped"
-              if s in gone else "now" if s in now else "next"} for s in line]
-            for line in branches(graph, part)]
+    return [
+        [
+            {
+                "name": names[s],
+                "state": "done"
+                if _done(state, graph, s)
+                else "stopped"
+                if s in gone
+                else "now"
+                if s in now
+                else "next",
+            }
+            for s in line
+        ]
+        for line in branches(graph, part)
+    ]
 
 
 def name_of(graph: RecipeGraph, part: str) -> str:
@@ -422,7 +521,7 @@ def _reviews(graph: RecipeGraph, part: str) -> set[str]:
 def _before(graph: RecipeGraph, part: str) -> list[str]:
     """The parts on the way (`strip`) strictly before this one."""
     way = strip(graph)
-    return way[:way.index(part)] if part in way else []
+    return way[: way.index(part)] if part in way else []
 
 
 def _kept_off(state: dict, graph: RecipeGraph, part: str) -> tuple[set[str], set[str]]:
@@ -430,9 +529,14 @@ def _kept_off(state: dict, graph: RecipeGraph, part: str) -> tuple[set[str], set
     which passes as a whole, its other members checking, nor one the user let its writer
     check (`checks`) - and the roles (casefolded) that did a part before it on the way."""
     wrote, own = state.get("wrote", {}), state.get("own", ())
-    return ({s.id for s in steps_of(graph, part) if s.done_when == "no_findings"
-             and not isinstance(s.who, WhoRoom) and s.id not in own},
-            {role for one in _before(graph, part) for role in wrote.get(one, ())})
+    return (
+        {
+            s.id
+            for s in steps_of(graph, part)
+            if s.done_when == "no_findings" and not isinstance(s.who, WhoRoom) and s.id not in own
+        },
+        {role for one in _before(graph, part) for role in wrote.get(one, ())},
+    )
 
 
 def _fits(off: tuple[set[str], set[str]], slot: list, role: str) -> bool:
@@ -440,7 +544,8 @@ def _fits(off: tuple[set[str], set[str]], slot: list, role: str) -> bool:
     the work before it (`_kept_off`)."""
     (step, roles), (reviews, wrote) = slot, off
     return role.casefold() in {r.casefold() for r in roles} and not (
-        step in reviews and role.casefold() in wrote)
+        step in reviews and role.casefold() in wrote
+    )
 
 
 def ahead(state: dict) -> dict:
@@ -462,8 +567,11 @@ def unchecked(state: dict) -> list[tuple[int, str, list[str]]]:
     if state["status"] != RUNNING:
         return []
     off = _kept_off(state, graph_of(state), at)
-    return [(i, step, roles) for i, (step, roles) in enumerate(state["slots"].get(at, []))
-            if step in off[0] and roles and not any(_fits(off, [step, roles], r) for r in roles)]
+    return [
+        (i, step, roles)
+        for i, (step, roles) in enumerate(state["slots"].get(at, []))
+        if step in off[0] and roles and not any(_fits(off, [step, roles], r) for r in roles)
+    ]
 
 
 def checks(state: dict, part: str, slot: int, role: str | None) -> None:
@@ -487,13 +595,23 @@ def own_checks(graph: RecipeGraph) -> list[tuple[str, str]]:
         # the Lead or a team fills there is not; count a branch's writers there if that is met.
         earlier = {line[i]: line[:i] for line in branches(graph, part) for i in range(len(line))}
         for step in steps_of(graph, part):
-            writers = {role.casefold(): one.name for one in before + [
-                s for s in graph.steps if s.id in earlier.get(step.id, ())]
-                if one.done_when != "no_findings" and (role := role_of(one))}
-            if step.done_when == "no_findings" and isinstance(step.who, WhoRole) and (
-                    step.who.role.casefold() in writers):
-                found.append((step.id, f"{step.name}: {step.who.role} would check its own work "
-                                       f"({writers[step.who.role.casefold()]})"))
+            writers = {
+                role.casefold(): one.name
+                for one in before + [s for s in graph.steps if s.id in earlier.get(step.id, ())]
+                if one.done_when != "no_findings" and (role := role_of(one))
+            }
+            if (
+                step.done_when == "no_findings"
+                and isinstance(step.who, WhoRole)
+                and (step.who.role.casefold() in writers)
+            ):
+                found.append(
+                    (
+                        step.id,
+                        f"{step.name}: {step.who.role} would check its own work "
+                        f"({writers[step.who.role.casefold()]})",
+                    )
+                )
     return found
 
 
@@ -508,15 +626,30 @@ def conditions(graph: RecipeGraph) -> list[tuple[str, str]]:
             continue
         before = _before(graph, step.id)[-1:]
         if part_of(graph, step.id) != step.id:  # (in a group, or on a fork's way)
-            found.append((step.id, f"{step.name}: a step that runs only if a problem was found "
-                                   "is on its own, not at once with other steps"))
+            found.append(
+                (
+                    step.id,
+                    f"{step.name}: a step that runs only if a problem was found "
+                    "is on its own, not at once with other steps",
+                )
+            )
         elif not before or not _reviews(graph, before[0]):
-            found.append((step.id, f"{step.name} runs only if the step before found a problem, "
-                                   "but that is no review (Done when: no finding is left)"))
+            found.append(
+                (
+                    step.id,
+                    f"{step.name} runs only if the step before found a problem, "
+                    "but that is no review (Done when: no finding is left)",
+                )
+            )
         elif any(part_of(graph, loop.from_) == before[0] for loop in graph.loops):
-            found.append((step.id, f"{step.name} runs only if the step before found a problem, "
-                                   f"but {name_of(graph, before[0])} loops back with what it "
-                                   "finds; keep the loop or the condition"))
+            found.append(
+                (
+                    step.id,
+                    f"{step.name} runs only if the step before found a problem, "
+                    f"but {name_of(graph, before[0])} loops back with what it "
+                    "finds; keep the loop or the condition",
+                )
+            )
     return found
 
 
@@ -524,8 +657,11 @@ def open_to(state: dict) -> list[str]:
     """Its part's roles, by name, that its agents may be opened in now (`_fits`)."""
     off = _kept_off(state, graph_of(state), state["at"])
     held, now = state["slots"].get(state["at"], []), _open(state, graph_of(state))
-    return [role for role in roles_at(state, state["at"]) if any(
-        _fits(off, slot, role) for i, slot in enumerate(held) if i in now)]
+    return [
+        role
+        for role in roles_at(state, state["at"])
+        if any(_fits(off, slot, role) for i, slot in enumerate(held) if i in now)
+    ]
 
 
 def allowed(state: dict) -> set[str]:
@@ -541,8 +677,12 @@ def _free(state: dict, role: str) -> tuple[list[int], list[int]]:
     graph, at = graph_of(state), state["at"]
     held, off, now = state["slots"][at], _kept_off(state, graph, at), _open(state, graph)
     mine = [i for i, slot in enumerate(held) if i in now and _fits(off, slot, role)]
-    return mine, [i for i in mine if sum(e["slot"] == i and e["ok"] is not False
-                                         for e in at_work(state)) < _draws(graph, *held[i])]
+    return mine, [
+        i
+        for i in mine
+        if sum(e["slot"] == i and e["ok"] is not False for e in at_work(state))
+        < _draws(graph, *held[i])
+    ]
 
 
 def _draws(graph: RecipeGraph, step_id: str, roles: list[str]) -> int:
@@ -550,24 +690,40 @@ def _draws(graph: RecipeGraph, step_id: str, roles: list[str]) -> int:
     (K-rol-cogul: none if the role is off), and so a step of candidates (K-evrim); else one of
     each of its roles."""
     who = next(s.who for s in graph.steps if s.id == step_id)
-    return 1 if isinstance(who, WhoLead) else len(roles) * (
-        (who.most or 1) if isinstance(who, WhoRole | WhoCandidates) else 1)
+    return (
+        1
+        if isinstance(who, WhoLead)
+        else len(roles) * ((who.most or 1) if isinstance(who, WhoRole | WhoCandidates) else 1)
+    )
 
 
 def role_of(step: RecipeStep) -> str | None:
     """The one role a step names: a role's step's, or its candidates' (K-evrim)."""
     who = step.who
-    return who.role if isinstance(who, WhoRole) else who.candidates if isinstance(
-        who, WhoCandidates) else None
+    return (
+        who.role
+        if isinstance(who, WhoRole)
+        else who.candidates
+        if isinstance(who, WhoCandidates)
+        else None
+    )
 
 
 def pick_due(state: dict) -> RecipeStep | None:
     """K-evrim: its part's step of candidates (one a part: `problems`) whose agents all ended
     and that is not picked yet - in a branch, before the step after it opens; None: none such."""
-    step = next((s for s in steps_of(graph_of(state), state["at"])
-                 if isinstance(s.who, WhoCandidates)), None)
-    return step if step is not None and not state.get("picked") and step.id not in lost(
-        state) and _filled(state, step.id) else None
+    step = next(
+        (s for s in steps_of(graph_of(state), state["at"]) if isinstance(s.who, WhoCandidates)),
+        None,
+    )
+    return (
+        step
+        if step is not None
+        and not state.get("picked")
+        and step.id not in lost(state)
+        and _filled(state, step.id)
+        else None
+    )
 
 
 def has_room(state: dict, role: str) -> bool:
@@ -589,9 +745,15 @@ def beside(state: dict, role: str) -> list[tuple[str, str]]:
     off, names = _kept_off(state, graph, at), {s.id: s.name for s in graph.steps}
     held = {e["slot"] for e in at_work(state) if e["ok"] is not False}
     now = _open(state, graph)
-    return [(roles[0], names[step]) for i, (step, roles) in enumerate(state["slots"][at])
-            if i != free[0] and i not in held and i in now and len(roles) == 1
-            and _fits(off, [step, roles], roles[0])]
+    return [
+        (roles[0], names[step])
+        for i, (step, roles) in enumerate(state["slots"][at])
+        if i != free[0]
+        and i not in held
+        and i in now
+        and len(roles) == 1
+        and _fits(off, [step, roles], roles[0])
+    ]
 
 
 def fills(state: dict, role: str) -> str | None:
@@ -622,8 +784,16 @@ def opened(state: dict, agent_id: str, role: str) -> dict:
     mine, free = _free(state, role)
     at = (free or mine)[0]
     state["agents"].append(agent_id)
-    state["here"].append(entry := {"agent": agent_id, "slot": at, "step": held[at][0],
-                                   "role": role, "ok": None, "found": False})
+    state["here"].append(
+        entry := {
+            "agent": agent_id,
+            "slot": at,
+            "step": held[at][0],
+            "role": role,
+            "ok": None,
+            "found": False,
+        }
+    )
     # The canvas draws its work line by these: each time the run came to a part, who it opened -
     # a round of a loop to itself (K-evrim's candidates) a pass of its own, to fold (B-391).
     # shortcut: a part run again right after itself (Ask for changes) adds to its last pass - but
@@ -633,6 +803,16 @@ def opened(state: dict, agent_id: str, role: str) -> dict:
         passes.append({"part": state["at"], "agents": [], "round": round_})
     passes[-1]["agents"].append(agent_id)
     return entry
+
+
+def feeds(state: dict, agent_id: str) -> bool:
+    """Whether `agent_id` worked at a part with an arrow on to the part that runs now - the
+    recipe's handoff (Reproduce it → Fix it). A loop back is no arrow: a review's findings go
+    back by their own way. (`passes`: where each agent worked, `opened`.)
+    shortcut: plain arrows only - a fork's way (`x+`) is not followed, so a step past one hands on
+    its blocking findings alone (B-192); follow `ways` if a handoff over a fork is missed."""
+    parts = {one["part"] for one in state.get("passes", []) if agent_id in one["agents"]}
+    return any(a.from_ in parts and a.to == state["at"] for a in graph_of(state).arrows)
 
 
 def at_work(state: dict) -> list[dict]:
@@ -652,11 +832,21 @@ def complete(state: dict) -> bool:
     out = state.get("left_out", {}).get(state["at"], ())
     # K-tarif-kol: a "first" group, by its branch done first - once the others stopped; and not
     # while its candidates wait for their pick.
-    raced = {s.id for race in races(graph, state["at"]) if _won(state, graph, race) is not None
-             for s in steps_of(graph, race)}
-    return all(e["ok"] is not None for e in here) and pick_due(state) is None and all(
-        held[i][0] in raced or any(e["slot"] == i and e["ok"] for e in here)
-        for i in range(len(held)) if i not in out)
+    raced = {
+        s.id
+        for race in races(graph, state["at"])
+        if _won(state, graph, race) is not None
+        for s in steps_of(graph, race)
+    }
+    return (
+        all(e["ok"] is not None for e in here)
+        and pick_due(state) is None
+        and all(
+            held[i][0] in raced or any(e["slot"] == i and e["ok"] for e in here)
+            for i in range(len(held))
+            if i not in out
+        )
+    )
 
 
 def in_group(state: dict) -> bool:
@@ -673,8 +863,9 @@ def narrow(state: dict, chosen: frozenset[str]) -> None:
     if not chosen or not in_group(state):
         return
     held = state["slots"][at]
-    out = [i for i, (_step, roles) in enumerate(held)
-           if not any(r.casefold() in chosen for r in roles)]
+    out = [
+        i for i, (_step, roles) in enumerate(held) if not any(r.casefold() in chosen for r in roles)
+    ]
     if len(out) < len(held):
         state.setdefault("left_out", {})[at] = out
 
@@ -722,117 +913,186 @@ def advance(state: dict) -> str:
     picked = state.get("scores", {}).get(state.pop("picked", None) or "") or {}
     won, unmeasured = picked.get("score"), picked.get("why") == NO_MEASURE
     rounds = who is not None and loop is not None and part_of(graph, loop.to) == at
-    again = rounds and not unmeasured and (
-        who.target is None or won is None or won < who.target)
+    again = rounds and not unmeasured and (who.target is None or won is None or won < who.target)
     wrote = state.setdefault("wrote", {})
     # (An expert changes nothing: having learned keeps it from no check of the work.)
     experts = {s.id for s in graph.steps if isinstance(s.who, WhoExperts)}
-    wrote[at] = sorted(set(wrote.get(at, ())) | {
-        e["role"].casefold() for e in at_work(state) if e["ok"] and e.get("role")
-        and e["step"] not in reviews and e["step"] not in experts})
+    wrote[at] = sorted(
+        set(wrote.get(at, ()))
+        | {
+            e["role"].casefold()
+            for e in at_work(state)
+            if e["ok"] and e.get("role") and e["step"] not in reviews and e["step"] not in experts
+        }
+    )
     # B-190: a step's agent changed a file (`AgentRunner._after_step`): the end is Take in.
     state["changed"] = state.get("changed", False) or any(e.get("changed") for e in at_work(state))
     state["here"] = []
     # A step that ran as the part before found a problem fixed it: its loop goes back to check.
     # (One that is a review and found nothing goes on.)
     fixed = not found and _if_found(graph, at) and not reviews
-    if (found or fixed or again) and loop is not None and state["rounds"].get(at, 0) < (
-            loop.rounds or 0):
+    if (
+        (found or fixed or again)
+        and loop is not None
+        and state["rounds"].get(at, 0) < (loop.rounds or 0)
+    ):
         back = part_of(graph, loop.to)
         state["rounds"][at] = state["rounds"].get(at, 0) + 1
         if found:
             state["sent_back"] = at  # (the loop that did: `found_left`)
         if back in state["done"]:
-            state["done"] = state["done"][:state["done"].index(back)]
+            state["done"] = state["done"][: state["done"].index(back)]
         state["at"] = back
         _reached(state)
         if fixed:
-            return (f"Fixed: back to {name_of(graph, back)}, round {state['rounds'][at]} of "
-                    f"{loop.rounds}, to check it again - open {' or '.join(open_to(state))}.")
+            return (
+                f"Fixed: back to {name_of(graph, back)}, round {state['rounds'][at]} of "
+                f"{loop.rounds}, to check it again - open {' or '.join(open_to(state))}."
+            )
         if again and who is not None:
-            below = ("no target" if who.target is None else "no score" if won is None
-                     else f"{won:g} below {who.target}")
-            return (f"Round {state['rounds'][at] + 1} of {(loop.rounds or 0) + 1} ({below}): open "
-                    f"{who.candidates} ×{who.most} again - they start from the picked one's "
-                    "copy and read KOLONİ's round note.")
+            below = (
+                "no target"
+                if who.target is None
+                else "no score"
+                if won is None
+                else f"{won:g} below {who.target}"
+            )
+            return (
+                f"Round {state['rounds'][at] + 1} of {(loop.rounds or 0) + 1} ({below}): open "
+                f"{who.candidates} ×{who.most} again - they start from the picked one's "
+                "copy and read KOLONİ's round note."
+            )
         # (B-117: a role the step does not name, one a finding names, is refused there.)
-        return (f"Findings are left: back to {name_of(graph, back)}, round "
-                f"{state['rounds'][at]} of {loop.rounds}. Hand them to "
-                f"{' or '.join(open_to(state))} with findings_from - the step's roles take "
-                "them, whatever role a finding names.")
+        return (
+            f"Findings are left: back to {name_of(graph, back)}, round "
+            f"{state['rounds'][at]} of {loop.rounds}. Hand them to "
+            f"{' or '.join(open_to(state))} with findings_from - the step's roles take "
+            "them, whatever role a finding names."
+        )
     passed, to = _ahead(graph, state["slots"], at, found)
     end = next((e for e in graph.ends if e.id == to), None)
     # Findings left, and the next part is one that runs on them: it does - but not once its own
     # loop's rounds are spent, so that what it fixed last is checked (G1.2's end, below).
-    spent = next((one for one in graph.loops if part_of(graph, one.from_) == to
-                  and state["rounds"].get(to, 0) >= (one.rounds or 0)), None) if _if_found(
-        graph, to) else None
+    spent = (
+        next(
+            (
+                one
+                for one in graph.loops
+                if part_of(graph, one.from_) == to
+                and state["rounds"].get(to, 0) >= (one.rounds or 0)
+            ),
+            None,
+        )
+        if _if_found(graph, to)
+        else None
+    )
     fixes = found and _if_found(graph, to) and spent is None
     if found and end is None and not fixes:
         # G1.2: no round left (or no loop) with findings left - the work does not go on.
         stop, by = (spent, to) if spent else (loop, at)
         state["status"] = READY
-        state["why"] = (f"findings are left after {stop.rounds} round"
-                        f"{'' if stop.rounds == 1 else 's'} of {name_of(graph, by)}" if stop
-                        else f"findings are left after {name_of(graph, at)}")
-        return (f"The recipe stops here: {state['why']}. The user is asked what to do with "
-                "the work (Ready for you).")
+        state["why"] = (
+            f"findings are left after {stop.rounds} round"
+            f"{'' if stop.rounds == 1 else 's'} of {name_of(graph, by)}"
+            if stop
+            else f"findings are left after {name_of(graph, at)}"
+        )
+        return (
+            f"The recipe stops here: {state['why']}. The user is asked what to do with "
+            "the work (Ready for you)."
+        )
     state["done"] += [at, *passed]
     why = NOT_CHECKED if unchecked else NO_PROBLEM
     # B-177: one that ran in a round of this pass (its loop came back from it) is done, not
     # skipped - the Debugger that fixed the tests is not "no problem found" once they pass.
-    skipped = {part: _skipped(graph, state["slots"], part, why) for part in passed
-               if not state["rounds"].get(part)}
+    skipped = {
+        part: _skipped(graph, state["slots"], part, why)
+        for part in passed
+        if not state["rounds"].get(part)
+    }
     state["unmet"] = {**state.get("unmet", {}), **skipped}
     state["at"] = to
     out = left_out_of(state, at)
     _reached(state)
-    left = (" Findings are left: the user sees them." if found and not fixes else "") + (
-        # (K-evrim: its rounds over, the target not reached - the picked one's work goes on.)
-        f" Target {who.target} not reached ({won:g}): the picked one's work goes on."
-        if who is not None and who.target is not None and won is not None and won < who.target
-        else "") + (f" {ONE_ROUND}" if rounds and unmeasured else "") + (
-        f" Left out by the user's choice: {', '.join(out)}." if out else "") + "".join(
-        f" Skipped, {why}: {', '.join(name_of(graph, p) for p in skipped if skipped[p] == why)}."
-        for why in dict.fromkeys(skipped.values()))
+    left = (
+        (" Findings are left: the user sees them." if found and not fixes else "")
+        + (
+            # (K-evrim: its rounds over, the target not reached - the picked one's work goes on.)
+            f" Target {who.target} not reached ({won:g}): the picked one's work goes on."
+            if who is not None and who.target is not None and won is not None and won < who.target
+            else ""
+        )
+        + (f" {ONE_ROUND}" if rounds and unmeasured else "")
+        + (f" Left out by the user's choice: {', '.join(out)}." if out else "")
+        + "".join(
+            f" Skipped, {why}: "
+            f"{', '.join(name_of(graph, p) for p in skipped if skipped[p] == why)}."
+            for why in dict.fromkeys(skipped.values())
+        )
+    )
     if fixes:
-        hand = (f"Hand its findings to {' or '.join(open_to(state))} with findings_from."
-                if handed else f"Its report has no findings to hand on: give "
-                f"{' or '.join(open_to(state))} what it said in its task.")
-        return (f"Next: {name_of(graph, to)}, as {name_of(graph, at)} found a problem. "
-                f"{hand}{left}")
+        hand = (
+            f"Hand its findings to {' or '.join(open_to(state))} with findings_from."
+            if handed
+            else f"Its report has no findings to hand on: give "
+            f"{' or '.join(open_to(state))} what it said in its task."
+        )
+        return f"Next: {name_of(graph, to)}, as {name_of(graph, at)} found a problem. {hand}{left}"
     if end is None:
         # (B-191: by its roles - the Lead guessed the Coder, then asked the user.)
         # (An "all at once" group opens each of its roles. shortcut: one of its steps that
         # takes a choice of roles is said with "and" too.)
-        roles = (" and " if is_group(graph, state["at"]) else " or ").join(
-            open_to(state))
-        return f"Next: {name_of(graph, state['at'])}" + (
-            f" - open {roles}" if roles else "") + f".{left}"
+        roles = (" and " if is_group(graph, state["at"]) else " or ").join(open_to(state))
+        return (
+            f"Next: {name_of(graph, state['at'])}"
+            + (f" - open {roles}" if roles else "")
+            + f".{left}"
+        )
     # B-178: at a "report" end too, where a step that runs on a problem (Quality check's
     # Debugger) did work: its fix is the user's to take in, not a copy kept at the turn's end.
     # B-190: and where any step's agent changed a file (a Spec writer's docs/spec.md).
     # shortcut: a fix that changed no file is asked about all the same.
-    ready = end.then == "in" or state["changed"] or any(
-        roles and _if_found(graph, part) for part, roles in wrote.items())
+    ready = (
+        end.then == "in"
+        or state["changed"]
+        or any(roles and _if_found(graph, part) for part, roles in wrote.items())
+    )
     state["status"] = READY if ready else DONE
-    return ("The recipe is at its end: the user is asked to take the work in." if ready
-            else "The recipe is at its end: tell the user what was found.") + left
+    return (
+        "The recipe is at its end: the user is asked to take the work in."
+        if ready
+        else "The recipe is at its end: tell the user what was found."
+    ) + left
 
 
 def back_to(state: dict) -> str:
     """Where Ask for changes sends a run back to: the step its last loop goes back to, else
-    its first; its name. Its loops have their rounds again: the user's word is a new start -
-    and K-evrim's kept best too (B-370): work changed as asked is not measured against work
-    the user asked changes to. How many times it was sent back is kept (`asked`): its runner's
-    steps grow with it."""
-    graph = graph_of(state)
-    back = part_of(graph, graph.loops[-1].to) if graph.loops else _ahead(
-        graph, state["slots"], START)[1]
+    its first - but past a first step with the id "reproduce" that is done (T1: the ready
+    Bugfix's; its failing test showed the bug and stays - the fix is what goes again), unless
+    only its end is after it; its name. Its loops have their rounds again: the user's word is
+    a new start - and K-evrim's kept best too (B-370): work changed as asked is not measured
+    against work the user asked changes to. How many times it was sent back is kept (`asked`):
+    its runner's steps grow with it. KOLONİ's own fix round sends a run back this way too."""
+    graph, slots = graph_of(state), state["slots"]
+    if graph.loops:
+        back = part_of(graph, graph.loops[-1].to)
+    else:
+        back = _ahead(graph, slots, START)[1]
+        if back == "reproduce" and back in state["done"]:
+            after = _ahead(graph, slots, back)[1]
+            back = back if any(end.id == after for end in graph.ends) else after
     if back in state["done"]:
-        state["done"] = state["done"][:state["done"].index(back)]
-    state.update(status=RUNNING, at=back, here=[], skipped=[], why=None, rounds={},
-                 kept_best={}, asked=state.get("asked", 0) + 1)
+        state["done"] = state["done"][: state["done"].index(back)]
+    state.update(
+        status=RUNNING,
+        at=back,
+        here=[],
+        skipped=[],
+        why=None,
+        rounds={},
+        kept_best={},
+        asked=state.get("asked", 0) + 1,
+    )
     _reached(state)
     return name_of(graph, back)
 
@@ -843,14 +1103,24 @@ def carried(old: dict | None, recipe: tuple[str, RecipeGraph] | None) -> dict:
     ran again with them - {"carried": [the part, the words, its name]} - for that part when the
     new run is there (`words`); none where the drawing has no such part by that name now (the
     recipe changed since: an id may be another part's)."""
-    if not recipe or not old or old.get("recipe") != recipe[0] or old.get("status") not in (
-            STOPPED, WAITING):
+    if (
+        not recipe
+        or not old
+        or old.get("recipe") != recipe[0]
+        or old.get("status") not in (STOPPED, WAITING)
+    ):
         return {}  # (taken in, or another recipe: they were for that work)
-    kept = [old["at"], old["words"], name_of(graph_of(old), old["at"])] if old.get(
-        "words") else old.get("carried")
+    kept = (
+        [old["at"], old["words"], name_of(graph_of(old), old["at"])]
+        if old.get("words")
+        else old.get("carried")
+    )
     graph = recipe[1]
-    there = kept and kept[0] in {part_of(graph, step.id) for step in graph.steps} and (
-        name_of(graph, kept[0]) == kept[2])
+    there = (
+        kept
+        and kept[0] in {part_of(graph, step.id) for step in graph.steps}
+        and (name_of(graph, kept[0]) == kept[2])
+    )
     return {"carried": kept} if there else {}
 
 
@@ -865,13 +1135,23 @@ def found_left(state: dict) -> str | None:
     the round done yet - G1.2's end, not a rule broken (`skip`): what is said of it. None: not
     so."""
     graph, at, found = graph_of(state), state["at"], state.get("sent_back")
-    if not found or not state["rounds"].get(found) or any(e["ok"] for e in state["here"]) or (
-            not any(part_of(graph, one.from_) == found and part_of(graph, one.to) == at
-                    for one in graph.loops)):
+    if (
+        not found
+        or not state["rounds"].get(found)
+        or any(e["ok"] for e in state["here"])
+        or (
+            not any(
+                part_of(graph, one.from_) == found and part_of(graph, one.to) == at
+                for one in graph.loops
+            )
+        )
+    ):
         return None
     rounds = state["rounds"][found]
-    return (f"findings are left after {rounds} round{'' if rounds == 1 else 's'} of "
-            f"{name_of(graph, found)}")
+    return (
+        f"findings are left after {rounds} round{'' if rounds == 1 else 's'} of "
+        f"{name_of(graph, found)}"
+    )
 
 
 def skip(state: dict) -> str:
@@ -880,7 +1160,7 @@ def skip(state: dict) -> str:
     said of them: a rule broken."""
     graph = graph_of(state)
     way, ends = strip(graph), {end.id for end in graph.ends}
-    left = way[way.index(state["at"]):] if state["at"] in way else []
+    left = way[way.index(state["at"]) :] if state["at"] in way else []
     state["skipped"] = [part for part in left if part not in ends and part not in state["done"]]
     names = [name_of(graph, part) for part in state["skipped"]]
     return f"rule broken: {' and '.join(names)} {'was' if len(names) == 1 else 'were'} not done"
@@ -916,8 +1196,40 @@ def cap(graph: RecipeGraph, slots: dict[str, list[list]]) -> int:
     for loop in graph.loops:
         at, back = part_of(graph, loop.from_), part_of(graph, loop.to)
         if at in way and back in way:
-            total += (loop.rounds or 0) * sum(sizes[way.index(back):way.index(at) + 1])
+            total += (loop.rounds or 0) * sum(sizes[way.index(back) : way.index(at) + 1])
     return total
+
+
+def least(graph: RecipeGraph, slots: dict[str, list[list]]) -> int:
+    """The fewest agents a run's steps open, as it is drawn: along its way where no review finds
+    a problem - no loop goes back, a step that runs only on a problem is passed, and so is one
+    with no slot (`_ahead`) - a role's step one agent each slot (its `most` is "up to"), any
+    other as it draws (`size`).
+    shortcut: a "first" group is counted whole, though its lost branches' later steps may never
+    open; count its branches' first steps if such groups are drawn often."""
+    who = {step.id: step.who for step in graph.steps}
+    ends, seen, total = {end.id for end in graph.ends}, set(), 0
+    at = _ahead(graph, slots, START)[1]
+    while at not in ends and at not in seen:
+        seen.add(at)
+        total += sum(
+            len(roles) if isinstance(who[step], WhoRole) else _draws(graph, step, roles)
+            for step, roles in slots.get(at, [])
+        )
+        at = _ahead(graph, slots, at)[1]
+    return total
+
+
+def drawn(step: RecipeStep) -> list[tuple[str, ...]]:
+    """A step's slots from the drawing alone, as no chat has picked its team yet (the recipes'
+    list, `RecipeOut.agents`): a room's a slot for each of its roles, any other step one.
+    shortcut: a role switched off is counted, and a team's experts or stages count one slot -
+    read them as a run does (`AgentRunner._slots_of`) if the list's numbers are seen to mislead."""
+    return (
+        [(name,) for name in step.who.room]
+        if isinstance(step.who, WhoRoom)
+        else [(role_of(step) or "",)]
+    )
 
 
 def room_at(graph: RecipeGraph, part: str) -> RecipeStep | None:
@@ -931,6 +1243,10 @@ def round_at(state: dict, graph: RecipeGraph, part: str) -> int:
     way = strip(graph)
     if part not in way:
         return 0
-    return sum(state["rounds"].get(at, 0) for one in graph.loops
-               if (at := part_of(graph, one.from_)) in way and (back := part_of(graph, one.to))
-               in way and way.index(back) <= way.index(part) <= way.index(at))
+    return sum(
+        state["rounds"].get(at, 0)
+        for one in graph.loops
+        if (at := part_of(graph, one.from_)) in way
+        and (back := part_of(graph, one.to)) in way
+        and way.index(back) <= way.index(part) <= way.index(at)
+    )

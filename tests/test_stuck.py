@@ -14,14 +14,19 @@ def test_a_stalled_turn_says_who_stands_where_and_what_it_waits_on(
     make_client, wait_run, project_dir
 ):
     a = Gate()
-    client, model = make_client({
-        "Lead": [spawn("Coder", "do A"), text("done")],
-        "Coder": [step(call("list_dir", {}, "l1")), a.step(text("Looked."), partial="Lo")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [spawn("Coder", "do A"), text("done")],
+            "Coder": [step(call("list_dir", {}, "l1")), a.step(text("Looked."), partial="Lo")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     a.wait_partial()
-    snap = until(client, cid, lambda s: any(
-        m["status"] == "streaming" and m["content"] for m in s["messages"]))
+    snap = until(
+        client,
+        cid,
+        lambda s: any(m["status"] == "streaming" and m["content"] for m in s["messages"]),
+    )
     said = _stuck(snap)
     a.release()
     wait_run(client, cid, run_id)
@@ -29,7 +34,7 @@ def test_a_stalled_turn_says_who_stands_where_and_what_it_waits_on(
     assert lines[0] == "the run did not finish in time. Turn: running."
     assert lines[1:4] == [
         "Agents:",
-        '- Lead (Lead role, Local · fake-model): waiting; last tool call: spawn_agent '
+        "- Lead (Lead role, Local · fake-model): waiting; last tool call: spawn_agent "
         '{"role": "Coder", "task": "do A"} - running',
         "- Coder (Coder role, Local · fake-model): running; last tool call: list_dir {} - "
         "succeeded",
@@ -42,22 +47,33 @@ def test_a_stalled_turn_says_who_stands_where_and_what_it_waits_on(
 
 
 def test_a_turn_waiting_for_the_user_says_for_what(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [step(
-            call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1"),
-            call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s2"),
-        ), text("done")],
-        "Coder": [text("A done")],
-        "Reviewer": [step(call("ask_user", {"question": "Strict or lenient?"}, "q")),
-                     text("looked")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1"),
+                    call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s2"),
+                ),
+                text("done"),
+            ],
+            "Coder": [text("A done")],
+            "Reviewer": [
+                step(call("ask_user", {"question": "Strict or lenient?"}, "q")),
+                text("looked"),
+            ],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="ask")
     snap = until(client, cid, lambda s: s["questions"] and statuses(s).get("Coder") == "proposed")
     waiting = _stuck(snap).split("Waiting on:\n")[1].splitlines()
     assert "- your approval to open Coder" in waiting
     assert '- your answer to Reviewer: "Strict or lenient?"' in waiting
     assert "the run did not finish in time. Turn: waiting_approval." in _stuck(snap)
-    client.post(f"/api/questions/{snap['questions'][0]['id']}/answer", json={"answer": "strict"}, headers=OWN)
+    client.post(
+        f"/api/questions/{snap['questions'][0]['id']}/answer",
+        json={"answer": "strict"},
+        headers=OWN,
+    )
     coder = next(x for x in snap["agents"] if x["name"] == "Coder")
     client.post(f"/api/agents/{coder['id']}/approve")
     wait_run(client, cid, run_id)
@@ -75,11 +91,17 @@ def test_an_agent_at_work_with_nothing_open_is_named_too(make_client, wait_run, 
     assert "- Lead (Lead role, Local · fake-model): running; no tool call yet" in said
     assert said.endswith(
         "Waiting on:\n- the model of Lead: no open call and nothing written yet (its first "
-        "token, or a CLI that has said nothing)")
+        "token, or a CLI that has said nothing)"
+    )
 
 
 def test_a_snapshot_it_cannot_read_still_gives_a_message():
     assert _stuck({}).startswith("the run did not finish in time")
-    odd = {"runs": [{}], "agents": [{"id": 1}], "tool_calls": [{"agent_id": 1, "arguments": None}],
-           "messages": [{"status": "streaming", "content": None}], "questions": [{}]}
+    odd = {
+        "runs": [{}],
+        "agents": [{"id": 1}],
+        "tool_calls": [{"agent_id": 1, "arguments": None}],
+        "messages": [{"status": "streaming", "content": None}],
+        "questions": [{}],
+    }
     assert _stuck(odd).startswith("the run did not finish in time")

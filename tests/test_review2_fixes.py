@@ -29,60 +29,70 @@ def cmd(command="pytest -q", id="k1", **extra):
 # C1 / I5 — a rule covers plain commands only, and no rule is offered for "run anything"
 
 
-@pytest.mark.parametrize("command", [
-    "pytest (Remove-Item -Recurse .)",
-    "pytest @(Remove-Item x)",
-    "pytest & rm -rf .",
-    "pytest {Remove-Item x}",
-    "pytest $env:X",
-    "pytest %TEMP%",
-    "pytest #x",
-    "pytest !x",
-    "pytest *",
-    "pytest ~",
-    "pytest\tx",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pytest (Remove-Item -Recurse .)",
+        "pytest @(Remove-Item x)",
+        "pytest & rm -rf .",
+        "pytest {Remove-Item x}",
+        "pytest $env:X",
+        "pytest %TEMP%",
+        "pytest #x",
+        "pytest !x",
+        "pytest *",
+        "pytest ~",
+        "pytest\tx",
+    ],
+)
 def test_a_rule_never_covers_a_command_with_shell_syntax(command):
     assert matches(command, "pytest") is False
     assert suggest_prefix(command) == ""
 
 
-@pytest.mark.parametrize("command, rule", [
-    ('pytest -k "a or b" tests/x.py', "pytest"),
-    ("git commit -m 'fix: thing' --no-verify", "git commit"),
-    ("python -m pytest tests\\unit -q", "python -m pytest"),
-    ("npm run build -- --mode=prod,x+y", "npm run build"),
-])
+@pytest.mark.parametrize(
+    "command, rule",
+    [
+        ('pytest -k "a or b" tests/x.py', "pytest"),
+        ("git commit -m 'fix: thing' --no-verify", "git commit"),
+        ("python -m pytest tests\\unit -q", "python -m pytest"),
+        ("npm run build -- --mode=prod,x+y", "npm run build"),
+    ],
+)
 def test_plain_commands_with_quotes_paths_and_flags_are_covered(command, rule):
     assert matches(command, rule) is True
     assert is_allowed(command, [rule]) is True
 
 
-@pytest.mark.parametrize("command, prefix", [
-    ("& 'C:\\x\\python.exe' -m pytest", ""),  # the call operator itself is not a rule
-    ("python test.py", "python test.py"),
-    ("python -c \"print(1)\"", ""),  # an interpreter with inline code: never remembered
-    ("python", ""),
-    (".venv/Scripts/python -m pytest -q", ".venv/Scripts/python -m pytest"),
-    ("C:\\Python312\\python.exe -m unittest", "C:\\Python312\\python.exe -m unittest"),
-    ("py -m pytest", "py -m pytest"),
-    ("node build.js --watch", "node build.js"),
-    ("git -c core.pager=x log", ""),  # options before the subcommand
-    ("cmd /c dir", ""),  # shells run anything
-    ("powershell -Command ls", ""),
-    ("bash -c ls", ""),
-    ("uv run pytest -q", "uv run pytest"),
-    ("uv run", ""),
-    ("npx vitest run", "npx vitest"),
-    ("npm run build", "npm run build"),
-    ("npm test", "npm test"),
-])
+@pytest.mark.parametrize(
+    "command, prefix",
+    [
+        ("& 'C:\\x\\python.exe' -m pytest", ""),  # the call operator itself is not a rule
+        ("python test.py", "python test.py"),
+        ('python -c "print(1)"', ""),  # an interpreter with inline code: never remembered
+        ("python", ""),
+        (".venv/Scripts/python -m pytest -q", ".venv/Scripts/python -m pytest"),
+        ("C:\\Python312\\python.exe -m unittest", "C:\\Python312\\python.exe -m unittest"),
+        ("py -m pytest", "py -m pytest"),
+        ("node build.js --watch", "node build.js"),
+        ("git -c core.pager=x log", ""),  # options before the subcommand
+        ("cmd /c dir", ""),  # shells run anything
+        ("powershell -Command ls", ""),
+        ("bash -c ls", ""),
+        ("uv run pytest -q", "uv run pytest"),
+        ("uv run", ""),
+        ("npx vitest run", "npx vitest"),
+        ("npm run build", "npm run build"),
+        ("npm test", "npm test"),
+    ],
+)
 def test_suggested_rules_are_never_broader_than_one_program_and_task(command, prefix):
     assert suggest_prefix(command) == prefix
 
 
 def test_always_run_on_a_command_that_cannot_be_remembered_adds_no_rule(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     executor = ScriptedExecutor([Script(["ok"])])
     client, _ = make_client([cmd("pytest; echo done"), text("done")], executor=executor)
     cid, run_id = start(client, project_dir)
@@ -97,7 +107,8 @@ def test_always_run_on_a_command_that_cannot_be_remembered_adds_no_rule(
 
 
 def test_a_second_stop_during_a_slow_kill_still_closes_the_command(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     executor = ScriptedExecutor([Script(["working\n"], hold=gate, kill_seconds=0.6)])
     client, _ = make_client([cmd()], executor=executor)
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
@@ -133,11 +144,33 @@ def test_recovery_closes_a_running_command_even_under_a_finished_run(tmp_path):
         s.flush()
         s.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
         s.flush()
-        s.add(ToolCall(id="t", run_id="r", agent_id="a", message_id="m", seq=1, provider_call_id="t",
-                       name="run_command", arguments="{}", status="interrupted"))
+        s.add(
+            ToolCall(
+                id="t",
+                run_id="r",
+                agent_id="a",
+                message_id="m",
+                seq=1,
+                provider_call_id="t",
+                name="run_command",
+                arguments="{}",
+                status="interrupted",
+            )
+        )
         s.flush()
-        s.add(Command(id="k", run_id="r", agent_id="a", tool_call_id="t", command="x", cwd=".",
-                      location="host", status="running", timeout_seconds=120))
+        s.add(
+            Command(
+                id="k",
+                run_id="r",
+                agent_id="a",
+                tool_call_id="t",
+                command="x",
+                cwd=".",
+                location="host",
+                status="running",
+                timeout_seconds=120,
+            )
+        )
         s.commit()
     recover_interrupted(factory)
     with factory() as s:
@@ -193,8 +226,13 @@ async def test_a_child_that_outlives_the_shell_can_still_be_killed(tmp_path):
     await running.kill()
     assert await asyncio.to_thread(wait_dead, second)
     import subprocess
-    subprocess.run(["taskkill", "/F", "/PID", str(child)] if sys.platform == "win32"
-                   else ["kill", "-9", str(child)], capture_output=True)
+
+    subprocess.run(
+        ["taskkill", "/F", "/PID", str(child)]
+        if sys.platform == "win32"
+        else ["kill", "-9", str(child)],
+        capture_output=True,
+    )
 
 
 def test_nothing_a_finished_command_started_is_left_running(make_client, wait_run, project_dir):
@@ -207,14 +245,19 @@ def test_nothing_a_finished_command_started_is_left_running(make_client, wait_ru
 
 
 def test_a_command_is_recorded_when_its_shell_exits_even_if_output_stays_open(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     # A background child can keep the output pipe open long after the shell is done.
     executor = ScriptedExecutor([Script(["started\n"], exit_code=0, linger=True)])
     client, _ = make_client([cmd(), text("done")], executor=executor)
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     started = time.monotonic()
     command = wait_run(client, cid, run_id, timeout=20)["commands"][0]
-    assert (command["status"], command["exit_code"], command["output"]) == ("exited", 0, "started\n")
+    assert (command["status"], command["exit_code"], command["output"]) == (
+        "exited",
+        0,
+        "started\n",
+    )
     assert time.monotonic() - started < 10  # the grace period, not the 120 s limit
     assert executor.closed == [command["id"]]
 
@@ -234,13 +277,16 @@ async def test_non_ascii_output_survives(tmp_path):
 
 @windows_only
 @pytest.mark.anyio
-@pytest.mark.parametrize("command, expected", [
-    ("cmd /c exit 0; Get-Item ./no-such-file", 1),  # the last statement failed
-    ("cmd /c exit 3; Write-Output handled", 0),  # an earlier failure was handled
-    ("cmd /c exit 3", 3),
-    ("exit 7", 7),
-    ("Write-Output ok", 0),
-])
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        ("cmd /c exit 0; Get-Item ./no-such-file", 1),  # the last statement failed
+        ("cmd /c exit 3; Write-Output handled", 0),  # an earlier failure was handled
+        ("cmd /c exit 3", 3),
+        ("exit 7", 7),
+        ("Write-Output ok", 0),
+    ],
+)
 async def test_exit_code_reflects_the_last_statement(tmp_path, command, expected):
     _, code = await run(command, tmp_path)
     assert code == expected
@@ -279,10 +325,17 @@ def test_docker_exit_125_is_a_start_failure_with_its_reason():
 
 
 def test_a_start_failure_reported_after_exit_is_recorded_as_not_started(
-        make_client, wait_run, project_dir):
-    executor = ScriptedExecutor([
-        Script(["docker: Error response from daemon: mounts denied\n"], exit_code=125,
-               start_failure="Docker could not start the container: mounts denied")])
+    make_client, wait_run, project_dir
+):
+    executor = ScriptedExecutor(
+        [
+            Script(
+                ["docker: Error response from daemon: mounts denied\n"],
+                exit_code=125,
+                start_failure="Docker could not start the container: mounts denied",
+            )
+        ]
+    )
     client, model = make_client([cmd(), text("cannot")], executor=executor)
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id)
@@ -309,13 +362,19 @@ async def test_the_wait_for_the_first_token_has_its_own_longer_limit():
         pass
 
     patient = OpenAICompatClient(
-        "http://model/v1", transport=httpx2.MockTransport(handler),
-        stall_seconds=0.2, first_token_seconds=5)
+        "http://model/v1",
+        transport=httpx2.MockTransport(handler),
+        stall_seconds=0.2,
+        first_token_seconds=5,
+    )
     assert (await patient.stream_step("m", [], None, on_delta)).content == "ok"
 
     impatient = OpenAICompatClient(
-        "http://model/v1", transport=httpx2.MockTransport(handler),
-        stall_seconds=5, first_token_seconds=0.2)
+        "http://model/v1",
+        transport=httpx2.MockTransport(handler),
+        stall_seconds=5,
+        first_token_seconds=0.2,
+    )
     with pytest.raises(ModelUnavailable, match="did not start answering within 0.2 seconds"):
         await impatient.stream_step("m", [], None, on_delta)
 
@@ -337,7 +396,8 @@ def test_command_events_do_not_repeat_the_output(make_client, wait_run, project_
 
 
 def test_the_reason_a_command_did_not_start_reaches_clients_that_are_already_connected(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     # Nothing streams for a command that never started, so its event must carry the reason.
     reason = "the image x is not on this machine; run: docker pull x"
     executor = ScriptedExecutor([Script(start_error=reason)])

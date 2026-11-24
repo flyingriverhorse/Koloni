@@ -1,5 +1,19 @@
-import { ChatsCircle, FileText, Lightbulb, ListChecks, Robot, TerminalWindow, User, UsersThree, Wrench, X } from '@phosphor-icons/react'
-import { poSaid, poTokens } from '../canvas/deriveGraph'
+import {
+  ChatsCircle,
+  FileText,
+  Lightbulb,
+  ListChecks,
+  Robot,
+  TerminalWindow,
+  User,
+  UsersThree,
+  Wrench,
+  X,
+} from '@phosphor-icons/react'
+import { loopOf } from '../canvas/checksLoop'
+import { checksNode, stripOf } from '../canvas/checksNode'
+import { poSaid, poTokens, SCOUT_DOES } from '../canvas/deriveGraph'
+import { ChecksPanel } from './ChecksPanel'
 import { discussionLine, nameIn } from '../discussion/discussionText'
 import { type ReactNode, useEffect, useRef } from 'react'
 import { flushSync } from 'react-dom'
@@ -12,7 +26,20 @@ import { titleOf } from '../agents/agentStatus'
 import { agentState, agentWhere, when } from '../agents/AgentWindow'
 import { OwnSubAgentWork } from '../agents/OwnSubAgent'
 import { homeOf, isOwnSubAgent, ownSubAgentBrief, ownSubAgentTask, subAgentIds } from '../agents/ownWork'
-import type { Agent, Attachment, Command, FileChange, Merge, Message, PendingRole, Provider, Question, Run, Team, ToolCall } from '../api/types'
+import type {
+  Agent,
+  Attachment,
+  Command,
+  FileChange,
+  Merge,
+  Message,
+  PendingRole,
+  Provider,
+  Question,
+  Run,
+  Team,
+  ToolCall,
+} from '../api/types'
 import { commandSeconds, commandStatus, placeLabel, TONE_COLOR } from '../commands/commandStatus'
 import { CHANGE_LABEL } from '../changes/changeLabel'
 import { CommandRow } from '../commands/CommandRow'
@@ -80,14 +107,25 @@ function Header({
   )
 }
 
-/** The Assistant PO's node (`po:<turn>`): what came of its request, and why each one dropped was dropped - never its answer. */
-function poPanel(state: ConvState | null, kind: string | undefined, refId: string | undefined, onClose: () => void): ReactNode {
+/** The Scout's node (`po:<turn>`): what came of its request, and why each one dropped was dropped - never its answer. */
+function poPanel(
+  state: ConvState | null,
+  kind: string | undefined,
+  refId: string | undefined,
+  onClose: () => void,
+): ReactNode {
   const po = kind === 'po' ? state?.runs.find(r => r.id === refId)?.po : null
   if (!po) return null
   return (
     <>
-      <Header icon={<Lightbulb size={16} />} title="Assistant PO" sub={[po.provider_name, po.model_id ?? 'model not known', poTokens(po)].filter(Boolean).join(' · ')} onClose={onClose} />
+      <Header
+        icon={<Lightbulb size={16} />}
+        title="Scout"
+        sub={[po.provider_name, po.model_id ?? 'model not known', poTokens(po)].filter(Boolean).join(' · ')}
+        onClose={onClose}
+      />
       <div className="insp-body">
+        <p className="muted">{SCOUT_DOES}</p>
         <p>{[poSaid(po), po.note].filter(Boolean).join(': ')}</p>
         <div className="kicker">Dropped, and why</div>
         {po.dropped.length === 0 && <p className="muted">None.</p>}
@@ -145,7 +183,12 @@ function attachmentPanel({ file, roleOf, onClose }: Shown): ReactNode {
   const to = file.given_to.map(roleOf)
   return (
     <>
-      <Header icon={<FileText size={16} />} title={file.name} sub={to.length ? `handed to ${to.join(', ')}` : 'attached by you'} onClose={onClose} />
+      <Header
+        icon={<FileText size={16} />}
+        title={file.name}
+        sub={to.length ? `handed to ${to.join(', ')}` : 'attached by you'}
+        onClose={onClose}
+      />
       <div className="insp-body">
         <AttachmentPreview file={file} />
       </div>
@@ -158,7 +201,12 @@ function filesPanel({ kind, request, filesOf, onClose }: Shown): ReactNode {
   if (!(kind === 'files' && request)) return null
   return (
     <>
-      <Header icon={<FileText size={16} />} title={`${filesOf(request.id).length} files`} sub="attached by you" onClose={onClose} />
+      <Header
+        icon={<FileText size={16} />}
+        title={`${filesOf(request.id).length} files`}
+        sub="attached by you"
+        onClose={onClose}
+      />
       <div className="insp-body">
         <Minis files={filesOf(request.id)} links={[]} />
       </div>
@@ -168,14 +216,31 @@ function filesPanel({ kind, request, filesOf, onClose }: Shown): ReactNode {
 
 /** An agent: its report card, or where it is shown, and a way to its window. */
 function agentPanel({
-  state, kind, agent, run, teams, windowed, onClose, onOpenAgent, openWindow,
-  providers, onOpenChange, onSelect, renderSpawnApproval, renderMerge, renderRoleApproval, renderQuestion, renderCommandApproval,
+  state,
+  kind,
+  agent,
+  run,
+  teams,
+  windowed,
+  onClose,
+  onOpenAgent,
+  openWindow,
+  providers,
+  onOpenChange,
+  onSelect,
+  renderSpawnApproval,
+  renderMerge,
+  renderRoleApproval,
+  renderQuestion,
+  renderCommandApproval,
 }: Shown): ReactNode {
   if (!(kind === 'agent' && agent && run)) return null
   const [label, color] = agentState(state, agent)
   return (
     <>
-      <Header icon={<Robot size={16} />} title={titleOf(agent.name || agent.role_name, teams)}
+      <Header
+        icon={<Robot size={16} />}
+        title={titleOf(agent.name || agent.role_name, teams)}
         sub={
           // (Under its name, which the panel's width leaves whole: its window has them on one line.)
           <>
@@ -305,7 +370,18 @@ function planPanel({ state, kind, refId, onClose }: Shown): ReactNode {
 }
 
 /** A CLI’s own sub-agent: what it waits on you for, how it stands, and what it did. */
-function subAgentPanel({ state, kind, subAgent, subAgents, roleOf, onClose, onOpenAgent, openWindow, renderQuestion, onOpenChange }: Shown): ReactNode {
+function subAgentPanel({
+  state,
+  kind,
+  subAgent,
+  subAgents,
+  roleOf,
+  onClose,
+  onOpenAgent,
+  openWindow,
+  renderQuestion,
+  onOpenChange,
+}: Shown): ReactNode {
   if (!(kind === 'subagent' && subAgent)) return null
   const [label, color] = TOOL_STATUS[subAgent.status]
   // What it waits on the user for in words: leave for itself, or for a tool of its.
@@ -313,7 +389,10 @@ function subAgentPanel({ state, kind, subAgent, subAgents, roleOf, onClose, onOp
     q =>
       q.status === 'pending' &&
       (q.tool_call_id === subAgent.id ||
-        homeOf(state.toolCalls.find(t => t.id === q.tool_call_id), subAgents) === subAgent.id),
+        homeOf(
+          state.toolCalls.find(t => t.id === q.tool_call_id),
+          subAgents,
+        ) === subAgent.id),
   )
   return (
     <>
@@ -393,14 +472,26 @@ function commandsPanel({ state, kind, agent, subAgent, subAgents, onClose }: Sho
   const commands = state.commands.filter(
     c =>
       c.agent_id === (agent?.id ?? subAgent?.agent_id) &&
-      homeOf(state.toolCalls.find(t => t.id === c.tool_call_id), subAgents) === (subAgent?.id ?? null),
+      homeOf(
+        state.toolCalls.find(t => t.id === c.tool_call_id),
+        subAgents,
+      ) === (subAgent?.id ?? null),
   )
   return (
     <>
-      <Header icon={<TerminalWindow size={16} />} title="Commands" sub={`${commands.length} commands`} onClose={onClose} />
+      <Header
+        icon={<TerminalWindow size={16} />}
+        title="Commands"
+        sub={`${commands.length} commands`}
+        onClose={onClose}
+      />
       <div className="insp-body">
         {commands.map(command => (
-          <CommandRow key={command.id} command={command} failed={state.toolCalls.find(t => t.id === command.tool_call_id)?.status === 'failed'} />
+          <CommandRow
+            key={command.id}
+            command={command}
+            failed={state.toolCalls.find(t => t.id === command.tool_call_id)?.status === 'failed'}
+          />
         ))}
       </div>
     </>
@@ -415,7 +506,10 @@ function changesPanel({ state, kind, agent, subAgent, subAgents, onClose, onSele
     f =>
       f.status !== 'proposed' &&
       f.agent_id === (agent?.id ?? subAgent?.agent_id) &&
-      homeOf(state.toolCalls.find(t => t.id === f.tool_call_id), subAgents) === (subAgent?.id ?? null),
+      homeOf(
+        state.toolCalls.find(t => t.id === f.tool_call_id),
+        subAgents,
+      ) === (subAgent?.id ?? null),
   )
   return (
     <>
@@ -426,10 +520,19 @@ function changesPanel({ state, kind, agent, subAgent, subAgents, onClose, onSele
             <span className="mono chat-change-path" title={change.path}>
               {change.path}
             </span>
-            <span className="mono" style={{ color: 'var(--ok)' }}>+{change.additions}</span>
-            <span className="mono" style={{ color: 'var(--del)' }}>−{change.deletions}</span>
+            <span className="mono" style={{ color: 'var(--ok)' }}>
+              +{change.additions}
+            </span>
+            <span className="mono" style={{ color: 'var(--del)' }}>
+              −{change.deletions}
+            </span>
             <span className={CHANGE_LABEL[change.status][1]}>{CHANGE_LABEL[change.status][0]}</span>
-            <button type="button" className="btn btn-small" aria-label={`Open ${change.path}`} onClick={() => onSelect?.(`file:${change.id}`)}>
+            <button
+              type="button"
+              className="btn btn-small"
+              aria-label={`Open ${change.path}`}
+              onClick={() => onSelect?.(`file:${change.id}`)}
+            >
               Open
             </button>
           </div>
@@ -479,12 +582,7 @@ function commandPanel({ kind, command, roleOf, onClose, renderCommandApproval }:
   const seconds = commandSeconds(command)
   return (
     <>
-      <Header
-        icon={<TerminalWindow size={16} />}
-        title="Command"
-        sub={placeLabel(command)}
-        onClose={onClose}
-      />
+      <Header icon={<TerminalWindow size={16} />} title="Command" sub={placeLabel(command)} onClose={onClose} />
       <div className="insp-body">
         <pre className="mono cmd-approval-command">{command.command}</pre>
         <dl className="facts">
@@ -495,7 +593,7 @@ function commandPanel({ kind, command, roleOf, onClose, renderCommandApproval }:
           <dt>Agent</dt>
           <dd className="mono">{roleOf(command.agent_id)}</dd>
           <dt>Run by</dt>
-          <dd className="mono">{command.origin === 'cli' ? "the CLI itself, with a tool of its own" : 'KOLONİ'}</dd>
+          <dd className="mono">{command.origin === 'cli' ? 'the CLI itself, with a tool of its own' : 'KOLONİ'}</dd>
           <dt>Folder</dt>
           <dd className="mono">{command.cwd ?? 'not known'}</dd>
           <dt>Runs on</dt>
@@ -507,9 +605,7 @@ function commandPanel({ kind, command, roleOf, onClose, renderCommandApproval }:
         </dl>
         {command.status === 'proposed' && renderCommandApproval?.(command)}
         {command.output !== '' && <pre className="mono insp-output">{command.output}</pre>}
-        {command.output === '' && command.status !== 'proposed' && (
-          <p className="muted">No output.</p>
-        )}
+        {command.output === '' && command.status !== 'proposed' && <p className="muted">No output.</p>}
       </div>
     </>
   )
@@ -531,7 +627,7 @@ function filePanel({ kind, change, roleOf, onClose, renderChange }: Shown): Reac
           <dt>Agent</dt>
           <dd className="mono">{roleOf(change.agent_id)}</dd>
           <dt>Made by</dt>
-          <dd className="mono">{change.origin === 'cli' ? "the CLI itself, with a tool of its own" : 'KOLONİ'}</dd>
+          <dd className="mono">{change.origin === 'cli' ? 'the CLI itself, with a tool of its own' : 'KOLONİ'}</dd>
           <dt>Kind</dt>
           <dd className="mono">
             {change.kind === 'create' ? 'new file' : change.kind === 'delete' ? 'deleted file' : 'edit'}
@@ -548,7 +644,47 @@ function filePanel({ kind, change, roleOf, onClose, renderChange }: Shown): Reac
 }
 
 /** Each kind of node's panel, in the order they are tried. */
-const PANELS = [requestPanel, attachmentPanel, filesPanel, agentPanel, discussionPanel, roomPanel, planPanel, subAgentPanel, toolsPanel, commandsPanel, changesPanel, callPanel, commandPanel, filePanel]
+/** The Checks node (tuval-kontrol-dongusu F): its rounds, as `ChecksPanel` lists them; the canvas stays as it is. */
+function checksPanel({ state, kind, refId, onClose, openWindow }: Shown): ReactNode {
+  const run = kind === 'checks' ? state.runs.find(r => r.id === refId) : undefined
+  const data = run && checksNode(state, run, [], [])
+  if (!run || !data) return null
+  const loop = loopOf(state, run, data)
+  return (
+    <>
+      <Header
+        icon={<ListChecks size={16} />}
+        title="Checks"
+        // (Its rounds counted as the panel lists them - a pass each -, not the fix rounds the Orchestrator's strip counts.)
+        sub={
+          (loop?.tone === 'run' && loop.status) ||
+          stripOf(loop?.rounds.length ? { ...data, rounds: loop.rounds.length } : data) ||
+          'KOLONİ'
+        }
+        onClose={onClose}
+      />
+      <ChecksPanel state={state} run={run} loop={loop} openWindow={openWindow} />
+    </>
+  )
+}
+
+const PANELS = [
+  checksPanel,
+  requestPanel,
+  attachmentPanel,
+  filesPanel,
+  agentPanel,
+  discussionPanel,
+  roomPanel,
+  planPanel,
+  subAgentPanel,
+  toolsPanel,
+  commandsPanel,
+  changesPanel,
+  callPanel,
+  commandPanel,
+  filePanel,
+]
 
 /** The panel of the node chosen: the first that has something to show, else none. */
 function panelOf(shown: Shown): ReactNode {
@@ -619,13 +755,34 @@ export function Inspector({ state, selectedId, onClose: close, onOpenAgent, ...g
   const command = state?.commands.find(c => c.id === refId)
   // A file of the user's (slice 85b), or the box of a message's many files (its turn's: "files:<run>").
   const file = kind === 'attachment' ? state?.attachments.find(a => a.id === refId) : undefined
-  const filesOf = (messageId: string | undefined) => state?.attachments.filter(a => messageId && a.message_id === messageId && !a.frame_of) ?? []
+  const filesOf = (messageId: string | undefined) =>
+    state?.attachments.filter(a => messageId && a.message_id === messageId && !a.frame_of) ?? []
 
   // (onClose is only handed on, to the panel's close button: no ref is read while it draws.)
   // oxlint-disable-next-line react/refs
   let content: ReactNode = poPanel(state, kind, refId, onClose)
   if (state) {
-    const shown = { ...given, state, kind, refId, onClose, onOpenAgent, teams, windowed, subAgents, subAgent, agent, run, change, request, command, file, roleOf, filesOf, openWindow }
+    const shown = {
+      ...given,
+      state,
+      kind,
+      refId,
+      onClose,
+      onOpenAgent,
+      teams,
+      windowed,
+      subAgents,
+      subAgent,
+      agent,
+      run,
+      change,
+      request,
+      command,
+      file,
+      roleOf,
+      filesOf,
+      openWindow,
+    }
     // (as above: onClose and openWindow are handed on to buttons)
     // oxlint-disable-next-line react/refs
     content = panelOf(shown) ?? content

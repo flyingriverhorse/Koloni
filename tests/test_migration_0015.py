@@ -25,9 +25,14 @@ def test_migration_0015_and_back(tmp_path):
     with sqlite3.connect(db) as conn:
         # KOLONİ's own command keeps the folder it ran in; the CLI's never had a known one
         assert conn.execute("SELECT id, cwd FROM commands ORDER BY id").fetchall() == [
-            ("k1", "pkg"), ("k2", None)]
+            ("k1", "pkg"),
+            ("k2", None),
+        ]
         conn.execute(INSERT, ("k3", "t3", None, "cli"))
     command.downgrade(cfg, "0014")
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT id, cwd FROM commands ORDER BY id").fetchall() == [
-            ("k1", "pkg"), ("k2", "."), ("k3", ".")]
+            ("k1", "pkg"),
+            ("k2", "."),
+            ("k3", "."),
+        ]

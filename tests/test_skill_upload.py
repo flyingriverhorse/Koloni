@@ -35,8 +35,11 @@ def test_a_zip_without_a_top_folder_and_its_link_is_not_kept(client):
 
 
 def test_left_out_folders_are_said_once_and_never_decoded(client):
-    files = [("tidy/SKILL.md", b64(SKILL_MD)), ("tidy/.git/HEAD", "not base64!"),
-             ("tidy/.git/config", "not base64!")]
+    files = [
+        ("tidy/SKILL.md", b64(SKILL_MD)),
+        ("tidy/.git/HEAD", "not base64!"),
+        ("tidy/.git/config", "not base64!"),
+    ]
     seen = preview(client, {"files": [{"path": p, "data": d} for p, d in files]})
     assert seen.status_code == 200, seen.text
     assert seen.json()["skipped"] == [".git/"] and seen.json()["source"] == "uploaded (tidy)"
@@ -54,9 +57,13 @@ def test_an_encrypted_or_broken_zip_or_bad_base64_or_a_twice_named_file_is_refus
     locked[6] |= 1  # said to be encrypted, in both of its headers
     locked[central + 8] |= 1
     twice = [{"path": "SKILL.md", "data": b64(SKILL_MD)}] * 2
-    for upload in ({"zip": b64(bytes(locked))}, {"zip": b64(b"not a zip")},
-                   {"files": [{"path": "SKILL.md", "data": "@@@@"}]}, {"files": twice},
-                   {"files": [], "zip": ""}):
+    for upload in (
+        {"zip": b64(bytes(locked))},
+        {"zip": b64(b"not a zip")},
+        {"files": [{"path": "SKILL.md", "data": "@@@@"}]},
+        {"files": twice},
+        {"files": [], "zip": ""},
+    ):
         assert preview(client, upload).status_code == 422, upload
 
 
@@ -77,7 +84,9 @@ def test_a_corrupted_zip_is_refused_not_failed_on(client):
     good = base64.b64decode(zipped(("tidy/SKILL.md", SKILL_MD))["zip"])
     moved = bytearray(good)  # the central directory said to start further on: a negative seek
     end = moved.rindex(b"PK\x05\x06")
-    moved[end + 16:end + 20] = (int.from_bytes(moved[end + 16:end + 20], "little") + 100).to_bytes(4, "little")
+    moved[end + 16 : end + 20] = (
+        int.from_bytes(moved[end + 16 : end + 20], "little") + 100
+    ).to_bytes(4, "little")
     named = bytearray(good)  # a name said to be UTF-8 that is not
     central = named.index(b"PK\x01\x02")
     named[central + 9] |= 0x08  # (0x800 of the flags, in their high byte: "the name is UTF-8")
@@ -95,8 +104,11 @@ def test_a_zip_s_path_out_of_its_folder_is_refused(client):
 
 
 def test_two_names_of_one_file_here_are_refused(client):
-    for twins in (("a.md", "A.md"), ("docs/longreference.md", "docs/LONGRE~1.MD"),
-                  ("ınfo.md", "info.md")):
+    for twins in (
+        ("a.md", "A.md"),
+        ("docs/longreference.md", "docs/LONGRE~1.MD"),
+        ("ınfo.md", "info.md"),
+    ):
         upload = as_files(("SKILL.md", SKILL_MD), *((path, b"x") for path in twins))
         assert preview(client, upload).status_code == 422, twins
 
@@ -111,8 +123,13 @@ def test_a_chosen_folder_that_is_a_secret_one_is_refused(client):
 def test_a_zip_s_left_out_members_are_never_read_nor_counted(client):
     zeros = zipfile.ZipInfo("tidy/.git/objects/pack")
     zeros.flag_bits |= 1  # said to be encrypted: refused, were it read
-    upload = zipped(("tidy/SKILL.md", SKILL_MD), ("tidy/.git/big", bytes(6 * 1024 * 1024)),
-                    (zeros, b"x"), ("__MACOSX/tidy/._SKILL.md", b"\x00\x05\x16\x07"), deflate=True)
+    upload = zipped(
+        ("tidy/SKILL.md", SKILL_MD),
+        ("tidy/.git/big", bytes(6 * 1024 * 1024)),
+        (zeros, b"x"),
+        ("__MACOSX/tidy/._SKILL.md", b"\x00\x05\x16\x07"),
+        deflate=True,
+    )
     seen = preview(client, upload)
     assert seen.status_code == 200, seen.text
     assert seen.json()["files"] == ["SKILL.md"] and seen.json()["skipped"] == [".git/"]
@@ -121,8 +138,9 @@ def test_a_zip_s_left_out_members_are_never_read_nor_counted(client):
 
 def test_a_zip_larger_than_a_skill_for_its_git_alone_is_read(client):
     # a packfile does not compress: the .zip itself is over 5 MiB, what it keeps is not
-    upload = zipped(("tidy/SKILL.md", SKILL_MD),
-                    ("tidy/.git/objects/pack/p.pack", os.urandom(6 * 1024 * 1024)))
+    upload = zipped(
+        ("tidy/SKILL.md", SKILL_MD), ("tidy/.git/objects/pack/p.pack", os.urandom(6 * 1024 * 1024))
+    )
     assert len(upload["zip"]) * 3 // 4 > 6 * 1024 * 1024
     seen = preview(client, upload)
     assert seen.status_code == 200, seen.text

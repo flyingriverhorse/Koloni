@@ -16,7 +16,9 @@ test('an answer is said by its words: a code block as "code block, N lines", a l
     '- one item',
     '- ![a chart](chart.png) two',
   ].join('\n')
-  expect(speakable(answer)).toBe('The total. It adds 20% tax once, in total(): see the tax rule or today. Code block, 2 lines. one item. two.')
+  expect(speakable(answer)).toBe(
+    'The total. It adds 20% tax once, in total(): see the tax rule or today. Code block, 2 lines. one item. two.',
+  )
   expect(speakable('```\nonly\n```')).toBe('Code block, 1 line.')
 })
 
@@ -26,9 +28,15 @@ test('an answer still being written: an unclosed code block is not said, nor cou
 })
 
 test('sentences are finished once something follows their end; what is still being written waits', () => {
-  expect(sentences('It adds the tax. Twenty percent! And the rest')).toEqual({ done: ['It adds the tax.', 'Twenty percent!'], rest: 'And the rest' })
+  expect(sentences('It adds the tax. Twenty percent! And the rest')).toEqual({
+    done: ['It adds the tax.', 'Twenty percent!'],
+    rest: 'And the rest',
+  })
   expect(sentences('Is it 1.2 times? Yes.')).toEqual({ done: ['Is it 1.2 times?'], rest: 'Yes.' })
-  expect(sentences('Wait... what?! "Yes." (Fine.) Go…')).toEqual({ done: ['Wait...', 'what?!', '"Yes."', '(Fine.)'], rest: 'Go…' })
+  expect(sentences('Wait... what?! "Yes." (Fine.) Go…')).toEqual({
+    done: ['Wait...', 'what?!', '"Yes."', '(Fine.)'],
+    rest: 'Go…',
+  })
 })
 
 test('a model looping on dots is read at once, on each update while it streams', () => {

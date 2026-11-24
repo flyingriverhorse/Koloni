@@ -10,9 +10,12 @@ def call(name, args, id="c1"):
 
 
 def test_tool_result_reaches_the_next_model_step(make_client, wait_run, project_dir):
-    client, model = make_client([
-        StepResult("", [call("read_file", '{"path": "hello.py"}')], 10, 4),
-        text("It prints hi.", 30, 5)])
+    client, model = make_client(
+        [
+            StepResult("", [call("read_file", '{"path": "hello.py"}')], 10, 4),
+            text("It prints hi.", 30, 5),
+        ]
+    )
     cid, run_id = start(client, project_dir, "what does hello.py do?")
     snap = wait_run(client, cid, run_id)
     tc = snap["tool_calls"][0]
@@ -20,7 +23,12 @@ def test_tool_result_reaches_the_next_model_step(make_client, wait_run, project_
     assert "print('hi')" in tc["result"] and tc["started_at"] and tc["ended_at"]
     second = model.calls[1]
     assert second[-2]["role"] == "assistant" and second[-2]["tool_calls"] == [
-        {"id": "c1", "type": "function", "function": {"name": "read_file", "arguments": '{"path": "hello.py"}'}}]
+        {
+            "id": "c1",
+            "type": "function",
+            "function": {"name": "read_file", "arguments": '{"path": "hello.py"}'},
+        }
+    ]
     assert second[-1] == {"role": "tool", "tool_call_id": "c1", "content": tc["result"]}
     run = snap["runs"][0]
     assert run["status"] == "completed"
@@ -34,8 +42,13 @@ def test_tool_result_reaches_the_next_model_step(make_client, wait_run, project_
 
 
 def test_tool_calls_are_kept_in_history_for_later_turns(make_client, wait_run, project_dir):
-    client, model = make_client([
-        StepResult("Let me look.", [call("list_dir", "{}")], 1, 1), text("One file."), text("Still one.")])
+    client, model = make_client(
+        [
+            StepResult("Let me look.", [call("list_dir", "{}")], 1, 1),
+            text("One file."),
+            text("Still one."),
+        ]
+    )
     cid, run_id = start(client, project_dir)
     wait_run(client, cid, run_id)
     again = client.post(f"/api/conversations/{cid}/messages", json={"content": "sure?"}).json()
@@ -56,10 +69,23 @@ def test_invalid_json_arguments_become_a_tool_error_not_a_crash(make_client, wai
     assert model.calls[1][-2]["tool_calls"][0]["function"]["arguments"] == "{}"
 
 
-def test_unknown_tool_and_escaping_path_are_reported_to_the_model(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        StepResult("", [call("delete_everything", "{}", "a"), call("read_file", json.dumps({"path": "../" * 40 + "x"}), "b")], 1, 1),
-        text("ok")])
+def test_unknown_tool_and_escaping_path_are_reported_to_the_model(
+    make_client, wait_run, project_dir
+):
+    client, _ = make_client(
+        [
+            StepResult(
+                "",
+                [
+                    call("delete_everything", "{}", "a"),
+                    call("read_file", json.dumps({"path": "../" * 40 + "x"}), "b"),
+                ],
+                1,
+                1,
+            ),
+            text("ok"),
+        ]
+    )
     cid, run_id = start(client, project_dir)
     results = {t["name"]: t for t in wait_run(client, cid, run_id)["tool_calls"]}
     assert results["delete_everything"]["status"] == "failed"
@@ -71,19 +97,31 @@ def test_unknown_tool_and_escaping_path_are_reported_to_the_model(make_client, w
 
 def test_step_limit_fails_the_run(make_client, wait_run, project_dir):
     # (B-413: the Orchestrator's step limit is only one the user set - its role's)
-    loop = [StepResult("", [call("list_dir", json.dumps({"path": f"d{i}"}), f"c{i}")], 1, 1)
-            for i in range(25)]
+    loop = [
+        StepResult("", [call("list_dir", json.dumps({"path": f"d{i}"}), f"c{i}")], 1, 1)
+        for i in range(25)
+    ]
     client, _ = make_client(loop)
-    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 20},
-                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Lead')}",
+            json={"max_steps": 20},
+            headers={"Origin": "http://127.0.0.1:8790"},
+        ).status_code
+        == 200
+    )
     cid, run_id = start(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == (
-        "failed", "stopped at its role's limit of 20 steps")
+        "failed",
+        "stopped at its role's limit of 20 steps",
+    )
     assert len(snap["tool_calls"]) == 20
 
 
-def test_tools_are_withheld_when_the_model_does_not_support_them(make_client, wait_run, project_dir):
+def test_tools_are_withheld_when_the_model_does_not_support_them(
+    make_client, wait_run, project_dir
+):
     client, model = make_client([text("plain")], tools_supported=False)
     cid, run_id = start(client, project_dir)
     wait_run(client, cid, run_id)
@@ -91,7 +129,8 @@ def test_tools_are_withheld_when_the_model_does_not_support_them(make_client, wa
 
 
 def test_old_tool_output_is_trimmed_when_history_exceeds_the_budget(
-        make_client, wait_run, project_dir, settings_env, monkeypatch):
+    make_client, wait_run, project_dir, settings_env, monkeypatch
+):
     from app.agent import (
         AWAY_PROMPT,
         BRIEF_PROMPT,
@@ -114,15 +153,37 @@ def test_old_tool_output_is_trimmed_when_history_exceeds_the_budget(
     # and S2's line on what KOLONİ checks at the turn's end, `PROOF_LEAD`.)
     monkeypatch.setattr("app.executors.host._pwsh", lambda: None)
     settings_env["KOLONI_CONTEXT_CHARS"] = str(
-        1620 + 77 + len(SHELL_WRITES) + len(WHO_SPLITS) + 1 + len(" " + ASKED_IN_WORDS) + sum(
-            len(told) + 2 for told in (
-                LANGUAGE_PROMPT, MESSAGE_PROMPT, PROVIDERS_PROMPT, HAND_ON_PROMPT, TEAM_PROMPT,
-                AWAY_PROMPT, BRIEF_PROMPT, REPORT_ONCE, PROOF_LEAD)) + len(" read big.txt (1 lines) (full: recall_output id=)") + 32)
+        1620
+        + 77
+        + len(SHELL_WRITES)
+        + len(WHO_SPLITS)
+        + 1
+        + len(" " + ASKED_IN_WORDS)
+        + sum(
+            len(told) + 2
+            for told in (
+                LANGUAGE_PROMPT,
+                MESSAGE_PROMPT,
+                PROVIDERS_PROMPT,
+                HAND_ON_PROMPT,
+                TEAM_PROMPT,
+                AWAY_PROMPT,
+                BRIEF_PROMPT,
+                REPORT_ONCE,
+                PROOF_LEAD,
+            )
+        )
+        + len(" read big.txt (1 lines) (full: recall_output id=)")
+        + 32
+    )
     (project_dir / "big.txt").write_text("x" * 600 + "\n", encoding="utf-8")
-    client, model = make_client([
-        StepResult("", [call("read_file", '{"path": "big.txt"}', "a")], 1, 1),
-        StepResult("", [call("read_file", '{"path": "hello.py"}', "b")], 1, 1),
-        text("done")])
+    client, model = make_client(
+        [
+            StepResult("", [call("read_file", '{"path": "big.txt"}', "a")], 1, 1),
+            StepResult("", [call("read_file", '{"path": "hello.py"}', "b")], 1, 1),
+            text("done"),
+        ]
+    )
     cid, run_id = start(client, project_dir)
     wait_run(client, cid, run_id)
     assert "xxxx" in next(m for m in model.calls[1] if m["role"] == "tool")["content"]
@@ -133,17 +194,27 @@ def test_old_tool_output_is_trimmed_when_history_exceeds_the_budget(
 
 
 def test_a_queued_message_follows_the_whole_earlier_turn_in_history(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     # The message is queued while the first turn is still working, so it is older than
     # the first turn's later messages; the model must still see the turns in order.
-    client, model = make_client([
-        gate.step(StepResult("", [call("list_dir", "{}")], 1, 1)), text("One file."), text("Hi.")])
+    client, model = make_client(
+        [gate.step(StepResult("", [call("list_dir", "{}")], 1, 1)), text("One file."), text("Hi.")]
+    )
     cid, run_id = start(client, project_dir, "first")
     queued = client.post(f"/api/conversations/{cid}/messages", json={"content": "second"}).json()
     gate.release()
     snap = wait_run(client, cid, queued["run"]["id"])
     assert [(m["role"], m.get("content")) for m in model.calls[2][1:]] == [
-        ("user", "first"), ("assistant", ""), ("tool", "hello.py  (file, 12 bytes)"),
-        ("assistant", "One file."), ("user", "second")]
+        ("user", "first"),
+        ("assistant", ""),
+        ("tool", "hello.py  (file, 12 bytes)"),
+        ("assistant", "One file."),
+        ("user", "second"),
+    ]
     assert [m["content"] for m in snap["messages"] if m["content"]] == [
-        "first", "One file.", "second", "Hi."]
+        "first",
+        "One file.",
+        "second",
+        "Hi.",
+    ]

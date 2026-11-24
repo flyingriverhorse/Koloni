@@ -26,8 +26,12 @@ router = APIRouter(prefix="/api/backup", tags=["backup"])
 OWN = [Depends(require_own_origin)]
 
 
-@router.post("/export", response_class=FileResponse, dependencies=OWN, responses={
-    200: {"content": {"application/zip": {}}, "description": "Everything, as one .zip"}})
+@router.post(
+    "/export",
+    response_class=FileResponse,
+    dependencies=OWN,
+    responses={200: {"content": {"application/zip": {}}, "description": "Everything, as one .zip"}},
+)
 def export(request: Request, secrets: bool = False):
     """The .zip, built in a folder of its own and sent from there; the folder goes after.
     A POST: a form sends its origin, which a download link does not."""
@@ -43,8 +47,12 @@ def export(request: Request, secrets: bool = False):
     # shortcut: only a KOLONİ killed while it sends leaves the folder (with the secrets,
     # where asked for) in the temp folder, until the OS clears it; sweep old ones at the
     # start if that is ever seen.
-    return FileResponse(out, media_type="application/zip", filename=f"koloni-{stamp}.zip",
-                        background=BackgroundTask(shutil.rmtree, tmp, ignore_errors=True))
+    return FileResponse(
+        out,
+        media_type="application/zip",
+        filename=f"koloni-{stamp}.zip",
+        background=BackgroundTask(shutil.rmtree, tmp, ignore_errors=True),
+    )
 
 
 def _writer(handle: int) -> BinaryIO:

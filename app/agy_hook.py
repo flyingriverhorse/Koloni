@@ -18,12 +18,17 @@ def asked(call: object) -> dict:
     """KOLONİ's answer to one tool call: {"decision", "reason"}."""
     with open(sys.argv[1], encoding="utf-8") as config:
         told = json.load(config)
-    request = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-               "params": {"name": "approve", "arguments": call}}
+    request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "approve", "arguments": call},
+    }
     with socket.create_connection(("127.0.0.1", int(told["port"])), timeout=10) as door:
         door.settimeout(None)  # a card can stay open for as long as the user thinks
-        door.sendall(str(told["key"]).encode("ascii") + b"\n"
-                     + json.dumps(request).encode("utf-8") + b"\n")
+        door.sendall(
+            str(told["key"]).encode("ascii") + b"\n" + json.dumps(request).encode("utf-8") + b"\n"
+        )
         with door.makefile("rb") as answers:
             reply = next(one for one in map(json.loads, answers) if one.get("id") == 1)
     result = reply["result"]

@@ -35,8 +35,10 @@ router = APIRouter(prefix="/api", tags=["undo"])
 NOTED = ("write_file", "edit_file", "delete_file", "files_changed")
 NOT_DISCARDED = "its working copy was not discarded; decide it on its card"
 # A change found in the project while a CLI worked in its copy may be the user's own (K-70-kimin).
-BY_WHOM = ("who changed it is not known - it changed in the project while the CLI worked in "
-           "its copy: undo it on its own row if it is the CLI's")
+BY_WHOM = (
+    "who changed it is not known - it changed in the project while the CLI worked in "
+    "its copy: undo it on its own row if it is the CLI's"
+)
 # How such a change was on record before (`IN_THE_PROJECT`), said as the CLI's.
 WAS_UNKNOWN = "changed by the CLI in the project itself, outside its working copy"
 
@@ -54,7 +56,8 @@ def _turns(session: Session, cid: str, run_id: str, later: bool) -> list[tuple[R
     numbered: list[tuple[Run, int | None]] = []
     counted: dict[str, int] = {}
     for run in session.scalars(
-        select(Run).where(Run.conversation_id == cid)
+        select(Run)
+        .where(Run.conversation_id == cid)
         .order_by(Run.created_at, literal_column("runs.rowid"))
     ):
         number = None
@@ -71,15 +74,25 @@ def _asked(session: Session, run_id: str) -> str:
     """The turn's own request as the turn list takes it - its message's first line (the page
     cuts it as the list does): the topic's name is its first turn's ("Open one Reviewer…:
     turn 3" for "eight")."""
-    content = session.scalar(select(Message.content).where(
-        Message.run_id == run_id, Message.role.in_(("user", "trigger"))).order_by(
-        Message.created_at, literal_column("messages.rowid")).limit(1)) or ""
+    content = (
+        session.scalar(
+            select(Message.content)
+            .where(Message.run_id == run_id, Message.role.in_(("user", "trigger")))
+            .order_by(Message.created_at, literal_column("messages.rowid"))
+            .limit(1)
+        )
+        or ""
+    )
     return next((part.strip() for part in content.split("\n") if part.strip()), "")
 
 
 def _latest(session: Session, cid: str) -> str | None:
-    return session.scalar(select(Run.id).where(Run.conversation_id == cid).order_by(
-        Run.created_at.desc(), literal_column("runs.rowid").desc()).limit(1))
+    return session.scalar(
+        select(Run.id)
+        .where(Run.conversation_id == cid)
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+        .limit(1)
+    )
 
 
 def _stays(session: Session, ids: list[str]) -> list[str]:
@@ -88,11 +101,17 @@ def _stays(session: Session, ids: list[str]) -> list[str]:
     and the commits KOLONİ made of what was taken."""
     recorded = set(session.scalars(select(FileChange.path).where(FileChange.run_id.in_(ids))))
     said = []
-    for note in session.scalars(select(ToolCall).where(
-        ToolCall.run_id.in_(ids), ToolCall.origin == "cli", ToolCall.status == "succeeded",
-        ToolCall.name.in_(NOTED),
-        ~select(FileChange.id).where(FileChange.tool_call_id == ToolCall.id).exists(),
-    ).order_by(literal_column("tool_calls.rowid"))):
+    for note in session.scalars(
+        select(ToolCall)
+        .where(
+            ToolCall.run_id.in_(ids),
+            ToolCall.origin == "cli",
+            ToolCall.status == "succeeded",
+            ToolCall.name.in_(NOTED),
+            ~select(FileChange.id).where(FileChange.tool_call_id == ToolCall.id).exists(),
+        )
+        .order_by(literal_column("tool_calls.rowid"))
+    ):
         try:
             path = json.loads(note.arguments).get("path")
         except (ValueError, AttributeError):
@@ -110,7 +129,10 @@ def _stays(session: Session, ids: list[str]) -> list[str]:
 
 
 async def _undo(
-    request: Request, session: Session, turns: list[tuple[Run, int | None]], do: bool,
+    request: Request,
+    session: Session,
+    turns: list[tuple[Run, int | None]],
+    do: bool,
     through: str | None = None,
 ) -> dict:
     runs = [run for run, _n in turns]
@@ -119,8 +141,9 @@ async def _undo(
     # A comparison's sides wait for the user's choice, which takes one in and throws the
     # other away: undoing a side before that would race it (slice 54).
     open_sides = {run.compare_id for run in runs if run.compare_id}
-    if open_sides and session.scalar(select(Compare.id).where(
-            Compare.id.in_(open_sides), Compare.status == "open").limit(1)):
+    if open_sides and session.scalar(
+        select(Compare.id).where(Compare.id.in_(open_sides), Compare.status == "open").limit(1)
+    ):
         raise HTTPException(409, "a comparison of these waits for your choice: decide it first")
     # The turns the user was shown: one that ended since is not taken back unseen.
     if through is not None and runs[-1].id != through:
@@ -128,36 +151,69 @@ async def _undo(
     cid = runs[0].conversation_id
     latest = _latest(session, cid)
     ids = [run.id for run in runs]
-    titles = dict(session.execute(
-        select(Topic.id, Topic.title).where(Topic.conversation_id == cid)).tuples().all())
-    shown = [{"run_id": run.id, "topic": titles.get(run.topic_id or ""), "turn": n,
-              "request": _asked(session, run.id)} for run, n in turns]
+    titles = dict(
+        session.execute(select(Topic.id, Topic.title).where(Topic.conversation_id == cid))
+        .tuples()
+        .all()
+    )
+    shown = [
+        {
+            "run_id": run.id,
+            "topic": titles.get(run.topic_id or ""),
+            "turn": n,
+            "request": _asked(session, run.id),
+        }
+        for run, n in turns
+    ]
     project = project_of(session, session.get_one(Conversation, cid))
     # Latest first: as they were applied (a kept copy's may be applied after its turn).
-    changes = list(session.scalars(
-        select(FileChange).where(FileChange.run_id.in_(ids), FileChange.status == "applied")
-        .order_by(func.coalesce(FileChange.decided_at, FileChange.created_at).desc(),
-                  literal_column("file_changes.rowid").desc())
-    ))
+    changes = list(
+        session.scalars(
+            select(FileChange)
+            .where(FileChange.run_id.in_(ids), FileChange.status == "applied")
+            .order_by(
+                func.coalesce(FileChange.decided_at, FileChange.created_at).desc(),
+                literal_column("file_changes.rowid").desc(),
+            )
+        )
+    )
     # Not one whose maker is not known: the user's own work is not taken back unasked.
-    unknown = set(session.scalars(select(ToolCall.id).where(
-        ToolCall.run_id.in_(ids),
-        ToolCall.result.startswith(IN_THE_PROJECT) | ToolCall.result.startswith(WAS_UNKNOWN))))
-    skip = [{"path": change.path, "why": BY_WHOM}
-            for change in changes if change.tool_call_id in unknown]
+    unknown = set(
+        session.scalars(
+            select(ToolCall.id).where(
+                ToolCall.run_id.in_(ids),
+                ToolCall.result.startswith(IN_THE_PROJECT)
+                | ToolCall.result.startswith(WAS_UNKNOWN),
+            )
+        )
+    )
+    skip = [
+        {"path": change.path, "why": BY_WHOM}
+        for change in changes
+        if change.tool_call_id in unknown
+    ]
     changes = [change for change in changes if change.tool_call_id not in unknown]
     # A finished turn has no change or card still waiting (its end turned them down): what
     # waits of it is a working copy kept over a restart. Discarding it deletes its folder.
     kept = [
-        (merge.id, str(merge.kept_in), [
-            one["path"] for one in merge.files if one["state"] != "applied"])
-        for merge in session.scalars(select(Merge).where(
-            Merge.run_id.in_(ids), Merge.status == "interrupted", Merge.kept_in.is_not(None)))
+        (
+            merge.id,
+            str(merge.kept_in),
+            [one["path"] for one in merge.files if one["state"] != "applied"],
+        )
+        for merge in session.scalars(
+            select(Merge).where(
+                Merge.run_id.in_(ids), Merge.status == "interrupted", Merge.kept_in.is_not(None)
+            )
+        )
     ]
-    commands = list(session.scalars(
-        select(Command.command).where(Command.run_id.in_(ids), Command.started_at.is_not(None))
-        .order_by(Command.created_at, literal_column("commands.rowid"))
-    ))
+    commands = list(
+        session.scalars(
+            select(Command.command)
+            .where(Command.run_id.in_(ids), Command.started_at.is_not(None))
+            .order_by(Command.created_at, literal_column("commands.rowid"))
+        )
+    )
     stays = _stays(session, ids)
     revert: list[str] = []
     copies = [(folder, paths) for _id, folder, paths in kept]
@@ -186,10 +242,14 @@ async def _undo(
     if do and _latest(session, cid) != latest:
         note = "A turn started while this was done: what it does is not taken back."
     return {
-        "turns": shown, "revert": revert, "skip": skip,
+        "turns": shown,
+        "revert": revert,
+        "skip": skip,
         "reject": [path for _folder, paths in copies for path in paths],
         "copies": [{"folder": folder, "files": paths} for folder, paths in copies],
-        "commands": commands, "stays": stays, "note": note,
+        "commands": commands,
+        "stays": stays,
+        "note": note,
     }
 
 
@@ -215,11 +275,15 @@ async def restore_ahead(
 
 
 @router.post(
-    "/conversations/{cid}/restore", response_model=UndoOut,
+    "/conversations/{cid}/restore",
+    response_model=UndoOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def restore(
-    cid: str, before: str, request: Request, through: str | None = None,
+    cid: str,
+    before: str,
+    request: Request,
+    through: str | None = None,
     session: Session = Depends(get_session),
 ):
     """`through`: the last turn the look ahead listed; the card always sends it. (Left out,

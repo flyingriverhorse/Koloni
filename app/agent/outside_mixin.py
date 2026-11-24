@@ -77,8 +77,9 @@ OF_THE_PROJECT = (
 class OutsideMixin:
     # --- the web tools (`app.web`) ---------------------------------------------
 
-    async def _web(self: "AgentRunner", ctx: Ctx, call_id: str, name: str,
-                   args: dict) -> tuple[str, str]:
+    async def _web(
+        self: "AgentRunner", ctx: Ctx, call_id: str, name: str, args: dict
+    ) -> tuple[str, str]:
         """A web search, an HTTP request or a notification: refused, asked about or let
         through as the turn stands, then made. Returns the call's status and its text.
 
@@ -95,8 +96,14 @@ class OutsideMixin:
             # K-uzman: an expert's search (while answering) is asked below Full auto whatever
             # the rules, and never paid for by the search: the user switched on something
             # that costs.
-            expert = knows.known_here(session, find_role(session, ctx.role), (
-                project.id if project is not None else None)) is not None
+            expert = (
+                knows.known_here(
+                    session,
+                    find_role(session, ctx.role),
+                    (project.id if project is not None else None),
+                )
+                is not None
+            )
             if project is None:  # a plain chat: the built-in search, and nowhere to notify
                 search_url, order, search_agy = None, "builtin", False
                 notify_url, form, on_desktop, title = None, "slack", False, "KOLONİ"
@@ -115,10 +122,12 @@ class OutsideMixin:
         try:
             if name == "notify":
                 return await self._web_notify(
-                    ctx, args, notify_url, form, on_desktop, title, no_network, network_off)
+                    ctx, args, notify_url, form, on_desktop, title, no_network, network_off
+                )
             if name == "web_search":
                 return await self._web_search(
-                    ctx, call_id, args, asks, expert, search_url, order, search_agy)
+                    ctx, call_id, args, asks, expert, search_url, order, search_agy
+                )
             verb, url, headers, body = web.planned(
                 args.get("method"), args.get("url"), args.get("headers"), args.get("body")
             )
@@ -135,7 +144,8 @@ class OutsideMixin:
             reads = verb in ("GET", "HEAD")
             bare = body is None and not headers
             refused = self._nobody_to_ask(
-                ctx, "host" if reads and bare else "",
+                ctx,
+                "host" if reads and bare else "",
                 f"make a {'' if reads else verb + ' '}request to {host}"
                 f"{'' if bare or not reads else ' with a body or headers of its own'}",
                 host=host,
@@ -147,11 +157,18 @@ class OutsideMixin:
             plain = verb == "GET" and bare
             # At Full auto only a bare GET or HEAD goes unasked - as in a job while the user is
             # away (K-fullauto-sorma): a body, a header or another verb carries anything out.
-            if not unwatched and (asks or not (reads and bare)) and not (
-                    plain and host in self._web_rules(cid)[1]):
+            if (
+                not unwatched
+                and (asks or not (reads and bare))
+                and not (plain and host in self._web_rules(cid)[1])
+            ):
                 asked = WebRequest(
-                    kind="http", method=verb, target=url, host=host,
-                    headers=sorted(headers), body_chars=len(body) if body is not None else None,
+                    kind="http",
+                    method=verb,
+                    target=url,
+                    host=host,
+                    headers=sorted(headers),
+                    body_chars=len(body) if body is not None else None,
                 )
                 if await self._ask_web(ctx, call_id, asked) == "reject":
                     return "denied", WEB_REJECTED.format(what="request")
@@ -172,8 +189,15 @@ class OutsideMixin:
             raise ToolError(str(exc)) from None
 
     async def _web_notify(
-        self: "AgentRunner", ctx: Ctx, args: dict, notify_url: str | None, form: str,
-        on_desktop: bool, title: str, no_network: bool, network_off: str,
+        self: "AgentRunner",
+        ctx: Ctx,
+        args: dict,
+        notify_url: str | None,
+        form: str,
+        on_desktop: bool,
+        title: str,
+        no_network: bool,
+        network_off: str,
     ) -> tuple[str, str]:
         """`_web`'s notification, to where the user said (a `web.WebError` is `_web`'s to turn)."""
         cid = ctx.cid
@@ -200,9 +224,7 @@ class OutsideMixin:
         if notify_url:
             try:
                 if no_network:
-                    raise ToolError(
-                        f"not sent to the user's notification address: {network_off}"
-                    )
+                    raise ToolError(f"not sent to the user's notification address: {network_off}")
                 self._within(self._requests, cid, "30 requests")
                 went.append(await web.notify(notify_url, message, form))
             except (ToolError, web.WebError) as exc:
@@ -213,8 +235,15 @@ class OutsideMixin:
         return "failed", f"{went[0]}, but: {why}" if went else f"error: {why}"
 
     async def _web_search(
-        self: "AgentRunner", ctx: Ctx, call_id: str, args: dict, asks: bool, expert: bool,
-        search_url: str | None, order: str, search_agy: bool,
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        args: dict,
+        asks: bool,
+        expert: bool,
+        search_url: str | None,
+        order: str,
+        search_agy: bool,
     ) -> tuple[str, str]:
         """`_web`'s search: asked about as the turn stands, then made."""
         cid = ctx.cid
@@ -234,9 +263,12 @@ class OutsideMixin:
         self._within(self._searches, cid, "10 searches")
         # A search the API made is paid for in tokens: they are this agent's.
         return "succeeded", await web.search(
-            query, search_url, order,
+            query,
+            search_url,
+            order,
             lambda sent, made: self._count_tokens(ctx, sent, made, step=False),
-            agy=search_agy, paid=not expert,
+            agy=search_agy,
+            paid=not expert,
         )
 
     def _within(self: "AgentRunner", rate: web.Rate, cid: str, most: str) -> None:
@@ -283,15 +315,20 @@ class OutsideMixin:
                 if row.kind in ("http", "page"):
                     row.target = _kept(web.kept_url, row.target)  # decided: as `web.kept` has it
                 rule = None
-                if decision == "always" and (row.kind in ("search", "page") or (
-                    row.method == "GET" and not row.headers and row.body_chars is None
-                )):
-                    rule = ("search", "") if row.kind == "search" else (
-                        "page" if row.kind == "page" else "host", row.host or "")
+                if decision == "always" and (
+                    row.kind in ("search", "page")
+                    or (row.method == "GET" and not row.headers and row.body_chars is None)
+                ):
+                    rule = (
+                        ("search", "")
+                        if row.kind == "search"
+                        else ("page" if row.kind == "page" else "host", row.host or "")
+                    )
                     # (A site is the project's: one rule for it in any of its chats.)
                     conversation = session.get_one(Conversation, cid)
                     known = web_rules_here(conversation).where(
-                        AllowedWeb.kind == rule[0], AllowedWeb.host == rule[1])
+                        AllowedWeb.kind == rule[0], AllowedWeb.host == rule[1]
+                    )
                     if session.scalar(known) is None:
                         session.add(new_web_rule(conversation, *rule))
                 session.commit()
@@ -313,14 +350,30 @@ class OutsideMixin:
         with self._factory() as session:
             if cid is not None:
                 project_id = session.get_one(Conversation, cid).project_id
-            chats = [cid] if project_id is None else [
-                chat for chat in session.scalars(select(Conversation.id).where(
-                    Conversation.project_id == project_id))
-                if chat == cid or self.bus.watching(chat)]
-            payloads = {chat: {"rules": [allowed_web_out(rule) for rule in session.scalars(
-                web_rules_here(session.get_one(Conversation, chat))
-                .order_by(AllowedWeb.created_at, literal_column("allowed_web.rowid")))]}
-                for chat in chats}
+            chats = (
+                [cid]
+                if project_id is None
+                else [
+                    chat
+                    for chat in session.scalars(
+                        select(Conversation.id).where(Conversation.project_id == project_id)
+                    )
+                    if chat == cid or self.bus.watching(chat)
+                ]
+            )
+            payloads = {
+                chat: {
+                    "rules": [
+                        allowed_web_out(rule)
+                        for rule in session.scalars(
+                            web_rules_here(session.get_one(Conversation, chat)).order_by(
+                                AllowedWeb.created_at, literal_column("allowed_web.rowid")
+                            )
+                        )
+                    ]
+                }
+                for chat in chats
+            }
         for chat, payload in payloads.items():
             if chat == cid:
                 self.bus.emit(cid, None, "allowed_web.updated", payload)
@@ -343,22 +396,37 @@ class OutsideMixin:
         (the server would run on this machine, outside the container the user chose);
         none in a turn taken to answer somebody, where an agent only reads; none in a side
         of a comparison, which changes nothing outside its copy before the user's choice."""
-        if (not ctx.mcp or ctx.answering or not getattr(ctx.model, "collaborates", True)
-                or not self._watched(ctx.run_id) or ctx.run_id in self._sides
-                or ctx.run_id in self._away_jobs or ctx.run_id in self._backlog_turns):
+        if (
+            not ctx.mcp
+            or ctx.answering
+            or not getattr(ctx.model, "collaborates", True)
+            or not self._watched(ctx.run_id)
+            or ctx.run_id in self._sides
+            or ctx.run_id in self._away_jobs
+            or ctx.run_id in self._backlog_turns
+        ):
             return {}
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             if project is None or project.exec_location == "docker":
                 return {}
-            return mcp_client.usable(session.scalars(
-                select(McpServer).where(McpServer.name.in_(ctx.mcp), McpServer.enabled)
-                .order_by(McpServer.created_at, literal_column("mcp_servers.rowid"))
-            ).all())
+            return mcp_client.usable(
+                session.scalars(
+                    select(McpServer)
+                    .where(McpServer.name.in_(ctx.mcp), McpServer.enabled)
+                    .order_by(McpServer.created_at, literal_column("mcp_servers.rowid"))
+                ).all()
+            )
 
     async def _mcp_call(
-        self: "AgentRunner", ctx: Ctx, call_id: str, name: str, server: McpServer, tool: dict,
-        arguments: str, args: dict,
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        name: str,
+        server: McpServer,
+        tool: dict,
+        arguments: str,
+        args: dict,
     ) -> tuple[str, str]:
         """A call of a tool of an MCP server: asked about, at every level, unless the user
         marked the tool as running without asking - and always, with the server's own words
@@ -371,13 +439,15 @@ class OutsideMixin:
         shown = f"{server.name} · {tool['name']}"
         if len(arguments) > mcp_client.MAX_CALL_ARGUMENTS:
             raise ToolError(
-                f"the arguments have at most {mcp_client.MAX_CALL_ARGUMENTS} characters")
+                f"the arguments have at most {mcp_client.MAX_CALL_ARGUMENTS} characters"
+            )
         try:
             json.dumps(args, allow_nan=False)
         except ValueError:
             # Python reads 1e999 and NaN as numbers; a server cannot be sent them as JSON.
             raise ToolError(
-                "the arguments hold a number that is not finite (NaN, Infinity)") from None
+                "the arguments hold a number that is not finite (NaN, Infinity)"
+            ) from None
         # Slice 92: a server not yet trusted is asked about at every level, whatever the mark;
         # a tool marked "Ask" is the user's word too, over Full auto.
         if not server.trusted or tool["mark"] != "free":
@@ -394,15 +464,20 @@ class OutsideMixin:
             client = self._servers.get(key)
             # One started before the user changed the server is the program before: ended -
             # and one started before its agent had a copy, or in another.
-            if (client is None or not client.alive
-                    or client.started_as != (server.command, server.env) or client.git != git):
+            if (
+                client is None
+                or not client.alive
+                or client.started_as != (server.command, server.env)
+                or client.git != git
+            ):
                 if client is not None:
                     await self._servers.pop(key).end()
                 server, refused, yes = await self._mcp_may_start(ctx, call_id, name, server)
                 if refused:
                     return "denied", refused
                 client = self._servers[key] = await mcp_client.Client.start(
-                    server.command, server.env, self.settings.mcp_home, git)
+                    server.command, server.env, self.settings.mcp_home, git
+                )
                 if yes:  # kept once it started
                     with self._factory() as session:
                         if (row := session.get(McpServer, server.id)) is not None:
@@ -416,11 +491,17 @@ class OutsideMixin:
         told = ["The tool says it failed."] if failed else []
         if len(text) > mcp_client.MAX_RESULT:
             told.append(f"{len(text)} characters, cut at {mcp_client.MAX_RESULT}.")
-        return "failed" if failed else "succeeded", "\n".join([*told, web.framed(
-            text[:mcp_client.MAX_RESULT], f"result of the MCP tool {shown}")])
+        return "failed" if failed else "succeeded", "\n".join(
+            [*told, web.framed(text[: mcp_client.MAX_RESULT], f"result of the MCP tool {shown}")]
+        )
 
     async def _mcp_asked(
-        self: "AgentRunner", ctx: Ctx, call_id: str, name: str, server: McpServer, tool: dict,
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        name: str,
+        server: McpServer,
+        tool: dict,
         args: dict,
     ) -> tuple[McpServer, dict] | None:
         """`_mcp_call`'s card for a call: the server and the tool as they stand once the user
@@ -430,13 +511,21 @@ class OutsideMixin:
         given = mcp_client.visible(json.dumps(args, ensure_ascii=False))
         if len(given) > 600:
             given = f"{given[:600]}… ({len(given)} characters: the call has all of it)"
-        question = (f"May the tool {quoted(tool['name'])} of the MCP server "
-                    f"{quoted(server.name)} run? It would be given: {given}")
+        question = (
+            f"May the tool {quoted(tool['name'])} of the MCP server "
+            f"{quoted(server.name)} run? It would be given: {given}"
+        )
         if not server.trusted:
             question += mcp_client.watched(server, tool, MAX_QUESTION_CHARS - len(question))
-        _status, answer = await self._ask_user(ctx, call_id, {
-            "question": question, "options": ["Allow", "Deny"],
-        }, leave=True)
+        _status, answer = await self._ask_user(
+            ctx,
+            call_id,
+            {
+                "question": question,
+                "options": ["Allow", "Deny"],
+            },
+            leave=True,
+        )
         if answer.removeprefix(ANSWER_PREFIX).strip().casefold() != "allow":
             return None
         # As the server stands now: the user may have changed it while they were asked.
@@ -446,7 +535,11 @@ class OutsideMixin:
         return found
 
     async def _mcp_may_start(
-        self: "AgentRunner", ctx: Ctx, call_id: str, name: str, server: McpServer,
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        name: str,
+        server: McpServer,
     ) -> tuple[McpServer, str | None, dict | None]:
         """97: a server that runs code from a folder agents write in (`mcp_client.in_project`)
         is started only once the user says so - at every level, a tool that runs without
@@ -470,16 +563,25 @@ class OutsideMixin:
                 if mcp_client.trusted(kept, files):
                     return server, None, None
                 runs = mcp_client.runs(files)
-                no = (f"The user said not to start the MCP server {quoted(server.name)}: it runs "
-                      f"{runs} from a project agents can change.")
-                if server.id in said and (not said[server.id][1] or (
-                        said[server.id][0] == files and None not in files.values())):
+                no = (
+                    f"The user said not to start the MCP server {quoted(server.name)}: it runs "
+                    f"{runs} from a project agents can change."
+                )
+                if server.id in said and (
+                    not said[server.id][1]
+                    or (said[server.id][0] == files and None not in files.values())
+                ):
                     return server, None if said[server.id][1] else no, files
-                _status, answer = await self._ask_user(ctx, call_id, {
-                    "question": f"The MCP server {quoted(server.name)} runs {runs} from your "
-                                "project, which agents can change. Start it anyway?",
-                    "options": ["Start it", "Don't start"],
-                }, leave=True)
+                _status, answer = await self._ask_user(
+                    ctx,
+                    call_id,
+                    {
+                        "question": f"The MCP server {quoted(server.name)} runs {runs} from your "
+                        "project, which agents can change. Start it anyway?",
+                        "options": ["Start it", "Don't start"],
+                    },
+                    leave=True,
+                )
                 if answer.removeprefix(ANSWER_PREFIX).strip().casefold() != "start it":
                     said[server.id] = (files, False)
                     return server, no, None
@@ -488,8 +590,7 @@ class OutsideMixin:
                     raise ToolError(f"{name} is no longer available")
                 server = found[0]
                 # Changed while the user was asked (the code, or the server): asked again.
-                if await asyncio.to_thread(
-                        mcp_client.in_project, server.command, folders) == files:
+                if await asyncio.to_thread(mcp_client.in_project, server.command, folders) == files:
                     said[server.id] = (files, True)
                     return server, None, files
 
@@ -508,8 +609,14 @@ class OutsideMixin:
             conversation = session.get_one(Conversation, ctx.cid)
 
             def joined(access: str) -> list[str]:
-                return list(dict.fromkeys([*folders_of(project, conversation, access),
-                                           *(f for f, given in lent.items() if given == access)]))
+                return list(
+                    dict.fromkeys(
+                        [
+                            *folders_of(project, conversation, access),
+                            *(f for f, given in lent.items() if given == access),
+                        ]
+                    )
+                )
 
             return joined("write"), joined("read")
 
@@ -538,8 +645,9 @@ class OutsideMixin:
         a side of a comparison: before the user's choice nothing of it goes outside its copy."""
         # A change - a command too - goes unasked only into a folder to write in.
         changes = name in WRITE_TOOLS or name == "run_command"
-        apart = name in WRITE_TOOLS or (name == "run_command" and (
-            ctx.run_id in self._sides or ctx.run_id in self._away_jobs))
+        apart = name in WRITE_TOOLS or (
+            name == "run_command" and (ctx.run_id in self._sides or ctx.run_id in self._away_jobs)
+        )
         listed = [] if self._copy_owner(ctx) and apart else self._also_in(ctx, write=changes)
         ws = Workspace(ws.root, ws.links, listed)
         path = args.get("cwd" if name == "run_command" else "path") or "."
@@ -558,8 +666,7 @@ class OutsideMixin:
             # card; the change's undo (`for_change`) is refused too - nothing grants it there.
             if name != "read_file" and name not in WRITE_TOOLS:
                 return ws  # the tool says what is wrong with it
-            await self._ask_outside(ctx, call_id, path, None, access, why=exc.card,
-                                    shown=exc.real)
+            await self._ask_outside(ctx, call_id, path, None, access, why=exc.card, shown=exc.real)
             return Workspace(ws.root, ws.links, ws.also, granted=exc.real)
         except (WorkspaceError, OSError):
             return ws  # the tool says what is wrong with it
@@ -570,26 +677,39 @@ class OutsideMixin:
             owner = self._copy_owner(ctx)
             # (Not one through the copy's links into the project's own: `_shared` holds those.)
             linked = any(within(target, there) for there in ws.links.values())
-            if owner is not None and self._copies.get(owner, True) is not None and (
-                    Workspace(ctx.folder).is_own(target)) and not linked and (
-                    not ws.is_own(target) or Path(path).is_absolute()
-                    and self._copies.get(owner) is None) and not (
-                    await self._reads_left_out(ctx, name, target)):  # (as below, `Outside`)
+            if (
+                owner is not None
+                and self._copies.get(owner, True) is not None
+                and (Workspace(ctx.folder).is_own(target))
+                and not linked
+                and (
+                    not ws.is_own(target)
+                    or Path(path).is_absolute()
+                    and self._copies.get(owner) is None
+                )
+                and not (await self._reads_left_out(ctx, name, target))
+            ):  # (as below, `Outside`)
                 raise ToolError(OF_THE_PROJECT.format(path=path))
             # K-buyuk-proje: another part, by its path in a copy of one part: not there - said
             # so, and where to read it, rather than "not found".
             copy = self._copies.get(owner or "")
-            if copy is not None and copy.part and ws.is_own(target) and not os.path.lexists(
-                    target) and not copy.holds(ws.rel(target)):
-                raise ToolError(NOT_IN_THE_PART.format(
-                    path=path, part=copy.part, project=copy.project))
+            if (
+                copy is not None
+                and copy.part
+                and ws.is_own(target)
+                and not os.path.lexists(target)
+                and not copy.holds(ws.rel(target))
+            ):
+                raise ToolError(
+                    NOT_IN_THE_PART.format(path=path, part=copy.part, project=copy.project)
+                )
             # A change in a folder to read in only that a folder to write in holds is
             # asked about all the same, at every level.
-            over = (self._read_only_over(ctx, target)
-                    if changes and not ws.is_own(target) else None)
+            over = self._read_only_over(ctx, target) if changes and not ws.is_own(target) else None
             if over is not None:
-                await self._ask_outside(ctx, call_id, path, target if target.is_dir()
-                                        else target.parent, access)
+                await self._ask_outside(
+                    ctx, call_id, path, target if target.is_dir() else target.parent, access
+                )
             # So is a command that names a folder to read in only by its full path. (What
             # it names another way, or a program does unnamed, is not seen.)
             named = self._read_named(ctx, args.get("command")) if name == "run_command" else None
@@ -613,9 +733,14 @@ class OutsideMixin:
             # shortcut: a fake key of a test's (sk-test-...) is a card at every read and
             # refused nobody watching (the well-known samples are not: `holds_a_key`); let
             # one be allowed for the chat if that tires.
-            if (name == "read_file" or name in WRITE_TOOLS) and target.is_file() and (
-                secret_named(path, ws.rel(target)) or name == "read_file"
-                and await asyncio.to_thread(_shows_a_key, ws, path)
+            if (
+                (name == "read_file" or name in WRITE_TOOLS)
+                and target.is_file()
+                and (
+                    secret_named(path, ws.rel(target))
+                    or name == "read_file"
+                    and await asyncio.to_thread(_shows_a_key, ws, path)
+                )
             ):
                 await self._ask_outside(ctx, call_id, path, None)
             return ws
@@ -627,8 +752,9 @@ class OutsideMixin:
         # goes through all of it; hold it to the path alone if that is ever too much.
         return Workspace(ws.root, ws.links, [*ws.also, folder])
 
-    async def _outside_own(self: "AgentRunner", ctx: Ctx, call_id: str, ws: Workspace,
-                           name: str, path: str) -> Workspace:
+    async def _outside_own(
+        self: "AgentRunner", ctx: Ctx, call_id: str, ws: Workspace, name: str, path: str
+    ) -> Workspace:
         """`_outside`, at a path of the project itself from an agent's copy: a read of what
         the copy left out, or refused."""
         real = Path(os.path.realpath(ws.root / path))
@@ -651,8 +777,12 @@ class OutsideMixin:
         shortcut: KOLONİ's own read tools; a CLI's own Read there - another part's too - is as
         any read outside its copy: let its hook through too if CLIs are seen to need it."""
         copy = self._copies.get(self._copy_owner(ctx) or "")
-        return name in READ_TOOLS and copy is not None and bool(copy.git or copy.part) and (
-            await asyncio.to_thread(copy.left_out, target))
+        return (
+            name in READ_TOOLS
+            and copy is not None
+            and bool(copy.git or copy.part)
+            and (await asyncio.to_thread(copy.left_out, target))
+        )
 
     def _read_named(self: "AgentRunner", ctx: Ctx, command: object) -> Path | None:
         """A folder to read in only (and not one to write in, too) that a command's text
@@ -668,7 +798,8 @@ class OutsideMixin:
         for folder in [*read, *(write if night else [])]:
             named = re.escape(folder.casefold().replace("/", "\\").rstrip("\\"))
             if (night or folder not in write) and re.search(
-                    named + r"(?![^\\\s\"'`;|&<>(),])", said):
+                named + r"(?![^\\\s\"'`;|&<>(),])", said
+            ):
                 return Path(folder)
         return None
 
@@ -680,10 +811,16 @@ class OutsideMixin:
         if folder.is_relative_to(store) or holds and store.is_relative_to(folder):
             raise ToolError(f"{path!r} is never opened: it holds KOLONİ's own store of skills")
 
-    async def _ask_outside(self: "AgentRunner", ctx: Ctx, call_id: str, path: str,
-                           folder: Path | None,
-                           access: str = "write", why: str | None = None,
-                           shown: Path | None = None) -> str:
+    async def _ask_outside(
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        path: str,
+        folder: Path | None,
+        access: str = "write",
+        why: str | None = None,
+        shown: Path | None = None,
+    ) -> str:
         """Ask the user whether an agent may go to `path`, outside the project and the
         folders it also works in: the call is `pending` until they say. "folder" puts
         `folder` on the conversation's list for `access` - only one that is there (a new
@@ -694,8 +831,11 @@ class OutsideMixin:
         says no."""
         why = why or (SECRET_CARD if folder is None else None)
         secret = why == SECRET_CARD
-        wanted = (f"open {quoted(path)}, a secret file (keys, passwords)" if secret
-                  else f"open {quoted(path)}, outside the project")
+        wanted = (
+            f"open {quoted(path)}, a secret file (keys, passwords)"
+            if secret
+            else f"open {quoted(path)}, outside the project"
+        )
         refused = self._nobody_to_ask(ctx, "outside", wanted)
         if refused:
             raise _NobodyToAsk(refused)
@@ -703,10 +843,17 @@ class OutsideMixin:
         self._outside_asks[call_id] = future
         # On the card: where the path really leads, which "Allow this folder" would open -
         # or, `shown`, the one file or folder a yes reads (no folder is opened by it).
-        self._set_call(ctx.cid, call_id, status="pending",
-                       outside_folder=str(shown) if shown else
-                       str(folder) if folder and folder.is_dir() else None,
-                       why_asked=why)
+        self._set_call(
+            ctx.cid,
+            call_id,
+            status="pending",
+            outside_folder=str(shown)
+            if shown
+            else str(folder)
+            if folder and folder.is_dir()
+            else None,
+            why_asked=why,
+        )
         self._update_run(ctx.run_id, ctx.cid, status="waiting_approval")
 
         def resolved(*_heard) -> None:
@@ -740,8 +887,9 @@ class OutsideMixin:
         write, read = self._lists(ctx)
         return tuple(f for f in write if _handed(f, write, read))
 
-    async def _plain_read(self: "AgentRunner", ctx: Ctx, call_id: str, name: str,
-                          args: dict) -> tuple[Workspace, dict]:
+    async def _plain_read(
+        self: "AgentRunner", ctx: Ctx, call_id: str, name: str, args: dict
+    ) -> tuple[Workspace, dict]:
         """Where a chat with no folder reads a file, or lists a folder, the user names (slice
         86b): by its full path ("~" for the home folder), on the user's word each time, for
         that one call - put on no list - and the call's arguments with where it really
@@ -753,8 +901,10 @@ class OutsideMixin:
             raise ToolError(f"path: give the full path of the file or folder - {NO_FOLDER}")
         named = Path(os.path.abspath(path))
         # A root nothing named is in (it is never made): every path is judged as outside.
-        ws = Workspace(self.settings.runtime_root / "no-folder",
-                       also=[named if name == "list_dir" else named.parent])
+        ws = Workspace(
+            self.settings.runtime_root / "no-folder",
+            also=[named if name == "list_dir" else named.parent],
+        )
         why = PLAIN_CARD
         try:
             target = ws.resolve(path)
@@ -778,13 +928,20 @@ class OutsideMixin:
         """Why this agent picks no team for the chat now (slice 84b); None: it may. A Lead on a
         CLI session is offered it with KOLONİ's other tools, over the MCP bridge (`_offered`);
         one that cannot be handed KOLONİ's tools is not."""
-        if ctx.role != LEAD or ctx.depth or ctx.answering or ctx.run_id in self._sides or (
-                not getattr(ctx.model, "collaborates", True)):
+        if (
+            ctx.role != LEAD
+            or ctx.depth
+            or ctx.answering
+            or ctx.run_id in self._sides
+            or (not getattr(ctx.model, "collaborates", True))
+        ):
             return "pick_teams is the Orchestrator's, at its own work"
         if conversation.teams_mode == "manual":
-            return ("this chat's teams are the user's (Manual): they are the teams you may use - "
-                    f"open only those the message needs; {SAME_MESSAGE}; the user changes them "
-                    "in Teams for this chat")
+            return (
+                "this chat's teams are the user's (Manual): they are the teams you may use - "
+                f"open only those the message needs; {SAME_MESSAGE}; the user changes them "
+                "in Teams for this chat"
+            )
         if conversation.teams_mode != "lead":
             return "this chat works with no teams: open any role with spawn_agent"
         return None
@@ -795,10 +952,15 @@ class OutsideMixin:
         shortcut: a plan turn's picks stand at once, before the user's yes (and after a no), and
         the plan card does not show them (design §3); hold them on the plan if that is felt."""
         picks = args.get("teams")
-        if not isinstance(picks, list) or not 1 <= len(picks) <= MAX_CHAT_TEAMS or not all(
-                isinstance(one, dict) for one in picks):
-            raise ToolError(f"teams is a list of 1 to {MAX_CHAT_TEAMS} picks, each "
-                            "{team, recipe (optional), why}")
+        if (
+            not isinstance(picks, list)
+            or not 1 <= len(picks) <= MAX_CHAT_TEAMS
+            or not all(isinstance(one, dict) for one in picks)
+        ):
+            raise ToolError(
+                f"teams is a list of 1 to {MAX_CHAT_TEAMS} picks, each "
+                "{team, recipe (optional), why}"
+            )
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             if why_not := self._no_pick(ctx, conversation):
@@ -811,22 +973,33 @@ class OutsideMixin:
                 name = " ".join(str(one.get("team") or "").split())
                 team = teams.get(name.casefold())
                 if team is None:
-                    raise ToolError(f"{name or 'a team'} is not a team you may pick. Teams: "
-                                    f"{', '.join(t.name for t in teams.values()) or 'none'}")
+                    raise ToolError(
+                        f"{name or 'a team'} is not a team you may pick. Teams: "
+                        f"{', '.join(t.name for t in teams.values()) or 'none'}"
+                    )
                 if any(row.team_id == team.id for row in rows):
                     raise ToolError(f"{team.name} is picked twice: once is enough")
                 wanted = " ".join(str(one.get("recipe") or "").split())
                 recipe = recipes.get(wanted.casefold())
                 if wanted and recipe is None:
-                    raise ToolError(f"{wanted} is not a recipe. Recipes: "
-                                    f"{', '.join(r.name for r in recipes.values()) or 'none'}")
+                    raise ToolError(
+                        f"{wanted} is not a recipe. Recipes: "
+                        f"{', '.join(r.name for r in recipes.values()) or 'none'}"
+                    )
                 why = " ".join(str(one.get("why") or "").split())
                 if not why or len(why) > MAX_WHY:
-                    raise ToolError(f"why is one sentence, at most {MAX_WHY} characters, "
-                                    f"for {team.name}")
-                rows.append(ConversationTeam(
-                    team_id=team.id, recipe_id=recipe.id if recipe else None, picked_by="lead",
-                    why=why, position=at))
+                    raise ToolError(
+                        f"why is one sentence, at most {MAX_WHY} characters, for {team.name}"
+                    )
+                rows.append(
+                    ConversationTeam(
+                        team_id=team.id,
+                        recipe_id=recipe.id if recipe else None,
+                        picked_by="lead",
+                        why=why,
+                        position=at,
+                    )
+                )
                 said.append(team.name)
             conversation.teams = rows
             session.commit()
@@ -834,6 +1007,8 @@ class OutsideMixin:
             payload = conversation_out(conversation)
             ways = [self._way(session, row, ctx.root) for row in rows]
         self.bus.emit(ctx.cid, None, "conversation.updated", payload)
-        return (f"picked {', '.join(said)}: spawn_agent opens only their roles now - with a "
-                "recipe, only its step's, one step after another: KOLONİ moves it on as the "
-                "step's agents finish." + "".join(f"\n{way}" for way in ways if way))
+        return (
+            f"picked {', '.join(said)}: spawn_agent opens only their roles now - with a "
+            "recipe, only its step's, one step after another: KOLONİ moves it on as the "
+            "step's agents finish." + "".join(f"\n{way}" for way in ways if way)
+        )

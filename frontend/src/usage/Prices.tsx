@@ -43,7 +43,13 @@ function CatalogueNote({ price, catalogue }: { price: Price | undefined; catalog
   )
 }
 
-function PriceRow({ model, price, catalogue, onPrice, onRemovePrice }: { model: string; price: Price | undefined; catalogue?: CataloguePrice } & Pick<Props, 'onPrice' | 'onRemovePrice'>) {
+function PriceRow({
+  model,
+  price,
+  catalogue,
+  onPrice,
+  onRemovePrice,
+}: { model: string; price: Price | undefined; catalogue?: CataloguePrice } & Pick<Props, 'onPrice' | 'onRemovePrice'>) {
   // The user's price, else the catalogue's to start from: saved, it is the user's and wins.
   const start = startOf(price ?? catalogue)
   const [input, setInput] = useState(start.input)
@@ -58,7 +64,12 @@ function PriceRow({ model, price, catalogue, onPrice, onRemovePrice }: { model: 
   // Each may be left empty; one that holds something must be a price.
   const read = amount(cacheRead)
   const wrote = amount(cacheWrite)
-  const ready = sent !== null && written !== null && Boolean(currency.trim()) && emptyOrPrice(cacheRead, read) && emptyOrPrice(cacheWrite, wrote)
+  const ready =
+    sent !== null &&
+    written !== null &&
+    Boolean(currency.trim()) &&
+    emptyOrPrice(cacheRead, read) &&
+    emptyOrPrice(cacheWrite, wrote)
 
   async function run(action: () => Promise<void>) {
     setBusy(true)
@@ -94,10 +105,36 @@ function PriceRow({ model, price, catalogue, onPrice, onRemovePrice }: { model: 
         <span className="mono" title={model}>
           {modelName(model)}
         </span>
-        <input className="input mono" inputMode="decimal" aria-label={`Input price of ${model}`} value={input} placeholder="sent" onChange={e => setInput(e.target.value)} />
-        <input className="input mono" inputMode="decimal" aria-label={`Output price of ${model}`} value={output} placeholder="written" onChange={e => setOutput(e.target.value)} />
-        <input className="input mono" aria-label={`Currency of ${model}`} value={currency} maxLength={8} placeholder="USD" onChange={e => setCurrency(e.target.value)} />
-        <button type="submit" className="btn btn-small" aria-label={`Save the price of ${model}`} disabled={busy || !ready}>
+        <input
+          className="input mono"
+          inputMode="decimal"
+          aria-label={`Input price of ${model}`}
+          value={input}
+          placeholder="sent"
+          onChange={e => setInput(e.target.value)}
+        />
+        <input
+          className="input mono"
+          inputMode="decimal"
+          aria-label={`Output price of ${model}`}
+          value={output}
+          placeholder="written"
+          onChange={e => setOutput(e.target.value)}
+        />
+        <input
+          className="input mono"
+          aria-label={`Currency of ${model}`}
+          value={currency}
+          maxLength={8}
+          placeholder="USD"
+          onChange={e => setCurrency(e.target.value)}
+        />
+        <button
+          type="submit"
+          className="btn btn-small"
+          aria-label={`Save the price of ${model}`}
+          disabled={busy || !ready}
+        >
           Save price
         </button>
         {price ? (
@@ -116,11 +153,25 @@ function PriceRow({ model, price, catalogue, onPrice, onRemovePrice }: { model: 
         <div className="price-cache">
           <label>
             A million read from the cache
-            <input className="input mono" inputMode="decimal" aria-label={`A million read from the cache, for ${model}`} value={cacheRead} placeholder="optional" onChange={e => setCacheRead(e.target.value)} />
+            <input
+              className="input mono"
+              inputMode="decimal"
+              aria-label={`A million read from the cache, for ${model}`}
+              value={cacheRead}
+              placeholder="optional"
+              onChange={e => setCacheRead(e.target.value)}
+            />
           </label>
           <label>
             A million written to it
-            <input className="input mono" inputMode="decimal" aria-label={`A million written to it, for ${model}`} value={cacheWrite} placeholder="optional" onChange={e => setCacheWrite(e.target.value)} />
+            <input
+              className="input mono"
+              inputMode="decimal"
+              aria-label={`A million written to it, for ${model}`}
+              value={cacheWrite}
+              placeholder="optional"
+              onChange={e => setCacheWrite(e.target.value)}
+            />
           </label>
         </div>
         {catalogue && <CatalogueNote price={price} catalogue={catalogue} />}
@@ -147,7 +198,9 @@ export function Prices({ providers, rows, prices, catalogue = [], onPrice, onRem
     ...new Set(
       [
         ...priced,
-        ...rows.filter(row => !providers.some(p => p.name === row.provider_name && isCli(p.kind))).map(row => row.model_id),
+        ...rows
+          .filter(row => !providers.some(p => p.name === row.provider_name && isCli(p.kind)))
+          .map(row => row.model_id),
         ...apis.flatMap(p => [p.default_model, ...(p.models ?? []).map(m => m.name)]),
         ...catalogue.map(c => c.model_id),
       ].filter((name): name is string => Boolean(name)),
@@ -155,7 +208,11 @@ export function Prices({ providers, rows, prices, catalogue = [], onPrice, onRem
   ].sort((a, b) => Number(priced.has(b)) - Number(priced.has(a)) || a.localeCompare(b))
   return (
     // (Its id: the Cost box's "set prices" opens it.)
-    <Fold title="Prices" id="usage-prices" count={`${models.length === 1 ? '1 model' : `${models.length} models`} · ${priced.size} priced`}>
+    <Fold
+      title="Prices"
+      id="usage-prices"
+      count={`${models.length === 1 ? '1 model' : `${models.length} models`} · ${priced.size} priced`}
+    >
       {models.length === 0 ? (
         <p className="muted">No model has a price, ran in this period or is named by an API provider.</p>
       ) : (
@@ -165,18 +222,25 @@ export function Prices({ providers, rows, prices, catalogue = [], onPrice, onRem
             const known = catalogue.find(c => c.model_id === model)
             return (
               // What is saved is what the row starts from: a saved price is a new row.
-              <PriceRow key={`${model}:${price?.input}:${price?.output}:${price?.currency}:${price?.cache_read}:${price?.cache_write}`} model={model} price={price} catalogue={known} onPrice={onPrice} onRemovePrice={onRemovePrice} />
+              <PriceRow
+                key={`${model}:${price?.input}:${price?.output}:${price?.currency}:${price?.cache_read}:${price?.cache_write}`}
+                model={model}
+                price={price}
+                catalogue={known}
+                onPrice={onPrice}
+                onRemovePrice={onRemovePrice}
+              />
             )
           })}
         </div>
       )}
       <p className="muted memory-hint">
-        For a million tokens sent and a million written, in a currency you name; and, where the provider keeps a
-        cache, for a million read from it and a million written to it. Leave those empty and such tokens are left out
-        of the cost, which then says “≥”. A price belongs to the model’s name, whichever provider runs it.
-        Where you write none, models.dev’s price for the model on its provider is used, in USD, and the cost says so -
-        in the monthly budget too. A model it has a price for is listed with it: save your own to use yours instead, or
-        go back to models.dev’s. A CLI on a plan has no price for a token and is not listed.
+        For a million tokens sent and a million written, in a currency you name; and, where the provider keeps a cache,
+        for a million read from it and a million written to it. Leave those empty and such tokens are left out of the
+        cost, which then says “≥”. A price belongs to the model’s name, whichever provider runs it. Where you write
+        none, models.dev’s price for the model on its provider is used, in USD, and the cost says so - in the monthly
+        budget too. A model it has a price for is listed with it: save your own to use yours instead, or go back to
+        models.dev’s. A CLI on a plan has no price for a token and is not listed.
       </p>
     </Fold>
   )

@@ -3,7 +3,17 @@ import { Fragment, useState, type FormEvent, type ReactNode } from 'react'
 import { type SpawnDecision } from '../agents/SpawnApproval'
 import { LEAD_WORK } from '../shell/ProjectSettings'
 import { errorText } from '../api/client'
-import type { Away, BacklogAuto, BacklogChoice, BacklogDraft, BacklogTask, BacklogTaskChange, NewBacklogTask, PermissionMode, Provider } from '../api/types'
+import type {
+  Away,
+  BacklogAuto,
+  BacklogChoice,
+  BacklogDraft,
+  BacklogTask,
+  BacklogTaskChange,
+  NewBacklogTask,
+  PermissionMode,
+  Provider,
+} from '../api/types'
 import { useAsk } from '../memory/useAsk'
 import { type LoadModels, ModelNameInput, ProviderOptions } from '../models/ModelNameInput'
 import { paidOf, type Paid } from '../models/cards'
@@ -27,7 +37,13 @@ const STATUS_WORD: Record<Status, string> = {
   done: 'done',
   blocked: 'blocked',
 }
-const FIELD_WORD: Record<string, string> = { title: 'Title', detail: 'Detail', criteria: 'Done when', priority: 'Priority', status: 'Status' }
+const FIELD_WORD: Record<string, string> = {
+  title: 'Title',
+  detail: 'Detail',
+  criteria: 'Done when',
+  priority: 'Priority',
+  status: 'Status',
+}
 
 interface Props {
   backlog: BacklogTask[] | null
@@ -63,7 +79,12 @@ function MoreFields({ id, task, onTask }: FieldsProps) {
     <>
       <div className="field">
         <label htmlFor={`${id}-priority`}>Priority</label>
-        <select id={`${id}-priority`} className="input backlog-status" value={task.priority} onChange={e => onTask({ ...task, priority: e.target.value as Priority })}>
+        <select
+          id={`${id}-priority`}
+          className="input backlog-status"
+          value={task.priority}
+          onChange={e => onTask({ ...task, priority: e.target.value as Priority })}
+        >
           {PRIORITIES.map(p => (
             <option key={p} value={p}>
               {p}
@@ -73,11 +94,25 @@ function MoreFields({ id, task, onTask }: FieldsProps) {
       </div>
       <div className="field">
         <label htmlFor={`${id}-detail`}>Detail</label>
-        <textarea id={`${id}-detail`} className="input" rows={2} maxLength={4000} value={task.detail ?? ''} onChange={e => onTask({ ...task, detail: e.target.value })} />
+        <textarea
+          id={`${id}-detail`}
+          className="input"
+          rows={2}
+          maxLength={4000}
+          value={task.detail ?? ''}
+          onChange={e => onTask({ ...task, detail: e.target.value })}
+        />
       </div>
       <div className="field">
         <label htmlFor={`${id}-criteria`}>Done when (optional)</label>
-        <textarea id={`${id}-criteria`} className="input" rows={2} maxLength={4000} value={task.criteria ?? ''} onChange={e => onTask({ ...task, criteria: e.target.value })} />
+        <textarea
+          id={`${id}-criteria`}
+          className="input"
+          rows={2}
+          maxLength={4000}
+          value={task.criteria ?? ''}
+          onChange={e => onTask({ ...task, criteria: e.target.value })}
+        />
       </div>
     </>
   )
@@ -90,7 +125,15 @@ function TaskFields({ id, task, onTask }: FieldsProps) {
       <div className="field">
         <label htmlFor={`${id}-title`}>Title</label>
         {/* (Opened from ⋯: the focus comes here - or to Waits for, focused after it, when that opened it.) */}
-        <input id={`${id}-title`} className="input" autoFocus required maxLength={200} value={task.title} onChange={e => onTask({ ...task, title: e.target.value })} />
+        <input
+          id={`${id}-title`}
+          className="input"
+          autoFocus
+          required
+          maxLength={200}
+          value={task.title}
+          onChange={e => onTask({ ...task, title: e.target.value })}
+        />
       </div>
       <MoreFields id={id} task={task} onTask={onTask} />
     </>
@@ -99,10 +142,18 @@ function TaskFields({ id, task, onTask }: FieldsProps) {
 
 const EMPTY: NewBacklogTask = { title: '', detail: '', criteria: '', priority: 'normal' }
 // An empty detail or criteria is none.
-const cleaned = (task: NewBacklogTask) => ({ ...task, title: task.title.trim(), detail: task.detail?.trim() || null, criteria: task.criteria?.trim() || null })
+const cleaned = (task: NewBacklogTask) => ({
+  ...task,
+  title: task.title.trim(),
+  detail: task.detail?.trim() || null,
+  criteria: task.criteria?.trim() || null,
+})
 
-/** "Plan it in a chat": the Lead is asked for the Product owner, whose tasks wait on cards as any agent's proposal does. */
-export const PLAN_ASK = 'Have the Product owner break this into To-do tasks: '
+/** "Plan it in a chat": the Lead is asked for the Hive keeper, whose tasks wait on cards as any agent's proposal does. */
+export const PLAN_ASK = 'Have the Hive keeper break this into To-do tasks: '
+/** What the Hive keeper does, under its button: its name does not say it. */
+export const HIVE_KEEPER_DOES =
+  'The Hive keeper keeps the To-do list: it turns your note into tasks, each with what makes it done.'
 const COSTS: Record<Paid, string> = {
   subscription: 'one request on your plan',
   'API key': 'one request you pay for',
@@ -128,7 +179,10 @@ function AddTask({ onAdd, onDraft, onPlan, providers, drafter }: AddProps) {
   const [folded, setFolded] = useState(false)
   const [drafts, setDrafts] = useState<NewBacklogTask[]>([])
   const [by, setBy] = useState('')
-  const note = [task.title, task.detail].map(part => part?.trim()).filter(Boolean).join('\n')
+  const note = [task.title, task.detail]
+    .map(part => part?.trim())
+    .filter(Boolean)
+    .join('\n')
   const asked = providers.find(one => one.id === drafter?.provider_id)
   const who = whoWrites(drafter, asked)
   function submit(event: FormEvent) {
@@ -155,7 +209,8 @@ function AddTask({ onAdd, onDraft, onPlan, providers, drafter }: AddProps) {
         setDrafts(now => now.filter(kept => kept !== one))
       }
     })
-  const setDraft = (one: NewBacklogTask, next: NewBacklogTask) => setDrafts(now => now.map(kept => (kept === one ? next : kept)))
+  const setDraft = (one: NewBacklogTask, next: NewBacklogTask) =>
+    setDrafts(now => now.map(kept => (kept === one ? next : kept)))
   /** The rest of the task, opened under its title: its fields, Add task, and the ways to have it written or planned. */
   const rest = () => (
     <>
@@ -165,26 +220,42 @@ function AddTask({ onAdd, onDraft, onPlan, providers, drafter }: AddProps) {
           Add task
         </button>
         {onDraft && (
-          <button type="button" className="btn btn-small" aria-describedby="draft-who" disabled={!asked || !!drafter?.why || drafting.busy} onClick={() => draft(onDraft)}>
-            {drafting.busy ? 'Writing…' : 'Write it with the Product owner'}
+          <button
+            type="button"
+            className="btn btn-small"
+            aria-describedby="draft-who"
+            disabled={!asked || !!drafter?.why || drafting.busy}
+            onClick={() => draft(onDraft)}
+          >
+            {drafting.busy ? 'Writing…' : 'Write it with the Hive keeper'}
           </button>
         )}
         {onPlan && (
-          <button type="button" className="btn btn-small" disabled={drafting.busy} onClick={() => void drafting.ask(() => onPlan(PLAN_ASK + note))}>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={drafting.busy}
+            onClick={() => void drafting.ask(() => onPlan(PLAN_ASK + note))}
+          >
             Plan it in a chat
           </button>
         )}
       </div>
       {onDraft && (
         <p id="draft-who" className="muted">
-          {who}
+          {HIVE_KEEPER_DOES} {who}
         </p>
       )}
     </>
   )
   return (
     <>
-      <form className="backlog-add" aria-label="Add a task" onSubmit={submit} onKeyDown={e => e.key === 'Escape' && setFolded(true)}>
+      <form
+        className="backlog-add"
+        aria-label="Add a task"
+        onSubmit={submit}
+        onKeyDown={e => e.key === 'Escape' && setFolded(true)}
+      >
         <div className="backlog-add-line">
           <span aria-hidden="true">＋</span>
           <label className="visually-hidden" htmlFor="new-task-title">
@@ -216,21 +287,42 @@ function AddTask({ onAdd, onDraft, onPlan, providers, drafter }: AddProps) {
               <div key={i} role="group" aria-label={`Draft ${i + 1}`} className="field">
                 <div className="field">
                   <label htmlFor={`draft-${i}-title`}>Title</label>
-                  <input id={`draft-${i}-title`} className="input" maxLength={200} value={one.title} onChange={e => setDraft(one, { ...one, title: e.target.value })} />
+                  <input
+                    id={`draft-${i}-title`}
+                    className="input"
+                    maxLength={200}
+                    value={one.title}
+                    onChange={e => setDraft(one, { ...one, title: e.target.value })}
+                  />
                 </div>
                 <MoreFields id={`draft-${i}`} task={one} onTask={next => setDraft(one, next)} />
                 <div className="memory-actions">
-                  <button type="button" className="btn btn-small btn-primary" disabled={!one.title.trim()} onClick={() => addDrafts([one])}>
+                  <button
+                    type="button"
+                    className="btn btn-small btn-primary"
+                    disabled={!one.title.trim()}
+                    onClick={() => addDrafts([one])}
+                  >
                     Add
                   </button>
-                  <button type="button" className="btn btn-small" aria-label={`Remove draft ${i + 1}`} onClick={() => setDrafts(now => now.filter(kept => kept !== one))}>
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    aria-label={`Remove draft ${i + 1}`}
+                    onClick={() => setDrafts(now => now.filter(kept => kept !== one))}
+                  >
                     ✕
                   </button>
                 </div>
               </div>
             ))}
             <div className="memory-actions">
-              <button type="button" className="btn btn-small" disabled={drafts.some(one => !one.title.trim())} onClick={() => addDrafts(drafts)}>
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={drafts.some(one => !one.title.trim())}
+                onClick={() => addDrafts(drafts)}
+              >
                 Add all
               </button>
             </div>
@@ -266,7 +358,8 @@ function runState(task: BacklogTask, listed: BacklogTask[]): string | null {
   if (task.status === 'blocked' && task.stuck) return `stuck: ${task.stuck}`
   if (task.status === 'doing') return task.waiting ? 'waiting for you' : 'running'
   // Its work not in the project yet (B-78): nothing to call done before it is taken in or thrown away.
-  if (task.status === 'review' && task.not_in) return 'Its work is not in the project yet: take it in or discard it in its chat.'
+  if (task.status === 'review' && task.not_in)
+    return 'Its work is not in the project yet: take it in or discard it in its chat.'
   if (task.status !== 'todo') return null
   const waits = waitsFor(task, listed)
   if (waits.length) return `waits for: ${waitWords(waits)}`
@@ -283,13 +376,17 @@ function stateTag(task: BacklogTask): [string, string] {
 }
 
 // Done, not "done?": work waiting for Take in is not in the project yet.
-const waitsFor = (task: BacklogTask, listed: BacklogTask[]) => listed.filter(one => task.after.includes(one.id) && one.status !== 'done')
+const waitsFor = (task: BacklogTask, listed: BacklogTask[]) =>
+  listed.filter(one => task.after.includes(one.id) && one.status !== 'done')
 // B-349: one at "done?" moves on only by your word, so it says so - Done on its row, or first Take in.
-const reviewWaits = (one: BacklogTask) => (one.not_in ? 'waiting for you - Take in' : 'done? - press Done above to go on')
-const waitWords = (waits: BacklogTask[]) => waits.map(one => (one.status === 'review' ? `${one.title} (${reviewWaits(one)})` : one.title)).join(', ')
+const reviewWaits = (one: BacklogTask) =>
+  one.not_in ? 'waiting for you - Take in' : 'done? - press Done above to go on'
+const waitWords = (waits: BacklogTask[]) =>
+  waits.map(one => (one.status === 'review' ? `${one.title} (${reviewWaits(one)})` : one.title)).join(', ')
 
 // A field's value as the page says it: a status in its words ("done?" for review).
-const shown = (field: string, value: unknown) => (field === 'status' ? STATUS_WORD[value as Status] : String(value ?? 'none'))
+const shown = (field: string, value: unknown) =>
+  field === 'status' ? STATUS_WORD[value as Status] : String(value ?? 'none')
 
 /** One of what waits for your word, as it is listed: its kind, its row's name and second line, and its buttons. */
 interface Wait {
@@ -303,7 +400,7 @@ interface Wait {
   edit?: (fields: { title: string; detail: string | null }) => Promise<void>
 }
 
-/** A task the Assistant PO proposed and the Orchestrator said no to at Full auto: under "Decided for you" in its chat, not waiting here. */
+/** A task the Scout proposed and the Orchestrator said no to at Full auto: under "Decided for you" in its chat, not waiting here. */
 const declined = (task: BacklogTask) => task.status === 'proposed' && task.po?.lead === 'no'
 /** One the Orchestrator added at Full auto that you have not OK'd: it starts by your OK only. */
 const unseen = (task: BacklogTask) => task.status === 'todo' && task.po?.lead === 'add' && !task.po.seen
@@ -318,7 +415,9 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
         task,
         kind,
         name: `Added for you: ${task.title}`,
-        line: ['Added by the Orchestrator at Full auto, not seen by you', task.po?.lead_why && `“${task.po.lead_why}”`].filter(Boolean).join(' · '),
+        line: ['Added by the Orchestrator at Full auto, not seen by you', task.po?.lead_why && `“${task.po.lead_why}”`]
+          .filter(Boolean)
+          .join(' · '),
         buttons: [
           ['OK', decide('approve')],
           ['Reject', decide('reject')],
@@ -330,11 +429,14 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
         task,
         kind,
         name: `Proposed task: ${task.title}`,
-        // (Who proposed it is known only as "an agent", but for the Assistant PO's at a turn's end, with the words it came from.)
+        // (Who proposed it is known only as "an agent", but for the Scout's at a turn's end, with the words it came from.)
         line: [
-          task.po ? `Proposed by the Assistant PO, from: “${task.po.why}”` : task.created_by === 'agent' && 'Proposed by an agent',
+          task.po
+            ? `Proposed by the Scout, from: “${task.po.why}”`
+            : task.created_by === 'agent' && 'Proposed by an agent',
           // (As a text that read like orders is told everywhere: the rule, never the text - here the task is the text.)
-          task.po?.injection?.length && `Its words look like they try to give the agent orders (rules: ${task.po.injection.map(rule => rule.replaceAll('_', ' ')).join(', ')}); read them before you add it`,
+          task.po?.injection?.length &&
+            `Its words look like they try to give the agent orders (rules: ${task.po.injection.map(rule => rule.replaceAll('_', ' ')).join(', ')}); read them before you add it`,
           task.detail,
           task.criteria && `Done when: ${task.criteria}`,
         ]
@@ -355,7 +457,12 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
         task,
         kind,
         name: `Done? ${task.title}`,
-        line: [task.assessment && `An agent’s view (an opinion): ${task.assessment}`, task.criteria && `Done when: ${task.criteria}`].filter(Boolean).join(' · '),
+        line: [
+          task.assessment && `An agent’s view (an opinion): ${task.assessment}`,
+          task.criteria && `Done when: ${task.criteria}`,
+        ]
+          .filter(Boolean)
+          .join(' · '),
         buttons: [
           ['Done', () => onChange(task.id, { status: 'done' })],
           ['Not yet', () => onChange(task.id, { status: 'todo' })],
@@ -368,7 +475,10 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
       name: `Proposed change: ${task.title}`,
       // (The agent's words, shown as such.)
       line: Object.entries(task.pending ?? {})
-        .map(([field, value]) => `${FIELD_WORD[field] ?? field} ${shown(field, task[field as keyof BacklogTask])} → ${shown(field, value)}`)
+        .map(
+          ([field, value]) =>
+            `${FIELD_WORD[field] ?? field} ${shown(field, task[field as keyof BacklogTask])} → ${shown(field, value)}`,
+        )
         .join(' · '),
       buttons: [
         ['Change', decide('approve')],
@@ -385,7 +495,7 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
   ]
 }
 
-/** The Assistant PO's proposals the Orchestrator rejected at Full auto, folded: still yours to add. */
+/** The Scout's proposals the Orchestrator rejected at Full auto, folded: still yours to add. */
 function Declined({ backlog, onDecide }: Pick<Props, 'backlog' | 'onDecide'>) {
   const tasks = (backlog ?? []).filter(declined)
   if (tasks.length === 0) return null
@@ -414,7 +524,12 @@ function DeclinedRow({ task, onDecide }: { task: BacklogTask } & Pick<Props, 'on
           </div>
         )}
       </div>
-      <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => onDecide(task.id, 'approve'))}>
+      <button
+        type="button"
+        className="btn btn-small"
+        disabled={busy}
+        onClick={() => void ask(() => onDecide(task.id, 'approve'))}
+      >
         Add
       </button>
     </div>
@@ -422,7 +537,17 @@ function DeclinedRow({ task, onDecide }: { task: BacklogTask } & Pick<Props, 'on
 }
 
 /** A row's title, which unfolds the rest of it; the rest is the row's own (it opens to show it whole). */
-function Fold({ id, open, onOpen, children }: { id?: string; open: boolean; onOpen: (open: boolean) => void; children: ReactNode }) {
+function Fold({
+  id,
+  open,
+  onOpen,
+  children,
+}: {
+  id?: string
+  open: boolean
+  onOpen: (open: boolean) => void
+  children: ReactNode
+}) {
   return (
     <button type="button" className="backlog-fold" aria-expanded={open} onClick={() => onOpen(!open)}>
       <strong id={id}>{children}</strong>
@@ -431,7 +556,17 @@ function Fold({ id, open, onOpen, children }: { id?: string; open: boolean; onOp
 }
 
 /** One decision's row. Its second line is never cut: what is decided is read whole before its button. */
-function Decision({ wait, off, failed, onOpen }: { wait: Wait; off?: boolean; failed?: string; onOpen: Props['onOpen'] }) {
+function Decision({
+  wait,
+  off,
+  failed,
+  onOpen,
+}: {
+  wait: Wait
+  off?: boolean
+  failed?: string
+  onOpen: Props['onOpen']
+}) {
   const { busy, error, ask } = useAsk()
   const [editing, setEditing] = useState(false)
   const { task } = wait
@@ -439,9 +574,12 @@ function Decision({ wait, off, failed, onOpen }: { wait: Wait; off?: boolean; fa
   return (
     // Several rows stand on the page: each is a group named by its task, so their buttons are told apart.
     <div role="group" aria-label={wait.name} className="backlog-row">
-      <span className={`tag${wait.kind === 'done?' ? ' tag-ok' : wait.kind === 'change' ? ' tag-accent' : ''}`}>{wait.kind}</span>
+      <span className={`tag${wait.kind === 'done?' ? ' tag-ok' : wait.kind === 'change' ? ' tag-accent' : ''}`}>
+        {wait.kind}
+      </span>
       <div className="backlog-row-text">
-        <strong>{task.title}</strong> <span className={`tag mono${task.priority === 'high' ? ' tag-warn' : ''}`}>{task.priority}</span>
+        <strong>{task.title}</strong>{' '}
+        <span className={`tag mono${task.priority === 'high' ? ' tag-warn' : ''}`}>{task.priority}</span>
         {wait.line && <div className="backlog-sub">{wait.line}</div>}
         {said && (
           <div role="alert" className="alert">
@@ -455,11 +593,21 @@ function Decision({ wait, off, failed, onOpen }: { wait: Wait; off?: boolean; fa
         </button>
       )}
       {editing && wait.edit ? (
-        <ProposalEdit task={task} busy={busy} onAdd={fields => ask(() => wait.edit!(fields))} onCancel={() => setEditing(false)} />
+        <ProposalEdit
+          task={task}
+          busy={busy}
+          onAdd={fields => ask(() => wait.edit!(fields))}
+          onCancel={() => setEditing(false)}
+        />
       ) : (
         wait.buttons.map(([label, run], i) => (
           <Fragment key={label}>
-            <button type="button" className={`btn btn-small${i === 0 ? ' btn-primary' : ''}`} disabled={busy || off} onClick={() => void ask(run)}>
+            <button
+              type="button"
+              className={`btn btn-small${i === 0 ? ' btn-primary' : ''}`}
+              disabled={busy || off}
+              onClick={() => void ask(run)}
+            >
               {label}
             </button>
             {i === 0 && wait.edit && (
@@ -475,7 +623,17 @@ function Decision({ wait, off, failed, onOpen }: { wait: Wait; off?: boolean; fa
 }
 
 /** A proposed task's Edit (6 Nov): its title and detail as you want them, then Add. */
-function ProposalEdit({ task, busy, onAdd, onCancel }: { task: BacklogTask; busy: boolean; onAdd: (fields: { title: string; detail: string | null }) => Promise<boolean>; onCancel: () => void }) {
+function ProposalEdit({
+  task,
+  busy,
+  onAdd,
+  onCancel,
+}: {
+  task: BacklogTask
+  busy: boolean
+  onAdd: (fields: { title: string; detail: string | null }) => Promise<boolean>
+  onCancel: () => void
+}) {
   const [title, setTitle] = useState(task.title)
   const [detail, setDetail] = useState(task.detail ?? '')
   const id = `proposal-${task.id}`
@@ -489,11 +647,26 @@ function ProposalEdit({ task, busy, onAdd, onCancel }: { task: BacklogTask; busy
     >
       <div className="field">
         <label htmlFor={`${id}-title`}>Title</label>
-        <input id={`${id}-title`} className="input" autoFocus required maxLength={200} value={title} onChange={e => setTitle(e.target.value)} />
+        <input
+          id={`${id}-title`}
+          className="input"
+          autoFocus
+          required
+          maxLength={200}
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+        />
       </div>
       <div className="field">
         <label htmlFor={`${id}-detail`}>Detail</label>
-        <textarea id={`${id}-detail`} className="input" rows={2} maxLength={4000} value={detail} onChange={e => setDetail(e.target.value)} />
+        <textarea
+          id={`${id}-detail`}
+          className="input"
+          rows={2}
+          maxLength={4000}
+          value={detail}
+          onChange={e => setDetail(e.target.value)}
+        />
       </div>
       <button type="submit" className="btn btn-small btn-primary" disabled={busy || !title.trim()}>
         Add
@@ -529,7 +702,12 @@ export function WaitRow({ task, onDecide, onChange, onOpen, only, off, failed }:
 }
 
 /** What waits for your word, one row each, in the page's order. The proposed tasks may be added all at once. */
-function Waiting({ waits, onDecide, onChange, onOpen }: { waits: Wait[] } & Pick<Props, 'onDecide' | 'onChange' | 'onOpen'>) {
+function Waiting({
+  waits,
+  onDecide,
+  onChange,
+  onOpen,
+}: { waits: Wait[] } & Pick<Props, 'onDecide' | 'onChange' | 'onOpen'>) {
   const [bulk, setBulk] = useState(false)
   // A refusal of Approve all's stays on the row it was of.
   const [failed, setFailed] = useState<Record<string, string>>({})
@@ -683,7 +861,13 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
       )}
       <div className="memory-actions">
         <label className="visually-hidden" htmlFor={`${id}-status`}>{`Status of ${task.title}`}</label>
-        <select id={`${id}-status`} className="input backlog-status" value={task.status} disabled={busy || task.status === 'proposed'} onChange={e => change({ status: e.target.value as (typeof STATUSES)[number] })}>
+        <select
+          id={`${id}-status`}
+          className="input backlog-status"
+          value={task.status}
+          disabled={busy || task.status === 'proposed'}
+          onChange={e => change({ status: e.target.value as (typeof STATUSES)[number] })}
+        >
           {task.status === 'proposed' && <option value="proposed">proposed</option>}
           {STATUSES.map(s => (
             <option key={s} value={s}>
@@ -703,7 +887,8 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
       onDrop={event => {
         event.preventDefault()
         if (dropHere) {
-          const position = dragged.priority === task.priority && dragged.position < task.position ? task.position + 1 : task.position
+          const position =
+            dragged.priority === task.priority && dragged.position < task.position ? task.position + 1 : task.position
           void ask(() => onChange(dragged.id, { position, priority: task.priority }))
         }
         onDrag(null)
@@ -739,14 +924,25 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
           </div>
           <span className={`tag${tone}`}>{tag}</span>
           {task.conversation_id && (
-            <button type="button" className="btn btn-small" aria-label={`Open chat · ${task.title}`} onClick={() => onOpen(task.conversation_id ?? '')}>
+            <button
+              type="button"
+              className="btn btn-small"
+              aria-label={`Open chat · ${task.title}`}
+              onClick={() => onOpen(task.conversation_id ?? '')}
+            >
               Open chat
             </button>
           )}
           {deleting ? (
             <>
               {/* The second word is asked for where the first was given: it takes the focus. */}
-              <button type="button" className="btn btn-small btn-danger" autoFocus disabled={busy} onClick={() => void ask(() => onDelete(task.id))}>
+              <button
+                type="button"
+                className="btn btn-small btn-danger"
+                autoFocus
+                disabled={busy}
+                onClick={() => void ask(() => onDelete(task.id))}
+              >
                 {`Delete “${task.title}”`}
               </button>
               <button
@@ -776,7 +972,13 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
             </button>
           )}
           {menuOpen && (
-            <div ref={menuPanel} tabIndex={-1} className="allow-list-panel msg-menu" role="menu" aria-label={`${task.title}: more`}>
+            <div
+              ref={menuPanel}
+              tabIndex={-1}
+              className="allow-list-panel msg-menu"
+              role="menu"
+              aria-label={`${task.title}: more`}
+            >
               {items.map(([label, off, run]) => (
                 <button
                   key={label}
@@ -839,14 +1041,25 @@ function AutoSwitch({ auto, onAuto }: { auto: BacklogAuto; onAuto: Props['onAuto
 }
 
 /** B-350: the level and the model the chats the backlog opens start with, kept for the project; as a chat's own. */
-function ChatChoice({ auto, providers, onChoice, onModels }: { auto: BacklogAuto } & Pick<Props, 'providers' | 'onChoice' | 'onModels'>) {
+function ChatChoice({
+  auto,
+  providers,
+  onChoice,
+  onModels,
+}: { auto: BacklogAuto } & Pick<Props, 'providers' | 'onChoice' | 'onModels'>) {
   const { busy, error, ask } = useAsk()
   const [model, setModel] = useState(auto.model_id ?? '')
   const picked = providers.find(p => p.id === auto.provider_id)
   const full = auto.permission_mode === 'full_auto'
   const save = (change: Partial<BacklogChoice>) =>
     void ask(() =>
-      onChoice({ permission_mode: auto.permission_mode, provider_id: auto.provider_id, model_id: auto.model_id, lead_work: auto.lead_work, ...change }),
+      onChoice({
+        permission_mode: auto.permission_mode,
+        provider_id: auto.provider_id,
+        model_id: auto.model_id,
+        lead_work: auto.lead_work,
+        ...change,
+      }),
     )
   return (
     <>
@@ -902,13 +1115,19 @@ function ChatChoice({ auto, providers, onChoice, onModels }: { auto: BacklogAuto
         </div>
         {auto.provider_id && (
           // Kept as the field is left: not at each letter typed.
-          <div className="field memory-grow" onBlur={() => model.trim() !== (auto.model_id ?? '') && save({ model_id: model.trim() || null })}>
+          <div
+            className="field memory-grow"
+            onBlur={() => model.trim() !== (auto.model_id ?? '') && save({ model_id: model.trim() || null })}
+          >
             <label htmlFor="backlog-model">Model name</label>
             <ModelNameInput
               id="backlog-model"
               value={model}
               // (The Anthropic API has no default of its own: with none set, a run is refused.)
-              placeholder={runsOn(picked) ?? (picked?.kind === 'anthropic' ? 'Needed: this provider has no default model' : "The provider's default")}
+              placeholder={
+                runsOn(picked) ??
+                (picked?.kind === 'anthropic' ? 'Needed: this provider has no default model' : "The provider's default")
+              }
               providerId={auto.provider_id}
               loadModels={onModels}
               onChange={setModel}
@@ -932,7 +1151,10 @@ function runLine(auto: BacklogAuto | null, listed: BacklogTask[]) {
   // (By itself it takes the todo tasks never worked on; Run the backlog queues them all.)
   const queued = listed.filter(task => task.status === 'todo' && (task.queued || (auto?.on && !task.conversation_id)))
   // B-349: nothing at work and every queued task waits, some for one in review: that is why.
-  const held = working || !queued.every(task => waitsFor(task, listed).length) ? [] : listed.filter(one => one.status === 'review' && queued.some(task => task.after.includes(one.id)))
+  const held =
+    working || !queued.every(task => waitsFor(task, listed).length)
+      ? []
+      : listed.filter(one => one.status === 'review' && queued.some(task => task.after.includes(one.id)))
   return (
     auto?.halt ??
     (held.length
@@ -946,11 +1168,28 @@ function runLine(auto: BacklogAuto | null, listed: BacklogTask[]) {
 }
 
 /**
- * The project's backlog, kept like a product owner would: what waits for your word on top, one row
+ * The project's backlog, kept like a Hive keeper would: what waits for your word on top, one row
  * each; your tasks in order (priority first, then the order you give); and "Run the backlog", which
  * starts the todo tasks - two at a time, each in a new conversation - and how the run stands.
  */
-export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onChoice, onModels, onAdd, onDraft, onPlan, onChange, onDelete, onDecide, onRun, onOpen }: Props) {
+export function BacklogPage({
+  backlog,
+  error,
+  auto,
+  away,
+  providers,
+  onAuto,
+  onChoice,
+  onModels,
+  onAdd,
+  onDraft,
+  onPlan,
+  onChange,
+  onDelete,
+  onDecide,
+  onRun,
+  onOpen,
+}: Props) {
   const { busy, error: workError, ask } = useAsk()
   const [dragged, setDragged] = useState<BacklogTask | null>(null)
   const [settings, setSettings] = useState(false)
@@ -977,7 +1216,13 @@ export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onC
         </span>
         {auto && <AutoSwitch auto={auto} onAuto={onAuto} />}
         {auto && (
-          <button type="button" className="btn btn-small" aria-expanded={settings} aria-controls="backlog-settings" onClick={() => setSettings(!settings)}>
+          <button
+            type="button"
+            className="btn btn-small"
+            aria-expanded={settings}
+            aria-controls="backlog-settings"
+            onClick={() => setSettings(!settings)}
+          >
             Run settings <span aria-hidden="true">▾</span>
           </button>
         )}
@@ -985,8 +1230,8 @@ export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onC
           <span>
             <span className="tag tag-warn">Full auto</span>{' '}
             <Hint doc={GUIDE.todoRunSettings} id="backlog-level-note">
-              Full auto: its chats change files and run commands without asking. Commands that run other programs, and anything it
-              would ask you, still wait for you - it never answers for you.
+              Full auto: its chats change files and run commands without asking. Commands that run other programs, and
+              anything it would ask you, still wait for you - it never answers for you.
             </Hint>
           </span>
         )}
@@ -1009,7 +1254,10 @@ export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onC
     !backlog ? (
       !error && <p className="muted">Reading the To-do list…</p>
     ) : listed.length === 0 ? (
-      <p className="muted hive-empty">No task yet. A task is work for later: type its title in “Add a task” above, and Run the backlog starts it in a chat of its own.</p>
+      <p className="muted hive-empty">
+        No task yet. A task is work for later: type its title in “Add a task” above, and Run the backlog starts it in a
+        chat of its own.
+      </p>
     ) : (
       <section className="memory-section" aria-label="Your tasks">
         <h3 className="kicker">
@@ -1039,27 +1287,30 @@ export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onC
       {head()}
       {auto && settings && (
         <section id="backlog-settings" className="memory-side" aria-label="Run settings">
-          <p className="choice-note">The To-do list’s chats only, instead of the project’s (Settings › This project).</p>
+          <p className="choice-note">
+            The To-do list’s chats only, instead of the project’s (Settings › This project).
+          </p>
           <ChatChoice auto={auto} providers={providers} onChoice={onChoice} onModels={onModels} />
         </section>
       )}
       <div className="muted memory-hint">
         Each task runs in its own chat; you decide when it is done.{' '}
         <Hint doc={GUIDE.todoRunning}>
-          Run the backlog starts the todo tasks, two at a time, each in a new conversation where the Orchestrator hands it to the right
-          role. Its first message is the task’s title, detail and what makes it done. A task that waits for others (⋯, Waits for) starts
-          once they are done. When the work ends, the task shows “done?”: you decide whether it is done; what needs your word still waits
-          for it. With Runs by itself on, todo tasks start as there is room. A Product owner or an Assistant product owner can propose
-          tasks and changes; they wait here for your word. Going away? Press ☾ Away on a chat’s status line: that chat finishes its turn,
-          then the tasks you tick are worked through, each in a copy of its own, until you are back.
+          Run the backlog starts the todo tasks, two at a time, each in a new conversation where the Orchestrator hands
+          it to the right role. Its first message is the task’s title, detail and what makes it done. A task that waits
+          for others (⋯, Waits for) starts once they are done. When the work ends, the task shows “done?”: you decide
+          whether it is done; what needs your word still waits for it. With Runs by itself on, todo tasks start as there
+          is room. The Hive keeper and the Scout can propose tasks and changes; they wait here for your word. Going
+          away? Press ☾ Away on a chat’s status line: that chat finishes its turn, then the tasks you tick are worked
+          through, each in a copy of its own, until you are back.
         </Hint>
       </div>
       {/* What it runs and spends stays in sight, never behind an ⓘ. */}
       <div id="backlog-rules" className="muted memory-hint">
-        A task not finished gets one fix round; still not, it is stuck and the next goes on. A stop, a restart or a limit pauses the run and
-        says why. When a task’s work ends, a fast model, if you have one, writes the Assistant product owner’s view of it: one more
-        request, and only an opinion. None is written for work that failed, was stopped, only made a plan or went over its turn’s token
-        limit.
+        A task not finished gets one fix round; still not, it is stuck and the next goes on. A stop, a restart or a
+        limit pauses the run and says why. When a task’s work ends, a fast model, if you have one, writes the Scout’s
+        view of it - what of what makes it done looks met: one more request, and only an opinion. None is written for
+        work that failed, was stopped, only made a plan or went over its turn’s token limit.
       </div>
       {away && <AwayNight away={away} onOpen={onOpen} />}
       {(error || workError) && (

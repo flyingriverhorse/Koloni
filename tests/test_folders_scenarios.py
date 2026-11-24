@@ -74,7 +74,9 @@ def test_in_a_read_only_folder_reading_needs_no_card(make_client, wait_run, proj
 
 
 @pytest.mark.parametrize("mode", ["auto_edit", "full_auto"])
-def test_in_a_read_only_folder_a_write_is_asked_for_even_at_full_auto(make_client, project_dir, shelf, mode):
+def test_in_a_read_only_folder_a_write_is_asked_for_even_at_full_auto(
+    make_client, project_dir, shelf, mode
+):
     client, _model = make_client([write(str(shelf / "out.md"), "x\n"), text("ok")])
     pid = project(client, project_dir, read_in=[str(shelf)])
     cid, _run_id = converse(client, pid, mode=mode)
@@ -86,5 +88,7 @@ def test_in_a_read_only_folder_a_write_is_asked_for_even_at_full_auto(make_clien
 def test_a_read_only_folder_is_checked_like_the_project_list(make_client, project_dir):
     client, _model = make_client([text("ok")])
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    refused = client.patch(f"/api/projects/{pid}", headers=ORIGIN, json={"read_in": [str(Path.home() / ".aws")]})
+    refused = client.patch(
+        f"/api/projects/{pid}", headers=ORIGIN, json={"read_in": [str(Path.home() / ".aws")]}
+    )
     assert refused.status_code == 422

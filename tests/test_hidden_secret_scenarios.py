@@ -36,19 +36,24 @@ def ask(name=NAME, why="to charge the test card", id="a"):
 
 
 def give(client, call_id, value=SECRET, headers=ORIGIN):
-    return client.post(f"/api/tool-calls/{call_id}/secret", json={"value": value},
-                       headers=headers)
+    return client.post(f"/api/tool-calls/{call_id}/secret", json={"value": value}, headers=headers)
 
 
 def asked(client, cid):
-    (card,) = [t for t in wait_status(client, cid, "waiting_approval")["tool_calls"]
-               if t["status"] == "pending"]
+    (card,) = [
+        t
+        for t in wait_status(client, cid, "waiting_approval")["tool_calls"]
+        if t["status"] == "pending"
+    ]
     return card
 
 
 def results(snap, run_id=None):
-    return [(t["name"], t["status"], t["result"] or "") for t in snap["tool_calls"]
-            if run_id in (None, t["run_id"])]
+    return [
+        (t["name"], t["status"], t["result"] or "")
+        for t in snap["tool_calls"]
+        if run_id in (None, t["run_id"])
+    ]
 
 
 # --- give: the command has it, its output is hidden, the model is told only "given" ----------
@@ -61,7 +66,9 @@ def test_given_the_turns_command_has_it_its_output_hides_it_and_the_model_sees_o
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     card = asked(client, cid)
     assert card["name"] == "ask_secret" and json.loads(card["arguments"]) == {
-        "name": NAME, "why": "to charge the test card"}
+        "name": NAME,
+        "why": "to charge the test card",
+    }
     assert give(client, card["id"]).status_code == 200
     snap = wait_run(client, cid, run_id, timeout=20)
     (_, given_status, given), (_, ran, output) = results(snap)
@@ -71,8 +78,7 @@ def test_given_the_turns_command_has_it_its_output_hides_it_and_the_model_sees_o
     assert SECRET not in json.dumps(snap) and SECRET not in json.dumps(model.calls)
 
 
-def test_a_given_name_is_not_said_to_be_held_back(make_client, wait_run, project_dir,
-                                                  monkeypatch):
+def test_a_given_name_is_not_said_to_be_held_back(make_client, wait_run, project_dir, monkeypatch):
     monkeypatch.setenv(NAME, "the-machines-own-value")  # held back from commands (103)
     executor = ScriptedExecutor([Script(["ok\n"])])
     client, _ = make_client([ask(), cmd("pytest -q"), text("done")], executor=executor)
@@ -101,8 +107,7 @@ def test_denied_the_model_is_told_so_and_the_command_does_not_have_it(
 
 def test_the_next_turns_command_does_not_have_it(make_client, wait_run, project_dir):
     script = py(PRINTS, project_dir)
-    client, _ = make_client([ask(), cmd(script), text("one"), cmd(script, id="k2"),
-                             text("two")])
+    client, _ = make_client([ask(), cmd(script), text("one"), cmd(script, id="k2"), text("two")])
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     give(client, asked(client, cid)["id"])
     assert "key=***" in results(wait_run(client, cid, run_id, timeout=20))[1][2]
@@ -145,9 +150,13 @@ def test_only_the_apps_own_page_gives_it_and_only_on_a_secrets_card(
 ):
     shelf = tmp_path / "shelf"
     shelf.mkdir()
-    client, _ = make_client([
-        step(call("ask_folder", {"path": str(shelf), "access": "read", "why": "notes"}, "f")),
-        ask(), text("ok")])
+    client, _ = make_client(
+        [
+            step(call("ask_folder", {"path": str(shelf), "access": "read", "why": "notes"}, "f")),
+            ask(),
+            text("ok"),
+        ]
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     folder = asked(client, cid)
     assert give(client, folder["id"]).status_code == 409  # not a secret's card
@@ -167,7 +176,7 @@ def test_a_name_that_is_no_variable_or_kolonis_own_is_refused_unasked(
 ):
     client, _ = make_client([ask(name), text("ok")])
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
-    (_, status, said), = results(wait_run(client, cid, run_id))
+    ((_, status, said),) = results(wait_run(client, cid, run_id))
     assert status == "failed" and said.startswith("error: name:")
 
 
@@ -176,7 +185,7 @@ def test_an_unattended_turn_is_refused_nobody_is_here_to_give_it(
 ):
     client, _, pid, cid = setup(make_client, project_dir, [ask(), text("went on")])
     run_id = run_now(client, trigger(client, pid, cid)["id"])
-    (_, status, said), = results(wait_run(client, cid, run_id))
+    ((_, status, said),) = results(wait_run(client, cid, run_id))
     assert status == "denied" and "nobody is here to ask" in said
 
 
@@ -184,9 +193,7 @@ def test_an_unattended_turn_is_refused_nobody_is_here_to_give_it(
 
 
 @pytest.mark.anyio
-async def test_a_container_gets_it_by_its_name_from_the_clients_environment(
-    monkeypatch, tmp_path
-):
+async def test_a_container_gets_it_by_its_name_from_the_clients_environment(monkeypatch, tmp_path):
     started = []
 
     async def fine(argv, timeout):
@@ -199,9 +206,10 @@ async def test_a_container_gets_it_by_its_name_from_the_clients_environment(
     monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
     docker.forget_status()
     await DockerExecutor(tmp_path, "alpine", False).start(
-        "k1", "ls", tmp_path, secrets={NAME: SECRET})
+        "k1", "ls", tmp_path, secrets={NAME: SECRET}
+    )
     docker.forget_status()
-    (argv, env), = started
+    ((argv, env),) = started
     assert argv[argv.index("-e") + 1] == NAME and SECRET not in " ".join(argv)
     assert env[NAME] == SECRET and env.get("PATH")
     assert "-e" not in docker_argv("n", "alpine", tmp_path, tmp_path, False, "ls")
@@ -218,9 +226,15 @@ def test_the_value_is_nowhere_but_in_the_commands_environment(
     keeps, no event, no log line and nothing the model was sent."""
     caplog.set_level(logging.DEBUG)
     writes = f"import os; open('cfg91.txt', 'w').write(os.environ['{NAME}'])"
-    client, model = make_client([
-        ask(), cmd(py(PRINTS, project_dir)), cmd(py(writes, project_dir), id="k2"),
-        step(call("read_file", {"path": "cfg91.txt"}, "r1")), text("charged")])
+    client, model = make_client(
+        [
+            ask(),
+            cmd(py(PRINTS, project_dir)),
+            cmd(py(writes, project_dir), id="k2"),
+            step(call("read_file", {"path": "cfg91.txt"}, "r1")),
+            text("charged"),
+        ]
+    )
     bus, events = client.app.state.bus, []
     emit, transient = bus.emit, bus.emit_transient
 
@@ -245,8 +259,11 @@ def test_the_value_is_nowhere_but_in_the_commands_environment(
     assert SECRET not in caplog.text
     client.__exit__(None, None, None)  # all of it written down
     runtime = client.app.state.settings.runtime_root
-    kept = [path for path in runtime.rglob("*") if path.is_file()
-            and SECRET.encode() in path.read_bytes()]
+    kept = [
+        path
+        for path in runtime.rglob("*")
+        if path.is_file() and SECRET.encode() in path.read_bytes()
+    ]
     assert kept == []
 
 
@@ -259,13 +276,20 @@ def test_a_file_in_a_working_copy_that_holds_it_is_not_taken_into_the_project(
     """A sub-agent's command writes the key into a file of its copy: at take-in the file is
     refused - no diff, no change on record - and stays in the copy."""
     writes = f"import os; open('env91.txt', 'w').write('K=' + os.environ['{NAME}'])"
-    client, _, cid, run_id = copy_setup(make_client, project_dir, {
-        "Lead": [ask(), step(call("spawn_agent", {"role": "Coder", "task": "set it"}, "s")),
-                 text("done")],
-        # (Its script beside the project: one named by the project's path is the project's,
-        # asked about from a copy - K-kopya-istem. It writes in the copy, where it runs.)
-        "Coder": [cmd(py(writes, project_dir.parent)), text("set")],
-    })
+    client, _, cid, run_id = copy_setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                ask(),
+                step(call("spawn_agent", {"role": "Coder", "task": "set it"}, "s")),
+                text("done"),
+            ],
+            # (Its script beside the project: one named by the project's path is the project's,
+            # asked about from a copy - K-kopya-istem. It writes in the copy, where it runs.)
+            "Coder": [cmd(py(writes, project_dir.parent)), text("set")],
+        },
+    )
     give(client, asked(client, cid)["id"])
     snap = wait_run(client, cid, run_id, timeout=20)
     (merge,) = snap["merges"]
@@ -299,13 +323,26 @@ def test_what_hides_secrets_everywhere_knows_a_given_one_at_once(
     wait_run(client, cid, run_id)
 
 
-@pytest.mark.parametrize("name", [
-    "PATH", "NODE_OPTIONS", "PYTHONSTARTUP", "GIT_SSH_COMMAND", "BASH_ENV", "DOCKER_HOST",
-    "LD_PRELOAD", "HTTPS_PROXY", "NPM_CONFIG_REGISTRY", "JAVA_TOOL_OPTIONS", "COMSPEC"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "PATH",
+        "NODE_OPTIONS",
+        "PYTHONSTARTUP",
+        "GIT_SSH_COMMAND",
+        "BASH_ENV",
+        "DOCKER_HOST",
+        "LD_PRELOAD",
+        "HTTPS_PROXY",
+        "NPM_CONFIG_REGISTRY",
+        "JAVA_TOOL_OPTIONS",
+        "COMSPEC",
+    ],
+)
 def test_a_variable_that_changes_what_runs_is_refused(make_client, wait_run, project_dir, name):
     client, _ = make_client([ask(name), text("ok")])
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
-    (_, status, said), = results(wait_run(client, cid, run_id))
+    ((_, status, said),) = results(wait_run(client, cid, run_id))
     assert status == "failed" and said.startswith(f"error: name: {name} changes what runs")
 
 
@@ -322,11 +359,18 @@ def test_a_file_holding_it_written_otherwise_is_hidden_in_a_tool_result_too(
 ):
     """As a command's output is: URL-encoded too (`OutputMask`'s spellings)."""
     value = "p@ss word/ninety-one"
-    writes = ("import os, urllib.parse; open('url91.txt', 'w').write("
-              f"urllib.parse.quote(os.environ['{NAME}'], safe=''))")
-    client, model = make_client([ask(), cmd(py(writes, project_dir)),
-                                 step(call("read_file", {"path": "url91.txt"}, "r1")),
-                                 text("ok")])
+    writes = (
+        "import os, urllib.parse; open('url91.txt', 'w').write("
+        f"urllib.parse.quote(os.environ['{NAME}'], safe=''))"
+    )
+    client, model = make_client(
+        [
+            ask(),
+            cmd(py(writes, project_dir)),
+            step(call("read_file", {"path": "url91.txt"}, "r1")),
+            text("ok"),
+        ]
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     give(client, asked(client, cid)["id"], value)
     snap = wait_run(client, cid, run_id, timeout=20)
@@ -336,9 +380,7 @@ def test_a_file_holding_it_written_otherwise_is_hidden_in_a_tool_result_too(
     assert quoted not in json.dumps(snap) and quoted not in json.dumps(model.calls)
 
 
-def test_a_read_stopped_midway_is_recorded_hidden(
-    make_client, wait_run, project_dir, monkeypatch
-):
+def test_a_read_stopped_midway_is_recorded_hidden(make_client, wait_run, project_dir, monkeypatch):
     import threading
 
     from app import agent as agent_module
@@ -353,8 +395,9 @@ def test_a_read_stopped_midway_is_recorded_hidden(
         return read(*args, **kwargs)
 
     monkeypatch.setattr(agent_module, "run_read_tool", slow)
-    client, _ = make_client([ask(), step(call("read_file", {"path": "cfg91.txt"}, "r1")),
-                             text("ok")])
+    client, _ = make_client(
+        [ask(), step(call("read_file", {"path": "cfg91.txt"}, "r1")), text("ok")]
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     give(client, asked(client, cid)["id"])
     assert reading.wait(10)

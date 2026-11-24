@@ -10,7 +10,10 @@ import { useVoice } from './voice'
 const drawn = vi.hoisted(() => ({ times: 0 }))
 vi.mock('../chat/MessageList', async original => {
   const real = await original<typeof import('../chat/MessageList')>()
-  return { ...real, MessageList: (props: Parameters<typeof real.MessageList>[0]) => (drawn.times++, real.MessageList(props)) }
+  return {
+    ...real,
+    MessageList: (props: Parameters<typeof real.MessageList>[0]) => (drawn.times++, real.MessageList(props)),
+  }
 })
 
 beforeEach(() => {
@@ -20,7 +23,11 @@ beforeEach(() => {
 
 test('a key typed in the message box does not draw the messages again, though it stops any reading', async () => {
   useApp.setState({
-    conv: convState({ runs: [run('r0', 'completed')], messages: [userMessage('r0', 'hi'), assistantMessage('a0', 'r0', 'Hello.')], agents: [agent('r0', 'completed')] }),
+    conv: convState({
+      runs: [run('r0', 'completed')],
+      messages: [userMessage('r0', 'hi'), assistantMessage('a0', 'r0', 'Hello.')],
+      agents: [agent('r0', 'completed')],
+    }),
     projectId: 'p',
   })
   render(<ChatPanel />)

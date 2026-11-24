@@ -15,10 +15,17 @@ test.beforeEach(putBack)
 test.afterEach(putBack)
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`the threshold is set in Settings › The app, the header says how full the lead is, and Compact now summarises it (${theme})`, async ({ page, request }) => {
+  test(`the threshold is set in Settings › The app, the header says how full the lead is, and Compact now summarises it (${theme})`, async ({
+    page,
+    request,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     // A window the fake model's 120 tokens fill to 12% (the fake is no llama-server).
-    expect((await request.patch(`/api/roles/${(await lead(request)).id}`, { data: { context_window: 1000 }, headers: OWN })).ok()).toBe(true)
+    expect(
+      (
+        await request.patch(`/api/roles/${(await lead(request)).id}`, { data: { context_window: 1000 }, headers: OWN })
+      ).ok(),
+    ).toBe(true)
     await openFreshConversation(page)
 
     // The threshold: one setting of every project, in Settings › The app, with what it does not apply to behind ⓘ.
@@ -26,7 +33,9 @@ for (const theme of ['light', 'dark'] as const) {
     const settings = page.getByRole('form', { name: 'App settings' })
     const field = settings.getByLabel('Summarise a long context at (%)')
     await expect(field).toHaveValue('75')
-    await expect(field).toHaveAccessibleDescription(/passes this much of its model’s window, the older part is summarised before its next step\.$/)
+    await expect(field).toHaveAccessibleDescription(
+      /passes this much of its model’s window, the older part is summarised before its next step\.$/,
+    )
     await field.fill('90')
     await settings.getByRole('button', { name: 'Save' }).click()
     await expect(settings.getByRole('status')).toHaveText('Saved')
@@ -39,7 +48,10 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('.topbar')).toContainText('context 12%')
 
     await rail(page, 'Canvas').click()
-    const node = page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Orchestrator/ }) }).last()
+    const node = page
+      .locator('.react-flow__node-agent')
+      .filter({ has: page.locator('.node-title', { hasText: /^Orchestrator/ }) })
+      .last()
     await expect(node).not.toContainText('summarised')
     await node.locator('.node-title').click()
     await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Open window' }).click()
@@ -56,7 +68,10 @@ for (const theme of ['light', 'dark'] as const) {
     // Its next turn's lead goes on from the summary: the fake says so only when it is sent it.
     await rail(page, 'Chats').click()
     // (The one open: the other theme's run made one of the same name.)
-    await page.getByRole('button', { name: /^Compact me\./ }).and(page.locator('[aria-current="true"]')).click()
+    await page
+      .getByRole('button', { name: /^Compact me\./ })
+      .and(page.locator('[aria-current="true"]'))
+      .click()
     await say(page, 'And on?', 'Going on from the summary.')
   })
 }

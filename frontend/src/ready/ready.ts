@@ -50,7 +50,10 @@ interface Sources {
  * task whose work waits for Take in is its chat's card.
  */
 export function readyItems({ conv, chats, projectId, backlog, memory, away }: Sources): ReadyItem[] {
-  const states = [conv, ...Object.values(chats).filter(state => state.conversation.id !== conv?.conversation.id)].filter((state): state is ConvState => state !== null)
+  const states = [
+    conv,
+    ...Object.values(chats).filter(state => state.conversation.id !== conv?.conversation.id),
+  ].filter((state): state is ConvState => state !== null)
   const cards: ReadyItem[] = states.flatMap(state =>
     waitingOf(state)
       .filter(row => row.current)
@@ -60,7 +63,12 @@ export function readyItems({ conv, chats, projectId, backlog, memory, away }: So
         // (A plain chat is in no folder: not "another folder's".)
         // shortcut: a night job drawn from its chat's card opens its job's chat without leaving the page it is on (the
         // chat's JobRow); map it to a 'night' row here, kept in its chat's part of the panel, if that is missed.
-        source: row.what === 'night' ? 'night' : state.conversation.project_id && state.conversation.project_id !== projectId ? 'other' : 'chat',
+        source:
+          row.what === 'night'
+            ? 'night'
+            : state.conversation.project_id && state.conversation.project_id !== projectId
+              ? 'other'
+              : 'chat',
         at: atOf(state, row),
         state,
         row,
@@ -69,8 +77,19 @@ export function readyItems({ conv, chats, projectId, backlog, memory, away }: So
   const keys = new Set(cards.map(card => card.key))
   const night: ReadyItem[] = (away?.status === 'planned' ? [] : (away?.jobs ?? []))
     .filter(job => job.state === 'waits')
-    .filter(job => !keys.has(`${away!.id}:${job.task_id}`) && !(job.asks.some(ask => ask.kind) && job.asks.every(ask => !ask.kind || keys.has(ask.id))))
-    .map(job => ({ what: 'night', key: `${away!.id}:${job.task_id}`, source: 'night', at: away!.started_at ?? '', away: away!, job }))
+    .filter(
+      job =>
+        !keys.has(`${away!.id}:${job.task_id}`) &&
+        !(job.asks.some(ask => ask.kind) && job.asks.every(ask => !ask.kind || keys.has(ask.id))),
+    )
+    .map(job => ({
+      what: 'night',
+      key: `${away!.id}:${job.task_id}`,
+      source: 'night',
+      at: away!.started_at ?? '',
+      away: away!,
+      job,
+    }))
   // Each decision a row, as on the To-do list: a new task, a "done?" (not one whose work waits for Take in), a change.
   // shortcut: a task says no time, so To-do items stand after those that do; give BacklogTaskOut its created_at if that misleads.
   const tasks: ReadyItem[] = (backlog ?? []).flatMap(task =>
@@ -83,18 +102,35 @@ export function readyItems({ conv, chats, projectId, backlog, memory, away }: So
       ] as const
     )
       .filter(([waits]) => waits)
-      .map(([, kind]) => ({ what: 'task' as const, key: `todo:${task.id}:${kind}`, source: 'todo' as const, at: '', task, kind })),
+      .map(([, kind]) => ({
+        what: 'task' as const,
+        key: `todo:${task.id}:${kind}`,
+        source: 'todo' as const,
+        at: '',
+        task,
+        kind,
+      })),
   )
   const records: ReadyItem[] = [
     ...(memory?.proposals ?? []).map(record => ({ record, suggestion: false })),
     ...(memory?.suggestions ?? []).map(record => ({ record, suggestion: true })),
-  ].map(({ record, suggestion }) => ({ what: 'memory', key: `memory:${record.id}`, source: 'memory', at: record.created_at, record, suggestion }))
+  ].map(({ record, suggestion }) => ({
+    what: 'memory',
+    key: `memory:${record.id}`,
+    source: 'memory',
+    at: record.created_at,
+    record,
+    suggestion,
+  }))
   // Oldest first; those with no time last, in the order they came.
-  return [...cards, ...night, ...tasks, ...records].sort((a, b) => (!a.at || !b.at ? Number(!a.at) - Number(!b.at) : a.at.localeCompare(b.at)))
+  return [...cards, ...night, ...tasks, ...records].sort((a, b) =>
+    !a.at || !b.at ? Number(!a.at) - Number(!b.at) : a.at.localeCompare(b.at),
+  )
 }
 
 /** The open chat's own, and the rest: the panel's two parts. */
-export const ofChat = (items: ReadyItem[], conversationId: string | undefined) => items.filter(item => item.what === 'card' && item.state.conversation.id === conversationId)
+export const ofChat = (items: ReadyItem[], conversationId: string | undefined) =>
+  items.filter(item => item.what === 'card' && item.state.conversation.id === conversationId)
 
 /** The chat a row belongs to, where it has one: "Open chat" goes there. */
 export function chatOf(item: ReadyItem): string | null {

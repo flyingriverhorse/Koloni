@@ -24,8 +24,9 @@ OWN = {"Origin": ORIGIN}
 
 
 def browse(client, path=None, headers=OWN):
-    return client.post("/api/folders/browse", json={} if path is None else {"path": str(path)},
-                       headers=headers)
+    return client.post(
+        "/api/folders/browse", json={} if path is None else {"path": str(path)}, headers=headers
+    )
 
 
 def test_browsing_lists_folders_only_with_what_each_one_is(client, tmp_path):
@@ -51,9 +52,7 @@ def test_browsing_lists_folders_only_with_what_each_one_is(client, tmp_path):
     assert found["shortcuts"]
 
 
-def test_a_place_kolonis_never_opens_is_shown_blocked_and_nothing_in_it_is_listed(
-    client, tmp_path
-):
+def test_a_place_kolonis_never_opens_is_shown_blocked_and_nothing_in_it_is_listed(client, tmp_path):
     home = Path.home()  # the test's (conftest): its .ssh is a place KOLONİ never opens
     (home / ".ssh").mkdir(parents=True)
     (home / "Desktop").mkdir()
@@ -121,9 +120,16 @@ def test_no_folder_inside_kolonis_own_is_a_project_but_its_e2e_project(
 
 
 # Never one of these is looked at on disk: a share would be dialled (and NTLM sent).
-FAR = ["\\\\server\\share", "//server/share", "/\\server\\share", "\\/server/share",
-       "\\\\?\\UNC\\server\\share", "\\\\.\\C:\\", "\\\\?\\" + str(REPO_ROOT),
-       "/\\?\\" + str(REPO_ROOT)]
+FAR = [
+    "\\\\server\\share",
+    "//server/share",
+    "/\\server\\share",
+    "\\/server/share",
+    "\\\\?\\UNC\\server\\share",
+    "\\\\.\\C:\\",
+    "\\\\?\\" + str(REPO_ROOT),
+    "/\\?\\" + str(REPO_ROOT),
+]
 
 
 @pytest.mark.parametrize("raw", FAR)

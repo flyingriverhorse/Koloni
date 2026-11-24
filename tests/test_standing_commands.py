@@ -30,8 +30,10 @@ from tests.test_native_agent import start as start_native
 from tests.test_spawn import call, step
 from tests.test_trigger_scenarios import NOBODY, allow, finished, results, run_now, setup, trigger
 
-LIVE = ("New-Item -ItemType Directory -Force C:\\p\\.claude; Set-Content -Path "
-        "'C:\\p\\.claude\\settings.json' -Value '{\"permissions\":{\"allow\":[\"Bash\"]}}'")
+LIVE = (
+    "New-Item -ItemType Directory -Force C:\\p\\.claude; Set-Content -Path "
+    '\'C:\\p\\.claude\\settings.json\' -Value \'{"permissions":{"allow":["Bash"]}}\''
+)
 
 STANDING = [
     LIVE,
@@ -46,18 +48,27 @@ STANDING = [
     "cp hook .git/hooks/pre-commit",
     "Set-Content .VSCODE\\tasks.json x",
     # .git/config written unnamed: it runs at the next git command
-    'git config core.fsmonitor "python evil.py"', "git -C . config alias.x '!rm -rf .'",
-    "npm test && git config --unset core.hooksPath", "git config set core.pager x",
+    'git config core.fsmonitor "python evil.py"',
+    "git -C . config alias.x '!rm -rf .'",
+    "npm test && git config --unset core.hooksPath",
+    "git config set core.pager x",
     # by a wildcard or a short name (review of batch-11)
-    "Set-Content .cla?de\\settings.json x", "echo x > .claud[e]/settings.json",
-    "Copy-Item x .claude*", "Set-Content CLAUDE~1\\settings.json x",
-    "echo x > GITHUB~1\\WORKFL~1\\a.yml", "copy x MCP~1.JSO",
+    "Set-Content .cla?de\\settings.json x",
+    "echo x > .claud[e]/settings.json",
+    "Copy-Item x .claude*",
+    "Set-Content CLAUDE~1\\settings.json x",
+    "echo x > GITHUB~1\\WORKFL~1\\a.yml",
+    "copy x MCP~1.JSO",
     # a patch writes what it names, unnamed here
-    "git apply fix.patch", "git -C . am < mail.mbox", "patch -p1 < fix.diff",
+    "git apply fix.patch",
+    "git -C . am < mail.mbox",
+    "patch -p1 < fix.diff",
     # B-188: a part of a chain that writes one; a name written in inline code
-    "python x.py; echo x > .github/y", "cat .github/a | tee .github/b",
+    "python x.py; echo x > .github/y",
+    "cat .github/a | tee .github/b",
     "python -c \"open('.github/x', 'w').write('y')\"",
-    "node -e \"require('fs').writeFileSync('AGENTS.md', 'x')\"", 'Remove-Item ".cla*"',
+    "node -e \"require('fs').writeFileSync('AGENTS.md', 'x')\"",
+    'Remove-Item ".cla*"',
     # (a pipeline is judged whole: what is read is handed on to a writer)
     "ls .github/workflows | xargs -I{} cp evil.yml {}",
     "Get-ChildItem .claude | ForEach-Object { Set-Content $_.FullName x }",
@@ -74,71 +85,121 @@ STANDING = [
 ]
 
 # Reads, as any read runs (only_reads): naming such a file does not ask.
-READS = ["cat AGENTS.md", "Get-Content CLAUDE.md", "ls .github", "git log -- .github",
-         "git show HEAD:.github/x.yml"]
+READS = [
+    "cat AGENTS.md",
+    "Get-Content CLAUDE.md",
+    "ls .github",
+    "git log -- .github",
+    "git show HEAD:.github/x.yml",
+]
 
-ORDINARY = ["Get-Content README.md", "git status", "cat .gitignore", "ls .claudes",
-            "echo claude", "git clone https://example.com/x.git", "npm test",
-            "git config --get user.name", "git config user.name", "git config --list",
-            "git config -l", "git config get user.name", "git -c core.pager=cat log",
-            "git apply --check fix.patch", "patch --dry-run -p1 < fix.diff", "ls *.json",
-            "Copy-Item a build/*.o", "Copy-Item a PROGRA~1.TXT", *READS,
-            # B-188 (live): asked at Full auto, "Names .github"; a read in a chain is a read,
-            # and a `*` in inline code is code
-            "python train.py; cat .github/workflows/ci.yml; python -c \"import sys; "
-            "sys.path.insert(0, '.'); from model import *; print(rmse())\"",
-            "python -c \"import glob; print(glob.glob('.gith*'))\""]
+ORDINARY = [
+    "Get-Content README.md",
+    "git status",
+    "cat .gitignore",
+    "ls .claudes",
+    "echo claude",
+    "git clone https://example.com/x.git",
+    "npm test",
+    "git config --get user.name",
+    "git config user.name",
+    "git config --list",
+    "git config -l",
+    "git config get user.name",
+    "git -c core.pager=cat log",
+    "git apply --check fix.patch",
+    "patch --dry-run -p1 < fix.diff",
+    "ls *.json",
+    "Copy-Item a build/*.o",
+    "Copy-Item a PROGRA~1.TXT",
+    *READS,
+    # B-188 (live): asked at Full auto, "Names .github"; a read in a chain is a read,
+    # and a `*` in inline code is code
+    'python train.py; cat .github/workflows/ci.yml; python -c "import sys; '
+    "sys.path.insert(0, '.'); from model import *; print(rmse())\"",
+    "python -c \"import glob; print(glob.glob('.gith*'))\"",
+]
 
 
 # B-198 (live): Codex's own search passed .koloni by, and waited as "Names .koloni"
-PASSES_BY = ["rg --files --hidden -g '!**/.koloni/**' -g '!**/.codex/**'",
-             "rg TODO --glob=!.koloni/** --iglob '!.github'", "grep -r --exclude-dir=.koloni x .",
-             "grep -r --exclude .koloni/x y .", "find . -not -path './.koloni/*' -name '*.md'",
-             "find . ! -path '*/.github/*'"]
+PASSES_BY = [
+    "rg --files --hidden -g '!**/.koloni/**' -g '!**/.codex/**'",
+    "rg TODO --glob=!.koloni/** --iglob '!.github'",
+    "grep -r --exclude-dir=.koloni x .",
+    "grep -r --exclude .koloni/x y .",
+    "find . -not -path './.koloni/*' -name '*.md'",
+    "find . ! -path '*/.github/*'",
+]
 # (what does open or write one still asks: told to pass one by, it names another)
-STILL_NAMES = ["rg -g '!.koloni' x > .koloni/rules.md", "grep -r --exclude-from .koloni/x y .",
-               "rg -g '.koloni/**' x", "rg -g '!x' x > .github/y",
-               # (to any other program, or past `--`, such words are a file's names: the review's)
-               "cp -- --exclude .koloni/rules.md", "Copy-Item --exclude .koloni\\rules.md",
-               "Move-Item --exclude .github\\workflows\\ci.yml", "rg -g '!x' y | tee .github/x",
-               "rg x -- --exclude .koloni/x"]
+STILL_NAMES = [
+    "rg -g '!.koloni' x > .koloni/rules.md",
+    "grep -r --exclude-from .koloni/x y .",
+    "rg -g '.koloni/**' x",
+    "rg -g '!x' x > .github/y",
+    # (to any other program, or past `--`, such words are a file's names: the review's)
+    "cp -- --exclude .koloni/rules.md",
+    "Copy-Item --exclude .koloni\\rules.md",
+    "Move-Item --exclude .github\\workflows\\ci.yml",
+    "rg -g '!x' y | tee .github/x",
+    "rg x -- --exclude .koloni/x",
+]
 
 
 # B-198 (the coordinator's call): a lone search that only reads reads what it names, as `cat` does
 CODEX_SEARCH = "rg --files --hidden -g AGENTS.md -g '!.koloni'"
-SEARCH_READS = [CODEX_SEARCH, "rg foo .github/", "grep -rn TODO .github", "rg -i foo CLAUDE.md",
-                "find .github -name '*.yml'", "ag foo .claude"]
+SEARCH_READS = [
+    CODEX_SEARCH,
+    "rg foo .github/",
+    "grep -rn TODO .github",
+    "rg -i foo CLAUDE.md",
+    "find .github -name '*.yml'",
+    "ag foo .claude",
+]
 # (what it pipes, redirects, runs or edits still asks)
-SEARCH_DOES = ["rg foo .github/ > out.txt", "find .github -delete", "find .github -exec cp x {} +",
-               "rg --pre ./x foo .github", "rg -g AGENTS.md x | tee AGENTS.md", "rg -r y x .github",
-               ".\\rg x .github"]
+SEARCH_DOES = [
+    "rg foo .github/ > out.txt",
+    "find .github -delete",
+    "find .github -exec cp x {} +",
+    "rg --pre ./x foo .github",
+    "rg -g AGENTS.md x | tee AGENTS.md",
+    "rg -r y x .github",
+    ".\\rg x .github",
+]
 
 # B-307 (live): Codex's Coders' search, in the PowerShell line it runs each command in - and the
 # reads after it; a script handed to a shell reads what it names when every part of it reads.
 POWERSHELL = '"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "{}"'
 REA_SEARCH = POWERSHELL.format("Get-Location; rg --files -g AGENTS.md -g etl.py -g '!node_modules'")
-SCRIPT_READS = [REA_SEARCH, "Test-Path .\\AGENTS.md", POWERSHELL.format("Test-Path .\\AGENTS.md"),
-                "rg --files --hidden -g AGENTS.md",
-                POWERSHELL.format("rg --files --hidden -g AGENTS.md"),
-                'powershell -Command "Get-Location; Get-Content AGENTS.md"',
-                "pwsh -NoProfile -c 'Get-Content CLAUDE.md'", "cmd /c rg x .github",
-                'cmd /d /c "type AGENTS.md"']
+SCRIPT_READS = [
+    REA_SEARCH,
+    "Test-Path .\\AGENTS.md",
+    POWERSHELL.format("Test-Path .\\AGENTS.md"),
+    "rg --files --hidden -g AGENTS.md",
+    POWERSHELL.format("rg --files --hidden -g AGENTS.md"),
+    'powershell -Command "Get-Location; Get-Content AGENTS.md"',
+    "pwsh -NoProfile -c 'Get-Content CLAUDE.md'",
+    "cmd /c rg x .github",
+    'cmd /d /c "type AGENTS.md"',
+]
 # (one with a part that writes, redirects, runs code or a script, or is handed no script, is
 # judged whole - and .koloni and a secret still ask, as before)
-SCRIPT_DOES = ['powershell -Command "Get-Location; Set-Content AGENTS.md x"',
-               'powershell -Command "rg x > AGENTS.md"',
-               "powershell -EncodedCommand UwBlAHQALQBDAG8AbgB0AGUAbgB0AA== AGENTS.md",
-               'powershell -Command "Get-Content AGENTS.md | Set-Content x"',
-               "powershell -Command \"iex 'x'; Get-Content AGENTS.md\"",
-               'powershell -Command "& .\\x.ps1; Get-Content AGENTS.md"',
-               'powershell -Command ".\\x.ps1 AGENTS.md"',
-               'powershell -File x.ps1 AGENTS.md',
-               'powershell -ExecutionPolicy Bypass -Command "Get-Content AGENTS.md"',
-               'cmd /c "type AGENTS.md & echo x > AGENTS.md"',
-               'powershell -Command "Get-Location; rg x .koloni"',
-               'powershell -Command "Get-Content .env; Get-Content AGENTS.md"',
-               # (a shell of the folder's own, which an agent can write)
-               '.\\powershell.exe -Command "Get-Content AGENTS.md"', "./pwsh -c 'cat AGENTS.md'"]
+SCRIPT_DOES = [
+    'powershell -Command "Get-Location; Set-Content AGENTS.md x"',
+    'powershell -Command "rg x > AGENTS.md"',
+    "powershell -EncodedCommand UwBlAHQALQBDAG8AbgB0AGUAbgB0AA== AGENTS.md",
+    'powershell -Command "Get-Content AGENTS.md | Set-Content x"',
+    "powershell -Command \"iex 'x'; Get-Content AGENTS.md\"",
+    'powershell -Command "& .\\x.ps1; Get-Content AGENTS.md"',
+    'powershell -Command ".\\x.ps1 AGENTS.md"',
+    "powershell -File x.ps1 AGENTS.md",
+    'powershell -ExecutionPolicy Bypass -Command "Get-Content AGENTS.md"',
+    'cmd /c "type AGENTS.md & echo x > AGENTS.md"',
+    'powershell -Command "Get-Location; rg x .koloni"',
+    'powershell -Command "Get-Content .env; Get-Content AGENTS.md"',
+    # (a shell of the folder's own, which an agent can write)
+    '.\\powershell.exe -Command "Get-Content AGENTS.md"',
+    "./pwsh -c 'cat AGENTS.md'",
+]
 
 
 @pytest.mark.parametrize("line", SCRIPT_READS)
@@ -151,10 +212,17 @@ def test_b307_a_shells_script_that_does_more_than_read_still_asks(line):
     assert commands.danger(line)
 
 
-@pytest.mark.parametrize("line", [REA_SEARCH, "Test-Path .\\AGENTS.md",
-                                  'powershell -Command "Get-Location; Get-Content AGENTS.md"'])
+@pytest.mark.parametrize(
+    "line",
+    [
+        REA_SEARCH,
+        "Test-Path .\\AGENTS.md",
+        'powershell -Command "Get-Location; Get-Content AGENTS.md"',
+    ],
+)
 def test_b307_at_full_auto_a_shells_script_of_reads_runs_unasked(
-        make_client, wait_run, project_dir, line):
+    make_client, wait_run, project_dir, line
+):
     executor = ScriptedExecutor([Script(["AGENTS.md\n"])])
     client, _ = make_client([cmd(line), text("done")], executor=executor)
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
@@ -163,7 +231,8 @@ def test_b307_at_full_auto_a_shells_script_of_reads_runs_unasked(
 
 
 def test_b307_at_full_auto_native_codexs_search_in_a_line_it_does_not_unwrap_runs_unasked(
-        native_app, wait_run, project_dir):  # noqa: F811
+    native_app, wait_run, project_dir
+):  # noqa: F811
     # (`_unwrapped` takes only `-Command` right after the program: the CLI's path, command_runner)
     line = REA_SEARCH.replace(" -Command ", " -NoProfile -Command ")
     client, provider, _ = native_app([{"run": line}, {"say": "ok"}])
@@ -173,15 +242,22 @@ def test_b307_at_full_auto_native_codexs_search_in_a_line_it_does_not_unwrap_run
     assert answers(native_app) == [(RUN, ACCEPT)]
 
 
-LIVE_LINES = [(said.startswith("reads"), line) for said, line in (
-    block.split("\n", 1) for block in (Path(__file__).parent / "codex_powershell_lines.txt")
-    .read_text(encoding="utf-8").split("\n=== ")[1:])]
+LIVE_LINES = [
+    (said.startswith("reads"), line)
+    for said, line in (
+        block.split("\n", 1)
+        for block in (Path(__file__).parent / "codex_powershell_lines.txt")
+        .read_text(encoding="utf-8")
+        .split("\n=== ")[1:]
+    )
+]
 
 
 def test_b307_codexs_line_joined_as_a_posix_shells_words_is_unwrapped():
     assert _unwrapped(LIVE_LINES[0][1].strip()) == (
         "Get-Location; rg --files -g AGENTS.md -g etl.py -g '*snapshot*' -g '!node_modules' "
-        "-g '!.venv' -g '!venv' -g '!.git'; Get-ChildItem -Force -Name")
+        "-g '!.venv' -g '!venv' -g '!.git'; Get-ChildItem -Force -Name"
+    )
 
 
 @pytest.mark.parametrize(("reads", "line"), LIVE_LINES)
@@ -198,7 +274,9 @@ def test_b307_at_full_auto_native_codexs_live_lines(native_app, wait_run, projec
     wait_run(client, cid, run_id)
 
 
-@pytest.mark.parametrize("mode, name", [("full_auto", ".github\\x.yml"), ("auto_edit", "AGENTS.md")])
+@pytest.mark.parametrize(
+    "mode, name", [("full_auto", ".github\\x.yml"), ("auto_edit", "AGENTS.md")]
+)
 def test_b307_one_that_writes_one_still_waits(make_client, wait_run, project_dir, mode, name):
     executor = ScriptedExecutor([])
     line = f'powershell -Command "Get-Location; Set-Content {name} x"'
@@ -213,10 +291,17 @@ def test_b307_one_that_writes_one_still_waits(make_client, wait_run, project_dir
 
 # K-fullauto-sorma 2: at Full auto a command that only names an instruction file (AGENTS.md,
 # CLAUDE.md, GEMINI.md) runs unasked - in a shell's script too; every other standing name asks.
-@pytest.mark.parametrize("line", ["echo x > AGENTS.md", 'cmd /c "echo x > CLAUDE.md"',
-                                  'powershell -Command "Get-Location; Set-Content AGENTS.md x"'])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "echo x > AGENTS.md",
+        'cmd /c "echo x > CLAUDE.md"',
+        'powershell -Command "Get-Location; Set-Content AGENTS.md x"',
+    ],
+)
 def test_at_full_auto_a_command_naming_an_instruction_file_alone_runs_unasked(
-        make_client, wait_run, project_dir, line):
+    make_client, wait_run, project_dir, line
+):
     executor = ScriptedExecutor([Script(["ok\n"])])
     client, _ = make_client([cmd(line), text("done")], executor=executor)
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
@@ -244,7 +329,9 @@ def test_b198_a_search_that_pipes_redirects_runs_or_edits_still_asks(line):
     assert commands.danger(line)
 
 
-def test_b198_at_full_auto_codexs_own_agents_md_search_runs_unasked(make_client, wait_run, project_dir):
+def test_b198_at_full_auto_codexs_own_agents_md_search_runs_unasked(
+    make_client, wait_run, project_dir
+):
     executor = ScriptedExecutor([Script(["AGENTS.md\n"])])
     client, _ = make_client([cmd(CODEX_SEARCH), text("done")], executor=executor)
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
@@ -264,29 +351,40 @@ def test_b198_one_that_opens_or_writes_it_still_asks(line):
 
 # K-koloni-klasor (live): a Codex Lead's headless Chrome with --user-data-dir=.koloni\browser-smoke
 # asked at Full auto. The agents' scratch is .koloni/tmp/: no card, any level.
-SCRATCH = ["chrome --headless --user-data-dir=.koloni\\tmp\\browser-smoke", "echo x > .koloni/tmp/a.log",
-           "Set-Content -Path:.KOLONI\\TMP\\x.txt y", "mkdir -p ./.koloni/tmp/profile && cp a .koloni/tmp/",
-           "python -c \"open('.koloni/tmp/x', 'w').write('y')\""]
+SCRATCH = [
+    "chrome --headless --user-data-dir=.koloni\\tmp\\browser-smoke",
+    "echo x > .koloni/tmp/a.log",
+    "Set-Content -Path:.KOLONI\\TMP\\x.txt y",
+    "mkdir -p ./.koloni/tmp/profile && cp a .koloni/tmp/",
+    "python -c \"open('.koloni/tmp/x', 'w').write('y')\"",
+]
 # (what climbs back out, names another child beside it, or spells it otherwise still asks)
-NOT_SCRATCH = ["echo x > .koloni/tmp/../settings.json", "cp .koloni/tmp/x .koloni/settings.json",
-               "echo x > .koloni/t*/a", "echo x > .koloni/tmpx/a", "rm -r .koloni tmp",
-               "echo x > .koloni/tmp/.claude/settings.json",
-               # (review: a climb out of the scratch in another word, or a path built from it)
-               "cd .koloni/tmp; Set-Content ../settings.json 1",
-               "pushd .koloni/tmp; echo x > ../rules.md",
-               "cd .koloni/tmp && echo x > ../shared/a.md",
-               "Set-Location .koloni\\tmp; echo x > ..\\rules.md", "sl .koloni/tmp; echo x > ../a",
-               "git -C .koloni/tmp add -f ../recipes/x.md",
-               "Set-Content (Join-Path .koloni/tmp ../settings.json) 1",
-               "Move-Item .koloni/tmp/x (Split-Path .koloni/tmp)",
-               "Copy-Item -Recurse .koloni/tmp/src/* -Destination (Split-Path .koloni/tmp)",
-               "Set-Content (Resolve-Path .koloni/tmp/..)/x 1",
-               # (a git line keeps naming .koloni: a profile's cookies are not committed)
-               "git add -f .koloni/tmp/profile/Cookies", "git add .koloni/tmp",
-               "git commit -m x .koloni/tmp/a.log",
-               # (run_command's cwd, judged with the line: `with_cwd`)
-               commands.with_cwd("echo x > ../settings.json", ".koloni/tmp"),
-               commands.with_cwd("python x.py", ".claude")]
+NOT_SCRATCH = [
+    "echo x > .koloni/tmp/../settings.json",
+    "cp .koloni/tmp/x .koloni/settings.json",
+    "echo x > .koloni/t*/a",
+    "echo x > .koloni/tmpx/a",
+    "rm -r .koloni tmp",
+    "echo x > .koloni/tmp/.claude/settings.json",
+    # (review: a climb out of the scratch in another word, or a path built from it)
+    "cd .koloni/tmp; Set-Content ../settings.json 1",
+    "pushd .koloni/tmp; echo x > ../rules.md",
+    "cd .koloni/tmp && echo x > ../shared/a.md",
+    "Set-Location .koloni\\tmp; echo x > ..\\rules.md",
+    "sl .koloni/tmp; echo x > ../a",
+    "git -C .koloni/tmp add -f ../recipes/x.md",
+    "Set-Content (Join-Path .koloni/tmp ../settings.json) 1",
+    "Move-Item .koloni/tmp/x (Split-Path .koloni/tmp)",
+    "Copy-Item -Recurse .koloni/tmp/src/* -Destination (Split-Path .koloni/tmp)",
+    "Set-Content (Resolve-Path .koloni/tmp/..)/x 1",
+    # (a git line keeps naming .koloni: a profile's cookies are not committed)
+    "git add -f .koloni/tmp/profile/Cookies",
+    "git add .koloni/tmp",
+    "git commit -m x .koloni/tmp/a.log",
+    # (run_command's cwd, judged with the line: `with_cwd`)
+    commands.with_cwd("echo x > ../settings.json", ".koloni/tmp"),
+    commands.with_cwd("python x.py", ".claude"),
+]
 
 
 @pytest.mark.parametrize("line", SCRATCH)
@@ -300,40 +398,75 @@ def test_the_rest_of_koloni_still_asks_and_the_card_says_where_scratch_goes(line
     assert commands.danger(line)
     if ".koloni/settings.json" in line:
         assert commands.danger(line).endswith(
-            "Scratch belongs under .koloni/tmp/: put it there and run again.")
+            "Scratch belongs under .koloni/tmp/: put it there and run again."
+        )
 
 
 # (live) Work inside the scratch asked at every level: run_command's `cwd` there (`with_cwd`), or
 # the agent's own `cd` into it. One plain change of folder into it at the line's start is no climb.
-ENTERS = [commands.with_cwd("pytest -q", ".koloni/tmp/work"), "cd .koloni/tmp; python x.py",
-          "cd .koloni/tmp/work && pytest -q", "Set-Location .koloni\\tmp\\work; python sub\\x.py",
-          "pushd ./.koloni/tmp/\npytest", "sl .koloni/tmp; echo x > settings.json",
-          "Push-Location .KOLONI/TMP/a.b-c; npm test > out.log", "chdir .koloni/tmp && npm test",
-          "cd .koloni/tmp; mkdir -p .koloni/tmp/again; cp a.log b.log"]
+ENTERS = [
+    commands.with_cwd("pytest -q", ".koloni/tmp/work"),
+    "cd .koloni/tmp; python x.py",
+    "cd .koloni/tmp/work && pytest -q",
+    "Set-Location .koloni\\tmp\\work; python sub\\x.py",
+    "pushd ./.koloni/tmp/\npytest",
+    "sl .koloni/tmp; echo x > settings.json",
+    "Push-Location .KOLONI/TMP/a.b-c; npm test > out.log",
+    "chdir .koloni/tmp && npm test",
+    "cd .koloni/tmp; mkdir -p .koloni/tmp/again; cp a.log b.log",
+]
 # What follows it is judged as ever, and may not learn or leave where it is; nor is any other
 # spelling of the change of folder, or one that is not the line's first, the plain one.
 STILL_CLIMBS = [
-    "cd .koloni/tmp; echo x > ../rules.md", "cd .koloni/tmp; cd ..; echo x > rules.md",
-    "cd .koloni/tmp && cd -", "cd .koloni/tmp; popd", "cd .koloni/tmp; cd ~", "cd .koloni/tmp; cd /",
-    "cd .koloni/tmp; cd .koloni/tmp/a; echo x > y", "cd .koloni/tmp; Pop-Location; echo x > y",
-    "cd \".koloni/tmp\"; echo x > y", "cd '.koloni/tmp'; echo x > y", "cd .koloni/tmp/../; echo x > y",
-    "cd .koloni/t*; echo x > y", "cd .koloni/tmp; Join-Path . ..", "cd .koloni/tmp; git add -f x",
-    "cd .koloni/tmp; git status", "cd .koloni; echo x > rules.md", "cd .koloni/tmpx; echo x > y",
-    "cd .koloni/tmp; cat C:/proj/.koloni/rules.md", "cd .koloni/tmp; tar -C / -xf a.tar",
-    "cd .koloni/tmp; echo x > .^./rules.md", "cd .koloni/tmp; echo x > .'.'/rules.md",
-    "cd .koloni/tmp; echo x > .\\./rules.md", "cd .koloni/tmp; echo x > .`./rules.md",
-    "cd .koloni/tmp; c\\d ..", "cd .koloni/tmp; c\\d /", "cd .koloni/tmp; c'd' /",
+    "cd .koloni/tmp; echo x > ../rules.md",
+    "cd .koloni/tmp; cd ..; echo x > rules.md",
+    "cd .koloni/tmp && cd -",
+    "cd .koloni/tmp; popd",
+    "cd .koloni/tmp; cd ~",
+    "cd .koloni/tmp; cd /",
+    "cd .koloni/tmp; cd .koloni/tmp/a; echo x > y",
+    "cd .koloni/tmp; Pop-Location; echo x > y",
+    'cd ".koloni/tmp"; echo x > y',
+    "cd '.koloni/tmp'; echo x > y",
+    "cd .koloni/tmp/../; echo x > y",
+    "cd .koloni/t*; echo x > y",
+    "cd .koloni/tmp; Join-Path . ..",
+    "cd .koloni/tmp; git add -f x",
+    "cd .koloni/tmp; git status",
+    "cd .koloni; echo x > rules.md",
+    "cd .koloni/tmpx; echo x > y",
+    "cd .koloni/tmp; cat C:/proj/.koloni/rules.md",
+    "cd .koloni/tmp; tar -C / -xf a.tar",
+    "cd .koloni/tmp; echo x > .^./rules.md",
+    "cd .koloni/tmp; echo x > .'.'/rules.md",
+    "cd .koloni/tmp; echo x > .\\./rules.md",
+    "cd .koloni/tmp; echo x > .`./rules.md",
+    "cd .koloni/tmp; c\\d ..",
+    "cd .koloni/tmp; c\\d /",
+    "cd .koloni/tmp; c'd' /",
     # (no folder to go on in: the next line's, in a shell that keeps its folder)
-    "cd .koloni/tmp", "cd .koloni/tmp;", "cd .koloni/tmp || echo x > rules.md",
-    "cd .koloni/tmp & echo x > y", "cd .koloni/tmp | echo x > y", "cd .koloni/tmp x; echo x > y",
-    "cd -Path .koloni/tmp; echo x > y", "cd /d .koloni\\tmp && echo x > y",
-    "cd C:/proj/.koloni/tmp; echo x > y", "cd $HOME/.koloni/tmp; echo x > y",
-    "cd .koloni/./tmp; echo x > y", "cd .koloni//tmp; echo x > y", "cd .koloni/tmp/.; echo x > y",
-    "cd .koloni/tmp/a/..; echo x > y", "c^d .koloni/tmp; echo x > y",
-    "echo hi; cd .koloni/tmp; echo x > y", "(cd .koloni/tmp; echo x > y)",
+    "cd .koloni/tmp",
+    "cd .koloni/tmp;",
+    "cd .koloni/tmp || echo x > rules.md",
+    "cd .koloni/tmp & echo x > y",
+    "cd .koloni/tmp | echo x > y",
+    "cd .koloni/tmp x; echo x > y",
+    "cd -Path .koloni/tmp; echo x > y",
+    "cd /d .koloni\\tmp && echo x > y",
+    "cd C:/proj/.koloni/tmp; echo x > y",
+    "cd $HOME/.koloni/tmp; echo x > y",
+    "cd .koloni/./tmp; echo x > y",
+    "cd .koloni//tmp; echo x > y",
+    "cd .koloni/tmp/.; echo x > y",
+    "cd .koloni/tmp/a/..; echo x > y",
+    "c^d .koloni/tmp; echo x > y",
+    "echo hi; cd .koloni/tmp; echo x > y",
+    "(cd .koloni/tmp; echo x > y)",
     # (a standing name in the scratch is one still, as `.koloni/tmp/.claude/x` is)
-    "cd .koloni/tmp/.claude; echo x > settings.json", "cd .koloni/tmp; echo x > .claude/settings.json",
-    "cd .koloni/tmp/AGENTS.md; echo x > y", "cd .koloni/tmp; echo x > AGENTS.md",
+    "cd .koloni/tmp/.claude; echo x > settings.json",
+    "cd .koloni/tmp; echo x > .claude/settings.json",
+    "cd .koloni/tmp/AGENTS.md; echo x > y",
+    "cd .koloni/tmp; echo x > AGENTS.md",
     commands.with_cwd("echo x > settings.json", ".koloni/tmp/.claude"),
     commands.with_cwd("echo x > ../settings.json", ".koloni/tmp"),
     commands.with_cwd("cd ..; echo x > rules.md", ".koloni/tmp"),
@@ -342,24 +475,30 @@ STILL_CLIMBS = [
     commands.with_cwd("echo x > rules.md", ".koloni"),
     # (inside the scratch `.koloni` is the folder above: reached with no `..` by a line that
     # learns where it is, or hands a path on)
-    "cd .koloni/tmp; echo x > \"$(dirname \"$PWD\")/rules.md\"",
-    "cd .koloni/tmp; echo x > ${PWD%/*}/rules.md", "cd .koloni/tmp; echo x > `dirname x`/rules.md",
+    'cd .koloni/tmp; echo x > "$(dirname "$PWD")/rules.md"',
+    "cd .koloni/tmp; echo x > ${PWD%/*}/rules.md",
+    "cd .koloni/tmp; echo x > `dirname x`/rules.md",
     "cd .koloni/tmp; Set-Content -Path ((gl).Path -replace 'tmp$','rules.md') x",
     "cd .koloni/tmp; gi . | select -Expand Parent | Set-Content x",
-    "cd .koloni/tmp; Get-Location | Set-Content x", "cd .koloni/tmp; echo x > .?/rules.md",
-    "cd .koloni/tmp; python -c \"import pathlib; pathlib.Path.cwd().parents[0]\"",
+    "cd .koloni/tmp; Get-Location | Set-Content x",
+    "cd .koloni/tmp; echo x > .?/rules.md",
+    'cd .koloni/tmp; python -c "import pathlib; pathlib.Path.cwd().parents[0]"',
     "cd .koloni/tmp; python -c \"import os; open(os.pardir + '/rules.md', 'w')\"",
     "cd .koloni/tmp; Set-Content ([IO.Directory]::GetParent('x').FullName + '/rules.md') x",
     "cd .koloni/tmp; gi . | select -Expand PSParentPath | Set-Content x",
     "cd .koloni/tmp; Set-Content ([IO.Path]::GetDirectoryName('x') + '/r') x",
     "cd .koloni/tmp; Convert-Path . | Set-Content x",
-    "cd .koloni/tmp; echo x > .*/rules.md", "cd .koloni/tmp; echo x > .[.]/rules.md",
+    "cd .koloni/tmp; echo x > .*/rules.md",
+    "cd .koloni/tmp; echo x > .[.]/rules.md",
     "cd .koloni/tmp; Set-Content (Split-Path -Parent $PWD)/rules.md x",
-    "cd .koloni/tmp; cp x $OLDPWD/.koloni/rules.md", "cd .koloni/tmp; echo x > $(pwd)/x",
-    "cd .koloni/tmp && echo x > %cd%\\rules.md", "cd .koloni/tmp; p\\wd | xargs d\\irname",
+    "cd .koloni/tmp; cp x $OLDPWD/.koloni/rules.md",
+    "cd .koloni/tmp; echo x > $(pwd)/x",
+    "cd .koloni/tmp && echo x > %cd%\\rules.md",
+    "cd .koloni/tmp; p\\wd | xargs d\\irname",
     "cd .koloni/tmp; realpath . | sed s/tmp$/rules.md/ | x\\args cp x",
     "cd .koloni/tmp; python -c \"import os; open(os.path.dirname(os.getcwd()) + '/rules.md', 'w')\"",
-    "cd .koloni/tmp; node -e \"require('fs').writeFileSync(process.cwd() + '/x', '')\""]
+    "cd .koloni/tmp; node -e \"require('fs').writeFileSync(process.cwd() + '/x', '')\"",
+]
 
 
 @pytest.mark.parametrize("line", ENTERS)
@@ -388,10 +527,21 @@ def test_a_line_in_the_scratch_is_as_strict_as_ever_about_the_rest():
 
 # (the main session's call: the words that say where a line is, each a word of its own - no bare
 # `$ % ( {` nor a backtick, which carded inline code, a variable set, a percent sign)
-@pytest.mark.parametrize("rest", [
-    "python -c \"print(1)\"", "$env:X=1; pytest", "echo 50% done", "pytest tests/test_parent.py",
-    "cat allocation.txt", "mkdir --parents out", "cat apparent.txt", "echo `date` > a.log",
-    "pytest -k \"a and (b or c)\"", "node -e \"console.log({a: 1})\""])
+@pytest.mark.parametrize(
+    "rest",
+    [
+        'python -c "print(1)"',
+        "$env:X=1; pytest",
+        "echo 50% done",
+        "pytest tests/test_parent.py",
+        "cat allocation.txt",
+        "mkdir --parents out",
+        "cat apparent.txt",
+        "echo `date` > a.log",
+        'pytest -k "a and (b or c)"',
+        'node -e "console.log({a: 1})"',
+    ],
+)
 def test_in_the_scratch_an_ordinary_line_with_a_variable_or_brackets_is_no_card(rest):
     line = f"cd .koloni/tmp; {rest}"
     assert commands.names_standing(line) == "" and commands.harms(line) == ""
@@ -410,9 +560,15 @@ def test_where_a_clis_shell_stands_is_not_known_a_cd_into_the_scratch_is_a_card_
     assert commands.with_cwd("echo x > .koloni/tmp/a.log", None) == "echo x > .koloni/tmp/a.log"
 
 
-@pytest.mark.parametrize("line", [
-    "cd .koloni\\tmp\\work; grep -r KEY .", "sl .koloni/tmp; grep -r KEY .",
-    "cd .koloni/tmp/work; rg KEY", "cd .koloni/tmp/work && grep -r KEY ."])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "cd .koloni\\tmp\\work; grep -r KEY .",
+        "sl .koloni/tmp; grep -r KEY .",
+        "cd .koloni/tmp/work; rg KEY",
+        "cd .koloni/tmp/work && grep -r KEY .",
+    ],
+)
 def test_a_search_after_a_cd_into_the_scratch_is_judged_where_the_line_began_too(line, tmp_path):
     # (review, measured: in sh the backslash path is no folder and `sl` no command - the `cd`
     # fails and the search runs in the project, printing its `.env`)
@@ -424,15 +580,26 @@ def test_a_search_after_a_cd_into_the_scratch_is_judged_where_the_line_began_too
 
 
 def test_a_command_is_judged_with_its_cwd():
-    assert commands.with_cwd("pytest", ".") == "pytest" and commands.with_cwd("pytest", None) == "pytest"
+    assert (
+        commands.with_cwd("pytest", ".") == "pytest"
+        and commands.with_cwd("pytest", None) == "pytest"
+    )
     assert commands.with_cwd("pytest", "src") == "cd src; pytest"
     assert commands.names_standing(commands.with_cwd("cat AGENTS.md", "src")) == ""
 
 
-@pytest.mark.parametrize("line", [
-    "cmd /c mklink /J k C:/Users", "mklink /D a C:\\Users", "mklink a b",
-    "New-Item -ItemType Junction -Path .koloni/tmp/k -Target C:/Users",
-    "ni -ItemType SymbolicLink x -Target ..", "ln -s ../x .koloni/tmp/k", "ln -sf a b"])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "cmd /c mklink /J k C:/Users",
+        "mklink /D a C:\\Users",
+        "mklink a b",
+        "New-Item -ItemType Junction -Path .koloni/tmp/k -Target C:/Users",
+        "ni -ItemType SymbolicLink x -Target ..",
+        "ln -s ../x .koloni/tmp/k",
+        "ln -sf a b",
+    ],
+)
 def test_making_a_link_is_asked_at_every_level(line):
     assert commands.harms(line) == "Makes a link, which can point anywhere."
     # (One that names .koloni as the target is a card for that, as before.)
@@ -446,17 +613,29 @@ def test_a_hard_link_or_a_plain_new_item_is_no_link(line):
 
 def test_b188_a_real_glob_is_still_a_danger():
     # (A delete is one by itself, whatever it names.)
-    assert commands.danger("rm -rf .*") and commands.names_standing("Copy-Item x .claude*") == ".claude"
+    assert (
+        commands.danger("rm -rf .*")
+        and commands.names_standing("Copy-Item x .claude*") == ".claude"
+    )
 
 
-@pytest.mark.parametrize(("line", "said"), [
-    # R141 (live): no global git identity, the agent's `git config user.name` card read "Names .git".
-    ('git config user.name "Murat K"; git config --local user.email m@x.org', commands.GIT_IDENTITY),
-    ("git config User.Email m@x.org", commands.GIT_IDENTITY),
-    # (anything else of .git, or another folder's, keeps the plain card)
-    ("git config user.name M; git config core.hooksPath h", commands.STANDING_FILE.format(name=".git")),
-    ("git -C ../other config user.name M", commands.STANDING_FILE.format(name=".git")),
-])
+@pytest.mark.parametrize(
+    ("line", "said"),
+    [
+        # R141 (live): no global git identity, the agent's `git config user.name` card read "Names .git".
+        (
+            'git config user.name "Murat K"; git config --local user.email m@x.org',
+            commands.GIT_IDENTITY,
+        ),
+        ("git config User.Email m@x.org", commands.GIT_IDENTITY),
+        # (anything else of .git, or another folder's, keeps the plain card)
+        (
+            "git config user.name M; git config core.hooksPath h",
+            commands.STANDING_FILE.format(name=".git"),
+        ),
+        ("git -C ../other config user.name M", commands.STANDING_FILE.format(name=".git")),
+    ],
+)
 def test_setting_this_projects_git_identity_says_so(line, said):
     assert commands.danger(line) == said
 
@@ -479,7 +658,8 @@ def test_an_ordinary_command_names_none(line):
 
 
 def test_at_full_auto_koloni_s_own_command_writing_claude_settings_waits(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     executor = ScriptedExecutor([])
     line = "Set-Content .claude\\settings.json x"
     client, _ = make_client([cmd(line), text("Understood.")], executor=executor)
@@ -501,7 +681,8 @@ def test_at_full_auto_an_ordinary_command_is_not_asked(make_client, wait_run, pr
 
 @pytest.mark.parametrize("mode", ["ask", "auto_edit"])
 def test_below_full_auto_a_read_of_agents_md_runs_unasked_as_any_read(
-        make_client, wait_run, project_dir, mode):
+    make_client, wait_run, project_dir, mode
+):
     executor = ScriptedExecutor([Script(["x\n"])])
     client, _ = make_client([cmd("Get-Content AGENTS.md"), text("done")], executor=executor)
     cid, run_id = start_in_mode(client, project_dir, mode)
@@ -512,18 +693,24 @@ def test_below_full_auto_a_read_of_agents_md_runs_unasked_as_any_read(
 def test_with_nobody_watching_a_ticked_read_of_agents_md_runs(make_client, wait_run, project_dir):
     line = "cat AGENTS.md"
     executor = ScriptedExecutor([Script(["x\n"])])
-    client, _, pid, cid = setup(lambda scripts: make_client(scripts, executor=executor),
-                                project_dir, {"Lead": [
-                                    step(call("run_command", {"command": line}, "c")),
-                                    text("done")]})
-    made = trigger(client, pid, cid, permissions={
-        "write": False, "commands": [allow(client, cid, line)], "agents": 0})
+    client, _, pid, cid = setup(
+        lambda scripts: make_client(scripts, executor=executor),
+        project_dir,
+        {"Lead": [step(call("run_command", {"command": line}, "c")), text("done")]},
+    )
+    made = trigger(
+        client,
+        pid,
+        cid,
+        permissions={"write": False, "commands": [allow(client, cid, line)], "agents": 0},
+    )
     snap = finished(client, wait_run, cid, run_now(client, made["id"]))
     assert [c["status"] for c in snap["commands"]] == ["exited"]
 
 
 def test_at_full_auto_a_native_clis_command_writing_claude_settings_is_a_card(
-        claude_app, wait_run, project_dir):  # noqa: F811
+    claude_app, wait_run, project_dir
+):  # noqa: F811
     bash = {"tool": "Bash", "ask": True, "input": {"command": LIVE}, "result": "x"}
     client, provider, _ = claude_app([bash, {"say": "done"}])
     cid, run_id = start_claude(client, project_dir, provider, "full_auto")
@@ -541,10 +728,14 @@ def rule_from_before(monkeypatch):
 
 
 def test_with_nobody_watching_koloni_s_command_naming_github_is_refused_though_ticked(
-        make_client, wait_run, project_dir, rule_from_before):
+    make_client, wait_run, project_dir, rule_from_before
+):
     line = "Set-Content .github\\canli.yml x"
-    client, _, pid, cid = setup(make_client, project_dir, {"Lead": [
-        step(call("run_command", {"command": line}, "c")), text("done")]})
+    client, _, pid, cid = setup(
+        make_client,
+        project_dir,
+        {"Lead": [step(call("run_command", {"command": line}, "c")), text("done")]},
+    )
     rule = allow(client, cid, line)
     made = trigger(client, pid, cid, permissions={"write": True, "commands": [rule], "agents": 0})
     run_id = run_now(client, made["id"])
@@ -556,12 +747,14 @@ def test_with_nobody_watching_koloni_s_command_naming_github_is_refused_though_t
 
 
 def test_with_nobody_watching_a_native_clis_command_naming_claude_is_refused_though_ticked(
-        claude_app, wait_run, project_dir, rule_from_before):  # noqa: F811
+    claude_app, wait_run, project_dir, rule_from_before
+):  # noqa: F811
     line = "Set-Content .claude\\settings.json x"
     bash = {"tool": "Bash", "input": {"command": line}, "write": [".claude/settings.json", "x"]}
     client, provider, _ = claude_app([bash, {"say": "done"}])
     snap, run, _ = unattended(
-        client, project_dir, provider, "full_auto", wait_run, write=True, commands=[line])
+        client, project_dir, provider, "full_auto", wait_run, write=True, commands=[line]
+    )
     verdicts = claude_app.record()["asked"]
     assert [v["behavior"] for v in verdicts] == ["deny"] and NOBODY in verdicts[0]["message"]
     assert not (project_dir / ".claude").exists()
@@ -571,16 +764,26 @@ def test_with_nobody_watching_a_native_clis_command_naming_claude_is_refused_tho
 # strict - no rule is offered for a delete, nor covers one -; the card is left out where it is
 # decided (`scratch_delete_only`, `AgentRunner._night_asks`).
 SCRATCH_DELETES = [
-    "Remove-Item .koloni/tmp/not.txt", "rm .koloni/tmp/x", "del .koloni\\tmp\\a.log",
-    "rm -f ./.koloni/tmp/a.png .koloni/tmp/b.png", "Remove-Item -Force -Path .koloni/tmp/x.txt",
-    "erase -q .koloni/tmp/out.xml", "unlink .koloni/tmp/a.png",
+    "Remove-Item .koloni/tmp/not.txt",
+    "rm .koloni/tmp/x",
+    "del .koloni\\tmp\\a.log",
+    "rm -f ./.koloni/tmp/a.png .koloni/tmp/b.png",
+    "Remove-Item -Force -Path .koloni/tmp/x.txt",
+    "erase -q .koloni/tmp/out.xml",
+    "unlink .koloni/tmp/a.png",
     # (live: a folder of the scratch, recursively)
-    "rm -rf .koloni/tmp/profile", "Remove-Item -Recurse .koloni/tmp/x", "rm -r -f .koloni/tmp/out",
-    "rm -fr .koloni/tmp/out", "rm -Rf ./.koloni/tmp/a.png .koloni/tmp/out",
-    "Remove-Item -Recurse -Force .koloni/tmp/out", "ri -r -fo .koloni/tmp/out",
+    "rm -rf .koloni/tmp/profile",
+    "Remove-Item -Recurse .koloni/tmp/x",
+    "rm -r -f .koloni/tmp/out",
+    "rm -fr .koloni/tmp/out",
+    "rm -Rf ./.koloni/tmp/a.png .koloni/tmp/out",
+    "Remove-Item -Recurse -Force .koloni/tmp/out",
+    "ri -r -fo .koloni/tmp/out",
     # (live, Codex 0.164.0: a careful model quotes the path - one plain pair around all of it)
-    "Remove-Item -LiteralPath '.koloni/tmp/cs' -Recurse -Force", "rm -rf \".koloni/tmp/out\"",
-    "rm -f './.koloni/tmp/a.png' \".koloni/tmp/b.png\" .koloni/tmp/c.png"]
+    "Remove-Item -LiteralPath '.koloni/tmp/cs' -Recurse -Force",
+    'rm -rf ".koloni/tmp/out"',
+    "rm -f './.koloni/tmp/a.png' \".koloni/tmp/b.png\" .koloni/tmp/c.png",
+]
 
 
 @pytest.mark.parametrize("line", SCRATCH_DELETES)
@@ -590,7 +793,8 @@ def test_a_delete_in_the_scratch_is_no_card_but_still_harm_with_no_rule_offered(
     # (Off Windows `.koloni\tmp\a.log` is one file of that name beside .koloni: asked.)
     windows_only = "\\" in line
     assert commands.scratch_delete_only(line, str(tmp_path)) is (
-        sys.platform == "win32" or not windows_only)
+        sys.platform == "win32" or not windows_only
+    )
     assert commands.harms(line) and commands.suggest_prefix(line) == ""
     assert not commands.scratch_delete_only(line, None)  # (a copy's, a CLI's own: asked)
 
@@ -598,52 +802,99 @@ def test_a_delete_in_the_scratch_is_no_card_but_still_harm_with_no_rule_offered(
 # The review of B-336: each of these deleted, or wrote, outside the scratch with no card.
 OUTSIDE = "C:\\Users\\someone\\out.txt"
 BYPASSES = [
-    f"Remove-Item .koloni/tmp/c,{OUTSIDE}", f"cmd /c del /q .koloni\\tmp\\d,{OUTSIDE}",
-    f"cmd /c del .koloni\\tmp\\e={OUTSIDE}", f"Remove-Item -Path:{OUTSIDE} -Exclude .koloni/tmp/b",
-    "Remove-Item .koloni/tmp/.'.'/.'.'/top.txt", "del .koloni\\tmp\\.^.\\.^.\\top2.txt",
-    "rm .koloni/tmp/.\\./x", "rm .koloni/tmp/`.`./x", "Push-Location .koloni/tmp; rm x",
-    "rm -rf .koloni", "rm .koloni/tmp/../settings.json", "rm .koloni/tmp/x settings.json",
+    f"Remove-Item .koloni/tmp/c,{OUTSIDE}",
+    f"cmd /c del /q .koloni\\tmp\\d,{OUTSIDE}",
+    f"cmd /c del .koloni\\tmp\\e={OUTSIDE}",
+    f"Remove-Item -Path:{OUTSIDE} -Exclude .koloni/tmp/b",
+    "Remove-Item .koloni/tmp/.'.'/.'.'/top.txt",
+    "del .koloni\\tmp\\.^.\\.^.\\top2.txt",
+    "rm .koloni/tmp/.\\./x",
+    "rm .koloni/tmp/`.`./x",
+    "Push-Location .koloni/tmp; rm x",
+    "rm -rf .koloni",
+    "rm .koloni/tmp/../settings.json",
+    "rm .koloni/tmp/x settings.json",
     # (a recursive one: never the scratch itself, a climb, a wildcard, a dot-name, another flag,
     # cmd's `/s` - a path to sh and pwsh -, nor after a `cd`: one that fails leaves it in the
     # project)
-    "rm -rf .koloni/tmp", "rm -rf .koloni/tmp/", "rm -rf .koloni/tmp/..", "rm -rf .koloni/tmp/*",
-    "rm -rf .koloni/tmp/a ../b", "rm -rf .koloni/tmp/a b", "rm -rf .koloni/tmp/.git",
-    "rm -rfv .koloni/tmp/a", "rm -rf --no-preserve-root .koloni/tmp/a",
-    "rmdir /s /q .koloni\\tmp\\a", "rd /s /q .koloni\\tmp\\a", "rm -rf .koloni/tmp/a/..",
-    "cd .koloni/tmp/work; rm -rf out", "cd .koloni/tmp && rm -rf .koloni/tmp/a",
-    "Remove-Item -Recurse -Force .koloni/tmp/a -Include x", "rm -rf .koloni/tmpx/a",
+    "rm -rf .koloni/tmp",
+    "rm -rf .koloni/tmp/",
+    "rm -rf .koloni/tmp/..",
+    "rm -rf .koloni/tmp/*",
+    "rm -rf .koloni/tmp/a ../b",
+    "rm -rf .koloni/tmp/a b",
+    "rm -rf .koloni/tmp/.git",
+    "rm -rfv .koloni/tmp/a",
+    "rm -rf --no-preserve-root .koloni/tmp/a",
+    "rmdir /s /q .koloni\\tmp\\a",
+    "rd /s /q .koloni\\tmp\\a",
+    "rm -rf .koloni/tmp/a/..",
+    "cd .koloni/tmp/work; rm -rf out",
+    "cd .koloni/tmp && rm -rf .koloni/tmp/a",
+    "Remove-Item -Recurse -Force .koloni/tmp/a -Include x",
+    "rm -rf .koloni/tmpx/a",
     # (review: what KOLONİ keeps there itself - the browser's profile, the user's screenshots,
     # the images shown; and a path too long for Windows is no error)
-    "rm -rf .koloni/tmp/browser", "rm -rf .koloni/tmp/browser.", "rm -rf .koloni/tmp/IMAGES../a",
+    "rm -rf .koloni/tmp/browser",
+    "rm -rf .koloni/tmp/browser.",
+    "rm -rf .koloni/tmp/IMAGES../a",
     "Remove-Item -Recurse -Force ./.koloni/tmp/Browser/shots",
     "rm -rf .koloni/tmp/out .koloni/tmp/images/a",
     # (a quoted path is its content and no more: the same rules inside the quotes, and any
     # other quote - a flag's, a space, two pieces glued, a pair left open, a smart one - asks)
-    "rm -rf \".koloni/tmp/..\"", "rm -rf '.koloni/tmp'", "rm -rf '.koloni/tmp/'",
-    "rm -rf '.koloni/tmp/browser'", "rm -rf '.koloni/tmp/a b'", "rm -rf '.koloni/tmp/'\"x\"",
-    "rm '-rf' .koloni/tmp/a", "rm -rf '.koloni/tmp/a", "rm -rf '' .koloni/tmp/a",
-    "rm -rf '.koloni/tmp/a'x", "rm -rf '.koloni/tmp/$x'", "rm -rf \"'.koloni/tmp/a'\"",
-    "rm -rf '.koloni/tmp/a\" \".koloni/tmp/b'", "Remove-Item -LiteralPath:'.koloni/tmp/a'",
-    "rm -rf '.koloni/tmp/*'", "rm -rf '.koloni/tmp/.git'", "rm -rf \".koloni/tmp/a\";rm -rf x",
-    "rm -rf ‘.koloni/tmp/a’", "rm -rf '.koloni/tmp/a/../..'", "'rm' -rf .koloni/tmp/a",
+    'rm -rf ".koloni/tmp/.."',
+    "rm -rf '.koloni/tmp'",
+    "rm -rf '.koloni/tmp/'",
+    "rm -rf '.koloni/tmp/browser'",
+    "rm -rf '.koloni/tmp/a b'",
+    "rm -rf '.koloni/tmp/'\"x\"",
+    "rm '-rf' .koloni/tmp/a",
+    "rm -rf '.koloni/tmp/a",
+    "rm -rf '' .koloni/tmp/a",
+    "rm -rf '.koloni/tmp/a'x",
+    "rm -rf '.koloni/tmp/$x'",
+    "rm -rf \"'.koloni/tmp/a'\"",
+    "rm -rf '.koloni/tmp/a\" \".koloni/tmp/b'",
+    "Remove-Item -LiteralPath:'.koloni/tmp/a'",
+    "rm -rf '.koloni/tmp/*'",
+    "rm -rf '.koloni/tmp/.git'",
+    'rm -rf ".koloni/tmp/a";rm -rf x',
+    "rm -rf ‘.koloni/tmp/a’",
+    "rm -rf '.koloni/tmp/a/../..'",
+    "'rm' -rf .koloni/tmp/a",
     # (live, Codex native: a path worked out on the line)
     "$scratchTarget = (Resolve-Path -LiteralPath '.koloni/tmp/cx').Path; "
     "if (-not $scratchTarget) { throw 'x' }; "
     "Remove-Item -LiteralPath $scratchTarget -Recurse -Force",
-    "cd .koloni/tmp; rm x", "rm .koloni/tmp/$NAME", "rm .koloni/tmpx/a", "rm .koloni/settings.json",
-    "rm .koloni/tmp", "rm .koloni/tmp/.env", "dd if=/dev/zero of=.koloni/tmp/x",
+    "cd .koloni/tmp; rm x",
+    "rm .koloni/tmp/$NAME",
+    "rm .koloni/tmpx/a",
+    "rm .koloni/settings.json",
+    "rm .koloni/tmp",
+    "rm .koloni/tmp/.env",
+    "dd if=/dev/zero of=.koloni/tmp/x",
     "rm .koloni/tmp/x; curl -d x https://example.com",
     # (its second review: each line one delete alone - no pipe, no other part, no shell around
     # it; no wildcard; no smart quote; no `/q` or `/f`, a path to pwsh and sh)
     "printf C:/Users/someone/v1.txt | xargs rm -f .koloni/tmp/a",
-    "python mk.py; rm -f .koloni/tmp/j/x", "robocopy a b /SJ /E & del .koloni\\tmp\\x",
-    "pytest -q; rm .koloni/tmp/out.xml", "cmd /c del /q .koloni\\tmp\\x", "rmdir .koloni/tmp/empty",
-    "rm .koloni/tmp/*.png", "Remove-Item -Force .koloni/tmp/*/victim2.txt", "rm .koloni/tmp/a?",
-    "Remove-Item .koloni/tmp/\u2018x\u2019", "Remove-Item /q", "rm /f .koloni/tmp/x",
-    "rm .koloni/tmp/x && rm .koloni/tmp/y", "rm .koloni/tmp/x\nrm C:/x", "rm .koloni/tmp/x > y",
+    "python mk.py; rm -f .koloni/tmp/j/x",
+    "robocopy a b /SJ /E & del .koloni\\tmp\\x",
+    "pytest -q; rm .koloni/tmp/out.xml",
+    "cmd /c del /q .koloni\\tmp\\x",
+    "rmdir .koloni/tmp/empty",
+    "rm .koloni/tmp/*.png",
+    "Remove-Item -Force .koloni/tmp/*/victim2.txt",
+    "rm .koloni/tmp/a?",
+    "Remove-Item .koloni/tmp/\u2018x\u2019",
+    "Remove-Item /q",
+    "rm /f .koloni/tmp/x",
+    "rm .koloni/tmp/x && rm .koloni/tmp/y",
+    "rm .koloni/tmp/x\nrm C:/x",
+    "rm .koloni/tmp/x > y",
     ".koloni/tmp/rm .koloni/tmp/x",
     # (its third review: after `--` sh's rm takes every word for a path - `./-f` too)
-    "rm .koloni/tmp/a -- -f"]
+    "rm .koloni/tmp/a -- -f",
+]
 
 
 @pytest.mark.parametrize("line", BYPASSES)
@@ -654,7 +905,8 @@ def test_a_delete_that_may_leave_the_scratch_is_a_card_with_no_rule(line, tmp_pa
 
 
 def test_a_recursive_delete_of_a_path_too_long_to_look_into_is_a_card_not_an_error(
-        tmp_path, monkeypatch):
+    tmp_path, monkeypatch
+):
     (tmp_path / ".koloni" / "tmp" / "out").mkdir(parents=True)
     assert not commands.scratch_delete_only("rm -rf .koloni/tmp/" + "a" * 40_000, str(tmp_path))
 
@@ -677,8 +929,10 @@ def test_the_links_looked_for_under_a_recursive_delete_are_counted_for_the_line(
 
 
 def test_a_link_in_the_scratch_is_a_card_to_make_and_one_to_delete_through(tmp_path):
-    for line in ("New-Item -ItemType:Junction -Path .koloni/tmp/l -Target C:\\Users",
-                 "ni -ItemType:SymbolicLink x -Target .."):
+    for line in (
+        "New-Item -ItemType:Junction -Path .koloni/tmp/l -Target C:\\Users",
+        "ni -ItemType:SymbolicLink x -Target ..",
+    ):
         assert commands.harms(line) == "Makes a link, which can point anywhere."
     (tmp_path / ".koloni" / "tmp").mkdir(parents=True)
     away = tmp_path / "away"
@@ -691,8 +945,13 @@ def test_a_link_in_the_scratch_is_a_card_to_make_and_one_to_delete_through(tmp_p
         _winapi.CreateJunction(str(away), str(link))
     else:
         os.symlink(away, link)
-    for line in ("Remove-Item .koloni/tmp/l/file", "rm .koloni/tmp/l", "rm .koloni/tmp/*/file",
-                 "rm -rf .koloni/tmp/l", "Remove-Item -Recurse -Force .koloni/tmp/l/"):
+    for line in (
+        "Remove-Item .koloni/tmp/l/file",
+        "rm .koloni/tmp/l",
+        "rm .koloni/tmp/*/file",
+        "rm -rf .koloni/tmp/l",
+        "Remove-Item -Recurse -Force .koloni/tmp/l/",
+    ):
         assert not commands.scratch_delete_only(line, str(tmp_path)), line
     # (a recursive delete of a folder with a link anywhere below it: Windows PowerShell's
     # deletes through a junction)
@@ -731,11 +990,14 @@ def test_a_link_in_the_scratch_is_a_card_to_make_and_one_to_delete_through(tmp_p
 
 def test_a_write_that_climbs_out_of_the_scratch_by_a_quoted_dot_names_koloni():
     # (review of B-336: `.'.'` is `..` to PowerShell)
-    for line in ("Set-Content .koloni/tmp/.'.'/rules.md x", "echo x > .koloni/tmp/.^./rules.md",
-                 # (its second review: PowerShell's smart quotes; sh's `.\.`)
-                 "Set-Content .koloni/tmp/.‘.’/rules.md x",
-                 "Set-Content .koloni/tmp/.“.”/rules.md x",
-                 "sh -c 'echo x > .koloni/tmp/.\\./rules.md'"):
+    for line in (
+        "Set-Content .koloni/tmp/.'.'/rules.md x",
+        "echo x > .koloni/tmp/.^./rules.md",
+        # (its second review: PowerShell's smart quotes; sh's `.\.`)
+        "Set-Content .koloni/tmp/.‘.’/rules.md x",
+        "Set-Content .koloni/tmp/.“.”/rules.md x",
+        "sh -c 'echo x > .koloni/tmp/.\\./rules.md'",
+    ):
         assert commands.harms(line), line
 
 
@@ -758,22 +1020,43 @@ def test_a_climb_out_of_the_scratch_says_so_and_a_link_is_a_link_first():
 
 # (live, 14 Nov 2026) `ls -la .koloni/tmp 2>&1; git status --short` asked: any git on the line
 # made the scratch `.koloni`. A git that only reads (`only_reads`' own list) beside it is free.
-@pytest.mark.parametrize("line", [
-    "ls -la .koloni/tmp 2>&1; git status --short", "git diff --stat; cat .koloni/tmp/a.log",
-    "python x.py > .koloni/tmp/out.log && git log -1", "git status > .koloni/tmp/status.txt",
-    "git show HEAD:a.py > .koloni/tmp/a.py", "git diff -- .koloni/tmp/a.log"])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "ls -la .koloni/tmp 2>&1; git status --short",
+        "git diff --stat; cat .koloni/tmp/a.log",
+        "python x.py > .koloni/tmp/out.log && git log -1",
+        "git status > .koloni/tmp/status.txt",
+        "git show HEAD:a.py > .koloni/tmp/a.py",
+        "git diff -- .koloni/tmp/a.log",
+    ],
+)
 def test_a_git_that_only_reads_beside_a_scratch_path_is_no_card(line):
     assert not commands.names_koloni(line) and commands.names_standing(line) == ""
     assert commands.harms(line) == ""
 
 
-@pytest.mark.parametrize("line", [
-    "git add -f .koloni/tmp/x", "git -C .koloni/tmp/r status", "git stash -u; ls .koloni/tmp",
-    "git clean -fdx .koloni/tmp", "git --git-dir=.koloni/tmp/r/.git status",
-    "git --work-tree .koloni/tmp status", "git status; git add -f .koloni/tmp/x",
-    "git diff --output=.koloni/tmp/x", "git log --ext-diff -- .koloni/tmp",
-    "./git status; ls .koloni/tmp", "git checkout -- .koloni/tmp/a", "git mv .koloni/tmp/a b",
-    "git rm -r .koloni/tmp", "git apply .koloni/tmp/a.patch", "git commit -m x .koloni/tmp/a",
-    "git show HEAD:.koloni/rules.md > .koloni/tmp/r.md", "git branch; ls .koloni/tmp"])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "git add -f .koloni/tmp/x",
+        "git -C .koloni/tmp/r status",
+        "git stash -u; ls .koloni/tmp",
+        "git clean -fdx .koloni/tmp",
+        "git --git-dir=.koloni/tmp/r/.git status",
+        "git --work-tree .koloni/tmp status",
+        "git status; git add -f .koloni/tmp/x",
+        "git diff --output=.koloni/tmp/x",
+        "git log --ext-diff -- .koloni/tmp",
+        "./git status; ls .koloni/tmp",
+        "git checkout -- .koloni/tmp/a",
+        "git mv .koloni/tmp/a b",
+        "git rm -r .koloni/tmp",
+        "git apply .koloni/tmp/a.patch",
+        "git commit -m x .koloni/tmp/a",
+        "git show HEAD:.koloni/rules.md > .koloni/tmp/r.md",
+        "git branch; ls .koloni/tmp",
+    ],
+)
 def test_any_other_git_beside_a_scratch_path_still_asks(line):
     assert commands.danger(line), line

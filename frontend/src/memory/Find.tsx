@@ -7,7 +7,18 @@ import { Hint } from '../shell/Hint'
 import type { ProjectSettingsValues } from '../shell/ProjectSettings'
 import { usePanel } from '../shell/usePanel'
 import { useApp } from '../state/store'
-import { decisionId, decisionOf, hasWords, linesOf, matches, rowId, saidWhere, type Tab, TABS, waitId } from './memoryText'
+import {
+  decisionId,
+  decisionOf,
+  hasWords,
+  linesOf,
+  matches,
+  rowId,
+  saidWhere,
+  type Tab,
+  TABS,
+  waitId,
+} from './memoryText'
 import { RecordCard } from './RecordCard'
 
 /** Where a hit is: what waits for your word (above the tabs), or one of the tabs. */
@@ -17,7 +28,8 @@ type OnMeaning = (values: Pick<ProjectSettingsValues, 'embedding_provider_id' | 
 
 /** What a record of a linked project says of itself (22c): the server's words for an agent, in short. */
 const NOT_CHECKED_HERE = 'its files are not in this project: it could not be checked here'
-export const MEANING_COSTS = 'One embeddings request to that provider for each search (it also reads up to 50 notes, facts or earlier messages not read yet), on your plan or your bill.'
+export const MEANING_COSTS =
+  'One embeddings request to that provider for each search (it also reads up to 50 notes, facts or earlier messages not read yet), on your plan or your bill.'
 
 /**
  * 22c: which provider's server embeds the memory for the search by meaning - any with a server
@@ -39,7 +51,10 @@ function MeaningPicker({ onMeaning }: { onMeaning: OnMeaning }) {
     setBusy(true)
     setError(null)
     try {
-      await onMeaning({ ...(provider !== savedProvider && { embedding_provider_id: provider }), ...(model.trim() !== savedModel && { embedding_model: model.trim() }) })
+      await onMeaning({
+        ...(provider !== savedProvider && { embedding_provider_id: provider }),
+        ...(model.trim() !== savedModel && { embedding_model: model.trim() }),
+      })
     } catch (err) {
       setError(errorText(err))
     } finally {
@@ -50,11 +65,23 @@ function MeaningPicker({ onMeaning }: { onMeaning: OnMeaning }) {
   return (
     <form className="memory-meaning-form" onSubmit={save} aria-label="Search by meaning">
       <label htmlFor="meaning-provider">Search by meaning with</label>
-      <select id="meaning-provider" className="input" value={provider ?? ''} onChange={e => setProvider(e.target.value || null)}>
+      <select
+        id="meaning-provider"
+        className="input"
+        value={provider ?? ''}
+        onChange={e => setProvider(e.target.value || null)}
+      >
         <option value="">off: by words alone</option>
         <ProviderOptions providers={providers} />
       </select>
-      <input className="input mono" aria-label="Embedding model" value={model} maxLength={200} onChange={e => setModel(e.target.value)} disabled={provider === null} />
+      <input
+        className="input mono"
+        aria-label="Embedding model"
+        value={model}
+        maxLength={200}
+        onChange={e => setModel(e.target.value)}
+        disabled={provider === null}
+      />
       {/* (What it spends is read before it is saved: in sight, never behind a "?".) */}
       <span className="muted memory-hint">{MEANING_COSTS}</span>
       <button type="submit" className="btn btn-small" disabled={busy || !changed}>
@@ -77,10 +104,24 @@ function MeaningButton({ on, onMeaning }: { on: boolean; onMeaning: OnMeaning })
   const { open, setOpen, close, button, panel } = usePanel()
   return (
     <>
-      <button ref={button} type="button" className="btn btn-small" aria-haspopup="dialog" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
+      <button
+        ref={button}
+        type="button"
+        className="btn btn-small"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => (open ? close() : setOpen(true))}
+      >
         {on ? 'by meaning' : 'by words'} ▾
       </button>
-      <div ref={panel} tabIndex={-1} className="allow-list-panel memory-meaning" role="dialog" aria-label="How the memory is searched" hidden={!open}>
+      <div
+        ref={panel}
+        tabIndex={-1}
+        className="allow-list-panel memory-meaning"
+        role="dialog"
+        aria-label="How the memory is searched"
+        hidden={!open}
+      >
         <MeaningPicker onMeaning={onMeaning} />
       </div>
     </>
@@ -94,22 +135,32 @@ interface Hit {
 
 /** What on this page has every word typed, by the tab it is under; the id is the row (or the box) it is on. */
 function pageHits(memory: ProjectMemory, query: string): Record<Place, Hit[]> {
-  const rows = (records: ProjectMemory['core'], at = rowId) => records.filter(record => matches(record, query)).map(record => ({ id: at(record.id), text: record.text }))
-  const lines = (text: string | null | undefined, id: string) => linesOf(text).filter(line => hasWords(line, query)).map(line => ({ id, text: line.trim() }))
+  const rows = (records: ProjectMemory['core'], at = rowId) =>
+    records.filter(record => matches(record, query)).map(record => ({ id: at(record.id), text: record.text }))
+  const lines = (text: string | null | undefined, id: string) =>
+    linesOf(text)
+      .filter(line => hasWords(line, query))
+      .map(line => ({ id, text: line.trim() }))
   return {
     waiting: rows(memory.proposals, waitId),
-    told: [...lines(memory.preferences, 'memory-preferences'), ...rows(memory.suggestions ?? []), ...lines(memory.rules, 'memory-rules')],
+    told: [
+      ...lines(memory.preferences, 'memory-preferences'),
+      ...rows(memory.suggestions ?? []),
+      ...lines(memory.rules, 'memory-rules'),
+    ],
     facts: rows(memory.core),
     notes: rows(memory.journal),
     history: [
       ...memory.decisions
         .filter(decision => hasWords(`${decisionOf(decision)} ${decision.text ?? ''}`, query))
-        .map(decision => ({ id: decisionId(decision), text: [decisionOf(decision), decision.text].filter(Boolean).join(' · ') })),
+        .map(decision => ({
+          id: decisionId(decision),
+          text: [decisionOf(decision), decision.text].filter(Boolean).join(' · '),
+        })),
       ...rows(memory.past),
     ],
   }
 }
-
 
 interface Props {
   memory: ProjectMemory
@@ -169,7 +220,10 @@ export function Find({ memory, onOpen, onSearch, onMeaning, searchFor }: Props) 
     const count = hits ? Object.values(hits).reduce((n, list) => n + list.length, 0) : 0
     return (
       <div role="status" className="muted memory-hint">
-        {hits && (count === 0 ? `Nothing on this page has “${typed}”.` : `${count} on this page ${count === 1 ? 'has' : 'have'} “${typed}”.`)}
+        {hits &&
+          (count === 0
+            ? `Nothing on this page has “${typed}”.`
+            : `${count} on this page ${count === 1 ? 'has' : 'have'} “${typed}”.`)}
         {hits && onSearch && ' Enter searches deeper.'}
       </div>
     )
@@ -195,9 +249,9 @@ export function Find({ memory, onOpen, onSearch, onMeaning, searchFor }: Props) 
         </form>
         {onMeaning && <MeaningButton on={byMeaning} onMeaning={onMeaning} />}
         <Hint doc={GUIDE.memorySearch}>
-          As you type, what is on this page is sifted. Search deeper (Enter) is the same search an agent’s recall makes: it looks in the memory, in what
-          was said in this project’s earlier messages - yours, the Orchestrator’s answers and agents’ reports, never what a tool returned - and in the
-          linked projects.
+          As you type, what is on this page is sifted. Search deeper (Enter) is the same search an agent’s recall makes:
+          it looks in the memory, in what was said in this project’s earlier messages - yours, the Orchestrator’s
+          answers and agents’ reports, never what a tool returned - and in the linked projects.
         </Hint>
       </div>
       {/* (On, every search spends: said where it is spent, not only in the window it is chosen in.) */}

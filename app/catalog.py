@@ -72,18 +72,28 @@ def catalogue_of(kind: str, base_url: str | None, copy: dict | None = None) -> s
     if not host or is_local(base_url):
         return None
     # catalog.json's hosts first: where it names one, it is KOLONİ's word over models.dev's.
-    named = next((name for known, name in _CATALOGUE["hosts"].items()
-                  if host == known or host.endswith("." + known)), None)
+    named = next(
+        (
+            name
+            for known, name in _CATALOGUE["hosts"].items()
+            if host == known or host.endswith("." + known)
+        ),
+        None,
+    )
     if named:
         return named
     services = models_dev.services(_copy(copy))
-    same = [name for name, service in services.items()
-            if service["api"] and urlsplit(service["api"]).hostname == host]
+    same = [
+        name
+        for name, service in services.items()
+        if service["api"] and urlsplit(service["api"]).hostname == host
+    ]
     # A vendor's plan and its pay-as-you-go service can share a host: the one whose address
     # the server's begins with (path by path, whatever its case), else the first.
     address = (base_url or "").rstrip("/").lower() + "/"
-    whole = [name for name in same
-             if address.startswith(services[name]["api"].rstrip("/").lower() + "/")]
+    whole = [
+        name for name in same if address.startswith(services[name]["api"].rstrip("/").lower() + "/")
+    ]
     return (whole or same or [None])[0]
 
 
@@ -102,8 +112,11 @@ def _entry(key: str | None, name: str, copy: dict) -> dict | None:
     if name in models:
         return models[name]
     family = _cli(key).get("models", {}).get(name)
-    same: list[dict] = [m for m in models.values() if family and m.get("family") == family
-            and m.get("status") != "deprecated"]
+    same: list[dict] = [
+        m
+        for m in models.values()
+        if family and m.get("family") == family and m.get("status") != "deprecated"
+    ]
     return max(same, key=lambda m: m.get("release_date", "")) if same else None
 
 
@@ -115,19 +128,31 @@ def _domain(address: str | None) -> str:
         return ""
 
 
-def _elsewhere(key: str | None, name: str, copy: dict,
-               base_url: str | None) -> tuple[str, dict, bool] | None:
+def _elsewhere(
+    key: str | None, name: str, copy: dict, base_url: str | None
+) -> tuple[str, dict, bool] | None:
     """A model its own service does not know, by its exact id in another: a plan that resells
     others' models (Alibaba's has DeepSeek's and GLM) - the vendor's own service first, as
     its id begins the name (and whether it was that one); then one at the provider's own
     domain, the most like it (Alibaba China's for Alibaba's plan); then the first by id."""
     own = _service(key, copy)[0]
     domain = _domain(base_url)
-    named = sorted(models_dev.services(copy).items(), key=lambda pair: (
-        not name.lower().startswith(pair[0]),
-        not domain or _domain(pair[1].get("api")) != domain, pair[0]))
-    return next(((service, said["models"][name], name.lower().startswith(service))
-                 for service, said in named if service != own and name in said["models"]), None)
+    named = sorted(
+        models_dev.services(copy).items(),
+        key=lambda pair: (
+            not name.lower().startswith(pair[0]),
+            not domain or _domain(pair[1].get("api")) != domain,
+            pair[0],
+        ),
+    )
+    return next(
+        (
+            (service, said["models"][name], name.lower().startswith(service))
+            for service, said in named
+            if service != own and name in said["models"]
+        ),
+        None,
+    )
 
 
 def _efforts(entry: dict, takes_none: bool = False) -> list[str] | None:
@@ -151,8 +176,12 @@ def _efforts(entry: dict, takes_none: bool = False) -> list[str] | None:
 # shortcut: by the start of a name, for a model newer than the shipped catalogue; the
 # catalogue wins wherever it has levels - drop a row once models.dev has all its models.
 _OPENAI_LEVELS = (
-    ("gpt-6-astra", EFFORTS[1:]), ("gpt-6.1-sol", EFFORTS[1:]), ("gpt-6", EFFORTS),
-    ("gpt-5.6", EFFORTS), ("gpt-5.5", EFFORTS[:5]), ("o1", ("low", "medium", "high")),
+    ("gpt-6-astra", EFFORTS[1:]),
+    ("gpt-6.1-sol", EFFORTS[1:]),
+    ("gpt-6", EFFORTS),
+    ("gpt-5.6", EFFORTS),
+    ("gpt-5.5", EFFORTS[:5]),
+    ("o1", ("low", "medium", "high")),
 )
 
 
@@ -170,8 +199,11 @@ def off_as(kind: str, base_url: str | None, model: str, copy: dict | None = None
 
 def _priced(models: dict) -> list[float]:
     """The prices out of the service's models in use: what a tier by price is ranked among."""
-    return [m["cost"]["output"] for m in models.values()
-            if m.get("status") != "deprecated" and (m.get("cost") or {}).get("output")]
+    return [
+        m["cost"]["output"]
+        for m in models.values()
+        if m.get("status") != "deprecated" and (m.get("cost") or {}).get("output")
+    ]
 
 
 def _tier(rules: dict, name: str, entry: dict, priced: list[float]) -> tuple[str | None, str]:
@@ -204,8 +236,10 @@ def _mine(key: str | None, provider: str | None) -> list[dict]:
     (the later wins)."""
     told = local()[0]
     # (Merged, a fact at a time; `models_for` offers names from one list or the other.)
-    return [*(told.get("models", {}).get(key or "") or []),
-            *(told.get("providers", {}).get(provider or "") or [])]
+    return [
+        *(told.get("models", {}).get(key or "") or []),
+        *(told.get("providers", {}).get(provider or "") or []),
+    ]
 
 
 def local_stamp() -> int | None:
@@ -216,8 +250,13 @@ def local_stamp() -> int | None:
         return None
 
 
-def facts(kind: str, base_url: str | None, model: str, copy: dict | None = None,
-          provider: str | None = None) -> tuple[dict, dict]:
+def facts(
+    kind: str,
+    base_url: str | None,
+    model: str,
+    copy: dict | None = None,
+    provider: str | None = None,
+) -> tuple[dict, dict]:
     """What the catalogue says of a model, and where each fact came from; what it does not
     say is None; over it, the user's own catalogue's tier and levels (`_mine`), said to be
     "you"'s. A CLI's levels are its own (catalog.json), whatever its model - but where its
@@ -244,13 +283,16 @@ def facts(kind: str, base_url: str | None, model: str, copy: dict | None = None,
     return told, said
 
 
-def _entry_facts(told: dict, said: dict, kind: str, entry: dict, dev: str, near: bool,
-                 found: tuple | None) -> None:
+def _entry_facts(
+    told: dict, said: dict, kind: str, entry: dict, dev: str, near: bool, found: tuple | None
+) -> None:
     """For `_catalogued`: the window, the most written, the price and the retiring a model's
     entry says, put into `told` and `said`."""
     limit, cost = entry.get("limit") or {}, entry.get("cost") or {}
-    for fact, value in (("context_window", limit.get("context")),
-                        ("max_output", limit.get("output"))):
+    for fact, value in (
+        ("context_window", limit.get("context")),
+        ("max_output", limit.get("output")),
+    ):
         if value and (near or fact == "max_output"):
             told[fact], said[fact] = int(value), dev
     if kind in HTTP_KINDS and "input" in cost and "output" in cost:
@@ -260,8 +302,9 @@ def _entry_facts(told: dict, said: dict, kind: str, entry: dict, dev: str, near:
         told["deprecated"], said["deprecated"] = entry.get("status") == "deprecated", dev
 
 
-def _catalogued(kind: str, base_url: str | None, model: str, copy: dict,
-                key: str | None) -> tuple[dict, dict]:
+def _catalogued(
+    kind: str, base_url: str | None, model: str, copy: dict, key: str | None
+) -> tuple[dict, dict]:
     told: dict = dict.fromkeys(FACTS)
     said: dict = {}
     if key is None:
@@ -269,8 +312,11 @@ def _catalogued(kind: str, base_url: str | None, model: str, copy: dict,
     entry, dev, near = _entry(key, model, copy), "models.dev", True
     # Only for a server found by its address (one on this machine has none); a CLI's names
     # and Anthropic's are their own.
-    found = None if entry is not None or kind != "openai_compat" else _elsewhere(
-        key, model, copy, base_url)
+    found = (
+        None
+        if entry is not None or kind != "openai_compat"
+        else _elsewhere(key, model, copy, base_url)
+    )
     if found:
         dev, entry, near = f"models.dev ({found[0]})", found[1], found[2]
     # The window agents are compacted against and the levels sent come only from the vendor's
@@ -278,8 +324,10 @@ def _catalogued(kind: str, base_url: str | None, model: str, copy: dict,
     # it too once a plan is seen to serve a model as that service does.
     own = key == "openai" and not found
     if level_in_name(kind, model):
-        told["efforts"], said["efforts"] = [], (
-            "Copilot picks it (auto)" if kind == "copilot_cli" else "its name says its level")
+        told["efforts"], said["efforts"] = (
+            [],
+            ("Copilot picks it (auto)" if kind == "copilot_cli" else "its name says its level"),
+        )
     elif "efforts" in _cli(kind):
         told["efforts"], said["efforts"] = list(_cli(kind)["efforts"]), "catalog"
     elif entry is not None and near and _efforts(entry, own) is not None:
@@ -335,21 +383,36 @@ def model_key(provider, model: str | None) -> str:
 
 def inputs_words(takes: dict[str, tuple[bool, str]]) -> str | None:
     """What a model is known to take, as the Lead's guide says it: "sees images and video"."""
-    seen = [{"image": "images", "pdf": "PDFs"}.get(kind, kind)
-            for kind in INPUTS if takes.get(kind, (False,))[0]]
+    seen = [
+        {"image": "images", "pdf": "PDFs"}.get(kind, kind)
+        for kind in INPUTS
+        if takes.get(kind, (False,))[0]
+    ]
     return f"sees {' and '.join(seen)}" if seen else None
 
 
 def _row(row) -> bool:
-    return (isinstance(row, dict) and isinstance(row.get("name"), str)
-            and 0 < len(row["name"].strip()) <= MAX_MODEL_NAME
-            and row.get("tier") in (*_TIERS, None)
-            and (row.get("note") is None or isinstance(row["note"], str)
-                 and len(row["note"]) <= MAX_MODEL_NOTE)
-            and (row.get("inputs") is None or isinstance(row["inputs"], list)
-                 and all(kind in INPUTS for kind in row["inputs"]))
-            and (row.get("efforts") is None or isinstance(row["efforts"], list)
-                 and all(level in EFFORTS for level in row["efforts"])))
+    return (
+        isinstance(row, dict)
+        and isinstance(row.get("name"), str)
+        and 0 < len(row["name"].strip()) <= MAX_MODEL_NAME
+        and row.get("tier") in (*_TIERS, None)
+        and (
+            row.get("note") is None
+            or isinstance(row["note"], str)
+            and len(row["note"]) <= MAX_MODEL_NOTE
+        )
+        and (
+            row.get("inputs") is None
+            or isinstance(row["inputs"], list)
+            and all(kind in INPUTS for kind in row["inputs"])
+        )
+        and (
+            row.get("efforts") is None
+            or isinstance(row["efforts"], list)
+            and all(level in EFFORTS for level in row["efforts"])
+        )
+    )
 
 
 def local() -> tuple[dict, str | None]:
@@ -365,20 +428,30 @@ def local() -> tuple[dict, str | None]:
         return {}, f"catalog.local.json is not read: {exc.strerror or type(exc).__name__}"
     except ValueError as exc:
         return {}, f"catalog.local.json is not read: {exc}"
-    parts = [told.get(part, {}) for part in ("providers", "models")] if isinstance(
-        told, dict) else [None]
-    if not all(isinstance(lists, dict) and all(
-            isinstance(rows, list) and all(_row(row) for row in rows) for rows in lists.values())
-            for lists in parts):
-        return {}, ("catalog.local.json is not read: its providers and models are each lists "
-                    "of {name, tier, note, inputs, efforts} by name, a tier strongest, "
-                    f"balanced, fast or null, a note of {MAX_MODEL_NOTE} characters at most, "
-                    f"inputs a list of {', '.join(INPUTS)}, efforts a list of {', '.join(EFFORTS)}")
+    parts = (
+        [told.get(part, {}) for part in ("providers", "models")]
+        if isinstance(told, dict)
+        else [None]
+    )
+    if not all(
+        isinstance(lists, dict)
+        and all(
+            isinstance(rows, list) and all(_row(row) for row in rows) for rows in lists.values()
+        )
+        for lists in parts
+    ):
+        return {}, (
+            "catalog.local.json is not read: its providers and models are each lists "
+            "of {name, tier, note, inputs, efforts} by name, a tier strongest, "
+            f"balanced, fast or null, a note of {MAX_MODEL_NOTE} characters at most, "
+            f"inputs a list of {', '.join(INPUTS)}, efforts a list of {', '.join(EFFORTS)}"
+        )
     return told, None
 
 
-def models_for(key: str | None, copy: dict | None = None,
-               provider: str | None = None) -> list[dict]:
+def models_for(
+    key: str | None, copy: dict | None = None, provider: str | None = None
+) -> list[dict]:
     """The catalogued models of a catalogue: a CLI's own names as catalog.json has them, or
     the service's models that take tools and are not being retired - strongest first, a
     tier by a family rule before one by price, the newest first. None for a server of
@@ -395,34 +468,58 @@ def models_for(key: str | None, copy: dict | None = None,
     else:
         doc = (models_dev.services(copy).get(service or "") or {}).get("doc")
         source = {"url": doc or models_dev.URL, "read_on": models_dev.read_on(copy)}
-        named = sorted(((name, m) for name, m in models.items()
-                        if m.get("status") != "deprecated" and m.get("tool_call") is not False),
-                       key=lambda pair: pair[1].get("release_date", ""), reverse=True)
+        named = sorted(
+            (
+                (name, m)
+                for name, m in models.items()
+                if m.get("status") != "deprecated" and m.get("tool_call") is not False
+            ),
+            key=lambda pair: pair[1].get("release_date", ""),
+            reverse=True,
+        )
     rows: list[dict] = []
     for name, entry in named:
         tier, by = _tier(rules, name, entry, priced)
-        rows.append({"name": name, "tier": tier, "note": NOTES.get(tier or ""),
-                     "source": source, "family": None if own is not None else entry.get("family"),
-                     "ruled": by == "catalog"})
+        rows.append(
+            {
+                "name": name,
+                "tier": tier,
+                "note": NOTES.get(tier or ""),
+                "source": source,
+                "family": None if own is not None else entry.get("family"),
+                "ruled": by == "catalog",
+            }
+        )
     # A CLI's own names beside its service's (catalog.json `extra`: Copilot's auto), which a
     # refresh of models.dev's copy leaves as they are.
     extra = _cli(key).get("extra", {})
     rows = [row for row in rows if row["name"] not in extra] + [
-        {"name": name, "tier": row["tier"], "note": row["note"],
-         "source": row.get("source") or _cli(key)["extra_source"], "family": None,
-         "ruled": True}
-        for name, row in extra.items()]
+        {
+            "name": name,
+            "tier": row["tier"],
+            "note": row["note"],
+            "source": row.get("source") or _cli(key)["extra_source"],
+            "family": None,
+            "ruled": True,
+        }
+        for name, row in extra.items()
+    ]
     told = local()[0]
     # (One list, the provider's name's else its catalogue's; `_mine` merges both for facts.)
-    mine = (told.get("providers", {}).get(provider or "")
-            or told.get("models", {}).get(key or "") or [])
+    mine = (
+        told.get("providers", {}).get(provider or "") or told.get("models", {}).get(key or "") or []
+    )
     if mine:
         kept = {row["name"]: row for row in rows}  # (one of the same name keeps its place)
         for row in mine:
             kept[row["name"]] = {
-                "name": row["name"], "tier": row.get("tier"),
+                "name": row["name"],
+                "tier": row.get("tier"),
                 "note": row.get("note") or NOTES.get(row.get("tier") or ""),
-                "source": {"url": LOCAL.name, "read_on": None}, "family": None, "ruled": True}
+                "source": {"url": LOCAL.name, "read_on": None},
+                "family": None,
+                "ruled": True,
+            }
         rows = list(kept.values())
     if own is None:
         rows.sort(key=lambda row: (_RANK[row["tier"]], not row["ruled"]))
@@ -439,12 +536,18 @@ def suggest(kind: str, base_url: str | None, copy: dict | None = None) -> dict:
     services = models_dev.services(copy)
     service = services.get(_service(key, copy)[0] or "")
     served = service if kind in HTTP_KINDS else None
-    known = [{"name": one["name"], "api": one["api"]} for name, one in services.items()
-             if one["api"] and name not in models_dev.SERVICES.values()]
-    return {"models": [row["name"] for row in models_for(key, copy)],
-            "service": served and served["name"], "api": served and served["api"],
-            "env": served["env"] if served else [],
-            "addresses": known + _CATALOGUE["addresses"] if kind == "openai_compat" else []}
+    known = [
+        {"name": one["name"], "api": one["api"]}
+        for name, one in services.items()
+        if one["api"] and name not in models_dev.SERVICES.values()
+    ]
+    return {
+        "models": [row["name"] for row in models_for(key, copy)],
+        "service": served and served["name"],
+        "api": served and served["api"],
+        "env": served["env"] if served else [],
+        "addresses": known + _CATALOGUE["addresses"] if kind == "openai_compat" else [],
+    }
 
 
 def install(kind: str) -> dict | None:
@@ -535,8 +638,13 @@ async def status(
     return signed_in_from(kind, code, said), plan_from(kind, code, said)
 
 
-def fill(kind: str | None, saved: list[dict], listed: list[str],
-         copy: dict | None = None, provider: str | None = None) -> tuple[list[dict], int]:
+def fill(
+    kind: str | None,
+    saved: list[dict],
+    listed: list[str],
+    copy: dict | None = None,
+    provider: str | None = None,
+) -> tuple[list[dict], int]:
     """A team guide for the provider: the user's own rows first, each blank note or tier
     filled from the catalogue, then the catalogue's and the provider's own other models,
     strongest first, up to MAX_MODELS. Of a service's family only its newest of each tier
@@ -549,12 +657,17 @@ def fill(kind: str | None, saved: list[dict], listed: list[str],
     kept = []
     for row in saved:
         entry = known.get(row["name"], {})
-        kept.append({"name": row["name"], "note": row.get("note") or entry.get("note"),
-                     "tier": row.get("tier") or entry.get("tier"),
-                     **({"agents": row["agents"]} if "agents" in row else {}),
-                     **({"inputs": row["inputs"]} if row.get("inputs") is not None else {}),
-                     **({"context": row["context"]} if row.get("context") else {}),
-                     **({"routing": row["routing"]} if row.get("routing") else {})})
+        kept.append(
+            {
+                "name": row["name"],
+                "note": row.get("note") or entry.get("note"),
+                "tier": row.get("tier") or entry.get("tier"),
+                **({"agents": row["agents"]} if "agents" in row else {}),
+                **({"inputs": row["inputs"]} if row.get("inputs") is not None else {}),
+                **({"context": row["context"]} if row.get("context") else {}),
+                **({"routing": row["routing"]} if row.get("routing") else {}),
+            }
+        )
     mine = {row["name"] for row in kept}
     # A model added follows the provider's way: agents may use it if they may use one of its own.
     way = any(row.get("agents", True) for row in saved) if saved else True
@@ -564,12 +677,19 @@ def fill(kind: str | None, saved: list[dict], listed: list[str],
         newest.setdefault((e.get("family") or e["name"], e.get("tier")), e["name"])
     more: list[dict] = [
         {"name": e["name"], "note": e.get("note"), "tier": e.get("tier"), "agents": way}
-        for e in offered if e["name"] not in mine and e["name"] in newest.values()]
+        for e in offered
+        if e["name"] not in mine and e["name"] in newest.values()
+    ]
     # A name a server lists that could not be saved as it is is not offered; one the
     # catalogue does not know gets its tier from the service's rules (catalog.json), by name.
     for name in dict.fromkeys(listed):
-        if (name not in mine and name not in known and name == name.strip()
-                and name.isprintable() and 0 < len(name) <= MAX_MODEL_NAME):
+        if (
+            name not in mine
+            and name not in known
+            and name == name.strip()
+            and name.isprintable()
+            and 0 < len(name) <= MAX_MODEL_NAME
+        ):
             tier = _tier(_rules(kind), name, {}, [])[0]
             more.append({"name": name, "note": NOTES.get(tier or ""), "tier": tier, "agents": way})
     chat = [row for row in more if _chats(kind, row["name"], copy)]

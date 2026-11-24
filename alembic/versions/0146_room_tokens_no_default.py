@@ -5,6 +5,7 @@ is kept as it is.
 Revision ID: 0146
 Revises: 0145
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -17,11 +18,16 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("conversations") as batch:
-        batch.alter_column("room_tokens", existing_type=sa.Integer(), server_default=None,
-                           existing_nullable=True)
+        batch.alter_column(
+            "room_tokens", existing_type=sa.Integer(), server_default=None, existing_nullable=True
+        )
 
 
 def downgrade() -> None:
     with op.batch_alter_table("conversations") as batch:
-        batch.alter_column("room_tokens", existing_type=sa.Integer(), server_default="400000",
-                           existing_nullable=True)
+        batch.alter_column(
+            "room_tokens",
+            existing_type=sa.Integer(),
+            server_default="400000",
+            existing_nullable=True,
+        )

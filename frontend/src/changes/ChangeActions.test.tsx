@@ -41,9 +41,7 @@ test('an applied change offers only Revert', async () => {
 })
 
 test('a refused decision shows the reason and unlocks the button', async () => {
-  const onDecide = vi
-    .fn()
-    .mockRejectedValue({ detail: 'hello.py has changed since this edit; revert it by hand' })
+  const onDecide = vi.fn().mockRejectedValue({ detail: 'hello.py has changed since this edit; revert it by hand' })
   render(<ChangeActions change={fileChange('f', 'r', { status: 'applied' })} onDecide={onDecide} />)
   await userEvent.click(screen.getByRole('button', { name: 'Revert' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('has changed since this edit')
@@ -55,7 +53,10 @@ test.each([
   ['reverted', 'Reverted'],
   ['conflict', 'Conflict — file changed on disk'],
   // Also what an approved change becomes when its turn ends before it is made: not "Rejected".
-  ['discarded', 'Discarded — never made in the project: its working copy was thrown away, or you approved it and the work ended before it was made'],
+  [
+    'discarded',
+    'Discarded — never made in the project: its working copy was thrown away, or you approved it and the work ended before it was made',
+  ],
 ] as const)('a %s change has no buttons and says "%s"', (status, label) => {
   render(<ChangeActions change={fileChange('f', 'r', { status })} onDecide={vi.fn()} />)
   expect(screen.queryByRole('button')).not.toBeInTheDocument()

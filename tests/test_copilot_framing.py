@@ -35,7 +35,7 @@ def test_messages_split_anywhere_and_run_together_are_each_read_whole():
     one, two = {"id": 1, "result": {"ok": True}}, {"method": "session.event", "params": {}}
     data = framed(one) + framed(two)
     assert asyncio.run(read_all(data)) == [one, two]  # in one chunk
-    assert asyncio.run(read_all(*(data[i:i + 3] for i in range(0, len(data), 3)))) == [one, two]
+    assert asyncio.run(read_all(*(data[i : i + 3] for i in range(0, len(data), 3)))) == [one, two]
 
 
 def test_its_length_counts_bytes_not_characters():
@@ -47,12 +47,15 @@ def test_a_message_cut_off_at_its_end_is_the_end():
     assert asyncio.run(read_all(framed({"id": 1})[:-2])) == []
 
 
-@pytest.mark.parametrize("data, why", [
-    (b"Content-Length: lots\r\n\r\n{}", "not a number"),
-    (b"Content-Length: 0\r\n\r\n", "empty"),
-    (b"Content-Length: 5\r\n\r\nnot j", "not JSON"),
-    (b"Content-Length: 99999999999\r\n\r\n", "longer than"),
-])
+@pytest.mark.parametrize(
+    "data, why",
+    [
+        (b"Content-Length: lots\r\n\r\n{}", "not a number"),
+        (b"Content-Length: 0\r\n\r\n", "empty"),
+        (b"Content-Length: 5\r\n\r\nnot j", "not JSON"),
+        (b"Content-Length: 99999999999\r\n\r\n", "longer than"),
+    ],
+)
 def test_a_bad_frame_says_what_was_wrong(data, why):
     with pytest.raises(ValueError, match=why):
         asyncio.run(read_all(data))

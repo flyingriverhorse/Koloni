@@ -11,9 +11,24 @@ needs them. KOLONİ comes with these roles:
 
 Orchestrator, Planner, Coder, Tester, Reviewer, Researcher, Debugger, Architect, Security reviewer,
 Docs writer, Refactorer, UI designer, Data analyst, DevOps, Spec writer, Performance engineer,
-Database engineer, Dependency keeper, Translator, Summarizer, Product owner, Assistant product owner,
+Database engineer, Dependency keeper, Translator, Summarizer, Hive keeper, Scout,
 Observer, Data engineer, ML engineer, Data scientist, Model evaluator, MLOps engineer, Designer,
 SEO specialist, Copywriter, Accessibility reviewer.
+
+Two are named for KOLONİ's hive. The **Hive keeper** keeps the To-do list: it turns a goal into
+tasks, each with what makes it done, and puts them in order. The **Scout** keeps watch on the To-do
+list: it splits vague tasks, asks what is missing, flags duplicates, stale and blocked tasks, and
+checks finished tasks against what makes them done. After each turn KOLONİ also asks a model, in
+the Scout's name, for follow-up tasks (see [To-do](../automation/todo.md#follow-up-tasks)). A role
+of your own that already had one of these names keeps it; the built-in one is then "Hive keeper
+(built-in)" or "Scout (built-in)". A slash command of yours named `scout` would hide behind the
+role's chip in the message box: it is renamed `scout-command`.
+
+Before 0.1.7 they were the Product owner and the Assistant product owner. Your recipes and saved
+slash commands that named the old roles were changed to name the new ones, and an agent that asks
+for an old name is told the new one ("Product owner is now the Hive keeper"). Past conversations
+keep the names they had. A recipe kept in a folder's `.koloni/recipes` is a file of yours, not
+changed: one that names an old role is renamed there, by hand.
 
 The **Roles** list on the **Teams & roles** tab shows them all. **Filter roles…** searches it, and the
 buttons **All**, **In no team** and **Off** narrow it. Each role has an on / off switch. The

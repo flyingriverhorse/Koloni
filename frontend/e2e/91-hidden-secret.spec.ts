@@ -11,11 +11,20 @@ test.use({ viewport: { width: 1440, height: 1400 } })
 const VALUE = 'plain-words-given-ninety-one'
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`a secret given on a hidden card reaches the command, and its output shows it masked (${theme})`, async ({ page }) => {
-    writeFileSync(path.join(PROJECT_DIR, 'key91.py'), "import os\nprint('key=' + str(os.environ.get('STRIPE_API_KEY')))\n")
+  test(`a secret given on a hidden card reaches the command, and its output shows it masked (${theme})`, async ({
+    page,
+  }) => {
+    writeFileSync(
+      path.join(PROJECT_DIR, 'key91.py'),
+      "import os\nprint('key=' + str(os.environ.get('STRIPE_API_KEY')))\n",
+    )
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     const id = await openFreshConversation(page)
-    expect((await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })).ok()).toBe(true)
+    expect(
+      (
+        await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
+      ).ok(),
+    ).toBe(true)
     const chat = page.getByRole('region', { name: 'Chat' })
 
     await page.getByLabel('Message').fill('give the stripe key, 91')

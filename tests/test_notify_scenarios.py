@@ -20,7 +20,7 @@ from tests.test_spawn import call, step  # noqa: E402
 from tests.test_web_tool_scenarios import Net, get, go, results, setup  # noqa: E402
 
 HOOK = "https://hooks.example.com/services/T000/B000/XYZ-PRIVATE"
-SAYS = call("notify", {"message": "the tests <pass> & \"done\""}, "n")
+SAYS = call("notify", {"message": 'the tests <pass> & "done"'}, "n")
 
 
 def desk(monkeypatch):
@@ -45,22 +45,28 @@ def sent(monkeypatch):
 
 def test_a_desktop_notification_needs_no_address(make_client, wait_run, project_dir, monkeypatch):
     shown, out = desk(monkeypatch), sent(monkeypatch)
-    client, model, pid, cid = setup(make_client, project_dir, [step(SAYS), text("done")],
-                                    project={"notify_desktop": True})
+    client, model, pid, cid = setup(
+        make_client, project_dir, [step(SAYS), text("done")], project={"notify_desktop": True}
+    )
     snap = wait_run(client, cid, go(client, cid)["id"])
     ((status, said),) = results(snap, "notify")
     assert status == "succeeded" and "desktop" in said
     ((title, message),) = shown
-    assert message == "the tests <pass> & \"done\"" and "KOLON" in title  # as said, whole
+    assert message == 'the tests <pass> & "done"' and "KOLON" in title  # as said, whole
     assert out == []
     assert client.get(f"/api/projects/{pid}").json()["notify_desktop"] is True
 
 
-def test_with_an_address_and_the_desktop_it_goes_to_both(make_client, wait_run, project_dir,
-                                                         monkeypatch):
+def test_with_an_address_and_the_desktop_it_goes_to_both(
+    make_client, wait_run, project_dir, monkeypatch
+):
     shown, out = desk(monkeypatch), sent(monkeypatch)
-    client, model, pid, cid = setup(make_client, project_dir, [step(SAYS), text("done")],
-                                    project={"notify_desktop": True, "notify_url": HOOK})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        [step(SAYS), text("done")],
+        project={"notify_desktop": True, "notify_url": HOOK},
+    )
     snap = wait_run(client, cid, go(client, cid)["id"])
     ((status, said),) = results(snap, "notify")
     assert status == "succeeded" and len(shown) == 1 and len(out) == 1
@@ -76,25 +82,31 @@ def test_a_desktop_that_cannot_show_it_is_said_and_nothing_is_made_up(
     monkeypatch.setattr(app.web, "has_desktop", lambda: True)
     monkeypatch.setattr(app.web, "desktop", desktop)
     sent(monkeypatch)
-    client, model, pid, cid = setup(make_client, project_dir, [step(SAYS), text("done")],
-                                    project={"notify_desktop": True})
+    client, model, pid, cid = setup(
+        make_client, project_dir, [step(SAYS), text("done")], project={"notify_desktop": True}
+    )
     snap = wait_run(client, cid, go(client, cid)["id"])
     ((status, said),) = results(snap, "notify")
     assert status == "failed" and "not available" in said
 
 
-@pytest.mark.parametrize("form, kind, body", [
-    (None, "application/json", {"text": "the tests <pass> & \"done\""}),
-    ("slack", "application/json", {"text": "the tests <pass> & \"done\""}),
-    ("discord", "application/json", {"content": "the tests <pass> & \"done\""}),
-    ("text", "text/plain", "the tests <pass> & \"done\""),
-])
-def test_the_body_is_in_the_form_the_user_chose(make_client, wait_run, project_dir, monkeypatch,
-                                                form, kind, body):
+@pytest.mark.parametrize(
+    "form, kind, body",
+    [
+        (None, "application/json", {"text": 'the tests <pass> & "done"'}),
+        ("slack", "application/json", {"text": 'the tests <pass> & "done"'}),
+        ("discord", "application/json", {"content": 'the tests <pass> & "done"'}),
+        ("text", "text/plain", 'the tests <pass> & "done"'),
+    ],
+)
+def test_the_body_is_in_the_form_the_user_chose(
+    make_client, wait_run, project_dir, monkeypatch, form, kind, body
+):
     out = sent(monkeypatch)
     project = {"notify_url": HOOK, **({"notify_format": form} if form else {})}
-    client, model, pid, cid = setup(make_client, project_dir, [step(SAYS), text("done")],
-                                    project=project)
+    client, model, pid, cid = setup(
+        make_client, project_dir, [step(SAYS), text("done")], project=project
+    )
     snap = wait_run(client, cid, go(client, cid)["id"])
     assert results(snap, "notify")[0][0] == "succeeded"
     ((url, headers, went),) = out
@@ -103,23 +115,31 @@ def test_the_body_is_in_the_form_the_user_chose(make_client, wait_run, project_d
     assert client.patch(f"/api/projects/{pid}", json={"notify_format": "xml"}).status_code == 422
 
 
-def test_a_host_allowed_by_hand_is_asked_without_a_card(make_client, wait_run, project_dir,
-                                                        monkeypatch):
+def test_a_host_allowed_by_hand_is_asked_without_a_card(
+    make_client, wait_run, project_dir, monkeypatch
+):
     net = Net(monkeypatch, {"example.com": (200, "text/plain", "ok")})
     client, model, pid, cid = setup(
-        make_client, project_dir,
-        [step(get("https://example.com/a", "a")), step(get("https://other.example.org/", "b")),
-         text("done")], permission_mode="ask")
+        make_client,
+        project_dir,
+        [
+            step(get("https://example.com/a", "a")),
+            step(get("https://other.example.org/", "b")),
+            text("done"),
+        ],
+        permission_mode="ask",
+    )
     rules = f"/api/conversations/{cid}/allowed-web"
     assert client.post(rules, json={"host": "example.com"}).status_code == 200
     assert client.post(rules, json={"host": "example.com"}).status_code == 200  # once on record
     for inside in ("127.0.0.1", "localhost", "http://10.0.0.5:8080", "[::1]"):
         assert client.post(rules, json={"host": inside}).status_code == 422, inside
-    assert client.post(rules, json={"host": "example.com"},
-                       headers={"Origin": ""}).status_code == 403  # the user's own page only
+    assert (
+        client.post(rules, json={"host": "example.com"}, headers={"Origin": ""}).status_code == 403
+    )  # the user's own page only
     run_id = go(client, cid)["id"]
     snap = until(client, cid, lambda s: [w for w in s["web_requests"] if w["status"] == "proposed"])
-    (asked,) = snap["web_requests"]                 # the other host is still asked about
+    (asked,) = snap["web_requests"]  # the other host is still asked about
     assert asked["host"] == "other.example.org"
     assert [rule["host"] for rule in snap["allowed_web"]] == ["example.com"]
     assert ("GET", "https://example.com/a") in [(m, u) for m, u, _ip in net.asked]
@@ -127,25 +147,39 @@ def test_a_host_allowed_by_hand_is_asked_without_a_card(make_client, wait_run, p
     wait_run(client, cid, run_id)
 
 
-def test_a_secret_written_in_the_address_or_the_body_is_not_kept(make_client, wait_run,
-                                                                 project_dir, monkeypatch):
+def test_a_secret_written_in_the_address_or_the_body_is_not_kept(
+    make_client, wait_run, project_dir, monkeypatch
+):
     out = sent(monkeypatch)
-    asked = call("http_request", {
-        "method": "POST", "url": "https://example.com/hook?api_key=K-11-SECRET&q=tea",
-        "body": json.dumps({"password": "hunter2", "note": "two cups",
-                            "nested": {"Access_Token": "T-22-SECRET"}}),
-        "headers": {"Content-Type": "application/json"}}, "p")
-    client, model, pid, cid = setup(make_client, project_dir, [step(asked), text("done")],
-                                    permission_mode="ask")
+    asked = call(
+        "http_request",
+        {
+            "method": "POST",
+            "url": "https://example.com/hook?api_key=K-11-SECRET&q=tea",
+            "body": json.dumps(
+                {
+                    "password": "hunter2",
+                    "note": "two cups",
+                    "nested": {"Access_Token": "T-22-SECRET"},
+                }
+            ),
+            "headers": {"Content-Type": "application/json"},
+        },
+        "p",
+    )
+    client, model, pid, cid = setup(
+        make_client, project_dir, [step(asked), text("done")], permission_mode="ask"
+    )
     run_id = go(client, cid)["id"]
     snap = until(client, cid, lambda s: s["web_requests"])
     card = json.dumps(snap["web_requests"])
-    assert "K-11-SECRET" in card            # before the user decides, the card shows what goes
-    client.post(f"/api/web-requests/{snap['web_requests'][0]['id']}/approve",
-                json={"remember": False})
+    assert "K-11-SECRET" in card  # before the user decides, the card shows what goes
+    client.post(
+        f"/api/web-requests/{snap['web_requests'][0]['id']}/approve", json={"remember": False}
+    )
     snap = wait_run(client, cid, run_id)
     assert results(snap, "http_request")[0][0] == "succeeded"
-    ((url, _headers, went),) = out          # what went is what was written
+    ((url, _headers, went),) = out  # what went is what was written
     assert "api_key=K-11-SECRET" in url and json.loads(went)["password"] == "hunter2"
     kept = json.dumps(snap)
     for secret in ("K-11-SECRET", "hunter2", "T-22-SECRET"):

@@ -18,8 +18,9 @@ GAIN = {"Lead", "Coder", "Docs writer", "UI designer"}
 
 def test_who_draws_diagrams():
     # (K-belge-ciktilari's Designer is made with it, by no migration.)
-    assert {name for name, spec in BUILTIN_ROLES.items()
-            if set(DIAGRAM) <= set(spec.tools)} == GAIN | {"Designer"}
+    assert {
+        name for name, spec in BUILTIN_ROLES.items() if set(DIAGRAM) <= set(spec.tools)
+    } == GAIN | {"Designer"}
 
 
 def _frozen():
@@ -35,8 +36,10 @@ NAMES = ", ".join(f"'{name}'" for name, _ in M.ROLES)
 
 
 def _held(conn):
-    return {name: json.loads(tools) for name, tools in conn.execute(
-        f"SELECT name, tools FROM roles WHERE name IN ({NAMES})")}
+    return {
+        name: json.loads(tools)
+        for name, tools in conn.execute(f"SELECT name, tools FROM roles WHERE name IN ({NAMES})")
+    }
 
 
 def _before(tmp_path, change=lambda name, tools: tools):
@@ -72,10 +75,18 @@ def test_stock_ones_gain_it_where_app_roles_has_it_and_going_back_is_exact(tmp_p
 
 
 def test_a_list_with_view_image_gains_it_too_after_it(tmp_path):
-    after = _upgrade_and_back(*_before(
-        tmp_path, lambda name, tools: [*tools[:3], "view_image", *tools[3:]]))
-    assert after["Docs writer"][:7] == ["list_dir", "read_file", "search", "view_image",
-                                        "write_file", "edit_file", "diagram_image"]
+    after = _upgrade_and_back(
+        *_before(tmp_path, lambda name, tools: [*tools[:3], "view_image", *tools[3:]])
+    )
+    assert after["Docs writer"][:7] == [
+        "list_dir",
+        "read_file",
+        "search",
+        "view_image",
+        "write_file",
+        "edit_file",
+        "diagram_image",
+    ]
     for name in GAIN:
         assert after[name] == list(BUILTIN_ROLES[name].tools), name
 
@@ -83,13 +94,18 @@ def test_a_list_with_view_image_gains_it_too_after_it(tmp_path):
 def test_an_upgraded_lead_in_another_order_or_with_the_browser_appended_gains_it(tmp_path):
     """B-335: a Lead upgraded over the years has propose_trigger last, or the browser tools
     appended - KOLONİ's own list all the same."""
+
     def upgraded(name, tools):
         if name == "Lead":
-            return [*[t for t in tools if t not in ("propose_trigger", *BROWSER)],
-                    "propose_trigger", *BROWSER]
+            return [
+                *[t for t in tools if t not in ("propose_trigger", *BROWSER)],
+                "propose_trigger",
+                *BROWSER,
+            ]
         if name == "Coder":
             return [*[t for t in tools if t not in BROWSER], *BROWSER]
         return tools
+
     cfg, db, before = _before(tmp_path, upgraded)
     after = _upgrade_and_back(cfg, db, before)
     for name in GAIN:

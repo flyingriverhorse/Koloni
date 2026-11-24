@@ -76,26 +76,27 @@ def test_the_users_own_claude_folder_in_their_home_is_not_a_projects(tmp_path, m
     mark(home, ".claude")
     runtime = home / "app" / "runtime"
     assert copies.folder(runtime) == runtime / "copies"
-    mark(home / "app", ".claude")           # a project's own is another matter
+    mark(home / "app", ".claude")  # a project's own is another matter
     assert copies.folder(runtime) != runtime / "copies"
 
 
 def test_where_no_place_is_outside_every_repository_no_copy_is_made(tmp_path, project_dir):
-    mark(tmp_path, "AGENTS.md")             # above the runtime root and the user's data folder
+    mark(tmp_path, "AGENTS.md")  # above the runtime root and the user's data folder
     assert copies.folder(tmp_path / "runtime") is None
     with pytest.raises(OSError, match="repository"):
         copies.make(project_dir, tmp_path / "runtime", "a1")
     assert not (tmp_path / "runtime").exists() and not (tmp_path / "user-data").exists()
     assert copies.free(tmp_path / "runtime", "a1") == "a1"
-    copies.clear(tmp_path / "runtime")      # nothing there, and nothing to say
+    copies.clear(tmp_path / "runtime")  # nothing there, and nothing to say
 
 
 def test_an_agent_works_in_the_project_where_no_copy_can_be_made_outside_a_repository(
     make_client, wait_run, project_dir, tmp_path
 ):
     mark(tmp_path, "AGENTS.md")
-    client, model, cid, run_id = one(make_client, project_dir, [
-        step(write("a.txt", "A")), text("A done")])
+    client, model, cid, run_id = one(
+        make_client, project_dir, [step(write("a.txt", "A")), text("A done")]
+    )
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert agent(snap, "Coder")["copy"] == {"state": "failed"} and snap["merges"] == []
@@ -112,7 +113,7 @@ def test_a_name_is_free_only_if_no_copy_has_it_in_either_place(tmp_path, project
     new = copies.make(project_dir, runtime, "a1-2")
     assert old.root == runtime / "copies" / "a1" / "tree"
     assert new.root.is_relative_to(tmp_path / "user-data")
-    copies.clear(runtime)                   # what a process left behind, in both places
+    copies.clear(runtime)  # what a process left behind, in both places
     assert not old.root.parent.exists() and not new.root.parent.exists()
 
 
@@ -134,7 +135,7 @@ def test_a_copy_kept_in_the_runtime_root_is_still_found_and_decided_once_copies_
 ):
     cid = interrupted(settings_env, project_dir)
     (folder,) = (tmp_path / "runtime" / "copies").iterdir()
-    mark(tmp_path / "runtime", "AGENTS.md")     # from here on copies are made elsewhere
+    mark(tmp_path / "runtime", "AGENTS.md")  # from here on copies are made elsewhere
     with again(settings_env) as client:
         card = card_of(client, cid)
         assert card["status"] == "kept" and files(card) == {"a.txt": "ready"}
@@ -170,7 +171,7 @@ async def test_a_command_in_a_copy_does_not_find_a_repository_above_the_copies_f
     assert git("init", cwd=outer).returncode == 0
     tree = outer / "runtime" / "copies" / "a1" / "tree"
     tree.mkdir(parents=True)
-    assert "outer" in await output_of("git rev-parse --show-toplevel", tree)   # without it
+    assert "outer" in await output_of("git rev-parse --show-toplevel", tree)  # without it
     said = await output_of("git rev-parse --show-toplevel", tree, copy=tree)
     assert "not a git repository" in said
     assert copies.ceiling(tree) == str(outer / "runtime" / "copies")

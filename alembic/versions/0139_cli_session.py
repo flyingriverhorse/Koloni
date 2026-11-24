@@ -4,6 +4,7 @@ what is new (`agents.cli_session`)
 Revision ID: 0139
 Revises: 0138
 """
+
 import sqlalchemy as sa
 from alembic import op
 

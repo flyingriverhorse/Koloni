@@ -3,6 +3,7 @@
 Revision ID: 0111
 Revises: 0110
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -14,8 +15,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("roles") as batch:
-        batch.add_column(sa.Column("inside_cli", sa.Boolean(), nullable=False,
-                                   server_default=sa.false()))
+        batch.add_column(
+            sa.Column("inside_cli", sa.Boolean(), nullable=False, server_default=sa.false())
+        )
 
 
 def downgrade() -> None:

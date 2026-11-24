@@ -20,7 +20,11 @@ export function SpawnRow({ agent, onSelect, asks = false }: Props) {
   // nor KOLONİ's "KOLONİ opened you at the same time as…" (then role and status say it).
   // shortcut: those two openings only; widen it if other boilerplate is seen to lead a task.
   const words = (one: string) => (/^\s*Project folder\b/i.test(one) ? (/[.)]\s+(\S.*)$/.exec(one)?.[1] ?? '') : one)
-  const line = (agent.task ?? '').split('\n').map(words).find(one => one.trim()) ?? ''
+  const line =
+    (agent.task ?? '')
+      .split('\n')
+      .map(words)
+      .find(one => one.trim()) ?? ''
   const firstLine = line.startsWith('KOLONİ opened you') ? '' : line
   return (
     <div className="tool-row">

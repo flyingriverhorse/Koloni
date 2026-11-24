@@ -18,23 +18,37 @@ def test_a_fresh_database_gives_quality_its_own_recipe(tmp_path):
 
     with sqlite3.connect(tmp_path / "fresh.db") as conn:
         found = _defaults(conn)
-        (graph,) = conn.execute("SELECT graph FROM recipes WHERE name = 'Quality check' AND ready").fetchone()
-    assert (found["Quality"], found["Web app"], found["Backend / API"]) == ("Quality check", "Feature", "Bugfix")
+        (graph,) = conn.execute(
+            "SELECT graph FROM recipes WHERE name = 'Quality check' AND ready"
+        ).fetchone()
+    assert (found["Quality"], found["Web app"], found["Backend / API"]) == (
+        "Quality check",
+        "Feature",
+        "Bugfix",
+    )
     roles = [step["who"]["role"] for step in json.loads(graph)["steps"]]
     assert roles == ["Tester", "Reviewer", "Security reviewer"]  # no UI designer
 
 
-def test_a_users_choice_and_a_renamed_quality_are_left_alone_and_going_back_puts_review_only_back(tmp_path):
+def test_a_users_choice_and_a_renamed_quality_are_left_alone_and_going_back_puts_review_only_back(
+    tmp_path,
+):
     db = tmp_path / "old.db"
     cfg = _config(db)
     command.upgrade(cfg, "0093")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO recipes (id, name, ready, graph, created_at, updated_at) "
-                     "VALUES ('mine', 'Mine', 0, '{}', ?, ?)", (AT, AT))
+        conn.execute(
+            "INSERT INTO recipes (id, name, ready, graph, created_at, updated_at) "
+            "VALUES ('mine', 'Mine', 0, '{}', ?, ?)",
+            (AT, AT),
+        )
         # The stock Quality renamed; a team of the user's own named Quality, with Review only.
         conn.execute("UPDATE teams SET name = 'Checks' WHERE name = 'Quality'")
-        conn.execute("INSERT INTO teams (id, name, created_at, lead_on, lead_may_pick, default_recipe_id) "
-                     "SELECT 'u', 'Quality', ?, 1, 1, id FROM recipes WHERE name = 'Review only'", (AT,))
+        conn.execute(
+            "INSERT INTO teams (id, name, created_at, lead_on, lead_may_pick, default_recipe_id) "
+            "SELECT 'u', 'Quality', ?, 1, 1, id FROM recipes WHERE name = 'Review only'",
+            (AT,),
+        )
 
     command.upgrade(cfg, "head")
     with sqlite3.connect(db) as conn:
@@ -44,7 +58,9 @@ def test_a_users_choice_and_a_renamed_quality_are_left_alone_and_going_back_puts
     # The stock one, its default the user's own: kept.
     with sqlite3.connect(db) as conn:
         conn.execute("DELETE FROM teams WHERE id = 'u'")
-        conn.execute("UPDATE teams SET name = 'Quality', default_recipe_id = 'mine' WHERE name = 'Checks'")
+        conn.execute(
+            "UPDATE teams SET name = 'Quality', default_recipe_id = 'mine' WHERE name = 'Checks'"
+        )
     command.downgrade(cfg, "0093")
     command.upgrade(cfg, "head")
     with sqlite3.connect(db) as conn:
@@ -60,4 +76,6 @@ def test_going_back_puts_review_only_back_and_takes_quality_check_away(tmp_path)
 
     with sqlite3.connect(db) as conn:
         assert _defaults(conn)["Quality"] == "Review only"
-        assert conn.execute("SELECT COUNT(*) FROM recipes WHERE name = 'Quality check'").fetchone() == (0,)
+        assert conn.execute(
+            "SELECT COUNT(*) FROM recipes WHERE name = 'Quality check'"
+        ).fetchone() == (0,)

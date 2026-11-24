@@ -62,27 +62,41 @@ class SkillsMixin:
         user unticks, or switches off, is gone at once; one it cannot run here never comes
         (K-skill-uyum, `skills.split`). Every way to a skill comes through here."""
         with self._factory() as session:
-            return self._skill_split(session, ctx.role, ctx.tools, ctx.mcp, ctx.provider_id,
-                                     ctx.model_name)[0]
+            return self._skill_split(
+                session, ctx.role, ctx.tools, ctx.mcp, ctx.provider_id, ctx.model_name
+            )[0]
 
-    def _skill_split(self: "AgentRunner", session: Session, role_name: str, tools, mcp,
-                     provider_id: str | None, model: str | None
-                     ) -> tuple[list[Skill], dict[str, str]]:
+    def _skill_split(
+        self: "AgentRunner",
+        session: Session,
+        role_name: str,
+        tools,
+        mcp,
+        provider_id: str | None,
+        model: str | None,
+    ) -> tuple[list[Skill], dict[str, str]]:
         """A role's skills as `skills.split` has them for an agent with these tools (less
         those off on the Tools page) and MCP servers, on this provider's model."""
         role = find_role(session, role_name)
-        kept = list(session.scalars(
-            select(Skill).where(Skill.name.in_(role.skills if role else []))
-            .order_by(Skill.created_at, literal_column("skills.rowid"))).all())
+        kept = list(
+            session.scalars(
+                select(Skill)
+                .where(Skill.name.in_(role.skills if role else []))
+                .order_by(Skill.created_at, literal_column("skills.rowid"))
+            ).all()
+        )
         if not kept:
             return [], {}
         provider = session.get(Provider, provider_id) if provider_id else None
         mute = provider is not None and catalog.no_tool_calls(
-            provider, catalog.model_key(provider, model),
-            models_dev.load(self.settings.runtime_root))
+            provider,
+            catalog.model_key(provider, model),
+            models_dev.load(self.settings.runtime_root),
+        )
         # (A server switched off on the Tools page is not had, as a tool switched off is not.)
-        return skills.split(kept, set(tools) - tools_off(session), set(mcp) - self._servers_off(),
-                            mute)
+        return skills.split(
+            kept, set(tools) - tools_off(session), set(mcp) - self._servers_off(), mute
+        )
 
     def _servers_off(self: "AgentRunner") -> set[str]:
         """The names of the MCP servers switched off on the Tools page: given to no agent."""
@@ -97,19 +111,30 @@ class SkillsMixin:
         if not known:
             return ""
         if can_ask:
-            return "\n\n" + SKILLS_PROMPT + "".join(
-                f"\n- {skill.name}: {skill.description}" for skill in known)
-        return "\n\n" + SKILLS_GIVEN + "".join(
-            f"\n\n## {skill.name}\n{skill.description}\n\n{body}"
-            for skill, body in _in_full(known))
+            return (
+                "\n\n"
+                + SKILLS_PROMPT
+                + "".join(f"\n- {skill.name}: {skill.description}" for skill in known)
+            )
+        return (
+            "\n\n"
+            + SKILLS_GIVEN
+            + "".join(
+                f"\n\n## {skill.name}\n{skill.description}\n\n{body}"
+                for skill, body in _in_full(known)
+            )
+        )
 
     def _given_in_brief(self: "AgentRunner", ctx: Ctx) -> None:
         """R190: the skills its instructions hold whole (`_skills_told` for an agent that cannot
         call use_skill) on its record, so that they are not said to be given and never read.
         shortcut: native Claude Code's, given in its instructions where no plugin holds them
         (`run_native`), are not marked; mark them there if their rows mislead."""
-        named = [skill.name for skill, body in _in_full(self._skills(ctx))
-                 if not body.endswith(CUT_SHORT)]
+        named = [
+            skill.name
+            for skill, body in _in_full(self._skills(ctx))
+            if not body.endswith(CUT_SHORT)
+        ]
         with self._factory() as session:
             held = session.get_one(Agent, ctx.agent_id).skills
         if named and held is not None and held.get("in_brief") != named:
@@ -147,7 +172,8 @@ class SkillsMixin:
         if script not in skill.scripts:  # (a path on its list only: none outside it)
             raise ToolError(
                 f"{script!r} is not a script of the skill {skill.name}: its scripts are "
-                f"{', '.join(skill.scripts) or 'none'}")
+                f"{', '.join(skill.scripts) or 'none'}"
+            )
         with self._factory() as session:
             project = self._project(session, ctx.cid)
         if project is not None and project.exec_location == "docker":
@@ -158,17 +184,22 @@ class SkillsMixin:
         # Nor while web is off for one whose line reaches the internet (K-web-komut).
         # shortcut: by its line, which is only its path - a script that fetches is not seen.
         line = skills.script_line(skill.folder, script)
-        leave = skill.scripts_run_unasked and skills.unchanged(skill.folder, skill.hashes) and (
-            not web_off_reason(line, self._off()))
+        leave = (
+            skill.scripts_run_unasked
+            and skills.unchanged(skill.folder, skill.hashes)
+            and (not web_off_reason(line, self._off()))
+        )
         return {"command": line}, leave
 
-    async def _add_skill(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str,
-                         str]:
+    async def _add_skill(
+        self: "AgentRunner", ctx: Ctx, call_id: str, args: dict
+    ) -> tuple[str, str]:
         """Propose a skill to the user - at every level, on a card: what it holds is read
         now and shown, and that, as it was read, is what is kept on their yes."""
         folder, github, wanted = args.get("folder"), args.get("github"), args.get("roles") or []
         if not all(isinstance(where, str | None) for where in (folder, github)) or not (
-                isinstance(wanted, list) and all(isinstance(name, str) for name in wanted)):
+            isinstance(wanted, list) and all(isinstance(name, str) for name in wanted)
+        ):
             raise ToolError("folder and github must be strings and roles a list of role names")
         roles = self._add_skill_roles(wanted)
         try:
@@ -181,14 +212,18 @@ class SkillsMixin:
             if skills.named(session, found.name) is not None:
                 raise ToolError(
                     f"there is already a skill named {found.name}: the user gives it to a role "
-                    "on the Agents page")
+                    "on the Agents page"
+                )
         refused = self._nobody_to_ask(ctx, "skill", f"add the skill {found.name}")
         if refused is not None:
             raise _NobodyToAsk(refused)
         proposal = {
-            "tool_call_id": call_id, "run_id": ctx.run_id, "agent_id": ctx.agent_id,
+            "tool_call_id": call_id,
+            "run_id": ctx.run_id,
+            "agent_id": ctx.agent_id,
             # (Off the loop: what its scripts say is read from up to 5 MB of text.)
-            "roles": list(dict.fromkeys(roles)), **await asyncio.to_thread(found.shown),
+            "roles": list(dict.fromkeys(roles)),
+            **await asyncio.to_thread(found.shown),
         }
         future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
         self._skill_requests[call_id] = (ctx.cid, proposal, future)
@@ -199,7 +234,8 @@ class SkillsMixin:
             # Once, the moment the user has spoken (as for a role).
             if self._skill_requests.pop(call_id, None) is not None:
                 self.bus.emit(
-                    ctx.cid, ctx.run_id, "skill_request.resolved", {"tool_call_id": call_id})
+                    ctx.cid, ctx.run_id, "skill_request.resolved", {"tool_call_id": call_id}
+                )
 
         try:
             decision = await self._users_word(ctx, future, resolved)
@@ -214,8 +250,9 @@ class SkillsMixin:
             raise ToolError(str(exc)) from None
         with self._factory() as session:
             try:
-                skill = skills.add(session, self.settings.runtime_root, found,
-                                   unasked=decision != "ask_scripts")
+                skill = skills.add(
+                    session, self.settings.runtime_root, found, unasked=decision != "ask_scripts"
+                )
             except skills.SkillError as exc:  # one of its name was added meanwhile
                 raise ToolError(str(exc)) from None
             for name in proposal["roles"]:
@@ -238,8 +275,10 @@ class SkillsMixin:
                 if role is None:
                     raise ToolError(f"there is no role named {name}")
                 if is_team_lead(session, role):
-                    raise ToolError(f"{role.name} is a team's coordinator: its skills are the "
-                                    "user's to give, on the Agents page")
+                    raise ToolError(
+                        f"{role.name} is a team's coordinator: its skills are the "
+                        "user's to give, on the Agents page"
+                    )
                 roles.append(role.name)
         return roles
 
@@ -254,8 +293,11 @@ class SkillsMixin:
     def role_waits(self: "AgentRunner", call_id: str) -> bool:
         """Whether a role an agent asked to create, or a path outside the project, still
         waits for the user's word."""
-        return (call_id in self._role_requests or call_id in self._outside_asks
-                or call_id in self._skill_requests)
+        return (
+            call_id in self._role_requests
+            or call_id in self._outside_asks
+            or call_id in self._skill_requests
+        )
 
     def decide_role(self: "AgentRunner", call_id: str, decision: str) -> bool:
         """Deliver the user's word on a role an agent asked to create ("reject", or

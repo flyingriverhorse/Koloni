@@ -45,9 +45,12 @@ def test_the_changed_files_are_listed_by_path_with_gits_letter(client, repo):
     (repo / ".env").write_text("TOKEN=s3cr3t-value\n")  # (a secret: the tree hides it too)
     listed = client.get(f"/api/projects/{_project(client, repo)}/changes").json()
     assert listed == [
-        {"path": "added.txt", "status": "A"}, {"path": "gone.txt", "status": "D"},
-        {"path": "hello.py", "status": "M"}, {"path": "new.txt", "status": "?"},
-        {"path": "pic.png", "status": "M"}, {"path": "src/kept.txt", "status": "R"},
+        {"path": "added.txt", "status": "A"},
+        {"path": "gone.txt", "status": "D"},
+        {"path": "hello.py", "status": "M"},
+        {"path": "new.txt", "status": "?"},
+        {"path": "pic.png", "status": "M"},
+        {"path": "src/kept.txt", "status": "R"},
     ]
 
 
@@ -70,13 +73,17 @@ def test_one_files_diff_against_head_whole_an_untracked_one_all_added(client, re
     # (one not changed: git has no textual difference to show)
     assert diff("src/keep.txt").json() == {"diff": ""}
     assert (diff("pic.png").status_code, diff("pic.png").json()["detail"]) == (
-        415, "not text: there is no diff to show")
+        415,
+        "not text: there is no diff to show",
+    )
     assert diff("src").status_code == 404
     assert diff("not-there.txt").status_code == 404
 
 
 def test_a_path_out_of_the_project_or_a_secret_is_refused_as_the_file_endpoints_do(
-    client, repo, tmp_path,
+    client,
+    repo,
+    tmp_path,
 ):
     (repo / ".env").write_text("TOKEN=s3cr3t-value\n")
     # (A hard link to a key, added to git: its other name is never read through the diff.)
@@ -85,8 +92,12 @@ def test_a_path_out_of_the_project_or_a_secret_is_refused_as_the_file_endpoints_
     os.link(key, repo / "notes.txt")
     run(repo, "add", "notes.txt")
     pid = _project(client, repo)
-    for path, status in (("../gitconfig", 400), ("C:/Windows/win.ini", 400), (".env", 404),
-                         ("notes.txt", 404)):
+    for path, status in (
+        ("../gitconfig", 400),
+        ("C:/Windows/win.ini", 400),
+        (".env", 404),
+        ("notes.txt", 404),
+    ):
         answer = client.get(f"/api/projects/{pid}/changes/diff", params={"path": path})
         assert answer.status_code == status, path
         assert "s3cr3t" not in answer.text
@@ -94,8 +105,12 @@ def test_a_path_out_of_the_project_or_a_secret_is_refused_as_the_file_endpoints_
     plain = tmp_path / "plain"
     plain.mkdir()
     (plain / "hello.py").write_text("print('hi')\n")
-    assert client.get(f"/api/projects/{_project(client, plain)}/changes/diff",
-                      params={"path": "hello.py"}).status_code == 404
+    assert (
+        client.get(
+            f"/api/projects/{_project(client, plain)}/changes/diff", params={"path": "hello.py"}
+        ).status_code
+        == 404
+    )
 
 
 def test_a_branch_is_read_without_switching_to_it_and_no_secret_of_it_is_shown(client, repo):
@@ -113,13 +128,20 @@ def test_a_branch_is_read_without_switching_to_it_and_no_secret_of_it_is_shown(c
         return client.get(f"{base}/{what}", params={"ref": ref, **params})
 
     assert [(one["name"], one["kind"]) for one in get("files").json()] == [
-        ("src", "dir"), ("added.txt", "file"), ("gone.txt", "file"), ("hello.py", "file"),
-        ("pic.png", "file"), ("rm.txt", "file")]
+        ("src", "dir"),
+        ("added.txt", "file"),
+        ("gone.txt", "file"),
+        ("hello.py", "file"),
+        ("pic.png", "file"),
+        ("rm.txt", "file"),
+    ]
     assert get("files", path="src").json()[0]["name"] == "keep.txt"
     assert get("file", path="src/keep.txt").json()["text"] == "keep\nmore\n"
     assert get("file", path="pic.png").json()["binary"] is True
     assert get("changes").json() == [
-        {"path": "added.txt", "status": "A"}, {"path": "src/keep.txt", "status": "M"}]
+        {"path": "added.txt", "status": "A"},
+        {"path": "src/keep.txt", "status": "M"},
+    ]
     assert "+more" in get("changes/diff", path="src/keep.txt").json()["diff"]
     for what in ("file", "changes/diff"):
         answer = get(what, path=".env")
@@ -128,8 +150,10 @@ def test_a_branch_is_read_without_switching_to_it_and_no_secret_of_it_is_shown(c
     assert get("file", path="nothing.txt").status_code == 404
     # Only a branch git lists, by its full name: never a word handed to git as it is.
     for wrong in ("feature", "--output=x", "HEAD", "refs/heads/feature:src"):
-        assert client.get(f"{base}/file", params={"ref": wrong, "path": "added.txt"}
-                          ).status_code == 404, wrong
+        assert (
+            client.get(f"{base}/file", params={"ref": wrong, "path": "added.txt"}).status_code
+            == 404
+        ), wrong
     # Nothing was checked out, nothing written.
     assert git.where(repo)["branch"] == "main" and not (repo / "added.txt").exists()
     assert git.changes(repo) == []
@@ -153,7 +177,8 @@ def test_a_folder_named_to_a_diff_brings_none_of_its_files_a_secret_least(client
     base = f"/api/projects/{_project(client, repo)}"
     ref = {"ref": "refs/heads/other"}
     assert client.get(f"{base}/changes", params=ref).json() == [
-        {"path": "src/keep.txt", "status": "M"}]
+        {"path": "src/keep.txt", "status": "M"}
+    ]
     for path in ("src", "cfg", "src/link", ""):
         answer = client.get(f"{base}/changes/diff", params={**ref, "path": path})
         assert answer.status_code in (400, 404) and "s3cr3t" not in answer.text, path
@@ -165,8 +190,10 @@ def test_a_folder_named_to_a_diff_brings_none_of_its_files_a_secret_least(client
     for path in ("src", "cfg"):
         answer = client.get(f"{base}/changes/diff", params={"path": path})
         assert answer.status_code == 404 and "s3cr3t" not in answer.text, path
-    assert "-keep" in client.get(f"{base}/changes/diff", params={"path": "src/keep.txt"}
-                                 ).json()["diff"]
+    assert (
+        "-keep"
+        in client.get(f"{base}/changes/diff", params={"path": "src/keep.txt"}).json()["diff"]
+    )
 
 
 def test_what_a_cli_left_in_koloni_is_no_change_listed_but_kolonis_own_files_are(repo):
@@ -177,7 +204,9 @@ def test_what_a_cli_left_in_koloni_is_no_change_listed_but_kolonis_own_files_are
     (repo / ".koloni" / "recipes").mkdir()
     (repo / ".koloni" / "recipes" / "fix.json").write_text("{}")
     assert [one["path"] for one in git.changes(repo)] == [
-        ".koloni/recipes/fix.json", ".koloni/rules.md"]
+        ".koloni/recipes/fix.json",
+        ".koloni/rules.md",
+    ]
 
 
 def test_kolonis_own_files_are_listed_whatever_their_case(repo):

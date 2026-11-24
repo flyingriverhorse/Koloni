@@ -27,15 +27,19 @@ CATALOGUED = ("claude_cli", "anthropic", "codex_cli", "copilot_cli", "agy_cli", 
 
 
 def add(client, kind, **body):
-    made = client.post("/api/providers", json={"name": f"P {kind}", "kind": kind, **body},
-                       headers={"Origin": ORIGIN})
+    made = client.post(
+        "/api/providers",
+        json={"name": f"P {kind}", "kind": kind, **body},
+        headers={"Origin": ORIGIN},
+    )
     assert made.status_code == 201, made.text
     return made.json()
 
 
 def proposed(client, provider):
-    answer = client.post(f"/api/providers/{provider['id']}/fill-from-catalogue",
-                         headers={"Origin": ORIGIN})
+    answer = client.post(
+        f"/api/providers/{provider['id']}/fill-from-catalogue", headers={"Origin": ORIGIN}
+    )
     assert answer.status_code == 200, answer.text
     return answer.json()
 
@@ -59,8 +63,9 @@ def test_every_entry_has_a_name_a_tier_and_a_source(kind):
         # (a page read, or the command whose list was measured: `qodercli --list-models`; or
         # the run that measured a CLI's own name: `copilot -p --model auto`)
         assert entry["source"]["url"].startswith("https://") or entry["source"]["url"].endswith(
-            (" --list-models", f" --model {entry['name']}")), entry
-        assert entry["source"]["read_on"], entry           # the date it was read
+            (" --list-models", f" --model {entry['name']}")
+        ), entry
+        assert entry["source"]["read_on"], entry  # the date it was read
         assert entry.get("note") is None or len(entry["note"]) <= 120
 
 
@@ -85,24 +90,35 @@ def test_fill_proposes_the_catalogue_and_saves_nothing(client, tmp_path):
 
 def test_fill_keeps_the_users_words_and_the_users_models(client, tmp_path):
     known = catalog.models_for("claude_cli")[0]
-    provider = add(client, "claude_cli", executable=missing(tmp_path), models=[
-        {"name": known["name"], "note": "mine, for reviews", "tier": "fast"},
-        {"name": "my-own-model", "note": "kept", "tier": None},
-        {"name": catalog.models_for("claude_cli")[-1]["name"], "note": None, "tier": None},
-    ])
+    provider = add(
+        client,
+        "claude_cli",
+        executable=missing(tmp_path),
+        models=[
+            {"name": known["name"], "note": "mine, for reviews", "tier": "fast"},
+            {"name": "my-own-model", "note": "kept", "tier": None},
+            {"name": catalog.models_for("claude_cli")[-1]["name"], "note": None, "tier": None},
+        ],
+    )
     offer = {m["name"]: m for m in proposed(client, provider)["models"]}
-    assert offer[known["name"]]["note"] == "mine, for reviews"      # never overwritten
+    assert offer[known["name"]]["note"] == "mine, for reviews"  # never overwritten
     assert offer[known["name"]]["tier"] == "fast"
-    assert offer["my-own-model"]["note"] == "kept"                  # never dropped
+    assert offer["my-own-model"]["note"] == "kept"  # never dropped
     last = catalog.models_for("claude_cli")[-1]
-    assert offer[last["name"]]["tier"] == last["tier"]              # a blank one is filled
+    assert offer[last["name"]]["tier"] == last["tier"]  # a blank one is filled
     assert offer[last["name"]]["note"] == last.get("note")
 
 
 def test_fill_never_goes_past_the_lists_limit_and_says_so(client, tmp_path, monkeypatch):
-    many = [{"name": f"m{i}", "tier": TIERS[i % 3], "note": None,
-             "source": {"url": "https://example.com/models", "read_on": "2026-10-16"}}
-            for i in range(MAX_MODELS + 5)]
+    many = [
+        {
+            "name": f"m{i}",
+            "tier": TIERS[i % 3],
+            "note": None,
+            "source": {"url": "https://example.com/models", "read_on": "2026-10-16"},
+        }
+        for i in range(MAX_MODELS + 5)
+    ]
     monkeypatch.setattr(catalog, "models_for", lambda kind, copy=None, provider=None: many)
     provider = add(client, "codex_cli", executable=missing(tmp_path))
     offer = proposed(client, provider)
@@ -169,10 +185,13 @@ def test_a_key_never_shows_in_what_is_told(client, monkeypatch):
 # --- signed in or not, and nothing of the account --------------------------------------------
 
 
-@pytest.mark.parametrize("code,said,expected", [
-    (0, "Logged in using ChatGPT (acct_9f8e7d6c, someone@example.com)", True),
-    (1, "Not logged in", False),
-])
+@pytest.mark.parametrize(
+    "code,said,expected",
+    [
+        (0, "Logged in using ChatGPT (acct_9f8e7d6c, someone@example.com)", True),
+        (1, "Not logged in", False),
+    ],
+)
 def test_the_status_command_tells_only_signed_in_or_not(code, said, expected):
     told = catalog.signed_in_from("codex_cli", code, said)
     assert told is expected

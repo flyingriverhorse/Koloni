@@ -21,8 +21,10 @@ smallest that fits: every extra agent is more model calls, so more tokens, money
 ## Examples
 
 **"Fix the failing date test."**
-Just ask. One bug in one place is a job for the Orchestrator, or one Coder it opens. With
-**Teams for this chat** → **No teams**, it never brings in a team.
+Just ask. One bug in one place is a job for the Orchestrator, or one Coder it opens. Under
+**Orchestrator decides** too, a change of a few lines in one or two files gets no team: it says why
+in one line, and KOLONİ's checks run at the end all the same. With **Teams for this chat** →
+**No teams**, it never brings in a team.
 
 **"Add a password reset page, with review and tests."**
 A team with the **Feature** recipe: in **Teams for this chat** choose **Manual**, then the **Web app**
@@ -34,8 +36,8 @@ to the Coder, at most twice. You take the work in on the **Teams' work is ready*
 **"Fix this crash, and make sure it stays fixed."**
 The **Bugfix** recipe: in **Teams for this chat** choose **Manual**, then the **Backend / API** team,
 whose default recipe is Bugfix. A Debugger reproduces the crash with a test that fails, a Coder fixes
-it, a Tester and a Reviewer check it; a test that still fails goes back to the Coder. Cheaper than
-Feature: four steps, no spec and fewer reviews.
+it, then KOLONİ runs the tests - and has a big or security-touching change reviewed; a test that still
+fails goes back to the Coder. Cheaper than Feature: two agents, no spec and no review of a small fix.
 
 **"The backend and frontend teams must agree the API first."**
 A room. Open one with **Work together…** under **More**, or ask the Orchestrator to bring the teams'

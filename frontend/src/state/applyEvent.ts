@@ -106,12 +106,7 @@ export interface AgentLive {
   queue: { elapsed_s: number | null; max_s: number | null; available: boolean | null } | null
 }
 
-export const TERMINAL: ReadonlySet<Run['status']> = new Set([
-  'completed',
-  'failed',
-  'cancelled',
-  'interrupted',
-])
+export const TERMINAL: ReadonlySet<Run['status']> = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
 
 export function fromSnapshot(s: Snapshot): ConvState {
   return {
@@ -195,12 +190,7 @@ function upsert<T extends { id: string }>(list: T[], item: T): T[] {
  * Fold one server event into the state. Persistent events carry an id and are
  * applied at most once; transient ones (id null) are applied as they arrive.
  */
-export function applyEvent(
-  state: ConvState,
-  id: number | null,
-  type: string,
-  payload: unknown,
-): ConvState {
+export function applyEvent(state: ConvState, id: number | null, type: string, payload: unknown): ConvState {
   if (id !== null) {
     if (id <= state.lastEventId) return state
     state = { ...state, lastEventId: id }
@@ -244,7 +234,8 @@ function runEvent(state: ConvState, type: string, payload: unknown): ConvState |
       }
     case 'run.thinking': {
       const { run_id, agent_id, summarising } = payload as { run_id: string; agent_id?: string; summarising?: boolean }
-      if (summarising && agent_id) return { ...state, summarisingAgents: [...without(state.summarisingAgents, agent_id), agent_id].sort() }
+      if (summarising && agent_id)
+        return { ...state, summarisingAgents: [...without(state.summarisingAgents, agent_id), agent_id].sort() }
       return {
         ...state,
         thinkingRunId: run_id,
@@ -424,7 +415,11 @@ function chatEvent(state: ConvState, type: string, payload: unknown): ConvState 
     case 'conversation.updated': {
       const conversation = payload as Conversation
       // B-107: a turn keeps its teams' rows as last seen; the chat's teams changed after it do not change it.
-      const runs = state.runs.map(run => (conversation.teams.some(row => row.state?.run_id === run.id) ? { ...run, teams: turnTeams({ conversation, runs: [run] }, run.id) } : run))
+      const runs = state.runs.map(run =>
+        conversation.teams.some(row => row.state?.run_id === run.id)
+          ? { ...run, teams: turnTeams({ conversation, runs: [run] }, run.id) }
+          : run,
+      )
       return { ...state, conversation, runs }
     }
     case 'topic.created':

@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
 import type { Project, ProjectMap as MapOf } from '../api/types'
+
+/** The root as a part where no project file makes it one: its test command runs on the whole project. */
+const WHOLE: MapOf['parts'][number] = {
+  path: './',
+  language: 'none',
+  files: 0,
+  more: false,
+  agents_md: false,
+  guess: null,
+  test: null,
+  edited: false,
+}
 import { useApp } from '../state/store'
 
 /** The map in a line: the project, whether it is in git, how many parts - and that not every folder was looked in. */
@@ -52,7 +64,8 @@ export function ProjectMap({ project }: { project: Project }) {
   useEffect(() => {
     api.get<MapOf>(`/projects/${project.id}/map`).then(setMap, err => setError(errorText(err)))
   }, [project.id])
-  const forget = (path: string) => setTyped(was => Object.fromEntries(Object.entries(was).filter(([key]) => key !== path)))
+  const forget = (path: string) =>
+    setTyped(was => Object.fromEntries(Object.entries(was).filter(([key]) => key !== path)))
 
   const save = (path: string) =>
     act(async () => {
@@ -71,17 +84,24 @@ export function ProjectMap({ project }: { project: Project }) {
       return api.get<MapOf>(`/projects/${project.id}/map`)
     }, 'Saved')
 
-  const parts = map?.parts ?? []
+  // (0.1.7: the root is a part you may set a test command for even where no project file makes it one)
+  const found = map?.parts ?? []
+  const parts = map && !found.some(part => part.path === './') ? [WHOLE, ...found] : found
   return (
     <>
       <h2>Project map</h2>
       <span className="choice-note">
-        The parts of this folder, found by their files (pyproject.toml, package.json, Cargo.toml…) without asking a model. A new
-        chat’s Orchestrator is told of them when there is more than one. A test command runs in its part’s folder; saved empty, the part has no test. A
-        command you write here runs in its part without a card, at every level; KOLONİ’s guess is asked as any command.
+        The parts of this folder, found by their files (pyproject.toml, package.json, Cargo.toml…) without asking a
+        model. A new chat’s Orchestrator is told of them when there is more than one. A test command runs in its part’s
+        folder; saved empty, the part has no test. A command you write here runs in its part without a card, at every
+        level; KOLONİ’s guess is asked as any command.
       </span>
-      {map && mapLine(project.name, map, parts.length)}
-      {map && parts.length === 0 && <p className="muted">No part found: no folder has a project file.</p>}
+      {map && mapLine(project.name, map, found.length)}
+      {map && found.length === 0 && (
+        <p className="muted">
+          No part found: no folder has a project file. A test command for the whole project still runs from its root.
+        </p>
+      )}
       {parts.length > 0 && (
         <table className="usage-table project-map" aria-label="Parts of this folder">
           <thead>
@@ -102,7 +122,7 @@ export function ProjectMap({ project }: { project: Project }) {
                   <th scope="row" className="mono">
                     {part.path}
                   </th>
-                  <td>{part.language}</td>
+                  <td>{part.language === 'none' ? 'the whole project' : part.language}</td>
                   <td>{part.more ? `${part.files}+` : part.files}</td>
                   <td>{part.agents_md ? '✓' : <span className="muted">✗</span>}</td>
                   <td>
@@ -124,11 +144,22 @@ export function ProjectMap({ project }: { project: Project }) {
                         }}
                       />
                       {changed ? (
-                        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void save(part.path)}>
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          disabled={busy}
+                          onClick={() => void save(part.path)}
+                        >
                           Save
                         </button>
                       ) : part.edited ? (
-                        <button type="button" className="btn btn-small" aria-label={`Use guess for ${part.path}`} disabled={busy} onClick={() => void reset(part.path)}>
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          aria-label={`Use guess for ${part.path}`}
+                          disabled={busy}
+                          onClick={() => void reset(part.path)}
+                        >
                           Use guess
                         </button>
                       ) : (
@@ -142,7 +173,9 @@ export function ProjectMap({ project }: { project: Project }) {
           </tbody>
         </table>
       )}
-      {map?.not_copied.length ? <p className="choice-note">Not copied (git ignores, the project is big): {map.not_copied.join(', ')}</p> : null}
+      {map?.not_copied.length ? (
+        <p className="choice-note">Not copied (git ignores, the project is big): {map.not_copied.join(', ')}</p>
+      ) : null}
       {map?.big && !map.git && <p className="choice-note">Too big to copy: agents work in the folder itself.</p>}
       {error && (
         <div role="alert" className="alert">
@@ -150,7 +183,12 @@ export function ProjectMap({ project }: { project: Project }) {
         </div>
       )}
       <div className="role-actions">
-        <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.post<MapOf>(`/projects/${project.id}/map/refresh`), 'Refreshed')}>
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          onClick={() => void act(() => api.post<MapOf>(`/projects/${project.id}/map/refresh`), 'Refreshed')}
+        >
           Refresh
         </button>
         <span role="status" className="muted">

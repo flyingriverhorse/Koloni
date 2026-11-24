@@ -16,14 +16,17 @@ def test_chats_and_questions_from_before_wait_for_the_user(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0090")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO conversations (id, title, created_at, updated_at) "
-                     "VALUES ('c', 'c', ?, ?)", (AT, AT))
+        conn.execute(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c', 'c', ?, ?)",
+            (AT, AT),
+        )
 
     command.upgrade(cfg, "head")
 
     with sqlite3.connect(db) as conn:
-        assert conn.execute(
-            "SELECT when_away, away_minutes FROM conversations").fetchall() == [("waits", 10)]
+        assert conn.execute("SELECT when_away, away_minutes FROM conversations").fetchall() == [
+            ("waits", 10)
+        ]
         columns = {row[1] for row in conn.execute("PRAGMA table_info(questions)")}
         assert {"lead_why", "seen_at"} <= columns
 
@@ -31,6 +34,8 @@ def test_chats_and_questions_from_before_wait_for_the_user(tmp_path):
 
     with sqlite3.connect(db) as conn:
         assert not {"when_away", "away_minutes"} & {
-            row[1] for row in conn.execute("PRAGMA table_info(conversations)")}
+            row[1] for row in conn.execute("PRAGMA table_info(conversations)")
+        }
         assert not {"lead_why", "seen_at"} & {
-            row[1] for row in conn.execute("PRAGMA table_info(questions)")}
+            row[1] for row in conn.execute("PRAGMA table_info(questions)")
+        }

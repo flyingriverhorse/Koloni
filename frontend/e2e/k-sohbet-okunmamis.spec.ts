@@ -11,7 +11,9 @@ const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'ur-shots')
 test.use({ viewport: { width: 1440, height: 900 } })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme a reply that comes while the chat is closed is "1 unread" on its line, gone once it is opened`, async ({ page }) => {
+  test(`in the ${theme} theme a reply that comes while the chat is closed is "1 unread" on its line, gone once it is opened`, async ({
+    page,
+  }) => {
     mkdirSync(SHOTS, { recursive: true })
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)

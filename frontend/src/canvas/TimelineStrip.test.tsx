@@ -6,7 +6,11 @@ import { useApp } from '../state/store'
 import { agent, convState, question, run, toolCall } from '../test-fixtures'
 import { TimelineStrip } from './TimelineStrip'
 
-const usage = { by_model: [{ model_id: 'qwen', cost: { amount: 0.42, currency: 'USD' } }], by_conversation: [], by_start: [] } as unknown as Usage
+const usage = {
+  by_model: [{ model_id: 'qwen', cost: { amount: 0.42, currency: 'USD' } }],
+  by_conversation: [],
+  by_start: [],
+} as unknown as Usage
 const read = vi.fn()
 beforeEach(() => {
   localStorage.clear()
@@ -19,27 +23,64 @@ afterEach(() => vi.restoreAllMocks())
 const state = convState({
   runs: [run('r', 'completed', { started_at: '2026-10-05T10:00:00Z', ended_at: '2026-10-05T10:01:40Z' })],
   agents: [
-    agent('r', 'completed', { id: 'lead', name: 'Lead', ended_at: '2026-10-05T10:01:40Z', input_tokens: 1200, output_tokens: 300 }),
+    agent('r', 'completed', {
+      id: 'lead',
+      name: 'Lead',
+      ended_at: '2026-10-05T10:01:40Z',
+      input_tokens: 1200,
+      output_tokens: 300,
+    }),
     agent('r', 'failed', {
-      id: 'rev', name: 'Reviewer', role_name: 'Reviewer', parent_agent_id: 'lead', depth: 1,
-      created_at: '2026-10-05T10:00:10Z', started_at: '2026-10-05T10:00:10Z', ended_at: '2026-10-05T10:01:00Z', input_tokens: 10, output_tokens: 1,
+      id: 'rev',
+      name: 'Reviewer',
+      role_name: 'Reviewer',
+      parent_agent_id: 'lead',
+      depth: 1,
+      created_at: '2026-10-05T10:00:10Z',
+      started_at: '2026-10-05T10:00:10Z',
+      ended_at: '2026-10-05T10:01:00Z',
+      input_tokens: 10,
+      output_tokens: 1,
     }),
   ],
   toolCalls: [
-    toolCall('2', 'r', 'claude__Agent', 'succeeded', '{"description":"Look around"}', { agent_id: 'lead', origin: 'cli', started_at: '2026-10-05T10:00:30Z', ended_at: '2026-10-05T10:00:50Z' }),
+    toolCall('2', 'r', 'claude__Agent', 'succeeded', '{"description":"Look around"}', {
+      agent_id: 'lead',
+      origin: 'cli',
+      started_at: '2026-10-05T10:00:30Z',
+      ended_at: '2026-10-05T10:00:50Z',
+    }),
   ],
-  questions: [question('q', 'r', { agent_id: 'rev', created_at: '2026-10-05T10:00:20Z', answered_at: '2026-10-05T10:00:32Z', status: 'answered' })],
+  questions: [
+    question('q', 'r', {
+      agent_id: 'rev',
+      created_at: '2026-10-05T10:00:20Z',
+      answered_at: '2026-10-05T10:00:32Z',
+      status: 'answered',
+    }),
+  ],
 })
 
 test('the strip says the turn’s totals and each agent as a row of a table: start, length, waiting, status - a sub-agent under its lead', async () => {
   render(<TimelineStrip state={state} runId="r" onOpen={() => {}} onClose={() => {}} />)
   const strip = screen.getByRole('region', { name: 'Timeline' })
-  for (const said of ['1m 40s', '2', 'in 1,210 · out 301']) expect(within(strip).getAllByText(said).length).toBeGreaterThan(0)
+  for (const said of ['1m 40s', '2', 'in 1,210 · out 301'])
+    expect(within(strip).getAllByText(said).length).toBeGreaterThan(0)
   const table = within(strip).getByRole('table', { name: 'Its agents in time' })
   // The drawing is not read out: no column of it is said, empty.
-  expect(within(table).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Agent', 'Start', 'Length', 'Waiting', 'Status'])
+  expect(
+    within(table)
+      .getAllByRole('columnheader')
+      .map(h => h.textContent),
+  ).toEqual(['Agent', 'Start', 'Length', 'Waiting', 'Status'])
   const rows = within(table).getAllByRole('row').slice(1)
-  expect(rows.map(r => within(r).getAllByRole('cell').map(c => c.textContent))).toEqual([
+  expect(
+    rows.map(r =>
+      within(r)
+        .getAllByRole('cell')
+        .map(c => c.textContent),
+    ),
+  ).toEqual([
     ['Orchestrator', '+0s', '1m 40s', 'none', 'done'],
     ['Look around', '+30s', '20s', 'none', 'done'],
     ['Reviewer', '+10s', '50s', 'waits for you 12s · question', 'failed'],
@@ -69,7 +110,9 @@ test('the known cost is said once the turn is over and its usage read; while it 
   read.mockClear()
   const working = { ...state, runs: [{ ...state.runs[0], status: 'running' as const, ended_at: null }] }
   render(<TimelineStrip state={working} runId="r" onOpen={() => {}} onClose={() => {}} />)
-  expect(within(screen.getAllByRole('region', { name: 'Timeline' })[1]).getByText('Known cost').nextElementSibling).toHaveTextContent('–')
+  expect(
+    within(screen.getAllByRole('region', { name: 'Timeline' })[1]).getByText('Known cost').nextElementSibling,
+  ).toHaveTextContent('–')
   expect(read).not.toHaveBeenCalled()
 })
 
@@ -85,7 +128,9 @@ test('its edge makes it taller or shorter - dragged, or with the arrow keys - an
   expect(Number(edge.getAttribute('aria-valuenow'))).toBe(was + 24)
   unmount()
   render(<TimelineStrip state={state} runId="r" onOpen={() => {}} onClose={onClose} />)
-  expect(Number(screen.getByRole('separator', { name: 'Timeline height' }).getAttribute('aria-valuenow'))).toBe(was + 24)
+  expect(Number(screen.getByRole('separator', { name: 'Timeline height' }).getAttribute('aria-valuenow'))).toBe(
+    was + 24,
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Close timeline' }))
   expect(onClose).toHaveBeenCalled()
 })
@@ -126,14 +171,36 @@ test('B-316: a Lead waiting on its sub-agents says whom; what still waits for yo
     runs: [run('r', 'running', { started_at: '2026-10-05T10:00:00Z' })],
     agents: [
       agent('r', 'waiting', { id: 'lead', name: 'Lead', started_at: '2026-10-05T10:00:00Z' }),
-      agent('r', 'running', { id: 'co', name: 'Coder', parent_agent_id: 'lead', depth: 1, created_at: '2026-10-05T10:00:01Z', started_at: '2026-10-05T10:00:01Z' }),
-      agent('r', 'running', { id: 'te', name: 'Tester', parent_agent_id: 'lead', depth: 1, created_at: '2026-10-05T10:00:01Z', started_at: '2026-10-05T10:00:01Z' }),
+      agent('r', 'running', {
+        id: 'co',
+        name: 'Coder',
+        parent_agent_id: 'lead',
+        depth: 1,
+        created_at: '2026-10-05T10:00:01Z',
+        started_at: '2026-10-05T10:00:01Z',
+      }),
+      agent('r', 'running', {
+        id: 'te',
+        name: 'Tester',
+        parent_agent_id: 'lead',
+        depth: 1,
+        created_at: '2026-10-05T10:00:01Z',
+        started_at: '2026-10-05T10:00:01Z',
+      }),
     ],
-    questions: [question('q', 'r', { agent_id: 'te', created_at: '2026-10-05T10:00:10Z', answered_at: null, status: 'pending' })],
+    questions: [
+      question('q', 'r', { agent_id: 'te', created_at: '2026-10-05T10:00:10Z', answered_at: null, status: 'pending' }),
+    ],
   })
   render(<TimelineStrip state={waiting} runId="r" onOpen={() => {}} onClose={() => {}} />)
-  const rows = within(screen.getByRole('table', { name: 'Its agents in time' })).getAllByRole('row').slice(1)
-  expect(rows.map(r => within(r).getAllByRole('cell').at(-1)!.textContent)).toEqual(['waits for Coder, Tester', 'working', 'waits for you'])
+  const rows = within(screen.getByRole('table', { name: 'Its agents in time' }))
+    .getAllByRole('row')
+    .slice(1)
+  expect(rows.map(r => within(r).getAllByRole('cell').at(-1)!.textContent)).toEqual([
+    'waits for Coder, Tester',
+    'working',
+    'waits for you',
+  ])
   // (Only the Tester's row says "waits for you": its question is the user's to answer.)
   expect(within(rows[0]).queryByText('waits for you')).toBeNull()
   await userEvent.click(within(rows[2]).getByRole('button', { name: 'waits for you' }))
@@ -142,7 +209,13 @@ test('B-316: a Lead waiting on its sub-agents says whom; what still waits for yo
 
 test('a row’s class says its depth and whether it is a CLI’s own; its name’s title says so in words', () => {
   render(<TimelineStrip state={state} runId="r" onOpen={() => {}} onClose={() => {}} />)
-  const rows = within(screen.getByRole('table', { name: 'Its agents in time' })).getAllByRole('row').slice(1)
+  const rows = within(screen.getByRole('table', { name: 'Its agents in time' }))
+    .getAllByRole('row')
+    .slice(1)
   expect(rows.map(row => row.className)).toEqual(['tl-row tl-depth-0', 'tl-row tl-depth-1 tl-cli', 'tl-row tl-depth-1'])
-  expect(rows.map(row => within(row).getByRole('button').title)).toEqual(['Orchestrator', 'Look around (its CLI’s own sub-agent)', 'Reviewer'])
+  expect(rows.map(row => within(row).getByRole('button').title)).toEqual([
+    'Orchestrator',
+    'Look around (its CLI’s own sub-agent)',
+    'Reviewer',
+  ])
 })

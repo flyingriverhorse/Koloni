@@ -97,10 +97,13 @@ def test_a_secret_in_a_powershell_list_is_named():
 
 
 def test_at_ask_a_harmless_read_runs_unasked_and_a_secret_read_is_asked(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     executor = ScriptedExecutor([Script(["hi\n"])])
-    client, _ = make_client([cmd("Get-Content README.md", "k1"), cmd("Get-Content .env", "k2"),
-                             text("done")], executor=executor)
+    client, _ = make_client(
+        [cmd("Get-Content README.md", "k1"), cmd("Get-Content .env", "k2"), text("done")],
+        executor=executor,
+    )
     cid, run_id = start(client, project_dir)
     first, second = waiting(client, cid, 2)
     assert first["status"] == "exited" and second["command"] == "Get-Content .env"
@@ -111,7 +114,8 @@ def test_at_ask_a_harmless_read_runs_unasked_and_a_secret_read_is_asked(
 
 @pytest.mark.parametrize("command", ["rg foo", "Set-Content a.txt x"])
 def test_at_ask_a_search_where_a_secret_is_and_a_write_are_asked(
-        make_client, wait_run, project_dir, command):
+    make_client, wait_run, project_dir, command
+):
     (project_dir / ".env").write_text("KEY=FAKE\n", encoding="utf-8")
     executor = ScriptedExecutor([])
     client, _ = make_client([cmd(command), text("done")], executor=executor)
@@ -124,13 +128,16 @@ def test_at_ask_a_search_where_a_secret_is_and_a_write_are_asked(
 
 
 def test_at_ask_git_reads_unasked_only_at_the_root_of_a_folder_with_no_secret(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     # (found in review: `git show`, `git log -p` print a committed secret's lines; and a
     # repository shaped in a subfolder could set what git runs)
     (project_dir / "sub").mkdir()
     executor = ScriptedExecutor([Script(["clean\n"])])
-    client, _ = make_client([cmd("git status", "k1"), cmd("git status", "k2", cwd="sub"),
-                             text("done")], executor=executor)
+    client, _ = make_client(
+        [cmd("git status", "k1"), cmd("git status", "k2", cwd="sub"), text("done")],
+        executor=executor,
+    )
     cid, run_id = start(client, project_dir)
     first, second = waiting(client, cid, 2)
     assert first["status"] == "exited" and second["cwd"] == "sub"
@@ -150,7 +157,8 @@ def test_at_ask_git_is_asked_where_the_folder_holds_a_secret(make_client, wait_r
 
 
 def test_at_ask_a_clis_git_is_asked_where_the_folder_holds_a_secret(
-        native_app, wait_run, project_dir):  # noqa: F811
+    native_app, wait_run, project_dir
+):  # noqa: F811
     (project_dir / ".env").write_text("KEY=FAKE\n", encoding="utf-8")
     client, provider, _ = native_app([{"run": DOUBLE.format("git log -p")}, {"say": "ok"}])
     cid, run_id = start_native(client, project_dir, provider, "ask")
@@ -162,10 +170,15 @@ def test_at_ask_a_clis_git_is_asked_where_the_folder_holds_a_secret(
 
 
 def test_at_ask_native_codexs_read_in_its_powershell_line_runs_unasked(
-        native_app, wait_run, project_dir):  # noqa: F811
-    client, provider, _ = native_app([
-        {"run": DOUBLE.format("Get-Content -LiteralPath 'notes.md' -Raw")},
-        {"run": DOUBLE.format("Get-Content -LiteralPath '.env' -Raw")}, {"say": "ok"}])
+    native_app, wait_run, project_dir
+):  # noqa: F811
+    client, provider, _ = native_app(
+        [
+            {"run": DOUBLE.format("Get-Content -LiteralPath 'notes.md' -Raw")},
+            {"run": DOUBLE.format("Get-Content -LiteralPath '.env' -Raw")},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start_native(client, project_dir, provider, "ask")
     snap = wait_status(client, cid, "waiting_approval")
     (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]

@@ -40,14 +40,11 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/away-panel.png" alt="The Away panel over the message box: two To-do tasks ticked, what the Orchestrator decides for you and what always waits, a stop time and a spend limit"><br><sub><b>☾ Away.</b> Your To-do tasks worked through one at a time, each in its own copy, until you are back.</sub></td>
-<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them; nothing invented.</sub></td>
+<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model, and Cards - the command cards asked, by why"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/checked-review.png" alt="The Checked section under an answer: Tests passed: python check.py - 2 passed; Review: Reviewer - MERGE, no findings"><br><sub><b>Checked.</b> Under the answer, what KOLONİ itself ran and found - from its records, never the model's word.</sub></td>
-<td width="50%"><img src="docs/images/checks-node.png" alt="The canvas: the Orchestrator's box says checked, and the Checks node under it lists each line"><br><sub><b>The Checks node.</b> The same lines on the canvas; its ⋯ menu stops a check or turns it off for the chat.</sub></td>
-</tr>
-<tr>
-<td colspan="2"><img src="docs/diagrams/proven-finish.svg" alt="Proven finish: the related tests, the whole suite after the answer, documents, slides and pages, a Reviewer's look, the live try, a test for the change; a failure goes back to be fixed, then a stronger model; and where Settings sets each part"><br><sub><b>Proven finish.</b> What KOLONİ checks before an answer ends a turn that changed your project, and where you set each part.</sub></td>
+<td width="50%"><img src="docs/images/checks-loop.png" alt="The canvas: right of the Orchestrator's three Coders, the Checks · KOLONİ loop - Reviewer ×3, Security reviewer ×3 and Coder · fix ×2, 3 looks, 2 fix rounds, on hold - and its panel listing each round"><br><sub><b>The Checks loop.</b> KOLONİ's looks and the fixes it sent back, one box on the canvas; click it for each round.</sub></td>
 </tr>
 </table>
 
@@ -59,11 +56,12 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
    API key. Each role can run on a different one; a role on Copilot can take `auto` or `fusion`.
 2. **Open a folder** and write what you want, at one of three levels: **Ask before changes**,
    **Auto-edit files** or **Full auto**. **Plan first** adds a plan to approve before anything moves.
-3. **The Orchestrator works or delegates.** 29 built-in roles (Coder, Reviewer, Tester, Researcher,
+3. **The Orchestrator works or delegates.** 32 built-in roles (Coder, Reviewer, Tester, Researcher,
    UI designer, Security reviewer, …) and your own; teams with stages; recipes you draw.
 4. **Take it in.** Before an answer ends a turn that changed code, KOLONİ tests the work itself and
-   says under it what was checked. A sub-agent's changes come back as a card with the diff and your project's test
-   command. Take in, discard, or ask for changes. At Auto-edit and Full auto, clean work lands by
+   says under it what was checked. A sub-agent's changes come back as a card with the diff; the tests it
+   wrote run in its copy first - by themselves at Full auto or with your own test command, else when
+   you click Run the test. Take in, discard, or ask for changes. At Auto-edit and Full auto, clean work lands by
    itself; a git branch merges by itself only at Full auto.
 
 ## What is in the box
@@ -74,11 +72,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Evidence**: the canvas and each agent's window show the tools, commands and real diffs as
   recorded. Undo a turn; Stop or Stop everything keeps half-done work behind a card.
   [Chat and canvas](docs/use/chat-and-canvas.md) · [Working copies](docs/use/workspace.md)
-- **Proven finish**: after a turn that changed the project, KOLONİ checks the work itself before the
-  answer ends: your tests (the related ones first, the whole suite after the answer), the documents,
-  diagrams, data and slides it wrote, and a Reviewer's read of a big or security-touching change. A
-  failure goes back to be fixed, at most **Fix rounds** times; under the answer, **Checked** says what
-  passed, what failed and what was not checked. [What KOLONİ checked](docs/use/checked.md)
+- **Proven finish**: after a turn that changed the project, KOLONİ tests and checks the work itself;
+  **Checked** under the answer says what passed and what did not. [What KOLONİ checked](docs/use/checked.md)
 - **Control**: cards for changes, commands, web and HTTP; a delete or a send off the machine asks at
   every level, unless at Full auto **Check what I said first** finds a line of yours that allows it, or
   you let agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); secret
@@ -97,7 +92,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too) and
   merged or sent as a pull request from the card, carrying the agent's work alone; a chat started from
   a GitHub issue with your own `gh`. [Branches](docs/use/workspace.md#branches)
-- **Money**: tokens and credits per run, plan meters for each CLI, a monthly budget per project.
+- **Money**: tokens and credits per run, plan meters for each CLI, a monthly budget per project, and
+  the command cards you were asked, by why.
   [Usage and budgets](docs/money/usage.md)
 - **More tools**: MCP servers (each asks before it runs unless you say otherwise) and skills from a
   folder or a GitHub repository. [MCP servers](docs/tools/mcp.md) · [Skills](docs/tools/skills.md)

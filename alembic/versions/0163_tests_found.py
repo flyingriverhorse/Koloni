@@ -10,6 +10,7 @@ yet). Going back drops both.
 Revision ID: 0163
 Revises: 0162
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -22,8 +23,7 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column("tests_found", sa.JSON(), nullable=False,
-                                   server_default="{}"))
+        batch.add_column(sa.Column("tests_found", sa.JSON(), nullable=False, server_default="{}"))
         batch.add_column(sa.Column("tests_look", sa.JSON(), nullable=True))
 
 

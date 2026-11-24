@@ -3,6 +3,7 @@
 Revision ID: 0088
 Revises: 0087
 """
+
 import json
 
 import sqlalchemy as sa
@@ -24,18 +25,29 @@ def upgrade() -> None:
     # turn's is not on record any more.
     conn = op.get_bind()
     kept: dict[str, list[dict]] = {}
-    rows = conn.execute(sa.text(
-        "SELECT team_id, recipe_id, picked_by, why, state FROM conversation_teams "
-        "WHERE state IS NOT NULL ORDER BY conversation_id, position")).fetchall()
+    rows = conn.execute(
+        sa.text(
+            "SELECT team_id, recipe_id, picked_by, why, state FROM conversation_teams "
+            "WHERE state IS NOT NULL ORDER BY conversation_id, position"
+        )
+    ).fetchall()
     for team_id, recipe_id, picked_by, why, state in rows:
         state = json.loads(state) if isinstance(state, str) else state
         if state and state.get("run_id"):
-            kept.setdefault(state["run_id"], []).append({
-                "team_id": team_id, "recipe_id": recipe_id, "picked_by": picked_by, "why": why,
-                "state": {key: state[key] for key in SHOWN if key in state}})
+            kept.setdefault(state["run_id"], []).append(
+                {
+                    "team_id": team_id,
+                    "recipe_id": recipe_id,
+                    "picked_by": picked_by,
+                    "why": why,
+                    "state": {key: state[key] for key in SHOWN if key in state},
+                }
+            )
     for run_id, teams in kept.items():
-        conn.execute(sa.text("UPDATE runs SET teams = :teams WHERE id = :id"),
-                     {"teams": json.dumps(teams), "id": run_id})
+        conn.execute(
+            sa.text("UPDATE runs SET teams = :teams WHERE id = :id"),
+            {"teams": json.dumps(teams), "id": run_id},
+        )
 
 
 def downgrade() -> None:

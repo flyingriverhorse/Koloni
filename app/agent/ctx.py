@@ -199,15 +199,22 @@ class _Transcript:
                 # B-382: what it has left after this one, by the nearer limit, as `_steps` keeps
                 # it - told with its next tool result once that is few (`_near_a_limit`).
                 most = ctx.max_steps or runner._step_limit(ctx)
-                if not ctx.max_steps and ctx.agent_id not in runner._given_steps and (
-                        ctx.role_steps):
+                if (
+                    not ctx.max_steps
+                    and ctx.agent_id not in runner._given_steps
+                    and (ctx.role_steps)
+                ):
                     role = ctx.role_steps - runner._role_before(ctx)
                     most = role if most is None else min(most, role)
                 runner._steps_left[ctx.agent_id] = None if most is None else most - self.opened
         with runner._factory() as session:
             message = Message(
-                conversation_id=ctx.cid, run_id=ctx.run_id, agent_id=ctx.agent_id,
-                role="assistant", content="", status="streaming",
+                conversation_id=ctx.cid,
+                run_id=ctx.run_id,
+                agent_id=ctx.agent_id,
+                role="assistant",
+                content="",
+                status="streaming",
                 discussion_id=ctx.discussion,
             )
             session.add(message)
@@ -345,8 +352,11 @@ class _Watch:
         use_id = self.koloni_inside.pop(inside_key(name, arguments), None)
         if use_id is None:
             return None
-        return self.under(use_id) or next((self.subs[one] for one in self.at_work), None) or (
-            next(iter(self.subs.values()), UNSEEN_SUB))
+        return (
+            self.under(use_id)
+            or next((self.subs[one] for one in self.at_work), None)
+            or (next(iter(self.subs.values()), UNSEEN_SUB))
+        )
 
     async def look(self, changes: Callable[[], list]) -> list:
         """A whole look at a folder it watches (`view.changes`, `project.changes`): no other
@@ -499,9 +509,9 @@ def announce(
     if project_id is None:  # (no project: `== None` would name every plain chat)
         return
     with session_factory() as session:
-        watching = list(session.scalars(
-            select(Conversation.id).where(Conversation.project_id == project_id)
-        ))
+        watching = list(
+            session.scalars(select(Conversation.id).where(Conversation.project_id == project_id))
+        )
     for cid in watching:
         if cid != but:
             bus.emit_transient(cid, event, {"project_id": project_id})
@@ -514,5 +524,5 @@ def sent_effort(ctx: "Ctx", info: ModelInfo) -> str | None:
     asked, takes = ctx.effort, info.efforts or ()
     if asked is None or asked == "off":
         return asked if asked in takes else None
-    below = EFFORTS[EFFORTS.index(asked):0:-1]  # (from it down to Low: never Off)
+    below = EFFORTS[EFFORTS.index(asked) : 0 : -1]  # (from it down to Low: never Off)
     return next((level for level in below if level in takes), None)

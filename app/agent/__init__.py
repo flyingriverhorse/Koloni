@@ -74,11 +74,14 @@ from app import (
     mcp_client,
     project_map,
     project_view,
+    proof,
     proof_before,
+    proof_related,
     raw,
     recipe_run,
     signs,
     team_requests,
+    test_found,
     topics,
     views,
     web,
@@ -346,6 +349,8 @@ from app.commands import (
     disposable_targets,
     hide_keys,
     installs,
+    is_allowed,
+    rules_here,
     search_reason,
     sends_canary,
     spellings_of,
@@ -453,15 +458,16 @@ OWN_SHELL = "own"
 # opened its Tester: the turn ended, the Tester was cancelled and the rule was broken. Its answer
 # is held till every agent of the turn is back, then it is told so (`_held_for_work`).
 AT_WORK = ("proposed", "queued", "running", "waiting")
-HELD_FOR_WORK = ("Not the end yet: teams were still at work as you answered ({what}). KOLONİ "
-                 "waited for them: read what came back, then answer.")
+HELD_FOR_WORK = (
+    "Not the end yet: teams were still at work as you answered ({what}). KOLONİ "
+    "waited for them: read what came back, then answer."
+)
 HOLD_LOOK = 0.5  # seconds between looks at whether they are back
 # B-376: a step's agent the turn's end cut, said beside why its team stopped (`_end_runs`).
 CUT_BY_END = "{name} {how}: the turn ended at {at}"
 # Slice 84b-2: how an agent of a stopped team ends (the card where recipes meet: READY_FOR_YOU).
 # G3: what the agent is told when it goes on (its card's words: `GO_ON_AT`, `RECONNECT`).
-GO_ON_WORDS = ("KOLONİ: your provider can be used again: go on with your task where you left "
-               "off.")
+GO_ON_WORDS = "KOLONİ: your provider can be used again: go on with your task where you left off."
 RESET_MARGIN = 5  # seconds
 # "Who checks?": its choice before Stop, after the role(s) that did the work.
 ITSELF, THEMSELVES = " checks it itself", " check it themselves"
@@ -470,8 +476,10 @@ ASK_ME = ["Go on", "Ask for changes", "Stop"]
 # K-fullauto-sorma: a failed step's plain card, which at Full auto is KOLONİ's own word
 # (`_on_row`) - said to the step's opener, as nobody is asked.
 FAILED_WORDS = frozenset({"Try again", "Skip", "Stop"})
-FULL_AUTO_STEP = ("\n\nFull auto: no card for a failed step - it is tried once more, then "
-                  "skipped. KOLONİ's word on {card!r}: {word}.")
+FULL_AUTO_STEP = (
+    "\n\nFull auto: no card for a failed step - it is tried once more, then "
+    "skipped. KOLONİ's word on {card!r}: {word}."
+)
 # G5.4: its card again, where the files of its step changed after the user said Go on.
 CHANGED_SINCE = "Its files changed since you said Go on: {files} — asked again. "
 # B-115: the user's Ask for changes at a recipe's card reaches its runner as a message of the
@@ -488,23 +496,29 @@ LEAD_FOR_USER = "The Orchestrator, for the user {how},"
 # The tools that send something out, where 101's key is looked for (MCP's too, by "__").
 CANARY_WATCHED = frozenset(("run_command", "run_skill_script", *WEB_SCHEMAS, *BROWSER_TOOLS))
 # K-fikir-okunmamis: an agent's question while a message of the user's waits behind its turn.
-USER_WROTE = ("The user has written to you; read their message first - their own word: {words} "
-              "(It also starts a turn of its own once this one ends.)")
+USER_WROTE = (
+    "The user has written to you; read their message first - their own word: {words} "
+    "(It also starts a turn of its own once this one ends.)"
+)
 # B-359 (live): a Lead's ask_user offered "Take in, HEAD stays as it is" - only an answer: the
 # Take in card waited on its own, and nothing was taken in.
 CARD_ACTIONS = re.compile(r"\s*(take\s+(\w+\s+)?in|discard|apply|merge)\b", re.IGNORECASE)
-CARD_DECIDES = ("Take in and Discard are the user's decision on the Take in card, whether it "
-                "still waits for them or they already decided it - an answer here takes nothing "
-                "in. Ask only what that card does not ask, without those options")
+CARD_DECIDES = (
+    "Take in and Discard are the user's decision on the Take in card, whether it "
+    "still waits for them or they already decided it - an answer here takes nothing "
+    "in. Ask only what that card does not ask, without those options"
+)
 # B-202 (live): a team's lead, with no tool that writes, asked the user to route its file work
 # to a Coder step - while its recipe runs that work is its step's roles', and the user is the
 # Orchestrator's to ask.
-LEAD_ASKS_NOT = ("A team's lead does not ask the user while its recipe runs: {where}. Its roles "
-                 "do the work, with the tools you are not given (writing files, running "
-                 "commands) - open them for it, with spawn_agent, or with open_room where the "
-                 "step is a room. A question for the user is the role's to ask - or, where "
-                 "the step cannot go on without the user, end your turn and say why in your "
-                 "report")
+LEAD_ASKS_NOT = (
+    "A team's lead does not ask the user while its recipe runs: {where}. Its roles "
+    "do the work, with the tools you are not given (writing files, running "
+    "commands) - open them for it, with spawn_agent, or with open_room where the "
+    "step is a room. A question for the user is the role's to ask - or, where "
+    "the step cannot go on without the user, end your turn and say why in your "
+    "report"
+)
 GOES_AGAIN = "Ask for changes at the card: {step} goes again. Open {roles} again for it{told}."
 WORDS_TOLD = " - KOLONİ adds the user's words to its task"
 OUTRUN_REOPEN = "{role} is not opened: {step} was its branch, and " + OUTRUN_TOLD
@@ -517,19 +531,24 @@ KEEPS = ("completed", "failed", "cancelled")
 FINDINGS_LEFT = "findings are left"
 FIXER = "Coder"
 FIX_FINDINGS = "Fix the findings"
-FIX_TOLD = ("\n\nThe user asks the findings left fixed: the recipe has ended, so open {role} now "
-            "with spawn_agent and findings_from {name} - outside the recipe; its work goes into "
-            "the project as any agent's.")
+FIX_TOLD = (
+    "\n\nThe user asks the findings left fixed: the recipe has ended, so open {role} now "
+    "with spawn_agent and findings_from {name} - outside the recipe; its work goes into "
+    "the project as any agent's."
+)
 # B-101: what Ready for you says of a team with no recipe beside one: its own kept copy.
-APART = ("its work is a kept copy of its own, which Take in here does not take: take it in or "
-         "discard it on its own")
+APART = (
+    "its work is a kept copy of its own, which Take in here does not take: take it in or "
+    "discard it on its own"
+)
 # B-153: and of one that changed no file of the project.
 SHARED_ONLY = "it wrote to the shared folder · nothing to take in"
 NOTHING_APART = "it changed no file · nothing to take in"
 # Slice 84e: what an agent beside a recipe changed (not one of its steps' agents), and a project
 # no recipe runs in.
-KEPT_BESIDE_A_RECIPE = ("made beside a recipe, it waits as a kept copy for the user to take in "
-                        "or discard")
+KEPT_BESIDE_A_RECIPE = (
+    "made beside a recipe, it waits as a kept copy for the user to take in or discard"
+)
 # B-322: why a sub-agent's copy is kept, and what its opener hears, when it did not finish.
 STOPPED_KEPT = "its agent stopped before it finished"
 PARTIAL_KEPT = (
@@ -546,53 +565,74 @@ KEPT_APART = (
     "their own, at Ready for you (it may wait there still, or be decided). Here those files are "
     "as in the project: read them before you change them."
 )
-NO_RECIPE_COPY = ("this project could not be copied ({why}): a recipe needs a copy, so that "
-                  "nothing lands in the project before the user's Take in")
+NO_RECIPE_COPY = (
+    "this project could not be copied ({why}): a recipe needs a copy, so that "
+    "nothing lands in the project before the user's Take in"
+)
 # K-evrim: a candidate works in a copy of its own, seeded from the recipe's; what it is told of it;
 # why one has no score.
-NO_CANDIDATE_COPY = ("a candidate works in a copy of its own, and this one's could not be made "
-                     "({why}): it did not start")
-IN_A_CANDIDATE = ("it is yours alone: KOLONİ measures your work there when you finish, and the "
-                  "best candidate's copy goes on in the recipe - the others' are thrown away")
+NO_CANDIDATE_COPY = (
+    "a candidate works in a copy of its own, and this one's could not be made "
+    "({why}): it did not start"
+)
+IN_A_CANDIDATE = (
+    "it is yours alone: KOLONİ measures your work there when you finish, and the "
+    "best candidate's copy goes on in the recipe - the others' are thrown away"
+)
 # B-384 (R188): `python -B measure.py` is not the measure command, and was asked about.
 # shortcut: told with its first tool result (`_told_of_copy`), so a first act that is the measure
 # still gets a card; put it in the candidate's task if that is seen.
-MEASURE_AS_IS = (". To measure it yourself, run the project's measure command exactly as "
-                 "written, adding no flags: `{command}`")
+MEASURE_AS_IS = (
+    ". To measure it yourself, run the project's measure command exactly as "
+    "written, adding no flags: `{command}`"
+)
 NO_MEASURE = recipe_run.NO_MEASURE  # (and so one round only: `recipe_run.ONE_ROUND`)
 CANDIDATE_KEPT = "a candidate's work its turn ended before a pick"
-CANDIDATES_WATCHED = ("{step}: candidates need the user watching and the recipe's own copy - "
-                      "not in a job while the user is away, a turn on a branch of its own, or a "
-                      "comparison")
-NOT_BROUGHT = ("Not brought into the recipe's copy from {name}'s: {files} - changed there since "
-               "the candidates began; the recipe's own are kept.")
+CANDIDATES_WATCHED = (
+    "{step}: candidates need the user watching and the recipe's own copy - "
+    "not in a job while the user is away, a turn on a branch of its own, or a "
+    "comparison"
+)
+NOT_BROUGHT = (
+    "Not brought into the recipe's copy from {name}'s: {files} - changed there since "
+    "the candidates began; the recipe's own are kept."
+)
 CANDIDATE_STOPPED = "stopped before its end"
 PICK_CARD = "{team}: {step}: {table}. Which candidate's work goes on?"
 # B-370: the best is kept - a later round's pick goes on only where it beats it.
-BEST_SO_FAR = ("Best so far: {score}, {name}'s work - it stays unless the one picked scores "
-               "higher.")
+BEST_SO_FAR = "Best so far: {score}, {name}'s work - it stays unless the one picked scores higher."
 KEPT_WORK = "No one beat {score}: {name}'s work stays in the recipe's copy and goes on."
-PICKED_UNSCORED = ("{name} was picked, but it has no score; the best so far, {score} ({best}'s), "
-                   "stays in the work")
+PICKED_UNSCORED = (
+    "{name} was picked, but it has no score; the best so far, {score} ({best}'s), stays in the work"
+)
 MEASURE_TAIL = 10  # (lines)
-RECIPE_UNWATCHED = ("the {recipe} recipe does not start in a turn nobody is here for: a recipe "
-                    "waits for the user at its end")
-LEADS_RUN = ("this chat's teams are run by their leads ({leads}): open only those the user's "
-             f"message needs, with the work for each - {SAME_MESSAGE} - and they open their "
-             "teams' roles; a message none of them is for, answer yourself; where two teams' "
-             "work meets (one file, API or contract), open a room of their leads first "
-             "(open_room) to agree it, then open the teams")
+RECIPE_UNWATCHED = (
+    "the {recipe} recipe does not start in a turn nobody is here for: a recipe "
+    "waits for the user at its end"
+)
+LEADS_RUN = (
+    "this chat's teams are run by their leads ({leads}): open only those the user's "
+    f"message needs, with the work for each - {SAME_MESSAGE} - and they open their "
+    "teams' roles; a message none of them is for, answer yourself; where two teams' "
+    "work meets (one file, API or contract), open a room of their leads first "
+    "(open_room) to agree it, then open the teams"
+)
 # B-124: a lead's report that says it could not do the work itself (live: "I have no write tool").
-COULD_NOT = re.compile(r"\b(?:no|without|lack(?:s|ing)?|(?:do|does|did)\s*n[o']t\s+have|cannot|"
-                       r"can't|can\s+not|unable\s+to|not\s+able\s+to)\b[^.\n]{0,40}?"
-                       r"\b(?:write|writing|edit|tools?)\b"
-                       # K-cevap-dili: a lead told to write Turkish ("yazamıyorum", "yazma aracım
-                       # yok"), as FAILS reads "hata".
-                       r"|\b(?:yazam|düzenleyem)\w*|\b(?:yazma|düzenleme)\s+(?:ara[çc]|yetki)\w*"
-                       r"[^.\n]{0,20}?\b(?:yok|bulunmuyor|verilmedi)\b", re.IGNORECASE)
+COULD_NOT = re.compile(
+    r"\b(?:no|without|lack(?:s|ing)?|(?:do|does|did)\s*n[o']t\s+have|cannot|"
+    r"can't|can\s+not|unable\s+to|not\s+able\s+to)\b[^.\n]{0,40}?"
+    r"\b(?:write|writing|edit|tools?)\b"
+    # K-cevap-dili: a lead told to write Turkish ("yazamıyorum", "yazma aracım
+    # yok"), as FAILS reads "hata".
+    r"|\b(?:yazam|düzenleyem)\w*|\b(?:yazma|düzenleme)\s+(?:ara[çc]|yetki)\w*"
+    r"[^.\n]{0,20}?\b(?:yok|bulunmuyor|verilmedi)\b",
+    re.IGNORECASE,
+)
 # B-386: what a room's coordinator is told as it goes on to run its team (`_take_up`).
-TAKEN_UP = ("The room is over. Now run your team, as its coordinator - with what was agreed "
-            "there. The Orchestrator's task for your team: {task}")
+TAKEN_UP = (
+    "The room is over. Now run your team, as its coordinator - with what was agreed "
+    "there. The Orchestrator's task for your team: {task}"
+)
 
 
 def report_line(report: str | None) -> str:
@@ -600,27 +640,35 @@ def report_line(report: str | None) -> str:
     anything and is no heading ("## Summary"), its marks off ("> **Done** - b.md" is "Done -
     b.md"); "" when none."""
     for line in (report or "").splitlines():
-        if not re.match(r"\s*#", line) and (shown := topics.first_line(
-                re.sub(r"\*\*(.+?)\*\*", r"\1", line).lstrip(">*- \t"))):
+        if not re.match(r"\s*#", line) and (
+            shown := topics.first_line(re.sub(r"\*\*(.+?)\*\*", r"\1", line).lstrip(">*- \t"))
+        ):
             return shown
     return ""
 
 
-HELD_BELOW = ("{path} is held by {name}, your sub-agent{still}: leave it to {name}, or change it "
-              "once its result has come to you")
+HELD_BELOW = (
+    "{path} is held by {name}, your sub-agent{still}: leave it to {name}, or change it "
+    "once its result has come to you"
+)
 
 # 89j: what a CLI says of its context and plan goes out at most this often, the latest of it.
 LIVE_SECONDS = 1.0
 
 
 # Where text a tool brought in came from, in a warning's words (93-A4).
-WEB_WHERE = {"web_search": "a web search", "http_request": "a web request",
-             # (K-bilgi part 3: pages read from the web once, framed as a search's answer is)
-             LOOKUP: "a lookup in its knowledge's pages"}
+WEB_WHERE = {
+    "web_search": "a web search",
+    "http_request": "a web request",
+    # (K-bilgi part 3: pages read from the web once, framed as a search's answer is)
+    LOOKUP: "a lookup in its knowledge's pages",
+}
 # Slice 51: what a page in the agent's own browser says - its text, its console, its title in
 # every tool's answer - scanned whole (it has no frame).
 BROWSER_WHERE = dict.fromkeys(BROWSER_TOOLS, "a page in the agent's browser")
 AGENT_WHERE = {"spawn_agent": "a sub-agent's report"}  # (a reply: `_message`)
+
+
 def _kept_framed(ws: Workspace, name: str, args: dict, output: str) -> str:
     """K-bilgi-repo: what read_file or search returns of another project's code a knowledge keeps
     (`is_kept_code`) framed as data, as a fetched page is - its output, so the lines it numbers
@@ -636,8 +684,10 @@ def _kept_framed(ws: Workspace, name: str, args: dict, output: str) -> str:
 # B-360: a project's file is whoever wrote it - a cloned repository's, a downloaded one's - so
 # what read_file and search return is looked at as a web page is (only what they return).
 FILE_WHERE = {"read_file": "a file it read", "search": "a search of the files"}
-IN_A_JOB = ("the changes are kept in the copy for the user, who takes them in when back; "
-            "the job's other agents work in the same copy")
+IN_A_JOB = (
+    "the changes are kept in the copy for the user, who takes them in when back; "
+    "the job's other agents work in the same copy"
+)
 KEPT_AWAY = "kept for the user's Take in: the user is away"
 
 
@@ -645,10 +695,22 @@ KEPT_AWAY = "kept for the user's Take in: the user is away"
 # model does the work itself (no sub-agent, discussion or room on another model - a room's
 # copy is taken in when it ends), and nothing of it outlives the choice (no memory, role,
 # skill, folder, backlog task or trigger).
-NOT_IN_A_SIDE = frozenset({
-    "spawn_agent", "message_agent", "discuss", "open_room", "remember", "create_role",
-    "add_skill", "ask_folder", "add_task", "change_task", "assess_task", "propose_trigger",
-})
+NOT_IN_A_SIDE = frozenset(
+    {
+        "spawn_agent",
+        "message_agent",
+        "discuss",
+        "open_room",
+        "remember",
+        "create_role",
+        "add_skill",
+        "ask_folder",
+        "add_task",
+        "change_task",
+        "assess_task",
+        "propose_trigger",
+    }
+)
 # A plan turn's Lead (slice 49) may only read and look things up: a list of what it may
 # use, not of what it may not, so a tool added later is not in it unasked.
 PLAN_TOOLS = (*READ, "ask_user", "read_notes", "recall")
@@ -657,12 +719,24 @@ PLAN_TOOLS = (*READ, "ask_user", "read_notes", "recall")
 # the backlog or notify: those are a project's. A file or folder by its full path is read on
 # the user's word each time (slice 86b: `_plain_read`).
 PLAIN_READS = ("read_file", "list_dir")
-PLAIN_TOOLS = ("web_search", "http_request", "spawn_agent", "create_role", "ask_user",
-               "message_agent", "discuss", "post_note", "read_notes", *PLAIN_READS)
+PLAIN_TOOLS = (
+    "web_search",
+    "http_request",
+    "spawn_agent",
+    "create_role",
+    "ask_user",
+    "message_agent",
+    "discuss",
+    "post_note",
+    "read_notes",
+    *PLAIN_READS,
+)
 # K-buyuk-proje: the chat's part, taken off at the turn's start (`execute`).
-PART_GONE = ("KOLONİ: this chat was set to work in the project's part {part}, whose folder is "
-             "gone or is a link now; it works in the whole project from this turn. Tell the "
-             "user so in your answer.")
+PART_GONE = (
+    "KOLONİ: this chat was set to work in the project's part {part}, whose folder is "
+    "gone or is a link now; it works in the whole project from this turn. Tell the "
+    "user so in your answer."
+)
 PLAN_TURN = (
     "This turn is for a plan only. Read and search the project as much as you need, but "
     "change nothing. Answer with the plan the user will approve, edit or turn down: the "
@@ -705,7 +779,9 @@ RUNS_BY = re.compile(
     r"PATH|PATHEXT|COMSPEC|SYSTEMROOT|WINDIR|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|TEMP|TMP|"
     r"TMPDIR|SHELL|ENV|BASH_ENV|PROMPT_COMMAND|PS4|IFS|NODE_OPTIONS|NODE_PATH|PERL5OPT|"
     r"PERL5LIB|RUBYOPT|RUBYLIB|JAVA_TOOL_OPTIONS|_JAVA_OPTIONS|JDK_JAVA_OPTIONS|"
-    r"(PYTHON|LD_|DYLD_|GIT_|DOCKER_|NPM_CONFIG_)\w*|\w*_PROXY", re.IGNORECASE)
+    r"(PYTHON|LD_|DYLD_|GIT_|DOCKER_|NPM_CONFIG_)\w*|\w*_PROXY",
+    re.IGNORECASE,
+)
 SECRET_GIVEN = (
     "{name} was given: the commands run in this turn have it in their environment under that "
     "name. Its value is not shown to you; it is hidden where a command prints it as it is, "
@@ -731,9 +807,7 @@ READ_FIRST = (
 )
 # Without a wait: whoever changed the file since the agent read it was done before the
 # agent reached for it, so nobody is named.
-NOT_AS_READ = (
-    "conflict: {path} is not as you last read it; read it again, then make your change"
-)
+NOT_AS_READ = "conflict: {path} is not as you last read it; read it again, then make your change"
 # A wait that would never end is not begun. {chain}: "you", or the agents in between.
 NEVER_ENDS = (
     "{name} holds {path} and is waiting for {chain}, so waiting for the file would "
@@ -796,8 +870,10 @@ GIT_IGNORED_OUT = (
     "git ignores is not taken into the project: say in your report what would have to be run "
     "in the project itself."
 )
-GIT_IGNORED_READ = ("Read them in the project by their full paths, under {project}, with "
-                    "read_file, list_dir or search.")
+GIT_IGNORED_READ = (
+    "Read them in the project by their full paths, under {project}, with "
+    "read_file, list_dir or search."
+)
 GIT_IGNORED_UNREACHED = "You cannot reach them from here."
 # K-buyuk-proje: a copy of one part (`Copy.part`): the project's other folders, by their names
 # (`Copy.left`), read as K-kopya-git's are; and a path of theirs named in the copy.
@@ -808,14 +884,16 @@ PART_OUT = (
     "(npm, pnpm, yarn, uv, poetry): the other parts are missing here."
 )
 CHECK_WITHOUT_PARTS = (
-    "it ran in a copy of \"{part}\" alone, without the other parts, and a file at the project "
+    'it ran in a copy of "{part}" alone, without the other parts, and a file at the project '
     "root changed: it does not vouch for them - the user decides"
 )
 MOST_LEFT = 5
 TAKEN_LATER = "the changes are taken into the project when {when} work is over"
 # In a turn's recipe (slice 84b-2).
-IN_A_RECIPE = ("the changes are taken into the project when the user says so, at the recipe's "
-               "end; the recipe's other agents work in the same copy")
+IN_A_RECIPE = (
+    "the changes are taken into the project when the user says so, at the recipe's "
+    "end; the recipe's other agents work in the same copy"
+)
 # In a side of a comparison (slice 54).
 IN_A_SIDE = (
     "your changes stay in your copy: the user compares your work with another model's and "
@@ -858,9 +936,17 @@ CHECK_SECONDS = MAX_TIMEOUT
 CHECK_TAIL = 4000
 CHECK_LEFT = "what it changed in the copy itself could not be put back: {files}"
 CHECK_NOT_ALLOWED = "the trigger of this turn does not let this command run: not checked"
+# 0.1.7 round 2 (B1): a sub-agent's own tests are its code - not run unasked on KOLONİ's guess.
+CHECK_AWAY = "not run while you are away - a test command of KOLONİ's, not yours"
+CHECK_GUESS_UNATTENDED = (
+    "not run in a turn nobody watches - a test command of KOLONİ's, not yours: not checked"
+)
+# ...and where the copy could not be read for its own tests (the copy is kept, as any unread one).
+OWN_UNREAD = "its own tests not run: the working copy could not be read ({why})"
+# pytest's exit 5, vitest's or jest's "No test files found" with --passWithNoTests: nothing ran.
+NOTHING_RAN = "{part}: no test of these files was found - nothing ran"
 CHECK_NOT_KEPT = (
-    "the check does not run on a copy that was kept: its dependency folders are no longer "
-    "linked"
+    "the check does not run on a copy that was kept: its dependency folders are no longer linked"
 )
 CHECK_FAILED = (
     "{name}'s changes were not applied to the project: the check {command} did not pass "
@@ -889,38 +975,54 @@ BRANCH_KEPT = (
 BRANCH_NOT_FINISHED = "it did not finish its work"
 BRANCH_UNWATCHED = "nobody is watching this turn to say yes to the merge"
 NO_BRANCH = "{name} worked in a copy of the project, not on a branch: {why}. "
-BRANCH_THEIRS = ("not taken: the project has its own file there, which git leaves out - the "
-                 "merge would write over it")
-BRANCH_SECRET = ("{files} on the branch holds a secret given this turn: not merged - take it off "
-                 "the branch first, or Discard, which deletes the branch")
-BRANCH_SECRET_GONE = ("{name}'s changes were not merged, and its branch {branch} was deleted"
-                      "{earlier}: it held a secret given this turn, which no branch keeps. Do not "
-                      "go on as if they were in the project.")
+BRANCH_THEIRS = (
+    "not taken: the project has its own file there, which git leaves out - the "
+    "merge would write over it"
+)
+BRANCH_SECRET = (
+    "{files} on the branch holds a secret given this turn: not merged - take it off "
+    "the branch first, or Discard, which deletes the branch"
+)
+BRANCH_SECRET_GONE = (
+    "{name}'s changes were not merged, and its branch {branch} was deleted"
+    "{earlier}: it held a secret given this turn, which no branch keeps. Do not "
+    "go on as if they were in the project."
+)
 EARLIER_TURNS_TOO = ", with the work of its earlier turns on it"
-BRANCH_SPECIAL = ("{files}: the branch changes how git reads the project (.gitignore, "
-                  ".gitattributes, .gitmodules), or holds a link or a submodule - look before "
-                  "you merge; links come in as plain files")
+BRANCH_SPECIAL = (
+    "{files}: the branch changes how git reads the project (.gitignore, "
+    ".gitattributes, .gitmodules), or holds a link or a submodule - look before "
+    "you merge; links come in as plain files"
+)
 # W-1: a branch that began from the user's folder as it was (`git.agents_share`): its agents changed
 # what the user had not committed then - the merge, or a pull request, waits for their commit.
-BRANCH_ON_YOURS = ("the agent changed {files} where you had changes not committed when it began: "
-                   "commit yours, then Merge - nothing is merged or sent over them")
+BRANCH_ON_YOURS = (
+    "the agent changed {files} where you had changes not committed when it began: "
+    "commit yours, then Merge - nothing is merged or sent over them"
+)
 # ... and where its work changes what the user had not committed when it began - committed since:
 # never merged unasked (an agent that took the snapshot off its branch would take that back).
-BRANCH_OVER_YOURS = ("{files}: the agent changed what you had not committed when it began - look "
-                     "at what Merge brings into them before you merge")
+BRANCH_OVER_YOURS = (
+    "{files}: the agent changed what you had not committed when it began - look "
+    "at what Merge brings into them before you merge"
+)
 # (A).3: what stands in a branch's way is another agent's Take in, in the folder, not committed.
-TAKEN_IN_FIRST = ("{files}: {name}'s Take in is in your folder, not committed - {how} first, "
-                  "then Merge")
+TAKEN_IN_FIRST = (
+    "{files}: {name}'s Take in is in your folder, not committed - {how} first, then Merge"
+)
 # How many of a project's latest Take in cards are looked at for that (`_taken_in`).
 # shortcut: an older one is not named, only its files under "in the way"; look further if missed.
 MOST_TAKEN_IN = 20
 # W-1: what of the user's a branch's snapshot left out (`git._snapshot`): said quietly on its card.
-NOT_IN_BRANCH = ("Not in its branch: {count} of your files ({files}) - a secret by its name, or "
-                 "through a link")
+NOT_IN_BRANCH = (
+    "Not in its branch: {count} of your files ({files}) - a secret by its name, or through a link"
+)
 NAMED_LEFT = 3
 # W-1, the user's answer (3): a branch that began from their last commit, and why.
-FROM_HEAD = ("{branch} started from your last commit, not your folder as it was: {why}. Your "
-             "uncommitted changes were not in it.")
+FROM_HEAD = (
+    "{branch} started from your last commit, not your folder as it was: {why}. Your "
+    "uncommitted changes were not in it."
+)
 # D2: an agent puts what clashed together in the branch's worktree (`_resolve`); the branch kept
 # after its merge (`_keep_branch`); a pull request in place of the merge (`_pull_request`).
 RESOLVE_WORDS = (
@@ -928,34 +1030,47 @@ RESOLVE_WORDS = (
     "changed there since you started. These files changed on both sides and now hold git's "
     "conflict marks (<<<<<<<, =======, >>>>>>>): {files}. Put each together - keep what both "
     "sides meant - and take every mark out. KOLONİ commits them when you are done: do not run "
-    "git. Say in a sentence what you did.")
+    "git. Say in a sentence what you did."
+)
 RESOLVE_FAILED = "{name} could not put the conflicts together ({why}): nothing of it was kept"
 BRANCH_KEPT_TOLD = "The branch {branch} is kept, as you asked"
-BRANCH_NOT_KEPT = ("The branch {branch} was not kept: one of its agents' commits holds a secret "
-                   "given in this turn")
-PR_BODY = ("{task}\n\nMade by KOLONİ's agents ({name}) on the branch `{branch}`, pushed as one "
-           "commit.\n\n### Changed files\n{files}\n\n### Check\n{check}\n\n"
-           "### {name}'s notes\n{notes}\n")
+BRANCH_NOT_KEPT = (
+    "The branch {branch} was not kept: one of its agents' commits holds a secret given in this turn"
+)
+PR_BODY = (
+    "{task}\n\nMade by KOLONİ's agents ({name}) on the branch `{branch}`, pushed as one "
+    "commit.\n\n### Changed files\n{files}\n\n### Check\n{check}\n\n"
+    "### {name}'s notes\n{notes}\n"
+)
 PR_NOTES = 4000
-PR_CONFIG = (".git/config changed during this turn - a push runs what it names (an address, a "
-             "credential helper, an ssh command): look at it, then Open pull request")
+PR_CONFIG = (
+    ".git/config changed during this turn - a push runs what it names (an address, a "
+    "credential helper, an ssh command): look at it, then Open pull request"
+)
 PR_NAMED_SECRET = "{files}: named as a secret - it goes to GitHub only on your click"
 # ... and where the user holds commits origin does not, or a stash: what an agent copied of them
 # into a commit of its own (a squash, a pick, an amend) its history does not show - always asked.
-PR_UNPUSHED = ("you have {commits} not on GitHub yet: before a pull request, check its files are "
-               "the agent's work")
+PR_UNPUSHED = (
+    "you have {commits} not on GitHub yet: before a pull request, check its files are "
+    "the agent's work"
+)
 # ... said with its commits where another worktree of the user's holds one (`git.unpushed_places`):
 # by its folder, and one deleted by hand is still git's until it is pruned.
 PR_HELD_IN = "in your worktree {folder}"
-PR_HELD_GONE = ("in your worktree {folder}, a folder that is gone: `git worktree prune` lets git "
-                "drop it")
+PR_HELD_GONE = (
+    "in your worktree {folder}, a folder that is gone: `git worktree prune` lets git drop it"
+)
 # ... and where the branch began from the user's folder with work not committed (W-1's snapshot): an
 # agent's copy of a file of it, under another name, is its own work to git.
-PR_SNAPSHOT = ("it began from your folder with work not committed: before a pull request, check "
-               "its files are the agent's work")
-PR_OPENED = ("{name}'s changes on branch {branch} were pushed to origin and a pull request was "
-             "opened: {url}. Nothing is merged into the project here: do not go on as if they "
-             "were in it.")
+PR_SNAPSHOT = (
+    "it began from your folder with work not committed: before a pull request, check "
+    "its files are the agent's work"
+)
+PR_OPENED = (
+    "{name}'s changes on branch {branch} were pushed to origin and a pull request was "
+    "opened: {url}. Nothing is merged into the project here: do not go on as if they "
+    "were in it."
+)
 # A commit message is proposed as one line of at most this many characters.
 COMMIT_LINE = 72
 UNFINISHED_UNWATCHED = "the agent did not finish its work, and nobody is watching this turn"
@@ -965,6 +1080,7 @@ UNFINISHED_UNWATCHED = "the agent did not finish its work, and nobody is watchin
 class _LeadTurn:
     """What the parts of `execute` share. `cid` and `idle` are read by its `except` and
     `finally` as far as the turn got; the rest is set before its lead is opened."""
+
     cid: str | None = None
     # Set once the turn has let go of everything: its lead's summary after it starts then.
     idle: asyncio.Event | None = None
@@ -1006,6 +1122,37 @@ def _summary_after(t: _LeadTurn, status: str, refused: bool) -> bool | None:
     return True if status == "failed" and refused and _sends_again(t) else None
 
 
+def _check_lets(check: dict | None) -> bool:
+    """Whether Take in's check lets the work go in as one with no test of its own would: none,
+    nothing it could run (only what is said of it), a pass, or nothing ran (pytest's exit 5)."""
+    return (
+        check is None
+        or not check.get("command")
+        or check["state"] == "passed"
+        or bool(check.get("ran_none"))
+    )
+
+
+def _paths_added(one: "proof_related.Own") -> bool:
+    """Whether narrowing only added plain file paths to the part's command (pytest's): the
+    user's leave for that command is a leave for this line (round 2, B3)."""
+    part, words = one.part.command.split(), one.run.command.split()
+    extra = words[len(part) :]
+    return words[: len(part)] == part and all(
+        proof_related.SAFE.fullmatch(word) and not word.startswith("-") for word in extra
+    )
+
+
+def _nothing_ran(command: str, code: int | None, output: str) -> bool:
+    """Whether a run of a sub-agent's own tests ran none: pytest's exit 5 (none collected),
+    vitest's and jest's "No test files found" where --passWithNoTests made it exit 0.
+    shortcut: vitest's words measured; jest's taken as said in its docs - measure it if met."""
+    pytest = proof_related._runner(command.split(), "pytest", "py.test") is not None
+    return (pytest and code == 5) or (
+        code == 0 and "--passWithNoTests" in command and "No test files found" in output
+    )
+
+
 def _project_key(project: Path | str) -> str:
     """A project's folder as one key, however it was spelt: a copy's `project` is resolved, a
     turn's folder may not be (macOS's /var is /private/var)."""
@@ -1022,16 +1169,46 @@ def _held_to_run(role: Role | None, step: str, tools) -> bool:
     """R3: whether a recipe's check passes only on a command it ran - one whose job is running
     checks: the built-in Tester, or any role at a test step (`TEST_STEPS`), that may run commands.
     A Data analyst or a Performance engineer reading a change is not (review of S4)."""
-    return "run_command" in tools and (step in TEST_STEPS or (
-        role is not None and role.builtin and role.name == "Tester"))
+    return "run_command" in tools and (
+        step in TEST_STEPS or (role is not None and role.builtin and role.name == "Tester")
+    )
 
 
-class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin, OutsideMixin,
-                  TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
-                  LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
-                  SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
-                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin,
-                  KindsMixin, BeforeMixin, CoverageMixin, StrongerMixin, TryMixin):
+class AgentRunner(
+    RoomsMixin,
+    SpawnMixin,
+    LoopMixin,
+    ContextMixin,
+    ObserveMixin,
+    OutsideMixin,
+    TalkMixin,
+    ApprovalsMixin,
+    NativeMixin,
+    AttachmentsMixin,
+    DiscussionsMixin,
+    LimitsMixin,
+    MemoryMixin,
+    SlotsMixin,
+    RecordMixin,
+    TiersMixin,
+    QuestionsMixin,
+    SkillsMixin,
+    AwayMixin,
+    ClaimsMixin,
+    BrowserMixin,
+    PoMixin,
+    JudgeMixin,
+    ProofMixin,
+    FoundMixin,
+    ProofLaterMixin,
+    ReviewMixin,
+    TestAskMixin,
+    KindsMixin,
+    BeforeMixin,
+    CoverageMixin,
+    StrongerMixin,
+    TryMixin,
+):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -1045,8 +1222,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self.settings = settings
         project_view.RUNTIME = settings.runtime_root  # (not walked for standing files)
         # (K-yazma-denetimi: old copies go - off the way of the start.)
-        threading.Thread(target=_prune_taken_back, args=(settings.runtime_root,),
-                         daemon=True).start()
+        threading.Thread(
+            target=_prune_taken_back, args=(settings.runtime_root,), daemon=True
+        ).start()
         self._factory = session_factory
         with session_factory() as session:
             prune_commit_sides(settings.runtime_root, session)
@@ -1252,6 +1430,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # its first step - its task does not change, and its brief stays the same for the cache
         self._about: dict[str, str] = {}
         self._watches: dict[str, list[_Watch]] = {}
+        # ...and those taken out of it, still at their last look (`_native_work_last_look`).
+        self._last_looks: list[_Watch] = []
         # K-yazma-denetimi: project folder -> path -> the open card "keep it?" of a standing file
         # taken back there, with what the agent wrote (`_taken_back`); while one is open no
         # approval there is answered (`_approve`).
@@ -1370,10 +1550,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # R186: run -> (agent, question, options) -> the answer, and the Lead's why (None: the
         # user's own, by Change).
         self._lead_said: dict[
-            str, dict[tuple[str, str, tuple[str, ...]], tuple[str, str | None]]] = {}
+            str, dict[tuple[str, str, tuple[str, ...]], tuple[str, str | None]]
+        ] = {}
         # B-394: run -> (agent, question, options) -> how often it was asked, and its answer.
-        self._asked_again: dict[
-            str, dict[tuple[str, str, tuple[str, ...]], tuple[int, str]]] = {}
+        self._asked_again: dict[str, dict[tuple[str, str, tuple[str, ...]], tuple[int, str]]] = {}
         # K-yargic: run -> (command, its folder, a digest of the user's words) -> what the check
         # of the user's words said of it (None: it failed), asked once a turn (`_judged`).
         self._judge_cache: dict[str, dict[tuple[str, str | None, str], dict | None]] = {}
@@ -1440,6 +1620,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # and, once its Lead took it up, the run whose agents all work in that copy.
         self._resume_in: dict[str, str] = {}
         self._resumed: dict[str, str] = {}
+        # (k-bakis-yeri: and the run whose work it holds - its checks are the turn's too)
+        self._resumed_from: dict[str, str] = {}
+        # (k-bakis-yeri: one snapshot - run - put back at a time in a copy, by root: `_copy_lock`)
+        self._copy_locks: dict[str, asyncio.Lock] = {}
         # S9: where the coverage flags failed a whole suite - (project, folder, command) -> its
         # coverage settings then (`coverage.config_mark`): not tried again till they change, or
         # KOLONİ starts again (it was run twice each turn).
@@ -1570,17 +1754,28 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._room_asked: set[str] = set()
         self._closing = False
         # (Docker's empty file and folder in this app's runtime: `executor_for`.)
-        self.commands = CommandRunner(session_factory, bus, executors or (
-            lambda location, project: executor_for(location, project, settings.runtime_root)
-        ), self._update_run)
+        self.commands = CommandRunner(
+            session_factory,
+            bus,
+            executors
+            or (lambda location, project: executor_for(location, project, settings.runtime_root)),
+            self._update_run,
+        )
         # B-357: a yes in a turn taken on a message waited for that turn's own lock - "approved",
         # never run, its sender waiting for good.
         self.commands.users_word = lambda agent_id, asked, heard: self._users_word(
-            replace(self._ctxs[agent_id], in_turn=self._ctxs[agent_id].in_turn
-                    or agent_id in self._in_reply), asked, heard)
+            replace(
+                self._ctxs[agent_id],
+                in_turn=self._ctxs[agent_id].in_turn or agent_id in self._in_reply,
+            ),
+            asked,
+            heard,
+        )
         self.commands.closed_ports = self._closed_ports
-        self.commands.secrets = lambda run_id: {**self._secrets_given.get(run_id, {}),
-                                                **self._planted(run_id)}
+        self.commands.secrets = lambda run_id: {
+            **self._secrets_given.get(run_id, {}),
+            **self._planted(run_id),
+        }
 
     # --- lifecycle -----------------------------------------------------------
 
@@ -1614,14 +1809,22 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._closing = True
         if self._look_again is not None:
             self._look_again.cancel()
-        tasks = [*self._tasks.values(), *self._idle.values(), *self._noting, *self._telling,
-                 *(one[3] for every in self._later_work.values() for one in every)]
+        tasks = [
+            *self._tasks.values(),
+            *self._idle.values(),
+            *self._noting,
+            *self._telling,
+            *(one[3] for every in self._later_work.values() for one in every),
+        ]
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         await self.commands.shutdown()
-        await asyncio.gather(*(one.close() for one in self._browsers.values()),
-                             *self._browser_closing, return_exceptions=True)
+        await asyncio.gather(
+            *(one.close() for one in self._browsers.values()),
+            *self._browser_closing,
+            return_exceptions=True,
+        )
         self._browsers.clear()
 
     def _closed_ports(self) -> set[int]:
@@ -1630,8 +1833,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         https site to the browser)."""
         with self._factory() as session:
             urls = [self.settings.model_base_url, *session.scalars(select(Provider.base_url))]
-        return {self.settings.port} | {port for url in urls
-                                        if is_local(url) and (port := port_of(url))}
+        return {self.settings.port} | {
+            port for url in urls if is_local(url) and (port := port_of(url))
+        }
 
     def pending_roles(self, conversation_id: str) -> list[dict]:
         """Roles agents of this conversation asked to create and nobody decided yet."""
@@ -1639,8 +1843,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
     def pending_skills(self, conversation_id: str) -> list[dict]:
         """Skills agents of this conversation asked to add and nobody decided yet."""
-        return [skill for cid, skill, _ in self._skill_requests.values()
-                if cid == conversation_id]
+        return [skill for cid, skill, _ in self._skill_requests.values() if cid == conversation_id]
 
     def live_messages(self, conversation_id: str) -> dict[str, str]:
         return {mid: text for mid, (cid, text) in self._live.items() if cid == conversation_id}
@@ -1653,13 +1856,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """89j: what its CLI says of its context or plan (or of its model's queue, Qoder's:
         `queued`), kept as the latest, and sent once LIVE_SECONDS after the first of it:
         whatever more comes meanwhile goes in that one."""
-        _cid, shown = self._cli_live.setdefault(ctx.agent_id, (ctx.cid, {
-            "agent_id": ctx.agent_id, "context": None, "plan": None, "queue": None}))
+        _cid, shown = self._cli_live.setdefault(
+            ctx.agent_id,
+            (ctx.cid, {"agent_id": ctx.agent_id, "context": None, "plan": None, "queue": None}),
+        )
         shown.update({key: item[key] for key in ("context", "plan", "queue") if key in item})
         self._slow_queued(ctx, item.get("queue"))
         if ctx.agent_id not in self._live_due:
             self._live_due[ctx.agent_id] = asyncio.get_running_loop().call_later(
-                LIVE_SECONDS, self._send_live, ctx.agent_id)
+                LIVE_SECONDS, self._send_live, ctx.agent_id
+            )
 
     def _send_live(self, agent_id: str) -> None:
         self._live_due.pop(agent_id, None)
@@ -1671,12 +1877,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """Its CLI has ended: what it said live is shown no longer."""
         # shortcut: on no record - a finished agent's last fill and plan are gone; keep them
         # on its record if they are missed afterwards.
-        due =self._live_due.pop(ctx.agent_id, None)
+        due = self._live_due.pop(ctx.agent_id, None)
         if due is not None:
             due.cancel()
         if self._cli_live.pop(ctx.agent_id, None) is not None:
-            self.bus.emit_transient(ctx.cid, "agent.live", {
-                "agent_id": ctx.agent_id, "context": None, "plan": None, "queue": None})
+            self.bus.emit_transient(
+                ctx.cid,
+                "agent.live",
+                {"agent_id": ctx.agent_id, "context": None, "plan": None, "queue": None},
+            )
 
     # --- one run -------------------------------------------------------------
 
@@ -1684,10 +1893,21 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         t = _LeadTurn()
         try:
             ctx, cid = self._lead_turn(run_id, t)
-            seen = await asyncio.to_thread(git.where, Path(t.root)) if (
-                t.on_branch and t.root and not (
-                    t.planning or t.run_compare or t.job or t.unattended
-                    or only_in_project(t.model, t.lead_tools))) else None
+            seen = (
+                await asyncio.to_thread(git.where, Path(t.root))
+                if (
+                    t.on_branch
+                    and t.root
+                    and not (
+                        t.planning
+                        or t.run_compare
+                        or t.job
+                        or t.unattended
+                        or only_in_project(t.model, t.lead_tools)
+                    )
+                )
+                else None
+            )
             if seen and seen["branch"] and seen["head"]:
                 # Its whole turn - the Lead too - on a branch of its own, merged at its end. (Not
                 # where git cannot hold one: the task works in the project, as today.)
@@ -1704,8 +1924,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 # reads any file.
                 ctx = self._ctxs[ctx.agent_id] = replace(ctx, mcp=())
                 self._set_agent(cid, ctx.agent_id, mcp=[])
-            if t.planning and getattr(t.model, "native", False) and not (
-                    getattr(t.model, "asks", False) or getattr(t.model, "reads", False)):
+            if (
+                t.planning
+                and getattr(t.model, "native", False)
+                and not (getattr(t.model, "asks", False) or getattr(t.model, "reads", False))
+            ):
                 status, error = "failed", NO_PLAN_ON.format(provider=t.provider.name)
             else:
                 status, error = await self._attempt(ctx, again=_sends_again(t))
@@ -1747,15 +1970,19 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # K-buyuk-proje: the part the user set the chat to - taken off where its folder
             # is gone since, or is a link now (a command given no cwd would fail there), and
             # the Lead told (below), the picker shown the whole project.
-            part = conversation.part if t.root and conversation.part and project_map.inside(
-                t.root, conversation.part) else None
+            part = (
+                conversation.part
+                if t.root and conversation.part and project_map.inside(t.root, conversation.part)
+                else None
+            )
             part_gone, gone_out = (conversation.part if not part else None), None
             if part_gone:
                 # (Only while it is still that part: a choice the user made meanwhile stays.)
                 session.execute(
                     update(Conversation)
                     .where(Conversation.id == conversation.id, Conversation.part == part_gone)
-                    .values(part=None))
+                    .values(part=None)
+                )
                 session.commit()
                 session.refresh(conversation)
                 gone_out = conversation_out(conversation)
@@ -1766,16 +1993,29 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 raw.read_again()
             t.run_compare = run.compare_id
             lead, t.lead_tools, instructions, t.planning = self._lead_tools(
-                session, run, project, part_gone)
+                session, run, project, part_gone
+            )
             # (Only while its night runs: a turn of its chat in the morning is the user's.)
             t.job = not t.run_compare and away.night_job(session, cid) is not None
-            t.backlog_turn = not t.run_compare and not t.job and session.scalar(select(
-                BacklogTask.id).where(BacklogTask.conversation_id == cid,
-                                      BacklogTask.status == "doing").limit(1)) is not None
+            t.backlog_turn = (
+                not t.run_compare
+                and not t.job
+                and session.scalar(
+                    select(BacklogTask.id)
+                    .where(BacklogTask.conversation_id == cid, BacklogTask.status == "doing")
+                    .limit(1)
+                )
+                is not None
+            )
             # As the table of who uses what says it for the Lead: its tier too. (A backlog
             # task's as nobody watches: a CLI with its own tools is passed over.)
-            would = would_run(session, lead, conversation,
-                              unattended=run.unattended or t.backlog_turn, tools=t.lead_tools)
+            would = would_run(
+                session,
+                lead,
+                conversation,
+                unattended=run.unattended or t.backlog_turn,
+                tools=t.lead_tools,
+            )
             t.provider, wanted = would.provider, would.model_id
             # Why its tier's model is not the first (81c): said on its row from the start.
             # shortcut: the Lead's own move onto a provider paid per token is not asked
@@ -1783,8 +2023,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             moved = would.moved if would.source == "tier" else None
             if run.compare_id:
                 # A side runs on the model the user chose for it, whatever else is set.
-                side = next(one for one in session.get_one(Compare, run.compare_id).sides
-                            if one["run_id"] == run_id)
+                side = next(
+                    one
+                    for one in session.get_one(Compare, run.compare_id).sides
+                    if one["run_id"] == run_id
+                )
                 t.provider = session.get_one(Provider, side["provider_id"])
                 wanted, moved = side["model_id"], None
             # A plan is written by the team's strongest model where there is one (one a
@@ -1794,16 +2037,22 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 t.provider = session.get_one(Provider, t.strongest[0].provider_id)
                 wanted, moved = t.strongest[1], stepped
             t.model = self.providers.client(t.provider, wanted)
-            if (t.planning and getattr(t.model, "native", False)
-                    and (not getattr(t.model, "asks", False)
-                         or getattr(t.model, "looks_by_running", False))):
+            if (
+                t.planning
+                and getattr(t.model, "native", False)
+                and (
+                    not getattr(t.model, "asks", False)
+                    or getattr(t.model, "looks_by_running", False)
+                )
+            ):
                 # A CLI that cannot ask before its own tools act plans as it speaks in a
                 # discussion: with them off. (One that asks keeps them, and is told no -
                 # but not one that can only look by running commands: Codex.)
                 talker = getattr(t.model, "talker", None)
                 t.model = talker() if talker else t.model
             self._slots[run_id] = asyncio.Semaphore(
-                settings_of(session, conversation).spawn_max_parallel)
+                settings_of(session, conversation).spawn_max_parallel
+            )
             if run.unattended:
                 self._watch_the_budget(session, run)
             # The lead of a topic's later turn goes on from the lead before it.
@@ -1811,14 +2060,31 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             lead_effort = conversation.lead_effort
             t.unattended = run.unattended
             # K-dal-takim: a backlog task started while another works (`backlog.chain`).
-            t.on_branch = session.execute(select(BacklogTask.title, BacklogTask.id).where(
-                BacklogTask.conversation_id == cid,
-                BacklogTask.flow["branch"].as_boolean().is_(True)).limit(1)).first()
+            t.on_branch = session.execute(
+                select(BacklogTask.title, BacklogTask.id)
+                .where(
+                    BacklogTask.conversation_id == cid,
+                    BacklogTask.flow["branch"].as_boolean().is_(True),
+                )
+                .limit(1)
+            ).first()
         ctx = self._open_agent(
-            run_id, cid, t.root, None, LEAD, t.lead_tools, None, 0, instructions=instructions,
-            provider_name=t.provider.name, model=t.model, model_name=wanted,
-            provider_id=t.provider.id, continues=(before, LEAD) if before else None,
-            effort=lead_effort, chosen_why=moved,
+            run_id,
+            cid,
+            t.root,
+            None,
+            LEAD,
+            t.lead_tools,
+            None,
+            0,
+            instructions=instructions,
+            provider_name=t.provider.name,
+            model=t.model,
+            model_name=wanted,
+            provider_id=t.provider.id,
+            continues=(before, LEAD) if before else None,
+            effort=lead_effort,
+            chosen_why=moved,
         )
         if part:
             ctx = self._ctxs[ctx.agent_id] = replace(ctx, part=part)
@@ -1829,8 +2095,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._resume_held(ctx)  # (S11: Fix it - the kept work's copy is this turn's)
         return ctx, cid
 
-    def _lead_tools(self, session: Session, run: Run, project: Project | None,
-                    part_gone: str | None) -> tuple[Role | None, list[str], str, bool]:
+    def _lead_tools(
+        self, session: Session, run: Run, project: Project | None, part_gone: str | None
+    ) -> tuple[Role | None, list[str], str, bool]:
         """The lead's role, its tools and instructions in this turn, and whether it plans."""
         lead = session.scalar(select(Role).where(Role.name == LEAD))
         lead_tools = list(lead.tools if lead else ALL_TOOLS)
@@ -1846,8 +2113,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         planning = run.plan_turn and not run.unattended
         if planning:
             # (As `_lead_work` reads it for the work turn: a Lead that may open sub-agents.)
-            delegates = project is not None and "spawn_agent" in lead_tools and lead_work_of(
-                session, session.get_one(Conversation, run.conversation_id)) == "delegates"
+            delegates = (
+                project is not None
+                and "spawn_agent" in lead_tools
+                and lead_work_of(session, session.get_one(Conversation, run.conversation_id))
+                == "delegates"
+            )
             lead_tools = [tool for tool in lead_tools if tool in PLAN_TOOLS]
             plan = f"{PLAN_TURN} {PLAN_DELEGATES}" if delegates else PLAN_TURN
             instructions = f"{instructions}\n\n{plan}".strip()
@@ -1866,8 +2137,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if still:
             self._set_aside(ctx.agent_id, found=found)
 
-    async def _lead_taken(self, run_id: str, cid: str, t: _LeadTurn, ctx: Ctx, status: str,
-                          error: str | None) -> tuple[str, str | None]:
+    async def _lead_taken(
+        self, run_id: str, cid: str, t: _LeadTurn, ctx: Ctx, status: str, error: str | None
+    ) -> tuple[str, str | None]:
         """`execute` once its lead is done: what it said and planned kept, its branch's work
         taken in. The status and error as they stand after."""
         self._answered.add(run_id)
@@ -1904,13 +2176,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 error = f"{error or ''} {said}".strip()
         self._end_runs(ctx, status)  # (slice 84b-2: a recipe it left at work)
         if t.job:  # (however it ended: nothing of a job goes into the project unasked)
-            self._set_aside(ctx.agent_id, NOT_TAKEN_KEPT.format(why=held) if (
-                held := self._held_back.get(run_id)) else KEPT_AWAY,
-                await self._look_aside(ctx.agent_id))
+            self._set_aside(
+                ctx.agent_id,
+                NOT_TAKEN_KEPT.format(why=held)
+                if (held := self._held_back.get(run_id))
+                else KEPT_AWAY,
+                await self._look_aside(ctx.agent_id),
+            )
         return status, error
 
-    async def _lead_after(self, run_id: str, cid: str, t: _LeadTurn, ctx: Ctx, status: str,
-                          error: str | None) -> None:
+    async def _lead_after(
+        self, run_id: str, cid: str, t: _LeadTurn, ctx: Ctx, status: str, error: str | None
+    ) -> None:
         """The end of `execute`'s turn: put on record, then what is done after it."""
         # K-bilgi 6: what the turn fixed and wrote in docs/, offered for the Project notes.
         # (Not a job's: its work waits aside for the morning, not in the project.)
@@ -1924,8 +2201,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # Before the turn is on record as over: nothing of it holds a file after.
         await self._keep_given_back(run_id)
         self._release_run(run_id)
-        if (full := _summary_after(
-                t, status, ctx.agent_id in self._refused_size)) is not None:
+        if (full := _summary_after(t, status, ctx.agent_id in self._refused_size)) is not None:
             # Before the next turn can start, which waits for it (`_after_idle`). (The lead
             # as it ran: a model chosen by how hard the message was is its own.)
             try:
@@ -1954,7 +2230,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # choice: `note_chosen`.)
             if not t.run_compare:
                 await self._note_what_it_found(ctx)
-            # The Assistant PO, once the turn has let go of everything (`_po_later`): not of a
+            # The Scout, once the turn has let go of everything (`_po_later`): not of a
             # task's own turn; a night's job's and a trigger's wait for the user, undecided.
             if not (t.run_compare or t.backlog_turn):
                 t.po = self._po_turn(ctx, decides=not (t.unattended or t.job))
@@ -2095,6 +2371,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._held_back.pop(run_id, None)
         self._resume_in.pop(run_id, None)
         self._resumed.pop(run_id, None)
+        self._resumed_from.pop(run_id, None)
         self._disputed.pop(run_id, None)
         # (After its copy is gone: until then its members' changes are that copy's.)
         room = self._rooms.pop(run_id, None)
@@ -2178,6 +2455,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         of its line once there is one (`_works_in`), the project until then - and, answering a
         message (B-102), the copy its line's work was kept in, set aside: what its team did is
         there."""
+        opener = self._ctxs.get(ctx.parent_id or "")
+        if ctx.agent_id in self._read_only_agents and opener is not None:
+            # (P: KOLONİ's look reads and runs where the work it looks at is - its opener's place,
+            # where the end gate's tests ran: a recipe's copy, not the project)
+            return self._ws(opener)
         copy = self._copies.get(self._works_in(ctx) or "")
         if copy is not None:
             return copy.workspace()
@@ -2185,10 +2467,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # shortcut: any kept copy of its line's owner - once a merge says its room (batch-15's
             # `merges.room_id`), leave a room's out here.
             with self._factory() as session:
-                kept = session.scalar(select(Merge.kept_in).where(
-                    Merge.run_id == ctx.run_id, Merge.status == "interrupted",
-                    Merge.agent_id == (self._copy_owner(ctx) or ctx.agent_id),
-                    Merge.kept_in.is_not(None)).order_by(Merge.created_at.desc()).limit(1))
+                kept = session.scalar(
+                    select(Merge.kept_in)
+                    .where(
+                        Merge.run_id == ctx.run_id,
+                        Merge.status == "interrupted",
+                        Merge.agent_id == (self._copy_owner(ctx) or ctx.agent_id),
+                        Merge.kept_in.is_not(None),
+                    )
+                    .order_by(Merge.created_at.desc())
+                    .limit(1)
+                )
             if kept and Path(kept).is_dir():
                 return Workspace(kept)
         return Workspace(ctx.folder)
@@ -2209,7 +2498,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return above.part if above is not None and above.depth else None
 
     def _make_copy(
-        self, ctx: Ctx, owner: str, name: str, linked: bool, part: str | None,
+        self,
+        ctx: Ctx,
+        owner: str,
+        name: str,
+        linked: bool,
+        part: str | None,
         left: dict | None = None,
     ) -> Callable[[], copies.Copy]:
         """What makes an owner's working copy, in a thread: on a git branch of its own where its
@@ -2223,8 +2517,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if short:
                 try:
                     made = copies.make_branch(
-                        Path(ctx.folder), self.settings.runtime_root, name, short, linked,
-                        start, tip, (left or {}).get("snapshot"))
+                        Path(ctx.folder),
+                        self.settings.runtime_root,
+                        name,
+                        short,
+                        linked,
+                        start,
+                        tip,
+                        (left or {}).get("snapshot"),
+                    )
                     if left:
                         made.from_head = left.get("from_head")
                         made.not_taken = tuple(left.get("not_taken") or ())
@@ -2256,8 +2557,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return BRANCH_NOT_IN_RECIPE
         seen = self._git_at.get(ctx.run_id)
         if seen is None:
-            return ("the project is not the top folder of a git repository: leave on_branch out, "
-                    "and the agent works in a copy")
+            return (
+                "the project is not the top folder of a git repository: leave on_branch out, "
+                "and the agent works in a copy"
+            )
         if not seen["branch"]:
             return "HEAD is detached (on no branch): leave on_branch out, or ask the user"
         return None if seen["head"] else "the project has no commit yet: leave on_branch out"
@@ -2282,29 +2585,44 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             branch = record.get("on_branch") or record.get("left_on")
             # (Its work went on in a copy then: any of its merges is that work's - taken in, the
             # old branch is not opened over it; turned down, nor is it.)
-            mine = [] if not record.get("on_branch") else [
-                Merge.branch["name"].as_string() == branch]
-            ways = set(session.scalars(select(Merge.status).where(
-                Merge.agent_id == earlier, *mine))) if branch else set()
+            mine = (
+                [] if not record.get("on_branch") else [Merge.branch["name"].as_string() == branch]
+            )
+            ways = (
+                set(session.scalars(select(Merge.status).where(Merge.agent_id == earlier, *mine)))
+                if branch
+                else set()
+            )
             # (Where it is told it is not on it: after where it stopped - one opened from an
             # earlier turn has no message of its own yet, and `_nudge` would put it last.)
-            at = session.scalar(select(Message.id).where(
-                Message.agent_id == earlier, Message.role == "assistant").order_by(
-                Message.created_at.desc(), literal_column("messages.rowid").desc()).limit(1))
+            at = session.scalar(
+                select(Message.id)
+                .where(Message.agent_id == earlier, Message.role == "assistant")
+                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
+                .limit(1)
+            )
         if not branch or not record.get("start") or "rejected" in ways:
             return
         if "applied" in ways:
             why = self._no_branch[target.agent_id] = (
-                f"its branch {branch} was merged, or sent as a pull request, already" if mine
-                else f"its work went in from a copy since, not from its branch {branch}")
+                f"its branch {branch} was merged, or sent as a pull request, already"
+                if mine
+                else f"its work went in from a copy since, not from its branch {branch}"
+            )
             self._nudges.setdefault(target.agent_id, []).append(
-                (at, NOT_ON_BRANCH_AGAIN.format(why=why)))
+                (at, NOT_ON_BRANCH_AGAIN.format(why=why))
+            )
         else:
             self._on_branch[target.agent_id] = branch
             self._left_on[target.agent_id] = {
-                "branch": branch, "start": record["start"], "tip": record.get("tip"), "at": at,
-                "snapshot": record.get("snapshot"), "from_head": record.get("from_head"),
-                "not_taken": record.get("not_taken")}
+                "branch": branch,
+                "start": record["start"],
+                "tip": record.get("tip"),
+                "at": at,
+                "snapshot": record.get("snapshot"),
+                "from_head": record.get("from_head"),
+                "not_taken": record.get("not_taken"),
+            }
 
     def _drop_branch(self, copy: copies.Copy, force: bool = False) -> None:
         """K-dal-takim: a branch copy's folder is deleted - git's record of its worktree goes,
@@ -2312,20 +2630,29 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         shortcut: on the event loop, as the folder's delete is; a thread if that is felt."""
         if copy.branch:
             with contextlib.suppress(git.Refused):
-                git.drop_branch(copy.project, copy.root, copy.branch,
-                                self.settings.runtime_root / "no-hooks", force,
-                                keep=copy.branch in self._keep_branches)
+                git.drop_branch(
+                    copy.project,
+                    copy.root,
+                    copy.branch,
+                    self.settings.runtime_root / "no-hooks",
+                    force,
+                    keep=copy.branch in self._keep_branches,
+                )
             self._keep_branches.discard(copy.branch)
 
-    async def _copy_record(self, ctx: Ctx, owner: str, made: copies.Copy | None,
-                           left: dict | None) -> dict:
+    async def _copy_record(
+        self, ctx: Ctx, owner: str, made: copies.Copy | None, left: dict | None
+    ) -> dict:
         """What goes on its agent's record with a working copy just made (`_working_copy`)."""
         # Where its files are goes on record with it: what a kept copy's folder
         # happens to hold does not say how it is laid out (`_kept_as`).
         # So does its part, by that tree, None too: the folder says nothing of it
         # (`copies.load`), and a part copy's of before at that place is not this one's.
-        where = {"tree": str(made.root), "parts": {str(made.root): made.part}
-                 } if made is not None else {}
+        where = (
+            {"tree": str(made.root), "parts": {str(made.root): made.part}}
+            if made is not None
+            else {}
+        )
         # K-dallar: and the branch it was made on, for its Take in card.
         # shortcut: the branch as the turn began (`_git_start`); an agent's own switch
         # earlier in the turn is not seen. Read it here if that misleads.
@@ -2343,17 +2670,24 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # (git's config as its work begins, if no watch took it yet: a pull
             # request's push asks where it changed - `_merge_branch`.)
             if ctx.run_id not in self._git_at_start:
-                self._git_at_start[ctx.run_id] = _git_parts(await asyncio.to_thread(
-                    standing_files, str(made.project)), made.project)
+                self._git_at_start[ctx.run_id] = _git_parts(
+                    await asyncio.to_thread(standing_files, str(made.project)), made.project
+                )
         elif left:
             # Its branch not opened again, and still there: a later go-on tries it again
             # (not `on_branch`: the git map would name this copy's agent its team).
-            where.update(left_on=left["branch"], start=left["start"], tip=left["tip"],
-                         snapshot=left.get("snapshot"), from_head=left.get("from_head"),
-                         not_taken=left.get("not_taken"))
+            where.update(
+                left_on=left["branch"],
+                start=left["start"],
+                tip=left["tip"],
+                snapshot=left.get("snapshot"),
+                from_head=left.get("from_head"),
+                not_taken=left.get("not_taken"),
+            )
             if why := self._no_branch.get(owner):  # (told before its first step)
                 self._nudges.setdefault(owner, []).append(
-                    (left["at"], NOT_ON_BRANCH_AGAIN.format(why=why)))
+                    (left["at"], NOT_ON_BRANCH_AGAIN.format(why=why))
+                )
         return where
 
     async def _working_copy(self, ctx: Ctx, owner: str) -> copies.Copy | None:
@@ -2410,9 +2744,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         again = left is not None
         way = self._way_in(ctx.folder) if owner in self._on_branch else contextlib.nullcontext()
         async with way:
-            making = asyncio.ensure_future(asyncio.to_thread(self._make_copy(
-                ctx, owner, name, _links_in_copy(self._ctxs[owner].model), self._copy_part(owner),
-                left)))
+            making = asyncio.ensure_future(
+                asyncio.to_thread(
+                    self._make_copy(
+                        ctx,
+                        owner,
+                        name,
+                        _links_in_copy(self._ctxs[owner].model),
+                        self._copy_part(owner),
+                        left,
+                    )
+                )
+            )
             try:
                 return await asyncio.shield(making), "own"
             except asyncio.CancelledError:
@@ -2452,15 +2795,28 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         copy, kept_id = self._kept_live.pop(owner, (None, None))
         payload = None
         with self._factory() as session:
-            kept = list(session.scalars(select(Merge).where(
-                Merge.agent_id == owner, Merge.status == "interrupted",
-                Merge.kept_in.is_not(None))))
+            kept = list(
+                session.scalars(
+                    select(Merge).where(
+                        Merge.agent_id == owner,
+                        Merge.status == "interrupted",
+                        Merge.kept_in.is_not(None),
+                    )
+                )
+            )
             mine = session.get(Merge, kept_id) if kept_id else None
             if mine is not None and mine not in kept:
                 kept.append(mine)  # (decided by the user since)
-            if copy is not None and mine is not None and mine.status == "interrupted" and (
-                    mine.kept_in == str(copy.root) and mine.id not in self._deciding
-                    and not any(one["state"] == "applied" for one in mine.files)):
+            if (
+                copy is not None
+                and mine is not None
+                and mine.status == "interrupted"
+                and (
+                    mine.kept_in == str(copy.root)
+                    and mine.id not in self._deciding
+                    and not any(one["state"] == "applied" for one in mine.files)
+                )
+            ):
                 try:
                     copies.relink(copy)
                 except OSError:
@@ -2472,8 +2828,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     session.commit()
                     payload = merge_out(mine)
             # (What of them is in the project is as the agent last saw it.)
-            paths = sorted({one["path"] for m in kept for one in m.files
-                            if one["state"] != "applied"})
+            paths = sorted(
+                {one["path"] for m in kept for one in m.files if one["state"] != "applied"}
+            )
         if payload is not None and copy is not None:
             known = self._ctxs[owner]
             self.bus.emit(known.cid, known.run_id, "merge.updated", payload)
@@ -2499,11 +2856,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         name = "the room" if self._member_of(ctx) else self._name_of(owner)
         mine = owner == ctx.agent_id
         taken = (
-            IN_A_SIDE if ctx.run_id in self._sides
-            else IN_A_JOB if ctx.run_id in self._away_jobs
-            else IN_A_CANDIDATE + self._measure_as_is(ctx) if owner in self._candidates
-            else IN_A_RECIPE if owner == self._recipe_copy.get(ctx.run_id)
-            else NOT_TAKEN if self._nobody_to_ask(ctx, "write", "change files")
+            IN_A_SIDE
+            if ctx.run_id in self._sides
+            else IN_A_JOB
+            if ctx.run_id in self._away_jobs
+            else IN_A_CANDIDATE + self._measure_as_is(ctx)
+            if owner in self._candidates
+            else IN_A_RECIPE
+            if owner == self._recipe_copy.get(ctx.run_id)
+            else NOT_TAKEN
+            if self._nobody_to_ask(ctx, "write", "change files")
             else TAKEN_LATER.format(when="your" if mine else f"{name}'s")
         )
         # shortcut: by the model of the agent it was made for, as when it was made; put
@@ -2516,15 +2878,29 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 project = self._project(session, ctx.cid)
             if project is None or project.exec_location != "docker":
                 said_of_git = GIT_ON_BRANCH.format(branch=copy.branch)
-        return "\n\n" + IN_A_COPY.format(
-            whose="a copy of the project of your own" if mine else f"{name}'s copy of the project",
-            taken=taken, git=said_of_git, alongside=ALONGSIDE,
-            folders=LINKED_IN if linked else NOT_LINKED_IN,
-        ) + (MCP_IN_A_COPY.format(root=copy.root) if copy is not None and self._mcp(ctx) else "") \
-            + (self._told_left_out(ctx, copy, reads)
-               if copy is not None and (copy.git or copy.part) else "") \
-            + (KEPT_APART.format(files=_few(apart)) if mine and (
-                apart := self._kept_apart.pop(owner, None)) else "")
+        return (
+            "\n\n"
+            + IN_A_COPY.format(
+                whose="a copy of the project of your own"
+                if mine
+                else f"{name}'s copy of the project",
+                taken=taken,
+                git=said_of_git,
+                alongside=ALONGSIDE,
+                folders=LINKED_IN if linked else NOT_LINKED_IN,
+            )
+            + (MCP_IN_A_COPY.format(root=copy.root) if copy is not None and self._mcp(ctx) else "")
+            + (
+                self._told_left_out(ctx, copy, reads)
+                if copy is not None and (copy.git or copy.part)
+                else ""
+            )
+            + (
+                KEPT_APART.format(files=_few(apart))
+                if mine and (apart := self._kept_apart.pop(owner, None))
+                else ""
+            )
+        )
 
     def _told_left_out(self, ctx: Ctx, copy: copies.Copy, reads: bool | None) -> str:
         """K-kopya-git: what an agent is told of what its copy of what git tracks left out -
@@ -2532,11 +2908,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if reads is None:
             reads = any(tool in ctx.tools for tool in READ_TOOLS - self._off())
         names = ", ".join(copy.left[:MOST_LEFT]) + (
-            f" and {len(copy.left) - MOST_LEFT} more" if len(copy.left) > MOST_LEFT else "")
+            f" and {len(copy.left) - MOST_LEFT} more" if len(copy.left) > MOST_LEFT else ""
+        )
         reach = GIT_IGNORED_READ.format(project=copy.project) if reads else GIT_IGNORED_UNREACHED
         if copy.part:
-            return PART_OUT.format(part=copy.part, names=names or "none", reach=reach, ignored=(
-                ", nor are some files git ignores" if copy.git else ""))
+            return PART_OUT.format(
+                part=copy.part,
+                names=names or "none",
+                reach=reach,
+                ignored=(", nor are some files git ignores" if copy.git else ""),
+            )
         return GIT_IGNORED_OUT.format(names=names or "deeper in its folders", reach=reach)
 
     def _line_of(self, owner: str) -> list[str]:
@@ -2547,7 +2928,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 return _line_on_record(session, owner)
         # (The owner too, where the copy is a room's: the lead works in none itself.)
         return [
-            a for a, known in self._ctxs.items() if a == owner or self._copy_owner(known) == owner]
+            a for a, known in self._ctxs.items() if a == owner or self._copy_owner(known) == owner
+        ]
 
     def _drop_copy(self, owner: str, became: str = "discarded") -> None:
         """A working copy is done with - taken in, turned down, or its turn stopped.
@@ -2589,7 +2971,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             left = session.scalars(
                 select(FileChange).where(
                     FileChange.agent_id.in_(self._line_of(owner)),
-                    FileChange.status == "in_copy", *_made_in(copy),
+                    FileChange.status == "in_copy",
+                    *_made_in(copy),
                 )
             ).all()
             for change in left:
@@ -2608,7 +2991,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # A command of the copy's is still being killed (a second Stop did not wait
             # for it): a live process could put a link where the delete is about to go.
             later = asyncio.ensure_future(
-                self._remove_copy_later(copy, ending, became in ("rejected", "merged")))
+                self._remove_copy_later(copy, ending, became in ("rejected", "merged"))
+            )
             self._removing.add(later)
             later.add_done_callback(self._removing.discard)
         else:
@@ -2633,7 +3017,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._drop_branch(copy, force)
 
     def _keep_copy(
-        self, owner: str, why: str, fresh: dict[str, dict] | None = None,
+        self,
+        owner: str,
+        why: str,
+        fresh: dict[str, dict] | None = None,
         check: dict | None = None,
     ) -> None:
         """A working copy whose way into the project broke off where nothing more can be
@@ -2654,12 +3041,19 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if copy.secrets():  # (refused after the turn too: `copies.load`, `_merge_file`)
             with contextlib.suppress(OSError, ValueError):
                 copy.secret_held = tuple(
-                    path for path, *_ in copy.changes() if _secret_in(copy, path))
+                    path for path, *_ in copy.changes() if _secret_in(copy, path)
+                )
         with contextlib.suppress(OSError):
             copy.save()  # what it was made from as it is known here, not as its folder has it
         # The copy of a room its lead holds - not a recipe's, which a room in it works in.
-        room = next((r.id for r in self._rooms.values() if r.lead.agent_id == owner
-                     and not self._in_a_recipe(r.lead)), None)
+        room = next(
+            (
+                r.id
+                for r in self._rooms.values()
+                if r.lead.agent_id == owner and not self._in_a_recipe(r.lead)
+            ),
+            None,
+        )
         with contextlib.suppress(Exception), self._factory() as session:
             if self._recipe_copy.get(known.run_id) == owner:
                 # (B-120: a recipe's kept for a later Take in, as its Room step's room's.)
@@ -2670,9 +3064,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 # Shown at once as after a restart: to be taken or discarded. Where it
                 # cannot be looked at it stays as on record - only to discard.
                 with contextlib.suppress(Exception):
-                    _show_kept(merge, fresh if fresh is not None else _kept_files(
-                        copy, not self._watched(known.run_id), _last_changes(session, line)
-                    ))
+                    _show_kept(
+                        merge,
+                        fresh
+                        if fresh is not None
+                        else _kept_files(
+                            copy, not self._watched(known.run_id), _last_changes(session, line)
+                        ),
+                    )
                 if check is not None and merge.check is None:
                     merge.check = check
             session.commit()
@@ -2681,7 +3080,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._release(owner)
 
     def _set_aside(
-        self, owner: str, why: str = "one side of a comparison, waiting for your choice",
+        self,
+        owner: str,
+        why: str = "one side of a comparison, waiting for your choice",
         found: tuple[copies.Copy, list] | None = None,
     ) -> None:
         """A side of a comparison is over - or a turn whose recipe was not taken in: what it
@@ -2703,8 +3104,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if copy is None:
             return None
         # (Against its records as they are now: a `refresh` meanwhile is no change of its own.)
-        return copy, await to_its_end(asyncio.to_thread(
-            copy.changes, dict(copy.base), dict(copy.names)))
+        return copy, await to_its_end(
+            asyncio.to_thread(copy.changes, dict(copy.base), dict(copy.names))
+        )
 
     async def decide_kept(
         self, merge_id: str, decision: str, choices: dict[str, str] | None = None
@@ -2729,27 +3131,34 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         finally:
             self._deciding.discard(merge_id)
 
-    async def _kept_taken(self, ctx: Ctx, copy: copies.Copy, files: dict, times: dict,
-                          choices: dict[str, str], unattended: bool) -> None:
+    async def _kept_taken(
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        files: dict,
+        times: dict,
+        choices: dict[str, str],
+        unattended: bool,
+    ) -> None:
         """Apply on a kept copy's card (`_decide_kept`): what it showed is taken, all or none."""
         taken = None
-        async with self._way_in(copy.project):
+        async with self._way_in(copy.project), self._looks_held(copy.project):
             # What a merge comes to is kept in memory alone, and this may be another
             # process than the one that showed the card: made again, off the event loop.
             await asyncio.to_thread(_look_again, copy, files, times, choices)
             # All of the card or none of it: one file shown again, and nothing is taken.
             if not [one for one in files.values() if one.pop("again", False)]:
                 self._join(copy, files, choices)
-                taken = self._apply(ctx, copy, files, True, unattended=unattended,
-                                    choices=choices)
+                taken = self._apply(ctx, copy, files, True, unattended=unattended, choices=choices)
         if taken is not None:
             await self._seen_by_watchers(ctx, taken)
         for one in files.values():  # shown again: labelled as a kept copy's files are
             if one.get("shown"):
                 _no_diff_no_trust(one)
 
-    def _kept_closed(self, ctx: Ctx, merge_id: str, decision: str, files: dict,
-                     asked: list[str], left: bool) -> tuple[bool, list[tuple[str, dict]]]:
+    def _kept_closed(
+        self, ctx: Ctx, merge_id: str, decision: str, files: dict, asked: list[str], left: bool
+    ) -> tuple[bool, list[tuple[str, dict]]]:
         """A kept copy's card and its line's records after the user's decision (`_decide_kept`;
         `left`: the copy stays): whether its work was applied, and the events of both."""
         with self._factory() as session:
@@ -2766,12 +3175,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 merge.kept_in = None
                 closed = select(FileChange).where(
                     FileChange.agent_id.in_(_line_on_record(session, ctx.agent_id)),
-                    FileChange.status == "in_copy", *_made_in(None, self._copies.get(ctx.agent_id)),
+                    FileChange.status == "in_copy",
+                    *_made_in(None, self._copies.get(ctx.agent_id)),
                 )
-                if ctx.agent_id in self._copies or session.scalar(select(Merge.id).where(
-                    Merge.agent_id == ctx.agent_id, Merge.id != merge_id,
-                    Merge.status == "interrupted", Merge.kept_in.is_not(None),
-                )):
+                if ctx.agent_id in self._copies or session.scalar(
+                    select(Merge.id).where(
+                        Merge.agent_id == ctx.agent_id,
+                        Merge.id != merge_id,
+                        Merge.status == "interrupted",
+                        Merge.kept_in.is_not(None),
+                    )
+                ):
                     # shortcut: a record does not say which folder it was made in - while
                     # the agent has another copy, only the records of this card's paths
                     # are closed, so two copies that changed one path still close each
@@ -2806,8 +3220,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 Project, session.get_one(Conversation, run.conversation_id).project_id
             ).root_path
             ctx = Ctx(
-                run.id, run.conversation_id, root, agent.id, agent.role_name,
-                tuple(agent.tools), agent.depth, name=agent.name,
+                run.id,
+                run.conversation_id,
+                root,
+                agent.id,
+                agent.role_name,
+                tuple(agent.tools),
+                agent.depth,
+                name=agent.name,
             )
             unattended = run.unattended
             files = {one["path"]: dict(one) for one in merge.files}
@@ -2821,8 +3241,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if not asked:
                 return False  # nothing on the card can be applied: it is only to discard
             try:
-                copy = _as_branch(copies.kept(Path(root), runtime, name, tree, recorded, part),
-                                  on_branch)
+                copy = _as_branch(
+                    copies.kept(Path(root), runtime, name, tree, recorded, part), on_branch
+                )
             except (OSError, ValueError):
                 return False
             await self._kept_taken(ctx, copy, files, times, choices, unattended)
@@ -2832,7 +3253,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # the user's to say (Discard). A file of which the user kept the project's own
         # is done with: that was their word on it.
         left = decision == "approve" and any(
-            not _kept_the_projects(one) and one.get("note") != copies.IGNORED and (
+            not _kept_the_projects(one)
+            and one.get("note") != copies.IGNORED
+            and (
                 one["state"] in ("left_out", "refused")
                 or (path in asked and one["state"] != "applied")
             )
@@ -2858,8 +3281,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # Thrown away: the user's words for that work go on to no next turn (`carried`).
             # shortcut: not a row a later turn started again before the Discard; clear its
             # `carried` too if that is seen.
-            self._change_rows(ctx.cid, ctx.run_id, lambda _row, _team, _lead, state: (
-                state.pop("words", None) is not None) | (state.pop("carried", None) is not None))
+            self._change_rows(
+                ctx.cid,
+                ctx.run_id,
+                lambda _row, _team, _lead, state: (
+                    (state.pop("words", None) is not None)
+                    | (state.pop("carried", None) is not None)
+                ),
+            )
         return True
 
     def _kept_branch_gone(
@@ -2872,12 +3301,19 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if on_branch is None:
             return
         with contextlib.suppress(git.Refused):
-            git.drop_branch(project, held / copies.TREE, on_branch["branch"],
-                            self.settings.runtime_root / "no-hooks",
-                            force=decision == "reject" or not on_branch["tip"])
+            git.drop_branch(
+                project,
+                held / copies.TREE,
+                on_branch["branch"],
+                self.settings.runtime_root / "no-hooks",
+                force=decision == "reject" or not on_branch["tip"],
+            )
 
     def decide_merge(
-        self, merge_id: str, decision: str, choices: dict[str, str] | None = None,
+        self,
+        merge_id: str,
+        decision: str,
+        choices: dict[str, str] | None = None,
         said: dict | None = None,
     ) -> bool:
         """Deliver the user's word on an agent's changes - "approve", "reject", or
@@ -2927,29 +3363,40 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 folder = self._sides_folder(merge_id)
                 sides: dict[str, tuple[Path | None, Path | None]] = {
                     path: (folder / before if before else None, folder / after if after else None)
-                    for path, (before, after) in ((merge.commit or {}).get("sides") or {}).items()}
+                    for path, (before, after) in ((merge.commit or {}).get("sides") or {}).items()
+                }
             # (An agent at work there: what it wrote unnamed is put back first.)
             await self.seen_in_project(root, set())
-            now_parts = _git_parts(await asyncio.to_thread(
-                standing_files, root), Path(root)) if was else {}
-            changed = {part: now_parts[part] for part in ("hooks", "config")
-                       if was and now_parts[part] != was[part]}
+            now_parts = (
+                _git_parts(await asyncio.to_thread(standing_files, root), Path(root)) if was else {}
+            )
+            changed = {
+                part: now_parts[part]
+                for part in ("hooks", "config")
+                if was and now_parts[part] != was[part]
+            }
             # (Asked again where what changed is not what the user answered about: by digest.)
             if changed and (hooks is None or changed != asked):
                 with self._factory() as session:
                     merge = session.get_one(Merge, merge_id)
-                    merge.commit = {**(merge.commit or {}), "asks": list(changed),
-                                    "asked": changed}
+                    merge.commit = {**(merge.commit or {}), "asks": list(changed), "asked": changed}
                     session.commit()
                     run_id, payload = merge.run_id, merge_out(merge)
                 self.bus.emit(cid, run_id, "merge.updated", payload)
                 return
             if hooks == "without" and "config" in changed:
-                raise git.Refused("`.git/config` was changed: look at it first - git runs what it "
-                                  "names (a filter) at `git add`, with or without the hooks")
+                raise git.Refused(
+                    "`.git/config` was changed: look at it first - git runs what it "
+                    "names (a filter) at `git add`, with or without the hooks"
+                )
             sha, notes = await asyncio.to_thread(
-                git.commit, Path(root), paths, message,
-                self.settings.runtime_root if hooks == "without" else None, sides)
+                git.commit,
+                Path(root),
+                paths,
+                message,
+                self.settings.runtime_root if hooks == "without" else None,
+                sides,
+            )
             shutil.rmtree(folder, ignore_errors=True)
             try:
                 summary = await asyncio.to_thread(git.summary, Path(root), sha)
@@ -2958,8 +3405,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             with self._factory() as session:
                 merge = session.get_one(Merge, merge_id)
                 merge.commit = {
-                    **(merge.commit or {}), "state": "committed", "message": message, "sha": sha,
-                    "holds": summary, "asks": None, "asked": None, "notes": notes or None,
+                    **(merge.commit or {}),
+                    "state": "committed",
+                    "message": message,
+                    "sha": sha,
+                    "holds": summary,
+                    "asks": None,
+                    "asked": None,
+                    "notes": notes or None,
                 }
                 session.commit()
                 run_id, payload = merge.run_id, merge_out(merge)
@@ -2968,8 +3421,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._deciding.discard(merge_id)
 
     def _record_merge(
-        self, ctx: Ctx, merge_id: str | None, status: str, files: dict,
-        check: dict | None = None, branch: dict | None = None, commit: dict | None = None,
+        self,
+        ctx: Ctx,
+        merge_id: str | None,
+        status: str,
+        files: dict,
+        check: dict | None = None,
+        branch: dict | None = None,
+        commit: dict | None = None,
     ) -> str:
         """Put a copy's way into the project on record, as it stands now. `check`: how
         the project's check command went on it (None: the project has none) - while the
@@ -2983,8 +3442,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 # (A room's copy is taken in in its opener's name, as "the room": `_close_room`;
                 # B-120: a recipe's as the room its Room step opened.)
                 room = self._rooms.get(ctx.run_id) if ctx.name == "the room" else None
-                room_id = room.id if room else self._recipe_room(session, ctx)[0] if (
-                    ctx.name == "the recipe") else None
+                room_id = (
+                    room.id
+                    if room
+                    else self._recipe_room(session, ctx)[0]
+                    if (ctx.name == "the recipe")
+                    else None
+                )
                 merge = Merge(run_id=ctx.run_id, agent_id=ctx.agent_id, room_id=room_id)
                 session.add(merge)
             else:
@@ -3036,32 +3500,48 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if status == "completed":
                 return ""
             changed = await self._through_any_stop(
-                owner.run_id, self._keep_stopped(owner.agent_id, copy))
+                owner.run_id, self._keep_stopped(owner.agent_id, copy)
+            )
             self._drop_copy(owner.agent_id)
-            return "" if changed == [] else PARTIAL_KEPT.format(
-                files=_few(changed) if changed else "its copy could not be read")
-        if self._in_a_recipe(ctx) and owner.agent_id != self._recipe_copy[ctx.run_id] and (
-                not self._recipes_over(ctx)):
+            return (
+                ""
+                if changed == []
+                else PARTIAL_KEPT.format(
+                    files=_few(changed) if changed else "its copy could not be read"
+                )
+            )
+        if (
+            self._in_a_recipe(ctx)
+            and owner.agent_id != self._recipe_copy[ctx.run_id]
+            and (not self._recipes_over(ctx))
+        ):
             # Slice 84e: nothing of a recipe's turn reaches the project unasked - an agent the
             # step's door lets in beside it (a role the user named, the Planner) works in a
             # copy of its own, kept for the user's word as a kept copy is.
             ended()
-            self._set_aside(owner.agent_id, KEPT_BESIDE_A_RECIPE,
-                            await self._look_aside(owner.agent_id))
+            self._set_aside(
+                owner.agent_id, KEPT_BESIDE_A_RECIPE, await self._look_aside(owner.agent_id)
+            )
             self._drop_copy(owner.agent_id)  # (one that changed nothing)
             return f"Its changes are not in the project: {KEPT_BESIDE_A_RECIPE}."
-        if status != "completed" and self._watched(ctx.run_id) and copy.branch is None and (
-                owner.run_id not in self._away_jobs):  # (a branch's: `_merge_branch`)
+        if (
+            status != "completed"
+            and self._watched(ctx.run_id)
+            and copy.branch is None
+            and (owner.run_id not in self._away_jobs)
+        ):  # (a branch's: `_merge_branch`)
             # B-322 (live): half-done work is the user's to take in, but a card for it held
             # the opener's call until they did - the opener now hears at once that it stopped.
             ended()
             changed = await self._through_any_stop(
-                owner.run_id, self._keep_stopped(owner.agent_id, copy))
+                owner.run_id, self._keep_stopped(owner.agent_id, copy)
+            )
             self._drop_copy(owner.agent_id)  # (one that changed nothing)
             if changed == []:
                 return ""
             return PARTIAL_KEPT.format(
-                files=_few(changed) if changed else "its copy could not be read")
+                files=_few(changed) if changed else "its copy could not be read"
+            )
         stays = copies.left_in(copy.root)  # (B-383: read before the copy is gone)
         left_out = await self._into_project(owner, copy, status, ended)
         if stays:  # (B-383, R184: the user is told too, whether its opener passes it on or not)
@@ -3079,7 +3559,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             times = _last_changes(session, self._line_of(ctx.agent_id))
         try:
             fresh = await asyncio.to_thread(
-                _kept_files, copy, False, times, dict(copy.base), dict(copy.names))
+                _kept_files, copy, False, times, dict(copy.base), dict(copy.names)
+            )
         except Exception:
             return True
         return any(not copy.ignored(path) for path in fresh)
@@ -3093,44 +3574,60 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         base, names = dict(copy.base), dict(copy.names)
         with self._factory() as session:
             times = _last_changes(session, self._line_of(owner))
-            command = session.get_one(Project, session.get_one(
-                Conversation, known.cid).project_id).check_command
+        check = await self._own_command(known, copy)
         try:
             fresh: dict[str, dict] | None = await asyncio.to_thread(
-                _kept_files, copy, False, times, base, names)
+                _kept_files, copy, False, times, base, names
+            )
         except Exception:
             fresh = None  # (not read: kept whole, for the user to look at)
         changed = None if fresh is None else [p for p in fresh if not copy.ignored(p)]
         if changed is None or changed:
-            self._keep_live(owner, copy, STOPPED_KEPT, fresh, {
-                "command": command, "state": "not_run", "exit_code": None, "output": None,
-                "note": f"not run: {STOPPED_KEPT}"} if command else None)
+            self._keep_live(
+                owner,
+                copy,
+                STOPPED_KEPT,
+                fresh,
+                {**check, "note": "; ".join([*check["said"], f"not run: {STOPPED_KEPT}"])}
+                if check
+                else None,
+            )
         return changed
 
     def _keep_live(
-        self, owner: str, copy: copies.Copy, why: str, fresh: dict[str, dict] | None = None,
+        self,
+        owner: str,
+        copy: copies.Copy,
+        why: str,
+        fresh: dict[str, dict] | None = None,
         check: dict | None = None,
     ) -> None:
         """B-322: a copy kept for the user's Take in (`_keep_copy`) that its agent, told to go
         on, gets back as its own (`_give_back`)."""
         self._keep_copy(owner, why, fresh, check)
         with self._factory() as session:
-            kept_id = session.scalar(select(Merge.id).where(
-                Merge.agent_id == owner, Merge.kept_in == str(copy.root)))
+            kept_id = session.scalar(
+                select(Merge.id).where(Merge.agent_id == owner, Merge.kept_in == str(copy.root))
+            )
         if owner not in self._copies and kept_id:
             self._kept_live[owner] = (copy, kept_id)
 
     async def _keep_given_back(self, run_id: str) -> None:
         """B-322: the turn ends - Stop - with a copy given back still at work: kept for the
         user again with what was done since, not thrown away (`_release_run`)."""
-        for owner in [a for a in self._given_back
-                      if a in self._ctxs and self._ctxs[a].run_id == run_id]:
+        for owner in [
+            a for a in self._given_back if a in self._ctxs and self._ctxs[a].run_id == run_id
+        ]:
             copy = self._copies.get(owner)
             if copy is not None:
                 await self._keep_stopped(owner, copy)
 
     async def _into_project(
-        self, owner: Ctx, copy: copies.Copy, status: str, ended: Callable[[], None],
+        self,
+        owner: Ctx,
+        copy: copies.Copy,
+        status: str,
+        ended: Callable[[], None],
         asked: bool = False,
     ) -> str:
         """A working copy's way into the project, from its owner's work being over to
@@ -3160,8 +3657,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # 6 Nov: Stop while its card waits (or its check, or a resolve) - a plain copy kept
             # for the user's Take in as half work is (`_stopped_in_copy`); a branch holding a
             # secret given this turn never kept, also as the app closes (`_secret_branch_gone`).
-            await self._through_any_stop(owner.run_id, self._said_gone(owner, copy) if (
-                copy.branch) else self._stopped_in_copy(owner))
+            await self._through_any_stop(
+                owner.run_id,
+                self._said_gone(owner, copy) if (copy.branch) else self._stopped_in_copy(owner),
+            )
             self._drop_copy(owner.agent_id)  # (nothing of it is taken; one kept is gone already)
             raise
         except Exception as exc:
@@ -3185,15 +3684,21 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         that loss is felt (its reflog holds the secret still)."""
         look = look or await self._branch_look(copy)
         if not look["tip"] or not await asyncio.to_thread(
-                git.holding, copy.project, look["tip"],
-                [path for path, letter in look["files"].items() if letter != "D"],
-                _secret_forms(copy)):
+            git.holding,
+            copy.project,
+            look["tip"],
+            [path for path, letter in look["files"].items() if letter != "D"],
+            _secret_forms(copy),
+        ):
             return ""
         with self._factory() as session:
             record = session.get_one(Agent, ctx.agent_id).copy or {}
         self._drop_copy(ctx.agent_id, "rejected")
-        return BRANCH_SECRET_GONE.format(name=ctx.name, branch=copy.branch, earlier=(
-            EARLIER_TURNS_TOO if record.get("tip") else ""))
+        return BRANCH_SECRET_GONE.format(
+            name=ctx.name,
+            branch=copy.branch,
+            earlier=(EARLIER_TURNS_TOO if record.get("tip") else ""),
+        )
 
     async def _said_gone(self, ctx: Ctx, copy: copies.Copy) -> None:
         """Stop - or the app closing - while a branch's way in is under way (its card, its
@@ -3230,9 +3735,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         task = ctx.task
         if task is None:  # (a Lead's whole turn on a branch: what the user asked of it)
             with self._factory() as session:
-                task = session.scalar(select(Message.content).where(
-                    Message.run_id == ctx.run_id, Message.role == "user").order_by(
-                    Message.created_at).limit(1))
+                task = session.scalar(
+                    select(Message.content)
+                    .where(Message.run_id == ctx.run_id, Message.role == "user")
+                    .order_by(Message.created_at)
+                    .limit(1)
+                )
         first = ((task or "").strip().splitlines() or [branch])[0][:COMMIT_LINE]
         for one in copy.secrets():  # (a secret given this turn goes into no commit's message)
             first = first.replace(one, "***") if one else first
@@ -3256,21 +3764,25 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if gone := await self._secret_branch_gone(ctx, copy, look):
                 return gone
             # (The commit it stopped on: a go-on opens this branch only while it holds it.)
-            self._set_agent(ctx.cid, ctx.agent_id, copy={
-                **record, "tip": look["tip"] or record.get("tip")})
-            return BRANCH_KEPT.format(name=ctx.name, branch=branch, why=(
-                BRANCH_NOT_FINISHED if status != "completed" else BRANCH_UNWATCHED))
+            self._set_agent(
+                ctx.cid, ctx.agent_id, copy={**record, "tip": look["tip"] or record.get("tip")}
+            )
+            return BRANCH_KEPT.format(
+                name=ctx.name,
+                branch=branch,
+                why=(BRANCH_NOT_FINISHED if status != "completed" else BRANCH_UNWATCHED),
+            )
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             mode, project_id = conversation.permission_mode, conversation.project_id
-            command = session.get_one(Project, project_id).check_command
-        check = {"command": command, "state": "not_run", "exit_code": None,
-                 "output": None} if command else None
-        if check and mode == "full_auto":
-            await self._check(ctx, copy, {}, check, {}, None)
-            check["checked"] = None  # (of the branch's commit, which does not move: never stale)
-        decision = "approve" if mode == "full_auto" and (
-            check is None or check["state"] == "passed") else ""
+        owns, check = await self._own_check(ctx, copy)
+        if self._by_itself(ctx, owns, check, True, False, mode) and mode == "full_auto":
+            await self._check(ctx, copy, {}, check or {}, {}, None, owns)
+            if check:
+                check["checked"] = None  # (of the branch's commit, which does not move)
+        # (away, KOLONİ's guess not run: in as with no test, said - `_merge_check`)
+        unrun = bool(check and owns and check["state"] == "not_run") and self._away_now(ctx)
+        decision = "approve" if mode == "full_auto" and (_check_lets(check) or unrun) else ""
         merge_id, said, tried, failed = None, {}, False, None
         # (A pull request's branch pushed already, for a `gh pr create` that failed after it; and
         # git's config as the card last showed it.)
@@ -3285,16 +3797,26 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             with self._factory() as session:
                 finish_way = session.get_one(Project, project_id).finish_way
             ask_way = finish_way is None and await asyncio.to_thread(
-                git.github_remote, copy.project)
+                git.github_remote, copy.project
+            )
             way = said.get("way") or finish_way or "merge"
-            repo, pr_off = await asyncio.to_thread(git.pr_ready, copy.project) if (
-                ask_way or way == "pull_request") else (None, None)
+            repo, pr_off = (
+                await asyncio.to_thread(git.pr_ready, copy.project)
+                if (ask_way or way == "pull_request")
+                else (None, None)
+            )
             # A push runs what git's config names (an address, a credential helper, an ssh
             # command): not unasked where it changed during the turn, as Take in's commit asks.
-            config = _git_parts(await asyncio.to_thread(standing_files, str(copy.project)),
-                                copy.project)["config"] if way == "pull_request" else None
+            config = (
+                _git_parts(
+                    await asyncio.to_thread(standing_files, str(copy.project)), copy.project
+                )["config"]
+                if way == "pull_request"
+                else None
+            )
             config_moved = config is not None and config != (
-                self._git_at_start.get(ctx.run_id) or {}).get("config")
+                self._git_at_start.get(ctx.run_id) or {}
+            ).get("config")
             # (A pull request while the user's branches hold commits origin does not: asked.)
             pr_asks = await self._pr_asks(copy) if way == "pull_request" or ask_way else None
             async with lock:  # (looked at again right before: two teams finish at once)
@@ -3304,42 +3826,79 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 # tip, which holds the user's uncommitted work too.
                 merged = look.get("share") if copy.snapshot_sha else look["tip"]
                 # (K-r135: in a backlog task's turn every standing file asks, as at night.)
-                files = await asyncio.to_thread(_branch_files, copy, look, "ask" if (
-                    ctx.run_id in self._backlog_turns) else mode, held)
+                files = await asyncio.to_thread(
+                    _branch_files,
+                    copy,
+                    look,
+                    "ask" if (ctx.run_id in self._backlog_turns) else mode,
+                    held,
+                )
                 # A secret given this turn in what the merge would bring in - however it got on
                 # the branch (an agent's own commit): never merged, at any level; taking it off
                 # the branch is the only way on. (Not how it got there: the merge is a squash.)
-                secret = await asyncio.to_thread(
-                    git.holding, copy.project, merged,
-                    [path for path, letter in look["files"].items() if letter != "D"],
-                    _secret_forms(copy)) if merged else []
-                blocked = look["note"] or look["half"] or (
-                    BRANCH_SECRET.format(files=_few(secret)) if secret else None)
-                special = BRANCH_SPECIAL.format(files=_few(look["special"])) if (
-                    look.get("special")) else None
+                secret = (
+                    await asyncio.to_thread(
+                        git.holding,
+                        copy.project,
+                        merged,
+                        [path for path, letter in look["files"].items() if letter != "D"],
+                        _secret_forms(copy),
+                    )
+                    if merged
+                    else []
+                )
+                blocked = (
+                    look["note"]
+                    or look["half"]
+                    or (BRANCH_SECRET.format(files=_few(secret)) if secret else None)
+                )
+                special = (
+                    BRANCH_SPECIAL.format(files=_few(look["special"]))
+                    if (look.get("special"))
+                    else None
+                )
                 yours, said_too = self._branch_notes(copy, look, project_id)
                 # (W-1: what the share changes of what the user had not committed when it began.)
-                over = BRANCH_OVER_YOURS.format(files=_few(look["over"])) if (
-                    look.get("over")) else None
-                state = {**{key: look[key] for key in ("name", "into", "conflicts", "dirty")},
-                         "note": failed or blocked or yours or look["drift"] or special or over
-                         or pr_asks,
-                         "resolve": bool(look["conflicts"]) and way == "merge" and ctx.depth > 0,
-                         "way": "pull_request" if way == "pull_request" else None,
-                         "ask_way": ask_way, "pr_off": pr_off, **said_too}
+                over = (
+                    BRANCH_OVER_YOURS.format(files=_few(look["over"]))
+                    if (look.get("over"))
+                    else None
+                )
+                state = {
+                    **{key: look[key] for key in ("name", "into", "conflicts", "dirty")},
+                    "note": failed
+                    or blocked
+                    or yours
+                    or look["drift"]
+                    or special
+                    or over
+                    or pr_asks,
+                    "resolve": bool(look["conflicts"]) and way == "merge" and ctx.depth > 0,
+                    "way": "pull_request" if way == "pull_request" else None,
+                    "ask_way": ask_way,
+                    "pr_off": pr_off,
+                    **said_too,
+                }
                 # Unasked, not where a file waits for the user's word as at Take in, nor where
                 # the project moved off what the branch was made from, nor where the branch
                 # changes how git reads the tree or holds what is no file (`git.branch_look`) -
                 # nor where the card asks which way finished work goes, nor where the work changes
                 # what the user had not committed when it began (W-1).
-                asks = merge_id is None and (ask_way or look["drift"] or special or over or any(
-                    one["note"] for one in files.values() if one["state"] == "ready"))
+                asks = merge_id is None and (
+                    ask_way
+                    or look["drift"]
+                    or special
+                    or over
+                    or any(one["note"] for one in files.values() if one["state"] == "ready")
+                )
                 if decision == "approve" and way == "pull_request":
                     # Nothing of the user's tree is touched: what clashes, or is in the way, is
                     # the pull request's to show. What leaves the machine is held as ever.
-                    pr_blocked = look["note"] or (
-                        BRANCH_SECRET.format(files=_few(secret)) if secret else None) or (
-                        pr_off and f"a pull request cannot be opened: {pr_off}")
+                    pr_blocked = (
+                        look["note"]
+                        or (BRANCH_SECRET.format(files=_few(secret)) if secret else None)
+                        or (pr_off and f"a pull request cannot be opened: {pr_off}")
+                    )
                     # (A file named as a secret - `.env.local` - goes up only on a click.)
                     named = [path for path in look["files"] if is_secret(path)]
                     if pr_blocked:
@@ -3352,34 +3911,58 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                         state["note"] = PR_CONFIG  # (pushed on a click with this said)
                     elif not asks:
                         act = "pull_request"
-                elif decision == "approve" and state["resolve"] and merge_id is None and not (
-                        tried or blocked or asks):
+                elif (
+                    decision == "approve"
+                    and state["resolve"]
+                    and merge_id is None
+                    and not (tried or blocked or asks)
+                ):
                     act = "resolve"  # (once by itself at Full auto: the card's button after)
-                elif decision == "approve" and merged and not (
-                        look["conflicts"] or look["dirty"] or blocked or asks):
+                elif (
+                    decision == "approve"
+                    and merged
+                    and not (look["conflicts"] or look["dirty"] or blocked or asks)
+                ):
                     said_line = f"Merge {branch}: {first}"
                     try:
                         # (Unasked, held to the commit it was made from; the user's click, to
                         # the branch the card named. A Stop meanwhile lands once git is over:
                         # the way in is not left while git still writes.)
-                        sha = await to_its_end(asyncio.to_thread(
-                            git.merge_branch, copy.project, merged, said_line,
-                            runtime / "no-hooks", look["into"],
-                            copy.start[1] if merge_id is None and copy.start else None))
+                        sha = await to_its_end(
+                            asyncio.to_thread(
+                                git.merge_branch,
+                                copy.project,
+                                merged,
+                                said_line,
+                                runtime / "no-hooks",
+                                look["into"],
+                                copy.start[1] if merge_id is None and copy.start else None,
+                            )
+                        )
                     except git.Refused as exc:
                         state["note"] = str(exc)
                     else:
                         self._into_copies(copy.project, look["files"], copy)
                         act = "merged"
             if act == "merged":  # (what is left needs no way in: a Stop lands after it)
-                return await to_its_end(self._branch_went_in(
-                    ctx, copy, merge_id, files, check, state, said, look, said_line, sha))
+                return await to_its_end(
+                    self._branch_went_in(
+                        ctx, copy, merge_id, files, check, state, said, look, said_line, sha
+                    )
+                )
             failed = None
             if act == "pull_request":
                 try:
                     opened = await self._pull_request(
-                        ctx, copy, look, repo or "", first, check, sent,
-                        (config, None if said.get("way") else finish_way))
+                        ctx,
+                        copy,
+                        look,
+                        repo or "",
+                        first,
+                        check,
+                        sent,
+                        (config, None if said.get("way") else finish_way),
+                    )
                 except git.Refused as exc:
                     failed = state["note"] = f"no pull request was opened: {exc}"
                 else:
@@ -3411,17 +3994,23 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 if decision == "reject":
                     self._record_merge(ctx, merge_id, "rejected", files, check, state)
                     self._drop_copy(ctx.agent_id, "rejected")
-                    return (f"{ctx.name}'s changes on branch {branch} were not merged: "
-                            f"{TURNED_DOWN}.")
-                if decision == "approve" and state["ask_way"] and said.get("way") and (
-                        said["way"] == "merge" or not pr_off):
+                    return (
+                        f"{ctx.name}'s changes on branch {branch} were not merged: {TURNED_DOWN}."
+                    )
+                if (
+                    decision == "approve"
+                    and state["ask_way"]
+                    and said.get("way")
+                    and (said["way"] == "merge" or not pr_off)
+                ):
                     # The user's choice, from the card: the project's from now on (Project
                     # settings change it) - a pull request their consent to push its branches.
                     with self._factory() as session:
                         session.get_one(Project, project_id).finish_way = said["way"]
                         session.commit()
                 if decision == "check" and check:
-                    await self._check(ctx, copy, {}, check, {}, merge_id, leave=True)
+                    owns, _again = await self._own_check(ctx, copy)  # (the click: its leave)
+                    await self._check(ctx, copy, {}, check, {}, merge_id, owns, leave=True)
                     check["checked"] = None
             if decision == "resolve" and state["resolve"]:
                 tried = True
@@ -3431,13 +4020,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     continue
                 # (What the user's branch brought in - their own new files - is no file of the
                 # line's left out: only a secret stays held, and what was held before.)
-                held = {path: why for path, why in again.items()
-                        if why == SECRET_IN_COPY or path in held}
+                held = {
+                    path: why
+                    for path, why in again.items()
+                    if why == SECRET_IN_COPY or path in held
+                }
                 # What is merged moved: the check runs again on it (by itself at Full auto).
-                check = {"command": command, "state": "not_run", "exit_code": None,
-                         "output": None} if command else None
-                if check and mode == "full_auto":
-                    await self._check(ctx, copy, {}, check, {}, merge_id)
+                owns, check = await self._own_check(ctx, copy)
+                if self._by_itself(ctx, owns, check, True, False, mode) and check:
+                    await self._check(ctx, copy, {}, check, {}, merge_id, owns)
                     check["checked"] = None
                 # An agent's resolution is always the user's to look at first, at Full auto too:
                 # it may drop lines of their own commit.
@@ -3450,28 +4041,50 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         Returns what was not committed, by path, with why; Refused as `git.commit_branch`."""
         found = await asyncio.to_thread(copy.changes)
         # (Since the snapshot it began from, W-1: the user's own uncommitted work is not theirs.)
-        own = await asyncio.to_thread(
-            git.committed_since, copy.root, copy.snapshot_sha or copy.start[1]) if (
-            copy.start) else []
-        changed = sorted({path for path, _kind, state in found
-                          if state not in ("left_out", "refused")} | {
-            path for path in own
-            if not copies.under(path.split("/"), copies.LINKED | copies.NOT_COPIED)})
+        own = (
+            await asyncio.to_thread(
+                git.committed_since, copy.root, copy.snapshot_sha or copy.start[1]
+            )
+            if (copy.start)
+            else []
+        )
+        changed = sorted(
+            {path for path, _kind, state in found if state not in ("left_out", "refused")}
+            | {
+                path
+                for path in own
+                if not copies.under(path.split("/"), copies.LINKED | copies.NOT_COPIED)
+            }
+        )
         # Not committed: a file holding a secret given this turn, and a new one where the project
         # has its own file (git ignores it there - the merge would write over the user's).
         held = {path: SECRET_IN_COPY for path in changed if _secret_in(copy, path)} | {
-            path: BRANCH_THEIRS for path, kind, state in found
-            if kind == "new" and state == "conflict"}
+            path: BRANCH_THEIRS
+            for path, kind, state in found
+            if kind == "new" and state == "conflict"
+        }
         await asyncio.to_thread(
-            git.commit_branch, copy.root, copy.branch or "",
+            git.commit_branch,
+            copy.root,
+            copy.branch or "",
             [path for path in changed if path not in held],
             f"{ctx.name}: {first}\n\nKoloni-Agent: {ctx.name}",
-            self.settings.runtime_root / "no-hooks")
+            self.settings.runtime_root / "no-hooks",
+        )
         return held
 
     async def _branch_went_in(
-        self, ctx: Ctx, copy: copies.Copy, merge_id: str | None, files: dict, check: dict | None,
-        state: dict, said: dict, look: dict, line: str, sha: str,
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        merge_id: str | None,
+        files: dict,
+        check: dict | None,
+        state: dict,
+        said: dict,
+        look: dict,
+        line: str,
+        sha: str,
     ) -> str:
         """`_merge_branch`'s end where git merged the branch (`line`, the commit `sha`): what it
         holds, the card and its records, and the branch's worktree goes - out of the way in
@@ -3485,9 +4098,21 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         for one in files.values():
             if one["state"] == "ready":
                 one["state"], one["note"] = "applied", None
-        self._record_merge(ctx, merge_id, "applied", files, check, state, {
-            "state": "committed", "message": line, "sha": sha, "holds": holds,
-            "notes": await self._keep_branch(copy, said, look["tip"])})
+        self._record_merge(
+            ctx,
+            merge_id,
+            "applied",
+            files,
+            check,
+            state,
+            {
+                "state": "committed",
+                "message": line,
+                "sha": sha,
+                "holds": holds,
+                "notes": await self._keep_branch(copy, said, look["tip"]),
+            },
+        )
         self._branch_merged(ctx, copy)
         # A squash leaves the branch unmerged to git: it goes all the same - by the way in, as
         # git's lock on the repository would fail it beside another team's merge.
@@ -3503,8 +4128,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if not said.get("keep_branch"):
             return None
         if copy.start is None or await asyncio.to_thread(
-                git.held_since, copy.project, copy.start[1], tip, _secret_forms(copy),
-                copy.branch):
+            git.held_since, copy.project, copy.start[1], tip, _secret_forms(copy), copy.branch
+        ):
             return [BRANCH_NOT_KEPT.format(branch=copy.branch)]
         self._keep_branches.add(copy.branch or "")
         return [BRANCH_KEPT_TOLD.format(branch=copy.branch)]
@@ -3525,7 +4150,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         branch, no_hooks = copy.branch or "", self.settings.runtime_root / "no-hooks"
         try:
             before, sha, left = await asyncio.to_thread(
-                git.merge_in, copy.root, branch, look["into"] or "", no_hooks)
+                git.merge_in, copy.root, branch, look["into"] or "", no_hooks
+            )
         except git.Refused as exc:
             return RESOLVE_FAILED.format(name=ctx.name, why=exc), None
         why = None
@@ -3533,16 +4159,22 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             with self._factory() as session:
                 previous = session.get_one(Agent, ctx.agent_id).status
                 last_call = session.scalar(
-                    select(func.max(ToolCall.seq)).where(ToolCall.run_id == ctx.run_id))
-            self._nudge(ctx, RESOLVE_WORDS.format(
-                into=look["into"], branch=branch, files=_few(left)))
+                    select(func.max(ToolCall.seq)).where(ToolCall.run_id == ctx.run_id)
+                )
+            self._nudge(
+                ctx, RESOLVE_WORDS.format(into=look["into"], branch=branch, files=_few(left))
+            )
             # (Its own turn, not `_reply_turn`'s: that takes the copy in when it ends, and this
             # copy is on its way in already.)
             # shortcut: a Stop meanwhile drops the worktree with the merge half way, or with the
             # agent's own commit of it (marks too) on the branch, which stays unmerged as Stop
             # leaves any; undo it there first if a kept branch is ever seen to hold one.
-            turn = replace(self._role_now(ctx), calls_from=last_call or 0, in_turn=True,
-                           tools=tuple(t for t in ctx.tools if t != "remember"))
+            turn = replace(
+                self._role_now(ctx),
+                calls_from=last_call or 0,
+                in_turn=True,
+                tools=tuple(t for t in ctx.tools if t != "remember"),
+            )
             try:
                 async with self._working(turn):
                     self._set_agent(ctx.cid, ctx.agent_id, status="running")
@@ -3565,8 +4197,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return RESOLVE_FAILED.format(name=ctx.name, why=why), None
 
     async def _pull_request(
-        self, ctx: Ctx, copy: copies.Copy, look: dict, repo: str, first: str,
-        check: dict | None, sent: dict[str, str], seen: tuple[str | None, str | None],
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        look: dict,
+        repo: str,
+        first: str,
+        check: dict | None,
+        sent: dict[str, str],
+        seen: tuple[str | None, str | None],
     ) -> dict:
         """D2: a finished branch goes as a pull request (the project's `finish_way`, the user's
         consent to push): its tip pushed to "origin" as one commit by KOLONİ (`git.push_one`),
@@ -3577,12 +4216,21 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         branch = copy.branch or ""
         with self._factory() as session:
             notes = (session.get_one(Agent, ctx.agent_id).report or "").strip()
-        tested = (f"`{check['command']}`: {check['state'].replace('_', ' ')}" if check
-                  else "the project has no check command")
+        tested = (
+            f"`{check['command']}`: {check['state'].replace('_', ' ')}"
+            if check
+            else "the project has no check command"
+        )
         body = PR_BODY.format(
-            task=first, name=ctx.name, branch=branch, files="\n".join(
-                f"- `{path}` ({letter})" for path, letter in list(look["files"].items())[:200]),
-            check=tested, notes=notes[:PR_NOTES] or "(none)")
+            task=first,
+            name=ctx.name,
+            branch=branch,
+            files="\n".join(
+                f"- `{path}` ({letter})" for path, letter in list(look["files"].items())[:200]
+            ),
+            check=tested,
+            notes=notes[:PR_NOTES] or "(none)",
+        )
         title = first
         for one in copy.secrets():
             if one:
@@ -3593,30 +4241,53 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # Looked again right before the push (`seen`: git's config, and the project's way
             # where the card did not say it, as they were read before the merge lock).
             with self._factory() as session:
-                way = session.get_one(Project, session.get_one(
-                    Conversation, ctx.cid).project_id).finish_way
-            config = _git_parts(await asyncio.to_thread(standing_files, str(copy.project)),
-                                copy.project)["config"]
+                way = session.get_one(
+                    Project, session.get_one(Conversation, ctx.cid).project_id
+                ).finish_way
+            config = _git_parts(
+                await asyncio.to_thread(standing_files, str(copy.project)), copy.project
+            )["config"]
             if config != seen[0] or seen[1] is not None and way != seen[1]:
-                raise git.Refused("git's config or the project's way changed just now: look at "
-                                  "the card again")
+                raise git.Refused(
+                    "git's config or the project's way changed just now: look at the card again"
+                )
             if copy.start is None:
                 raise git.Refused("what the branch was made from is not known")
             # (Held to the branch's own tip too: what it took in that origin does not hold.)
             sha = await asyncio.to_thread(
-                git.push_one, copy.project, await self._sent(copy, look), branch,
-                look["into"] or "", copy.start[1],
-                f"{title}\n\nKoloni-Agent: {ctx.name}", self.settings.runtime_root / "no-hooks",
-                look["tip"], copy.snapshot_sha, under=copies.folders(self.settings.runtime_root))
+                git.push_one,
+                copy.project,
+                await self._sent(copy, look),
+                branch,
+                look["into"] or "",
+                copy.start[1],
+                f"{title}\n\nKoloni-Agent: {ctx.name}",
+                self.settings.runtime_root / "no-hooks",
+                look["tip"],
+                copy.snapshot_sha,
+                under=copies.folders(self.settings.runtime_root),
+            )
             sent.update(tip=look["tip"], sha=sha)
         try:
             url = await asyncio.to_thread(
-                git.open_pr, copy.project, repo, branch, look["into"] or "", title, body,
-                self.settings.runtime_root / "no-hooks")
+                git.open_pr,
+                copy.project,
+                repo,
+                branch,
+                look["into"] or "",
+                title,
+                body,
+                self.settings.runtime_root / "no-hooks",
+            )
         except git.Refused as exc:
             raise git.Refused(f"{branch} was pushed to origin, but {exc}") from None
-        return {"state": "pull_request", "message": title, "sha": sha, "url": url,
-                "pushed": f"origin/{branch}"}
+        return {
+            "state": "pull_request",
+            "message": title,
+            "sha": sha,
+            "url": url,
+            "pushed": f"origin/{branch}",
+        }
 
     async def _pr_asks(self, copy: copies.Copy) -> str | None:
         """Why a pull request of this branch is asked about at every level, Full auto too - what an
@@ -3628,15 +4299,24 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         under = copies.folders(self.settings.runtime_root)
         try:
             commits, stashes = await asyncio.to_thread(
-                git.unpushed_count, copy.project, under, copy.branch)
-            places = await asyncio.to_thread(
-                git.unpushed_places, copy.project, under, copy.branch) if commits else []
+                git.unpushed_count, copy.project, under, copy.branch
+            )
+            places = (
+                await asyncio.to_thread(git.unpushed_places, copy.project, under, copy.branch)
+                if commits
+                else []
+            )
         except git.Refused:
             commits, stashes, places = 1, 0, []
-        held = "; ".join((PR_HELD_IN if there else PR_HELD_GONE).format(folder=folder)
-                         for folder, there in places)
-        said = [f"{commits} commit" + ("s" if commits != 1 else "") + (
-            f" ({held})" if held else "")] if commits else []
+        held = "; ".join(
+            (PR_HELD_IN if there else PR_HELD_GONE).format(folder=folder)
+            for folder, there in places
+        )
+        said = (
+            [f"{commits} commit" + ("s" if commits != 1 else "") + (f" ({held})" if held else "")]
+            if commits
+            else []
+        )
         said += ["a stash" if stashes == 1 else f"{stashes} stashes"] if stashes else []
         if said:
             return PR_UNPUSHED.format(commits=" and ".join(said))
@@ -3653,17 +4333,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # commit it was made from: where the branch took theirs in since (D2, or its agent's own
         # merge), their commits not pushed yet are below it, and `git.push_one` says so.
         onto = await asyncio.to_thread(
-            git.merge_base, copy.project, f"refs/heads/{look['into'] or copy.start[0]}",
-            look["tip"])
+            git.merge_base, copy.project, f"refs/heads/{look['into'] or copy.start[0]}", look["tip"]
+        )
         share, clash = await asyncio.to_thread(
-            git.agents_share, copy.project, copy.snapshot_sha, look["tip"], onto,
-            copy.branch or "")
+            git.agents_share, copy.project, copy.snapshot_sha, look["tip"], onto, copy.branch or ""
+        )
         if share is None:
             raise git.Refused(BRANCH_ON_YOURS.format(files=_few(clash)))
         if secret := await asyncio.to_thread(
-                git.holding, copy.project, share,
-                [path for path, letter in look["files"].items() if letter != "D"],
-                _secret_forms(copy)):
+            git.holding,
+            copy.project,
+            share,
+            [path for path, letter in look["files"].items() if letter != "D"],
+            _secret_forms(copy),
+        ):
             raise git.Refused(BRANCH_SECRET.format(files=_few(secret)))
         return share
 
@@ -3680,10 +4363,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         more = len(left) - NAMED_LEFT
         return yours, {
             "taken_in": self._taken_in(project_id, look["dirty"]),
-            "started": FROM_HEAD.format(branch=copy.branch, why=copy.from_head) if (
-                copy.from_head) else None,
-            "not_taken": NOT_IN_BRANCH.format(count=len(left), files=", ".join(
-                left[:NAMED_LEFT]) + (f" and {more} more" if more > 0 else "")) if left else None}
+            "started": FROM_HEAD.format(branch=copy.branch, why=copy.from_head)
+            if (copy.from_head)
+            else None,
+            "not_taken": NOT_IN_BRANCH.format(
+                count=len(left),
+                files=", ".join(left[:NAMED_LEFT]) + (f" and {more} more" if more > 0 else ""),
+            )
+            if left
+            else None,
+        }
 
     def _taken_in(self, project_id: str, dirty: list[str]) -> str | None:
         """(A).3: where what stands in a branch's way (`dirty`) is another agent's work taken in
@@ -3695,20 +4384,29 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return None
         with self._factory() as session:
             rows = session.execute(
-                select(Merge, Agent.name).join(Run, Run.id == Merge.run_id)
+                select(Merge, Agent.name)
+                .join(Run, Run.id == Merge.run_id)
                 .join(Conversation, Conversation.id == Run.conversation_id)
                 .join(Agent, Agent.id == Merge.agent_id)
                 .where(Conversation.project_id == project_id, Merge.status == "applied")
-                .order_by(Merge.decided_at.desc()).limit(MOST_TAKEN_IN)).all()
+                .order_by(Merge.decided_at.desc())
+                .limit(MOST_TAKEN_IN)
+            ).all()
         for merge, name in rows:
             # (In Python: a None put in a JSON column may be stored as JSON null.)
             commit = merge.commit or {}
             if merge.branch or commit.get("state") == "committed":
                 continue
-            if files := sorted({one["path"] for one in merge.files
-                                if one.get("state") == "applied"} & set(dirty)):
-                return TAKEN_IN_FIRST.format(files=_few(files), name=name, how=(
-                    "commit it on its card" if commit.get("state") == "offered" else "commit it"))
+            if files := sorted(
+                {one["path"] for one in merge.files if one.get("state") == "applied"} & set(dirty)
+            ):
+                return TAKEN_IN_FIRST.format(
+                    files=_few(files),
+                    name=name,
+                    how=(
+                        "commit it on its card" if commit.get("state") == "offered" else "commit it"
+                    ),
+                )
         return None
 
     async def _branch_look(self, copy: copies.Copy) -> dict:
@@ -3716,11 +4414,25 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         nothing to merge yet and why (`note`). W-1: measured from the snapshot it began from."""
         try:
             found = await asyncio.to_thread(
-                git.branch_look, copy.project, copy.branch or "", copy.start, copy.snapshot_sha)
+                git.branch_look, copy.project, copy.branch or "", copy.start, copy.snapshot_sha
+            )
         except git.Refused as exc:
-            return {"name": copy.branch, "into": None, "files": {}, "conflicts": [],
-                    "dirty": [], "special": [], "drift": None, "half": None, "tip": None,
-                    "share": None, "yours": [], "since": None, "over": [], "note": str(exc)}
+            return {
+                "name": copy.branch,
+                "into": None,
+                "files": {},
+                "conflicts": [],
+                "dirty": [],
+                "special": [],
+                "drift": None,
+                "half": None,
+                "tip": None,
+                "share": None,
+                "yours": [],
+                "since": None,
+                "over": [],
+                "note": str(exc),
+            }
         return {"name": copy.branch, **found, "note": None}
 
     def _branch_merged(self, ctx: Ctx, copy: copies.Copy) -> None:
@@ -3728,9 +4440,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         shortcut: "merged", not "applied" - Undo of the turn leaves the merge in place (git's
         `git revert -m 1` undoes it); undo by reverting the merge commit if users ask."""
         with self._factory() as session:
-            rows = session.scalars(select(FileChange).where(
-                FileChange.agent_id.in_(self._line_of(ctx.agent_id)),
-                FileChange.status == "in_copy", *_made_in(copy))).all()
+            rows = session.scalars(
+                select(FileChange).where(
+                    FileChange.agent_id.in_(self._line_of(ctx.agent_id)),
+                    FileChange.status == "in_copy",
+                    *_made_in(copy),
+                )
+            ).all()
             for row in rows:
                 row.status, row.decided_at = "merged", now()
             session.commit()
@@ -3739,7 +4455,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self.bus.emit(ctx.cid, ctx.run_id, "file_change.updated", payload)
 
     async def _merge(
-        self, ctx: Ctx, copy: copies.Copy, status: str, ended: Callable[[], None],
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        status: str,
+        ended: Callable[[], None],
         asked: bool = False,
     ) -> str:
         """Take a working copy into the project, file by file: a file the project still
@@ -3770,25 +4490,30 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         check could therefore not run on what would be taken."""
         watched = self._watched(ctx.run_id)
         with self._factory() as session:
-            conversation = session.get_one(Conversation, ctx.cid)
-            mode = conversation.permission_mode
-            command = session.get_one(Project, conversation.project_id).check_command
+            mode = session.get_one(Conversation, ctx.cid).permission_mode
         refused, unasked = self._merge_leave(ctx, status, asked, watched, mode)
-        check, by_itself = self._merge_check(ctx, command, watched, unasked)
         files: dict[str, dict] = {}
         merge_id = None
+        fault = await self._copy_changes(ctx, copy, files)
+        # (Its own tests from that one look - the files on record where the copy could not be read.)
+        owns, check = await self._own_check(ctx, copy, list(files))
+        by_itself, unasked = self._merge_check(ctx, owns, check, watched, unasked, mode)
+        looked = True
         while True:
-            fault = await self._copy_changes(ctx, copy, files)
+            if not looked:  # (each time again after the card: what the copy holds now)
+                fault = await self._copy_changes(ctx, copy, files)
+            looked = False
             if merge_id is None and not files and not fault:
                 return ""
             if check and by_itself and merge_id is None and not fault and as_shown(files):
                 said, passed = await self._checked_first(
-                    ctx, copy, files, check, command, watched, mode)
+                    ctx, copy, files, check, owns, watched, mode
+                )
                 if said is not None:
                     return said
                 unasked = unasked and passed
             if merge_id is None and unasked and not fault:
-                async with self._way_in(copy.project):
+                async with self._way_in(copy.project), self._looks_held(copy.project):
                     self._join(copy, files, {})
                     taken = self._apply(ctx, copy, files, False, unattended=not watched)
                 await self._seen_by_watchers(ctx, taken)
@@ -3813,12 +4538,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 self._drop_copy(ctx.agent_id, "rejected")
                 return self._not_applied(ctx, files, TURNED_DOWN)
             if decision == "check":
-                # The user's click is the command's leave: it runs, and they are asked
-                # again with what it said. (Not without their word on what clashes.)
-                if check and not unchosen(list(files.values()), choices):
-                    await self._check(ctx, copy, files, check, choices, merge_id, leave=True)
+                await self._check_clicked(ctx, copy, files, check, choices, merge_id)
                 continue
-            async with self._way_in(copy.project):
+            async with self._way_in(copy.project), self._looks_held(copy.project):
                 if await asyncio.to_thread(_moved, copy, files, choices):
                     # All of the card or none of it: a file is not as it was shown, and the
                     # card is shown again as it is now (the API says why).
@@ -3832,8 +4554,25 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             await self._seen_by_watchers(ctx, taken)
         return await self._merge_over(ctx, copy, files, check, merge_id, watched, refused)
 
-    def _merge_leave(self, ctx: Ctx, status: str, asked: bool, watched: bool, mode: str
-                     ) -> tuple[str | None, bool]:
+    async def _check_clicked(
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        files: dict[str, dict],
+        check: dict | None,
+        choices: dict,
+        merge_id: str,
+    ) -> None:
+        """Run the test on a Take in card: the user's click is the command's leave - it runs, and
+        they are asked again with what it said. (Not without their word on what clashes.)"""
+        if check and not unchosen(list(files.values()), choices):
+            # (what it runs now: the copy as it is - the click is the leave)
+            owns, _check = await self._own_check(ctx, copy)
+            await self._check(ctx, copy, files, check, choices, merge_id, owns, leave=True)
+
+    def _merge_leave(
+        self, ctx: Ctx, status: str, asked: bool, watched: bool, mode: str
+    ) -> tuple[str | None, bool]:
         """Why a turn nobody watches may take nothing in (`_merge`), and whether what can be
         taken is taken unasked."""
         refused = None
@@ -3842,36 +4581,179 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             refused = None if status == "completed" else UNFINISHED_UNWATCHED
             refused = refused or self._nobody_to_ask(ctx, "write", "change files")
         # (`asked`: the user said yes already, on a recipe's "Ready for you".)
-        unasked = status == "completed" and (
-            (asked or mode != "ask") if watched else not refused)
+        unasked = status == "completed" and ((asked or mode != "ask") if watched else not refused)
         return refused, unasked
 
-    def _merge_check(self, ctx: Ctx, command: str | None, watched: bool, unasked: bool
-                     ) -> tuple[dict | None, bool]:
-        """The project's check as a merge's card has it before it ran (`_merge`; None: the
-        project has none), and whether it runs by itself."""
-        check, by_itself = None, False
-        if command:
-            check = {"command": command, "state": "not_run", "exit_code": None, "output": None}
-            # B-355: watched, it runs by itself at every level before the card - the user's own
-            # command, in the copy - and the card shows what it said.
-            by_itself = watched or unasked and self._nobody_to_ask(
-                ctx, "command", f"run {quoted(command)}", command=command
-            ) == ""
-            if not watched and unasked and not by_itself:
-                check["note"] = CHECK_NOT_ALLOWED  # taken as before, and said so
-        return check, by_itself
+    def _own_runs(
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        base: dict[str, str],
+        names: dict[str, str],
+        listed: list[str] | None = None,
+    ) -> tuple[list[proof_related.Own], list[str]]:
+        """Take in's check (the user, 23 Nov): only the test files the agent wrote or changed in
+        its copy (as `base` and `names` were when the caller looked: `Copy.changes`), each with
+        its part's runner narrowed to them - the project's by part: its map's test command, else
+        the one KOLONİ saved (the user's own where an Always rule covers it, as the end gate has
+        it: `FoundMixin._runs_found`), else the guess from its files (no model's look, no agent's
+        run) - and what is said instead (`proof_related.own_tests`). The end gate runs every test
+        once, at the turn's end. `listed`: the copy's changed paths as Take in's own look found
+        them (`_copy_changes`) - not looked at a second time."""
+        with self._factory() as session:
+            conversation = session.get_one(Conversation, ctx.cid)
+            project = session.get_one(Project, conversation.project_id)
+            runs = proof.test_runs(project, project_map.scan(project.root_path))
+            off = proof.root_off(project)  # (the user's "no test" for the whole project)
+            saved = {
+                folder: one
+                for folder, one in (project.tests_found or {}).items()
+                if not (off and test_found.folder_key(folder) == ".")
+            }
+            rules = [rule.prefix for rule in session.scalars(rules_here(conversation))]
+            root = Path(project.root_path)
+
+        def kept(folder: str, one: dict) -> proof.TestRun:
+            mine = bool(one.get("always")) or is_allowed(one["command"], rules)
+            return proof.TestRun(one["command"], folder, mine, saved=True)
+
+        runs = [
+            kept(run.cwd, saved[key])
+            if not run.yours and (key := test_found.folder_key(run.cwd)) in saved
+            else run
+            for run in runs
+        ]
+        ran = {test_found.folder_key(run.cwd) for run in runs}
+        runs += [kept(folder, one) for folder, one in saved.items() if folder not in ran]
+        if listed is None:
+            listed = [path for path, _kind, _state in copy.changes(base, names)]
+        paths = [path for path in listed if (copy.root / path).is_file()]
+        return proof_related.own_tests(runs, paths, copy.root, root)
+
+    async def _own_check(
+        self, ctx: Ctx, copy: copies.Copy, listed: list[str] | None = None
+    ) -> tuple[list[proof_related.Own], dict | None]:
+        """`_own_runs` (in a thread, the copy looked at once) and the check as its card first has
+        it: each line one part's narrowed run, and what is said of the rest (round 2, B2: a part
+        that cannot be narrowed, and why) - None only where the agent wrote no test at all. A
+        copy that cannot be read: not run, and why - never an error out of Take in, which keeps
+        such a copy for the user (`_merge`)."""
+        base, names = dict(copy.base), dict(copy.names)
+        try:
+            owns, said = await asyncio.to_thread(self._own_runs, ctx, copy, base, names, listed)
+        except Exception as exc:
+            why = OWN_UNREAD.format(why=getattr(exc, "strerror", None) or exc)
+            return [], {
+                "command": "",
+                "state": "not_run",
+                "exit_code": None,
+                "output": None,
+                "note": why,
+                "said": [why],
+            }
+        if not owns and said == [proof_related.NO_OWN_TESTS]:
+            return owns, None
+        return owns, {
+            "command": "\n".join(one.run.command for one in owns),
+            "state": "not_run",
+            "exit_code": None,
+            "output": None,
+            "note": "; ".join(said) or None,
+            "said": said,
+        }
+
+    async def _own_command(self, ctx: Ctx, copy: copies.Copy) -> dict | None:
+        """`_own_check`'s check alone (a stopped agent's kept card)."""
+        return (await self._own_check(ctx, copy))[1]
+
+    def _merge_check(
+        self,
+        ctx: Ctx,
+        owns: list[proof_related.Own],
+        check: dict | None,
+        watched: bool,
+        unasked: bool,
+        mode: str,
+    ) -> tuple[bool, bool]:
+        """`_by_itself` for `_merge`, and whether what can be taken is taken unasked: not where
+        the check waits on the card for the user's Run the test (B1, round 2) - in a turn they
+        watch and are there for: away (a To-do task while Away runs), KOLONİ's guess is not run
+        and the work goes in as one with no test would, said "not run"."""
+        by_itself = self._by_itself(ctx, owns, check, watched, unasked, mode)
+        there = watched and not self._away_now(ctx)
+        return by_itself, unasked and not (check and owns and there and not by_itself)
+
+    def _by_itself(
+        self,
+        ctx: Ctx,
+        owns: list[proof_related.Own],
+        check: dict | None,
+        watched: bool,
+        unasked: bool,
+        mode: str,
+    ) -> bool:
+        """Whether Take in's check runs by itself before the card (`_merge`) - and, where it does
+        not, why on the card (`check["note"]`). B1 (round 2): the sub-agent's own tests are its
+        code. By itself at Full auto in a turn the user watches and is not away from, or where
+        every part's command is the user's own (theirs on the map, or a saved one an Always rule
+        covers - B-355). Else, watched, it waits on the card for the user's Run the test - the
+        work is not taken before (`_merge`); away, or in a turn nobody watches, KOLONİ's guess is
+        never run. Nobody watching, the user's own command runs on its trigger's leave
+        (`_own_leave`); without it the work goes in as before, said unchecked."""
+        if not (check and owns):
+            return False
+        yours = all(one.part.yours for one in owns)
+        if watched and not self._away_now(ctx):
+            if yours or mode == "full_auto":
+                return True
+            return self._not_by_itself(check, CHECK_PRESS_RUN)
+        if watched:
+            return yours or self._not_by_itself(check, CHECK_AWAY)
+        if not unasked:
+            return False
+        if not yours:
+            return self._not_by_itself(check, CHECK_GUESS_UNATTENDED)
+        return self._own_leave(ctx, owns) or self._not_by_itself(check, CHECK_NOT_ALLOWED)
+
+    @staticmethod
+    def _not_by_itself(check: dict, why: str) -> bool:
+        """`why` the check does not run by itself, after what its card says already; False."""
+        check["note"] = "; ".join(filter(None, [check.get("note"), why]))
+        return False
+
+    def _own_leave(self, ctx: Ctx, owns: list[proof_related.Own]) -> bool:
+        """Round 2, B3: whether a turn nobody watches has its trigger's leave for each part's run,
+        in its folder - for the narrowed line itself, or for the part's command where narrowing
+        only added plain file paths to it (what the user can tick: the line they know)."""
+
+        def leave(line: str, cwd: str) -> bool:
+            asked = f"run {quoted(line)}"
+            return self._nobody_to_ask(ctx, "command", asked, command=line, cwd=cwd) == ""
+
+        return all(
+            leave(one.run.command, one.run.cwd)
+            or (_paths_added(one) and leave(one.part.command, one.part.cwd))
+            for one in owns
+        )
 
     async def _checked_first(
-        self, ctx: Ctx, copy: copies.Copy, files: dict, check: dict, command: str,
-        watched: bool, mode: str,
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        files: dict,
+        check: dict,
+        owns: list[proof_related.Own],
+        watched: bool,
+        mode: str,
     ) -> tuple[str | None, bool]:
-        """The project's check run by itself before anything of a copy is taken (`_merge`).
-        What the opener is told where the copy is kept on what it said - None: the merge goes
-        on - and whether the check lets what is about to be taken go in unasked."""
+        """The project's check run by itself before anything of a copy is taken (`_merge`), on
+        the runs `_merge` judged its leave on. What the opener is told where the copy is kept on
+        what it said - None: the merge goes on - and whether the check lets what is about to be
+        taken go in unasked (`_check_lets`: nothing ran - pytest's exit 5 - as no test would)."""
+        command = check["command"]
         clash = unchosen(list(files.values()), {})
-        if not clash:  # (nobody watches: its trigger's leave for this very command)
-            await self._check(ctx, copy, files, check, {}, None, leave=not watched)
+        if not clash:  # (nobody watches: its trigger's leave, `_own_leave`)
+            await self._check(ctx, copy, files, check, {}, None, owns, leave=not watched)
         # K-buyuk-proje: run without the other parts, on a root file they all read.
         partial = _root_changed(copy, files)
         if not watched and partial and not clash and check["state"] == "passed":
@@ -3879,23 +4761,30 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._record_merge(ctx, None, "pending", files, check)
             self._keep_copy(ctx.agent_id, why)
             return KEPT.format(name=ctx.name, why=why, folder=copy.root), False
-        if not watched and (clash or check["state"] != "passed"):
+        if not watched and (clash or not _check_lets(check)):
             # Nobody is asked, and nothing is taken that was not checked: the
             # copy stays, with what the check said, for the user to decide.
             self._record_merge(ctx, None, "pending", files, check)
             if clash:
                 self._keep_copy(ctx.agent_id, "files of it clash with the project's")
                 return CLASHES.format(
-                    name=ctx.name, files=", ".join(clash[:MAX_PATHS_TOLD]),
+                    name=ctx.name,
+                    files=", ".join(clash[:MAX_PATHS_TOLD]),
                     folder=copy.root,
                 ), False
             self._keep_copy(ctx.agent_id, "its check did not pass")
             return CHECK_FAILED.format(
                 name=ctx.name, command=quoted(command), folder=copy.root
             ), False
-        if (watched and mode == "full_auto" and ctx.depth and not clash and not partial
-                and check["state"] == "failed"
-                and self._check_rounds.get(ctx.run_id, 0) < MAX_SENT_BACK):
+        if (
+            watched
+            and mode == "full_auto"
+            and ctx.depth
+            and not clash
+            and not partial
+            and check["state"] == "failed"
+            and self._check_rounds.get(ctx.run_id, 0) < MAX_SENT_BACK
+        ):
             # K-fullauto-sorma: at Full auto a check that fails goes back to the Lead
             # first, `MAX_SENT_BACK` times a turn - as a stopped agent's work does
             # (B-322): the copy is kept, and the agent told to go on is in it again.
@@ -3905,13 +4794,22 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # K-model-puan 3: the last such round also names the tier above.
             last = self._check_rounds[ctx.run_id] >= MAX_SENT_BACK
             return CHECK_TO_LEAD.format(
-                name=ctx.name, command=quoted(command), rounds=MAX_SENT_BACK,
-                output="\n".join((check["output"] or "").splitlines()[-TESTS_TAIL_LINES:])
+                name=ctx.name,
+                command=quoted(command),
+                rounds=MAX_SENT_BACK,
+                output="\n".join((check["output"] or "").splitlines()[-TESTS_TAIL_LINES:]),
             ) + (self._one_tier_up(ctx, after_check=True) if last else ""), False
-        return None, not clash and check["state"] == "passed" and not partial
+        return None, not clash and _check_lets(check) and not partial
 
-    def _unread_kept(self, ctx: Ctx, copy: copies.Copy, files: dict, check: dict | None,
-                     merge_id: str | None, fault: str) -> str:
+    def _unread_kept(
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        files: dict,
+        check: dict | None,
+        merge_id: str | None,
+        fault: str,
+    ) -> str:
         """A copy that cannot be looked at, with nothing of it left to ask about (`_merge`)."""
         # Nothing of it is left to ask about, and it still cannot be looked at:
         # a command may have made files in it that no card listed. What was
@@ -3921,8 +4819,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._keep_copy(ctx.agent_id, fault)
         return KEPT.format(name=ctx.name, why=fault, folder=copy.root)
 
-    async def _merge_over(self, ctx: Ctx, copy: copies.Copy, files: dict, check: dict | None,
-                          merge_id: str | None, watched: bool, refused: str | None) -> str:
+    async def _merge_over(
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        files: dict,
+        check: dict | None,
+        merge_id: str | None,
+        watched: bool,
+        refused: str | None,
+    ) -> str:
         """A copy's way into the project is over (`_merge`), nothing of it left to ask about:
         it is kept for what was not taken, or on record as taken or not."""
         # Refused for where it is - a path through a link or, nobody watching, one no
@@ -3930,8 +4836,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # user having kept the project's own file.
         # (B-189: nor a new file git ignores - not kept.)
         held = any(
-            one["state"] in ("refused", "left_out") and not _kept_the_projects(one)
-            and one.get("note") != copies.IGNORED for one in files.values()
+            one["state"] in ("refused", "left_out")
+            and not _kept_the_projects(one)
+            and one.get("note") != copies.IGNORED
+            for one in files.values()
         )
         for one in files.values():
             if not watched and one["state"] in ("ready", "merged"):
@@ -3982,8 +4890,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     copy.give_up(path)
                 elif held is None and one["state"] == "merged":
                     continue  # written into the copy before: its file is the two together
-                elif held is None or wanted not in held or not (
-                    tuple(one["shown"]) == held["shown"] == copy.sides(path)
+                elif (
+                    held is None
+                    or wanted not in held
+                    or not (tuple(one["shown"]) == held["shown"] == copy.sides(path))
                 ):
                     _shown_again(one, _merge_file(copy, path))
                     one["again"] = True
@@ -4005,17 +4915,60 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 continue
             diff, added, removed = unified_diff(there.decode("utf-8"), result.decode("utf-8"), path)
             one.update(
-                state="merged", shown=[one["shown"][0], copy.joined[path]], diff=diff,
-                additions=added, deletions=removed, note=None,
+                state="merged",
+                shown=[one["shown"][0], copy.joined[path]],
+                diff=diff,
+                additions=added,
+                deletions=removed,
+                note=None,
                 **({"chose": choice} if choice else {}),
             )
         if written:
             with contextlib.suppress(OSError):
                 copy.save()  # what it was made from is different now: for a restart
 
+    async def _own_tests_run(
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        owns: list[proof_related.Own],
+        call_id: str,
+        leave: bool,
+    ) -> tuple[int | None, str, str, list[str]]:
+        """`_check`'s runs, each part's own tests in turn in its folder - the first that fails
+        ends them: its exit code (None: no end), all they printed, what the last said, and the
+        parts where nothing ran (pytest's exit 5, "No test files found": a note, never a pass nor
+        a failure). Code 0 where every run passed or ran nothing."""
+        code, output, said, empty = 0, "", "", []
+        for one in owns:
+            run = one.run
+            ran, out, said, _ended = await self._run_in_copy(
+                ctx,
+                copy.workspace(),
+                run.command,
+                call_id,
+                gated="run" if leave else ("ask" if self._watched(ctx.run_id) else "refuse"),
+                cwd=run.cwd,
+            )
+            output += out
+            if _nothing_ran(run.command, ran, out):
+                empty.append(NOTHING_RAN.format(part=run.cwd))
+                continue
+            code = ran
+            if ran != 0:
+                break
+        return code, output, said, empty
+
     async def _check(
-        self, ctx: Ctx, copy: copies.Copy, files: dict, check: dict,
-        choices: dict[str, str], merge_id: str | None, leave: bool = False,
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        files: dict,
+        check: dict,
+        choices: dict[str, str],
+        merge_id: str | None,
+        owns: list[proof_related.Own],
+        leave: bool = False,
     ) -> None:
         """Run the project's check command in a working copy, on what is about to go
         into the project: the copy is first made to hold that - each file both sides
@@ -4045,16 +4998,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         with why - never "failed"."""
         with self._factory() as session:
             call_id = session.get_one(Agent, ctx.agent_id).tool_call_id
-            command = session.scalar(
-                select(Project.check_command).join(
-                    Conversation, Conversation.project_id == Project.id
-                ).where(Conversation.id == ctx.cid)
-            )
-        if not command:
-            return  # taken off the project meanwhile: nothing is run
+        untold = list(check.get("said") or [])
+        if not owns:  # (its test files gone meanwhile, or none can be run: said)
+            check.update(state="not_run", note="; ".join(untold) or proof_related.NO_OWN_TESTS)
+            if merge_id is not None:
+                self._record_merge(ctx, merge_id, "pending", files, check)
+            return
+        command = "\n".join(one.run.command for one in owns)
         # On the card at once: getting the copy ready is the first part of it.
         check.update(
-            command=command, state="running", exit_code=None, output=None, note=None,
+            command=command,
+            state="running",
+            exit_code=None,
+            output=None,
+            note=None,
             checked=None,
         )
         if merge_id is not None:
@@ -4081,13 +5038,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # what the check writes: nothing to put back, and nothing of the project's put in.
         # shortcut: what a check writes stays in the worktree for a check run again; `git
         # stash -u` it after each if a check is seen to trip over its own output.
-        was, held = ({}, {}) if copy.branch else await asyncio.to_thread(
-            copy.snapshot, [path for path, one in files.items() if one["state"] != "applied"]
+        was, held = (
+            ({}, {})
+            if copy.branch
+            else await asyncio.to_thread(
+                copy.snapshot, [path for path, one in files.items() if one["state"] != "applied"]
+            )
         )
         try:
-            code, output, said, _ended = await self._run_in_copy(
-                ctx, copy.workspace(), command, call_id, gated="run" if leave else (
-                    "ask" if self._watched(ctx.run_id) else "refuse"))
+            code, output, said, empty = await self._own_tests_run(ctx, copy, owns, call_id, leave)
         except _GateRefused as exc:
             check.update(state="not_run", note=f"not run: {exc}")
             if merge_id is not None:
@@ -4117,17 +5076,32 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             None if code is not None else said.partition("\n")[0].removeprefix("error: "),
             CHECK_LEFT.format(files=", ".join(stuck[:MAX_PATHS_TOLD])) if stuck else None,
             CHECK_WITHOUT_PARTS.format(part=copy.part) if _root_changed(copy, files) else None,
+            *untold,  # (B2: a part not run, and why - never a bare "passed")
+            *empty,
         ]
+        nothing = code == 0 and len(empty) == len(owns)  # (no test ran at all: no pass)
         check.update(
-            state="passed" if code == 0 else "failed", exit_code=code,
-            output=output[-CHECK_TAIL:] or None, note="; ".join(filter(None, notes)) or None,
+            state="not_run" if nothing else "passed" if code == 0 else "failed",
+            exit_code=code,
+            output=output[-CHECK_TAIL:] or None,
+            note="; ".join(filter(None, notes)) or None,
+            ran_none=nothing,
         )
 
     async def _run_in_copy(
-        self, ctx: Ctx, ws: Workspace, command: str, call_id: str, ask: bool = False,
-        gated: str = "refuse", once: set[str] | None = None, cwd: str = ".",
-        seconds: int | None = None, where: Callable[[dict], Awaitable[Workspace]] | None = None,
-        env: Mapping[str, str] | None = None, over: Callable[[], bool] | None = None,
+        self,
+        ctx: Ctx,
+        ws: Workspace,
+        command: str,
+        call_id: str,
+        ask: bool = False,
+        gated: str = "refuse",
+        once: set[str] | None = None,
+        cwd: str = ".",
+        seconds: int | None = None,
+        where: Callable[[dict], Awaitable[Workspace]] | None = None,
+        env: Mapping[str, str] | None = None,
+        over: Callable[[], bool] | None = None,
         keep_running: bool = False,
     ) -> tuple[int | None, str, str, str | None]:
         """KOLONİ's own run of a project command where the agent's commands run (`ws`: its
@@ -4156,9 +5130,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if kept := self._keeps_out(ctx, command=command, what=f"run {command}"):
             raise _GateRefused(kept)
         in_copy = ws.root != Path(ctx.folder).resolve()
-        why = (self._in_copy_asks(ctx, command, bool(ws.links), ws.root, cwd)
-               if in_copy else "") or self._branch_asks(ctx, command, in_copy) or (
-            self._night_asks(ctx, command, None, str(ws.root)))
+        why = (
+            (self._in_copy_asks(ctx, command, bool(ws.links), ws.root, cwd) if in_copy else "")
+            or self._branch_asks(ctx, command, in_copy)
+            or (self._night_asks(ctx, command, None, str(ws.root)))
+        )
         asks = bool(why) and (ask or gated == "ask")
         if why and not asks and gated != "run":
             raise _GateRefused(f"{why} - not run unasked")
@@ -4167,8 +5143,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # (The check's record is its agent's spawn call: its card is a call of its own.)
             with self._factory() as session:
                 message_id = session.get_one(ToolCall, call_id).message_id
-            request = ToolCallRequest(f"koloni_{uuid.uuid4().hex[:16]}", "run_command",
-                                      json.dumps({"command": command}))
+            request = ToolCallRequest(
+                f"koloni_{uuid.uuid4().hex[:16]}", "run_command", json.dumps({"command": command})
+            )
             ((own, _payload),) = self._record_calls(ctx, message_id, [request])
             self._set_call(ctx.cid, own, status="running", started_at=now())
         if asks:  # (on its card: why it is asked at every level)
@@ -4176,20 +5153,40 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         since, at = time.monotonic(), now()  # (before the look: a write after it is not its)
         held = await asyncio.to_thread(standing_files, ctx.root) if ctx.root else None
         ran = False
-        args = {"command": command, "timeout_seconds": seconds or CHECK_SECONDS, "cwd": cwd,
-                **({"keep_running": True} if keep_running else {})}  # (S5b: a dev server)
+        args = {
+            "command": command,
+            "timeout_seconds": seconds or CHECK_SECONDS,
+            "cwd": cwd,
+            **({"keep_running": True} if keep_running else {}),
+        }  # (S5b: a dev server)
         try:
             status, said = await self.commands.run(
-                ctx.run_id, ctx.cid, ctx.agent_id, ws, own, args,
-                ask=ask or asks, always=asks, once=once,
-                where=(lambda: where(args)) if where else None, env=env,
+                ctx.run_id,
+                ctx.cid,
+                ctx.agent_id,
+                ws,
+                own,
+                args,
+                ask=ask or asks,
+                always=asks,
+                once=once,
+                where=(lambda: where(args)) if where else None,
+                env=env,
             )
             ran = True
         finally:
             if held is not None:
                 stand = self._written_since(ctx, at, since) if over is not None else None
-                await self._own_command_looked(ctx, own, command, held, since, ran and not (
-                    over is not None and over()), ask or asks, stand)
+                await self._own_command_looked(
+                    ctx,
+                    own,
+                    command,
+                    held,
+                    since,
+                    ran and not (over is not None and over()),
+                    ask or asks,
+                    stand,
+                )
         if own != call_id:
             self._set_call(ctx.cid, own, status=status, result=said, ended_at=now())
             if status == "denied":
@@ -4199,15 +5196,23 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # The newest of its call's: the merge check runs under its agent's own call, once
             # for each check. (The command as `plan_command` records it.)
             ran = session.scalar(
-                select(Command).where(
-                    Command.run_id == ctx.run_id, Command.agent_id == ctx.agent_id,
-                    Command.tool_call_id == call_id, Command.command == command.strip(),
-                ).order_by(Command.created_at.desc(), literal_column("commands.rowid").desc())
+                select(Command)
+                .where(
+                    Command.run_id == ctx.run_id,
+                    Command.agent_id == ctx.agent_id,
+                    Command.tool_call_id == call_id,
+                    Command.command == command.strip(),
+                )
+                .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc())
             )
             if ran is None:
                 return None, "", said, None
-            return (ran.exit_code if ran.status == "exited" else None, ran.output or "", said,
-                    ran.status)
+            return (
+                ran.exit_code if ran.status == "exited" else None,
+                ran.output or "",
+                said,
+                ran.status,
+            )
 
     def _sides_folder(self, merge_id: str) -> Path:
         """Where what each file of a merge held just before and after it was taken is kept,
@@ -4223,8 +5228,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         out: its commit takes it whole, and says so."""
         folder, kept = self._sides_folder(merge_id), {}
         for path, pair in sides.items():
-            digests = [hashlib.sha256(data).hexdigest() if data is not None else None
-                       for data in pair]
+            digests = [
+                hashlib.sha256(data).hexdigest() if data is not None else None for data in pair
+            ]
             try:
                 folder.mkdir(parents=True, exist_ok=True)
                 for digest, data in zip(digests, pair, strict=True):
@@ -4236,7 +5242,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return kept
 
     async def _offer(
-        self, ctx: Ctx, merge_id: str, files: dict, watched: bool,
+        self,
+        ctx: Ctx,
+        merge_id: str,
+        files: dict,
+        watched: bool,
         copy: copies.Copy | None = None,
     ) -> None:
         """What was taken from an agent is in the project: its commit is offered to the
@@ -4270,24 +5280,36 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # job tried again, "KOLONİ: the last try of this job failed": by the chat's title
             # then, a backlog task's own. With neither, by the agent's task - never KOLONİ's
             # words for a lead it opened beside another: its role alone then.)
-            said = session.scalar(select(Message.content).where(
-                Message.run_id == agent.run_id, Message.role.in_(("user", "trigger")),
-                ~Message.content.startswith(KOLONIS)).order_by(
-                Message.created_at, literal_column("messages.rowid")).limit(1))
+            said = session.scalar(
+                select(Message.content)
+                .where(
+                    Message.run_id == agent.run_id,
+                    Message.role.in_(("user", "trigger")),
+                    ~Message.content.startswith(KOLONIS),
+                )
+                .order_by(Message.created_at, literal_column("messages.rowid"))
+                .limit(1)
+            )
             title = session.get_one(Conversation, ctx.cid).title
             task = "" if (agent.task or "").startswith("KOLONİ opened you") else agent.task
             # B-187: a team's lead's own copy, by its team and what its report says it did -
             # not the user's message, the same for every team of the chat.
-            team = next((t.name for _r, t, lead in self._rows(session, ctx.cid)
-                         if agent.depth and lead is not None and lead.name == agent.role_name),
-                        None)
+            team = next(
+                (
+                    t.name
+                    for _r, t, lead in self._rows(session, ctx.cid)
+                    if agent.depth and lead is not None and lead.name == agent.role_name
+                ),
+                None,
+            )
             did = report_line(agent.report) if team else ""
-            first = topics.first_line(goal or did or said or (
-                title if title != NEW_CONVERSATION else "") or task)
+            first = topics.first_line(
+                goal or did or said or (title if title != NEW_CONVERSATION else "") or task
+            )
             # (cut at a word, as a conversation's title is: B-57)
             message = topics.title_from(
-                f"{'Room' if goal else team or agent.role_name}: {first}".rstrip(": "),
-                COMMIT_LINE)
+                f"{'Room' if goal else team or agent.role_name}: {first}".rstrip(": "), COMMIT_LINE
+            )
         if not (watched and wanted and paths):
             return
         state = "offered"
@@ -4299,12 +5321,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if str(exc) != git.SUBFOLDER:
                 return
             state, message = "not_offered", git.SUBFOLDER
-        kept = (await asyncio.to_thread(self._keep_sides, merge_id, sides)
-                if state == "offered" else {})
+        kept = (
+            await asyncio.to_thread(self._keep_sides, merge_id, sides) if state == "offered" else {}
+        )
         with self._factory() as session:
             merge = session.get_one(Merge, merge_id)
             merge.commit = {
-                "state": state, "message": message, "sha": None,
+                "state": state,
+                "message": message,
+                "sha": None,
                 # (git's hooks and config at the turn's start: `commit_taken` compares)
                 "git": self._git_at_start.get(ctx.run_id),
                 # (each file's two sides, by digest, as `_keep_sides` keeps them)
@@ -4362,7 +5387,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 one["theirs"] = was["theirs"]  # merged before (`_join`): no merge says it now
         # Beside what is in the project: a file of which the user kept the project's own.
         kept = {
-            path: one for path, one in files.items()
+            path: one
+            for path, one in files.items()
             if one["state"] == "applied" or _kept_the_projects(one)
         }
         files.clear()
@@ -4377,19 +5403,28 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         agent's version of those lines is not there, by the user's word."""
         left = [one for one in files.values() if one["state"] != "applied"]
         lines = [
-            path for path, one in files.items()
+            path
+            for path, one in files.items()
             if one["state"] == "applied" and one.get("chose") == "project"
         ]
         theirs = [
             f"{path} ({one['theirs']})" if one["theirs"] else path
-            for path, one in files.items() if one["state"] == "applied" and "theirs" in one
+            for path, one in files.items()
+            if one["state"] == "applied" and "theirs" in one
         ]
-        kept_lines = " ".join(filter(None, [
-            PROJECTS_LINES.format(name=ctx.name, files=", ".join(lines[:MAX_PATHS_TOLD]))
-            if lines else "",
-            THEIRS_KEPT.format(name=ctx.name, files=", ".join(theirs[:MAX_PATHS_TOLD]))
-            if theirs else "",
-        ]))
+        kept_lines = " ".join(
+            filter(
+                None,
+                [
+                    PROJECTS_LINES.format(name=ctx.name, files=", ".join(lines[:MAX_PATHS_TOLD]))
+                    if lines
+                    else "",
+                    THEIRS_KEPT.format(name=ctx.name, files=", ".join(theirs[:MAX_PATHS_TOLD]))
+                    if theirs
+                    else "",
+                ],
+            )
+        )
         if not left:
             return kept_lines
         # Each reason once, with the files it goes for.
@@ -4407,8 +5442,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return " ".join(filter(None, [f"{said}: {why}." if why else f"{said}.", kept_lines]))
 
     def _taken_now(
-        self, ctx: Ctx, copy: copies.Copy, ws: Workspace, files: dict, one: dict, asked: bool,
-        unattended: bool, choices: dict[str, str] | None, level: str,
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        ws: Workspace,
+        files: dict,
+        one: dict,
+        asked: bool,
+        unattended: bool,
+        choices: dict[str, str] | None,
+        level: str,
     ) -> bool:
         """Whether a file of a working copy (`one`, of `files`) is taken right now (`_apply`):
         where it is not, it is marked so, shown again, or leaves the list."""
@@ -4416,8 +5459,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if one.pop("again", False) or one["state"] not in OPEN:
             return False
         path = one["path"]
-        if one["state"] == "conflict" and not one.get("two_way") and not (
-            one.get("whole") is True and (choices or {}).get(path) == "agent"
+        if (
+            one["state"] == "conflict"
+            and not one.get("two_way")
+            and not (one.get("whole") is True and (choices or {}).get(path) == "agent")
         ):
             return False  # whose side is taken has not been said: nothing of it is taken
         sides = copy.sides(path)
@@ -4447,14 +5492,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if name or lock:
             # Nobody watching: refused. Watched: left for the card (`_merge_file` says why).
             if unattended:
-                one["state"], one["note"] = "refused", lock or NO_TRIGGER_ALLOWS.format(
-                    name=name)
+                one["state"], one["note"] = "refused", lock or NO_TRIGGER_ALLOWS.format(name=name)
             return False
         return True
 
     def _apply(
-        self, ctx: Ctx, copy: copies.Copy, files: dict, asked: bool,
-        unattended: bool = False, choices: dict[str, str] | None = None,
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        files: dict,
+        asked: bool,
+        unattended: bool = False,
+        choices: dict[str, str] | None = None,
     ) -> set[str]:
         """Write into the project what of a working copy can be taken right now; each
         file is compared again first. Taken where nobody was asked: a file the project
@@ -4508,8 +5557,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._into_copies(copy.project, taken, copy)
         return taken
 
-    def _into_copies(self, project: Path, paths: Iterable[str], but: copies.Copy | None = None
-                     ) -> None:
+    def _into_copies(
+        self, project: Path, paths: Iterable[str], but: copies.Copy | None = None
+    ) -> None:
         """What just went into the project (`paths`) goes into its other working copies where
         they have not changed it (`Copy.refresh`: not a branch's), and is noted for one being
         made right now, to go into it once it is (`_working_copy`). What each was made from is
@@ -4521,14 +5571,25 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if where == key:
                 noted.update(paths)
         for other in self._copies.values():
-            if (other is not None and other is not but and other.project == project
-                    and [path for path in paths if other.refresh(path)]):
+            if (
+                other is not None
+                and other is not but
+                and other.project == project
+                and [path for path in paths if other.refresh(path)]
+            ):
                 with contextlib.suppress(OSError):
                     other.save()
 
     def _apply_text(
-        self, session: Session, ctx: Ctx, ws: Workspace, path: str, rows: list[FileChange],
-        texts: tuple[str | None, str | None], files: tuple[Path, Path], together: bool,
+        self,
+        session: Session,
+        ctx: Ctx,
+        ws: Workspace,
+        path: str,
+        rows: list[FileChange],
+        texts: tuple[str | None, str | None],
+        files: tuple[Path, Path],
+        together: bool,
     ) -> tuple[str | None, list[tuple[str, dict]]]:
         """`_apply_file` for a file that is text on both sides (`texts`: the project's and the
         copy's; `files`: the copy's file and the project's), by the agent's records of it
@@ -4548,12 +5609,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             at = None if row.kind == "delete" else row.after_content
         if at != after:
             last = FileChange(
-                run_id=ctx.run_id, agent_id=ctx.agent_id,
+                run_id=ctx.run_id,
+                agent_id=ctx.agent_id,
                 tool_call_id=session.get_one(Agent, ctx.agent_id).tool_call_id,
-                path=path, before_content=at, after_content=after or "",
+                path=path,
+                before_content=at,
+                after_content=after or "",
                 kind="delete" if after is None else "create" if at is None else "modify",
                 before_sha=sha256_text(at),
-                after_sha=sha256_text(after) or DELETED_SHA, status="in_copy",
+                after_sha=sha256_text(after) or DELETED_SHA,
+                status="in_copy",
             )
             session.add(last)
             rows.append(last)
@@ -4562,10 +5627,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 outcome = apply_change(session, ws, row, self.settings.runtime_root)
             except WorkspaceError as exc:
                 outcome, failure = "failed", f"could not be written: {exc}"
-            payloads.append((
-                "file_change.created" if row is last else "file_change.updated",
-                file_change_out(row),
-            ))
+            payloads.append(
+                (
+                    "file_change.created" if row is last else "file_change.updated",
+                    file_change_out(row),
+                )
+            )
             if outcome != "applied":
                 failure = failure or "it changed on disk while it was being written"
                 break
@@ -4605,13 +5672,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         payloads: list[tuple[str, dict]] = []
         failure = None
         with self._factory() as session:
-            rows = list(session.scalars(
-                select(FileChange).where(
-                    FileChange.agent_id.in_(self._line_of(ctx.agent_id)),
-                    FileChange.status == "in_copy", FileChange.path == path,
-                    *_made_in(copy, self._copies.get(ctx.agent_id)),
-                ).order_by(FileChange.created_at, literal_column("file_changes.rowid"))
-            ))
+            rows = list(
+                session.scalars(
+                    select(FileChange)
+                    .where(
+                        FileChange.agent_id.in_(self._line_of(ctx.agent_id)),
+                        FileChange.status == "in_copy",
+                        FileChange.path == path,
+                        *_made_in(copy, self._copies.get(ctx.agent_id)),
+                    )
+                    .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
+                )
+            )
             if not (as_text and is_text):
                 try:
                     copy.put(path)
@@ -4623,7 +5695,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 payloads = [("file_change.updated", file_change_out(row)) for row in rows]
             else:
                 failure, payloads = self._apply_text(
-                    session, ctx, ws, path, rows, (before, after), (here, there), together)
+                    session, ctx, ws, path, rows, (before, after), (here, there), together
+                )
         for kind, payload in payloads:
             self.bus.emit(ctx.cid, ctx.run_id, kind, payload)
         return failure
@@ -4661,8 +5734,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         shortcut: a core role's locked tools (Karar 5, `roles.CORE`) lock its role, not its
         agents - a Lead without run_command caps every Tester's, and R3 then holds none of them
         (`_held_to_run`); lock the Lead's tools a core role needs too if that is met."""
-        while ctx.agent_id not in self._leads and ctx.depth > 0 and (
-                above := self._ctxs.get(ctx.parent_id or "")) is not None:
+        while (
+            ctx.agent_id not in self._leads
+            and ctx.depth > 0
+            and (above := self._ctxs.get(ctx.parent_id or "")) is not None
+        ):
             ctx = above
         return self._leads.get(ctx.agent_id, tuple(ctx.tools))
 
@@ -4688,24 +5764,38 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     def _own_writes_refused(self, ctx: Ctx, watch: "_Watch | None") -> bool:
         """Whether a CLI's own writes are refused as such a Lead's: one that cannot be handed
         spawn_agent cannot hand anything on, and writes (B-310: agy run the old way)."""
-        return self._hands_code(ctx) and getattr(ctx.model, "collaborates", True) and not (
-            watch is not None and watch.unbridged)
+        return (
+            self._hands_code(ctx)
+            and getattr(ctx.model, "collaborates", True)
+            and not (watch is not None and watch.unbridged)
+        )
 
     def _waiting_for(self, agent_id: str, path: str) -> dict:
         """B-140 (live): a Coder waited 9 minutes for a file another chat's Ready for you held,
         and its own chat said nothing of where: the holder's chat, and whether it waits for
         the user - whose answer there frees the file."""
         with self._factory() as session:
-            found = session.execute(select(Conversation.id, Conversation.title, Run.status).join(
-                Run, Run.conversation_id == Conversation.id).join(Agent, Agent.run_id == Run.id)
-                .where(Agent.id == agent_id)).first()
+            found = session.execute(
+                select(Conversation.id, Conversation.title, Run.status)
+                .join(Run, Run.conversation_id == Conversation.id)
+                .join(Agent, Agent.run_id == Run.id)
+                .where(Agent.id == agent_id)
+            ).first()
         cid, title, status = found if found is not None else (None, None, None)
-        return {"agent_id": agent_id, "agent_name": self._name_of(agent_id), "path": path,
-                "conversation_id": cid, "conversation_title": title,
-                "asks_you": status == "waiting_approval"}
+        return {
+            "agent_id": agent_id,
+            "agent_name": self._name_of(agent_id),
+            "path": path,
+            "conversation_id": cid,
+            "conversation_title": title,
+            "asks_you": status == "waiting_approval",
+        }
 
     async def _claim(
-        self, ctx: Ctx, path: str, hold: "_Hold | None" = None,
+        self,
+        ctx: Ctx,
+        path: str,
+        hold: "_Hold | None" = None,
         began: Callable[[], None] | None = None,
     ) -> str | None:
         """Take a file for an agent that is about to change it. It is the agent's own
@@ -4728,8 +5818,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # overnight holds up no other (each is taken in on its own, line by line).
         # K-evrim: and so does a candidate - candidates write the same files, each in its own.
         own = self._copy_owner(ctx) or ""
-        night = self._copies.get(own if own in self._candidates else self._away_jobs.get(
-            ctx.run_id, ""))
+        night = self._copies.get(
+            own if own in self._candidates else self._away_jobs.get(ctx.run_id, "")
+        )
         folder = str(night.root) if night is not None else ctx.folder
         holder = self.claims.take(folder, path, ctx.agent_id, line)
         if holder is None:
@@ -4743,10 +5834,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # Only a CLI that went on beside its sub-agent gets here (`_run_from_cli`): its
             # call would hang until the sub-agent's work is over.
             with self._factory() as session:
-                over = session.scalar(select(Agent.status).where(
-                    Agent.id == holder)) in AGENT_TERMINAL
-            raise ToolError(HELD_BELOW.format(
-                path=path, name=below.name, still="" if over else ", still at work"))
+                over = (
+                    session.scalar(select(Agent.status).where(Agent.id == holder)) in AGENT_TERMINAL
+                )
+            raise ToolError(
+                HELD_BELOW.format(
+                    path=path, name=below.name, still="" if over else ", still at work"
+                )
+            )
         woke = asyncio.Event()
         wait = self.claims.wait(folder, path, ctx.agent_id, line, woke.set)
         waited_for = [holder]
@@ -4757,7 +5852,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if began is not None:
                 began()
             self._set_agent(
-                ctx.cid, ctx.agent_id, status="blocked",
+                ctx.cid,
+                ctx.agent_id,
+                status="blocked",
                 waiting_for=self._waiting_for(holder, wait.path),
             )
             # The place is given up with the helpers every other wait uses: one count.
@@ -4774,7 +5871,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                         # on to a sub-agent of its holder.
                         waited_for.append(wait.holder)
                         self._set_agent(
-                            ctx.cid, ctx.agent_id,
+                            ctx.cid,
+                            ctx.agent_id,
                             waiting_for=self._waiting_for(wait.holder, wait.path),
                         )
         except asyncio.CancelledError:
@@ -4797,10 +5895,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # It is also waiting for a sub-agent: `_back_to_work` takes its place.
             self._set_agent(ctx.cid, ctx.agent_id, status="waiting", waiting_for=None)
         else:
-            free = ctx.agent_id in self._placed or self._asks.get(ctx.agent_id) or not (
-                self._slots[ctx.run_id].locked() or self._full(ctx))
+            free = (
+                ctx.agent_id in self._placed
+                or self._asks.get(ctx.agent_id)
+                or not (self._slots[ctx.run_id].locked() or self._full(ctx))
+            )
             self._set_agent(
-                ctx.cid, ctx.agent_id, status="running" if free else "queued",
+                ctx.cid,
+                ctx.agent_id,
+                status="running" if free else "queued",
                 waiting_for=None,
             )
             await self._settle(ctx, queued=False)
@@ -4814,12 +5917,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         between = [self._name_of(agent_id) for agent_id in chain[1:-1]]
         found = place(self._ctxs[chain[-1]].folder, path) if chain[-1] in self._ctxs else None
         return NEVER_ENDS.format(
-            name=self._name_of(chain[0]), path=found[1] if found else path,
+            name=self._name_of(chain[0]),
+            path=found[1] if found else path,
             chain=", which is waiting for ".join([*between, "you"]),
         )
 
     def _record_calls(
-        self, ctx: Ctx, message_id: str, requests: list[ToolCallRequest], origin: str = "koloni",
+        self,
+        ctx: Ctx,
+        message_id: str,
+        requests: list[ToolCallRequest],
+        origin: str = "koloni",
         parent: str | None = None,
     ) -> list[tuple[str, dict]]:
         """Write down the calls a model asked for, in order, under its message."""
@@ -4840,7 +5948,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     # no event, snapshot or later request to a model. The call itself
                     # is run with what the agent gave (`request`, as it came).
                     arguments=web.masked(request.arguments)
-                    if request.name == "http_request" else request.arguments,
+                    if request.name == "http_request"
+                    else request.arguments,
                     origin=origin,
                     parent_call_id=parent,
                 )
@@ -4872,16 +5981,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             args, in_room, followed = self._refuse_call(ctx, call_id, request)
             ws, args = await self._call_where(ctx, call_id, ws, request, args)
             if followed is not None:
-                status, output = await self._follow_call(
-                    ctx, call_id, followed, request.name, args)
+                status, output = await self._follow_call(ctx, call_id, followed, request.name, args)
             elif request.name in rooms.TOOLS:
                 if request.name not in ctx.tools or in_room is None:
                     raise ToolError(f"{request.name} is for a room's members: you are in no room")
-                status, output = await self._room_call(
-                    ctx, call_id, *in_room, request.name, args)
+                status, output = await self._room_call(ctx, call_id, *in_room, request.name, args)
             elif request.name in READ_TOOLS:
-                output = _kept_framed(ws, request.name, args,
-                                      await self._read(ctx, call_id, ws, request.name, args))
+                output = _kept_framed(
+                    ws, request.name, args, await self._read(ctx, call_id, ws, request.name, args)
+                )
                 status = "succeeded"
             elif request.name in WRITE_TOOLS:
                 status, output = await self._write(ctx, ws, call_id, request.name, args)
@@ -4904,13 +6012,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # the user is warned - and the call goes on as it is (93-A4). Of a web or MCP tool's
         # answer only what is inside its frame: the query and the address are the agent's.
         outside = (
-            ("web", WEB_WHERE[request.name], web.inside(output)) if request.name in WEB_WHERE
+            ("web", WEB_WHERE[request.name], web.inside(output))
+            if request.name in WEB_WHERE
             else ("mcp", f"the MCP tool {request.name}", web.inside(output))
             if "__" in request.name  # (none of KOLONİ's own tools is named so)
             # (A failed one too: what the page said - a dialog, an address - ends its error.)
-            else ("web", BROWSER_WHERE[request.name], output) if request.name in BROWSER_WHERE
-            else ("web", FILE_WHERE[request.name], output) if request.name in FILE_WHERE
-            else ("agent", AGENT_WHERE[request.name], output) if request.name in AGENT_WHERE
+            else ("web", BROWSER_WHERE[request.name], output)
+            if request.name in BROWSER_WHERE
+            else ("web", FILE_WHERE[request.name], output)
+            if request.name in FILE_WHERE
+            else ("agent", AGENT_WHERE[request.name], output)
+            if request.name in AGENT_WHERE
             else None
         )
         if outside and self._orders(ctx, *outside, call_id=call_id):
@@ -4930,20 +6042,39 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         shortcut: such a folder deeper in the project (web/.venv) is not foreseen for the first
         command; look for it there too if that is ever needed."""
         made = self._copies.get(owner) if owner else None
-        return bool(made.links) if made else _links_in_copy(ctx.model) and any(
-            (Path(ctx.folder) / name).is_dir() for name in copies.LINKED)
+        return (
+            bool(made.links)
+            if made
+            else _links_in_copy(ctx.model)
+            and any((Path(ctx.folder) / name).is_dir() for name in copies.LINKED)
+        )
 
-    def _in_copy_asks(self, ctx: Ctx, command: str, linked: bool, own: Path | None,
-                      cwd: str | None) -> str:
+    def _in_copy_asks(
+        self, ctx: Ctx, command: str, linked: bool, own: Path | None, cwd: str | None
+    ) -> str:
         """Why a command in a working copy is asked at every level (`copy_reason`): `own` its
         tree (None: not made yet), `cwd` where in it the command runs (None: not known) - beside
         the project's worktrees as git listed them as the turn began (`_git_start`)."""
         seen = self._git_at.get(ctx.run_id) or {}
-        return copy_reason(command, linked, ctx.folder, self.settings.runtime_root, own, cwd,
-                           [one["path"] for one in seen.get("worktrees") or []])
+        return copy_reason(
+            command,
+            linked,
+            ctx.folder,
+            self.settings.runtime_root,
+            own,
+            cwd,
+            [one["path"] for one in seen.get("worktrees") or []],
+        )
 
-    async def _disposable(self, ctx: Ctx, command: str, root: Path | None, cwd: str | None,
-                          in_copy: bool, shell: str | None = OWN_SHELL) -> dict | None:
+    async def _disposable(
+        self,
+        ctx: Ctx,
+        command: str,
+        root: Path | None,
+        cwd: str | None,
+        in_copy: bool,
+        shell: str | None = OWN_SHELL,
+    ) -> dict | None:
         """Coordination §4: what of a delete is disposable (`disposable.what`) - run in `cwd` of
         `root` (the project, or the tree of the copy it works in: `in_copy`), in `shell` (KOLONİ's
         own command's by default, `_own_shell`; a CLI's as `disposable.cli_shell` knows it) - and
@@ -4951,29 +6082,41 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         at Auto-edit or Full auto, and the user watches the turn - not a side of a comparison, a
         To-do task's, a job while they are away. None for no such delete, or where it runs is not
         known (either None: a copy not made yet, a CLI's folder not known or its model's word)."""
-        if root is None or cwd is None or ctx.root is None or not any(
-                disposable_targets(command, one) for one in (POSIX, POWERSHELL)):
+        if (
+            root is None
+            or cwd is None
+            or ctx.root is None
+            or not any(disposable_targets(command, one) for one in (POSIX, POWERSHELL))
+        ):
             return None
         seen = self._git_at.get(ctx.run_id) or {}
         try:
             what = await asyncio.to_thread(
-                disposable.what, command, Path(ctx.root), root, cwd, in_copy=in_copy,
+                disposable.what,
+                command,
+                Path(ctx.root),
+                root,
+                cwd,
+                in_copy=in_copy,
                 copies_at=copies.folders(self.settings.runtime_root),
                 keep=seen.get("branch") or None,
-                shell=self._own_shell(ctx) if shell == OWN_SHELL else shell)
+                shell=self._own_shell(ctx) if shell == OWN_SHELL else shell,
+            )
         except Exception:  # (a look that fails is no disposable delete: its card, as before)
-            log.warning("run %s: the look at a disposable delete failed", ctx.run_id,
-                        exc_info=True)
+            log.warning("run %s: the look at a disposable delete failed", ctx.run_id, exc_info=True)
             return None
         if what is None:
             return None
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             mode = session.get_one(Conversation, ctx.cid).permission_mode
-        allowed = (project is not None and project.disposable_deletes
-                   and mode in ("auto_edit", "full_auto") and self._watched(ctx.run_id)
-                   and not {ctx.run_id} & ({*self._sides} | self._backlog_turns
-                                           | {*self._away_jobs}))
+        allowed = (
+            project is not None
+            and project.disposable_deletes
+            and mode in ("auto_edit", "full_auto")
+            and self._watched(ctx.run_id)
+            and not {ctx.run_id} & ({*self._sides} | self._backlog_turns | {*self._away_jobs})
+        )
         return {"what": what, "allowed": allowed}
 
     def _own_shell(self, ctx: Ctx) -> str:
@@ -4984,16 +6127,26 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         docker = project is not None and project.exec_location == "docker"
         return POWERSHELL if sys.platform == "win32" and not docker else POSIX
 
-    async def _looked_again(self, ctx: Ctx, call_id: str, command: str, root: Path | None,
-                            cwd: str | None, in_copy: bool, found: dict | None,
-                            why: str) -> tuple[dict | None, str]:
+    async def _looked_again(
+        self,
+        ctx: Ctx,
+        call_id: str,
+        command: str,
+        root: Path | None,
+        cwd: str | None,
+        in_copy: bool,
+        found: dict | None,
+        why: str,
+    ) -> tuple[dict | None, str]:
         """A delete that goes without a card as disposable (`found`, `_disposable`) looked at
         again just before it runs - a card of the turn may have been waited for meanwhile - and
         what it is then, with why it is asked at every level (`why`, as it was): where the second
         look finds other than the first, no longer disposable and asked all the same
         (`disposable.CHANGED`, on its call's card)."""
-        if not (found and found["allowed"]) or await self._disposable(
-                ctx, command, root, cwd, in_copy) == found:
+        if (
+            not (found and found["allowed"])
+            or await self._disposable(ctx, command, root, cwd, in_copy) == found
+        ):
             return found, why
         self._set_call(ctx.cid, call_id, why_asked=disposable.CHANGED)
         return None, disposable.CHANGED
@@ -5006,8 +6159,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         project's check the user set runs as theirs (`_run_in_copy`)."""
         return installs(command) if linked and self._watched(ctx.run_id) else ""
 
-    async def _command_call(self, ctx: Ctx, call_id: str, ws: Workspace,
-                            request: ToolCallRequest, args: dict) -> tuple[str, str]:
+    async def _command_call(
+        self, ctx: Ctx, call_id: str, ws: Workspace, request: ToolCallRequest, args: dict
+    ) -> tuple[str, str]:
         """run_command and run_skill_script, for `_run_call`."""
         run_id, cid = ctx.run_id, ctx.cid
         # A skill's script is a command, with the leave the user gave the skill.
@@ -5024,10 +6178,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         linked = self._copy_linked(ctx, owner)
         planned = plan_command(ws, args)
         at = "" if planned.cwd_rel == "." else f" in {planned.cwd_rel}"
-        if kept := self._keeps_out(ctx, command=planned.command, cwd=planned.cwd_rel,
-                                   what=f"run {planned.command}{at}") or self._keeps_out(
-                ctx, path=planned.cwd_rel if planned.cwd_rel != "." else None,
-                what=f"run {planned.command} in {planned.cwd_rel}"):
+        if kept := self._keeps_out(
+            ctx, command=planned.command, cwd=planned.cwd_rel, what=f"run {planned.command}{at}"
+        ) or self._keeps_out(
+            ctx,
+            path=planned.cwd_rel if planned.cwd_rel != "." else None,
+            what=f"run {planned.command} in {planned.cwd_rel}",
+        ):
             raise ToolError(kept)
         # (KOLONİ's Reviewer: only what reads, or the approved tests, unasked - else refused)
         unasked = await self._review_runs(ctx, ws.root, planned) if review else unasked
@@ -5038,16 +6195,31 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         place = made.root if made else None if owner else ws.root
         found = await self._disposable(ctx, planned.command, place, planned.cwd_rel, bool(owner))
         free = bool(found and found["allowed"])
-        in_a_copy = web_off or (self._in_copy_asks(
-            ctx, planned.command, linked, made.root if made else None, planned.cwd_rel)
-            if owner and not free else "") or self._branch_asks(
-            ctx, planned.command, bool(owner)) or (
-            self._shared_install(ctx, planned.command, bool(owner) and linked))
-        night = "" if in_a_copy or free else self._night_asks(
-            ctx, planned.command, planned.cwd_rel, None if owner else ctx.root)
+        in_a_copy = (
+            web_off
+            or (
+                self._in_copy_asks(
+                    ctx, planned.command, linked, made.root if made else None, planned.cwd_rel
+                )
+                if owner and not free
+                else ""
+            )
+            or self._branch_asks(ctx, planned.command, bool(owner))
+            or (self._shared_install(ctx, planned.command, bool(owner) and linked))
+        )
+        night = (
+            ""
+            if in_a_copy or free
+            else self._night_asks(
+                ctx, planned.command, planned.cwd_rel, None if owner else ctx.root
+            )
+        )
         # K-yargic: (not a skill's script the user lets run unasked: nobody is asked of it)
-        night, judged = (night, None) if unasked else await self._judged(
-            ctx, planned.command, planned.cwd_rel, night)
+        night, judged = (
+            (night, None)
+            if unasked
+            else await self._judged(ctx, planned.command, planned.cwd_rel, night)
+        )
         in_a_copy = in_a_copy or night
         self._never_asked(review, planned.command, in_a_copy)
         if not self._watched(run_id) and not unasked:
@@ -5055,13 +6227,21 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # waits for a decision, it is one that is not run.
             where = "" if planned.cwd_rel == "." else f" in {planned.cwd_rel}"
             refused = self._nobody_to_ask(
-                ctx, "command", f"run {quoted(planned.command)}{where}",
-                command=planned.command, cwd=planned.cwd_rel,
+                ctx,
+                "command",
+                f"run {quoted(planned.command)}{where}",
+                command=planned.command,
+                cwd=planned.cwd_rel,
             )
-            if refused == "" and (why := await asyncio.to_thread(
-                    search_reason, planned.command, ws.root, planned.cwd_rel) or in_a_copy):
+            if refused == "" and (
+                why := await asyncio.to_thread(
+                    search_reason, planned.command, ws.root, planned.cwd_rel
+                )
+                or in_a_copy
+            ):
                 refused = self._nobody_to_ask(
-                    ctx, "words", f"run {quoted(planned.command)}{where}: {why}")
+                    ctx, "words", f"run {quoted(planned.command)}{where}: {why}"
+                )
         if refused:
             raise _NobodyToAsk(refused)
         if in_a_copy:  # (on its card: why it is asked at every level)
@@ -5088,25 +6268,45 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             held = await asyncio.to_thread(standing_files, ctx.root)
             self._git_at_start.setdefault(run_id, _git_parts(held, Path(ctx.root)))
         found, in_a_copy = await self._looked_again(
-            ctx, call_id, planned.command, place, planned.cwd_rel, bool(owner), found, in_a_copy)
+            ctx, call_id, planned.command, place, planned.cwd_rel, bool(owner), found, in_a_copy
+        )
         ran = False
         started_ns = time.time_ns()
-        moved = None if unasked else await self._own_measure(
-            ctx, owner, planned.command, planned.cwd_rel)
+        moved = (
+            None
+            if unasked
+            else await self._own_measure(ctx, owner, planned.command, planned.cwd_rel)
+        )
         try:
-            async with self._measure_once(ctx, planned.command, moved) if (
-                    moved is not None) else contextlib.nullcontext() as once:
+            async with (
+                self._measure_once(ctx, planned.command, moved)
+                if (moved is not None)
+                else contextlib.nullcontext() as once,
+                # (P: a look's own command in the copy of the work it looks at - put back after)
+                self._look_kept(ctx, review) as left,
+            ):
                 status, output = await self.commands.run(
-                    run_id, cid, ctx.agent_id, ws, call_id, args,
-                    ask=refused is None and not unasked, where=in_copy if owner else None,
-                    always=bool(in_a_copy), web_off=bool(web_off), once=once, judgement=judged,
+                    run_id,
+                    cid,
+                    ctx.agent_id,
+                    ws,
+                    call_id,
+                    args,
+                    ask=refused is None and not unasked,
+                    where=in_copy if owner else None,
+                    always=bool(in_a_copy),
+                    web_off=bool(web_off),
+                    once=once,
+                    judgement=judged,
                     disposable=found,
                 )
             ran = True
         finally:
             if held is not None:
                 await self._own_command_looked(
-                    ctx, call_id, planned.command, held, since, ran, not unasked)
+                    ctx, call_id, planned.command, held, since, ran, not unasked
+                )
+        output += "".join(left)
         # R161: what it made (where it ran: its line's copy, made by this very command
         # maybe). shortcut: by when files were written - in the project, another agent's
         # command or a Take in at the same moment is put down to it too (and in Docker,
@@ -5115,14 +6315,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         made_in = self._copies.get(owner) if owner else None
         if ran and status != "denied" and not review and (made_in is not None or not owner):
             root = made_in.root if made_in else ws.root
-            await self._record_made(ctx, root, await asyncio.to_thread(
-                views.made_since, root, started_ns), made_in)
+            await self._record_made(
+                ctx, root, await asyncio.to_thread(views.made_since, root, started_ns), made_in
+            )
         if owner and self._copies.get(owner) is not None:
             output += self._told_of_copy(ctx, owner)
         return status, output
 
-    async def _tool_call(self, ctx: Ctx, call_id: str, ws: Workspace,
-                         request: ToolCallRequest, args: dict) -> tuple[str, str]:
+    async def _tool_call(
+        self, ctx: Ctx, call_id: str, ws: Workspace, request: ToolCallRequest, args: dict
+    ) -> tuple[str, str]:
         """The rest of `_run_call`'s tools, in its order: a name an earlier one takes is not
         looked at here (the same goes for each part after this one)."""
         if request.name == "spawn_agent":
@@ -5151,8 +6353,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             status, output = await self._tool_call_2(ctx, call_id, ws, request, args)
         return status, output
 
-    async def _tool_call_2(self, ctx: Ctx, call_id: str, ws: Workspace,
-                           request: ToolCallRequest, args: dict) -> tuple[str, str]:
+    async def _tool_call_2(
+        self, ctx: Ctx, call_id: str, ws: Workspace, request: ToolCallRequest, args: dict
+    ) -> tuple[str, str]:
         """`_tool_call`, its part 2."""
         if request.name == "propose_trigger":
             status, output = "succeeded", self._propose_trigger(ctx, args)
@@ -5184,8 +6387,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             status, output = await self._tool_call_3(ctx, call_id, ws, request, args)
         return status, output
 
-    async def _tool_call_3(self, ctx: Ctx, call_id: str, ws: Workspace,
-                           request: ToolCallRequest, args: dict) -> tuple[str, str]:
+    async def _tool_call_3(
+        self, ctx: Ctx, call_id: str, ws: Workspace, request: ToolCallRequest, args: dict
+    ) -> tuple[str, str]:
         """`_tool_call`, its part 3."""
         if request.name == "post_note":
             status, output = "succeeded", self._post_note(ctx, args)
@@ -5193,9 +6397,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             status, output = "succeeded", self._read_notes(ctx)
         elif request.name == "remember":
             # What is kept rests on the project's files, not on a copy's.
-            status, output = "succeeded", self._remember(
-                ctx, self._ws(ctx) if ctx.run_id in self._away_jobs else Workspace(ctx.folder),
-                args)  # (a job's lines are its copy's: the project has not changed)
+            status, output = (
+                "succeeded",
+                self._remember(
+                    ctx,
+                    self._ws(ctx) if ctx.run_id in self._away_jobs else Workspace(ctx.folder),
+                    args,
+                ),
+            )  # (a job's lines are its copy's: the project has not changed)
         elif request.name == "recall":
             # (In a thread: a search by meaning asks a server, 22c.)
             status, output = "succeeded", await asyncio.to_thread(self._recall, ctx, args)
@@ -5215,33 +6424,40 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             status, output = await self._tool_call_4(ctx, call_id, ws, request, args)
         return status, output
 
-    async def _tool_call_4(self, ctx: Ctx, call_id: str, ws: Workspace,
-                           request: ToolCallRequest, args: dict) -> tuple[str, str]:
+    async def _tool_call_4(
+        self, ctx: Ctx, call_id: str, ws: Workspace, request: ToolCallRequest, args: dict
+    ) -> tuple[str, str]:
         """`_tool_call`, its part 4."""
         if request.name == "recall_output":
             status, output = "succeeded", self._recall_output(ctx, args)
         elif request.name in BROWSER_TOOLS:
-            status, output = "succeeded", await self._browser(ctx, ws, call_id, request.name,
-                                                          args)
+            status, output = "succeeded", await self._browser(ctx, ws, call_id, request.name, args)
         elif request.name in WEB_SCHEMAS:
             status, output = await self._web(ctx, call_id, request.name, args)
         elif (found := self._mcp(ctx).get(request.name)) is not None:
             # Held to the agent's own servers here, not only when they are offered:
             # no check above knows a name that is not one of KOLONİ's own tools.
             status, output = await self._mcp_call(
-                ctx, call_id, request.name, *found, request.arguments, args)
+                ctx, call_id, request.name, *found, request.arguments, args
+            )
             if ctx.root:  # (a server may make the scratch by its full path: R136)
                 koloni.scratch(ctx.root, made=True)
         else:
             raise ToolError(f"unknown tool: {request.name}")
         return status, output
 
-    def _refuse_call(self, ctx: Ctx, call_id: str, request: ToolCallRequest) -> tuple[
-            dict, tuple[_Room, _Member] | None, _Room | None]:
+    def _refuse_call(
+        self, ctx: Ctx, call_id: str, request: ToolCallRequest
+    ) -> tuple[dict, tuple[_Room, _Member] | None, _Room | None]:
         """`_run_call`'s checks before anything is asked or run: each refuses by raising."""
         run_id, cid = ctx.run_id, ctx.cid
         if ctx.root is None and request.name not in (
-                *PLAIN_TOOLS, "use_skill", "pick_teams", "read_attachment", "recall_output"):
+            *PLAIN_TOOLS,
+            "use_skill",
+            "pick_teams",
+            "read_attachment",
+            "recall_output",
+        ):
             # Whatever it was offered: a plain chat has nothing that needs a folder.
             raise ToolError(f"{request.name} is not available: {NO_FOLDER}")
         if request.cut:
@@ -5253,16 +6469,21 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._review_refuses(ctx, request.name)  # (S3: KOLONİ's Reviewer only reads)
         # 101: before anything is asked or run. (Its output is not looked at: reading the
         # environment is no sending out, and the key is hidden there as any secret is.)
-        if (canary := self._canaries.get(run_id)) and (
-                request.name in CANARY_WATCHED or "__" in request.name) and sends_canary(
-                request.arguments, canary, request.name in ("run_command", "run_skill_script")):
+        if (
+            (canary := self._canaries.get(run_id))
+            and (request.name in CANARY_WATCHED or "__" in request.name)
+            and sends_canary(
+                request.arguments, canary, request.name in ("run_command", "run_skill_script")
+            )
+        ):
             self._set_call(cid, call_id, status="denied", result=CANARY_REFUSED, ended_at=now())
             self._over_budget(run_id, CANARY_STOPPED)
             raise asyncio.CancelledError  # (here, as `_count_step` does: not at a later wait)
         # (show and recall_output are every agent's at its own work, and no role's: not an
         # answer's either)
         if ctx.answering and (
-            request.name in ALL_TOOLS and request.name not in ctx.tools
+            request.name in ALL_TOOLS
+            and request.name not in ctx.tools
             or request.name in ("show", "recall_output")
         ):
             if ctx.discussion:
@@ -5283,7 +6504,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # (show is every agent's at its own work: a role's list does not grant it)
         role_tool = request.name in ALL_TOOLS and request.name != "show"
         if (
-            request.name not in ctx.tools and in_room is not None
+            request.name not in ctx.tools
+            and in_room is not None
             and in_room[0].status == "sharing"
             and (role_tool or request.name in rooms.TOOLS)
         ):
@@ -5301,20 +6523,27 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             raise ToolError(HANDS_CODE_REFUSED.format(tool=request.name))
         return args, in_room, followed
 
-    async def _call_where(self, ctx: Ctx, call_id: str, ws: Workspace,
-                          request: ToolCallRequest, args: dict) -> tuple[Workspace, dict]:
+    async def _call_where(
+        self, ctx: Ctx, call_id: str, ws: Workspace, request: ToolCallRequest, args: dict
+    ) -> tuple[Workspace, dict]:
         """Where `_run_call`'s call reads, writes or runs (`_plain_read`, `_outside`)."""
         if ctx.root is None and request.name in PLAIN_READS:
             ws, args = await self._plain_read(ctx, call_id, request.name, args)
-        elif request.name in READ_TOOLS or request.name in WRITE_TOOLS or (
-            request.name == "run_command"
+        elif (
+            request.name in READ_TOOLS
+            or request.name in WRITE_TOOLS
+            or (request.name == "run_command")
         ):
             # "~" and %USERPROFILE% are the home folder, as in a chat with no folder: not a
             # folder named "~" in the project, behind a card that names ~/.codex.
             if isinstance(args.get("path"), str):
                 args = {**args, "path": home_of(args["path"])}
-            if request.name == "run_command" and ctx.part and not args.get("cwd") and (
-                    self._watched(ctx.run_id)):
+            if (
+                request.name == "run_command"
+                and ctx.part
+                and not args.get("cwd")
+                and (self._watched(ctx.run_id))
+            ):
                 # K-buyuk-proje: in its part's folder - in its copy, the copy's - unless it
                 # names one. (Before anything judges the cwd: all of it judges this one.)
                 # Not in a trigger's turn: a command it ticked is allowed at the root only
@@ -5323,21 +6552,32 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             ws = await self._outside(ctx, call_id, ws, request.name, args)
         return ws, args
 
-    def _orders(self, ctx: Ctx, source: str, where: str, text: str,
-                call_id: str | None = None) -> bool:
+    def _orders(
+        self, ctx: Ctx, source: str, where: str, text: str, call_id: str | None = None
+    ) -> bool:
         """Whether text from outside reads like orders to the agent; if it does, the user
         is warned (`injection.warn`). Nothing is kept from the agent either way."""
         rules = injection.scan(text, source)
         self._warn(ctx, rules, source, where, call_id)
         return bool(rules)
 
-    def _warn(self, ctx: Ctx, rules: list[str], source: str, where: str,
-              call_id: str | None = None) -> None:
+    def _warn(
+        self, ctx: Ctx, rules: list[str], source: str, where: str, call_id: str | None = None
+    ) -> None:
         if rules:
             # (A warning that cannot be written stops nothing either.)
             with contextlib.suppress(Exception):
-                injection.warn(self._factory, self.bus, ctx.cid, ctx.run_id, ctx.agent_id,
-                               rules, source, where, call_id)
+                injection.warn(
+                    self._factory,
+                    self.bus,
+                    ctx.cid,
+                    ctx.run_id,
+                    ctx.agent_id,
+                    rules,
+                    source,
+                    where,
+                    call_id,
+                )
 
     def _touch(self, ctx: Ctx) -> None:
         """A CLI said something or did something with its own tools: its time goes on
@@ -5350,7 +6590,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._set_agent(ctx.cid, ctx.agent_id, last_event_at=now())
 
     def _counted(
-        self, ctx: Ctx, call_id: str, request: ToolCallRequest, status: str, output: str,
+        self,
+        ctx: Ctx,
+        call_id: str,
+        request: ToolCallRequest,
+        status: str,
+        output: str,
         own: bool = False,
     ) -> str:
         """A call's result with what was counted of it at the end (`app.signs`): from the
@@ -5361,19 +6606,25 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         shortcut: what else a CLI does with its own tools (reads, edits) is not counted:
         no result of a read is seen, and an edit is a change, which starts counts again."""
         counts = (self._own_counts if own else self._counts).setdefault(
-            ctx.agent_id, signs.Counts())
+            ctx.agent_id, signs.Counts()
+        )
         name, arguments = request.name, request.arguments
         with self._factory() as session:
             # The turn's changes as they stand on record - anybody's: its own, a
             # sub-agent's or a room member's in a copy, a copy taken in.
-            stamp = tuple(session.execute(
-                select(func.count(), func.max(FileChange.decided_at)).where(
-                    FileChange.run_id == ctx.run_id,
-                    FileChange.status.in_(("applied", "in_copy")))
-            ).one())
-            code = session.scalar(
-                select(Command.exit_code).where(Command.tool_call_id == call_id)
-            ) if name == "run_command" and status == "succeeded" else None
+            stamp = tuple(
+                session.execute(
+                    select(func.count(), func.max(FileChange.decided_at)).where(
+                        FileChange.run_id == ctx.run_id,
+                        FileChange.status.in_(("applied", "in_copy")),
+                    )
+                ).one()
+            )
+            code = (
+                session.scalar(select(Command.exit_code).where(Command.tool_call_id == call_id))
+                if name == "run_command" and status == "succeeded"
+                else None
+            )
             call = session.get(ToolCall, call_id)
             step, started = (call.message_id, call.started_at) if call else (None, None)
         earlier = None
@@ -5384,18 +6635,19 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             earlier = counts.changed()
             counts.moved()
         # (A command that keeps running has no exit code yet: not a failure.)
-        failed = status == "failed" or (name == "run_command" and status == "succeeded"
-                                        and code not in (0, None))
-        self._idle_counted(ctx, counts, request, status == "succeeded", failed, output,
-                           step, started)
+        failed = status == "failed" or (
+            name == "run_command" and status == "succeeded" and code not in (0, None)
+        )
+        self._idle_counted(
+            ctx, counts, request, status == "succeeded", failed, output, step, started
+        )
         found = None
         if failed:
             found = counts.failed(name, arguments, output)
             if name == "edit_file":
                 output += counts.missed_edit(arguments)
         elif status == "succeeded" and (
-            name in WRITE_TOOLS or name in ("spawn_agent", "message_agent")
-            or name == "run_command"
+            name in WRITE_TOOLS or name in ("spawn_agent", "message_agent") or name == "run_command"
         ):
             earlier = counts.changed() or earlier
         elif status == "succeeded" and name in READ_TOOLS:
@@ -5410,17 +6662,29 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return output
         return f"{output}\n\n[Counted by KOLONİ: {found['text']}]"
 
-    def _idle_counted(self, ctx: Ctx, counts: signs.Counts, request: ToolCallRequest,
-                      succeeded: bool, failed: bool, output: str, step: str | None,
-                      started: datetime | None) -> None:
+    def _idle_counted(
+        self,
+        ctx: Ctx,
+        counts: signs.Counts,
+        request: ToolCallRequest,
+        succeeded: bool,
+        failed: bool,
+        output: str,
+        step: str | None,
+        started: datetime | None,
+    ) -> None:
         """B-413, `_counted`: the call in its agent's `idle` count (a wait in its room that did
         wait is no repeat; an agent opened, a message to one not written to of late, a move), and
         what of it is real progress in a turn nobody watches (`_progress`)."""
         name, arguments = request.name, request.arguments
         if ctx.depth and not ctx.answering:  # (B-413: alive for `_progress_due`)
             self._worked_below[ctx.run_id] = now()
-        waited = name in signs.WAITS and started is not None and (now() - started.replace(
-            tzinfo=started.tzinfo or UTC)).total_seconds() >= signs.WAIT_INSTANT
+        waited = (
+            name in signs.WAITS
+            and started is not None
+            and (now() - started.replace(tzinfo=started.tzinfo or UTC)).total_seconds()
+            >= signs.WAIT_INSTANT
+        )
         counts.heard(name, arguments, output, step, waited)
         if name == "run_command" and succeeded and counts.passed(arguments, failed):
             self._progress(ctx.run_id)  # (a command that failed passed)
@@ -5430,19 +6694,24 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         elif name == "message_agent" and succeeded:
             counts.wrote_to(arguments)
 
-    def _stop_if_stuck(self, ctx: Ctx, counts: signs.Counts, found: dict | None,
-                       call_id: str) -> None:
+    def _stop_if_stuck(
+        self, ctx: Ctx, counts: signs.Counts, found: dict | None, call_id: str
+    ) -> None:
         """`_counted`: the same failure STOP_AT times ends an agent's work in a turn nobody
         watches; B-413: the Orchestrator, which counts no steps, is stopped by it anywhere, and by
         IDLE_STOP calls in a row that brought nothing new - it ends, or asks (`_circled`)."""
-        again = found is not None and found["kind"] == "same_failure" and (
-            found["count"] >= signs.STOP_AT)
+        again = (
+            found is not None
+            and found["kind"] == "same_failure"
+            and (found["count"] >= signs.STOP_AT)
+        )
         if again and found and not self._watched(ctx.run_id):
             self._stuck[ctx.agent_id] = signs.stopped(found["text"])
             self._stopped_by_koloni(ctx)
         elif not ctx.depth and (again or counts.idle >= signs.IDLE_STOP):
             self._stuck[ctx.agent_id] = signs.circling(
-                found["text"] if again and found else signs.IDLE.format(count=counts.idle))
+                found["text"] if again and found else signs.IDLE.format(count=counts.idle)
+            )
             self._circling[ctx.agent_id] = call_id
 
     # --- a chat team's recipe (slice 84b-2) -----------------------------------------------
@@ -5452,8 +6721,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """What a row runs by, as it is saved now: its recipe, else its team's default; None:
         neither, or the user's No recipe (K-tarifsiz). A run under way goes by its own copy of
         it (`recipe_run.begin`)."""
-        recipe = None if row.no_recipe else session.get(
-            Recipe, row.recipe_id or team.default_recipe_id or "")
+        recipe = (
+            None
+            if row.no_recipe
+            else session.get(Recipe, row.recipe_id or team.default_recipe_id or "")
+        )
         return (recipe.name, RecipeGraph.model_validate(recipe.graph)) if recipe else None
 
     def _way(self, session, row: ConversationTeam, root: str | None) -> str:
@@ -5463,15 +6735,28 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if found is None:
             return ""
         name, graph = found
-        now, way = {"slots": recipe_run.slot_map(graph, self._slots_of(
-            session, team, root, row.conversation_id))}, recipe_run.strip(graph)
-        parts = [f"{recipe_run.name_of(graph, part)} " + (
-                     f"skipped: {recipe_run.unfilled(graph, part)}"
-                     if now["slots"].get(part) == [] else
-                     f"({', '.join(recipe_run.roles_at(now, part))})" + (
-                         " only if a problem was found" if any(
-                             s.when for s in recipe_run.steps_of(graph, part)) else ""))
-                 for part in way[:-1]]
+        now, way = (
+            {
+                "slots": recipe_run.slot_map(
+                    graph, self._slots_of(session, team, root, row.conversation_id)
+                )
+            },
+            recipe_run.strip(graph),
+        )
+        parts = [
+            f"{recipe_run.name_of(graph, part)} "
+            + (
+                f"skipped: {recipe_run.unfilled(graph, part)}"
+                if now["slots"].get(part) == []
+                else f"({', '.join(recipe_run.roles_at(now, part))})"
+                + (
+                    " only if a problem was found"
+                    if any(s.when for s in recipe_run.steps_of(graph, part))
+                    else ""
+                )
+            )
+            for part in way[:-1]
+        ]
         return f"{team.name} by {name}: {' → '.join([*parts, recipe_run.name_of(graph, way[-1])])}"
 
     @staticmethod
@@ -5490,31 +6775,61 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
         def slots(step: RecipeStep) -> list[tuple[str, ...]]:
             if isinstance(step.who, WhoExperts):
-                experts = [(role, known) for role in session.scalars(
-                    select(Role).join(RoleTeam, RoleTeam.role_id == Role.id).where(
-                        RoleTeam.team_id == team.id, Role.enabled).order_by(Role.name))
-                    if (known := knows.known_here(session, role, project_id)) is not None]
+                experts = [
+                    (role, known)
+                    for role in session.scalars(
+                        select(Role)
+                        .join(RoleTeam, RoleTeam.role_id == Role.id)
+                        .where(RoleTeam.team_id == team.id, Role.enabled)
+                        .order_by(Role.name)
+                    )
+                    if (known := knows.known_here(session, role, project_id)) is not None
+                ]
                 if step.who.experts == "learned":
-                    return [(role.name,) for role, known in experts if root is not None
-                            and knowledge.guide(root, known) is not None
-                            and knowledge.learned(root, known) is not None]
+                    return [
+                        (role.name,)
+                        for role, known in experts
+                        if root is not None
+                        and knowledge.guide(root, known) is not None
+                        and knowledge.learned(root, known) is not None
+                    ]
                 # (One never given learn is not opened to learn: its turn would learn nothing.)
-                return [(role.name,) for role, known in experts if step.who.experts == "all" or (
-                    root is not None and knowledge.learns_itself(known)
-                    and knowledge.stale(root, known))]
+                return [
+                    (role.name,)
+                    for role, known in experts
+                    if step.who.experts == "all"
+                    or (
+                        root is not None
+                        and knowledge.learns_itself(known)
+                        and knowledge.stale(root, known)
+                    )
+                ]
             if isinstance(step.who, WhoRole | WhoRoom | WhoCandidates):  # (a room: a slot each)
-                names = step.who.room if isinstance(step.who, WhoRoom) else [
-                    step.who.candidates if isinstance(step.who, WhoCandidates) else step.who.role]
-                return [(role.name,) if (role := find_agent_role(session, name)) is not None
-                        and role.enabled else () for name in names]
+                names = (
+                    step.who.room
+                    if isinstance(step.who, WhoRoom)
+                    else [
+                        step.who.candidates
+                        if isinstance(step.who, WhoCandidates)
+                        else step.who.role
+                    ]
+                )
+                return [
+                    (role.name,)
+                    if (role := find_agent_role(session, name)) is not None and role.enabled
+                    else ()
+                    for name in names
+                ]
             if isinstance(step.who, WhoTeam):
-                named = session.scalar(select(Team).where(
-                    func.lower(Team.name) == step.who.team.lower()))
+                named = session.scalar(
+                    select(Team).where(func.lower(Team.name) == step.who.team.lower())
+                )
                 if named is None:  # (`problems` says why)
                     return [()]
                 stages = [roles for _name, roles in stage_roles(session, named)]
                 return [one for one in stages if one] or [tuple(team_roles(session, named))]
             return [tuple(team_roles(session, team))]
+
         return slots
 
     def _rows(self, session, cid: str) -> list[tuple[ConversationTeam, Team, Role | None]]:
@@ -5534,17 +6849,28 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     def _a_lead(self, session, cid: str, name: str) -> bool:
         """B-379: whether `name` is a team's lead of the chat, by its role or its title."""
         wanted = " ".join(name.split()).casefold()
-        return any(lead and wanted in (lead.name.casefold(), title_of(
-            lead.name, team.name).casefold()) for _row, team, lead in self._rows(session, cid))
+        return any(
+            lead and wanted in (lead.name.casefold(), title_of(lead.name, team.name).casefold())
+            for _row, team, lead in self._rows(session, cid)
+        )
 
     def _title(self, session, cid: str, name: str) -> str:
         """What the chat calls a role or an agent of that name (K-isimler, `roles.title_of`):
         the Lead is the Orchestrator, a team's lead is its team's coordinator."""
-        return title_of(name, next((team.name for _r, team, lead in self._rows(session, cid)
-                                    if lead and lead.name == name), None))
+        return title_of(
+            name,
+            next(
+                (
+                    team.name
+                    for _r, team, lead in self._rows(session, cid)
+                    if lead and lead.name == name
+                ),
+                None,
+            ),
+        )
 
     def _titled(self, session, cid: str, role: str, what: str) -> str:
-        """"Orchestrator (the role 'Lead') agent": how an agent is told who it is, so that
+        """ "Orchestrator (the role 'Lead') agent": how an agent is told who it is, so that
         it maps the role names the tools list to its title."""
         title = self._title(session, cid, role)
         return f"{title}" + (f" (the role {role!r})" if title != role else "") + f" {what}"
@@ -5553,19 +6879,33 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     def _live_state(row: ConversationTeam, run_id: str) -> dict | None:
         """The row's run in this turn, as a copy to change and save (`_save_row`); None: not
         started in it (one only waiting in it, B-84, is not), or no recipe's (B-101: `_apart`)."""
-        return json.loads(json.dumps(row.state)) if row.state and row.state.get(
-            "run_id") == run_id and row.state.get("graph") and row.state.get(
-            "status") != recipe_run.WAITING else None
+        return (
+            json.loads(json.dumps(row.state))
+            if row.state
+            and row.state.get("run_id") == run_id
+            and row.state.get("graph")
+            and row.state.get("status") != recipe_run.WAITING
+            else None
+        )
 
     @staticmethod
     def _apart_state(row: ConversationTeam, run_id: str) -> dict | None:
         """B-101: the row's state in this turn of a team with no recipe, beside one (`_apart`)."""
-        return dict(row.state) if row.state and row.state.get("run_id") == run_id and not (
-            row.state.get("graph")) and row.state.get("status") != recipe_run.WAITING else None
+        return (
+            dict(row.state)
+            if row.state
+            and row.state.get("run_id") == run_id
+            and not (row.state.get("graph"))
+            and row.state.get("status") != recipe_run.WAITING
+            else None
+        )
 
-    def _apart(self, cid: str, run_id: str,
-               how: Callable[[ConversationTeam, Team, Role, dict | None], dict | None]
-               ) -> None:
+    def _apart(
+        self,
+        cid: str,
+        run_id: str,
+        how: Callable[[ConversationTeam, Team, Role, dict | None], dict | None],
+    ) -> None:
         """B-101: beside a recipe's team, a team with none its lead runs has a row too - on
         the canvas and at Ready for you - which no recipe moves on: `how` gives each row's
         new state (None: as it is), from its state in this turn (`_apart_state`)."""
@@ -5592,13 +6932,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """Whether this agent runs the row: the Lead, one no lead runs; an agent of the row's
         run - its lead too - the rest of its work within the row's step."""
         return (ctx.depth == 0 and lead is None) or (
-            state is not None and ctx.agent_id in state["agents"])
+            state is not None and ctx.agent_id in state["agents"]
+        )
 
     def _teams_of_turn(self, session, ctx: Ctx) -> bool:
         """Whether the chat's teams were picked for this message: in Manual, or by the Lead in
         this turn - not rows left from an earlier `pick_teams` (B-87's review)."""
         return session.get_one(Conversation, ctx.cid).teams_mode == "manual" or (
-            ctx.run_id in self._picked)
+            ctx.run_id in self._picked
+        )
 
     def _teams_for(self, session, ctx: Ctx) -> set[str]:
         """The ids of the chat's teams that have to work on this message: every one the Lead
@@ -5615,8 +6957,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         (`_teams_unopened`); "" where there are none."""
         with self._factory() as session:
             names = [team.name for _r, team, _w in self._teams_unopened(session, ctx)]
-        return NOT_OPENED_LINE.format(teams=", ".join(names), was="was" if len(
-            names) == 1 else "were") if names else ""
+        return (
+            NOT_OPENED_LINE.format(teams=", ".join(names), was="was" if len(names) == 1 else "were")
+            if names
+            else ""
+        )
 
     def _teams_unopened(self, session, ctx: Ctx) -> list[tuple[ConversationTeam, Team, str]]:
         """B-398: in Manual - the teams the user gave the chat - the ones a turn that did work
@@ -5628,8 +6973,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         left = self._not_run(session, ctx, {team.id for _r, team, _l in rows})
         return left if len(left) < len(rows) else []
 
-    def _not_run(self, session, ctx: Ctx,
-                 wanted: set[str] | None = None) -> list[tuple[ConversationTeam, Team, str]]:
+    def _not_run(
+        self, session, ctx: Ctx, wanted: set[str] | None = None
+    ) -> list[tuple[ConversationTeam, Team, str]]:
         """B-90: the chat's teams that have to work in this turn and did not start, each with
         what to open: those that have to work on this message (`_teams_for`), or `wanted`. A
         recipe's team started when its run did; one with none when its lead, or one of its roles,
@@ -5638,8 +6984,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         wanted = self._teams_for(session, ctx) if wanted is None else wanted
         if not wanted or not (ctx.run_id in self._picked or self._worked(session, ctx.run_id)):
             return []  # (a "thanks" is no work any team has to do)
-        opened = set(session.scalars(select(Agent.role_name).where(
-            Agent.run_id == ctx.run_id, Agent.depth > 0)))
+        opened = set(
+            session.scalars(
+                select(Agent.role_name).where(Agent.run_id == ctx.run_id, Agent.depth > 0)
+            )
+        )
         left = []
         held = self._kept_held(ctx.run_id)  # (B-138: the user's Stop on it, or work not all in)
         for row, team, lead in rows:
@@ -5650,10 +6999,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 if self._live_state(row, ctx.run_id):
                     continue
             elif opened & ({lead.name} if lead else set(roles)) and not (
-                    lead and self._without_its_work(session, ctx.run_id, lead.name)):
+                lead and self._without_its_work(session, ctx.run_id, lead.name)
+            ):
                 continue
-            left.append((row, team, lead.name if lead else (
-                f"one of its roles ({', '.join(roles)})")))
+            left.append(
+                (row, team, lead.name if lead else (f"one of its roles ({', '.join(roles)})"))
+            )
         return left
 
     def _left_to_do(self, ctx: Ctx) -> str | None:
@@ -5671,26 +7022,36 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     continue
                 graph, at = recipe_run.graph_of(state), state["at"]
                 how = "open_room" if recipe_run.room_at(graph, at) else "spawn_agent"
-                said.append(f"the {state['recipe']} recipe's next step is "
-                            f"{recipe_run.name_of(graph, at)} "
-                            f"({', '.join(recipe_run.open_to(state))}): open it with {how} "
-                            "(or say why it cannot run)")
+                said.append(
+                    f"the {state['recipe']} recipe's next step is "
+                    f"{recipe_run.name_of(graph, at)} "
+                    f"({', '.join(recipe_run.open_to(state))}): open it with {how} "
+                    "(or say why it cannot run)"
+                )
                 told[row.id] += 1
             if ctx.depth == 0:
                 for row, team, what in self._not_run(session, ctx):
                     if told[row.id] < 2:
-                        said.append(f"the {team.name} team has to work on this message and did "
-                                    f"not: open {what} with spawn_agent (or say why it cannot)")
+                        said.append(
+                            f"the {team.name} team has to work on this message and did "
+                            f"not: open {what} with spawn_agent (or say why it cannot)"
+                        )
                         told[row.id] += 1
                 for row, team, what in self._teams_unopened(session, ctx):  # (B-398: once)
                     if not told[f"unopened {row.id}"]:
                         said.append(UNOPENED.format(team=team.name, what=what))
                         told[f"unopened {row.id}"] += 1
                 conversation = session.get_one(Conversation, ctx.cid)
-                if conversation.teams_mode == "lead" and not conversation.teams and (
-                        self._worked(session, ctx.run_id)) and not told["no team"]:
-                    said.append("you picked no team for this message, which asked for work: say "
-                                "in one line why no team works on it")
+                if (
+                    conversation.teams_mode == "lead"
+                    and not conversation.teams
+                    and (self._worked(session, ctx.run_id))
+                    and not told["no team"]
+                ):
+                    said.append(
+                        "you picked no team for this message, which asked for work: say "
+                        "in one line why no team works on it"
+                    )
                     told["no team"] += 1
         return f"Not the end yet: {'; '.join(said)}." if said else None
 
@@ -5715,25 +7076,45 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         its holder lets go before the turn's end: one of another turn, or one still at work -
         not the Lead, nor one done, which hold theirs till then."""
         with self._factory() as session:
-            busy = {one.id: one for one in session.scalars(select(Agent).where(
-                Agent.run_id == ctx.run_id, Agent.depth > 0,
-                Agent.status.in_((*AT_WORK, "blocked")),
-                or_(Agent.id.not_in(IN_A_ROOM), Agent.id.in_(self._taken_up))).order_by(
-                Agent.created_at))}
+            busy = {
+                one.id: one
+                for one in session.scalars(
+                    select(Agent)
+                    .where(
+                        Agent.run_id == ctx.run_id,
+                        Agent.depth > 0,
+                        Agent.status.in_((*AT_WORK, "blocked")),
+                        or_(Agent.id.not_in(IN_A_ROOM), Agent.id.in_(self._taken_up)),
+                    )
+                    .order_by(Agent.created_at)
+                )
+            }
 
             def lets_go(holder: str) -> bool:
                 known = self._ctxs.get(holder)
-                return known is None or known.run_id != ctx.run_id or (
-                    holder in busy and busy[holder].status != "blocked")
+                return (
+                    known is None
+                    or known.run_id != ctx.run_id
+                    or (holder in busy and busy[holder].status != "blocked")
+                )
 
             # (Nor one whose waits lead back to the Lead - a file it holds: that ends with it.)
-            busy = {key: one for key, one in busy.items() if one.status != "blocked" or (
-                self.claims.cycle(ctx.agent_id, key) is None and any(
-                    lets_go(wait.holder) for wait in self.claims.waiting(key)))}
+            busy = {
+                key: one
+                for key, one in busy.items()
+                if one.status != "blocked"
+                or (
+                    self.claims.cycle(ctx.agent_id, key) is None
+                    and any(lets_go(wait.holder) for wait in self.claims.waiting(key))
+                )
+            }
             # B-415: and one a CLI opener did not wait for, ended on record but its call not
             # over yet - its step's row is moved on (`_after_step`) only then.
-            closing = [self._ctxs[one[1]].name for one in self._later_work.get(ctx.run_id, ())
-                       if not one[3].done() and one[1] not in busy and one[1] in self._ctxs]
+            closing = [
+                self._ctxs[one[1]].name
+                for one in self._later_work.get(ctx.run_id, ())
+                if not one[3].done() and one[1] not in busy and one[1] in self._ctxs
+            ]
             if not busy and not closing:
                 return None
             said = [f"{name} finishing" for name in closing]
@@ -5746,17 +7127,24 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                         if state and state.get("graph"):
                             graph = recipe_run.graph_of(state)
                             at = f" at {recipe_run.name_of(graph, state['at'])}"
-                    said.append(f"{team.name}{at}: " + ", ".join(
-                        f"{one.name} {one.status}" for one in theirs))
+                    said.append(
+                        f"{team.name}{at}: "
+                        + ", ".join(f"{one.name} {one.status}" for one in theirs)
+                    )
             said += [f"{one.name} {one.status}" for one in busy.values()]
         return "; ".join(said)
 
     def _holds_teams(self, session, ctx: Ctx) -> bool:
         """Whether this agent's turn is held to the chat's teams' work (B-83, B-90): not an
         answer, a discussion, a plan, a side of a comparison, nor a turn nobody watches."""
-        return not (ctx.answering or ctx.discussion or not self._gives_slots(ctx)
-                    or ctx.run_id in self._sides or not self._watched(ctx.run_id)
-                    or session.get_one(Run, ctx.run_id).plan_turn)
+        return not (
+            ctx.answering
+            or ctx.discussion
+            or not self._gives_slots(ctx)
+            or ctx.run_id in self._sides
+            or not self._watched(ctx.run_id)
+            or session.get_one(Run, ctx.run_id).plan_turn
+        )
 
     @staticmethod
     def _without_its_work(session, run_id: str, lead: str) -> bool:
@@ -5766,38 +7154,70 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         nothing to do did its work.
         shortcut: what it said is read in English and Turkish words (`COULD_NOT`); add others if a
         lead is seen to say it otherwise."""
-        mine = [one for one in session.scalars(select(Agent).where(
-            Agent.run_id == run_id, Agent.depth == 1, Agent.id.not_in(IN_A_ROOM)))
-            if one.role_name.casefold() == lead.casefold()]
+        mine = [
+            one
+            for one in session.scalars(
+                select(Agent).where(
+                    Agent.run_id == run_id, Agent.depth == 1, Agent.id.not_in(IN_A_ROOM)
+                )
+            )
+            if one.role_name.casefold() == lead.casefold()
+        ]
         ids = [one.id for one in mine]
         # (Only one that answered: a failed one is said so, a declined one is the user's no.)
-        return bool(ids) and all(one.status == "completed" for one in mine) and any(
-            COULD_NOT.search(one.report or "") for one in mine) and session.scalar(
-            select(Agent.id).where(Agent.parent_agent_id.in_(ids)).limit(1)) is None and (
-            session.scalar(select(FileChange.id).where(
-                FileChange.agent_id.in_(ids)).limit(1)) is None)
+        return (
+            bool(ids)
+            and all(one.status == "completed" for one in mine)
+            and any(COULD_NOT.search(one.report or "") for one in mine)
+            and session.scalar(select(Agent.id).where(Agent.parent_agent_id.in_(ids)).limit(1))
+            is None
+            and (
+                session.scalar(select(FileChange.id).where(FileChange.agent_id.in_(ids)).limit(1))
+                is None
+            )
+        )
 
     @staticmethod
     def _worked(session, run_id: str) -> bool:
         """Whether the turn did work - a call that is more than reading or talking (B-90)."""
-        return session.scalar(select(ToolCall.id).where(
-            ToolCall.run_id == run_id,
-            ToolCall.name.not_in(READ_TOOLS | NOT_WORK | {"pick_teams", "read_backlog",
-                                                          "view_image", LOOKUP})).limit(1)
-        ) is not None
+        return (
+            session.scalar(
+                select(ToolCall.id)
+                .where(
+                    ToolCall.run_id == run_id,
+                    ToolCall.name.not_in(
+                        READ_TOOLS | NOT_WORK | {"pick_teams", "read_backlog", "view_image", LOOKUP}
+                    ),
+                )
+                .limit(1)
+            )
+            is not None
+        )
 
     def _calls_of(self, ctx: Ctx) -> int:
         with self._factory() as session:
-            return session.scalar(select(func.count()).select_from(ToolCall).where(
-                ToolCall.agent_id == ctx.agent_id)) or 0
+            return (
+                session.scalar(
+                    select(func.count())
+                    .select_from(ToolCall)
+                    .where(ToolCall.agent_id == ctx.agent_id)
+                )
+                or 0
+            )
 
     def _nudge(self, ctx: Ctx, words: str) -> None:
         """`words` follow the agent's last message in what it sees from its next step on."""
         with self._factory() as session:
-            last = session.scalar(select(Message.id).where(
-                Message.run_id == ctx.run_id, Message.agent_id == ctx.agent_id,
-                Message.role == "assistant").order_by(
-                Message.created_at.desc(), literal_column("messages.rowid").desc()).limit(1))
+            last = session.scalar(
+                select(Message.id)
+                .where(
+                    Message.run_id == ctx.run_id,
+                    Message.agent_id == ctx.agent_id,
+                    Message.role == "assistant",
+                )
+                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
+                .limit(1)
+            )
         self._nudges.setdefault(ctx.agent_id, []).append((last, words))
 
     def _mark_not_run(self, ctx: Ctx) -> None:
@@ -5811,15 +7231,27 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             for row, team, _what in self._not_run(session, ctx):
                 if (row.state or {}).get("run_id") == ctx.run_id:
                     continue  # (shown waiting since another team started)
-                if row.state and session.scalar(select(Merge.id).where(
-                        Merge.run_id == row.state.get("run_id"), Merge.status == "interrupted",
-                        Merge.kept_in.is_not(None)).limit(1)):
+                if row.state and session.scalar(
+                    select(Merge.id)
+                    .where(
+                        Merge.run_id == row.state.get("run_id"),
+                        Merge.status == "interrupted",
+                        Merge.kept_in.is_not(None),
+                    )
+                    .limit(1)
+                ):
                     continue
                 found = self._recipe_of(session, row, team)
-                row.state = {"run_id": ctx.run_id, "team": team.name,
-                             "recipe": found[0] if found else "",
-                             "status": recipe_run.WAITING, "why": None, "steps": [],
-                             "agents": [], **self._carried(session, row, found, ctx.run_id)}
+                row.state = {
+                    "run_id": ctx.run_id,
+                    "team": team.name,
+                    "recipe": found[0] if found else "",
+                    "status": recipe_run.WAITING,
+                    "why": None,
+                    "steps": [],
+                    "agents": [],
+                    **self._carried(session, row, found, ctx.run_id),
+                }
                 keep_turn(row)
                 changed = True
             if not changed:
@@ -5829,8 +7261,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self.bus.emit(ctx.cid, None, "conversation.updated", payload)
 
     @staticmethod
-    def _carried(session, row: ConversationTeam, found: tuple[str, RecipeGraph] | None,
-                 run_id: str) -> dict:
+    def _carried(
+        session, row: ConversationTeam, found: tuple[str, RecipeGraph] | None, run_id: str
+    ) -> dict:
         """What a row's run begun anew in turn `run_id` keeps of its earlier one
         (`recipe_run.carried`): only in the same topic - the work that turn went on with.
         shortcut: a message about other work in the same topic gets them too; tell them apart
@@ -5840,8 +7273,21 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return recipe_run.carried(row.state, found) if same else {}
 
     def _runs(self, session, ctx: Ctx) -> list[tuple[ConversationTeam, Team]]:
-        return [(row, team) for row, team, lead in self._rows(session, ctx.cid)
-                if self._runs_it(ctx, lead, self._live_state(row, ctx.run_id))]
+        return [
+            (row, team)
+            for row, team, lead in self._rows(session, ctx.cid)
+            if self._runs_it(ctx, lead, self._live_state(row, ctx.run_id))
+        ]
+
+    def _recipe_at_work(self, ctx: Ctx) -> bool:
+        """Whether a recipe row it runs in this turn is still at work (`_left_to_do` tells its
+        next step) - its own end, its Checks step at Ready for you, checks its work."""
+        with self._factory() as session:
+            return any(
+                (state := self._live_state(row, ctx.run_id)) is not None
+                and state["status"] == recipe_run.RUNNING
+                for row, _team in self._runs(session, ctx)
+            )
 
     @staticmethod
     def _where(team: str, state: dict, cli: bool = False) -> str:
@@ -5853,64 +7299,94 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         graph, at = recipe_run.graph_of(state), state["at"]
         roles, most = recipe_run.open_to(state), recipe_run.size(graph, state["slots"], at)
         # Slice 84e: as many agents as the drawing has, whatever the chat's own limit.
-        room = (" - a room: open it with open_room, with all of them" if recipe_run.room_at(
-            graph, at) else "")
+        room = (
+            " - a room: open it with open_room, with all of them"
+            if recipe_run.room_at(graph, at)
+            else ""
+        )
         # (Not a branch's later step, not open yet: K-tarif-kol.)
         did = recipe_run.writers(state)
-        wrote = [role for role in recipe_run.roles_at(state, at)
-                 if role not in roles and role.casefold() in did]
-        mine = (f" (not {', '.join(wrote)}: who did the work does not pass its check)"
-                if wrote else "")
+        wrote = [
+            role
+            for role in recipe_run.roles_at(state, at)
+            if role not in roles and role.casefold() in did
+        ]
+        mine = (
+            f" (not {', '.join(wrote)}: who did the work does not pass its check)" if wrote else ""
+        )
         # K-rol-cogul: how many of a role, up to what its step draws, is the opener's to say.
         split = "".join(
             f" - up to {s.who.most} {s.who.role}: where the work splits into independent parts "
             "(separate files or modules), one each, asked for in one reply, never the same "
             "file to two; a small job gets one"
             for s in recipe_run.steps_of(graph, at)
-            if isinstance(s.who, WhoRole) and (s.who.most or 1) > 1)
+            if isinstance(s.who, WhoRole) and (s.who.most or 1) > 1
+        )
         # K-evrim: candidates do not split it - each does all of it, its own way.
         split += "".join(
             f" - up to {s.who.most} {s.who.candidates} as candidates, asked for in one reply: "
             "each gets the whole task to do its own way, in a copy of its own; KOLONİ measures "
             "each as it finishes, and the best one's work goes on"
             # K-evrim-model: whose their models are.
-            + (". Their models are yours to choose where spawn_agent takes tier or provider: the "
-               "same for all, or each its own, with why, in each call; left out, the role's own"
-               if s.who.models == "auto" else
-               ". All run on the role's own model: leave provider, model and tier out"
-               if s.who.models == "same" else
-               ". The recipe gives each its model: leave provider, model and tier out")
-            for s in recipe_run.steps_of(graph, at) if isinstance(s.who, WhoCandidates))
+            + (
+                ". Their models are yours to choose where spawn_agent takes tier or provider: the "
+                "same for all, or each its own, with why, in each call; left out, the role's own"
+                if s.who.models == "auto"
+                else ". All run on the role's own model: leave provider, model and tier out"
+                if s.who.models == "same"
+                else ". The recipe gives each its model: leave provider, model and tier out"
+            )
+            for s in recipe_run.steps_of(graph, at)
+            if isinstance(s.who, WhoCandidates)
+        )
         # K-tarif-kol: a group's branches, each a line of steps; "first": one done is enough.
         lines, names = recipe_run.branches(graph, at), {s.id: s.name for s in graph.steps}
         first = recipe_run.races(graph, at)
         if first or any(line[1:] for line in lines):
-            split += (" - its branches run at once, each step once the one before it is done: "
-                      + "; ".join(" → ".join(names[s] for s in line) for line in lines)
-                      + (". Open the first step of each, then each next one yourself as the one "
-                         "before it is done" if cli else ". Open the first step of each: KOLONİ "
-                         "opens each next one as the one before it is done, its report with that "
-                         "call's")) + (
-                ". The first branch done ends the step: KOLONİ stops the others" if first == [at]
-                else "".join(f". The first branch of {recipe_run.name_of(graph, one)} done ends "
-                             "that group: KOLONİ stops its others" for one in first))
+            split += (
+                " - its branches run at once, each step once the one before it is done: "
+                + "; ".join(" → ".join(names[s] for s in line) for line in lines)
+                + (
+                    ". Open the first step of each, then each next one yourself as the one "
+                    "before it is done"
+                    if cli
+                    else ". Open the first step of each: KOLONİ "
+                    "opens each next one as the one before it is done, its report with that "
+                    "call's"
+                )
+            ) + (
+                ". The first branch done ends the step: KOLONİ stops the others"
+                if first == [at]
+                else "".join(
+                    f". The first branch of {recipe_run.name_of(graph, one)} done ends "
+                    "that group: KOLONİ stops its others"
+                    for one in first
+                )
+            )
         # B-375 (R179): KOLONİ opens no step the Lead picks a role for - the Lead watched the
         # first group and opened them only once it was done.
         if picks := recipe_run.lead_picks(state):
-            split += (f". Open these now, beside the rest - not after them: {'; '.join(picks)} - "
-                      "each one agent of a role you pick; KOLONİ opens none of them")
-        return (f"the {state['recipe']} recipe of {team} is at its "
-                f"{recipe_run.name_of(graph, at)} step, for {', '.join(roles) or 'no role'}"
-                f"{mine}: it draws {most} agent{'' if most == 1 else 's'}, "
-                f"{recipe_run.cap(graph, state['slots'])} in all for the run{room}{split}")
+            split += (
+                f". Open these now, beside the rest - not after them: {'; '.join(picks)} - "
+                "each one agent of a role you pick; KOLONİ opens none of them"
+            )
+        return (
+            f"the {state['recipe']} recipe of {team} is at its "
+            f"{recipe_run.name_of(graph, at)} step, for {', '.join(roles) or 'no role'}"
+            f"{mine}: it draws {most} agent{'' if most == 1 else 's'}, "
+            f"{recipe_run.cap(graph, state['slots'])} in all for the run{room}{split}"
+        )
 
     def _door(self, session, ctx: Ctx) -> Door:
         """`chat_teams`, narrowed where this agent runs a recipe: to its step's roles (a row
         not started in this turn, to its first step's); for the Lead beside another team, to
         the teams' leads."""
         door = chat_teams(session, session.get_one(Conversation, ctx.cid))
-        leads = [lead.name for _r, _t, lead in self._rows(session, ctx.cid) if lead] if (
-            ctx.depth == 0) else []
+        leads = (
+            [lead.name for _r, _t, lead in self._rows(session, ctx.cid) if lead]
+            if (ctx.depth == 0)
+            else []
+        )
         allowed, said = {lead.casefold() for lead in leads}, []
         narrowed = bool(leads)
         for row, team in self._runs(session, ctx):
@@ -5922,8 +7398,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 if found is None:
                     allowed |= {name.casefold() for name in team_roles(session, team)}
                     continue
-                state = recipe_run.begin(found[1], ctx.run_id, found[0],
-                                         self._slots_of(session, team, ctx.root, ctx.cid))
+                state = recipe_run.begin(
+                    found[1], ctx.run_id, found[0], self._slots_of(session, team, ctx.root, ctx.cid)
+                )
             elif state["status"] in (recipe_run.IN, recipe_run.DONE):
                 # K-r146 (live): its recipe has ended in this turn - a small follow-up (a
                 # finding it left) is opened outside it, by the chat's teams as without one.
@@ -5953,12 +7430,22 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 continue
             graph = recipe_run.graph_of(state)
             gone = (recipe_run.lost(state) if state["status"] == recipe_run.RUNNING else set()) | {
-                one for steps in state.get("outrun", {}).values() for one in steps}
+                one for steps in state.get("outrun", {}).values() for one in steps
+            }
             parts = {recipe_run.part_of(graph, one) for one in gone}
-            others = {(recipe_run.role_of(s) or "").casefold() for s in graph.steps
-                      if s.id not in gone and recipe_run.part_of(graph, s.id) in parts}
-            step = next((s for s in graph.steps if s.id in gone
-                         and (recipe_run.role_of(s) or "").casefold() == wanted), None)
+            others = {
+                (recipe_run.role_of(s) or "").casefold()
+                for s in graph.steps
+                if s.id not in gone and recipe_run.part_of(graph, s.id) in parts
+            }
+            step = next(
+                (
+                    s
+                    for s in graph.steps
+                    if s.id in gone and (recipe_run.role_of(s) or "").casefold() == wanted
+                ),
+                None,
+            )
             if step is not None and wanted not in others | recipe_run.allowed(state):
                 return OUTRUN_REOPEN.format(role=role.name, step=step.name)
         return None
@@ -5967,8 +7454,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """A team's lead the Lead may open now: of a row it runs beside another team."""
         if ctx.depth:
             return None
-        return next((lead for _r, _t, lead in self._rows(session, ctx.cid)
-                     if lead and lead.name.casefold() == " ".join(wanted.split()).casefold()), None)
+        return next(
+            (
+                lead
+                for _r, _t, lead in self._rows(session, ctx.cid)
+                if lead and lead.name.casefold() == " ".join(wanted.split()).casefold()
+            ),
+            None,
+        )
 
     def _in_a_recipe(self, ctx: Ctx) -> bool:
         """Whether a recipe of the chat ran in this turn: its copy is held till the turn ends,
@@ -5979,8 +7472,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """K-r146: every recipe of the turn has ended in it - taken in, or done: an agent opened
         after is outside them (`_door`), its work goes into the project as any agent's does."""
         with self._factory() as session:
-            states = [self._live_state(row, ctx.run_id)
-                      for row, _team, _lead in self._rows(session, ctx.cid)]
+            states = [
+                self._live_state(row, ctx.run_id)
+                for row, _team, _lead in self._rows(session, ctx.cid)
+            ]
         ended = [state["status"] in (recipe_run.IN, recipe_run.DONE) for state in states if state]
         return bool(ended) and all(ended)
 
@@ -5995,7 +7490,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         with self._factory() as session:
             made = (session.get_one(Agent, owner).copy or {}).get("state")
         why = NO_RECIPE_COPY.format(
-            why="it is too big to copy" if made == "too_big" else "the copying failed")
+            why="it is too big to copy" if made == "too_big" else "the copying failed"
+        )
 
         def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
             if state["status"] not in recipe_run.OPEN:
@@ -6016,19 +7512,31 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         write tests; let a Tester in if that is felt."""
         if ctx.depth or self._works_in(ctx) is not None:
             return []
-        return [name for agent_id, name in session.execute(
-            select(Agent.id, Agent.name).join(ToolCall, ToolCall.id == Agent.tool_call_id).where(
-                Agent.run_id == ctx.run_id, Agent.parent_agent_id == ctx.agent_id,
-                ToolCall.status.in_(("pending", "running"))).order_by(Agent.created_at))
-            if self._copies.get(agent_id) is not None]
+        return [
+            name
+            for agent_id, name in session.execute(
+                select(Agent.id, Agent.name)
+                .join(ToolCall, ToolCall.id == Agent.tool_call_id)
+                .where(
+                    Agent.run_id == ctx.run_id,
+                    Agent.parent_agent_id == ctx.agent_id,
+                    ToolCall.status.in_(("pending", "running")),
+                )
+                .order_by(Agent.created_at)
+            )
+            if self._copies.get(agent_id) is not None
+        ]
 
-    def _to_start(self, session, ctx: Ctx, role: Role | None
-                  ) -> list[tuple[ConversationTeam, Team]]:
+    def _to_start(
+        self, session, ctx: Ctx, role: Role | None
+    ) -> list[tuple[ConversationTeam, Team]]:
         """The rows an opening of `role` by this agent starts (`_start_runs`): those it runs, and
         the row of a lead it opens."""
         return self._runs(session, ctx) + [
-            (row, team) for row, team, lead in self._rows(session, ctx.cid)
-            if lead is not None and role is not None and lead.id == role.id]
+            (row, team)
+            for row, team, lead in self._rows(session, ctx.cid)
+            if lead is not None and role is not None and lead.id == role.id
+        ]
 
     def _start_runs(self, session, ctx: Ctx, role: Role | None) -> None:
         """Before this agent opens one: each row it runs, and the row of a lead it opens, starts
@@ -6046,22 +7554,40 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if not self._watched(ctx.run_id):
                 raise ToolError(RECIPE_UNWATCHED.format(recipe=name))
             if ctx.run_id in self._rooms and not self._in_a_recipe(ctx):
-                raise ToolError(f"the {name} recipe does not start while a room is open in "
-                                "this turn: its work and the room's would share one copy")
-            state = recipe_run.begin(graph, ctx.run_id, name,
-                                     self._slots_of(session, team, ctx.root, ctx.cid))
-            wrong = [one["msg"] for one in problems(session, graph, self.providers)] + [
-                f"{step.name}: no role that is on to open" for step in graph.steps
-                if any(at == step.id and not roles
-                       for slots in state["slots"].values() for at, roles in slots)] + [
-                CANDIDATES_WATCHED.format(step=step.name) for step in graph.steps
-                if isinstance(step.who, WhoCandidates) and (
-                    ctx.run_id in self._away_jobs or ctx.run_id in self._branch_runs
-                    or ctx.run_id in self._sides)]
+                raise ToolError(
+                    f"the {name} recipe does not start while a room is open in "
+                    "this turn: its work and the room's would share one copy"
+                )
+            state = recipe_run.begin(
+                graph, ctx.run_id, name, self._slots_of(session, team, ctx.root, ctx.cid)
+            )
+            wrong = (
+                [one["msg"] for one in problems(session, graph, self.providers)]
+                + [
+                    f"{step.name}: no role that is on to open"
+                    for step in graph.steps
+                    if any(
+                        at == step.id and not roles
+                        for slots in state["slots"].values()
+                        for at, roles in slots
+                    )
+                ]
+                + [
+                    CANDIDATES_WATCHED.format(step=step.name)
+                    for step in graph.steps
+                    if isinstance(step.who, WhoCandidates)
+                    and (
+                        ctx.run_id in self._away_jobs
+                        or ctx.run_id in self._branch_runs
+                        or ctx.run_id in self._sides
+                    )
+                ]
+            )
             if wrong:
                 raise ToolError(
                     f"the {name} recipe of {team.name} cannot run: {'; '.join(wrong)}. The "
-                    "user changes it on the Agents page (Recipes or Roles)")
+                    "user changes it on the Agents page (Recipes or Roles)"
+                )
             # (The user's Ask for changes words, a turn ended before their part ran again: kept
             # for it, and given its agents once this run is there - `_spawn_one`.)
             carried = self._carried(session, row, found, ctx.run_id)
@@ -6074,18 +7600,40 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # B-84: the chat's other teams are shown waiting in this turn till they start.
             for row, team, _lead in self._rows(session, ctx.cid):
                 if (row.state or {}).get("run_id") != ctx.run_id and (
-                        found := self._recipe_of(session, row, team)):
-                    waiting = recipe_run.begin(found[1], ctx.run_id, found[0],
-                                               self._slots_of(session, team, ctx.root, ctx.cid))
-                    self._save_row(row, team, {
-                        **waiting, **self._carried(session, row, found, ctx.run_id),
-                        "status": recipe_run.WAITING, "at": None})
+                    found := self._recipe_of(session, row, team)
+                ):
+                    waiting = recipe_run.begin(
+                        found[1],
+                        ctx.run_id,
+                        found[0],
+                        self._slots_of(session, team, ctx.root, ctx.cid),
+                    )
+                    self._save_row(
+                        row,
+                        team,
+                        {
+                            **waiting,
+                            **self._carried(session, row, found, ctx.run_id),
+                            "status": recipe_run.WAITING,
+                            "at": None,
+                        },
+                    )
             # As a room's: the turn's agents change files in its lead's one copy from here.
-            self._recipe_copy.setdefault(ctx.run_id, next(
-                c.agent_id for c in self._ctxs.values() if c.run_id == ctx.run_id and not c.depth))
+            self._recipe_copy.setdefault(
+                ctx.run_id,
+                next(
+                    c.agent_id
+                    for c in self._ctxs.values()
+                    if c.run_id == ctx.run_id and not c.depth
+                ),
+            )
             session.commit()
-            self.bus.emit(ctx.cid, None, "conversation.updated",
-                          conversation_out(session.get_one(Conversation, ctx.cid)))
+            self.bus.emit(
+                ctx.cid,
+                None,
+                "conversation.updated",
+                conversation_out(session.get_one(Conversation, ctx.cid)),
+            )
 
     @staticmethod
     def _save_row(row: ConversationTeam, team: Team, state: dict) -> None:
@@ -6095,36 +7643,70 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         over = state["status"] in (recipe_run.IN, recipe_run.DONE)
         state["team"] = team.name
         # (Passed as no problem was found - and not come to again since, by a loop.)
-        unmet = {part: why for part, why in state.get("unmet", {}).items()
-                 if part in state["done"]}
-        state["steps"] = [{
-            "id": part, "name": recipe_run.name_of(graph, part),
-            "state": (shown := "skipped" if part in state.get("skipped", ()) or part in unmet
-                      else "done" if part in state["done"] or (over and part == state["at"])
-                      else "now" if part == state["at"] else "next"),
-            "branches": recipe_run.branch_strip(state, graph, part, shown),
-            "round": recipe_run.round_at(state, graph, part),
-            "room": recipe_run.room_at(graph, part) is not None,
-            "own_check": any(s.id in state.get("own", ())
-                             for s in recipe_run.steps_of(graph, part)),
-            "left_out": recipe_run.left_out_of(state, part),
-            "group": recipe_run.is_group(graph, part),
-            "unmet": unmet.get(part),
-            "draws": {recipe_run.role_of(s): s.who.most for s in recipe_run.steps_of(graph, part)
-                      if isinstance(s.who, WhoRole | WhoCandidates) and (s.who.most or 1) > 1}
-            or None,
-            # (B-370: the work kept is what goes in; before a pick, the best measured.)
-            "best": (best := state.get("kept_best", {}).get(part, {}).get("score", max(
-                (one["score"] for one in state.get("scores", {}).values()
-                 if one["part"] == part and one["score"] is not None), default=None))),
-            # (K-evrim: its rounds over, the target not reached - the best went on.)
-            "missed": next((s.who.target for s in recipe_run.steps_of(graph, part)
-                            if isinstance(s.who, WhoCandidates) and s.who.target is not None
-                            and part in state["done"] and best is not None
-                            and best < s.who.target), None),
-            "scores": evolve.measured(state.get("scores", {}), part,
-                                      recipe_run.round_at(state, graph, part)),
-        } for part in recipe_run.strip(graph)]
+        unmet = {part: why for part, why in state.get("unmet", {}).items() if part in state["done"]}
+        state["steps"] = [
+            {
+                "id": part,
+                "name": recipe_run.name_of(graph, part),
+                "state": (
+                    shown := "skipped"
+                    if part in state.get("skipped", ()) or part in unmet
+                    else "done"
+                    if part in state["done"] or (over and part == state["at"])
+                    else "now"
+                    if part == state["at"]
+                    else "next"
+                ),
+                "branches": recipe_run.branch_strip(state, graph, part, shown),
+                "round": recipe_run.round_at(state, graph, part),
+                "room": recipe_run.room_at(graph, part) is not None,
+                "own_check": any(
+                    s.id in state.get("own", ()) for s in recipe_run.steps_of(graph, part)
+                ),
+                "left_out": recipe_run.left_out_of(state, part),
+                "group": recipe_run.is_group(graph, part),
+                "unmet": unmet.get(part),
+                "draws": {
+                    recipe_run.role_of(s): s.who.most
+                    for s in recipe_run.steps_of(graph, part)
+                    if isinstance(s.who, WhoRole | WhoCandidates) and (s.who.most or 1) > 1
+                }
+                or None,
+                # (B-370: the work kept is what goes in; before a pick, the best measured.)
+                "best": (
+                    best := state.get("kept_best", {})
+                    .get(part, {})
+                    .get(
+                        "score",
+                        max(
+                            (
+                                one["score"]
+                                for one in state.get("scores", {}).values()
+                                if one["part"] == part and one["score"] is not None
+                            ),
+                            default=None,
+                        ),
+                    )
+                ),
+                # (K-evrim: its rounds over, the target not reached - the best went on.)
+                "missed": next(
+                    (
+                        s.who.target
+                        for s in recipe_run.steps_of(graph, part)
+                        if isinstance(s.who, WhoCandidates)
+                        and s.who.target is not None
+                        and part in state["done"]
+                        and best is not None
+                        and best < s.who.target
+                    ),
+                    None,
+                ),
+                "scores": evolve.measured(
+                    state.get("scores", {}), part, recipe_run.round_at(state, graph, part)
+                ),
+            }
+            for part in recipe_run.strip(graph)
+        ]
         # (A new value: a JSON column sees no change made in place.)
         row.state = json.loads(json.dumps(state))
         keep_turn(row)
@@ -6175,17 +7757,26 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if ctx.agent_id not in self._leads:
             return None
         with self._factory() as session:
-            where = next((self._where(team.name, state) for row, team in self._runs(session, ctx)
-                          if (state := self._live_state(row, ctx.run_id))
-                          and state["status"] == recipe_run.RUNNING), None)
+            where = next(
+                (
+                    self._where(team.name, state)
+                    for row, team in self._runs(session, ctx)
+                    if (state := self._live_state(row, ctx.run_id))
+                    and state["status"] == recipe_run.RUNNING
+                ),
+                None,
+            )
         return None if where is None else LEAD_ASKS_NOT.format(where=where)
 
     def _room_refused(self, session, ctx: Ctx, role: str) -> str | None:
         """Why an agent of `role` is not opened one by one here: at a Room step, its roles
         meet in a room."""
         at = self._room_step(session, ctx)
-        return f"the {at[0]} step is a room: open it with open_room, with {', '.join(at[1])}" if (
-            at and role.casefold() in {one.casefold() for one in at[1]}) else None
+        return (
+            f"the {at[0]} step is a room: open it with open_room, with {', '.join(at[1])}"
+            if (at and role.casefold() in {one.casefold() for one in at[1]})
+            else None
+        )
 
     def _step_says(self, ctx: Ctx, role: Role) -> str:
         """Kanıtlı bitiş: what the step an agent of `role` is opened for tells it under its task -
@@ -6202,8 +7793,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 step = recipe_run.fills(state, role.name) if state else None
                 if step == "reproduce":
                     return "\n\n" + REPRODUCE_FIRST
-                if state and step and recipe_run.fills_review(state, role.name) and _held_to_run(
-                        role, step, role.tools):
+                if (
+                    state
+                    and step
+                    and recipe_run.fills_review(state, role.name)
+                    and _held_to_run(role, step, role.tools)
+                ):
                     return "\n\n" + RUN_TO_PASS
         return ""
 
@@ -6212,8 +7807,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         Claude Code, to hand it back in REPORT_SCHEMA): of a check role or a recipe's review
         step, at its task - not in a turn on a message, whose report is not read."""
         kind_of = find_role(session, ctx.role)
-        return ctx.depth > 0 and not ctx.in_turn and kind_of is not None and (
-            kind_of.kind == "check" or ctx.agent_id in self._reviews)
+        return (
+            ctx.depth > 0
+            and not ctx.in_turn
+            and kind_of is not None
+            and (kind_of.kind == "check" or ctx.agent_id in self._reviews)
+        )
 
     def _found(self, child: Ctx, report: str | None) -> list | None:
         """The findings in an agent's report: of a check role, or of an agent of a recipe's
@@ -6224,29 +7823,61 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         with self._factory() as session:
             kind_of = find_role(session, child.role)
             # (R4: a reproduce step's agent too, `_reproduce_held`)
-            if kind_of is not None and kind_of.kind == "check" or (
-                    child.agent_id in self._reviews) or self._in_step(session, child, "reproduce"):
+            if (
+                kind_of is not None
+                and kind_of.kind == "check"
+                or (child.agent_id in self._reviews)
+                or self._in_step(session, child, "reproduce")
+            ):
                 roles = self._open_roles(session, child)
-                agents = {agent.name.casefold(): shown_name(agent.role_name) for agent in
-                          session.scalars(select(Agent).where(Agent.run_id == child.run_id))}
-                found, checked, before = _handed_findings(given, roles, agents) if given \
-                    is not None else (_findings(report or "", roles, agents),
-                                      _checked(report or ""), _failing_before(report or ""))
+                agents = {
+                    agent.name.casefold(): shown_name(agent.role_name)
+                    for agent in session.scalars(select(Agent).where(Agent.run_id == child.run_id))
+                }
+                found, checked, before = (
+                    _handed_findings(given, roles, agents)
+                    if given is not None
+                    else (
+                        _findings(report or "", roles, agents),
+                        _checked(report or ""),
+                        _failing_before(report or ""),
+                    )
+                )
                 held = self._on_record(session, child, found, before)
                 # G1.5: a recipe's review with nothing found (suggestions at most) and nothing
                 # checked is no pass.
-                if found is not None and not _blocking(found) and (
-                        child.agent_id in self._reviews and not checked):
+                if (
+                    found is not None
+                    and not _blocking(found)
+                    and (child.agent_id in self._reviews and not checked)
+                ):
                     found = [*found, UNCHECKED]
                 # Before a step that fixes, what was failing before is its to fix too.
-                failing = [{"what": f"already failing before: {what}", "kind": "test",
-                            "role": None, "blocking": True} for what in before
-                           ] if child.agent_id in self._before_fix else []
+                failing = (
+                    [
+                        {
+                            "what": f"already failing before: {what}",
+                            "kind": "test",
+                            "role": None,
+                            "blocking": True,
+                        }
+                        for what in before
+                    ]
+                    if child.agent_id in self._before_fix
+                    else []
+                )
                 # ...and a test run that failed, whatever its report says (a pass deletes none).
                 if child.agent_id in self._before_fix and (
-                        ran := ledger.failed_tests(session, child.agent_id)):
-                    failing.append({"what": ledger.failed_line(ran), "kind": "test",
-                                    "role": None, "blocking": True})
+                    ran := ledger.failed_tests(session, child.agent_id)
+                ):
+                    failing.append(
+                        {
+                            "what": ledger.failed_line(ran),
+                            "kind": "test",
+                            "role": None,
+                            "blocking": True,
+                        }
+                    )
                 failing += held
                 return [*(found or []), *failing] if failing else found
         return None
@@ -6256,8 +7887,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         report gave no blocking finding (`_failing_held`, `_ran_held`)."""
         if _blocking(found):
             return []
-        return [*self._failing_held(session, child, before), *self._ran_held(session, child, found),
-                *self._reproduce_held(session, child)]
+        return [
+            *self._failing_held(session, child, before),
+            *self._ran_held(session, child, found),
+            *self._reproduce_held(session, child),
+        ]
 
     def _failing_held(self, session, child: Ctx, before: list[str]) -> list[dict]:
         """R2: a test run of its own that failed (and no later pass of that line or whole run of
@@ -6267,13 +7901,22 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         step that fixes, where every failing run is handed on already; nor in the step that
         reproduces the bug, where the failing test is the work - said so, as no blocking
         finding."""
-        ran = None if child.agent_id in self._before_fix else ledger.failed_tests(
-            session, child.agent_id)
+        ran = (
+            None
+            if child.agent_id in self._before_fix
+            else ledger.failed_tests(session, child.agent_id)
+        )
         if ran is None or ledger.covered(ran, before, self._reproduced(session, child)):
             return []
         if self._in_step(session, child, "reproduce"):
-            return [{"what": f"fails as it should: {ledger.failing_shown(ran)}", "kind": "test",
-                     "role": None, "blocking": False}]
+            return [
+                {
+                    "what": f"fails as it should: {ledger.failing_shown(ran)}",
+                    "kind": "test",
+                    "role": None,
+                    "blocking": False,
+                }
+            ]
         return [{"what": ledger.failed_line(ran), "kind": "test", "role": None, "blocking": True}]
 
     def _reproduce_held(self, session, child: Ctx) -> list[dict]:
@@ -6285,16 +7928,29 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if not self._in_step(session, child, "reproduce") or not handoff.counted_on(child.model):
             return []
         ran = ledger.failed_tests(session, child.agent_id)
-        texts = dict(session.execute(select(FileChange.path, FileChange.after_content).where(
-            FileChange.agent_id == child.agent_id).order_by(
-            FileChange.created_at, literal_column("file_changes.rowid"))).tuples().all())
+        texts = dict(
+            session.execute(
+                select(FileChange.path, FileChange.after_content)
+                .where(FileChange.agent_id == child.agent_id)
+                .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
+            )
+            .tuples()
+            .all()
+        )
         wrote = proof_before.new_tests(texts)
         # (Review of S7: a failing TEST of a file it wrote - not a failing command that names it.)
-        if ran is not None and (not wrote or proof_before.reproduces(
-                ran.output or "", {path: texts[path] or "" for path in wrote})):
+        if ran is not None and (
+            not wrote
+            or proof_before.reproduces(
+                ran.output or "", {path: texts[path] or "" for path in wrote}
+            )
+        ):
             return []  # (its own test failed - or, writing none, a run of its own did)
-        held = {**NOT_REPRODUCED, "what": NOT_ITS_TEST.format(files=", ".join(wrote))} if (
-            wrote) else NOT_REPRODUCED
+        held = (
+            {**NOT_REPRODUCED, "what": NOT_ITS_TEST.format(files=", ".join(wrote))}
+            if (wrote)
+            else NOT_REPRODUCED
+        )
         self._not_checked[child.agent_id] = f"Not checked: {held['what']}"  # (stops, as R3's)
         return [held]
 
@@ -6308,16 +7964,31 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         record). Where the user declined its command, it checked nothing for a fixer to act on:
         its step stops at Ready for you, not checked (`_not_checked`, `_after_step`)."""
         step = self._reviews.get(child.agent_id)
-        if found is None or step is None or not handoff.counted_on(child.model) or not (
-                _held_to_run(find_role(session, child.role), step, child.tools)) or (
-                ledger.ran_check(session, child.agent_id, ledger.test_lines(
-                    session, child.run_id, self._project(session, child.cid)))):
+        if (
+            found is None
+            or step is None
+            or not handoff.counted_on(child.model)
+            or not (_held_to_run(find_role(session, child.role), step, child.tools))
+            or (
+                ledger.ran_check(
+                    session,
+                    child.agent_id,
+                    ledger.test_lines(session, child.run_id, self._project(session, child.cid)),
+                )
+            )
+        ):
             return []
         if (command := ledger.declined(session, child.agent_id)) is None:
             return [RAN_NOTHING]
         self._not_checked[child.agent_id] = f"Not checked: you declined {command}"
-        return [{"what": f"not checked: you declined {command}", "kind": "test", "role": None,
-                 "blocking": True}]
+        return [
+            {
+                "what": f"not checked: you declined {command}",
+                "kind": "test",
+                "role": None,
+                "blocking": True,
+            }
+        ]
 
     def _reproduced(self, session, child: Ctx) -> set[str]:
         """R2 (review of S4): the tests the agents of this run's step with the id "reproduce"
@@ -6326,11 +7997,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         shortcut: by its part's passes - a reproduce step drawn in a group counts the group's
         other agents' failing tests too (R2 then holds more); keep each agent's step on the pass
         if that is met."""
-        agents = [agent for row, _team, _lead in self._rows(session, child.cid)
-                  if (state := self._live_state(row, child.run_id)) and any(
-                      s.id == "reproduce" for s in recipe_run.graph_of(state).steps)
-                  for one in state.get("passes", []) if one["part"] == recipe_run.part_of(
-                      recipe_run.graph_of(state), "reproduce") for agent in one["agents"]]
+        agents = [
+            agent
+            for row, _team, _lead in self._rows(session, child.cid)
+            if (state := self._live_state(row, child.run_id))
+            and any(s.id == "reproduce" for s in recipe_run.graph_of(state).steps)
+            for one in state.get("passes", [])
+            if one["part"] == recipe_run.part_of(recipe_run.graph_of(state), "reproduce")
+            for agent in one["agents"]
+        ]
         return ledger.failing_of(session, agents)
 
     def _in_step(self, session, child: Ctx, step_id: str) -> bool:
@@ -6339,9 +8014,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         while at is not None:
             chain.add(at.agent_id)
             at = self._ctxs.get(at.parent_id) if at.parent_id else None
-        return any(e["step"] == step_id and e["agent"] in chain
-                   for row, _team, _lead in self._rows(session, child.cid)
-                   if (state := self._live_state(row, child.run_id)) for e in state["here"])
+        return any(
+            e["step"] == step_id and e["agent"] in chain
+            for row, _team, _lead in self._rows(session, child.cid)
+            if (state := self._live_state(row, child.run_id))
+            for e in state["here"]
+        )
 
     def _level(self, ctx: Ctx) -> int:
         """How many levels below its Lead an agent is, for the chat's limit on them: in work of
@@ -6359,8 +8037,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         agent, at any depth, whose own agents only help it."""
         return ctx.depth == 0 or ctx.agent_id in self._leads
 
-    def _recipe_count(self, session, ctx: Ctx, role: Role, most: int
-                      ) -> tuple[int, int, str] | None:
+    def _recipe_count(
+        self, session, ctx: Ctx, role: Role, most: int
+    ) -> tuple[int, int, str] | None:
         """While a recipe runs, the agents opened so far for what `role` would be opened for,
         the most there may be, and what is said once they are: for a step, in this round (an
         "all at once" group is one), as many as it draws (slice 84e: the chat's own limit is
@@ -6374,53 +8053,95 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             state = self._live_state(row, ctx.run_id)
             if state is None:
                 continue
-            if self._runs_it(ctx, lead, state) and self._gives_slots(ctx) and (
-                    role.name.casefold() in recipe_run.allowed(state)):
+            if (
+                self._runs_it(ctx, lead, state)
+                and self._gives_slots(ctx)
+                and (role.name.casefold() in recipe_run.allowed(state))
+            ):
                 graph, at = recipe_run.graph_of(state), state["at"]
                 most = recipe_run.size(graph, state["slots"], at)
                 count = len([e for e in recipe_run.at_work(state) if e["ok"] is not False])
                 # B-184: the one already at work named (KOLONİ may have opened it beside
                 # another of a group), and what to do in place of opening it again.
-                mine = [(session.get_one(Agent, e["agent"]).name, e["ok"],
-                         e["agent"] in self._spawn_decisions) for e in recipe_run.at_work(state)
-                        if e["ok"] is not False and e["role"].casefold() == role.name.casefold()]
+                mine = [
+                    (
+                        session.get_one(Agent, e["agent"]).name,
+                        e["ok"],
+                        e["agent"] in self._spawn_decisions,
+                    )
+                    for e in recipe_run.at_work(state)
+                    if e["ok"] is not False and e["role"].casefold() == role.name.casefold()
+                ]
                 # B-412: one whose card waits for the user is not at work yet - nor given up on.
                 # shortcut: one of the same reply whose card is not up yet is still said at work;
                 # tell it apart (by its proposed status) if a model is seen to give up on that.
                 asked = " and ".join(name for name, ok, card in mine if ok is None and card)
                 busy = " and ".join(name for name, ok, card in mine if ok is None and not card)
                 did = " and ".join(name for name, ok, _card in mine if ok)
-                there = (f" {asked} waits for the user's approval of its card: do not open it "
-                         "again, nor give up on the step - wait for it." if asked else "") + (
-                    f" {busy} is already at work on it: do not open it again - wait for "
-                    "its report, or message it with message_agent." if busy else "") + (
-                    f" {did} already did it: its report is its spawn_agent result - do not "
-                    "open it again." if did else "")
+                there = (
+                    (
+                        f" {asked} waits for the user's approval of its card: do not open it "
+                        "again, nor give up on the step - wait for it."
+                        if asked
+                        else ""
+                    )
+                    + (
+                        f" {busy} is already at work on it: do not open it again - wait for "
+                        "its report, or message it with message_agent."
+                        if busy
+                        else ""
+                    )
+                    + (
+                        f" {did} already did it: its report is its spawn_agent result - do not "
+                        "open it again."
+                        if did
+                        else ""
+                    )
+                )
                 if count < most and not recipe_run.has_room(state, role.name):
                     # (One more of a role is not the part's missing other role: "Reviewer 3".)
-                    return (most, most, f"the {recipe_run.name_of(graph, at)} step of the "
-                            f"{state['recipe']} recipe has its {role.name}: open the roles it "
-                            f"still waits for, or wait for those at work.{there}")
-                return (count, most,
-                        f"the {recipe_run.name_of(graph, at)} step of the {state['recipe']} "
-                        f"recipe draws {most} agent{'' if most == 1 else 's'}, and has them: "
-                        f"ask for at most {most} in one reply; do this part yourself or give "
-                        "it to one of them. The user draws more on the Agents page "
-                        f"(Recipes).{there}")
+                    return (
+                        most,
+                        most,
+                        f"the {recipe_run.name_of(graph, at)} step of the "
+                        f"{state['recipe']} recipe has its {role.name}: open the roles it "
+                        f"still waits for, or wait for those at work.{there}",
+                    )
+                return (
+                    count,
+                    most,
+                    f"the {recipe_run.name_of(graph, at)} step of the {state['recipe']} "
+                    f"recipe draws {most} agent{'' if most == 1 else 's'}, and has them: "
+                    f"ask for at most {most} in one reply; do this part yourself or give "
+                    "it to one of them. The user draws more on the Agents page "
+                    f"(Recipes).{there}",
+                )
             if ctx.agent_id in state["agents"]:
-                count = session.scalar(select(func.count()).select_from(Agent).where(
-                    Agent.parent_agent_id == ctx.agent_id, Agent.status != "rejected")) or 0
+                count = (
+                    session.scalar(
+                        select(func.count())
+                        .select_from(Agent)
+                        .where(Agent.parent_agent_id == ctx.agent_id, Agent.status != "rejected")
+                    )
+                    or 0
+                )
             elif lead is not None and lead.id == role.id and ctx.depth == 0:
                 count = len(recipe_run.at_work(state)) + sum(
-                    agent in self._leads for agent in state["agents"])
+                    agent in self._leads for agent in state["agents"]
+                )
             else:
                 continue
-            return count, most, (f"limit of {most} sub-agents per agent of the "
-                                 f"{state['recipe']} recipe reached. Do the rest yourself.")
+            return (
+                count,
+                most,
+                (
+                    f"limit of {most} sub-agents per agent of the "
+                    f"{state['recipe']} recipe reached. Do the rest yourself."
+                ),
+            )
         return None
 
-    def _take_up(self, ctx: Ctx, call_id: str, role: Role,
-                 task: str) -> tuple[Ctx, bool] | None:
+    def _take_up(self, ctx: Ctx, call_id: str, role: Role, task: str) -> tuple[Ctx, bool] | None:
         """B-386: the coordinator of `role`'s team a room of this turn opened, once that room is
         over, given its team's tools and `task` (its team's brief with it) to run its team: it
         goes on from what it said in the room, and whether the user is asked first (as for a
@@ -6433,29 +8154,52 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return None
         with self._factory() as session:
             # (Of the Lead's own room - not the user's, nor a sub-agent's - done with its part.)
-            agent_id = session.scalar(select(Agent.id).join(
-                RoomMember, RoomMember.agent_id == Agent.id).join(
-                Room, Room.id == RoomMember.room_id).where(
-                Agent.run_id == ctx.run_id, Agent.role_name == shown_name(role.name),
-                Agent.status == "completed", Room.agent_id == ctx.agent_id,
-                Room.status == "ended", Agent.id.not_in(self._taken_up)).limit(1))
+            agent_id = session.scalar(
+                select(Agent.id)
+                .join(RoomMember, RoomMember.agent_id == Agent.id)
+                .join(Room, Room.id == RoomMember.room_id)
+                .where(
+                    Agent.run_id == ctx.run_id,
+                    Agent.role_name == shown_name(role.name),
+                    Agent.status == "completed",
+                    Room.agent_id == ctx.agent_id,
+                    Room.status == "ended",
+                    Agent.id.not_in(self._taken_up),
+                )
+                .limit(1)
+            )
             known = self._ctxs.get(agent_id or "")
-            provider = session.get(Provider, known.provider_id) if (
-                known and known.provider_id) else None
-            if known is None or provider is None or past_its_limit(session, provider) or (
-                    closed_to_agents(provider, known.model_name)):
+            provider = (
+                session.get(Provider, known.provider_id) if (known and known.provider_id) else None
+            )
+            if (
+                known is None
+                or provider is None
+                or past_its_limit(session, provider)
+                or (closed_to_agents(provider, known.model_name))
+            ):
                 return None
             conversation = session.get_one(Conversation, ctx.cid)
             tools = effective_tools(role.tools, self._caps(ctx))
             # (Where a lead opened fresh is asked about: `_propose`'s own rule.)
-            asks = _asked_about(settings_of(session, conversation).spawn_approval,
-                                conversation.permission_mode, tools)
+            asks = _asked_about(
+                settings_of(session, conversation).spawn_approval,
+                conversation.permission_mode,
+                tools,
+            )
         self._taken_up.add(known.agent_id)
         child = self._ctxs[known.agent_id] = replace(known, tools=tuple(tools))
         # (Its card and its box are now this call's: the spawn that handed it its team.)
-        self._set_agent(ctx.cid, child.agent_id, tools=list(child.tools), error=None,
-                        ended_at=None, tool_call_id=call_id, task=task,
-                        **({"status": "proposed"} if asks else {}))
+        self._set_agent(
+            ctx.cid,
+            child.agent_id,
+            tools=list(child.tools),
+            error=None,
+            ended_at=None,
+            tool_call_id=call_id,
+            task=task,
+            **({"status": "proposed"} if asks else {}),
+        )
         self._channel(ctx, ctx.agent_id, child.agent_id, "task", task)
         self._nudge(child, TAKEN_UP.format(task=task))
         return child, asks
@@ -6471,27 +8215,37 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """An agent was opened: in the row whose step it is for - a slot of it, where the Lead
         or a team's lead opened it (one opened by an agent of the step only helps that one) -
         or, a team's lead, in its row; from here on it works in the recipe's copy."""
+
         def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
             mine = self._runs_it(ctx, lead, state)
             if child.agent_id in self._in_recipe:
                 return False
-            if mine and self._gives_slots(ctx) and role.name.casefold() in recipe_run.allowed(
-                    state):
+            if (
+                mine
+                and self._gives_slots(ctx)
+                and role.name.casefold() in recipe_run.allowed(state)
+            ):
                 # B-173: by the first agent its part opens, where the user chose it.
                 if not recipe_run.at_work(state) and role.name.casefold() in (
-                        chosen := self._chosen(ctx, state)):
+                    chosen := self._chosen(ctx, state)
+                ):
                     recipe_run.narrow(state, chosen)
                 step = recipe_run.opened(state, child.agent_id, role.name)["step"]
-                if any(s.id == step and isinstance(s.who, WhoCandidates)
-                       for s in recipe_run.graph_of(state).steps):
+                if any(
+                    s.id == step and isinstance(s.who, WhoCandidates)
+                    for s in recipe_run.graph_of(state).steps
+                ):
                     self._candidates.add(child.agent_id)
-                if any(s.id == step and s.done_when == "no_findings"
-                       for s in recipe_run.graph_of(state).steps):
+                if any(
+                    s.id == step and s.done_when == "no_findings"
+                    for s in recipe_run.graph_of(state).steps
+                ):
                     self._reviews[child.agent_id] = step
                     if recipe_run.fixed_next(state):
                         self._before_fix.add(child.agent_id)
             elif (mine and ctx.depth) or (
-                    lead is not None and lead.id == role.id and not ctx.depth):
+                lead is not None and lead.id == role.id and not ctx.depth
+            ):
                 self._row_taken_over(ctx, state)
                 state["agents"].append(child.agent_id)
             else:
@@ -6500,12 +8254,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._recipe_reviewer(ctx, child, role.name)
             return True
 
-        def apart(row: ConversationTeam, team: Team, lead: Role,
-                  state: dict | None) -> dict | None:
+        def apart(row: ConversationTeam, team: Team, lead: Role, state: dict | None) -> dict | None:
             if lead.id == role.id and not ctx.depth:  # (opened again: with what it did before)
-                return {"run_id": ctx.run_id, "team": team.name, "recipe": "",
-                        "status": recipe_run.RUNNING, "why": None, "steps": [],
-                        "agents": [*(state or {}).get("agents", ()), child.agent_id]}
+                return {
+                    "run_id": ctx.run_id,
+                    "team": team.name,
+                    "recipe": "",
+                    "status": recipe_run.RUNNING,
+                    "why": None,
+                    "steps": [],
+                    "agents": [*(state or {}).get("agents", ()), child.agent_id],
+                }
             if state is not None and ctx.agent_id in state["agents"]:
                 return {**state, "agents": [*state["agents"], child.agent_id]}
             return None
@@ -6516,13 +8275,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     async def _declined(self, ctx: Ctx, child: Ctx) -> str:
         """An agent the user declined never ran: its step's allowance is not used up by it, and
         a step it was the last to wait for goes on - to Ready for you too."""
+
         def gone(state: dict, entry: dict) -> None:
             entry["gone"] = True
             state["agents"].remove(child.agent_id)
-            if any(s.id == entry["step"] and isinstance(s.who, WhoCandidates)
-                   for s in recipe_run.graph_of(state).steps):  # (B-388: said on its pick card)
+            if any(
+                s.id == entry["step"] and isinstance(s.who, WhoCandidates)
+                for s in recipe_run.graph_of(state).steps
+            ):  # (B-388: said on its pick card)
                 state.setdefault("unopened", {}).setdefault(entry["step"], []).append(
-                    f"{child.name or child.role} was not opened: it was declined")
+                    f"{child.name or child.role} was not opened: it was declined"
+                )
 
         said = await self._step_over(ctx, child, gone)
         self._out_of_run(child)  # (one that held no slot: off its row too)
@@ -6536,33 +8299,53 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             state["here"] = [e for e in state["here"] if e["agent"] != child.agent_id]
             return True
 
-        def apart(row: ConversationTeam, team: Team, lead: Role, state: dict | None
-                  ) -> dict | None:
+        def apart(row: ConversationTeam, team: Team, lead: Role, state: dict | None) -> dict | None:
             if state is None or child.agent_id not in state["agents"]:
                 return None
             # (Its lead declined, a team with no recipe beside one did not run: not at work.)
             declined = child.agent_id in self._leads and state["status"] == recipe_run.RUNNING
-            stopped = {"status": recipe_run.STOPPED,
-                       "why": "the user declined its coordinator"} if declined else {}
-            return {**state, **stopped,
-                    "agents": [one for one in state["agents"] if one != child.agent_id]}
+            stopped = (
+                {"status": recipe_run.STOPPED, "why": "the user declined its coordinator"}
+                if declined
+                else {}
+            )
+            return {
+                **state,
+                **stopped,
+                "agents": [one for one in state["agents"] if one != child.agent_id],
+            }
 
         self._change_rows(child.cid, child.run_id, how)
         self._apart(child.cid, child.run_id, apart)
         self._in_recipe.discard(child.agent_id)
 
-    def _failure_card(self, child: Ctx, team: Team, step: RecipeStep, state: dict,
-                      offer: tuple[str, Provider, str | None] | None,
-                      cant: tuple[str, str | None, datetime | None] | None,
-                      full: bool) -> tuple | None:
+    def _failure_card(
+        self,
+        child: Ctx,
+        team: Team,
+        step: RecipeStep,
+        state: dict,
+        offer: tuple[str, Provider, str | None] | None,
+        cant: tuple[str, str | None, datetime | None] | None,
+        full: bool,
+    ) -> tuple | None:
         """The card of a row's step that failed (`_row_on`); None where nobody is asked."""
         # (A room is not tried again one member at a time: slice 84e.)
-        ask = (f"{team.name}: {step.name} failed ({child.name}). Skip it, or stop the "
-               f"{state['recipe']} recipe?", ["Skip", "Stop"]) if isinstance(
-            step.who, WhoRoom) else _cant_card(
-            team.name, step.name, child, cant, offer) if cant else (
-            f"{team.name}: {step.name} failed ({child.name}). Try it again, skip it, "
-            f"or stop the {state['recipe']} recipe?", ["Try again", "Skip", "Stop"])
+        ask = (
+            (
+                f"{team.name}: {step.name} failed ({child.name}). Skip it, or stop the "
+                f"{state['recipe']} recipe?",
+                ["Skip", "Stop"],
+            )
+            if isinstance(step.who, WhoRoom)
+            else _cant_card(team.name, step.name, child, cant, offer)
+            if cant
+            else (
+                f"{team.name}: {step.name} failed ({child.name}). Try it again, skip it, "
+                f"or stop the {state['recipe']} recipe?",
+                ["Try again", "Skip", "Stop"],
+            )
+        )
         if full and set(ask[1]) <= FAILED_WORDS:
             # Where it could run elsewhere (money), at a reset or signed in again:
             # the card, as before (`_cant_card`); Stop is the user's.
@@ -6576,8 +8359,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 # taking it in by itself (`_ready_for_you`).
                 ask = None
                 state["status"], state["unchecked"] = recipe_run.READY, True
-                state["why"] = (f"{step.name} failed ({child.name}), and nothing was "
-                                "checked")
+                state["why"] = f"{step.name} failed ({child.name}), and nothing was checked"
         return ask
 
     def _part_over(self, state: dict, left: list, next_part: dict) -> str:
@@ -6591,27 +8373,44 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             del state["carried"]
         return recipe_run.advance(state)
 
-    def _row_on(self, child: Ctx, team: Team, state: dict, entry: dict, step: RecipeStep,
-                graph: RecipeGraph, there: tuple | None,
-                offer: tuple[str, Provider, str | None] | None,
-                cant: tuple[str, str | None, datetime | None] | None,
-                full: bool) -> tuple[str, tuple | None]:
+    def _row_on(
+        self,
+        child: Ctx,
+        team: Team,
+        state: dict,
+        entry: dict,
+        step: RecipeStep,
+        graph: RecipeGraph,
+        there: tuple | None,
+        offer: tuple[str, Provider, str | None] | None,
+        cant: tuple[str, str | None, datetime | None] | None,
+        full: bool,
+    ) -> tuple[str, tuple | None]:
         """A row moved on as far as it goes without the user (`_on_row`, its state heard
         already): what the child's opener is told of it, and the card to ask."""
         said, ask = "", None
         # (A failure where another agent filled its slot is no failure of the step, nor is
         # one of a branch another was done before, or may still be: `gives_up`.)
-        failed = entry["ok"] is False and entry in state["here"] and not any(
-            e["slot"] == entry["slot"] and e["ok"] for e in state["here"]) and not (
-            isinstance(step.who, WhoCandidates) and any(
-                e["ok"] is None and e["step"] == step.id for e in recipe_run.at_work(state))
-        ) and step.id not in recipe_run.lost(state) and not recipe_run.gives_up(state, step.id)
+        failed = (
+            entry["ok"] is False
+            and entry in state["here"]
+            and not any(e["slot"] == entry["slot"] and e["ok"] for e in state["here"])
+            and not (
+                isinstance(step.who, WhoCandidates)
+                and any(e["ok"] is None and e["step"] == step.id for e in recipe_run.at_work(state))
+            )
+            and step.id not in recipe_run.lost(state)
+            and not recipe_run.gives_up(state, step.id)
+        )
         if state["status"] != recipe_run.RUNNING:
             pass
         elif entry not in state["here"] and entry["ok"] is False:
             said = f"Open {child.role} again for {step.name}." + (
                 f" KOLONİ opens it on {quoted(there[3])}, as the user chose: leave provider, "
-                "model and tier out." if there else "")
+                "model and tier out."
+                if there
+                else ""
+            )
         elif failed and step.if_fails == "stop":
             state["status"] = recipe_run.FAILED
             state["why"] = f"{step.name}: {child.name} failed"
@@ -6626,41 +8425,56 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 state["words"] = words
             else:
                 state.pop("words", None)
-            said = GOES_AGAIN.format(step=recipe_run.name_of(graph, state["at"]),
-                                     roles=", ".join(recipe_run.open_to(state)),
-                                     told=WORDS_TOLD if words else "")
+            said = GOES_AGAIN.format(
+                step=recipe_run.name_of(graph, state["at"]),
+                roles=", ".join(recipe_run.open_to(state)),
+                told=WORDS_TOLD if words else "",
+            )
         elif (cand := recipe_run.pick_due(state)) is not None and entry["step"] == cand.id:
             # (In a branch too: before the step after it opens - by its own agent's end.)
             ask = self._pick_card(child.run_id, team.name, cand, state, full)
         elif not recipe_run.complete(state):
-            said = ("Its branch is done first: KOLONİ stops the others' agents, and the step "
-                    "goes on once they have stopped." if recipe_run.lost(state) else
-                    "The step goes on once its other agents are done.")
+            said = (
+                "Its branch is done first: KOLONİ stops the others' agents, and the step "
+                "goes on once they have stopped."
+                if recipe_run.lost(state)
+                else "The step goes on once its other agents are done."
+            )
         elif state.get("approved") != state["at"] and any(
-                s.ask_me for s in recipe_run.steps_of(graph, state["at"])):
+            s.ask_me for s in recipe_run.steps_of(graph, state["at"])
+        ):
             # (With the part's agents: their files are what the card's yes is bound to, G5.4.)
-            ask = (f"{team.name}: {recipe_run.name_of(graph, state['at'])} is done. Go on "
-                   f"with the {state['recipe']} recipe?", ASK_ME,
-                   [e["agent"] for e in state["here"]])
+            ask = (
+                f"{team.name}: {recipe_run.name_of(graph, state['at'])} is done. Go on "
+                f"with the {state['recipe']} recipe?",
+                ASK_ME,
+                [e["agent"] for e in state["here"]],
+            )
         elif (left := recipe_run.unchecked(next_part := recipe_run.ahead(state))) and (
-                checkers := self._checkers(next_part)):
+            checkers := self._checkers(next_part)
+        ):
             # (Batch-17: in place of the writer passing its own check unasked.)
             _slot, at, roles = left[0]
             writers = " and ".join([", ".join(roles[:-1]), roles[-1]] if roles[1:] else roles)
             # (A card holds six choices; the rest the user may write.)
             more = f" Or write one of: {', '.join(checkers[4:])}." if checkers[4:] else ""
-            ask = (f"{team.name}: {recipe_run.name_of(graph, at)}: nobody but {writers}, "
-                   f"who did the work, can check it. Who checks?{more}",
-                   [*checkers[:4], writers + (ITSELF if len(roles) == 1 else THEMSELVES),
-                    "Stop"])
+            ask = (
+                f"{team.name}: {recipe_run.name_of(graph, at)}: nobody but {writers}, "
+                f"who did the work, can check it. Who checks?{more}",
+                [*checkers[:4], writers + (ITSELF if len(roles) == 1 else THEMSELVES), "Stop"],
+            )
         else:
             said = self._part_over(state, left, next_part)
         return said, ask
 
-    def _on_row(self, child: Ctx, heard: Callable[[dict, dict], None],
-                offer: tuple[str, Provider, str | None] | None = None,
-                cant: tuple[str, str | None, datetime | None] | None = None,
-                full: bool = False) -> tuple[str, tuple | None]:
+    def _on_row(
+        self,
+        child: Ctx,
+        heard: Callable[[dict, dict], None],
+        offer: tuple[str, Provider, str | None] | None = None,
+        cant: tuple[str, str | None, datetime | None] | None = None,
+        full: bool = False,
+    ) -> tuple[str, tuple | None]:
         """Read the row whose step `child` was opened for, let `heard` change its state (the
         child's end, the user's word), and move the row on as far as it goes without the
         user. Returns what the child's opener is told, and the card to ask where the step
@@ -6680,8 +8494,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             heard(state, entry)
             # B-203 (live): a Room step is skipped once - a member's failure after the user's
             # Skip of another's is that Skip's too, not a card of its own.
-            if entry["ok"] is False and isinstance(step.who, WhoRoom) and any(
-                    e.get("unchecked") and e["step"] == step.id for e in state["here"]):
+            if (
+                entry["ok"] is False
+                and isinstance(step.who, WhoRoom)
+                and any(e.get("unchecked") and e["step"] == step.id for e in state["here"])
+            ):
                 entry["ok"], entry["found"], entry["unchecked"] = True, False, True
             there = self._run_there.get((child.run_id, child.role.casefold()))
             # K-tarif-kol: a "first" group's branch is done - the others' agents are stopped, and
@@ -6694,13 +8511,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 halt.extend(recipe_run.outrun(state))
                 # (One of them that failed: a card it waits on is closed, to no effect.)
                 gone = recipe_run.lost(state)
-                closing.extend(e["agent"] for e in recipe_run.at_work(state)
-                               if e["ok"] is False and e["step"] in gone)
+                closing.extend(
+                    e["agent"]
+                    for e in recipe_run.at_work(state)
+                    if e["ok"] is False and e["step"] in gone
+                )
             said, ask = self._row_on(
-                child, team, state, entry, step, graph, there, offer, cant, full)
+                child, team, state, entry, step, graph, there, offer, cant, full
+            )
             opener = self._ctxs.get(child.parent_id or "")
-            out[:] = [f"\n\n{self._where(team.name, state, bool(opener and _cli(opener)))}. "
-                      f"{said}".rstrip(), ask]
+            out[:] = [
+                f"\n\n{self._where(team.name, state, bool(opener and _cli(opener)))}. "
+                f"{said}".rstrip(),
+                ask,
+            ]
             return True
 
         halt: list[str] = []
@@ -6717,11 +8541,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         them - not the Observer nor a team's lead (`agent_roles`), never opened for a step."""
         wrote = recipe_run.writers(state)
         with self._factory() as session:
-            return [role.name for role in agent_roles(session) if role.enabled
-                    and role.kind == "check" and role.name.casefold() not in wrote]
+            return [
+                role.name
+                for role in agent_roles(session)
+                if role.enabled and role.kind == "check" and role.name.casefold() not in wrote
+            ]
 
-    def _pick_card(self, run_id: str, team: str, step: RecipeStep, state: dict,
-                   full: bool) -> tuple[str, list[str]]:
+    def _pick_card(
+        self, run_id: str, team: str, step: RecipeStep, state: dict, full: bool
+    ) -> tuple[str, list[str]]:
         """K-evrim: the card a step of candidates waits on, all of them done: their scores, best
         first, and as options those that finished - those with a score alone where one has, then
         Stop. At Full auto with a score, KOLONİ's own word: the best (`_step_over`). With none, a
@@ -6739,14 +8567,25 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._pick_names[run_id] = {names[a]: a for a in done}
         top = state.get("kept_best", {}).get(state["at"])
         unopened = state.get("unopened", {}).pop(step.id, [])  # (B-388)
-        self._round_scores[run_id] = (scores, why, state["rounds"].get(state["at"], 0) + 1,
-                                      state["recipe"], top, models, unopened)
-        text = PICK_CARD.format(team=team, step=step.name, table=evolve.table(
-            scores, why, models) + "".join(f". {one.rstrip('.')}" for one in unopened))
+        self._round_scores[run_id] = (
+            scores,
+            why,
+            state["rounds"].get(state["at"], 0) + 1,
+            state["recipe"],
+            top,
+            models,
+            unopened,
+        )
+        text = PICK_CARD.format(
+            team=team,
+            step=step.name,
+            table=evolve.table(scores, why, models)
+            + "".join(f". {one.rstrip('.')}" for one in unopened),
+        )
         if top is not None:  # (B-370: a pick that does not beat it is not taken - said here)
             text += " " + BEST_SO_FAR.format(
-                score="no score" if top["score"] is None else f"{top['score']:g}",
-                name=top["name"])
+                score="no score" if top["score"] is None else f"{top['score']:g}", name=top["name"]
+            )
         if NO_MEASURE in why.values() and recipe_run.goes_round(state):  # (K-evolve-tek)
             text += " " + recipe_run.ONE_ROUND
         return (text, scored[:1]) if full and scored else (text, [*(scored or ranked), "Stop"])
@@ -6764,18 +8603,37 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # The round's lessons, for the agents after it in the turn - a next round's candidates
         # too - and a later turn's lead (`_noted_for_team`): a note of KOLONİ's own.
         scores, why, round_no, recipe, top, models, unopened = self._round_scores.pop(
-            ctx.run_id, ({}, {}, 1, "", None, {}, []))
+            ctx.run_id, ({}, {}, 1, "", None, {}, [])
+        )
         stays = None if evolve.beats(scores.get(self._name_of(winner)), top) else top
 
         def note() -> None:
             with self._factory() as session:
-                said = dict(session.execute(select(Agent.name, Agent.report).where(
-                    Agent.id.in_(candidates))).tuples().all())
+                said = dict(
+                    session.execute(
+                        select(Agent.name, Agent.report).where(Agent.id.in_(candidates))
+                    )
+                    .tuples()
+                    .all()
+                )
             with contextlib.suppress(ToolError):  # (a full notebook: the round goes on)
-                self._write_note(ctx.run_id, ctx.cid, None, evolve.lessons(
-                    scores, why, self._name_of(winner), said, round_no, recipe, stays, models,
-                    unopened),
-                    koloni=True)
+                self._write_note(
+                    ctx.run_id,
+                    ctx.cid,
+                    None,
+                    evolve.lessons(
+                        scores,
+                        why,
+                        self._name_of(winner),
+                        said,
+                        round_no,
+                        recipe,
+                        stays,
+                        models,
+                        unopened,
+                    ),
+                    koloni=True,
+                )
 
         held = "no score" if stays is None or stays["score"] is None else f"{stays['score']:g}"
         # (A pick with no score that does not go on - all of the round had none - is still the
@@ -6786,14 +8644,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 self._drop_copy(one)  # (while it is a candidate still: its own line's)
         if stays is not None:
             self._seeded.pop(winner, None)
-            unpicked = PICKED_UNSCORED.format(name=self._name_of(winner), score=held,
-                                              best=stays["name"])
+            unpicked = PICKED_UNSCORED.format(
+                name=self._name_of(winner), score=held, best=stays["name"]
+            )
             if unscored:
                 self._set_aside(winner, unpicked, await self._look_aside(winner))
             note()
             return KEPT_WORK.format(score=held, name=stays["name"]) + (
                 f" {unpicked}: its copy is kept for the user to take in or throw away."
-                if unscored else " This round's copies are gone.")
+                if unscored
+                else " This round's copies are gone."
+            )
         copy = self._copies.get(winner)
         into = self._copies.get(self._recipe_copy[ctx.run_id])
         mine, was = self._seeded.pop(winner, ({}, {}))
@@ -6804,9 +8665,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._candidates.discard(winner)  # (its line's records are the recipe's from here)
         if left:
             with self._factory() as session:
-                for change in session.scalars(select(FileChange).where(
-                        FileChange.agent_id == winner, FileChange.status == "in_copy",
-                        FileChange.path.in_(left))):
+                for change in session.scalars(
+                    select(FileChange).where(
+                        FileChange.agent_id == winner,
+                        FileChange.status == "in_copy",
+                        FileChange.path.in_(left),
+                    )
+                ):
                     change.status, change.decided_at = "discarded", now()
                 session.commit()
         self._copies.pop(winner, None)
@@ -6827,15 +8692,21 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return None  # (made already: it goes on, as moved to another model)
         copy = await self._working_copy(child, child.agent_id)
         source = self._copies.get(self._recipe_copy.get(child.run_id, ""))
-        failed = None if copy is None or source is None else await asyncio.to_thread(
-            copies.seed, copy, source)
+        failed = (
+            None
+            if copy is None or source is None
+            else await asyncio.to_thread(copies.seed, copy, source)
+        )
         if copy is None or source is None or failed:
             self._drop_copy(child.agent_id)
             return NO_CANDIDATE_COPY.format(
-                why=f"{_few(failed)} could not be copied into it" if failed else
-                "the project could not be copied")
+                why=f"{_few(failed)} could not be copied into it"
+                if failed
+                else "the project could not be copied"
+            )
         self._seeded[child.agent_id] = await asyncio.to_thread(
-            lambda: (copy.snapshot()[0], source.snapshot()[0]))
+            lambda: (copy.snapshot()[0], source.snapshot()[0])
+        )
         return None
 
     async def _measure(self, child: Ctx) -> dict:
@@ -6850,28 +8721,37 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         shortcut: `Command.output` keeps the first 1 MiB - a measure that prints more loses its
         last line, and so its score."""
         with self._factory() as session:
-            command = session.get_one(Project, session.get_one(
-                Conversation, child.cid).project_id).measure_command
-            message_id = session.scalar(select(Message.id).where(
-                Message.agent_id == child.agent_id, Message.role == "assistant").order_by(
-                Message.created_at.desc()).limit(1))
+            command = session.get_one(
+                Project, session.get_one(Conversation, child.cid).project_id
+            ).measure_command
+            message_id = session.scalar(
+                select(Message.id)
+                .where(Message.agent_id == child.agent_id, Message.role == "assistant")
+                .order_by(Message.created_at.desc())
+                .limit(1)
+            )
         copy = self._copies.get(child.agent_id)
         if not command or copy is None or message_id is None:
-            return {"score": None, "line": None, "exit_code": None,
-                    "why": NO_MEASURE if not command else "it has no copy of its own"}
+            return {
+                "score": None,
+                "line": None,
+                "exit_code": None,
+                "why": NO_MEASURE if not command else "it has no copy of its own",
+            }
         if off := web_off_reason(command, self._off()):
             return {"score": None, "line": None, "exit_code": None, "why": off}
-        moved = await asyncio.to_thread(
-            lambda: [path for path, _kind, _state in copy.changes()])
+        moved = await asyncio.to_thread(lambda: [path for path, _kind, _state in copy.changes()])
         was, held = await asyncio.to_thread(copy.snapshot, moved)
         async with self._measure_once(child, command, moved) as once:
-            request = ToolCallRequest(f"koloni_{uuid.uuid4().hex[:16]}", "run_command",
-                                      json.dumps({"command": command}))
+            request = ToolCallRequest(
+                f"koloni_{uuid.uuid4().hex[:16]}", "run_command", json.dumps({"command": command})
+            )
             ((call_id, _payload),) = self._record_calls(child, message_id, [request])
             self._set_call(child.cid, call_id, status="running", started_at=now())
             try:
                 code, output, said, ended = await self._run_in_copy(
-                    child, copy.workspace(), command, call_id, ask=True, once=once)
+                    child, copy.workspace(), command, call_id, ask=True, once=once
+                )
             except ToolError as exc:
                 code, output, said, ended = None, "", f"error: {exc}", None
         touched = await asyncio.to_thread(copy.moved_since, was)
@@ -6880,18 +8760,35 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if touched:
             with contextlib.suppress(OSError):
                 copy.save()
-        self._set_call(child.cid, call_id, status="denied" if ended == "rejected" else
-                       "failed" if code is None else "succeeded", result=said, ended_at=now())
+        self._set_call(
+            child.cid,
+            call_id,
+            status="denied" if ended == "rejected" else "failed" if code is None else "succeeded",
+            result=said,
+            ended_at=now(),
+        )
         score = evolve.score_of(output) if code == 0 else None
         line = next((one.strip() for one in reversed(output.splitlines()) if one.strip()), None)
-        why = (None if score is not None else "no number" if code == 0
-               else f"the measure command failed (exit code {code})" if code is not None
-               else "the measure command was declined" if ended == "rejected"
-               else said.partition("\n")[0].removeprefix("error: "))
+        why = (
+            None
+            if score is not None
+            else "no number"
+            if code == 0
+            else f"the measure command failed (exit code {code})"
+            if code is not None
+            else "the measure command was declined"
+            if ended == "rejected"
+            else said.partition("\n")[0].removeprefix("error: ")
+        )
         # (B-369: its last lines, for a next round's candidates - `MEASURED_SO_FAR`.)
-        tail = "\n".join(output.rstrip().splitlines()[-MEASURE_TAIL:])[-MEASURE_TAIL * 150:]
-        return {"score": score, "line": line and line[:200], "exit_code": code, "why": why,
-                "tail": tail or None}
+        tail = "\n".join(output.rstrip().splitlines()[-MEASURE_TAIL:])[-MEASURE_TAIL * 150 :]
+        return {
+            "score": score,
+            "line": line and line[:200],
+            "exit_code": code,
+            "why": why,
+            "tail": tail or None,
+        }
 
     @contextlib.asynccontextmanager
     async def _measure_once(self, ctx: Ctx, command: str, moved: list[str]):
@@ -6907,10 +8804,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         the project's own test command (`project_map.own_test`): after one yes in a run, later
         candidates' code in that run runs too - and a module the script imports is not looked
         at; ask each time if a candidate is seen steering the measure through its code."""
-        once = None if evolve.names_one(command, moved) else (
-            self._measure_yes.setdefault(ctx.run_id, set()))
-        while once is not None and command.strip() not in once and (
-                asking := self._measure_asking.get(ctx.run_id)) is not None:
+        once = (
+            None
+            if evolve.names_one(command, moved)
+            else (self._measure_yes.setdefault(ctx.run_id, set()))
+        )
+        while (
+            once is not None
+            and command.strip() not in once
+            and (asking := self._measure_asking.get(ctx.run_id)) is not None
+        ):
             async with self._handing_over(ctx):
                 await asyncio.shield(asking)
         mine = None
@@ -6926,12 +8829,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     def _measure_as_is(self, ctx: Ctx) -> str:
         """`MEASURE_AS_IS` with the project's measure command; "" with none."""
         with self._factory() as session:
-            measure = session.get_one(Project, session.get_one(
-                Conversation, ctx.cid).project_id).measure_command
+            measure = session.get_one(
+                Project, session.get_one(Conversation, ctx.cid).project_id
+            ).measure_command
         return MEASURE_AS_IS.format(command=measure.strip()) if measure and measure.strip() else ""
 
-    async def _own_measure(self, ctx: Ctx, owner: str | None, command: str, cwd: str
-                           ) -> list[str] | None:
+    async def _own_measure(
+        self, ctx: Ctx, owner: str | None, command: str, cwd: str
+    ) -> list[str] | None:
         """B-384: a candidate's own run of the project's measure command - its exact text, at its
         copy's root or its part's folder (where its commands run, K-buyuk-proje), in a turn the
         user watches: what its copy changed (`_measure_once`); None: not such a run, asked as any
@@ -6942,21 +8847,37 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         shortcut: a planted `__pycache__/*.pyc` is not in `changes()` (`copies.NOT_COPIED`), nor
         is an edit to a file the script imports looked at; ask each time if that is seen."""
         copy = self._copies.get(owner or "")
-        if owner not in self._candidates or copy is None or cwd not in (".", ctx.part or ".") or (
-                not self._watched(ctx.run_id)) or ctx.run_id in self._away_jobs or (
-                ctx.run_id in self._backlog_turns):
+        if (
+            owner not in self._candidates
+            or copy is None
+            or cwd not in (".", ctx.part or ".")
+            or (not self._watched(ctx.run_id))
+            or ctx.run_id in self._away_jobs
+            or (ctx.run_id in self._backlog_turns)
+        ):
             return None
         with self._factory() as session:
-            measure = session.get_one(Project, session.get_one(
-                Conversation, ctx.cid).project_id).measure_command
+            measure = session.get_one(
+                Project, session.get_one(Conversation, ctx.cid).project_id
+            ).measure_command
         if not measure or measure.strip() != command:
             return None
         changes = await asyncio.to_thread(copy.changes)
-        return None if any(kind == "new" for _path, kind, _state in changes) else [
-            path for path, _kind, _state in changes]
+        return (
+            None
+            if any(kind == "new" for _path, kind, _state in changes)
+            else [path for path, _kind, _state in changes]
+        )
 
-    async def _ask_row(self, ctx: Ctx, child: Ctx, text: str, options: list[str],
-                       ids: list[str] | None = None, kind: str | None = None) -> str | None:
+    async def _ask_row(
+        self,
+        ctx: Ctx,
+        child: Ctx,
+        text: str,
+        options: list[str],
+        ids: list[str] | None = None,
+        kind: str | None = None,
+    ) -> str | None:
         """KOLONİ's card for a recipe, in the spawn call that opened `child`; the user's
         word, or None where nobody is there to ask (a trigger's turn). `ids`: given, the
         card's question is put in it (an Ask me card's may be superseded, `_step_over`)."""
@@ -6964,8 +8885,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             call_id = session.get_one(Agent, child.agent_id).tool_call_id
         try:
             _status, said = await self._ask_user(
-                ctx, call_id, {"question": text, "options": options}, leave=True, ids=ids,
-                kind=kind)
+                ctx, call_id, {"question": text, "options": options}, leave=True, ids=ids, kind=kind
+            )
         except _NobodyToAsk:
             return None
         return said.removeprefix(ANSWER_PREFIX)
@@ -6978,19 +8899,37 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         shortcut: the copy is gone through on the event loop, at the card and at its Go on;
         hand it to a thread if a large copy is felt."""
         with self._factory() as session:
-            parents = dict(session.execute(select(Agent.id, Agent.parent_agent_id).where(
-                Agent.run_id == ctx.run_id)).tuples().all())
+            parents = dict(
+                session.execute(
+                    select(Agent.id, Agent.parent_agent_id).where(Agent.run_id == ctx.run_id)
+                )
+                .tuples()
+                .all()
+            )
             line, more = set(agents), set(agents)
             while more:
                 more = {one for one, parent in parents.items() if parent in more} - line
                 line |= more
-            paths = set(session.scalars(select(FileChange.path).where(
-                FileChange.run_id == ctx.run_id, FileChange.agent_id.in_(line))))
+            paths = set(
+                session.scalars(
+                    select(FileChange.path).where(
+                        FileChange.run_id == ctx.run_id, FileChange.agent_id.in_(line)
+                    )
+                )
+            )
             # (The copy is the turn's, every team's: a file another row's agents have on record
             # is theirs - their writes would supersede this card's Go on again and again.)
             # shortcut: a file another team's command wrote is on no record, and still counts.
-            theirs = set(session.scalars(select(FileChange.path).where(
-                FileChange.run_id == ctx.run_id, FileChange.agent_id.not_in(line)))) - paths
+            theirs = (
+                set(
+                    session.scalars(
+                        select(FileChange.path).where(
+                            FileChange.run_id == ctx.run_id, FileChange.agent_id.not_in(line)
+                        )
+                    )
+                )
+                - paths
+            )
         copy = self._copies.get(self._recipe_copy.get(ctx.run_id, ""))
         if copy is not None:
             paths |= {path for path, _kind, _state in copy.changes()} - theirs
@@ -7002,6 +8941,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 return copies.digest(ws.resolve(path), follow=True)
             except WorkspaceError:
                 return "unreadable"
+
         return {path: now(path) for path in paths}
 
     def _supersede(self, ctx: Ctx, question_id: str) -> None:
@@ -7017,15 +8957,29 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """The word at "Who checks?": the role named - or the writer - checks the part ahead."""
         next_part = recipe_run.ahead(state)
         left = recipe_run.unchecked(next_part)
-        picked = next((one for one in self._checkers(next_part)
-                       if word and one.casefold() == word.strip().casefold()), None)
+        picked = next(
+            (
+                one
+                for one in self._checkers(next_part)
+                if word and one.casefold() == word.strip().casefold()
+            ),
+            None,
+        )
         # (Nobody to ask: the writer checks, as before - said on its node.)
         if left and (word in (None, options[-2]) or picked):
             recipe_run.checks(state, next_part["at"], left[0][0], picked)
 
-    def _word_heard(self, child: Ctx, state: dict, entry: dict, word: str | None,
-                    options: list[str], offer: tuple | None, picks: dict[str, str],
-                    changes: list[tuple[str, str]]) -> None:
+    def _word_heard(
+        self,
+        child: Ctx,
+        state: dict,
+        entry: dict,
+        word: str | None,
+        options: list[str],
+        offer: tuple | None,
+        picks: dict[str, str],
+        changes: list[tuple[str, str]],
+    ) -> None:
         """The word at a row's card (`_step_over`), taken into the row's state. `changes`: the
         user's Ask for changes is put there, with its step."""
         if state["status"] != recipe_run.RUNNING:
@@ -7051,9 +9005,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # (The user's yes to that model: its next agent of the run is opened there.)
             why, provider, model = offer
             self._run_there[(child.run_id, child.role.casefold())] = (
-                provider.id, model,
+                provider.id,
+                model,
                 f"the user's choice: it could not run on {child.provider} ({why})",
-                _on(provider, model))
+                _on(provider, model),
+            )
             state["here"].remove(entry)
         elif entry["ok"] is False and word == "Skip":
             # (A check skipped found nothing - nor checked: a step after it that runs
@@ -7065,16 +9021,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # (B-112: a reasoned "no" is no question asked again: it is Ask for changes.)
             state["here"] = []
             state["changes"] = word.removeprefix("Ask for changes").lstrip(":").strip()
-            changes.append((recipe_run.name_of(recipe_run.graph_of(state), state["at"]),
-                            word))
+            changes.append((recipe_run.name_of(recipe_run.graph_of(state), state["at"]), word))
 
-    async def _gone_on(self, ctx: Ctx, child: Ctx, word: str,
-                       cant: tuple[str, str | None, datetime | None] | None
-                       ) -> tuple[tuple[bool, str] | None, list | None, str]:
+    async def _gone_on(
+        self, ctx: Ctx, child: Ctx, word: str, cant: tuple[str, str | None, datetime | None] | None
+    ) -> tuple[tuple[bool, str] | None, list | None, str]:
         """Go on or Reconnect at a failure's card: the same agent goes on (`_go_on_again`).
         What came of that, the findings it left, and what its opener is told of it."""
-        gone = await self._go_on_again(
-            ctx, child, None if word == RECONNECT else cant and cant[2])
+        gone = await self._go_on_again(ctx, child, None if word == RECONNECT else cant and cant[2])
         found = None
         if gone is None:
             return gone, found, ""
@@ -7085,8 +9039,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._set_agent(ctx.cid, child.agent_id, findings=found)
         return gone, found, f"\n\n{gone[1]}{_hand_on(found)}"
 
-    async def _pick_taken(self, ctx: Ctx, child: Ctx, word: str | None, options: list[str]
-                          ) -> tuple[dict[str, str], str]:
+    async def _pick_taken(
+        self, ctx: Ctx, child: Ctx, word: str | None, options: list[str]
+    ) -> tuple[dict[str, str], str]:
         """The names a pick's card kept (`_pick_card`), and - one of them the word - what
         `_pick` says was left out."""
         more = ""
@@ -7098,9 +9053,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._pick_names[child.run_id] = picks  # (asked again)
         return picks, more
 
-    async def _step_over(
-        self, ctx: Ctx, child: Ctx, first: Callable[[dict, dict], None]
-    ) -> str:
+    async def _step_over(self, ctx: Ctx, child: Ctx, first: Callable[[dict, dict], None]) -> str:
         """A sub-agent of a row's step is done: the row moves on - back along a loop, to the
         next step, or to its end - and its opener is told where the recipe is. Where the step
         asks the user (ask me; a failure that asks), the card is put in the call that
@@ -7126,14 +9079,24 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 # (Of a row's cards the Lead may answer Ask me for the user while they are
                 # away; at Full auto "Who checks?" too, K-fullauto-sorma.)
                 word = await self._ask_row(
-                    ctx, child, changed + ask[0], ask[1], ids,
-                    kind="ask_me" if ask[1] == ASK_ME else "checker"
+                    ctx,
+                    child,
+                    changed + ask[0],
+                    ask[1],
+                    ids,
+                    kind="ask_me"
+                    if ask[1] == ASK_ME
+                    else "checker"
                     if ask[1][1:] and ask[1][-2].endswith((ITSELF, THEMSELVES))
-                    else "card" if child.run_id in self._pick_names else None)
+                    else "card"
+                    if child.run_id in self._pick_names
+                    else None,
+                )
             changed = ""
             now = self._work_digest(ctx, ask[2]) if ask[2:] and word == "Go on" and ids else held
-            if moved := sorted(path for path in held.keys() | now.keys()
-                               if held.get(path) != now.get(path)):
+            if moved := sorted(
+                path for path in held.keys() | now.keys() if held.get(path) != now.get(path)
+            ):
                 # G5.4: a yes is to the work as the card showed it - changed since, asked again.
                 self._supersede(ctx, ids[0])
                 changed = CHANGED_SINCE.format(files=", ".join(moved))
@@ -7142,11 +9105,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 gone, found, more = await self._gone_on(ctx, child, word, cant)
                 went += more
 
-                def again(state: dict, entry: dict, gone: tuple | None = gone,
-                          found: list | None = found) -> None:
+                def again(
+                    state: dict, entry: dict, gone: tuple | None = gone, found: list | None = found
+                ) -> None:
                     if gone is not None:
-                        entry["ok"], entry["found"] = gone[0], found is None or bool(
-                            _blocking(found))
+                        entry["ok"], entry["found"] = (
+                            gone[0],
+                            found is None or bool(_blocking(found)),
+                        )
                         entry["findings"] = bool(_blocking(found))
 
                 offer, cant = self._elsewhere(child), self._cant_run(child)
@@ -7156,25 +9122,35 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             picks, more = await self._pick_taken(ctx, child, word, ask[1])
             went += more
 
-            def heard(state: dict, entry: dict, word: str | None = word,
-                      options: list[str] = ask[1], offer: tuple | None = offer,
-                      picks: dict[str, str] = picks) -> None:
+            def heard(
+                state: dict,
+                entry: dict,
+                word: str | None = word,
+                options: list[str] = ask[1],
+                offer: tuple | None = offer,
+                picks: dict[str, str] = picks,
+            ) -> None:
                 self._word_heard(child, state, entry, word, options, offer, picks, changes)
 
             said, ask = self._on_row(child, heard, offer, cant, full)
             if changes:
                 step, given = changes.pop()
-                self._users_card(ctx, f"Ask me: {step}", given, self._who_answered(ctx, ids),
-                                 role=child.role)
+                self._users_card(
+                    ctx, f"Ask me: {step}", given, self._who_answered(ctx, ids), role=child.role
+                )
         # B-415: the last agent at work of a lead that ended may be back now - its opener's, or a
         # lead opened again after it, which owns the row (`_row_taken_over`).
-        for gone in [one for one in self._ctxs.values()
-                     if one.run_id == ctx.run_id and one.agent_id in self._leads_gone]:
+        for gone in [
+            one
+            for one in self._ctxs.values()
+            if one.run_id == ctx.run_id and one.agent_id in self._leads_gone
+        ]:
             self._lead_ended(gone, self._leads_gone[gone.agent_id])
         return went + said
 
-    def _users_card(self, ctx: Ctx, card: str, word: str, who: str = "The user",
-                    role: str | None = None) -> None:
+    def _users_card(
+        self, ctx: Ctx, card: str, word: str, who: str = "The user", role: str | None = None
+    ) -> None:
         """B-115: the user's Ask for changes at a recipe's card (`card`: which, "Ask me: <its
         step>" or Ready for you), to its runner as the user's own message - from its next step
         on, and a CLI's next session - not only in a tool's result; told afresh what is left,
@@ -7203,18 +9179,28 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if project is None:
                 return
             first = session.scalar(
-                select(FileChange.path).where(FileChange.run_id == ctx.run_id)
-                .order_by(FileChange.created_at, literal_column("file_changes.rowid")).limit(1))
+                select(FileChange.path)
+                .where(FileChange.run_id == ctx.run_id)
+                .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
+                .limit(1)
+            )
             try:
                 kept.keep_fact(
-                    session, project.id, kept.one_line(words)[:kept.MAX_TEXT],
-                    (kept.FEEDBACK + (first or role))[:kept.MAX_ABOUT], how="feedback")
+                    session,
+                    project.id,
+                    kept.one_line(words)[: kept.MAX_TEXT],
+                    (kept.FEEDBACK + (first or role))[: kept.MAX_ABOUT],
+                    how="feedback",
+                )
             except kept.Refused as exc:
                 # (The same words are on record already, or the core is full.)
                 # shortcut: the user is not told on the card when the core is full and their
                 # words were not kept; say it on the card if that is met.
-                log.info("run %s: the user's words at the card were not kept in memory: %s",
-                         ctx.run_id, exc)
+                log.info(
+                    "run %s: the user's words at the card were not kept in memory: %s",
+                    ctx.run_id,
+                    exc,
+                )
                 return
             project_id = project.id
         self.bus.emit(ctx.cid, ctx.run_id, "memory.changed", {"project_id": project_id})
@@ -7278,22 +9264,29 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
     def _lead_of(self, run_id: str) -> Ctx | None:
         """The turn's Lead, while it is at work."""
-        return next((one for one in self._ctxs.values()
-                     if one.run_id == run_id and not one.depth), None)
+        return next(
+            (one for one in self._ctxs.values() if one.run_id == run_id and not one.depth), None
+        )
 
-    async def _go_on_again(self, ctx: Ctx, child: Ctx, resets: datetime | None
-                     ) -> tuple[bool, str] | None:
+    async def _go_on_again(
+        self, ctx: Ctx, child: Ctx, resets: datetime | None
+    ) -> tuple[bool, str] | None:
         """G3: the user's Go on at a step's limit's reset (`resets`), or Reconnect (None): the
         same agent goes on once, on the same model - never another. Go on waits for the reset;
         its team's Stop or Finish now ends the wait (`_at_reset`); a limit still reached then is
         not tried. Whether it ended well and what its opener is told; None: it did not go on.
         shortcut: the wait is in memory only - a restart ends it, and the row says it was
         interrupted, its work kept for Take in; keep it on record if a long wait is lost."""
+
         def say(now: str | None, was: str | None) -> None:
             """Its row's why while it waits (the canvas and the chat row show it)."""
+
             def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
-                if child.agent_id not in state["agents"] or state[
-                        "status"] != recipe_run.RUNNING or state.get("why") != was:
+                if (
+                    child.agent_id not in state["agents"]
+                    or state["status"] != recipe_run.RUNNING
+                    or state.get("why") != was
+                ):
                     return False
                 state["why"] = now
                 return True
@@ -7308,20 +9301,24 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 try:
                     with contextlib.suppress(TimeoutError):
                         # (A few seconds past it: the wait is on another clock than the reset.)
-                        await asyncio.wait_for(woken.wait(), (
-                            resets - datetime.now(UTC)).total_seconds() + RESET_MARGIN)
+                        await asyncio.wait_for(
+                            woken.wait(),
+                            (resets - datetime.now(UTC)).total_seconds() + RESET_MARGIN,
+                        )
                 finally:
                     self._at_reset.pop(child.agent_id, None)
                     say(None, waits)
                 with self._factory() as session:
                     provider = session.get(Provider, child.provider_id or "")
-                    if woken.is_set() or provider is not None and at_limit(
-                            self.providers.limits.last(provider)):
+                    if (
+                        woken.is_set()
+                        or provider is not None
+                        and at_limit(self.providers.limits.last(provider))
+                    ):
                         return None
             if child.agent_id in self._halted:
                 return None
-            status, told = await self._reply_turn(
-                ctx, child, "continue", GO_ON_WORDS, koloni=True)
+            status, told = await self._reply_turn(ctx, child, "continue", GO_ON_WORDS, koloni=True)
         return status == "succeeded", told
 
     def _give_steps(self, child: Ctx, whose: str, taken: int = 0, steps: int | None = None) -> int:
@@ -7347,8 +9344,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._set_agent(child.cid, child.agent_id, steps_given=given)
         lead = self._lead_of(child.run_id)
         if lead is not None:
-            self._send(lead, lead, STEPS_GIVEN.format(name=child.name, steps=steps, whose=whose),
-                       delivered=True, koloni=True)
+            self._send(
+                lead,
+                lead,
+                STEPS_GIVEN.format(name=child.name, steps=steps, whose=whose),
+                delivered=True,
+                koloni=True,
+            )
         return steps
 
     async def continue_kept(self, merge_id: str) -> str | None:
@@ -7380,13 +9382,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
         def settled(done: asyncio.Future) -> None:
             if not done.cancelled() and done.exception() is not None:  # (retrieved: it is said)
-                log.warning("agent %s: what came of %s's Continue was not left for it: %r",
-                            lead.agent_id, child.name, done.exception())
+                log.warning(
+                    "agent %s: what came of %s's Continue was not left for it: %r",
+                    lead.agent_id,
+                    child.name,
+                    done.exception(),
+                )
 
         later.add_done_callback(settled)
         self._answers_out.setdefault(lead.agent_id, []).append(later)
         self._later_work.setdefault(run_id, []).append(
-            (lead.agent_id, child.agent_id, child.cid, later))
+            (lead.agent_id, child.agent_id, child.cid, later)
+        )
         return None
 
     async def _continued_later(self, lead: Ctx, child: Ctx) -> tuple[str, str, str]:
@@ -7402,30 +9409,46 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             try:
                 steps = self._give_steps(child, "your Continue")
                 _status, said = await self._reply_turn(
-                    lead, child, "continue", CONTINUE_WORDS.format(steps=steps), koloni=True)
+                    lead, child, "continue", CONTINUE_WORDS.format(steps=steps), koloni=True
+                )
             finally:
                 self._given_steps.pop(child.agent_id, None)  # (an error before its job: none left)
         opener = self._ctxs.get(lead.agent_id, lead)
-        return child.name, said, self._send(
-            replace(lead, agent_id=child.agent_id), opener, said, delivered=False)
+        return (
+            child.name,
+            said,
+            self._send(replace(lead, agent_id=child.agent_id), opener, said, delivered=False),
+        )
 
     def _busy_in_copy(self, lead: Ctx) -> bool:
         """Whether an agent still works in the turn's recipe copy: it is not taken in under it."""
-        line = [c.agent_id for c in self._ctxs.values()
-                if c.run_id == lead.run_id and c.depth and self._copy_owner(c) == lead.agent_id]
+        line = [
+            c.agent_id
+            for c in self._ctxs.values()
+            if c.run_id == lead.run_id and c.depth and self._copy_owner(c) == lead.agent_id
+        ]
         with self._factory() as session:
-            return any(session.get_one(Agent, agent).status not in AGENT_TERMINAL
-                       for agent in line)
+            return any(session.get_one(Agent, agent).status not in AGENT_TERMINAL for agent in line)
 
     def _findings_of(self, session: Session, rows: list[tuple[Team, dict]]) -> str | None:
         # K-r146: who left the findings a row stops on, for Fix the findings' Coder.
         fixer = None
         for team, state in rows:
             if (state.get("why") or "").startswith(FINDINGS_LEFT) and FIXER in team_roles(
-                    session, team):
-                fixer = next((agent.name for agent in session.scalars(select(Agent).where(
-                    Agent.id.in_(state["agents"])).order_by(Agent.created_at.desc()))
-                    if _blocking(agent.findings)), fixer)
+                session, team
+            ):
+                fixer = next(
+                    (
+                        agent.name
+                        for agent in session.scalars(
+                            select(Agent)
+                            .where(Agent.id.in_(state["agents"]))
+                            .order_by(Agent.created_at.desc())
+                        )
+                        if _blocking(agent.findings)
+                    ),
+                    fixer,
+                )
         return fixer
 
     @staticmethod
@@ -7446,8 +9469,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if ctx.run_id in self._readying or ctx.run_id in self._held_back:
             return ""
         with self._factory() as session:
-            rows = [(team, state) for row, team, _lead in self._rows(session, ctx.cid)
-                    if (state := self._live_state(row, ctx.run_id))]
+            rows = [
+                (team, state)
+                for row, team, _lead in self._rows(session, ctx.cid)
+                if (state := self._live_state(row, ctx.run_id))
+            ]
             # B-84: a picked team not started yet is not at its end - asked here, the card
             # would hold the call the Lead waits on before it opens that team's lead. (B-118:
             # one with no recipe too. One that never opens leaves the work kept for Take in.)
@@ -7455,51 +9481,108 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # A finding on record, or a row's why, is the user's to send back at Ready for you
             # (Ask for changes) even where no file changed.
             said = any(s.get("why") or s.get("unchecked") for _t, s in rows) or any(
-                session.scalars(select(Agent.findings).where(
-                    Agent.id.in_([a for _t, s in rows for a in s["agents"]]))))
+                session.scalars(
+                    select(Agent.findings).where(
+                        Agent.id.in_([a for _t, s in rows for a in s["agents"]])
+                    )
+                )
+            )
             # The one copy is taken in whole: with what a team that ended early left in it.
-            partial = [team.name for team, state in rows if state["status"] in (
-                recipe_run.FAILED, recipe_run.STOPPED) and session.scalar(
-                select(FileChange.id).where(
-                    FileChange.run_id == ctx.run_id, FileChange.status == "in_copy",
-                    FileChange.agent_id.in_(state["agents"])).limit(1))]
+            partial = [
+                team.name
+                for team, state in rows
+                if state["status"] in (recipe_run.FAILED, recipe_run.STOPPED)
+                and session.scalar(
+                    select(FileChange.id)
+                    .where(
+                        FileChange.run_id == ctx.run_id,
+                        FileChange.status == "in_copy",
+                        FileChange.agent_id.in_(state["agents"]),
+                    )
+                    .limit(1)
+                )
+            ]
             # B-101: a team with no recipe beside them, its work kept apart from the recipe's.
-            apart = [(team, state) for row, team, _lead in self._rows(session, ctx.cid)
-                     if (state := self._apart_state(row, ctx.run_id))]
+            apart = [
+                (team, state)
+                for row, team, _lead in self._rows(session, ctx.cid)
+                if (state := self._apart_state(row, ctx.run_id))
+            ]
             # B-110: and an agent's kept beside the recipe (a role named, the Planner).
             rowed = {agent for _t, state in apart for agent in state["agents"]}
-            beside = session.scalars(select(Agent.name).join(
-                Merge, Merge.agent_id == Agent.id).where(
-                Merge.run_id == ctx.run_id, Merge.status == "interrupted",
-                Merge.kept_in.is_not(None), Agent.depth > 0, Agent.id.not_in(rowed))).all()
+            beside = session.scalars(
+                select(Agent.name)
+                .join(Merge, Merge.agent_id == Agent.id)
+                .where(
+                    Merge.run_id == ctx.run_id,
+                    Merge.status == "interrupted",
+                    Merge.kept_in.is_not(None),
+                    Agent.depth > 0,
+                    Agent.id.not_in(rowed),
+                )
+            ).all()
             # B-153 (live): one that changed no file has no kept copy - the shared folder is no
             # Take in's. Its kept copy says so (a command's change is in no FileChange); a change
             # on record, where the copy is not kept yet.
-            own = {team.id: APART if session.scalar(select(Merge.id).where(
-                Merge.run_id == ctx.run_id, Merge.status == "interrupted",
-                Merge.kept_in.is_not(None), Merge.agent_id.in_(state["agents"])).limit(1))
-                or session.scalar(select(FileChange.id).where(
-                    FileChange.run_id == ctx.run_id,
-                    FileChange.agent_id.in_(state["agents"])).limit(1))
-                else SHARED_ONLY if session.scalar(select(ToolCall.id).where(
-                    ToolCall.run_id == ctx.run_id, ToolCall.name == "write_shared",
-                    ToolCall.status == "succeeded",
-                    ToolCall.agent_id.in_(state["agents"])).limit(1))
-                else NOTHING_APART for team, state in apart}
+            own = {
+                team.id: APART
+                if session.scalar(
+                    select(Merge.id)
+                    .where(
+                        Merge.run_id == ctx.run_id,
+                        Merge.status == "interrupted",
+                        Merge.kept_in.is_not(None),
+                        Merge.agent_id.in_(state["agents"]),
+                    )
+                    .limit(1)
+                )
+                or session.scalar(
+                    select(FileChange.id)
+                    .where(
+                        FileChange.run_id == ctx.run_id, FileChange.agent_id.in_(state["agents"])
+                    )
+                    .limit(1)
+                )
+                else SHARED_ONLY
+                if session.scalar(
+                    select(ToolCall.id)
+                    .where(
+                        ToolCall.run_id == ctx.run_id,
+                        ToolCall.name == "write_shared",
+                        ToolCall.status == "succeeded",
+                        ToolCall.agent_id.in_(state["agents"]),
+                    )
+                    .limit(1)
+                )
+                else NOTHING_APART
+                for team, state in apart
+            }
             fixer = self._findings_of(session, rows)
-        if waits or not any(s["status"] == recipe_run.READY for _t, s in rows) or any(
-                s["status"] == recipe_run.RUNNING for _t, s in rows + apart) or (
-                self._busy_in_copy(ctx)):
+        if (
+            waits
+            or not any(s["status"] == recipe_run.READY for _t, s in rows)
+            or any(s["status"] == recipe_run.RUNNING for _t, s in rows + apart)
+            or (self._busy_in_copy(ctx))
+        ):
             return ""
-        lines = "; ".join([*(f"{team.name} ({state['recipe']}): {state['status']}"
-                             f"{' - ' + state['why'] if state.get('why') else ''}"
-                             for team, state in rows),
-                           *(f"{team.name} (no recipe): {state['status']}"
-                             f"{' - ' + state['why'] if state.get('why') else ''} - {own[team.id]}"
-                             for team, state in apart),
-                           *(f"{name} (beside the recipe): {APART}" for name in beside)])
-        also = "".join(f" Take in also takes in what {name} left before it stopped."
-                       for name in partial)
+        lines = "; ".join(
+            [
+                *(
+                    f"{team.name} ({state['recipe']}): {state['status']}"
+                    f"{' - ' + state['why'] if state.get('why') else ''}"
+                    for team, state in rows
+                ),
+                *(
+                    f"{team.name} (no recipe): {state['status']}"
+                    f"{' - ' + state['why'] if state.get('why') else ''} - {own[team.id]}"
+                    for team, state in apart
+                ),
+                *(f"{name} (beside the recipe): {APART}" for name in beside),
+            ]
+        )
+        also = "".join(
+            f" Take in also takes in what {name} left before it stopped." for name in partial
+        )
         # B-356: half the work of a team that failed is no Take in to offer first - nor to take
         # in unasked at Full auto.
         failed = [team.name for team, state in rows if state["status"] == recipe_run.FAILED]
@@ -7517,8 +9600,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # K-fullauto-sorma: at Full auto the work is taken in by itself, as work outside a
         # recipe is - `_merge` still cards a clash, a root file or a failing check - unless a
         # check of it failed and nothing was checked (`unchecked`, `_on_row`): the user's.
-        full = self._full_auto(ctx) and not failed and not any(
-            s.get("unchecked") for _t, s in rows)
+        full = self._full_auto(ctx) and not failed and not any(s.get("unchecked") for _t, s in rows)
         try:
             made = self._copies.get(ctx.agent_id)
             # B-383: what its card, and the Lead, are told stays in the copy.
@@ -7527,15 +9609,31 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # to take in - no card asks for it.
             # shortcut: so such a recipe offers no Ask for changes either (the user writes a new
             # message); bring back a card without Take in if that is missed.
-            empty = made is not None and not said and not beside and (
-                APART not in own.values()) and await self._changed_nothing(made)
+            empty = (
+                made is not None
+                and not said
+                and not beside
+                and (APART not in own.values())
+                and await self._changed_nothing(made)
+            )
             # (A job while the user is away is done here: its copy waits for the morning.)
-            word = None if ctx.run_id in self._away_jobs else "Take in" if full or empty else (
-                await self._ask_row(
-                    ctx, child, f"{READY_FOR_YOU}: {lines}.{also}{' ' + stays if stays else ''} "
-                    "Take the work into the project?",
-                    ["Ask for changes", "Take in"] if failed else ["Take in", *(
-                        [FIX_FINDINGS] if fixer else []), "Ask for changes"]))
+            word = (
+                None
+                if ctx.run_id in self._away_jobs
+                else "Take in"
+                if full or empty
+                else (
+                    await self._ask_row(
+                        ctx,
+                        child,
+                        f"{READY_FOR_YOU}: {lines}.{also}{' ' + stays if stays else ''} "
+                        "Take the work into the project?",
+                        ["Ask for changes", "Take in"]
+                        if failed
+                        else ["Take in", *([FIX_FINDINGS] if fixer else []), "Ask for changes"],
+                    )
+                )
+            )
             # (Fix the findings takes the work in first: the Coder after it is outside the
             # recipe, which has ended - `_door`.)
             fix, word = word == FIX_FINDINGS, "Take in" if word == FIX_FINDINGS else word
@@ -7544,8 +9642,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 copy = self._copies.get(ctx.agent_id)
                 if copy is not None:
                     left = await self._into_project(
-                        replace(ctx, name="the recipe"), copy, "completed", lambda: None,
-                        asked=True)
+                        replace(ctx, name="the recipe"), copy, "completed", lambda: None, asked=True
+                    )
             back = self._rows_to(ctx, word, left, done=empty)
         finally:
             self._readying.discard(ctx.run_id)
@@ -7556,17 +9654,27 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             with self._factory() as session:
                 here = landed(session, ctx.run_id)
         if word == "Take in" and empty:
-            return ("\n\nThe recipe is done: it changed no file - nothing to take in "
-                    f"({READY_FOR_YOU} asks nobody).") + (f"\n\n{stays}" if stays else "")
+            return (
+                "\n\nThe recipe is done: it changed no file - nothing to take in "
+                f"({READY_FOR_YOU} asks nobody)."
+            ) + (f"\n\n{stays}" if stays else "")
         if word == "Take in" and full:
-            return f"\n\nFull auto: the work is taken into the project ({READY_FOR_YOU} asks " \
-                   "nobody)." + "".join(f"\n\n{one}" for one in (left, here, stays) if one)
+            return (
+                f"\n\nFull auto: the work is taken into the project ({READY_FOR_YOU} asks "
+                "nobody)." + "".join(f"\n\n{one}" for one in (left, here, stays) if one)
+            )
         if word == "Take in":
             # (B-125: in a result only, the Lead took it for the Reviewer's words, not confirmed.)
             self._users_card(ctx, READY_FOR_YOU, FIX_FINDINGS if fix else word)
-            return "\n\nThe user took the work in." + (f"\n\n{left}" if left else (
-                FIX_TOLD.format(role=FIXER, name=fixer) if fix else "")) + "".join(
-                f"\n\n{one}" for one in (here, stays) if one)
+            return (
+                "\n\nThe user took the work in."
+                + (
+                    f"\n\n{left}"
+                    if left
+                    else (FIX_TOLD.format(role=FIXER, name=fixer) if fix else "")
+                )
+                + "".join(f"\n\n{one}" for one in (here, stays) if one)
+            )
         if word is None:
             return "\n\nNobody was there to ask: the work stays in its copy, not taken in."
         self._users_card(ctx, READY_FOR_YOU, word, role=child.role)
@@ -7592,8 +9700,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 state["status"], state["why"] = recipe_run.STOPPED, "nobody was there to ask"
             else:
                 words = word.removeprefix("Ask for changes").lstrip(":").strip()
-                said.append(f"{team.name} goes on from {recipe_run.back_to(state)}"
-                            f"{WORDS_TOLD if words else ''}.")
+                said.append(
+                    f"{team.name} goes on from {recipe_run.back_to(state)}"
+                    f"{WORDS_TOLD if words else ''}."
+                )
                 # (Handed to its next agent, `_spawn_one`: this answer's alone.)
                 if words:
                     state["words"] = words
@@ -7608,11 +9718,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """The turn is over: a row of it still at work is stopped, and saying where; what its
         agents changed is kept for the user, as a kept copy - after Stop too (B-82): kept is
         not taken, Take in or Discard on Ready for you is the user's."""
-        def apart(row: ConversationTeam, team: Team, lead: Role,
-                  state: dict | None) -> dict | None:
-            return {**state, "status": recipe_run.STOPPED, "why": "Stopped" if status == (
-                "cancelled") else "the turn ended"} if state and state[
-                "status"] == recipe_run.RUNNING else None
+
+        def apart(row: ConversationTeam, team: Team, lead: Role, state: dict | None) -> dict | None:
+            return (
+                {
+                    **state,
+                    "status": recipe_run.STOPPED,
+                    "why": "Stopped" if status == ("cancelled") else "the turn ended",
+                }
+                if state and state["status"] == recipe_run.RUNNING
+                else None
+            )
 
         if not ctx.depth:
             self._apart(ctx.cid, ctx.run_id, apart)
@@ -7620,23 +9736,32 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return
         # B-376: a step's agent the end cut - "Tester never ran" - is said beside the why.
         with self._factory() as session:
-            agents = {one.id: (one.name, one.started_at is not None) for one in session.scalars(
-                select(Agent).where(Agent.run_id == ctx.run_id))}
+            agents = {
+                one.id: (one.name, one.started_at is not None)
+                for one in session.scalars(select(Agent).where(Agent.run_id == ctx.run_id))
+            }
         at_end = f"{now().astimezone():%H:%M:%S}"
 
         def cut(state: dict) -> str:
-            return "; ".join(CUT_BY_END.format(
-                name=agents[one["agent"]][0], at=at_end,
-                how="did not finish" if agents[one["agent"]][1] else "never ran")
+            return "; ".join(
+                CUT_BY_END.format(
+                    name=agents[one["agent"]][0],
+                    at=at_end,
+                    how="did not finish" if agents[one["agent"]][1] else "never ran",
+                )
                 for one in recipe_run.at_work(state)
-                if one["ok"] is None and one["agent"] in agents)
+                if one["ok"] is None and one["agent"] in agents
+            )
 
         def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
             lost = "" if self._closing else cut(state)
             if state["status"] not in recipe_run.OPEN:
                 # (Stopped already - its lead ended with its group open: who the end cut, too.)
-                if state["status"] != recipe_run.STOPPED or not lost or lost in (
-                        state.get("why") or ""):
+                if (
+                    state["status"] != recipe_run.STOPPED
+                    or not lost
+                    or lost in (state.get("why") or "")
+                ):
                     return False
                 state["why"] = "; ".join(filter(None, [state.get("why"), lost]))
                 return True
@@ -7646,15 +9771,24 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 return True
             at = next((s["name"] for s in state.get("steps", []) if s["state"] == "now"), "its")
             # (B-116: sent back for findings and ended there, G1.2's end - not a rule broken.)
-            found = recipe_run.found_left(state) if state["status"] == recipe_run.RUNNING and (
-                status == "completed") else None
+            found = (
+                recipe_run.found_left(state)
+                if state["status"] == recipe_run.RUNNING and (status == "completed")
+                else None
+            )
             # (B-83: the Lead's answer, told twice what was left, skipped what was.)
             # (G1.2's "findings are left…" of one at Ready for you stays its why.)
-            state["why"] = "Stopped" if status == "cancelled" else (
-                state.get("why") or "the turn ended before Take in"
-                if state["status"] == recipe_run.READY
-                else found or recipe_run.skip(state) if status == "completed"
-                else f"the turn ended at its {at} step")
+            state["why"] = (
+                "Stopped"
+                if status == "cancelled"
+                else (
+                    state.get("why") or "the turn ended before Take in"
+                    if state["status"] == recipe_run.READY
+                    else found or recipe_run.skip(state)
+                    if status == "completed"
+                    else f"the turn ended at its {at} step"
+                )
+            )
             state["why"] = "; ".join(filter(None, [state["why"], lost]))
             # (Not a team that ended before its end: what is said of those leaves it out.)
             state["ended_ready"] = state["status"] == recipe_run.READY or found is not None
@@ -7667,12 +9801,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if status in KEEPS:
             # shortcut: these looks at the copies walk them on the event loop (`_end_runs` is
             # sync, called from async `_lead_taken`); pass `_look_aside`'s if it is felt.
-            self._set_aside(ctx.agent_id, NOT_TAKEN_KEPT.format(why=held) if (
-                held := self._held_back.get(ctx.run_id)) else (
-                "a recipe's work its turn ended before taking in"))
+            self._set_aside(
+                ctx.agent_id,
+                NOT_TAKEN_KEPT.format(why=held)
+                if (held := self._held_back.get(ctx.run_id))
+                else ("a recipe's work its turn ended before taking in"),
+            )
             # K-evrim: and so is each candidate's a pick never came to - the would-be winner's too.
-            for one in [a for a in self._candidates if a in self._copies
-                        and (known := self._ctxs.get(a)) and known.run_id == ctx.run_id]:
+            for one in [
+                a
+                for a in self._candidates
+                if a in self._copies and (known := self._ctxs.get(a)) and known.run_id == ctx.run_id
+            ]:
                 self._set_aside(one, CANDIDATE_KEPT)
 
     def _kept_in(self, ctx: Ctx) -> None:
@@ -7692,8 +9832,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     def _own_copy_in(self, ctx: Ctx) -> None:
         """B-158: a team's own kept copy (one with no recipe beside a recipe's), applied from
         its card, puts its row in the project - as Ready for you already said."""
-        def how(_row: ConversationTeam, _team: Team, _lead: Role,
-                state: dict | None) -> dict | None:
+
+        def how(
+            _row: ConversationTeam, _team: Team, _lead: Role, state: dict | None
+        ) -> dict | None:
             if state is None or ctx.agent_id not in state["agents"]:
                 return None
             if state["status"] == recipe_run.DONE:
@@ -7706,17 +9848,25 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """The turn's agents that have a change in the project now - their own: not one found
         there while a CLI worked in its copy, whose maker is not known (K-70-kimin)."""
         with self._factory() as session:
-            return set(session.scalars(select(FileChange.agent_id).join(
-                ToolCall, ToolCall.id == FileChange.tool_call_id, isouter=True).where(
-                FileChange.run_id == run_id, FileChange.status == "applied",
-                or_(ToolCall.result.is_(None), ~ToolCall.result.startswith(IN_THE_PROJECT)))))
+            return set(
+                session.scalars(
+                    select(FileChange.agent_id)
+                    .join(ToolCall, ToolCall.id == FileChange.tool_call_id, isouter=True)
+                    .where(
+                        FileChange.run_id == run_id,
+                        FileChange.status == "applied",
+                        or_(ToolCall.result.is_(None), ~ToolCall.result.startswith(IN_THE_PROJECT)),
+                    )
+                )
+            )
 
     @staticmethod
     def _in_with_the_copy(state: dict, taken: set[str]) -> bool:
         """B-84: a row that failed or stopped before Take in, whose agents' work went in with
         the turn's one copy, is in the project - with why it ended kept."""
         if state["status"] not in (recipe_run.FAILED, recipe_run.STOPPED) or not taken & set(
-                state["agents"]):
+            state["agents"]
+        ):
             return False
         state["status"] = recipe_run.IN
         return True
@@ -7727,11 +9877,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         session KOLONİ stopped leaves its step's agents at work (G2.5) - the row ends once the
         last of them is back (`_step_over`), at the step they came to: their work is the row's,
         offered at Ready for you - unless a lead opened again owns the row by then (`_in_run`)."""
+
         def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
             if lead_ctx.agent_id not in state["agents"]:
                 return False
             if state["status"] == recipe_run.RUNNING and any(
-                    e["ok"] is None for e in recipe_run.at_work(state)):
+                e["ok"] is None for e in recipe_run.at_work(state)
+            ):
                 self._leads_gone[lead_ctx.agent_id] = ok
                 return False
             self._leads_gone.pop(lead_ctx.agent_id, None)
@@ -7739,7 +9891,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 return False
             state["status"] = recipe_run.STOPPED if ok else recipe_run.FAILED
             state["why"] = f"{lead_ctx.name} ended before its end" + (
-                f": {recipe_run.found_left(state) or recipe_run.skip(state)}" if ok else "")
+                f": {recipe_run.found_left(state) or recipe_run.skip(state)}" if ok else ""
+            )
             return True
 
         self._change_rows(lead_ctx.cid, lead_ctx.run_id, how)
@@ -7753,12 +9906,23 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # command of KOLONİ's own wrote is on none; and helpers one level down only.
         helpers = [c.agent_id for c in self._ctxs.values() if c.parent_id == child.agent_id]
         with self._factory() as session:
-            changed = session.scalar(select(FileChange.id).where(
-                FileChange.run_id == child.run_id,
-                FileChange.agent_id.in_([child.agent_id, *helpers])).limit(1)) is not None
+            changed = (
+                session.scalar(
+                    select(FileChange.id)
+                    .where(
+                        FileChange.run_id == child.run_id,
+                        FileChange.agent_id.in_([child.agent_id, *helpers]),
+                    )
+                    .limit(1)
+                )
+                is not None
+            )
 
-        score = self._scored.pop(child.agent_id, None) or {
-            "score": None, "why": CANDIDATE_STOPPED} if child.agent_id in self._candidates else None
+        score = (
+            self._scored.pop(child.agent_id, None) or {"score": None, "why": CANDIDATE_STOPPED}
+            if child.agent_id in self._candidates
+            else None
+        )
         declined = self._not_checked.pop(child.agent_id, None)  # (R3: `_ran_held`)
 
         def ended(state: dict, entry: dict) -> None:
@@ -7770,25 +9934,38 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if score is not None:  # (K-evrim: with its end, so no pick is made without it)
                 # (K-evrim-model: its name, model and round, for the card and the strip.)
                 state.setdefault("scores", {})[child.agent_id] = {
-                    **score, "part": state["at"], "name": child.name,
+                    **score,
+                    "part": state["at"],
+                    "name": child.name,
                     "model": child.model_name or child.provider,
                     # (Its round as the strip counts it: a loop back from a later part too.)
-                    "round": recipe_run.round_at(state, recipe_run.graph_of(state), state["at"])}
+                    "round": recipe_run.round_at(state, recipe_run.graph_of(state), state["at"]),
+                }
 
         said = await self._step_over(ctx, child, ended)
         if child.agent_id in self._leads:
             self._lead_ended(child, ok)
 
-            def apart(row: ConversationTeam, team: Team, lead: Role,
-                      state: dict | None) -> dict | None:
-                if state is None or child.agent_id not in state["agents"] or state[
-                        "status"] != recipe_run.RUNNING:
+            def apart(
+                row: ConversationTeam, team: Team, lead: Role, state: dict | None
+            ) -> dict | None:
+                if (
+                    state is None
+                    or child.agent_id not in state["agents"]
+                    or state["status"] != recipe_run.RUNNING
+                ):
                     return None
                 if ok and idle:  # (B-124: not done - the Lead is told to open it again)
-                    return {**state, "status": recipe_run.STOPPED,
-                            "why": f"{child.name} ended without its work"}
-                return {**state, "status": recipe_run.DONE if ok else recipe_run.FAILED,
-                        "why": None if ok else f"{child.name} failed"}
+                    return {
+                        **state,
+                        "status": recipe_run.STOPPED,
+                        "why": f"{child.name} ended without its work",
+                    }
+                return {
+                    **state,
+                    "status": recipe_run.DONE if ok else recipe_run.FAILED,
+                    "why": None if ok else f"{child.name} failed",
+                }
 
             with self._factory() as session:
                 idle = self._without_its_work(session, child.run_id, child.role)
@@ -7832,9 +10009,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if state["status"] != recipe_run.RUNNING:
                 return False
             at = recipe_run.name_of(recipe_run.graph_of(state), state["at"]) if finish else ""
-            state["status"], state["why"] = (recipe_run.READY, (
-                f"finished by you at its {at} step: what was found so far is left to you")
-            ) if finish else (recipe_run.STOPPED, "Stopped by you")
+            state["status"], state["why"] = (
+                (
+                    recipe_run.READY,
+                    (f"finished by you at its {at} step: what was found so far is left to you"),
+                )
+                if finish
+                else (recipe_run.STOPPED, "Stopped by you")
+            )
             stopping.extend(state["agents"])
             why[0] = None
             return True
@@ -7855,8 +10037,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         step (`_hold_to_role`), saying `why`: a wait for a limit's reset ends (`_go_on_again`),
         and a card they wait on is answered `word`."""
         line = set(agents)
-        while more := {a for a, known in self._ctxs.items()
-                       if known.parent_id in line and a not in line}:
+        while more := {
+            a for a, known in self._ctxs.items() if known.parent_id in line and a not in line
+        }:
             line |= more
         if not line:
             return
@@ -7873,10 +10056,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if not agents:
             return
         with self._factory() as session:
-            asked = session.scalars(select(Question.id).join(
-                Agent, Agent.tool_call_id == Question.tool_call_id).where(
-                Question.status == "pending", Question.leave,
-                Agent.id.in_(agents), Agent.run_id == run_id)).all()
+            asked = session.scalars(
+                select(Question.id)
+                .join(Agent, Agent.tool_call_id == Question.tool_call_id)
+                .where(
+                    Question.status == "pending",
+                    Question.leave,
+                    Agent.id.in_(agents),
+                    Agent.run_id == run_id,
+                )
+            ).all()
         for question_id in asked:
             if self.answer_question(question_id, word):  # (not one the user answered first)
                 self._closed_cards.add((run_id, question_id))
@@ -7898,8 +10087,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if who and self._copy_of(ctx) is not None:
             # Its outside reads are refused there and it is given no folder (`_approve`,
             # `_native_work`): a yes would open nothing it can reach.
-            raise ToolError(f"you work in a working copy: {who} is let nowhere outside it, "
-                            "so no folder can be given to you here")
+            raise ToolError(
+                f"you work in a working copy: {who} is let nowhere outside it, "
+                "so no folder can be given to you here"
+            )
         try:
             folder = listed_folder(path)
         except (WorkspaceError, OSError) as exc:
@@ -7907,9 +10098,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._not_the_store(path, folder, holds=False)
         if Workspace(ctx.folder).is_own(folder):
             # B-96: a Lead offered to ask for the project to write work kept in a copy into.
-            raise ToolError(f"{path!r} is in the project: you work there already. What agents "
-                            "changed in a working copy goes into the project only by the "
-                            "user's Take in - never ask for the project to write it there")
+            raise ToolError(
+                f"{path!r} is in the project: you work there already. What agents "
+                "changed in a working copy goes into the project only by the "
+                "user's Take in - never ask for the project to write it there"
+            )
         listed = [Path(f) for f in self._also_in(ctx, write=access == "write")]
         verb = "read in" if access == "read" else "read and write in"
         if any(folder == f or folder.is_relative_to(f) for f in listed):
@@ -7919,33 +10112,56 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # what lies in a drive's root (C:\ProgramData). The user may still add one by hand.
         home = Path(home_of("~"))
         if Path(ctx.folder).is_relative_to(folder) or folder.parent in (
-                home, home.parent, Path(folder.anchor)):
-            raise ToolError(f"{folder} is too wide to ask for: it holds the project or other "
-                            "folders of the user's. Ask for a folder inside it instead; the "
-                            "user can add this one themselves from the folder button")
+            home,
+            home.parent,
+            Path(folder.anchor),
+        ):
+            raise ToolError(
+                f"{folder} is too wide to ask for: it holds the project or other "
+                "folders of the user's. Ask for a folder inside it instead; the "
+                "user can add this one themselves from the folder button"
+            )
         write, read = self._lists(ctx)
         # (On the card: a CLI works there with its own tools once it is on the chat's list.)
-        handed = bool(who) and access == "write" and _handed(str(folder), [*write, str(folder)],
-                                                             read)
-        kept = await self._ask_outside(
-            ctx, call_id, path, folder, access,
-            why=NATIVE_FOLDER_CARD.format(who=who) if handed else None) == "folder"
+        handed = (
+            bool(who) and access == "write" and _handed(str(folder), [*write, str(folder)], read)
+        )
+        kept = (
+            await self._ask_outside(
+                ctx,
+                call_id,
+                path,
+                folder,
+                access,
+                why=NATIVE_FOLDER_CARD.format(who=who) if handed else None,
+            )
+            == "folder"
+        )
         # A CLI is handed its folders only as it starts, and only those `_add_dirs` gives (none
         # to read in only, none that holds a place never opened); until then what it does
         # there reaches KOLONİ as a request (`_approve`).
         # shortcut: not measured with the real CLIs; Claude Code's Bash may still refuse to
         # `cd` there until its next start - say so if that is seen.
-        reach = "" if not who else (
-            f". {who} is given it as a folder of its own from its next turn; until then it "
-            "asks KOLONİ each time it goes there" if kept and handed
-            else f". {who} is not given it as a folder of its own: it asks KOLONİ each time "
-            "it goes there")
+        reach = (
+            ""
+            if not who
+            else (
+                f". {who} is given it as a folder of its own from its next turn; until then it "
+                "asks KOLONİ each time it goes there"
+                if kept and handed
+                else f". {who} is not given it as a folder of its own: it asks KOLONİ each time "
+                "it goes there"
+            )
+        )
         if kept:
-            return "succeeded", (f"approved: you may {verb} {folder} from now on, in this "
-                                 f"conversation{reach}")
+            return "succeeded", (
+                f"approved: you may {verb} {folder} from now on, in this conversation{reach}"
+            )
         self._lent.setdefault(ctx.agent_id, {})[str(folder)] = access
-        return "succeeded", (f"approved for this agent only: you may {verb} {folder} for the "
-                             f"rest of your work; any other agent asks again{reach}")
+        return "succeeded", (
+            f"approved for this agent only: you may {verb} {folder} for the "
+            f"rest of your work; any other agent asks again{reach}"
+        )
 
     async def _ask_secret(self, ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:
         """An agent asks, with why, for a secret by its variable's name (slice 91): the user
@@ -7957,18 +10173,26 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # when it starts; hand the value on there if a native agent ever needs one.
         if "run_command" not in ctx.tools or getattr(ctx.model, "native", False):
             raise ToolError("ask_secret is only for an agent that runs commands with run_command")
-        if not isinstance(name, str) or not SECRET_NAME.fullmatch(name) or name.startswith(
-                "KOLONI_"):
-            raise ToolError("name: a variable's name in capitals, digits and _, e.g. "
-                            "STRIPE_API_KEY - and none of KOLONİ's own (KOLONI_*)")
+        if (
+            not isinstance(name, str)
+            or not SECRET_NAME.fullmatch(name)
+            or name.startswith("KOLONI_")
+        ):
+            raise ToolError(
+                "name: a variable's name in capitals, digits and _, e.g. "
+                "STRIPE_API_KEY - and none of KOLONİ's own (KOLONI_*)"
+            )
         if RUNS_BY.fullmatch(name):
-            raise ToolError(f"name: {name} changes what runs, or how (a path, a program's "
-                            "options, a proxy, git's or Docker's settings): it is not a secret "
-                            "to be given. Ask for the key itself, e.g. GITHUB_TOKEN")
+            raise ToolError(
+                f"name: {name} changes what runs, or how (a path, a program's "
+                "options, a proxy, git's or Docker's settings): it is not a secret "
+                "to be given. Ask for the key itself, e.g. GITHUB_TOKEN"
+            )
         if not isinstance(why, str) or not why.strip() or len(why) > MAX_WHY_CHARS:
             raise ToolError(f"why: say in at most {MAX_WHY_CHARS} characters what it is for")
-        refused = self._nobody_to_ask(ctx, "secret", f"ask the user for {name}: nobody is "
-                                      "here to give it")
+        refused = self._nobody_to_ask(
+            ctx, "secret", f"ask the user for {name}: nobody is here to give it"
+        )
         if refused:
             raise _NobodyToAsk(refused)
         future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
@@ -8008,8 +10232,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         as they are looked for (`spellings_of`)."""
         turns = [self._secrets_given.get(run_id, {})] if run_id else self._secrets_given.values()
         planted = [self._canaries.get(run_id, "")] if run_id else self._canaries.values()
-        return spellings_of([*(value for given in turns for value in given.values()),
-                             *filter(None, planted)])
+        return spellings_of(
+            [*(value for given in turns for value in given.values()), *filter(None, planted)]
+        )
 
     def _unread_messages(self, ctx: Ctx) -> list[str]:
         """K-fikir-okunmamis: the user's messages queued behind this turn (their own turns
@@ -8019,10 +10244,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         to answer the same thing twice."""
         with self._factory() as session:
             rows = session.execute(
-                select(Message.id, Message.content).join(Run, Run.id == Message.run_id)
-                .where(Run.conversation_id == ctx.cid, Run.status == "queued",
-                       Message.role == "user")
-                .order_by(Message.created_at, literal_column("messages.rowid"))).all()
+                select(Message.id, Message.content)
+                .join(Run, Run.id == Message.run_id)
+                .where(
+                    Run.conversation_id == ctx.cid, Run.status == "queued", Message.role == "user"
+                )
+                .order_by(Message.created_at, literal_column("messages.rowid"))
+            ).all()
         told = self._read_first.setdefault(ctx.agent_id, set())
         unread = [(id_, content) for id_, content in rows if id_ not in told]
         told.update(id_ for id_, _ in unread)
@@ -8038,14 +10266,26 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         own options if that is seen."""
         options = args.get("options")
         if not isinstance(options, list) or not any(
-                isinstance(one, str) and CARD_ACTIONS.match(one) for one in options):
+            isinstance(one, str) and CARD_ACTIONS.match(one) for one in options
+        ):
             return False
         with self._factory() as session:
-            return session.scalar(select(Merge.id).join(Run, Run.id == Merge.run_id).where(
-                Run.conversation_id == ctx.cid, or_(Merge.run_id == ctx.run_id,
-                                                    Merge.status == "pending", and_(
-                    Merge.status == "interrupted", Merge.kept_in.is_not(None)))
-            ).limit(1)) is not None
+            return (
+                session.scalar(
+                    select(Merge.id)
+                    .join(Run, Run.id == Merge.run_id)
+                    .where(
+                        Run.conversation_id == ctx.cid,
+                        or_(
+                            Merge.run_id == ctx.run_id,
+                            Merge.status == "pending",
+                            and_(Merge.status == "interrupted", Merge.kept_in.is_not(None)),
+                        ),
+                    )
+                    .limit(1)
+                )
+                is not None
+            )
 
     def _planted(self, run_id: str) -> dict[str, str]:
         """101: what a turn's commands get that no agent is told of - its test key."""
@@ -8056,8 +10296,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         A file that was read is from here on known to the agent as it was read."""
         cid = ctx.cid
         # (A plain chat's file is nobody's to claim: it has no folder.)
-        found = (place(ctx.folder, args.get("path"))
-                 if name == "read_file" and ctx.root is not None else None)
+        found = (
+            place(ctx.folder, args.get("path"))
+            if name == "read_file" and ctx.root is not None
+            else None
+        )
         stop = threading.Event()
 
         def look() -> tuple[str, str | None]:
@@ -8093,8 +10336,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             stop.set()
             hidden = self.given_spellings(ctx.run_id)  # (taken before the turn drops them)
             try:
-                self._set_call(cid, call_id, status="succeeded",
-                               result=raw.hide((await task)[0], hidden), ended_at=now())
+                self._set_call(
+                    cid,
+                    call_id,
+                    status="succeeded",
+                    result=raw.hide((await task)[0], hidden),
+                    ended_at=now(),
+                )
             except ToolError as exc:
                 self._set_call(
                     cid, call_id, status="failed", result=f"error: {exc}", ended_at=now()
@@ -8115,7 +10363,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # Its trigger lets it change files - not one that gives later turns leave
             # or runs by itself (`NOT_WRITTEN_UNATTENDED`): that nobody can allow.
             refused = self._nobody_to_ask(
-                ctx, "standing file",
+                ctx,
+                "standing file",
                 f"change {quoted(str(args.get('path')))}: such a file tells later turns "
                 "what they may do, or runs by itself, which no trigger allows",
             )
@@ -8179,13 +10428,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # shortcut: its card is the plain diff card and does not say why it is asked at
         # Full auto (FileChange has no reason field), add one if users are puzzled by it.
         if (mode == "ask" or self._standing_asks(run_id, standing, mode)) and (
-                refused is None and copy is None):
+            refused is None and copy is None
+        ):
             future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
             self._decisions[change_id] = future
             self._update_run(run_id, cid, status="waiting_approval")
             try:
-                decision = await self._users_word(
-                    ctx, future, self._change_heard(ctx, change_id))
+                decision = await self._users_word(ctx, future, self._change_heard(ctx, change_id))
             finally:
                 self._decisions.pop(change_id, None)
                 self._update_run(run_id, cid, status="running")
@@ -8212,8 +10461,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # shortcut: and no claim holds it (claims are of project files) - two agents may
         # write it at once; claim it by its full path if that is ever seen.
         outside = Path(planned.path).is_absolute()
-        if not outside and (kept := self._keeps_out(
-                ctx, path=planned.path, what=f"{name} {planned.path}")):
+        if not outside and (
+            kept := self._keeps_out(ctx, path=planned.path, what=f"{name} {planned.path}")
+        ):
             raise ToolError(kept)
         # In a room: only under an item of one's own - before the file is waited for.
         if not outside:
@@ -8222,8 +10472,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # the file is waited for, so a refused write holds no file.
         part = None if outside else self._copy_part(self._works_in(ctx))
         if part is not None and not copies._holds(part, planned.path, Path(ctx.folder)):
-            raise ToolError(NOT_IN_THE_PART.format(
-                path=planned.path, part=part, project=ctx.folder))
+            raise ToolError(
+                NOT_IN_THE_PART.format(path=planned.path, part=part, project=ctx.folder)
+            )
         return outside
 
     def _copy_ws(self, copy: copies.Copy, planned: PlannedChange) -> Workspace:
@@ -8239,8 +10490,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             raise ToolError(SHARED_WITH_PROJECT.format(path=planned.path))
         return ws
 
-    def _write_decided(self, change_id: str, decision: str, ws: Workspace,
-                       copy: copies.Copy | None) -> tuple[str, str, dict]:
+    def _write_decided(
+        self, change_id: str, decision: str, ws: Workspace, copy: copies.Copy | None
+    ) -> tuple[str, str, dict]:
         """A change (`_write`) written, or on record as turned down: what came of it, why it
         failed, and its record's event."""
         failure = ""
@@ -8263,8 +10515,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             payload = file_change_out(change)
         return outcome, failure, payload
 
-    def _write_said(self, ctx: Ctx, planned: PlannedChange, outcome: str, failure: str,
-                    copy: copies.Copy | None, owner: str | None) -> tuple[str, str]:
+    def _write_said(
+        self,
+        ctx: Ctx,
+        planned: PlannedChange,
+        outcome: str,
+        failure: str,
+        copy: copies.Copy | None,
+        owner: str | None,
+    ) -> tuple[str, str]:
         """A write's (`_write`) final status and its result text for the model."""
         path = planned.path
         if outcome == "applied":
@@ -8290,11 +10549,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             target = ws.resolve(path)
             rel = ws.rel(target) if ws.is_own(target) else None
             if rel is None or not diagram.is_diagram(rel):
-                raise WorkspaceError(f"{path}: only a draw.io file of the project is drawn "
-                                     "(.drawio, .drawio.xml or .dio)")
+                raise WorkspaceError(
+                    f"{path}: only a draw.io file of the project is drawn "
+                    "(.drawio, .drawio.xml or .dio)"
+                )
             if secret_named(path, rel):
-                raise WorkspaceError(f"{path} is a secret file (keys, passwords): it is never "
-                                     "opened")
+                raise WorkspaceError(
+                    f"{path} is a secret file (keys, passwords): it is never opened"
+                )
             xml = views.read_file(ws, rel).decode("utf-8")
         except views.Refused as exc:
             raise ToolError(f"{path}: {exc}") from None
@@ -8325,8 +10587,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         koloni.scratch(ctx.folder)  # (as the browser tools: made here, not as the agent opens)
         try:
             data = await diagram.draw(
-                command, self._scratch_folder(ctx, "browser/diagram", "nothing is drawn there"),
-                call_id, xml, format)
+                command,
+                self._scratch_folder(ctx, "browser/diagram", "nothing is drawn there"),
+                call_id,
+                xml,
+                format,
+            )
             out = diagram.write_picture(ws, rel, format, data)
         except browser.BrowserError as exc:
             raise ToolError(f"{rel} could not be drawn: {exc}") from None
@@ -8338,5 +10604,3 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # shortcut: the picture is not on the change record, so Undo turn leaves it (the
         # diagram it was drawn from goes); record it as a binary change if that is missed.
         return f"drew {rel} as {out} ({len(data):,} bytes), beside it; the user sees it there"
-
-

@@ -63,7 +63,8 @@ only an agent that works with KOLONİ's tools runs.
 ## Going on from the last turn
 
 Only Claude Code, run **Native** with **Sign-in: Its own for KOLONİ**, goes on in its own session from one
-turn to the next: it is sent only what is new, and compacts that session itself. Every other CLI lead
+turn to the next: it is sent only what is new, and compacts that session itself. It goes on only from the
+same topic's previous turn: **New topic** starts a new session ([Topics](../memory.md#topics)). Every other CLI lead
 starts each turn anew and is sent the whole chat. KOLONİ compacts that, as it does for an API model, past
 **Summarise a long context at (%)** of the window set on its role, or with none set there, of the window the
 catalogue has for its model (Claude Code's, Codex's and Copilot's models; none for Qoder's or agy's, where only

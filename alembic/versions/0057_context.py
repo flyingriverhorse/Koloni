@@ -4,6 +4,7 @@ messages were summarised and the latest summary (slice 59b)
 Revision ID: 0057
 Revises: 0056
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -19,8 +20,7 @@ def upgrade() -> None:
         batch.add_column(sa.Column("context_window", sa.Integer(), nullable=True))
     with op.batch_alter_table("agents") as batch:
         batch.add_column(sa.Column("context_window", sa.Integer(), nullable=True))
-        batch.add_column(
-            sa.Column("summarised", sa.Integer(), nullable=False, server_default="0"))
+        batch.add_column(sa.Column("summarised", sa.Integer(), nullable=False, server_default="0"))
         batch.add_column(sa.Column("summary", sa.Text(), nullable=True))
         batch.add_column(sa.Column("summary_note", sa.Text(), nullable=True))
 

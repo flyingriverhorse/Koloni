@@ -35,7 +35,8 @@ def preview(client, **body):
 
 def test_frontmatter_lines_and_a_folded_description():
     meta, body = skills.front(
-        "---\nname: tidy\ndescription: >\n  Keep it small\n  and plain.\nlicense: 'MIT'\n---\n\nDo it.\n")
+        "---\nname: tidy\ndescription: >\n  Keep it small\n  and plain.\nlicense: 'MIT'\n---\n\nDo it.\n"
+    )
     assert meta == {"name": "tidy", "description": "Keep it small and plain.", "license": "MIT"}
     assert body == "Do it."
     assert skills.front("no frontmatter here") == ({}, "no frontmatter here")
@@ -43,20 +44,59 @@ def test_frontmatter_lines_and_a_folded_description():
 
 
 SECRETS = [
-    ".env.local", "prod.env", ".envrc", "_netrc", ".netrc", ".git-credentials", ".pgpass",
-    ".my.cnf", ".htpasswd", "auth.json", ".npmrc", ".pypirc", ".yarnrc.yml", "token.txt",
-    "main.tfstate", "application_default_credentials.json", "service-account-x.json",
-    "putty.ppk", "vault.kdbx", "key.asc", "key.gpg", "a.keytab", "c.p12", "c.pfx",
-    "deploy.pem", "credentials.json", "keys/id_rsa", "kubeconfig",
-    ".ssh/config", ".aws/config", ".gnupg/x", ".docker/config.json", ".kube/config",
-    ".azure/x", "gcloud/x", ".terraform.d/x", ".config/x", "node_modules/a/index.js",
+    ".env.local",
+    "prod.env",
+    ".envrc",
+    "_netrc",
+    ".netrc",
+    ".git-credentials",
+    ".pgpass",
+    ".my.cnf",
+    ".htpasswd",
+    "auth.json",
+    ".npmrc",
+    ".pypirc",
+    ".yarnrc.yml",
+    "token.txt",
+    "main.tfstate",
+    "application_default_credentials.json",
+    "service-account-x.json",
+    "putty.ppk",
+    "vault.kdbx",
+    "key.asc",
+    "key.gpg",
+    "a.keytab",
+    "c.p12",
+    "c.pfx",
+    "deploy.pem",
+    "credentials.json",
+    "keys/id_rsa",
+    "kubeconfig",
+    ".ssh/config",
+    ".aws/config",
+    ".gnupg/x",
+    ".docker/config.json",
+    ".kube/config",
+    ".azure/x",
+    "gcloud/x",
+    ".terraform.d/x",
+    ".config/x",
+    "node_modules/a/index.js",
 ]
 
 
 def test_a_folder_is_read_without_its_secrets_and_says_what_it_left_out(tmp_path):
-    found = skills.read(folder_of(tmp_path, {
-        "SKILL.md": SKILL_MD, "tools/run.sh": "echo", "notes.md": "n",
-        **{rel: "x" for rel in SECRETS}}))
+    found = skills.read(
+        folder_of(
+            tmp_path,
+            {
+                "SKILL.md": SKILL_MD,
+                "tools/run.sh": "echo",
+                "notes.md": "n",
+                **{rel: "x" for rel in SECRETS},
+            },
+        )
+    )
     assert sorted(found.files) == ["SKILL.md", "notes.md", "tools/run.sh"]
     assert found.scripts == ["tools/run.sh"] and found.license is None
     shown = found.shown()
@@ -99,11 +139,14 @@ def test_the_caps_hold_before_anything_is_read_whole(tmp_path):
         skills.read(folder_of(tmp_path / "long", {"SKILL.md": long}))
 
 
-@pytest.mark.parametrize(("files", "why"), [
-    ({"README.md": "x"}, skills.NOT_A_SKILL),
-    ({"SKILL.md": "---\ndescription: no name\n---\n"}, skills.NOT_A_SKILL),
-    ({"SKILL.md": "---\nname: ../up\n---\n"}, skills.NOT_A_SKILL),
-])
+@pytest.mark.parametrize(
+    ("files", "why"),
+    [
+        ({"README.md": "x"}, skills.NOT_A_SKILL),
+        ({"SKILL.md": "---\ndescription: no name\n---\n"}, skills.NOT_A_SKILL),
+        ({"SKILL.md": "---\nname: ../up\n---\n"}, skills.NOT_A_SKILL),
+    ],
+)
 def test_a_folder_that_is_no_skill_is_refused_in_one_plain_message(tmp_path, files, why):
     with pytest.raises(skills.SkillError) as refused:
         skills.read(folder_of(tmp_path, files))
@@ -111,9 +154,16 @@ def test_a_folder_that_is_no_skill_is_refused_in_one_plain_message(tmp_path, fil
 
 
 def test_scripts_are_shown_whole_and_the_licence_falls_back_to_the_frontmatter(tmp_path):
-    found = skills.read(folder_of(tmp_path, {
-        "SKILL.md": "---\nname: tidy\nlicense: Apache-2.0\n---\nbody\n",
-        "check.py": "print('ok')\n", "long.sh": "x" * (skills.MAX_SHOWN + 10)}))
+    found = skills.read(
+        folder_of(
+            tmp_path,
+            {
+                "SKILL.md": "---\nname: tidy\nlicense: Apache-2.0\n---\nbody\n",
+                "check.py": "print('ok')\n",
+                "long.sh": "x" * (skills.MAX_SHOWN + 10),
+            },
+        )
+    )
     shown = found.shown()
     assert found.license == "Apache-2.0"
     assert shown["script_texts"]["check.py"] == "print('ok')\n"
@@ -123,7 +173,9 @@ def test_scripts_are_shown_whole_and_the_licence_falls_back_to_the_frontmatter(t
 # --- the routes ---------------------------------------------------------------------------
 
 
-def test_the_routes_are_the_app_s_own_and_unknown_skills_are_refused(make_client, tmp_path, settings):
+def test_the_routes_are_the_app_s_own_and_unknown_skills_are_refused(
+    make_client, tmp_path, settings
+):
     client, _model = make_client([])
     folder = folder_of(tmp_path / "tidy", {"SKILL.md": SKILL_MD, "LICENSE": "MIT License\n"})
     assert client.post("/api/skills/preview", json={"folder": str(folder)}).status_code == 403
@@ -134,15 +186,20 @@ def test_the_routes_are_the_app_s_own_and_unknown_skills_are_refused(make_client
     assert client.post("/api/skills", json={"folder": "tidy"}, headers=ORIGIN).status_code == 422
     # what was shown is what is kept: a folder changed since it was read is read again first
     (folder / "notes.md").write_text("new", encoding="utf-8")
-    stale = client.post("/api/skills", json={"folder": str(folder), "sha256": shown.json()["sha256"]},
-                        headers=ORIGIN)
+    stale = client.post(
+        "/api/skills",
+        json={"folder": str(folder), "sha256": shown.json()["sha256"]},
+        headers=ORIGIN,
+    )
     assert stale.status_code == 409
     skill = add(client, folder)
     again = client.post("/api/skills", json={"folder": str(folder)}, headers=ORIGIN)
     assert again.status_code == 409
     coder = role_id(client, "Coder")
-    assert client.patch(f"/api/skills/{skill['id']}", json={"scripts_run_unasked": False}
-                        ).status_code == 403
+    assert (
+        client.patch(f"/api/skills/{skill['id']}", json={"scripts_run_unasked": False}).status_code
+        == 403
+    )
     assert client.patch(f"/api/roles/{coder}", json={"skills": ["tidy"]}).status_code == 403
     unknown = client.patch(f"/api/roles/{coder}", json={"skills": ["nope"]}, headers=ORIGIN)
     assert unknown.status_code == 422
@@ -163,10 +220,12 @@ def test_a_skill_is_replaced_when_the_user_says_so_and_deleted_from_every_role(
     give(client, "Coder", "tidy")
     # the same name but for its case is the same skill
     (folder / "SKILL.md").write_text(SKILL_MD.replace("name: tidy", "name: Tidy"), "utf-8")
-    assert client.post("/api/skills", json={"folder": str(folder)}, headers=ORIGIN
-                       ).status_code == 409
-    replaced = client.post("/api/skills", json={"folder": str(folder), "replace": True},
-                           headers=ORIGIN)
+    assert (
+        client.post("/api/skills", json={"folder": str(folder)}, headers=ORIGIN).status_code == 409
+    )
+    replaced = client.post(
+        "/api/skills", json={"folder": str(folder), "replace": True}, headers=ORIGIN
+    )
     assert replaced.status_code == 201, replaced.text
     second = replaced.json()
 
@@ -199,7 +258,9 @@ def test_a_folder_in_a_place_koloni_never_opens_is_refused_to_the_user_too(make_
     client, _model = make_client([])
     folder = folder_of(home / ".claude" / "skills" / "x", {"SKILL.md": SKILL_MD})
     assert preview(client, folder=str(folder)).status_code == 422
-    assert client.post("/api/skills", json={"folder": str(folder)}, headers=ORIGIN).status_code == 422
+    assert (
+        client.post("/api/skills", json={"folder": str(folder)}, headers=ORIGIN).status_code == 422
+    )
 
 
 # --- what runs unasked ----------------------------------------------------------------------
@@ -236,14 +297,21 @@ def test_a_trigger_s_turn_runs_a_listed_unchanged_script_and_nothing_else_unaske
         Path(where["folder"], "two.py").write_text("changed", encoding="utf-8")
         return step(call("run_skill_script", {"skill": "tidy", "script": "two.py"}, "changed"))
 
-    client, _model = make_client({"Lead": [
-        step(call("run_skill_script", {"skill": "tidy", "script": "check.py"}, "ok")),
-        step(call("run_skill_script", {"skill": "tidy", "script": "other.py"}, "unlisted")),
-        changed_meanwhile,
-        text("done")]}, executor=executor)
+    client, _model = make_client(
+        {
+            "Lead": [
+                step(call("run_skill_script", {"skill": "tidy", "script": "check.py"}, "ok")),
+                step(call("run_skill_script", {"skill": "tidy", "script": "other.py"}, "unlisted")),
+                changed_meanwhile,
+                text("done"),
+            ]
+        },
+        executor=executor,
+    )
     client.headers["Origin"] = "http://127.0.0.1:8790"
-    skill = add(client, folder_of(tmp_path / "tidy", {
-        "SKILL.md": SKILL_MD, "check.py": "1", "two.py": "2"}))
+    skill = add(
+        client, folder_of(tmp_path / "tidy", {"SKILL.md": SKILL_MD, "check.py": "1", "two.py": "2"})
+    )
     where["folder"] = skill["folder"]
     give(client, "Lead", "tidy")
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
@@ -257,22 +325,29 @@ def test_a_trigger_s_turn_runs_a_listed_unchanged_script_and_nothing_else_unaske
     assert len(executor.started) == 1
 
 
-def test_a_script_does_not_run_in_a_project_that_runs_in_docker(make_client, wait_run, project_dir,
-                                                                  tmp_path):
+def test_a_script_does_not_run_in_a_project_that_runs_in_docker(
+    make_client, wait_run, project_dir, tmp_path
+):
     executor = ScriptedExecutor([Script(["ok\n"])])
     client, _model = make_client(
         [step(call("run_skill_script", {"skill": "tidy", "script": "check.py"})), text("no")],
-        executor=executor)
+        executor=executor,
+    )
     client.headers["Origin"] = "http://127.0.0.1:8790"
     add(client, folder_of(tmp_path / "tidy", {"SKILL.md": SKILL_MD, "check.py": "1"}))
     give(client, "Lead", "tidy")
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={
-        "exec_location": "docker", "docker_image": "alpine"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/projects/{pid}", json={"exec_location": "docker", "docker_image": "alpine"}
+        ).status_code
+        == 200
+    )
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
     run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
-        "run"]["id"]
+        "run"
+    ]["id"]
     snap = wait_run(client, cid, run_id)
     (tried,) = [t for t in snap["tool_calls"] if t["name"] == "run_skill_script"]
     assert tried["status"] == "failed" and "Docker" in tried["result"]
@@ -287,12 +362,16 @@ def test_the_lead_s_skill_is_refused_before_a_card_from_a_never_opened_place_or_
 ):
     hidden = folder_of(home / ".claude" / "skills" / "x", {"SKILL.md": SKILL_MD})
     taken = folder_of(tmp_path / "tidy", {"SKILL.md": SKILL_MD})
-    client, _model = make_client([
-        step(call("add_skill", {"folder": str(hidden)}, "k1")),
-        step(call("add_skill", {"folder": str(taken)}, "k2")),
-        step(call("add_skill", {"folder": str(taken), "github": "https://github.com/a/b"}, "k3")),
-        text("could not"),
-    ])
+    client, _model = make_client(
+        [
+            step(call("add_skill", {"folder": str(hidden)}, "k1")),
+            step(call("add_skill", {"folder": str(taken)}, "k2")),
+            step(
+                call("add_skill", {"folder": str(taken), "github": "https://github.com/a/b"}, "k3")
+            ),
+            text("could not"),
+        ]
+    )
     add(client, taken)
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
@@ -307,13 +386,17 @@ def test_yes_without_leave_for_its_scripts_adds_it_asking_for_them(
     make_client, wait_run, project_dir, tmp_path
 ):
     folder = folder_of(tmp_path / "tidy", {"SKILL.md": SKILL_MD, "check.py": "1"})
-    client, _model = make_client([step(call("add_skill", {"folder": str(folder)}, "k1")),
-                                  text("added")])
+    client, _model = make_client(
+        [step(call("add_skill", {"folder": str(folder)}, "k1")), text("added")]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     (card,) = wait_status(client, cid, "waiting_approval")["pending_skills"]
     assert card["script_texts"] == {"check.py": "1"} and card["roles"] == []
-    approved = client.post(f"/api/tool-calls/{card['tool_call_id']}/approve",
-                           json={"scope": "ask_scripts"}, headers=ORIGIN)
+    approved = client.post(
+        f"/api/tool-calls/{card['tool_call_id']}/approve",
+        json={"scope": "ask_scripts"},
+        headers=ORIGIN,
+    )
     assert approved.status_code == 200, approved.text
     wait_run(client, cid, run_id)
     (kept,) = client.get("/api/skills").json()
@@ -322,8 +405,9 @@ def test_yes_without_leave_for_its_scripts_adds_it_asking_for_them(
 
 def test_nobody_watching_no_skill_is_proposed(make_client, wait_run, project_dir, tmp_path):
     folder = folder_of(tmp_path / "tidy", {"SKILL.md": SKILL_MD})
-    client, _model = make_client({"Lead": [step(call("add_skill", {"folder": str(folder)}, "k")),
-                                           text("no")]})
+    client, _model = make_client(
+        {"Lead": [step(call("add_skill", {"folder": str(folder)}, "k")), text("no")]}
+    )
     client.headers["Origin"] = "http://127.0.0.1:8790"
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
@@ -338,11 +422,13 @@ def test_nobody_watching_no_skill_is_proposed(make_client, wait_run, project_dir
 
 
 def test_use_skill_reads_only_the_skill_s_own_files(make_client, wait_run, project_dir, tmp_path):
-    client, _model = make_client([
-        step(call("use_skill", {"name": "tidy", "file": "notes.md"}, "u1")),
-        step(call("use_skill", {"name": "tidy", "file": "../../proj/hello.py"}, "u2")),
-        text("read"),
-    ])
+    client, _model = make_client(
+        [
+            step(call("use_skill", {"name": "tidy", "file": "notes.md"}, "u1")),
+            step(call("use_skill", {"name": "tidy", "file": "../../proj/hello.py"}, "u2")),
+            text("read"),
+        ]
+    )
     add(client, folder_of(tmp_path / "tidy", {"SKILL.md": SKILL_MD, "notes.md": "NOTES"}))
     give(client, "Lead", "tidy")
     cid, run_id = begin(client, project_dir, mode="full_auto")
@@ -385,14 +471,22 @@ def test_skills_given_whole_in_its_brief_are_on_its_record_so(
 
 CARD_MD = (
     "---\nname: deploy\ndescription: Ships it.\nallowed-tools: Read, Bash(git push:*)\n---\n\n"
-    "First !`git status` is read.\n\n```bash\nnpm test\n```\n\n```python\nprint(1)\n```\n")
+    "First !`git status` is read.\n\n```bash\nnpm test\n```\n\n```python\nprint(1)\n```\n"
+)
 
 
 def test_the_card_lists_its_scripts_programs_tools_and_commands(make_client, tmp_path):
     client, _model = make_client([])
-    folder = folder_of(tmp_path / "deploy", {
-        "SKILL.md": CARD_MD, "tools/run.sh": "echo", "bin/go": "#!/usr/bin/env python\n",
-        "setup.bat": "@echo off", "notes.md": "#not a program"})
+    folder = folder_of(
+        tmp_path / "deploy",
+        {
+            "SKILL.md": CARD_MD,
+            "tools/run.sh": "echo",
+            "bin/go": "#!/usr/bin/env python\n",
+            "setup.bat": "@echo off",
+            "notes.md": "#not a program",
+        },
+    )
     shown = preview(client, folder=str(folder)).json()
     assert sorted(shown["files"]) == ["SKILL.md", "bin/go", "notes.md", "setup.bat", "tools/run.sh"]
     assert shown["scripts"] == ["tools/run.sh"]
@@ -412,11 +506,23 @@ def test_allowed_tools_as_a_line_a_bracket_or_a_list():
 
 
 def test_the_card_knows_programs_by_more_endings_and_headers_and_writes_out_hidden_letters(
-    tmp_path
+    tmp_path,
 ):
     turned = "notes\u202egnp.md"  # reads as "notesdm.png"
-    shown = skills.read(folder_of(tmp_path, {
-        "SKILL.md": CARD_MD, "run.ts": "x", "app.jar": "x", "go.lnk": "x",
-        "tool": b"MZ\x90\x00", "elf": b"\x7fELF\x02", turned: "n", "package.json": "{}"})).shown()
+    shown = skills.read(
+        folder_of(
+            tmp_path,
+            {
+                "SKILL.md": CARD_MD,
+                "run.ts": "x",
+                "app.jar": "x",
+                "go.lnk": "x",
+                "tool": b"MZ\x90\x00",
+                "elf": b"\x7fELF\x02",
+                turned: "n",
+                "package.json": "{}",
+            },
+        )
+    ).shown()
     assert sorted(shown["programs"]) == ["app.jar", "elf", "go.lnk", "run.ts", "tool"]
     assert "notes\\u202egnp.md" in shown["files"] and turned not in shown["files"]

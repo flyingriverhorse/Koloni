@@ -29,8 +29,11 @@ WHY = "The bug is subtle: it needs the stronger model."
 
 
 def pick(role, provider=None, model=None, why=None, id="s1"):
-    more = {key: value for key, value in (("provider", provider), ("model", model), ("why", why))
-            if value is not None}
+    more = {
+        key: value
+        for key, value in (("provider", provider), ("model", model), ("why", why))
+        if value is not None
+    }
     return call("spawn_agent", {"role": role, "task": "do the thing", **more}, id)
 
 
@@ -44,13 +47,19 @@ def table(client, cid=None):
 
 
 def test_a_reason_is_kept_as_one_line_and_one_too_long_or_not_in_words_is_refused(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, default, fast = team(
-        [step(pick("Reviewer", "Fast", why="x" * 301, id="a")),
-         step(pick("Reviewer", "Fast", why=["because"], id="b")),
-         step(pick("Reviewer", "Fast", why="  The bug\n is   subtle.\t", id="c")), text("done")],
-        [text("looked")])
+        [
+            step(pick("Reviewer", "Fast", why="x" * 301, id="a")),
+            step(pick("Reviewer", "Fast", why=["because"], id="b")),
+            step(pick("Reviewer", "Fast", why="  The bug\n is   subtle.\t", id="c")),
+            text("done"),
+        ],
+        [text("looked")],
+    )
     cid, run_id = begin(client, project_dir, spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     (long, said_long), (not_words, said_not), (taken, _) = results(snap)
@@ -61,9 +70,14 @@ def test_a_reason_is_kept_as_one_line_and_one_too_long_or_not_in_words_is_refuse
 
 
 def test_a_reason_is_asked_only_of_a_pick_that_could_be_had(team, wait_run, project_dir):  # noqa: F811
-    client, default, fast = team([
-        step(pick("Reviewer", "Paid Api", id="a")), step(pick("Reviewer", "Fast", "nope", id="b")),
-        step(pick("Coder", "Codex", id="c")), text("did it myself")])
+    client, default, fast = team(
+        [
+            step(pick("Reviewer", "Paid Api", id="a")),
+            step(pick("Reviewer", "Fast", "nope", id="b")),
+            step(pick("Coder", "Codex", id="c")),
+            text("did it myself"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="ask", spawn_approval="never")
     said = [told for _status, told in results(wait_run(client, cid, run_id))]
     # each is told what stands in its way, and not to give a reason for what cannot be had
@@ -84,12 +98,19 @@ def test_a_reason_of_spaces_alone_is_no_reason(team, wait_run, project_dir):  # 
 
 @pytest.mark.parametrize("may_pick", [["Fast"], []])
 def test_naming_what_the_role_gets_anyway_passes_whatever_may_be_picked_for_it(
-    team, wait_run, project_dir, may_pick  # noqa: F811
+    team,
+    wait_run,
+    project_dir,
+    may_pick,  # noqa: F811
 ):
     client, default, fast = team([step(pick("Reviewer", " local ")), text("r"), text("done")])
     listed = [team.providers[name]["id"] for name in may_pick]
-    assert client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                        json={"pick_from": listed}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Reviewer')}", json={"pick_from": listed}
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     # no choice was made: nothing to be had from the role's list, and no reason to give
@@ -99,14 +120,25 @@ def test_naming_what_the_role_gets_anyway_passes_whatever_may_be_picked_for_it(
 
 
 def test_the_roles_own_provider_and_model_can_be_named_though_no_agent_may_pick_them(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, default, fast = team([
-        step(pick("Reviewer", "Paid Api", "gold", id="a")),
-        step(pick("Reviewer", "Paid Api", "silver", id="b")), text("done")])
+    client, default, fast = team(
+        [
+            step(pick("Reviewer", "Paid Api", "gold", id="a")),
+            step(pick("Reviewer", "Paid Api", "silver", id="b")),
+            text("done"),
+        ]
+    )
     team.stubs["Paid Api"].steps.append(text("looked"))
-    assert client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={
-        "provider_id": team.providers["Paid Api"]["id"], "pick_from": []}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Reviewer')}",
+            json={"provider_id": team.providers["Paid Api"]["id"], "pick_from": []},
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     (same, _), (other, said) = results(snap)
@@ -117,15 +149,26 @@ def test_the_roles_own_provider_and_model_can_be_named_though_no_agent_may_pick_
 
 
 def test_b193_naming_the_roles_own_cli_with_no_model_is_no_pick_where_koloni_names_its_model(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, default, fast = team([step(pick("Reviewer", "Codex")), text("done")])
     codex = team.providers["Codex"]["id"]
     client.headers["Origin"] = ORIGIN  # (what agents may use: the user's, from the app's page)
-    assert client.patch(f"/api/providers/{codex}", json={
-        "models": [{"name": "gpt-a", "tier": "balanced"}]}).status_code == 200
-    assert client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={
-        "provider_id": codex, "pick_from": []}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{codex}", json={"models": [{"name": "gpt-a", "tier": "balanced"}]}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Reviewer')}",
+            json={"provider_id": codex, "pick_from": []},
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     # where it runs anyway (on gpt-a, B-193's stand-in): no pick, so none refused for an empty list
@@ -147,31 +190,39 @@ def test_a_roles_list_is_kept_cleared_and_loses_a_provider_that_is_deleted(team)
     assert client.patch(f"/api/roles/{coder}", json={"pick_from": "Fast"}).status_code == 422
     # another field changed: the list stays as it is
     assert client.patch(f"/api/roles/{reviewer}", json={"description": "x"}).json()[
-        "pick_from"] == [fast, codex]
+        "pick_from"
+    ] == [fast, codex]
 
     assert client.delete(f"/api/providers/{codex}").status_code == 204
     listed = {role["name"]: role["pick_from"] for role in client.get("/api/roles").json()}
     # a list of one becomes none - not "all": nothing is widened by a deletion
     assert (listed["Reviewer"], listed["Coder"], listed["Tester"]) == ([fast], [], None)
 
-    assert client.patch(f"/api/roles/{reviewer}", json={"pick_from": None}).json()[
-        "pick_from"] is None
+    assert (
+        client.patch(f"/api/roles/{reviewer}", json={"pick_from": None}).json()["pick_from"] is None
+    )
     assert client.post(f"/api/roles/{coder}/reset").json()["pick_from"] is None
 
 
 def test_the_team_guide_is_the_most_a_roles_list_can_give(team, wait_run, project_dir):  # noqa: F811
     client, default, fast = team(
-        [step(pick("Reviewer", "Paid Api", why=WHY, id="a")), text("did it myself")])
+        [step(pick("Reviewer", "Paid Api", why=WHY, id="a")), text("did it myself")]
+    )
     paid, quick = team.providers["Paid Api"]["id"], team.providers["Fast"]["id"]
-    assert client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                        json={"pick_from": [paid, quick]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Reviewer')}", json={"pick_from": [paid, quick]}
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     ((status, said),) = results(snap)
     # in the role's list, but not ticked in the guide: not to be picked, and not named
     assert status == "failed" and said == (
         "error: for the Reviewer role: there is no provider named Paid Api to choose. "
-        'You can choose: "Fast" - or leave provider out.')
+        'You can choose: "Fast" - or leave provider out.'
+    )
     assert table(client, cid)["Reviewer"]["pick_from"] == ["Fast"]
     assert team.stubs["Paid Api"].calls == []
 
@@ -186,13 +237,25 @@ def test_the_table_without_a_conversation_says_what_a_new_one_would_use(team):  
     client.patch(f"/api/roles/{reviewer}", json={"provider_id": fast})
     rows = table(client)
     assert [row["role"] for row in client.get("/api/roles/models").json()][:6] == [
-        "Lead", "Planner", "Coder", "Tester", "Reviewer", "Researcher"]
+        "Lead",
+        "Planner",
+        "Coder",
+        "Tester",
+        "Reviewer",
+        "Researcher",
+    ]
     # the role's provider on its default model; the rest on the app's default provider,
     # whose model nobody named: not known, and not made up
-    assert (rows["Reviewer"]["provider_name"], rows["Reviewer"]["model_id"],
-            rows["Reviewer"]["source"]) == ("Fast", "quick", "role")
-    assert (rows["Lead"]["provider_name"], rows["Lead"]["model_id"],
-            rows["Lead"]["source"]) == ("Local", None, "default")
+    assert (
+        rows["Reviewer"]["provider_name"],
+        rows["Reviewer"]["model_id"],
+        rows["Reviewer"]["source"],
+    ) == ("Fast", "quick", "role")
+    assert (rows["Lead"]["provider_name"], rows["Lead"]["model_id"], rows["Lead"]["source"]) == (
+        "Local",
+        None,
+        "default",
+    )
     assert client.get("/api/roles/models", params={"conversation_id": "nope"}).status_code == 404
     # its provider deleted, a role's choice counts as none - as when an agent is opened
     assert client.delete(f"/api/providers/{fast}").status_code == 204
@@ -201,18 +264,25 @@ def test_the_table_without_a_conversation_says_what_a_new_one_would_use(team):  
 
 def only_quick(client, provider_id):
     """ "Only these models" on a provider, with one model in its list."""
-    limited = client.patch(f"/api/providers/{provider_id}", headers=OWN,
-                           json={"models": [{"name": "quick"}], "only_listed": True})
+    limited = client.patch(
+        f"/api/providers/{provider_id}",
+        headers=OWN,
+        json={"models": [{"name": "quick"}], "only_listed": True},
+    )
     assert limited.status_code == 200, limited.text
 
 
 def test_the_table_says_a_role_would_not_run_in_the_words_its_opener_is_told(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, default, fast = team([step(pick("Reviewer")), text("did it myself")])
     fast_id = team.providers["Fast"]["id"]
-    client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                 json={"provider_id": fast_id, "model_id": "deep"})
+    client.patch(
+        f"/api/roles/{role_id(client, 'Reviewer')}",
+        json={"provider_id": fast_id, "model_id": "deep"},
+    )
     only_quick(client, fast_id)
     cid, run_id = begin(client, project_dir, spawn_approval="never")
     ((status, said),) = results(wait_run(client, cid, run_id))
@@ -235,7 +305,10 @@ def test_the_table_says_so_when_the_lead_itself_would_not_run(team, wait_run, pr
     only_quick(client, fast_id)
     row = table(client, cid)["Lead"]
     assert (row["provider_name"], row["model_id"], row["source"]) == (
-        "Fast", "deep", "conversation")
+        "Fast",
+        "deep",
+        "conversation",
+    )
     assert row["cannot_run"].startswith('Fast does not run with the model "deep" here')
     run = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}).json()["run"]
     ended = wait_run(client, cid, run["id"])["runs"][0]
@@ -245,10 +318,13 @@ def test_the_table_says_so_when_the_lead_itself_would_not_run(team, wait_run, pr
 
 
 def test_the_table_says_which_pick_could_not_be_opened_now_as_its_picker_is_told(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, default, fast = team([step(pick("Reviewer", "Codex", id="b", why="It reads well.")),
-                                  text("again")])
+    client, default, fast = team(
+        [step(pick("Reviewer", "Codex", id="b", why="It reads well.")), text("again")]
+    )
     # As native Codex is since slice 89a: it asks first, at every level, but looks at files
     # only by running commands - and since B-301 it is started read-only for a role that may
     # not run them, reading with KOLONİ's tools: a Reviewer may be given it.
@@ -283,7 +359,7 @@ def test_a_roles_limit_is_the_users_to_change_from_the_apps_own_page(client):
     assert (saved.json()["max_steps"], saved.json()["max_tokens"]) == (3, 9000)
     # nothing of it changed: the rest of the role is saved as before, and the limit stays
     assert patch({"description": "x", "max_steps": 3}).status_code == 200
-    assert patch({"max_steps": None}).status_code == 403            # nor is it taken away
+    assert patch({"max_steps": None}).status_code == 403  # nor is it taken away
     assert client.post(f"/api/roles/{coder}/reset", headers=NO_ORIGIN).status_code == 403
     for wrong in (0, -1, True, "5", 2.5):
         assert patch({"max_steps": wrong}, headers=own).status_code == 422, wrong
@@ -297,13 +373,17 @@ def test_a_limit_is_not_taken_away_by_deleting_its_role_and_making_it_again(clie
     own = {"Origin": ORIGIN}
     helper = {"name": "Helper", "tools": ["read_file"]}
     # a role that names a limit is the user's to make, and with a limit it is the user's to delete
-    assert client.post("/api/roles", json={**helper, "max_steps": 3},
-                       headers=NO_ORIGIN).status_code == 403
+    assert (
+        client.post("/api/roles", json={**helper, "max_steps": 3}, headers=NO_ORIGIN).status_code
+        == 403
+    )
     made = client.post("/api/roles", json={**helper, "max_steps": 3}, headers=own)
     assert made.status_code == 201, made.text
     assert client.delete(f"/api/roles/{made.json()['id']}", headers=NO_ORIGIN).status_code == 403
     # nor moved out of the way: a role is opened by its name
-    assert client.patch(f"/api/roles/{made.json()['id']}", json={"name": "Aside"}).status_code == 403
+    assert (
+        client.patch(f"/api/roles/{made.json()['id']}", json={"name": "Aside"}).status_code == 403
+    )
     kept = client.get("/api/roles").json()[-1]
     assert (kept["name"], kept["max_steps"]) == ("Helper", 3)
     assert client.delete(f"/api/roles/{made.json()['id']}", headers=own).status_code == 204
@@ -322,8 +402,10 @@ def test_the_leads_own_limit_ends_the_turn_and_is_no_failure_of_its_model(
 ):
     client, model = make_client([looks(1), looks(2), text("never said")])
     client.headers["Origin"] = ORIGIN
-    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}",
-                        json={"max_steps": 1}).status_code == 200
+    assert (
+        client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 1}).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     run, lead = snap["runs"][0], snap["agents"][0]
@@ -333,12 +415,16 @@ def test_the_leads_own_limit_ends_the_turn_and_is_no_failure_of_its_model(
 
 
 def test_a_stop_at_the_roles_limit_brings_no_advice_about_other_providers(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, default, fast = team({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s")), text("ok")],
-        "Coder": [looks(1), looks(2)],
-    })
+    client, default, fast = team(
+        {
+            "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s")), text("ok")],
+            "Coder": [looks(1), looks(2)],
+        }
+    )
     client.headers["Origin"] = ORIGIN
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"max_tokens": 5})
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
@@ -346,20 +432,24 @@ def test_a_stop_at_the_roles_limit_brings_no_advice_about_other_providers(
     ((status, said),) = results(snap)
     # (and KOLONİ's record line, K-kanit - as under a report)
     assert status == "failed" and reported(said) == (
-        "Coder failed: stopped at its role's limit of 5 tokens: it used 7")
-    assert said.endswith("\n\nWhat it did, from KOLONİ's record: read 0 files, wrote 0, ran 0 "
-                         "commands, 0 web.")
-    assert snap["agents"][1]["failure"] is None       # KOLONİ's own rule, not its model's failure
+        "Coder failed: stopped at its role's limit of 5 tokens: it used 7"
+    )
+    assert said.endswith(
+        "\n\nWhat it did, from KOLONİ's record: read 0 files, wrote 0, ran 0 commands, 0 web."
+    )
+    assert snap["agents"][1]["failure"] is None  # KOLONİ's own rule, not its model's failure
 
 
 def test_a_model_that_reports_no_tokens_is_not_held_by_the_token_limit(
     make_client, wait_run, project_dir
 ):
     silent = step(call("list_dir", {}, "c1"), i=None, o=None)
-    client, model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s")), text("ok")],
-        "Coder": [silent, step(content="looked", i=None, o=None)],
-    })
+    client, model = make_client(
+        {
+            "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s")), text("ok")],
+            "Coder": [silent, step(content="looked", i=None, o=None)],
+        }
+    )
     client.headers["Origin"] = ORIGIN
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"max_tokens": 1})
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
@@ -378,7 +468,9 @@ class Session(ScriptedModel):
         super().__init__([])
         self.started = 0
 
-    async def run_session(self, model_id, messages, tools, call_tool, on_text, on_message=None, on_live=None):
+    async def run_session(
+        self, model_id, messages, tools, call_tool, on_text, on_message=None, on_live=None
+    ):
         self.started += 1
         self.offered = [tool["function"]["name"] for tool in tools]
         for n in range(1, 5):
@@ -388,19 +480,24 @@ class Session(ScriptedModel):
         return SimpleNamespace(input_tokens=50, output_tokens=5, model=None)
 
 
-def coder_on_a_session(settings_env, wait_run, project_dir, limits, lead_steps,
-                       mode="full_auto"):
+def coder_on_a_session(settings_env, wait_run, project_dir, limits, lead_steps, mode="full_auto"):
     """A turn whose Coder runs on a CLI session, with these limits on the Coder role."""
     cli = Session()
-    default = ScriptedModel([
-        step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s")), *lead_steps])
+    default = ScriptedModel(
+        [step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s")), *lead_steps]
+    )
     app = create_app(load_settings(settings_env), model=default, clients={"Cli": cli})
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
         client.headers["Origin"] = ORIGIN
         made = client.post("/api/providers", json={"name": "Cli", "kind": "claude_cli"})
         assert made.status_code == 201, made.text
-        assert client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={
-            "provider_id": made.json()["id"], **limits}).status_code == 200
+        assert (
+            client.patch(
+                f"/api/roles/{role_id(client, 'Coder')}",
+                json={"provider_id": made.json()["id"], **limits},
+            ).status_code
+            == 200
+        )
         cid, run_id = begin(client, project_dir, mode=mode, spawn_approval="never")
         return cli, wait_run(client, cid, run_id)
 
@@ -409,19 +506,25 @@ def test_a_cli_session_is_held_by_its_roles_steps_message_by_message(
     settings_env, wait_run, project_dir
 ):
     cli, snap = coder_on_a_session(
-        settings_env, wait_run, project_dir, {"max_steps": 2}, [text("the lead goes on")])
+        settings_env, wait_run, project_dir, {"max_steps": 2}, [text("the lead goes on")]
+    )
     coder = snap["agents"][1]
     # KOLONİ counts a session's messages as its steps: after two, the third is not written
     assert (coder["status"], coder["error"], coder["failure"]) == (
-        "failed", "stopped at its role's limit of 2 steps", None)
+        "failed",
+        "stopped at its role's limit of 2 steps",
+        None,
+    )
     assert [m["content"] for m in snap["messages"] if m["agent_id"] == coder["id"]] == [
-        "step 1.", "step 2."]
-    assert [t["status"] for t in snap["tool_calls"] if t["name"] == "list_dir"] == [
-        "succeeded"] * 2
+        "step 1.",
+        "step 2.",
+    ]
+    assert [t["status"] for t in snap["tool_calls"] if t["name"] == "list_dir"] == ["succeeded"] * 2
     ((status, said),) = results(snap)
     assert status == "failed" and said.startswith(
-        "Coder failed: stopped at its role's limit of 2 steps")
-    assert snap["runs"][0]["status"] == "completed"                # the turn goes on
+        "Coder failed: stopped at its role's limit of 2 steps"
+    )
+    assert snap["runs"][0]["status"] == "completed"  # the turn goes on
 
 
 def test_a_cli_session_at_its_own_work_is_offered_show(settings_env, wait_run, project_dir):
@@ -433,12 +536,20 @@ def test_a_cli_session_at_its_own_work_is_offered_show(settings_env, wait_run, p
 def test_a_real_cli_session_is_ended_at_its_roles_steps(session_app, wait_run, project_dir):  # noqa: F811
     script = [{"call": "list_dir"} for _ in range(5)] + [{"hang": True}]
     client, provider, _ = session_app(script)
-    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 2},
-                        headers={"Origin": ORIGIN}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Lead')}",
+            json={"max_steps": 2},
+            headers={"Origin": ORIGIN},
+        ).status_code
+        == 200
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id, timeout=30)
     assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == (
-        "failed", "stopped at its role's limit of 2 steps")
+        "failed",
+        "stopped at its role's limit of 2 steps",
+    )
     assert len(snap["tool_calls"]) == 2
     assert gone(session_app.record()["pid"])  # and its process with it
 
@@ -446,8 +557,14 @@ def test_a_real_cli_session_is_ended_at_its_roles_steps(session_app, wait_run, p
 def limited_session(session_app, wait_run, project_dir, script):  # noqa: F811
     """A turn on a CLI session whose role lets one agent take two steps."""
     client, provider, _ = session_app(script)
-    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 2},
-                        headers={"Origin": ORIGIN}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Lead')}",
+            json={"max_steps": 2},
+            headers={"Origin": ORIGIN},
+        ).status_code
+        == 200
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id, timeout=30)
     said = [m for m in snap["messages"] if m["role"] == "assistant"]
@@ -459,34 +576,51 @@ def test_a_message_of_a_cli_session_with_two_calls_is_one_step(session_app, wait
     look." with two calls and then the answer stopped at a limit of two steps - the
     second call had opened an empty message of its own - where a model asked step by
     step completes. The stream names the message each piece belongs to."""
-    look = [{"say": "Let me look.", "message": "m1"},
-            {"call": "list_dir", "message": "m1"},
-            {"call": "read_file", "args": {"path": "hello.py"}, "message": "m1"}]
+    look = [
+        {"say": "Let me look.", "message": "m1"},
+        {"call": "list_dir", "message": "m1"},
+        {"call": "read_file", "args": {"path": "hello.py"}, "message": "m1"},
+    ]
     snap, ended, said = limited_session(
-        session_app, wait_run, project_dir, [*look, {"say": "It prints hi."}])
+        session_app, wait_run, project_dir, [*look, {"say": "It prints hi."}]
+    )
     assert ended == ("completed", None)
     assert [m["content"] for m in said] == ["Let me look.", "It prints hi."]
     # both calls hang off the one message that carried them
     assert [(t["name"], t["status"], t["message_id"]) for t in snap["tool_calls"]] == [
-        ("list_dir", "succeeded", said[0]["id"]), ("read_file", "succeeded", said[0]["id"])]
+        ("list_dir", "succeeded", said[0]["id"]),
+        ("read_file", "succeeded", said[0]["id"]),
+    ]
 
 
-def test_calls_made_at_once_in_one_message_of_a_cli_session_are_one_step(session_app, wait_run, project_dir):  # noqa: F811
+def test_calls_made_at_once_in_one_message_of_a_cli_session_are_one_step(
+    session_app, wait_run, project_dir
+):  # noqa: F811
     """...for its role's limit and for the app's own (25 steps): the same count."""
-    at_once = {"parallel": [{"call": "list_dir", "args": {"path": "." + "/." * i}} for i in range(30)]}
+    at_once = {
+        "parallel": [{"call": "list_dir", "args": {"path": "." + "/." * i}} for i in range(30)]
+    }
     snap, ended, said = limited_session(
-        session_app, wait_run, project_dir, [at_once, {"say": "Thirty looks."}])
+        session_app, wait_run, project_dir, [at_once, {"say": "Thirty looks."}]
+    )
     assert ended == ("completed", None)
     assert [m["content"] for m in said] == ["", "Thirty looks."]
     assert {(t["status"], t["message_id"]) for t in snap["tool_calls"]} == {
-        ("succeeded", said[0]["id"])} and len(snap["tool_calls"]) == 30
+        ("succeeded", said[0]["id"])
+    } and len(snap["tool_calls"]) == 30
 
 
-def test_three_messages_of_a_cli_session_with_a_call_each_stop_after_the_second(session_app, wait_run, project_dir):  # noqa: F811
-    script = [piece for name in ("one", "two", "three") for piece in (
-        {"say": name, "message": name}, {"call": "list_dir", "message": name})]
+def test_three_messages_of_a_cli_session_with_a_call_each_stop_after_the_second(
+    session_app, wait_run, project_dir
+):  # noqa: F811
+    script = [
+        piece
+        for name in ("one", "two", "three")
+        for piece in ({"say": name, "message": name}, {"call": "list_dir", "message": name})
+    ]
     snap, ended, said = limited_session(
-        session_app, wait_run, project_dir, [*script, {"hang": True}])
+        session_app, wait_run, project_dir, [*script, {"hang": True}]
+    )
     assert ended == ("failed", "stopped at its role's limit of 2 steps")
     assert [m["content"] for m in said] == ["one", "two"] and len(snap["tool_calls"]) == 2
 
@@ -494,15 +628,22 @@ def test_three_messages_of_a_cli_session_with_a_call_each_stop_after_the_second(
 def test_a_cli_session_is_held_by_tokens_before_it_starts_again(
     settings_env, wait_run, project_dir
 ):
-    cli, snap = coder_on_a_session(settings_env, wait_run, project_dir, {"max_tokens": 10}, [
-        step(call("message_agent", {"to": "Coder", "message": "and again"}, "m")), text("done")])
+    cli, snap = coder_on_a_session(
+        settings_env,
+        wait_run,
+        project_dir,
+        {"max_tokens": 10},
+        [step(call("message_agent", {"to": "Coder", "message": "and again"}, "m")), text("done")],
+    )
     coder = snap["agents"][1]
     by_name = {t["name"]: (t["status"], t["result"]) for t in snap["tool_calls"]}
     # what it used was not known until it ended: its first run went through
     assert by_name["spawn_agent"][0] == "succeeded" and coder["input_tokens"] == 50
     # asked to go on, it is over its role's tokens: not started a second time
     assert by_name["message_agent"] == (
-        "failed", "Coder could not reply: stopped at its role's limit of 10 tokens: it used 55")
+        "failed",
+        "Coder could not reply: stopped at its role's limit of 10 tokens: it used 55",
+    )
     assert cli.started == 1 and snap["runs"][0]["status"] == "completed"
 
 
@@ -511,13 +652,22 @@ def test_a_cli_session_with_no_steps_of_its_role_left_is_not_started_again(
 ):
     """B-325 (live, Qoder): told to go on at its role's limit, it could not reply - and the
     words did not say why or what to do. (At Full auto too: B-401.)"""
-    cli, snap = coder_on_a_session(settings_env, wait_run, project_dir, {"max_steps": 2}, [
-        step(call("message_agent", {"to": "Coder", "message": "go on"}, "m")), text("done")],
-        mode="auto_edit")
+    cli, snap = coder_on_a_session(
+        settings_env,
+        wait_run,
+        project_dir,
+        {"max_steps": 2},
+        [step(call("message_agent", {"to": "Coder", "message": "go on"}, "m")), text("done")],
+        mode="auto_edit",
+    )
     by_name = {t["name"]: (t["status"], t["result"]) for t in snap["tool_calls"]}
-    assert by_name["message_agent"] == ("failed", (
-        "Coder is at its role's limit of 2 steps; more steps are the user's to give: ask them "
-        "to raise the limit in the role's settings. Nothing was sent to it."))
+    assert by_name["message_agent"] == (
+        "failed",
+        (
+            "Coder is at its role's limit of 2 steps; more steps are the user's to give: ask them "
+            "to raise the limit in the role's settings. Nothing was sent to it."
+        ),
+    )
     assert cli.started == 1 and snap["runs"][0]["status"] == "completed"
 
 
@@ -526,45 +676,59 @@ def test_a_cli_session_with_no_steps_of_its_role_left_is_not_started_again(
 
 def lead(provider, model, mode=None, model_from=None):
     return SimpleNamespace(
-        provider_name=provider, model_id=model, provider_mode=mode, model_from=model_from)
+        provider_name=provider, model_id=model, provider_mode=mode, model_from=model_from
+    )
 
 
-@pytest.mark.parametrize("before, now_on, told", [
-    (lead("Local", "qwen"), lead("Fast", "quick"), "Local · qwen"),
-    # a model nobody named, or one read from the CLI's settings: the provider alone
-    (lead("Codex", "codex default", "step"), lead("Local", "qwen"), "Codex"),
-    (lead("Codex", "gpt-6", "native", "settings"), lead("Local", "qwen"), "Codex"),
-    (lead("Local", None), lead("Fast", "quick"), "Local"),
-    # one API provider, another model: its names are the ones KOLONİ asks by
-    (lead("Local", "qwen"), lead("Local", "llama"), "Local · qwen"),
-    (lead("Local", "qwen"), lead("Local", "qwen"), None),
-    (lead("Local", "qwen"), lead("Local", None), None),
-    # a CLI reports its model by another name than it was asked by: not told apart
-    (lead("Claude", "claude-sonnet-5", "session"), lead("Claude", "sonnet", "session"), None),
-    (lead("Claude", "claude-sonnet-5", "session"), lead("Claude", "claude default", "session"),
-     None),
-    (None, lead("Local", "qwen"), None),            # the first turn: nobody led before
-    (lead(None, None), lead("Local", "qwen"), None),  # a lead from before this was on record
-])
+@pytest.mark.parametrize(
+    "before, now_on, told",
+    [
+        (lead("Local", "qwen"), lead("Fast", "quick"), "Local · qwen"),
+        # a model nobody named, or one read from the CLI's settings: the provider alone
+        (lead("Codex", "codex default", "step"), lead("Local", "qwen"), "Codex"),
+        (lead("Codex", "gpt-6", "native", "settings"), lead("Local", "qwen"), "Codex"),
+        (lead("Local", None), lead("Fast", "quick"), "Local"),
+        # one API provider, another model: its names are the ones KOLONİ asks by
+        (lead("Local", "qwen"), lead("Local", "llama"), "Local · qwen"),
+        (lead("Local", "qwen"), lead("Local", "qwen"), None),
+        (lead("Local", "qwen"), lead("Local", None), None),
+        # a CLI reports its model by another name than it was asked by: not told apart
+        (lead("Claude", "claude-sonnet-5", "session"), lead("Claude", "sonnet", "session"), None),
+        (
+            lead("Claude", "claude-sonnet-5", "session"),
+            lead("Claude", "claude default", "session"),
+            None,
+        ),
+        (None, lead("Local", "qwen"), None),  # the first turn: nobody led before
+        (lead(None, None), lead("Local", "qwen"), None),  # a lead from before this was on record
+    ],
+)
 def test_whose_conversation_a_lead_takes_over_is_read_off_the_two_leads_records(
     before, now_on, told
 ):
     assert _taken_from(before, now_on) == told
 
 
-@pytest.mark.parametrize("second, told", [
-    # the turn in between never answered: there is nothing of it to take over
-    (ModelUnavailable("the server is down"), None),
-    # it answered: the third turn does take the conversation over from it
-    (text("second answer"), "Fast · fast-model"),
-])
+@pytest.mark.parametrize(
+    "second, told",
+    [
+        # the turn in between never answered: there is nothing of it to take over
+        (ModelUnavailable("the server is down"), None),
+        # it answered: the third turn does take the conversation over from it
+        (text("second answer"), "Fast · fast-model"),
+    ],
+)
 def test_a_lead_is_told_of_the_last_lead_that_answered_before_it(
-    team, wait_run, project_dir, second, told  # noqa: F811
+    team,
+    wait_run,
+    project_dir,
+    second,
+    told,  # noqa: F811
 ):
     client, default, fast = team([text("first answer"), text("third answer")], [second])
     cid, run_id = begin(client, project_dir)
     wait_run(client, cid, run_id)
-    for provider_id in (team.providers["Fast"]["id"], None):      # to Fast, and back to Local
+    for provider_id in (team.providers["Fast"]["id"], None):  # to Fast, and back to Local
         client.patch(f"/api/conversations/{cid}", json={"provider_id": provider_id})
         posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "and now?"})
         wait_run(client, cid, posted.json()["run"]["id"])
@@ -574,7 +738,8 @@ def test_a_lead_is_told_of_the_last_lead_that_answered_before_it(
         assert "earlier turns" not in default.calls[1][0]["content"]
     else:
         assert last == (
-            f"The earlier turns of this conversation were with {told}; you are taking it over.")
+            f"The earlier turns of this conversation were with {told}; you are taking it over."
+        )
 
 
 def test_trimming_says_how_many_results_it_blanked_out():
@@ -587,9 +752,12 @@ def test_trimming_says_how_many_results_it_blanked_out():
 
 
 def test_a_model_taking_over_a_history_that_was_cut_is_told_how_much_is_left_out(
-    team, wait_run, project_dir, settings_env  # noqa: F811
+    team,
+    wait_run,
+    project_dir,
+    settings_env,  # noqa: F811
 ):
-    settings_env["KOLONI_CONTEXT_CHARS"] = "2000"   # less than the instructions alone
+    settings_env["KOLONI_CONTEXT_CHARS"] = "2000"  # less than the instructions alone
     (project_dir / "big.txt").write_text("line\n" * 300, encoding="utf-8")
     reads = [step(call("read_file", {"path": "big.txt"}, f"r{n}")) for n in range(3)]
     client, default, fast = team([*reads, text("first answer")], [text("second answer")])
@@ -601,13 +769,17 @@ def test_a_model_taking_over_a_history_that_was_cut_is_told_how_much_is_left_out
     system = fast.calls[0][0]["content"]
     assert system.splitlines()[-1] == (
         "The earlier turns of this conversation were with Local · big-model; you are taking "
-        "it over. 2 older tool results are left out to fit.")
+        "it over. 2 older tool results are left out to fit."
+    )
     # the model that read them itself was told nothing of the kind, cut or not
     assert "left out to fit" not in str(default.calls)
 
 
 def test_what_is_cut_of_the_takers_own_work_is_no_part_of_what_it_is_told_it_took_over(
-    team, wait_run, project_dir, settings_env  # noqa: F811
+    team,
+    wait_run,
+    project_dir,
+    settings_env,  # noqa: F811
 ):
     settings_env["KOLONI_CONTEXT_CHARS"] = "2000"
     (project_dir / "big.txt").write_text("line\n" * 300, encoding="utf-8")
@@ -624,8 +796,13 @@ def test_what_is_cut_of_the_takers_own_work_is_no_part_of_what_it_is_told_it_too
     assert len(told) == 4 and len(set(told)) == 1
     assert told[0].endswith("were with Local · big-model; you are taking it over.")
     # (each said in a line made from its call: K-gecmis-zengin)
-    assert sum(str(m["content"]).startswith(f"{TRIMMED} read big.txt (300 lines)")
-               for m in fast.calls[3]) == 2
+    assert (
+        sum(
+            str(m["content"]).startswith(f"{TRIMMED} read big.txt (300 lines)")
+            for m in fast.calls[3]
+        )
+        == 2
+    )
 
 
 # --- the migration ----------------------------------------------------------------------------
@@ -645,14 +822,16 @@ def test_migration_0032_and_back(tmp_path):
         conn.execute(
             "INSERT INTO roles (id, name, description, instructions, tools, builtin, "
             "created_by_agent, created_at, updated_at) VALUES ('r', 'Mine', '', '', '[]', 0, 0, "
-            "'2026-10-12 10:00:00', '2026-10-12 10:00:00')")
+            "'2026-10-12 10:00:00', '2026-10-12 10:00:00')"
+        )
         was = {table: columns(conn, table) for table in new}
     command.upgrade(cfg, "0032")
     with sqlite3.connect(db) as conn:
         assert all(columns(conn, table) == was[table] | added for table, added in new.items())
         # a role from before: everything in the guide may be picked, and it has no limit
         assert conn.execute("SELECT pick_from, max_steps, max_tokens FROM roles").fetchall() == [
-            (None, None, None)]
+            (None, None, None)
+        ]
         conn.execute("UPDATE roles SET pick_from = '[]', max_steps = 3")
     command.downgrade(cfg, "0031")
     with sqlite3.connect(db) as conn:

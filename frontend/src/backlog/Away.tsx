@@ -16,7 +16,15 @@ const STATE_WORD: Record<AwayJob['state'], string> = {
   failed: 'Could not be done',
   stopped: 'Stopped',
 }
-const STATE_MARK: Record<AwayJob['state'], string> = { planned: '', next: '·', working: '●', waits: '!', done: '✓', failed: '✕', stopped: '■' }
+const STATE_MARK: Record<AwayJob['state'], string> = {
+  planned: '',
+  next: '·',
+  working: '●',
+  waits: '!',
+  done: '✓',
+  failed: '✕',
+  stopped: '■',
+}
 /** A job done that left nothing: nothing kept in its copy, nothing taken in from it. */
 const unchanged = (job: AwayJob) => job.state === 'done' && !job.kept.length && !job.taken.length
 /** How long from one time to another (now, without it): "1 h 48 m". */
@@ -40,13 +48,26 @@ export function AwayOffer({ conv, offer }: { conv: ConvState; offer: Away }) {
   const cid = conv.conversation.id
   if (changing) return <AwayPanel conv={conv} offer={offer} onClose={() => setChanging(false)} />
   // (Only what its Orchestrator put on To-do in that turn, still open: anything else is the panel's to tick.)
-  const mine = offer.jobs.filter(job => backlog?.some(t => t.id === job.task_id && (t.status === 'proposed' || t.status === 'todo')))
+  const mine = offer.jobs.filter(job =>
+    backlog?.some(t => t.id === job.task_id && (t.status === 'proposed' || t.status === 'todo')),
+  )
   // (Each one it sends, named - at most ten: the line wraps. None of its own: ticked in Change.)
   const named = offer.jobs.length ? mine.map(job => job.title).join(', ') : 'Tick the tasks to take in Change'
-  const said = [named, offer.until && `Until ${clock(offer.until)}`, offer.money != null && `at most ${amount(offer.money, offer.currency)}`, offer.kept_out.length > 0 && `kept out ${offer.kept_out.join(', ')}`]
+  const said = [
+    named,
+    offer.until && `Until ${clock(offer.until)}`,
+    offer.money != null && `at most ${amount(offer.money, offer.currency)}`,
+    offer.kept_out.length > 0 && `kept out ${offer.kept_out.join(', ')}`,
+  ]
   const go = () =>
     void ask(() =>
-      useApp.getState().goAway(cid, { task_ids: mine.map(job => job.task_id!), order: [], until: clock(offer.until) || null, money: offer.money, kept_out: offer.kept_out }),
+      useApp.getState().goAway(cid, {
+        task_ids: mine.map(job => job.task_id!),
+        order: [],
+        until: clock(offer.until) || null,
+        money: offer.money,
+        kept_out: offer.kept_out,
+      }),
     )
   return (
     <div className="away-offer" role="group" aria-label="Go away now?">
@@ -111,7 +132,16 @@ export function AwaySummary({ line, conv }: { line: string; conv: ConvState }) {
         <button type="button" className="btn btn-small btn-primary" onClick={() => useApp.getState().showReady(true)}>
           Review and take in
         </button>
-        <button type="button" className="btn btn-small" onClick={() => void useApp.getState().openTurn(away.conversation_id, away.run_id).then(() => useApp.getState().select('away:' + away.id))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          onClick={() =>
+            void useApp
+              .getState()
+              .openTurn(away.conversation_id, away.run_id)
+              .then(() => useApp.getState().select('away:' + away.id))
+          }
+        >
           On the canvas
         </button>
       </div>
@@ -124,7 +154,11 @@ export function AwayFrom({ chat }: { chat: string }) {
   // shortcut: only the project's last night is known here - a job's chat of an older one has no link; upgrade with its night on the chat's snapshot.
   const away = useApp(s => s.away)
   if (!away?.started_at || !away.jobs.some(job => job.conversation_id === chat)) return null
-  const back = () => void useApp.getState().openTurn(away.conversation_id, away.run_id).then(() => useApp.getState().select('away:' + away.id))
+  const back = () =>
+    void useApp
+      .getState()
+      .openTurn(away.conversation_id, away.run_id)
+      .then(() => useApp.getState().select('away:' + away.id))
   return (
     <button type="button" className="link-btn away-from" onClick={back}>
       <Moon size={13} /> From the jobs started at {clock(away.started_at)} while you were away — back to their report
@@ -144,10 +178,20 @@ export function AwayStatus({ away, onOpen }: { away: Away | null; onOpen: () => 
         ☾ Away · To-do {n} of {away.jobs.length}
         {away.until && ` · until ${clock(away.until)}`}
       </button>
-      <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => useApp.getState().comeBack(away.id))}>
+      <button
+        type="button"
+        className="btn btn-small"
+        disabled={busy}
+        onClick={() => void ask(() => useApp.getState().comeBack(away.id))}
+      >
         I’m back
       </button>
-      <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => useApp.getState().awayDo(away.id, 'stop'))}>
+      <button
+        type="button"
+        className="btn btn-small"
+        disabled={busy}
+        onClick={() => void ask(() => useApp.getState().awayDo(away.id, 'stop'))}
+      >
         Stop all
       </button>
     </span>
@@ -182,10 +226,20 @@ export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen
           .map(one => (
             <span key={one.id} className="away-ask">
               <span className="mono">{one.text}</span>
-              <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void ask(() => store().answerAsk(one, true))}>
+              <button
+                type="button"
+                className="btn btn-small btn-primary"
+                disabled={busy}
+                onClick={() => void ask(() => store().answerAsk(one, true))}
+              >
                 Allow and go on
               </button>
-              <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => store().answerAsk(one, false))}>
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={busy}
+                onClick={() => void ask(() => store().answerAsk(one, false))}
+              >
                 Refuse
               </button>
             </span>
@@ -193,12 +247,22 @@ export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen
       {/* (One that needs the project itself waits with its copy: Take in it as it is, then do the rest there.) */}
       {(job.state === 'done' || job.state === 'waits') && job.kept.length > 0 && (
         // (Not taken - a line that clashes with the project's, say: its chat's card of the kept copy decides it.)
-        <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void ask(() => store().takeIn(job.kept)).then(done => done || !chat || onOpen(chat))}>
+        <button
+          type="button"
+          className="btn btn-small btn-primary"
+          disabled={busy}
+          onClick={() => void ask(() => store().takeIn(job.kept)).then(done => done || !chat || onOpen(chat))}
+        >
           Take in
         </button>
       )}
       {(job.state === 'failed' || job.state === 'stopped') && away.status === 'ended' && job.task_id && (
-        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => store().awayDo(away.id, `jobs/${job.task_id}/again`))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => void ask(() => store().awayDo(away.id, `jobs/${job.task_id}/again`))}
+        >
           Try again
         </button>
       )}
@@ -221,10 +285,14 @@ export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen
         {job.checks.length > 0 && <div className="muted away-line">{job.checks.join(' · ')}</div>}
         {job.assessment && <q className="away-view">{job.assessment}</q>}
         {job.kept_out.length > 0 && (
-          <div className="away-shared">Its copy changed {job.kept_out.join(', ')}, where you said not to: look before you take it in.</div>
+          <div className="away-shared">
+            Its copy changed {job.kept_out.join(', ')}, where you said not to: look before you take it in.
+          </div>
         )}
         {job.shared.length > 0 && (
-          <div className="away-shared">Another job changed {job.shared.join(', ')} too: the two are joined line by line when you take both in.</div>
+          <div className="away-shared">
+            Another job changed {job.shared.join(', ')} too: the two are joined line by line when you take both in.
+          </div>
         )}
         {actions()}
         {error && (
@@ -254,11 +322,18 @@ function Strip({ away }: { away: Away }) {
         </span>
       )}
       <span className="muted">
-        {away.spent == null ? 'spent: not known' : `${away.at_least ? 'at least ' : ''}${amount(away.spent, away.currency)}`}
+        {away.spent == null
+          ? 'spent: not known'
+          : `${away.at_least ? 'at least ' : ''}${amount(away.spent, away.currency)}`}
         {away.money != null && ` of ${amount(away.money, away.currency)}`}
       </span>
       {away.status === 'running' && (
-        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => useApp.getState().awayDo(away.id, 'stop'))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => void ask(() => useApp.getState().awayDo(away.id, 'stop'))}
+        >
           Stop all
         </button>
       )}
@@ -302,7 +377,8 @@ export function AwayNight({ away, onOpen }: { away: Away; onOpen: (cid: string) 
         // (Stop all is in the top bar too, while it runs.)
         <details className="more">
           <summary>
-            ☾ {away.status === 'running' ? "While you're away" : 'While you were away'}: {done} of {away.jobs.length} done
+            ☾ {away.status === 'running' ? "While you're away" : 'While you were away'}: {done} of {away.jobs.length}{' '}
+            done
           </summary>
           {night}
         </details>
@@ -392,13 +468,22 @@ export function AwayReport({ away, onOpen }: { away: Away; onOpen: (cid: string)
     <div className="away-report">
       <div className="muted">
         {clock(away.started_at)} → {clock(away.ended_at) || 'now'} · {lasted(away.started_at, away.ended_at)}
-        {away.spent != null && ` · ${amount(away.spent, away.currency)}${away.money != null ? ` of ${amount(away.money, away.currency)}` : ''}`} ·{' '}
-        {someIn ? 'what you took in is in your project, the rest only once you take it in' : 'nothing of it is in your project before you take it in'}
+        {away.spent != null &&
+          ` · ${amount(away.spent, away.currency)}${away.money != null ? ` of ${amount(away.money, away.currency)}` : ''}`}{' '}
+        ·{' '}
+        {someIn
+          ? 'what you took in is in your project, the rest only once you take it in'
+          : 'nothing of it is in your project before you take it in'}
       </div>
       {away.why && <div className="muted">{away.why}</div>}
       <AwaySums away={away} toTake={toTake} />
       {kept.length > 1 && (
-        <button type="button" className="btn btn-small btn-primary nodrag" disabled={busy} onClick={() => void ask(() => useApp.getState().takeIn(kept))}>
+        <button
+          type="button"
+          className="btn btn-small btn-primary nodrag"
+          disabled={busy}
+          onClick={() => void ask(() => useApp.getState().takeIn(kept))}
+        >
           Take in all ({done.filter(job => job.kept.length).length})
         </button>
       )}
@@ -426,10 +511,20 @@ export function AwayReport({ away, onOpen }: { away: Away; onOpen: (cid: string)
                 <b>{task.title}</b>
                 {task.detail && <div className="muted away-line">{task.detail}</div>}
               </div>
-              <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => useApp.getState().decideTask(task.id, 'approve'))}>
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={busy}
+                onClick={() => void ask(() => useApp.getState().decideTask(task.id, 'approve'))}
+              >
                 Add to To-do
               </button>
-              <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => useApp.getState().decideTask(task.id, 'reject'))}>
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={busy}
+                onClick={() => void ask(() => useApp.getState().decideTask(task.id, 'reject'))}
+              >
                 Dismiss
               </button>
             </div>

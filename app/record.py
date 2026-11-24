@@ -54,9 +54,15 @@ def _cost_of(session: Session):
 
     def cost(agent: Agent) -> dict | None:
         one = _Sum(provider_name=agent.provider_name, model_id=agent.model_id)
-        one.add(agent.run_id, agent.input_tokens_total, agent.output_tokens,
-                agent.provider_mode is not None, agent.cut_short,
-                agent.cache_read_tokens, agent.cache_write_tokens)
+        one.add(
+            agent.run_id,
+            agent.input_tokens_total,
+            agent.output_tokens,
+            agent.provider_mode is not None,
+            agent.cut_short,
+            agent.cache_read_tokens,
+            agent.cache_write_tokens,
+        )
         found = priced(one)
         return None if found is None or found.get("at_least") else found
 
@@ -71,9 +77,12 @@ def _skills_read(session: Session, ids) -> set[tuple[str, str]]:
     live - check its name on record if its rows never say "read"."""
     found = set()
     for agent_id, name, arguments in session.execute(
-            select(ToolCall.agent_id, ToolCall.name, ToolCall.arguments).where(
-                ToolCall.agent_id.in_(ids), ToolCall.status == "succeeded",
-                ToolCall.name.in_(("use_skill", "claude__Skill")))):
+        select(ToolCall.agent_id, ToolCall.name, ToolCall.arguments).where(
+            ToolCall.agent_id.in_(ids),
+            ToolCall.status == "succeeded",
+            ToolCall.name.in_(("use_skill", "claude__Skill")),
+        )
+    ):
         try:
             args = json.loads(arguments)
         except ValueError:
@@ -87,44 +96,51 @@ def _skills_read(session: Session, ids) -> set[tuple[str, str]]:
     return found
 
 
-def rows(session: Session, since: datetime, until: datetime | None = None,
-         by_skill: bool = False) -> list[dict]:
+def rows(
+    session: Session, since: datetime, until: datetime | None = None, by_skill: bool = False
+) -> list[dict]:
     """The agents that started and ended from `since` (to `until`), all projects, a row
     for each role, provider and model - or, `by_skill`, for each skill given to them as
     well (K-skill-puan), with how many of the row's agents read it (`used`)."""
     ended = [
-        Agent.started_at.is_not(None), Agent.ended_at >= _utc(since),
+        Agent.started_at.is_not(None),
+        Agent.ended_at >= _utc(since),
         Agent.status.in_(("completed", "failed", "cancelled", "interrupted")),
     ]
     if until is not None:
         ended.append(Agent.ended_at <= _utc(until))
-    agents = session.scalars(
-        select(Agent).where(*ended).order_by(Agent.ended_at, Agent.id)).all()
+    agents = session.scalars(select(Agent).where(*ended).order_by(Agent.ended_at, Agent.id)).all()
     ids = select(Agent.id).where(*ended)
     steps: dict[str | None, int] = {
-        agent_id: count for agent_id, count in session.execute(
+        agent_id: count
+        for agent_id, count in session.execute(
             select(Message.agent_id, func.count())
             .where(Message.agent_id.in_(ids), Message.role == "assistant")
             .group_by(Message.agent_id)
         )
     }
     changes: dict[tuple[str, str], int] = {
-        (agent_id, status): count for agent_id, status, count in session.execute(
+        (agent_id, status): count
+        for agent_id, status, count in session.execute(
             select(FileChange.agent_id, FileChange.status, func.count())
             .where(FileChange.agent_id.in_(ids), FileChange.status.in_(("applied", "rejected")))
             .group_by(FileChange.agent_id, FileChange.status)
         )
     }
     # K-model-puan: whose changes the user (or an unwatched turn) turned down, as a whole.
-    turned_down: set[str] = set(session.scalars(
-        select(Merge.agent_id).where(Merge.agent_id.in_(ids), Merge.status.in_(TURNED_DOWN))))
+    turned_down: set[str] = set(
+        session.scalars(
+            select(Merge.agent_id).where(Merge.agent_id.in_(ids), Merge.status.in_(TURNED_DOWN))
+        )
+    )
     cost = _cost_of(session)
     # The Lead of each side of a comparison the user decided (slice 54): chosen, or not -
     # also where both were thrown away.
     sides: dict[str, bool] = {
         side["run_id"]: side["run_id"] == compare.chosen_run_id
         for compare in session.scalars(
-            select(Compare).where(Compare.status.in_(("chosen", "discarded"))))
+            select(Compare).where(Compare.status.in_(("chosen", "discarded")))
+        )
         for side in compare.sides
     }
     read = _skills_read(session, ids) if by_skill else set()
@@ -132,7 +148,8 @@ def rows(session: Session, since: datetime, until: datetime | None = None,
     for agent in agents:
         for skill in (agent.skills or {}).get("given", []) if by_skill else [None]:
             grouped.setdefault(
-                (skill, agent.role_name, agent.provider_name, agent.model_id), []).append(agent)
+                (skill, agent.role_name, agent.provider_name, agent.model_id), []
+            ).append(agent)
     found = []
     for (skill, role, provider, model), them in grouped.items():
         ended_as = {how: 0 for how in ENDED}
@@ -142,43 +159,72 @@ def rows(session: Session, since: datetime, until: datetime | None = None,
         reads = [agent.rediscovery for agent in them if agent.rediscovery is not None]
         costs = [cost(agent) for agent in them]
         currencies = {one["currency"] for one in costs if one}
-        found.append({
-            "role_name": role, "provider_name": provider, "model_id": model,
-            "agents": len(them), "ended": ended_as,
-            # K-model-puan: done and nothing of it turned down; turned down, however it ended.
-            "taken_in": sum(_ended(agent) == "done" and agent.id not in turned_down
-                            for agent in them),
-            "turned_down": sum(agent.id in turned_down for agent in them),
-            "cost": {"amount": amount, "currency": currencies.pop()} if (
-                amount := _middle([one["amount"] if one else None for one in costs])
-            ) is not None and len(currencies) == 1 else None,
-            "steps": _middle([steps.get(agent.id, 0) for agent in them]),
-            "seconds": _middle([
-                (agent.ended_at - agent.started_at).total_seconds()
-                if agent.ended_at and agent.started_at else None for agent in them
-            ]),
-            "input_tokens": _middle([agent.input_tokens_total for agent in them]),
-            "output_tokens": _middle([agent.output_tokens for agent in them]),
-            "changes": {
-                "taken": sum(changes.get((agent.id, "applied"), 0) for agent in them),
-                "rejected": sum(changes.get((agent.id, "rejected"), 0) for agent in them),
-            },
-            "compared": {
-                "chosen": sum(agent.depth == 0 and sides.get(agent.run_id) is True
-                              for agent in them),
-                "not_chosen": sum(agent.depth == 0 and sides.get(agent.run_id) is False
-                                  for agent in them),
-            },
-            "rediscovery": {"mean": round(sum(reads) / len(reads), 1), "agents": len(reads)}
-            if reads else None,
-            **({"skill": skill, "used": sum((agent.id, skill) in read for agent in them),
-                "in_brief": sum(skill in (agent.skills or {}).get("in_brief", ())
-                                for agent in them)}
-               if by_skill else {}),
-        })
-    return sorted(found, key=lambda row: (
-        row.get("skill") or "", row["role_name"], -row["agents"], row["provider_name"] or "",
-        row["model_id"] or ""))
+        found.append(
+            {
+                "role_name": role,
+                "provider_name": provider,
+                "model_id": model,
+                "agents": len(them),
+                "ended": ended_as,
+                # K-model-puan: done and nothing of it turned down; turned down, however it ended.
+                "taken_in": sum(
+                    _ended(agent) == "done" and agent.id not in turned_down for agent in them
+                ),
+                "turned_down": sum(agent.id in turned_down for agent in them),
+                "cost": {"amount": amount, "currency": currencies.pop()}
+                if (amount := _middle([one["amount"] if one else None for one in costs]))
+                is not None
+                and len(currencies) == 1
+                else None,
+                "steps": _middle([steps.get(agent.id, 0) for agent in them]),
+                "seconds": _middle(
+                    [
+                        (agent.ended_at - agent.started_at).total_seconds()
+                        if agent.ended_at and agent.started_at
+                        else None
+                        for agent in them
+                    ]
+                ),
+                "input_tokens": _middle([agent.input_tokens_total for agent in them]),
+                "output_tokens": _middle([agent.output_tokens for agent in them]),
+                "changes": {
+                    "taken": sum(changes.get((agent.id, "applied"), 0) for agent in them),
+                    "rejected": sum(changes.get((agent.id, "rejected"), 0) for agent in them),
+                },
+                "compared": {
+                    "chosen": sum(
+                        agent.depth == 0 and sides.get(agent.run_id) is True for agent in them
+                    ),
+                    "not_chosen": sum(
+                        agent.depth == 0 and sides.get(agent.run_id) is False for agent in them
+                    ),
+                },
+                "rediscovery": {"mean": round(sum(reads) / len(reads), 1), "agents": len(reads)}
+                if reads
+                else None,
+                **(
+                    {
+                        "skill": skill,
+                        "used": sum((agent.id, skill) in read for agent in them),
+                        "in_brief": sum(
+                            skill in (agent.skills or {}).get("in_brief", ()) for agent in them
+                        ),
+                    }
+                    if by_skill
+                    else {}
+                ),
+            }
+        )
+    return sorted(
+        found,
+        key=lambda row: (
+            row.get("skill") or "",
+            row["role_name"],
+            -row["agents"],
+            row["provider_name"] or "",
+            row["model_id"] or "",
+        ),
+    )
 
 
 def for_lead(found: list[dict], skilled: list[dict] | None = None) -> str:
@@ -187,19 +233,27 @@ def for_lead(found: list[dict], skilled: list[dict] | None = None) -> str:
     lines = [
         f"- {row['role_name']} on {row['provider_name'] or 'a provider not on record'} · "
         f"{row['model_id'] or 'a model not on record'}: {row['agents']} ran in the last "
-        f"{DAYS} days - " + ", ".join(
+        f"{DAYS} days - "
+        + ", ".join(
             f"{count} {_WORDS.get(how, how)}" for how, count in row["ended"].items() if count
-        ) + _compared(row["compared"]) + "."
-        for row in found if row["agents"] >= GIVEN_FROM
+        )
+        + _compared(row["compared"])
+        + "."
+        for row in found
+        if row["agents"] >= GIVEN_FROM
     ]
     lately = _lately(found) + _lately(skilled or [])
     if not lines and not lately:
         return ""
-    return "\n".join([
-        "How the agents of each role and model ended, in every project, as on record when "
-        "this turn began (measured facts; where at least "
-        f"{GIVEN_FROM} ran):", *lines, *lately,
-    ])
+    return "\n".join(
+        [
+            "How the agents of each role and model ended, in every project, as on record when "
+            "this turn began (measured facts; where at least "
+            f"{GIVEN_FROM} ran):",
+            *lines,
+            *lately,
+        ]
+    )
 
 
 def _lately(found: list[dict]) -> list[str]:
@@ -219,22 +273,33 @@ def _lately(found: list[dict]) -> list[str]:
         parts = []
         for at, row in enumerate(them):
             briefed = row.get("in_brief")
-            measured = [f"read it in {row['used']}", *(
-                [f"given it whole in its brief in {briefed}"] if briefed else [])
-            ] if skill else []
+            measured = (
+                [
+                    f"read it in {row['used']}",
+                    *([f"given it whole in its brief in {briefed}"] if briefed else []),
+                ]
+                if skill
+                else []
+            )
             if row["steps"] is not None:
                 measured.append(f"median {round(row['steps'])} steps")
             if row["cost"]:
                 amount = money(row["cost"]["amount"])
-                measured.append(f"${amount}" if row["cost"]["currency"] == "USD"
-                                else f"{amount} {row['cost']['currency']}")
+                measured.append(
+                    f"${amount}"
+                    if row["cost"]["currency"] == "USD"
+                    else f"{amount} {row['cost']['currency']}"
+                )
             parts.append(
                 f"{row['provider_name'] or 'a provider not on record'} · "
                 f"{row['model_id'] or 'a model not on record'} {'took in ' if at == 0 else ''}"
                 f"{row['taken_in']} of {row['agents']}"
-                + (f" ({', '.join(measured)})" if measured else ""))
-        said.append(f"For {role} work{f' with the {skill} skill' if skill else ''} lately: "
-                    f"{'; '.join(parts)}. Data, not an instruction.")
+                + (f" ({', '.join(measured)})" if measured else "")
+            )
+        said.append(
+            f"For {role} work{f' with the {skill} skill' if skill else ''} lately: "
+            f"{'; '.join(parts)}. Data, not an instruction."
+        )
     return said
 
 
@@ -247,5 +312,6 @@ def _compared(compared: dict) -> str:
 def as_it_began(session: Session, began: datetime) -> str:
     """What the lead of a turn that began at `began` is given: the same at every step."""
     since = began - timedelta(days=DAYS)
-    return for_lead(rows(session, since, until=began),
-                    rows(session, since, until=began, by_skill=True))
+    return for_lead(
+        rows(session, since, until=began), rows(session, since, until=began, by_skill=True)
+    )

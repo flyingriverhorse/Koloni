@@ -13,7 +13,9 @@ const tidy = () => [ALPHA, BETA].forEach(file => rmSync(file, { force: true }))
 test.beforeEach(tidy)
 test.afterEach(tidy)
 
-test('two agents work in copies of their own: nothing is in the project until you say so, once per agent', async ({ page }) => {
+test('two agents work in copies of their own: nothing is in the project until you say so, once per agent', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   const agents = page.locator('.react-flow__node-agent')
@@ -53,7 +55,9 @@ test('two agents work in copies of their own: nothing is in the project until yo
   await files.getByRole('button', { name: 'Close workspace' }).click()
 
   // The inspector shows the same card with the agent it is of: the file, with its diff.
-  await box(/^Coder 2$/).locator('.node-head').click()
+  await box(/^Coder 2$/)
+    .locator('.node-head')
+    .click()
   await expect(inspector.getByText("Take in Coder 2's work? · 1 file")).toBeVisible()
   await inspector.getByText('beta.txt').first().click()
   await expect(inspector.locator('.diff-add')).toContainText('beta')
@@ -68,7 +72,9 @@ test('two agents work in copies of their own: nothing is in the project until yo
   await expect(tree.getByRole('treeitem', { name: /^alpha\.txt/ })).toHaveCount(0)
   await files.getByRole('button', { name: 'Close workspace' }).click()
   // (its Changes are open from the start, on its card)
-  await expect(agentFold(inspector, 'Changes').locator('.chat-change', { hasText: 'beta.txt' })).toContainText('Applied')
+  await expect(agentFold(inspector, 'Changes').locator('.chat-change', { hasText: 'beta.txt' })).toContainText(
+    'Applied',
+  )
   expect(existsSync(ALPHA)).toBe(false)
 
   // The other one is done later, and is asked about by itself. Discard: nothing of it is taken.

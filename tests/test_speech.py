@@ -45,8 +45,15 @@ def sound(*items: dict) -> dict:
 def wav_of(pcm: bytes) -> bytes:
     """A whole WAV as Gemini's: 24 kHz, mono, 16 bit."""
     fmt = struct.pack("<IHHIIHH", 16, 1, 1, 24000, 48000, 2, 16)
-    return b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVEfmt " + fmt + b"data" + \
-        struct.pack("<I", len(pcm)) + pcm
+    return (
+        b"RIFF"
+        + struct.pack("<I", 36 + len(pcm))
+        + b"WAVEfmt "
+        + fmt
+        + b"data"
+        + struct.pack("<I", len(pcm))
+        + pcm
+    )
 
 
 def say(style: str | None = "warm"):
@@ -61,10 +68,18 @@ def test_the_text_is_asked_for_in_the_voice_and_manner_with_the_key_in_its_heade
     assert request.headers["x-goog-api-key"] == KEY
     assert json.loads(request.content) == {
         "model": "gemini-3.8-flash-tts",
-        "input": [{"type": "user_input", "content": [{
-            "type": "text", "text": "Merhaba!",
-            "annotations": [{"type": "speech_metadata", "style": "warm"}],
-        }]}],
+        "input": [
+            {
+                "type": "user_input",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Merhaba!",
+                        "annotations": [{"type": "speech_metadata", "style": "warm"}],
+                    }
+                ],
+            }
+        ],
         "response_format": {"type": "audio"},
         "generation_config": {"speech_config": [{"voice": "Kore"}]},
     }
@@ -90,20 +105,29 @@ def test_an_answer_with_no_sound_in_it_is_a_failure(monkeypatch, body):
         say()
 
 
-@pytest.mark.parametrize("item", [
-    audio(b"\x01\x00\x02\x00", mime_type="audio/l16"),
-    audio(b"\x01\x00\x02\x00", mimeType="audio/L16;codec=pcm;rate=24000"),
-    audio(b"\x01\x00\x02\x00"),  # not RIFF/WAVE: taken for what L16 is
-])
+@pytest.mark.parametrize(
+    "item",
+    [
+        audio(b"\x01\x00\x02\x00", mime_type="audio/l16"),
+        audio(b"\x01\x00\x02\x00", mimeType="audio/L16;codec=pcm;rate=24000"),
+        audio(b"\x01\x00\x02\x00"),  # not RIFF/WAVE: taken for what L16 is
+    ],
+)
 def test_bare_sound_is_given_a_wav_header(monkeypatch, item):
     answering(monkeypatch, 200, sound(item))
     assert say() == wav_of(b"\x01\x00\x02\x00")
 
 
 def test_several_pieces_of_sound_are_joined_in_order(monkeypatch):
-    answering(monkeypatch, 200, sound(
-        audio(wav_of(b"\x01\x00")), audio(b"\x02\x00", mime_type="audio/l16"), audio(wav_of(b"\x03\x00")),
-    ))
+    answering(
+        monkeypatch,
+        200,
+        sound(
+            audio(wav_of(b"\x01\x00")),
+            audio(b"\x02\x00", mime_type="audio/l16"),
+            audio(wav_of(b"\x03\x00")),
+        ),
+    )
     assert say() == wav_of(b"\x01\x00\x02\x00\x03\x00")
 
 

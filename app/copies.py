@@ -34,9 +34,17 @@ MAX_BYTES = 500 * 1024 * 1024
 # Left out of a copy, and of what is taken back from it, at any depth: git's own folder
 # (a copy of it would run the repository's hooks and settings; git does not work in a
 # copy) and what tools write for themselves.
-NOT_COPIED = frozenset({
-    ".git", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "dist", "build",
-})
+NOT_COPIED = frozenset(
+    {
+        ".git",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+        "dist",
+        "build",
+    }
+)
 # Not copied but linked to the project's own, at any depth: installed dependencies.
 LINKED = frozenset({"node_modules", ".venv", "venv"})
 # The teams' shared folder (`app.shared`): left out by its path, not its name - the project's
@@ -51,8 +59,7 @@ FOLDER = "copies"
 # read as their instructions from the folders above the one they are started in.
 MARKS = (".git", "AGENTS.md", "CLAUDE.md", "GEMINI.md", ".claude")
 NO_PLACE = (
-    "no folder for working copies is outside every repository and every CLI's "
-    "instruction files"
+    "no folder for working copies is outside every repository and every CLI's instruction files"
 )
 # A copy's folder holds the tree the agent works in and, beside it - not in it - what
 # every file held when it was copied: after a restart that is what its files are
@@ -78,8 +85,9 @@ OUTSIDE = "it leads out of the project folder, or of the copy, through a link"
 IGNORED = "not offered: ignored by git - it is not kept"
 # K-kopya-git: a file git ignores that the project has, which a copy of what git tracks did not
 # hold, written in the copy by its agent (`Copy.state`: a conflict of whole files).
-NOT_HELD = ("the copy did not hold this file (git ignores it): taking the agent's replaces the "
-            "project's")
+NOT_HELD = (
+    "the copy did not hold this file (git ignores it): taking the agent's replaces the project's"
+)
 # Why a file of a copy that does not say what it was made from is not offered.
 NOT_OFFERED = (
     "it differs from the project's and is not offered: what this copy started from is "
@@ -108,7 +116,8 @@ def _clear(place: Path) -> bool:
     home = Path(os.path.expanduser("~"))
     return not any(
         os.path.lexists(above / mark)
-        for above in (place, *place.parents) for mark in MARKS
+        for above in (place, *place.parents)
+        for mark in MARKS
         if not (mark == ".claude" and above == home)
     )
 
@@ -135,9 +144,9 @@ def folders(runtime_root: Path) -> list[Path]:
     """Every folder a copy may be in: where they are made first, then the other of the
     two (`_both`) - a copy that was kept is still where it was made, whatever has been
     put above either folder, or taken away, since. Nothing is deleted anywhere else."""
-    return list(dict.fromkeys(
-        held for held in (folder(runtime_root), *_both(runtime_root)) if held
-    ))
+    return list(
+        dict.fromkeys(held for held in (folder(runtime_root), *_both(runtime_root)) if held)
+    )
 
 
 def ceiling(tree: Path) -> str:
@@ -168,9 +177,21 @@ def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
     empty = tree.parent / NO_HOOKS
     empty.mkdir(exist_ok=True)
     ours = "'" + f"core.hooksPath={empty}".replace("'", "'\\''") + "'"  # (git's own quoting)
-    return {"GIT_CEILING_DIRECTORIES": ceiling(tree), "GIT_CONFIG_PARAMETERS": " ".join(
-        filter(None, [env.get("GIT_CONFIG_PARAMETERS"), ours, "'core.fsmonitor=false'",
-                      "'commit.gpgsign=false'", "'core.logAllRefUpdates=true'"]))}
+    return {
+        "GIT_CEILING_DIRECTORIES": ceiling(tree),
+        "GIT_CONFIG_PARAMETERS": " ".join(
+            filter(
+                None,
+                [
+                    env.get("GIT_CONFIG_PARAMETERS"),
+                    ours,
+                    "'core.fsmonitor=false'",
+                    "'commit.gpgsign=false'",
+                    "'core.logAllRefUpdates=true'",
+                ],
+            )
+        ),
+    }
 
 
 def _key(path: str) -> str:
@@ -186,8 +207,13 @@ def _is_link(path: Path) -> bool:
 # said so - the Lead told the user the venv was there. Of the folders Take in leaves out, the ones
 # an agent makes to install or build into (`__pycache__` and the tools' caches go unsaid: every
 # run makes them), how each is made again in the project.
-MADE_HOW = {".venv": "`python -m venv .venv`", "venv": "`python -m venv venv`",
-            "node_modules": "`npm install`", "dist": "its build", "build": "its build"}
+MADE_HOW = {
+    ".venv": "`python -m venv .venv`",
+    "venv": "`python -m venv venv`",
+    "node_modules": "`npm install`",
+    "dist": "its build",
+    "build": "its build",
+}
 MADE_NAMED = 3
 LEFT_IN_COPY = "The {names} made in the copy {stay} out of the project: make {it} there with {how}."
 
@@ -198,17 +224,24 @@ def left_in(tree: Path) -> str:
     shortcut: the top of the tree only - a part's own node_modules below it goes unsaid; look one
     level down if that is missed."""
     try:
-        made = sorted(entry.name for entry in os.scandir(tree)
-                      if entry.name.casefold() in MADE_HOW and entry.is_dir(follow_symlinks=False)
-                      and not _is_link(Path(entry.path)))[:MADE_NAMED]
+        made = sorted(
+            entry.name
+            for entry in os.scandir(tree)
+            if entry.name.casefold() in MADE_HOW
+            and entry.is_dir(follow_symlinks=False)
+            and not _is_link(Path(entry.path))
+        )[:MADE_NAMED]
     except OSError:
         return ""
     if not made:
         return ""
     one = len(made) == 1
     return LEFT_IN_COPY.format(
-        names=", ".join(made), stay="stays" if one else "stay", it="it" if one else "them",
-        how=" and ".join(dict.fromkeys(MADE_HOW[name.casefold()] for name in made)))
+        names=", ".join(made),
+        stay="stays" if one else "stay",
+        it="it" if one else "them",
+        how=" and ".join(dict.fromkeys(MADE_HOW[name.casefold()] for name in made)),
+    )
 
 
 def digest(path: Path, follow: bool = False) -> str | None:
@@ -311,15 +344,22 @@ def _held(project: Path, part: str | None, listed: list[str] | None) -> list[str
     if listed is not None:
         # A folder is listed by its name where it is a submodule: the part itself, or one in
         # it, is held; one at the root is not a root file.
-        return [path for path in listed if _key(path.rstrip("/") + "/").startswith(_key(part))
-                or ("/" not in path and not (project / path).is_dir())]
+        return [
+            path
+            for path in listed
+            if _key(path.rstrip("/") + "/").startswith(_key(part))
+            or ("/" not in path and not (project / path).is_dir())
+        ]
     with os.scandir(project) as found:
         return [part, *(entry.name for entry in found if entry.is_file(follow_symlinks=False))]
 
 
 def _scan(
-    top: Path, avoid: Path | None = None, held: list[str] | None = None,
-    left: list[str] | None = None, stop: bool = False,
+    top: Path,
+    avoid: Path | None = None,
+    held: list[str] | None = None,
+    left: list[str] | None = None,
+    stop: bool = False,
 ) -> tuple[list[str], list[str], int]:
     """The files of a folder that belong in a copy, the folders that are linked instead,
     and the files' size - paths inside `top`, with forward slashes. No link is followed;
@@ -347,14 +387,17 @@ def _scan(
             link = _is_link(path)
             # A folder of such a name is left out - a file of it is a file like any
             # other (a `build` script), but for git's own.
-            if name.casefold() == ".git" or relative.casefold() in (SHARED, SCRATCH) or (
-                name.casefold() in NOT_COPIED and (link or entry.is_dir(follow_symlinks=False))
+            if (
+                name.casefold() == ".git"
+                or relative.casefold() in (SHARED, SCRATCH)
+                or (name.casefold() in NOT_COPIED and (link or entry.is_dir(follow_symlinks=False)))
             ):
                 continue
             # (A repository's code a knowledge keeps - thousands of files to read, never to
             # change - is linked as the dependencies are: its expert reads it from a copy too.)
             if (name.casefold() in LINKED or is_kept_code(relative.split("/"))) and (
-                    link or entry.is_dir(follow_symlinks=False)):
+                link or entry.is_dir(follow_symlinks=False)
+            ):
                 if path.is_dir() and path.resolve().is_relative_to(whole):
                     links.append(relative)
             elif link or (avoid is not None and path == avoid) or ours.koloni_s(whole / relative):
@@ -430,7 +473,8 @@ class Copy:
     # Of this process alone, by path: what the project's file held just before and just after
     # it was taken (None: no file) - the agent's change, for its commit (`git.commit`).
     was: dict[str, tuple[bytes | None, bytes | None]] = field(
-        default_factory=dict, repr=False, compare=False)
+        default_factory=dict, repr=False, compare=False
+    )
     # When it was made, in this process (None: loaded from disk): a change record of its line
     # from before then is another copy's (B-322: a stopped agent's kept one).
     # shortcut: a wall-clock time - the records' rowid is no sure order (a deleted
@@ -516,9 +560,17 @@ class Copy:
         # somewhere else - is taken away, and a new one made: never written through.
         new.unlink(missing_ok=True)
         with new.open("x", encoding="utf-8") as file:
-            file.write(json.dumps({"files": held, "joined": self.joined, "git": self.git,
-                                   "left": list(self.left[:MAX_LEFT]),
-                                   "secret_held": list(self.secret_held)}))
+            file.write(
+                json.dumps(
+                    {
+                        "files": held,
+                        "joined": self.joined,
+                        "git": self.git,
+                        "left": list(self.left[:MAX_LEFT]),
+                        "secret_held": list(self.secret_held),
+                    }
+                )
+            )
         os.replace(new, target)
 
     def workspace(self) -> Workspace:
@@ -551,8 +603,11 @@ class Copy:
             return None
         place = _inside(self._kept, path)
         try:
-            data = place.read_bytes() if place and not _is_link(place) and place.is_file() else (
-                self._from_git(path))
+            data = (
+                place.read_bytes()
+                if place and not _is_link(place) and place.is_file()
+                else (self._from_git(path))
+            )
         except OSError:
             data = None
         return data if data is not None and hashlib.sha256(data).hexdigest() == was else None
@@ -570,8 +625,9 @@ class Copy:
         from app import git  # (here: git's executors import commands, which imports this)
 
         try:
-            return git.blob_at(self.project, commit, self.names.get(_key(path), path),
-                               MAX_BASE_TEXT)
+            return git.blob_at(
+                self.project, commit, self.names.get(_key(path), path), MAX_BASE_TEXT
+            )
         except git.Refused:
             return None
 
@@ -609,7 +665,9 @@ class Copy:
         return (digest(there) if there else OUTSIDE, digest(here) if here else OUTSIDE)
 
     def state(
-        self, path: str, base: dict[str, str] | None = None,
+        self,
+        path: str,
+        base: dict[str, str] | None = None,
         sides: tuple[str | None, str | None] | None = None,
     ) -> tuple[str, str] | None:
         """How one file of the copy stands against the project right now: its kind
@@ -628,8 +686,11 @@ class Copy:
             # K-buyuk-proje: not this part copy's - a file a command made there is shown and
             # kept for the user (`NOT_IN_PART`); one it does not hold is no deletion, nor is a
             # root file it left as it was that the project has made a folder since.
-            return None if here in (None, OUTSIDE, there, was) else (
-                "new" if there is None else "changed", "left_out")
+            return (
+                None
+                if here in (None, OUTSIDE, there, was)
+                else ("new" if there is None else "changed", "left_out")
+            )
         if self.two_way:
             # Nothing says what the copy was made from: a file it holds that is not the
             # project's is shown against that, never "ready"; one it does not hold may
@@ -681,18 +742,30 @@ class Copy:
             state = self.state(path, base)
             if state is not None and not _apart(path, self._projects, (self.project, self.root)):
                 found.append((path, *state))
-        unknown = [path for path, kind, _state in found
-                   if kind == "new" and _key(path) not in self.ignores]
+        unknown = [
+            path for path, kind, _state in found if kind == "new" and _key(path) not in self.ignores
+        ]
         if unknown:
             from app import git  # (here: git's executors import commands, which imports this)
 
-            hit = (git.ignored(self.project, unknown, above=True) if self.git
-                   else git.ignored(self.project, unknown))
+            hit = (
+                git.ignored(self.project, unknown, above=True)
+                if self.git
+                else git.ignored(self.project, unknown)
+            )
             self.ignores.update({_key(path): path in hit for path in unknown})
         # (`git`: one the project has, which a copy of what git tracks did not hold, is a
         # conflict - "ready" is one it has not: the agent never saw it, and it is not lost.)
-        return [(path, kind, "left_out" if kind == "new" and (state == "ready" or not self.git)
-                 and self.ignored(path) else state) for path, kind, state in found]
+        return [
+            (
+                path,
+                kind,
+                "left_out"
+                if kind == "new" and (state == "ready" or not self.git) and self.ignored(path)
+                else state,
+            )
+            for path, kind, state in found
+        ]
 
     def taken(self, path: str) -> None:
         """The project now holds the copy's file: that is what the copy was made from,
@@ -743,12 +816,19 @@ class Copy:
         # As the copy was made: of what git would track - and, where git does not answer now,
         # of the copy's own files alone, not of all that it ignores.
         listed = _git_listed(self.project) if self.git else None
-        files = [] if self.git and listed is None else _scan(
-            self.project, avoid=self.root.parent.parent.resolve(),
-            held=_held(self.project, self.part, listed))[0]
+        files = (
+            []
+            if self.git and listed is None
+            else _scan(
+                self.project,
+                avoid=self.root.parent.parent.resolve(),
+                held=_held(self.project, self.part, listed),
+            )[0]
+        )
         now = {_key(path): path for path in files}
         return [
-            path for key in sorted(set(base) | set(now))
+            path
+            for key in sorted(set(base) | set(now))
             if digest(self.project / (path := now.get(key) or names[key])) != base.get(key)
         ]
 
@@ -767,7 +847,8 @@ class Copy:
         changed or gone since - in path order. The whole copy is read: for a thread."""
         files, _links, _size = _scan(self.root)
         return [
-            path for path in sorted(set(was) | set(files))
+            path
+            for path in sorted(set(was) | set(files))
             if (digest(place) if (place := self.here(path)) else OUTSIDE) != was.get(path)
         ]
 
@@ -869,16 +950,19 @@ def make(
     listed, left = None, []
     # A project that holds the copies folder does not copy the copies into themselves.
     try:
-        files, links, _size = _scan(project, avoid=held.resolve(), held=_held(project, part, None),
-                                    left=left, stop=True)
+        files, links, _size = _scan(
+            project, avoid=held.resolve(), held=_held(project, part, None), left=left, stop=True
+        )
     except TooBig:
         listed, left = _git_listed(project), []
         if listed is None:
             raise
-        files, links, _size = _scan(project, avoid=held.resolve(), held=_held(
-            project, part, listed), left=left, stop=True)
-    copy = Copy(project, root, {}, {}, {}, git=listed is not None, left=tuple(sorted(left)),
-                part=part)
+        files, links, _size = _scan(
+            project, avoid=held.resolve(), held=_held(project, part, listed), left=left, stop=True
+        )
+    copy = Copy(
+        project, root, {}, {}, {}, git=listed is not None, left=tuple(sorted(left)), part=part
+    )
     root.mkdir(parents=True)
     try:
         for path in files:
@@ -920,8 +1004,9 @@ def bring(source: Copy, into: Copy, paths: Iterable[str], was: dict[str, str | N
     return _carry(source, into, paths, was)
 
 
-def _carry(source: Copy, copy: Copy, paths: Iterable[str],
-           was: dict[str, str | None] | None = None) -> list[str]:
+def _carry(
+    source: Copy, copy: Copy, paths: Iterable[str], was: dict[str, str | None] | None = None
+) -> list[str]:
     """Each of `paths` written into `copy` as `source` holds it, or deleted there - never
     through a link of either (`Copy.here`), nor over a file `copy` holds otherwise than `was`
     says. Returns the paths that could not be."""
@@ -946,8 +1031,14 @@ def _carry(source: Copy, copy: Copy, paths: Iterable[str],
 
 
 def make_branch(
-    project: Path, runtime_root: Path, name: str, short: str, linked: bool = True,
-    start: Sequence[str] | None = None, tip: str | None = None, snapshot: str | None = None,
+    project: Path,
+    runtime_root: Path,
+    name: str,
+    short: str,
+    linked: bool = True,
+    start: Sequence[str] | None = None,
+    tip: str | None = None,
+    snapshot: str | None = None,
 ) -> Copy:
     """K-dal-takim: a copy whose tree is a git worktree on a new branch `koloni/<short>`, made
     from the user's folder as it is - or, over a copy's caps in new files or with an older git,
@@ -973,17 +1064,34 @@ def make_branch(
     try:
         if again:
             branch, into, sha = git.reopen_worktree(
-                project, root, short, root.parent / NO_HOOKS, start, tip,
-                under=folders(runtime_root))
+                project,
+                root,
+                short,
+                root.parent / NO_HOOKS,
+                start,
+                tip,
+                under=folders(runtime_root),
+            )
         else:
             branch, into, sha, snapshot, why, left = git.add_worktree(
-                project, root, short, root.parent / NO_HOOKS, (MAX_FILES, MAX_BYTES))
+                project, root, short, root.parent / NO_HOOKS, (MAX_FILES, MAX_BYTES)
+            )
         files, _links, _size = _scan(root, stop=True)
         listed = _git_listed(project)
         links = _scan(project, avoid=held.resolve(), held=listed)[1] if listed is not None else []
-        copy = Copy(project, root, {}, {}, {}, git=True, branch=branch,
-                    start=(into, sha), snapshot_sha=snapshot, from_head=why,
-                    not_taken=tuple(left))
+        copy = Copy(
+            project,
+            root,
+            {},
+            {},
+            {},
+            git=True,
+            branch=branch,
+            start=(into, sha),
+            snapshot_sha=snapshot,
+            from_head=why,
+            not_taken=tuple(left),
+        )
         for path in files:
             copy.base[_key(path)] = hashlib.sha256((root / path).read_bytes()).hexdigest()
             copy.names[_key(path)] = path
@@ -999,8 +1107,9 @@ def make_branch(
             remove(runtime_root, name)
         if branch is not None:
             with contextlib.suppress(git.Refused):
-                git.drop_branch(project, root, branch, Path(runtime_root) / "no-hooks",
-                                force=True, keep=again)
+                git.drop_branch(
+                    project, root, branch, Path(runtime_root) / "no-hooks", force=True, keep=again
+                )
         raise
     return copy
 
@@ -1037,8 +1146,11 @@ def load(project: Path, runtime_root: Path, name: str, part: str | None = None) 
     ):
         raise ValueError(said)
     files = {
-        path: was for path, was in files.items()
-        if _holds(part, path, Path(project)) and "\\" not in path and ":" not in path
+        path: was
+        for path, was in files.items()
+        if _holds(part, path, Path(project))
+        and "\\" not in path
+        and ":" not in path
         and not any(part in ("", ".", "..") for part in path.split("/"))
         and not _apart(path, None, (Path(project), held / TREE))
     }
@@ -1046,23 +1158,36 @@ def load(project: Path, runtime_root: Path, name: str, part: str | None = None) 
     left = found.get("left")  # (said to agents: plain short names only)
     secret = found.get("secret_held")
     return Copy(
-        Path(project).resolve(), held / TREE,
+        Path(project).resolve(),
+        held / TREE,
         {_key(path): was for path, was in files.items()},
-        {_key(path): path for path in files}, {}, git=found.get("git") is True, part=part,
-        left=tuple(name for name in (left if isinstance(left, list) else [])[:MAX_LEFT]
-                   if isinstance(name, str) and 0 < len(name) <= 255 and name.isprintable()),
+        {_key(path): path for path in files},
+        {},
+        git=found.get("git") is True,
+        part=part,
+        left=tuple(
+            name
+            for name in (left if isinstance(left, list) else [])[:MAX_LEFT]
+            if isinstance(name, str) and 0 < len(name) <= 255 and name.isprintable()
+        ),
         joined={
-            path: was for path, was in (joined.items() if isinstance(joined, dict) else ())
+            path: was
+            for path, was in (joined.items() if isinstance(joined, dict) else ())
             if path in files and isinstance(was, str)
         },
-        secret_held=tuple(path for path in (secret if isinstance(secret, list) else [])
-                          if isinstance(path, str)),
+        secret_held=tuple(
+            path for path in (secret if isinstance(secret, list) else []) if isinstance(path, str)
+        ),
     )
 
 
 def kept(
-    project: Path, runtime_root: Path, name: str, tree: Path | None = None,
-    recorded: Iterable[str] = (), part: str | None = None,
+    project: Path,
+    runtime_root: Path,
+    name: str,
+    tree: Path | None = None,
+    recorded: Iterable[str] = (),
+    part: str | None = None,
 ) -> Copy:
     """A copy left on disk as it can be compared: by what it was made from (`load`) or,
     where that cannot be read - or the copy is from before it was written down - with
@@ -1077,8 +1202,11 @@ def kept(
         return load(project, runtime_root, name, part)
     except (OSError, ValueError):
         held = place(runtime_root, name)
-        if tree is None or tree not in (held, held / TREE) or not tree.is_dir() or any(
-            _is_link(one) for one in (held.parent, held, held / TREE)
+        if (
+            tree is None
+            or tree not in (held, held / TREE)
+            or not tree.is_dir()
+            or any(_is_link(one) for one in (held.parent, held, held / TREE))
         ):
             raise
         # The note of what a copy was made from is KOLONİ's own, not a file of the

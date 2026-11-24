@@ -80,13 +80,15 @@ log = logging.getLogger("app.agent")
 # tries one anyway is refused with these words, and may end saying it could not read a file.
 CODEX_OWN_TOOLS = "code-mode host is disabled"
 CODEX_TOOLS_OFF = (
-    "Codex's own tools are off here (\"code-mode host is disabled\"): do not try them. Use the "
-    "tools listed under \"tools\" by writing a request for each into the \"tool_calls\" of your "
+    'Codex\'s own tools are off here ("code-mode host is disabled"): do not try them. Use the '
+    'tools listed under "tools" by writing a request for each into the "tool_calls" of your '
     "answer, as the rules at the top say - that works for every one of them. Go on with your "
-    "task.")
+    "task."
+)
 CODEX_TOOLS_FAILED = (
     "could not {work}: Codex kept trying its own tools, which are off in step mode. Try running "
-    "Codex as One session per agent (Models › Codex › How it runs).")
+    "Codex as One session per agent (Models › Codex › How it runs)."
+)
 # shortcut: 3 from three measured gpt-6-luna steps (6 Nov 2026: one in three tried its own tool
 # first); raise it if live runs show longer streaks.
 CODEX_TRIES = 3
@@ -159,8 +161,7 @@ SUMMARISED_FOR_NEXT = (
 # was refused for its size again after that.
 STARTED_AGAIN = "Its context was full: its earlier work was summarised and the turn started again."
 FULL_AGAIN = (
-    " Its context filled again after KOLONİ summarised its earlier work and started the turn "
-    "again."
+    " Its context filled again after KOLONİ summarised its earlier work and started the turn again."
 )
 FULL_AGAIN_DO = " Use Compact now or set a smaller context window on its role."
 # Refused for its size with nothing a summary could stand for (the live refusal: a message of
@@ -187,7 +188,8 @@ NO_COPY_FOR_A_JOB = (
 # `reasoning_effort`): the step was asked again without it, and none goes from then on.
 EFFORT_REFUSED = (
     "{provider} refused reasoning level {asked}: this step was asked again without one, and "
-    "none is sent to it until the provider is changed.")
+    "none is sent to it until the provider is changed."
+)
 # Its model said which levels it takes instead (`StepResult.effort_instead`).
 EFFORT_INSTEAD = "{model} does not take {asked}; sent {sent}"
 # Its level where its model does not take it (`sent_effort`): the nearest lower one it does.
@@ -201,8 +203,7 @@ EFFORT_COPILOT_AUTO = "{asked} → none: Copilot's auto picks the model and its 
 # (`spawn_mixin.AUTO_START`, under the role's most), said at its first step.
 EFFORT_AUTO = "Thinking {level}, KOLONİ's default for Auto (the opener gave no level)."
 EFFORT_AUTO_OFF = "Thinking Off (the role's most)."
-EFFORT_AUTO_UNSENT = ("KOLONİ's default for Auto, {level}: its model takes no levels: none is "
-                      "sent.")
+EFFORT_AUTO_UNSENT = "KOLONİ's default for Auto, {level}: its model takes no levels: none is sent."
 # Said on its record where a step was asked once more, with the same model, after a short
 # failure of its provider (`model_client.brief`, 93-B3); the last such step.
 RETRIED = "A step was asked again once, after a short failure of its provider: {why}"
@@ -271,32 +272,53 @@ class LoopMixin:
             # (slice 61: not with a web tool switched off on the Tools page) The code's is
             # scanned on the Knowledge page, with no model (K-bilgi 8); the Project notes are
             # written from the user's ticks (K-bilgi 6).
-            if known is not None and root is not None and knowledge.learns_itself(known) and (
+            if (
+                known is not None
+                and root is not None
+                and knowledge.learns_itself(known)
+                and (
                     not (needs := knowledge.web_tools(known))
-                    or above is not None and needs <= set(self._caps(above)) - self._off()):
+                    or above is not None
+                    and needs <= set(self._caps(above)) - self._off()
+                )
+            ):
                 tools = [*tools, LEARN]
             # Its web search while answering, where the user switched it on - and its opener
             # searches too: through `_web`, asked as any search is.
-            if known is not None and known.get("search_answering") and above is not None and (
-                    "web_search" in self._caps(above)):
+            if (
+                known is not None
+                and known.get("search_answering")
+                and above is not None
+                and ("web_search" in self._caps(above))
+            ):
                 tools = [*tools, "web_search"]
             # R161 (live): with none, its "Not in my documents - allow a web search?"
             # (`knowledge.brief`) is asked with ask_user, which an expert made on the Agents page
             # was not given: it said "not in its sources" and asked nothing. Under an opener that
             # may ask, as any agent's question.
-            if known is not None and not {"web_search", "ask_user"} & set(tools) and (
-                    above is not None and "ask_user" in self._caps(above)):
+            if (
+                known is not None
+                and not {"web_search", "ask_user"} & set(tools)
+                and (above is not None and "ask_user" in self._caps(above))
+            ):
                 tools = [*tools, "ask_user"]
             role_steps, role_tokens = (
-                (limits.max_steps, limits.max_tokens) if limits else (None, None))
+                (limits.max_steps, limits.max_tokens) if limits else (None, None)
+            )
             window = limits.context_window if limits else None
             effort = effort or (limits.effort if limits else None)
             # The MCP servers it may use: its role's, and like its tools never one the
             # agent that opens it has not (the lead, which nobody opens, has its role's).
             # (None at all for S3's Reviewer: an MCP server's tools may change things.)
-            mcp = [name for name in (limits.mcp if limits else [])
-                   if parent_id is None or (above is not None and name in above.mcp)
-                   ] if call_id not in self._read_only_calls else []
+            mcp = (
+                [
+                    name
+                    for name in (limits.mcp if limits else [])
+                    if parent_id is None or (above is not None and name in above.mcp)
+                ]
+                if call_id not in self._read_only_calls
+                else []
+            )
             # A role from before names were checked: its agents are named, and told what
             # they are, without what does not print.
             role = shown_name(role)
@@ -317,11 +339,11 @@ class LoopMixin:
             provider = session.get(Provider, provider_id) if provider_id else None
             # K-skill-uyum: what of its role's skills it starts with, and why not the others -
             # on its record for its spawn card and the skills' track record (K-skill-puan).
-            given, left_out = self._skill_split(session, role, tools, mcp, provider_id,
-                                                model_name)
+            given, left_out = self._skill_split(session, role, tools, mcp, provider_id, model_name)
             agent = Agent(
                 skills={"given": [skill.name for skill in given], "left_out": left_out}
-                if given or left_out else None,
+                if given or left_out
+                else None,
                 run_id=run_id,
                 parent_agent_id=parent_id,
                 tool_call_id=call_id,
@@ -346,10 +368,27 @@ class LoopMixin:
             agent_id, payload = agent.id, agent_out(agent)
         self.bus.emit(cid, run_id, "agent.created", payload)
         ctx = Ctx(
-            run_id, cid, root, agent_id, role, tuple(tools), depth, instructions, task,
-            parent_role, model, provider_name, name, parent_id,
-            provider_id=provider_id, model_name=model_name, continues_id=continues_id,
-            role_steps=role_steps, role_tokens=role_tokens, mcp=tuple(mcp), effort=effort,
+            run_id,
+            cid,
+            root,
+            agent_id,
+            role,
+            tuple(tools),
+            depth,
+            instructions,
+            task,
+            parent_role,
+            model,
+            provider_name,
+            name,
+            parent_id,
+            provider_id=provider_id,
+            model_name=model_name,
+            continues_id=continues_id,
+            role_steps=role_steps,
+            role_tokens=role_tokens,
+            mcp=tuple(mcp),
+            effort=effort,
             context_window=window,
             # Its opener's part, unless spawn_agent gives it one (`_spawn_one`).
             # shortcut: one gone on with in a later turn is in its opener's part, not the one
@@ -367,18 +406,26 @@ class LoopMixin:
         if "error" in fields:
             # Why its model failed goes on record with the error, and goes with it.
             fields["failure"], fields["failure_resets_at"] = self._why_failed(
-                agent_id, fields["error"])
+                agent_id, fields["error"]
+            )
         with self._factory() as session:
             agent = session.get_one(Agent, agent_id)
             if "copy" in fields:
                 # K-buyuk-proje: the part of each copy it had, by tree, outlives a later copy's
                 # record: a kept one is compared by its own (`_kept_as`). A copy made at a tree
                 # says its own (None: whole) - one of before at that place is gone.
-                parts = {tree: part for tree, part in {
-                    **((agent.copy or {}).get("parts") or {}),
-                    **fields["copy"].get("parts", {})}.items() if part}
-                fields["copy"] = {**{k: v for k, v in fields["copy"].items() if k != "parts"},
-                                  **({"parts": parts} if parts else {})}
+                parts = {
+                    tree: part
+                    for tree, part in {
+                        **((agent.copy or {}).get("parts") or {}),
+                        **fields["copy"].get("parts", {}),
+                    }.items()
+                    if part
+                }
+                fields["copy"] = {
+                    **{k: v for k, v in fields["copy"].items() if k != "parts"},
+                    **({"parts": parts} if parts else {}),
+                }
             for key, value in fields.items():
                 setattr(agent, key, value)
             session.commit()
@@ -386,19 +433,27 @@ class LoopMixin:
         self.bus.emit(cid, run_id, "agent.updated", payload)
         # (K-yavas: a step or a call of it began, or a call ended - its own, not one of its answer
         # to a message or its speech beside its work, whose ctx `_ctxs` does not hold)
-        if "last_event_at" in fields and agent_id not in self._answering and (
-                known := self._ctxs.get(agent_id)) is not None:
+        if (
+            "last_event_at" in fields
+            and agent_id not in self._answering
+            and (known := self._ctxs.get(agent_id)) is not None
+        ):
             self._slow(known)
         status = fields.get("status")
         if status in ("waiting", "completed", "failed"):
             # K-oda-takim: an agent `discuss` was refused (at work) may join now: its asker is told.
             for asker in self._discuss_later.pop(agent_id, ()):
                 if (told := self._ctxs.get(asker)) is not None:
-                    self._nudge(told, DISCUSS_NOW.format(
-                        name=payload["name"], state="waiting" if status == "waiting" else "done"))
+                    self._nudge(
+                        told,
+                        DISCUSS_NOW.format(
+                            name=payload["name"], state="waiting" if status == "waiting" else "done"
+                        ),
+                    )
 
-    def _close_agents(self: "AgentRunner", run_id: str, cid: str, status: str,
-                      error: str | None) -> None:
+    def _close_agents(
+        self: "AgentRunner", run_id: str, cid: str, status: str, error: str | None
+    ) -> None:
         """End every agent of a run that is still open, the way the run itself ended."""
         with self._factory() as session:
             still_open = session.scalars(
@@ -409,8 +464,7 @@ class LoopMixin:
                 agent.status = "rejected" if waiting_to_start else status
                 agent.error = None if waiting_to_start else error
                 # (The lead's: only an agent's own model's failure is ever kept for it.)
-                agent.failure, agent.failure_resets_at = self._why_failed(
-                    agent.id, agent.error)
+                agent.failure, agent.failure_resets_at = self._why_failed(agent.id, agent.error)
                 agent.ended_at = now()
                 agent.waiting_for = None
                 # A turn stopped for its budget (a trigger's, or its project's tokens).
@@ -421,8 +475,9 @@ class LoopMixin:
         for payload in payloads:
             self.bus.emit(cid, run_id, "agent.updated", payload)
 
-    async def _loop_again(self: "AgentRunner", ctx: Ctx, info: ModelInfo,
-                          again: bool) -> tuple[str, str | None]:
+    async def _loop_again(
+        self: "AgentRunner", ctx: Ctx, info: ModelInfo, again: bool
+    ) -> tuple[str, str | None]:
         """`_attempt`'s loop. `again` (the user's, 14 Nov 2026): refused for its size, a lead
         working alone has its older part summarised and is started again from the summary, in
         the same turn - once: refused so again, it fails, saying what to do.
@@ -436,8 +491,11 @@ class LoopMixin:
         except ModelUnavailable as exc:
             refused = refused_for_size(exc)
             # (The lead as it runs now: its model may have changed since - `_steps_keep_model`.)
-            if not (again and refused and await self._summarised_again(
-                    self._ctxs.get(ctx.agent_id, ctx), info)):
+            if not (
+                again
+                and refused
+                and await self._summarised_again(self._ctxs.get(ctx.agent_id, ctx), info)
+            ):
                 if refused:  # (what the summary after its turn goes by: `_summary_after`)
                     self._refused_size.add(ctx.agent_id)
                     self._refusal_says(ctx, exc, "" if again else None)
@@ -451,8 +509,9 @@ class LoopMixin:
                 self._refusal_says(ctx, exc, FULL_AGAIN)
             raise
 
-    def _refusal_says(self: "AgentRunner", ctx: Ctx, exc: ModelUnavailable,
-                      before: str | None) -> None:
+    def _refusal_says(
+        self: "AgentRunner", ctx: Ctx, exc: ModelUnavailable, before: str | None
+    ) -> None:
         """`_loop_again`: what a refusal for its size says to the user besides the CLI's own
         line, after `before` (None: nothing - a turn nobody watches). Where nothing is left
         that a summary could stand for, that what it is sent is itself too large; else, after
@@ -468,8 +527,9 @@ class LoopMixin:
         if more:
             exc.args = (f"{exc}{before}{more}",)
 
-    async def _attempt(self: "AgentRunner", ctx: Ctx,
-                       again: bool = False) -> tuple[str, str | None]:
+    async def _attempt(
+        self: "AgentRunner", ctx: Ctx, again: bool = False
+    ) -> tuple[str, str | None]:
         run_id, cid = ctx.run_id, ctx.cid
         stopped = False
         try:
@@ -495,18 +555,20 @@ class LoopMixin:
                 self._stopped_by_koloni(ctx)
                 return "failed", refused
             self._still_allowed(ctx)
-            if self._sides.get(run_id) == ctx.agent_id and await self._working_copy(
-                    ctx, ctx.agent_id) is None:
+            if (
+                self._sides.get(run_id) == ctx.agent_id
+                and await self._working_copy(ctx, ctx.agent_id) is None
+            ):
                 # Made before its first step: a side that cannot be copied changes nothing.
                 return "failed", NO_COPY_FOR_A_SIDE
-            if self._away_jobs.get(run_id) == ctx.agent_id and await self._working_copy(
-                    ctx, ctx.agent_id) is None:
+            if (
+                self._away_jobs.get(run_id) == ctx.agent_id
+                and await self._working_copy(ctx, ctx.agent_id) is None
+            ):
                 return "failed", NO_COPY_FOR_A_JOB  # (nor a job while the user is away)
             info = await self._model_of(ctx).info()
             self._update_run(run_id, cid, model_id=info.model_id)
-            self._set_agent(
-                cid, ctx.agent_id, model_id=info.model_id, model_from=info.model_from
-            )
+            self._set_agent(cid, ctx.agent_id, model_id=info.model_id, model_from=info.model_from)
             self._native_no_recipe(ctx)
             return await self._loop_again(ctx, info, again)
         except asyncio.CancelledError:
@@ -556,27 +618,50 @@ class LoopMixin:
         started it, the lead's answer, its agents' reports (`earlier.said_in`) - each in
         quotes and cut to a size, and the names of the files that changed. Nothing a
         tool returned."""
+
         def quote(said: str) -> str:
-            return quoted(said if len(said) <= SAID_TO_SUMMARISER
-                          else said[:SAID_TO_SUMMARISER] + " " + kept.CUT)
+            return quoted(
+                said
+                if len(said) <= SAID_TO_SUMMARISER
+                else said[:SAID_TO_SUMMARISER] + " " + kept.CUT
+            )
 
         lines = [
             f"The message of the trigger that started it: {quote(said)}"
-            for said in session.scalars(select(Message.content).where(
-                Message.run_id == ctx.run_id, Message.role == "trigger"))
+            for said in session.scalars(
+                select(Message.content).where(
+                    Message.run_id == ctx.run_id, Message.role == "trigger"
+                )
+            )
         ]
         said = earlier.said_in(session, ctx.run_id)
         for agent, _at, words in said[:LISTED_TO_SUMMARISER]:
-            who = "The user's message" if agent is None else (
-                "The Orchestrator's answer" if agent == ctx.name
-                else f"The report of the agent {quoted(shown_name(agent))}")
+            who = (
+                "The user's message"
+                if agent is None
+                else (
+                    "The Orchestrator's answer"
+                    if agent == ctx.name
+                    else f"The report of the agent {quoted(shown_name(agent))}"
+                )
+            )
             lines.append(f"{who}: {quote(words)}")
-        files = sorted({path for path in session.scalars(select(FileChange.path).where(
-            FileChange.run_id == ctx.run_id, FileChange.status == "applied"))
-            if not in_scratch(path)})
+        files = sorted(
+            {
+                path
+                for path in session.scalars(
+                    select(FileChange.path).where(
+                        FileChange.run_id == ctx.run_id, FileChange.status == "applied"
+                    )
+                )
+                if not in_scratch(path)
+            }
+        )
         if files:
-            lines.append("Files changed in the turn: " + ", ".join(
-                quoted(path) for path in files[:LISTED_TO_SUMMARISER]))
+            lines.append(
+                "Files changed in the turn: "
+                + ", ".join(quoted(path) for path in files[:LISTED_TO_SUMMARISER])
+            )
         return "\n".join(lines)
 
     def _force_fail(self: "AgentRunner", run_id: str, error: str) -> str | None:
@@ -625,10 +710,14 @@ class LoopMixin:
         """The map with the user's test commands (`project_map.edited`); None for none."""
         try:
             with self._factory() as session:
-                tests = session.scalar(
-                    select(Project.test_commands)
-                    .join(Conversation, Conversation.project_id == Project.id)
-                    .where(Conversation.id == ctx.cid)) or {}
+                tests = (
+                    session.scalar(
+                        select(Project.test_commands)
+                        .join(Conversation, Conversation.project_id == Project.id)
+                        .where(Conversation.id == ctx.cid)
+                    )
+                    or {}
+                )
             found = await asyncio.to_thread(project_map.scan, root)
             return project_map.edited(found, tests)
         except Exception as exc:  # (the map only helps: no turn fails for it)
@@ -638,8 +727,7 @@ class LoopMixin:
     def _map_now(self: "AgentRunner", ctx: Ctx) -> dict | None:
         """The turn's map if it is made by now; None: not (yet)."""
         task = self._map_tasks.get(ctx.run_id)
-        return task.result() if task is not None and task.done() and not task.cancelled() \
-            else None
+        return task.result() if task is not None and task.done() and not task.cancelled() else None
 
     def _map_told(self: "AgentRunner", ctx: Ctx) -> str | None:
         """The map's brief as the Lead's first step found it - ready then, or not said this
@@ -675,8 +763,7 @@ class LoopMixin:
         finally:
             await self._loop_end(ctx, counts, stopped)
 
-    async def _loop_steps(self: "AgentRunner", ctx: Ctx,
-                          info: ModelInfo) -> tuple[str, str | None]:
+    async def _loop_steps(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> tuple[str, str | None]:
         """`_loop`: its steps until the turn may end - not while a room it follows runs,
         an answer it did not wait for comes, its teams work, or a step is left to do."""
         calls = None
@@ -694,28 +781,41 @@ class LoopMixin:
                 continue
             # K-oda-lead: no end while the room it opened runs - it waits for the room's
             # end, and reads its record at a step more (failed, it only waits).
-            if (room := None if ctx.answering or ctx.discussion
-                    else self._following.get(ctx.agent_id)) is not None:
+            if (
+                room := None
+                if ctx.answering or ctx.discussion
+                else self._following.get(ctx.agent_id)
+            ) is not None:
                 said = await self._follow(ctx, room, to_end=True)
                 if status == "completed":  # (its members' posts noted: `_room_record`)
                     self._nudge(ctx, rooms.OVER_MEANWHILE.format(record=said))
                     continue
                 return status, error
             # K-takimlar-arasi: an answer it did not wait for comes now, and is read.
-            if not (ctx.answering or ctx.discussion) and await team_requests.woken(
-                    self, ctx, status) and status == "completed":
+            if (
+                not (ctx.answering or ctx.discussion)
+                and await team_requests.woken(self, ctx, status)
+                and status == "completed"
+            ):
                 self._answer_again.add(ctx.agent_id)  # (B-381)
                 continue
             # B-376: nor is the Lead's answer the turn's end while any agent of it is
             # at work - whatever opened it, and whether anyone waits for it. (`calls` is
             # left as it was: its answer after the hold is still held to B-83's check.)
-            if status == "completed" and not ctx.depth and not (
-                    ctx.answering or ctx.discussion) and (
-                    held := await self._held_for_work(ctx)):
+            if (
+                status == "completed"
+                and not ctx.depth
+                and not (ctx.answering or ctx.discussion)
+                and (held := await self._held_for_work(ctx))
+            ):
                 self._nudge(ctx, held)
                 continue
-            if status == "completed" and not ctx.depth and not (
-                    ctx.answering or ctx.discussion) and (ready := await self._ready_at_end(ctx)):
+            if (
+                status == "completed"
+                and not ctx.depth
+                and not (ctx.answering or ctx.discussion)
+                and (ready := await self._ready_at_end(ctx))
+            ):
                 self._nudge(ctx, ready.strip())
                 continue
             # B-382 (live): nor is its stop at its step limit, which it had spent waiting
@@ -723,16 +823,28 @@ class LoopMixin:
             # it was to - no step more of the Lead's.
             # shortcut: no closing summary after them (it would be a step past its limit);
             # the agent box says why it stopped. Give it one step more if that is missed.
-            if status != "completed" and not ctx.depth and not (
-                    ctx.answering or ctx.discussion) and _at_a_step_limit(error):
+            if (
+                status != "completed"
+                and not ctx.depth
+                and not (ctx.answering or ctx.discussion)
+                and _at_a_step_limit(error)
+            ):
                 await self._held_for_work(ctx)
             # B-83, B-90: its answer is no end while a recipe's step or a picked
             # team is left: it is told which, and goes on (a CLI's session anew),
-            # within the steps it had. Told, an answer with no call is its why: it stands.
-            if status != "completed" or calls == self._calls_of(ctx):
+            # within the steps it had. Told, an answer with no call is its why: it stands -
+            # but where it was told before KOLONİ's end check ran (B-90's why no team: tarif
+            # maliyeti T2, a small change made with no team), the check runs all the same, once.
+            # Not on a recipe still at work (review of T2): its own end checks its work - a fix
+            # round on half of it would go to an Orchestrator its step keeps from fixing it.
+            answered = calls == self._calls_of(ctx)
+            if status != "completed" or (
+                answered and (ctx.run_id in self._proofs or self._recipe_at_work(ctx))
+            ):
                 await self._stronger_at_end(ctx, status)  # (S11: as at the gate's end)
                 return status, error
-            left = await self._end_left(ctx)  # (and KOLONİ's end check, `_proof_left`)
+            # (and KOLONİ's end check, `_proof_left`)
+            left = await (self._proof_left(ctx) if answered else self._end_left(ctx))
             if left is None:
                 return status, error
             self._nudge(ctx, left)
@@ -746,11 +858,18 @@ class LoopMixin:
         with none, no recipe ran."""
         mine = [one for one in self._ctxs.values() if one.run_id == ctx.run_id and one.depth == 1]
         with self._factory() as session:  # (one of the user's room has no call)
-            called = set(session.scalars(select(Agent.id).where(
-                Agent.id.in_([one.agent_id for one in mine]), Agent.tool_call_id.is_not(None))))
+            called = set(
+                session.scalars(
+                    select(Agent.id).where(
+                        Agent.id.in_([one.agent_id for one in mine]),
+                        Agent.tool_call_id.is_not(None),
+                    )
+                )
+            )
         opened = [one for one in reversed(mine) if one.agent_id in called]
-        under = next((one for one in opened if one.agent_id in self._leads),
-                     opened[0] if opened else None)
+        under = next(
+            (one for one in opened if one.agent_id in self._leads), opened[0] if opened else None
+        )
         return "" if under is None else await self._ready_for_you(ctx, under)
 
     async def _loop_end(self: "AgentRunner", ctx: Ctx, counts, stopped: bool) -> None:
@@ -768,18 +887,21 @@ class LoopMixin:
             # however it ended: the turn's end comes next (its copies, its record), and
             # nobody above is left to read them. (A sub-opener that failed leaves them at
             # work: what they report goes to the Lead, G2.5 - `team_requests.woken`.)
-            later = self._cancel_later(ctx.run_id, ctx.agent_id) if (
-                stopped or ctx.depth == 0) else []
+            later = (
+                self._cancel_later(ctx.run_id, ctx.agent_id) if (stopped or ctx.depth == 0) else []
+            )
         try:
             # Its work is over, however it ended - Stop, and KOLONİ going down, too: the
             # MCP servers started for it end with it. (Not a turn in which it only
             # answered: it starts none there, and its own work may still be going on.)
-            mine = [] if ctx.answering else [
-                key for key in self._servers if key[0] == ctx.agent_id]
+            mine = [] if ctx.answering else [key for key in self._servers if key[0] == ctx.agent_id]
             if mine:
                 # (Shielded: a second Stop does not leave one of them running.)
-                await asyncio.shield(asyncio.gather(
-                    *(self._servers.pop(key).end() for key in mine), return_exceptions=True))
+                await asyncio.shield(
+                    asyncio.gather(
+                        *(self._servers.pop(key).end() for key in mine), return_exceptions=True
+                    )
+                )
             await self._slow_ended(ctx)  # (K-yavas: before the turn's end is on record)
             if later:  # (last: a second Stop leaves nothing above undone)
                 await self._stopped_later(later)
@@ -795,8 +917,9 @@ class LoopMixin:
         """`_loop_end`: the room the agent followed does not outlive it."""
         # K-oda-lead: the room it followed does not outlive it - Stop, in a step of its
         # own as much as while it waited (as before: `cancelled`).
-        followed = None if ctx.answering or ctx.discussion else self._following.pop(
-            ctx.agent_id, None)
+        followed = (
+            None if ctx.answering or ctx.discussion else self._following.pop(ctx.agent_id, None)
+        )
         if followed is not None and followed.life is not None:
             followed.life.cancel()
             await asyncio.shield(asyncio.gather(followed.life, return_exceptions=True))
@@ -804,8 +927,7 @@ class LoopMixin:
                 self._room_cut(followed)
             self._room_returned(ctx, followed)
 
-    async def _steps_held(self: "AgentRunner", ctx: Ctx,
-                          info: ModelInfo) -> tuple[str, str | None]:
+    async def _steps_held(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> tuple[str, str | None]:
         """`_steps`; B-413: the Orchestrator's only step limit is its role's (OwnStop) - at it,
         it waits for its teams as it did at the app's (B-382, `_loop_steps`), as a session's
         stop (a SessionStop) always did. Any other OwnStop (a model the provider refused, say)
@@ -847,8 +969,11 @@ class LoopMixin:
         # The nearer of the app's and the role's step limits (one set for this job - a
         # speech, a room's sharing step - is its own, and says so itself; a budget given on
         # top, K-devam-butce, is the whole of it: `_step_limit`).
-        role = None if ctx.agent_id in self._given_steps else (
-            ctx.role_steps and ctx.role_steps - self._role_before(ctx))
+        role = (
+            None
+            if ctx.agent_id in self._given_steps
+            else (ctx.role_steps and ctx.role_steps - self._role_before(ctx))
+        )
         # (Told to go on, B-83: from the steps it took before - `_loop`.)
         taken = self._steps_used.get(ctx.agent_id, 0) if _goes_on(ctx) else 0
         waits = 0  # (its steps that only waited in its room: `rooms.WAITS`)
@@ -856,8 +981,9 @@ class LoopMixin:
         # as the user sends it back - R147, `_recipe_steps`.)
         # (B-413: none for the Orchestrator - its loop guard holds it: `_counted`, `_circled`.)
         while (limit := ctx.max_steps or self._step_limit(ctx)) is None or taken < limit:
-            most = None if ctx.max_steps else min((one for one in (limit, role) if one),
-                                                  default=None)
+            most = (
+                None if ctx.max_steps else min((one for one in (limit, role) if one), default=None)
+            )
             await self._while_paused(ctx)  # (29c: no model is asked for a paused room)
             self._hold_to_role(ctx, taken)
             self._steps_left[ctx.agent_id] = None if most is None else most - taken
@@ -870,7 +996,8 @@ class LoopMixin:
             if (tries := self._codex_tried(ctx, result)) is not None:
                 if tries >= CODEX_TRIES:
                     return "failed", CODEX_TOOLS_FAILED.format(
-                        work="review" if ctx.agent_id in self._reviews else "work")
+                        work="review" if ctx.agent_id in self._reviews else "work"
+                    )
                 taken += 1
                 continue
             if not result.tool_calls:
@@ -884,16 +1011,20 @@ class LoopMixin:
         self._stopped_by_koloni(ctx)
         return "failed", self._given_limit(ctx)
 
-    def _only_waited(self: "AgentRunner", ctx: Ctx, result: StepResult, taken: int,
-                     waits: int) -> bool:
+    def _only_waited(
+        self: "AgentRunner", ctx: Ctx, result: StepResult, taken: int, waits: int
+    ) -> bool:
         """B-203: whether `_steps`' step only waited in its room - none of its steps, up to
         `rooms.FREE_WAITS` of them (its steps used put back to `taken`).
         shortcut: a step's model only - a CLI's session or native loop still counts its waits;
         leave them out there too if a member on one is seen to run out waiting.
         shortcut: an unattended turn's budget (`_count_step`) still counts them, as any step;
         leave them out there too if a night's room is seen to spend it waiting."""
-        if waits >= rooms.FREE_WAITS or self._member_of(ctx) is None or any(
-                one.name not in rooms.WAITS for one in result.tool_calls):
+        if (
+            waits >= rooms.FREE_WAITS
+            or self._member_of(ctx) is None
+            or any(one.name not in rooms.WAITS for one in result.tool_calls)
+        ):
             return False
         if _goes_on(ctx):
             self._steps_used[ctx.agent_id] = taken
@@ -909,8 +1040,11 @@ class LoopMixin:
         (a Lead may answer from what it knows, and so may an answer or a discussion beside its
         work). None: a step that is no try."""
         refused = result.own_tools_refused or (
-            getattr(ctx.model, "command", None) == "codex" and not result.tool_calls
-            and CODEX_OWN_TOOLS in result.content and not self._calls_of(ctx))
+            getattr(ctx.model, "command", None) == "codex"
+            and not result.tool_calls
+            and CODEX_OWN_TOOLS in result.content
+            and not self._calls_of(ctx)
+        )
         told = ctx.agent_id in self._codex_tries
         if result.tool_calls:
             if refused and not told:
@@ -918,8 +1052,7 @@ class LoopMixin:
             if refused or told:
                 self._codex_tries[ctx.agent_id] = 0
             return None
-        if not (refused or (told and ctx.depth > 0 and _goes_on(ctx)
-                            and not self._calls_of(ctx))):
+        if not (refused or (told and ctx.depth > 0 and _goes_on(ctx) and not self._calls_of(ctx))):
             return None
         tries = self._codex_tries[ctx.agent_id] = self._codex_tries.get(ctx.agent_id, 0) + 1
         if tries < CODEX_TRIES:  # (the third ends it: nothing to tell)
@@ -936,21 +1069,28 @@ class LoopMixin:
             # Only for a role with a map: a thread is a wait, and with none the step runs on
             # as before - a CLI opener's spawn is answered with the report of a sub-agent that
             # is back by then (`_run_from_cli`), not "started".
-            about = await asyncio.to_thread(knows.about, ctx.folder, known, ctx.task or "") if (
-                known := self._mapped(ctx)) else ""
+            about = (
+                await asyncio.to_thread(knows.about, ctx.folder, known, ctx.task or "")
+                if (known := self._mapped(ctx))
+                else ""
+            )
             # Pages read from the web: looked at once, as a lookup's are (93-A4) - the user is
             # warned, and it stays the same at every step.
-            if about and self._orders(ctx, "web", "its knowledge's pages, in its brief",
-                                      web.inside(about)):
+            if about and self._orders(
+                ctx, "web", "its knowledge's pages, in its brief", web.inside(about)
+            ):
                 about = f"{injection.NOTE}\n{about}"
             self._about[ctx.agent_id] = about
 
-    async def _steps_surface(self: "AgentRunner", ctx: Ctx,
-                             info: ModelInfo) -> tuple[Ctx, ModelInfo]:
+    async def _steps_surface(
+        self: "AgentRunner", ctx: Ctx, info: ModelInfo
+    ) -> tuple[Ctx, ModelInfo]:
         """`_steps`: a CLI's version not measured, that did not answer its protocol's first
         request, runs the older way - the agent and its model's info as they now stand."""
-        if getattr(ctx.model, "native", False) and (
-                model := await cli_surface.checked(ctx.model)) is not ctx.model:
+        if (
+            getattr(ctx.model, "native", False)
+            and (model := await cli_surface.checked(ctx.model)) is not ctx.model
+        ):
             # K-cli-surface: a version not measured that did not answer its protocol's first
             # request runs the older way, as in a plain chat above.
             ctx = replace(ctx, model=model)
@@ -963,8 +1103,9 @@ class LoopMixin:
         if (known := self._ctxs.get(ctx.agent_id)) is not None:
             self._ctxs[ctx.agent_id] = replace(known, model=model)
 
-    async def _session_loop(self: "AgentRunner", ctx: Ctx,
-                            info: ModelInfo) -> tuple[str, str | None]:
+    async def _session_loop(
+        self: "AgentRunner", ctx: Ctx, info: ModelInfo
+    ) -> tuple[str, str | None]:
         """An agent whose model is a CLI session: the CLI keeps the loop, KOLONİ keeps
         the records. What the CLI says becomes assistant messages; every tool it asks
         for is recorded under the message before it and run the usual way."""
@@ -976,8 +1117,17 @@ class LoopMixin:
             ((call_id, _payload),) = self._record_calls(ctx, transcript.take(), [request])
             status, output = await self._run_from_cli(ctx, call_id, request)
             picture = self._in_result.pop(call_id, None)
-            images = [] if picture is None else [{"type": "image", "mimeType": picture[0],
-                                                  "data": base64.b64encode(picture[1]).decode()}]
+            images = (
+                []
+                if picture is None
+                else [
+                    {
+                        "type": "image",
+                        "mimeType": picture[0],
+                        "data": base64.b64encode(picture[1]).decode(),
+                    }
+                ]
+            )
             # 29c: its next step is its own loop's: a paused room holds the answer it waits for.
             await self._while_paused(ctx)
             if ctx.agent_id in self._stuck and (end := await self._circled(ctx)) is not None:
@@ -988,8 +1138,11 @@ class LoopMixin:
             # and so does word that a fact it was given no longer stands - and, for a
             # member of a room, how the room stands when that has changed - and what the user
             # said to it since (`steer`), once.
-            notes = self._deliver(ctx) + self._no_longer_given(ctx) + self._heard_later.pop(
-                ctx.agent_id, [])
+            notes = (
+                self._deliver(ctx)
+                + self._no_longer_given(ctx)
+                + self._heard_later.pop(ctx.agent_id, [])
+            )
             stands = self._room_now(ctx, changed=True)
             # B-382: near its limit it is told to report, as a step is (`_near_a_limit`) - each
             # wording once: a session's tokens are known only at its end, so that one repeats.
@@ -997,13 +1150,17 @@ class LoopMixin:
             if near in told_near:
                 near = ""
             told_near.add(near)
-            return (status == "succeeded",
-                    "\n\n".join(filter(None, [output, *notes, stands, near])), images)
+            return (
+                status == "succeeded",
+                "\n\n".join(filter(None, [output, *notes, stands, near])),
+                images,
+            )
 
         told_near: set[str] = set()
         # (show as a step is given it, `_model_step`)
         offered = self._offered(
-            ctx, ctx.tools, always=True, show=not ctx.answering and ctx.root is not None)
+            ctx, ctx.tools, always=True, show=not ctx.answering and ctx.root is not None
+        )
         # Its level, as a step's (`_model_step`); given only where there is one.
         effort = self._effort_sent(ctx, info)
         self._set_agent(ctx.cid, ctx.agent_id, effort=effort)
@@ -1018,24 +1175,35 @@ class LoopMixin:
         if isinstance(ctx.model, CliSessionClient) and self._watched(ctx.run_id):
             with self._factory() as session:
                 role = find_role(session, ctx.role)
-                waits = not ctx.depth or role is None or bool(
-                    role.provider_id and not role.models) or session.get_one(
-                    Agent, ctx.agent_id).chosen or len(list_providers(session)) < 2
+                waits = (
+                    not ctx.depth
+                    or role is None
+                    or bool(role.provider_id and not role.models)
+                    or session.get_one(Agent, ctx.agent_id).chosen
+                    or len(list_providers(session)) < 2
+                )
         ended, before = False, transcript.opened
         try:
             # shortcut: its pictures go once, with no retry without them as a step's
             # (`_sent_with_files`): a refusal fails the run; add one if that is seen.
             self._slow(ctx, arm=True)  # (K-yavas)
             usage = await cast(CliSessionClient, self._model_of(ctx)).run_session(
-                info.model_id, self._history(ctx, offered), offered, call_tool,
-                transcript.on_text, transcript.of, **({"effort": effort} if effort else {}),
+                info.model_id,
+                self._history(ctx, offered),
+                offered,
+                call_tool,
+                transcript.on_text,
+                transcript.of,
+                **({"effort": effort} if effort else {}),
                 on_live=lambda item: self._show_live(ctx, item),
                 **({"queue_wait": None} if waits else {}),
             )
             self._slow_off(ctx)
             ended = True
             self._count_tokens(
-                ctx, usage.input_tokens, usage.output_tokens,
+                ctx,
+                usage.input_tokens,
+                usage.output_tokens,
                 # (A result that has no word of a cache: not known.)
                 read=getattr(usage, "cache_read", None),
                 written=getattr(usage, "cache_write", None),
@@ -1066,7 +1234,10 @@ class LoopMixin:
         return "completed", None
 
     async def _model_step(
-        self: "AgentRunner", ctx: Ctx, info: ModelInfo, sent: int | None = None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        info: ModelInfo,
+        sent: int | None = None,
     ) -> tuple[StepResult, str]:
         """One step of an agent asked step by step. `sent`: what the step before it
         reported it sent; past COMPACT_AT of the known window, the older part of its
@@ -1076,18 +1247,23 @@ class LoopMixin:
         # The level that goes with this step (below), on its record: none where none goes,
         # nor to a service that refused one before (`EFFORT_REFUSED`); the one sent instead of
         # one its model said it does not take (`EFFORT_INSTEAD`).
-        effort = None if getattr(ctx.model, "refused_effort", False) else self._effort_sent(
-            ctx, info)
+        effort = (
+            None if getattr(ctx.model, "refused_effort", False) else self._effort_sent(ctx, info)
+        )
         effort = getattr(ctx.model, "effort_instead", {}).get(effort, effort)
         # (Anthropic's API too: KOLONİ's own compaction, not its server-side one, slice 77.)
         compacts = getattr(ctx.model, "compacts_itself", False)
         # A model that keeps its own context (a CLI) is measured against no window of the
         # role's where it says none: what it reports is not the size of what it holds.
-        window = None if compacts and not info.context_window else (
-            ctx.context_window or info.context_window)
+        window = (
+            None
+            if compacts and not info.context_window
+            else (ctx.context_window or info.context_window)
+        )
         compactable = window is not None and not compacts
         self._set_agent(
-            cid, ctx.agent_id, last_event_at=now(), effort=effort, context_window=window)
+            cid, ctx.agent_id, last_event_at=now(), effort=effort, context_window=window
+        )
         # (Its message is begun before its history is built: a note handed over while it
         # is built (`_deliver`) comes after this step in every later one.) K-oda-onbellek: a
         # room's posts are handed first, so they stay where this step read them, before its
@@ -1145,8 +1321,7 @@ class LoopMixin:
             # roles are read at every step: one created a moment ago can be used now.
             # (and show, to every agent at its own work: it puts a file before the user -
             # but in a plain chat, which has none)
-            offered = self._offered(
-                ctx, ctx.tools, show=not ctx.answering and ctx.root is not None)
+            offered = self._offered(ctx, ctx.tools, show=not ctx.answering and ctx.root is not None)
             tools = offered if info.tools_supported and offered else None
             client = self._model_of(ctx)
             more = self._model_step_more(ctx, client, effort, early)
@@ -1156,13 +1331,24 @@ class LoopMixin:
                 history = await self._compact(ctx, info, history, window, sent)
             try:
                 result = await self._sent_with_files(
-                    ctx, client, info.model_id, history, tools, on_delta, on_thinking,
-                    message_id, more)
+                    ctx,
+                    client,
+                    info.model_id,
+                    history,
+                    tools,
+                    on_delta,
+                    on_thinking,
+                    message_id,
+                    more,
+                )
             except ModelUnavailable as exc:
                 # (Not one too large to be read: that is summarised below, not asked again.)
-                if (exc.retry_in is not None and not self._live[message_id][1]
-                        and classify(exc)[0] != "credits_exhausted"
-                        and not refused_for_size(exc)):
+                if (
+                    exc.retry_in is not None
+                    and not self._live[message_id][1]
+                    and classify(exc)[0] != "credits_exhausted"
+                    and not refused_for_size(exc)
+                ):
                     # A short failure of its provider's before it wrote a word: asked once
                     # more, as it was, and said on its record. A second failure ends it.
                     # shortcut: not once text has come (it would be shown twice); clear the
@@ -1173,12 +1359,14 @@ class LoopMixin:
                     # Refused for its size (a step that fitted no more, a turn's first): its
                     # older part summarised, it is asked once more - also where its window
                     # is not known: the refusal says it is full.
-                    smaller = await self._compact(ctx, info, history, window) if (
-                        not compacts and refused_for_size(exc)) else history
+                    smaller = (
+                        await self._compact(ctx, info, history, window)
+                        if (not compacts and refused_for_size(exc))
+                        else history
+                    )
                     # (Asked again only with less: the same size would be refused the same
                     # way.)
-                    if smaller is history or sum(map(_size, smaller)) >= sum(
-                            map(_size, history)):
+                    if smaller is history or sum(map(_size, smaller)) >= sum(map(_size, history)):
                         raise
                 result = await client.stream_step(
                     info.model_id, smaller, tools, on_delta, on_thinking, **more
@@ -1192,7 +1380,8 @@ class LoopMixin:
             # Also on cancel or failure: whatever text arrived is kept.
             content = self._live.pop(message_id)[1]
             payload = self._save_message(
-                message_id, content, "complete", _kept_blocks(result) if ended else None)
+                message_id, content, "complete", _kept_blocks(result) if ended else None
+            )
             self.bus.emit(cid, run_id, "message.completed", payload)
             if not ended:
                 self._cut(ctx, **early)  # a step is paid for as far as it got
@@ -1200,8 +1389,11 @@ class LoopMixin:
         self._model_step_effort(ctx, info, result, effort)
         # Token counts are kept per agent; the run carries its lead agent's.
         self._count_tokens(
-            ctx, result.input_tokens, result.output_tokens,
-            read=result.cache_read, written=result.cache_write,
+            ctx,
+            result.input_tokens,
+            result.output_tokens,
+            read=result.cache_read,
+            written=result.cache_write,
         )
         self._ran_on(ctx, result.model)
         return result, message_id
@@ -1212,12 +1404,16 @@ class LoopMixin:
         its role sets above the one found, the failure says so."""
         # Refused for its size, measured against a window its role sets above the one
         # found (or none found): that may be why (59 §3b). The failure stays as it was.
-        if (ctx.context_window and refused_for_size(exc) and ctx.context_window > (
-                info.context_window or 0)):
+        if (
+            ctx.context_window
+            and refused_for_size(exc)
+            and ctx.context_window > (info.context_window or 0)
+        ):
             exc.args = (f"{exc}{ROLE_WINDOW_LARGER}",)
 
-    def _model_step_more(self: "AgentRunner", ctx: Ctx, client, effort,
-                         early: dict) -> dict[str, object]:
+    def _model_step_more(
+        self: "AgentRunner", ctx: Ctx, client, effort, early: dict
+    ) -> dict[str, object]:
         """`_model_step`: what goes with a step besides its history - the level, the client's
         early word on its tokens (into `early`), caching, and no thinking where it is lost."""
         more: dict[str, object] = {}
@@ -1225,13 +1421,15 @@ class LoopMixin:
             more["effort"] = effort
         if getattr(client, "reports_early", False):
             more["so_far"] = lambda sent, made, read=None, written=None: early.update(
-                sent=sent, made=made, read=read, written=written)
+                sent=sent, made=made, read=read, written=written
+            )
         if getattr(client, "caches", False):
             # Every step of an agent sends what the one before it sent, and more.
             more["cache"] = True
         room = self._rooms.get(ctx.run_id)
         if getattr(client, "replays_blocks", False) and (
-                ctx.discussion or (room is not None and ctx.agent_id in room.members)):
+            ctx.discussion or (room is not None and ctx.agent_id in room.members)
+        ):
             # Told how its room or discussion stands at each step and never again, it would
             # have none of its thinking sent back (`_replayed`): none is asked for where
             # that is a choice. shortcut: make those notes append-only (or send the API's
@@ -1239,29 +1437,40 @@ class LoopMixin:
             more["think"] = False
         return more
 
-    async def _model_step_again(self: "AgentRunner", ctx: Ctx, exc: ModelUnavailable,
-                                early: dict, retry_in: float) -> None:
+    async def _model_step_again(
+        self: "AgentRunner", ctx: Ctx, exc: ModelUnavailable, early: dict, retry_in: float
+    ) -> None:
         """`_model_step`, before a step is asked once more: said on its record, what the
         failed one read paid for, and its provider's wait waited."""
         self._set_agent(ctx.cid, ctx.agent_id, retry_note=RETRIED.format(why=exc))
         if early:  # (what the failed one said it read is paid for: `_cut`)
-            self._count_tokens(ctx, early["sent"], early["made"], step=False,
-                               read=early["read"], written=early["written"])
+            self._count_tokens(
+                ctx,
+                early["sent"],
+                early["made"],
+                step=False,
+                read=early["read"],
+                written=early["written"],
+            )
             early.clear()
         await asyncio.sleep(retry_in)
 
-    def _model_step_effort(self: "AgentRunner", ctx: Ctx, info: ModelInfo, result: StepResult,
-                           effort) -> None:
+    def _model_step_effort(
+        self: "AgentRunner", ctx: Ctx, info: ModelInfo, result: StepResult, effort
+    ) -> None:
         """`_model_step`: a level its service refused, or took another of, on its record."""
         if result.effort_refused:
             self._set_agent(ctx.cid, ctx.agent_id, effort=None)
-            self._effort_note(ctx, EFFORT_REFUSED.format(
-                asked=effort, provider=ctx.provider or "Its provider"))
+            self._effort_note(
+                ctx, EFFORT_REFUSED.format(asked=effort, provider=ctx.provider or "Its provider")
+            )
         elif result.effort_instead:
             asked, took = result.effort_instead
             self._set_agent(ctx.cid, ctx.agent_id, effort=took)
-            self._effort_note(ctx, EFFORT_INSTEAD.format(
-                model=info.model_id, asked=asked, sent=took or "no level"))
+            self._effort_note(
+                ctx,
+                EFFORT_INSTEAD.format(model=info.model_id, asked=asked, sent=took or "no level"),
+            )
 
     def _effort_sent(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> str | None:
         """`sent_effort`, and where that is not its own level, what was really sent said on its
@@ -1270,19 +1479,30 @@ class LoopMixin:
         effort = sent_effort(ctx, info)
         if ctx.effort is not None and getattr(ctx.model, "level_named", False):
             self._auto_effort.discard(ctx.agent_id)  # (Auto's or the role's: none goes, B-404)
-            said = EFFORT_COPILOT_AUTO if getattr(ctx.model, "command", "") == "copilot" else (
-                EFFORT_IN_NAME)
+            said = (
+                EFFORT_COPILOT_AUTO
+                if getattr(ctx.model, "command", "") == "copilot"
+                else (EFFORT_IN_NAME)
+            )
             self._effort_note(ctx, said.format(asked=ctx.effort, model=info.model_id))
         elif ctx.agent_id in self._auto_effort and ctx.effort is not None:
             self._auto_effort.discard(ctx.agent_id)
             level = ctx.effort.capitalize()  # (medium at most: `AUTO_START`)
-            self._effort_note(ctx, EFFORT_AUTO_UNSENT.format(level=level) if not info.efforts
-                              else EFFORT_AUTO_OFF if ctx.effort == "off"
-                              else EFFORT_AUTO.format(level=level))
+            self._effort_note(
+                ctx,
+                EFFORT_AUTO_UNSENT.format(level=level)
+                if not info.efforts
+                else EFFORT_AUTO_OFF
+                if ctx.effort == "off"
+                else EFFORT_AUTO.format(level=level),
+            )
         if ctx.effort is not None and effort != ctx.effort and info.efforts:
-            self._effort_note(ctx, EFFORT_STEPPED.format(
-                asked=ctx.effort, sent=effort, model=info.model_id) if effort else
-                EFFORT_NONE_BELOW.format(asked=ctx.effort, model=info.model_id))
+            self._effort_note(
+                ctx,
+                EFFORT_STEPPED.format(asked=ctx.effort, sent=effort, model=info.model_id)
+                if effort
+                else EFFORT_NONE_BELOW.format(asked=ctx.effort, model=info.model_id),
+            )
         return effort
 
     def _effort_note(self: "AgentRunner", ctx: Ctx, said: str) -> None:
@@ -1313,8 +1533,12 @@ class LoopMixin:
         """27: where the agent's record stood when its run returned, kept with its session
         (`_whole`): its last call's number, and the time."""
         with self._factory() as session:
-            calls = session.scalar(select(func.max(ToolCall.seq)).where(
-                ToolCall.agent_id == ctx.agent_id)) or 0
+            calls = (
+                session.scalar(
+                    select(func.max(ToolCall.seq)).where(ToolCall.agent_id == ctx.agent_id)
+                )
+                or 0
+            )
         return {"agent": ctx.agent_id, "calls": calls, "at": now().isoformat()}
 
     def _whole(self: "AgentRunner", kept: dict) -> bool:
@@ -1324,23 +1548,49 @@ class LoopMixin:
         card), no note of before handed over since, and for a lead no question of its turn
         answered by another or for the user (B-145). Else it starts anew, sent everything."""
         try:
-            at, agent_id, calls = datetime.fromisoformat(kept["at"]), kept["agent"], int(
-                kept["calls"])
+            at, agent_id, calls = (
+                datetime.fromisoformat(kept["at"]),
+                kept["agent"],
+                int(kept["calls"]),
+            )
         except (KeyError, TypeError, ValueError):
             return False
         with self._factory() as session:
             holder = session.get(Agent, agent_id)
-            if holder is None or session.scalar(select(ToolCall.id).where(
-                    ToolCall.agent_id == agent_id, ToolCall.seq > calls).limit(1)):
+            if holder is None or session.scalar(
+                select(ToolCall.id)
+                .where(ToolCall.agent_id == agent_id, ToolCall.seq > calls)
+                .limit(1)
+            ):
                 return False
-            if session.scalar(select(Message.id).where(
-                    Message.agent_id == agent_id, Message.role == "agent",
-                    Message.created_at <= at, Message.delivered_at > at).limit(1)):
+            if session.scalar(
+                select(Message.id)
+                .where(
+                    Message.agent_id == agent_id,
+                    Message.role == "agent",
+                    Message.created_at <= at,
+                    Message.delivered_at > at,
+                )
+                .limit(1)
+            ):
                 return False
-            return holder.depth > 0 or session.scalar(select(Question.id).where(
-                Question.run_id == holder.run_id, Question.status == "answered",
-                or_(Question.agent_id != agent_id, Question.lead_why.is_not(None),
-                    Question.leave)).limit(1)) is None
+            return (
+                holder.depth > 0
+                or session.scalar(
+                    select(Question.id)
+                    .where(
+                        Question.run_id == holder.run_id,
+                        Question.status == "answered",
+                        or_(
+                            Question.agent_id != agent_id,
+                            Question.lead_why.is_not(None),
+                            Question.leave,
+                        ),
+                    )
+                    .limit(1)
+                )
+                is None
+            )
 
     def _sent_before(self: "AgentRunner", ctx: Ctx) -> int | None:
         """What was last measured of an agent's context: its own last step (a turn on a
@@ -1354,8 +1604,11 @@ class LoopMixin:
         return sent
 
     async def _run_tools(
-        self: "AgentRunner", ctx: Ctx, info: ModelInfo, message_id: str,
-        requests: list[ToolCallRequest]
+        self: "AgentRunner",
+        ctx: Ctx,
+        info: ModelInfo,
+        message_id: str,
+        requests: list[ToolCallRequest],
     ) -> None:
         """Record every requested call first, then run them in order. Sub-agents asked
         for one after another are opened together and work at the same time. A model's id named
@@ -1363,9 +1616,7 @@ class LoopMixin:
         (`provider_call_id`), whatever client gave it: KOLONİ trusts those by their names."""
         requests = [replace(one, id=provider_call_id(one.id)) for one in requests]
         created = self._record_calls(ctx, message_id, requests)
-        calls = [
-            (made[0], request) for made, request in zip(created, requests, strict=True)
-        ]
+        calls = [(made[0], request) for made, request in zip(created, requests, strict=True)]
         at = 0
         while at < len(calls):
             group = [calls[at]]
@@ -1377,7 +1628,8 @@ class LoopMixin:
             if calls[at][1].name == "spawn_agent":
                 # B-87: the leads this message opens itself are not opened beside another too.
                 self._asked_leads.setdefault(ctx.agent_id, set()).update(
-                    _role_asked(request) for _id, request in group)
+                    _role_asked(request) for _id, request in group
+                )
             if len(group) == 1:
                 await self._run_call(ctx, *group[0])
             else:
@@ -1395,8 +1647,9 @@ class LoopMixin:
                         self._at_once.pop(one[0], None)
             at += len(group)
 
-    async def _opened_with(self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
-                           ) -> tuple[str, str]:
+    async def _opened_with(
+        self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
+    ) -> tuple[str, str]:
         try:
             return await self._run_call(ctx, call_id, request)
         finally:

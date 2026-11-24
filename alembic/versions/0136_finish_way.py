@@ -6,6 +6,7 @@ merged by KOLONİ. None: not chosen yet.
 Revision ID: 0136
 Revises: 0135
 """
+
 import sqlalchemy as sa
 from alembic import op
 

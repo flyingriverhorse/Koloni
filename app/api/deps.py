@@ -24,7 +24,9 @@ def carries_key(scope) -> bool:
     `?key=`."""
     key = scope["app"].state.page_key.encode()
     given = (
-        Headers(scope=scope).get("x-koloni-key"), QueryParams(scope["query_string"]).get("key"))
+        Headers(scope=scope).get("x-koloni-key"),
+        QueryParams(scope["query_string"]).get("key"),
+    )
     # (As bytes: a str holding other than ASCII cannot be compared in constant time.)
     return any(value and hmac.compare_digest(value.encode(), key) for value in given)
 

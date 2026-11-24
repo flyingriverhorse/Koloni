@@ -16,19 +16,39 @@ def test_a_turn_a_row_remembers_keeps_it_and_back(tmp_path):
     db = tmp_path / "fresh.db"
     cfg = _config(db)
     command.upgrade(cfg, "0087")
-    state = {"run_id": "new", "team": "Web app", "recipe": "Feature", "status": "in", "why": None,
-             "steps": [], "agents": ["a"], "ended_ready": True, "graph": {"steps": []}, "slots": {}}
+    state = {
+        "run_id": "new",
+        "team": "Web app",
+        "recipe": "Feature",
+        "status": "in",
+        "why": None,
+        "steps": [],
+        "agents": ["a"],
+        "ended_ready": True,
+        "graph": {"steps": []},
+        "slots": {},
+    }
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO conversations (id, title, created_at, updated_at) "
-                     "VALUES ('c', 'c', ?, ?)", (AT, AT))
+        conn.execute(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c', 'c', ?, ?)",
+            (AT, AT),
+        )
         for run in ("old", "new"):
-            conn.execute("INSERT INTO runs (id, conversation_id, status, created_at) "
-                         "VALUES (?, 'c', 'completed', ?)", (run, AT))
-        for row, team, position, kept in (("t2", "docs", 1, {**state, "team": "Docs"}),
-                                          ("t1", "web", 0, state), ("t3", "api", 2, None)):
-            conn.execute("INSERT INTO conversation_teams (id, conversation_id, team_id, recipe_id, "
-                         "picked_by, why, position, state) VALUES (?, 'c', ?, NULL, 'user', NULL, ?, ?)",
-                         (row, team, position, kept and json.dumps(kept)))
+            conn.execute(
+                "INSERT INTO runs (id, conversation_id, status, created_at) "
+                "VALUES (?, 'c', 'completed', ?)",
+                (run, AT),
+            )
+        for row, team, position, kept in (
+            ("t2", "docs", 1, {**state, "team": "Docs"}),
+            ("t1", "web", 0, state),
+            ("t3", "api", 2, None),
+        ):
+            conn.execute(
+                "INSERT INTO conversation_teams (id, conversation_id, team_id, recipe_id, "
+                "picked_by, why, position, state) VALUES (?, 'c', ?, NULL, 'user', NULL, ?, ?)",
+                (row, team, position, kept and json.dumps(kept)),
+            )
 
     command.upgrade(cfg, "head")
 
@@ -38,8 +58,14 @@ def test_a_turn_a_row_remembers_keeps_it_and_back(tmp_path):
         shown = {key: value for key, value in state.items() if key not in ("graph", "slots")}
         assert json.loads(teams["new"]) == [
             {"team_id": "web", "recipe_id": None, "picked_by": "user", "why": None, "state": shown},
-            {"team_id": "docs", "recipe_id": None, "picked_by": "user", "why": None,
-             "state": {**shown, "team": "Docs"}}]
+            {
+                "team_id": "docs",
+                "recipe_id": None,
+                "picked_by": "user",
+                "why": None,
+                "state": {**shown, "team": "Docs"},
+            },
+        ]
 
     command.downgrade(cfg, "0087")
 

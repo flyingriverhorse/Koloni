@@ -3,6 +3,7 @@
 Revision ID: 0011
 Revises: 0010
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -19,10 +20,14 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # A Copilot provider cannot be run by the code this goes back to.
-    op.execute("UPDATE conversations SET provider_id = NULL, model_id = NULL WHERE provider_id "
-               "IN (SELECT id FROM providers WHERE kind = 'copilot_cli')")
-    op.execute("UPDATE roles SET provider_id = NULL, model_id = NULL WHERE provider_id "
-               "IN (SELECT id FROM providers WHERE kind = 'copilot_cli')")
+    op.execute(
+        "UPDATE conversations SET provider_id = NULL, model_id = NULL WHERE provider_id "
+        "IN (SELECT id FROM providers WHERE kind = 'copilot_cli')"
+    )
+    op.execute(
+        "UPDATE roles SET provider_id = NULL, model_id = NULL WHERE provider_id "
+        "IN (SELECT id FROM providers WHERE kind = 'copilot_cli')"
+    )
     op.execute("DELETE FROM providers WHERE kind = 'copilot_cli'")
     with op.batch_alter_table("providers") as batch:
         batch.drop_column("options")

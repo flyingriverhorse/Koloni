@@ -2,7 +2,18 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { type Browser, expect, type Locator, type Page, test } from './fixtures'
-import { LINK, OWN, appSettings, e2eProject, level, openFreshConversation, rail, say, setProject, settled } from './helpers'
+import {
+  LINK,
+  OWN,
+  appSettings,
+  e2eProject,
+  level,
+  openFreshConversation,
+  rail,
+  say,
+  setProject,
+  settled,
+} from './helpers'
 import { APP_URL, PROJECT_DIR, REPO_ROOT } from './paths.mjs'
 
 // The guide's pictures (docs/images) and short videos (docs/videos), taken from the real app with the fake model, light,
@@ -18,7 +29,12 @@ const HOMES = [os.homedir(), os.homedir().replaceAll('\\', '/')].map(one => one.
 async function showsNoHome(target: Page | Locator, name: string) {
   const root = 'mainFrame' in target ? target.locator('body') : target
   const seen = await root.evaluate(el =>
-    [(el as HTMLElement).innerText, ...[...el.querySelectorAll('input, textarea')].map(one => (one as HTMLInputElement).value)].join('\n').toLowerCase(),
+    [
+      (el as HTMLElement).innerText,
+      ...[...el.querySelectorAll('input, textarea')].map(one => (one as HTMLInputElement).value),
+    ]
+      .join('\n')
+      .toLowerCase(),
   )
   for (const home of HOMES) expect(seen, `${name} shows ${home}`).not.toContain(home)
 }
@@ -41,14 +57,24 @@ const beat = (page: Page, ms = 1000) => page.waitForTimeout(ms)
  */
 async function video(browser: Browser, name: string, flow: (page: Page, poster: () => Promise<void>) => Promise<void>) {
   mkdirSync(VIDEOS, { recursive: true })
-  const context = await browser.newContext({ baseURL: APP_URL, viewport: FRAME, recordVideo: { dir: path.join(os.tmpdir(), 'koloni-guide-videos'), size: FRAME } })
+  const context = await browser.newContext({
+    baseURL: APP_URL,
+    viewport: FRAME,
+    recordVideo: { dir: path.join(os.tmpdir(), 'koloni-guide-videos'), size: FRAME },
+  })
   await context.addInitScript(() => localStorage.setItem('koloni-theme', 'light'))
   const page = await context.newPage()
   await page.goto(LINK)
   await page.getByLabel('Message').waitFor()
   await flow(page, async () => {
     await showsNoHome(page, name)
-    await page.screenshot({ path: path.join(VIDEOS, `${name}.jpg`), type: 'jpeg', quality: 80, animations: 'disabled', caret: 'hide' })
+    await page.screenshot({
+      path: path.join(VIDEOS, `${name}.jpg`),
+      type: 'jpeg',
+      quality: 80,
+      animations: 'disabled',
+      caret: 'hide',
+    })
   })
   await showsNoHome(page, name)
   await beat(page, 1500)
@@ -63,7 +89,10 @@ test('the main screen and the agent window', async ({ page }) => {
   await expect(page.locator('.react-flow__node-agent')).toHaveCount(2)
   await settled(page)
   await picture(page, 'main-screen')
-  await page.getByRole('region', { name: 'Chat' }).getByRole('button', { name: /Reviewer.*Review hello\.py/ }).click()
+  await page
+    .getByRole('region', { name: 'Chat' })
+    .getByRole('button', { name: /Reviewer.*Review hello\.py/ })
+    .click()
   await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Open window' }).click()
   await expect(page.getByRole('region', { name: 'Agent window' }).getByText('Did', { exact: true })).toBeVisible()
   await picture(page, 'agent-window')
@@ -71,7 +100,9 @@ test('the main screen and the agent window', async ({ page }) => {
 
 test('an approval card in Ready for you', async ({ page }) => {
   const id = await openFreshConversation(page)
-  expect((await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok()).toBe(true)
+  expect(
+    (await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok(),
+  ).toBe(true)
   await page.getByLabel('Message').fill('run the tests')
   await page.getByRole('button', { name: 'Send' }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
@@ -93,11 +124,18 @@ test('a team on the canvas, and Take in', async ({ page, request }) => {
     version: 1,
     steps: [{ id: 'build', name: 'Build it', who: { role: 'Coder' } }],
     ends: [{ id: 'end', then: 'in' }],
-    arrows: [{ from: 'start', to: 'build' }, { from: 'build', to: 'end' }],
+    arrows: [
+      { from: 'start', to: 'build' },
+      { from: 'build', to: 'end' },
+    ],
   }
   await request.post('/api/recipes', { headers: OWN, data: { name: RECIPE, graph } })
-  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === RECIPE)
-  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+    r => r.name === RECIPE,
+  )
+  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+    t => t.name === 'Web app',
+  )
   await setProject(page, { spawn_approval: 'never' })
   const set = await request.patch(`/api/conversations/${id}`, {
     headers: OWN,
@@ -143,15 +181,15 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
   await picture(page, 'knowledge')
 })
 
-test('the To-do page with the Product owner’s draft', async ({ page }) => {
+test('the To-do page with the Hive keeper’s draft', async ({ page }) => {
   await openFreshConversation(page)
   await rail(page, 'To-do').click()
   const form = page.getByRole('form', { name: 'Add a task' })
   await form.getByLabel('Title').fill('the login page breaks on mobile, and we need a password reset')
-  await form.getByRole('button', { name: 'Write it with the Product owner' }).click()
+  await form.getByRole('button', { name: 'Write it with the Hive keeper' }).click()
   const drafts = page.getByRole('region', { name: 'Drafted tasks' })
   await expect(drafts.getByRole('group', { name: 'Draft 2' }).getByLabel('Title')).toHaveValue('Add a password reset')
-  await form.getByRole('button', { name: 'Write it with the Product owner' }).scrollIntoViewIfNeeded()
+  await form.getByRole('button', { name: 'Write it with the Hive keeper' }).scrollIntoViewIfNeeded()
   await page.mouse.wheel(0, 300)
   await picture(page, 'todo-draft')
 })
@@ -159,7 +197,9 @@ test('the To-do page with the Product owner’s draft', async ({ page }) => {
 test('Memory search, Triggers and Usage', async ({ page, request }) => {
   const id = await openFreshConversation(page)
   await say(page, 'Answer only: The ZEPPELIN hangar is in Kayseri.', 'The ZEPPELIN hangar is in Kayseri.')
-  expect((await request.patch(`/api/conversations/${id}`, { headers: OWN, data: { title: 'Morning checks' } })).ok()).toBe(true)
+  expect(
+    (await request.patch(`/api/conversations/${id}`, { headers: OWN, data: { title: 'Morning checks' } })).ok(),
+  ).toBe(true)
   // (Loaded again: the turn's "Done" toast is not in the pictures.)
   await page.reload()
   await rail(page, 'Memory').click()
@@ -172,7 +212,13 @@ test('Memory search, Triggers and Usage', async ({ page, request }) => {
   const pid = await e2eProject(page)
   const made = await request.post(`/api/projects/${pid}/triggers`, {
     headers: OWN,
-    data: { name: 'Morning check', kind: 'schedule', conversation_id: id, message: 'Run the tests and say what failed.', config: { at: '07:30', days: 'weekdays' } },
+    data: {
+      name: 'Morning check',
+      kind: 'schedule',
+      conversation_id: id,
+      message: 'Run the tests and say what failed.',
+      config: { at: '07:30', days: 'weekdays' },
+    },
   })
   expect(made.ok(), await made.text()).toBe(true)
   await rail(page, 'Triggers').click()
@@ -180,8 +226,19 @@ test('Memory search, Triggers and Usage', async ({ page, request }) => {
   await picture(page, 'triggers')
   expect((await request.delete(`/api/triggers/${(await made.json()).id}`, { headers: OWN })).ok()).toBe(true)
 
+  // (0.1.7: a command card answered, so Cards has one to count - asked at Ask, run once)
+  await openFreshConversation(page)
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await page.getByLabel('Message').fill('run the tests')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await chat.getByRole('button', { name: 'Run once' }).click()
+  await expect(chat.getByText('The tests pass.')).toBeVisible()
+  await page.reload()
   await rail(page, 'Usage').click()
   await expect(page.getByRole('table', { name: 'Usage by provider and model' })).toBeVisible()
+  const cards = page.getByRole('region', { name: 'Cards' })
+  await expect(cards.getByRole('table', { name: 'Cards by reason' })).toBeVisible()
+  await cards.scrollIntoViewIfNeeded()
   await picture(page, 'usage')
 })
 
@@ -191,7 +248,9 @@ test.describe('the guide’s videos', () => {
   test('an agent asks, you approve', async ({ page, browser }) => {
     test.setTimeout(60_000)
     const id = await openFreshConversation(page)
-    expect((await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok()).toBe(true)
+    expect(
+      (await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok(),
+    ).toBe(true)
     await video(browser, 'approval', async (shown, poster) => {
       await beat(shown, 500)
       await shown.getByLabel('Message').pressSequentially('run the tests', { delay: 50 })
@@ -213,15 +272,26 @@ test.describe('the guide’s videos', () => {
       version: 1,
       steps: [{ id: 'build', name: 'Build it', who: { role: 'Coder' } }],
       ends: [{ id: 'end', then: 'in' }],
-      arrows: [{ from: 'start', to: 'build' }, { from: 'build', to: 'end' }],
+      arrows: [
+        { from: 'start', to: 'build' },
+        { from: 'build', to: 'end' },
+      ],
     }
     await request.post('/api/recipes', { headers: OWN, data: { name: RECIPE, graph } })
-    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === RECIPE)
-    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+      r => r.name === RECIPE,
+    )
+    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+      t => t.name === 'Web app',
+    )
     await setProject(page, { spawn_approval: 'never' })
     const set = await request.patch(`/api/conversations/${id}`, {
       headers: OWN,
-      data: { permission_mode: 'auto_edit', teams_mode: 'manual', teams: [{ team_id: web!.id, recipe_id: recipe!.id }] },
+      data: {
+        permission_mode: 'auto_edit',
+        teams_mode: 'manual',
+        teams: [{ team_id: web!.id, recipe_id: recipe!.id }],
+      },
     })
     expect(set.ok()).toBe(true)
     await video(browser, 'team', async (shown, poster) => {
@@ -253,7 +323,9 @@ test.describe('the guide’s videos', () => {
     test.setTimeout(90_000)
     for (const words of ['run the tests, the shop', 'run the tests, the blog']) {
       const id = await openFreshConversation(page)
-      expect((await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok()).toBe(true)
+      expect(
+        (await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok(),
+      ).toBe(true)
       await say(page, words, 'Run this command?')
     }
     await video(browser, 'ready', async (shown, poster) => {
@@ -264,7 +336,9 @@ test.describe('the guide’s videos', () => {
       await poster()
       await beat(shown)
       await panel.getByRole('region', { name: 'Needs your answer' }).getByRole('button', { name: 'Run once' }).click()
-      await expect(shown.getByRole('region', { name: 'Chat' }).getByText('The tests pass.')).toBeVisible({ timeout: 15_000 })
+      await expect(shown.getByRole('region', { name: 'Chat' }).getByText('The tests pass.')).toBeVisible({
+        timeout: 15_000,
+      })
       await beat(shown)
       await panel.getByRole('button', { name: 'Open all as a page →' }).click()
       const row = shown.locator('.ready-page').getByRole('group', { name: /the shop/ })
@@ -285,7 +359,11 @@ test('☾ Away: the Away panel, and the summary when you are back', async ({ pag
   // (A little taller than the others: the panel whole, with its Go away.)
   await page.setViewportSize({ width: 1280, height: 900 })
   await openFreshConversation(page)
-  await say(page, "I'm going away for the night, guide: add a bye line and say hello twice", 'Two tasks are on your To-do: press Go away when you go.')
+  await say(
+    page,
+    "I'm going away for the night, guide: add a bye line and say hello twice",
+    'Two tasks are on your To-do: press Go away when you go.',
+  )
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(chat.getByRole('group', { name: 'Go away now?' })).toBeVisible()
   // (From ☾ Away on the status line: the panel whole, over the message box.)
@@ -311,8 +389,26 @@ test('☾ Away: the Away panel, and the summary when you are back', async ({ pag
 // (The e2e project's own check.py and slow.py: the Checks node names a command by its script.)
 const PASSING = 'python check.py'
 const SLOW = 'python slow.py'
-const WRITTEN = ['kanit.py', 'rehber_a.py', 'rehber_b.py', 'rehber_c.py', 'rehber_d.py']
-const WORKFLOW = 'name: ci\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m pytest -q\n'
+const WRITTEN = [
+  'kanit.py',
+  ...['a', 'b', 'c', 'd'].map(one => `rehber_${one}.py`),
+  // (The Checks loop's turn: its three Coders' modules - fake-model.mjs `LOOPED_WORK`.)
+  ...[
+    'runner',
+    'runner_cli',
+    'runner_log',
+    'runner_conf',
+    'runner_util',
+    'auth_check',
+    'auth_rules',
+    'auth_util',
+    'netcheck',
+    'netcheck_cli',
+    'netcheck_util',
+  ].map(one => `${one}.py`),
+]
+const WORKFLOW =
+  'name: ci\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m pytest -q\n'
 
 /** The project's After a change on, with `command`, and the page read again: the composer says what the chat checks. */
 async function checksOn(page: Page, command: string) {
@@ -328,7 +424,9 @@ test.describe('proven finish (0.1.6)', () => {
     await setProject(page, { check_command: '', after_change: 'nothing' })
   })
 
-  test('Settings: After a change, Fix rounds and Check by kind of work; the app’s test runs; the level menu’s switch', async ({ page }) => {
+  test('Settings: After a change, Fix rounds and Check by kind of work; the app’s test runs; the level menu’s switch', async ({
+    page,
+  }) => {
     await openFreshConversation(page)
     await setProject(page, { after_change: 'check' })
     // (No message yet: the First steps panel would show the project's folder - under this machine's user.)
@@ -338,7 +436,9 @@ test.describe('proven finish (0.1.6)', () => {
     // The permission level's menu: Test and review changes, for this chat.
     const chat = page.getByRole('region', { name: 'Chat' })
     await chat.getByRole('button', { name: /^Permission level:/ }).click()
-    await expect(chat.getByRole('dialog', { name: 'Permission level' }).getByText('Test and review changes')).toBeVisible()
+    await expect(
+      chat.getByRole('dialog', { name: 'Permission level' }).getByText('Test and review changes'),
+    ).toBeVisible()
     await picture(page, 'level-menu-checks')
     await page.keyboard.press('Escape')
     // This project › Checks and git: After a change with its live line, Fix rounds (Then a stronger model, once in),
@@ -365,7 +465,7 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(checked).toContainText(`Tests passed: ${PASSING} - 2 passed`, { timeout: 20_000 })
     await picture(checked, 'checked-section')
     await settled(page)
-    await picture(page, 'checks-node') // (its lines: the ⋯ menu is in checks-running)
+    // (The node's lines: in checks-running with its ⋯ menu, in checks-loop with its rounds.)
     await page.getByRole('button', { name: 'Checks: more' }).click()
     await expect(page.getByRole('menu', { name: 'Checks: more' })).toBeVisible()
   })
@@ -387,7 +487,8 @@ test.describe('proven finish (0.1.6)', () => {
     await picture(checked, 'checked-stopped')
   })
 
-  test('a big change looked over: the Reviewer’s rows, and its node after the Checks node', async ({ page }) => {
+  test('a big change looked over: the Reviewer’s rows, and the Reviewer in the Checks box', async ({ page }) => {
+    test.setTimeout(90_000) // (KOLONİ's Reviewer looks after the tests: on a busy machine over the default 30 s)
     await openFreshConversation(page)
     await checksOn(page, PASSING)
     await level(page, 'auto_edit')
@@ -397,6 +498,98 @@ test.describe('proven finish (0.1.6)', () => {
     await picture(checked, 'checked-review')
     await settled(page)
     await picture(page, 'checks-reviewer')
+  })
+
+  // tuval-kontrol-dongusu (0.1.7): KOLONİ's looks and the fixes it sent back, one loop on the canvas and its rounds in the panel.
+  test('a turn sent back twice: the loop of its looks and fixes, and its rounds in the inspector', async ({ page }) => {
+    test.setTimeout(180_000)
+    await openFreshConversation(page)
+    const id = await e2eProject(page)
+    const had = (await (await page.request.get(`/api/projects/${id}`)).json()).fix_rounds
+    await setProject(page, { fix_rounds: 2 })
+    try {
+      await checksOn(page, PASSING)
+      await level(page, 'full_auto') // (the Orchestrator's Coders open, and their work is taken in, unasked)
+      await page.getByLabel('Message').fill('write the looped change, k-dongu')
+      await page.getByRole('button', { name: 'Send' }).click()
+      const box = page.locator('.react-flow__node-checks')
+      await expect(box).toContainText('⟲ 3 looks · 2 fix rounds · on hold', { timeout: 150_000 })
+      // (The chat closed: the canvas has the room for the whole turn beside the panel.)
+      await page.getByRole('button', { name: 'Hide chat' }).click()
+      await settled(page)
+      await box.getByText('Checks · KOLONİ').click()
+      await expect(
+        page.getByRole('complementary', { name: 'Inspector' }).getByRole('region', { name: 'Round 3' }),
+      ).toBeVisible()
+      await settled(page)
+      // (Drawn larger - fitted beside the panel, its cards' words are too small to read -, the turn moved to the middle of the canvas.)
+      await page.locator('.react-flow__controls-zoomin').click()
+      await settled(page)
+      const [first, last, stage] = await Promise.all(
+        [page.locator('.react-flow__node-request').first(), box, page.locator('.react-flow')].map(
+          async one => (await one.boundingBox())!,
+        ),
+      )
+      const shift = stage.x + (stage.width - (last.x + last.width - first.x)) / 2 - first.x
+      await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height - 180)
+      await page.mouse.down()
+      await page.mouse.move(stage.x + stage.width / 2 + shift, stage.y + stage.height - 180, { steps: 6 })
+      await page.mouse.up()
+      await settled(page)
+      await picture(page, 'checks-loop')
+    } finally {
+      await setProject(page, { fix_rounds: had })
+    }
+  })
+
+  // tuval-kontrol-dongusu, the recipe case: a one-step recipe's turn - its Coder in the frame, KOLONİ's look in the Checks box,
+  // the frame's last part, right of the step.
+  // shortcut: one look that lets it stand (the plain box) - a recipe's turn KOLONİ sends back needs the fake model's recipe
+  // flow scripted for it (k-dongu's three Coders and its Security reviewer are the Orchestrator's, not a recipe's).
+  test('a recipe’s turn: the Checks box is its frame’s last part', async ({ page, request }) => {
+    test.setTimeout(180_000)
+    const conversation = await openFreshConversation(page)
+    const id = await e2eProject(page)
+    const { spawn_approval: spawns } = await (await page.request.get(`/api/projects/${id}`)).json()
+    const RECIPE = 'Write it (guide)'
+    const graph = {
+      version: 1,
+      steps: [{ id: 'write', name: 'Write it', who: { role: 'Coder' } }],
+      ends: [{ id: 'end', then: 'in' }],
+      arrows: [
+        { from: 'start', to: 'write' },
+        { from: 'write', to: 'end' },
+      ],
+    }
+    await request.post('/api/recipes', { headers: OWN, data: { name: RECIPE, graph } })
+    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+      r => r.name === RECIPE,
+    )
+    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+      t => t.name === 'Web app',
+    )
+    await setProject(page, { spawn_approval: 'never' })
+    try {
+      await checksOn(page, PASSING)
+      await level(page, 'full_auto')
+      const set = await request.patch(`/api/conversations/${conversation}`, {
+        headers: OWN,
+        data: { teams_mode: 'manual', teams: [{ team_id: web!.id, recipe_id: recipe!.id }] },
+      })
+      expect(set.ok()).toBe(true)
+      await page.getByLabel('Message').fill('write the looped change, k-dongu')
+      await page.getByRole('button', { name: 'Send' }).click()
+      const box = page.locator('.react-flow__node-checks')
+      await expect(box).toContainText('MERGE', { timeout: 150_000 })
+      await expect(box).toContainText('✓ check.py', { timeout: 30_000 })
+      await page.getByRole('button', { name: 'Hide chat' }).click()
+      await settled(page)
+      for (let times = 0; times < 2; times++) await page.locator('.react-flow__controls-zoomin').click()
+      await settled(page)
+      await picture(page, 'checks-recipe')
+    } finally {
+      await setProject(page, { spawn_approval: spawns })
+    }
   })
 
   test('your CI’s lines offered under the answer: Run these', async ({ page }) => {

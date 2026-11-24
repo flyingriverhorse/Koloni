@@ -45,9 +45,20 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
     make_client, wait_run, project_dir, gate
 ):
     task_gate, mine_gate = Gate(), Gate()
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        gate.step(text("unattended")), task_gate.step(text("task")), mine_gate.step(text("busy")),
-        text("mine"), text("two done"), text("next time")]})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                gate.step(text("unattended")),
+                task_gate.step(text("task")),
+                mine_gate.step(text("busy")),
+                text("mine"),
+                text("two done"),
+                text("next time"),
+            ]
+        },
+    )
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     clock = trigger(client, pid, cid, catch_up=True)
     hook = trigger(client, pid, cid, kind="webhook", config={})
@@ -59,18 +70,26 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
         client.post(f"/api/projects/{pid}/backlog", json={"title": "one"})
         client.put(f"/api/projects/{pid}/backlog/auto", json={"on": True})
         task_gate.wait_partial()
-        busy = client.post(f"/api/conversations/{other}/messages",
-                           json={"content": "a turn of my own"}).json()["run"]["id"]
+        busy = client.post(
+            f"/api/conversations/{other}/messages", json={"content": "a turn of my own"}
+        ).json()["run"]["id"]
         mine_gate.wait_partial()
-        queued = client.post(f"/api/conversations/{other}/messages",
-                             json={"content": "and one after it"}).json()["run"]
+        queued = client.post(
+            f"/api/conversations/{other}/messages", json={"content": "and one after it"}
+        ).json()["run"]
         assert queued["status"] == "queued"
         before = client.get("/api/hold").json()
         assert (before["held"], before["running"], before["triggers"], before["backlogs"]) == (
-            False, 4, 2, [project_dir.name])
+            False,
+            4,
+            2,
+            [project_dir.name],
+        )
 
         # from the app's own page only
-        assert client.post("/api/hold", headers={"Origin": "http://evil.example"}).status_code == 403
+        assert (
+            client.post("/api/hold", headers={"Origin": "http://evil.example"}).status_code == 403
+        )
         held = client.post("/api/hold").json()
     finally:
         for one_gate in (gate, task_gate, mine_gate):
@@ -78,15 +97,21 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
     task_chat = tasks(client, pid)["one"]["conversation_id"]
     assert held["held"] is True and held["since"] and held["running"] == 0
     assert {(s["run_id"], s["conversation_id"]) for s in held["stopped"]} == {
-        (unattended, cid), (busy, other), (queued["id"], other),
-        (client.get(f"/api/conversations/{task_chat}").json()["runs"][0]["id"], task_chat)}
+        (unattended, cid),
+        (busy, other),
+        (queued["id"], other),
+        (client.get(f"/api/conversations/{task_chat}").json()["runs"][0]["id"], task_chat),
+    }
     # B-175: each with its project and when its turn was sent, to tell chats of one title apart
     assert {s["project"] for s in held["stopped"]} == {project_dir.name}
     assert all(s["created_at"] <= held["since"] for s in held["stopped"])
     snap = client.get(f"/api/conversations/{other}").json()
     assert {run_of(snap, busy)["status"], run_of(snap, queued["id"])["status"]} == {"cancelled"}
     # the backlog that works itself is held, not switched off; the task stopped is todo again
-    assert client.get(f"/api/projects/{pid}/backlog/auto").json().items() >= {"on": True, "halt": None}.items()
+    assert (
+        client.get(f"/api/projects/{pid}/backlog/auto").json().items()
+        >= {"on": True, "halt": None}.items()
+    )
     assert tasks(client, pid)["one"]["status"] == "todo"
 
     # while held nothing starts by itself: no next task, no trigger, whichever way
@@ -96,13 +121,17 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
     assert here.post(f"/api/hooks/{hook['key']}", content="x").status_code == 409
     assert client.post(f"/api/triggers/{clock['id']}/run").status_code == 409
     # but the user's own message runs - and its end starts no task either
-    mine = client.post(f"/api/conversations/{other}/messages",
-                       json={"content": "mine, while held"}).json()["run"]["id"]
+    mine = client.post(
+        f"/api/conversations/{other}/messages", json={"content": "mine, while held"}
+    ).json()["run"]["id"]
     assert run_of(wait_run(client, other, mine), mine)["status"] == "completed"
     assert tasks(client, pid)["two"]["conversation_id"] is None
     assert client.get("/api/hold").json()["held"] is True
 
-    assert client.post("/api/hold/resume", headers={"Origin": "http://evil.example"}).status_code == 403
+    assert (
+        client.post("/api/hold/resume", headers={"Origin": "http://evil.example"}).status_code
+        == 403
+    )
     resumed = client.post("/api/hold/resume").json()
     assert (resumed["held"], resumed["stopped"]) == (False, [])
     # R147: what it stopped stays stopped, and Resume says so
@@ -135,8 +164,9 @@ def test_the_hold_outlives_a_restart(started, project_dir):  # noqa: F811
 def test_stop_everything_cuts_the_nights_job_and_holds_its_next_until_resume(
     make_client, wait_run, project_dir, gate
 ):
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        edit(), gate.step(text("never")), text("two done")])
+    client, _model, pid, cid, run_id = evening(
+        make_client, project_dir, [edit(), gate.step(text("never")), text("two done")]
+    )
     wait_run(client, cid, run_id)
     go_away(client, cid)
     gate.wait_partial()
@@ -182,8 +212,9 @@ def test_a_turn_slow_to_stop_is_stopped_once_and_its_cleanup_ends(
 
     monkeypatch.setattr(hold, "WAIT_SECONDS", 0.1)
     client, model, pid, cid = setup(make_client, project_dir, {"Lead": [slow_to_stop]})
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go"}).json()["run"]["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
+        "run"
+    ]["id"]
     assert begun.wait(5)
     held = client.post("/api/hold").json()
     # given up waiting: not listed yet, but said to be stopping
@@ -198,8 +229,12 @@ def test_a_nights_job_that_waits_for_the_users_word_is_stopped_too_not_failed(
 ):
     # At "ask" job one waits for its command; job two works on, held open
     run = step(call("run_command", {"command": "echo hi"}))
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        edit(), run, edit(id="w2"), gate.step(text("two done"))], mode="ask")
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [edit(), run, edit(id="w2"), gate.step(text("two done"))],
+        mode="ask",
+    )
     wait_run(client, cid, run_id)
     go_away(client, cid)
     until(lambda: night(client, pid)["jobs"][0]["state"] == "waits")
@@ -210,19 +245,29 @@ def test_a_nights_job_that_waits_for_the_users_word_is_stopped_too_not_failed(
         gate.release()
     one, two = night(client, pid)["jobs"]
     for job in (one, two):
-        until(lambda job=job: client.get(f"/api/conversations/{job['conversation_id']}").json()[
-            "runs"][-1]["status"] == "cancelled")
+        until(
+            lambda job=job: (
+                client.get(f"/api/conversations/{job['conversation_id']}").json()["runs"][-1][
+                    "status"
+                ]
+                == "cancelled"
+            )
+        )
     one, two = night(client, pid)["jobs"]
     assert [(job["state"], job["why"]) for job in (one, two)] == [
-        ("stopped", "Stopped by you: Stop everything.")] * 2
+        ("stopped", "Stopped by you: Stop everything.")
+    ] * 2
 
 
 def test_a_users_turn_that_fails_in_a_tasks_chat_while_held_leaves_the_run_on(
     make_client, wait_run, project_dir
 ):
     # (K-symphony: a task's own turn that fails has its fix round; the user's own is theirs)
-    client, _model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        text("one done"), ModelUnavailable("the model is down"), text("two done")]})
+    client, _model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {"Lead": [text("one done"), ModelUnavailable("the model is down"), text("two done")]},
+    )
     client.post(f"/api/projects/{pid}/backlog", json={"title": "one"})
     client.put(f"/api/projects/{pid}/backlog/auto", json={"on": True})
     chat = until(lambda: tasks(client, pid)["one"]["conversation_id"])
@@ -230,10 +275,14 @@ def test_a_users_turn_that_fails_in_a_tasks_chat_while_held_leaves_the_run_on(
     client.post("/api/hold")
     client.post(f"/api/projects/{pid}/backlog", json={"title": "two"})
     # the user's own message in the task's chat, while held: it runs - and fails
-    mine = client.post(f"/api/conversations/{chat}/messages",
-                       json={"content": "one more thing"}).json()["run"]["id"]
+    mine = client.post(
+        f"/api/conversations/{chat}/messages", json={"content": "one more thing"}
+    ).json()["run"]["id"]
     assert run_of(wait_run(client, chat, mine), mine)["status"] == "failed"
-    assert client.get(f"/api/projects/{pid}/backlog/auto").json().items() >= {"on": True, "halt": None}.items()
+    assert (
+        client.get(f"/api/projects/{pid}/backlog/auto").json().items()
+        >= {"on": True, "halt": None}.items()
+    )
     assert tasks(client, pid)["one"]["status"] == "review"
     client.post("/api/hold/resume")
     assert until(lambda: tasks(client, pid)["two"]["conversation_id"])

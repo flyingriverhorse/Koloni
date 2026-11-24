@@ -35,8 +35,11 @@ def test_the_card_says_why_and_a_folder_scope_opens_no_folder(make_client, wait_
     cid, run_id = converse(client, pid, mode="full_auto")
     (pending,) = wait_status(client, cid, "waiting_approval")["tool_calls"]
     assert pending["why_asked"] == SECRET_CARD and pending["outside_folder"] is None
-    client.post(f"/api/tool-calls/{pending['id']}/approve", json={"scope": "folder"},
-                headers={"Origin": ORIGIN})
+    client.post(
+        f"/api/tool-calls/{pending['id']}/approve",
+        json={"scope": "folder"},
+        headers={"Origin": ORIGIN},
+    )
     assert wait_run(client, cid, run_id)["tool_calls"][0]["status"] == "succeeded"
     held = conversation(client, cid)
     assert held["also_in"] == [] and held["read_in"] == []
@@ -55,8 +58,11 @@ def test_rejected_the_agent_is_told_it_is_the_users_word(make_client, wait_run, 
 def test_a_triggers_turn_refuses_a_secret_read_and_says_why(make_client, wait_run, project_dir):
     env(project_dir)
     client, model, pid, cid = setup(
-        make_client, project_dir, [tool("read_file", {"path": ".env"}), text("ok")],
-        permission_mode="full_auto")
+        make_client,
+        project_dir,
+        [tool("read_file", {"path": ".env"}), text("ok")],
+        permission_mode="full_auto",
+    )
     run_id = run_now(client, trigger(client, pid, cid, permissions=leave(write=True))["id"])
     (refused,) = wait_run(client, cid, run_id, timeout=10)["tool_calls"]
     assert refused["status"] == "denied"
@@ -66,8 +72,7 @@ def test_a_triggers_turn_refuses_a_secret_read_and_says_why(make_client, wait_ru
 
 def test_search_leaves_out_a_secret_it_is_pointed_at(make_client, wait_run, project_dir):
     env(project_dir)
-    client, model = make_client([tool("search", {"pattern": "OPENAI", "path": ".env"}),
-                                 text("ok")])
+    client, model = make_client([tool("search", {"pattern": "OPENAI", "path": ".env"}), text("ok")])
     cid, run_id = converse(client, project(client, project_dir), mode="ask")
     wait_run(client, cid, run_id)
     result = model.calls[1][-1]["content"]
@@ -93,27 +98,60 @@ def test_only_the_projects_own_names_make_a_file_a_secret(tmp_path):
     assert not secret_named("hello.py", "hello.py")
 
 
-@pytest.mark.parametrize("rel", [
-    ".env", ".ENV", ".Env", ".env.LOCAL", "ID_RSA", ".SSH/config", ".env.local", "sub/.env", "deploy/server.key", "certs/site.pem", "id_rsa",
-    ".ssh/config", ".aws/credentials", ".git/config", "credentials", "secrets.json",
-])
+@pytest.mark.parametrize(
+    "rel",
+    [
+        ".env",
+        ".ENV",
+        ".Env",
+        ".env.LOCAL",
+        "ID_RSA",
+        ".SSH/config",
+        ".env.local",
+        "sub/.env",
+        "deploy/server.key",
+        "certs/site.pem",
+        "id_rsa",
+        ".ssh/config",
+        ".aws/credentials",
+        ".git/config",
+        "credentials",
+        "secrets.json",
+    ],
+)
 def test_in_the_project_these_are_secrets(rel):
     assert secret_in_project(rel)
 
 
-@pytest.mark.parametrize("rel", [
-    "app/credentials.py", "src/credentials/manager.ts", "lib/api_keys.py", "docs/token.txt",
-    "config/credentials.json", ".env.example", ".env.sample", ".env.template",
-    "deploy/server.key.example", ".venv/Lib/site-packages/certifi/cacert.pem",
-    "node_modules/pkg/.env", "hello.py",
-])
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "app/credentials.py",
+        "src/credentials/manager.ts",
+        "lib/api_keys.py",
+        "docs/token.txt",
+        "config/credentials.json",
+        ".env.example",
+        ".env.sample",
+        ".env.template",
+        "deploy/server.key.example",
+        ".venv/Lib/site-packages/certifi/cacert.pem",
+        "node_modules/pkg/.env",
+        "hello.py",
+    ],
+)
 def test_in_the_project_these_hold_work(rel):
     assert not secret_in_project(rel)
 
 
 def test_out_of_the_project_every_part_still_counts():
-    for rel in ("C:/x/credentials/a.py", "C:/x/token.txt", "C:/x/.env.example",
-                "C:/x/.venv/cacert.pem", "C:/x/api_keys.py"):
+    for rel in (
+        "C:/x/credentials/a.py",
+        "C:/x/token.txt",
+        "C:/x/.env.example",
+        "C:/x/.venv/cacert.pem",
+        "C:/x/api_keys.py",
+    ):
         assert is_secret(rel), rel
 
 
@@ -131,8 +169,9 @@ def test_a_secret_is_asked_about_by_any_spelling(make_client, project_dir, path)
     assert "sk-koloni-test" not in sent(model)
 
 
-def test_an_edit_of_a_secret_waits_on_the_card_and_tells_nothing(make_client, wait_run,
-                                                                 project_dir):
+def test_an_edit_of_a_secret_waits_on_the_card_and_tells_nothing(
+    make_client, wait_run, project_dir
+):
     # old == new: "not found" or "already has this content" would tell a guess right or wrong
     env(project_dir)
     guess = {"path": ".env", "old_string": "KEY=sk-k", "new_string": "KEY=sk-k"}
@@ -150,9 +189,12 @@ def test_an_edit_of_a_secret_waits_on_the_card_and_tells_nothing(make_client, wa
 def test_a_triggers_turn_refuses_an_edit_of_a_secret(make_client, wait_run, project_dir):
     env(project_dir)
     guess = {"path": ".env", "old_string": "KEY=sk-k", "new_string": "KEY=sk-k"}
-    client, model, pid, cid = setup(make_client, project_dir, [tool("edit_file", guess),
-                                                               text("ok")],
-                                    permission_mode="full_auto")
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        [tool("edit_file", guess), text("ok")],
+        permission_mode="full_auto",
+    )
     run_id = run_now(client, trigger(client, pid, cid, permissions=leave(write=True))["id"])
     (refused,) = wait_run(client, cid, run_id, timeout=10)["tool_calls"]
     assert refused["status"] == "denied" and NOBODY in refused["result"]
@@ -219,11 +261,14 @@ def test_claude_code_is_given_no_ask_rule_for_its_reads(tmp_path):
 
 
 def test_claude_codes_read_of_a_secret_waits_on_the_same_card(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     env(project_dir)
-    client, provider, _ = claude_app([read("PROJECT/hello.py"), read("PROJECT/.env"),
-                                      {"say": "done"}])
+    client, provider, _ = claude_app(
+        [read("PROJECT/hello.py"), read("PROJECT/.env"), {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     snap = wait_status(client, cid, "waiting_approval")
     (asked,) = [t for t in snap["tool_calls"] if t["status"] == "pending"]
@@ -235,7 +280,9 @@ def test_claude_codes_read_of_a_secret_waits_on_the_same_card(
 
 
 def test_claude_codes_read_of_a_secret_allowed_is_allowed_once(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     env(project_dir)
     client, provider, _ = claude_app([read("PROJECT/.env"), read(".env"), {"say": "done"}])
@@ -243,15 +290,20 @@ def test_claude_codes_read_of_a_secret_allowed_is_allowed_once(
     seen: set[str] = set()
     for _ in range(2):  # each read asks again
         asked = next_pending(client, cid, seen)
-        approved = client.post(f"/api/tool-calls/{asked['id']}/approve",
-                               json={"scope": "folder"}, headers={"Origin": ORIGIN})
+        approved = client.post(
+            f"/api/tool-calls/{asked['id']}/approve",
+            json={"scope": "folder"},
+            headers={"Origin": ORIGIN},
+        )
         assert approved.status_code == 200, approved.text
     wait_run(client, cid, run_id, timeout=20)
     assert [one["behavior"] for one in claude_app.record()["asked"]] == ["allow", "allow"]
 
 
 def test_claude_codes_read_of_a_secret_in_a_triggers_turn_is_refused(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     env(project_dir)
     client, provider, _ = claude_app([read("PROJECT/.env"), {"say": "done"}])
@@ -266,10 +318,10 @@ def test_claude_codes_read_of_a_secret_in_a_triggers_turn_is_refused(
 KEY = "sk-proj-0123456789abcdefghijKLMN"  # (a key's shape: `sk-` and a digit)
 
 
-@pytest.mark.parametrize("held", [f'OPENAI = "{KEY}"\n',
-                                  "-----BEGIN OPENSSH PRIVATE KEY-----\nb3Blbg==\n"])
-def test_a_file_that_shows_a_key_is_read_only_on_the_card(make_client, wait_run, project_dir,
-                                                          held):
+@pytest.mark.parametrize(
+    "held", [f'OPENAI = "{KEY}"\n', "-----BEGIN OPENSSH PRIVATE KEY-----\nb3Blbg==\n"]
+)
+def test_a_file_that_shows_a_key_is_read_only_on_the_card(make_client, wait_run, project_dir, held):
     (project_dir / "settings.py").write_text(f"DEBUG = True\n{held}", encoding="utf-8")
     client, model = make_client([tool("read_file", {"path": "settings.py"}), text("ok")])
     cid, run_id = converse(client, project(client, project_dir), mode="full_auto")
@@ -280,8 +332,10 @@ def test_a_file_that_shows_a_key_is_read_only_on_the_card(make_client, wait_run,
     assert refused["status"] == "denied" and KEY not in sent(model) and "b3Blbg" not in sent(model)
 
 
-JWT_SAMPLE = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4"
-              "gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c")
+JWT_SAMPLE = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4"
+    "gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+)
 
 
 def test_code_that_names_a_key_and_the_docs_samples_are_read_unasked_and_a_key_is_not(
@@ -289,10 +343,17 @@ def test_code_that_names_a_key_and_the_docs_samples_are_read_unasked_and_a_key_i
 ):
     (project_dir / "settings.py").write_text(
         'api_key = os.environ["OPENAI_API_KEY"]\npassword = getpass.getpass()\n'
-        f'# e.g. AKIAIOSFODNN7EXAMPLE, or Bearer {JWT_SAMPLE}\n', encoding="utf-8")
+        f"# e.g. AKIAIOSFODNN7EXAMPLE, or Bearer {JWT_SAMPLE}\n",
+        encoding="utf-8",
+    )
     (project_dir / "keys.py").write_text(f'KEY = "{KEY}"\n', encoding="utf-8")
-    client, model = make_client([tool("read_file", {"path": "settings.py"}),
-                                 tool("read_file", {"path": "keys.py"}, "t2"), text("ok")])
+    client, model = make_client(
+        [
+            tool("read_file", {"path": "settings.py"}),
+            tool("read_file", {"path": "keys.py"}, "t2"),
+            text("ok"),
+        ]
+    )
     cid, run_id = converse(client, project(client, project_dir), mode="full_auto")
     # (and the other, with a key of its own, waits on the card)
     read, pending = wait_status(client, cid, "waiting_approval")["tool_calls"]
@@ -304,8 +365,7 @@ def test_code_that_names_a_key_and_the_docs_samples_are_read_unasked_and_a_key_i
 def test_a_search_hides_a_key_in_the_lines_it_finds_and_leaves_code_as_it_is(
     make_client, wait_run, project_dir
 ):
-    code = ('api_key = os.environ["OPENAI_API_KEY"]  # OPENAI\n'
-            "password = getpass()  # OPENAI\n")
+    code = 'api_key = os.environ["OPENAI_API_KEY"]  # OPENAI\npassword = getpass()  # OPENAI\n'
     (project_dir / "settings.py").write_text(f'{code}OPENAI = "{KEY}"\n', encoding="utf-8")
     client, model = make_client([tool("search", {"pattern": "OPENAI"}), text("ok")])
     cid, run_id = converse(client, project(client, project_dir), mode="full_auto")

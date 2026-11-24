@@ -53,7 +53,8 @@ function spentToday(provider: Provider, today: Usage['by_model'], unkept: string
   const currencies = new Set(costs.map(cost => cost.currency))
   // Amounts in two currencies are never added; nothing priced of what ran is not known.
   const unkeptHere = provider.day_limit !== null && unkept ? { more: unkept } : {}
-  if (currencies.size > 1 || (rows.length && !costs.length)) return { share: null, value: totalCost(rows, []), label: 'today', plain: true, ...unkeptHere }
+  if (currencies.size > 1 || (rows.length && !costs.length))
+    return { share: null, value: totalCost(rows, []), label: 'today', plain: true, ...unkeptHere }
   const currency = [...currencies][0] ?? 'USD'
   const spent = costs.reduce((sum, cost) => sum + cost.amount, 0)
   const least = costs.length < rows.length || costs.some(cost => cost.at_least || cost.cache_unpriced) ? '≥ ' : ''
@@ -61,7 +62,11 @@ function spentToday(provider: Provider, today: Usage['by_model'], unkept: string
   if (provider.day_limit === null) return { share: null, value, label: 'today', plain: true }
   // Never "$6 / $5" while turns run unasked: a limit that cannot be kept says so instead (as `over_limit` holds back nothing).
   if (unkept) return { share: null, value, label: 'today', plain: true, ...unkeptHere }
-  return { share: spent / provider.day_limit, value: `${value} / ${cash(provider.day_limit, currency)}`, label: 'today' }
+  return {
+    share: spent / provider.day_limit,
+    value: `${value} / ${cash(provider.day_limit, currency)}`,
+    label: 'today',
+  }
 }
 
 /** A reading's `source`, as the card says it after how long ago it was read. */
@@ -108,7 +113,13 @@ function quotaReading(limits: Limits | null | undefined): Reading {
   // alone could be any week). What is left no API says.
   const seen = limits?.used_up && limits.read_at
   const today = seen && new Date(seen).toDateString() === new Date().toDateString()
-  const at = seen && new Date(seen).toLocaleString(undefined, { ...(today ? {} : { month: 'short', day: 'numeric' }), hour: '2-digit', minute: '2-digit' })
+  const at =
+    seen &&
+    new Date(seen).toLocaleString(undefined, {
+      ...(today ? {} : { month: 'short', day: 'numeric' }),
+      hour: '2-digit',
+      minute: '2-digit',
+    })
   return { share: null, value: 'plan', label: at ? `quota used up, seen ${at}` : 'no money counted', plain: true }
 }
 
@@ -117,8 +128,16 @@ function planReading(limits: Limits | null): Reading {
   const windows = limits?.windows ?? []
   const known = windows.filter(w => w.used_percent !== null && !w.stale)
   // The narrowest window: the one with the least left, whatever its length - what a step down reads too (81c).
-  const narrowest = known.reduce<(typeof known)[number] | null>((least, w) => (least && least.used_percent! >= w.used_percent! ? least : w), null)
-  if (!narrowest) return { share: null, value: '–', label: limits?.failed ? `Could not be read: ${limits.failed}` : unknownOf(limits) }
+  const narrowest = known.reduce<(typeof known)[number] | null>(
+    (least, w) => (least && least.used_percent! >= w.used_percent! ? least : w),
+    null,
+  )
+  if (!narrowest)
+    return {
+      share: null,
+      value: '–',
+      label: limits?.failed ? `Could not be read: ${limits.failed}` : unknownOf(limits),
+    }
   const left = (w: (typeof windows)[number]) => 100 - Math.round(w.used_percent!)
   const others = windows
     .filter(w => w !== narrowest)
@@ -128,7 +147,11 @@ function planReading(limits: Limits | null): Reading {
       // (One the last reading did not name says when it was read itself: B-74.)
       return `${name} ${left(w)}% left${w.resets_at ? ` · resets ${dayAndTime(w.resets_at)}` : ''}${w.read_at ? ` · ${readAgo(w.read_at)}` : ''}`
     })
-  const credits = limits?.credits?.unlimited ? 'credits unlimited' : limits?.credits?.balance ? `${balance(limits.credits.balance)} credits` : null
+  const credits = limits?.credits?.unlimited
+    ? 'credits unlimited'
+    : limits?.credits?.balance
+      ? `${balance(limits.credits.balance)} credits`
+      : null
   // Where Claude Code said it: a reading from a run here leaves out what was used elsewhere since.
   const from = SOURCE_WORDS[limits?.source ?? '']
   const read = limits?.read_at ? `${readAgo(limits.read_at)}${from ? `, ${from}` : ''}` : null
@@ -156,7 +179,8 @@ export function Gauge({ share, value, label, ago }: Reading & { ago?: string }) 
   return (
     <span className="gauge">
       <span>
-        <span className="gauge-value">{value}</span> <span className="gauge-label">
+        <span className="gauge-value">{value}</span>{' '}
+        <span className="gauge-label">
           {label}
           {ago && ` · ${ago}`}
         </span>
@@ -227,7 +251,13 @@ export function ProviderCard({
   // Beside the card's button, not in it: a control in a button is neither, and its click would open the window.
   return (
     <div className="provider-card-box">
-      <button id={`provider-card-${provider.id}`} type="button" className={`provider-card${off ? ' provider-off' : ''}`} aria-current={open || undefined} onClick={onOpen}>
+      <button
+        id={`provider-card-${provider.id}`}
+        type="button"
+        className={`provider-card${off ? ' provider-off' : ''}`}
+        aria-current={open || undefined}
+        onClick={onOpen}
+      >
         <span className="provider-card-head">
           <span className={`state-dot state-${look}`} aria-hidden="true" />
           <span className="provider-card-name">{provider.name}</span>
@@ -236,7 +266,9 @@ export function ProviderCard({
           {paid}
           {isDefault && ' · default'}
         </span>
-        <span className={look === 'bad' && !off ? 'provider-card-state' : 'provider-card-status'}>{off ? 'switched off' : said}</span>
+        <span className={look === 'bad' && !off ? 'provider-card-state' : 'provider-card-status'}>
+          {off ? 'switched off' : said}
+        </span>
         <CardReading provider={provider} paid={paid} reading={reading} readAt={readAt} oldWay={oldWay} />
         <TierCounts provider={provider} />
       </button>
@@ -249,7 +281,17 @@ export function ProviderCard({
         checked={!off}
         onChange={e => onSwitch(e.target.checked)}
       />
-      {(action || aside || quiet) && <CardFoot provider={provider} onRead={onRead} action={action} busy={busy} cost={cost} aside={aside} quiet={quiet} />}
+      {(action || aside || quiet) && (
+        <CardFoot
+          provider={provider}
+          onRead={onRead}
+          action={action}
+          busy={busy}
+          cost={cost}
+          aside={aside}
+          quiet={quiet}
+        />
+      )}
     </div>
   )
 }
@@ -271,17 +313,33 @@ function footOf(provider: Provider, paid: Paid, reading: Reading, onRead?: () =>
 
 /** A card's gauge, and under it what is in sight: why it was not read now, a limit it cannot keep, its key's warning,
  *  agy's terms, a CLI version that runs the old way. */
-function CardReading({ provider, paid, reading, readAt, oldWay }: { provider: Provider; paid: Paid; reading: Reading; readAt?: string | null; oldWay?: boolean }) {
+function CardReading({
+  provider,
+  paid,
+  reading,
+  readAt,
+  oldWay,
+}: {
+  provider: Provider
+  paid: Paid
+  reading: Reading
+  readAt?: string | null
+  oldWay?: boolean
+}) {
   return (
     <>
       {/* A server's state is its status already. */}
-      {paid !== 'this machine' && <Gauge {...reading} ago={readAt && reading.share !== null ? readAgo(readAt) : undefined} />}
+      {paid !== 'this machine' && (
+        <Gauge {...reading} ago={readAt && reading.share !== null ? readAgo(readAt) : undefined} />
+      )}
       {reading.failed && <span className="provider-card-state">{reading.failed}</span>}
       {paid !== 'subscription' && reading.more && <span className="provider-card-state">{reading.more}</span>}
       {provider.key_warning && <span className="provider-card-state">{provider.key_warning}</span>}
       {/* Antigravity's terms, section 6: said on or off, so switching it on is an informed choice. */}
       {provider.kind === 'agy_cli' && (
-        <span className="provider-card-state">Google’s terms forbid using Antigravity through another app; your Google account may be suspended.</span>
+        <span className="provider-card-state">
+          Google’s terms forbid using Antigravity through another app; your Google account may be suspended.
+        </span>
       )}
       {oldWay && <span className="provider-card-state">{provider.version_note}</span>}
     </>

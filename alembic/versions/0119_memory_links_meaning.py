@@ -4,6 +4,7 @@ model a search by meaning embeds with; and the vectors it compares
 Revision ID: 0119
 Revises: 0118
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -15,12 +16,16 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column(
-            "memory_links", sa.JSON(), nullable=False, server_default="[]"))
+        batch.add_column(sa.Column("memory_links", sa.JSON(), nullable=False, server_default="[]"))
         batch.add_column(sa.Column("embedding_provider_id", sa.String(32), nullable=True))
-        batch.add_column(sa.Column(
-            "embedding_model", sa.String(200), nullable=False,
-            server_default="text-embedding-3-small"))
+        batch.add_column(
+            sa.Column(
+                "embedding_model",
+                sa.String(200),
+                nullable=False,
+                server_default="text-embedding-3-small",
+            )
+        )
     op.create_table(
         "embeddings",
         sa.Column("kind", sa.String(8), primary_key=True),

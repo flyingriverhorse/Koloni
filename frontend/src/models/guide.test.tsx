@@ -18,7 +18,11 @@ const provider = (over: Partial<Provider>): Provider => ({
   note: null,
   models: [],
   only_listed: false,
-  max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
   has_key: false,
   position: 0,
   created_at: 't',
@@ -54,7 +58,10 @@ test('each model says whether agents may use it, and a switch is saved at once',
   const h = handlers()
   render(
     <ModelsPage
-      providers={[provider({ models: [{ name: 'qwen', note: null, tier: null, agents: true }] }), { ...claude, models: [{ name: 'haiku', note: null, tier: null, agents: true }] }]}
+      providers={[
+        provider({ models: [{ name: 'qwen', note: null, tier: null, agents: true }] }),
+        { ...claude, models: [{ name: 'haiku', note: null, tier: null, agents: true }] },
+      ]}
       {...h}
     />,
   )
@@ -129,7 +136,11 @@ test('a model is given a tier at once, and it is kept when something else of the
   })
   expect(screen.getByLabelText('Tier of haiku')).toHaveValue('fast')
   expect(screen.getByLabelText('Tier of opus')).toHaveValue('')
-  expect(within(screen.getByLabelText('Tier of opus')).getAllByRole('option').map(o => o.textContent)).toEqual(['no tier', 'fast', 'balanced', 'strongest'])
+  expect(
+    within(screen.getByLabelText('Tier of opus'))
+      .getAllByRole('option')
+      .map(o => o.textContent),
+  ).toEqual(['no tier', 'fast', 'balanced', 'strongest'])
   expect(screen.getByText(/A model with no tier is only ever picked by name\./)).toBeInTheDocument()
   // nothing touched: nothing of the list is sent with the Connection tab's Save
   await connection()
@@ -150,7 +161,12 @@ test('a model is given a tier at once, and it is kept when something else of the
     { name: 'opus', note: null, tier: 'strongest', agents: false },
   ])
   await userEvent.selectOptions(screen.getByLabelText('Tier of haiku'), '')
-  expect(h.onSave.mock.lastCall![1].models[0]).toEqual({ name: 'haiku', note: 'quick, cheap', tier: null, agents: false })
+  expect(h.onSave.mock.lastCall![1].models[0]).toEqual({
+    name: 'haiku',
+    note: 'quick, cheap',
+    tier: null,
+    agents: false,
+  })
 })
 
 test('"Never run a model that is not on this list" needs a list, and goes when the list goes', async () => {
@@ -165,7 +181,11 @@ test('"Never run a model that is not on this list" needs a list, and goes when t
   // Why, behind its ⓘ: opened there, it leaves the box as it was (slice 81a-2).
   const label = only.closest('label')!
   await userEvent.click(within(label).getByRole('button', { name: 'About this' }))
-  expect(within(label).getByText(/Even a model you pick by hand has to be on the list. So a model your plan does not cover is never sent/)).toBeVisible()
+  expect(
+    within(label).getByText(
+      /Even a model you pick by hand has to be on the list. So a model your plan does not cover is never sent/,
+    ),
+  ).toBeVisible()
   expect(only).not.toBeChecked()
   await userEvent.click(only)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -204,25 +224,48 @@ test('a new provider is created with its guide', async () => {
 
 test('the model a real run reported can be put on the list with one click', async () => {
   const h = handlers()
-  h.onTest.mockResolvedValue({ ok: true, model_id: 'claude-haiku-4-5-20251001', tools_supported: true, error: null, reply: 'ok', model_from: null })
+  h.onTest.mockResolvedValue({
+    ok: true,
+    model_id: 'claude-haiku-4-5-20251001',
+    tools_supported: true,
+    error: null,
+    reply: 'ok',
+    model_from: null,
+  })
   await openClaude(h)
   await connection()
   await userEvent.click(screen.getByRole('button', { name: 'Try a real run' }))
   expect(await screen.findByText(/It answered "ok" · model claude-haiku-4-5-20251001/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Add it to the list' }))
-  expect(h.onSave).toHaveBeenLastCalledWith('p2', { models: [{ name: 'claude-haiku-4-5-20251001', note: null, tier: null, agents: false }] })
+  expect(h.onSave).toHaveBeenLastCalledWith('p2', {
+    models: [{ name: 'claude-haiku-4-5-20251001', note: null, tier: null, agents: false }],
+  })
   expect(screen.queryByRole('button', { name: 'Add it to the list' })).not.toBeInTheDocument()
 })
 
 test('a run that could not name its model offers nothing to add, and settings are named as the source', async () => {
   const h = handlers()
-  h.onTest.mockResolvedValue({ ok: true, model_id: 'claude default', tools_supported: true, error: null, reply: 'ok', model_from: null })
+  h.onTest.mockResolvedValue({
+    ok: true,
+    model_id: 'claude default',
+    tools_supported: true,
+    error: null,
+    reply: 'ok',
+    model_from: null,
+  })
   await openClaude(h)
   await connection()
   await userEvent.click(screen.getByRole('button', { name: 'Try a real run' }))
   expect(await screen.findByText(/CLI default \(model not reported\)/)).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Add it to the list' })).not.toBeInTheDocument()
-  h.onTest.mockResolvedValue({ ok: true, model_id: 'gpt-5.5-codex', tools_supported: true, error: null, reply: 'ok', model_from: 'settings' })
+  h.onTest.mockResolvedValue({
+    ok: true,
+    model_id: 'gpt-5.5-codex',
+    tools_supported: true,
+    error: null,
+    reply: 'ok',
+    model_from: 'settings',
+  })
   await userEvent.click(screen.getByRole('button', { name: 'Try a real run' }))
   expect(await screen.findByText(/model gpt-5\.5-codex \(from Codex's settings\)/)).toBeInTheDocument()
 })

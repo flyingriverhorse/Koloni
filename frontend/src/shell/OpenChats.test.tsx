@@ -7,13 +7,37 @@ import { OpenChats } from './OpenChats'
 import { ADD_W, MORE_W, TAB_MIN } from './openTabs'
 
 type BoardConversation = Board['conversations'][number]
-const listed = (id: string, title: string, project_id: string | null = null): ListedConversation => ({ ...convState().conversation, id, title, project_id, kept: false, backlog_task: null, wrote: false })
-const onBoard = (id: string, over: Partial<BoardConversation> = {}): BoardConversation => ({ conversation_id: id, title: id, agents: [], merges_pending: 0, turn: null, ...over })
-const folder = (id: string, name: string) => ({ id, name, root_path: `C:\\work\\${name}`, created_at: '2026-10-01T00:00:00Z' }) as Project
+const listed = (id: string, title: string, project_id: string | null = null): ListedConversation => ({
+  ...convState().conversation,
+  id,
+  title,
+  project_id,
+  kept: false,
+  backlog_task: null,
+  wrote: false,
+})
+const onBoard = (id: string, over: Partial<BoardConversation> = {}): BoardConversation => ({
+  conversation_id: id,
+  title: id,
+  agents: [],
+  merges_pending: 0,
+  turn: null,
+  ...over,
+})
+const folder = (id: string, name: string) =>
+  ({ id, name, root_path: `C:\\work\\${name}`, created_at: '2026-10-01T00:00:00Z' }) as Project
 const projects = [folder('p', 'greeter'), folder('q', 'docs')]
-const conversations = [listed('a', 'Fix the greeting', 'p'), listed('b', 'Write the docs'), listed('c', 'Tidy the tests', 'q')]
+const conversations = [
+  listed('a', 'Fix the greeting', 'p'),
+  listed('b', 'Write the docs'),
+  listed('c', 'Tidy the tests', 'q'),
+]
 const board = {
-  conversations: [onBoard('a', { turn: boardTurn('r', 'completed', 't') }), onBoard('b', { merges_pending: 1 }), onBoard('c', { turn: boardTurn('s', 'running', null) })],
+  conversations: [
+    onBoard('a', { turn: boardTurn('r', 'completed', 't') }),
+    onBoard('b', { merges_pending: 1 }),
+    onBoard('c', { turn: boardTurn('s', 'running', null) }),
+  ],
   backlog_waiting: 0,
 } as unknown as Board
 
@@ -22,11 +46,28 @@ function tabs(over: Partial<Parameters<typeof OpenChats>[0]> = {}) {
     onOpen: vi.fn(),
     onClose: vi.fn(),
     onOpenFolder: vi.fn(async (path: string) => folder('new', path.split('\\').at(-1)!)),
-    onBrowse: vi.fn(async (path: string | null): Promise<FolderBrowse> => ({ path: path ?? 'C:\\work', parts: [{ name: 'C:\\', path: 'C:' }, { name: 'work', path: 'C:\\work' }], shortcuts: [], entries: [], more: false })),
+    onBrowse: vi.fn(async (path: string | null): Promise<FolderBrowse> => ({
+      path: path ?? 'C:\\work',
+      parts: [
+        { name: 'C:\\', path: 'C:' },
+        { name: 'work', path: 'C:\\work' },
+      ],
+      shortcuts: [],
+      entries: [],
+      more: false,
+    })),
   }
   render(
     <div className="app">
-      <OpenChats tabs={['p', 'none', 'q']} conversations={conversations} projects={projects} board={board} openTab="p" {...on} {...over} />
+      <OpenChats
+        tabs={['p', 'none', 'q']}
+        conversations={conversations}
+        projects={projects}
+        board={board}
+        openTab="p"
+        {...on}
+        {...over}
+      />
     </div>,
   )
   return on
@@ -51,7 +92,7 @@ test('each tab is a project: its folder\'s name, or "No folder", and how its cha
   expect(list).not.toHaveTextContent('waits for you')
 })
 
-test('a click goes to a tab\'s project; its × closes the tab, no chat', async () => {
+test("a click goes to a tab's project; its × closes the tab, no chat", async () => {
   const on = tabs()
   await userEvent.click(screen.getByRole('tab', { name: /^No folder/ }))
   expect(on.onOpen).toHaveBeenCalledWith('none')
@@ -62,7 +103,7 @@ test('a click goes to a tab\'s project; its × closes the tab, no chat', async (
   expect(on.onClose).toHaveBeenCalledWith('q')
 })
 
-test('the tabs are one tab stop: the arrows, Home and End move along them, Enter opens one, Delete closes it; the open one\'s × comes next', async () => {
+test("the tabs are one tab stop: the arrows, Home and End move along them, Enter opens one, Delete closes it; the open one's × comes next", async () => {
   const on = tabs()
   await userEvent.tab()
   const [p, none, q] = screen.getAllByRole('tab')
@@ -86,13 +127,29 @@ test('the tabs are one tab stop: the arrows, Home and End move along them, Enter
 })
 
 test('with no tabs there is no row; the last one closed, its chat still open, leaves "+"', async () => {
-  const { container } = render(<OpenChats tabs={[]} conversations={conversations} projects={[]} board={null} openTab={null} onOpen={() => {}} onClose={() => {}} onOpenFolder={vi.fn()} onBrowse={vi.fn()} />)
+  const { container } = render(
+    <OpenChats
+      tabs={[]}
+      conversations={conversations}
+      projects={[]}
+      board={null}
+      openTab={null}
+      onOpen={() => {}}
+      onClose={() => {}}
+      onOpenFolder={vi.fn()}
+      onBrowse={vi.fn()}
+    />,
+  )
   expect(container).toBeEmptyDOMElement()
   const on = tabs({ tabs: [] })
   expect(screen.queryByRole('tab')).toBeNull()
   // Its folder browser, cancelled, gives the focus back to "+".
   await userEvent.click(screen.getByRole('button', { name: 'Go to another folder' }))
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Go to another folder' })).getByRole('button', { name: 'Open a folder…' }))
+  await userEvent.click(
+    within(screen.getByRole('dialog', { name: 'Go to another folder' })).getByRole('button', {
+      name: 'Open a folder…',
+    }),
+  )
   const browser = await screen.findByRole('dialog', { name: 'Open a folder' })
   expect(on.onBrowse).toHaveBeenCalled()
   await userEvent.click(within(browser).getByRole('button', { name: 'Cancel' }))
@@ -104,16 +161,26 @@ test('"+" offers the recent folders, "No folder" and "Open a folder…"; one pic
   await userEvent.click(screen.getByRole('button', { name: 'Go to another folder' }))
   const panel = screen.getByRole('dialog', { name: 'Go to another folder' })
   // (the open tab's folder is not offered)
-  expect(within(panel).getAllByRole('button').map(b => b.textContent)).toEqual([expect.stringMatching(/^docsC:\\work\\docs · /), 'Open a folder…', 'No folder · a plain chat'])
+  expect(
+    within(panel)
+      .getAllByRole('button')
+      .map(b => b.textContent),
+  ).toEqual([expect.stringMatching(/^docsC:\\work\\docs · /), 'Open a folder…', 'No folder · a plain chat'])
   await userEvent.click(within(panel).getByRole('button', { name: /^docs/ }))
   expect(on.onOpen).toHaveBeenLastCalledWith('q')
   expect(screen.queryByRole('dialog')).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Go to another folder' }))
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Go to another folder' })).getByRole('button', { name: /^No folder/ }))
+  await userEvent.click(
+    within(screen.getByRole('dialog', { name: 'Go to another folder' })).getByRole('button', { name: /^No folder/ }),
+  )
   expect(on.onOpen).toHaveBeenLastCalledWith('none')
 
   await userEvent.click(screen.getByRole('button', { name: 'Go to another folder' }))
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Go to another folder' })).getByRole('button', { name: 'Open a folder…' }))
+  await userEvent.click(
+    within(screen.getByRole('dialog', { name: 'Go to another folder' })).getByRole('button', {
+      name: 'Open a folder…',
+    }),
+  )
   const browser = await screen.findByRole('dialog', { name: 'Open a folder' })
   // beside the open tab's folder
   expect(on.onBrowse).toHaveBeenCalledWith('C:\\work')

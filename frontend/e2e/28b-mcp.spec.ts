@@ -10,9 +10,13 @@ const recorded = () =>
   readFileSync(MCP_RECORD, 'utf8')
     .split('\n')
     .filter(Boolean)
-    .map(line => JSON.parse(line) as { event: string; cwd?: string; files?: string[]; name?: string; arguments?: unknown })
+    .map(
+      line => JSON.parse(line) as { event: string; cwd?: string; files?: string[]; name?: string; arguments?: unknown },
+    )
 
-test('an MCP server is added on the Tools page, read, given to the Lead, and a call of its tool is asked about', async ({ page }) => {
+test('an MCP server is added on the Tools page, read, given to the Lead, and a call of its tool is asked about', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
 
@@ -21,11 +25,17 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
   // The Servers tab's one line; that a server runs with your rights, and the rest, are behind its ⓘ.
   const servers = page.getByRole('tabpanel', { name: /^Servers/ })
   const about = servers.locator('.tools-lead').getByRole('button', { name: 'About this' })
-  await expect(servers.getByText('“Runs without asking” is your word: KOLONİ cannot check that a tool only reads.')).toBeHidden()
+  await expect(
+    servers.getByText('“Runs without asking” is your word: KOLONİ cannot check that a tool only reads.'),
+  ).toBeHidden()
   await about.click()
-  await expect(servers.getByText('“Runs without asking” is your word: KOLONİ cannot check that a tool only reads.')).toBeVisible()
+  await expect(
+    servers.getByText('“Runs without asking” is your word: KOLONİ cannot check that a tool only reads.'),
+  ).toBeVisible()
   await expect(servers.locator('.tools-lead')).toContainText('A server runs with your rights on this machine.')
-  await expect(servers.locator('.tools-lead')).toContainText('It is started in an empty folder of KOLONİ’s own, never in a project or a working copy')
+  await expect(servers.locator('.tools-lead')).toContainText(
+    'It is started in an empty folder of KOLONİ’s own, never in a project or a working copy',
+  )
   await page.keyboard.press('Escape')
   // With no server the page offers common ones; your own is added by hand, from the Add menu.
   await expect(page.getByRole('region', { name: 'Start from a common server' }).getByRole('button')).toHaveCount(8)
@@ -45,7 +55,9 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
 
   // Its tools are read once - the server is started for that, and ended - and are listed as the server describes them.
   await page.getByRole('button', { name: 'Read its tools' }).click()
-  await expect(form.getByRole('status')).toContainText('8 tools read. New: echo, where, boom, picture, big, hang, die, sample.')
+  await expect(form.getByRole('status')).toContainText(
+    '8 tools read. New: echo, where, boom, picture, big, hang, die, sample.',
+  )
   await shot(page, '28b-tools-form')
   const echo = page.getByRole('row', { name: /^echo/ })
   await expect(echo).toContainText('“Says back what it is given.”')
@@ -57,7 +69,9 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
   await expect(page.getByText(/8 tools on: about [\d,]+ characters added to every model step/)).toBeVisible()
   // Slice 92: a server added is watched - every call asks, at every level - until it is trusted.
   await expect(page.getByText('Watching: every call asks')).toBeVisible()
-  await expect(page.getByRole('button', { name: /^fake/ })).toContainText('watching8 tools · every call asks until you trust it')
+  await expect(page.getByRole('button', { name: /^fake/ })).toContainText(
+    'watching8 tools · every call asks until you trust it',
+  )
   // Switched off it is given to no agent, and says so; on again, as it was.
   await page.getByRole('switch', { name: 'fake on' }).click()
   await expect(page.getByRole('button', { name: /^fake/ })).toContainText('off: given to no agent')
@@ -83,13 +97,19 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
   await page.getByLabel('Message').fill('echo through the server')
   await page.getByRole('button', { name: 'Send' }).click()
   // the question is KOLONİ's own, under a title of its own with its words whole, and Allow and Reject are all there is to say to it
-  await expect(chat.getByText(/May the tool "echo" of the MCP server "fake" run\? It would be given: \{"text": "hi from the page"\}/)).toBeVisible()
+  await expect(
+    chat.getByText(
+      /May the tool "echo" of the MCP server "fake" run\? It would be given: \{"text": "hi from the page"\}/,
+    ),
+  ).toBeVisible()
   await expect(chat.getByText('KOLONİ asks')).toBeVisible()
   await expect(chat.getByText('Allow this?', { exact: true })).toBeVisible()
   // watched: the card says so, with the server's tools and its own words for this one
   await expect(chat.getByText(/This server is watched: every call of it asks you, at every level/)).toBeVisible()
   await expect(chat.getByText(/Its tools: echo, where, boom/)).toBeVisible()
-  await expect(chat.getByText(/What the server says of echo \(its words, not KOLONİ's\): "Says back what it is given\."/)).toBeVisible()
+  await expect(
+    chat.getByText(/What the server says of echo \(its words, not KOLONİ's\): "Says back what it is given\."/),
+  ).toBeVisible()
   await expect(chat.getByLabel('Your answer')).toHaveCount(0)
   // the call is named by its server and its tool, and it waits: it does not run
   await expect(chat.getByText('fake · echo: waits for your answer')).toBeVisible()

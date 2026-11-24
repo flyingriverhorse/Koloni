@@ -26,7 +26,9 @@ ROLES = ["Coder", "UI designer"]
 
 
 def test_a_report_s_findings_are_read_within_bounds():
-    report = "Many.\n\n**Findings:**\n" + "\n".join(f"- {'x' * 900} {n} | kind: CODE" for n in range(60))
+    report = "Many.\n\n**Findings:**\n" + "\n".join(
+        f"- {'x' * 900} {n} | kind: CODE" for n in range(60)
+    )
     found = _findings(report, [])
     assert len(found) == MAX_FINDINGS
     assert found[0] == {"what": "x" * MAX_WHAT, "kind": "code", "role": None, "blocking": True}
@@ -35,8 +37,9 @@ def test_a_report_s_findings_are_read_within_bounds():
 
 
 def test_the_section_ends_at_the_next_heading_or_fence():
-    found = _findings("## Findings\n- a | kind: code | role: coder\n\n## Summary\nAll good. | kind: ui",
-                      ROLES)
+    found = _findings(
+        "## Findings\n- a | kind: code | role: coder\n\n## Summary\nAll good. | kind: ui", ROLES
+    )
     assert found == [{"what": "a", "kind": "code", "role": "Coder", "blocking": True}]
     fenced = "## Findings\n- a | kind: ui\n```\n- b | kind: code\n```"
     assert [f["what"] for f in _findings(fenced, ROLES)] == ["a"]
@@ -49,13 +52,20 @@ def test_a_findings_heading_inside_a_fenced_block_opens_nothing():
 
 def test_a_line_on_the_heading_itself_is_read_like_the_rest():
     assert _findings("Findings: greet is wrong | kind: code | role: Coder", ROLES) == [
-        {"what": "greet is wrong", "kind": "code", "role": "Coder", "blocking": True}]
+        {"what": "greet is wrong", "kind": "code", "role": "Coder", "blocking": True}
+    ]
 
 
-@pytest.mark.parametrize("report", [
-    "## Findings\n- No issues found.", "Findings: None.", "**Findings:** no problems",
-    "## Findings\n\nNo findings!", "Findings:\n1. none found",
-])
+@pytest.mark.parametrize(
+    "report",
+    [
+        "## Findings\n- No issues found.",
+        "Findings: None.",
+        "**Findings:** no problems",
+        "## Findings\n\nNo findings!",
+        "Findings:\n1. none found",
+    ],
+)
 def test_nothing_found_said_in_other_words_is_an_empty_list(report):
     assert _findings(report, ROLES) == []
 
@@ -72,12 +82,17 @@ def test_what_a_review_checked_is_no_finding_and_is_read_apart():
 
 def test_what_was_already_failing_before_is_no_finding():
     # B-117 (live): the Tester wrote two old broken tests as findings and the loop stuck on them.
-    report = ("## Findings\n- greet says Helo | kind: code | role: Coder\n"
-              "- Already failing before: test_calc, test_cart | kind: test | role: Coder")
+    report = (
+        "## Findings\n- greet says Helo | kind: code | role: Coder\n"
+        "- Already failing before: test_calc, test_cart | kind: test | role: Coder"
+    )
     assert [f["what"] for f in _findings(report, ROLES)] == ["greet says Helo"]
     assert _findings("Already failing before: test_calc\n\nFindings: none", ROLES) == []
     # (inside the section, before a real finding - with its bullet or not - it loses none of them)
-    for line in ("- Already failing before: x | kind: test | role: Coder", "Already failing before: x"):
+    for line in (
+        "- Already failing before: x | kind: test | role: Coder",
+        "Already failing before: x",
+    ):
         found = _findings(f"## Findings\n{line}\n- real bug | kind: code | role: Coder", ROLES)
         assert [f["what"] for f in found] == ["real bug"]
     assert _findings("## Findings\n- Already failing before: x", ROLES) == []
@@ -86,30 +101,38 @@ def test_what_was_already_failing_before_is_no_finding():
 def test_a_finding_marked_as_failing_before_in_its_own_line_is_no_finding():
     # B-387 (live): "do_HEAD bypasses authentication", marked as not caused by the change,
     # opened another build round.
-    report = ("## Findings\n1. Already failing before: old test | kind: test | role: Coder\n"
-              "- greet is slow (already failing before) | kind: code | role: Coder\n"
-              "- **Pre-existing:** x is slow | kind: code | role: Coder\n"
-              "- y (pre-existing) | kind: ui | role: Coder | blocking")
+    report = (
+        "## Findings\n1. Already failing before: old test | kind: test | role: Coder\n"
+        "- greet is slow (already failing before) | kind: code | role: Coder\n"
+        "- **Pre-existing:** x is slow | kind: code | role: Coder\n"
+        "- y (pre-existing) | kind: ui | role: Coder | blocking"
+    )
     assert _findings(report, ROLES) == []
     assert _failing_before(report) == [
-        "old test | kind: test | role: Coder", "greet is slow (already failing before)",
-        "**Pre-existing:** x is slow", "y (pre-existing)"]
+        "old test | kind: test | role: Coder",
+        "greet is slow (already failing before)",
+        "**Pre-existing:** x is slow",
+        "y (pre-existing)",
+    ]
 
 
-@pytest.mark.parametrize("line", [
-    # (security stays blocking, marked or not - review of B-387)
-    "do_HEAD skips auth (already failing before) | kind: security | role: Coder",
-    "Pre-existing: a key in the log | kind: security | role: Coder",
-    # (a failure of its own besides the mark)
-    "test_greet fails (pre-existing) | kind: test | role: Coder",
-    # (no mark: the words are only about something that was there before)
-    "Pre-existing tests now fail after this change | kind: test | role: Coder | blocking",
-    "**Pre-existing** callers of greet() now crash | kind: bug | role: Coder",
-    "Cache breaks (preexisting entries are not invalidated) | kind: bug | role: Coder",
-    "test_x fails | kind: test | role: Coder | pre-existing? no, new | blocking",
-    "this breaks the pre-existing tests | kind: test | role: Coder",
-    "test_greet fails (it was not already failing before) | kind: test | role: Coder",
-])
+@pytest.mark.parametrize(
+    "line",
+    [
+        # (security stays blocking, marked or not - review of B-387)
+        "do_HEAD skips auth (already failing before) | kind: security | role: Coder",
+        "Pre-existing: a key in the log | kind: security | role: Coder",
+        # (a failure of its own besides the mark)
+        "test_greet fails (pre-existing) | kind: test | role: Coder",
+        # (no mark: the words are only about something that was there before)
+        "Pre-existing tests now fail after this change | kind: test | role: Coder | blocking",
+        "**Pre-existing** callers of greet() now crash | kind: bug | role: Coder",
+        "Cache breaks (preexisting entries are not invalidated) | kind: bug | role: Coder",
+        "test_x fails | kind: test | role: Coder | pre-existing? no, new | blocking",
+        "this breaks the pre-existing tests | kind: test | role: Coder",
+        "test_greet fails (it was not already failing before) | kind: test | role: Coder",
+    ],
+)
 def test_what_stays_a_blocking_finding_though_it_names_what_was_before(line):
     (found,) = _findings(f"## Findings\n- {line}", ROLES)
     assert found["blocking"] and not _failing_before(f"## Findings\n- {line}")
@@ -117,42 +140,69 @@ def test_what_stays_a_blocking_finding_though_it_names_what_was_before(line):
 
 def test_at_a_recipes_step_a_finding_for_no_role_of_it_goes_to_its_first_role_only():
     # B-117's review: handed to every role of the step, each fixed it.
-    found = [{"what": "own", "kind": "code", "role": "Reviewer"}, {"what": "stray", "kind": "test", "role": "Tester"}]
+    found = [
+        {"what": "own", "kind": "code", "role": "Reviewer"},
+        {"what": "stray", "kind": "test", "role": "Tester"},
+    ]
     step = ["coder", "reviewer"]
     assert "stray" in _carried(found, "Coder", step) and "own" not in _carried(found, "Coder", step)
-    assert "stray" not in _carried(found, "Reviewer", step) and "own" in _carried(found, "Reviewer", step)
+    assert "stray" not in _carried(found, "Reviewer", step) and "own" in _carried(
+        found, "Reviewer", step
+    )
 
 
 def test_a_finding_is_blocking_unless_marked_a_suggestion_and_a_failing_test_always_is():
     # B-192 (live): every small note was a finding and the loop went round twice.
-    report = ("## Findings\n- greet says Helo | kind: code | role: Coder | blocking\n"
-              "- name it greeting | kind: code | role: Coder | **suggestion**\n"
-              "- old style | kind: code | role: Coder\n"
-              "- test_greet fails | kind: test | role: Coder | suggestion")
+    report = (
+        "## Findings\n- greet says Helo | kind: code | role: Coder | blocking\n"
+        "- name it greeting | kind: code | role: Coder | **suggestion**\n"
+        "- old style | kind: code | role: Coder\n"
+        "- test_greet fails | kind: test | role: Coder | suggestion"
+    )
     found = _findings(report, ROLES)
     assert [(f["what"], f["role"], f["blocking"]) for f in found] == [
-        ("greet says Helo", "Coder", True), ("name it greeting", "Coder", False),
-        ("old style", "Coder", True), ("test_greet fails", "Coder", True)]
+        ("greet says Helo", "Coder", True),
+        ("name it greeting", "Coder", False),
+        ("old style", "Coder", True),
+        ("test_greet fails", "Coder", True),
+    ]
     # Handed on are the blocking ones only; the Lead is told the suggestion is the user's.
-    assert "name it greeting" not in _carried(found, "Coder") and "greet says Helo" in _carried(found, "Coder")
-    assert _hand_on(found) == ("\n\nFindings to hand on: Coder (3)"
-                               "\n\nSuggestions for the user, not to hand on: 1")
+    assert "name it greeting" not in _carried(found, "Coder") and "greet says Helo" in _carried(
+        found, "Coder"
+    )
+    assert _hand_on(found) == (
+        "\n\nFindings to hand on: Coder (3)\n\nSuggestions for the user, not to hand on: 1"
+    )
     assert _hand_on([f for f in found if not f["blocking"]]) == (
-        "\n\nSuggestions for the user, not to hand on: 1")
+        "\n\nSuggestions for the user, not to hand on: 1"
+    )
 
 
-@pytest.mark.parametrize(("line", "blocking"), [
-    # (the coordinator's: security is always blocking; `blocking` anywhere wins; a suggestion
-    # is read from the last field only)
-    ("- a key in the log | kind: security | role: Coder | suggestion", True),
-    ("- rename x | kind: code | role: Coder | blocking | suggestion", True),
-    ("- rename x | kind: code | suggestion | role: Coder", True),
-    ("- rename x | kind: code | role: Coder | suggestion", False),
-    # what a failure is said in, whatever it is marked
-    *((f"- {said} | kind: test | role: Coder | suggestion", True) for said in (
-        "an Error on import", "pytest exited 2", "exit code 1 from npm test", "parse() raises",
-        "a Traceback in train.py", "testler başarısız", "etl.py hata veriyor", "test_x FAILED")),
-])
+@pytest.mark.parametrize(
+    ("line", "blocking"),
+    [
+        # (the coordinator's: security is always blocking; `blocking` anywhere wins; a suggestion
+        # is read from the last field only)
+        ("- a key in the log | kind: security | role: Coder | suggestion", True),
+        ("- rename x | kind: code | role: Coder | blocking | suggestion", True),
+        ("- rename x | kind: code | suggestion | role: Coder", True),
+        ("- rename x | kind: code | role: Coder | suggestion", False),
+        # what a failure is said in, whatever it is marked
+        *(
+            (f"- {said} | kind: test | role: Coder | suggestion", True)
+            for said in (
+                "an Error on import",
+                "pytest exited 2",
+                "exit code 1 from npm test",
+                "parse() raises",
+                "a Traceback in train.py",
+                "testler başarısız",
+                "etl.py hata veriyor",
+                "test_x FAILED",
+            )
+        ),
+    ],
+)
 def test_what_makes_a_finding_blocking(line, blocking):
     (found,) = _findings(f"## Findings\n{line}", ROLES)
     assert found["blocking"] is blocking
@@ -167,42 +217,67 @@ def test_a_section_with_no_line_in_the_format_is_not_said():
 # --- who reads and who is told --------------------------------------------------------
 
 
-def test_a_report_of_a_role_not_of_the_check_kind_has_no_findings(make_client, wait_run, project_dir):
-    _, _, snap = run(make_client, wait_run, project_dir,
-                     [spawn("Researcher", "Look at hello.py"), text("done")],
-                     Researcher=[text("Found it.\n\nFindings:\n- greet() is wrong | kind: code | role: Coder")])
+def test_a_report_of_a_role_not_of_the_check_kind_has_no_findings(
+    make_client, wait_run, project_dir
+):
+    _, _, snap = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [spawn("Researcher", "Look at hello.py"), text("done")],
+        Researcher=[text("Found it.\n\nFindings:\n- greet() is wrong | kind: code | role: Coder")],
+    )
     assert agent(snap, "Researcher")["findings"] is None
 
 
-def test_a_check_role_answering_a_message_is_not_told_the_findings_section(make_client, wait_run, project_dir):
-    _, model, _ = run(make_client, wait_run, project_dir,
-                      [spawn("Reviewer", "Review hello.py"), message("reviewer", "And the tests?"), text("done")],
-                      Reviewer=[text("Findings: none"), text("There are none.")])
+def test_a_check_role_answering_a_message_is_not_told_the_findings_section(
+    make_client, wait_run, project_dir
+):
+    _, model, _ = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [spawn("Reviewer", "Review hello.py"), message("reviewer", "And the tests?"), text("done")],
+        Reviewer=[text("Findings: none"), text("There are none.")],
+    )
     told = model.calls_of["Reviewer"]
     assert "| kind:" in told[0][0]["content"] and "| kind:" not in told[1][0]["content"]
 
 
 def test_a_check_role_speaking_in_a_discussion_is_not_told_the_findings_section(
-        make_client, wait_run, project_dir):
-    _, model, _ = run(make_client, wait_run, project_dir,
-                      [discuss("Is hello.py fine?", ["reviewer"], rounds=1), text("Fine."), text("done")],
-                      Reviewer=[text("Looks fine.")])
+    make_client, wait_run, project_dir
+):
+    _, model, _ = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [discuss("Is hello.py fine?", ["reviewer"], rounds=1), text("Fine."), text("done")],
+        Reviewer=[text("Looks fine.")],
+    )
     assert model.calls_of["Reviewer"]
     assert all("| kind:" not in sent[0]["content"] for sent in model.calls_of["Reviewer"])
 
 
 def test_a_role_closed_in_this_conversation_is_no_role_named_and_is_not_offered(
-        make_client, wait_run, project_dir):
-    client, model = make_client({"Lead": [spawn("Reviewer", "Review hello.py"), text("done")],
-                                 "Reviewer": [text(REPORT)]})
-    off = client.patch(f"/api/roles/{role_id(client, 'UI designer')}", json={"enabled": False},
-                       headers=ORIGIN)
+    make_client, wait_run, project_dir
+):
+    client, model = make_client(
+        {"Lead": [spawn("Reviewer", "Review hello.py"), text("done")], "Reviewer": [text(REPORT)]}
+    )
+    off = client.patch(
+        f"/api/roles/{role_id(client, 'UI designer')}", json={"enabled": False}, headers=ORIGIN
+    )
     assert off.status_code == 200, off.text
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     assert [f["role"] for f in agent(snap, "Reviewer")["findings"]] == ["Coder", None, None]
-    assert "Findings to hand on: Coder (1), no role named (2)" in model.calls_of["Lead"][1][-1]["content"]
-    offered = model.calls_of["Reviewer"][0][0]["content"].split("should take it: ")[1].split(". With")[0]
+    assert (
+        "Findings to hand on: Coder (1), no role named (2)"
+        in model.calls_of["Lead"][1][-1]["content"]
+    )
+    offered = (
+        model.calls_of["Reviewer"][0][0]["content"].split("should take it: ")[1].split(". With")[0]
+    )
     assert "Coder" in offered and "UI designer" not in offered
 
 
@@ -217,36 +292,292 @@ def test_a_finding_naming_an_agent_goes_to_that_agent_s_role():
     assert role("Fixer", {"fixer": "Coder"}) == "Coder"  # (an agent of the turn, by its name)
     assert role("Coder 3") == "Coder"  # (numbered as agents are)
     assert role("Wizard 2") is role("Coder2") is None
-    given = {"report": "", "findings": [{"what": "x", "kind": "code", "role": "coder 2",
-                                         "blocking": True}]}
+    given = {
+        "report": "",
+        "findings": [{"what": "x", "kind": "code", "role": "coder 2", "blocking": True}],
+    }
     assert _handed_findings(given, ROLES, {"coder 2": "Coder"})[0][0]["role"] == "Coder"
 
 
-def test_a_reviewer_s_finding_for_coder_2_goes_to_the_coder_2_agent(make_client, wait_run, project_dir):
+def test_a_reviewer_s_finding_for_coder_2_goes_to_the_coder_2_agent(
+    make_client, wait_run, project_dir
+):
     # B-364 (live): "3 suggestions → no role ×2, Coder" - two named `role: Coder 2`.
-    found = "Fixed?\n\n## Findings\n- greet() prints \"Helo\" | kind: code | role: Coder 2\n"
-    _, model, snap = run(make_client, wait_run, project_dir,
-                         [spawn("Coder", "Write hello.py", "s1"), spawn("Coder", "Fix hello.py", "s2"),
-                          spawn("Reviewer", "Review hello.py", "s3"), text("done")],
-                         Coder=[text("written")], **{"Coder 2": [text("fixed")]},
-                         Reviewer=[text(found)])
+    found = 'Fixed?\n\n## Findings\n- greet() prints "Helo" | kind: code | role: Coder 2\n'
+    _, model, snap = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "Write hello.py", "s1"),
+            spawn("Coder", "Fix hello.py", "s2"),
+            spawn("Reviewer", "Review hello.py", "s3"),
+            text("done"),
+        ],
+        Coder=[text("written")],
+        **{"Coder 2": [text("fixed")]},
+        Reviewer=[text(found)],
+    )
     assert [a["name"] for a in snap["agents"][1:]] == ["Coder", "Coder 2", "Reviewer"]
     assert [f["role"] for f in agent(snap, "Reviewer")["findings"]] == ["Coder"]
     assert "Findings to hand on: Coder (1)" in model.calls_of["Lead"][3][-1]["content"]
 
 
 def test_findings_from_an_agent_of_an_earlier_turn_is_refused(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [spawn("Reviewer", "Review hello.py"), text("done"),
-                 step(call("spawn_agent", {"role": "Coder", "task": "Fix it",
-                                           "findings_from": "Reviewer"}, "s2")),
-                 text("not handed")],
-        "Reviewer": [text(REPORT)], "Coder": [text("fixed")]})
+    client, model = make_client(
+        {
+            "Lead": [
+                spawn("Reviewer", "Review hello.py"),
+                text("done"),
+                step(
+                    call(
+                        "spawn_agent",
+                        {"role": "Coder", "task": "Fix it", "findings_from": "Reviewer"},
+                        "s2",
+                    )
+                ),
+                text("not handed"),
+            ],
+            "Reviewer": [text(REPORT)],
+            "Coder": [text("fixed")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     wait_run(client, cid, run_id)
-    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "fix it"},
-                         headers=ORIGIN).json()
+    posted = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "fix it"}, headers=ORIGIN
+    ).json()
     snap = wait_run(client, cid, posted["run"]["id"])
     refused = model.calls_of["Lead"][3][-1]
-    assert refused["role"] == "tool" and "no agent of this turn is named Reviewer" in refused["content"]
+    assert (
+        refused["role"] == "tool"
+        and "no agent of this turn is named Reviewer" in refused["content"]
+    )
     assert "Coder" not in [a["role_name"] for a in snap["agents"]]
+
+
+# --- T: a closing "Findings: see above" line after the section ------------------------------
+
+# (the live reports' shape - Claude Code · haiku, both looks of a turn)
+SECTION = (
+    "Verdict: {verdict}\n\nI read shellrun.py and tests/test_shellrun.py.\n\n## Findings\n"
+    "- tests/test_shellrun.py:32-37: the env case asserts one key only | kind: test | "
+    "role: Orchestrator | {mark}\n"
+    "- shellrun.py:12: env is passed on unchecked | kind: code | role: Orchestrator | suggestion\n"
+    "\nFindings: see the suggestions above; {closing}."
+)
+
+
+def test_a_closing_findings_line_leaves_the_section_counted():
+    # (it said "Review gave no findings section: not counted", its suggestions lost)
+    found = _findings(
+        SECTION.format(verdict="MERGE", mark="suggestion", closing="nothing blocking"),
+        ["Orchestrator"],
+    )
+    assert [(f["what"][:22], f["blocking"]) for f in found] == [
+        ("tests/test_shellrun.py", False),
+        ("shellrun.py:12: env is", False),
+    ]
+    # (a one-liner alone is read as before; two sections with headings are read together)
+    assert _findings("Findings: none", []) == []
+    both = "## Findings\n- a | kind: code\n\n## Notes\nx\n\n### Findings\n- b | kind: ui\nFindings: see above"
+    assert [f["what"] for f in _findings(both, [])] == ["a", "b"]
+    assert _findings("## Findings\nNone.\n\nFindings: see above, nothing.", []) == []
+
+
+def look(
+    report,
+):  # (as `ReviewMixin._look` reads a look's report: no verdict, a blocking row holds)
+    from app.agent.review_mixin import FIXER, _held_in_words, verdict_of
+    from app.agent.summary import _blocking
+
+    verdict, found = verdict_of(report), _findings(report, [FIXER])
+    verdict = verdict or ("HOLD" if _blocking(found) else None)
+    return verdict, _held_in_words(report, found) if verdict == "HOLD" else found
+
+
+def test_a_closing_findings_line_never_loses_a_blocking_finding():
+    # (a MERGE whose section marks one blocking: counted, and that finding holds the work)
+    verdict, found = look(SECTION.format(verdict="MERGE", mark="blocking", closing="1 blocking"))
+    assert verdict == "MERGE" and [f["blocking"] for f in found] == [True, False]
+    # (a HOLD: its own blocking row - never the whole report's text as one finding)
+    verdict, found = look(SECTION.format(verdict="HOLD", mark="blocking", closing="1 blocking"))
+    assert (
+        verdict == "HOLD"
+        and len(found) == 2
+        and found[0]["what"].startswith("tests/test_shellrun.py:32-37")
+    )
+
+
+ROW_B = "- a.py:3: divides by zero on empty input | kind: bug | role: Orchestrator | blocking"
+ROW_S = "- a.py:9: naming | kind: code | role: Orchestrator | suggestion"
+
+
+@pytest.mark.parametrize(
+    ("report", "verdict", "blocking"),
+    [
+        # (FINDINGS_PROMPT's own shape, nothing found: counted - it read "no findings section")
+        ("Verdict: MERGE\n\n## Findings\nFindings: none\n", "MERGE", []),
+        ("Verdict: MERGE\n\n## Findings\n\nFindings: none.\n", "MERGE", []),
+        # (a "Findings:" summary line above or after the rows takes none away)
+        (
+            f"Verdict: MERGE\n\n## Findings\nFindings: 1 blocking, 1 suggestion\n{ROW_B}\n{ROW_S}\n",
+            "MERGE",
+            [True, False],
+        ),
+        (f"Verdict: MERGE\n\n**Findings:** 1 blocking\n{ROW_B}\n", "MERGE", [True]),
+        (
+            f"Verdict: MERGE\n\n## Findings\nSee below.\n\nFindings: 1 blocking\n{ROW_B}\n",
+            "MERGE",
+            [True],
+        ),
+        (f"Verdict: MERGE\n\n## Findings\nNone.\n\n## Findings\n{ROW_B}\n", "MERGE", [True]),
+        # (no Verdict line: a blocking row holds the work, as before)
+        (f"Looked it over.\n\n## Findings\nFindings: 1 blocking\n{ROW_B}\n", "HOLD", [True]),
+        # (only prose, then "Findings: none": counted, nothing found)
+        (
+            "Verdict: MERGE\n\n## Findings\nThe change looks correct.\n\nFindings: none\n",
+            "MERGE",
+            [],
+        ),
+        # (an earlier look quoted - indented, `>` - and the prompt's row echoed are no findings)
+        (
+            f"Verdict: MERGE\n\nThe last look said:\n\n    Verdict: HOLD\n    ## Findings\n    {ROW_B}\n"
+            "\n## Findings\nNone.\n",
+            "MERGE",
+            [],
+        ),
+        (f"Verdict: MERGE\n\n> ## Findings\n> {ROW_B}\n\n## Findings\nNone.\n", "MERGE", []),
+        (
+            "Verdict: MERGE\n\n## Findings\n- <what> | kind: <kind> | role: <role> | blocking\n\n"
+            "Findings: none\n",
+            "MERGE",
+            [],
+        ),
+    ],
+)
+def test_every_findings_section_is_read_and_a_summary_line_takes_no_row(report, verdict, blocking):
+    # (T, second round: the review found the first round's reader lost these - a "## Findings"
+    # heading outweighed the "Findings:" line under it that held the rows, or said "none")
+    said, found = look(report)
+    assert (said, [f["blocking"] for f in found]) == (verdict, blocking)
+
+
+@pytest.mark.parametrize(
+    ("report", "blocking"),
+    [
+        # (re-check: rows nested under an unindented section are its own - a quoted look opens none)
+        (
+            f"Verdict: MERGE\n\n## Findings\n- Blocking:\n    - {ROW_B[2:]}\n- Suggestions:\n    - {ROW_S[2:]}\n",
+            [True, False],
+        ),
+        (f"Verdict: MERGE\n\n## Findings\n\t{ROW_B}\n", [True]),
+        # (a placeholder in another field, or in the finding's own words, is no echo of the prompt)
+        (
+            "Verdict: MERGE\n\n## Findings\n- a.py:3: divides by zero | kind: bug | role: <role> | blocking\n",
+            [True],
+        ),
+        (
+            "Verdict: MERGE\n\n## Findings\n- a.py:3: divides by zero | kind: <kind> | role: Orchestrator | blocking\n",
+            [True],
+        ),
+        (
+            "Verdict: MERGE\n\n## Findings\n- tpl.html:4: the <role> placeholder is never filled | kind: bug | "
+            "role: Orchestrator | blocking\n",
+            [True],
+        ),
+    ],
+)
+def test_a_nested_row_or_a_placeholder_elsewhere_is_still_a_finding(report, blocking):
+    assert [f["blocking"] for f in look(report)[1]] == blocking
+
+
+FENCE = "```"
+
+
+@pytest.mark.parametrize(
+    ("report", "blocking"),
+    [
+        # (a fence's lines are not read; the section open before it goes on after it)
+        (
+            f"Verdict: MERGE\n\n## Findings\n{ROW_S}\n{FENCE}python\nx = 1 / 0\n{FENCE}\n{ROW_B}\n",
+            [False, True],
+        ),
+        (f"Verdict: MERGE\n\n## Findings\n{FENCE}\nx = 1 / 0\n{FENCE}\n{ROW_B}\n", [True]),
+        # (`### Blocking` under `## Findings`: its own subheading)
+        (
+            f"Verdict: MERGE\n\n## Findings\n### Blocking\n{ROW_B}\n### Suggestions\n{ROW_S}\n",
+            [True, False],
+        ),
+        # (a label line in it ends nothing)
+        (f"Verdict: MERGE\n\n## Findings\nChecked: ran pytest\n{ROW_B}\n", [True]),
+        # (an earlier look quoted inside an open one: opens none, ends none - its rows are read
+        # with the rest: towards holding)
+        (
+            f"Verdict: MERGE\n\n## Findings\n{ROW_S}\n    ## Findings\n    {ROW_B}\n"
+            "- b.py:1: leaks a file handle | kind: bug | role: Orchestrator | blocking\n",
+            [False, True, True],
+        ),
+    ],
+)
+def test_a_fence_a_subheading_a_label_or_a_quoted_heading_ends_no_section(report, blocking):
+    # (k-findings-2: each of these lost every row after it - a blocking one too)
+    assert [f["blocking"] for f in look(report)[1]] == blocking
+
+
+def test_what_still_ends_a_section_or_is_not_read():
+    # (rows inside a fence: never counted)
+    assert look(f"Verdict: MERGE\n\n## Findings\n{FENCE}\n{ROW_B}\n{FENCE}\n")[1] is None
+    # (a heading of its level or above; after a "Findings:" line, any heading)
+    assert [
+        f["what"] for f in look(f"Verdict: MERGE\n\n### Findings\n{ROW_S}\n## Next\n{ROW_B}\n")[1]
+    ] == ["a.py:9: naming"]
+    assert look(f"Verdict: MERGE\n\nFindings:\n### Notes\n{ROW_B}\n")[1] is None
+    # (a quoted heading with no section open opens none)
+    assert look(f"Verdict: MERGE\n\n> ## Findings\n> {ROW_B}\n")[1] is None
+
+
+def test_the_live_report_with_a_closing_line_keeps_its_rows():
+    # (Claude Code · haiku: its section, then "Findings: see the suggestions above; …")
+    said, found = look(SECTION.format(verdict="MERGE", mark="suggestion", closing="none blocking"))
+    assert said == "MERGE" and [f["blocking"] for f in found] == [False, False]
+
+
+R1 = "- a.py:3: divides by zero | kind: bug | role: Coder | blocking"
+R2 = "- b.py:9: drops the error | kind: bug | role: Coder | blocking"
+
+
+@pytest.mark.parametrize(
+    ("report", "blocking"),
+    [
+        # (a row that starts with `#` - no heading: one to six `#` and a space - closes nothing)
+        (f"## Findings\n#main has no label | kind: bug | role: Coder | blocking\n{R2}", 2),
+        # (quoted code, indented, between two rows and first in the section: no heading either)
+        (f"## Findings\n{R1}\n    # the line:\n    eval(x)\n{R2}", 2),
+        (f"## Findings\n   # in calc.py\n{R1}", 1),
+        # (a one-line code span at a line's start is no fence: the rows after it are read)
+        (f"## Findings\n```eval(x)``` is called on the user's text\n{R1}", 1),
+        # (the section's heading by another name)
+        (f"## Findings (1)\n{R1}", 1),
+        (f"## Review findings\n{R1}", 1),
+    ],
+)
+def test_no_row_is_lost_to_a_hash_a_code_span_or_the_sections_other_name(report, blocking):
+    # (the second session's probes on 06fe8f3: each lost the rows after it - "not counted")
+    found = _findings(report, ["Coder"])
+    assert found is not None and sum(one["blocking"] for one in found) == blocking, found
+
+
+def test_a_real_fence_still_hides_what_is_in_it():
+    # (```lang opens one and ``` closes it: a row quoted in it is no finding of this look's)
+    report = f"## Findings\n```py\n{R1}\n```\n{R2}"
+    assert [one["what"] for one in _findings(report, ["Coder"])] == ["b.py:9: drops the error"]
+
+
+@pytest.mark.parametrize("earlier", ["Previous", "Earlier", "Last", "Old", "Resolved"])
+def test_an_earlier_looks_findings_heading_opens_no_section(earlier):
+    # (as an earlier verdict is no verdict: its rows are not this look's)
+    report = (
+        f"## {earlier} findings\n- old | kind: bug | role: Coder | blocking\n\n## Findings\nNone."
+    )
+    assert _findings(report, ["Coder"]) == []

@@ -10,6 +10,7 @@ its folder, which before K-bilgi only one role could (`knowledge.taken`).
 Revision ID: 0138
 Revises: 0137
 """
+
 import json
 import uuid
 from datetime import UTC, datetime
@@ -24,9 +25,16 @@ branch_labels = None
 depends_on = None
 
 # A role's knowledge's keys, and the column each is kept in.
-COLUMNS = {"topic": "topic", "sources": "sources", "max_pages": "max_pages",
-           "max_usd": "max_usd", "learn_with": "learn_with", "removed": "removed",
-           "weekly": "weekly", "search_answering": "search_web"}
+COLUMNS = {
+    "topic": "topic",
+    "sources": "sources",
+    "max_pages": "max_pages",
+    "max_usd": "max_usd",
+    "learn_with": "learn_with",
+    "removed": "removed",
+    "weekly": "weekly",
+    "search_answering": "search_web",
+}
 JSONS = ("sources", "learn_with", "removed")
 DEFAULTS = {"max_pages": 500, "max_usd": 0.5, "weekly": False, "search_answering": False}
 
@@ -55,8 +63,9 @@ def upgrade() -> None:
         batch.add_column(sa.Column("knows", sa.JSON(), nullable=False, server_default="[]"))
     bind = op.get_bind()
     made = datetime.now(UTC).replace(tzinfo=None).isoformat(" ", "microseconds")
-    for role, kept in bind.execute(sa.text(
-            "SELECT id, knowledge FROM roles WHERE knowledge IS NOT NULL")).fetchall():
+    for role, kept in bind.execute(
+        sa.text("SELECT id, knowledge FROM roles WHERE knowledge IS NOT NULL")
+    ).fetchall():
         known = _loaded(kept)
         if not isinstance(known, dict):
             continue
@@ -65,12 +74,17 @@ def upgrade() -> None:
         values = {column: known.get(key, DEFAULTS.get(key)) for key, column in COLUMNS.items()}
         values.update({key: json.dumps(values[key]) for key in JSONS})
         values["removed"] = json.dumps(known.get("removed") or [])
-        bind.execute(sa.text(
-            f"INSERT INTO knowledge (id, project_id, {', '.join(COLUMNS.values())}, created_at) "
-            f"VALUES (:id, NULL, {', '.join(f':{one}' for one in COLUMNS.values())}, :at)"),
-            {**values, "id": row, "at": made})
-        bind.execute(sa.text("UPDATE roles SET knows = :knows WHERE id = :id"), {
-            "id": role, "knows": json.dumps([{"knowledge_id": row, "mode": "full"}])})
+        bind.execute(
+            sa.text(
+                f"INSERT INTO knowledge (id, project_id, {', '.join(COLUMNS.values())}, created_at) "
+                f"VALUES (:id, NULL, {', '.join(f':{one}' for one in COLUMNS.values())}, :at)"
+            ),
+            {**values, "id": row, "at": made},
+        )
+        bind.execute(
+            sa.text("UPDATE roles SET knows = :knows WHERE id = :id"),
+            {"id": role, "knows": json.dumps([{"knowledge_id": row, "mode": "full"}])},
+        )
     with op.batch_alter_table("roles") as batch:
         batch.drop_column("knowledge")
 
@@ -79,11 +93,21 @@ def downgrade() -> None:
     with op.batch_alter_table("roles") as batch:
         batch.add_column(sa.Column("knowledge", sa.JSON(), nullable=True))
     bind = op.get_bind()
-    rows = {row[0]: row for row in bind.execute(sa.text(
-        f"SELECT id, {', '.join(COLUMNS.values())} FROM knowledge")).fetchall()}
+    rows = {
+        row[0]: row
+        for row in bind.execute(
+            sa.text(f"SELECT id, {', '.join(COLUMNS.values())} FROM knowledge")
+        ).fetchall()
+    }
     for role, knows in bind.execute(sa.text("SELECT id, knows FROM roles")).fetchall():
-        full = next((rows[one["knowledge_id"]] for one in _loaded(knows) or []
-                     if one.get("mode") == "full" and one.get("knowledge_id") in rows), None)
+        full = next(
+            (
+                rows[one["knowledge_id"]]
+                for one in _loaded(knows) or []
+                if one.get("mode") == "full" and one.get("knowledge_id") in rows
+            ),
+            None,
+        )
         if full is None:
             continue
         known = dict(zip(COLUMNS, full[1:], strict=True))
@@ -91,8 +115,10 @@ def downgrade() -> None:
         known["weekly"] = bool(known["weekly"])
         if known["search_answering"] is not None:
             known["search_answering"] = bool(known["search_answering"])
-        bind.execute(sa.text("UPDATE roles SET knowledge = :known WHERE id = :id"),
-                     {"id": role, "known": json.dumps(known)})
+        bind.execute(
+            sa.text("UPDATE roles SET knowledge = :known WHERE id = :id"),
+            {"id": role, "known": json.dumps(known)},
+        )
     with op.batch_alter_table("roles") as batch:
         batch.drop_column("knows")
     op.drop_index("ix_knowledge_project_id", "knowledge")

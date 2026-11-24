@@ -64,7 +64,8 @@ import { decidedOf, waitingId } from './chat/waiting'
 
 const HEALTH_POLL_MS = 15000
 // (A hash has no order: which of the two is newer is not known, so all three steps are said.)
-const UPDATED = 'KOLONİ was updated: the page and the server differ. Build the page (npm run build), restart KOLONİ, then reload.'
+const UPDATED =
+  'KOLONİ was updated: the page and the server differ. Build the page (npm run build), restart KOLONİ, then reload.'
 const REBUILT = "KOLONİ's page was rebuilt: reload to use it."
 /** A build's own mark: the entry script its index.html names, hashed by Vite anew each build (the dev server's never changes). */
 const entryOf = (page: Document) => page.querySelector('script[type="module"][src]')?.getAttribute('src') ?? null
@@ -90,14 +91,17 @@ const usageEverywhere = (since: string) => useApp.getState().usage(null, since)
 const lastLimits = (providerId: string) => useApp.getState().limits(providerId, false)
 /** The top bar's readings, of the open chat's providers: not known while the chat the list leads to is read, nor from another's. */
 const readingsOf = ({ inUse, conv, conversations }: ReturnType<typeof useApp.getState>) =>
-  inUse?.of === (conv?.conversation.id ?? null) && (conv || !conversations.some(c => !c.archived_at)) ? inUse.readings : null
+  inUse?.of === (conv?.conversation.id ?? null) && (conv || !conversations.some(c => !c.archived_at))
+    ? inUse.readings
+    : null
 /** ...and the roles of it that cannot run, with them. */
 const cannotOf = (state: ReturnType<typeof useApp.getState>) => (readingsOf(state) ? state.inUse?.cannot : undefined)
 
 /** Whether an agent of the open chat was given facts. */
 const factsGiven = (conv: ConvState | null) => conv?.agents.some(a => (a.facts_given?.length ?? 0) > 0) ?? false
 /** Each chat's turn of the folder and when it ended, as one string: another when a turn ends. */
-const turnsEndedOf = (board: Board | null) => board?.conversations.map(c => `${c.turn?.id}:${c.turn?.ended_at}`).join() ?? ''
+const turnsEndedOf = (board: Board | null) =>
+  board?.conversations.map(c => `${c.turn?.id}:${c.turn?.ended_at}`).join() ?? ''
 /** Whether a list of the facts an agent was given is on screen: an agent's window, or an agent or a turn's memory selected. */
 const givenOnScreen = (agentWindowId: string | null, selectedNodeId: string | null) =>
   Boolean(agentWindowId) || /^(agent|memory):/.test(selectedNodeId ?? '')
@@ -234,11 +238,23 @@ export function App() {
   useEffect(() => {
     const { loadProjects, loadHealth } = useApp.getState()
     void loadProjects()
-    void useApp.getState().loadRoles().catch(() => {})
-    void useApp.getState().loadSkills().catch(() => {})
-    void useApp.getState().loadProviders().catch(() => {})
+    void useApp
+      .getState()
+      .loadRoles()
+      .catch(() => {})
+    void useApp
+      .getState()
+      .loadSkills()
+      .catch(() => {})
+    void useApp
+      .getState()
+      .loadProviders()
+      .catch(() => {})
     // A turn's summary says its cost from them.
-    void useApp.getState().loadPrices().catch(() => {})
+    void useApp
+      .getState()
+      .loadPrices()
+      .catch(() => {})
     // A build of the page since this one was loaded (K-yenile-uyarisi): said once, until the page is reloaded.
     const lookForBuild = () => void builtAnew().then(anew => anew && setRebuilt(true))
     lookForBuild()
@@ -294,9 +310,15 @@ export function App() {
   useEffect(() => {
     if (!projectId) return
     const read = () => {
-      void useApp.getState().loadBudget().catch(() => {})
+      void useApp
+        .getState()
+        .loadBudget()
+        .catch(() => {})
       // ...and the night while you're away (slice 106): the top bar says it on every page.
-      void useApp.getState().loadAway().catch(() => {})
+      void useApp
+        .getState()
+        .loadAway()
+        .catch(() => {})
     }
     read()
     const timer = setInterval(() => document.hidden || read(), BOARD_POLL_MS)
@@ -314,11 +336,23 @@ export function App() {
     // And the conversations: what the list says of each (changes kept) may be decided since.
     if (view === 'conversations') void useApp.getState().loadConversations()
     // The prices are read when the Usage page opens.
-    if (view === 'usage') void useApp.getState().loadPrices().catch(() => {})
+    if (view === 'usage')
+      void useApp
+        .getState()
+        .loadPrices()
+        .catch(() => {})
     // The MCP servers when the Tools page opens, and the Agents page (a role is given one there).
-    if (view === 'tools' || view === 'agents') void useApp.getState().loadMcpServers().catch(() => {})
+    if (view === 'tools' || view === 'agents')
+      void useApp
+        .getState()
+        .loadMcpServers()
+        .catch(() => {})
     // And KOLONİ's own tools switched there, which a role's tools are shown with (slice 61).
-    if (view === 'tools' || view === 'agents') void useApp.getState().loadBuiltinTools().catch(() => {})
+    if (view === 'tools' || view === 'agents')
+      void useApp
+        .getState()
+        .loadBuiltinTools()
+        .catch(() => {})
     // And the backlog: its events read it again too.
     if (projectId && view === 'backlog') void useApp.getState().loadBacklog()
   }, [view, projectId])
@@ -329,7 +363,10 @@ export function App() {
     if (!away || morning.current) return
     morning.current = true
     if (away.status !== 'ended' || away.seen_at) return
-    void useApp.getState().openTurn(away.conversation_id, away.run_id).then(() => useApp.getState().select('away:' + away.id))
+    void useApp
+      .getState()
+      .openTurn(away.conversation_id, away.run_id)
+      .then(() => useApp.getState().select('away:' + away.id))
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setView('canvas')
   }, [away])
@@ -338,7 +375,11 @@ export function App() {
     const back = (event: PopStateEvent) => {
       const chat = (event.state as { chat?: unknown } | null)?.chat
       // (One deleted since: what is open stays open.)
-      if (typeof chat === 'string') void useApp.getState().openConversation(chat).catch(() => {})
+      if (typeof chat === 'string')
+        void useApp
+          .getState()
+          .openConversation(chat)
+          .catch(() => {})
     }
     window.addEventListener('popstate', back)
     return () => window.removeEventListener('popstate', back)
@@ -369,11 +410,7 @@ export function App() {
           <p role="alert" className="alert">
             {loadError}
           </p>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => void useApp.getState().loadProjects()}
-          >
+          <button type="button" className="btn btn-primary" onClick={() => void useApp.getState().loadProjects()}>
             Try again
           </button>
         </div>
@@ -425,7 +462,11 @@ export function App() {
             onDecide={(...said) => useApp.getState().decideMerge(merge.id, ...said)}
             onCheck={choices => useApp.getState().checkMerge(merge.id, choices)}
             onCommit={(message, hooks) => useApp.getState().commitMerge(merge.id, message, hooks)}
-            onContinue={project && canContinue(conv, merge) ? { steps: project.continue_steps, run: () => useApp.getState().continueMerge(merge.id) } : undefined}
+            onContinue={
+              project && canContinue(conv, merge)
+                ? { steps: project.continue_steps, run: () => useApp.getState().continueMerge(merge.id) }
+                : undefined
+            }
           />
         ),
         renderQuestion: question => (
@@ -474,7 +515,10 @@ export function App() {
 
   /** Ready for you's pill, while something waits for you or was decided for you. */
   const readyPill = () => {
-    const pillSaid = waiting.length > 0 ? `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'} for you` : `${decided} decided for you`
+    const pillSaid =
+      waiting.length > 0
+        ? `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'} for you`
+        : `${decided} decided for you`
     return (
       (waiting.length > 0 || decided > 0) && (
         <button
@@ -516,7 +560,13 @@ export function App() {
       location={project?.exec_location}
       turns={view === 'canvas' && !settingsOpen ? setTurnsIn : undefined}
     >
-      <PlanUse providers={providers} onLimits={lastLimits} every={BOARD_POLL_MS} onOpen={() => show('usage')} onNear={setNear} />
+      <PlanUse
+        providers={providers}
+        onLimits={lastLimits}
+        every={BOARD_POLL_MS}
+        onOpen={() => show('usage')}
+        onNear={setNear}
+      />
       <BudgetPill budget={budget} onOpen={() => show('usage')} />
       <AwayStatus away={away} onOpen={() => show('backlog')} />
       <HoldStatus
@@ -568,7 +618,8 @@ export function App() {
 
   /** The open chats' tabs, over the canvas. */
   const openChats = () =>
-    view === 'canvas' && !settingsOpen && (
+    view === 'canvas' &&
+    !settingsOpen && (
       <OpenChats
         tabs={kept(tabs, conversations, projects)}
         conversations={conversations}
@@ -583,7 +634,9 @@ export function App() {
     )
 
   /** What two chats of the folder both want, over the canvas. */
-  const conflicts = () => view === 'canvas' && !settingsOpen && <ConflictStrip board={everywhere} conversationId={conv?.conversation.id ?? null} />
+  const conflicts = () =>
+    view === 'canvas' &&
+    !settingsOpen && <ConflictStrip board={everywhere} conversationId={conv?.conversation.id ?? null} />
 
   /** The settings, as a page over the one shown. */
   const settingsPage = () =>
@@ -591,7 +644,11 @@ export function App() {
       <Settings
         project={project}
         picked={section ?? undefined}
-        chat={conv && project && conv.conversation.project_id === project.id ? { id: conv.conversation.id, title: conv.conversation.title } : undefined}
+        chat={
+          conv && project && conv.conversation.project_id === project.id
+            ? { id: conv.conversation.id, title: conv.conversation.title }
+            : undefined
+        }
         dockerAvailable={health?.docker_available ?? false}
         dockerError={health?.docker_error ?? null}
         // Not known yet is not "none": the server refuses it where there is none.
@@ -708,7 +765,9 @@ export function App() {
   )
   const readyPage = () => <ReadyPage items={waiting} openChat={openChat} />
   const boardPage = () =>
-    !project ? noFolder('Board') : (
+    !project ? (
+      noFolder('Board')
+    ) : (
       <BoardPage
         // (Each folder's own: what one opened, typed or read is not carried to another.)
         key={project.id}
@@ -728,7 +787,9 @@ export function App() {
       />
     )
   const backlogPage = () =>
-    !project ? noFolder('To-do') : (
+    !project ? (
+      noFolder('To-do')
+    ) : (
       <BacklogPage
         key={project.id}
         backlog={backlog}
@@ -761,6 +822,8 @@ export function App() {
       project={project}
       projects={projects}
       onLoad={useApp.getState().usage}
+      onCards={useApp.getState().cards}
+      onAddCardRule={useApp.getState().addCardRule}
       budget={budget}
       providers={providers}
       onLimits={useApp.getState().limits}
@@ -794,7 +857,9 @@ export function App() {
     />
   )
   const memoryPage = () =>
-    !project ? noFolder('Memory') : (
+    !project ? (
+      noFolder('Memory')
+    ) : (
       <MemoryPage
         key={project.id}
         searchFor={pick?.view === 'memory' ? { words: pick.id, n: pick.n } : undefined}
@@ -816,7 +881,9 @@ export function App() {
       />
     )
   const knowledgePage = () =>
-    !project ? noFolder('Knowledge page') : (
+    !project ? (
+      noFolder('Knowledge page')
+    ) : (
       <KnowledgePage
         key={project.id}
         items={knowledge}
@@ -835,7 +902,9 @@ export function App() {
       />
     )
   const triggersPage = () =>
-    !project ? noFolder('Triggers') : (
+    !project ? (
+      noFolder('Triggers')
+    ) : (
       <TriggersPage
         key={project.id}
         triggers={triggers}
@@ -909,7 +978,12 @@ export function App() {
         onStop={useApp.getState().stopTeam}
         onFinish={useApp.getState().finishTeam}
         teams={teams}
-        onRecipes={() => useApp.getState().recipes(null).then(read => read.recipes)}
+        onRecipes={() =>
+          useApp
+            .getState()
+            .recipes(null)
+            .then(read => read.recipes)
+        }
         onChange={useApp.getState().setChatTeams}
         project={project && conv.conversation.project_id === project.id ? project : null}
         onDefault={useApp.getState().saveProjectSettings}
@@ -917,14 +991,26 @@ export function App() {
         providers={providers}
         onRoleModels={() => useApp.getState().roleModels(conv.conversation.id)}
         // (The role's own model, as "A model of its own" on its card sets it: no tier left to pick another.)
-        onRunOn={(roleId, providerId, modelId) => useApp.getState().patchRole(roleId, { provider_id: providerId, model_id: modelId, tier: null, tier_min: null, tier_max: null })}
+        onRunOn={(roleId, providerId, modelId) =>
+          useApp.getState().patchRole(roleId, {
+            provider_id: providerId,
+            model_id: modelId,
+            tier: null,
+            tier_min: null,
+            tier_max: null,
+          })
+        }
       />
     )
   const canvasPage = () => (
     <>
       {/* The canvas fills the stage; the chat lies over its left edge, open, or its bottom left corner, closed. */}
       {/* The window over the canvas pressed or used last is the one in front. */}
-      <div className="stage" onPointerDownCapture={event => frontOf(event.target)} onFocusCapture={event => frontOf(event.target)}>
+      <div
+        className="stage"
+        onPointerDownCapture={event => frontOf(event.target)}
+        onFocusCapture={event => frontOf(event.target)}
+      >
         <ChatPanel />
         {stepsCard()}
         <CanvasView
@@ -942,7 +1028,7 @@ export function App() {
             if (kind === 'discussion') useApp.getState().openDiscussion(refId)
             if (kind === 'room') useApp.getState().showRoom(refId)
             if (kind === 'memory') setView('memory')
-            // (The Assistant PO's node, opened, or its To-do →.)
+            // (The Scout's node, opened, or its To-do →.)
             if (kind === 'po' || kind === 'backlog') setView('backlog')
           }}
           onOpenList={() => useApp.getState().showReady(true)}
@@ -989,11 +1075,7 @@ export function App() {
         {...agentAsks}
         renderChange={change => (
           <>
-            <ChangeActions
-              key={change.id}
-              change={change}
-              onDecide={action => decide(change.id, action)}
-            />
+            <ChangeActions key={change.id} change={change} onDecide={action => decide(change.id, action)} />
             <div className="insp-diff">
               <DiffView diff={change.diff} />
             </div>
@@ -1065,14 +1147,27 @@ export function App() {
       ...roles.map(role => ({ kind: 'Role', name: role.name, go: () => go('agents', role.id) })),
       ...providers.map(provider => ({ kind: 'Model', name: provider.name, go: () => go('models', provider.id) })),
       ...mcpServers.map(server => ({ kind: 'Tool server', name: server.name, go: () => go('tools', server.id) })),
-      ...[...(project ? SECTIONS : []), ...APP_SECTIONS.map(([key, name]) => [key, `${name} (the app)`] as const)].map(([key, name]) => ({
-        kind: 'Setting',
-        name,
-        go: () => useApp.getState().askSettings(key),
-      })),
+      ...[...(project ? SECTIONS : []), ...APP_SECTIONS.map(([key, name]) => [key, `${name} (the app)`] as const)].map(
+        ([key, name]) => ({
+          kind: 'Setting',
+          name,
+          go: () => useApp.getState().askSettings(key),
+        }),
+      ),
       { kind: 'Help', name: 'Show the first steps', go: firstSteps },
     ]
-    return <Palette places={places} onOpen={() => void useApp.getState().loadMcpServers().catch(() => {})} onSearch={words => go('memory', words)} />
+    return (
+      <Palette
+        places={places}
+        onOpen={() =>
+          void useApp
+            .getState()
+            .loadMcpServers()
+            .catch(() => {})
+        }
+        onSearch={words => go('memory', words)}
+      />
+    )
   }
 
   return (
@@ -1096,9 +1191,7 @@ export function App() {
         {settingsPage()}
         {/* Hidden, not gone, under the settings: a message being typed and an open window stay. */}
         <div className="workspace" hidden={settingsOpen}>
-          <PageGuard key={view}>
-          {page()}
-          </PageGuard>
+          <PageGuard key={view}>{page()}</PageGuard>
         </div>
       </div>
       {toasts()}

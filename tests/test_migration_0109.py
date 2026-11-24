@@ -16,15 +16,21 @@ AT = "2026-10-28 10:00:00"
 
 
 def _role(conn, rid, name, tools, instructions, builtin=1):
-    conn.execute("INSERT INTO roles (id, name, description, instructions, tools, builtin, "
-                 "created_by_agent, kind, mcp, skills, created_at, updated_at) VALUES "
-                 "(?, ?, '', ?, ?, ?, 0, 'write', '[]', '[]', ?, ?)",
-                 (rid, name, instructions, json.dumps(tools), builtin, AT, AT))
+    conn.execute(
+        "INSERT INTO roles (id, name, description, instructions, tools, builtin, "
+        "created_by_agent, kind, mcp, skills, created_at, updated_at) VALUES "
+        "(?, ?, '', ?, ?, ?, 0, 'write', '[]', '[]', ?, ?)",
+        (rid, name, instructions, json.dumps(tools), builtin, AT, AT),
+    )
 
 
 def _held(conn):
-    return {name: (json.loads(tools), said) for name, tools, said in conn.execute(
-        "SELECT name, tools, instructions FROM roles WHERE name IN ('Spec writer', 'Summarizer')")}
+    return {
+        name: (json.loads(tools), said)
+        for name, tools, said in conn.execute(
+            "SELECT name, tools, instructions FROM roles WHERE name IN ('Spec writer', 'Summarizer')"
+        )
+    }
 
 
 def _frozen():
@@ -67,11 +73,14 @@ def test_stock_ones_write_the_document_asked_for_and_going_back_is_exact(tmp_pat
         assert _held(conn) == after
 
 
-@pytest.mark.parametrize("change", [
-    lambda name, tools, said, builtin: (tools, said + " Mine.", builtin),  # its words changed
-    lambda name, tools, said, builtin: (tools[:-1], said, builtin),  # a tool taken off
-    lambda name, tools, said, builtin: (tools, said, 0),  # the user's own by that name
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda name, tools, said, builtin: (tools, said + " Mine.", builtin),  # its words changed
+        lambda name, tools, said, builtin: (tools[:-1], said, builtin),  # a tool taken off
+        lambda name, tools, said, builtin: (tools, said, 0),  # the user's own by that name
+    ],
+)
 def test_one_the_user_changed_or_made_is_left_alone(tmp_path, change):
     cfg, db, before = _before(tmp_path, change)
     command.upgrade(cfg, "0109")

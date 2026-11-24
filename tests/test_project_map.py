@@ -31,16 +31,24 @@ def _put(root: Path, files: dict[str, str]) -> Path:
 def monorepo(root: Path) -> Path:
     """A Python library with tests and the repository's .venv at the root, a TypeScript app with a
     test script, a site whose package.json has npm's no-test script, and loose files."""
-    return _put(root, {
-        f".venv/{PYTHON.as_posix()}": "", "README.md": "hi",
-        "core/pyproject.toml": "[project]\nname = 'core'\n", "core/tests/test_a.py": "",
-        "core/core/a.py": "", "core/AGENTS.md": "rules",
-        "web/package.json": json.dumps({"scripts": {"test": "vitest run"}}),
-        "web/tsconfig.json": "{}", "web/src/main.ts": "",
-        "site/package.json": json.dumps(
-            {"scripts": {"test": 'echo "Error: no test specified" && exit 1'}}),
-        "site/index.js": "",
-    })
+    return _put(
+        root,
+        {
+            f".venv/{PYTHON.as_posix()}": "",
+            "README.md": "hi",
+            "core/pyproject.toml": "[project]\nname = 'core'\n",
+            "core/tests/test_a.py": "",
+            "core/core/a.py": "",
+            "core/AGENTS.md": "rules",
+            "web/package.json": json.dumps({"scripts": {"test": "vitest run"}}),
+            "web/tsconfig.json": "{}",
+            "web/src/main.ts": "",
+            "site/package.json": json.dumps(
+                {"scripts": {"test": 'echo "Error: no test specified" && exit 1'}}
+            ),
+            "site/index.js": "",
+        },
+    )
 
 
 def _git(folder: Path, *args: str) -> None:
@@ -50,35 +58,68 @@ def _git(folder: Path, *args: str) -> None:
 def test_a_monorepos_parts_with_their_languages_counts_and_test_guesses(tmp_path):
     found = project_map.scan(str(monorepo(tmp_path / "repo")))
     assert found["parts"] == [
-        {"path": "core/", "language": "Python", "files": 4, "more": False, "agents_md": True,
-         "guess": f"{Path('..', '.venv', PYTHON)} -m pytest"},
-        {"path": "site/", "language": "JavaScript", "files": 2, "more": False,
-         "agents_md": False, "guess": None},
-        {"path": "web/", "language": "TypeScript", "files": 3, "more": False,
-         "agents_md": False, "guess": "npm test"},
+        {
+            "path": "core/",
+            "language": "Python",
+            "files": 4,
+            "more": False,
+            "agents_md": True,
+            "guess": f"{Path('..', '.venv', PYTHON)} -m pytest",
+        },
+        {
+            "path": "site/",
+            "language": "JavaScript",
+            "files": 2,
+            "more": False,
+            "agents_md": False,
+            "guess": None,
+        },
+        {
+            "path": "web/",
+            "language": "TypeScript",
+            "files": 3,
+            "more": False,
+            "agents_md": False,
+            "guess": "npm test",
+        },
     ]
     assert (found["git"], found["big"], found["partial"], found["not_copied"]) == (
-        False, False, False, [])
+        False,
+        False,
+        False,
+        [],
+    )
 
 
 def test_a_part_uses_its_own_venv_and_pytest_said_in_its_config(tmp_path):
-    root = _put(tmp_path / "repo", {
-        f".venv/{PYTHON.as_posix()}": "", f"lib/.venv/{PYTHON.as_posix()}": "",
-        "lib/setup.py": "", "lib/setup.cfg": "[tool:pytest]\n", "other/requirements.txt": "",
-    })
+    root = _put(
+        tmp_path / "repo",
+        {
+            f".venv/{PYTHON.as_posix()}": "",
+            f"lib/.venv/{PYTHON.as_posix()}": "",
+            "lib/setup.py": "",
+            "lib/setup.cfg": "[tool:pytest]\n",
+            "other/requirements.txt": "",
+        },
+    )
     parts = {part["path"]: part["guess"] for part in project_map.scan(str(root))["parts"]}
     assert parts == {"lib/": f"{Path('.venv', PYTHON)} -m pytest", "other/": None}
 
 
 def test_a_single_project_is_one_part_at_its_root_and_no_brief(tmp_path):
-    root = _put(tmp_path / "one", {"pyproject.toml": "[project]\n", "src/x.py": "",
-                                   "Cargo.toml": "", "go.mod": ""})
+    root = _put(
+        tmp_path / "one",
+        {"pyproject.toml": "[project]\n", "src/x.py": "", "Cargo.toml": "", "go.mod": ""},
+    )
     found = project_map.edited(project_map.scan(str(root)), {})
     assert [(p["path"], p["language"], p["guess"]) for p in found["parts"]] == [
-        ("./", "Python, Rust, Go", "cargo test")]
+        ("./", "Python, Rust, Go", "cargo test")
+    ]
     assert project_map.brief(found) is None
-    assert project_map.brief(project_map.edited(project_map.scan(str(tmp_path / "one" / "src")),
-                                                {})) is None  # (no part at all)
+    assert (
+        project_map.brief(project_map.edited(project_map.scan(str(tmp_path / "one" / "src")), {}))
+        is None
+    )  # (no part at all)
 
 
 def test_the_brief_holds_the_map_quoted_and_capped(tmp_path, monkeypatch):
@@ -100,13 +141,19 @@ def test_the_brief_holds_the_map_quoted_and_capped(tmp_path, monkeypatch):
 
 
 @needs_git
-def test_what_git_ignores_is_not_walked_and_is_not_copied_only_when_too_big(tmp_path,
-                                                                           monkeypatch):
-    root = _put(tmp_path / "repo", {
-        ".gitignore": "data/\nmlruns\n", "app/pyproject.toml": "", "app/a.py": "",
-        "data/pyproject.toml": "", "data/big.csv": "", "mlruns/0/meta.yaml": "",
-        "tools/package.json": "{}",
-    })
+def test_what_git_ignores_is_not_walked_and_is_not_copied_only_when_too_big(tmp_path, monkeypatch):
+    root = _put(
+        tmp_path / "repo",
+        {
+            ".gitignore": "data/\nmlruns\n",
+            "app/pyproject.toml": "",
+            "app/a.py": "",
+            "data/pyproject.toml": "",
+            "data/big.csv": "",
+            "mlruns/0/meta.yaml": "",
+            "tools/package.json": "{}",
+        },
+    )
     _git(root, "init", "-q")
     small = project_map.scan(str(root))
     assert [part["path"] for part in small["parts"]] == ["app/", "tools/"]
@@ -126,8 +173,10 @@ def test_a_project_in_a_folder_its_repository_ignores_still_has_its_parts(tmp_pa
 
 
 def test_the_caps_stop_the_count_and_the_walk(tmp_path, monkeypatch):
-    root = _put(tmp_path / "repo", {"a/package.json": "{}", "b/package.json": "{}",
-                                    **{f"a/f{n}.js": "" for n in range(8)}})
+    root = _put(
+        tmp_path / "repo",
+        {"a/package.json": "{}", "b/package.json": "{}", **{f"a/f{n}.js": "" for n in range(8)}},
+    )
     monkeypatch.setattr(project_map, "MOST_COUNTED", 5)
     part = project_map.scan(str(root))["parts"][0]
     assert (part["path"], part["files"], part["more"]) == ("a/", 5, True)
@@ -146,8 +195,10 @@ def _link(target: Path, link: Path) -> None:
 
 
 def test_a_link_out_of_the_project_is_not_followed(tmp_path):
-    outside = _put(tmp_path / "outside", {"pyproject.toml": "", "tests/t.py": "",
-                                          **{f"f{n}.py": "" for n in range(5)}})
+    outside = _put(
+        tmp_path / "outside",
+        {"pyproject.toml": "", "tests/t.py": "", **{f"f{n}.py": "" for n in range(5)}},
+    )
     root = _put(tmp_path / "repo", {"app/package.json": "{}"})
     _link(outside, root / "app" / "out")
     _link(outside, root / "elsewhere")
@@ -156,10 +207,16 @@ def test_a_link_out_of_the_project_is_not_followed(tmp_path):
 
 
 def test_a_secret_file_is_never_read(tmp_path, monkeypatch):
-    root = _put(tmp_path / "repo", {
-        "app/pyproject.toml": "[tool.pytest]", "app/.env": "TOKEN=pytest",
-        "keys/.ssh/pyproject.toml": "pytest", "web/package.json": "{}",
-        "web/secrets.json": "{}"})
+    root = _put(
+        tmp_path / "repo",
+        {
+            "app/pyproject.toml": "[tool.pytest]",
+            "app/.env": "TOKEN=pytest",
+            "keys/.ssh/pyproject.toml": "pytest",
+            "web/package.json": "{}",
+            "web/secrets.json": "{}",
+        },
+    )
     read: list[str] = []
     real = Path.read_bytes
     monkeypatch.setattr(Path, "read_bytes", lambda path: read.append(path.name) or real(path))
@@ -180,8 +237,6 @@ def test_a_changed_marker_makes_the_map_again_and_else_it_is_kept(tmp_path):
     assert [p["path"] for p in project_map.scan(str(root))["parts"]] == ["api/", "cli/", "web/"]
 
 
-
-
 def test_a_map_a_cap_cut_short_is_kept_until_refresh(tmp_path, monkeypatch):
     root = _put(tmp_path / "repo", {"a/package.json": "{}", "b/go.mod": ""})
     monkeypatch.setattr(project_map, "MOST_SECONDS", -1.0)  # (the full walk's time is up at once)
@@ -195,8 +250,9 @@ def test_a_map_a_cap_cut_short_is_kept_until_refresh(tmp_path, monkeypatch):
     assert len(made) == 2
 
 
-def test_the_users_test_command_is_saved_from_the_page_only_and_survives_a_refresh(client,
-                                                                                tmp_path):
+def test_the_users_test_command_is_saved_from_the_page_only_and_survives_a_refresh(
+    client, tmp_path
+):
     root = monorepo(tmp_path / "repo")
     pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
     url = f"/api/projects/{pid}/map/test"
@@ -207,8 +263,9 @@ def test_the_users_test_command_is_saved_from_the_page_only_and_survives_a_refre
     assert client.put(url, json=put).status_code == 403
     assert client.put(url, json={"path": "nope/", "command": "x"}, headers=OWN).status_code == 422
     for bad in ("npm test\nrm -rf x", "a\x00", "x" * 501):
-        assert client.put(url, json={"path": "site/", "command": bad},
-                          headers=OWN).status_code == 422
+        assert (
+            client.put(url, json={"path": "site/", "command": bad}, headers=OWN).status_code == 422
+        )
     saved = client.put(url, json=put, headers=OWN).json()
     site = saved["parts"][1]
     assert (site["test"], site["guess"], site["edited"]) == ("npm run check", None, True)
@@ -253,7 +310,8 @@ def map_ready(monkeypatch):
 
 
 def test_the_lead_is_told_the_map_only_when_the_project_has_more_than_one_part(
-        make_client, wait_run, tmp_path, map_ready):
+    make_client, wait_run, tmp_path, map_ready
+):
     told = _lead_system(make_client, wait_run, monorepo(tmp_path / "repo"))
     assert "The project's parts" in told and '- "web/": TypeScript' in told
     one = _put(tmp_path / "one", {"pyproject.toml": "", "tests/t.py": ""})
@@ -261,23 +319,30 @@ def test_the_lead_is_told_the_map_only_when_the_project_has_more_than_one_part(
 
 
 def test_a_lead_that_skips_folder_for_a_task_naming_a_part_is_told_so(
-        make_client, wait_run, tmp_path, map_ready):
+    make_client, wait_run, tmp_path, map_ready
+):
     # K-lead-folder (R115): the agent still opens as asked - the Lead chooses the part.
     from tests.test_claim_scenarios import calls
     from tests.test_spawn import begin, call, step
 
     def told(root, task, **more):
-        client, _model = make_client({
-            "Lead": [step(call("spawn_agent", {"role": "Coder", "task": task, **more}, "s")),
-                     text("done")],
-            "Coder": [text("did it")]})
+        client, _model = make_client(
+            {
+                "Lead": [
+                    step(call("spawn_agent", {"role": "Coder", "task": task, **more}, "s")),
+                    text("done"),
+                ],
+                "Coder": [text("did it")],
+            }
+        )
         cid, rid = begin(client, root, mode="full_auto", spawn_approval="never")
         ((_status, result),) = calls(wait_run(client, cid, rid), "Lead", "spawn_agent")
         return result
 
     repo = monorepo(tmp_path / "repo")
     assert 'The task names the part "core/": pass it as folder next time' in told(
-        repo, "fix core's tests")
+        repo, "fix core's tests"
+    )
     assert "pass it as folder" not in told(repo, "fix core's tests", folder="core")
     one = _put(tmp_path / "one", {"pyproject.toml": "", "core/t.py": ""})
     assert "pass it as folder" not in told(one, "fix core's tests")
@@ -302,19 +367,30 @@ def test_a_turn_does_not_wait_for_its_map(make_client, wait_run, tmp_path, monke
 
 
 def test_the_projects_documents_are_listed_with_their_first_heading(tmp_path):
-    root = _put(tmp_path / "repo", {
-        "README.md": "\n# Hello  world\nmore", "notes.txt": "x", "docs/a.md": "No heading here\n",
-        "docs/b/c.md": "intro\n# C " + "y" * 100, "docs/.env.md": "# KEY=1",
-        "docs/node_modules/x.md": "# no", ".koloni/rules.md": "# no",
-    })
+    root = _put(
+        tmp_path / "repo",
+        {
+            "README.md": "\n# Hello  world\nmore",
+            "notes.txt": "x",
+            "docs/a.md": "No heading here\n",
+            "docs/b/c.md": "intro\n# C " + "y" * 100,
+            "docs/.env.md": "# KEY=1",
+            "docs/node_modules/x.md": "# no",
+            ".koloni/rules.md": "# no",
+        },
+    )
     said = project_map.documents(str(root))
     assert said.splitlines() == [
-        project_map.DOCS_HEAD, '- "README.md" — "Hello world"', '- "docs/a.md" — "No heading here"',
-        f'- "docs/b/c.md" — "C {"y" * 78}…"']
+        project_map.DOCS_HEAD,
+        '- "README.md" — "Hello world"',
+        '- "docs/a.md" — "No heading here"',
+        f'- "docs/b/c.md" — "C {"y" * 78}…"',
+    ]
     assert project_map.documents(str(_put(tmp_path / "none", {"a.py": ""}))) == ""
 
 
 def test_the_lead_is_told_the_documents(make_client, wait_run, tmp_path):
     root = _put(tmp_path / "repo", {"pyproject.toml": "", "docs/guide.md": "# The guide"})
     assert f'{project_map.DOCS_HEAD}\n- "docs/guide.md" — "The guide"' in _lead_system(
-        make_client, wait_run, root)
+        make_client, wait_run, root
+    )

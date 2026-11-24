@@ -74,8 +74,11 @@ if sys.argv[1:] == ["auth", "status"]:
     print(json.dumps({"loggedIn": True, "authMethod": "claude.ai"}))
     sys.exit(0)
 if sys.argv[1:] == ["--version"]:
-    told = json.loads(Path(os.environ["FAKE_CLI_PLAN"]).read_text(encoding="utf-8")) \
-        if os.environ.get("FAKE_CLI_PLAN") else {}
+    told = (
+        json.loads(Path(os.environ["FAKE_CLI_PLAN"]).read_text(encoding="utf-8"))
+        if os.environ.get("FAKE_CLI_PLAN")
+        else {}
+    )
     print(f"{told.get('version', '2.1.310')} (Claude Code)")
     sys.exit(0)
 
@@ -86,21 +89,38 @@ cwd = Path.cwd()
 # "PLUGIN_DIR" its --plugin-dir.
 plugged = argv[argv.index("--plugin-dir") + 1] if "--plugin-dir" in argv else "no-plugin"
 for part in ("script", "after_block"):
-    plan[part] = json.loads(json.dumps(plan.get(part, [])).replace("CWD", cwd.as_posix())
-                            .replace("PLUGIN_DIR", Path(plugged).as_posix()))
-record = {"argv": argv, "cwd": str(cwd), "stdin": "", "asked": [], "hooks": [], "results": [],
-          "init": None, "interrupted": False,
-          "env_tool_wait": os.environ.get("MCP_TOOL_TIMEOUT"),
-          "git_ceiling": os.environ.get("GIT_CEILING_DIRECTORIES"),
-          "git_config": os.environ.get("GIT_CONFIG_PARAMETERS"),
-          "canary": os.environ.get("KOLONI_CANARY_KEY"),  # (101's planted test key)
-          # Where it was pointed, whether with KOLONİ's stand-in token, and which keys it got.
-          "sign_in": {"base_url": os.environ.get("ANTHROPIC_BASE_URL"),
-                      "placeholder": os.environ.get("ANTHROPIC_AUTH_TOKEN") == "koloni-local",
-                      **{name: os.environ.get(name) for name in (
-                          "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC")},
-                      **{name: name in os.environ for name in (
-                          "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK")}}}
+    plan[part] = json.loads(
+        json.dumps(plan.get(part, []))
+        .replace("CWD", cwd.as_posix())
+        .replace("PLUGIN_DIR", Path(plugged).as_posix())
+    )
+record = {
+    "argv": argv,
+    "cwd": str(cwd),
+    "stdin": "",
+    "asked": [],
+    "hooks": [],
+    "results": [],
+    "init": None,
+    "interrupted": False,
+    "env_tool_wait": os.environ.get("MCP_TOOL_TIMEOUT"),
+    "git_ceiling": os.environ.get("GIT_CEILING_DIRECTORIES"),
+    "git_config": os.environ.get("GIT_CONFIG_PARAMETERS"),
+    "canary": os.environ.get("KOLONI_CANARY_KEY"),  # (101's planted test key)
+    # Where it was pointed, whether with KOLONİ's stand-in token, and which keys it got.
+    "sign_in": {
+        "base_url": os.environ.get("ANTHROPIC_BASE_URL"),
+        "placeholder": os.environ.get("ANTHROPIC_AUTH_TOKEN") == "koloni-local",
+        **{
+            name: os.environ.get(name)
+            for name in ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC")
+        },
+        **{
+            name: name in os.environ
+            for name in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK")
+        },
+    },
+}
 lock = threading.Lock()
 
 
@@ -117,8 +137,9 @@ def emit(event: dict) -> None:
 def die(code: int) -> None:
     """It crashes, a child of its own still holding its output open (denetim-010 #3). (The
     child ends by itself in 30 s.)"""
-    subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"],
-                     stdout=sys.stdout, stderr=sys.stderr)
+    subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"], stdout=sys.stdout, stderr=sys.stderr
+    )
     sys.stdout.flush()
     os._exit(code)
 
@@ -137,8 +158,7 @@ with open(plan["record"] + ".starts", encoding="utf-8") as starts:
 resumed = next((argv[argv.index(flag) + 1] for flag in ("--resume", "-r") if flag in argv), None)
 unknown_session = resumed is not None and resumed not in plan.get("sessions", [])
 if unknown_session and not plan.get("resume_late"):
-    code, said = plan.get("no_session") or (
-        1, f"No conversation found with session ID: {resumed}")
+    code, said = plan.get("no_session") or (1, f"No conversation found with session ID: {resumed}")
     sys.stderr.write(said.replace("{id}", resumed) + "\n")
     sys.exit(code)
 if "--input-format" not in argv or argv[argv.index("--input-format") + 1] != "stream-json":
@@ -165,20 +185,42 @@ def listen() -> None:
         if message.get("type") == "control_request" and request.get("subtype") == "interrupt":
             record["interrupted"] = True
             save()
-            emit({"type": "control_response", "response": {
-                "subtype": "success", "request_id": message.get("request_id"), "response": {}}})
+            emit(
+                {
+                    "type": "control_response",
+                    "response": {
+                        "subtype": "success",
+                        "request_id": message.get("request_id"),
+                        "response": {},
+                    },
+                }
+            )
             os._exit(0)
-        if message.get("type") == "control_request" and \
-                request.get("subtype") == "get_context_usage":
+        if (
+            message.get("type") == "control_request"
+            and request.get("subtype") == "get_context_usage"
+        ):
             # (89j: answered at once as well; "context" the plan's answer, else not supported)
             with lock:
                 record.setdefault("context_asked", []).append(request)
             save()
             told = plan.get("context")
-            emit({"type": "control_response", "response": {
-                "subtype": "success", "request_id": message.get("request_id"), "response": told}
-                if told else {"subtype": "error", "request_id": message.get("request_id"),
-                              "error": "get_context_usage is not supported in this context"}})
+            emit(
+                {
+                    "type": "control_response",
+                    "response": {
+                        "subtype": "success",
+                        "request_id": message.get("request_id"),
+                        "response": told,
+                    }
+                    if told
+                    else {
+                        "subtype": "error",
+                        "request_id": message.get("request_id"),
+                        "error": "get_context_usage is not supported in this context",
+                    },
+                }
+            )
             continue
         if message.get("type") == "user" and prompted:
             with lock:
@@ -209,9 +251,16 @@ if plan.get("initialize") == "silent":
     while True:
         next_line()
 if plan.get("initialize") == "error":
-    emit({"type": "control_response", "response": {
-        "subtype": "error", "request_id": init.get("request_id"),
-        "error": "unknown hook event: PreToolUse"}})
+    emit(
+        {
+            "type": "control_response",
+            "response": {
+                "subtype": "error",
+                "request_id": init.get("request_id"),
+                "error": "unknown hook event: PreToolUse",
+            },
+        }
+    )
     while True:
         next_line()
 if plan.get("initialize") == "die":
@@ -220,25 +269,41 @@ if plan.get("initialize") == "die":
     os._exit(3)
 hook_id = init["request"]["hooks"]["PreToolUse"][0]["hookCallbackIds"][0]
 stop_id = (init["request"]["hooks"].get("Stop") or [{}])[0].get("hookCallbackIds", [None])[0]
-commands =[] if "--disable-slash-commands" in argv else plan.get(
-    "commands", [{"name": "deep-research", "description": "a built-in"}])
+commands = (
+    []
+    if "--disable-slash-commands" in argv
+    else plan.get("commands", [{"name": "deep-research", "description": "a built-in"}])
+)
 if "--plugin-dir" in argv:
     # (KOLONİ removes the folder after the run: what was in it is recorded now.)
     given = Path(argv[argv.index("--plugin-dir") + 1])
-    record["plugin"] = sorted(p.relative_to(given).as_posix() for p in given.rglob("*")
-                              if p.is_file())
+    record["plugin"] = sorted(
+        p.relative_to(given).as_posix() for p in given.rglob("*") if p.is_file()
+    )
     record["plugin_json"] = json.loads(
-        (given / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
-    record["skill_md"] = {p.parent.name: p.read_text(encoding="utf-8")
-                          for p in given.glob("skills/*/SKILL.md")}
-    commands += [{"name": f"{record['plugin_json']['name']}:{p.name}"}
-                 for p in (given / "skills").iterdir()]
+        (given / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    record["skill_md"] = {
+        p.parent.name: p.read_text(encoding="utf-8") for p in given.glob("skills/*/SKILL.md")
+    }
+    commands += [
+        {"name": f"{record['plugin_json']['name']}:{p.name}"} for p in (given / "skills").iterdir()
+    ]
     save()
-emit({"type": "control_response", "response": {
-    "subtype": "success", "request_id": init.get("request_id"), "response": {
-        "commands": commands,
-        "hooks_applied": plan.get("hooks_applied", True),
-        **({"account": plan["account"]} if plan.get("account") else {})}}})
+emit(
+    {
+        "type": "control_response",
+        "response": {
+            "subtype": "success",
+            "request_id": init.get("request_id"),
+            "response": {
+                "commands": commands,
+                "hooks_applied": plan.get("hooks_applied", True),
+                **({"account": plan["account"]} if plan.get("account") else {}),
+            },
+        },
+    }
+)
 prompt = next_line()
 content = prompt["message"]["content"]
 # With pictures, blocks: the prompt's text, then an image block for each.
@@ -249,8 +314,9 @@ save()
 config = json.loads(Path(argv[argv.index("--mcp-config") + 1]).read_text(encoding="utf-8"))
 record["mcp_config"] = config
 spec = config["mcpServers"]["koloni"]
-bridge = subprocess.Popen([spec["command"], *spec["args"]], stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE)
+bridge = subprocess.Popen(
+    [spec["command"], *spec["args"]], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+)
 next_id = 0
 asked_number = 0
 
@@ -258,8 +324,11 @@ asked_number = 0
 def rpc(method: str, params: dict) -> dict:
     global next_id
     next_id += 1
-    bridge.stdin.write((json.dumps(
-        {"jsonrpc": "2.0", "id": next_id, "method": method, "params": params}) + "\n").encode())
+    bridge.stdin.write(
+        (
+            json.dumps({"jsonrpc": "2.0", "id": next_id, "method": method, "params": params}) + "\n"
+        ).encode()
+    )
     bridge.stdin.flush()
     line = bridge.stdout.readline()
     if not line:
@@ -282,21 +351,39 @@ def control(request: dict, cancel: float | None = None) -> dict | None:
         message = next_line()
         response = message.get("response") or {}
         if message.get("type") == "control_response" and response.get("request_id") == number:
-            return response["response"] if "response" in response \
-                else {"error": response.get("error")}
+            return (
+                response["response"] if "response" in response else {"error": response.get("error")}
+            )
 
 
-def hooked(name: str, given: dict, use_id: str | None,
-           kind: str | None = None) -> tuple[str | None, str | None]:
+def hooked(
+    name: str, given: dict, use_id: str | None, kind: str | None = None
+) -> tuple[str | None, str | None]:
     """The hook's word on a tool: "allow", "deny" or "ask"; and its reason. `kind`: the
     sub-agent of its own (one of --agents) the tool is used in, as measured on 2.1.311."""
-    told = {"session_id": "fake-session", "transcript_path": "C:/Users/someone/.claude/x.jsonl",
-            "cwd": str(cwd), "prompt_id": "fake-prompt", "permission_mode": "default",
-            "hook_event_name": "PreToolUse", "tool_name": name,
-            "tool_input": given, **({"tool_use_id": use_id} if use_id else {}),
-            **({"agent_id": "fake-agent", "agent_type": kind} if kind else {})}
-    answer = control({"subtype": "hook_callback", "callback_id": hook_id, "input": told,
-                      **({"tool_use_id": use_id} if use_id else {})}) or {}
+    told = {
+        "session_id": "fake-session",
+        "transcript_path": "C:/Users/someone/.claude/x.jsonl",
+        "cwd": str(cwd),
+        "prompt_id": "fake-prompt",
+        "permission_mode": "default",
+        "hook_event_name": "PreToolUse",
+        "tool_name": name,
+        "tool_input": given,
+        **({"tool_use_id": use_id} if use_id else {}),
+        **({"agent_id": "fake-agent", "agent_type": kind} if kind else {}),
+    }
+    answer = (
+        control(
+            {
+                "subtype": "hook_callback",
+                "callback_id": hook_id,
+                "input": told,
+                **({"tool_use_id": use_id} if use_id else {}),
+            }
+        )
+        or {}
+    )
     record["hooks"].append(answer)
     save()
     out = answer.get("hookSpecificOutput") or {}
@@ -305,11 +392,21 @@ def hooked(name: str, given: dict, use_id: str | None,
 
 def prompted(name: str, given: dict, use_id: str | None, cancel: float | None) -> dict:
     # (As measured on 2.1.310: these fields, and no permission_suggestions.)
-    verdict = control({"subtype": "can_use_tool", "tool_name": name, "display_name": name,
-                       "input": given, "description": name, "decision_reason": "ok",
-                       "decision_reason_type": "hook", "decision_reason_hook_event": "PreToolUse",
-                       "decision_reason_hook_source": "settings",
-                       **({"tool_use_id": use_id} if use_id else {})}, cancel)
+    verdict = control(
+        {
+            "subtype": "can_use_tool",
+            "tool_name": name,
+            "display_name": name,
+            "input": given,
+            "description": name,
+            "decision_reason": "ok",
+            "decision_reason_type": "hook",
+            "decision_reason_hook_event": "PreToolUse",
+            "decision_reason_hook_source": "settings",
+            **({"tool_use_id": use_id} if use_id else {}),
+        },
+        cancel,
+    )
     if verdict is None:
         record["cancelled"] = record.get("cancelled", 0) + 1
         save()
@@ -326,12 +423,18 @@ if unknown_session:  # ("resume_late": only once its MCP server is in)
     emit({"type": "result", "is_error": True, "result": "No conversation found"})
     sys.exit(1)
 # (Its own: where its memory and its socket are, and its session - kept only to resume it, 27.)
-emit({"type": "system", "subtype": "init", "model": plan.get("model", "claude-fake-1"),
-      "tools": ["Task", "Bash", "Read", "Write", "Edit", "Monitor"], "permissionMode": "default",
-      "session_id": plan.get("session_id", "fake-session"),
-      "messaging_socket_path": "C:/Users/someone/.claude/sock",
-      "memory_paths": ["C:/Users/someone/.claude/CLAUDE.md"]})
-
+emit(
+    {
+        "type": "system",
+        "subtype": "init",
+        "model": plan.get("model", "claude-fake-1"),
+        "tools": ["Task", "Bash", "Read", "Write", "Edit", "Monitor"],
+        "permissionMode": "default",
+        "session_id": plan.get("session_id", "fake-session"),
+        "messaging_socket_path": "C:/Users/someone/.claude/sock",
+        "memory_paths": ["C:/Users/someone/.claude/CLAUDE.md"],
+    }
+)
 
 
 def actions():
@@ -340,10 +443,23 @@ def actions():
     yield from plan["script"]
     again = iter(plan["after_block"])
     while stop_id:
-        answer = control({"subtype": "hook_callback", "callback_id": stop_id, "input": {
-            "session_id": "fake-session", "transcript_path": "C:/Users/someone/.claude/x.jsonl",
-            "cwd": str(cwd), "permission_mode": "default", "hook_event_name": "Stop",
-            "stop_hook_active": bool(record.get("stops"))}}) or {}
+        answer = (
+            control(
+                {
+                    "subtype": "hook_callback",
+                    "callback_id": stop_id,
+                    "input": {
+                        "session_id": "fake-session",
+                        "transcript_path": "C:/Users/someone/.claude/x.jsonl",
+                        "cwd": str(cwd),
+                        "permission_mode": "default",
+                        "hook_event_name": "Stop",
+                        "stop_hook_active": bool(record.get("stops")),
+                    },
+                }
+            )
+            or {}
+        )
         record.setdefault("stops", []).append(answer)
         save()
         if answer.get("decision") != "block":
@@ -356,23 +472,39 @@ for number, action in enumerate(actions()):
     if "say" in action:
         message["content"].append({"type": "text", "text": action["say"]})
         # one of its own sub-agents speaking: the event names the tool use it runs under
-        emit({"type": "assistant", "message": message,
-              "parent_tool_use_id": action.get("parent")})
+        emit({"type": "assistant", "message": message, "parent_tool_use_id": action.get("parent")})
     elif "tool" in action:
         use_id = action.get("id", f"toolu_{number}")
         given = action.get("input", {})
-        emit({"type": "assistant", "message": {**message, "content": [
-            {"type": "tool_use", "id": use_id, "name": action["tool"], "input": given}]},
-            "parent_tool_use_id": action.get("parent")})
+        emit(
+            {
+                "type": "assistant",
+                "message": {
+                    **message,
+                    "content": [
+                        {"type": "tool_use", "id": use_id, "name": action["tool"], "input": given}
+                    ],
+                },
+                "parent_tool_use_id": action.get("parent"),
+            }
+        )
         allowed, said = True, action.get("result", "done")
-        decision, reason = (None, None) if action.get("unhooked") else hooked(
-            action["tool"], given, None if action.get("no_id") else use_id,
-            action.get("agent_type"))
+        decision, reason = (
+            (None, None)
+            if action.get("unhooked")
+            else hooked(
+                action["tool"],
+                given,
+                None if action.get("no_id") else use_id,
+                action.get("agent_type"),
+            )
+        )
         if decision == "deny":
             allowed, said = False, reason or "denied"
         elif decision == "ask" or action.get("prompt"):
-            verdict = prompted(action["tool"], given, None if action.get("no_id") else use_id,
-                               action.get("cancel"))
+            verdict = prompted(
+                action["tool"], given, None if action.get("no_id") else use_id, action.get("cancel")
+            )
             allowed = verdict.get("behavior") == "allow"
             if not allowed:
                 said = verdict.get("message", "denied")
@@ -390,37 +522,93 @@ for number, action in enumerate(actions()):
         failed = not allowed or bool(action.get("error"))
         if action.get("silent") or (action.get("open") and allowed):
             continue  # it never says how its tool ended, or says so later
-        emit({"type": "user", "parent_tool_use_id": action.get("parent"), "message": {"content": [{
-            "type": "tool_result", "tool_use_id": use_id, "is_error": failed,
-            "content": action["error"] if action.get("error") and allowed else said}]}})
+        emit(
+            {
+                "type": "user",
+                "parent_tool_use_id": action.get("parent"),
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": use_id,
+                            "is_error": failed,
+                            "content": action["error"] if action.get("error") and allowed else said,
+                        }
+                    ]
+                },
+            }
+        )
     elif "result_for" in action:
-        emit({"type": "user", "message": {"content": [{
-            "type": "tool_result", "tool_use_id": action["result_for"],
-            "is_error": bool(action.get("error")),
-            "content": action.get("error") or action.get("result", "done")}]}})
+        emit(
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": action["result_for"],
+                            "is_error": bool(action.get("error")),
+                            "content": action.get("error") or action.get("result", "done"),
+                        }
+                    ]
+                },
+            }
+        )
     elif "task" in action:
-        emit({"type": "user", "parent_tool_use_id": action.get("parent"),
-              "message": {"content": [{"type": "text", "text": action["task"]}]}})
+        emit(
+            {
+                "type": "user",
+                "parent_tool_use_id": action.get("parent"),
+                "message": {"content": [{"type": "text", "text": action["task"]}]},
+            }
+        )
     elif "system" in action:
         emit({"type": "system", **action["system"]})
     elif "koloni" in action:
         use_id = f"toolu_{number}"
         name = f"mcp__koloni__{action['koloni']}"
-        emit({"type": "assistant", "message": {**message, "content": [{
-            "type": "tool_use", "id": use_id, "name": name, "input": action.get("args", {})}]},
-            "parent_tool_use_id": action.get("parent")})
+        emit(
+            {
+                "type": "assistant",
+                "message": {
+                    **message,
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": use_id,
+                            "name": name,
+                            "input": action.get("args", {}),
+                        }
+                    ],
+                },
+                "parent_tool_use_id": action.get("parent"),
+            }
+        )
         decision, reason = hooked(name, action.get("args", {}), use_id, action.get("agent_type"))
         if decision == "ask" and action.get("agent_type"):
             verdict = prompted(name, action.get("args", {}), use_id, None)
             decision, reason = verdict.get("behavior"), verdict.get("message")
         if decision == "allow":
-            answer = rpc("tools/call", {"name": action["koloni"],
-                                        "arguments": action.get("args", {})})
+            answer = rpc(
+                "tools/call", {"name": action["koloni"], "arguments": action.get("args", {})}
+            )
             record["results"].append(answer.get("result", answer))
             save()
-        emit({"type": "user", "message": {"content": [{
-            "type": "tool_result", "tool_use_id": use_id, "is_error": decision != "allow",
-            "content": "ok" if decision == "allow" else reason or "denied"}]}})
+        emit(
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": use_id,
+                            "is_error": decision != "allow",
+                            "content": "ok" if decision == "allow" else reason or "denied",
+                        }
+                    ]
+                },
+            }
+        )
     elif action.get("hang"):
         time.sleep(120)
     elif "die" in action:
@@ -440,19 +628,46 @@ for number, action in enumerate(actions()):
         emit({"type": "result", "is_error": True, "result": action["fail"]})
         sys.exit(1)
 
+
 def hand_in(given) -> dict:
     """With --json-schema (89p): its answer as its StructuredOutput tool, through the hook as
     any of its tools, and the result's `structured_output` (none where `given` is None)."""
     if given is not None:
         use_id = f"toolu_so_{len(record['hooks'])}"
-        emit({"type": "assistant", "message": {"id": use_id, "content": [
-            {"type": "tool_use", "id": use_id, "name": "StructuredOutput", "input": given}]},
-            "parent_tool_use_id": None})
+        emit(
+            {
+                "type": "assistant",
+                "message": {
+                    "id": use_id,
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": use_id,
+                            "name": "StructuredOutput",
+                            "input": given,
+                        }
+                    ],
+                },
+                "parent_tool_use_id": None,
+            }
+        )
         record.setdefault("handed", []).append(hooked("StructuredOutput", given, use_id)[0])
         save()
-        emit({"type": "user", "message": {"content": [{
-            "type": "tool_result", "tool_use_id": use_id, "is_error": False,
-            "content": "Structured output provided successfully"}]}})
+        emit(
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": use_id,
+                            "is_error": False,
+                            "content": "Structured output provided successfully",
+                        }
+                    ]
+                },
+            }
+        )
     return {} if given is None else {"structured_output": given}
 
 
@@ -465,23 +680,57 @@ for number, given in enumerate(answers):
             break
         steered.clear()
         if plan.get("again_say"):  # what it says as it hands it in again
-            emit({"type": "assistant", "message": {"id": f"msg_again_{number}", "content": [
-                {"type": "text", "text": plan["again_say"]}]}, "parent_tool_use_id": None})
+            emit(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "id": f"msg_again_{number}",
+                        "content": [{"type": "text", "text": plan["again_say"]}],
+                    },
+                    "parent_tool_use_id": None,
+                }
+            )
     if given == "gave_up":  # (its own schema retries ran out: the Agent SDK's subtype)
-        emit({"type": "result", "subtype": "error_max_structured_output_retries",
-              "is_error": True, "usage": {"input_tokens": 400, "output_tokens": 30}})
+        emit(
+            {
+                "type": "result",
+                "subtype": "error_max_structured_output_retries",
+                "is_error": True,
+                "usage": {"input_tokens": 400, "output_tokens": 30},
+            }
+        )
         continue
     handed = hand_in(given)
-    emit({"type": "result", "subtype": "success", "is_error": False, "result": "",
-          "usage": {"input_tokens": 400, "cache_read_input_tokens": 100, "output_tokens": 30},
-          # its own price, filled in even against a local model (measured on 2.1.311, 27 Oct)
-          "total_cost_usd": 0.027, **handed})
+    emit(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "result": "",
+            "usage": {"input_tokens": 400, "cache_read_input_tokens": 100, "output_tokens": 30},
+            # its own price, filled in even against a local model (measured on 2.1.311, 27 Oct)
+            "total_cost_usd": 0.027,
+            **handed,
+        }
+    )
 if plan.get("second_turn_on_steer") and steered.is_set():
     # (89d, not measured: a steer after its last word, taken as a turn of its own)
-    emit({"type": "assistant", "message": {"id": "msg_late", "content": [
-        {"type": "text", "text": "heard it late"}]}, "parent_tool_use_id": None})
-    emit({"type": "result", "subtype": "success", "is_error": False, "result": "",
-          "usage": {"input_tokens": 50, "output_tokens": 5}})
+    emit(
+        {
+            "type": "assistant",
+            "message": {"id": "msg_late", "content": [{"type": "text", "text": "heard it late"}]},
+            "parent_tool_use_id": None,
+        }
+    )
+    emit(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "result": "",
+            "usage": {"input_tokens": 50, "output_tokens": 5},
+        }
+    )
 if plan.get("linger"):
     time.sleep(120)  # as the real CLI waits on its input for more
 if plan.get("exits"):  # gone at once after its result, its input still open

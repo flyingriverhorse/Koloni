@@ -50,10 +50,30 @@ const CHECK_FIRST =
   'Before a harmful-looking command waits for you at Full auto or while you’re away, your own words are read first; it runs without a card only where a line of yours names it.'
 
 /** A switch row of the panel: its name and what it does. */
-function SwitchRow({ id, name, says, on, onChange }: { id: string; name: string; says: string; on: boolean; onChange: (on: boolean) => void }) {
+function SwitchRow({
+  id,
+  name,
+  says,
+  on,
+  onChange,
+}: {
+  id: string
+  name: string
+  says: string
+  on: boolean
+  onChange: (on: boolean) => void
+}) {
   return (
     <label className="level-row">
-      <input type="checkbox" role="switch" className="switch" checked={on} aria-labelledby={id} aria-describedby={`${id}-says`} onChange={e => onChange(e.target.checked)} />
+      <input
+        type="checkbox"
+        role="switch"
+        className="switch"
+        checked={on}
+        aria-labelledby={id}
+        aria-describedby={`${id}-says`}
+        onChange={e => onChange(e.target.checked)}
+      />
       <span className="level-words">
         <span id={id} className="level-name">
           {name}
@@ -67,7 +87,8 @@ function SwitchRow({ id, name, says, on, onChange }: { id: string; name: string;
 }
 
 /** Behind the switch's ⓘ: the guide's Checked page says the rest. */
-const CHECKS_WHY = 'What KOLONİ tests and reviews after a turn that changed code, and what each line under the answer means.'
+const CHECKS_WHY =
+  'What KOLONİ tests and reviews after a turn that changed code, and what each line under the answer means.'
 
 /** S10: Test and review changes, beside Plan first - its ⓘ the guide's Checked page; at Full auto with it off, one line on what that leaves (never locked). */
 function ChecksRow({ id, mode, checks }: { id: string; mode: PermissionMode; checks: Checks }) {
@@ -75,7 +96,13 @@ function ChecksRow({ id, mode, checks }: { id: string; mode: PermissionMode; che
   return (
     <>
       <div className="level-row-hint">
-        <SwitchRow id={`${id}-checks`} name="Test and review changes" says={checksSaid(checks)} on={on} onChange={next => checks.onChange(checksValue(next, checks.project))} />
+        <SwitchRow
+          id={`${id}-checks`}
+          name="Test and review changes"
+          says={checksSaid(checks)}
+          on={on}
+          onChange={next => checks.onChange(checksValue(next, checks.project))}
+        />
         <Hint doc={GUIDE.checked}>{CHECKS_WHY}</Hint>
       </div>
       {mode === 'full_auto' && !on && <p className="level-says level-warn">{NO_CHECKS_AT_FULL_AUTO}</p>}
@@ -122,7 +149,13 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = f
         )}
       </button>
       {open && (
-        <div ref={panel} tabIndex={-1} role="dialog" aria-label="Permission level" className="allow-list-panel level-panel">
+        <div
+          ref={panel}
+          tabIndex={-1}
+          role="dialog"
+          aria-label="Permission level"
+          className="allow-list-panel level-panel"
+        >
           <div className="kicker">Permission level</div>
           {/* Chosen by a click, Enter or Space only: the arrows move between them (a radio group chose by moving, and
               wrapped round to Full auto). */}
@@ -152,7 +185,15 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = f
               </button>
             ))}
           </div>
-          {onCheckFirst && <SwitchRow id={`${id}-check`} name="Check what I said first" says={CHECK_FIRST} on={checkFirst} onChange={onCheckFirst} />}
+          {onCheckFirst && (
+            <SwitchRow
+              id={`${id}-check`}
+              name="Check what I said first"
+              says={CHECK_FIRST}
+              on={checkFirst}
+              onChange={onCheckFirst}
+            />
+          )}
           {onPlanFirst && (
             <>
               <hr className="level-sep" />

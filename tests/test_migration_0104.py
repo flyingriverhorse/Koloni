@@ -15,10 +15,14 @@ def test_a_chat_team_from_before_is_not_no_recipe(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0101")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO conversations (id, title, created_at, updated_at) "
-                     "VALUES ('c', 'c', ?, ?)", (AT, AT))
-        conn.execute("INSERT INTO conversation_teams (id, conversation_id, team_id, picked_by, "
-                     "position) VALUES ('t', 'c', (SELECT id FROM teams LIMIT 1), 'user', 0)")
+        conn.execute(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c', 'c', ?, ?)",
+            (AT, AT),
+        )
+        conn.execute(
+            "INSERT INTO conversation_teams (id, conversation_id, team_id, picked_by, "
+            "position) VALUES ('t', 'c', (SELECT id FROM teams LIMIT 1), 'user', 0)"
+        )
 
     command.upgrade(cfg, "0104")
     with sqlite3.connect(db) as conn:
@@ -27,4 +31,5 @@ def test_a_chat_team_from_before_is_not_no_recipe(tmp_path):
     command.downgrade(cfg, "0101")
     with sqlite3.connect(db) as conn:
         assert "no_recipe" not in {
-            row[1] for row in conn.execute("PRAGMA table_info(conversation_teams)")}
+            row[1] for row in conn.execute("PRAGMA table_info(conversation_teams)")
+        }

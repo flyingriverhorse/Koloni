@@ -4,6 +4,7 @@ report, why it said nothing, and who it was (slice 33b)
 Revision ID: 0049
 Revises: 0048
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -15,8 +16,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column(
-            "observe_reports", sa.Boolean(), nullable=False, server_default=sa.false()))
+        batch.add_column(
+            sa.Column("observe_reports", sa.Boolean(), nullable=False, server_default=sa.false())
+        )
     with op.batch_alter_table("agents") as batch:
         batch.add_column(sa.Column("observation", sa.Text(), nullable=True))
         batch.add_column(sa.Column("observation_note", sa.Text(), nullable=True))

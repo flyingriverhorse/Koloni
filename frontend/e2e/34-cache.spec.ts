@@ -10,8 +10,12 @@ test.afterEach(async ({ request }) => {
 
 /** The window of the last agent on the canvas that is called so, opened from the inspector. */
 async function openWindowOf(page: Page, name: RegExp) {
-  await page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: name }) })
-    .last().locator('.node-title').click()
+  await page
+    .locator('.react-flow__node-agent')
+    .filter({ has: page.locator('.node-title', { hasText: name }) })
+    .last()
+    .locator('.node-title')
+    .click()
   await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Open window' }).click()
   return page.getByRole('region', { name: 'Agent window' })
 }
@@ -19,7 +23,9 @@ async function openWindowOf(page: Page, name: RegExp) {
 const CACHED = /^[\d,]+ read again from the cache$/
 const UNPRICED = 'Cache tokens without a price are left out of the cost.'
 
-test('what the model server read again from its cache is in the agent window and on the Usage rows, and its price is written beside the others', async ({ page }) => {
+test('what the model server read again from its cache is in the agent window and on the Usage rows, and its price is written beside the others', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   // One model step: the scripted server reports 120 sent, 64 of them read from its cache, and 18 written.
@@ -31,7 +37,9 @@ test('what the model server read again from its cache is in the agent window and
   await rail(page, 'Canvas').click()
   const own = await openWindowOf(page, /^Orchestrator/)
   // (under Details, with its model and times)
-  await expect((await openAgentFold(own, 'Details')).getByText('64 read again from the cache', { exact: true })).toBeVisible()
+  await expect(
+    (await openAgentFold(own, 'Details')).getByText('64 read again from the cache', { exact: true }),
+  ).toBeVisible()
   await shot(page, '34-agent-window-cache-light')
   await own.getByRole('button', { name: 'Close agent window' }).click()
 
@@ -39,8 +47,10 @@ test('what the model server read again from its cache is in the agent window and
   await page.getByLabel('Period').selectOption({ label: 'Today' })
   // Earlier specs' turns are in the same project: this turn is told by its conversation's row.
   await openFold(page, 'By conversation')
-  const row = page.getByRole('table', { name: 'Usage by conversation' }).getByRole('row', { name: /hello from the cache spec/ })
-  await expect(row.getByRole('cell')).toHaveText(['1', '1', '120', '18'])   // what was sent is as it was
+  const row = page
+    .getByRole('table', { name: 'Usage by conversation' })
+    .getByRole('row', { name: /hello from the cache spec/ })
+  await expect(row.getByRole('cell')).toHaveText(['1', '1', '120', '18']) // what was sent is as it was
   await expect(row.getByText('64 read again from the cache', { exact: true })).toBeVisible()
   const models = page.getByRole('table', { name: 'Usage by provider and model' })
   const local = models.getByRole('row', { name: /Local · fake-qwen/ })
@@ -73,7 +83,11 @@ test('what the model server read again from its cache is in the agent window and
   await rail(page, 'Usage').click()
   await page.getByLabel('Period').selectOption({ label: 'Today' })
   await openFold(page, 'By conversation')
-  await expect(page.getByRole('table', { name: 'Usage by conversation' }).getByRole('row', { name: /hello from the cache spec/ })
-    .getByText('64 read again from the cache', { exact: true })).toBeVisible()
+  await expect(
+    page
+      .getByRole('table', { name: 'Usage by conversation' })
+      .getByRole('row', { name: /hello from the cache spec/ })
+      .getByText('64 read again from the cache', { exact: true }),
+  ).toBeVisible()
   await shot(page, '34-usage-cache-dark')
 })

@@ -27,8 +27,12 @@ from tests.test_trigger_scenarios import run_now, trigger
 
 CARD = CLI_HOME_CARD.format(cli="Codex")
 KEY = "sk-e2e1234567890abcdefghij"
-NEVER = [".codex/auth.json", ".claude.json", ".claude/projects/x.jsonl",
-         ".codex/sessions/2026/r.jsonl"]
+NEVER = [
+    ".codex/auth.json",
+    ".claude.json",
+    ".claude/projects/x.jsonl",
+    ".codex/sessions/2026/r.jsonl",
+]
 
 
 @pytest.fixture
@@ -37,8 +41,9 @@ def home(tmp_path, monkeypatch):
     for name in [".codex/config.toml", *NEVER]:
         (home / name).parent.mkdir(parents=True, exist_ok=True)
         (home / name).write_text("model = 'o'\n", encoding="utf-8")
-    (home / ".codex" / "keyed.toml").write_text(f'openai = "{KEY}"\nmodel = \'o\'\n',
-                                                encoding="utf-8")
+    (home / ".codex" / "keyed.toml").write_text(
+        f"openai = \"{KEY}\"\nmodel = 'o'\n", encoding="utf-8"
+    )
     monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.setenv("HOME", str(home))
     return home
@@ -58,9 +63,15 @@ def pending(snap):
 
 
 def decide(client, call, word):
-    said = (client.post(f"/api/tool-calls/{call['id']}/reject", headers={"Origin": ORIGIN})
-            if word == "reject" else client.post(f"/api/tool-calls/{call['id']}/approve",
-                                                 json={"scope": word}, headers={"Origin": ORIGIN}))
+    said = (
+        client.post(f"/api/tool-calls/{call['id']}/reject", headers={"Origin": ORIGIN})
+        if word == "reject"
+        else client.post(
+            f"/api/tool-calls/{call['id']}/approve",
+            json={"scope": word},
+            headers={"Origin": ORIGIN},
+        )
+    )
     assert said.status_code == 200, said.text
 
 
@@ -110,9 +121,18 @@ def test_a_key_in_such_a_file_is_hidden_from_the_model(make_client, wait_run, pr
     assert KEY not in json.dumps(snap) and KEY not in json.dumps(model.calls)
 
 
-@pytest.mark.parametrize("named", ["~/.codex/config.toml", pytest.param(
-    "%USERPROFILE%\\.codex\\config.toml",
-    marks=pytest.mark.skipif(sys.platform != "win32", reason="%USERPROFILE% and \\ are Windows'"))])
+@pytest.mark.parametrize(
+    "named",
+    [
+        "~/.codex/config.toml",
+        pytest.param(
+            "%USERPROFILE%\\.codex\\config.toml",
+            marks=pytest.mark.skipif(
+                sys.platform != "win32", reason="%USERPROFILE% and \\ are Windows'"
+            ),
+        ),
+    ],
+)
 def test_in_a_project_chat_a_tilde_is_the_home_folder_not_a_folder_of_the_project(
     make_client, wait_run, project_dir, home, named
 ):
@@ -120,7 +140,9 @@ def test_in_a_project_chat_a_tilde_is_the_home_folder_not_a_folder_of_the_projec
     cid, run_id = start(client, project(client, project_dir))
     (asked,) = pending(until(client, cid, pending))
     assert (asked["why_asked"], asked["outside_folder"]) == (
-        CARD, str((home / ".codex" / "config.toml").resolve()))
+        CARD,
+        str((home / ".codex" / "config.toml").resolve()),
+    )
     decide(client, asked, "once")
     assert "model = 'o'" in wait_run(client, cid, run_id)["tool_calls"][0]["result"]
     assert not (project_dir / "~").exists()
@@ -174,8 +196,9 @@ def test_a_chat_with_no_folder_reads_it_with_a_tilde_on_the_same_card(make_clien
 def test_a_login_or_a_past_conversation_is_refused_without_a_card(
     make_client, wait_run, project_dir, home, name
 ):
-    client, _model = make_client([read(home / name, "r"), write(str(home / name), "x", "w"),
-                                  text("ok")])
+    client, _model = make_client(
+        [read(home / name, "r"), write(str(home / name), "x", "w"), text("ok")]
+    )
     cid, run_id = start(client, project(client, project_dir))
     snap = wait_run(client, cid, run_id)
     assert [t["status"] for t in snap["tool_calls"]] == ["failed", "failed"]
@@ -189,15 +212,26 @@ def test_a_project_there_is_still_refused(make_client, home):
     assert made.status_code in (400, 422), made.text
 
 
-@pytest.mark.parametrize(("name", "card"), [
-    (".gemini/settings.json", True), (".copilot/mcp-config.json", True),
-    (".claude/settings.json", True), (".gemini/oauth_creds.json", False),
-    (".gemini/google_accounts.json", False), (".gemini/tmp/abc/logs.json", False),
-    (".copilot/session-state/a.json", False), (".copilot/config.json", False),
-    (".claude/.credentials.json", False), (".codex/history.jsonl", False),
-    (".codex/AUTH.JSON.", False), (".claude/x/my-token.txt", False), (".gemini/.env", False),
-    (".claude/backups/.claude.json.backup.1", False), (".claude/ide/41234.lock", False),
-])
+@pytest.mark.parametrize(
+    ("name", "card"),
+    [
+        (".gemini/settings.json", True),
+        (".copilot/mcp-config.json", True),
+        (".claude/settings.json", True),
+        (".gemini/oauth_creds.json", False),
+        (".gemini/google_accounts.json", False),
+        (".gemini/tmp/abc/logs.json", False),
+        (".copilot/session-state/a.json", False),
+        (".copilot/config.json", False),
+        (".claude/.credentials.json", False),
+        (".codex/history.jsonl", False),
+        (".codex/AUTH.JSON.", False),
+        (".claude/x/my-token.txt", False),
+        (".gemini/.env", False),
+        (".claude/backups/.claude.json.backup.1", False),
+        (".claude/ide/41234.lock", False),
+    ],
+)
 def test_each_cli_s_logins_and_records_are_kept_out_by_name(project_dir, home, name, card):
     with pytest.raises(WorkspaceError) as caught:
         Workspace(project_dir).resolve(str(home / name))

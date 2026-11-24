@@ -52,7 +52,9 @@ test('the day is read from this midnight here: what failed and the files changed
   // No list of files, nor of chats: each chat's Workspace has its files, Ready what waits.
   expect(screen.queryByRole('table')).toBeNull()
   expect(screen.queryByText('src/a.ts')).toBeNull()
-  expect(screen.getByText(/^Since midnight, counted from the record/)).toHaveTextContent('It can be sent each evening: project settings, Notifications.')
+  expect(screen.getByText(/^Since midnight, counted from the record/)).toHaveTextContent(
+    'It can be sent each evening: project settings, Notifications.',
+  )
 })
 
 test('the day’s failed work is folded under its count: its error, and Show its work opens its turn', async () => {
@@ -80,13 +82,21 @@ test('"Say it in words" asks the open conversation’s model once, and its text 
   expect(props.onWords).toHaveBeenCalledWith(since('today'), 'c2')
   // By the button, in sight: what it costs, what it is sent and whose model writes it without a fast one; how to have one, behind ⓘ.
   const button = screen.getByRole('button', { name: 'Say it in words' })
-  expect(button).toHaveAccessibleDescription(/^A model sums up the day, once: a request you pay for, on the Usage page as KOLONİ itself\. .* A fast model writes this summary/)
+  expect(button).toHaveAccessibleDescription(
+    /^A model sums up the day, once: a request you pay for, on the Usage page as KOLONİ itself\. .* A fast model writes this summary/,
+  )
   const note = screen.getByText(/^A model sums up the day/)
-  expect(note).toHaveTextContent('It is sent the numbers above, the conversations’ titles, the changed files’ paths (the first 20) and the agents’ names.')
-  expect(note).toHaveTextContent('With no fast model, the Orchestrator’s own model writes it, in the open conversation.')
+  expect(note).toHaveTextContent(
+    'It is sent the numbers above, the conversations’ titles, the changed files’ paths (the first 20) and the agents’ names.',
+  )
+  expect(note).toHaveTextContent(
+    'With no fast model, the Orchestrator’s own model writes it, in the open conversation.',
+  )
   const hint = screen.getByText(/^A fast model writes this summary/)
   expect(hint).not.toBeVisible()
-  expect(hint).toHaveTextContent('give a model the fast tier on the Models page and tick “Agents may choose this” for its provider')
+  expect(hint).toHaveTextContent(
+    'give a model the fast tier on the Models page and tick “Agents may choose this” for its provider',
+  )
   await userEvent.click(screen.getByRole('button', { name: 'About this' }))
   expect(hint).toBeVisible()
   const said = await screen.findByRole('figure', { name: /Model text/ })
@@ -98,7 +108,9 @@ test('with no conversation open, "Say it in words" says whose Lead it asks: the 
   const props = view()
   await userEvent.click(await screen.findByRole('button', { name: 'Say it in words' }))
   expect(props.onWords).toHaveBeenCalledWith(since('today'), 'c1')
-  expect(screen.getByText(/^A model sums up the day/)).toHaveTextContent('“Docs”, the latest of the day: no conversation is open')
+  expect(screen.getByText(/^A model sums up the day/)).toHaveTextContent(
+    '“Docs”, the latest of the day: no conversation is open',
+  )
 })
 
 test('over the month’s budget, "Say it in words" says so and asks again only on "Go on anyway"', async () => {
@@ -122,5 +134,7 @@ test('where the day is sent each day, the line says at what time', async () => {
   view({ noteAt: '18:30' })
   const line = await screen.findByText(/^Since midnight, counted from the record/)
   expect(line).toHaveClass('muted', 'memory-hint')
-  expect(line).toHaveTextContent(/^Since midnight, counted from the record: no model is asked\. Sent as text at 18:30 each day\.$/)
+  expect(line).toHaveTextContent(
+    /^Since midnight, counted from the record: no model is asked\. Sent as text at 18:30 each day\.$/,
+  )
 })

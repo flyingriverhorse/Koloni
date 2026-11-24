@@ -35,7 +35,14 @@ export function RowMenu({ of, items, disabled }: { of: string; items: [string, (
         ⋯
       </button>
       {open && (
-        <div ref={panel} tabIndex={-1} className="allow-list-panel msg-menu" role="menu" aria-label={label} onKeyDown={moveFocus}>
+        <div
+          ref={panel}
+          tabIndex={-1}
+          className="allow-list-panel msg-menu"
+          role="menu"
+          aria-label={label}
+          onKeyDown={moveFocus}
+        >
           {items.map(([name, act]) => (
             <button
               key={name}
@@ -92,11 +99,23 @@ export function CoreFact({ record, onCorrect, onReject, onConfirm }: CoreProps) 
       actions={
         <div className="memory-actions">
           {stale && (
-            <button type="button" className="btn btn-small" aria-expanded={looking} onClick={() => setLooking(!looking)}>
+            <button
+              type="button"
+              className="btn btn-small"
+              aria-expanded={looking}
+              onClick={() => setLooking(!looking)}
+            >
               Look again
             </button>
           )}
-          <RowMenu of={record.text} disabled={busy} items={[['Correct', () => setEditing(true)], ['Remove', remove]]} />
+          <RowMenu
+            of={record.text}
+            disabled={busy}
+            items={[
+              ['Correct', () => setEditing(true)],
+              ['Remove', remove],
+            ]}
+          />
         </div>
       }
     >
@@ -105,7 +124,12 @@ export function CoreFact({ record, onCorrect, onReject, onConfirm }: CoreProps) 
           <Evidence record={record} />
           <div className="memory-actions">
             {record.source_state === 'moved' && (
-              <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => onConfirm(record.id))}>
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={busy}
+                onClick={() => void ask(() => onConfirm(record.id))}
+              >
                 These are the same lines
               </button>
             )}
@@ -209,7 +233,12 @@ export function Proposal({ record, replaces, onApprove, onReject, onConfirm }: P
       )}
       <div className="memory-actions">
         {record.source_state === 'moved' && (
-          <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => onConfirm(record.id))}>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={busy}
+            onClick={() => void ask(() => onConfirm(record.id))}
+          >
             These are the same lines
           </button>
         )}
@@ -235,7 +264,12 @@ export function Proposal({ record, replaces, onApprove, onReject, onConfirm }: P
             Edit and approve
           </button>
         )}
-        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => onReject(record.id))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => void ask(() => onReject(record.id))}
+        >
           Reject
         </button>
       </div>
@@ -252,7 +286,15 @@ export function Proposal({ record, replaces, onApprove, onReject, onConfirm }: P
  * An agent's note in the journal, one row. It is the agent's word: not rewritten, but it can be
  * removed, or taken as the start of a fact of your own.
  */
-export function JournalNote({ record, onReject, onMakeFact }: { record: MemoryRecord; onReject: (id: string) => Promise<void>; onMakeFact: (record: MemoryRecord) => void }) {
+export function JournalNote({
+  record,
+  onReject,
+  onMakeFact,
+}: {
+  record: MemoryRecord
+  onReject: (id: string) => Promise<void>
+  onMakeFact: (record: MemoryRecord) => void
+}) {
   const { busy, error, ask } = useAsk()
   return (
     <RecordCard
@@ -260,13 +302,30 @@ export function JournalNote({ record, onReject, onMakeFact }: { record: MemoryRe
       error={error}
       id={rowId(record.id)}
       note={record.wants_core ? 'put forward for the core' : undefined}
-      actions={<RowMenu of={record.text} disabled={busy} items={[['Remove', () => void ask(() => onReject(record.id))], ['Make it a fact', () => onMakeFact(record)]]} />}
+      actions={
+        <RowMenu
+          of={record.text}
+          disabled={busy}
+          items={[
+            ['Remove', () => void ask(() => onReject(record.id))],
+            ['Make it a fact', () => onMakeFact(record)],
+          ]}
+        />
+      }
     />
   )
 }
 
 /** A line KOLONİ's summariser suggests for your preferences (22b): added by you, or not. Never by itself. */
-export function Suggestion({ record, onAdd, onReject }: { record: MemoryRecord; onAdd: (id: string) => Promise<void>; onReject: (id: string) => Promise<void> }) {
+export function Suggestion({
+  record,
+  onAdd,
+  onReject,
+}: {
+  record: MemoryRecord
+  onAdd: (id: string) => Promise<void>
+  onReject: (id: string) => Promise<void>
+}) {
   const { busy, error, ask } = useAsk()
   return (
     <RecordCard
@@ -275,10 +334,20 @@ export function Suggestion({ record, onAdd, onReject }: { record: MemoryRecord; 
       id={rowId(record.id)}
       actions={
         <div className="memory-actions">
-          <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void ask(() => onAdd(record.id))}>
+          <button
+            type="button"
+            className="btn btn-small btn-primary"
+            disabled={busy}
+            onClick={() => void ask(() => onAdd(record.id))}
+          >
             Add
           </button>
-          <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => onReject(record.id))}>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={busy}
+            onClick={() => void ask(() => onReject(record.id))}
+          >
             Reject
           </button>
         </div>
@@ -297,7 +366,12 @@ export function PastRecord({ record, onRestore }: { record: MemoryRecord; onRest
       id={rowId(record.id)}
       note={`${record.tier === 'fact' ? 'fact' : 'note'} · ${leftHow(record)}`}
       actions={
-        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => onRestore(record.id))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => void ask(() => onRestore(record.id))}
+        >
           Take back
         </button>
       }

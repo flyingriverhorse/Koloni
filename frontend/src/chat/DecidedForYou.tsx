@@ -10,7 +10,8 @@ import { decidedOf, decidedTasks, judgedCommands } from './waiting'
 import { shownOption, shownQuestion } from '../agents/teamRun'
 
 /** A time as this machine's clock says it: "02:10". */
-const clock = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '')
+const clock = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : ''
 const OVER = new Set(['completed', 'failed', 'cancelled', 'rejected', 'interrupted'])
 
 /**
@@ -64,7 +65,15 @@ export function DecidedForYou({ state }: { state: ConvState }) {
   )
 }
 
-function Decided({ question, state, onSent }: { question: Question; state: ConvState; onSent: (to: { id: string; name: string }) => void }) {
+function Decided({
+  question,
+  state,
+  onSent,
+}: {
+  question: Question
+  state: ConvState
+  onSent: (to: { id: string; name: string }) => void
+}) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const asker = state.agents.find(a => a.id === question.agent_id)
@@ -91,17 +100,38 @@ function Decided({ question, state, onSent }: { question: Question; state: ConvS
   }
   return (
     <div className="decided-item">
-      <div className="decided-q">{question.leave ? shownQuestion(question) : `${name} asked: ${question.question}`}</div>
+      <div className="decided-q">
+        {question.leave ? shownQuestion(question) : `${name} asked: ${question.question}`}
+      </div>
       <div>
-        Orchestrator chose <b className="decided-a">{question.answer && shownOption(question.answer, question.leave)}</b>
+        Orchestrator chose{' '}
+        <b className="decided-a">{question.answer && shownOption(question.answer, question.leave)}</b>
       </div>
       <div className="decided-why">“{question.lead_why}”</div>
       <div className="decided-btns">
-        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void act(() => useApp.getState().decidedOk(question.id))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => void act(() => useApp.getState().decidedOk(question.id))}
+        >
           OK
         </button>
         {others.map(option => (
-          <button key={option} type="button" className="btn btn-small" disabled={busy} onClick={() => void act(() => useApp.getState().decidedChange(question.id, option).then(() => onSent({ id: question.agent_id, name })))}>
+          <button
+            key={option}
+            type="button"
+            className="btn btn-small"
+            disabled={busy}
+            onClick={() =>
+              void act(() =>
+                useApp
+                  .getState()
+                  .decidedChange(question.id, option)
+                  .then(() => onSent({ id: question.agent_id, name })),
+              )
+            }
+          >
             Change → {shownOption(option, question.leave)}
           </button>
         ))}
@@ -116,7 +146,7 @@ function Decided({ question, state, onSent }: { question: Question; state: ConvS
   )
 }
 
-/** A follow-up task the Assistant PO proposed at a turn's end, and the Orchestrator's word on it at Full auto (6 Nov). OK keeps
+/** A follow-up task the Scout proposed at a turn's end, and the Orchestrator's word on it at Full auto (6 Nov). OK keeps
  *  that word; Change undoes it - one added is taken off the To-do list while it is still todo, one said no to is added. */
 function DecidedTask({ task }: { task: BacklogTask }) {
   const { busy, error, ask } = useAsk()
@@ -125,19 +155,29 @@ function DecidedTask({ task }: { task: BacklogTask }) {
   const cant = added && task.status !== 'todo' ? 'it has started' : null
   return (
     <div className="decided-item">
-      <div className="decided-q">The Assistant PO proposed a To-do task: {task.title}</div>
+      <div className="decided-q">The Scout proposed a To-do task: {task.title}</div>
       <div>
         Orchestrator chose <b className="decided-a">{added ? 'Add' : 'Reject'}</b>
       </div>
       <div className="decided-why">“{task.po?.lead_why}”</div>
       <div className="decided-btns">
-        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => (added ? s.seenTask(task.id) : s.decideTask(task.id, 'reject')))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => void ask(() => (added ? s.seenTask(task.id) : s.decideTask(task.id, 'reject')))}
+        >
           OK
         </button>
         {cant ? (
           <span className="muted decided-note">can't be undone: {cant}</span>
         ) : (
-          <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => s.decideTask(task.id, added ? 'reject' : 'approve'))}>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={busy}
+            onClick={() => void ask(() => s.decideTask(task.id, added ? 'reject' : 'approve'))}
+          >
             Change → {added ? 'Reject' : 'Add'}
           </button>
         )}
@@ -161,13 +201,20 @@ function DecidedCommand({ command, state }: { command: Command; state: ConvState
   return (
     <div className="decided-item">
       <div className="decided-q">
-        {command.status === 'refused' ? `KOLONİ did not run ${command.command} for ${name}` : `${name} ran ${command.command} without asking`}
+        {command.status === 'refused'
+          ? `KOLONİ did not run ${command.command} for ${name}`
+          : `${name} ran ${command.command} without asking`}
       </div>
       <div className="decided-why">
         Your rule: “{quote}” ({source && JUDGED_FROM[source]})
       </div>
       <div className="decided-btns">
-        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => useApp.getState().commandSeen(command.id))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => void ask(() => useApp.getState().commandSeen(command.id))}
+        >
           OK
         </button>
       </div>

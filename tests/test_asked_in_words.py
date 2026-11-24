@@ -24,15 +24,18 @@ def test_the_rule_decides_first_and_gives_no_leave_to_end_a_turn_on_a_question()
 
 def instructions(stdin: str) -> str:
     """What a CLI was told it is: the instructions of the JSON document on its input."""
-    return json.loads(stdin[stdin.index("\n\n{") + 2:])["instructions"]
+    return json.loads(stdin[stdin.index("\n\n{") + 2 :])["instructions"]
 
 
 def test_a_lead_on_an_api_model_is_told_and_its_sub_agent_on_a_session_is_not(
-    session_app, wait_run, project_dir  # noqa: F811
+    session_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, default = session_app(
         [{"say": "Looks fine."}],
-        default_steps=[spawn("Reviewer", "Review hello.py"), text("Reviewed.")])
+        default_steps=[spawn("Reviewer", "Review hello.py"), text("Reviewed.")],
+    )
     client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"provider_id": provider["id"]})
     cid, run_id = start(client, project_dir, None)
     snap = wait_run(client, cid, run_id, timeout=30)
@@ -45,12 +48,17 @@ def test_a_lead_on_an_api_model_is_told_and_its_sub_agent_on_a_session_is_not(
 
 
 def test_a_lead_as_a_session_is_told_and_its_sub_agent_on_an_api_model_is_not(
-    session_app, wait_run, project_dir  # noqa: F811
+    session_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, default = session_app(
-        [{"call": "spawn_agent", "args": {"role": "Reviewer", "task": "Review hello.py"}},
-         {"say": "Reviewed."}],
-        default_steps=[text("No problems.")])
+        [
+            {"call": "spawn_agent", "args": {"role": "Reviewer", "task": "Review hello.py"}},
+            {"say": "Reviewed."},
+        ],
+        default_steps=[text("No problems.")],
+    )
     local = client.get("/api/providers").json()[0]
     client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"provider_id": local["id"]})
     cid, run_id = start(client, project_dir, provider)

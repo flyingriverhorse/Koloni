@@ -20,8 +20,16 @@ CHANGES = (*WRITE, "run_command")
 WEB = ("web_search", "http_request")
 # Slice 51: a headless browser of the agent's own, on this machine's previews alone; it runs
 # unasked (it cannot reach out), so a role is given it or not (the Tools tab).
-BROWSER = ("browser_open", "browser_screenshot", "browser_click", "browser_type", "browser_key",
-           "browser_scroll", "browser_read", "browser_console")
+BROWSER = (
+    "browser_open",
+    "browser_screenshot",
+    "browser_click",
+    "browser_type",
+    "browser_key",
+    "browser_scroll",
+    "browser_read",
+    "browser_console",
+)
 # K-drawio: a draw.io diagram drawn as a picture beside it - a file written, unasked, as the
 # user decided: given by role, to those who write documents, designs and code (not the
 # Architect, told not to change files: the user may give it on the Tools tab).
@@ -35,12 +43,33 @@ DIAGRAM = ("diagram_image",)
 # shortcut: the Lead holds every tool, so the backlog's four schemas (some 500 tokens) ride on
 # each of its steps - it must have them to hand them on (`effective_tools`). Tell "may hand
 # on" apart from "offered to itself" if small local models suffer for it.
-ALL_TOOLS = (*READ, *WRITE, "show", *DIAGRAM, "run_command", *WEB, *BROWSER, "notify",
-             "spawn_agent",
-             "create_role", "add_skill", "ask_user", "ask_folder", "message_agent", "open_room",
-             "discuss",
-             "read_backlog", "add_task", "change_task", "assess_task", "propose_trigger",
-             "post_note", "read_notes", "remember", "recall")
+ALL_TOOLS = (
+    *READ,
+    *WRITE,
+    "show",
+    *DIAGRAM,
+    "run_command",
+    *WEB,
+    *BROWSER,
+    "notify",
+    "spawn_agent",
+    "create_role",
+    "add_skill",
+    "ask_user",
+    "ask_folder",
+    "message_agent",
+    "open_room",
+    "discuss",
+    "read_backlog",
+    "add_task",
+    "change_task",
+    "assess_task",
+    "propose_trigger",
+    "post_note",
+    "read_notes",
+    "remember",
+    "recall",
+)
 # Slice 61: KOLONİ's own tools the user may switch off on the Tools page - then no agent is
 # offered one, whatever its role lists (`app.agent`, `_offered`). 28c's git and test tools
 # join here.
@@ -57,9 +86,12 @@ OFF = "tool_off:"
 def tools_off(session: Session) -> frozenset[str]:
     """The tools switched off on the Tools page - of those it still switches: one that left
     `SWITCHABLE` is never kept off by a row left behind."""
-    return frozenset(name.removeprefix(OFF) for name in session.scalars(
-        select(Flag.name).where(Flag.name.startswith(OFF, autoescape=True)))) & frozenset(
-        SWITCHABLE)
+    return frozenset(
+        name.removeprefix(OFF)
+        for name in session.scalars(
+            select(Flag.name).where(Flag.name.startswith(OFF, autoescape=True))
+        )
+    ) & frozenset(SWITCHABLE)
 
 
 # The project's backlog: read it, and propose to it - nothing changes before the user's word.
@@ -80,9 +112,22 @@ EXPERT_MAY = (*READ, "ask_user", "message_agent", "discuss", *NOTEBOOK, *MEMORY)
 # Asked by KOLONİ itself, with no tools, about a sub-agent's report (slice 33b): never
 # opened as an agent, so no agent is offered it.
 OBSERVER = "Observer"
+# K-rol-adlari (the user, 23 Nov: the old title was company jargon): the To-do list's two roles,
+# named for KOLONİ's hive - by these constants, never by words written out, so a later rename
+# reaches every place. A role of the user's own that had one of these names keeps it; the built-in
+# then bears BUILT_IN after its name (migration 0174) - `builtin_name` reads it back.
+HIVE_KEEPER = "Hive keeper"
+SCOUT = "Scout"
+BUILT_IN = " (built-in)"
+_BUILT_IN = re.compile(r" \(built-in(?: \d+)?\)$")  # (or "(built-in 2)", where that was taken too)
+# What the two were named before 0.1.7 (case and spaces evened out): an agent reading older turns
+# may ask for one.
+WAS_NAMED = {"product owner": HIVE_KEEPER, "assistant product owner": SCOUT}
 # K-kanit: a checking role's "verified" stands on a run of its own (migration 0131 for installs).
-RAN = ("Say \"verified\" or \"works\" only of what you ran yourself in this turn, and list each "
-       "test or command under \"ran:\" in your report; say \"not run\" of anything else.")
+RAN = (
+    'Say "verified" or "works" only of what you ran yourself in this turn, and list each '
+    'test or command under "ran:" in your report; say "not run" of anything else.'
+)
 
 
 @dataclass(frozen=True)
@@ -112,21 +157,39 @@ CORE: dict[str, tuple[str, ...]] = {
 def locked_tools(role: Role) -> tuple[str, ...]:
     """The tools a role keeps whatever the user takes away (`CORE`): none but a core role's."""
     return CORE.get(role.name, ()) if role.builtin else ()
+
+
 # KOLONİ's ready teams (slice 62), made once by migration 0065; a built-in role added later
 # joins those of them that are still there.
 READY_TEAMS = {
-    "Web app": ("Coder", "UI designer", "Tester", "Reviewer", "Debugger", "Refactorer",
-                # K-site-roller: no migration - `seed_builtin_roles` adds them on installs too.
-                "SEO specialist", "Copywriter", "Accessibility reviewer"),
-    "Backend / API": ("Coder", "Architect", "Database engineer", "Tester", "Reviewer",
-                      "Security reviewer", "Performance engineer"),
+    "Web app": (
+        "Coder",
+        "UI designer",
+        "Tester",
+        "Reviewer",
+        "Debugger",
+        "Refactorer",
+        # K-site-roller: no migration - `seed_builtin_roles` adds them on installs too.
+        "SEO specialist",
+        "Copywriter",
+        "Accessibility reviewer",
+    ),
+    "Backend / API": (
+        "Coder",
+        "Architect",
+        "Database engineer",
+        "Tester",
+        "Reviewer",
+        "Security reviewer",
+        "Performance engineer",
+    ),
     "Data": ("Data analyst", "Database engineer", "Researcher", "Reviewer"),
     "Docs": ("Docs writer", "Spec writer", "Translator", "Summarizer"),
     # (Named "Ops" until migration 0103, which renames the ready one where it still is.)
     "DevOps": ("DevOps", "Security reviewer", "Dependency keeper", "Performance engineer"),
     "Quality": ("Tester", "Reviewer", "Security reviewer", "Debugger"),
     "Research": ("Researcher", "Summarizer", "Spec writer"),
-    "Product": ("Product owner", "Assistant product owner", "Spec writer"),
+    "Product": (HIVE_KEEPER, SCOUT, "Spec writer"),
     "Maintenance": ("Refactorer", "Dependency keeper", "Debugger", "Tester"),
     # K-takim-duzen, made by migration 0103 (with the MLflow and Databricks experts in ML).
     "ML": ("Data scientist", "ML engineer", "Model evaluator", "MLOps engineer", "Tester"),
@@ -149,6 +212,8 @@ def landing_kind(session: Session, kind: str = LANDING_KIND) -> str:
     if session.get(Category, kind) is not None:
         return kind
     return session.scalar(select(Category.key).order_by(Category.position)) or kind
+
+
 # A team's lead (slice 63a): a role its team names (`is_team_lead`), in no list of roles and
 # opening no agent until teams run beside each other (84b). Its kind is drawn as "lead".
 LEAD_KIND = "lead"
@@ -157,21 +222,33 @@ LEAD_DESCRIPTION = "Runs its team's stages when the team works beside another te
 # K-rol-cogul: a lead may open several agents of one role for a big job - and is not pushed to
 # (B-192). Role instructions are the user's, in the record: migration 0105 adds it where they
 # are still KOLONİ's words; a recipe's step says it too (`AgentRunner._where`).
-SPLITS = ("When a job is big and splits into independent parts (separate files or modules), "
-          "you may give each part its own agent{within}, asked for in one reply, never the same "
-          "file to two; a small job {small}.")
+SPLITS = (
+    "When a job is big and splits into independent parts (separate files or modules), "
+    "you may give each part its own agent{within}, asked for in one reply, never the same "
+    "file to two; a small job {small}."
+)
 WHO_SPLITS = SPLITS.format(within="", small="stays with you")
 # B-202 (live): a team's lead has no tool that writes - told a small job stayed with it, one set
 # out to write a page itself. Migration 0153 says it where its words are still KOLONİ's.
 TEAM_SPLITS = SPLITS.format(within=", within what your step draws", small="goes to one agent")
-LEAD_INSTRUCTIONS = ("Run your team's stages in order with the recipe you were given. Your roles "
-                     "do the work: hand every file job and every finding to the right role - you "
-                     f"write no file yourself; report to the Orchestrator. {TEAM_SPLITS}")
+LEAD_INSTRUCTIONS = (
+    "Run your team's stages in order with the recipe you were given. Your roles "
+    "do the work: hand every file job and every finding to the right role - you "
+    f"write no file yourself; report to the Orchestrator. {TEAM_SPLITS}"
+)
 # (open_room and discuss: a team's lead meets its step's roles too, slice 84e.)
 # shortcut: only a team made from here on has them - an older team's lead is given them on
 # its card (Tools); add a migration if the ready teams' leads are to have them unasked.
-LEAD_TOOLS = (*READ, "spawn_agent", "ask_user", "message_agent", "open_room", "discuss",
-              *NOTEBOOK, *MEMORY)
+LEAD_TOOLS = (
+    *READ,
+    "spawn_agent",
+    "ask_user",
+    "message_agent",
+    "open_room",
+    "discuss",
+    *NOTEBOOK,
+    *MEMORY,
+)
 
 
 BUILTIN_ROLES: dict[str, RoleSpec] = {
@@ -187,16 +264,35 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "Breaks a job into steps and says who should do each one.",
         "Read enough of the project to plan well. Produce a short, ordered plan; do not "
         "make the changes yourself.",
-        (*READ, "spawn_agent", "create_role", "ask_user", "ask_folder", "message_agent",
-         "discuss", "propose_trigger", *NOTEBOOK, *MEMORY),
+        (
+            *READ,
+            "spawn_agent",
+            "create_role",
+            "ask_user",
+            "ask_folder",
+            "message_agent",
+            "discuss",
+            "propose_trigger",
+            *NOTEBOOK,
+            *MEMORY,
+        ),
         "plan",
     ),
     "Coder": RoleSpec(
         "Writes and changes code.",
-        "Make the change asked for, keep it small, and run the relevant checks before "
-        "you report.",
-        (*READ, *WRITE, *DIAGRAM, "run_command", *BROWSER, "spawn_agent", "ask_user",
-         "message_agent", *NOTEBOOK, *MEMORY),
+        "Make the change asked for, keep it small, and run the relevant checks before you report.",
+        (
+            *READ,
+            *WRITE,
+            *DIAGRAM,
+            "run_command",
+            *BROWSER,
+            "spawn_agent",
+            "ask_user",
+            "message_agent",
+            *NOTEBOOK,
+            *MEMORY,
+        ),
         "build",
     ),
     "Tester": RoleSpec(
@@ -215,8 +311,7 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
     ),
     "Researcher": RoleSpec(
         "Finds things out in the codebase.",
-        "Answer the question from what the files actually say, and name the files you "
-        "relied on.",
+        "Answer the question from what the files actually say, and name the files you relied on.",
         (*READ, *WEB, *BROWSER, "ask_user", "message_agent", *NOTEBOOK, *MEMORY),
         "plan",
     ),
@@ -226,8 +321,17 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "anything; fix the cause, not the symptom, and run the reproduction again before "
         "you report. You may have a Tester run the reproduction or a Coder make the fix with "
         "spawn_agent.",
-        (*READ, *WRITE, "run_command", *BROWSER, "spawn_agent", "ask_user", "message_agent",
-         *NOTEBOOK, *MEMORY),
+        (
+            *READ,
+            *WRITE,
+            "run_command",
+            *BROWSER,
+            "spawn_agent",
+            "ask_user",
+            "message_agent",
+            *NOTEBOOK,
+            *MEMORY,
+        ),
         "build",
     ),
     "Architect": RoleSpec(
@@ -267,8 +371,17 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "Look at the page as it is before you change it, and show what you made. Keep to "
         "the styles the project already has; check contrast and that every control can be "
         "reached from the keyboard and has a name.",
-        (*READ, *WRITE, "show", *DIAGRAM, *BROWSER, "ask_user", "message_agent", *NOTEBOOK,
-         *MEMORY),
+        (
+            *READ,
+            *WRITE,
+            "show",
+            *DIAGRAM,
+            *BROWSER,
+            "ask_user",
+            "message_agent",
+            *NOTEBOOK,
+            *MEMORY,
+        ),
         "build",
     ),
     "Data analyst": RoleSpec(
@@ -276,8 +389,7 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "Say where the data came from and how much of it you read. Compute from the data, "
         "not from a guess, and show the chart or table you made; name what the data cannot "
         "tell.",
-        (*READ, *WRITE, "show", "run_command", "ask_user", "message_agent", *NOTEBOOK,
-         *MEMORY),
+        (*READ, *WRITE, "show", "run_command", "ask_user", "message_agent", *NOTEBOOK, *MEMORY),
         "check",
     ),
     "DevOps": RoleSpec(
@@ -286,8 +398,17 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "change small and run it where you can; never put a secret in a file, and say what "
         "you could not run here. You may have a Security reviewer or Dependency keeper look "
         "with spawn_agent.",
-        (*READ, *WRITE, "run_command", "web_search", "spawn_agent", "ask_user", "message_agent",
-         *NOTEBOOK, *MEMORY),
+        (
+            *READ,
+            *WRITE,
+            "run_command",
+            "web_search",
+            "spawn_agent",
+            "ask_user",
+            "message_agent",
+            *NOTEBOOK,
+            *MEMORY,
+        ),
         "ops",
     ),
     "Spec writer": RoleSpec(
@@ -319,8 +440,16 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "Update one dependency at a time and run the tests after each. Check the licence "
         "and the known security notices of what you add or update, and name the source "
         "you checked.",
-        (*READ, *WRITE, "run_command", "web_search", "ask_user", "message_agent", *NOTEBOOK,
-         *MEMORY),
+        (
+            *READ,
+            *WRITE,
+            "run_command",
+            "web_search",
+            "ask_user",
+            "message_agent",
+            *NOTEBOOK,
+            *MEMORY,
+        ),
         "ops",
     ),
     "Translator": RoleSpec(
@@ -339,9 +468,9 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         (*READ, *WRITE, "message_agent", *NOTEBOOK, *MEMORY),
         "write",
     ),
-    "Product owner": RoleSpec(
-        "Keeps the project's To-do list: breaks a goal into tasks, each with what makes it "
-        "done, and puts them in order.",
+    HIVE_KEEPER: RoleSpec(
+        "Keeps the To-do list: turns a goal into tasks, each with what makes it done, and puts "
+        "them in order.",
         "Read enough of the project to know what is there. Break the goal into tasks small "
         "enough for one conversation each; say for every task, in plain words, what makes "
         "it done (it can be checked), and a priority. What you add or change waits for the "
@@ -351,9 +480,12 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         (*READ, "spawn_agent", "ask_user", "message_agent", *BACKLOG, *NOTEBOOK, *MEMORY),
         "plan",
     ),
-    "Assistant product owner": RoleSpec(
-        "Helps keep the To-do list: splits vague tasks, asks what is missing, flags problems "
-        "and assesses finished work against what makes it done.",
+    SCOUT: RoleSpec(
+        # (What an opened Scout does - the line spawn_agent's list gives: the follow-up tasks
+        # after each turn are KOLONİ's own request in its name, said where they show.)
+        "Keeps watch on the To-do list: splits vague tasks, asks what is missing, flags "
+        "duplicates, stale and blocked tasks, and checks finished tasks against what makes them "
+        "done.",
         "Split a vague task into smaller ones and ask the user what a task leaves open. Flag "
         "tasks written twice, tasks waiting a long time and tasks blocked by unfinished "
         "work. When a task's conversation has ended, compare what was done with what makes it "
@@ -378,8 +510,16 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "Read the pipeline and the data it touches before you change it. Keep each change small, "
         "run it on a sample where you can, and say plainly about every step that drops, "
         "rewrites or converts data.",
-        (*READ, *WRITE, "run_command", "spawn_agent", "ask_user", "message_agent", *NOTEBOOK,
-         *MEMORY),
+        (
+            *READ,
+            *WRITE,
+            "run_command",
+            "spawn_agent",
+            "ask_user",
+            "message_agent",
+            *NOTEBOOK,
+            *MEMORY,
+        ),
         "data",
     ),
     "ML engineer": RoleSpec(  # (the Coder's tools)
@@ -387,8 +527,16 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "Make the change asked for and keep it small. Fix the random seeds you can, run the "
         "training or evaluation on a small sample before you report, and say what you could "
         "not run here.",
-        (*READ, *WRITE, "run_command", "spawn_agent", "ask_user", "message_agent", *NOTEBOOK,
-         *MEMORY),
+        (
+            *READ,
+            *WRITE,
+            "run_command",
+            "spawn_agent",
+            "ask_user",
+            "message_agent",
+            *NOTEBOOK,
+            *MEMORY,
+        ),
         "ml",
     ),
     DATA_SCIENTIST: RoleSpec(  # (the Researcher's tools: it writes no file)
@@ -416,8 +564,17 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "each change small and run it where you can; never put a secret in a file, and say what "
         "you could not run here. You may have a Security reviewer or Dependency keeper look with "
         "spawn_agent.",
-        (*READ, *WRITE, "run_command", "web_search", "spawn_agent", "ask_user", "message_agent",
-         *NOTEBOOK, *MEMORY),
+        (
+            *READ,
+            *WRITE,
+            "run_command",
+            "web_search",
+            "spawn_agent",
+            "ask_user",
+            "message_agent",
+            *NOTEBOOK,
+            *MEMORY,
+        ),
         "ops",
     ),
     # K-belge-ciktilari: what it makes is an output on the canvas (the UI designer's tools: a
@@ -430,8 +587,17 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "A slide deck is one file, each slide a <section> drawn full-window, moved with the "
         "arrow keys. Show what you made. A document asked for as pdf, docx or pptx: say so in "
         "your report - an agent that runs commands makes it and shows it.",
-        (*READ, *WRITE, "show", *DIAGRAM, *BROWSER, "ask_user", "message_agent", *NOTEBOOK,
-         *MEMORY),
+        (
+            *READ,
+            *WRITE,
+            "show",
+            *DIAGRAM,
+            *BROWSER,
+            "ask_user",
+            "message_agent",
+            *NOTEBOOK,
+            *MEMORY,
+        ),
         "build",
     ),
     # K-site-roller: a site that is found, read and used - each looks at the built page. The two
@@ -463,7 +629,7 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "tools where you can: every control reached from the keyboard in a sensible order, with "
         "visible focus; contrast; names and labels (ARIA only where HTML has none); alt text; "
         "headings in order; reduced motion; form errors that say what is wrong and where. Report "
-        "each problem with file and line, the criterion it fails (or \"best practice\" where none "
+        'each problem with file and line, the criterion it fails (or "best practice" where none '
         "applies) and the smallest fix. Say plainly when you find none. Do not change files. "
         f"{RAN}",
         (*READ, *BROWSER, "ask_user", "message_agent", *NOTEBOOK, *MEMORY),
@@ -551,7 +717,8 @@ def find_role(session: Session, name: str) -> Role | None:
     if found is not None:
         return found
     shown = [
-        role for role in session.scalars(select(Role))
+        role
+        for role in session.scalars(select(Role))
         if role.name != shown_name(role.name)
         and shown_name(role.name).casefold() == name.casefold()
     ]
@@ -565,10 +732,24 @@ def list_roles(session: Session) -> list[Role]:
     leads: each is its team's (`app.api.teams`)."""
     order = {name: index for index, name in enumerate(BUILTIN_ROLES)}
     roles = session.scalars(
-        select(Role).where(Role.id.not_in(LEADS))
+        select(Role)
+        .where(Role.id.not_in(LEADS))
         .order_by(Role.created_at, literal_column("roles.rowid"))
     ).all()
-    return sorted(roles, key=lambda r: (not r.builtin, order.get(r.name, 0)))
+    return sorted(roles, key=lambda r: (not r.builtin, order.get(builtin_name(r), 0)))
+
+
+def builtin_name(role: Role) -> str:
+    """A role's name as KOLONİ's own list knows it (`BUILTIN_ROLES`): a built-in's without the
+    BUILT_IN it bears where a role of the user's own has its name (migration 0174)."""
+    return _BUILT_IN.sub("", role.name) if role.builtin else role.name
+
+
+def was_named(name: str) -> str:
+    """Where `name` is what a built-in role was named before 0.1.7: " - <name> is now the <new
+    name>", said with "unknown role"; else ""."""
+    now = WAS_NAMED.get(" ".join(name.split()).casefold())
+    return f" - {name.strip()} is now the {now}" if now else ""
 
 
 def is_observer(role: Role) -> bool:
@@ -592,8 +773,10 @@ def find_agent_role(session: Session, name: str) -> Role | None:
 def is_team_lead(session: Session, role: Role) -> bool:
     """Whether the role is a team's lead: its team says so, not its kind (a user's own kind
     of work may read "lead")."""
-    return role.id is not None and session.scalar(
-        select(Team.id).where(Team.lead_role_id == role.id)) is not None
+    return (
+        role.id is not None
+        and session.scalar(select(Team.id).where(Team.lead_role_id == role.id)) is not None
+    )
 
 
 def effective_tools(role_tools: Iterable[str], parent_tools: Iterable[str] | None) -> list[str]:
@@ -645,23 +828,43 @@ def chat_teams(session: Session, conversation) -> Door:
 def pickable(session: Session) -> list[Team]:
     """The teams the Lead may pick itself (slice 84b: "The Lead may pick it"), in the Agents
     page's order."""
-    return list(session.scalars(select(Team).where(Team.lead_may_pick).order_by(
-        Team.created_at, literal_column("teams.rowid"))))
+    return list(
+        session.scalars(
+            select(Team)
+            .where(Team.lead_may_pick)
+            .order_by(Team.created_at, literal_column("teams.rowid"))
+        )
+    )
 
 
 def team_roles(session: Session, team: Team) -> list[str]:
     """Its roles that are on, by name, as spawn_agent takes them."""
-    return list(session.scalars(select(Role.name).join(RoleTeam, RoleTeam.role_id == Role.id)
-                                .where(RoleTeam.team_id == team.id, Role.enabled)
-                                .order_by(Role.name)))
+    return list(
+        session.scalars(
+            select(Role.name)
+            .join(RoleTeam, RoleTeam.role_id == Role.id)
+            .where(RoleTeam.team_id == team.id, Role.enabled)
+            .order_by(Role.name)
+        )
+    )
 
 
 def stage_roles(session: Session, team: Team) -> list[tuple[str, tuple[str, ...]]]:
     """Its stages in their order, each with its roles that are on, by name (slice 63a)."""
-    return [(stage.name, tuple(session.scalars(
-        select(Role.name).join(RoleTeam, RoleTeam.role_id == Role.id).where(
-            RoleTeam.team_id == team.id, RoleTeam.stage_id == stage.id, Role.enabled)
-        .order_by(Role.name)))) for stage in team.stages]
+    return [
+        (
+            stage.name,
+            tuple(
+                session.scalars(
+                    select(Role.name)
+                    .join(RoleTeam, RoleTeam.role_id == Role.id)
+                    .where(RoleTeam.team_id == team.id, RoleTeam.stage_id == stage.id, Role.enabled)
+                    .order_by(Role.name)
+                )
+            ),
+        )
+        for stage in team.stages
+    ]
 
 
 def stage_order(session: Session, team: Team) -> str:
@@ -686,22 +889,33 @@ def closed(role: Role, door: Door, named: frozenset[str]) -> str | None:
     if role.builtin and role.name in ALWAYS or role.name.casefold() in named:
         return None
     if not role.enabled:
-        return (f"the {role.name} role is off: it is opened only when the user names it in "
-                "their message")
+        return (
+            f"the {role.name} role is off: it is opened only when the user names it in "
+            "their message"
+        )
     if door.step is not None:
         allowed, where = door.step
         # (B-191, live: refused the Coder, the Lead asked the user which role to open.)
-        return None if role.name.casefold() in allowed else (
-            f"{where}: the {role.name} role is not one of its roles now - open the step's role "
-            "named there now, with spawn_agent; do not ask the user which")
+        return (
+            None
+            if role.name.casefold() in allowed
+            else (
+                f"{where}: the {role.name} role is not one of its roles now - open the step's role "
+                "named there now, with spawn_agent; do not ask the user which"
+            )
+        )
     if door.unpicked and role.teams and not any(team.lead_may_pick for team in role.teams):
-        return (f"the {role.name} role is only in teams the Orchestrator may not pick "
-                f"({', '.join(team.name for team in role.teams)}): the user picks those in "
-                "Teams for this chat (Manual)")
+        return (
+            f"the {role.name} role is only in teams the Orchestrator may not pick "
+            f"({', '.join(team.name for team in role.teams)}): the user picks those in "
+            "Teams for this chat (Manual)"
+        )
     if door.teams and not any(team in role.teams for team in door.teams):
-        return (f"the {role.name} role is in none of this chat's teams "
-                f"({', '.join(team.name for team in door.teams)}): open one of their roles. The "
-                "user changes the teams in Teams for this chat")
+        return (
+            f"the {role.name} role is in none of this chat's teams "
+            f"({', '.join(team.name for team in door.teams)}): open one of their roles. The "
+            "user changes the teams in Teams for this chat"
+        )
     return None
 
 
@@ -710,23 +924,33 @@ def seed_builtin_roles(session: Session) -> None:
     also a role of the user's own that has a built-in one's name, whatever its case (a
     role is opened by its name: `find_role`). One that is added joins the ready teams that
     hold it, where they are still there - never a team of the user's own by such a name."""
-    existing = {name.casefold() for name in session.scalars(select(Role.name))}
+    # (a built-in that bears BUILT_IN is there too: never added again beside it)
+    existing = {
+        (_BUILT_IN.sub("", name) if builtin else name).casefold()
+        for name, builtin in session.execute(select(Role.name, Role.builtin))
+    }
     # (Migration 0093's rule: the ready teams are the first ever made, 0103's given their time.)
     first = select(func.min(Team.created_at)).scalar_subquery()
-    teams = {team.name: team for team in session.scalars(select(Team).where(
-        Team.created_at == first))}
+    teams = {
+        team.name: team for team in session.scalars(select(Team).where(Team.created_at == first))
+    }
     for name, spec in BUILTIN_ROLES.items():
         if name.casefold() not in existing:
-            session.add(Role(
-                name=name,
-                description=spec.description,
-                instructions=spec.instructions,
-                tools=list(spec.tools),
-                kind=landing_kind(session, spec.kind),
-                builtin=True,
-                teams=[teams[team] for team, held in READY_TEAMS.items()
-                       if name in held and team in teams],
-            ))
+            session.add(
+                Role(
+                    name=name,
+                    description=spec.description,
+                    instructions=spec.instructions,
+                    tools=list(spec.tools),
+                    kind=landing_kind(session, spec.kind),
+                    builtin=True,
+                    teams=[
+                        teams[team]
+                        for team, held in READY_TEAMS.items()
+                        if name in held and team in teams
+                    ],
+                )
+            )
     place_in_stages(session)
     session.commit()
 
@@ -738,8 +962,10 @@ def place_in_stages(session: Session) -> None:
     build role lands in the first stage; keep the kind a stage began as if that is felt."""
     session.flush()
     loose = session.execute(
-        select(RoleTeam, Role.kind, Role.name).join(Role, Role.id == RoleTeam.role_id)
-        .where(RoleTeam.stage_id.is_(None))).all()
+        select(RoleTeam, Role.kind, Role.name)
+        .join(Role, Role.id == RoleTeam.role_id)
+        .where(RoleTeam.stage_id.is_(None))
+    ).all()
     titles = dict(STAGES)
     for link, kind, name in loose:
         stages = session.get_one(Team, link.team_id).stages

@@ -37,7 +37,12 @@ export function useMemoryWeb(project: Project) {
     <>
       <h2>Memory</h2>
       <label className="choice">
-        <input type="checkbox" aria-label={`Note what the work found, by itself ${NOTES_SHOWN} ${NOTES_REST}`} checked={autoNotes} onChange={e => setAutoNotes(e.target.checked)} />
+        <input
+          type="checkbox"
+          aria-label={`Note what the work found, by itself ${NOTES_SHOWN} ${NOTES_REST}`}
+          checked={autoNotes}
+          onChange={e => setAutoNotes(e.target.checked)}
+        />
         <span>
           Note what the work found, by itself
           <span className="choice-note">
@@ -54,27 +59,62 @@ export function useMemoryWeb(project: Project) {
 }
 
 /** Which provider's server embeds for the search by meaning (off: by words alone), and its model. */
-function Meaning({ provider, setProvider, model, setModel }: { provider: string | null; setProvider: (id: string | null) => void; model: string; setModel: (name: string) => void }) {
+function Meaning({
+  provider,
+  setProvider,
+  model,
+  setModel,
+}: {
+  provider: string | null
+  setProvider: (id: string | null) => void
+  model: string
+  setModel: (name: string) => void
+}) {
   const providers = useApp(s => s.providers).filter(p => p.base_url)
   return (
-    <Row label="Search by meaning with" htmlFor="settings-meaning" warn={<span className="choice-note">{MEANING_COSTS}</span>}>
-      <select id="settings-meaning" className="input" value={provider ?? ''} onChange={e => setProvider(e.target.value || null)}>
+    <Row
+      label="Search by meaning with"
+      htmlFor="settings-meaning"
+      warn={<span className="choice-note">{MEANING_COSTS}</span>}
+    >
+      <select
+        id="settings-meaning"
+        className="input"
+        value={provider ?? ''}
+        onChange={e => setProvider(e.target.value || null)}
+      >
         <option value="">off: by words alone</option>
         <ProviderOptions providers={providers} />
       </select>
-      <input className="input mono" aria-label="Embedding model" value={model} maxLength={200} disabled={provider === null} onChange={e => setModel(e.target.value)} />
+      <input
+        className="input mono"
+        aria-label="Embedding model"
+        value={model}
+        maxLength={200}
+        disabled={provider === null}
+        onChange={e => setModel(e.target.value)}
+      />
     </Row>
   )
 }
 
-function OtherMemories({ project, links, setLinks }: { project: Project; links: string[]; setLinks: (ids: string[]) => void }) {
+function OtherMemories({
+  project,
+  links,
+  setLinks,
+}: {
+  project: Project
+  links: string[]
+  setLinks: (ids: string[]) => void
+}) {
   const otherProjects = useApp(s => s.projects).filter(p => p.id !== project.id)
   return (
     <>
       <h2>Also look in the memory of</h2>
       <span className="choice-note">
-        An agent’s recall also finds their notes, facts and earlier messages, each tagged with the project and not checked here: their files are not in
-        this folder. Nothing of theirs is given to an agent at its start, and nothing is written there.
+        An agent’s recall also finds their notes, facts and earlier messages, each tagged with the project and not
+        checked here: their files are not in this folder. Nothing of theirs is given to an agent at its start, and
+        nothing is written there.
       </span>
       {otherProjects.length === 0 && <p className="muted">There is no other project yet.</p>}
       {otherProjects.map(other => (
@@ -111,20 +151,43 @@ function useWeb(project: Project) {
     view: (
       <>
         <h2>Web search</h2>
-        <Row label="Search address (SearXNG)" htmlFor="search-url" doc={GUIDE.settingsMemoryWeb} why="Your own SearXNG. An agent’s web search asks it first (turn on its JSON format). Empty: none.">
-          <input id="search-url" className="input mono" value={searchUrl} maxLength={500} placeholder="http://localhost:8888" onChange={e => setSearchUrl(e.target.value)} />
+        <Row
+          label="Search address (SearXNG)"
+          htmlFor="search-url"
+          doc={GUIDE.settingsMemoryWeb}
+          why="Your own SearXNG. An agent’s web search asks it first (turn on its JSON format). Empty: none."
+        >
+          <input
+            id="search-url"
+            className="input mono"
+            value={searchUrl}
+            maxLength={500}
+            placeholder="http://localhost:8888"
+            onChange={e => setSearchUrl(e.target.value)}
+          />
         </Row>
         <Row
           label="Otherwise search with"
           htmlFor="search-order"
           warn={
             <span className="choice-note">
-              <span id="search-order-note">The built-in search sends the query to DuckDuckGo. It is not an official service and can stop working.</span>{' '}
-              <span id="search-order-more">A CLI is your Codex or Claude Code provider (and agy, reading only, if you let it below); a search with it uses your plan.</span>
+              <span id="search-order-note">
+                The built-in search sends the query to DuckDuckGo. It is not an official service and can stop working.
+              </span>{' '}
+              <span id="search-order-more">
+                A CLI is your Codex or Claude Code provider (and agy, reading only, if you let it below); a search with
+                it uses your plan.
+              </span>
             </span>
           }
         >
-          <select id="search-order" className="input" value={searchOrder} aria-describedby="search-order-note search-order-more" onChange={e => setSearchOrder(e.target.value as Project['search_order'])}>
+          <select
+            id="search-order"
+            className="input"
+            value={searchOrder}
+            aria-describedby="search-order-note search-order-more"
+            onChange={e => setSearchOrder(e.target.value as Project['search_order'])}
+          >
             <option value="builtin">The built-in search first, then a CLI</option>
             <option value="cli">A CLI first, then the built-in search</option>
           </select>
@@ -133,7 +196,10 @@ function useWeb(project: Project) {
           <input type="checkbox" checked={searchAgy} onChange={e => setSearchAgy(e.target.checked)} />
           <span>
             Let agy search too
-            <span className="choice-note">While it searches, agy is not held to its search tool: it may read files on this machine or open pages unasked. Codex and Claude Code are held to it.</span>
+            <span className="choice-note">
+              While it searches, agy is not held to its search tool: it may read files on this machine or open pages
+              unasked. Codex and Claude Code are held to it.
+            </span>
           </span>
         </label>
       </>

@@ -2,6 +2,7 @@
 `outside_a_copy`, `sandbox_denied`, `_changes_nothing`), which folders a card covers
 (`folders_of`, `within`), and the words of a few cards (`_cant_card`, `lead_pick`).
 """
+
 import contextlib
 import fnmatch
 import json
@@ -56,7 +57,7 @@ def lead_pick(said: str, options: list[str]) -> tuple[str, str] | None:
     `options` as written there, or - with none - one short line; None for anything else, or
     with no reason: the question waits for the user."""
     try:
-        got = json.loads(said[said.find("{"):said.rfind("}") + 1])
+        got = json.loads(said[said.find("{") : said.rfind("}") + 1])
     except ValueError:
         return None
     answer, why = (got.get("answer"), got.get("why")) if isinstance(got, dict) else (None, None)
@@ -98,7 +99,8 @@ def _handed(folder: str, write: list[str], read: list[str]) -> bool:
     """Whether a CLI with tools of its own is given this folder to write in (`_add_dirs`):
     not one that holds a place KOLONİ never opens, or a folder to read in only."""
     return not never(Path(folder)) and not any(
-        within(Path(r), Path(folder)) and r not in write for r in read)
+        within(Path(r), Path(folder)) and r not in write for r in read
+    )
 
 
 def _shows_a_key(ws: Workspace, path: str) -> bool:
@@ -139,8 +141,13 @@ def _on(provider: Provider, model: str | None) -> str:
     return shown_name(provider.name) + (f" · {model}" if model else "")
 
 
-def _cant_card(team: str, step: str, child: Ctx, cant: tuple[str, str | None, datetime | None],
-               offer: tuple[str, Provider, str | None] | None) -> tuple[str, list[str]]:
+def _cant_card(
+    team: str,
+    step: str,
+    child: Ctx,
+    cant: tuple[str, str | None, datetime | None],
+    offer: tuple[str, Provider, str | None] | None,
+) -> tuple[str, list[str]]:
     """The card of a step whose agent could not run on its provider (B-88, G3): run it where
     there is room; go on with the same agent at its limit's reset - not for a window of a day
     or more, nor at a time not known - or once signed in again; try it again where nothing
@@ -166,8 +173,12 @@ def _cant_card(team: str, step: str, child: Ctx, cant: tuple[str, str | None, da
 def needs_full_auto(model: object, level: str) -> str | None:
     """Why a CLI with tools of its own cannot work at this permission level ({provider}
     to be filled in), or None: one that neither asks first nor only reads needs Full auto."""
-    if not getattr(model, "native", False) or getattr(model, "asks", False) or getattr(
-            model, "reads", False) or level == "full_auto":
+    if (
+        not getattr(model, "native", False)
+        or getattr(model, "asks", False)
+        or getattr(model, "reads", False)
+        or level == "full_auto"
+    ):
         return None
     return NATIVE_OR_READS if getattr(model, "can_read_only", False) else NATIVE_NEEDS_FULL_AUTO
 
@@ -176,8 +187,11 @@ def outside_a_copy(model: object) -> bool:
     """Whether an agent on this model could change the project while it works in a copy: a
     CLI with tools of its own that is not started in one, or whose commands' writes are not
     kept to it - one that only reads changes nothing. No side of a comparison runs on it."""
-    return bool(getattr(model, "native", False)) and not getattr(model, "reads", False) and (
-        only_in_project(model) or not _sandboxed(model))
+    return (
+        bool(getattr(model, "native", False))
+        and not getattr(model, "reads", False)
+        and (only_in_project(model) or not _sandboxed(model))
+    )
 
 
 def _links_in_copy(model: object) -> bool:
@@ -221,11 +235,13 @@ def _needs_its_tools(model: object, tools: Collection[str]) -> bool:
     asks but looks at files only by running commands (`looks_by_running`) - unless it is
     started read-only for these tools (B-301: Codex reads with KOLONİ's tools then)."""
     return _unasked(model) or (
-        getattr(model, "looks_by_running", False) and not reads_only(model, tools))
+        getattr(model, "looks_by_running", False) and not reads_only(model, tools)
+    )
 
 
-def sandbox_denied(where: Path, project: Path, records: Path, homes: Path,
-                   logins: Path) -> tuple[str, ...]:
+def sandbox_denied(
+    where: Path, project: Path, records: Path, homes: Path, logins: Path
+) -> tuple[str, ...]:
     """What Copilot's sandbox keeps its commands from (slice 105): the secret files where it
     works and, from a copy, the project's own too (a command there can name the project's
     path) - and KOLONİ's own records, and the providers' own sign-in folders (`logins`,
@@ -238,10 +254,16 @@ def sandbox_denied(where: Path, project: Path, records: Path, homes: Path,
     its bridge is in: `ToolServer`); one gone before its session.create is still named
     (whether the sandbox minds a path that is gone is not measured): measure both live."""
     tops = dict.fromkeys((where, project))
-    keys = [*Path(tempfile.gettempdir()).glob("koloni-cli-*/bridge.json"),
-            *homes.glob("agy-*/.gemini/config/koloni-door.json")]
-    return (*(str(top / rel) for top in tops for rel in secret_files(top)), str(records),
-            str(logins), *map(str, keys))
+    keys = [
+        *Path(tempfile.gettempdir()).glob("koloni-cli-*/bridge.json"),
+        *homes.glob("agy-*/.gemini/config/koloni-door.json"),
+    ]
+    return (
+        *(str(top / rel) for top in tops for rel in secret_files(top)),
+        str(records),
+        str(logins),
+        *map(str, keys),
+    )
 
 
 def _role_asked(request: ToolCallRequest) -> str:
@@ -257,8 +279,12 @@ def _at_a_step_limit(error: str | None) -> bool:
     """Whether an agent's error is a step limit's: the app's, its role's (ROLE_STEPS), or
     the end of a budget it was given (GIVEN_LIMIT)."""
     return error == "step_limit" or bool(
-        error and error.startswith("stopped at its role's limit of") and "step" in error
-        or error and error.startswith("stopped after the "))
+        error
+        and error.startswith("stopped at its role's limit of")
+        and "step" in error
+        or error
+        and error.startswith("stopped after the ")
+    )
 
 
 def _steps_of_chain(session, agent_id: str | None) -> int:
@@ -272,9 +298,16 @@ def _steps_of_chain(session, agent_id: str | None) -> int:
     steps, seen = 0, set()
     while agent_id and agent_id not in seen:
         seen.add(agent_id)
-        steps += session.scalar(select(func.count(Message.id)).where(
-            Message.agent_id == agent_id, Message.role == "assistant",
-            Message.discussion_id.is_(None))) or 0
+        steps += (
+            session.scalar(
+                select(func.count(Message.id)).where(
+                    Message.agent_id == agent_id,
+                    Message.role == "assistant",
+                    Message.discussion_id.is_(None),
+                )
+            )
+            or 0
+        )
         agent_id = session.scalar(select(Agent.continues_id).where(Agent.id == agent_id))
     return steps
 
@@ -294,8 +327,11 @@ def _changes_nothing(ctx: Ctx) -> bool:
     shortcut: a change seen beside it is then on no record (a hand change, a CLI's command
     that wrote past its copy), nor is its own write by a tool its hook missed (the run stops:
     `model_agy`'s "unhooked"); put such a one down as `IN_THE_PROJECT` if one is missed."""
-    return not _sandboxed(ctx.model) and getattr(ctx.model, "asks", False) and (
-        not can_change_things(ctx.tools))
+    return (
+        not _sandboxed(ctx.model)
+        and getattr(ctx.model, "asks", False)
+        and (not can_change_things(ctx.tools))
+    )
 
 
 def _sandboxed(model: object) -> bool:
@@ -314,4 +350,5 @@ def _asked_about(approval: str, mode: str, tools: Iterable[str]) -> bool:
     """Whether opening an agent with these tools is asked about at this approval setting and
     permission level - before any pick of a model (`_propose`; B-386's take-up too)."""
     return approval == "always" or (
-        approval == "auto" and mode == "ask" and can_change_things(tools))
+        approval == "auto" and mode == "ask" and can_change_things(tools)
+    )

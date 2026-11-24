@@ -3,6 +3,7 @@
 Revision ID: 0039
 Revises: 0038
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -90,9 +91,11 @@ def upgrade() -> None:
     with op.batch_alter_table("conversations") as batch:
         batch.add_column(sa.Column("room_posts", sa.Integer(), server_default="40", nullable=True))
         batch.add_column(
-            sa.Column("room_tokens", sa.Integer(), server_default="400000", nullable=True))
+            sa.Column("room_tokens", sa.Integer(), server_default="400000", nullable=True)
+        )
         batch.add_column(
-            sa.Column("room_minutes", sa.Integer(), server_default="30", nullable=True))
+            sa.Column("room_minutes", sa.Integer(), server_default="30", nullable=True)
+        )
     with op.batch_alter_table("messages") as batch:
         batch.add_column(sa.Column("room_post_id", sa.String(length=32), nullable=True))
     # What KOLONİ itself does with a room's copy hangs off no agent's call.

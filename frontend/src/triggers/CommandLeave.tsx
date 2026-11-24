@@ -27,7 +27,16 @@ interface Props {
  *
  * Everything about how this permission is chosen and sent is in this one file.
  */
-export function CommandLeave({ conversationId, ticked, onTicked, onRules, onAddRule, suggest = '', onRead, error }: Props) {
+export function CommandLeave({
+  conversationId,
+  ticked,
+  onTicked,
+  onRules,
+  onAddRule,
+  suggest = '',
+  onRead,
+  error,
+}: Props) {
   // The list as it was read, with whose it is: another conversation's is not shown for a moment as this one's.
   const [read, setRead] = useState<{ of: string; rules: AllowedCommand[] } | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
@@ -66,7 +75,11 @@ export function CommandLeave({ conversationId, ticked, onTicked, onRules, onAddR
     try {
       const made = await onAddRule(conversationId, prefix)
       // On the list now; whether this trigger may run it is still the user's to tick.
-      setRead(prev => (prev?.of === conversationId && !prev.rules.some(r => r.id === made.id) ? { of: conversationId, rules: [...prev.rules, made] } : prev))
+      setRead(prev =>
+        prev?.of === conversationId && !prev.rules.some(r => r.id === made.id)
+          ? { of: conversationId, rules: [...prev.rules, made] }
+          : prev,
+      )
       setAdding('')
     } catch (err) {
       setRefused(errorText(err))
@@ -78,7 +91,9 @@ export function CommandLeave({ conversationId, ticked, onTicked, onRules, onAddR
   return (
     <fieldset className="trigger-leave" aria-label="May run these commands">
       <legend>May run these commands</legend>
-      <p className="choice-note">With nobody watching, a ticked command runs exactly as written - no extra arguments.</p>
+      <p className="choice-note">
+        With nobody watching, a ticked command runs exactly as written - no extra arguments.
+      </p>
       {failed && (
         <div role="alert" className="alert">
           {failed}
@@ -91,7 +106,9 @@ export function CommandLeave({ conversationId, ticked, onTicked, onRules, onAddR
           <input
             type="checkbox"
             checked={ticked.includes(rule.id)}
-            onChange={event => onTicked(event.target.checked ? [...ticked, rule.id] : ticked.filter(id => id !== rule.id))}
+            onChange={event =>
+              onTicked(event.target.checked ? [...ticked, rule.id] : ticked.filter(id => id !== rule.id))
+            }
           />
           <span className="mono">{rule.prefix}</span>
         </label>
@@ -118,7 +135,12 @@ export function CommandLeave({ conversationId, ticked, onTicked, onRules, onAddR
               void add()
             }}
           />
-          <button type="button" className="btn" disabled={busy || !adding.trim() || !conversationId} onClick={() => void add()}>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || !adding.trim() || !conversationId}
+            onClick={() => void add()}
+          >
             Add to the list
           </button>
         </div>

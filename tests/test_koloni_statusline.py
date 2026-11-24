@@ -23,9 +23,11 @@ INPUT = {
     },
 }
 # A window that does not say both is left out; the other is still sent.
-PARTIAL = {**INPUT, "rate_limits": {
-    "five_hour": {"used_percentage": 53, "resets_at": None},
-    "seven_day": {"used_percentage": 93.4, "resets_at": 1761500000},
+PARTIAL = {
+    **INPUT,
+    "rate_limits": {
+        "five_hour": {"used_percentage": 53, "resets_at": None},
+        "seven_day": {"used_percentage": 93.4, "resets_at": 1761500000},
     },
 }
 
@@ -51,8 +53,13 @@ def koloni():
 
 
 def run(*arguments, given=INPUT):
-    return subprocess.run([sys.executable, str(SCRIPT), *arguments], input=json.dumps(given).encode(),
-                          capture_output=True, timeout=30, check=True).stdout.decode("utf-8")
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *arguments],
+        input=json.dumps(given).encode(),
+        capture_output=True,
+        timeout=30,
+        check=True,
+    ).stdout.decode("utf-8")
 
 
 def heard_run(heard, *arguments, given=INPUT):
@@ -72,8 +79,10 @@ def test_it_sends_only_the_numbers_with_its_key_and_prints_a_short_line(koloni):
     (path, headers, body) = heard[0]
     assert path == "/api/limits/claude-session" and "Origin" not in headers
     assert headers["X-Koloni-Key"] == "k3y"
-    assert body == {"five_hour": {"used_percentage": 53, "resets_at": 1761300000},
-                    "seven_day": {"used_percentage": 93.4, "resets_at": 1761500000}}
+    assert body == {
+        "five_hour": {"used_percentage": 53, "resets_at": 1761300000},
+        "seven_day": {"used_percentage": 93.4, "resets_at": 1761500000},
+    }
     before = len(heard)
     heard_run(heard, "--koloni", address, "--key", "k3y", given=PARTIAL)
     assert heard[before][2] == {"seven_day": {"used_percentage": 93.4, "resets_at": 1761500000}}

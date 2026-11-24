@@ -62,14 +62,21 @@ export type Item = View | Served
 export const servedOf = (conv: ConvState): Served[] =>
   conv.commands
     .filter(c => c.keep_running && c.started_at !== null)
-    .map(c => ({ id: c.id, path: c.preview_url ? new URL(c.preview_url).host : c.command.replaceAll('/', ' '), kind: 'server' as const, command: c }))
+    .map(c => ({
+      id: c.id,
+      path: c.preview_url ? new URL(c.preview_url).host : c.command.replaceAll('/', ' '),
+      kind: 'server' as const,
+      command: c,
+    }))
     .reverse()
 
 /** What the list is read again for: a change made or decided, a file shown. */
 export function viewsStamp(conv: ConvState): string {
   return [
     ...conv.fileChanges.map(f => f.id + f.status),
-    ...conv.toolCalls.filter(c => ['show', 'browser_screenshot', 'view_image', 'diagram_image'].includes(c.name)).map(c => c.id + c.status),
+    ...conv.toolCalls
+      .filter(c => ['show', 'browser_screenshot', 'view_image', 'diagram_image'].includes(c.name))
+      .map(c => c.id + c.status),
     // (R161: what a command made is put there with no call of its own.)
     String(conv.shown),
   ].join(' ')
@@ -107,7 +114,11 @@ export function useViews(conv: ConvState | null, open: boolean) {
       // (Another conversation opened meanwhile: this late list would replace its first one.)
       if (cidNow.current !== cid) return
       // (What was there when the list was first read is not new.)
-      setRead(was => (was?.cid === cid ? { ...was, views } : { cid, views, seen: new Set([...views, ...servedNow.current].map(v => v.id)) }))
+      setRead(was =>
+        was?.cid === cid
+          ? { ...was, views }
+          : { cid, views, seen: new Set([...views, ...servedNow.current].map(v => v.id)) },
+      )
     } catch {
       // the list stays as it was; it is read again at the next change
     }
@@ -130,6 +141,9 @@ export function useViews(conv: ConvState | null, open: boolean) {
   const views: Item[] = [...served, ...listed]
   const fresh = read?.cid === cid ? views.filter(v => !read.seen.has(v.id)).map(v => v.id) : []
   /** These were seen: no longer new. */
-  const see = useCallback((ids: string[]) => setRead(was => was && { ...was, seen: new Set([...was.seen, ...ids]) }), [])
+  const see = useCallback(
+    (ids: string[]) => setRead(was => was && { ...was, seen: new Set([...was.seen, ...ids]) }),
+    [],
+  )
   return { views, fresh, see }
 }

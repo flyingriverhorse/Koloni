@@ -34,8 +34,10 @@ FAILED_SILENTLY = "it failed without saying why"
 # How a change is on record that is found in the project while a CLI works in a copy: it
 # may be the CLI's, or the user's or another agent's (K-70-kimin; Undo this turn skips it).
 # Not the agent's work, so not in its record here either: what the user wrote goes to no model.
-IN_THE_PROJECT = ("changed in the project itself, outside the CLI's working copy, while it "
-                  "worked: by the CLI or by someone else - who changed it is not known")
+IN_THE_PROJECT = (
+    "changed in the project itself, outside the CLI's working copy, while it "
+    "worked: by the CLI or by someone else - who changed it is not known"
+)
 SECONDS = 90.0  # as the summariser's (`earlier.SUMMARISER_SECONDS`)
 TIMED_OUT = f"the Observer did not answer within {SECONDS:.0f} seconds"
 STOPPED = "the request to the Observer was stopped before it answered"
@@ -65,10 +67,13 @@ def diffs(changes) -> str:
             shown.append(CUT)  # the budget is spent: the rest is not even made
             break
         # Masked before it is cut: a secret is not left half shown at the cut.
-        diff = raw.hidden(unified_diff(
-            change.before_content or "", change.after_content or "", change.path)[0])
-        shown.append(f"{quoted(raw.hidden(change.path))} ({change.kind}, {change.status}): "
-                     + quoted(_cut(diff, room)))
+        diff = raw.hidden(
+            unified_diff(change.before_content or "", change.after_content or "", change.path)[0]
+        )
+        shown.append(
+            f"{quoted(raw.hidden(change.path))} ({change.kind}, {change.status}): "
+            + quoted(_cut(diff, room))
+        )
         room -= len(diff)
     return "\n".join(shown)
 
@@ -79,7 +84,8 @@ def on_record(session: Session, agent_id: str) -> str:
     the project's check went on them, where one ran. What the agent wrote is data: quoted,
     and with every secret KOLONİ knows masked (`raw.hidden`)."""
     calls = session.execute(
-        select(ToolCall.name, ToolCall.status).where(ToolCall.agent_id == agent_id)
+        select(ToolCall.name, ToolCall.status)
+        .where(ToolCall.agent_id == agent_id)
         .order_by(literal_column("tool_calls.rowid"))
     ).all()
     listed = ", ".join(f"{name} ({status})" for name, status in calls[:CALLS_LISTED])
@@ -87,22 +93,42 @@ def on_record(session: Session, agent_id: str) -> str:
         listed += f" and {len(calls) - CALLS_LISTED} more"
     lines = [f"Its tool calls, in order: {listed}" if calls else "No tool call of it is on record."]
     # (Not a secret file's: what it holds goes to no model. Nor one whose maker is not known.)
-    changes = [change for change in session.scalars(
-        select(FileChange).join(ToolCall, ToolCall.id == FileChange.tool_call_id, isouter=True)
-        .where(FileChange.agent_id == agent_id, or_(
-            ToolCall.result.is_(None), ~ToolCall.result.startswith(IN_THE_PROJECT)))
-        .order_by(literal_column("file_changes.rowid"))
-    ) if not secret_in_project(change.path) and not in_scratch(change.path)]
-    lines.append("The files it changed:\n" + diffs(changes) if changes
-                 else "No change of a file by it is on record.")
+    changes = [
+        change
+        for change in session.scalars(
+            select(FileChange)
+            .join(ToolCall, ToolCall.id == FileChange.tool_call_id, isouter=True)
+            .where(
+                FileChange.agent_id == agent_id,
+                or_(ToolCall.result.is_(None), ~ToolCall.result.startswith(IN_THE_PROJECT)),
+            )
+            .order_by(literal_column("file_changes.rowid"))
+        )
+        if not secret_in_project(change.path) and not in_scratch(change.path)
+    ]
+    lines.append(
+        "The files it changed:\n" + diffs(changes)
+        if changes
+        else "No change of a file by it is on record."
+    )
     # The last that ran (a JSON null may stand where none did).
-    check = next((one for one in session.scalars(
-        select(Merge.check).where(Merge.agent_id == agent_id)
-        .order_by(literal_column("merges.rowid").desc())
-    ) if one), None)
+    check = next(
+        (
+            one
+            for one in session.scalars(
+                select(Merge.check)
+                .where(Merge.agent_id == agent_id)
+                .order_by(literal_column("merges.rowid").desc())
+            )
+            if one
+        ),
+        None,
+    )
     if check:
-        said = (f"The project's check, {quoted(raw.hidden(check.get('command') or ''))}: "
-                f"{check.get('state')}")
+        said = (
+            f"The project's check, {quoted(raw.hidden(check.get('command') or ''))}: "
+            f"{check.get('state')}"
+        )
         if check.get("exit_code") is not None:
             said += f", exit code {check['exit_code']}"
         if check.get("output"):
@@ -113,18 +139,24 @@ def on_record(session: Session, agent_id: str) -> str:
     return "\n\n".join(lines)
 
 
-def question(instructions: str, task: str, report: str, record: str,
-             write_in: str = "") -> list[dict]:
+def question(
+    instructions: str, task: str, report: str, record: str, write_in: str = ""
+) -> list[dict]:
     """The one request: the role's instructions, then KOLONİ's ask said again over the data
     (a CLI's own rules tell it to do what the user's turn asks); last, the user's "Answer in"
     (`memory.write_in`)."""
     return [
-        {"role": "system",
-         "content": "\n\n".join(filter(None, (instructions.strip(), ASK, write_in)))},
-        {"role": "user", "content": (
-            f"{ASK}\n\nThe task:\n{quoted(task)}\n\nThe report:\n"
-            f"{quoted(_cut(report, REPORT_CHARS))}\n\n{record}"
-        )},
+        {
+            "role": "system",
+            "content": "\n\n".join(filter(None, (instructions.strip(), ASK, write_in))),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"{ASK}\n\nThe task:\n{quoted(task)}\n\nThe report:\n"
+                f"{quoted(_cut(report, REPORT_CHARS))}\n\n{record}"
+            ),
+        },
     ]
 
 

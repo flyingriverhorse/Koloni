@@ -10,6 +10,7 @@ the built-in Lead and Planner get `propose_trigger`.
 Revision ID: 0097
 Revises: 0096
 """
+
 import json
 
 import sqlalchemy as sa
@@ -28,14 +29,16 @@ def _retool(change) -> None:
     """Rewrite the built-in Lead's and Planner's tool lists with `change(tools)`, as 0062
     does: a sub-agent never has a tool its opener has not."""
     conn = op.get_bind()
-    for role_id, tools in conn.execute(sa.text(
-        "SELECT id, tools FROM roles WHERE builtin AND name IN ('Lead', 'Planner')"
-    )).fetchall():
+    for role_id, tools in conn.execute(
+        sa.text("SELECT id, tools FROM roles WHERE builtin AND name IN ('Lead', 'Planner')")
+    ).fetchall():
         before = json.loads(tools) if isinstance(tools, str) else list(tools)
         after = change(before)
         if after != before:
-            conn.execute(sa.text("UPDATE roles SET tools = :tools WHERE id = :id"),
-                         {"tools": json.dumps(after), "id": role_id})
+            conn.execute(
+                sa.text("UPDATE roles SET tools = :tools WHERE id = :id"),
+                {"tools": json.dumps(after), "id": role_id},
+            )
 
 
 def upgrade() -> None:
@@ -43,8 +46,9 @@ def upgrade() -> None:
         batch.add_column(sa.Column("ends", sa.JSON(), nullable=True))
         batch.add_column(sa.Column("ran", sa.Integer(), nullable=False, server_default="0"))
         batch.add_column(sa.Column("last_key", sa.String(64), nullable=True))
-        batch.add_column(sa.Column("run_unchanged", sa.Boolean(), nullable=False,
-                                   server_default=sa.false()))
+        batch.add_column(
+            sa.Column("run_unchanged", sa.Boolean(), nullable=False, server_default=sa.false())
+        )
     # The triggers there are already run as they always did; a new one skips by default.
     op.execute("UPDATE triggers SET run_unchanged = 1")
     op.create_table(
@@ -63,8 +67,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["conversation_id"], ["conversations.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_trigger_proposals_conversation_id", "trigger_proposals",
-                    ["conversation_id"])
+    op.create_index(
+        "ix_trigger_proposals_conversation_id", "trigger_proposals", ["conversation_id"]
+    )
     _retool(lambda tools: tools if TOOL in tools else [*tools, TOOL])
 
 

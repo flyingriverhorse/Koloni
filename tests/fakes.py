@@ -23,8 +23,9 @@ class ScriptedModel:
     """
 
     def __init__(self, steps, tools_supported: bool = True, model_id: str = "fake-model"):
-        self.by_agent = {name: list(own) for name, own in steps.items()} if isinstance(
-            steps, dict) else None
+        self.by_agent = (
+            {name: list(own) for name, own in steps.items()} if isinstance(steps, dict) else None
+        )
         self.steps = [] if self.by_agent is not None else list(steps)
         self.calls_of: dict[str, list[list[dict]]] = {}
         self.tools_supported = tools_supported
@@ -35,7 +36,9 @@ class ScriptedModel:
     async def info(self) -> ModelInfo:
         return ModelInfo(self.model_id, self.tools_supported)
 
-    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None) -> StepResult:
+    async def stream_step(
+        self, model_id, messages, tools, on_delta, on_thinking=None
+    ) -> StepResult:
         self.calls.append([dict(m) for m in messages])
         self.tool_args.append(tools)
         steps = self.steps

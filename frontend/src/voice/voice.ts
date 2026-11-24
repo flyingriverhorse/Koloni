@@ -28,7 +28,16 @@ export interface VoiceSettings {
 export const VOICE_KEY = 'koloni-voice'
 /** A language tag the server takes (schemas.SpokenIn): with another, no line to say is asked for. */
 export const LANGUAGE_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,4}$/
-export const DEFAULTS: VoiceSettings = { autoRead: false, mode: 'whole', language: 'en-US', voice: null, rate: 1, pitch: 1, style: '', gemini: true }
+export const DEFAULTS: VoiceSettings = {
+  autoRead: false,
+  mode: 'whole',
+  language: 'en-US',
+  voice: null,
+  rate: 1,
+  pitch: 1,
+  style: '',
+  gemini: true,
+}
 
 function stored(): VoiceSettings {
   try {
@@ -115,7 +124,8 @@ let left = 0
 let round = 0
 
 /** A text cut where the app would refuse it. */
-const cut = (part: string) => Array.from({ length: Math.ceil(part.length / MOST) }, (_, i) => part.slice(i * MOST, (i + 1) * MOST))
+const cut = (part: string) =>
+  Array.from({ length: Math.ceil(part.length / MOST) }, (_, i) => part.slice(i * MOST, (i + 1) * MOST))
 
 /** Sentences joined into as few texts as the app takes: one request for most answers. */
 const joined = (parts: string[]) =>

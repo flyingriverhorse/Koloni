@@ -14,13 +14,19 @@ const rail = (page: Page, name: 'Memory' | 'Canvas') =>
  * from the inspector (which moves the canvas as it opens, so a double click may miss).
  */
 async function openWindowOf(page: Page, name: RegExp) {
-  await page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: name }) })
-    .last().locator('.node-title').click()
+  await page
+    .locator('.react-flow__node-agent')
+    .filter({ has: page.locator('.node-title', { hasText: name }) })
+    .last()
+    .locator('.node-title')
+    .click()
   await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Open window' }).click()
   return page.getByRole('region', { name: 'Agent window' })
 }
 
-test('an agent notes a fact from a file, you approve it, later agents are given it - until the file changes', async ({ page }) => {
+test('an agent notes a fact from a file, you approve it, later agents are given it - until the file changes', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   // K-shared-bagli: the part memory played is a row on the card of whoever used it.
@@ -44,7 +50,9 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   // It is in the journal too, like any note.
   await page.getByRole('tab', { name: /^Notes/ }).click()
   await expect(page.getByRole('tab', { name: /^Notes/ })).toHaveText('Notes 1')
-  await expect(page.getByRole('tabpanel', { name: /^Notes/ }).getByRole('article')).toContainText('put forward for the core')
+  await expect(page.getByRole('tabpanel', { name: /^Notes/ }).getByRole('article')).toContainText(
+    'put forward for the core',
+  )
   await page.getByRole('tab', { name: /^Facts/ }).click()
   await page.getByRole('button', { name: '● 1 fact waits for your word' }).click()
   await expect(proposal).toHaveCount(1)
@@ -94,7 +102,12 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   await expect(given).toContainText('settings.txt:2-2')
   await own.getByRole('button', { name: 'Close agent window' }).click()
   // The side panel's card leaves that to its window (picked again: Open window closed it).
-  await page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Reviewer$/ }) }).last().locator('.node-title').click()
+  await page
+    .locator('.react-flow__node-agent')
+    .filter({ has: page.locator('.node-title', { hasText: /^Reviewer$/ }) })
+    .last()
+    .locator('.node-title')
+    .click()
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   await expect(inspector.getByText('Did', { exact: true })).toBeVisible()
   await expect(inspector.getByRole('group', { name: 'Given from memory' })).toHaveCount(0)
@@ -156,7 +169,10 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   await page.getByRole('menuitem', { name: 'Remove' }).click()
   await expect(core.getByText(/Nothing is in the core yet/)).toBeVisible()
   await page.getByRole('tab', { name: /^History/ }).click()
-  const past = page.getByRole('region', { name: 'Removed / replaced' }).getByRole('article').filter({ hasText: 'removed by you' })
+  const past = page
+    .getByRole('region', { name: 'Removed / replaced' })
+    .getByRole('article')
+    .filter({ hasText: 'removed by you' })
   await expect(past).toContainText(FACT)
   await expect(past.getByRole('button', { name: 'Take back' })).toBeVisible()
 })

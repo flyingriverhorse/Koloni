@@ -51,6 +51,7 @@ from app.api import (
     backup,
     board,
     builtin_tools,
+    cards,
     categories,
     commands,
     compares,
@@ -139,8 +140,12 @@ class NoRawStreamReads(logging.Filter):
         # (client, method, address, HTTP version, status): what the server logs of a request.
         told = record.args
         return not (
-            isinstance(told, tuple) and len(told) == 5 and told[1] == "GET" and told[4] == 200
-            and isinstance(told[2], str) and self._address.match(told[2])
+            isinstance(told, tuple)
+            and len(told) == 5
+            and told[1] == "GET"
+            and told[4] == 200
+            and isinstance(told[2], str)
+            and self._address.match(told[2])
         )
 
 
@@ -224,8 +229,11 @@ def hide_webhook_keys() -> None:
 def opens_browser() -> bool:
     """A start from a terminal opens the page; a start without one (tests, e2e, REA's copy)
     or with `KOLONI_OPEN_BROWSER=0` does not."""
-    return (sys.stdout is not None and sys.stdout.isatty()
-            and os.environ.get("KOLONI_OPEN_BROWSER") != "0")
+    return (
+        sys.stdout is not None
+        and sys.stdout.isatty()
+        and os.environ.get("KOLONI_OPEN_BROWSER") != "0"
+    )
 
 
 def open_code(state) -> str:
@@ -255,8 +263,11 @@ async def open_page(body: OpenIn, request: Request):
     state = request.app.state
     code, until = getattr(state, "open_code", None) or ("", 0.0)
     # (As bytes: a str holding other than ASCII cannot be compared in constant time.)
-    if not code or time.monotonic() > until or not hmac.compare_digest(
-            body.code.encode(), code.encode()):
+    if (
+        not code
+        or time.monotonic() > until
+        or not hmac.compare_digest(body.code.encode(), code.encode())
+    ):
         raise HTTPException(401, PageKey.REFUSED)
     state.open_code = None
     return {"key": state.page_key}
@@ -298,8 +309,9 @@ def known_secrets(factory, settings: Settings) -> list[str | None]:
             *session.scalars(select(Project.notify_url)),
             *(value for server in servers for value in server.env.values()),
             *(key for server in servers for key in mcp_client.keys_in(server.command)),
-            *session.scalars(select(Flag.value).where(
-                Flag.name.in_((voice.KEY, providers.SESSION_KEY)))),
+            *session.scalars(
+                select(Flag.value).where(Flag.name.in_((voice.KEY, providers.SESSION_KEY)))
+            ),
         ]
 
 
@@ -312,6 +324,7 @@ def create_app(
 ) -> FastAPI:
     """Build the app. `model` stands in for every provider and `clients` for the
     providers they name (tests); `which` finds installed CLIs on the first start."""
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # A container outlives the server that started it: stop the ones whose
@@ -343,9 +356,14 @@ def create_app(
         # user said not to.
         with factory() as session:
             fresh = session.get(Flag, models_dev.FRESH)
-        refreshing = asyncio.create_task(
-            models_dev.refresh(settings.runtime_root), name="catalogue",
-        ) if settings.catalogue_refresh and (fresh is None or fresh.value != "0") else None
+        refreshing = (
+            asyncio.create_task(
+                models_dev.refresh(settings.runtime_root),
+                name="catalogue",
+            )
+            if settings.catalogue_refresh and (fresh is None or fresh.value != "0")
+            else None
+        )
         try:
             yield
         finally:
@@ -386,7 +404,8 @@ def create_app(
         seed_providers(session, settings, which)
     # No docs or schema served: they are outside /api, where no key is asked.
     app = FastAPI(
-        title="KOLONİ", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+        title="KOLONİ", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None
+    )
     app.state.page_key = settings.page_key or secrets.token_urlsafe(32)
     # Innermost of the three: its refusal has NoFrame's headers; a wrong host is told so first.
     app.add_middleware(PageKey)
@@ -409,37 +428,83 @@ def create_app(
     async def _failed(request: Request, exc: Exception) -> PlainTextResponse:
         # The server's own answer to an error nobody caught goes out around every
         # middleware: this one, Starlette's very text, carries NoFrame's headers itself.
-        return PlainTextResponse("Internal Server Error", 500, headers=dict(
-            (name.decode(), value.decode()) for name, value in NoFrame.HEADERS))
+        return PlainTextResponse(
+            "Internal Server Error",
+            500,
+            headers=dict((name.decode(), value.decode()) for name, value in NoFrame.HEADERS),
+        )
+
     app.state.settings = settings
     app.state.session_factory = factory
     app.state.providers = Providers(
-        settings, override=model, named=clients, session_factory=factory)
+        settings, override=model, named=clients, session_factory=factory
+    )
     # The CLIs a web search can fall back on: the user's own providers, read when asked.
     web.searchers = lambda: search_clients(factory)
     # ...and the Anthropic providers with a key, for the last way a search is tried.
     web.apis = lambda: search_apis(factory)
     # (and those given on a card this turn, slice 91 - and the page's own key, which drives
     # the whole API)
-    raw.use(lambda: [*known_secrets(factory, settings), *app.state.runner.given_spellings(),
-                     app.state.page_key])
+    raw.use(
+        lambda: [
+            *known_secrets(factory, settings),
+            *app.state.runner.given_spellings(),
+            app.state.page_key,
+        ]
+    )
     app.state.bus = EventBus(factory)
     # Set by the server's exit signal (`ClosingServer`): the page's open streams end on it.
     app.state.closing = asyncio.Event()
-    app.state.runner = AgentRunner(
-        settings, factory, app.state.bus, app.state.providers, executors
-    )
+    app.state.runner = AgentRunner(settings, factory, app.state.bus, app.state.providers, executors)
     app.state.triggers = Triggers(factory, app.state.bus, app.state.runner, day.day_note)
     app.state.local_server = LocalServer(
-        settings.runtime_root, settings.local_server, settings.nvidia_smi)
+        settings.runtime_root, settings.local_server, settings.nvidia_smi
+    )
     # The unattended turns the previous process left open are told to their triggers.
     app.state.triggers.settle()
     for module in (
-        health, projects, providers, roles, mcp_servers, skills, conversations, runs, file_changes,
-        merges, commands, web_requests, agents, questions, discussions, rooms, memory, triggers,
-        usage, record, folders, board, backlog, away, day, views, events, undo, voice, own_commands,
-        tiers, compares, teams, recipes, local_server, categories, attachments, builtin_tools,
-        hold, backup, knowledge_page,
+        health,
+        projects,
+        providers,
+        roles,
+        mcp_servers,
+        skills,
+        conversations,
+        runs,
+        file_changes,
+        merges,
+        commands,
+        web_requests,
+        agents,
+        questions,
+        discussions,
+        rooms,
+        memory,
+        triggers,
+        usage,
+        record,
+        folders,
+        board,
+        backlog,
+        away,
+        day,
+        views,
+        events,
+        undo,
+        voice,
+        own_commands,
+        tiers,
+        compares,
+        teams,
+        recipes,
+        local_server,
+        categories,
+        attachments,
+        builtin_tools,
+        hold,
+        backup,
+        knowledge_page,
+        cards,
     ):
         app.include_router(module.router)
     app.include_router(providers.catalogue_router)
@@ -447,9 +512,14 @@ def create_app(
     app.include_router(opening)
     # Python reads these from Windows' registry, which some installers set to text/plain:
     # the page's modules were refused and it stayed blank (`views.TYPES` says the same).
-    for end, kind in ((".js", "text/javascript"), (".mjs", "text/javascript"),
-                      (".css", "text/css"), (".svg", "image/svg+xml"),
-                      (".json", "application/json"), (".wasm", "application/wasm")):
+    for end, kind in (
+        (".js", "text/javascript"),
+        (".mjs", "text/javascript"),
+        (".css", "text/css"),
+        (".svg", "image/svg+xml"),
+        (".json", "application/json"),
+        (".wasm", "application/wasm"),
+    ):
         mimetypes.add_type(kind, end)
     _serve_guide(app, settings.guide_site)
     _serve_frontend(app, settings.frontend_dist)
@@ -470,11 +540,23 @@ update.</p>
 # a CDN - none is let in. 'unsafe-inline' for the theme's own inline scripts; frame-ancestors in
 # it keeps NoFrame from adding a second policy.
 GUIDE_HEADERS = (
-    (b"content-security-policy", b"; ".join([
-        b"script-src 'self' 'unsafe-inline'", b"worker-src 'self'", b"connect-src 'self'",
-        b"style-src 'self' 'unsafe-inline'", b"font-src 'self'", b"img-src 'self' data:",
-        b"media-src 'self'", b"object-src 'none'", b"base-uri 'none'", b"frame-ancestors 'none'",
-    ])),
+    (
+        b"content-security-policy",
+        b"; ".join(
+            [
+                b"script-src 'self' 'unsafe-inline'",
+                b"worker-src 'self'",
+                b"connect-src 'self'",
+                b"style-src 'self' 'unsafe-inline'",
+                b"font-src 'self'",
+                b"img-src 'self' data:",
+                b"media-src 'self'",
+                b"object-src 'none'",
+                b"base-uri 'none'",
+                b"frame-ancestors 'none'",
+            ]
+        ),
+    ),
     (b"x-content-type-options", b"nosniff"),
 )
 
@@ -487,10 +569,13 @@ def _serve_guide(app: FastAPI, site: Path) -> None:
     with contextlib.suppress(OSError, tomllib.TOMLDecodeError, KeyError):
         # (zensical.toml's site_dir is runtime/site: the file is two folders up.)
         online = tomllib.loads((site.parents[1] / "zensical.toml").read_text("utf-8"))[
-            "project"].get("site_url")
+            "project"
+        ].get("site_url")
     not_built = GUIDE_NOT_BUILT + (
         f'<p>Or read it online: <a href="{escape(online)}">{escape(online)}</a></p>'
-        if online else "")
+        if online
+        else ""
+    )
 
     async def guide(scope, receive, send):
         started = False
@@ -541,8 +626,12 @@ def _serve_frontend(app: FastAPI, dist: Path) -> None:
         found = asset_path(root, path)
         # K-drawio: the diagram viewer's page is framed by the app, under a policy of its own - and
         # K-belge-ciktilari's document viewer (`frontend/public/office/`) the same.
-        return FileResponse(found or index, headers=VIEWER_HEADERS
-                            if found and path.lower().startswith(("drawio/", "office/")) else None)
+        return FileResponse(
+            found or index,
+            headers=VIEWER_HEADERS
+            if found and path.lower().startswith(("drawio/", "office/"))
+            else None,
+        )
 
 
 def asset_path(root: Path, requested: str) -> Path | None:
@@ -555,8 +644,8 @@ def asset_path(root: Path, requested: str) -> Path | None:
     """
     parts = requested.split("/")
     if not requested or any(
-        not part or part in (".", "..") or "\\" in part or ":" in part
-        or part != part.rstrip(". ") for part in parts
+        not part or part in (".", "..") or "\\" in part or ":" in part or part != part.rstrip(". ")
+        for part in parts
     ):
         return None
     candidate = root.joinpath(*parts)
@@ -579,7 +668,8 @@ def not_dumpable() -> None:
             raise OSError(ctypes.get_errno(), "prctl(PR_SET_DUMPABLE) failed")
     except (OSError, AttributeError) as exc:
         logging.getLogger(__name__).warning(
-            "KOLONİ's environment stays readable to its children (/proc): %s", exc)
+            "KOLONİ's environment stays readable to its children (/proc): %s", exc
+        )
 
 
 # KOLONİ's own log beside the window's (0.1.0-hijyen), at most this many bytes × files.
@@ -597,9 +687,12 @@ def log_config(runtime_root: Path) -> dict:
     config = copy.deepcopy(uvicorn.config.LOGGING_CONFIG)
     config["formatters"]["file"] = {"format": "%(asctime)s %(levelname)s %(name)s: %(message)s"}
     config["handlers"]["file"] = {
-        "class": "logging.handlers.RotatingFileHandler", "formatter": "file", "encoding": "utf-8",
+        "class": "logging.handlers.RotatingFileHandler",
+        "formatter": "file",
+        "encoding": "utf-8",
         "filename": str(runtime_root / "logs" / "koloni.log"),
-        "maxBytes": LOG_BYTES, "backupCount": LOG_FILES,
+        "maxBytes": LOG_BYTES,
+        "backupCount": LOG_FILES,
     }
     for name in ("uvicorn", "uvicorn.access"):
         config["loggers"][name]["handlers"].append("file")
@@ -652,8 +745,10 @@ def run() -> None:
     not_dumpable()  # (first: before any child is started)
     settings = load_settings()
     if not bind_allowed(settings.host):
-        sys.exit(f"KOLONİ serves your keys and files with no TLS: bind to this machine "
-                 f"(KOLONI_HOST={settings.host} is not), or run the image.")
+        sys.exit(
+            f"KOLONİ serves your keys and files with no TLS: bind to this machine "
+            f"(KOLONI_HOST={settings.host} is not), or run the image."
+        )
     # Before the app is made: what its start says (`tidy_db`) is in the log too.
     logging.config.dictConfig(log_config(settings.runtime_root))
     app = create_app(settings)
@@ -663,13 +758,21 @@ def run() -> None:
     # A pipe's encoding (cp1252 on Windows) has no "İ": the link is printed all the same.
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(errors="replace")
-    show_link(settings.port, app.state.page_key,
-              (lambda: open_code(app.state)) if opens_browser() else None)
+    show_link(
+        settings.port,
+        app.state.page_key,
+        (lambda: open_code(app.state)) if opens_browser() else None,
+    )
     # The page's /events stream ends on the exit signal (`closing_server`); the time limit stays
     # for a connection that does not: without it the first Ctrl+C would wait on one, and the
     # second skips the lifespan's shutdown.
-    serve(app, host=settings.host, port=settings.port, log_config=None,  # (set up above)
-          timeout_graceful_shutdown=5)
+    serve(
+        app,
+        host=settings.host,
+        port=settings.port,
+        log_config=None,  # (set up above)
+        timeout_graceful_shutdown=5,
+    )
 
 
 if __name__ == "__main__":

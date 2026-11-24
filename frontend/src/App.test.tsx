@@ -23,13 +23,17 @@ const project = {
   turn_token_limit: null,
   max_agents: null,
   monthly_budget: null,
-  check_command: null,
   git_commit: false,
   auto_notes: false,
   observe_reports: false,
   day_note_at: null,
-  also_in: [], read_in: [],
-  hide_secrets: true, lead_work: 'delegates', pass_env: null, held_env: [], koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
+  also_in: [],
+  read_in: [],
+  hide_secrets: true,
+  lead_work: 'delegates',
+  pass_env: null,
+  held_env: [],
+  koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
 }
 const health = {
   desktop_available: true,
@@ -49,8 +53,21 @@ const health = {
 
 const chat = { ...conversation, kept: false, archived_at: null }
 const snapshot = {
-  conversation, messages: [], runs: [], tool_calls: [], file_changes: [], commands: [], allowed_commands: [], agents: [],
-  channel_messages: [], pending_roles: [], questions: [], discussions: [], discussion_posts: [], board_posts: [], last_event_id: 0,
+  conversation,
+  messages: [],
+  runs: [],
+  tool_calls: [],
+  file_changes: [],
+  commands: [],
+  allowed_commands: [],
+  agents: [],
+  channel_messages: [],
+  pending_roles: [],
+  questions: [],
+  discussions: [],
+  discussion_posts: [],
+  board_posts: [],
+  last_event_id: 0,
 }
 /** What the server answers: the project, the model, one chat in the project (opened at the start) - or what `over` says of a path. */
 const answer = (url: string, over: Record<string, unknown> = {}) => {
@@ -62,7 +79,16 @@ const answer = (url: string, over: Record<string, unknown> = {}) => {
     '/api/projects/p/board': { limit: null, running: 0, conversations: [], conflicts: [] },
     '/api/projects/p/others-instructions': { paths: [], more: 0, partial: false },
     '/api/board': { backlog_waiting: 0, limit: null, running: 0, conversations: [], conflicts: [] },
-    '/api/hold': { held: false, since: null, running: 0, triggers: 0, backlogs: [], nights: [], stopped: [], stopping: 0 },
+    '/api/hold': {
+      held: false,
+      since: null,
+      running: 0,
+      triggers: 0,
+      backlogs: [],
+      nights: [],
+      stopped: [],
+      stopping: 0,
+    },
     ...over,
   }
   return new Response(JSON.stringify(said[url.split('?')[0]] ?? []), { status: 200 })
@@ -70,9 +96,25 @@ const answer = (url: string, over: Record<string, unknown> = {}) => {
 
 beforeEach(() => {
   // React Flow watches its pane; jsdom has nothing to watch with.
-  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
-  vi.stubGlobal('EventSource', class { addEventListener() {} close() {} })
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => answer(url)))
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
+  vi.stubGlobal(
+    'EventSource',
+    class {
+      addEventListener() {}
+      close() {}
+    },
+  )
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => answer(url)),
+  )
   resetStoreForTests()
 })
 // (Unmounted first: React Flow's late effects still reach for the stubbed ResizeObserver.)
@@ -119,12 +161,18 @@ test('⚙ Settings on the rail opens Settings as a page over the canvas and clos
 })
 
 test('with no folder and no chat KOLONİ opens on the canvas, not on a setup page: the folder button says "No folder", there is no gear, and the Board asks for a folder', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => answer(url, { '/api/projects': [], '/api/conversations': [] })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => answer(url, { '/api/projects': [], '/api/conversations': [] })),
+  )
   render(<App />)
   expect(await screen.findByLabelText('Message')).toBeInTheDocument()
   expect(screen.queryByText('Open a project')).toBeNull()
   // (Nothing here is about a project: the box says what a plain chat is.)
-  expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Ask anything - pick a folder with the folder button to work on files')
+  expect(screen.getByLabelText('Message')).toHaveAttribute(
+    'placeholder',
+    'Ask anything - pick a folder with the folder button to work on files',
+  )
   expect(screen.getByRole('button', { name: 'Folder: No folder' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /^Project settings for/ })).toBeNull()
   // Nothing is made at the start: the first message makes a plain chat.
@@ -138,14 +186,37 @@ test('with no folder and no chat KOLONİ opens on the canvas, not on a setup pag
 })
 
 test('in a project whose conversations are all archived, none is opened, and the default model is the one a notice is about', async () => {
-  const archived = { id: 'a', project_id: 'p', title: 'Put away', archived_at: '2026-10-17T08:00:00Z', kept: false, updated_at: 't', provider_id: null }
-  const down = { ...health, model_reachable: false, provider_id: 'p-local', provider_name: 'Local', error: 'connection refused' }
+  const archived = {
+    id: 'a',
+    project_id: 'p',
+    title: 'Put away',
+    archived_at: '2026-10-17T08:00:00Z',
+    kept: false,
+    updated_at: 't',
+    provider_id: null,
+  }
+  const down = {
+    ...health,
+    model_reachable: false,
+    provider_id: 'p-local',
+    provider_name: 'Local',
+    error: 'connection refused',
+  }
   // (A new chat's Orchestrator would run on the default: it is in use.)
-  const inUse = { '/api/providers': [{ id: 'p-local', name: 'Local', kind: 'openai_compat', default_model: 'qwen', models: [] }], '/api/roles': [{ name: 'Lead', builtin: true, enabled: true, teams: [] }], '/api/roles/models': [{ role: 'Lead', provider_name: 'Local', asks_how_hard: null }] }
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => answer(url, { '/api/health': down, '/api/conversations': [archived], ...inUse })))
+  const inUse = {
+    '/api/providers': [{ id: 'p-local', name: 'Local', kind: 'openai_compat', default_model: 'qwen', models: [] }],
+    '/api/roles': [{ name: 'Lead', builtin: true, enabled: true, teams: [] }],
+    '/api/roles/models': [{ role: 'Lead', provider_name: 'Local', asks_how_hard: null }],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => answer(url, { '/api/health': down, '/api/conversations': [archived], ...inUse })),
+  )
   render(<App />)
   // (First steps say it, with what to do: the top bar leaves it to them - and says it once they are hidden.)
-  expect(await screen.findByText("Local isn't answering - add another provider, or start its model server.")).toBeInTheDocument()
+  expect(
+    await screen.findByText("Local isn't answering - add another provider, or start its model server."),
+  ).toBeInTheDocument()
   expect(screen.queryByText(/Local isn't answering at/)).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Hide the first steps' }))
   expect(await screen.findByText(/Local isn't answering at/)).toBeInTheDocument()
@@ -157,9 +228,17 @@ test('a server that runs another API than the page was built against, or does no
   const updated = /^KOLONİ was updated: .* Build the page \(npm run build\), restart KOLONİ, then reload\.$/
   // (Hashed from generated.ts when the page is built.)
   expect(import.meta.env.VITE_API_HASH).toMatch(/^[0-9a-f]{12}$/)
-  for (const [said, shown] of [[import.meta.env.VITE_API_HASH, false], ['000000000000', true], [null, true], [undefined, true]] as const) {
+  for (const [said, shown] of [
+    [import.meta.env.VITE_API_HASH, false],
+    ['000000000000', true],
+    [null, true],
+    [undefined, true],
+  ] as const) {
     resetStoreForTests()
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => answer(url, { '/api/health': { ...health, api_hash: said } })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => answer(url, { '/api/health': { ...health, api_hash: said } })),
+    )
     const { unmount } = render(<App />)
     await screen.findByText('this machine')
     await vi.waitFor(() => expect(useApp.getState().health).not.toBeNull())
@@ -200,10 +279,16 @@ test('a page the server has since built anew says so, with a Reload; one of the 
   document.head.append(mine)
   const rebuilt = /^KOLONİ's page was rebuilt: reload to use it\.$/
   try {
-    for (const [served, shown] of [['/assets/index-old.js', false], ['/assets/index-new.js', true]] as const) {
+    for (const [served, shown] of [
+      ['/assets/index-old.js', false],
+      ['/assets/index-new.js', true],
+    ] as const) {
       resetStoreForTests()
       const page = `<!doctype html><html><head><script type="module" crossorigin src="${served}"></script></head></html>`
-      vi.stubGlobal('fetch', vi.fn(async (url: string) => (url === '/' ? new Response(page, { status: 200 }) : answer(url))))
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => (url === '/' ? new Response(page, { status: 200 }) : answer(url))),
+      )
       const { unmount } = render(<App />)
       await screen.findByText('this machine')
       await vi.waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith('/', { cache: 'no-store' }))
@@ -223,16 +308,55 @@ test('a page the server has since built anew says so, with a Reload; one of the 
 
 test('in a plain chat what waits in another folder’s chat is counted on the rail and said in a toast', async () => {
   const asking = (id: string, title: string) => ({
-    conversation_id: id, title, merges_pending: 0, turn: null,
-    agents: [{ id: `l-${id}`, name: 'Lead', status: 'waiting_approval', role: 'Lead', provider_name: null, model_id: null, holds: [], copy: null, waiting_for: null, sign: null, last_event_at: null, in_tool: false, changes_to_approve: 0, questions: 0 }],
+    conversation_id: id,
+    title,
+    merges_pending: 0,
+    turn: null,
+    agents: [
+      {
+        id: `l-${id}`,
+        name: 'Lead',
+        status: 'waiting_approval',
+        role: 'Lead',
+        provider_name: null,
+        model_id: null,
+        holds: [],
+        copy: null,
+        waiting_for: null,
+        sign: null,
+        last_event_at: null,
+        in_tool: false,
+        changes_to_approve: 0,
+        questions: 0,
+      },
+    ],
   })
   // (Ready for you counts each chat's cards, read whole: one question in each.)
-  const read = (id: string) => ({ ...snapshot, conversation: { ...conversation, id, project_id: 'p' }, runs: [run(`r${id}`, 'waiting_approval')], questions: [question(`q${id}`, `r${id}`)] })
-  const everywhere = { backlog_waiting: 0, limit: null, running: 0, conflicts: [], conversations: [asking('x', 'Fix the login')] }
+  const read = (id: string) => ({
+    ...snapshot,
+    conversation: { ...conversation, id, project_id: 'p' },
+    runs: [run(`r${id}`, 'waiting_approval')],
+    questions: [question(`q${id}`, `r${id}`)],
+  })
+  const everywhere = {
+    backlog_waiting: 0,
+    limit: null,
+    running: 0,
+    conflicts: [],
+    conversations: [asking('x', 'Fix the login')],
+  }
   const plain = { ...chat, project_id: null }
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => answer(url, { '/api/conversations': [plain], '/api/conversations/c': { ...snapshot, conversation: plain }, '/api/board': everywhere, '/api/conversations/x': read('x'), '/api/conversations/y': read('y') })),
+    vi.fn(async (url: string) =>
+      answer(url, {
+        '/api/conversations': [plain],
+        '/api/conversations/c': { ...snapshot, conversation: plain },
+        '/api/board': everywhere,
+        '/api/conversations/x': read('x'),
+        '/api/conversations/y': read('y'),
+      }),
+    ),
   )
   render(<App />)
   expect(await screen.findByText('1 waiting')).toBeInTheDocument()
@@ -244,13 +368,23 @@ test('in a plain chat what waits in another folder’s chat is counted on the ra
 
 test('Settings in a plain chat has This chat and The app; back in the folder’s chat, the project is there again', async () => {
   const plain = { ...chat, id: 'n', project_id: null }
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => answer(url, { '/api/conversations/n': { ...snapshot, conversation: plain } })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => answer(url, { '/api/conversations/n': { ...snapshot, conversation: plain } })),
+  )
   render(<App />)
   await screen.findByText('this machine')
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Settings' }))
+  await userEvent.click(
+    within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Settings' }),
+  )
   expect(screen.getByRole('form', { name: 'Project settings' })).toBeInTheDocument()
   await act(() => useApp.getState().openConversation('n'))
-  expect(within(screen.getByRole('navigation', { name: 'Settings levels' })).getAllByRole('button').filter(b => b.classList.contains('settings-level')).map(b => b.textContent)).toEqual(['This chat', 'The app'])
+  expect(
+    within(screen.getByRole('navigation', { name: 'Settings levels' }))
+      .getAllByRole('button')
+      .filter(b => b.classList.contains('settings-level'))
+      .map(b => b.textContent),
+  ).toEqual(['This chat', 'The app'])
   expect(screen.queryByRole('form', { name: 'Project settings' })).toBeNull()
   await act(() => useApp.getState().openConversation('c'))
   expect(screen.getByRole('form', { name: 'Project settings' })).toBeInTheDocument()
@@ -258,7 +392,10 @@ test('Settings in a plain chat has This chat and The app; back in the folder’s
 
 test("another chat opened is a step of the browser's history: Back opens the one before (B-150)", async () => {
   const job = { ...conversation, id: 'c2', title: 'A job of the night' }
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => answer(url, { '/api/conversations/c2': { ...snapshot, conversation: job } })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => answer(url, { '/api/conversations/c2': { ...snapshot, conversation: job } })),
+  )
   render(<App />)
   await vi.waitFor(() => expect(useApp.getState().conv?.conversation.id).toBe('c'))
   const steps = history.length
@@ -273,7 +410,13 @@ test("another chat opened is a step of the browser's history: Back opens the one
 })
 
 test('while the default does not answer, First steps offers another provider for new chats without asking anything of it; its button makes it the default, and the step is done once that one answers', async () => {
-  const down = { ...health, model_reachable: false, provider_id: 'p-local', provider_name: 'Local', error: 'connection refused' }
+  const down = {
+    ...health,
+    model_reachable: false,
+    provider_id: 'p-local',
+    provider_name: 'Local',
+    error: 'connection refused',
+  }
   const local = { id: 'p-local', name: 'Local', kind: 'openai_compat', default_model: 'qwen', models: [] }
   const cli = { ...local, id: 'p-cli', name: 'Claude Code', kind: 'claude_cli' }
   // (The server's side of the press: the list turned round, and the default's reading the other one's.)
@@ -281,9 +424,17 @@ test('while the default does not answer, First steps offers another provider for
   const fetched = vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST' && url.endsWith('/default')) pressed = true
     const now = pressed
-      ? { '/api/health': { ...health, provider_id: 'p-cli', provider_name: 'Claude Code' }, '/api/providers': [cli, local] }
+      ? {
+          '/api/health': { ...health, provider_id: 'p-cli', provider_name: 'Claude Code' },
+          '/api/providers': [cli, local],
+        }
       : { '/api/health': down, '/api/providers': [local, cli] }
-    return answer(url, { '/api/projects': [], '/api/conversations': [], '/api/providers/p-cli/limits': { unknown: true }, ...now })
+    return answer(url, {
+      '/api/projects': [],
+      '/api/conversations': [],
+      '/api/providers/p-cli/limits': { unknown: true },
+      ...now,
+    })
   })
   vi.stubGlobal('fetch', fetched)
   // (A test above hid the steps: the store of the page is one for the file.)
@@ -291,7 +442,9 @@ test('while the default does not answer, First steps offers another provider for
   render(<App />)
   const steps = await screen.findByRole('region', { name: 'First steps' })
   const use = await within(steps).findByRole('button', { name: 'Use Claude Code for new chats' })
-  expect(use.closest('li')).toHaveTextContent("Local isn't answering, and new chats run on it. Claude Code is set up too.")
+  expect(use.closest('li')).toHaveTextContent(
+    "Local isn't answering, and new chats run on it. Claude Code is set up too.",
+  )
   // (Not done by the offer: nothing is known to answer yet.)
   expect(use.closest('li')).toHaveAttribute('aria-current', 'step')
   // No provider is asked whether it answers but the one the chat runs on: such a reading may send its model a request.
@@ -303,15 +456,25 @@ test('while the default does not answer, First steps offers another provider for
   // The new default answers: the step is done, its note and offer are gone, and the focus is on the page, not nowhere.
   expect(await within(steps).findByText('A provider is set up.')).toBeInTheDocument()
   expect(within(steps).queryByText(/isn't answering/)).toBeNull()
-  expect(within(steps).getAllByRole('button').map(button => button.textContent)).toEqual(['Choose a folder', 'Hide the first steps'])
+  expect(
+    within(steps)
+      .getAllByRole('button')
+      .map(button => button.textContent),
+  ).toEqual(['Choose a folder', 'Hide the first steps'])
   await vi.waitFor(() => expect(document.activeElement).toHaveClass('main'))
   expect(asked().filter(call => call.includes('provider_id='))).toEqual([])
 })
 
 /** A server whose pages read nothing yet: what is not a list is not there, the usage and the day are refused. */
 const emptyPages = (over: Record<string, unknown> = {}) => {
-  const none = ['/api/recipes', '/api/tiers', '/api/projects/p/away', '/api/projects/p/budget', '/api/projects/p/memory']
-  const refused = ['/api/usage', '/api/projects/p/day']
+  const none = [
+    '/api/recipes',
+    '/api/tiers',
+    '/api/projects/p/away',
+    '/api/projects/p/budget',
+    '/api/projects/p/memory',
+  ]
+  const refused = ['/api/usage', '/api/cards', '/api/projects/p/day']
   return vi.fn(async (url: string) => {
     const path = url.split('?')[0]
     if (none.includes(path)) return new Response('null', { status: 200 })
@@ -378,8 +541,16 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
 })
 
 test("the top bar's pill says what the Lead decided for you when nothing waits; it opens and shuts Ready for you, but not on the Ready page", async () => {
-  const decided = question('q', 'r', { status: 'answered', answer: 'yes', lead_why: 'as your rules say', answered_at: 't' })
-  vi.stubGlobal('fetch', emptyPages({ '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], questions: [decided] } }))
+  const decided = question('q', 'r', {
+    status: 'answered',
+    answer: 'yes',
+    lead_why: 'as your rules say',
+    answered_at: 't',
+  })
+  vi.stubGlobal(
+    'fetch',
+    emptyPages({ '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], questions: [decided] } }),
+  )
   render(<App />)
   const pill = await screen.findByRole('button', { name: '1 decided for you' })
   expect(pill).toHaveTextContent(/^1 decided$/)
@@ -404,10 +575,25 @@ test("an agent's window and a discussion's open over the canvas only with a chat
   await vi.waitFor(() => expect(useApp.getState().conv?.conversation.id).toBe('c'))
   const lead = agent('r', 'running', { name: 'Lead' })
   const talk: Discussion = {
-    id: 'd', run_id: 'r', agent_id: 'r', tool_call_id: '9', topic: 'Which way?', max_rounds: 3, round: 1, status: 'running', outcome: null,
-    created_at: '2026-10-05T10:00:00Z', ended_at: null, members: [{ agent_id: 'r', status: 'in', opened_here: false }],
+    id: 'd',
+    run_id: 'r',
+    agent_id: 'r',
+    tool_call_id: '9',
+    topic: 'Which way?',
+    max_rounds: 3,
+    round: 1,
+    status: 'running',
+    outcome: null,
+    created_at: '2026-10-05T10:00:00Z',
+    ended_at: null,
+    members: [{ agent_id: 'r', status: 'in', opened_here: false }],
   }
-  act(() => useApp.setState(s => ({ conv: { ...s.conv!, runs: [run('r')], agents: [lead], discussions: [talk] }, agentWindowId: 'r' })))
+  act(() =>
+    useApp.setState(s => ({
+      conv: { ...s.conv!, runs: [run('r')], agents: [lead], discussions: [talk] },
+      agentWindowId: 'r',
+    })),
+  )
   expect(await screen.findByRole('region', { name: 'Agent window' })).toBeInTheDocument()
   act(() => useApp.setState({ agentWindowId: null, discussionWindowId: 'd' }))
   expect(screen.queryByRole('region', { name: 'Agent window' })).toBeNull()

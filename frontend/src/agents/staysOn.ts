@@ -23,7 +23,10 @@ export interface Stays {
 function roleRunsOn(roleName: string, conversation: Conversation, roles: Role[], providers: Provider[]): string | null {
   const role = roles.find(r => r.name === roleName)
   if (!role || providers.length === 0) return null
-  for (const [providerId, modelId] of [[role.provider_id, role.model_id], [conversation.provider_id, conversation.model_id]]) {
+  for (const [providerId, modelId] of [
+    [role.provider_id, role.model_id],
+    [conversation.provider_id, conversation.model_id],
+  ]) {
     const provider = providerId ? providers.find(p => p.id === providerId) : undefined
     if (provider) return ranOn(provider.name, modelId || provider.default_model)
   }

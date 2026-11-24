@@ -11,7 +11,10 @@ import { contrasts, openFreshConversation, projectSettings, saveSettings } from 
 const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'vk-shots')
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`the Lead decides for you while you are away, and you look when you are back (${theme})`, async ({ page, request }) => {
+  test(`the Lead decides for you while you are away, and you look when you are back (${theme})`, async ({
+    page,
+    request,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -25,7 +28,9 @@ for (const theme of ['light', 'dark'] as const) {
     await settings.getByLabel('Minutes before the Orchestrator answers').fill('0')
     await settings.screenshot({ path: path.join(SHOTS, `setting-${theme}.png`) })
     await saveSettings(page)
-    await expect.poll(async () => (await (await request.get(`/api/conversations/${id}`)).json()).conversation.when_away).toBe('lead')
+    await expect
+      .poll(async () => (await (await request.get(`/api/conversations/${id}`)).json()).conversation.when_away)
+      .toBe('lead')
 
     // A Coder to open (asked at this level), then its question: both the Lead's to answer.
     await page.getByLabel('Message').fill('vk: greet while I am away')

@@ -1,7 +1,8 @@
 import type { Agent, Provider } from '../api/types'
 
 /** A moment as a day and a time here: "Tue 14:00". */
-export const dayAndTime = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+export const dayAndTime = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })
 
 /**
  * Why an agent's model failed, in plain words, where its provider itself said why:
@@ -25,7 +26,8 @@ export function failureText(agent: Pick<Agent, 'failure' | 'failure_resets_at' |
 const USED_UP = /insufficient_quota|token-plan quota has been exhausted/i
 // Where the user sees their plan's quota (24 Oct; the Token Plan is in Singapore alone, its docs say).
 // shortcut: the personal plan's page; a team plan's is not known - add it if one is used.
-export const ALIBABA_CONSOLE = 'https://modelstudio.console.alibabacloud.com/ap-southeast-1/subscription/token-plan/personal'
+export const ALIBABA_CONSOLE =
+  'https://modelstudio.console.alibabacloud.com/ap-southeast-1/subscription/token-plan/personal'
 // Alibaba's own: a host of aliyuncs.com, as app/catalog.py `catalogue_of` knows its services.
 const ALIBABA = /^https?:\/\/([^/?#@]*\.)?aliyuncs\.com([:/?#]|$)/i
 
@@ -41,11 +43,17 @@ export const planConsole = (agent: Pick<Agent, 'failure' | 'error'>, provider?: 
  * The one thing to do about a failure, as slice 40's card says how to install or sign in: by
  * what its provider said, and otherwise by the error. Null where nothing is known to help.
  */
-export function nextStep(agent: Pick<Agent, 'failure' | 'failure_resets_at' | 'error'>, provider?: Paid): string | null {
+export function nextStep(
+  agent: Pick<Agent, 'failure' | 'failure_resets_at' | 'error'>,
+  provider?: Paid,
+): string | null {
   switch (agent.failure) {
     case 'rate_limited':
-      if (usedUp(agent, provider)) return 'Plan quota used up – it comes back at the start of its next subscription month, or with a usage bundle.'
-      return agent.failure_resets_at ? 'Wait until it resets, or pick another model.' : 'Wait a while, or pick another model.'
+      if (usedUp(agent, provider))
+        return 'Plan quota used up – it comes back at the start of its next subscription month, or with a usage bundle.'
+      return agent.failure_resets_at
+        ? 'Wait until it resets, or pick another model.'
+        : 'Wait a while, or pick another model.'
     case 'credits_exhausted':
       return 'Add credits to that account, or pick another model.'
     case 'signed_out':
@@ -55,7 +63,8 @@ export function nextStep(agent: Pick<Agent, 'failure' | 'failure_resets_at' | 'e
       return 'Send the message again.'
   }
   // shortcut: two errors known by their words (app/model_client.py, app/api/health.py); upgrade when the server says what kind an error is.
-  if (agent.error?.startsWith('model server unreachable')) return 'Check that the model server is running, or pick another model.'
+  if (agent.error?.startsWith('model server unreachable'))
+    return 'Check that the model server is running, or pick another model.'
   if (agent.error === 'no model provider is set up') return 'Add one on the Models page.'
   return null
 }

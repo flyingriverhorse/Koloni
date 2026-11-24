@@ -14,7 +14,9 @@ type Known = { cid: string; past: Set<string>; queued: Map<string, number>; stop
 /** The Lead's own answers in the chat: not a sub-agent's, not a discussion's, not a note handed to it. */
 export function leadAnswers(conv: ConvState): Message[] {
   const lead = new Set(conv.agents.filter(a => a.depth === 0).map(a => a.id))
-  return conv.messages.filter(m => m.role === 'assistant' && m.agent_id !== null && lead.has(m.agent_id) && !m.discussion_id && !m.board_post_id)
+  return conv.messages.filter(
+    m => m.role === 'assistant' && m.agent_id !== null && lead.has(m.agent_id) && !m.discussion_id && !m.board_post_id,
+  )
 }
 
 /**
@@ -39,7 +41,12 @@ export function AutoReader() {
     const answers = leadAnswers(conv)
     const k = known.current
     if (!k || k.cid !== conv.conversation.id) {
-      known.current = { cid: conv.conversation.id, past: new Set([...conv.messages, ...conv.runs].map(each => each.id)), queued: new Map(), stops }
+      known.current = {
+        cid: conv.conversation.id,
+        past: new Set([...conv.messages, ...conv.runs].map(each => each.id)),
+        queued: new Map(),
+        stops,
+      }
       return
     }
     const stopped = k.stops !== stops

@@ -58,16 +58,40 @@ SHOWN = 6  # names in one list of a line, then "+N"
 MOST_NAMED = 5  # names and files of a task, a line each in its brief
 GITIGNORE = "# KOLONİ's scan of the code: made again by Rescan, not in the project's git.\n*"
 TEST_FOLDERS = frozenset({"tests", "test", "__tests__", "e2e"})
-NOT_CALLS = frozenset({"if", "for", "while", "switch", "catch", "function", "return", "typeof",
-                       "await", "super", "import", "require", "with", "elif", "and", "or",
-                       "not", "in", "print"})
+NOT_CALLS = frozenset(
+    {
+        "if",
+        "for",
+        "while",
+        "switch",
+        "catch",
+        "function",
+        "return",
+        "typeof",
+        "await",
+        "super",
+        "import",
+        "require",
+        "with",
+        "elif",
+        "and",
+        "or",
+        "not",
+        "in",
+        "print",
+    }
+)
 FROM = re.compile(r"""\bfrom\s*['"]([^'"\n]+)['"]|\bimport\s*\(?\s*['"]([^'"\n]+)['"]""")
-EXPORTED = re.compile(r"^\s*export\s+(?:default\s+)?(?:async\s+)?(function\*?|class|const|let|var)"
-                      r"\s+([A-Za-z_$][\w$]*)")
+EXPORTED = re.compile(
+    r"^\s*export\s+(?:default\s+)?(?:async\s+)?(function\*?|class|const|let|var)"
+    r"\s+([A-Za-z_$][\w$]*)"
+)
 FUNCTION = re.compile(r"^\s*(?:async\s+)?function\*?\s+([A-Za-z_$][\w$]*)\s*\(")
 CLASS = re.compile(r"^(\s*)(?:export\s+(?:default\s+)?)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)")
-METHOD = re.compile(r"^(\s+)(?:(?:async|static|public|private|protected|override|get|set)\s+)*"
-                    r"\*?#?([A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\([^)]*\)\s*(?::[^={]+)?\{\s*$")
+METHOD = re.compile(
+    r"^(\s+)(?:(?:async|static|public|private|protected|override|get|set)\s+)*"
+    r"\*?#?([A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\([^)]*\)\s*(?::[^={]+)?\{\s*$"
+)
 PY_DEF = re.compile(r"(?:async\s+)?(def|class)\s+([A-Za-z_]\w*)")
 PY_IMPORT = re.compile(r"\s*(?:from\s+(\.*[\w.]*)\s+)?import(?=[\s(])\s*\(?\s*([\w., ]*)")
 CALL = re.compile(r"([A-Za-z_$][\w$]*)\s*\(")
@@ -97,8 +121,11 @@ def _walk(root: str, within: Collection[str] | None = None) -> tuple[list[str], 
             if within is not None and path not in within:
                 continue
             if one["kind"] == "dir":
-                if name not in UNREAD_FOLDERS and path.casefold() != koloni.FOLDER and not (
-                        name == "worktrees" and rel.rsplit("/", 1)[-1].casefold() == ".claude"):
+                if (
+                    name not in UNREAD_FOLDERS
+                    and path.casefold() != koloni.FOLDER
+                    and not (name == "worktrees" and rel.rsplit("/", 1)[-1].casefold() == ".claude")
+                ):
                     todo.append(path)
             elif name.endswith(PYTHON + SCRIPT) and ".min." not in name:  # (minified: built)
                 if len(files) < MAX_FILES:
@@ -124,8 +151,11 @@ def _python(text: str) -> dict | None:
             defs.append([node.name, "function", node.lineno])
         elif isinstance(node, ast.ClassDef):
             defs.append([node.name, "class", node.lineno])
-            defs += [[f"{node.name}.{one.name}", "method", one.lineno] for one in node.body
-                     if isinstance(one, ast.FunctionDef | ast.AsyncFunctionDef)]
+            defs += [
+                [f"{node.name}.{one.name}", "method", one.lineno]
+                for one in node.body
+                if isinstance(one, ast.FunctionDef | ast.AsyncFunctionDef)
+            ]
     imports: list[str] = []
     calls: dict[str, set[int]] = {}
     for node in ast.walk(tree):
@@ -136,12 +166,18 @@ def _python(text: str) -> dict | None:
             imports += [f"{base}:{one.name}" for one in node.names]
         elif isinstance(node, ast.Call):
             func = node.func
-            name = func.id if isinstance(func, ast.Name) else (
-                func.attr if isinstance(func, ast.Attribute) else None)
+            name = (
+                func.id
+                if isinstance(func, ast.Name)
+                else (func.attr if isinstance(func, ast.Attribute) else None)
+            )
             if name:
                 calls.setdefault(name, set()).add(node.lineno)
-    return {"defs": defs, "imports": imports,
-            "calls": {name: sorted(lines) for name, lines in calls.items()}}
+    return {
+        "defs": defs,
+        "imports": imports,
+        "calls": {name: sorted(lines) for name, lines in calls.items()},
+    }
 
 
 def _lines(text: str, python: bool) -> dict:
@@ -175,8 +211,12 @@ def _lines(text: str, python: bool) -> dict:
                 if name is None:
                     name = made.group(2)
                     defs.append([name, "class", at])
-            elif klass and (made := METHOD.match(line)) and 0 < len(made.group(1)) - klass[
-                    1] <= 4 and made.group(2) not in NOT_CALLS:
+            elif (
+                klass
+                and (made := METHOD.match(line))
+                and 0 < len(made.group(1)) - klass[1] <= 4
+                and made.group(2) not in NOT_CALLS
+            ):
                 name = made.group(2)
                 defs.append([f"{klass[0]}.{name}", "method", at])
         for called in dict.fromkeys(CALL.findall(line)):
@@ -220,7 +260,7 @@ def _python_target(rel: str, raw: str, modules: dict[str, str]) -> str | None:
     dots = len(base) - len(base.lstrip("."))
     if dots:
         package = _module(rel) if rel.endswith("__init__.py") else _module(rel)[:-1]
-        base = ".".join([*package[:len(package) - dots + 1], base.lstrip(".")]).strip(".")
+        base = ".".join([*package[: len(package) - dots + 1], base.lstrip(".")]).strip(".")
     tried = [f"{base}.{name}".strip("."), base] if name and name != "*" else [base]
     return next((modules[one] for one in tried if one in modules), None)
 
@@ -247,7 +287,8 @@ def tested(rel: str) -> str | None:
     if stem.endswith("_test"):
         return stem[:-5]
     if re.search(r"\.(test|spec)\.", path.name) or TEST_FOLDERS & {
-            one.casefold() for one in path.parts[:-1]}:
+        one.casefold() for one in path.parts[:-1]
+    }:
         return stem
     return None
 
@@ -259,22 +300,32 @@ def _edges(files: dict[str, dict]) -> dict:
     names, defined = set(files), _defined(files)
     imports, imported_by, callers, by_name = {}, {}, {}, {}
     for rel, facts in files.items():
-        targets = {_python_target(rel, raw, modules) if rel.endswith(PYTHON)
-                   else _script_target(rel, raw, names) for raw in facts["imports"]}
+        targets = {
+            _python_target(rel, raw, modules)
+            if rel.endswith(PYTHON)
+            else _script_target(rel, raw, names)
+            for raw in facts["imports"]
+        }
         imports[rel] = sorted(one for one in targets if one and one != rel)
         for one in imports[rel]:
             imported_by.setdefault(one, []).append(rel)
         for name, lines in facts["calls"].items():
             if name in defined:
-                callers.setdefault(name, []).extend(f"{rel}:{line}"
-                                                    for line in dict.fromkeys(lines))
+                callers.setdefault(name, []).extend(
+                    f"{rel}:{line}" for line in dict.fromkeys(lines)
+                )
         if (of := tested(rel)) is not None:  # (a Python test of a Python file, a JS one of JS)
             by_name.setdefault((of, rel.endswith(PYTHON)), []).append(rel)
     tests = {}
     for rel in files:
-        if tested(rel) is None and (found := list(dict.fromkeys(
-                by_name.get((PurePosixPath(rel).name.split(".")[0], rel.endswith(PYTHON)), [])
-                + [one for one in imported_by.get(rel, []) if tested(one) is not None]))):
+        if tested(rel) is None and (
+            found := list(
+                dict.fromkeys(
+                    by_name.get((PurePosixPath(rel).name.split(".")[0], rel.endswith(PYTHON)), [])
+                    + [one for one in imported_by.get(rel, []) if tested(one) is not None]
+                )
+            )
+        ):
             tests[rel] = found
     return {"imports": imports, "imported_by": imported_by, "callers": callers, "tests": tests}
 
@@ -286,8 +337,9 @@ def _bare(name: str) -> str:
 def _defined(files: dict[str, dict]) -> set[str]:
     """The names defined in the files: a method as `Class.method` and as `method` (calls are by
     the bare name)."""
-    return {one for facts in files.values() for name, *_ in facts["defs"]
-            for one in (name, _bare(name))}
+    return {
+        one for facts in files.values() for name, *_ in facts["defs"] for one in (name, _bare(name))
+    }
 
 
 def _listed(items: list[str], most: int = SHOWN) -> str:
@@ -298,17 +350,22 @@ def section(rel: str, graph: dict) -> str:
     """A file's line: what it defines (and where; its methods after its top-level names),
     imports, is imported by, and its tests."""
     defs = sorted(graph["files"][rel]["defs"], key=lambda one: one[1] == "method")
-    said = [f"defines {_listed([f'{name} ({line})' for name, _kind, line in defs])}"
-            if defs else ""]
-    for label, key in (("imports", "imports"), ("imported by", "imported_by"),
-                       ("tests:", "tests")):
+    said = [
+        f"defines {_listed([f'{name} ({line})' for name, _kind, line in defs])}" if defs else ""
+    ]
+    for label, key in (("imports", "imports"), ("imported by", "imported_by"), ("tests:", "tests")):
         if found := graph[key].get(rel):
             said.append(f"{label} {_listed(found)}")
     return f"{rel}: " + (" · ".join(one for one in said if one) or "nothing found")
 
 
-def scan(root: str, known: dict, code: str | None = None, where: str | None = None,
-         within: Collection[str] | None = None) -> dict:
+def scan(
+    root: str,
+    known: dict,
+    code: str | None = None,
+    where: str | None = None,
+    within: Collection[str] | None = None,
+) -> dict:
     """Scan the project's code - again only the files whose time changed since the last scan -
     and write its graph, its guide (a line a file) and learned.json (`Learned`'s shape: the
     files scanned and skipped, no money spent). Returns learned.json's record. Refused: one could
@@ -354,10 +411,12 @@ def scan(root: str, known: dict, code: str | None = None, where: str | None = No
     if code is not None:
         return {"scanned": len(files), "symbols": symbols, "skipped": skipped, "unread": left}
     koloni.write(root, f"{WHERE}/.gitignore", GITIGNORE)
-    text = (f"# This project's code\n\nKOLONİ scanned {len(files)} files of it ({symbols} "
-            "symbols), with no model: a line for each file - what it defines (at which line), "
-            "imports and is imported by, and its tests, found by name. Ask lookup who calls a "
-            "name or where it is defined.\n")
+    text = (
+        f"# This project's code\n\nKOLONİ scanned {len(files)} files of it ({symbols} "
+        "symbols), with no model: a line for each file - what it defines (at which line), "
+        "imports and is imported by, and its tests, found by name. Ask lookup who calls a "
+        "name or where it is defined.\n"
+    )
     for at, rel in enumerate(files):
         line = "\n- " + section(rel, found)
         if len(text) + len(line) > MAX_GUIDE:
@@ -366,12 +425,20 @@ def scan(root: str, known: dict, code: str | None = None, where: str | None = No
         text += line
     koloni.write(root, f"{WHERE}/{knowledge.GUIDE}", text)
     record = {
-        "learned_at": when, "sources": known["sources"], "model": SCANNED,
+        "learned_at": when,
+        "sources": known["sources"],
+        "model": SCANNED,
         "pages": [{"source": rel, "read": True, "why": None} for rel in files][:MAX_LOGGED]
-        + skipped[:knowledge.MAX_LOG],
-        "unread": left, "parts": [], "guide_from": len(files), "left": 0,
-        "cost": {"amount": 0, "currency": "USD"}, "symbols": symbols, "scanned_again": again,
-        "removed": known.get("removed") or []}
+        + skipped[: knowledge.MAX_LOG],
+        "unread": left,
+        "parts": [],
+        "guide_from": len(files),
+        "left": 0,
+        "cost": {"amount": 0, "currency": "USD"},
+        "symbols": symbols,
+        "scanned_again": again,
+        "removed": known.get("removed") or [],
+    }
     koloni.write(root, f"{WHERE}/{knowledge.LEARNED}", json.dumps(record, indent=1))
     return record
 
@@ -382,24 +449,41 @@ def _trimmed(found: dict) -> dict:
     shortcut: so a call of a name defined later, in a file added since, is seen only once the
     calling file changes again."""
     defined = _defined(found["files"])
-    return {**found, "files": {
-        rel: {**facts, "calls": {name: lines for name, lines in facts["calls"].items()
-                                 if name in defined}} for rel, facts in found["files"].items()},
-            "callers": {name: calls[:MOST_CALLERS] for name, calls in found["callers"].items()},
-            "callers_count": {name: len(calls) for name, calls in found["callers"].items()
-                              if len(calls) > MOST_CALLERS}}
+    return {
+        **found,
+        "files": {
+            rel: {
+                **facts,
+                "calls": {name: lines for name, lines in facts["calls"].items() if name in defined},
+            }
+            for rel, facts in found["files"].items()
+        },
+        "callers": {name: calls[:MOST_CALLERS] for name, calls in found["callers"].items()},
+        "callers_count": {
+            name: len(calls)
+            for name, calls in found["callers"].items()
+            if len(calls) > MOST_CALLERS
+        },
+    }
 
 
 def _shaped(facts: object) -> bool:
     """Whether a file's facts kept in graph.json are as a scan writes them (a hand's edit, or an
     older scan's, is read again)."""
     try:
-        return isinstance(facts, dict) and isinstance(facts["mtime_ns"], int) and all(
-            isinstance(name, str) and isinstance(kind, str) and isinstance(line, int)
-            for name, kind, line in facts["defs"]) and all(
-            isinstance(one, str) for one in facts["imports"]) and all(
-            isinstance(name, str) and all(isinstance(line, int) for line in lines)
-            for name, lines in facts["calls"].items())
+        return (
+            isinstance(facts, dict)
+            and isinstance(facts["mtime_ns"], int)
+            and all(
+                isinstance(name, str) and isinstance(kind, str) and isinstance(line, int)
+                for name, kind, line in facts["defs"]
+            )
+            and all(isinstance(one, str) for one in facts["imports"])
+            and all(
+                isinstance(name, str) and all(isinstance(line, int) for line in lines)
+                for name, lines in facts["calls"].items()
+            )
+        )
     except (TypeError, ValueError, KeyError, AttributeError):
         return False
 
@@ -424,20 +508,29 @@ def graph(root: str, where: str = WHERE) -> dict | None:
 def _read(root: str, where: str, _stamp: int) -> dict | None:
     """Read once for each scan (`_stamp`: when graph.json was written)."""
     try:
-        found = json.loads(project_files.bytes_of(
-            root, f"{koloni.FOLDER}/{where}/{GRAPH}", MAX_GRAPH))
+        found = json.loads(
+            project_files.bytes_of(root, f"{koloni.FOLDER}/{where}/{GRAPH}", MAX_GRAPH)
+        )
     except (Refused, ValueError, RecursionError):
         return None
     keys = ("files", "imports", "imported_by", "callers", "tests")
-    return found if isinstance(found, dict) and all(
-        isinstance(found.get(key), dict) for key in keys) else None
+    return (
+        found
+        if isinstance(found, dict) and all(isinstance(found.get(key), dict) for key in keys)
+        else None
+    )
 
 
 def _code_like(word: str) -> bool:
     """A word that reads as code, not English: a name with _ or an inner capital, a call, a
     dotted name, or a file of code."""
-    return bool("_" in word or word.endswith("()") or "." in word or "/" in word
-                or re.search(r"[a-z][A-Z]", word))
+    return bool(
+        "_" in word
+        or word.endswith("()")
+        or "." in word
+        or "/" in word
+        or re.search(r"[a-z][A-Z]", word)
+    )
 
 
 def named(text: str, found: dict, strict: bool) -> tuple[list[str], list[str]]:
@@ -466,17 +559,27 @@ def _of(name: str, found: dict) -> tuple[list[str], list[str], list[str], int, s
     how many callers more it has than are kept (`_trimmed`), and "" or why its callers are only
     maybe its own: other definitions share its bare name, which calls are matched by."""
     bare = _bare(name)
-    same = [(f"{rel}:{line}", one) for rel, facts in found["files"].items()
-            for one, _kind, line in facts["defs"] if _bare(one) == bare]
+    same = [
+        (f"{rel}:{line}", one)
+        for rel, facts in found["files"].items()
+        for one, _kind, line in facts["defs"]
+        if _bare(one) == bare
+    ]
     defs = [at for at, one in same if one == name or "." not in name]
     maybe = f" (maybe: {len(same)} are named `{bare}`)" if len(same) > 1 else ""
     calls = found["callers"].get(bare, [])
     in_tests = [one for one in calls if tested(one.rsplit(":", 1)[0]) is not None]
-    tests = in_tests or list(dict.fromkeys(
-        one for at in defs for one in found["tests"].get(at.rsplit(":", 1)[0], [])))
+    tests = in_tests or list(
+        dict.fromkeys(one for at in defs for one in found["tests"].get(at.rsplit(":", 1)[0], []))
+    )
     more = (found.get("callers_count") or {}).get(bare, len(calls)) - len(calls)
-    return (defs, [one for one in calls if tested(one.rsplit(":", 1)[0]) is None], tests, more,
-            maybe)
+    return (
+        defs,
+        [one for one in calls if tested(one.rsplit(":", 1)[0]) is None],
+        tests,
+        more,
+        maybe,
+    )
 
 
 def lookup(root: str, question: str, where: str = WHERE) -> list[tuple[str, str]]:
@@ -491,29 +594,51 @@ def lookup(root: str, question: str, where: str = WHERE) -> list[tuple[str, str]
         parts = []
         for name in names:
             defs, callers, tests, more, maybe = _of(name, found)
-            parts.append((defs[0], f"`{name}` is defined at {_listed(defs)}\n"
-                                   f"callers {len(callers) + more}{maybe}: "
-                                   f"{_listed(callers, 20) or 'none found'}"
-                                   + (f" (+{more} more)" if more else "")
-                                   + f"\ntests: {_listed(tests) or 'none found'}"))
+            parts.append(
+                (
+                    defs[0],
+                    f"`{name}` is defined at {_listed(defs)}\n"
+                    f"callers {len(callers) + more}{maybe}: "
+                    f"{_listed(callers, 20) or 'none found'}"
+                    + (f" (+{more} more)" if more else "")
+                    + f"\ntests: {_listed(tests) or 'none found'}",
+                )
+            )
         parts += [(rel, section(rel, found)) for rel in files]
         if not parts:  # (a question in words: the files whose line shares most of them)
             asked = knowledge._terms(question)
-            scored = sorted(((-len(asked & knowledge._terms(line)), rel, line)
-                             for rel in found["files"] if (line := section(rel, found))),
-                            key=lambda one: one[:2])
+            scored = sorted(
+                (
+                    (-len(asked & knowledge._terms(line)), rel, line)
+                    for rel in found["files"]
+                    if (line := section(rel, found))
+                ),
+                key=lambda one: one[:2],
+            )
             parts = [(rel, line) for score, rel, line in scored[:3] if score]
     except BROKEN:
         return []
-    return [(where, part[:knowledge.LOOKED_CHARS]) for where, part in
-            parts[:knowledge.MOST_LOOKED_UP]]
+    return [
+        (where, part[: knowledge.LOOKED_CHARS]) for where, part in parts[: knowledge.MOST_LOOKED_UP]
+    ]
 
 
 # A file a program starts from, by its name: first of a repository's code in its guide (`central`).
 ENTRY = frozenset({"main", "__main__", "cli", "app", "__init__", "index", "server", "lib", "mod"})
 # Others' code kept in a repository, or examples of it: no part of how its code works.
-VENDORED = frozenset({"vendor", "vendored", "third_party", "thirdparty", "external", "examples",
-                      "example", "fixtures", "testdata"})
+VENDORED = frozenset(
+    {
+        "vendor",
+        "vendored",
+        "third_party",
+        "thirdparty",
+        "external",
+        "examples",
+        "example",
+        "fixtures",
+        "testdata",
+    }
+)
 
 
 def central(found: dict) -> list[str]:
@@ -522,11 +647,23 @@ def central(found: dict) -> list[str]:
     hidden folder (.github/, a CLI's settings: not kept to read either, `knowledge._keep`); a
     generated or minified file is not scanned at all.
     shortcut: by name and importers only; weigh callers too if a hub of calls is seen ranked low."""
-    files = [rel for rel in found["files"] if tested(rel) is None and not any(
-        part.startswith(".") or part.casefold() in VENDORED for part in rel.split("/")[:-1])]
-    return sorted(files, key=lambda rel: (PurePosixPath(rel).name.split(".")[0] not in ENTRY,
-                                          -len(found["imported_by"].get(rel, [])),
-                                          rel.count("/"), rel))
+    files = [
+        rel
+        for rel in found["files"]
+        if tested(rel) is None
+        and not any(
+            part.startswith(".") or part.casefold() in VENDORED for part in rel.split("/")[:-1]
+        )
+    ]
+    return sorted(
+        files,
+        key=lambda rel: (
+            PurePosixPath(rel).name.split(".")[0] not in ENTRY,
+            -len(found["imported_by"].get(rel, [])),
+            rel.count("/"),
+            rel,
+        ),
+    )
 
 
 def about(root: str, task: str) -> list[str]:
@@ -540,13 +677,18 @@ def about(root: str, task: str) -> list[str]:
         lines = []
         for name in names:
             defs, callers, tests, more, maybe = _of(name, found)
-            lines.append(f"`{name}` ({_listed(defs, 2)}): callers {len(callers) + more}{maybe}"
-                         + (f" ({_listed(callers, 3)})" if callers else "")
-                         + (f" · test {tests[0]}" if tests else ""))
+            lines.append(
+                f"`{name}` ({_listed(defs, 2)}): callers {len(callers) + more}{maybe}"
+                + (f" ({_listed(callers, 3)})" if callers else "")
+                + (f" · test {tests[0]}" if tests else "")
+            )
         for rel in files:
             by, tests = found["imported_by"].get(rel, []), found["tests"].get(rel, [])
-            lines.append(f"{rel}: imported by {len(by)}" + (f" ({_listed(by, 3)})" if by else "")
-                         + (f" · tests {_listed(tests, 2)}" if tests else ""))
+            lines.append(
+                f"{rel}: imported by {len(by)}"
+                + (f" ({_listed(by, 3)})" if by else "")
+                + (f" · tests {_listed(tests, 2)}" if tests else "")
+            )
         return [web._line(line, 400) for line in lines[:MOST_NAMED]]
     except BROKEN:
         return []

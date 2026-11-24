@@ -33,36 +33,58 @@ if TYPE_CHECKING:
     from app.agent import AgentRunner
 
 # Go away, to the away chat's Lead at work (`away_now`).
-AWAY_TOLD = ("KOLONİ: the user has gone away (Away): finish this turn deciding what you can "
-             "yourself; a question of yours to them waits for their return, so ask none you can "
-             "do without. Their To-do list is worked through after this turn.")
+AWAY_TOLD = (
+    "KOLONİ: the user has gone away (Away): finish this turn deciding what you can "
+    "yourself; a question of yours to them waits for their return, so ask none you can "
+    "do without. Their To-do list is worked through after this turn."
+)
 
 
-def branch_held(session: Session, project_id: str, but_run: str | None = None,
-                copies: bool = False) -> tuple[str, str] | None:
+def branch_held(
+    session: Session, project_id: str, but_run: str | None = None, copies: bool = False
+) -> tuple[str, str] | None:
     """K-dallar: whose work a switch of the project's branch would go under, and why in the
     git map's words, with what to do - an agent at work in a turn of the project that is not
     over (but `but_run`, the asking agent's own: there only one at work in a copy, `copies`),
     a Take in that waits, or a kept copy. None for none."""
-    runs = select(Run.id).join(Conversation, Conversation.id == Run.conversation_id).where(
-        Conversation.project_id == project_id)
+    runs = (
+        select(Run.id)
+        .join(Conversation, Conversation.id == Run.conversation_id)
+        .where(Conversation.project_id == project_id)
+    )
     busy = runs.where(Run.status.not_in(TERMINAL), Run.id != (but_run or ""))
     whose_work = Agent.run_id.in_(busy)
     if copies:
-        whose_work = or_(whose_work, and_(Agent.run_id == (but_run or ""),
-                                          Agent.copy["state"].as_string() == "own"))
+        whose_work = or_(
+            whose_work,
+            and_(Agent.run_id == (but_run or ""), Agent.copy["state"].as_string() == "own"),
+        )
     found = session.execute(
-        select(Agent.name, Agent.role_name).where(whose_work, Agent.status.not_in(AGENT_TERMINAL))
-        .order_by(Agent.depth.desc()).limit(1)).first()
+        select(Agent.name, Agent.role_name)
+        .where(whose_work, Agent.status.not_in(AGENT_TERMINAL))
+        .order_by(Agent.depth.desc())
+        .limit(1)
+    ).first()
     if found or session.scalar(busy.limit(1)):
         whose = (found.name or found.role_name) if found else "a turn"
-        return whose, (f"{whose} is at work — wait for the turn to end" if found
-                       else "a turn of the project is running — wait for it to end")
+        return whose, (
+            f"{whose} is at work — wait for the turn to end"
+            if found
+            else "a turn of the project is running — wait for it to end"
+        )
     merge = session.execute(
-        select(Merge.status, Agent.name, Agent.role_name).join(Agent, Agent.id == Merge.agent_id)
-        .where(Merge.run_id.in_(runs), or_(Merge.status == "pending", and_(
-            Merge.status == "interrupted", Merge.kept_in.is_not(None))))
-        .order_by(Merge.created_at.desc()).limit(1)).first()
+        select(Merge.status, Agent.name, Agent.role_name)
+        .join(Agent, Agent.id == Merge.agent_id)
+        .where(
+            Merge.run_id.in_(runs),
+            or_(
+                Merge.status == "pending",
+                and_(Merge.status == "interrupted", Merge.kept_in.is_not(None)),
+            ),
+        )
+        .order_by(Merge.created_at.desc())
+        .limit(1)
+    ).first()
     if merge:
         whose = merge.name or merge.role_name
         held = "finished work waits" if merge.status == "pending" else "work is kept in its copy"
@@ -116,8 +138,10 @@ class AwayMixin:
         if ctx.run_id not in self._away_jobs:
             return False
         with self._factory() as session:
-            return away.night_of(session, ctx.cid) is not None and session.get_one(
-                Conversation, ctx.cid).permission_mode == "full_auto"
+            return (
+                away.night_of(session, ctx.cid) is not None
+                and session.get_one(Conversation, ctx.cid).permission_mode == "full_auto"
+            )
 
     def typing(self: "AgentRunner", question_id: str) -> None:
         """The user types an answer to a question that waits: the Lead holds off it
@@ -159,19 +183,25 @@ class AwayMixin:
         owner = self._works_in(ctx) or ""
         copy = self._copies.get(owner)
         # (Or about to be made: the first command makes it - `_working_copy`.)
-        if copy is not None and copy.branch or owner not in self._copies and (
-                owner in self._on_branch):
+        if (
+            copy is not None
+            and copy.branch
+            or owner not in self._copies
+            and (owner in self._on_branch)
+        ):
             return reaches_shared_git(command, copy.branch if copy is not None else None)
         if in_copy or ctx.root is None or not switches_branch(command):
             return ""
         with self._factory() as session:
             project_id = session.scalar(
-                select(Conversation.project_id).where(Conversation.id == ctx.cid))
+                select(Conversation.project_id).where(Conversation.id == ctx.cid)
+            )
             held = project_id and branch_held(session, project_id, ctx.run_id, copies=True)
         return f"switches the branch under {held[0]}'s work" if held else ""
 
-    def _night_asks(self: "AgentRunner", ctx: Ctx, plain: str, cwd: object = None,
-                    scratch_of: str | None = None) -> str:
+    def _night_asks(
+        self: "AgentRunner", ctx: Ctx, plain: str, cwd: object = None, scratch_of: str | None = None
+    ) -> str:
         """Why a command waits for the user at every level. In a turn they watch: it deletes
         or overwrites, or sends something off this machine (`harms`) - at Full auto too, by
         the user's rule that nothing else asks there (K-fullauto-sorma). In a job while they
@@ -192,8 +222,7 @@ class AwayMixin:
             # shortcut: not an install in a shell or a wrapper (`cmd /c npm i`), which
             # `runs_another` would catch only by asking about every one; look inside if seen.
             copy = self._copies.get(self._sides[ctx.run_id])
-            return harms(command) or (
-                installs(command) if copy is not None and copy.links else "")
+            return harms(command) or (installs(command) if copy is not None and copy.links else "")
         if ctx.run_id in self._backlog_turns:  # (a night's rules, in the project: no copy)
             if why := harms(command) or runs_another(command):
                 return why
@@ -202,8 +231,11 @@ class AwayMixin:
             with self._factory() as session:
                 project = self._project(session, ctx.cid)
                 tests = project.test_commands if project is not None else None
-            return "" if project_map.own_test(tests, plain, cwd if isinstance(cwd, str) else None
-                                              ) else inline
+            return (
+                ""
+                if project_map.own_test(tests, plain, cwd if isinstance(cwd, str) else None)
+                else inline
+            )
         if ctx.run_id not in self._away_jobs:
             # (K-fullauto-sorma: at Full auto an instruction file alone is no harm.)
             if not self._watched(ctx.run_id) or scratch_delete_only(command, scratch_of):
@@ -211,10 +243,13 @@ class AwayMixin:
             return harms(command, not self._full_auto(ctx))
         copy = self._copies.get(self._away_jobs[ctx.run_id])
         # shortcut: a job's agent runs its tests with its own line, judged as any command (R147:
-        # a pipe into a filter no longer asks); have KOLONİ run the project's check_command for
+        # a pipe into a filter no longer asks); have KOLONİ run the project's test command for
         # it, unasked, if a test line is still seen to make a night's job wait.
-        return harms(command) or runs_another(command) or (
-            installs(command) if copy is not None and copy.links else "")
+        return (
+            harms(command)
+            or runs_another(command)
+            or (installs(command) if copy is not None and copy.links else "")
+        )
 
     def _arm_deadline(self: "AgentRunner", run_id: str, cid: str) -> None:
         """A job's turn is cut at its hour or at its night's time, whichever comes first -
@@ -242,9 +277,14 @@ class AwayMixin:
             else:
                 self.cut(run_id, away.too_long(away.unattended(session)[1] or 0))
 
-    def _keeps_out(self: "AgentRunner", ctx: Ctx, path: str | None = None,
-                   command: str | None = None,
-                   what: str = "", cwd: str | None = None) -> str | None:
+    def _keeps_out(
+        self: "AgentRunner",
+        ctx: Ctx,
+        path: str | None = None,
+        command: str | None = None,
+        what: str = "",
+        cwd: str | None = None,
+    ) -> str | None:
         """Why a write of `path` (relative, or a full one in the project or the job's copy) or
         `command` (its words also from `cwd`, the folder it runs in) is refused in a job while
         the user is away: it touches a place the user kept out - also after the night, in a
@@ -266,10 +306,17 @@ class AwayMixin:
         """Why this agent may not offer the user to go away (☾ Away); None: it may. Only the
         Lead whose role keeps the To-do list, at the user's own turn of a chat with a folder:
         never a trigger's turn, a plan, a side of a comparison or a job while they are away."""
-        if (ctx.role != LEAD or ctx.depth or ctx.answering or ctx.discussion or ctx.root is None
-                or "add_task" not in ctx.tools
-                or not self._watched(ctx.run_id) or ctx.run_id in self._sides
-                or ctx.run_id in self._away_jobs):
+        if (
+            ctx.role != LEAD
+            or ctx.depth
+            or ctx.answering
+            or ctx.discussion
+            or ctx.root is None
+            or "add_task" not in ctx.tools
+            or not self._watched(ctx.run_id)
+            or ctx.run_id in self._sides
+            or ctx.run_id in self._away_jobs
+        ):
             return "offer_away is the Orchestrator's, at a turn of the user's own"
         run = session.get_one(Run, ctx.run_id)
         return "offer_away is not for a plan turn" if run.plan_turn or run.unattended else None
@@ -279,8 +326,13 @@ class AwayMixin:
             if why := self._no_away(session, ctx):
                 raise ToolError(why)
             try:
-                said = away.offer(session, session.get_one(Conversation, ctx.cid), ctx.run_id,
-                                  args, ctx.agent_id if _tells_own_sub_agents(ctx) else None)
+                said = away.offer(
+                    session,
+                    session.get_one(Conversation, ctx.cid),
+                    ctx.run_id,
+                    args,
+                    ctx.agent_id if _tells_own_sub_agents(ctx) else None,
+                )
             except away.Refused as exc:
                 raise ToolError(str(exc)) from None
             session.commit()
@@ -293,14 +345,19 @@ class AwayMixin:
         a turn nobody is watching - a trigger's turn would go on proposing triggers."""
         # (Here, not at the top: app.triggers reads this module.)
         from app import triggers as trigger_rules
+
         if not self._watched(ctx.run_id):
             raise ToolError("propose_trigger is for a turn the user started")
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             try:
                 said = trigger_rules.propose(
-                    session, conversation, ctx.run_id, args,
-                    self.trigger_day() if self.trigger_day else trigger_rules.local_day(now()))
+                    session,
+                    conversation,
+                    ctx.run_id,
+                    args,
+                    self.trigger_day() if self.trigger_day else trigger_rules.local_day(now()),
+                )
             except trigger_rules.Invalid as exc:
                 raise ToolError(str(exc)) from None
             session.commit()

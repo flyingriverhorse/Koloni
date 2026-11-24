@@ -23,8 +23,9 @@ VIEWER = Path(__file__).resolve().parent.parent / "frontend" / "public" / "drawi
 SCRIPTS = ("koloni.js", "viewer-static.min.js")
 FORMATS = ("png", "svg")
 NOT_A_DIAGRAM = "{path} is not a draw.io file (.drawio, .drawio.xml or .dio)"
-NO_BROWSER = ("this machine has no Chrome or Edge to draw it; the user can Save as PNG in the "
-              "Workspace")
+NO_BROWSER = (
+    "this machine has no Chrome or Edge to draw it; the user can Save as PNG in the Workspace"
+)
 PNG = b"\x89PNG\r\n\x1a\n"
 # The largest picture written: a PNG of a big diagram at twice its size.
 MAX_PICTURE = 20 * 1024 * 1024
@@ -52,13 +53,17 @@ def write_picture(ws: Workspace, rel: str, format: str, data: bytes) -> str:
         raise WorkspaceError(NOT_A_DIAGRAM.format(path=rel))
     if len(data) > MAX_PICTURE:
         raise WorkspaceError("the picture is larger than 20 MB: it is not written")
-    if not (data.startswith(PNG) if format == "png"
-            else data.lstrip().startswith((b"<?xml", b"<svg")) and b"<svg" in data[:4096]):
+    if not (
+        data.startswith(PNG)
+        if format == "png"
+        else data.lstrip().startswith((b"<?xml", b"<svg")) and b"<svg" in data[:4096]
+    ):
         raise WorkspaceError(f"that is not a {format.upper()} picture")
     out = picture_of(rel, format)
     if secret_in_project(out) or stands_over_later_turns(ws, out):
-        raise WorkspaceError(f"{out} is not written here: later turns or the user's keys are "
-                             "kept under that name")
+        raise WorkspaceError(
+            f"{out} is not written here: later turns or the user's keys are kept under that name"
+        )
     # Its name looked at part by part, as written: a link there (docs/flow.png -> ../.env, or a
     # junction for docs/) would have the picture written over what it leads to.
     try:
@@ -67,8 +72,9 @@ def write_picture(ws: Workspace, rel: str, format: str, data: bytes) -> str:
         named = None
     target = ws.resolve(out)
     if named is None or not ws.is_own(target) or named.resolve() != target:
-        raise WorkspaceError(f"{out} is not written: a link, a secret or a place KOLONİ never "
-                             "opens is on its way")
+        raise WorkspaceError(
+            f"{out} is not written: a link, a secret or a place KOLONİ never opens is on its way"
+        )
     try:
         write_bytes(target, data)
     except OSError as exc:
@@ -87,10 +93,15 @@ async def draw(command: list[str], folder: Path, name: str, xml: str, format: st
         await one.start(command, None, set())
         for script in SCRIPTS:
             # (`void 0`: the script's last value is not sent back - it may be a function.)
-            await one._eval(browser._tag("script", script)
-                            + (VIEWER / script).read_text(encoding="utf-8") + "\n;void 0")
-        made = await one._eval(browser._tag("drawio", format)
-                               + f"koloniDraw({json.dumps(xml)}, {json.dumps(format)})", wait=True)
+            await one._eval(
+                browser._tag("script", script)
+                + (VIEWER / script).read_text(encoding="utf-8")
+                + "\n;void 0"
+            )
+        made = await one._eval(
+            browser._tag("drawio", format) + f"koloniDraw({json.dumps(xml)}, {json.dumps(format)})",
+            wait=True,
+        )
     finally:
         await one.close()
     if not isinstance(made, str):

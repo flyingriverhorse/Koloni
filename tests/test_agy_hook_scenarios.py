@@ -19,7 +19,7 @@ from app.model_agy import AgyClient, asked_as
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_agent_writes import wait_status
-from tests.test_agy_agent import FAKE, SKIP
+from tests.test_agy_agent import FAKE, SKIP, read_record
 from tests.test_claude_native import NOBODY, ORIGIN, nothing_was_asked, unattended
 from tests.test_codex_app_server_scenarios import card_for, hello, watched
 from tests.test_native_agent import start
@@ -30,8 +30,9 @@ UNSURE = "not known whether it ran"
 UNKNOWN_YET = "KOLONİ does not know what this agy tool does yet"
 
 # (elsewhere the hook's path is quoted on its line)
-WINDOWS_CMD = pytest.mark.skipif(os.name != "nt",
-                                 reason="the .cmd wrapper and short names are Windows'")
+WINDOWS_CMD = pytest.mark.skipif(
+    os.name != "nt", reason="the .cmd wrapper and short names are Windows'"
+)
 
 
 @pytest.fixture
@@ -39,36 +40,61 @@ def hooked_app(settings_env, tmp_path, monkeypatch):
     # The user's own home, with a hook of theirs: read, it would let every tool through.
     real = tmp_path / "real-home"
     (real / ".gemini" / "config").mkdir(parents=True)
-    (real / ".gemini" / "config" / "hooks.json").write_text(json.dumps({"theirs": {
-        "PreToolUse": [{"matcher": "*", "hooks": [
-            {"type": "command", "command": 'echo {"decision": "allow"}'}]}]}}), encoding="utf-8")
+    (real / ".gemini" / "config" / "hooks.json").write_text(
+        json.dumps(
+            {
+                "theirs": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "*",
+                            "hooks": [{"type": "command", "command": 'echo {"decision": "allow"}'}],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setenv("USERPROFILE", str(real))
     monkeypatch.setenv("HOME", str(real))
     opened = []
     record, plan = tmp_path / "record.json", tmp_path / "plan.json"
 
     def write_plan(script, **more):
-        plan.write_text(json.dumps({"record": str(record), "script": script, **more}),
-                        encoding="utf-8")
+        plan.write_text(
+            json.dumps({"record": str(record), "script": script, **more}), encoding="utf-8"
+        )
 
     def make(script, timeout=30, homes=None, **more):
         write_plan(script, **more)
-        cli = AgyClient(None, "gemini-asked", timeout=timeout, reads=False, launcher=FAKE,
-                        env={"FAKE_AGY_PLAN": str(plan)})
+        cli = AgyClient(
+            None,
+            "gemini-asked",
+            timeout=timeout,
+            reads=False,
+            launcher=FAKE,
+            env={"FAKE_AGY_PLAN": str(plan)},
+        )
         cli.homes = homes or make.homes
-        app = create_app(load_settings(settings_env), model=ScriptedModel([]),
-                         clients={"agy": cli})
+        app = create_app(load_settings(settings_env), model=ScriptedModel([]), clients={"agy": cli})
         client = TestClient(app, base_url="http://127.0.0.1:8790")
         client.__enter__()
         opened.append(client)
-        made = client.post("/api/providers", json={
-            "name": "agy", "kind": "agy_cli", "mode": "native", "default_model": "gemini-asked"})
+        made = client.post(
+            "/api/providers",
+            json={
+                "name": "agy",
+                "kind": "agy_cli",
+                "mode": "native",
+                "default_model": "gemini-asked",
+            },
+        )
         assert made.status_code == 201, made.text
         return client, made.json()
 
     make.real = real
     make.homes = tmp_path / "runtime" / "agy-home"
-    make.record = lambda: json.loads(record.read_text(encoding="utf-8"))
+    make.record = lambda: read_record(record)
     make.ran = record.exists
     yield make
     for client in opened:
@@ -85,22 +111,31 @@ def run_command(line, **more):
 
 
 def write_file(path, content, **more):
-    return {"tool": "write_file", "parameters": {"Path": path, "Content": content,
-                                                "Overwrite": True},
-            "touches": {path: content}, **more}
+    return {
+        "tool": "write_file",
+        "parameters": {"Path": path, "Content": content, "Overwrite": True},
+        "touches": {path: content},
+        **more,
+    }
 
 
 # --- 1. Ask: a command is a card --------------------------------------------------------------
 
 
 def test_at_ask_agys_command_is_a_card_and_runs_once_approved(hooked_app, wait_run, project_dir):
-    client, provider = hooked_app([
-        run_command("python made.py", output="made\n", touches={"made.txt": "x"}),
-        {"say": "Done."}])
+    client, provider = hooked_app(
+        [
+            run_command("python made.py", output="made\n", touches={"made.txt": "x"}),
+            {"say": "Done."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, mode="ask")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert (asked["status"], asked["command"], asked["origin"]) == (
-        "proposed", "python made.py", "cli")
+        "proposed",
+        "python made.py",
+        "cli",
+    )
     assert not (project_dir / "made.txt").exists()  # nothing ran before the yes
     assert client.post(f"/api/commands/{asked['id']}/approve", json={}).status_code == 200
     snap = wait_run(client, cid, run_id)
@@ -113,8 +148,9 @@ def test_at_ask_agys_command_is_a_card_and_runs_once_approved(hooked_app, wait_r
 
 
 def test_at_ask_a_rejected_command_is_denied_and_never_runs(hooked_app, wait_run, project_dir):
-    client, provider = hooked_app([
-        run_command("python made.py", touches={"made.txt": "x"}), {"say": "Left it."}])
+    client, provider = hooked_app(
+        [run_command("python made.py", touches={"made.txt": "x"}), {"say": "Left it."}]
+    )
     cid, run_id = start(client, project_dir, provider, mode="ask")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
@@ -132,10 +168,15 @@ def test_at_full_auto_a_command_is_judged_in_the_folder_it_runs_in(
     # denetim-010 #18: the line names no `.github`, its Cwd does - a workflow written there.
     (project_dir / ".github" / "workflows").mkdir(parents=True)
     line = "echo on > ci.yml"
-    client, provider = hooked_app([
-        run_command(line, parameters={"CommandLine": line,
-                                      "Cwd": str(project_dir / ".github" / "workflows")}),
-        {"say": "Left it."}])
+    client, provider = hooked_app(
+        [
+            run_command(
+                line,
+                parameters={"CommandLine": line, "Cwd": str(project_dir / ".github" / "workflows")},
+            ),
+            {"say": "Left it."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, mode="full_auto")
     asked = card_for(client, cid, line)
     assert asked["cwd"] == ".github/workflows"
@@ -153,10 +194,13 @@ def test_the_cwd_agys_model_writes_makes_a_command_no_freer_than_with_none(
     work = project_dir / ".koloni" / "tmp" / "work"
     work.mkdir(parents=True)
     line = "cd .koloni/tmp; ls"
-    client, provider = hooked_app([
-        run_command("python x.py", parameters={"CommandLine": "python x.py", "Cwd": str(work)}),
-        run_command(line, parameters={"CommandLine": line, "Cwd": str(project_dir)}),
-        {"say": "Left it."}])
+    client, provider = hooked_app(
+        [
+            run_command("python x.py", parameters={"CommandLine": "python x.py", "Cwd": str(work)}),
+            run_command(line, parameters={"CommandLine": line, "Cwd": str(project_dir)}),
+            {"say": "Left it."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, mode="full_auto")
     asked = card_for(client, cid, line)
     assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
@@ -169,9 +213,12 @@ def test_agys_recursive_delete_in_the_scratch_is_asked_its_cwd_being_the_models_
 ):
     (project_dir / ".koloni" / "tmp" / "w2").mkdir(parents=True)
     line = "rm -rf .koloni/tmp/w2"
-    client, provider = hooked_app([
-        run_command(line, parameters={"CommandLine": line, "Cwd": str(project_dir)}),
-        {"say": "Left it."}])
+    client, provider = hooked_app(
+        [
+            run_command(line, parameters={"CommandLine": line, "Cwd": str(project_dir)}),
+            {"say": "Left it."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, mode="full_auto")
     asked = card_for(client, cid, line)
     assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
@@ -196,18 +243,28 @@ def test_at_ask_reading_in_the_project_is_not_asked_and_a_listing_outside_is(
 ):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    client, provider = hooked_app([
-        {"tool": "read_file", "parameters": {"Path": str(project_dir / "hello.py")},
-         "output": "print('hi')"},
-        {"tool": "list_directory", "parameters": {"DirectoryPath": str(project_dir)}},
-        {"tool": "list_directory", "parameters": {"DirectoryPath": str(elsewhere)}},
-        {"say": "Looked."}])
+    client, provider = hooked_app(
+        [
+            {
+                "tool": "read_file",
+                "parameters": {"Path": str(project_dir / "hello.py")},
+                "output": "print('hi')",
+            },
+            {"tool": "list_directory", "parameters": {"DirectoryPath": str(project_dir)}},
+            {"tool": "list_directory", "parameters": {"DirectoryPath": str(elsewhere)}},
+            {"say": "Looked."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, mode="ask")
     snap = wait_status(client, cid, "waiting_approval")
     (pending,) = [t for t in snap["tool_calls"] if t["status"] == "pending"]
     assert json.loads(pending["arguments"]) == {"path": str(elsewhere)}
-    assert client.post(f"/api/tool-calls/{pending['id']}/reject",
-                       headers={"Origin": ORIGIN}).status_code == 200
+    assert (
+        client.post(
+            f"/api/tool-calls/{pending['id']}/reject", headers={"Origin": ORIGIN}
+        ).status_code
+        == 200
+    )
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert decisions(hooked_app) == ["allow", "allow", "deny"]
@@ -216,12 +273,14 @@ def test_at_ask_reading_in_the_project_is_not_asked_and_a_listing_outside_is(
 # --- 2. Full auto: only what is asked at every level is a card ---------------------------------
 
 
-def test_at_full_auto_an_ordinary_command_and_write_pass_unasked(
-    hooked_app, wait_run, project_dir
-):
-    client, provider = hooked_app([
-        run_command("python hello.py", output="hi\n"), write_file("notes.txt", "x\n"),
-        {"say": "ok"}])
+def test_at_full_auto_an_ordinary_command_and_write_pass_unasked(hooked_app, wait_run, project_dir):
+    client, provider = hooked_app(
+        [
+            run_command("python hello.py", output="hi\n"),
+            write_file("notes.txt", "x\n"),
+            {"say": "ok"},
+        ]
+    )
     statuses = watched(client)
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
@@ -246,9 +305,16 @@ def test_at_full_auto_a_command_that_reads_a_secret_is_a_card(hooked_app, wait_r
 
 def test_at_full_auto_reading_the_env_file_is_a_card(hooked_app, wait_run, project_dir):
     (project_dir / ".env").write_text("TOKEN=agy-secret\n", encoding="utf-8")
-    client, provider = hooked_app([
-        {"tool": "read_file", "parameters": {"Path": str(project_dir / ".env")},
-         "output": "TOKEN=agy-secret"}, {"say": "ok"}])
+    client, provider = hooked_app(
+        [
+            {
+                "tool": "read_file",
+                "parameters": {"Path": str(project_dir / ".env")},
+                "output": "TOKEN=agy-secret",
+            },
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_status(client, cid, "waiting_approval")
     (pending,) = [t for t in snap["tool_calls"] if t["status"] == "pending"]
@@ -260,8 +326,9 @@ def test_at_full_auto_reading_the_env_file_is_a_card(hooked_app, wait_run, proje
 
 
 def test_at_full_auto_a_write_to_a_workflow_is_a_card(hooked_app, wait_run, project_dir):
-    client, provider = hooked_app([
-        write_file(".github/workflows/x.yml", "on: push\n"), {"say": "ok"}])
+    client, provider = hooked_app(
+        [write_file(".github/workflows/x.yml", "on: push\n"), {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_status(client, cid, "waiting_approval")
     (card,) = [c for c in snap["file_changes"] if c["status"] == "proposed"]
@@ -272,25 +339,35 @@ def test_at_full_auto_a_write_to_a_workflow_is_a_card(hooked_app, wait_run, proj
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert decisions(hooked_app) == ["allow"]
     assert (project_dir / ".github" / "workflows" / "x.yml").read_text(encoding="utf-8") == (
-        "on: push\n")
+        "on: push\n"
+    )
     assert [(c["path"], c["status"]) for c in snap["file_changes"]] == [
-        (".github/workflows/x.yml", "applied")]
+        (".github/workflows/x.yml", "applied")
+    ]
 
 
 def test_a_tool_koloni_does_not_know_that_names_a_path_is_judged_as_a_change_of_it(
     hooked_app, wait_run, project_dir
 ):
-    client, provider = hooked_app([
-        {"tool": "move", "parameters": {"SourcePath": "hello.py",
-                                        "TargetPath": ".github/workflows/x.yml"}},
-        {"say": "ok"}])
+    client, provider = hooked_app(
+        [
+            {
+                "tool": "move",
+                "parameters": {"SourcePath": "hello.py", "TargetPath": ".github/workflows/x.yml"},
+            },
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)  # at Full auto
     snap = wait_status(client, cid, "waiting_approval")  # a workflow: asked at every level
     assert hooked_app.record()["hooks"][0].get("out") is None  # the hook waits for the user
     (question,) = snap["questions"]
     assert "TargetPath" in question["question"]  # the card shows all it was given
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Deny"},
-                headers={"Origin": ORIGIN})
+    client.post(
+        f"/api/questions/{question['id']}/answer",
+        json={"answer": "Deny"},
+        headers={"Origin": ORIGIN},
+    )
     snap = wait_run(client, cid, run_id)
     assert hello(project_dir) == "print('hi')\n" and not (project_dir / ".github").exists()
     assert decisions(hooked_app) == ["deny"]
@@ -301,13 +378,17 @@ def test_a_tool_koloni_does_not_know_that_names_a_path_is_judged_as_a_change_of_
 def test_a_tool_koloni_does_not_know_is_a_card_in_words_even_at_full_auto(
     hooked_app, wait_run, project_dir
 ):
-    client, provider = hooked_app([
-        {"tool": "search_web", "parameters": {"query": "koloni"}}, {"say": "ok"}])
+    client, provider = hooked_app(
+        [{"tool": "search_web", "parameters": {"query": "koloni"}}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)  # at Full auto
     (question,) = wait_status(client, cid, "waiting_approval")["questions"]
     assert "search_web" in question["question"]
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Deny"},
-                headers={"Origin": ORIGIN})
+    client.post(
+        f"/api/questions/{question['id']}/answer",
+        json={"answer": "Deny"},
+        headers={"Origin": ORIGIN},
+    )
     wait_run(client, cid, run_id)
     assert decisions(hooked_app) == ["deny"]
 
@@ -333,8 +414,9 @@ def test_a_kolonis_tool_it_was_not_offered_is_refused_through_its_wrapper_too(
 ):
     from app.model_agy import NOT_OFFERED
 
-    client, provider = hooked_app([
-        {"koloni": "not_offered", "args": {"x": 1}, "wrapped": True}, {"say": "ok"}])
+    client, provider = hooked_app(
+        [{"koloni": "not_offered", "args": {"x": 1}, "wrapped": True}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)  # at Full auto
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -357,10 +439,15 @@ def test_agy_reads_its_own_definitions_of_kolonis_tools_and_nothing_else_of_kolo
     def view(path):
         return {"tool": "view_file", "parameters": {"AbsolutePath": path}}
 
-    client, provider = hooked_app([
-        view(f"{defined}/spawn_agent.json"), view("{home}/.gemini/config/mcp_config.json"),
-        view(f"{defined}/../../settings.json"), view(str(other / "spawn_agent.json")),
-        {"say": "ok"}])
+    client, provider = hooked_app(
+        [
+            view(f"{defined}/spawn_agent.json"),
+            view("{home}/.gemini/config/mcp_config.json"),
+            view(f"{defined}/../../settings.json"),
+            view(str(other / "spawn_agent.json")),
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)  # at Full auto
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -370,14 +457,17 @@ def test_agy_reads_its_own_definitions_of_kolonis_tools_and_nothing_else_of_kolo
     assert all("KOLONİ's own record" in one["reason"] for one in said[1:]), said
 
 
-@pytest.mark.parametrize(("tool", "given"), [
-    ("call_mcp_tool", {"ServerName": "other", "ToolName": "spawn_agent", "Arguments": {}}),
-    # (a path it names is no change of that file: another server's tool may do anything)
-    ("call_mcp_tool", {"ServerName": "other", "ToolName": "x", "FilePath": "hello.py"}),
-    ("list_resources", {"ServerName": "other", "FilePath": "hello.py"}),
-    # (a key more leaves it wrapped: the server it really goes to is not known)
-    ("call_mcp_tool", {"ServerName": "koloni", "ServerId": "evil", "ToolName": "spawn_agent"}),
-])
+@pytest.mark.parametrize(
+    ("tool", "given"),
+    [
+        ("call_mcp_tool", {"ServerName": "other", "ToolName": "spawn_agent", "Arguments": {}}),
+        # (a path it names is no change of that file: another server's tool may do anything)
+        ("call_mcp_tool", {"ServerName": "other", "ToolName": "x", "FilePath": "hello.py"}),
+        ("list_resources", {"ServerName": "other", "FilePath": "hello.py"}),
+        # (a key more leaves it wrapped: the server it really goes to is not known)
+        ("call_mcp_tool", {"ServerName": "koloni", "ServerId": "evil", "ToolName": "spawn_agent"}),
+    ],
+)
 def test_agys_wrapper_to_another_server_is_a_card_in_words_even_at_full_auto(
     hooked_app, wait_run, project_dir, tool, given
 ):
@@ -385,8 +475,11 @@ def test_agys_wrapper_to_another_server_is_a_card_in_words_even_at_full_auto(
     cid, run_id = start(client, project_dir, provider)  # at Full auto
     (question,) = wait_status(client, cid, "waiting_approval")["questions"]
     assert tool in question["question"]
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Deny"},
-                headers={"Origin": ORIGIN})
+    client.post(
+        f"/api/questions/{question['id']}/answer",
+        json={"answer": "Deny"},
+        headers={"Origin": ORIGIN},
+    )
     wait_run(client, cid, run_id)
     assert decisions(hooked_app) == ["deny"] and hooked_app.record()["results"] == []
 
@@ -394,35 +487,53 @@ def test_agys_wrapper_to_another_server_is_a_card_in_words_even_at_full_auto(
 def test_another_servers_wrapper_allowed_on_a_card_that_never_ends_is_on_record_as_interrupted(
     hooked_app, wait_run, project_dir
 ):
-    client, provider = hooked_app([{"tool": "call_mcp_tool", "never_ends": True, "parameters": {
-        "ServerName": "other", "ToolName": "x"}}, {"say": "ok"}])
+    client, provider = hooked_app(
+        [
+            {
+                "tool": "call_mcp_tool",
+                "never_ends": True,
+                "parameters": {"ServerName": "other", "ToolName": "x"},
+            },
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)  # at Full auto
     (question,) = wait_status(client, cid, "waiting_approval")["questions"]
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Allow"},
-                headers={"Origin": ORIGIN})
+    client.post(
+        f"/api/questions/{question['id']}/answer",
+        json={"answer": "Allow"},
+        headers={"Origin": ORIGIN},
+    )
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert decisions(hooked_app) == ["allow"]
     told = [(t["name"], t["status"]) for t in snap["tool_calls"]]
-    assert [name for name, status in told if status == "interrupted"] == [
-        "agy__call_mcp_tool"], told
+    assert [name for name, status in told if status == "interrupted"] == ["agy__call_mcp_tool"], (
+        told
+    )
 
 
 def test_a_step_its_hook_is_asked_about_again_is_judged_as_it_was_asked_last(
     hooked_app, wait_run, project_dir
 ):
     # (first told of as KOLONİ's tool through the wrapper, then as a command at the same step)
-    wrapped = ["call_mcp_tool", {"ServerName": "koloni", "ToolName": "spawn_agent",
-                                 "Arguments": {}}]
-    client, provider = hooked_app([
-        run_command("python made.py", output="made\n", touches={"made.txt": "x"},
-                    hook_first=wrapped), {"say": "Done."}])
+    wrapped = [
+        "call_mcp_tool",
+        {"ServerName": "koloni", "ToolName": "spawn_agent", "Arguments": {}},
+    ]
+    client, provider = hooked_app(
+        [
+            run_command(
+                "python made.py", output="made\n", touches={"made.txt": "x"}, hook_first=wrapped
+            ),
+            {"say": "Done."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)  # at Full auto
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert decisions(hooked_app) == ["allow", "allow"]
-    assert [(c["command"], c["status"]) for c in snap["commands"]] == [
-        ("python made.py", "exited")]
+    assert [(c["command"], c["status"]) for c in snap["commands"]] == [("python made.py", "exited")]
 
 
 @pytest.mark.parametrize("tool", ["invoke_subagent", "browser_subagent", "run_workflow"])
@@ -445,26 +556,40 @@ def test_an_agy_tool_that_runs_code_or_starts_agents_is_refused_until_measured(
 def test_native_agy_is_not_started_in_a_turn_nobody_is_watching(hooked_app, wait_run, project_dir):
     client, provider = hooked_app([run_command("pytest -q"), {"say": "done"}])
     _snap, run, _statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, first_line=True,
-        commands=["pytest -q"])
+        client,
+        project_dir,
+        provider,
+        "full_auto",
+        wait_run,
+        first_line=True,
+        commands=["pytest -q"],
+    )
     assert not hooked_app.ran()
 
 
 def test_unattended_agy_is_denied_what_its_trigger_does_not_allow_and_nobody_is_asked(
     hooked_app, wait_run, project_dir
 ):
-    client, provider = hooked_app([
-        run_command("pytest -q", output="ok\n"),
-        run_command("pytest -q && echo x", touches={"ran.txt": "x"}),
-        write_file("hello.py", "changed\n"), {"say": "done"}])
+    client, provider = hooked_app(
+        [
+            run_command("pytest -q", output="ok\n"),
+            run_command("pytest -q && echo x", touches={"ran.txt": "x"}),
+            write_file("hello.py", "changed\n"),
+            {"say": "done"},
+        ]
+    )
     # (The first line - no CLI with tools of its own starts unwatched - is switched off.)
     snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"])
+        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
+    )
     assert run["status"] == "completed", run
     assert decisions(hooked_app) == ["allow", "deny", "deny"]
     assert hello(project_dir) == "print('hi')\n" and not (project_dir / "ran.txt").exists()
     assert [(t["name"], t["status"]) for t in snap["tool_calls"]] == [
-        ("run_command", "succeeded"), ("run_command", "denied"), ("edit_file", "denied")]
+        ("run_command", "succeeded"),
+        ("run_command", "denied"),
+        ("edit_file", "denied"),
+    ]
     assert all(NOBODY in t["result"] for t in snap["tool_calls"][1:])
     nothing_was_asked(snap, statuses)
 
@@ -472,10 +597,12 @@ def test_unattended_agy_is_denied_what_its_trigger_does_not_allow_and_nobody_is_
 def test_unattended_a_tool_koloni_does_not_know_is_refused_and_nobody_is_asked(
     hooked_app, wait_run, project_dir
 ):
-    client, provider = hooked_app([
-        {"tool": "search_web", "parameters": {"query": "koloni"}}, {"say": "done"}])
+    client, provider = hooked_app(
+        [{"tool": "search_web", "parameters": {"query": "koloni"}}, {"say": "done"}]
+    )
     snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"])
+        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
+    )
     assert run["status"] == "completed", run
     assert decisions(hooked_app) == ["deny"]
     nothing_was_asked(snap, statuses)
@@ -490,7 +617,8 @@ def test_an_agy_that_loaded_other_than_kolonis_one_hook_is_stopped_before_it_is_
 ):
     client, provider = hooked_app(
         [run_command("python made.py", touches={"made.txt": "x"}), {"say": "done"}],
-        hooks_loaded=loaded)
+        hooks_loaded=loaded,
+    )
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
     assert run["status"] == "failed" and "hook" in run["error"], run
@@ -499,8 +627,7 @@ def test_an_agy_that_loaded_other_than_kolonis_one_hook_is_stopped_before_it_is_
 
 
 def test_a_write_to_agys_project_hooks_is_a_card_at_full_auto(hooked_app, wait_run, project_dir):
-    client, provider = hooked_app([
-        write_file(".agents/hooks.json", "{}"), {"say": "ok"}])
+    client, provider = hooked_app([write_file(".agents/hooks.json", "{}"), {"say": "ok"}])
     cid, run_id = start(client, project_dir, provider)
     snap = wait_status(client, cid, "waiting_approval")
     (card,) = [c for c in snap["file_changes"] if c["status"] == "proposed"]
@@ -513,9 +640,9 @@ def test_a_write_to_agys_project_hooks_is_a_card_at_full_auto(hooked_app, wait_r
 def test_a_tool_that_ran_without_its_hook_is_marked_and_ends_the_run(
     hooked_app, wait_run, project_dir
 ):
-    client, provider = hooked_app([
-        run_command("python made.py", touches={"made.txt": "x"}, unhooked=True),
-        {"say": "done"}])
+    client, provider = hooked_app(
+        [run_command("python made.py", touches={"made.txt": "x"}, unhooked=True), {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     run = snap["runs"][0]
@@ -525,9 +652,9 @@ def test_a_tool_that_ran_without_its_hook_is_marked_and_ends_the_run(
 
 
 def test_a_hook_that_cannot_reach_koloni_blocks_the_tool(hooked_app, wait_run, project_dir):
-    client, provider = hooked_app([
-        run_command("python made.py", touches={"made.txt": "x"}, remove=DOOR),
-        {"say": "done"}])
+    client, provider = hooked_app(
+        [run_command("python made.py", touches={"made.txt": "x"}, remove=DOOR), {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "failed"  # (agy itself ends its turn: measured)
@@ -582,8 +709,9 @@ def test_a_path_with_a_space_goes_through_a_cmd_wrapper(
     spaced.parent.mkdir()
     shutil.copy(app.agy_hook.__file__, spaced)
     monkeypatch.setattr(app.agy_hook, "__file__", str(spaced))
-    client, provider = hooked_app([
-        run_command("python made.py", touches={"made.txt": "x"}), {"say": "ok"}])
+    client, provider = hooked_app(
+        [run_command("python made.py", touches={"made.txt": "x"}), {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -602,8 +730,9 @@ def test_a_home_whose_path_has_a_space_or_a_letter_beyond_ascii_works(
     hooked_app, wait_run, project_dir, tmp_path, folder
 ):
     homes = tmp_path / folder / "agy-home"
-    client, provider = hooked_app([
-        run_command("python made.py", touches={"made.txt": "x"}), {"say": "ok"}], homes=homes)
+    client, provider = hooked_app(
+        [run_command("python made.py", touches={"made.txt": "x"}), {"say": "ok"}], homes=homes
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -624,17 +753,24 @@ def test_a_hook_script_whose_path_has_a_letter_beyond_ascii_is_started_by_its_sh
     import ctypes
 
     short = ctypes.create_unicode_buffer(1024)
-    if ctypes.windll.kernel32.GetShortPathNameW(str(placed.parent), short, 1024) and not short.value.isascii():
-        pytest.skip("this volume makes no 8.3 names (a CI runner's D:): KOLONİ rightly refuses there")
+    if (
+        ctypes.windll.kernel32.GetShortPathNameW(str(placed.parent), short, 1024)
+        and not short.value.isascii()
+    ):
+        pytest.skip(
+            "this volume makes no 8.3 names (a CI runner's D:): KOLONİ rightly refuses there"
+        )
     shutil.copy(app.agy_hook.__file__, placed)
     monkeypatch.setattr(app.agy_hook, "__file__", str(placed))
-    client, provider = hooked_app([
-        run_command("python made.py", touches={"made.txt": "x"}), {"say": "ok"}])
+    client, provider = hooked_app(
+        [run_command("python made.py", touches={"made.txt": "x"}), {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    (wrapper,) = [text for name, text in hooked_app.record()["config"].items()
-                  if name.endswith(".cmd")]
+    (wrapper,) = [
+        text for name, text in hooked_app.record()["config"].items() if name.endswith(".cmd")
+    ]
     assert wrapper.isascii() and "Masaüstü" not in wrapper  # its 8.3 name: MASAST~1
     assert (project_dir / "made.txt").exists()
 
@@ -664,43 +800,60 @@ def test_a_home_left_behind_by_an_earlier_process_is_removed_at_start(settings_e
 
 def test_how_each_of_agys_tools_is_asked_about():
     assert asked_as("run_command", {"CommandLine": "pytest -q", "Cwd": "sub"}) == [
-        ("Bash", {"command": "pytest -q", "cwd": "sub"})]
+        ("Bash", {"command": "pytest -q", "cwd": "sub"})
+    ]
     # one that asks to run outside its sandbox has that for a reason: a card at every level
     for bypass in (True, "true"):
         assert asked_as("run_command", {"CommandLine": "pytest -q", "BypassSandbox": bypass}) == [
-            ("Bash", {"command": "pytest -q", "reason": "it asks to run outside its sandbox"})]
+            ("Bash", {"command": "pytest -q", "reason": "it asks to run outside its sandbox"})
+        ]
     assert asked_as("run_command", {"CommandLine": "pytest -q", "BypassSandbox": False}) == [
-        ("Bash", {"command": "pytest -q"})]
+        ("Bash", {"command": "pytest -q"})
+    ]
     # input to a command at work is judged as a command; its output is only read
     assert asked_as("send_command_input", {"CommandId": "c1", "Input": "rm -rf build\n"}) == [
-        ("Bash", {"command": "rm -rf build\n"})]
+        ("Bash", {"command": "rm -rf build\n"})
+    ]
     assert asked_as("command_status", {"CommandId": "c1"}) == []
     # the files a search is held to go with it
     assert asked_as("grep_search", {"SearchPath": "src", "Query": "x", "Includes": ["*.py"]}) == [
-        ("Grep", {"path": "src", "glob": ["*.py"]})]
+        ("Grep", {"path": "src", "glob": ["*.py"]})
+    ]
     # argument names in any case and joined any way - but "Profile" is no file
     for named in ("absolutePath", "absolute_path", "ABSOLUTE_PATH"):
         assert asked_as("view_file", {named: "a.py", "Profile": "p"}) == [
-            ("Read", {"file_path": "a.py"})], named
+            ("Read", {"file_path": "a.py"})
+        ], named
     # a whole-file write that names two files: each is asked about
     assert asked_as("write_file", {"Path": "a.txt", "TargetFile": "b.txt", "Content": "x"}) == [
         ("Write", {"file_path": "a.txt", "content": "x"}),
-        ("Write", {"file_path": "b.txt", "content": "x"})]
+        ("Write", {"file_path": "b.txt", "content": "x"}),
+    ]
     # a change of each file a tool KOLONİ does not know names, with all it was given
     moved = {"SourcePath": "a.py", "TargetPath": "b.py"}
-    assert asked_as("move", moved) == [("Edit", {**moved, "file_path": "a.py"}),
-                                       ("Edit", {**moved, "file_path": "b.py"})]
+    assert asked_as("move", moved) == [
+        ("Edit", {**moved, "file_path": "a.py"}),
+        ("Edit", {**moved, "file_path": "b.py"}),
+    ]
 
 
 def test_what_koloni_cannot_judge_of_agys_tools_is_refused_or_asked_in_words():
-    for refused in (asked_as("run_command", {}), asked_as("send_command_input", {}),
-                    asked_as("view_file", {}), asked_as("write_file", {"Content": "x"}),
-                    asked_as("invoke_subagent", {"Task": "x"})):
+    for refused in (
+        asked_as("run_command", {}),
+        asked_as("send_command_input", {}),
+        asked_as("view_file", {}),
+        asked_as("write_file", {"Content": "x"}),
+        asked_as("invoke_subagent", {"Task": "x"}),
+    ):
         assert isinstance(refused, str), refused
     # (review: a decoy before its Cwd - `FakeCwd` was the one judged)
     for decoy in ("FakeCwd", "fake_cwd", "CWD"):
-        assert isinstance(asked_as("run_command", {
-            decoy: ".", "CommandLine": "echo x > rules.md", "Cwd": ".koloni"}), str), decoy
+        assert isinstance(
+            asked_as(
+                "run_command", {decoy: ".", "CommandLine": "echo x > rules.md", "Cwd": ".koloni"}
+            ),
+            str,
+        ), decoy
     assert asked_as("invoke_subagent", {}) == UNKNOWN_YET
     # a look whose path is not found, and a tool with no path at all: asked in words
     for tool, args in (("list_dir", {"Where": "x"}), ("search_web", {"query": "x"})):
@@ -712,11 +865,13 @@ def test_a_listing_is_harmless_only_of_kolonis_server_and_another_servers_tool_i
     # B-318: a listing of KOLONİ's server changes nothing; of another, of none named, or with
     # more than a server, it is asked - as is a wrapped call left wrapped, whatever path it names
     assert asked_as("list_resources", {"ServerName": "koloni"}) == []
-    for tool, args in (("list_resources", {"ServerName": "other"}), ("list_resources", {}),
-                       ("list_tools", {"ServerName": "koloni", "Cursor": "x"}),
-                       ("list_resources", {"ServerName": "other", "FilePath": "hello.py"}),
-                       ("call_mcp_tool", {"ServerName": "other", "ToolName": "x",
-                                          "FilePath": "hello.py"})):
+    for tool, args in (
+        ("list_resources", {"ServerName": "other"}),
+        ("list_resources", {}),
+        ("list_tools", {"ServerName": "koloni", "Cursor": "x"}),
+        ("list_resources", {"ServerName": "other", "FilePath": "hello.py"}),
+        ("call_mcp_tool", {"ServerName": "other", "ToolName": "x", "FilePath": "hello.py"}),
+    ):
         ((name, given),) = asked_as(tool, args)
         assert name == tool and given["reason"], (tool, args)
 
@@ -724,18 +879,25 @@ def test_a_listing_is_harmless_only_of_kolonis_server_and_another_servers_tool_i
 def test_agys_wrapper_is_kolonis_tool_only_when_it_names_kolonis_server_and_one_tool():
     from app.model_agy import unwrapped
 
-    assert unwrapped("call_mcp_tool", {"ServerName": "koloni", "ToolName": "read_backlog",
-                                       "Arguments": {}}) == "mcp__koloni__read_backlog"
-    assert unwrapped("call_mcp_tool", {"server_name": "koloni", "tool_name": "x"}) == \
-        "mcp__koloni__x"
-    for args in ({"ServerName": "other", "ToolName": "read_backlog"}, {"ServerName": "koloni"},
-                 {"ServerName": "koloni", "ToolName": "a", "Name": "b"},
-                 {"ServerName": "koloni", "ToolName": ["read_backlog"]},
-                 {"ServerName": "koloni", "Server": "koloni", "ToolName": "read_backlog"},
-                 # (a key more - another way of naming the server, say - leaves it wrapped)
-                 {"ServerName": "koloni", "ServerId": "evil", "ToolName": "read_backlog"},
-                 {"ServerName": "koloni", "ToolName": "read_backlog", "Arguments": {},
-                  "Args": {}}):
+    assert (
+        unwrapped(
+            "call_mcp_tool", {"ServerName": "koloni", "ToolName": "read_backlog", "Arguments": {}}
+        )
+        == "mcp__koloni__read_backlog"
+    )
+    assert (
+        unwrapped("call_mcp_tool", {"server_name": "koloni", "tool_name": "x"}) == "mcp__koloni__x"
+    )
+    for args in (
+        {"ServerName": "other", "ToolName": "read_backlog"},
+        {"ServerName": "koloni"},
+        {"ServerName": "koloni", "ToolName": "a", "Name": "b"},
+        {"ServerName": "koloni", "ToolName": ["read_backlog"]},
+        {"ServerName": "koloni", "Server": "koloni", "ToolName": "read_backlog"},
+        # (a key more - another way of naming the server, say - leaves it wrapped)
+        {"ServerName": "koloni", "ServerId": "evil", "ToolName": "read_backlog"},
+        {"ServerName": "koloni", "ToolName": "read_backlog", "Arguments": {}, "Args": {}},
+    ):
         assert unwrapped("call_mcp_tool", args) == "call_mcp_tool", args
     assert unwrapped("view_file", {"ServerName": "koloni", "ToolName": "x"}) == "view_file"
 
@@ -776,9 +938,17 @@ def test_natively_a_wrapper_is_kolonis_only_as_its_hook_judged_it():
     # its start told before its hook ran is settled with no record of its own
     (started,) = translate(wrapper_step("ACTIVE", {}, 5))
     bridged.served, hooked.kolonis["agy_5"] = 2, "mcp__koloni__read_backlog"
-    assert translate(wrapper_step("DONE", {}, 5)) == [{"type": "item.completed", "item": {
-        "type": "mcp_tool_call", "id": started["item"]["id"], "server": "agy",
-        "settled": True}}]
+    assert translate(wrapper_step("DONE", {}, 5)) == [
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "mcp_tool_call",
+                "id": started["item"]["id"],
+                "server": "agy",
+                "settled": True,
+            },
+        }
+    ]
     # another tool at a step its hook once judged a wrapper is itself, never dropped
     hooked.kolonis["agy_6"] = "mcp__koloni__read_backlog"
     bridged.served += 1
@@ -791,12 +961,26 @@ def test_natively_a_wrapper_is_kolonis_only_as_its_hook_judged_it():
 
 
 def tool_step(state, name, given, index):
-    return {"event": "step_update", "step_update": {
-        "step_index": index, "state": state, "step_type": "tool", "tool_name": name,
-        "tool_info": {"name": name, "parameters": given, "output": "x"}}}
+    return {
+        "event": "step_update",
+        "step_update": {
+            "step_index": index,
+            "state": state,
+            "step_type": "tool",
+            "tool_name": name,
+            "tool_info": {"name": name, "parameters": given, "output": "x"},
+        },
+    }
 
 
 def wrapper_step(state, given, index=3):
-    return {"event": "step_update", "step_update": {
-        "step_index": index, "state": state, "step_type": "tool", "tool_name": "call_mcp_tool",
-        "tool_info": {"name": "call_mcp_tool", "parameters": given, "output": "x"}}}
+    return {
+        "event": "step_update",
+        "step_update": {
+            "step_index": index,
+            "state": state,
+            "step_type": "tool",
+            "tool_name": "call_mcp_tool",
+            "tool_info": {"name": "call_mcp_tool", "parameters": given, "output": "x"},
+        },
+    }

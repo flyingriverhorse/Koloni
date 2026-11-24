@@ -4,6 +4,7 @@ may spend in a day and in a month (slice 81c)
 Revision ID: 0066
 Revises: 0065
 """
+
 import sqlalchemy as sa
 from alembic import op
 

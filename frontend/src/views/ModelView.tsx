@@ -15,7 +15,8 @@ const LOST = 'The browser took the 3D view back (its graphics were lost): open t
 const HOME = new THREE.Vector3(1, 0.8, 1).normalize()
 
 const round = (n: number) => String(Math.round(n * 1000) / 1000)
-const kilobytes = (bytes: number) => (bytes < 1024 * 1024 ? `${round(bytes / 1024)} KB` : `${round(bytes / 1024 / 1024)} MB`)
+const kilobytes = (bytes: number) =>
+  bytes < 1024 * 1024 ? `${round(bytes / 1024)} KB` : `${round(bytes / 1024 / 1024)} MB`
 
 interface World {
   renderer: THREE.WebGLRenderer
@@ -40,7 +41,7 @@ export default function ModelView({ src, name }: { src: string; name: string }) 
   const [ready, setReady] = useState(false)
   // Why nothing can be drawn here at all.
   const [cannot, setCannot] = useState<string | null>(null)
-  const [shown, setShown] = useState<Omit<Loaded, 'object'> & { size: THREE.Vector3 } | string | null>(null)
+  const [shown, setShown] = useState<(Omit<Loaded, 'object'> & { size: THREE.Vector3 }) | string | null>(null)
   const [wire, setWire] = useState(false)
 
   useEffect(() => {
@@ -65,7 +66,18 @@ export default function ModelView({ src, name }: { src: string; name: string }) 
     const controls = new OrbitControls(camera, renderer.domElement)
     const draw = () => renderer.render(scene, camera)
     controls.addEventListener('change', draw)
-    const w: World = { renderer, scene, camera, controls, model: null, grid: null, sized: false, framed: false, touched: false, draw }
+    const w: World = {
+      renderer,
+      scene,
+      camera,
+      controls,
+      model: null,
+      grid: null,
+      sized: false,
+      framed: false,
+      touched: false,
+      draw,
+    }
     world.current = w
     controls.addEventListener('start', () => {
       w.touched = true // (the mouse: a drag or the wheel)
@@ -192,10 +204,23 @@ export default function ModelView({ src, name }: { src: string; name: string }) 
       onKeyDown={onKeyDown}
     >
       <div className="model-tools" role="group" aria-label="View">
-        <button type="button" className="view-run" disabled={!drawn} onClick={() => world.current && frame(world.current, world.current.camera.position.clone().sub(world.current.controls.target))}>
+        <button
+          type="button"
+          className="view-run"
+          disabled={!drawn}
+          onClick={() =>
+            world.current &&
+            frame(world.current, world.current.camera.position.clone().sub(world.current.controls.target))
+          }
+        >
           Fit
         </button>
-        <button type="button" className="view-run" disabled={!drawn} onClick={() => world.current && frame(world.current, HOME)}>
+        <button
+          type="button"
+          className="view-run"
+          disabled={!drawn}
+          onClick={() => world.current && frame(world.current, HOME)}
+        >
           Reset view
         </button>
         <button type="button" className="view-run" disabled={!drawn} aria-pressed={wire} onClick={() => setWire(!wire)}>

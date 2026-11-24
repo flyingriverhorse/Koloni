@@ -13,11 +13,15 @@ def test_an_earlier_file_reads_back_with_no_one_shown_it_and_the_column_goes_bac
     cfg = _config(db)
     command.upgrade(cfg, "0084")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO conversations (id, title, created_at, updated_at) "
-                     "VALUES ('c', 'chat', '2026-10-25', '2026-10-25')")
-        conn.execute("INSERT INTO attachments (id, conversation_id, name, kind, mime, size, "
-                     "summary, created_at) VALUES ('a', 'c', 'shot.png', 'image', 'image/png', "
-                     "32, 'PNG image', '2026-10-25')")
+        conn.execute(
+            "INSERT INTO conversations (id, title, created_at, updated_at) "
+            "VALUES ('c', 'chat', '2026-10-25', '2026-10-25')"
+        )
+        conn.execute(
+            "INSERT INTO attachments (id, conversation_id, name, kind, mime, size, "
+            "summary, created_at) VALUES ('a', 'c', 'shot.png', 'image', 'image/png', "
+            "32, 'PNG image', '2026-10-25')"
+        )
 
     command.upgrade(cfg, "head")
 

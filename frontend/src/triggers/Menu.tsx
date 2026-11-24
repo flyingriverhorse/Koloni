@@ -18,9 +18,13 @@ interface Props {
 export function Menu({ name, className, face, title, wide, children }: Props) {
   const { open, setOpen, close, button, panel } = usePanel()
   const move = (event: KeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'))
+    const items = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'),
+    )
     const at = items.indexOf(document.activeElement as HTMLButtonElement)
-    const to = ({ ArrowDown: at + 1, ArrowUp: at < 0 ? -1 : at - 1, Home: 0, End: -1 } as Record<string, number>)[event.key]
+    const to = ({ ArrowDown: at + 1, ArrowUp: at < 0 ? -1 : at - 1, Home: 0, End: -1 } as Record<string, number>)[
+      event.key
+    ]
     if (to === undefined || items.length === 0) return
     event.preventDefault()
     items[(to + items.length) % items.length].focus()
@@ -44,7 +48,15 @@ export function Menu({ name, className, face, title, wide, children }: Props) {
         {face}
       </button>
       {open && (
-        <div ref={panel} tabIndex={-1} className={`allow-list-panel msg-menu${wide ? ' menu-wide' : ''}`} role="menu" aria-label={name} onKeyDown={move} onClick={picked}>
+        <div
+          ref={panel}
+          tabIndex={-1}
+          className={`allow-list-panel msg-menu${wide ? ' menu-wide' : ''}`}
+          role="menu"
+          aria-label={name}
+          onKeyDown={move}
+          onClick={picked}
+        >
           {children}
         </div>
       )}

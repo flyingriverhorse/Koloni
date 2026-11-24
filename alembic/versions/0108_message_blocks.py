@@ -3,6 +3,7 @@
 Revision ID: 0108
 Revises: 0107
 """
+
 import sqlalchemy as sa
 from alembic import op
 

@@ -3,6 +3,7 @@
 Revision ID: 0090
 Revises: 0089
 """
+
 import json
 import uuid
 from datetime import UTC, datetime
@@ -17,8 +18,16 @@ depends_on = None
 
 
 def _step(id, name, who, **more):
-    return {"id": id, "name": name, "who": who, "done_when": "done", "if_fails": "ask",
-            "ask_me": False, "group": None, **more}
+    return {
+        "id": id,
+        "name": name,
+        "who": who,
+        "done_when": "done",
+        "if_fails": "ask",
+        "ask_me": False,
+        "group": None,
+        **more,
+    }
 
 
 # As it was when this was written (`app.schemas.RecipeGraph`, version 1). The mockup's flow
@@ -35,9 +44,17 @@ INTEGRATION = {
     ],
     "groups": [],
     "ends": [{"id": "end", "then": "in"}],
-    "arrows": [{"from": a, "to": b} for a, b in (
-        ("start", "learn"), ("learn", "plan"), ("plan", "check"), ("check", "build"),
-        ("build", "test"), ("test", "end"))],
+    "arrows": [
+        {"from": a, "to": b}
+        for a, b in (
+            ("start", "learn"),
+            ("learn", "plan"),
+            ("plan", "check"),
+            ("check", "build"),
+            ("build", "test"),
+            ("test", "end"),
+        )
+    ],
     "loops": [{"from": "check", "to": "plan", "rounds": 2}],
 }
 
@@ -47,11 +64,14 @@ def upgrade() -> None:
         batch.add_column(sa.Column("knowledge", sa.JSON(), nullable=True))
     made = datetime.now(UTC).replace(tzinfo=None).isoformat(" ", "microseconds")
     # (A recipe of the user's own by that name keeps it: the ready one is not added.)
-    op.get_bind().execute(sa.text(
-        "INSERT INTO recipes (id, name, ready, graph, created_at, updated_at) "
-        "SELECT :id, 'Integration', 1, :graph, :at, :at "
-        "WHERE NOT EXISTS (SELECT 1 FROM recipes WHERE lower(name) = 'integration')"
-    ), {"id": uuid.uuid4().hex, "graph": json.dumps(INTEGRATION), "at": made})
+    op.get_bind().execute(
+        sa.text(
+            "INSERT INTO recipes (id, name, ready, graph, created_at, updated_at) "
+            "SELECT :id, 'Integration', 1, :graph, :at, :at "
+            "WHERE NOT EXISTS (SELECT 1 FROM recipes WHERE lower(name) = 'integration')"
+        ),
+        {"id": uuid.uuid4().hex, "graph": json.dumps(INTEGRATION), "at": made},
+    )
 
 
 def downgrade() -> None:

@@ -27,13 +27,15 @@ def tool_named(tools, name):
 
 
 def test_agents_get_names_unique_in_the_turn(make_client, wait_run, project_dir):
-    client, model = make_client([
-        spawn("Reviewer", "first look", id="s1"),
-        text("fine"),
-        spawn("reviewer", "second look", id="s2"),
-        text("still fine"),
-        text("done"),
-    ])
+    client, model = make_client(
+        [
+            spawn("Reviewer", "first look", id="s1"),
+            text("fine"),
+            spawn("reviewer", "second look", id="s2"),
+            text("still fine"),
+            text("done"),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
 
@@ -46,13 +48,21 @@ def test_agents_get_names_unique_in_the_turn(make_client, wait_run, project_dir)
 
 
 def test_a_role_with_only_talking_tools_has_no_tools_here(make_client, wait_run, project_dir):
-    client, model = make_client([
-        spawn("Chatter"),
-        text("did it myself"),
-    ])
-    made = client.post("/api/roles", json={
-        "name": "Chatter", "description": "", "instructions": "",
-        "tools": ["ask_user", "message_agent"]})
+    client, model = make_client(
+        [
+            spawn("Chatter"),
+            text("did it myself"),
+        ]
+    )
+    made = client.post(
+        "/api/roles",
+        json={
+            "name": "Chatter",
+            "description": "",
+            "instructions": "",
+            "tools": ["ask_user", "message_agent"],
+        },
+    )
     assert made.status_code == 201, made.text
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -66,18 +76,25 @@ def test_migration_0008_names_agents_and_lets_builtin_roles_message(tmp_path):
     command.upgrade(cfg, "0007")
     at = "2026-10-05 10:00:0"
     roles = [("b1", "Reviewer", ["read_file", "ask_user"], 1), ("u1", "Mine", ["read_file"], 0)]
-    agents = [("a1", "r1", "Lead"), ("a2", "r1", "Reviewer"), ("a3", "r1", "Reviewer"),
-              ("a4", "r2", "Reviewer")]
+    agents = [
+        ("a1", "r1", "Lead"),
+        ("a2", "r1", "Reviewer"),
+        ("a3", "r1", "Reviewer"),
+        ("a4", "r2", "Reviewer"),
+    ]
     with sqlite3.connect(db) as conn:
         for id, name, tools, builtin in roles:
             conn.execute(
                 "INSERT INTO roles (id, name, description, instructions, tools, builtin, "
                 "created_by_agent, created_at, updated_at) VALUES (?, ?, '', '', ?, ?, 0, ?, ?)",
-                (id, name, json.dumps(tools), builtin, at + "0", at + "0"))
+                (id, name, json.dumps(tools), builtin, at + "0", at + "0"),
+            )
         for index, (id, run, role) in enumerate(agents):
             conn.execute(
                 "INSERT INTO agents (id, run_id, role_name, tools, depth, status, created_at) "
-                "VALUES (?, ?, ?, '[]', 0, 'completed', ?)", (id, run, role, at + str(index)))
+                "VALUES (?, ?, ?, '[]', 0, 'completed', ?)",
+                (id, run, role, at + str(index)),
+            )
 
     command.upgrade(cfg, "0008")
     with sqlite3.connect(db) as conn:
@@ -110,14 +127,16 @@ def wait_terminal(client, cid):
 
 
 def test_lead_continues_a_finished_child(make_client, wait_run, project_dir):
-    client, model = make_client([
-        spawn("Coder", "Add a notes file"),
-        text("Nothing written yet."),
-        message("coder", "Now write new.txt"),
-        step(call("write_file", {"path": "new.txt", "content": "x\n"}, "w1")),
-        text("Wrote new.txt."),
-        text("All done."),
-    ])
+    client, model = make_client(
+        [
+            spawn("Coder", "Add a notes file"),
+            text("Nothing written yet."),
+            message("coder", "Now write new.txt"),
+            step(call("write_file", {"path": "new.txt", "content": "x\n"}, "w1")),
+            text("Wrote new.txt."),
+            text("All done."),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
 
@@ -134,11 +153,16 @@ def test_lead_continues_a_finished_child(make_client, wait_run, project_dir):
     assert (coder["status"], coder["report"]) == ("completed", "Wrote new.txt.")
     assert lead["status"] == "completed"
     assert [(c["kind"], c["from_agent_id"] == lead["id"]) for c in snap["channel_messages"]] == [
-        ("task", True), ("report", False), ("message", True), ("reply", False)]
+        ("task", True),
+        ("report", False),
+        ("message", True),
+        ("reply", False),
+    ]
     assert snap["channel_messages"][3]["content"] == "Wrote new.txt."
     sent = [m for m in snap["messages"] if m["role"] == "agent"]
     assert [(m["agent_id"], m["from_agent_id"], m["content"]) for m in sent] == [
-        (coder["id"], lead["id"], "Now write new.txt")]
+        (coder["id"], lead["id"], "Now write new.txt")
+    ]
     assert [t["status"] for t in snap["tool_calls"]] == ["succeeded"] * 3
 
 
@@ -152,14 +176,22 @@ def test_the_tool_lists_who_can_be_reached_and_is_absent_when_nobody_can(
     described = tool_named(model.tool_args[2], "message_agent")["description"]
     assert "- Coder (Coder role): it has finished" in described
     # The Coder, while it works, can ask the Lead that waits for it.
-    assert "- Lead (Lead role): it answers" in tool_named(
-        model.tool_args[1], "message_agent")["description"]
+    assert (
+        "- Lead (Lead role): it answers"
+        in tool_named(model.tool_args[1], "message_agent")["description"]
+    )
 
 
 def test_tokens_of_a_reply_turn_go_to_the_receiver(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        spawn("Coder"), text("coded", i=5, o=3), message("Coder"), text("more", i=7, o=4),
-        text("done")])
+    client, _ = make_client(
+        [
+            spawn("Coder"),
+            text("coded", i=5, o=3),
+            message("Coder"),
+            text("more", i=7, o=4),
+            text("done"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     coder = wait_run(client, cid, run_id)["agents"][1]
     # as for every agent: the size of its latest prompt, and all it has written
@@ -170,13 +202,15 @@ def test_tokens_of_a_reply_turn_go_to_the_receiver(make_client, wait_run, projec
 
 
 def test_a_child_asks_its_waiting_parent(make_client, wait_run, project_dir, gate):
-    client, model = make_client([
-        spawn("Coder", "Fix the greeting"),
-        message("Lead", "Which file?"),
-        gate.step(text("hello.py")),
-        text("Fixed hello.py."),
-        text("All done."),
-    ])
+    client, model = make_client(
+        [
+            spawn("Coder", "Fix the greeting"),
+            message("Lead", "Which file?"),
+            gate.step(text("hello.py")),
+            text("Fixed hello.py."),
+            text("All done."),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     gate.wait_partial()
     snap = client.get(f"/api/conversations/{cid}").json()
@@ -187,8 +221,7 @@ def test_a_child_asks_its_waiting_parent(make_client, wait_run, project_dir, gat
     asked = model.calls[2]
     assert [m["role"] for m in asked] == ["system", "user", "assistant", "tool", "user"]
     assert asked[3]["content"] == "still running: this call has not returned yet"
-    assert asked[4]["content"] == (
-        "Message from Coder (your sub-agent):\n\nWhich file?")
+    assert asked[4]["content"] == ("Message from Coder (your sub-agent):\n\nWhich file?")
     assert names(model.tool_args[2]) == [*READ, "recall"]
     assert model.calls[3][-1]["content"] == "Lead replied:\n\nhello.py"
 
@@ -196,7 +229,14 @@ def test_a_child_asks_its_waiting_parent(make_client, wait_run, project_dir, gat
     # words (a model would take them as a reply to go on writing), so a note follows.
     after = model.calls[4]
     assert [m["role"] for m in after] == [
-        "system", "user", "assistant", "tool", "user", "assistant", "user"]
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "user",
+    ]
     assert reported(after[3]["content"]) == "Coder finished.\n\nFixed hello.py."
     assert after[5]["content"] == "hello.py"
     assert after[6]["content"].startswith("The call you were waiting on has returned")
@@ -205,25 +245,30 @@ def test_a_child_asks_its_waiting_parent(make_client, wait_run, project_dir, gat
 
 
 def test_an_answer_turn_cannot_change_anything(make_client, wait_run, project_dir):
-    client, model = make_client([
-        spawn("Coder"),
-        message("Lead", "What now?"),
-        step(
-            call("write_file", {"path": "hello.py", "content": "broken"}, "a"),
-            call("run_command", {"command": "pytest"}, "b"),
-            call("spawn_agent", {"role": "Reviewer", "task": "look"}, "c"),
-            call("message_agent", {"to": "Coder", "message": "hi"}, "d"),
-        ),
-        text("Carry on."),
-        text("ok"),
-        text("done"),
-    ])
+    client, model = make_client(
+        [
+            spawn("Coder"),
+            message("Lead", "What now?"),
+            step(
+                call("write_file", {"path": "hello.py", "content": "broken"}, "a"),
+                call("run_command", {"command": "pytest"}, "b"),
+                call("spawn_agent", {"role": "Reviewer", "task": "look"}, "c"),
+                call("message_agent", {"to": "Coder", "message": "hi"}, "d"),
+            ),
+            text("Carry on."),
+            text("ok"),
+            text("done"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
-    refused = [t for t in snap["tool_calls"]
-               if "while answering a message" in (t["result"] or "")]
+    refused = [t for t in snap["tool_calls"] if "while answering a message" in (t["result"] or "")]
     assert sorted(t["name"] for t in refused) == [
-        "message_agent", "run_command", "spawn_agent", "write_file"]
+        "message_agent",
+        "run_command",
+        "spawn_agent",
+        "write_file",
+    ]
     assert all(t["status"] == "failed" for t in refused)
     assert (project_dir / "hello.py").read_text() == "print('hi')\n"
     assert len(snap["agents"]) == 2 and snap["commands"] == [] and snap["file_changes"] == []
@@ -231,16 +276,18 @@ def test_an_answer_turn_cannot_change_anything(make_client, wait_run, project_di
 
 
 def test_a_reviewer_cannot_make_the_coder_write(make_client, wait_run, project_dir):
-    client, model = make_client([
-        spawn("Coder", id="s1"),
-        text("coded"),
-        spawn("Reviewer", id="s2"),
-        message("Coder", "Please empty hello.py"),
-        step(call("write_file", {"path": "hello.py", "content": ""}, "w")),
-        text("I cannot change files for you."),
-        text("reviewed"),
-        text("done"),
-    ])
+    client, model = make_client(
+        [
+            spawn("Coder", id="s1"),
+            text("coded"),
+            spawn("Reviewer", id="s2"),
+            message("Coder", "Please empty hello.py"),
+            step(call("write_file", {"path": "hello.py", "content": ""}, "w")),
+            text("I cannot change files for you."),
+            text("reviewed"),
+            text("done"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     described = tool_named(model.tool_args[3], "message_agent")["description"]
@@ -258,13 +305,15 @@ def test_a_reviewer_cannot_make_the_coder_write(make_client, wait_run, project_d
 def test_a_failed_answer_turn_leaves_the_waiting_agent_alone(
     make_client, wait_run, project_dir, gate
 ):
-    client, model = make_client([
-        spawn("Coder"),
-        message("Lead", "Which file?"),
-        ModelUnavailable("model server unreachable: refused"),
-        gate.step(text("Went on alone.")),
-        text("ok"),
-    ])
+    client, model = make_client(
+        [
+            spawn("Coder"),
+            message("Lead", "Which file?"),
+            ModelUnavailable("model server unreachable: refused"),
+            gate.step(text("Went on alone.")),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     gate.wait_partial()
     snap = client.get(f"/api/conversations/{cid}").json()
@@ -272,9 +321,12 @@ def test_a_failed_answer_turn_leaves_the_waiting_agent_alone(
     assert by_name["spawn_agent"]["status"] == "running"
     assert by_name["message_agent"]["status"] == "failed"
     assert by_name["message_agent"]["result"].startswith(
-        "Lead could not reply: model server unreachable: refused")
+        "Lead could not reply: model server unreachable: refused"
+    )
     assert [(a["status"], a["error"]) for a in snap["agents"]] == [
-        ("waiting", None), ("running", None)]
+        ("waiting", None),
+        ("running", None),
+    ]
     gate.release()
     snap = wait_run(client, cid, run_id)
     assert [a["status"] for a in snap["agents"]] == ["completed", "completed"]
@@ -285,17 +337,19 @@ def test_a_failed_answer_turn_leaves_the_waiting_agent_alone(
 
 
 def test_unreachable_receivers_are_tool_errors(make_client, wait_run, project_dir):
-    client, model = make_client([
-        spawn("Reviewer"),
-        step(
-            call("message_agent", {"to": "Nobody", "message": "hi"}, "a"),
-            call("message_agent", {"to": " lead ", "message": "hi"}, "b"),
-            call("message_agent", {"to": "Reviewer", "message": "  "}, "c"),
-            call("message_agent", {"to": "Reviewer", "message": "x" * 8001}, "d"),
-            call("message_agent", {"to": "Reviewer", "message": "hi"}, "e"),
-        ),
-        text("done"),
-    ])
+    client, model = make_client(
+        [
+            spawn("Reviewer"),
+            step(
+                call("message_agent", {"to": "Nobody", "message": "hi"}, "a"),
+                call("message_agent", {"to": " lead ", "message": "hi"}, "b"),
+                call("message_agent", {"to": "Reviewer", "message": "  "}, "c"),
+                call("message_agent", {"to": "Reviewer", "message": "x" * 8001}, "d"),
+                call("message_agent", {"to": "Reviewer", "message": "hi"}, "e"),
+            ),
+            text("done"),
+        ]
+    )
     cid, _ = begin(client, project_dir, spawn_approval="always")
     kid = wait_status(client, cid, "waiting_approval")["agents"][1]
     assert client.post(f"/api/agents/{kid['id']}/reject").status_code == 200
@@ -313,9 +367,16 @@ def test_unreachable_receivers_are_tool_errors(make_client, wait_run, project_di
 
 def test_message_limit_per_turn(make_client, wait_run, project_dir, monkeypatch):
     monkeypatch.setattr("app.agent.talk_mixin.MAX_MESSAGES_PER_TURN", 1)
-    client, model = make_client([
-        spawn("Coder"), text("coded"), message("Coder", id="m1"), text("more"),
-        message("Coder", id="m2"), text("done")])
+    client, model = make_client(
+        [
+            spawn("Coder"),
+            text("coded"),
+            message("Coder", id="m1"),
+            text("more"),
+            message("Coder", id="m2"),
+            text("done"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     first, second = [t for t in snap["tool_calls"] if t["name"] == "message_agent"]
@@ -328,10 +389,13 @@ def test_message_limit_per_turn(make_client, wait_run, project_dir, monkeypatch)
 def test_a_receiver_that_hits_the_step_limit_fails_the_call_not_the_turn(
     make_client, wait_run, project_dir
 ):
-    looping = [step(call("list_dir", {}, f"k{n}"), content="still looking" if n == 24 else "")
-               for n in range(25)]
-    client, model = make_client([
-        spawn("Researcher"), text("found"), message("Researcher"), *looping, text("gave up")])
+    looping = [
+        step(call("list_dir", {}, f"k{n}"), content="still looking" if n == 24 else "")
+        for n in range(25)
+    ]
+    client, model = make_client(
+        [spawn("Researcher"), text("found"), message("Researcher"), *looping, text("gave up")]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id, timeout=20)
     result = model.calls[-1][-1]["content"]
@@ -343,8 +407,9 @@ def test_a_receiver_that_hits_the_step_limit_fails_the_call_not_the_turn(
 
 
 def test_stop_during_a_reply_turn(make_client, wait_run, project_dir, gate):
-    client, _ = make_client([
-        spawn("Coder"), text("coded"), message("Coder"), gate.step(text("never"))])
+    client, _ = make_client(
+        [spawn("Coder"), text("coded"), message("Coder"), gate.step(text("never"))]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     gate.wait_partial()
     client.post(f"/api/runs/{run_id}/cancel")
@@ -358,9 +423,15 @@ def test_stop_during_a_reply_turn(make_client, wait_run, project_dir, gate):
 def test_stop_while_a_finished_agent_answers_keeps_it_completed(
     make_client, wait_run, project_dir, gate
 ):
-    client, _ = make_client([
-        spawn("Coder", id="s1"), text("coded"), spawn("Reviewer", id="s2"),
-        message("Coder"), gate.step(text("never"))])
+    client, _ = make_client(
+        [
+            spawn("Coder", id="s1"),
+            text("coded"),
+            spawn("Reviewer", id="s2"),
+            message("Coder"),
+            gate.step(text("never")),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     gate.wait_partial()
     snap = client.get(f"/api/conversations/{cid}").json()
@@ -377,13 +448,15 @@ def test_stop_while_a_finished_agent_answers_keeps_it_completed(
 def test_an_internal_error_while_answering_leaves_the_waiting_agent_alone(
     make_client, wait_run, project_dir, gate
 ):
-    client, model = make_client([
-        spawn("Coder"),
-        message("Lead", "Which file?"),
-        RuntimeError("boom"),
-        gate.step(text("Went on alone.")),
-        text("ok"),
-    ])
+    client, model = make_client(
+        [
+            spawn("Coder"),
+            message("Lead", "Which file?"),
+            RuntimeError("boom"),
+            gate.step(text("Went on alone.")),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     gate.wait_partial()
     snap = client.get(f"/api/conversations/{cid}").json()

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app import triggers
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.commands import MAX_RULE, rules_here, tidy_rule
-from app.db.models import AllowedCommand, Command, Conversation, Run
+from app.db.models import AllowedCommand, Command, Conversation, Run, now
 from app.schemas import AllowedCommandOut, CommandOut, FrameOut
 from app.serialize import allowed_command_out, command_event, command_out
 
@@ -42,6 +42,10 @@ async def _decide(command_id: str, decision: str, request: Request, session: Ses
     runner = request.app.state.runner
     if not runner.commands.decide(command_id, decision):
         raise HTTPException(409, "this command is no longer waiting for a decision")
+    # (Cards measured: the user's answer from the app's own page - a turn that ends with the card
+    # open, or KOLONİ's own no, is none.)
+    command.decided_at = now()
+    session.commit()
     # The agent task acts on the decision; answer once it has.
     deadline = asyncio.get_running_loop().time() + DECISION_TIMEOUT
     while True:
@@ -51,27 +55,38 @@ async def _decide(command_id: str, decision: str, request: Request, session: Ses
             return command_out(command)
 
 
-@router.post("/commands/{command_id}/approve", response_model=CommandOut,
-             dependencies=[Depends(require_own_origin)])  # (and "always": a rule)
+@router.post(
+    "/commands/{command_id}/approve",
+    response_model=CommandOut,
+    dependencies=[Depends(require_own_origin)],
+)  # (and "always": a rule)
 async def approve(
     command_id: str, body: ApproveIn, request: Request, session: Session = Depends(get_session)
 ):
-    if body.disposable and (command := session.get(Command, command_id)) is not None and (
-            body.remember or not command.disposable):
-        raise HTTPException(422, "only a delete KOLONİ found disposable allows such deletes, "
-                                 "and with no rule")
+    if (
+        body.disposable
+        and (command := session.get(Command, command_id)) is not None
+        and (body.remember or not command.disposable)
+    ):
+        raise HTTPException(
+            422, "only a delete KOLONİ found disposable allows such deletes, and with no rule"
+        )
     decision = "disposable" if body.disposable else "always" if body.remember else "once"
     return await _decide(command_id, decision, request, session)
 
 
-@router.post("/commands/{command_id}/reject", response_model=CommandOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/commands/{command_id}/reject",
+    response_model=CommandOut,
+    dependencies=[Depends(require_own_origin)],
+)
 async def reject(command_id: str, request: Request, session: Session = Depends(get_session)):
     return await _decide(command_id, "reject", request, session)
 
 
 @router.post(
-    "/commands/{command_id}/stop", response_model=CommandOut,
+    "/commands/{command_id}/stop",
+    response_model=CommandOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def stop(command_id: str, request: Request, session: Session = Depends(get_session)):
@@ -83,15 +98,20 @@ async def stop(command_id: str, request: Request, session: Session = Depends(get
         raise HTTPException(404, "command not found")
     runner = request.app.state.runner
     if not runner.commands.stop(command_id) and not (
-            command.origin == "cli" and command.status in ("approved", "running")
-            and runner.stop_cli(command.agent_id)):
+        command.origin == "cli"
+        and command.status in ("approved", "running")
+        and runner.stop_cli(command.agent_id)
+    ):
         raise HTTPException(409, "this command is not running")
     return command_out(command)
 
 
 # (async: the bus is the event loop's, not a worker thread's)
-@router.post("/commands/{command_id}/seen", response_model=CommandOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/commands/{command_id}/seen",
+    response_model=CommandOut,
+    dependencies=[Depends(require_own_origin)],
+)
 async def seen(command_id: str, request: Request, session: Session = Depends(get_session)):
     """K-yargıç: the user's OK on a command the check of their words let run without a card, or
     did not run - it leaves Decided for you."""
@@ -103,8 +123,12 @@ async def seen(command_id: str, request: Request, session: Session = Depends(get
         raise HTTPException(409, "this one is seen already")
     command.judged = {**judged, "seen": True}  # (a new dict: the column sees it changed)
     session.commit()
-    request.app.state.bus.emit(session.get_one(Run, command.run_id).conversation_id,
-                               command.run_id, "command.updated", command_event(command))
+    request.app.state.bus.emit(
+        session.get_one(Run, command.run_id).conversation_id,
+        command.run_id,
+        "command.updated",
+        command_event(command),
+    )
     return command_out(command)
 
 
@@ -134,19 +158,25 @@ async def frame(command_id: str, session: Session = Depends(get_session)):
     except httpx.HTTPError:
         return {"frameable": None}
     ancestors = re.search(
-        r"frame-ancestors([^;]*)", headers.get("content-security-policy", ""), re.IGNORECASE)
+        r"frame-ancestors([^;]*)", headers.get("content-security-policy", ""), re.IGNORECASE
+    )
     # shortcut: frame-ancestors naming KOLONİ's own address is taken as a no; upgrade if one does.
     refused = "x-frame-options" in headers or (ancestors and "*" not in ancestors[1].split())
     return {"frameable": not refused}
 
 
 @router.post(
-    "/conversations/{conversation_id}/allowed-commands", response_model=AllowedCommandOut,
-    status_code=201, responses={200: {"model": AllowedCommandOut}},
+    "/conversations/{conversation_id}/allowed-commands",
+    response_model=AllowedCommandOut,
+    status_code=201,
+    responses={200: {"model": AllowedCommandOut}},
     dependencies=[Depends(require_own_origin)],
 )
 async def add_rule(
-    conversation_id: str, body: RuleIn, request: Request, response: Response,
+    conversation_id: str,
+    body: RuleIn,
+    request: Request,
+    response: Response,
     session: Session = Depends(get_session),
 ):
     """Put a command on a conversation's allow list by hand, as "Always run" does when a
@@ -167,7 +197,8 @@ async def add_rule(
     rule = session.scalar(there)
     if rule is None:
         rule = AllowedCommand(
-            conversation_id=conversation_id, project_id=conversation.project_id, prefix=prefix)
+            conversation_id=conversation_id, project_id=conversation.project_id, prefix=prefix
+        )
         session.add(rule)
         try:
             session.commit()
@@ -182,8 +213,9 @@ async def add_rule(
     return allowed_command_out(rule)
 
 
-@router.delete("/allowed-commands/{rule_id}", status_code=204,
-               dependencies=[Depends(require_own_origin)])
+@router.delete(
+    "/allowed-commands/{rule_id}", status_code=204, dependencies=[Depends(require_own_origin)]
+)
 async def remove_rule(rule_id: str, request: Request, session: Session = Depends(get_session)):
     """Take a rule off its conversation's allow list. A trigger that had it ticked may
     no longer run it, from this moment (`commands.ticked` reads the list as it is); that

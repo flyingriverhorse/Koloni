@@ -142,8 +142,7 @@ def test_what_the_agent_writes_where_git_ignores_is_kept_out_or_asked_about(
     copy = copies.make(project, runtime, "a1")
     (copy.root / "data" / "clean.csv").write_text("made", encoding="utf-8")  # B-189: kept out
     (copy.root / "run.log").write_text("mine", encoding="utf-8")  # the project's: not lost
-    assert copy.changes() == [("data/clean.csv", "new", "left_out"),
-                              ("run.log", "new", "conflict")]
+    assert copy.changes() == [("data/clean.csv", "new", "left_out"), ("run.log", "new", "conflict")]
     from app.agent import _merge_file
 
     card = _merge_file(copy, "run.log")
@@ -169,7 +168,7 @@ def test_what_may_be_read_in_the_project_is_judged_by_where_each_path_really_lea
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     (elsewhere / "x.txt").write_text("x", encoding="utf-8")
-    copies._link(project / "data" / "out", elsewhere)       # out of the project
+    copies._link(project / "data" / "out", elsewhere)  # out of the project
     copies._link(project / "data" / "src", project / "src")  # into what the copy holds
     try:
         assert copy.left_out(project / "data" / "train.csv")
@@ -212,19 +211,34 @@ def test_the_agent_is_told_and_reads_what_was_left_out_but_changes_nothing_there
     def read(path, id):
         return step(call("read_file", {"path": f"{p}/{path}"}, id))
 
-    snap = turn(make_client, wait_run, project_dir, [
-        step(write("a.txt", "A")),
-        read("data/train.csv", "r1"), read("run.log", "r2"), read("data/.env", "r3"),
-        read("hello.py", "r4"), read("data/../hello.py", "r5"),
-        step(call("list_dir", {"path": f"{p}/models"}, "l1")),
-        step(call("search", {"pattern": "weights", "path": f"{p}/models"}, "s1")),
-        step(write(f"{p}/data/train.csv", "changed", "w2")), text("A done")])
+    snap = turn(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            step(write("a.txt", "A")),
+            read("data/train.csv", "r1"),
+            read("run.log", "r2"),
+            read("data/.env", "r3"),
+            read("hello.py", "r4"),
+            read("data/../hello.py", "r5"),
+            step(call("list_dir", {"path": f"{p}/models"}, "l1")),
+            step(call("search", {"pattern": "weights", "path": f"{p}/models"}, "s1")),
+            step(write(f"{p}/data/train.csv", "changed", "w2")),
+            text("A done"),
+        ],
+    )
     (made, notice), (wrote, why) = calls(snap, "Coder", "write_file")
     assert made == "succeeded" and "some files git ignores are not in this copy" in notice
     assert "(data/, models/, run.log)" in notice and "read_file, list_dir or search" in notice
     reads = calls(snap, "Coder", "read_file")
     assert [status for status, _said in reads] == [
-        "succeeded", "succeeded", "failed", "failed", "failed"], reads
+        "succeeded",
+        "succeeded",
+        "failed",
+        "failed",
+        "failed",
+    ], reads
     assert "a,b" in reads[0][1] and "log" in reads[1][1] and "secret" in reads[2][1]
     assert all("is a file of the project itself" in said for _status, said in reads[3:])
     ((listed, names),) = calls(snap, "Coder", "list_dir")
@@ -245,11 +259,18 @@ def test_a_folder_the_copy_holds_only_part_of_is_listed_and_searched_in_the_proj
 
     repository(lay_out(project_dir))  # (`data/*` with `!data/.gitkeep`: the copy has data/)
     data = f"{project_dir}/data"
-    snap = turn(make_client, wait_run, project_dir, [
-        step(write("a.txt", "A")),
-        step(call("list_dir", {"path": data}, "l1")),
-        step(call("search", {"pattern": "a,b", "path": data}, "s1")),
-        step(call("list_dir", {"path": f"{project_dir}/src"}, "l2")), text("A done")])
+    snap = turn(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            step(write("a.txt", "A")),
+            step(call("list_dir", {"path": data}, "l1")),
+            step(call("search", {"pattern": "a,b", "path": data}, "s1")),
+            step(call("list_dir", {"path": f"{project_dir}/src"}, "l2")),
+            text("A done"),
+        ],
+    )
     (listed, names), (whole, refused) = calls(snap, "Coder", "list_dir")
     ((searched, found),) = calls(snap, "Coder", "search")
     assert listed == "succeeded" and "train.csv" in names
@@ -269,13 +290,23 @@ def test_through_a_listed_folder_that_holds_the_project_what_was_left_out_is_rea
     project_dir.mkdir(parents=True)
     (project_dir / "hello.py").write_text("print('hi')\n", encoding="utf-8")
     repository(lay_out(project_dir))
-    client, _model, cid, run_id = setup(make_client, project_dir, {
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")), text("done")],
-        "Coder": [step(write("a.txt", "A")),
-                  step(call("read_file", {"path": f"{project_dir}/data/train.csv"}, "r1")),
-                  step(call("read_file", {"path": f"{project_dir}/hello.py"}, "r2")),
-                  text("A done")],
-    }, also_in=[str(project_dir.parent)])
+    client, _model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
+                text("done"),
+            ],
+            "Coder": [
+                step(write("a.txt", "A")),
+                step(call("read_file", {"path": f"{project_dir}/data/train.csv"}, "r1")),
+                step(call("read_file", {"path": f"{project_dir}/hello.py"}, "r2")),
+                text("A done"),
+            ],
+        },
+        also_in=[str(project_dir.parent)],
+    )
     snap = wait_run(client, cid, run_id)
     (first, said), (second, refused) = calls(snap, "Coder", "read_file")
     assert first == "succeeded" and "a,b" in said
@@ -289,9 +320,16 @@ def test_from_a_copy_made_whole_the_project_is_not_read(make_client, wait_run, p
     from tests.test_spawn import call, step
 
     repository(lay_out(project_dir))  # (small enough: copied whole, `.env` and data too)
-    snap = turn(make_client, wait_run, project_dir, [
-        step(write("a.txt", "A")),
-        step(call("read_file", {"path": f"{project_dir}/data/train.csv"}, "r1")), text("A done")])
+    snap = turn(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            step(write("a.txt", "A")),
+            step(call("read_file", {"path": f"{project_dir}/data/train.csv"}, "r1")),
+            text("A done"),
+        ],
+    )
     ((_made, notice),) = calls(snap, "Coder", "write_file")
     assert "git ignores" not in notice
     ((status, said),) = calls(snap, "Coder", "read_file")

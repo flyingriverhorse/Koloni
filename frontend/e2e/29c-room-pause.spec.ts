@@ -5,7 +5,9 @@ import { more, openFreshConversation, shot } from './helpers'
 /** Both themes for a picture: the page's own switch is a class on the root (theme.ts). */
 const dark = (page: Page, on: boolean) => page.evaluate(on => document.documentElement.classList.toggle('dark', on), on)
 
-test('29c: you pause a running room - it says so, its member holds after the step at hand - and resume it, and it finishes', async ({ page }) => {
+test('29c: you pause a running room - it says so, its member holds after the step at hand - and resume it, and it finishes', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await more(page)

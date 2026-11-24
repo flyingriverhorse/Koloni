@@ -113,11 +113,15 @@ def apply_limits(session: Session, request: Request, role: Role, body) -> None:
         role.pick_from = picks
     if "models" in sent:
         # K-rol-model-sirasi: in the user's order, the same pair once; empty is no list.
-        listed = [{"provider_id": provider_id, "model_id": model_id} for provider_id, model_id
-                  in dict.fromkeys((one.provider_id, one.model_id.strip())
-                                   for one in body.models or [])]
-        providers = {pid: session.get(Provider, pid)
-                     for pid in {one["provider_id"] for one in listed}}
+        listed = [
+            {"provider_id": provider_id, "model_id": model_id}
+            for provider_id, model_id in dict.fromkeys(
+                (one.provider_id, one.model_id.strip()) for one in body.models or []
+            )
+        ]
+        providers = {
+            pid: session.get(Provider, pid) for pid in {one["provider_id"] for one in listed}
+        }
         if any(provider is None for provider in providers.values()):
             raise HTTPException(422, "unknown provider")
         # B-330: judged as at run time (`team.guide`), where such an entry is passed over. One
@@ -134,8 +138,10 @@ def apply_limits(session: Session, request: Request, role: Role, body) -> None:
             # app's own page, not a command's that an agent runs against the app's address.
             require_own_origin(request)
             setattr(role, limit, getattr(body, limit))
-    if role.effort and role.max_effort and (
-        EFFORTS.index(role.effort) > EFFORTS.index(role.max_effort)
+    if (
+        role.effort
+        and role.max_effort
+        and (EFFORTS.index(role.effort) > EFFORTS.index(role.max_effort))
     ):
         raise HTTPException(422, "the default level is above the most a sub-agent may get")
 
@@ -149,11 +155,13 @@ def apply_place(session: Session, request: Request, role: Role, body) -> None:
     # A team's lead is its team's (slice 63a): it keeps its kind, is in no team, and is on or off
     # with its team's switch. (Its form sends them unchanged.)
     if roles.is_team_lead(session, role) and (
-            ("kind" in sent and body.kind not in (None, role.kind))
-            or ("enabled" in sent and body.enabled is not None and not body.enabled)
-            or ("teams" in sent and body.teams)):
-        raise HTTPException(422, "a team's lead keeps its kind, is in no team, and is turned "
-                                 "on or off on its team")
+        ("kind" in sent and body.kind not in (None, role.kind))
+        or ("enabled" in sent and body.enabled is not None and not body.enabled)
+        or ("teams" in sent and body.teams)
+    ):
+        raise HTTPException(
+            422, "a team's lead keeps its kind, is in no team, and is turned on or off on its team"
+        )
     for field in ("kind", "tier", "tier_min", "tier_max"):
         if field in sent and (field != "kind" or body.kind is not None):
             if getattr(body, field) != getattr(role, field):
@@ -172,8 +180,11 @@ def apply_place(session: Session, request: Request, role: Role, body) -> None:
             raise HTTPException(422, f"the {role.name} is always there: it cannot be off")
         role.enabled = body.enabled
     # 89g: its work then runs inside a Lead, not stoppable alone - the user's to say, too.
-    if "inside_cli" in sent and body.inside_cli is not None and (
-            body.inside_cli != bool(role.inside_cli)):
+    if (
+        "inside_cli" in sent
+        and body.inside_cli is not None
+        and (body.inside_cli != bool(role.inside_cli))
+    ):
         require_own_origin(request)
         role.inside_cli = body.inside_cli
     if "teams" in sent and body.teams is not None and set(body.teams) != {t.id for t in role.teams}:
@@ -209,27 +220,54 @@ def activity(session: Session = Depends(get_session)):
     work now, and the agents the Lead (a turn's own, not a sub-agent's) opened in each role
     in the last 30 days."""
     ran = Agent.status.not_in(NEVER_RAN)
-    latest = select(
-        Agent.role_name, Agent.provider_name, Agent.model_id, Agent.tier,
-        func.row_number().over(partition_by=Agent.role_name, order_by=(
-            Agent.created_at.desc(), literal_column("agents.rowid").desc())).label("n"),
-    ).where(ran).subquery()
+    latest = (
+        select(
+            Agent.role_name,
+            Agent.provider_name,
+            Agent.model_id,
+            Agent.tier,
+            func.row_number()
+            .over(
+                partition_by=Agent.role_name,
+                order_by=(Agent.created_at.desc(), literal_column("agents.rowid").desc()),
+            )
+            .label("n"),
+        )
+        .where(ran)
+        .subquery()
+    )
     last = {
-        row.role_name: LastRun(provider_name=row.provider_name, model_id=row.model_id,
-                               tier=row.tier)
+        row.role_name: LastRun(
+            provider_name=row.provider_name, model_id=row.model_id, tier=row.tier
+        )
         for row in session.execute(select(latest).where(latest.c.n == 1))
     }
-    running = {role: count for role, count in session.execute(
-        select(Agent.role_name, func.count()).where(Agent.status == "running")
-        .group_by(Agent.role_name))}
+    running = {
+        role: count
+        for role, count in session.execute(
+            select(Agent.role_name, func.count())
+            .where(Agent.status == "running")
+            .group_by(Agent.role_name)
+        )
+    }
     return RolesActivityOut(last=last, running=running)
 
 
 # How a job or a team's run ended, in the History's three colours; anything else is in progress.
-AGENT_ENDS = {"completed": "done", "failed": "failed", "cancelled": "failed",
-              "interrupted": "failed"}
-TEAM_ENDS = {"in": "done", "ready": "done", "done": "done", "failed": "failed",
-             "stopped": "failed", "interrupted": "failed"}
+AGENT_ENDS = {
+    "completed": "done",
+    "failed": "failed",
+    "cancelled": "failed",
+    "interrupted": "failed",
+}
+TEAM_ENDS = {
+    "in": "done",
+    "ready": "done",
+    "done": "done",
+    "failed": "failed",
+    "stopped": "failed",
+    "interrupted": "failed",
+}
 HISTORY_JOBS = 200
 
 
@@ -250,8 +288,9 @@ def history(days: int = Query(DAYS, ge=1, le=DAYS), session: Session = Depends(g
     recipes: dict[str, HistoryCount] = {}
     of: dict[str, tuple[list[str], list[str]]] = {}  # agent id -> its teams, its recipes
     named = dict(session.execute(select(Team.id, Team.name)).tuples().all())
-    for kept in session.scalars(select(Run.teams).where(
-            Run.created_at >= since, Run.teams.is_not(None))):
+    for kept in session.scalars(
+        select(Run.teams).where(Run.created_at >= since, Run.teams.is_not(None))
+    ):
         for row in kept or []:
             state = row.get("state")
             if not state:  # picked, never run
@@ -270,33 +309,61 @@ def history(days: int = Query(DAYS, ge=1, le=DAYS), session: Session = Depends(g
     ran = [Agent.status.not_in(NEVER_RAN), Run.created_at >= since]
     by_role: dict[str, HistoryCount] = {}
     for role_name, status, count in session.execute(
-            select(Agent.role_name, Agent.status, func.count()).join(Run, Agent.run_id == Run.id)
-            .where(*ran, Agent.depth > 0).group_by(Agent.role_name, Agent.status)):
+        select(Agent.role_name, Agent.status, func.count())
+        .join(Run, Agent.run_id == Run.id)
+        .where(*ran, Agent.depth > 0)
+        .group_by(Agent.role_name, Agent.status)
+    ):
         _counted(by_role, role_name, AGENT_ENDS.get(status, "running"), count)
     # A turn's own Lead is the turn, not a job of the Lead role (as `/activity` keeps it).
-    lead_turns = session.scalar(select(func.count()).select_from(Agent).join(
-        Run, Agent.run_id == Run.id).where(*ran, Agent.depth == 0)) or 0
+    lead_turns = (
+        session.scalar(
+            select(func.count())
+            .select_from(Agent)
+            .join(Run, Agent.run_id == Run.id)
+            .where(*ran, Agent.depth == 0)
+        )
+        or 0
+    )
     jobs = session.execute(
-        select(Agent.id.label("agent_id"), Agent.role_name, Agent.status, Agent.provider_name,
-               Agent.model_id, Agent.created_at, Conversation.id.label("conversation_id"),
-               Conversation.title)
+        select(
+            Agent.id.label("agent_id"),
+            Agent.role_name,
+            Agent.status,
+            Agent.provider_name,
+            Agent.model_id,
+            Agent.created_at,
+            Conversation.id.label("conversation_id"),
+            Conversation.title,
+        )
         .join(Run, Agent.run_id == Run.id)
         .join(Conversation, Run.conversation_id == Conversation.id)
         .where(*ran, Agent.depth > 0)
         .order_by(Agent.created_at.desc(), literal_column("agents.rowid").desc())
-        .limit(HISTORY_JOBS)).all()
+        .limit(HISTORY_JOBS)
+    ).all()
     return RolesHistoryOut(
-        days=days, lead_turns=lead_turns, jobs_limit=HISTORY_JOBS,
+        days=days,
+        lead_turns=lead_turns,
+        jobs_limit=HISTORY_JOBS,
         roles=_most_first(by_role),
         teams=_most_first(teams),
         recipes=_most_first(recipes),
-        jobs=[HistoryJob(
-            id=row.agent_id, role_name=row.role_name, conversation_id=row.conversation_id,
-            conversation_title=row.title, status=row.status, provider_name=row.provider_name,
-            model_id=row.model_id,
-            created_at=row.created_at, teams=of.get(row.agent_id, ([], []))[0],
-            recipes=of.get(row.agent_id, ([], []))[1],
-        ) for row in jobs],
+        jobs=[
+            HistoryJob(
+                id=row.agent_id,
+                role_name=row.role_name,
+                conversation_id=row.conversation_id,
+                conversation_title=row.title,
+                status=row.status,
+                provider_name=row.provider_name,
+                model_id=row.model_id,
+                created_at=row.created_at,
+                teams=of.get(row.agent_id, ([], []))[0],
+                recipes=of.get(row.agent_id, ([], []))[1],
+            )
+            for row in jobs
+        ],
     )
 
 
@@ -310,18 +377,32 @@ def jobs(role_id: str, session: Session = Depends(get_session)):
         .join(Run, Agent.run_id == Run.id)
         .join(Conversation, Run.conversation_id == Conversation.id)
         .where(*mine)
-        .order_by(Agent.created_at.desc(), literal_column("agents.rowid").desc()).limit(20))
+        .order_by(Agent.created_at.desc(), literal_column("agents.rowid").desc())
+        .limit(20)
+    )
     recent = session.scalars(
-        select(Agent).where(*mine, Agent.created_at >= now() - timedelta(days=DAYS))).all()
+        select(Agent).where(*mine, Agent.created_at >= now() - timedelta(days=DAYS))
+    ).all()
     told = [a for a in recent if a.input_tokens_total is not None or a.output_tokens is not None]
     return RoleJobsOut(
-        jobs=[RoleJobOut(
-            id=agent.id, conversation_id=cid, conversation_title=title, status=agent.status,
-            provider_name=agent.provider_name, model_id=agent.model_id, tier=agent.tier,
-            chosen_why=agent.chosen_why, task=agent.task, created_at=agent.created_at,
-        ) for agent, cid, title in rows],
+        jobs=[
+            RoleJobOut(
+                id=agent.id,
+                conversation_id=cid,
+                conversation_title=title,
+                status=agent.status,
+                provider_name=agent.provider_name,
+                model_id=agent.model_id,
+                tier=agent.tier,
+                chosen_why=agent.chosen_why,
+                task=agent.task,
+                created_at=agent.created_at,
+            )
+            for agent, cid, title in rows
+        ],
         days30={
-            "jobs": len(recent), "failed": sum(a.status == "failed" for a in recent),
+            "jobs": len(recent),
+            "failed": sum(a.status == "failed" for a in recent),
             "tokens": sum((a.input_tokens_total or 0) + (a.output_tokens or 0) for a in told),
             "unreported": len(recent) - len(told),
         },
@@ -347,8 +428,10 @@ async def _levels(client) -> tuple[list | None, int | None]:
         with contextlib.suppress(TimeoutError):  # held no longer than the levels are
             window = await asyncio.wait_for(found(), LEVELS_SECONDS) if found else None
         # (A hosted service has no `/props`: its catalogue's window, as its agents use it.)
-        return (list(getattr(client, "efforts", None) or ()),
-                window or getattr(client, "catalogued_window", None))
+        return (
+            list(getattr(client, "efforts", None) or ()),
+            window or getattr(client, "catalogued_window", None),
+        )
     if client in _failed and monotonic() - _failed[client] < LEVELS_FAILED_FOR:
         return None, None
     try:
@@ -361,7 +444,9 @@ async def _levels(client) -> tuple[list | None, int | None]:
 
 @router.get("/models", response_model=list[RoleModelOut])
 async def role_models(
-    request: Request, conversation_id: str | None = None, levels: bool = False,
+    request: Request,
+    conversation_id: str | None = None,
+    levels: bool = False,
 ):
     """Who uses what: for every role, the provider and model an agent of it would run on
     now in this conversation (without one: in a new one), where that comes from, and the
@@ -396,9 +481,18 @@ def _run_on(session: Session, providers) -> list[tuple[str, RunOn, object]]:
             except NotListed:
                 continue
             client = providers.client(provider, model)
-            found.append((shown_name(provider.name), RunOn(
-                provider_id=provider.id, model_id=model, step=not only_in_project(client),
-                room=not works_with_own_tools(provider)), client))
+            found.append(
+                (
+                    shown_name(provider.name),
+                    RunOn(
+                        provider_id=provider.id,
+                        model_id=model,
+                        step=not only_in_project(client),
+                        room=not works_with_own_tools(provider),
+                    ),
+                    client,
+                )
+            )
             break
     return found
 
@@ -431,49 +525,67 @@ def _who_uses_what(request: Request, conversation_id: str | None) -> tuple[list,
             if only_in_project(client, role.tools):
                 # B-301: as a recipe's step it is moved to the next provider that can be one
                 # (`would_run`'s `step`), where there is one: said with where, and why.
-                stepped = would_run(session, role, conversation,
-                                    step=request.app.state.providers)
+                stepped = would_run(session, role, conversation, step=request.app.state.providers)
                 cannot_step = ONLY_IN_THE_PROJECT.format(provider=on) + (
                     f". As a step it runs on {shown_name(stepped.provider.name)} · "
                     f"{stepped.model_id or 'its default'} ({stepped.moved})"
-                    if stepped.moved and stepped.provider.id != would.provider.id else "")
-            told.append(RoleModelOut(
-                cannot_step=cannot_step,
-                cannot_room=NO_MEMBER_ON.format(provider=on, role=shown_name(role.name))
-                if works_with_own_tools(would.provider) else None,
-                role=role.name, provider_name=would.provider.name, model_id=would.model_id,
-                source=would.source, tier=cast(Tier | None, would.tier), moved=would.moved,
-                pick_from=[entry.name for entry in would.pick_from],
-                # (B-385: what the user does about a model closed to agents, in its words)
-                cannot_run=str(would.refused) if isinstance(would.refused, ClosedToAgents)
-                else would.refused.to_agent if would.refused else would.cannot_open,
-                cannot_pick=would.cannot_pick,
-                # (less those an agent of it could not be opened on in this chat)
-                run_on=[one.model_copy(update={"step": not only_in_project(its, role.tools)})
-                        for name, one, its in run_on if name not in would.cannot_pick],
-                asks_how_hard=AskedModel(provider_name=asks[0].name, model_id=asks[1])
-                if asks else None,
-            ))
+                    if stepped.moved and stepped.provider.id != would.provider.id
+                    else ""
+                )
+            told.append(
+                RoleModelOut(
+                    cannot_step=cannot_step,
+                    cannot_room=NO_MEMBER_ON.format(provider=on, role=shown_name(role.name))
+                    if works_with_own_tools(would.provider)
+                    else None,
+                    role=role.name,
+                    provider_name=would.provider.name,
+                    model_id=would.model_id,
+                    source=would.source,
+                    tier=cast(Tier | None, would.tier),
+                    moved=would.moved,
+                    pick_from=[entry.name for entry in would.pick_from],
+                    # (B-385: what the user does about a model closed to agents, in its words)
+                    cannot_run=str(would.refused)
+                    if isinstance(would.refused, ClosedToAgents)
+                    else would.refused.to_agent
+                    if would.refused
+                    else would.cannot_open,
+                    cannot_pick=would.cannot_pick,
+                    # (less those an agent of it could not be opened on in this chat)
+                    run_on=[
+                        one.model_copy(update={"step": not only_in_project(its, role.tools)})
+                        for name, one, its in run_on
+                        if name not in would.cannot_pick
+                    ],
+                    asks_how_hard=AskedModel(provider_name=asks[0].name, model_id=asks[1])
+                    if asks
+                    else None,
+                )
+            )
     return told, clients
 
 
-@router.post("", response_model=RoleOut, status_code=201,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "", response_model=RoleOut, status_code=201, dependencies=[Depends(require_own_origin)]
+)
 def create_role(body: RoleIn, request: Request, session: Session = Depends(get_session)):
     role = new_role(session, request, body)
     session.commit()
     return role
 
 
-@router.post("/experts", response_model=RoleOut, status_code=201,
-             dependencies=[Depends(require_own_origin)])  # (what KOLONİ fetches for it: the user's)
+@router.post(
+    "/experts", response_model=RoleOut, status_code=201, dependencies=[Depends(require_own_origin)]
+)  # (what KOLONİ fetches for it: the user's)
 def create_expert(body: ExpertIn, request: Request, session: Session = Depends(get_session)):
     """K-bilgi: an expert at once - the role, its knowledge on the project's Knowledge page, and the
     role using it in full; all or nothing (a name taken leaves no knowledge behind)."""
     knowledge_page.project_of(session, body.project_id)
     role = new_role(session, request, body.role)
-    knowledge_page.use(session, role, knowledge_page.added(session, body.project_id,
-                                                           body.knowledge), knows.FULL)
+    knowledge_page.use(
+        session, role, knowledge_page.added(session, body.project_id, body.knowledge), knows.FULL
+    )
     session.commit()
     return role
 
@@ -506,8 +618,11 @@ def apply_mcp(session: Session, request: Request, role: Role, body: RolePatch) -
         # app's own page - as a role's limits are, and not as its tools: not a command's
         # that an agent runs against the app's address. Kept in the servers' own order.
         require_own_origin(request)
-        known = session.scalars(select(McpServer.name).order_by(
-            McpServer.created_at, literal_column("mcp_servers.rowid"))).all()
+        known = session.scalars(
+            select(McpServer.name).order_by(
+                McpServer.created_at, literal_column("mcp_servers.rowid")
+            )
+        ).all()
         if not set(body.mcp) <= set(known):
             raise HTTPException(422, "unknown MCP server")
         role.mcp = [name for name in known if name in body.mcp]
@@ -518,8 +633,9 @@ def apply_skills(session: Session, request: Request, role: Role, body: RolePatch
         # As its servers: a skill's text is what its agents are told, and its scripts may
         # run unasked - the user's to give, from the app's own page.
         require_own_origin(request)
-        rows = session.execute(select(Skill.id, Skill.name).order_by(
-            Skill.created_at, literal_column("skills.rowid"))).all()
+        rows = session.execute(
+            select(Skill.id, Skill.name).order_by(Skill.created_at, literal_column("skills.rowid"))
+        ).all()
         kept = [name for _id, name in rows]
         # (R125: a skill by its id too, as the Tools page lists it; the role keeps its name)
         named = {id_: name for id_, name in rows}
@@ -532,11 +648,13 @@ def apply_skills(session: Session, request: Request, role: Role, body: RolePatch
 def check_core(role: Role, tools: list[str] | None, enabled: bool | None) -> None:
     """Karar 5: a core role (`roles.CORE`) keeps its locked tools and is never switched off."""
     if left := [one for one in roles.locked_tools(role) if tools is not None and one not in tools]:
-        raise HTTPException(422, f"the {role.name} keeps {', '.join(left)}: KOLONİ's checks and "
-                                 "recipes need them")
+        raise HTTPException(
+            422, f"the {role.name} keeps {', '.join(left)}: KOLONİ's checks and recipes need them"
+        )
     if enabled is False and roles.locked_tools(role):
-        raise HTTPException(422, f"the {role.name} role is always on: KOLONİ's checks and recipes "
-                                 "use it")
+        raise HTTPException(
+            422, f"the {role.name} role is always on: KOLONİ's checks and recipes use it"
+        )
 
 
 @router.patch("/{role_id}", response_model=RoleOut, dependencies=[Depends(require_origin)])
@@ -592,11 +710,10 @@ def delete_role(role_id: str, request: Request, session: Session = Depends(get_s
     return Response(status_code=204)
 
 
-@router.post("/{role_id}/reset", response_model=RoleOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post("/{role_id}/reset", response_model=RoleOut, dependencies=[Depends(require_own_origin)])
 def reset_role(role_id: str, request: Request, session: Session = Depends(get_session)):
     role = _role(session, role_id)
-    spec = BUILTIN_ROLES.get(role.name)
+    spec = BUILTIN_ROLES.get(roles.builtin_name(role))
     if not role.builtin or spec is None:
         raise HTTPException(409, "only built-in roles can be reset")
     own_if_limited(request, role)
@@ -637,10 +754,15 @@ def knowledge_state(role_id: str, project_id: str, session: Session = Depends(ge
     return knowledge_page.priced(session, row, project.root_path)
 
 
-@router.post("/{role_id}/learn", response_model=KnowledgeStateOut, status_code=202,
-             dependencies=[Depends(require_own_origin)])  # (a request the user pays for)
-async def learn(role_id: str, body: LearnIn, request: Request,
-                session: Session = Depends(get_session)):
+@router.post(
+    "/{role_id}/learn",
+    response_model=KnowledgeStateOut,
+    status_code=202,
+    dependencies=[Depends(require_own_origin)],
+)  # (a request the user pays for)
+async def learn(
+    role_id: str, body: LearnIn, request: Request, session: Session = Depends(get_session)
+):
     """Learn (again), as on the Knowledge page."""
     row, project = _expert_in(session, role_id, body.project_id)
     return knowledge_page.start_learning(request, session, row, project)

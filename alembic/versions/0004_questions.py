@@ -3,6 +3,7 @@
 Revision ID: 0004
 Revises: 0003
 """
+
 import json
 
 import sqlalchemy as sa
@@ -50,8 +51,11 @@ def upgrade() -> None:
     with op.batch_alter_table("questions") as batch:
         batch.create_index(batch.f("ix_questions_run_id"), ["run_id"], unique=False)
     # Built-in roles may ask the user from now on; roles the user made are theirs to change.
-    _retool(lambda tools, builtin: [*tools, "ask_user"]
-            if builtin and "ask_user" not in tools else tools)
+    _retool(
+        lambda tools, builtin: (
+            [*tools, "ask_user"] if builtin and "ask_user" not in tools else tools
+        )
+    )
 
 
 def downgrade() -> None:

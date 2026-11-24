@@ -7,7 +7,18 @@ import { agent, conversation, convState, note, run, toolCall, userMessage } from
 import { requestsOf, standsLine } from '../agents/teamRequests'
 import { type AgentData, type GraphNode, deriveGraph } from './deriveGraph'
 import { foldGraph } from './foldGraph'
-import { CARD_GAP, COL_GAP, NODE_H, NODE_W, REQUEST_INSET, TEAM_HEAD, blockSize, crosses, layoutGraph, requestLine } from './layout'
+import {
+  CARD_GAP,
+  COL_GAP,
+  NODE_H,
+  NODE_W,
+  REQUEST_INSET,
+  TEAM_HEAD,
+  blockSize,
+  crosses,
+  layoutGraph,
+  requestLine,
+} from './layout'
 import type { SharedData } from './sharedColumn'
 import { SharedNode } from './SharedNode'
 import { ApiError, api } from '../api/client'
@@ -17,11 +28,34 @@ import { NodeActions } from './toggleGroup'
 // K-takimlar-arasi (mockup Z): a request between teams is one short line in the gap between the two frames, frame to
 // frame, that never crosses a box; who asked whom is on the agents' badges.
 
-const team = (id: string, name: string, roles: string[]) => ({ id, name, roles, lead: { name: `${name} lead` }, lead_on: true }) as unknown as Team
-const TEAMS = [team('web', 'Web app', ['Coder', 'Tester', 'UI designer']), team('api', 'Backend / API', ['Coder', 'Tester'])]
-const plain = (team_id: string): ChatTeam => ({ team_id, recipe_id: null, no_recipe: false, picked_by: 'user', why: null })
-const sub = (id: string, role: string, parent: string, status: Agent['status'] = 'running', over: Partial<Agent> = {}) =>
-  agent('r', status, { id, role_name: role, name: role, parent_agent_id: parent, depth: parent === 'r' ? 1 : 2, ...over })
+const team = (id: string, name: string, roles: string[]) =>
+  ({ id, name, roles, lead: { name: `${name} lead` }, lead_on: true }) as unknown as Team
+const TEAMS = [
+  team('web', 'Web app', ['Coder', 'Tester', 'UI designer']),
+  team('api', 'Backend / API', ['Coder', 'Tester']),
+]
+const plain = (team_id: string): ChatTeam => ({
+  team_id,
+  recipe_id: null,
+  no_recipe: false,
+  picked_by: 'user',
+  why: null,
+})
+const sub = (
+  id: string,
+  role: string,
+  parent: string,
+  status: Agent['status'] = 'running',
+  over: Partial<Agent> = {},
+) =>
+  agent('r', status, {
+    id,
+    role_name: role,
+    name: role,
+    parent_agent_id: parent,
+    depth: parent === 'r' ? 1 : 2,
+    ...over,
+  })
 
 /** Web app's Coder asked Backend / API for GET /api/items: KOLONİ opened Backend's lead again for it, which gave it to its Coder. */
 function asked(stands: 'waits' | 'answered' | 'declined' = 'waits') {
@@ -43,17 +77,38 @@ function asked(stands: 'waits' | 'answered' | 'declined' = 'waits') {
       }),
       ...(stands === 'declined'
         ? []
-        : [sub('bc', 'Coder', 'bl2', done ? 'completed' : 'running', { name: 'Coder 2', tool_call_id: 's7' }), sub('bu', 'UI designer', 'bc', 'completed', { depth: 3 })]),
+        : [
+            sub('bc', 'Coder', 'bl2', done ? 'completed' : 'running', { name: 'Coder 2', tool_call_id: 's7' }),
+            sub('bu', 'UI designer', 'bc', 'completed', { depth: 3 }),
+          ]),
     ],
     toolCalls: [
       toolCall('s1', 'r', 'spawn_agent', 'running'),
-      toolCall('5', 'r', 'request_work', done ? 'succeeded' : 'running', JSON.stringify({ to: 'Backend / API', what: 'GET /api/items, 20 a page', contract: 'x' }), { agent_id: 'wc' }),
-      toolCall('s6', 'r', 'spawn_agent', done ? 'succeeded' : 'running', JSON.stringify({ role: 'Backend / API lead', task: '…', asked_by: 'Web app' }), { parent_call_id: '5' }),
+      toolCall(
+        '5',
+        'r',
+        'request_work',
+        done ? 'succeeded' : 'running',
+        JSON.stringify({ to: 'Backend / API', what: 'GET /api/items, 20 a page', contract: 'x' }),
+        { agent_id: 'wc' },
+      ),
+      toolCall(
+        's6',
+        'r',
+        'spawn_agent',
+        done ? 'succeeded' : 'running',
+        JSON.stringify({ role: 'Backend / API lead', task: '…', asked_by: 'Web app' }),
+        { parent_call_id: '5' },
+      ),
     ],
   })
 }
 
-const box = (positions: Record<string, { x: number; y: number }>, sizes: Record<string, { width: number; height: number }>, id: string) => ({
+const box = (
+  positions: Record<string, { x: number; y: number }>,
+  sizes: Record<string, { width: number; height: number }>,
+  id: string,
+) => ({
   ...positions[id],
   ...(sizes[id] ?? { width: NODE_W, height: NODE_H }),
 })
@@ -63,7 +118,11 @@ test('the request is one line from the Web app’s frame to Backend’s, in the 
   // One line, frame to frame - no second line, and none from an agent across a frame.
   const lines = g.edges.filter(e => e.request)
   expect(lines.map(e => [e.source, e.target, e.request])).toEqual([
-    ['team:r:web', 'team:r:api', { label: 'request · GET /api/items, 20 a page · waits', open: true, title: expect.any(String), calls: ['5'] }],
+    [
+      'team:r:web',
+      'team:r:api',
+      { label: 'request · GET /api/items, 20 a page · waits', open: true, title: expect.any(String), calls: ['5'] },
+    ],
   ])
   expect(g.edges.filter(e => e.cross || e.talk)).toEqual([])
   // The member Backend's lead opened is Backend's, though the Web app comes first and has a Coder too.
@@ -72,7 +131,9 @@ test('the request is one line from the Web app’s frame to Backend’s, in the 
   expect(g.nodes.find(n => n.id === 'agent:bu')?.team).toBe('team:r:api')
   const { positions, sizes } = layoutGraph(g.nodes, g.edges)
   const [web, api] = [box(positions, sizes, 'team:r:web'), box(positions, sizes, 'team:r:api')]
-  const others = g.nodes.filter((n: GraphNode) => !n.parent && !n.id.startsWith('team:')).map(n => box(positions, sizes, n.id))
+  const others = g.nodes
+    .filter((n: GraphNode) => !n.parent && !n.id.startsWith('team:'))
+    .map(n => box(positions, sizes, n.id))
   const line = requestLine(web, api, [...others])!
   // Straight down, out of the Web app frame's foot and into Backend's top - not along either frame's edge.
   expect([line.x1, line.y1, line.x2, line.y2]).toEqual([line.x1, web.y + web.height, line.x1, api.y])
@@ -81,7 +142,8 @@ test('the request is one line from the Web app’s frame to Backend’s, in the 
     expect(line.x1).toBeLessThanOrEqual(frame.x + frame.width - REQUEST_INSET)
   }
   for (const one of [...others, web, api]) {
-    const crosses = line.x1 > one.x && line.x1 < one.x + one.width && Math.max(line.y1, one.y) < Math.min(line.y2, one.y + one.height)
+    const crosses =
+      line.x1 > one.x && line.x1 < one.x + one.width && Math.max(line.y1, one.y) < Math.min(line.y2, one.y + one.height)
     expect(crosses).toBe(false)
   }
 })
@@ -94,9 +156,12 @@ test('B-152: a team whose lead the Lead opened before another team’s, and agai
   const g = foldGraph(deriveGraph({ ...state, agents }, TEAMS), {})
   const { positions, sizes } = layoutGraph(g.nodes, g.edges)
   const [web, api] = [box(positions, sizes, 'team:r:web'), box(positions, sizes, 'team:r:api')]
-  const meet = web.x < api.x + api.width && api.x < web.x + web.width && web.y < api.y + api.height && api.y < web.y + web.height
+  const meet =
+    web.x < api.x + api.width && api.x < web.x + web.width && web.y < api.y + api.height && api.y < web.y + web.height
   expect(meet).toBe(false)
-  const others = g.nodes.filter((n: GraphNode) => !n.parent && !n.id.startsWith('team:')).map(n => box(positions, sizes, n.id))
+  const others = g.nodes
+    .filter((n: GraphNode) => !n.parent && !n.id.startsWith('team:'))
+    .map(n => box(positions, sizes, n.id))
   expect(requestLine(api, web, others)).not.toBeNull()
 })
 
@@ -124,7 +189,9 @@ test('who asked whom waits for whom; once answered the same line says so, solid'
   expect((g.nodes.find(n => n.id === 'agent:wc')!.data as AgentData).activity).toBe('Waiting for Backend / API')
   const done = deriveGraph(asked('answered'), TEAMS).edges.filter(e => e.request)
   expect(done.map(e => e.request?.label)).toEqual(['answered ✓'])
-  expect(deriveGraph(asked('declined'), TEAMS).edges.find(e => e.request)?.request?.label).toBe('request declined by Backend / API')
+  expect(deriveGraph(asked('declined'), TEAMS).edges.find(e => e.request)?.request?.label).toBe(
+    'request declined by Backend / API',
+  )
 })
 
 test('asked twice one way, declined twice: one line, one label with its count, each request in full on its title', () => {
@@ -132,15 +199,38 @@ test('asked twice one way, declined twice: one line, one label with its count, e
   const once = asked('declined')
   const twice = {
     ...once,
-    agents: [...once.agents, sub('bl3', 'Backend / API lead', 'r', 'completed', { name: 'Backend / API lead 3', tool_call_id: 's8', report: 'Declined: still a file' })],
+    agents: [
+      ...once.agents,
+      sub('bl3', 'Backend / API lead', 'r', 'completed', {
+        name: 'Backend / API lead 3',
+        tool_call_id: 's8',
+        report: 'Declined: still a file',
+      }),
+    ],
     toolCalls: [
       ...once.toolCalls,
-      toolCall('9', 'r', 'request_work', 'succeeded', JSON.stringify({ to: 'Backend / API', what: 'GET /api/items again' }), { agent_id: 'wc' }),
-      toolCall('s8', 'r', 'spawn_agent', 'succeeded', JSON.stringify({ role: 'Backend / API lead', task: '…', asked_by: 'Web app' }), { parent_call_id: '9' }),
+      toolCall(
+        '9',
+        'r',
+        'request_work',
+        'succeeded',
+        JSON.stringify({ to: 'Backend / API', what: 'GET /api/items again' }),
+        { agent_id: 'wc' },
+      ),
+      toolCall(
+        's8',
+        'r',
+        'spawn_agent',
+        'succeeded',
+        JSON.stringify({ role: 'Backend / API lead', task: '…', asked_by: 'Web app' }),
+        { parent_call_id: '9' },
+      ),
     ],
   }
   const lines = foldGraph(deriveGraph(twice, TEAMS), {}).edges.filter(e => e.request)
-  expect(lines.map(e => [e.id, e.request!.label, e.request!.open, e.request!.calls])).toEqual([['ask:5', 'request declined by Backend / API ×2', false, ['5', '9']]])
+  expect(lines.map(e => [e.id, e.request!.label, e.request!.open, e.request!.calls])).toEqual([
+    ['ask:5', 'request declined by Backend / API ×2', false, ['5', '9']],
+  ])
   expect(lines[0].request!.title.split('\n')).toEqual([
     "Web app's Coder → Backend / API: GET /api/items, 20 a page - Backend / API lead 2 declined: the page reads a file",
     "Web app's Coder → Backend / API: GET /api/items again - Backend / API lead 3 declined: still a file",
@@ -150,7 +240,10 @@ test('asked twice one way, declined twice: one line, one label with its count, e
 test('the chat card says who gave it to whom and who waits, then the answer', () => {
   const line = (state: ReturnType<typeof asked>) => {
     const [request] = requestsOf(state)
-    return standsLine(request, state.agents.findLast(a => a.parent_agent_id === request.lead?.id))
+    return standsLine(
+      request,
+      state.agents.findLast(a => a.parent_agent_id === request.lead?.id),
+    )
   }
   expect(line(asked())).toBe("Backend / API lead 2 gave it to its Coder · at work · Web app's Coder waits")
   expect(line(asked('answered'))).toBe('Backend / API lead 2 answered ✓')
@@ -164,22 +257,49 @@ test('the chat card says who gave it to whom and who waits, then the answer', ()
 function used(files = ['web-app/spec.md']) {
   const state = asked('answered')
   const written = (id: string, by: string, path: string) =>
-    toolCall(id, 'r', 'write_shared', 'succeeded', JSON.stringify({ path }), { agent_id: by, result: `written: .koloni/shared/${path} - every team reads it with read_shared` })
+    toolCall(id, 'r', 'write_shared', 'succeeded', JSON.stringify({ path }), {
+      agent_id: by,
+      result: `written: .koloni/shared/${path} - every team reads it with read_shared`,
+    })
   return {
     ...state,
     agents: state.agents.map(a =>
-      a.id === 'r' ? { ...a, facts_given: ['f1', 'f2'] } : a.id === 'bl2' ? { ...a, task: 'Their contract is in the shared folder: contracts/get-api-items-20-a-page.md (read it with read_shared).' } : a,
+      a.id === 'r'
+        ? { ...a, facts_given: ['f1', 'f2'] }
+        : a.id === 'bl2'
+          ? {
+              ...a,
+              task: 'Their contract is in the shared folder: contracts/get-api-items-20-a-page.md (read it with read_shared).',
+            }
+          : a,
     ),
-    toolCalls: [...state.toolCalls, ...files.map((path, at) => written(`w${at}`, 'wc', path)), written('wb', 'bc', 'backend-api/items-endpoint.md'), toolCall('m1', 'r', 'recall', 'succeeded', '{}', { agent_id: 'bc' })],
-    boardPosts: [note('n1', 'r', { agent_id: 'r', content: 'Web app waits on the API.' }), note('n2', 'r', { agent_id: 'wc', content: 'Pages are 20, by name.' })],
+    toolCalls: [
+      ...state.toolCalls,
+      ...files.map((path, at) => written(`w${at}`, 'wc', path)),
+      written('wb', 'bc', 'backend-api/items-endpoint.md'),
+      toolCall('m1', 'r', 'recall', 'succeeded', '{}', { agent_id: 'bc' }),
+    ],
+    boardPosts: [
+      note('n1', 'r', { agent_id: 'r', content: 'Web app waits on the API.' }),
+      note('n2', 'r', { agent_id: 'wc', content: 'Pages are 20, by name.' }),
+    ],
   }
 }
-const rows = (g: ReturnType<typeof deriveGraph>, id: string) => (g.nodes.find(n => n.id === id)?.data as SharedData).rows.map(row => `${row.kind}: ${row.text}`)
+const rows = (g: ReturnType<typeof deriveGraph>, id: string) =>
+  (g.nodes.find(n => n.id === id)?.data as SharedData).rows.map(row => `${row.kind}: ${row.text}`)
 
 test('each team’s card holds what it wrote to the shared folder and the notebook, and the memory it used; everyone’s beside the Lead', () => {
   const g = deriveGraph(used(), TEAMS)
-  expect(g.nodes.filter(n => n.kind === 'shared').map(n => n.id)).toEqual(['shared:r:top', 'shared:r:team:r:web', 'shared:r:team:r:api', 'shared:r:ask:5'])
-  expect(rows(g, 'shared:r:top')).toEqual(['notebook: Orchestrator: “Web app waits on the API.”', 'memory: 2 facts given'])
+  expect(g.nodes.filter(n => n.kind === 'shared').map(n => n.id)).toEqual([
+    'shared:r:top',
+    'shared:r:team:r:web',
+    'shared:r:team:r:api',
+    'shared:r:ask:5',
+  ])
+  expect(rows(g, 'shared:r:top')).toEqual([
+    'notebook: Orchestrator: “Web app waits on the API.”',
+    'memory: 2 facts given',
+  ])
   expect(rows(g, 'shared:r:team:r:web')).toEqual(['file: web-app/spec.md', 'notebook: Coder: “Pages are 20, by name.”'])
   expect(rows(g, 'shared:r:team:r:api')).toEqual(['file: backend-api/items-endpoint.md', 'memory: 1 lookup'])
   // The request's contract: a block of its own, on an arm from the request's line.
@@ -191,14 +311,25 @@ test('each team’s card holds what it wrote to the shared folder and the notebo
     ['team:r:web', 'shared:r:ask:5', { colour: 'var(--request)', arm: 'ask:5' }],
   ])
   // At most two of a kind, then how many more.
-  expect(rows(deriveGraph(used(['a/1.md', 'a/2.md', 'a/3.md']), TEAMS), 'shared:r:team:r:web').slice(0, 3)).toEqual(['file: a/1.md', 'file: a/2.md', 'more: +1 more file'])
+  expect(rows(deriveGraph(used(['a/1.md', 'a/2.md', 'a/3.md']), TEAMS), 'shared:r:team:r:web').slice(0, 3)).toEqual([
+    'file: a/1.md',
+    'file: a/2.md',
+    'more: +1 more file',
+  ])
   // A turn that used none of them: no card.
   expect(deriveGraph(asked('answered'), TEAMS).nodes.some(n => n.kind === 'shared')).toBe(false)
   // ...but where the shared folder has files - of any turn -, a way to all of them, at the foot of everyone's card - or,
   // with nothing else, that alone - everyone's still.
-  const before = [{ path: 'decisions/old.md', at: '2026-10-01T10:00:00Z' }, { path: 'web-app/old.md', at: '2026-10-01T10:00:00Z' }]
-  expect(rows(deriveGraph(asked('answered'), TEAMS, before), 'shared:r:top')).toEqual(['folder: All shared files (2) →'])
-  expect((deriveGraph(asked('answered'), TEAMS, before).nodes.find(n => n.id === 'shared:r:top')!.data as SharedData).who).toBe('Everyone')
+  const before = [
+    { path: 'decisions/old.md', at: '2026-10-01T10:00:00Z' },
+    { path: 'web-app/old.md', at: '2026-10-01T10:00:00Z' },
+  ]
+  expect(rows(deriveGraph(asked('answered'), TEAMS, before), 'shared:r:top')).toEqual([
+    'folder: All shared files (2) →',
+  ])
+  expect(
+    (deriveGraph(asked('answered'), TEAMS, before).nodes.find(n => n.id === 'shared:r:top')!.data as SharedData).who,
+  ).toBe('Everyone')
   expect(rows(deriveGraph(used(), TEAMS, before), 'shared:r:top').at(-1)).toBe('folder: All shared files (2) →')
 })
 
@@ -209,7 +340,10 @@ test('each card stands at its team frame’s top-right, its line very short, str
   const cards = g.nodes.filter(n => n.kind === 'shared')
   const boxes = g.nodes.filter(n => !n.parent && n.kind !== 'shared')
   const others = (...ids: string[]) => [...boxes, ...cards].filter(n => !ids.includes(n.id)).map(n => at(n.id))
-  for (const [frame, card] of [['team:r:web', 'shared:r:team:r:web'], ['team:r:api', 'shared:r:team:r:api']]) {
+  for (const [frame, card] of [
+    ['team:r:web', 'shared:r:team:r:web'],
+    ['team:r:api', 'shared:r:team:r:api'],
+  ]) {
     const [f, c, line] = [at(frame), at(card), lines[`shared:${card}`]]
     // Its top level with the frame's; from the frame's right edge straight to it, in the frame's header, into its name.
     expect(c.y).toBe(f.y)
@@ -239,8 +373,10 @@ test('each card stands at its team frame’s top-right, its line very short, str
   expect(crosses(joined, others('agent:r', 'shared:r:top'))).toBe(false)
   // Only as tall as what it holds; and none on a box or another card.
   expect(everyone.height).toBe(blockSize(g.nodes.find(n => n.id === 'shared:r:top')!.data as SharedData).height)
-  const overlap = (a: ReturnType<typeof at>, b: ReturnType<typeof at>) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
-  for (const card of cards) for (const other of others(card.id)) expect(overlap(at(card.id), other), card.id).toBe(false)
+  const overlap = (a: ReturnType<typeof at>, b: ReturnType<typeof at>) =>
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+  for (const card of cards)
+    for (const other of others(card.id)) expect(overlap(at(card.id), other), card.id).toBe(false)
 })
 
 test('a block’s rows: a file read in the Workspace or taken in, a note in full on hover, the memory page; its name lights its team; no fold, no close', async () => {
@@ -251,7 +387,11 @@ test('a block’s rows: a file read in the Workspace or taken in, a note in full
     render(
       <ReactFlowProvider>
         <NodeActions.Provider value={{ light, openMemory }}>
-          <SharedNode {...({ id, data: g.nodes.find(n => n.id === id)!.data, selected: false } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)} />
+          <SharedNode
+            {...({ id, data: g.nodes.find(n => n.id === id)!.data, selected: false } as unknown as NodeProps<
+              Node<SharedData & Record<string, unknown>>
+            >)}
+          />
         </NodeActions.Provider>
       </ReactFlowProvider>,
     )
@@ -259,7 +399,9 @@ test('a block’s rows: a file read in the Workspace or taken in, a note in full
   const block = screen.getByRole('region', { name: 'Web app: shared, noted, remembered' })
   expect(within(block).getByRole('button', { name: 'web-app/spec.md' })).toBeInTheDocument()
   expect(within(block).getByRole('button', { name: 'Take web-app/spec.md into the project' })).toBeInTheDocument()
-  expect(within(block).getByRole('button', { name: /Pages are 20, by name\.” - open it on the Notes tab$/ })).toHaveAttribute('title', expect.stringMatching(/^Web app · Coder · .* · to the notebook\nPages are 20, by name\.$/))
+  expect(
+    within(block).getByRole('button', { name: /Pages are 20, by name\.” - open it on the Notes tab$/ }),
+  ).toHaveAttribute('title', expect.stringMatching(/^Web app · Coder · .* · to the notebook\nPages are 20, by name\.$/))
   await userEvent.click(within(block).getByRole('button', { name: 'Show Web app’s line' }))
   expect(light).toHaveBeenCalledWith('shared:r:team:r:web')
   expect(within(block).queryByRole('button', { name: /fold|close/i })).not.toBeInTheDocument()
@@ -272,7 +414,13 @@ test('a block’s rows: a file read in the Workspace or taken in, a note in full
   const all = deriveGraph(used(), TEAMS, [{ path: 'decisions/old.md', at: '2026-10-01T10:00:00Z' }])
   render(
     <ReactFlowProvider>
-      <SharedNode {...({ id: 'shared:r:top', data: all.nodes.find(n => n.id === 'shared:r:top')!.data, selected: false } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)} />
+      <SharedNode
+        {...({
+          id: 'shared:r:top',
+          data: all.nodes.find(n => n.id === 'shared:r:top')!.data,
+          selected: false,
+        } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)}
+      />
     </ReactFlowProvider>,
   )
   await userEvent.click(screen.getByRole('button', { name: 'All shared files (1) →' }))
@@ -282,10 +430,18 @@ test('a block’s rows: a file read in the Workspace or taken in, a note in full
   const slim = deriveGraph(asked('answered'), TEAMS, [{ path: 'decisions/old.md', at: '2026-10-01T10:00:00Z' }])
   render(
     <ReactFlowProvider>
-      <SharedNode {...({ id: 'shared:r:top', data: slim.nodes.find(n => n.id === 'shared:r:top')!.data, selected: false } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)} />
+      <SharedNode
+        {...({
+          id: 'shared:r:top',
+          data: slim.nodes.find(n => n.id === 'shared:r:top')!.data,
+          selected: false,
+        } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)}
+      />
     </ReactFlowProvider>,
   )
-  expect(screen.getByRole('region', { name: 'Everyone: shared, noted, remembered' })).toHaveTextContent('All shared files (1) →')
+  expect(screen.getByRole('region', { name: 'Everyone: shared, noted, remembered' })).toHaveTextContent(
+    'All shared files (1) →',
+  )
   cleanup()
 })
 
@@ -296,35 +452,76 @@ test('two requests on one line, each with its contract: one card for both, its a
     ...state,
     agents: [
       ...state.agents,
-      sub('bl3', 'Backend / API lead', 'r', 'completed', { name: 'Backend / API lead 3', tool_call_id: 's8', report: 'Declined: no', task: 'Their contract is in the shared folder: contracts/items-again.md.' }),
+      sub('bl3', 'Backend / API lead', 'r', 'completed', {
+        name: 'Backend / API lead 3',
+        tool_call_id: 's8',
+        report: 'Declined: no',
+        task: 'Their contract is in the shared folder: contracts/items-again.md.',
+      }),
     ],
     toolCalls: [
       ...state.toolCalls,
-      toolCall('9', 'r', 'request_work', 'succeeded', JSON.stringify({ to: 'Backend / API', what: 'GET /api/items again', contract: 'x' }), { agent_id: 'wc' }),
-      toolCall('s8', 'r', 'spawn_agent', 'succeeded', JSON.stringify({ role: 'Backend / API lead', task: '…', asked_by: 'Web app' }), { parent_call_id: '9' }),
+      toolCall(
+        '9',
+        'r',
+        'request_work',
+        'succeeded',
+        JSON.stringify({ to: 'Backend / API', what: 'GET /api/items again', contract: 'x' }),
+        { agent_id: 'wc' },
+      ),
+      toolCall(
+        's8',
+        'r',
+        'spawn_agent',
+        'succeeded',
+        JSON.stringify({ role: 'Backend / API lead', task: '…', asked_by: 'Web app' }),
+        { parent_call_id: '9' },
+      ),
     ],
   }
   const g = foldGraph(deriveGraph(two, TEAMS), {})
   expect(new Set(g.nodes.map(n => n.id)).size).toBe(g.nodes.length)
   expect(g.nodes.filter(n => n.id.startsWith('shared:r:ask:')).map(n => n.id)).toEqual(['shared:r:ask:5'])
-  expect(rows(g, 'shared:r:ask:5')).toEqual(['file: contracts/get-api-items-20-a-page.md', 'file: contracts/items-again.md'])
+  expect(rows(g, 'shared:r:ask:5')).toEqual([
+    'file: contracts/get-api-items-20-a-page.md',
+    'file: contracts/items-again.md',
+  ])
   const { positions, lines } = layoutGraph(g.nodes, g.edges)
   expect(lines['shared:shared:r:ask:5'].x2).toBe(positions['shared:r:ask:5'].x)
 })
 
 test('a shared file’s row says what became of its Take in, in place of the button; with no project there is none to take it into', async () => {
-  const data = (projectId: string | null): SharedData => ({ who: 'Web app', colour: '#888', projectId, runId: 'r', rows: [{ kind: 'file', text: 'spec.md', path: 'web-app/spec.md' }, { kind: 'file', text: 'notes.md', path: 'web-app/notes.md' }] })
+  const data = (projectId: string | null): SharedData => ({
+    who: 'Web app',
+    colour: '#888',
+    projectId,
+    runId: 'r',
+    rows: [
+      { kind: 'file', text: 'spec.md', path: 'web-app/spec.md' },
+      { kind: 'file', text: 'notes.md', path: 'web-app/notes.md' },
+    ],
+  })
   const draw = (projectId: string | null) =>
     render(
       <ReactFlowProvider>
-        <SharedNode {...({ id: 's', data: data(projectId), selected: false } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)} />
+        <SharedNode
+          {...({ id: 's', data: data(projectId), selected: false } as unknown as NodeProps<
+            Node<SharedData & Record<string, unknown>>
+          >)}
+        />
       </ReactFlowProvider>,
     )
-  const post = vi.spyOn(api, 'post').mockResolvedValueOnce({ path: 'spec.md' }).mockRejectedValueOnce(new ApiError(409, 'notes.md is already there'))
+  const post = vi
+    .spyOn(api, 'post')
+    .mockResolvedValueOnce({ path: 'spec.md' })
+    .mockRejectedValueOnce(new ApiError(409, 'notes.md is already there'))
   // (restored whatever fails: the file's tests share `api` in a worker)
   try {
     const { container, unmount } = draw('p1')
-    expect(Array.from(container.querySelectorAll('.shared-row'), row => row.textContent)).toEqual(['fileweb-app/spec.mdTake in', 'fileweb-app/notes.mdTake in'])
+    expect(Array.from(container.querySelectorAll('.shared-row'), row => row.textContent)).toEqual([
+      'fileweb-app/spec.mdTake in',
+      'fileweb-app/notes.mdTake in',
+    ])
     expect(container.querySelector('.shared-kind')).toHaveClass('shared-kind-file')
     await userEvent.click(screen.getByRole('button', { name: 'Take web-app/spec.md into the project' }))
     expect(post).toHaveBeenCalledWith('/projects/p1/shared/take', { path: 'web-app/spec.md' })
@@ -339,6 +536,9 @@ test('a shared file’s row says what became of its Take in, in place of the but
     post.mockRestore()
   }
   draw(null)
-  expect(screen.getByRole('button', { name: 'web-app/spec.md' })).toHaveAttribute('title', 'Read .koloni/shared/web-app/spec.md in the Workspace')
+  expect(screen.getByRole('button', { name: 'web-app/spec.md' })).toHaveAttribute(
+    'title',
+    'Read .koloni/shared/web-app/spec.md in the Workspace',
+  )
   expect(screen.queryByRole('button', { name: /into the project$/ })).toBeNull()
 })

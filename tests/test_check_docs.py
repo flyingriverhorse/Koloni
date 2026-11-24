@@ -139,18 +139,24 @@ def test_guide_labels_and_norm():
 def test_changelog_page_links_the_guides_pages_and_the_repositorys_files():
     made = docs.changelog_page(
         "# Changelog\n\n<!--\nhow to write\n-->\n\n## [0.1.0]\n\n- **Chat**: talk ([docs](docs/use/"
-        "ready.md#cards)); AGPL ([docs](LICENSE)), [site](https://x.dev/a.md), [top](#changelog)\n")
+        "ready.md#cards)); AGPL ([docs](LICENSE)), [site](https://x.dev/a.md), [top](#changelog)\n"
+    )
     assert made.endswith(
         "# Changelog\n\n## [0.1.0]\n\n- **Chat**: talk ([docs](use/ready.md#cards)); AGPL ([docs]("
-        f"{docs.REPOSITORY}LICENSE)), [site](https://x.dev/a.md), [top](#changelog)\n")
+        f"{docs.REPOSITORY}LICENSE)), [site](https://x.dev/a.md), [top](#changelog)\n"
+    )
     assert "how to write" not in made
 
 
 def test_changelog_page_reads_titles_root_paths_any_scheme_and_leaves_code_alone(tmp_path):
-    made = docs.changelog_page('[a](/docs/use/ready.md "Ready") [b](/SECURITY.md) '
-                               "[c](HTTPS://x.dev/y) `[d](docs/x.md)` [e](mailto:me@x.dev)")
-    assert made.endswith(f'[a](use/ready.md "Ready") [b]({docs.REPOSITORY}SECURITY.md) '
-                         "[c](HTTPS://x.dev/y) `[d](docs/x.md)` [e](mailto:me@x.dev)")
+    made = docs.changelog_page(
+        '[a](/docs/use/ready.md "Ready") [b](/SECURITY.md) '
+        "[c](HTTPS://x.dev/y) `[d](docs/x.md)` [e](mailto:me@x.dev)"
+    )
+    assert made.endswith(
+        f'[a](use/ready.md "Ready") [b]({docs.REPOSITORY}SECURITY.md) '
+        "[c](HTTPS://x.dev/y) `[d](docs/x.md)` [e](mailto:me@x.dev)"
+    )
     # no page yet: written, and said once
     (tmp_path / "docs").mkdir()
     (tmp_path / "CHANGELOG.md").write_text("# Changelog\n", encoding="utf-8")

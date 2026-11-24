@@ -23,25 +23,43 @@ pytestmark = pytest.mark.no_po
 BIG2 = "".join(f"y{i} = {i}\n" for i in range(90))
 SHELL = "import subprocess\nsubprocess.run(x, shell=True)\n"
 # (every look that could open says MERGE: a look more is counted, not failed)
-LOOKS = {name: [MERGE] for name in ("Reviewer", "Reviewer 2", "Reviewer 3", "Security reviewer",
-                                    "Security reviewer 2")}
+LOOKS = {
+    name: [MERGE]
+    for name in ("Reviewer", "Reviewer 2", "Reviewer 3", "Security reviewer", "Security reviewer 2")
+}
 DONE = [text(f"done {i}") for i in range(3)]
 
 
 def started(make_client, project_dir, mode, scripts):
     """The user's own recipe - one step, Fix it (Coder), no Review step; its Checks step tests and
     reviews - picked for Web app, the project's tests passing."""
-    client, _model = make_client({**LOOKS, **scripts},
-                                 executor=ScriptedExecutor([PASS for _ in range(8)]))
+    client, _model = make_client(
+        {**LOOKS, **scripts}, executor=ScriptedExecutor([PASS for _ in range(8)])
+    )
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={"check_command": "python check.py"},
-                        headers=OWN).status_code == 200
-    recipe = made(client, "Just fix it", {**graph(
-        [part("fix", "Fix it", {"role": "Coder"})], [("start", "fix"), ("fix", "end")]),
-        "checks": {"tests": True, "review": True}})
+    assert (
+        client.patch(
+            f"/api/projects/{pid}", json={"check_command": "python check.py"}, headers=OWN
+        ).status_code
+        == 200
+    )
+    recipe = made(
+        client,
+        "Just fix it",
+        {
+            **graph([part("fix", "Fix it", {"role": "Coder"})], [("start", "fix"), ("fix", "end")]),
+            "checks": {"tests": True, "review": True},
+        },
+    )
     web = teams_of(client)["Web app"]
-    cid, run_id = begin(client, project_dir, mode=mode, spawn_approval="never",
-                        teams_mode="manual", teams=[{"team_id": web["id"], "recipe_id": recipe["id"]}])
+    cid, run_id = begin(
+        client,
+        project_dir,
+        mode=mode,
+        spawn_approval="never",
+        teams_mode="manual",
+        teams=[{"team_id": web["id"], "recipe_id": recipe["id"]}],
+    )
     return client, cid, run_id
 
 
@@ -52,16 +70,32 @@ def looked(snap):
 def ended(client, cid, run_id, most):
     """The snapshot once the run has ended - or once a look more than `most` has opened (each
     look's end opened the next one, without end: no wait on that)."""
-    return until(client, cid, lambda s: len(reviewers(s)) > most or next(
-        r for r in s["runs"] if r["id"] == run_id)["status"] in TERMINAL, timeout=20)
+    return until(
+        client,
+        cid,
+        lambda s: (
+            len(reviewers(s)) > most
+            or next(r for r in s["runs"] if r["id"] == run_id)["status"] in TERMINAL
+        ),
+        timeout=20,
+    )
 
 
-@pytest.mark.parametrize(("changed", "looks"), [
-    (BIG, ["Reviewer"]), (SHELL, ["Reviewer", "Security reviewer"])], ids=["big", "security"])
+@pytest.mark.parametrize(
+    ("changed", "looks"),
+    [(BIG, ["Reviewer"]), (SHELL, ["Reviewer", "Security reviewer"])],
+    ids=["big", "security"],
+)
 def test_at_full_auto_one_look_and_the_work_is_taken_in(make_client, project_dir, changed, looks):
-    client, cid, run_id = started(make_client, project_dir, "full_auto", {
-        "Lead": [spawn("Coder", "fix it", "c1"), *DONE],
-        "Coder": [step(write("calc.py", changed)), text("fixed")]})
+    client, cid, run_id = started(
+        make_client,
+        project_dir,
+        "full_auto",
+        {
+            "Lead": [spawn("Coder", "fix it", "c1"), *DONE],
+            "Coder": [step(write("calc.py", changed)), text("fixed")],
+        },
+    )
     snap = ended(client, cid, run_id, len(looks))
     assert looked(snap) == looks, (looked(snap), texts(snap))
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -70,11 +104,21 @@ def test_at_full_auto_one_look_and_the_work_is_taken_in(make_client, project_dir
 
 
 def test_a_hold_goes_back_into_the_recipe_and_its_fix_is_looked_at_once(make_client, project_dir):
-    client, cid, run_id = started(make_client, project_dir, "full_auto", {
-        "Lead": [spawn("Coder", "fix it", "c1"), spawn("Coder", "fix the findings", "c2"), *DONE],
-        "Coder": [step(write("calc.py", BIG)), text("fixed")],
-        "Coder 2": [step(write("calc.py", BIG2, "w2")), text("fixed again")],
-        "Reviewer": [hold("calc.py: the names are wrong")]})
+    client, cid, run_id = started(
+        make_client,
+        project_dir,
+        "full_auto",
+        {
+            "Lead": [
+                spawn("Coder", "fix it", "c1"),
+                spawn("Coder", "fix the findings", "c2"),
+                *DONE,
+            ],
+            "Coder": [step(write("calc.py", BIG)), text("fixed")],
+            "Coder 2": [step(write("calc.py", BIG2, "w2")), text("fixed again")],
+            "Reviewer": [hold("calc.py: the names are wrong")],
+        },
+    )
     snap = ended(client, cid, run_id, 2)
     assert looked(snap) == ["Reviewer", "Reviewer 2"], (looked(snap), texts(snap))
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -84,11 +128,21 @@ def test_a_hold_goes_back_into_the_recipe_and_its_fix_is_looked_at_once(make_cli
 
 
 def test_at_auto_edit_the_card_comes_after_the_one_look(make_client, project_dir):
-    client, cid, run_id = started(make_client, project_dir, "auto_edit", {
-        "Lead": [spawn("Coder", "fix it", "c1"), *DONE],
-        "Coder": [step(write("calc.py", BIG)), text("fixed")]})
-    snap = until(client, cid, lambda s: len(reviewers(s)) > 1 or (
-        asked(s) and READY in asked(s)["question"]), timeout=20)
+    client, cid, run_id = started(
+        make_client,
+        project_dir,
+        "auto_edit",
+        {
+            "Lead": [spawn("Coder", "fix it", "c1"), *DONE],
+            "Coder": [step(write("calc.py", BIG)), text("fixed")],
+        },
+    )
+    snap = until(
+        client,
+        cid,
+        lambda s: len(reviewers(s)) > 1 or (asked(s) and READY in asked(s)["question"]),
+        timeout=20,
+    )
     assert looked(snap) == ["Reviewer"], (looked(snap), texts(snap))
     assert f"Review: Reviewer ({SIGN}) - MERGE, no findings" in texts(snap), texts(snap)
     assert not (project_dir / "calc.py").exists()

@@ -4,6 +4,7 @@ defaults and its chats (slice 86b)
 Revision ID: 0071
 Revises: 0070
 """
+
 import json
 
 import sqlalchemy as sa
@@ -26,21 +27,26 @@ def upgrade() -> None:
     rows = bind.execute(sa.text("SELECT path, access FROM open_folders")).all()
     every_write = [path for path, access in rows if access == "write"]
     every_read = [path for path, access in rows if access == "read"]
-    for pid, also, read in bind.execute(
-            sa.text("SELECT id, also_in, read_in FROM projects")).all():
-        also, read = _merged(json.loads(also or "[]"), json.loads(read or "[]"),
-                             every_write, every_read)
-        bind.execute(sa.text("UPDATE projects SET also_in = :a, read_in = :r WHERE id = :i"),
-                     {"a": json.dumps(also), "r": json.dumps(read), "i": pid})
+    for pid, also, read in bind.execute(sa.text("SELECT id, also_in, read_in FROM projects")).all():
+        also, read = _merged(
+            json.loads(also or "[]"), json.loads(read or "[]"), every_write, every_read
+        )
+        bind.execute(
+            sa.text("UPDATE projects SET also_in = :a, read_in = :r WHERE id = :i"),
+            {"a": json.dumps(also), "r": json.dumps(read), "i": pid},
+        )
         # A chat's agents used its folder's lists as well as its own: now they are its own.
-        for cid, own_also, own_read in bind.execute(sa.text(
-                "SELECT id, also_in, read_in FROM conversations WHERE project_id = :p"),
-                {"p": pid}).all():
-            chat_also, chat_read = _merged(also, read, json.loads(own_also or "[]"),
-                                           json.loads(own_read or "[]"))
+        for cid, own_also, own_read in bind.execute(
+            sa.text("SELECT id, also_in, read_in FROM conversations WHERE project_id = :p"),
+            {"p": pid},
+        ).all():
+            chat_also, chat_read = _merged(
+                also, read, json.loads(own_also or "[]"), json.loads(own_read or "[]")
+            )
             bind.execute(
                 sa.text("UPDATE conversations SET also_in = :a, read_in = :r WHERE id = :i"),
-                {"a": json.dumps(chat_also), "r": json.dumps(chat_read), "i": cid})
+                {"a": json.dumps(chat_also), "r": json.dumps(chat_read), "i": cid},
+            )
     op.drop_table("open_folders")
 
 

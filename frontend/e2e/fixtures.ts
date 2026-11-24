@@ -9,7 +9,10 @@ export * from '@playwright/test'
 export const test = base.extend({
   // (`give`, not `use`: the linter takes that name for a React hook.)
   request: async ({ playwright }, give) => {
-    const api = await playwright.request.newContext({ baseURL: APP_URL, extraHTTPHeaders: { 'X-KOLONI-Key': PAGE_KEY } })
+    const api = await playwright.request.newContext({
+      baseURL: APP_URL,
+      extraHTTPHeaders: { 'X-KOLONI-Key': PAGE_KEY },
+    })
     await give(api)
     await api.dispose()
   },

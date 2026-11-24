@@ -14,19 +14,25 @@ def instructions() -> list[tuple[str, str]]:
     text = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     lines = [line for line in text.splitlines() if not line.lstrip().startswith("#")]
     joined = re.sub(r"\\\n", " ", "\n".join(lines))
-    return [(word.upper(), rest.strip()) for word, _, rest in
-            (line.strip().partition(" ") for line in joined.splitlines() if line.strip())]
+    return [
+        (word.upper(), rest.strip())
+        for word, _, rest in (
+            line.strip().partition(" ") for line in joined.splitlines() if line.strip()
+        )
+    ]
 
 
 def test_dockerignore_keeps_the_checkouts_own_out():
-    lines = [line.strip() for line in
-             (REPO_ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
-             if line.strip() and not line.startswith("#")]
+    lines = [
+        line.strip()
+        for line in (REPO_ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
     assert lines[0] == "*"  # an allowlist: an untracked file never reaches the build
     last_allowed = max(i for i, line in enumerate(lines) if line.startswith("!"))
     for name in NEVER_IN_IMAGE:
         # Later lines win: each one after the last "!", so nothing allowed brings it back.
-        assert name in lines[last_allowed + 1:], name
+        assert name in lines[last_allowed + 1 :], name
     assert "**/node_modules" in lines and "**/.env*" in lines
 
 
@@ -48,6 +54,7 @@ def test_no_secret_is_put_into_the_image():
             for name in re.findall(r"([A-Za-z_][A-Za-z0-9_]*)=", rest) or [rest.split()[0]]:
                 assert not SECRET_NAME.search(name), f"{word} {name}"
         if word in ("COPY", "ADD"):
-            assert not re.search(r"\.env|\.claude|\.codex|\.copilot|\.gemini|\.qoder|runtime",
-                                 rest), rest
+            assert not re.search(
+                r"\.env|\.claude|\.codex|\.copilot|\.gemini|\.qoder|runtime", rest
+            ), rest
             assert not re.match(r"(--\S+\s+)*\.\s", rest), "the whole folder is not copied"

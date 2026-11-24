@@ -58,9 +58,14 @@ from app.roles import BACKLOG
 from app.workspace import far_or_device
 
 # The one tool its hook calls on its door (`agy_hook`): never one an agent is offered.
-DOOR_TOOL = {"type": "function", "function": {
-    "name": "approve", "description": "KOLONİ's answer to agy's hook, before its tool acts.",
-    "parameters": {"type": "object", "properties": {}}}}
+DOOR_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "approve",
+        "description": "KOLONİ's answer to agy's hook, before its tool acts.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
 
 AGY_RULES = """You are working as an agent inside KOLONİ, a workspace where several agents
 work for one user. The input is a JSON document with "instructions" (who you are and how
@@ -77,15 +82,19 @@ When the work is done, say briefly what you did and what you did not verify."""
 REACH_NONE = (
     "You have nothing here to reach the user or another agent with: where the instructions "
     "speak of asking someone or handing work on, do that part yourself, or say plainly that "
-    "you could not.")
+    "you could not."
+)
 REACH_KOLONI = (
     'The "koloni" MCP server gives you KOLONİ\'s own tools, which yours cannot do: {tools}. Use '
     "them where the instructions call for it (spawn_agent, where you have it, hands a part of "
     "the job to another agent and returns its report). They are yours already: call them by "
-    "these names, with no need to look for them first.")
+    "these names, with no need to look for them first."
+)
 # B-317: reading only, it listed that folder with a command, refused there, and ended mute.
-DEFINED_IN = (" Should you want one's definition, it is <name>.json in {folder}: read it with "
-              "your own file tool, never with a command.")
+DEFINED_IN = (
+    " Should you want one's definition, it is <name>.json in {folder}: read it with "
+    "your own file tool, never with a command."
+)
 HOW_READS = (
     "You are here to read: no command can run in this run and no file can be changed, so a "
     "step that would do either is refused. Look with your own tools that read files, list "
@@ -105,8 +114,13 @@ AGY_RUNS = ("run_command",)
 # Input to a command at work: judged as a command of its own (its "Input").
 AGY_INPUT = "send_command_input"
 AGY_WRITES = (
-    "write_file", "write_to_file", "replace_file_content", "multi_replace_file_content",
-    "sed_file", "notebook_edit", "edit_notebook",
+    "write_file",
+    "write_to_file",
+    "replace_file_content",
+    "multi_replace_file_content",
+    "sed_file",
+    "notebook_edit",
+    "edit_notebook",
 )
 # Its steps that change nothing and run nothing - a running command's output read, the end
 # of its turn: let through, and not stopped at if its hook was not called for them.
@@ -114,12 +128,31 @@ AGY_INERT = ("command_status", "finish", "task_boundary")
 # Its tools that run code or start agents of its own (its step types, as its binary names
 # them): refused until each is measured.
 AGY_NOT_YET = (
-    "invoke_subagent", "browser_subagent", "define_subagent", "schedule", "run_workflow",
-    "notebook_execution", "execute_notebook", "run_extension_code", "execute_browser_javascript",
-    "agency_tool_call", "shell_exec", "rpc_action", "compile", "compile_applet",
-    "blaze_build_targets", "blaze_test_targets", "install_applet_dependencies",
-    "install_applet_package", "deploy_firebase", "set_up_firebase", "set_up_cloud_sql",
-    "cloud_sql_execute_sql", "cloud_sql_update_schema", "restart_dev_server", "git_commit",
+    "invoke_subagent",
+    "browser_subagent",
+    "define_subagent",
+    "schedule",
+    "run_workflow",
+    "notebook_execution",
+    "execute_notebook",
+    "run_extension_code",
+    "execute_browser_javascript",
+    "agency_tool_call",
+    "shell_exec",
+    "rpc_action",
+    "compile",
+    "compile_applet",
+    "blaze_build_targets",
+    "blaze_test_targets",
+    "install_applet_dependencies",
+    "install_applet_package",
+    "deploy_firebase",
+    "set_up_firebase",
+    "set_up_cloud_sql",
+    "cloud_sql_execute_sql",
+    "cloud_sql_update_schema",
+    "restart_dev_server",
+    "git_commit",
 )
 UNKNOWN_YET = "KOLONİ does not know what this agy tool does yet"
 # Why a tool KOLONİ does not know is a card in words at every level (`AgentRunner._approve`).
@@ -134,8 +167,17 @@ WORDS = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z0-9]+")  # the words a parameter'
 # What its tools that only look are asked about as (Claude Code's of the same kind): 1.3.3's
 # read_file as measured, the others by the names agy's own documents and stream give them.
 AGY_LOOKS = {
-    **dict.fromkeys(("read_file", "view_file", "view_file_outline", "view_code_item",
-                     "view_content_chunk", "read_notebook"), "Read"),
+    **dict.fromkeys(
+        (
+            "read_file",
+            "view_file",
+            "view_file_outline",
+            "view_code_item",
+            "view_content_chunk",
+            "read_notebook",
+        ),
+        "Read",
+    ),
     **dict.fromkeys(("grep_search", "find", "find_by_name", "code_search"), "Grep"),
     **dict.fromkeys(("list_dir", "list_directory"), "LS"),
 }
@@ -177,13 +219,15 @@ BRIDGE_SECONDS = 10.0
 BRIDGE_NOT_STARTED = "agy did not start KOLONİ's bridge: running the old way"
 NOT_OFFERED = "it is not one of KOLONİ's tools given to this agent"
 # What no tool of agy's own can do: an agent offered one whose role does not run commands (a
-# Product owner, not a Lead: it does the work itself) is not run the old way. Nor, started
+# Hive keeper, not a Lead: it does the work itself) is not run the old way. Nor, started
 # read-only for its role (B-301), one that writes only with KOLONİ's.
 NEEDS_KOLONI = frozenset(BACKLOG)
 WRITES_KOLONI = frozenset({"write_file", "edit_file"})
 # A step named as KOLONİ's own that KOLONİ's server never ran: another server of that name.
-NOT_KOLONIS = ("agy reported a call of KOLONİ's {tool} that KOLONİ's server never ran (another "
-               'server named "koloni"?), so the run is stopped')
+NOT_KOLONIS = (
+    "agy reported a call of KOLONİ's {tool} that KOLONİ's server never ran (another "
+    'server named "koloni"?), so the run is stopped'
+)
 # shortcut: the longest timeout agy honours is unmeasured, and a card left open longer
 # leaves the tool blocked while its card stays open; measure it, and end the card with it.
 HOOK_SECONDS = 1800
@@ -236,7 +280,7 @@ def kolonis(name: str, offered: Collection[str]) -> bool:
     KOLONİ and held to KOLONİ's rules there, so neither asked about nor on record as agy's own.
     Never a bare name: agy's own write_file is named so. By name only: each such step is
     counted against the calls KOLONİ's server ran (`NOT_KOLONIS`)."""
-    return any(name.startswith(lead) and name[len(lead):] in offered for lead in KOLONIS_AS)
+    return any(name.startswith(lead) and name[len(lead) :] in offered for lead in KOLONIS_AS)
 
 
 def _parts(args: dict) -> dict[str, object] | None:
@@ -256,8 +300,12 @@ def unwrapped(tool: str, args: dict) -> str:
     name it has when called directly - so it is judged the same way (`kolonis`). Any other call
     of the wrapper (another server, no clear name, a key more) is left as it came."""
     parts = _parts(args) if tool == WRAPS else None
-    if parts and parts.get("server") == SERVER and isinstance(inner := parts.get("tool"), str) \
-            and inner:
+    if (
+        parts
+        and parts.get("server") == SERVER
+        and isinstance(inner := parts.get("tool"), str)
+        and inner
+    ):
         return KOLONIS_AS[0] + inner
     return tool
 
@@ -278,9 +326,13 @@ def own_definition(raw: str, home: Path, offered: Collection[str]) -> bool:
     except (OSError, ValueError):
         return False
     # (One more link to the file is a hard link from elsewhere - bridge.json, say.)
-    return (os.path.normcase(real.parent) == os.path.normcase(folder)
-            and real.suffix == ".json" and real.stem in offered and real.is_file()
-            and os.stat(real).st_nlink == 1)
+    return (
+        os.path.normcase(real.parent) == os.path.normcase(folder)
+        and real.suffix == ".json"
+        and real.stem in offered
+        and real.is_file()
+        and os.stat(real).st_nlink == 1
+    )
 
 
 def _user_line(prompt: str) -> str:
@@ -300,10 +352,16 @@ def _named(args: dict, *words: str) -> list[str]:
     """What `args` holds under a name whose last word is one of `words`, in any case and
     however the words are joined (TargetFile, target_file, TARGET_FILE) - "Profile" is no
     file."""
-    return list(dict.fromkeys(
-        value for key, value in args.items()
-        if (said := WORDS.findall(key)) and said[-1].lower() in words
-        and isinstance(value, str) and value))
+    return list(
+        dict.fromkeys(
+            value
+            for key, value in args.items()
+            if (said := WORDS.findall(key))
+            and said[-1].lower() in words
+            and isinstance(value, str)
+            and value
+        )
+    )
 
 
 def asked_as(tool: str, args: dict) -> list[tuple[str, dict]] | str:
@@ -330,21 +388,27 @@ def asked_as(tool: str, args: dict) -> list[tuple[str, dict]] | str:
         if sum((WORDS.findall(key) or [""])[-1].lower() == "cwd" for key in args) > 1:
             return CANNOT_TELL
         # (Its run_command's BypassSandbox, REA R18: a reason, so a card at every level.)
-        out = {"reason": "it asks to run outside its sandbox"} if args.get(
-            "BypassSandbox") in (True, "true") else {}
-        return [("Bash", {"command": line, **({"cwd": cwd[0]} if cwd else {}), **out})] \
-            if isinstance(line, str) and line else CANNOT_TELL
+        out = (
+            {"reason": "it asks to run outside its sandbox"}
+            if args.get("BypassSandbox") in (True, "true")
+            else {}
+        )
+        return (
+            [("Bash", {"command": line, **({"cwd": cwd[0]} if cwd else {}), **out})]
+            if isinstance(line, str) and line
+            else CANNOT_TELL
+        )
     content = args.get("Content", args.get("CodeContent"))
     if tool in AGY_LOOKS and AGY_LOOKS[tool] == "Read":
         return [("Read", {"file_path": path}) for path in paths] or CANNOT_TELL
     if tool in AGY_LOOKS and paths:
         # (A search of a folder with a secret its glob could take is a card: `_approve`, 89b.)
         held = next((value for key, value in args.items() if key.lower() == "includes"), None)
-        return [(AGY_LOOKS[tool], {"path": path, **({"glob": held} if held else {})})
-                for path in paths]
+        return [
+            (AGY_LOOKS[tool], {"path": path, **({"glob": held} if held else {})}) for path in paths
+        ]
     if tool in AGY_WHOLE_WRITES and isinstance(content, str):
-        return [("Write", {"file_path": path, "content": content}) for path in paths] \
-            or CANNOT_TELL
+        return [("Write", {"file_path": path, "content": content}) for path in paths] or CANNOT_TELL
     if tool in AGY_WRITES or (paths and tool not in AGY_LOOKS):
         return [("Edit", {**args, "file_path": path}) for path in paths] or CANNOT_TELL
     return [(tool, {**args, "reason": UNKNOWN})]
@@ -356,10 +420,13 @@ def _quotable(path: str) -> str:
         return path  # (only Windows writes a .cmd file to quote it in)
     buffer = ctypes.create_unicode_buffer(32768)
     if ctypes.windll.kernel32.GetShortPathNameW(path, buffer, len(buffer)) and (
-            QUOTABLE.fullmatch(buffer.value)):
+        QUOTABLE.fullmatch(buffer.value)
+    ):
         return buffer.value
-    raise OwnStop(f"agy cannot be given KOLONİ's hook: the path {path!r} has a sign a .cmd "
-                  "file cannot hold, and no short name without it")
+    raise OwnStop(
+        f"agy cannot be given KOLONİ's hook: the path {path!r} has a sign a .cmd "
+        "file cannot hold, and no short name without it"
+    )
 
 
 def _hook_line(folder: Path) -> str:
@@ -372,7 +439,8 @@ def _hook_line(folder: Path) -> str:
         return shlex.join([sys.executable, "-I", agy_hook.__file__, DOOR])
     python, script = (_quotable(path) for path in (sys.executable, agy_hook.__file__))
     (folder / WRAPPER).write_text(  # (text mode: each line ends in CRLF)
-        f'@"{python}" -I "{script}" {DOOR}\n@exit /b %errorlevel%\n', encoding="ascii")
+        f'@"{python}" -I "{script}" {DOOR}\n@exit /b %errorlevel%\n', encoding="ascii"
+    )
     return f".\\{WRAPPER}"
 
 
@@ -410,7 +478,8 @@ def _log_of(home: Path) -> str:
     """What agy has written to its log in `home` so far."""
     with contextlib.suppress(OSError):
         return (home / ".gemini" / "antigravity-cli" / "cli.log").read_text(
-            encoding="utf-8", errors="replace")
+            encoding="utf-8", errors="replace"
+        )
     return ""
 
 
@@ -435,8 +504,17 @@ class AgyClient(CodexNativeClient):
     # `cli_surface.checked`), and this kind has a way of running that only reads.
     collaborates = True
     can_read_only = True
-    def __init__(self, executable=None, model=None, timeout: float = 900.0, *,
-                 reads: bool = True, homes: Path | None = None, **more):
+
+    def __init__(
+        self,
+        executable=None,
+        model=None,
+        timeout: float = 900.0,
+        *,
+        reads: bool = True,
+        homes: Path | None = None,
+        **more,
+    ):
         super().__init__(executable, model, timeout, **more)
         self.reads = reads
         # B-404: a model whose name fixes its level (gemini-3.8-flash-low) takes none.
@@ -467,8 +545,11 @@ class AgyClient(CodexNativeClient):
         # the Windows vault (natively; reading, not yet on 1.4.9); keep one here (a
         # GEMINI_API_KEY) if a sign-in is ever seen to need it.
         told = super()._inherited(pass_env)
-        return {name: value for name, value in told.items()
-                if not name.upper().startswith(("GEMINI_", "ANTIGRAVITY_"))}
+        return {
+            name: value
+            for name, value in told.items()
+            if not name.upper().startswith(("GEMINI_", "ANTIGRAVITY_"))
+        }
 
     def _new_home(self) -> Path:
         """A home of KOLONİ's for one run, under `homes` (`sweep_homes`)."""
@@ -481,8 +562,14 @@ class AgyClient(CodexNativeClient):
         if self.reads:
             return self
         return AgyClient(
-            self._executable, self._model, self._timeout, reads=True, homes=self.homes,
-            which=self._which, launcher=self._launcher, env=self._env,
+            self._executable,
+            self._model,
+            self._timeout,
+            reads=True,
+            homes=self.homes,
+            which=self._which,
+            launcher=self._launcher,
+            env=self._env,
         )
 
     def _agy_arguments(self) -> list[str]:
@@ -494,9 +581,14 @@ class AgyClient(CodexNativeClient):
         # next flag for the prompt). It is left empty: the prompt comes on stdin.
         return [*arguments, "-p="]
 
-    def _input(self, messages: list[dict], root: str | None,
-               own: frozenset[str] = frozenset(), read_only: bool = False,
-               home: Path | None = None) -> str:
+    def _input(
+        self,
+        messages: list[dict],
+        root: str | None,
+        own: frozenset[str] = frozenset(),
+        read_only: bool = False,
+        home: Path | None = None,
+    ) -> str:
         """What is written to its stdin: the whole prompt as one JSON line. `root`: the
         project folder it works in; None when it is only tried out, in a folder that is
         no project - and is not said to be one. `own`: KOLONİ's tools it has;
@@ -507,11 +599,17 @@ class AgyClient(CodexNativeClient):
         if root is None:
             told = TRY_OUT_RULES
         else:
-            reach = REACH_KOLONI.format(tools=", ".join(sorted(own))) + (DEFINED_IN.format(
-                folder=home / ".gemini" / "antigravity-cli" / "mcp" / SERVER) if home else ""
-            ) if own else REACH_NONE
-            rules = AGY_RULES.format(reach=reach,
-                                     how=HOW_READS if self.reads else HOW_NATIVE)
+            reach = (
+                REACH_KOLONI.format(tools=", ".join(sorted(own)))
+                + (
+                    DEFINED_IN.format(folder=home / ".gemini" / "antigravity-cli" / "mcp" / SERVER)
+                    if home
+                    else ""
+                )
+                if own
+                else REACH_NONE
+            )
+            rules = AGY_RULES.format(reach=reach, how=HOW_READS if self.reads else HOW_NATIVE)
             if read_only:
                 rules += f"\n\n{READ_ONLY_RULES}"
             told = f"{rules}\n\n{WHERE.format(root=root)}"
@@ -584,27 +682,46 @@ class AgyClient(CodexNativeClient):
                     # KOLONİ's own tool: asked about where KOLONİ runs it, not here.
                     # One named so that it has not now (not offered, or it runs the old way):
                     # refused, whichever server would answer it.
-                    questions = [] if kolonis(tool, bridged.own) else NOT_OFFERED if any(
-                        tool.startswith(lead) for lead in KOLONIS_AS) else asked_as(tool, args)
+                    questions = (
+                        []
+                        if kolonis(tool, bridged.own)
+                        else NOT_OFFERED
+                        if any(tool.startswith(lead) for lead in KOLONIS_AS)
+                        else asked_as(tool, args)
+                    )
                     if questions == [] and kolonis(tool, bridged.own):
                         hooked.kolonis[step_id] = tool  # (its stream is not read for this)
                     if isinstance(questions, str):
                         hooked.refused.append(f"{tool}: {questions}")
-                        await on_item("completed", {
-                            "type": "mcp_tool_call", "server": "agy", "tool": tool,
-                            "arguments": args, "status": "declined",
-                            "error": {"message": questions}})
+                        await on_item(
+                            "completed",
+                            {
+                                "type": "mcp_tool_call",
+                                "server": "agy",
+                                "tool": tool,
+                                "arguments": args,
+                                "status": "declined",
+                                "error": {"message": questions},
+                            },
+                        )
                         return answer("deny", questions)
                     # B-318: its own definition of a tool of KOLONİ's, read before it calls it.
-                    questions = [(kind, given) for kind, given in questions if not (
-                        kind == "Read" and own_definition(given["file_path"], home,
-                                                          bridged.offered))]
+                    questions = [
+                        (kind, given)
+                        for kind, given in questions
+                        if not (
+                            kind == "Read"
+                            and own_definition(given["file_path"], home, bridged.offered)
+                        )
+                    ]
                     for number, (kind, given) in enumerate(questions):
                         # A tool asked about as several (each file it names): each its own id.
                         use_id = step_id + (f":{number}" if number else "")
                         await on_item("announced", {"id": use_id})
-                        _ok, verdict = await call_tool("approve", json.dumps(
-                            {"tool_name": kind, "input": given, "tool_use_id": use_id}))
+                        _ok, verdict = await call_tool(
+                            "approve",
+                            json.dumps({"tool_name": kind, "input": given, "tool_use_id": use_id}),
+                        )
                         said = _dict(json.loads(verdict))
                         if said.get("behavior") != "allow":
                             why = str(said.get("message") or "KOLONİ said no")
@@ -634,16 +751,22 @@ class AgyClient(CodexNativeClient):
             deadline = time.monotonic() + waited
             while not (counts := LOADED.findall(await asyncio.to_thread(_log_of, home))):
                 if time.monotonic() > deadline:
-                    raise OwnStop(f"agy did not say within {waited:g} seconds that it loaded "
-                                  "KOLONİ's hook, and is not run without it")
+                    raise OwnStop(
+                        f"agy did not say within {waited:g} seconds that it loaded "
+                        "KOLONİ's hook, and is not run without it"
+                    )
                 await asyncio.sleep(0.1)
             if any(count == "0" for count, _files in counts):
-                raise OwnStop("agy loaded no hook (its log says none), so nothing could "
-                              "ask KOLONİ before its tools: it is not run without it")
+                raise OwnStop(
+                    "agy loaded no hook (its log says none), so nothing could "
+                    "ask KOLONİ before its tools: it is not run without it"
+                )
             if set(counts) != {("1", "1")}:
-                raise OwnStop("agy loaded hooks besides KOLONİ's (a project's .agents/"
-                              "hooks.json, say), which would run without KOLONİ being asked: "
-                              "it is not run so")
+                raise OwnStop(
+                    "agy loaded hooks besides KOLONİ's (a project's .agents/"
+                    "hooks.json, say), which would run without KOLONİ being asked: "
+                    "it is not run so"
+                )
 
         # Its hook's door: the one tool it calls is KOLONİ's approve; while it waits for an
         # answer (a card, for as long as the user thinks) agy is not silent.
@@ -678,18 +801,28 @@ class AgyClient(CodexNativeClient):
                 await loaded()
             deadline = time.monotonic() + min(BRIDGE_SECONDS, self._timeout / 2)
             while bridged.own and not bridge._taken and not bridge.ended:
-                if time.monotonic() > deadline and ("run" in withheld or read_only) and (
-                        needs := sorted(bridged.offered & (
-                            NEEDS_KOLONI | (WRITES_KOLONI if read_only else frozenset())))):
-                    # (B-315: a Product owner without them searched the files for 17 minutes.)
-                    raise OwnStop(f"{BRIDGE_NOT_STARTED.split(':')[0]}, and this agent's work "
-                                  f"needs KOLONİ's own tools ({', '.join(needs)}): it is not "
-                                  "run on agy without them")
+                if (
+                    time.monotonic() > deadline
+                    and ("run" in withheld or read_only)
+                    and (
+                        needs := sorted(
+                            bridged.offered
+                            & (NEEDS_KOLONI | (WRITES_KOLONI if read_only else frozenset()))
+                        )
+                    )
+                ):
+                    # (B-315: a Hive keeper without them searched the files for 17 minutes.)
+                    raise OwnStop(
+                        f"{BRIDGE_NOT_STARTED.split(':')[0]}, and this agent's work "
+                        f"needs KOLONİ's own tools ({', '.join(needs)}): it is not "
+                        "run on agy without them"
+                    )
                 if time.monotonic() > deadline:
                     bridged.own.clear()
                     await bridge.close()  # (a late one serves nothing)
-                    await on_item("completed", {"type": "bridge_not_started",
-                                                "why": BRIDGE_NOT_STARTED})
+                    await on_item(
+                        "completed", {"type": "bridge_not_started", "why": BRIDGE_NOT_STARTED}
+                    )
                     return self._input(messages, root, frozenset())
                 await asyncio.sleep(0.05)
             return None
@@ -702,32 +835,61 @@ class AgyClient(CodexNativeClient):
                 # shortcut: the shape is Antigravity's documented mcpServers (as Claude Code's
                 # mcp.json), not the file `agy mcp add` wrote in R103, which was not kept; a
                 # wrong one is a run the old way (`ready`) - measure it live.
-                (config / "mcp_config.json").write_text(json.dumps({"mcpServers": {SERVER: {
-                    "command": sys.executable,
-                    "args": [mcp_bridge.__file__, str(bridge_file(bridge, config))]}}}),
-                    encoding="utf-8")
+                (config / "mcp_config.json").write_text(
+                    json.dumps(
+                        {
+                            "mcpServers": {
+                                SERVER: {
+                                    "command": sys.executable,
+                                    "args": [mcp_bridge.__file__, str(bridge_file(bridge, config))],
+                                }
+                            }
+                        }
+                    ),
+                    encoding="utf-8",
+                )
                 # One rule for each tool it is offered, never a wildcard: reading only, these
                 # are all that a headless agy is let call (measured, R103).
                 own = home / ".gemini" / "antigravity-cli"
                 own.mkdir(parents=True)
-                (own / "settings.json").write_text(json.dumps({"permissions": {"allow": [
-                    f"mcp({SERVER}/{name})" for name in sorted(bridged.offered)]}}),
-                    encoding="utf-8")
+                (own / "settings.json").write_text(
+                    json.dumps(
+                        {
+                            "permissions": {
+                                "allow": [
+                                    f"mcp({SERVER}/{name})" for name in sorted(bridged.offered)
+                                ]
+                            }
+                        }
+                    ),
+                    encoding="utf-8",
+                )
             if door is not None:
                 await door.start()
                 # Port and key in a file only its hook is pointed at, not on a command line.
-                (config / DOOR).write_text(json.dumps({"port": door.port, "key": door.key}),
-                                           encoding="utf-8")
-                hook = {"type": "command", "command": _hook_line(config),
-                        "timeout": HOOK_SECONDS}
-                (config / "hooks.json").write_text(json.dumps(
-                    {"koloni": {"PreToolUse": [{"matcher": "*", "hooks": [hook]}]}}),
-                    encoding="utf-8")
+                (config / DOOR).write_text(
+                    json.dumps({"port": door.port, "key": door.key}), encoding="utf-8"
+                )
+                hook = {"type": "command", "command": _hook_line(config), "timeout": HOOK_SECONDS}
+                (config / "hooks.json").write_text(
+                    json.dumps({"koloni": {"PreToolUse": [{"matcher": "*", "hooks": [hook]}]}}),
+                    encoding="utf-8",
+                )
             return await self._turn(
-                messages, Path(root), root, call_tool, on_text, on_item,
-                {**env, "USERPROFILE": str(home), "HOME": str(home)}, effort,
-                server=door or bridge, ready=ready, hooked=hooked, bridged=bridged,
-                read_only=read_only, home=home,
+                messages,
+                Path(root),
+                root,
+                call_tool,
+                on_text,
+                on_item,
+                {**env, "USERPROFILE": str(home), "HOME": str(home)},
+                effort,
+                server=door or bridge,
+                ready=ready,
+                hooked=hooked,
+                bridged=bridged,
+                read_only=read_only,
+                home=home,
             )
         finally:
             await bridge.close()
@@ -736,30 +898,49 @@ class AgyClient(CodexNativeClient):
             shutil.rmtree(home, ignore_errors=True)
 
     async def _heard(
-        self, kind: str, item: dict, said: bool, busy: set[str], on_text, on_item: OnItem,
+        self,
+        kind: str,
+        item: dict,
+        said: bool,
+        busy: set[str],
+        on_text,
+        on_item: OnItem,
     ) -> bool:
         said = await super()._heard(kind, item, said, busy, on_text, on_item)
         if item.get("unhooked"):
             # Its hook did not ask KOLONİ about this tool: the gate is gone, nothing more runs.
             name = item["unhooked"]
             how = "ended in an error" if item.get("status") == "failed" else "ran"
-            why = ("a call of its hook could not be read (no tool or step number), so KOLONİ "
-                   "cannot tell which step it was" if item.get("unread")
-                   else "its hook did not reach KOLONİ for it")
-            raise OwnStop(f"agy's {name} ran though KOLONİ refused it, so the run is stopped"
-                          if item.get("refused") else
-                          f"agy's {name} {how} without KOLONİ being asked ({why}), so the run "
-                          "is stopped")
+            why = (
+                "a call of its hook could not be read (no tool or step number), so KOLONİ "
+                "cannot tell which step it was"
+                if item.get("unread")
+                else "its hook did not reach KOLONİ for it"
+            )
+            raise OwnStop(
+                f"agy's {name} ran though KOLONİ refused it, so the run is stopped"
+                if item.get("refused")
+                else f"agy's {name} {how} without KOLONİ being asked ({why}), so the run is stopped"
+            )
         return said
 
     async def _turn(
-        self, messages: list[dict], workdir: Path, root: str | None, call_tool: CallTool,
-        on_text: Callable[[str], Awaitable[None]], on_item: OnItem,
-        env: dict[str, str] | None = None, effort: str | None = None, *,
+        self,
+        messages: list[dict],
+        workdir: Path,
+        root: str | None,
+        call_tool: CallTool,
+        on_text: Callable[[str], Awaitable[None]],
+        on_item: OnItem,
+        env: dict[str, str] | None = None,
+        effort: str | None = None,
+        *,
         server: ToolServer | None = None,
         ready: Callable[[], Awaitable[str | None]] | None = None,
-        hooked: "_Hooked | None" = None, bridged: _Bridged | None = None,
-        read_only: bool = False, home: Path | None = None,
+        hooked: "_Hooked | None" = None,
+        bridged: _Bridged | None = None,
+        read_only: bool = False,
+        home: Path | None = None,
     ) -> SessionResult:
         """One run of the CLI in `workdir`. `root`: the project it is told it works in -
         None where the folder is no project (a try-out). Natively: its hook's door
@@ -783,11 +964,18 @@ class AgyClient(CodexNativeClient):
 
         try:
             return await self._work(
-                [*command, *self._leveled(self._agy_arguments(), effort)], shim,
-                self._input(messages, root, bridged.offered if bridged else frozenset(),
-                            read_only, home),
-                workdir, server, on_text, seen, env,
-                ready=ready, translate=self._translator(hooked, bridged),
+                [*command, *self._leveled(self._agy_arguments(), effort)],
+                shim,
+                self._input(
+                    messages, root, bridged.offered if bridged else frozenset(), read_only, home
+                ),
+                workdir,
+                server,
+                on_text,
+                seen,
+                env,
+                ready=ready,
+                translate=self._translator(hooked, bridged),
             )
         finally:
             # However the turn ended - its result, a crash, the limit on silence, Stop - a
@@ -797,8 +985,7 @@ class AgyClient(CodexNativeClient):
                     with contextlib.suppress(Exception):
                         await on_item("completed", left)
 
-    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None,
-                          effort=None):
+    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None, effort=None):
         """One answer with no project to work in: how the provider is tried out. It runs
         in an empty folder and reading only, whatever way the provider is set to run, and
         is not told that the folder is a project - in a home of KOLONİ's, as its runs are, so
@@ -819,7 +1006,12 @@ class AgyClient(CodexNativeClient):
         home = talker._new_home()
         try:
             result = await talker._turn(
-                messages, workdir, None, no_tool, on_text, unseen,
+                messages,
+                workdir,
+                None,
+                no_tool,
+                on_text,
+                unseen,
                 {**talker._inherited(), "USERPROFILE": str(home), "HOME": str(home)},
                 effort=effort,
             )
@@ -827,8 +1019,13 @@ class AgyClient(CodexNativeClient):
             shutil.rmtree(workdir, ignore_errors=True)
             shutil.rmtree(home, ignore_errors=True)
         return StepResult(
-            "".join(said), [], result.input_tokens, result.output_tokens, result.model,
-            result.cache_read, result.cache_write,
+            "".join(said),
+            [],
+            result.input_tokens,
+            result.output_tokens,
+            result.model,
+            result.cache_read,
+            result.cache_write,
         )
 
     async def models(self) -> list[str]:
@@ -859,8 +1056,11 @@ class AgyClient(CodexNativeClient):
             )
         return listed_models(printed.decode("utf-8", errors="replace"))
 
-    def _translator(self, hooked: "_Hooked | None" = None,  # noqa: C901
-                    bridged: _Bridged | None = None) -> Callable[[dict], list[dict]]:
+    def _translator(  # noqa: C901
+        self,
+        hooked: "_Hooked | None" = None,
+        bridged: _Bridged | None = None,
+    ) -> Callable[[dict], list[dict]]:
         """`hooked`: natively, what its hook asked KOLONİ about - a step that ends without
         being among it was not asked about (`_heard`). `bridged`: KOLONİ's tools in this run,
         whose steps are on record where KOLONİ runs them (`kolonis`)."""
@@ -920,8 +1120,9 @@ class AgyClient(CodexNativeClient):
                 turned_down.append(f"{name}: {BY_AGY}")
             own_name = _own_name(step, name, index, numbered, hooked)
             if bridged is not None and not refused and kolonis(own_name, bridged.offered):
-                bridged_told = _bridged_step(own_name, name, state, index, numbered, bridged,
-                                             ended_steps, at_work)
+                bridged_told = _bridged_step(
+                    own_name, name, state, index, numbered, bridged, ended_steps, at_work
+                )
                 if bridged_told is not None:
                     return bridged_told
             # Two tools of one name can be at work at once: the step's number tells them
@@ -933,8 +1134,14 @@ class AgyClient(CodexNativeClient):
             step_id = at_work.get(key)
 
             def call(**how) -> dict:
-                return {"type": "mcp_tool_call", "id": step_id, "server": "agy", "tool": name,
-                        "arguments": given, **how}
+                return {
+                    "type": "mcp_tool_call",
+                    "id": step_id,
+                    "server": "agy",
+                    "tool": name,
+                    "arguments": given,
+                    **how,
+                }
 
             if state == "ACTIVE" and step_id is not None:
                 return []  # said again while it works
@@ -953,15 +1160,19 @@ class AgyClient(CodexNativeClient):
             if numbered:
                 ended_steps.add(index)
             error = info.get("error")
-            reason = _text(_dict(error).get("message") or (None if isinstance(error, dict)
-                                                          else error))
+            reason = _text(
+                _dict(error).get("message") or (None if isinstance(error, dict) else error)
+            )
             failed = state == "ERROR"
             output = _text(info.get("output"))
             runs, writes = name in AGY_RUNS, name in AGY_WRITES
 
             def closed(status: str, why: str = "") -> dict:
-                return call(status=status, error={"message": why} if failed else None,
-                            result={"content": [{"type": "text", "text": output}]})
+                return call(
+                    status=status,
+                    error={"message": why} if failed else None,
+                    result={"content": [{"type": "text", "text": output}]},
+                )
 
             # What a step changed is read off the folder it works in; the paths it names go
             # with it, so that one outside that folder - the project itself, from a copy -
@@ -970,22 +1181,39 @@ class AgyClient(CodexNativeClient):
             let = hooked.steps.get(str(step_id)) if hooked is not None else None
             if failed and let is False:
                 return []  # refused by KOLONİ before it ran: on record as KOLONİ's no
-            look: dict = {"type": "file_change", "id": step_id,
-                    "changes": [{"path": path} for path in dict.fromkeys(named)]}
-            unsure = [closed("failed", f"{UNSURE}: {reason}" if reason else UNSURE),
-                      {**look, "status": "failed"}]
+            look: dict = {
+                "type": "file_change",
+                "id": step_id,
+                "changes": [{"path": path} for path in dict.fromkeys(named)],
+            }
+            unsure = [
+                closed("failed", f"{UNSURE}: {reason}" if reason else UNSURE),
+                {**look, "status": "failed"},
+            ]
             items: list[dict]
             if runs and (not failed or not self.reads):
                 # A command that ran - also one that failed, when it had leave for
                 # everything: there, no error is read as a refusal. Measured: the command
                 # line is "CommandLine". Without one, "command"; without either, its
                 # parameters as they came rather than a guess.
-                line = next((given[named] for named in ("CommandLine", "command")
-                             if isinstance(given.get(named), str) and given[named]), None)
-                items = [{"type": "command_execution", "id": step_id,
-                          "command": _text(given) if line is None else line,
-                          "aggregated_output": output or reason, "exit_code": None,
-                          "status": "failed" if failed else "completed"}]
+                line = next(
+                    (
+                        given[named]
+                        for named in ("CommandLine", "command")
+                        if isinstance(given.get(named), str) and given[named]
+                    ),
+                    None,
+                )
+                items = [
+                    {
+                        "type": "command_execution",
+                        "id": step_id,
+                        "command": _text(given) if line is None else line,
+                        "aggregated_output": output or reason,
+                        "exit_code": None,
+                        "status": "failed" if failed else "completed",
+                    }
+                ]
                 if self.reads and not failed:
                     # B-317 (R110): agy 1.4.x put a command it refused reading only down as
                     # done. Refused if its output begins with the measured words (what a
@@ -994,8 +1222,11 @@ class AgyClient(CodexNativeClient):
                     # shortcut: R110's stream was not kept, so this shape is a guess; capture
                     # one and keep it in tests/agy_streams.
                     denied = {**closed("denied"), "error": {"message": output or NAMED_DENIED}}
-                    if not output.strip().lower().startswith(
-                            ("permission check failed", "user denied permission")):
+                    if (
+                        not output.strip()
+                        .lower()
+                        .startswith(("permission check failed", "user denied permission"))
+                    ):
                         said_done.append((denied, items))
                         return [{"type": "item.started", "item": call(pending=items)}]
                     refusals += 1
@@ -1005,8 +1236,11 @@ class AgyClient(CodexNativeClient):
                 # A write leaves its own record - with what it was given, so a path
                 # outside the project is named - and then the project is looked at. Natively
                 # it is its change alone: one asked about is the card's (`AgentRunner._observe`).
-                items = ([look] if hooked is not None else [closed("completed"), look]) \
-                    if writes else [closed("completed")]
+                items = (
+                    ([look] if hooked is not None else [closed("completed"), look])
+                    if writes
+                    else [closed("completed")]
+                )
             elif not (runs or writes):
                 items = [closed("failed", reason)]  # a tool that only looks, and failed
             elif not self.reads:
@@ -1033,8 +1267,9 @@ class AgyClient(CodexNativeClient):
             kind = event.get("event")
             if kind == "init":
                 model = _dict(event.get("init")).get("model")
-                return [{"type": "model", "model": model}] if isinstance(model, str) and model \
-                    else []
+                return (
+                    [{"type": "model", "model": model}] if isinstance(model, str) and model else []
+                )
             if kind == "step_update":
                 step = _dict(event.get("step_update"))
                 what = step.get("step_type")
@@ -1055,23 +1290,28 @@ class AgyClient(CodexNativeClient):
 # The parts of `AgyClient._translator` that rebind none of its variables: what they change of
 # its state (`ended_steps`, `at_work`, `waiting`, `said_done`, `turned_down`, `bridged`) is the
 # same object it holds. (`said` and `used` rebind its counts and flags: they stay inside it.)
-def _own_name(step: dict, name: str, index: object, numbered: bool,
-              hooked: _Hooked | None) -> str:
+def _own_name(step: dict, name: str, index: object, numbered: bool, hooked: _Hooked | None) -> str:
     """The name a tool step is KOLONİ's tool by, if it is one."""
     if hooked is not None:
         # Natively a wrapper is KOLONİ's tool only as its hook judged it at that step
         # (B-318), never by what its stream says it was given; any other name is itself.
-        return name if name != WRAPS else hooked.kolonis.get(
-            f"agy_{index}", "") if numbered else ""
+        return name if name != WRAPS else hooked.kolonis.get(f"agy_{index}", "") if numbered else ""
     # (shortcut: reading only there is no hook; that its stream gives the wrapper
     # the parameters it was given is not measured - if not, it is on record as
     # agy's own call and not counted.)
     return unwrapped(name, _dict(_dict(step.get("tool_info")).get("parameters")))
 
 
-def _bridged_step(own_name: str, name: str, state: object, index: Any, numbered: bool,
-                  bridged: _Bridged, ended_steps: set[int],
-                  at_work: dict[object, str]) -> list[dict] | None:
+def _bridged_step(
+    own_name: str,
+    name: str,
+    state: object,
+    index: Any,
+    numbered: bool,
+    bridged: _Bridged,
+    ended_steps: set[int],
+    at_work: dict[object, str],
+) -> list[dict] | None:
     """A step of KOLONİ's tool over the bridge: what is told of it, or None if it is told as
     agy's own (one KOLONİ no longer has)."""
     if state != "ACTIVE":
@@ -1087,35 +1327,52 @@ def _bridged_step(own_name: str, name: str, state: object, index: Any, numbered:
         # agy refused never reached KOLONİ (its rule not taken, say): on record.
         # A wrapper whose start was told before its hook judged it is settled with
         # no record of its own (`_turn`).
-        told = None if state == "ACTIVE" else at_work.pop(
-            index if numbered else name, None)
-        return [{"type": "item.completed", "item": {
-            "type": "mcp_tool_call", "id": told, "server": "agy",
-            "settled": True}}] if told else []
+        told = None if state == "ACTIVE" else at_work.pop(index if numbered else name, None)
+        return (
+            [
+                {
+                    "type": "item.completed",
+                    "item": {"type": "mcp_tool_call", "id": told, "server": "agy", "settled": True},
+                }
+            ]
+            if told
+            else []
+        )
     return None
 
 
-def _unhooked(items: list[dict], name: str, let: bool | None, failed: bool, named: list[str],
-              hooked: _Hooked | None) -> None:
+def _unhooked(
+    items: list[dict],
+    name: str,
+    let: bool | None,
+    failed: bool,
+    named: list[str],
+    hooked: _Hooked | None,
+) -> None:
     """Natively, a step its hook did not ask KOLONİ about: so marked on its items."""
     if hooked is not None and not let and name not in AGY_INERT:
         for item in items:
-            item.update(unhooked=name or "a tool", refused=let is False,
-                        unread=hooked.unread)
+            item.update(unhooked=name or "a tool", refused=let is False, unread=hooked.unread)
             if not failed and item["type"] == "command_execution":
                 item["unasked"] = True
             if not failed and item["type"] == "file_change":
                 item["unasked"] = named
 
 
-def _settled(result: dict, refusals: int, waiting: list[tuple[dict, list[dict]]],
-             said_done: list[tuple[dict, list[dict]]], turned_down: list[str]) -> list[dict]:
+def _settled(
+    result: dict,
+    refusals: int,
+    waiting: list[tuple[dict, list[dict]]],
+    said_done: list[tuple[dict, list[dict]]],
+    turned_down: list[str],
+) -> list[dict]:
     """The commands that waited for the result: refused if it names enough
     commands among `denied_actions` to cover them all, else not known to have
     done nothing."""
     denied = result.get("denied_actions")
     named = sum(
-        1 for action in (denied if isinstance(denied, list) else [])
+        1
+        for action in (denied if isinstance(denied, list) else [])
         if _dict(action).get("action") == "command"
     )
     left, items = named - refusals, []
@@ -1124,22 +1381,24 @@ def _settled(result: dict, refusals: int, waiting: list[tuple[dict, list[dict]]]
     for held in (waiting, said_done):
         refused = left >= len(held)
         left -= len(held) if refused else 0
-        items += [item for denied_item, other in held
-                  for item in ([denied_item] if refused else other)]
-        turned_down.extend(f"{item['tool']}: {BY_AGY}"
-                           for item, _other in (held if refused else []))
+        items += [
+            item for denied_item, other in held for item in ([denied_item] if refused else other)
+        ]
+        turned_down.extend(
+            f"{item['tool']}: {BY_AGY}" for item, _other in (held if refused else [])
+        )
         held.clear()
     return [{"type": "item.completed", "item": item} for item in items]
 
 
-def _ended(result: dict, told: list[dict], spoke: bool, turned_down: list[str],
-           hooked: _Hooked | None) -> list[dict]:
+def _ended(
+    result: dict, told: list[dict], spoke: bool, turned_down: list[str], hooked: _Hooked | None
+) -> list[dict]:
     """The turn's end: `told`, what `_settled` made of the commands that waited for it."""
     status = result.get("status")
     if status != "SUCCESS":
         error = result.get("error")
-        reason = _text(_dict(error).get("message") or (None if isinstance(error, dict)
-                                                      else error))
+        reason = _text(_dict(error).get("message") or (None if isinstance(error, dict) else error))
         if status != "ERROR":
             # An ending KOLONİ does not know is not called a success.
             reason = reason or f"it ended with the status {_text(status) or 'unknown'}"
@@ -1147,24 +1406,37 @@ def _ended(result: dict, told: list[dict], spoke: bool, turned_down: list[str],
     response = result.get("response")
     if not spoke and isinstance(response, str) and response.strip():
         # No word came in deltas: the answer is the one the result carries.
-        told.append({"type": "item.completed",
-                     "item": {"type": "agent_message", "text": response}})
+        told.append({"type": "item.completed", "item": {"type": "agent_message", "text": response}})
     elif not spoke and (refused := [*turned_down, *(hooked.refused if hooked else [])]):
         # One that is empty after a refusal is not left silent (B-317): KOLONİ says, in
         # its own name, which tool was refused and by whom - with its own reason where
         # it refused, never agy's words (they hold the command line, a token in it).
         steps = "; ".join(
             "`" + one.strip().splitlines()[0][:300].rstrip(":").replace("`", "'") + "`"
-            for one in refused[-3:])
-        told.append({"type": "item.completed", "item": {
-            "type": "agent_message", "text": NO_ANSWER.format(steps=steps)}})
+            for one in refused[-3:]
+        )
+        told.append(
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": NO_ANSWER.format(steps=steps)},
+            }
+        )
     usage = _dict(result.get("usage"))
     # Measured: its usage has `cache_read_tokens` - passed on where it says so.
-    cached = ({"cached_input_tokens": usage["cache_read_tokens"]}
-              if "cache_read_tokens" in usage else {})
-    return [*told, {"type": "turn.completed", "usage": {
-        "input_tokens": usage.get("input_tokens"),
-        "output_tokens": usage.get("output_tokens"), **cached}}]
+    cached = (
+        {"cached_input_tokens": usage["cache_read_tokens"]} if "cache_read_tokens" in usage else {}
+    )
+    return [
+        *told,
+        {
+            "type": "turn.completed",
+            "usage": {
+                "input_tokens": usage.get("input_tokens"),
+                "output_tokens": usage.get("output_tokens"),
+                **cached,
+            },
+        },
+    ]
 
 
 def _not_searching(event: dict) -> bool:
@@ -1210,10 +1482,17 @@ class AgySearch(_Searches, AgyClient):
         events = _events(stdout)
         return not any(map(_not_searching, events)) and any(
             _dict(event.get("step_update")).get("state") == "DONE"
-            and _dict(event.get("step_update")).get("step_type") == "tool" for event in events
+            and _dict(event.get("step_update")).get("step_type") == "tool"
+            for event in events
         )
 
     def _read(self, stdout: str) -> tuple[object, int | None, int | None]:
-        result = next((_dict(event.get("result")) for event in reversed(_events(stdout))
-                       if event.get("event") == "result"), {})
+        result = next(
+            (
+                _dict(event.get("result"))
+                for event in reversed(_events(stdout))
+                if event.get("event") == "result"
+            ),
+            {},
+        )
         return (result.get("response") if result.get("status") == "SUCCESS" else None), None, None

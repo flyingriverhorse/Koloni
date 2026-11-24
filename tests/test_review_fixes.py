@@ -21,7 +21,8 @@ def call(name, args, id="c1"):
 
 
 def test_a_message_removed_from_the_queue_is_not_sent_to_the_model(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     client, model = make_client([gate.step(text("first reply")), text("you are welcome")])
     cid, run_id = start(client, project_dir, "first")
     queued = client.post(f"/api/conversations/{cid}/messages", json={"content": "DELETE THE TESTS"})
@@ -36,10 +37,20 @@ def test_a_message_removed_from_the_queue_is_not_sent_to_the_model(
 # C2 — the static route must not touch paths outside the build folder
 
 
-@pytest.mark.parametrize("requested", [
-    "\\\\host\\share\\x", "//host/share/x", "C:\\Windows\\win.ini", "C:secret.txt",
-    "/etc/passwd", "..\\secret.txt", "../secret.txt", "assets/../../secret.txt", "a.txt:stream",
-])
+@pytest.mark.parametrize(
+    "requested",
+    [
+        "\\\\host\\share\\x",
+        "//host/share/x",
+        "C:\\Windows\\win.ini",
+        "C:secret.txt",
+        "/etc/passwd",
+        "..\\secret.txt",
+        "../secret.txt",
+        "assets/../../secret.txt",
+        "a.txt:stream",
+    ],
+)
 def test_asset_path_refuses_anything_but_a_plain_relative_path(tmp_path, requested):
     (tmp_path / "assets").mkdir()
     assert asset_path(tmp_path, requested) is None
@@ -58,10 +69,14 @@ def test_asset_path_returns_existing_files_inside_the_build(tmp_path):
 
 
 def test_writing_under_a_file_is_refused_before_any_change_is_recorded(
-        make_client, wait_run, project_dir):
-    client, model = make_client([
-        StepResult("", [call("write_file", {"path": "hello.py/x.txt", "content": "x"})], 1, 1),
-        text("ok")])
+    make_client, wait_run, project_dir
+):
+    client, model = make_client(
+        [
+            StepResult("", [call("write_file", {"path": "hello.py/x.txt", "content": "x"})], 1, 1),
+            text("ok"),
+        ]
+    )
     cid, run_id = start_in_mode(client, project_dir, "auto_edit")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed"
@@ -71,14 +86,18 @@ def test_writing_under_a_file_is_refused_before_any_change_is_recorded(
 
 
 def test_a_write_the_disk_refuses_fails_the_change_and_tells_the_model(
-        make_client, wait_run, project_dir, monkeypatch):
+    make_client, wait_run, project_dir, monkeypatch
+):
     def refuse(self, rel, content):
         raise PermissionError(13, "Permission denied")
 
     monkeypatch.setattr(Workspace, "_write_bytes", refuse)
-    client, model = make_client([
-        StepResult("", [call("write_file", {"path": "locked.txt", "content": "x"})], 1, 1),
-        text("I could not write it.")])
+    client, model = make_client(
+        [
+            StepResult("", [call("write_file", {"path": "locked.txt", "content": "x"})], 1, 1),
+            text("I could not write it."),
+        ]
+    )
     cid, run_id = start(client, project_dir)
     change = None
     for _ in range(200):
@@ -122,8 +141,17 @@ def test_the_newest_tool_result_is_cut_when_it_alone_exceeds_the_budget():
     messages = [
         {"role": "system", "content": "s" * 100},
         {"role": "user", "content": "u" * 100},
-        {"role": "assistant", "content": "", "tool_calls": [
-            {"id": "a", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}]},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "a",
+                    "type": "function",
+                    "function": {"name": "read_file", "arguments": "{}"},
+                }
+            ],
+        },
         {"role": "tool", "tool_call_id": "a", "content": "r" * 5000},
     ]
     _trim_to_budget(messages, 1000)
@@ -142,7 +170,9 @@ def test_live_text_is_synced_after_the_replay_not_before(make_client, project_di
     with client.stream("GET", f"/api/conversations/{cid}/events?after=0&once=1") as r:
         types = [line[7:] for line in r.read().decode().splitlines() if line.startswith("event: ")]
     assert "message.created" in types
-    assert types.index("message.sync") > max(i for i, t in enumerate(types) if t == "message.created")
+    assert types.index("message.sync") > max(
+        i for i, t in enumerate(types) if t == "message.created"
+    )
 
 
 # I6 — only loopback host names are served

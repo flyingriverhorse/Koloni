@@ -41,17 +41,26 @@ function whatItTakes(shown: Undo, done: Undo | null, nothing: boolean) {
   return (
     <>
       <p className="muted">
-        The chat stays as it is: no message is deleted. What is taken back is what these messages changed in the files; a
-        file changed since, or a change nobody knows who made, is skipped. What commands did, and notes put in memory, are
-        not taken back.
+        The chat stays as it is: no message is deleted. What is taken back is what these messages changed in the files;
+        a file changed since, or a change nobody knows who made, is skipped. What commands did, and notes put in memory,
+        are not taken back.
       </p>
-      <List label={done ? 'Messages whose changes were taken back' : 'Messages whose changes are taken back'} items={messages(shown.turns)} />
+      <List
+        label={done ? 'Messages whose changes were taken back' : 'Messages whose changes are taken back'}
+        items={messages(shown.turns)}
+      />
       {nothing && <p className="muted">{done ? 'Nothing was taken back.' : 'Nothing to take back.'}</p>}
       <List label={done ? 'Reverted' : 'Will be reverted'} items={shown.revert} />
       <List label={done ? 'Skipped' : 'Will be skipped'} items={shown.skip.map(s => `${s.path} — ${s.why}`)} />
       <List
-        label={done ? 'Kept working copy discarded — the folder is deleted' : 'Kept working copy to discard — the folder is deleted'}
-        items={shown.copies.map(copy => `${copy.folder} — these files exist only there: ${copy.files.join(', ') || 'none on record'}`)}
+        label={
+          done
+            ? 'Kept working copy discarded — the folder is deleted'
+            : 'Kept working copy to discard — the folder is deleted'
+        }
+        items={shown.copies.map(
+          copy => `${copy.folder} — these files exist only there: ${copy.files.join(', ') || 'none on record'}`,
+        )}
       />
       <List label="Commands run — what they did cannot be taken back" items={shown.commands} />
       <List label="Also not taken back" items={shown.stays} />
@@ -114,7 +123,8 @@ export function UndoCard({ path, title, confirm, onClose }: Props) {
   const shown = done ?? ahead
   const doable = ahead !== null && (ahead.revert.length > 0 || ahead.copies.length > 0)
   // Files were changed whatever was skipped or is not on record: then it is never "nothing".
-  const nothing = shown !== null && [shown.revert, shown.skip, shown.copies, shown.stays].every(list => list.length === 0)
+  const nothing =
+    shown !== null && [shown.revert, shown.skip, shown.copies, shown.stays].every(list => list.length === 0)
   /** Do it (while it has not been done, and there is something to do), and Cancel - or Close once done. */
   const actions = () => (
     <div className="change-actions">
@@ -132,7 +142,9 @@ export function UndoCard({ path, title, confirm, onClose }: Props) {
   )
   return (
     <section className="cmd-approval undo-card" aria-label={title} onKeyDown={onKeyDown}>
-      <div className="kicker cmd-approval-kicker" aria-live="polite">{done ? `${title}: done` : `${title}?`}</div>
+      <div className="kicker cmd-approval-kicker" aria-live="polite">
+        {done ? `${title}: done` : `${title}?`}
+      </div>
       {shown === null && error === null && <p className="muted">Looking at what it would take back…</p>}
       {shown && whatItTakes(shown, done, nothing)}
       {error && (

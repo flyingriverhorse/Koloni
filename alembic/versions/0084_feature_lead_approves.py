@@ -9,6 +9,7 @@ saved as a copy): only one still as 0074 drew it is changed.
 Revision ID: 0084
 Revises: 0083
 """
+
 import json
 
 import sqlalchemy as sa
@@ -20,16 +21,24 @@ branch_labels = None
 depends_on = None
 
 # As 0074 drew them (a migration does not follow later code).
-APPROVE = {"id": "approve", "name": "Approve it", "who": {"lead": True}, "done_when": "done",
-           "if_fails": "ask", "ask_me": False, "group": None}
+APPROVE = {
+    "id": "approve",
+    "name": "Approve it",
+    "who": {"lead": True},
+    "done_when": "done",
+    "if_fails": "ask",
+    "ask_me": False,
+    "group": None,
+}
 WITH = [{"from": "reviews", "to": "approve"}, {"from": "approve", "to": "end"}]
 WITHOUT = [{"from": "reviews", "to": "end"}]
 
 
 def _change(were: dict | None, now: dict | None, arrows_were: list, arrows_now: list) -> None:
     bind = op.get_bind()
-    for recipe_id, graph in bind.execute(sa.text(
-            "SELECT id, graph FROM recipes WHERE ready AND name = 'Feature'")).fetchall():
+    for recipe_id, graph in bind.execute(
+        sa.text("SELECT id, graph FROM recipes WHERE ready AND name = 'Feature'")
+    ).fetchall():
         graph = json.loads(graph) if isinstance(graph, str) else graph
         steps, arrows = graph["steps"], graph["arrows"]
         drawn = were in steps if were else not any(step["id"] == "approve" for step in steps)
@@ -37,8 +46,10 @@ def _change(were: dict | None, now: dict | None, arrows_were: list, arrows_now: 
             continue  # (not as it was drawn: left as it is)
         graph["steps"] = [step for step in steps if step != were] + ([now] if now else [])
         graph["arrows"] = [arrow for arrow in arrows if arrow not in arrows_were] + arrows_now
-        bind.execute(sa.text("UPDATE recipes SET graph = :graph WHERE id = :id"),
-                     {"graph": json.dumps(graph), "id": recipe_id})
+        bind.execute(
+            sa.text("UPDATE recipes SET graph = :graph WHERE id = :id"),
+            {"graph": json.dumps(graph), "id": recipe_id},
+        )
 
 
 def upgrade() -> None:

@@ -43,7 +43,9 @@ export const conversation: Conversation = {
   room_tokens: 400000,
   room_minutes: 30,
   room_min_tokens: 60000,
-  also_in: [], read_in: [], part: null,
+  also_in: [],
+  read_in: [],
+  part: null,
   created_at: '2026-10-05T10:00:00Z',
   updated_at: '2026-10-05T10:00:00Z',
   teams_mode: 'none',
@@ -78,8 +80,25 @@ export function run(id: string, status: Run['status'] = 'running', over: Partial
 type BoardTurn = NonNullable<Board['conversations'][number]['turn']>
 
 /** A conversation's last turn as the Board says it: nothing of its agents, model or tokens known. */
-export function boardTurn(id: string, status: BoardTurn['status'], ended_at: string | null, over: Partial<BoardTurn> = {}): BoardTurn {
-  return { id, status, started_at: null, ended_at, agents: 0, provider_name: null, model_id: null, tokens: null, plan_waits: false, outcomes: [], ...over }
+export function boardTurn(
+  id: string,
+  status: BoardTurn['status'],
+  ended_at: string | null,
+  over: Partial<BoardTurn> = {},
+): BoardTurn {
+  return {
+    id,
+    status,
+    started_at: null,
+    ended_at,
+    agents: 0,
+    provider_name: null,
+    model_id: null,
+    tokens: null,
+    plan_waits: false,
+    outcomes: [],
+    ...over,
+  }
 }
 
 /** A topic of the user's own; with `trigger_id`, a trigger's. */
@@ -416,7 +435,8 @@ export function projectMemory(over: Partial<ProjectMemory> = {}): ProjectMemory 
  */
 export async function openAgentFold(name: string, root: HTMLElement = document.body): Promise<HTMLElement> {
   // A fold inside the window's Details (its raw steps) is drawn once Details is open.
-  if (name !== 'Details' && !within(root).queryByText(name, { selector: 'summary, summary *' })) await openAgentFold('Details', root)
+  if (name !== 'Details' && !within(root).queryByText(name, { selector: 'summary, summary *' }))
+    await openAgentFold('Details', root)
   const summary = within(root).getByText(name, { selector: 'summary, summary *' })
   const fold = summary.closest('details') as HTMLElement
   if (!fold.hasAttribute('open')) await userEvent.click(summary)

@@ -11,7 +11,8 @@ export function foldRepeats<T>(items: T[], line: (item: T) => string | null, any
   let before: string | null = null
   for (const item of items) {
     const said = line(item)
-    const into = said === null ? undefined : anywhere ? first.get(said) : said === before ? kept[kept.length - 1] : undefined
+    const into =
+      said === null ? undefined : anywhere ? first.get(said) : said === before ? kept[kept.length - 1] : undefined
     if (into) into[1] += 1
     else {
       const one: [T, number] = [item, 1]

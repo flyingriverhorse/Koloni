@@ -1,5 +1,17 @@
 import { Article, CaretDown, DotsThree, GearSix, PaperPlaneRight } from '@phosphor-icons/react'
-import { type ClipboardEvent, type KeyboardEvent, type ReactNode, type RefObject, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type ClipboardEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { errorText, overWhat } from '../api/client'
 import type { PermissionMode, Provider } from '../api/types'
 import type { LoadModels } from '../models/ModelNameInput'
@@ -35,7 +47,12 @@ interface Props {
    * `fresh`: the message starts a new topic. Otherwise it goes on with the one `topic` names. `overBudget`: the user's word to
    * start it over the month's budget. `files`: the files added to it (slice 85b), and whether they go into the project too.
    */
-  onSend: (content: string, fresh: boolean, overBudget?: boolean, files?: { attachments: string[]; save_to_project: boolean }) => Promise<void>
+  onSend: (
+    content: string,
+    fresh: boolean,
+    overBudget?: boolean,
+    files?: { attachments: string[]; save_to_project: boolean },
+  ) => Promise<void>
   /**
    * The topic the next message goes on with; 'new' when there are turns but no topic of
    * the user's to go on with; null in a conversation with no turn yet (nothing is said).
@@ -70,7 +87,12 @@ interface Props {
   /** Another way to start a turn, last under More: a room ("Work together…"). */
   beside?: ReactNode
   /** Send the message to two models side by side (slice 54): the conversation's (`first`) and one chosen under More. */
-  compare?: { providers: Provider[]; first: string; onCompare: (content: string, second: Second, fresh: boolean, overBudget?: boolean) => Promise<void>; onModels?: LoadModels }
+  compare?: {
+    providers: Provider[]
+    first: string
+    onCompare: (content: string, second: Second, fresh: boolean, overBudget?: boolean) => Promise<void>
+    onModels?: LoadModels
+  }
   /** The Workspace window's button, at the end of the model's line (slice 42d). */
   workspace?: ReactNode
   /** What waits for you outside this chat (tek-ev §1): its count under the box, and what opens Ready for you. */
@@ -87,12 +109,21 @@ interface Props {
  * answered on its card and a message sent now is queued (0.1.4); closed, the chat's line says what it asks, and the
  * Talk and Notes tabs, over which the same box stands, do not show it.
  */
-function placeholderOf(conv: ConvState | null, projectId: string | null, compact: boolean, tab: ChatTab, running: boolean, away: boolean): string {
+function placeholderOf(
+  conv: ConvState | null,
+  projectId: string | null,
+  compact: boolean,
+  tab: ChatTab,
+  running: boolean,
+  away: boolean,
+): string {
   if (!compact && tab === 'Chat' && conv && leadQuestion(conv)) return 'Answer the question above, or queue a message…'
   // (☾ Away: a message of yours ends it.)
   if (away) return 'Write to come back…'
   if (running) return 'Queue a message for after this turn…'
-  return projectId ? 'Ask about this project or request a change…' : 'Ask anything - pick a folder with the folder button to work on files'
+  return projectId
+    ? 'Ask about this project or request a change…'
+    : 'Ask anything - pick a folder with the folder button to work on files'
 }
 
 export function Composer({
@@ -150,7 +181,8 @@ export function Composer({
     row,
   })
   const { role, head, text, menu } = slash
-  const { files, frames, pending, setPending, dropRefused, noFrames, going, dropping, drop, add, addFromProject } = useAttach({ conv, scope, draftKey: key, draft })
+  const { files, frames, pending, setPending, dropRefused, noFrames, going, dropping, drop, add, addFromProject } =
+    useAttach({ conv, scope, draftKey: key, draft })
   const { save, setSave } = useSave(conv)
   const links = linksIn(text)
   const canSend = sendable(text, files.length, sending || going)
@@ -181,14 +213,22 @@ export function Composer({
       setDraft(head + before + fence + after)
     }
     // (after the insert: onChange clears it)
-    setPasted({ key, done: head + before + fence + after, plain: head + before + raw + after, at: before.length + raw.length, language: code.language })
+    setPasted({
+      key,
+      done: head + before + fence + after,
+      plain: head + before + raw + after,
+      at: before.length + raw.length,
+      language: code.language,
+    })
   }
 
   async function send(overBudget = false) {
     if (!canSend) return
     // A fence that opens the task starts a line of its own: one after "do this: " would be no fence.
     const task = text.trim()
-    const content = role ? `Ask a sub-agent in the ${role.name} role to do this:${/^(```|~~~)/.test(task) ? '\n' : ' '}${task}` : draft.trim()
+    const content = role
+      ? `Ask a sub-agent in the ${role.name} role to do this:${/^(```|~~~)/.test(task) ? '\n' : ' '}${task}`
+      : draft.trim()
     const from = key // the user may be in another conversation by the time it has gone
     stopReading()
     setSending(true)
@@ -197,7 +237,11 @@ export function Composer({
     try {
       // (Without the word, sent as before: two arguments; with files, four.)
       const added = files.length ? { attachments: files.map(one => one.id), save_to_project: save } : undefined
-      await (added ? onSend(content, fresh, overBudget, added) : overBudget ? onSend(content, fresh, true) : onSend(content, fresh))
+      await (added
+        ? onSend(content, fresh, overBudget, added)
+        : overBudget
+          ? onSend(content, fresh, true)
+          : onSend(content, fresh))
       // Only what was sent is cleared: words written meanwhile stay. (The files go with their message.)
       if (useApp.getState().drafts[from] === draft) useApp.getState().setDraft(from, '')
       setFreshIn(null)
@@ -241,7 +285,10 @@ export function Composer({
       // Written where the cursor is: what is said takes the place of what was selected.
       onStart={() => {
         const at = input.current
-        return { before: text.slice(0, at?.selectionStart ?? text.length), after: text.slice(at?.selectionEnd ?? text.length) }
+        return {
+          before: text.slice(0, at?.selectionStart ?? text.length),
+          after: text.slice(at?.selectionEnd ?? text.length),
+        }
       }}
       onText={said => setDraft(head + said)}
       onError={setError}
@@ -252,7 +299,12 @@ export function Composer({
     if (event.nativeEvent.isComposing) return
     if (menu && slash.menuKey(event)) return
     // At the chip's edge Backspace takes the chip away.
-    if (event.key === 'Backspace' && head && event.currentTarget.selectionStart === 0 && event.currentTarget.selectionEnd === 0) {
+    if (
+      event.key === 'Backspace' &&
+      head &&
+      event.currentTarget.selectionStart === 0 &&
+      event.currentTarget.selectionEnd === 0
+    ) {
       event.preventDefault()
       return setDraft(text)
     }
@@ -360,7 +412,13 @@ export function Composer({
           <span className="composer-beside">{beside}</span>
           {compare && (
             <span className="composer-compare">
-              <Compare providers={compare.providers} first={compare.first} content={draft} onCompare={(content, second) => compareOn(content, second)} onModels={compare.onModels} />
+              <Compare
+                providers={compare.providers}
+                first={compare.first}
+                content={draft}
+                onCompare={(content, second) => compareOn(content, second)}
+                onModels={compare.onModels}
+              />
             </span>
           )}
         </ComposerBelow>
@@ -450,7 +508,9 @@ function Field(p: {
       {role && (
         <span id={`${p.list}-chip`} className="tag tag-accent composer-chip">
           /{role.name}
-          <span className="visually-hidden">: the Orchestrator is asked to hand this to the {role.name} role; Backspace at the start takes it away</span>
+          <span className="visually-hidden">
+            : the Orchestrator is asked to hand this to the {role.name} role; Backspace at the start takes it away
+          </span>
         </span>
       )}
       <textarea
@@ -481,7 +541,17 @@ function Field(p: {
 }
 
 /** Under the message, after code was pasted (slice 85a): on the page before it says anything - a region that comes already filled is often not read out. */
-function PastedNote({ noted, asPlain, onPlain, onLeave }: { noted: Pasted | null; asPlain: RefObject<HTMLButtonElement | null>; onPlain: (pasted: Pasted) => void; onLeave: () => void }) {
+function PastedNote({
+  noted,
+  asPlain,
+  onPlain,
+  onLeave,
+}: {
+  noted: Pasted | null
+  asPlain: RefObject<HTMLButtonElement | null>
+  onPlain: (pasted: Pasted) => void
+  onLeave: () => void
+}) {
   return (
     <div role="status" className="composer-pasted muted">
       {noted && (
@@ -518,7 +588,9 @@ function Notes(p: {
       {p.dropping && (
         <div className="att-drop" aria-hidden="true">
           Drop files here to add them to your message
-          <div className="att-drop-sub">code, images, PDF, Word, video · up to {MAX_BYTES / 2 ** 20} MB each; a larger video goes as its frames only</div>
+          <div className="att-drop-sub">
+            code, images, PDF, Word, video · up to {MAX_BYTES / 2 ** 20} MB each; a larger video goes as its frames only
+          </div>
         </div>
       )}
       {p.error && (
@@ -551,7 +623,13 @@ function Notes(p: {
 }
 
 /** In the box, over the message: the files added to it, how many and how big, and whether they go into the project too. */
-function Attached({ files, save, dropRefused, onError, ...chips }: Omit<Parameters<typeof Chips>[0], 'onRemove'> & {
+function Attached({
+  files,
+  save,
+  dropRefused,
+  onError,
+  ...chips
+}: Omit<Parameters<typeof Chips>[0], 'onRemove'> & {
   dropRefused: () => void
   onError: (error: string) => void
   save: { on: boolean; set: (on: boolean) => void } | null
@@ -563,7 +641,10 @@ function Attached({ files, save, dropRefused, onError, ...chips }: Omit<Paramete
         {...chips}
         onRemove={id => {
           dropRefused()
-          void useApp.getState().detach(id).catch(err => onError(errorText(err)))
+          void useApp
+            .getState()
+            .detach(id)
+            .catch(err => onError(errorText(err)))
         }}
       />
       {/* (Under the chips, not beside Send: there it pushed Send off the level's line.) */}
@@ -575,7 +656,10 @@ function Attached({ files, save, dropRefused, onError, ...chips }: Omit<Paramete
       {files.length > 0 && save && (
         <label className="att-save muted">
           <input type="checkbox" checked={save.on} onChange={e => save.set(e.target.checked)} />
-          Save these to the project too <span className="att-save-where">(into <span className="mono">docs/attachments/</span>, without asking; undo takes them back)</span>
+          Save these to the project too{' '}
+          <span className="att-save-where">
+            (into <span className="mono">docs/attachments/</span>, without asking; undo takes them back)
+          </span>
         </label>
       )}
     </>
@@ -583,7 +667,17 @@ function Attached({ files, save, dropRefused, onError, ...chips }: Omit<Paramete
 }
 
 /** The `/` menu over the message (slice 46): its rows the palette's; the focus stays in the box. */
-function SlashMenu({ id, shown, active, onChoose }: { id: string; shown: SlashCommand[]; active: number; onChoose: (command: SlashCommand) => void }) {
+function SlashMenu({
+  id,
+  shown,
+  active,
+  onChoose,
+}: {
+  id: string
+  shown: SlashCommand[]
+  active: number
+  onChoose: (command: SlashCommand) => void
+}) {
   return (
     <ul
       id={id}
@@ -636,11 +730,25 @@ function ComposerBar(p: {
   return (
     <div className="composer-bar" hidden={p.hidden}>
       {p.attach}
-      <LevelMenu mode={p.mode} onMode={p.onMode} planFirst={p.planFirst} onPlanFirst={p.onPlanFirst} checkFirst={p.checkFirst} onCheckFirst={p.onCheckFirst} checks={p.checks} />
+      <LevelMenu
+        mode={p.mode}
+        onMode={p.onMode}
+        planFirst={p.planFirst}
+        onPlanFirst={p.onPlanFirst}
+        checkFirst={p.checkFirst}
+        onCheckFirst={p.onCheckFirst}
+        checks={p.checks}
+      />
       <span className="composer-actions">
         <AutoRead />
         {p.dictate}
-        <button type="button" className="btn btn-primary composer-send" title={say} disabled={!p.canSend} onClick={p.onSend}>
+        <button
+          type="button"
+          className="btn btn-primary composer-send"
+          title={say}
+          disabled={!p.canSend}
+          onClick={p.onSend}
+        >
           <PaperPlaneRight size={14} />
           <span className="composer-say">{say}</span>
         </button>
@@ -728,7 +836,12 @@ function Waits({ waits }: { waits?: Props['waits'] }) {
   if (!waits || waits.count <= 0) return null
   const verb = waits.count === 1 ? 'waits' : 'wait'
   return (
-    <button type="button" className="link-btn composer-waits" aria-label={`Open Ready for you: ${waits.count} more ${verb} elsewhere`} onClick={waits.onOpen}>
+    <button
+      type="button"
+      className="link-btn composer-waits"
+      aria-label={`Open Ready for you: ${waits.count} more ${verb} elsewhere`}
+      onClick={waits.onOpen}
+    >
       <b>{waits.count}</b> <span className="composer-waits-long">more {verb} elsewhere</span>
       <span className="composer-waits-short">{verb}</span>
     </button>
@@ -743,7 +856,15 @@ function Sheet({ sheet }: { sheet: ReactNode }) {
   if (!sheet) return null
   return (
     <div className="allow-list chat-sheet-button">
-      <button ref={button} type="button" className="btn btn-small" aria-expanded={open} aria-label="This chat’s settings" title="This chat’s settings" onClick={() => (open ? close() : setOpen(true))}>
+      <button
+        ref={button}
+        type="button"
+        className="btn btn-small"
+        aria-expanded={open}
+        aria-label="This chat’s settings"
+        title="This chat’s settings"
+        onClick={() => (open ? close() : setOpen(true))}
+      >
         <GearSix size={14} className="composer-icon" aria-hidden />
         <span className="composer-words">
           <span className="sheet-long">Chat settings</span>
@@ -751,7 +872,13 @@ function Sheet({ sheet }: { sheet: ReactNode }) {
         </span>
       </button>
       {open && (
-        <div ref={panel} tabIndex={-1} role="dialog" aria-label="This chat" className="allow-list-panel chat-sheet-panel">
+        <div
+          ref={panel}
+          tabIndex={-1}
+          role="dialog"
+          aria-label="This chat"
+          className="allow-list-panel chat-sheet-panel"
+        >
           <div className="kicker">This chat only</div>
           <CloseMore.Provider
             value={() => {
@@ -780,7 +907,10 @@ function More({ children }: { children: ReactNode }) {
   const id = useId()
   // Once a panel open in it has had its say on the same click (B-95: it may keep a change not saved,
   // and folded away with More it seemed saved): More folds only if that panel closed.
-  const fold = useCallback(() => setTimeout(() => !box.current?.querySelector('.allow-list-panel') && setOpen(false)), [])
+  const fold = useCallback(
+    () => setTimeout(() => !box.current?.querySelector('.allow-list-panel') && setOpen(false)),
+    [],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -801,7 +931,15 @@ function More({ children }: { children: ReactNode }) {
 
   return (
     <div className="composer-more" ref={box} onKeyDown={onKeyDown}>
-      <button ref={button} type="button" className="btn btn-small" aria-expanded={open} aria-controls={id} title="More" onClick={() => (open ? fold() : setOpen(true))}>
+      <button
+        ref={button}
+        type="button"
+        className="btn btn-small"
+        aria-expanded={open}
+        aria-controls={id}
+        title="More"
+        onClick={() => (open ? fold() : setOpen(true))}
+      >
         <DotsThree size={14} weight="bold" className="composer-icon" />
         <span className="composer-words">More</span>
         <CaretDown size={12} className="composer-words" />

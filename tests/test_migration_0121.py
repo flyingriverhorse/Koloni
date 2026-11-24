@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 
-from app.roles import BUILTIN_ROLES
+from app.roles import BUILTIN_ROLES, HIVE_KEEPER
 from tests.test_migration_0002 import _config
 from tests.test_migration_0109 import _role
 
@@ -18,9 +18,12 @@ GAIN = {"Architect", "Debugger", "Product owner", "Spec writer", "DevOps", "MLOp
 
 
 def test_who_may_open_a_helper():
-    assert {name for name, spec in BUILTIN_ROLES.items()
-            if "spawn_agent" in spec.tools} == GIVEN | GAIN
-    for name in GAIN:  # (each is told what a helper is for)
+    # (the Product owner of 0121 is the Hive keeper since 0174)
+    now = {HIVE_KEEPER if name == "Product owner" else name for name in GAIN}
+    assert {
+        name for name, spec in BUILTIN_ROLES.items() if "spawn_agent" in spec.tools
+    } == GIVEN | now
+    for name in now:  # (each is told what a helper is for)
         assert "spawn_agent" in BUILTIN_ROLES[name].instructions, name
 
 
@@ -37,8 +40,10 @@ NAMES = ", ".join(f"'{name}'" for name, _ in M.ROLES)
 
 
 def _held(conn):
-    return {name: json.loads(tools) for name, tools in conn.execute(
-        f"SELECT name, tools FROM roles WHERE name IN ({NAMES})")}
+    return {
+        name: json.loads(tools)
+        for name, tools in conn.execute(f"SELECT name, tools FROM roles WHERE name IN ({NAMES})")
+    }
 
 
 def _before(tmp_path, change=lambda tools, builtin: (tools, builtin)):
@@ -67,11 +72,14 @@ def test_stock_ones_gain_spawn_agent_and_going_back_is_exact(tmp_path):
         assert _held(conn) == before
 
 
-@pytest.mark.parametrize("change", [
-    lambda tools, builtin: (tools[:-1], builtin),  # a tool taken off by hand
-    lambda tools, builtin: ([*tools, "show"], builtin),  # one added by hand
-    lambda tools, builtin: (tools, 0),  # the user's own by that name
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda tools, builtin: (tools[:-1], builtin),  # a tool taken off by hand
+        lambda tools, builtin: ([*tools, "show"], builtin),  # one added by hand
+        lambda tools, builtin: (tools, 0),  # the user's own by that name
+    ],
+)
 def test_one_the_user_changed_or_made_is_left_alone(tmp_path, change):
     cfg, db, before = _before(tmp_path, change)
     command.upgrade(cfg, "0121")

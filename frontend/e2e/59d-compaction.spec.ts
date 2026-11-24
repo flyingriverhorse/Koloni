@@ -1,10 +1,16 @@
 import { expect, test } from './fixtures'
 import { OWN, openAgentFold, openFreshConversation, rail, shot } from './helpers'
 
-test('the working state is shown under the agent window’s context line, corrected there, and the next turn goes on from the correction', async ({ page, request }) => {
-  const lead = async () => (await (await request.get('/api/roles')).json()).find((r: { name: string }) => r.name === 'Lead')
+test('the working state is shown under the agent window’s context line, corrected there, and the next turn goes on from the correction', async ({
+  page,
+  request,
+}) => {
+  const lead = async () =>
+    (await (await request.get('/api/roles')).json()).find((r: { name: string }) => r.name === 'Lead')
   // A window the fake model's 800 tokens fill past three quarters (the fake is no llama-server).
-  expect((await request.patch(`/api/roles/${(await lead()).id}`, { data: { context_window: 1000 }, headers: OWN })).ok()).toBe(true)
+  expect(
+    (await request.patch(`/api/roles/${(await lead()).id}`, { data: { context_window: 1000 }, headers: OWN })).ok(),
+  ).toBe(true)
 
   await openFreshConversation(page)
   await page.getByLabel('Message').fill('Fill the state.')
@@ -13,8 +19,12 @@ test('the working state is shown under the agent window’s context line, correc
   await expect(chat.getByText('Summarised, and on.')).toBeVisible()
 
   await rail(page, 'Canvas').click()
-  await page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Orchestrator/ }) })
-    .last().locator('.node-title').click()
+  await page
+    .locator('.react-flow__node-agent')
+    .filter({ has: page.locator('.node-title', { hasText: /^Orchestrator/ }) })
+    .last()
+    .locator('.node-title')
+    .click()
   await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Open window' }).click()
   const own = page.getByRole('region', { name: 'Agent window' })
   await openAgentFold(own, 'Details')

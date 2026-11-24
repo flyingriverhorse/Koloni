@@ -39,7 +39,8 @@ SAFE_PART = re.compile(r"[A-Za-z0-9 _.-]+")
 LICENSES = ("LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING")
 NOT_A_SKILL = (
     "this is not a skill: a folder with a SKILL.md that names it (a `name:` line up top of "
-    "letters, digits, '.', '_' and '-')")
+    "letters, digits, '.', '_' and '-')"
+)
 # shortcut: secrets are known by their name only (a key file, .env, a credentials file);
 # widen the lists when a skill brings another kind.
 SECRET_FILES = re.compile(
@@ -50,23 +51,59 @@ SECRET_FILES = re.compile(
     r"|.*\.(pem|key|p12|pfx|jks|keystore|ppk|kdbx|asc|gpg|keytab)",
     re.IGNORECASE,
 )
-SECRET_DIRS = frozenset({
-    ".ssh", ".aws", ".gnupg", ".docker", ".kube", "kubeconfig", ".azure", "gcloud",
-    ".terraform.d", ".config"})
+SECRET_DIRS = frozenset(
+    {
+        ".ssh",
+        ".aws",
+        ".gnupg",
+        ".docker",
+        ".kube",
+        "kubeconfig",
+        ".azure",
+        "gcloud",
+        ".terraform.d",
+        ".config",
+    }
+)
 # What a script is run with, by its ending; a file with none of these is not a script.
 # shortcut: a .ps1 runs only where the execution policy lets it, and a .sh needs a bash on
 # the PATH (Git Bash's, or WSL's); say so on the card when users trip over it.
 RUNNERS = {
-    ".py": "python -B", ".js": "node", ".mjs": "node", ".cjs": "node", ".sh": "bash",
+    ".py": "python -B",
+    ".js": "node",
+    ".mjs": "node",
+    ".cjs": "node",
+    ".sh": "bash",
     ".ps1": "powershell -NoProfile -File",
 }
 # Slice 92's card: files that run as programs though KOLONİ does not run them as a skill's
 # scripts (by their ending, a #! line, or a Windows or ELF program's header), so an agent's
 # command would. shortcut: package.json scripts, a Makefile and an archive's insides are not
 # looked into; name them on the card when a skill is seen to bring one.
-PROGRAMS = frozenset({
-    ".bat", ".cmd", ".exe", ".com", ".vbs", ".vbe", ".jse", ".wsf", ".hta", ".lnk", ".jar",
-    ".psm1", ".rb", ".pl", ".php", ".bash", ".zsh", ".pyw", ".ts", ".mts"})
+PROGRAMS = frozenset(
+    {
+        ".bat",
+        ".cmd",
+        ".exe",
+        ".com",
+        ".vbs",
+        ".vbe",
+        ".jse",
+        ".wsf",
+        ".hta",
+        ".lnk",
+        ".jar",
+        ".psm1",
+        ".rb",
+        ".pl",
+        ".php",
+        ".bash",
+        ".zsh",
+        ".pyw",
+        ".ts",
+        ".mts",
+    }
+)
 HEADERS = (b"#!", b"MZ", b"\x7fELF")
 # Measured on Claude Code 2.1.311 (27 Oct 2026): a skill's !`command` line runs as the skill
 # loads, past KOLONİ's hook and can_use_tool (`model_native.claude_plugin` leaves it out).
@@ -74,18 +111,33 @@ RUNS_AS_IT_LOADS = "!`"
 # shortcut: a SKILL.md's commands are known by its fenced shell blocks only; one it tells
 # in plain words ("run npm test") is not counted, so the card never says "none".
 SHELL_BLOCK = re.compile(
-    r"^\s*```\s*(?:bash|sh|shell|zsh|console|powershell|pwsh|ps1|cmd|bat)\b", re.M | re.I)
+    r"^\s*```\s*(?:bash|sh|shell|zsh|console|powershell|pwsh|ps1|cmd|bat)\b", re.M | re.I
+)
 # One tool of an `allowed-tools` line, with its rule in brackets if it has one.
 TOOL_WORD = re.compile(r"[^\s,\[\]'\"()]+(?:\([^)]*\))?")
 # K-skill-uyum: the tools a SKILL.md names (Claude Code's, which the Agent Skills form uses),
 # as the groups of KOLONİ's tools a role must have; an agent holding none of a group's lacks it.
-GROUPS = {"shell": ("run_command",), "read files": READ, "write files": WRITE, "web": WEB,
-          "browser": BROWSER}
+GROUPS = {
+    "shell": ("run_command",),
+    "read files": READ,
+    "write files": WRITE,
+    "web": WEB,
+    "browser": BROWSER,
+}
 NAMED = {
-    "Bash": "shell", "BashOutput": "shell", "KillShell": "shell",
-    "Read": "read files", "Glob": "read files", "Grep": "read files", "LS": "read files",
-    "Write": "write files", "Edit": "write files", "MultiEdit": "write files",
-    "NotebookEdit": "write files", "WebFetch": "web", "WebSearch": "web",
+    "Bash": "shell",
+    "BashOutput": "shell",
+    "KillShell": "shell",
+    "Read": "read files",
+    "Glob": "read files",
+    "Grep": "read files",
+    "LS": "read files",
+    "Write": "write files",
+    "Edit": "write files",
+    "MultiEdit": "write files",
+    "NotebookEdit": "write files",
+    "WebFetch": "web",
+    "WebSearch": "web",
 }
 
 
@@ -145,16 +197,24 @@ class Found:
         """Files besides its scripts that run as programs. shortcut: from GitHub only its
         SKILL.md, licence and scripts are read before the yes, so a #! line in another file
         is not seen there (`read_whole`); look again once the rest is downloaded if needed."""
-        return [rel for rel in self.listed if rel not in self.scripts and (
-            Path(rel).suffix.lower() in PROGRAMS
-            or self.contents.get(rel, b"").startswith(HEADERS))]
+        return [
+            rel
+            for rel in self.listed
+            if rel not in self.scripts
+            and (
+                Path(rel).suffix.lower() in PROGRAMS
+                or self.contents.get(rel, b"").startswith(HEADERS)
+            )
+        ]
 
     @property
     def digest(self) -> str:
         """One sum over what is kept: what was shown is what is added."""
-        return hashlib.sha256("".join(
-            f"{rel}\0{blob}\n" for rel, (blob, _size) in sorted(self.listed.items())
-        ).encode()).hexdigest()
+        return hashlib.sha256(
+            "".join(
+                f"{rel}\0{blob}\n" for rel, (blob, _size) in sorted(self.listed.items())
+            ).encode()
+        ).hexdigest()
 
     def shown(self) -> dict:
         from app.mcp_client import visible  # (it builds on what imports this module)
@@ -164,10 +224,16 @@ class Found:
             text = self.contents[rel].decode("utf-8", "replace")
             texts[rel] = text if len(text) <= MAX_SHOWN else text[:MAX_SHOWN] + SHOWN_CUT
         return {
-            "name": self.name, "description": self.description, "license": self.license,
-            "text": self.text, "files": list(map(visible, self.files)), "size": self.size,
+            "name": self.name,
+            "description": self.description,
+            "license": self.license,
+            "text": self.text,
+            "files": list(map(visible, self.files)),
+            "size": self.size,
             "scripts": self.scripts,
-            "script_texts": texts, "skipped": self.skipped, "sha256": self.digest,
+            "script_texts": texts,
+            "skipped": self.skipped,
+            "sha256": self.digest,
             "source": self.source,
             # (Its scripts only: from GitHub nothing else is downloaded before the yes.)
             "seen": package_look.scan({rel: self.contents[rel] for rel in self.scripts}),
@@ -175,10 +241,14 @@ class Found:
             # is instructions, so only these phrases, never that it gives any.
             "injection_rules": injection.scan(self.text),
             # Slice 92: what it says it may use and run, beside what it holds.
-            "allowed_tools": declared(self.text), "programs": list(map(visible, self.programs)),
+            "allowed_tools": declared(self.text),
+            "programs": list(map(visible, self.programs)),
             "read_whole": len(self.contents) == len(self.listed),
-            "runs_as_it_loads": [visible(line.strip()[:200]) for line in self.text.splitlines()
-                                 if RUNS_AS_IT_LOADS in line][:20],
+            "runs_as_it_loads": [
+                visible(line.strip()[:200])
+                for line in self.text.splitlines()
+                if RUNS_AS_IT_LOADS in line
+            ][:20],
             "shell_blocks": len(SHELL_BLOCK.findall(self.text)),
         }
 
@@ -193,7 +263,7 @@ def front(text: str) -> tuple[dict[str, str], str]:
     last = None
     for at, line in enumerate(lines[1:], 1):
         if line.strip() == "---":
-            return found, "\n".join(lines[at + 1:]).strip()
+            return found, "\n".join(lines[at + 1 :]).strip()
         if line[:1].isspace() and last:
             found[last] = f"{found[last]} {line.strip()}".strip()
             continue
@@ -253,11 +323,13 @@ def needs(text: str) -> dict[str, list[str]]:
 def lacking(found: dict[str, list[str]], tools: set[str], mcp: set[str]) -> list[str]:
     """What of `needs` an agent with these tools and MCP servers does not have."""
     return [group for group in found["groups"] if not tools & set(GROUPS[group])] + [
-        f"MCP server {server}" for server in found["mcp"] if server not in mcp]
+        f"MCP server {server}" for server in found["mcp"] if server not in mcp
+    ]
 
 
-def split(kept: list[Skill], tools: set[str], mcp: set[str],
-          no_tool_calls: bool) -> tuple[list[Skill], dict[str, str]]:
+def split(
+    kept: list[Skill], tools: set[str], mcp: set[str], no_tool_calls: bool
+) -> tuple[list[Skill], dict[str, str]]:
     """A role's skills, those its agent is given and why each other one is left out: off on
     the Tools page, a model that makes no tool calls (the catalogue says so), or a group of
     tools it needs that the agent has not."""
@@ -288,8 +360,12 @@ def capped(listed: dict[str, tuple[str, int]]) -> None:
 
 
 def made(
-    source: str, listed: dict[str, tuple[str, int]], contents: dict[str, bytes],
-    skipped: list[str], licence: str | None = None, repo: tuple | None = None,
+    source: str,
+    listed: dict[str, tuple[str, int]],
+    contents: dict[str, bytes],
+    skipped: list[str],
+    licence: str | None = None,
+    repo: tuple | None = None,
 ) -> Found:
     """A skill from its listing and what is read of it (its SKILL.md, licence and scripts at
     least); SkillError says why it is none. `licence`: the first line of one from elsewhere
@@ -297,16 +373,21 @@ def made(
     capped(listed)
     if len({one_case(rel) for rel in listed}) != len(listed):
         raise SkillError("two of its files have the same name but for its case")
-    folders = {"/".join(one_case(rel).split("/")[:at]) for rel in listed
-               for at in range(1, rel.count("/") + 1)}
+    folders = {
+        "/".join(one_case(rel).split("/")[:at])
+        for rel in listed
+        for at in range(1, rel.count("/") + 1)
+    }
     if any(one_case(rel) in folders for rel in listed):  # (a .zip may hold both)
         raise SkillError("one of its files has the name of one of its folders")
     for rel in listed:
         if Path(rel).suffix.lower() in RUNNERS and not all(
-                SAFE_PART.fullmatch(part) for part in rel.split("/")):
+            SAFE_PART.fullmatch(part) for part in rel.split("/")
+        ):
             raise SkillError(
                 f"its script {rel!r} has a name a shell would read: a script's path is "
-                "letters, digits, spaces, '_', '.' and '-' only")
+                "letters, digits, spaces, '_', '.' and '-' only"
+            )
     if "SKILL.md" not in contents:
         raise SkillError(NOT_A_SKILL)
     if len(contents["SKILL.md"]) > MAX_SKILL_MD:
@@ -320,9 +401,16 @@ def made(
         raise SkillError(NOT_A_SKILL)
     own = first_line(next((contents[file] for file in LICENSES if file in contents), None))
     return Found(
-        meta["name"], meta.get("description", "")[:1024],
-        own or licence or meta.get("license") or None, text, source, listed, contents,
-        skipped, repo)
+        meta["name"],
+        meta.get("description", "")[:1024],
+        own or licence or meta.get("license") or None,
+        text,
+        source,
+        listed,
+        contents,
+        skipped,
+        repo,
+    )
 
 
 def _bytes(root: Path, path: Path, left: int) -> bytes | None:
@@ -434,13 +522,15 @@ def unchanged(folder: str, hashes: dict[str, str]) -> bool:
     try:
         return all(
             hashlib.sha256(Path(folder, rel).read_bytes()).hexdigest() == sha
-            for rel, sha in hashes.items())
+            for rel, sha in hashes.items()
+        )
     except OSError:
         return False
 
 
-def add(session: Session, runtime_root: Path, found: Found, unasked: bool,
-        enabled: bool = True) -> Skill:
+def add(
+    session: Session, runtime_root: Path, found: Found, unasked: bool, enabled: bool = True
+) -> Skill:
     """Keep a skill whole (`whole`), in the store under `runtime_root`; SkillError when
     there is one of its name already (a role names its skills by name)."""
     taken = named(session, found.name)
@@ -455,9 +545,18 @@ def add(session: Session, runtime_root: Path, found: Found, unasked: bool,
         shutil.rmtree(folder, ignore_errors=True)
         raise SkillError(f"it could not be written: {exc.strerror or exc}") from None
     skill = Skill(
-        id=skill_id, name=found.name, description=found.description, source=found.source,
-        license=found.license, text=found.text, folder=str(folder), files=found.files,
-        size=found.size, scripts=found.scripts, hashes=hashes, scripts_run_unasked=unasked,
+        id=skill_id,
+        name=found.name,
+        description=found.description,
+        source=found.source,
+        license=found.license,
+        text=found.text,
+        folder=str(folder),
+        files=found.files,
+        size=found.size,
+        scripts=found.scripts,
+        hashes=hashes,
+        scripts_run_unasked=unasked,
         enabled=enabled,
     )
     session.add(skill)

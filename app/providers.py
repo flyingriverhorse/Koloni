@@ -80,13 +80,19 @@ KINDS = (*HTTP_KINDS, *CLI_KINDS)
 ANTHROPIC_URL = "https://api.anthropic.com"
 # What the CLI is called when the provider does not name a path.
 CLI_COMMANDS = {
-    "claude_cli": "claude", "qoder_cli": "qodercli", "codex_cli": "codex",
-    "copilot_cli": "copilot", "agy_cli": "agy",
+    "claude_cli": "claude",
+    "qoder_cli": "qodercli",
+    "codex_cli": "codex",
+    "copilot_cli": "copilot",
+    "agy_cli": "agy",
 }
 # agy goes by its command's name: what the product is called was not measured.
 CLI_NAMES = {
-    "claude_cli": "Claude Code", "qoder_cli": "Qoder", "codex_cli": "Codex",
-    "copilot_cli": "GitHub Copilot CLI", "agy_cli": "agy",
+    "claude_cli": "Claude Code",
+    "qoder_cli": "Qoder",
+    "codex_cli": "Codex",
+    "copilot_cli": "GitHub Copilot CLI",
+    "agy_cli": "agy",
 }
 
 
@@ -144,18 +150,24 @@ NOT_WATCHED: dict[tuple[str, str], tuple[str, ...]] = {
 # Said too where the agent's project runs its commands in Docker: a CLI's own commands run
 # on this machine (`CommandRunner.ask_for`'s location "host") - for every way above that runs
 # commands, which agy reading only does not.
-ON_HOST = ("its commands run on this machine, not in the project's Docker (its network "
-           "setting and hidden secrets do not apply)")
+ON_HOST = (
+    "its commands run on this machine, not in the project's Docker (its network "
+    "setting and hidden secrets do not apply)"
+)
 RUNS_NO_COMMANDS = frozenset({("agy_cli", "reads")})
 
 
 def not_watched(kind: str, docker: bool) -> dict[str, list[str]] | None:
     """`NOT_WATCHED` of a kind, by mode; `docker`: for a project whose commands run in Docker.
     None for a kind that never works with its own tools."""
-    told = {mode: [*rules, *([ON_HOST] if docker and (kind, mode) not in RUNS_NO_COMMANDS
-                             else [])]
-            for (one, mode), rules in NOT_WATCHED.items() if one == kind}
+    told = {
+        mode: [*rules, *([ON_HOST] if docker and (kind, mode) not in RUNS_NO_COMMANDS else [])]
+        for (one, mode), rules in NOT_WATCHED.items()
+        if one == kind
+    }
     return told or None
+
+
 # The ways of running in which a CLI works with tools of its own, not KOLONİ's. KOLONİ
 # sees of such a CLI's tools only what it asks about (`AgentRunner._cannot_be_held`):
 # with nobody watching it cannot be held to what a trigger allows, so no trigger's turn
@@ -202,14 +214,18 @@ def _cli_options(kind: str, options: dict | None, has_server: bool) -> dict | No
         raise ValueError("own_setup is true or false")
     if own and has_server:
         # Its own settings can name another address or key (`env`, `apiKeyHelper`).
-        raise ValueError("Use my own Claude Code setup cannot go with a model server of "
-                         "your own: your settings could send its work elsewhere")
+        raise ValueError(
+            "Use my own Claude Code setup cannot go with a model server of "
+            "your own: your settings could send its work elsewhere"
+        )
     sign_in = told.get("sign_in") or "own"
     if sign_in not in ("own", "koloni"):
         raise ValueError("sign_in is own or koloni")
     if sign_in == "koloni" and has_server:
-        raise ValueError("a sign-in of its own is for your plan: on a model server of your "
-                         "own nothing is signed in to")
+        raise ValueError(
+            "a sign-in of its own is for your plan: on a model server of your "
+            "own nothing is signed in to"
+        )
     if sign_in == "koloni" and own:
         # Its folder holds none of your setup, and the setup's switch would let it start
         # with hooks and commands on.
@@ -242,7 +258,8 @@ def _copilot_options(options: dict | None, has_server: bool) -> dict:
     # there is how it runs unless that was switched off.
     # Without one, it runs on the user's GitHub account and has to go there.
     return {
-        "provider_type": provider_type, **limits,
+        "provider_type": provider_type,
+        **limits,
         "offline": has_server and offline is not False,
     }
 
@@ -256,8 +273,10 @@ def workspace_id(value: object) -> str | None:
     if value is None:
         return None
     text = value.strip() if isinstance(value, str) else None
-    if text is None or len(text) > MAX_WORKSPACE or not (
-        text.isascii() and text.isprintable() and " " not in text
+    if (
+        text is None
+        or len(text) > MAX_WORKSPACE
+        or not (text.isascii() and text.isprintable() and " " not in text)
     ):
         raise ValueError(
             f"the workspace id is at most {MAX_WORKSPACE} characters, without spaces, "
@@ -295,8 +314,9 @@ def _line(value: object, limit: int, what: str, even: bool = True) -> str | None
     return text or None
 
 
-def check_guide(note: str | None, models: list[dict] | None, tiered: bool = False
-                ) -> tuple[str | None, list[dict]]:
+def check_guide(
+    note: str | None, models: list[dict] | None, tiered: bool = False
+) -> tuple[str | None, list[dict]]:
     """What the user tells agents about a provider, tidied and checked: the note and the
     models that can be chosen on it. `tiered`: a Copilot provider on the user's GitHub
     account, the only one whose models take a context tier, and whose auto and fusion take a
@@ -334,17 +354,26 @@ def check_guide(note: str | None, models: list[dict] | None, tiered: bool = Fals
             raise ValueError("a context tier is only for Copilot on your GitHub account")
         routing = model.get("routing")
         if routing is not None and not (tiered and routing in ROUTINGS.get(name, ())):
-            raise ValueError("a routing is only for Copilot's auto (" + ", ".join(
-                ROUTINGS["auto"]) + ") and fusion (" + ", ".join(ROUTINGS["fusion"])
-                + ") on your GitHub account")
-        listed.append({
-            "name": name, "note": _line(model.get("note"), MAX_MODEL_NOTE, "a model's note"),
-            "tier": tier, "agents": agents, **({"enabled": False} if enabled is False else {}),
-            **({"inputs": list(dict.fromkeys(takes))} if takes is not None else {}),
-            # (Only the long one is kept: the default is what passing nothing gives.)
-            **({"context": context} if context == "long_context" else {}),
-            **({"routing": routing} if routing else {}),
-        })
+            raise ValueError(
+                "a routing is only for Copilot's auto ("
+                + ", ".join(ROUTINGS["auto"])
+                + ") and fusion ("
+                + ", ".join(ROUTINGS["fusion"])
+                + ") on your GitHub account"
+            )
+        listed.append(
+            {
+                "name": name,
+                "note": _line(model.get("note"), MAX_MODEL_NOTE, "a model's note"),
+                "tier": tier,
+                "agents": agents,
+                **({"enabled": False} if enabled is False else {}),
+                **({"inputs": list(dict.fromkeys(takes))} if takes is not None else {}),
+                # (Only the long one is kept: the default is what passing nothing gives.)
+                **({"context": context} if context == "long_context" else {}),
+                **({"routing": routing} if routing else {}),
+            }
+        )
     return _line(note, MAX_NOTE, "the note"), listed
 
 
@@ -377,7 +406,8 @@ def is_on(provider: Provider, model: str | None) -> bool:
     if model is None and rows and not any(m.get("enabled", True) for m in rows):
         return False
     return provider.enabled is not False and not any(
-        m["name"] == model and not m.get("enabled", True) for m in rows)
+        m["name"] == model and not m.get("enabled", True) for m in rows
+    )
 
 
 def allowed(provider: Provider, model: str | None) -> None:
@@ -391,10 +421,20 @@ def allowed(provider: Provider, model: str | None) -> None:
     model_or_default = model or provider.default_model
     if not is_on(provider, model_or_default):
         whole = provider.enabled is False
-        what = provider.name if whole else f"Every model of {provider.name}" if (
-            model_or_default is None) else f"{provider.name}'s {model_or_default}"
-        shown = shown_name(provider.name) + ("" if whole else " (every model)" if (
-            model_or_default is None) else " " + json.dumps(model_or_default, ensure_ascii=False))
+        what = (
+            provider.name
+            if whole
+            else f"Every model of {provider.name}"
+            if (model_or_default is None)
+            else f"{provider.name}'s {model_or_default}"
+        )
+        shown = shown_name(provider.name) + (
+            ""
+            if whole
+            else " (every model)"
+            if (model_or_default is None)
+            else " " + json.dumps(model_or_default, ensure_ascii=False)
+        )
         raise SwitchedOff(
             f"{what} is switched off. Turn it on on the Models page, or pick another model.",
             f"{shown} is switched off by the user (Models page): choose another model.",
@@ -416,16 +456,19 @@ def allowed(provider: Provider, model: str | None) -> None:
     # A name from before names were checked is shown as agents are shown it elsewhere.
     shown = shown_name(provider.name)
     to_agent = (
-        f"{shown} does not run with the model "
-        f"{json.dumps(model, ensure_ascii=False)} here" if model
+        f"{shown} does not run with the model {json.dumps(model, ensure_ascii=False)} here"
+        if model
         else f"{shown} does not run here without a model chosen for it"
     )
     # It names the setting, so that the user reading this knows where to look.
     to_agent += f': the user limited it to listed models ("{ONLY}", Models page)'
     if provider.for_agents:
         # In the team guide, where these are the models an agent may name: as data.
-        chosen = ", ".join(json.dumps(m["name"], ensure_ascii=False)
-                           for m in provider.models or [] if m.get("agents", True))
+        chosen = ", ".join(
+            json.dumps(m["name"], ensure_ascii=False)
+            for m in provider.models or []
+            if m.get("agents", True)
+        )
         to_agent += f". The models that can be chosen on it: {chosen}."
     else:
         to_agent += ". Only the user can change that."
@@ -476,27 +519,47 @@ async def ask_once(client, model_id: str, messages: list[dict], **more):
     return (step.content or "".join(said)).strip(), step
 
 
-def own_request(session: Session, provider_name: str | None, mode: str | None,
-                model_id: str | None, answer, run_id: str | None = None,
-                agent_id: str | None = None, project_id: str | None = None) -> None:
+def own_request(
+    session: Session,
+    provider_name: str | None,
+    mode: str | None,
+    model_id: str | None,
+    answer,
+    run_id: str | None = None,
+    agent_id: str | None = None,
+    project_id: str | None = None,
+) -> None:
     """A request KOLONİ made of a model itself goes on record (`OwnRequest`, not committed),
     under the provider and model it went to. `answer`: what came back, with what it spent;
     None where it was sent and not heard out (Stop, a failure): what it spent is not known.
     With no run it is Usage's "KOLONİ itself"."""
-    session.add(OwnRequest(
-        run_id=run_id, agent_id=agent_id, project_id=project_id, provider_name=provider_name,
-        provider_mode=mode, model_id=(answer.model if answer else None) or model_id,
-        input_tokens=answer.input_tokens if answer else None,
-        output_tokens=answer.output_tokens if answer else None,
-        # (A result that has no word of a cache: not known.)
-        cache_read_tokens=getattr(answer, "cache_read", None),
-        cache_write_tokens=getattr(answer, "cache_write", None),
-        cut_short=answer is None,
-    ))
+    session.add(
+        OwnRequest(
+            run_id=run_id,
+            agent_id=agent_id,
+            project_id=project_id,
+            provider_name=provider_name,
+            provider_mode=mode,
+            model_id=(answer.model if answer else None) or model_id,
+            input_tokens=answer.input_tokens if answer else None,
+            output_tokens=answer.output_tokens if answer else None,
+            # (A result that has no word of a cache: not known.)
+            cache_read_tokens=getattr(answer, "cache_read", None),
+            cache_write_tokens=getattr(answer, "cache_write", None),
+            cut_short=answer is None,
+        )
+    )
 
 
-async def ask_own(factory, asked: tuple[str, str | None], client, model_id: str,
-                  messages: list[dict], project_id: str | None = None, **more):
+async def ask_own(
+    factory,
+    asked: tuple[str, str | None],
+    client,
+    model_id: str,
+    messages: list[dict],
+    project_id: str | None = None,
+    **more,
+):
     """`ask_once` for a request KOLONİ makes of a model with no turn (the day's words, a
     recipe's draft, a role's guide, a Check that runs a CLI): on record as it ends, well or
     not (`own_request`), for Usage's "KOLONİ itself" (K-56). `asked`: the provider's name and
@@ -530,8 +593,11 @@ def looked_down(session: Session) -> dict[str, tuple[str, float | None]]:
 def down_now(session: Session) -> dict[str, str]:
     """Of `looked_down`, the providers a tier passes over now (`app.team.Would.pick`)."""
     at = monotonic()
-    return {pid: why for pid, (why, until) in looked_down(session).items()
-            if until is None or until > at}
+    return {
+        pid: why
+        for pid, (why, until) in looked_down(session).items()
+        if until is None or until > at
+    }
 
 
 def list_providers(session: Session) -> list[Provider]:
@@ -555,7 +621,8 @@ def search_clients(session_factory) -> list:
             kinds[provider.kind](provider.executable, provider.default_model, SEARCH_SECONDS)
             # (Not one on a model server of the user's: it has no search of its own.)
             for provider in list_providers(session)
-            if provider.kind in kinds and not provider.base_url
+            if provider.kind in kinds
+            and not provider.base_url
             and is_on(provider, provider.default_model)
         ]
 
@@ -572,10 +639,14 @@ def search_apis(session_factory) -> list:
                 allowed(provider, provider.default_model)
             except NotListed:
                 continue
-            found.append(AnthropicClient(
-                provider.base_url or ANTHROPIC_URL, provider.api_key, provider.default_model,
-                workspace_id=(provider.options or {}).get("workspace_id"),
-            ))
+            found.append(
+                AnthropicClient(
+                    provider.base_url or ANTHROPIC_URL,
+                    provider.api_key,
+                    provider.default_model,
+                    workspace_id=(provider.options or {}).get("workspace_id"),
+                )
+            )
     return found
 
 
@@ -591,26 +662,34 @@ def seed_providers(
     list is the user's and is left alone."""
     if session.scalar(select(func.count()).select_from(Provider)):
         return
-    session.add(Provider(
-        name="Local",
-        kind="openai_compat",
-        base_url=settings.model_base_url,
-        api_key=settings.model_api_key,
-        default_model=settings.model_id,
-        position=0,
-        # A model server on this machine is the one thing agents may choose unasked.
-        for_agents=is_local(settings.model_base_url),
-    ))
+    session.add(
+        Provider(
+            name="Local",
+            kind="openai_compat",
+            base_url=settings.model_base_url,
+            api_key=settings.model_api_key,
+            default_model=settings.model_id,
+            position=0,
+            # A model server on this machine is the one thing agents may choose unasked.
+            for_agents=is_local(settings.model_base_url),
+        )
+    )
     if settings.detect_cli:
         # Copilot is not offered by itself: the user adds it on the Models page.
         seeded = [kind for kind in CLI_KINDS if kind != "copilot_cli"]
         for position, kind in enumerate(seeded, 1):
             if which(CLI_COMMANDS[kind]):
-                session.add(Provider(
-                    name=CLI_NAMES[kind], kind=kind, position=position, mode=MODES[kind][0],
-                    # Google's Antigravity terms (section 6) forbid using it through another app.
-                    enabled=kind != "agy_cli",
-                ))
+                session.add(
+                    Provider(
+                        name=CLI_NAMES[kind],
+                        kind=kind,
+                        position=position,
+                        mode=MODES[kind][0],
+                        # Google's Antigravity terms (section 6) forbid using it through another
+                        # app.
+                        enabled=kind != "agy_cli",
+                    )
+                )
     session.commit()
 
 
@@ -629,7 +708,8 @@ def resolved(
     choices: list[tuple[Source, str | None, str | None]] = [
         ("role", role.provider_id, role.model_id) if role else ("role", None, None),
         ("conversation", conversation.provider_id, conversation.model_id)
-        if conversation else ("conversation", None, None),
+        if conversation
+        else ("conversation", None, None),
     ]
     for source, provider_id, model_id in choices:
         provider = session.get(Provider, provider_id) if provider_id else None
@@ -658,8 +738,11 @@ def stand_in(provider: Provider) -> str | None:
     tiered = [m for m in mine if m.get("tier") in TIERS]
     middle = TIERS.index("balanced")
     # (Fast before strongest where no balanced one is: the cheaper.)
-    nearest = min(tiered, key=lambda m: (abs(TIERS.index(m["tier"]) - middle),
-                                         TIERS.index(m["tier"])), default=None)
+    nearest = min(
+        tiered,
+        key=lambda m: (abs(TIERS.index(m["tier"]) - middle), TIERS.index(m["tier"])),
+        default=None,
+    )
     return (nearest or (mine[0] if mine else {})).get("name")
 
 
@@ -693,8 +776,9 @@ class Providers:
         self.named = dict(named or {})
         self._cache: dict[tuple, ModelClient] = {}
         # What each provider last said of its plan; with a database, kept across restarts.
-        self.limits = Limits(session_factory, settings.runtime_root / "agy-home",
-                             settings.runtime_root)
+        self.limits = Limits(
+            session_factory, settings.runtime_root / "agy-home", settings.runtime_root
+        )
 
     def client(self, provider: Provider, model_id: str | None) -> ModelClient:
         # The one place every path to a model goes through: lead, sub-agent, a
@@ -720,8 +804,9 @@ class Providers:
             read = models_dev.read_on(models_dev.load(self.settings.runtime_root))
         key = (provider.id, stamp, model_id, read)
         if key not in self._cache:
-            for stale in [k for k in self._cache
-                          if k[0] == provider.id and (k[1], k[3]) != (key[1], key[3])]:
+            for stale in [
+                k for k in self._cache if k[0] == provider.id and (k[1], k[3]) != (key[1], key[3])
+            ]:
                 del self._cache[stale]
             self._cache[key] = self._build(provider, model_id)
         return self._cache[key]
@@ -732,7 +817,8 @@ class Providers:
         machine was started anew, or the user pressed Find again. A CLI's is left alone."""
         for key, client in list(self._cache.items()):
             if isinstance(client, OpenAICompatClient | AnthropicClient) and (
-                    provider_id is None or key[0] == provider_id):
+                provider_id is None or key[0] == provider_id
+            ):
                 del self._cache[key]
 
     def lister(self, provider: Provider) -> ModelClient:
@@ -753,8 +839,9 @@ class Providers:
             # says: they are what is sent; and its window is the catalogue's, which its agents
             # are compacted against (slice 59d); an update of either builds it anew (`client`).
             copy = models_dev.load(settings.runtime_root)
-            told, said = catalog.facts(provider.kind, provider.base_url, model_id or "", copy,
-                                       provider.name)
+            told, said = catalog.facts(
+                provider.kind, provider.base_url, model_id or "", copy, provider.name
+            )
             built_api = OpenAICompatClient(
                 provider.base_url or "",
                 provider.api_key,
@@ -786,8 +873,11 @@ class Providers:
             raise OwnStop(f"unknown kind of provider: {provider.kind}")
         if provider.kind == "agy_cli":
             return AgyClient(
-                provider.executable, model_id, timeout=settings.model_first_token_seconds,
-                reads=mode != "native", homes=settings.runtime_root / "agy-home",
+                provider.executable,
+                model_id,
+                timeout=settings.model_first_token_seconds,
+                reads=mode != "native",
+                homes=settings.runtime_root / "agy-home",
             )
         if provider.kind == "copilot_cli":
             build = CopilotNativeClient if provider.mode == "native" else CopilotSessionClient
@@ -798,8 +888,11 @@ class Providers:
             # may be the long tier's and the default one smaller. Measure both windows live.
             row = next((m for m in provider.models or [] if m["name"] == model_id), {})
             copilot = build(
-                provider.executable, model_id, timeout=settings.model_first_token_seconds,
-                base_url=provider.base_url, api_key=provider.api_key,
+                provider.executable,
+                model_id,
+                timeout=settings.model_first_token_seconds,
+                base_url=provider.base_url,
+                api_key=provider.api_key,
                 options=provider.options or {},
                 context=None if provider.base_url else row.get("context"),
                 routing=None if provider.base_url else row.get("routing"),
@@ -811,9 +904,13 @@ class Providers:
         home = cli_home(settings.runtime_root, provider)  # (Claude Code's and Codex's only)
         if (provider.kind, mode) == ("claude_cli", "native"):
             built: CliStepClient = ClaudeNativeClient(
-                provider.executable, model_id, timeout=settings.model_first_token_seconds,
+                provider.executable,
+                model_id,
+                timeout=settings.model_first_token_seconds,
                 own_setup=bool((provider.options or {}).get("own_setup")),
-                server=provider.base_url, homes=settings.runtime_root / "server-homes", home=home,
+                server=provider.base_url,
+                homes=settings.runtime_root / "server-homes",
+                home=home,
             )
         else:
             cli = {
@@ -826,9 +923,14 @@ class Providers:
                 ("codex_cli", "native"): CodexNativeClient,
             }[provider.kind, mode]
             # A CLI has no stream of tokens to watch, so one limit covers the whole run.
-            built = cli(provider.executable, model_id, timeout=settings.model_first_token_seconds,
-                        server=provider.base_url, homes=settings.runtime_root / "server-homes",
-                        home=home)
+            built = cli(
+                provider.executable,
+                model_id,
+                timeout=settings.model_first_token_seconds,
+                server=provider.base_url,
+                homes=settings.runtime_root / "server-homes",
+                home=home,
+            )
         # (On the user's own model server nothing it says is of the user's plan.)
         if provider.kind == "claude_cli" and not provider.base_url:
             # Claude Code says what is left of its plan in every run: the last is kept.

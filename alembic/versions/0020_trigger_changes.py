@@ -3,6 +3,7 @@
 Revision ID: 0020
 Revises: 0019
 """
+
 import json
 import uuid
 from datetime import UTC, datetime
@@ -48,20 +49,32 @@ def upgrade() -> None:
     # the trigger then allows no command - and that is written on the trigger's record.
     bind = op.get_bind()
     triggers = sa.table(
-        "triggers", sa.column("id", sa.String), sa.column("project_id", sa.String),
-        sa.column("name", sa.String), sa.column("permissions", sa.JSON),
+        "triggers",
+        sa.column("id", sa.String),
+        sa.column("project_id", sa.String),
+        sa.column("name", sa.String),
+        sa.column("permissions", sa.JSON),
         sa.column("updated_at", sa.DateTime),
     )
     changes = sa.table(
-        "trigger_changes", sa.column("id", sa.String), sa.column("project_id", sa.String),
-        sa.column("trigger_id", sa.String), sa.column("name", sa.String),
-        sa.column("at", sa.DateTime), sa.column("what", sa.String),
+        "trigger_changes",
+        sa.column("id", sa.String),
+        sa.column("project_id", sa.String),
+        sa.column("trigger_id", sa.String),
+        sa.column("name", sa.String),
+        sa.column("at", sa.DateTime),
+        sa.column("what", sa.String),
         sa.column("detail", sa.Text),
     )
     moment = datetime.now(UTC).replace(tzinfo=None)
-    rows = bind.execute(sa.select(
-        triggers.c.id, triggers.c.project_id, triggers.c.name, triggers.c.permissions,
-    )).all()
+    rows = bind.execute(
+        sa.select(
+            triggers.c.id,
+            triggers.c.project_id,
+            triggers.c.name,
+            triggers.c.permissions,
+        )
+    ).all()
     for trigger_id, project_id, name, permissions in rows:
         if isinstance(permissions, str):
             permissions = json.loads(permissions)
@@ -69,11 +82,22 @@ def upgrade() -> None:
             continue
         typed = permissions["commands"]
         lines = "; ".join(str(line) for line in typed) if isinstance(typed, list) else str(typed)
-        bind.execute(triggers.update().where(triggers.c.id == trigger_id).values(
-            permissions={**permissions, "commands": []}, updated_at=moment))
-        bind.execute(changes.insert().values(
-            id=uuid.uuid4().hex, project_id=project_id, trigger_id=trigger_id, name=name,
-            at=moment, what="permissions changed", detail=TYPED.format(lines=lines)))
+        bind.execute(
+            triggers.update()
+            .where(triggers.c.id == trigger_id)
+            .values(permissions={**permissions, "commands": []}, updated_at=moment)
+        )
+        bind.execute(
+            changes.insert().values(
+                id=uuid.uuid4().hex,
+                project_id=project_id,
+                trigger_id=trigger_id,
+                name=name,
+                at=moment,
+                what="permissions changed",
+                detail=TYPED.format(lines=lines),
+            )
+        )
 
     with op.batch_alter_table("triggers") as batch:
         batch.alter_column("updated_at", existing_type=sa.DateTime(), nullable=False)

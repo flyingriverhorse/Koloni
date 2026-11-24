@@ -4,6 +4,7 @@ role's guide) goes on record too: Usage's "KOLONİ itself" (K-56)
 Revision ID: 0096
 Revises: 0098
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -18,8 +19,7 @@ def upgrade() -> None:
         batch.alter_column("run_id", existing_type=sa.String(length=32), nullable=True)
         batch.alter_column("agent_id", existing_type=sa.String(length=32), nullable=True)
         batch.add_column(sa.Column("project_id", sa.String(length=32), nullable=True))
-        batch.create_foreign_key(
-            "fk_own_requests_project_id", "projects", ["project_id"], ["id"])
+        batch.create_foreign_key("fk_own_requests_project_id", "projects", ["project_id"], ["id"])
 
 
 def downgrade() -> None:

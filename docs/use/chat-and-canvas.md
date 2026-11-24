@@ -7,9 +7,9 @@ recorded: the agents, their tools, commands and the files they changed. Nothing 
 
 *A turn on the canvas, with the chat beside it.*
 
-[![A turn's life: your message, an optional plan to approve first, the Orchestrator's steps, sub-agents in working copies, cards, the work taken in or discarded, and the Assistant PO's follow-up tasks after the answer](../diagrams/turn.svg)](../diagrams/turn.svg)
+[![A turn's life: your message, an optional plan to approve first, the Orchestrator's steps, sub-agents in working copies, cards, the work taken in or discarded, and the Scout's follow-up tasks after the answer](../diagrams/turn.svg)](../diagrams/turn.svg)
 
-*A turn's life, from your message (and its plan, with [Plan first](plan-first.md)) to the work in your folder, and the [Assistant PO](../automation/todo.md#follow-up-tasks) after it.*
+*A turn's life, from your message (and its plan, with [Plan first](plan-first.md)) to the work in your folder, and the [Scout](../automation/todo.md#follow-up-tasks) after it.*
 
 ## The chat
 
@@ -42,7 +42,8 @@ unread and how many things wait for you.
   card for **Take in** or **Discard**. See
   [Working copies and Take in](workspace.md#when-an-agent-stops).
 - Pasted code becomes a code block by itself, with **Paste as plain text** to undo that.
-- **New topic** starts a new topic with the next message.
+- **New topic** starts a new topic with the next message: the Orchestrator is then sent that topic's turns
+  only, and the earlier ones by name. See [Topics](../memory.md#topics).
 - The message box is one box. Its top line says what the chat does now: "Orchestrator is ready" with the
   model (choose the model there; on GitHub Copilot's `auto` or `fusion` it names the model Copilot picked
   last, "fusion → gpt-6-luna", with Copilot's reason in its tooltip); while a turn runs, what it does now,
@@ -157,7 +158,8 @@ runs from its team's frame to the lane; the legend calls it "A member's line to 
 with no team, from the members under it round the right of their column and in at its side, with an
 arrow; between teams, from its frame to the lane".
 
-Where the **Assistant PO** was asked after the turn, a small **Assistant PO** box stands under the turn,
+Where the **Scout** - the role that looks for what is left after each turn - was asked, a small
+**Scout** box stands under the turn,
 on a dashed line down from the Orchestrator. It shows the model asked, how many tasks it proposed and
 dropped ("2 proposed · 1 dropped"), at Full auto how many the Orchestrator added ("Orchestrator added
 1"), its tokens ("–" where not reported) and **To-do →**. Click it for why each one was dropped; a double

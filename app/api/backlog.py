@@ -51,57 +51,82 @@ def _told(request: Request, session: Session, project_id: str) -> None:
     may start now (`backlog.chain`, which never raises); whoever is watching is told the
     backlog changed - once, after that."""
     backlog.chain(session, project_id, request.app.state.bus, request.app.state.runner.start)
-    announce(request.app.state.session_factory, request.app.state.bus, project_id,
-             "backlog.changed")
+    announce(
+        request.app.state.session_factory, request.app.state.bus, project_id, "backlog.changed"
+    )
 
 
-def _drafter(session: Session, request: Request, project: Project,
-             conversation_id: str | None = None) -> list[Asked] | str:
-    """Whom "Write it with the Product owner" asks, in turn: each fast model the Lead may pick,
-    as the Assistant product owner's view is written (`AgentRunner._assess`), then the Lead's
+def _drafter(
+    session: Session, request: Request, project: Project, conversation_id: str | None = None
+) -> list[Asked] | str:
+    """Whom "Write it with the Hive keeper" asks, in turn: each fast model the Lead may pick,
+    as the Scout's view is written (`AgentRunner._assess`), then the Lead's
     (`askers`, as "Or write it" asks) - or why nobody is asked now. The page shows the first,
     the one the request asks first."""
     if over := over_month(session, project):
         return f"This project is {over}."
-    return askers(session, request.app.state.providers, "fast",
-                  chat_of(session, conversation_id, project.id), project.id)
+    return askers(
+        session,
+        request.app.state.providers,
+        "fast",
+        chat_of(session, conversation_id, project.id),
+        project.id,
+    )
 
 
-def _auto(session: Session, project: Project, request: Request,
-          conversation_id: str | None = None) -> dict:
+def _auto(
+    session: Session, project: Project, request: Request, conversation_id: str | None = None
+) -> dict:
     found = _drafter(session, request, project, conversation_id)
     can = found if isinstance(found, str) else found[0][:2]
-    return {"on": project.backlog_auto, "halt": project.backlog_halt,
-            "permission_mode": project.backlog_mode, "provider_id": project.backlog_provider_id,
-            "model_id": project.backlog_model_id,
-            "lead_work": project.backlog_lead_work or project.lead_work,
-            "cannot_run": backlog.cannot_run(session, project),
-            "drafter": {"why": can} if isinstance(can, str) else {
-                "why": None, "provider_id": can[0].id, "model_id": can[1]}}
+    return {
+        "on": project.backlog_auto,
+        "halt": project.backlog_halt,
+        "permission_mode": project.backlog_mode,
+        "provider_id": project.backlog_provider_id,
+        "model_id": project.backlog_model_id,
+        "lead_work": project.backlog_lead_work or project.lead_work,
+        "cannot_run": backlog.cannot_run(session, project),
+        "drafter": {"why": can}
+        if isinstance(can, str)
+        else {"why": None, "provider_id": can[0].id, "model_id": can[1]},
+    }
 
 
 @router.get("/projects/{project_id}/backlog/auto", response_model=BacklogAutoOut)
-async def read_auto(project_id: str, request: Request, conversation_id: str | None = None,
-                    session: Session = Depends(get_session)):
+async def read_auto(
+    project_id: str,
+    request: Request,
+    conversation_id: str | None = None,
+    session: Session = Depends(get_session),
+):
     return _auto(session, _project(session, project_id), request, conversation_id)
 
 
-@router.post("/projects/{project_id}/backlog/draft", response_model=BacklogDraftOut,
-             dependencies=OWN)  # a request the user pays for: their click
-async def draft_tasks(project_id: str, body: BacklogDraftIn, request: Request,
-                      session: Session = Depends(get_session)):
+@router.post(
+    "/projects/{project_id}/backlog/draft", response_model=BacklogDraftOut, dependencies=OWN
+)  # a request the user pays for: their click
+async def draft_tasks(
+    project_id: str, body: BacklogDraftIn, request: Request, session: Session = Depends(get_session)
+):
     """The user's rough note written as tasks by a model asked once, with no tools, as the
-    Product owner breaks a goal (`backlog.DRAFT`): nothing is saved - the page shows them, and
+    Hive keeper breaks a goal (`backlog.DRAFT`): nothing is saved - the page shows them, and
     each is added by the user's word. What it spends is on Usage as KOLONİ itself, in this
     project."""
     project = _project(session, project_id)
     can = _drafter(session, request, project, body.conversation_id)
     if isinstance(can, str):
         raise HTTPException(409, can)
-    provider, said, model_id = await ask_in_turn(request, session, can, [
-        {"role": "system", "content": backlog.DRAFT},
-        {"role": "user", "content": backlog.draft_question(body.text)},
-    ], project_id=project.id)
+    provider, said, model_id = await ask_in_turn(
+        request,
+        session,
+        can,
+        [
+            {"role": "system", "content": backlog.DRAFT},
+            {"role": "user", "content": backlog.draft_question(body.text)},
+        ],
+        project_id=project.id,
+    )
     try:
         tasks = backlog.drafted(said)
     except ValueError as exc:
@@ -109,10 +134,15 @@ async def draft_tasks(project_id: str, body: BacklogDraftIn, request: Request,
     return BacklogDraftOut(tasks=tasks, by=f"{provider.name} ({model_id})")
 
 
-@router.put("/projects/{project_id}/backlog/choice", response_model=BacklogAutoOut,
-            dependencies=OWN)
-async def set_choice(project_id: str, body: BacklogChoiceIn, request: Request,
-                     session: Session = Depends(get_session)):
+@router.put(
+    "/projects/{project_id}/backlog/choice", response_model=BacklogAutoOut, dependencies=OWN
+)
+async def set_choice(
+    project_id: str,
+    body: BacklogChoiceIn,
+    request: Request,
+    session: Session = Depends(get_session),
+):
     """The level and the model the chats the backlog opens from now start with (B-350): the
     user's, from the app's own page, as raising a chat's level is. Their turns hold to a
     night's rules at any level (`AgentRunner._backlog_turns`), so a provider that cannot work
@@ -128,24 +158,28 @@ async def set_choice(project_id: str, body: BacklogChoiceIn, request: Request,
     if provider is not None and works_with_own_tools(provider):
         why = backlog.OWN_TOOLS.format(name=provider.name, fix="choose another provider")
         raise HTTPException(422, why)
-    if provider is not None and provider.kind == "anthropic" and not (
-            model or provider.default_model):
+    if (
+        provider is not None
+        and provider.kind == "anthropic"
+        and not (model or provider.default_model)
+    ):
         raise HTTPException(422, f"{provider.name} has no default model: name one")
     project.backlog_mode = body.permission_mode
     project.backlog_provider_id, project.backlog_model_id = body.provider_id, model
     project.backlog_lead_work = body.lead_work
     session.commit()
-    announce(request.app.state.session_factory, request.app.state.bus, project_id,
-             "backlog.changed")
+    announce(
+        request.app.state.session_factory, request.app.state.bus, project_id, "backlog.changed"
+    )
     if "lead_work" in body.model_fields_set:  # (its To-do chats follow it: `lead_work_of`)
         tell_chats(session, request.app.state.bus, project_id)
     return _auto(session, project, request)
 
 
-@router.put("/projects/{project_id}/backlog/auto", response_model=BacklogAutoOut,
-            dependencies=OWN)
-async def set_auto(project_id: str, body: BacklogAutoIn, request: Request,
-                   session: Session = Depends(get_session)):
+@router.put("/projects/{project_id}/backlog/auto", response_model=BacklogAutoOut, dependencies=OWN)
+async def set_auto(
+    project_id: str, body: BacklogAutoIn, request: Request, session: Session = Depends(get_session)
+):
     """The user's switch, Run the backlog by itself: todo tasks start by themselves as there
     is room (`backlog.chain`), now too. Why the run paused or stopped is cleared either way:
     it is the user's word now. Off stops the run: what Run the backlog queued is not started."""
@@ -166,14 +200,23 @@ async def set_auto(project_id: str, body: BacklogAutoIn, request: Request,
 async def read_backlog(project_id: str, session: Session = Depends(get_session)):
     tasks = backlog.ordered(session, _project(session, project_id).id)
     left, waits = backlog.not_in(session, tasks), backlog.waiting(session, tasks)
-    return [BacklogTaskOut.model_validate(task).model_copy(
-        update={"not_in": task.id in left, "waiting": task.id in waits}) for task in tasks]
+    return [
+        BacklogTaskOut.model_validate(task).model_copy(
+            update={"not_in": task.id in left, "waiting": task.id in waits}
+        )
+        for task in tasks
+    ]
 
 
-@router.post("/projects/{project_id}/backlog", response_model=BacklogTaskOut, status_code=201,
-             dependencies=OWN)
-async def add_task(project_id: str, body: BacklogTaskIn, request: Request,
-                   session: Session = Depends(get_session)):
+@router.post(
+    "/projects/{project_id}/backlog",
+    response_model=BacklogTaskOut,
+    status_code=201,
+    dependencies=OWN,
+)
+async def add_task(
+    project_id: str, body: BacklogTaskIn, request: Request, session: Session = Depends(get_session)
+):
     fields = body.model_dump()
     fields["title"] = fields["title"].strip()
     if not fields["title"]:
@@ -185,8 +228,9 @@ async def add_task(project_id: str, body: BacklogTaskIn, request: Request,
 
 
 @router.patch("/backlog/{task_id}", response_model=BacklogTaskOut, dependencies=OWN)
-async def change_task(task_id: str, body: BacklogTaskPatch, request: Request,
-                      session: Session = Depends(get_session)):
+async def change_task(
+    task_id: str, body: BacklogTaskPatch, request: Request, session: Session = Depends(get_session)
+):
     task = _task(session, task_id)
     changes = body.model_dump(exclude_unset=True)
     # Only detail and criteria can be emptied; the rest left as null is left as it is.
@@ -229,8 +273,9 @@ async def delete_task(task_id: str, request: Request, session: Session = Depends
 
 
 @router.post("/backlog/{task_id}/decide", response_model=BacklogTaskOut | None, dependencies=OWN)
-async def decide(task_id: str, body: BacklogDecideIn, request: Request,
-                 session: Session = Depends(get_session)):
+async def decide(
+    task_id: str, body: BacklogDecideIn, request: Request, session: Session = Depends(get_session)
+):
     """The user's word on a task an agent proposed, or on a change it proposed: the task as
     it is now, or null when a proposed task was turned down (it is gone)."""
     task = _task(session, task_id)
@@ -248,7 +293,7 @@ async def decide(task_id: str, body: BacklogDecideIn, request: Request,
 
 @router.post("/backlog/{task_id}/seen", response_model=BacklogTaskOut, dependencies=OWN)
 async def seen(task_id: str, request: Request, session: Session = Depends(get_session)):
-    """The user's OK of the Lead's word on a proposal of the Assistant PO's at Full auto: it
+    """The user's OK of the Lead's word on a proposal of the Scout's at Full auto: it
     leaves "Decided for you"."""
     task = _task(session, task_id)
     if not (task.po or {}).get("lead"):
@@ -259,10 +304,10 @@ async def seen(task_id: str, request: Request, session: Session = Depends(get_se
     return task
 
 
-@router.post("/projects/{project_id}/backlog/next", response_model=BacklogNextOut,
-             dependencies=OWN)
-async def run_the_backlog(project_id: str, request: Request,
-                          session: Session = Depends(get_session)):
+@router.post("/projects/{project_id}/backlog/next", response_model=BacklogNextOut, dependencies=OWN)
+async def run_the_backlog(
+    project_id: str, request: Request, session: Session = Depends(get_session)
+):
     """Run the backlog (K-symphony): every todo task is queued, and they start as there is
     room - MAX_PARALLEL at once, each once the tasks it waits for are done (`backlog.chain`) -
     each in a new conversation (`backlog.start`). Not while everything is held or the
@@ -277,8 +322,11 @@ async def run_the_backlog(project_id: str, request: Request,
         raise HTTPException(409, away.AWAY_NOW)
     if why := backlog.cannot_run(session, project):
         raise HTTPException(422, why)
-    todo = [task for task in backlog.ordered(session, project.id)
-            if task.status == "todo" and task.away_run_id is None]
+    todo = [
+        task
+        for task in backlog.ordered(session, project.id)
+        if task.status == "todo" and task.away_run_id is None
+    ]
     # (One the Lead added at Full auto starts by the user's OK only: `backlog.unseen`.)
     ready = [task for task in todo if not backlog.unseen(task)]
     if not ready and todo:
@@ -294,5 +342,7 @@ async def run_the_backlog(project_id: str, request: Request,
     session.commit()
     _told(request, session, project_id)
     started = next((task for task in todo if task.status == "doing"), None)
-    return {"task_id": started and started.id,
-            "conversation_id": started and started.conversation_id}
+    return {
+        "task_id": started and started.id,
+        "conversation_id": started and started.conversation_id,
+    }

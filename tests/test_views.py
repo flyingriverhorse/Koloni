@@ -38,8 +38,15 @@ def test_the_shown_files_table_is_added_and_taken_away_again(tmp_path):
     command.upgrade(cfg, "head")
     with sqlite3.connect(db) as conn:
         names = {row[1] for row in conn.execute("PRAGMA table_info(shown_files)")}
-        assert names == {"id", "conversation_id", "agent_id", "path", "note", "copy_owner",
-                         "created_at"}
+        assert names == {
+            "id",
+            "conversation_id",
+            "agent_id",
+            "path",
+            "note",
+            "copy_owner",
+            "created_at",
+        }
         assert conn.execute("SELECT count(*) FROM shown_files").fetchone() == (0,)
     command.downgrade(cfg, "0042")
     with sqlite3.connect(db) as conn:
@@ -47,24 +54,34 @@ def test_the_shown_files_table_is_added_and_taken_away_again(tmp_path):
         assert "shown_files" not in tables
 
 
-def test_a_change_whose_file_is_not_there_now_is_said_to_be_gone(make_client, wait_run, project_dir):
+def test_a_change_whose_file_is_not_there_now_is_said_to_be_gone(
+    make_client, wait_run, project_dir
+):
     """B-55: the Workspace tree said "added, Applied" of files deleted by hand. The server
     says it from the disk, not from a listing (which leaves secret names out)."""
-    client, _model = make_client([
-        write("first.txt", "1", "w1"), write(".env.example", "KEY=", "w2"), text("ok")])
+    client, _model = make_client(
+        [write("first.txt", "1", "w1"), write(".env.example", "KEY=", "w2"), text("ok")]
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     wait_run(client, cid, run_id)
     (project_dir / "first.txt").unlink()
     snap = client.get(f"/api/conversations/{cid}").json()
     assert {(c["path"], c["status"], c["gone"]) for c in snap["file_changes"]} == {
-        ("first.txt", "applied", True), (".env.example", "applied", False)}
+        ("first.txt", "applied", True),
+        (".env.example", "applied", False),
+    }
 
 
-def test_a_page_written_and_then_shown_is_one_line_with_the_note(make_client, wait_run, project_dir):
-    client, _model = make_client([
-        write("page.html", "<p>one</p>"),
-        step(call("show", {"path": "page.html", "note": "  the  page\n"}, "v1")),
-        text("ok")])
+def test_a_page_written_and_then_shown_is_one_line_with_the_note(
+    make_client, wait_run, project_dir
+):
+    client, _model = make_client(
+        [
+            write("page.html", "<p>one</p>"),
+            step(call("show", {"path": "page.html", "note": "  the  page\n"}, "v1")),
+            text("ok"),
+        ]
+    )
     cid, run_id = start_in_mode(client, project_dir, "auto_edit")
     wait_run(client, cid, run_id)
     (line,) = client.get(f"/api/conversations/{cid}/views").json()
@@ -111,13 +128,18 @@ def copy_that_shows(make_client, project_dir, gate, note=None):
     """A lead whose Coder, in a copy of its own, makes chart.png with a command and shows it;
     the project has an older chart.png. The Coder's last step waits for `gate`."""
     (project_dir / "chart.png").write_bytes(OLD)
-    return setup(make_client, project_dir, {
-        "Lead": [spawn("Coder"), text("done")],
-        "Coder": [step(call("run_command", {"command": MADE}, "c")),
-                  step(call("show", {"path": "chart.png", **({"note": note} if note else {})},
-                            "v")),
-                  gate.step(text("Coder done"))],
-    })
+    return setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [spawn("Coder"), text("done")],
+            "Coder": [
+                step(call("run_command", {"command": MADE}, "c")),
+                step(call("show", {"path": "chart.png", **({"note": note} if note else {})}, "v")),
+                gate.step(text("Coder done")),
+            ],
+        },
+    )
 
 
 def test_a_picture_a_sub_agent_makes_and_shows_in_its_copy_is_served_from_there_then_from_the_project(
@@ -125,10 +147,10 @@ def test_a_picture_a_sub_agent_makes_and_shows_in_its_copy_is_served_from_there_
 ):
     gate = Gate()
     client, _model, cid, run_id = copy_that_shows(make_client, project_dir, gate, "the new chart")
-    gate.wait_partial()                                          # shown; the copy is still there
+    gate.wait_partial()  # shown; the copy is still there
     (line,) = client.get(f"/api/conversations/{cid}/views").json()
     assert line["note"] == "the new chart"
-    assert client.get(line["url"]).content == NEW                 # the copy's, not the project's
+    assert client.get(line["url"]).content == NEW  # the copy's, not the project's
     assert (project_dir / "chart.png").read_bytes() == OLD
     gate.release()
     snap = wait_run(client, cid, run_id)
@@ -152,7 +174,7 @@ def test_a_picture_shown_from_a_copy_that_was_stopped_is_the_projects_again(
     gate.release()
     until(client, cid, lambda s: s["runs"][0]["status"] not in ("running", "waiting_approval"))
     assert (project_dir / "chart.png").read_bytes() == OLD
-    assert client.get(line["url"]).content == OLD                 # the copy is gone, unmerged
+    assert client.get(line["url"]).content == OLD  # the copy is gone, unmerged
 
 
 # --- the list, read every 2 s ----------------------------------------------------------------
@@ -163,9 +185,12 @@ def test_the_list_hashes_a_file_once_until_it_changes_and_one_file_is_served_wit
 ):
     for name in ("a.png", "b.png"):
         (project_dir / name).write_bytes(OLD)
-    client, _model = make_client([
-        step(call("show", {"path": "a.png"}, "v1"), call("show", {"path": "b.png"}, "v2")),
-        text("ok")])
+    client, _model = make_client(
+        [
+            step(call("show", {"path": "a.png"}, "v1"), call("show", {"path": "b.png"}, "v2")),
+            text("ok"),
+        ]
+    )
     cid, run_id = start(client, project_dir)
     wait_run(client, cid, run_id)
     read = []
@@ -173,24 +198,26 @@ def test_the_list_hashes_a_file_once_until_it_changes_and_one_file_is_served_wit
     monkeypatch.setattr(views, "read_file", lambda ws, rel: read.append(rel) or real(ws, rel))
     first = client.get(f"/api/conversations/{cid}/views").json()
     read.clear()
-    assert client.get(f"/api/conversations/{cid}/views").json() == first   # nothing read again
+    assert client.get(f"/api/conversations/{cid}/views").json() == first  # nothing read again
     assert read == []
     (project_dir / "a.png").write_bytes(NEW)
-    os.utime(project_dir / "a.png", ns=(1, 1))     # (a stamp of its own, whatever the clock)
+    os.utime(project_dir / "a.png", ns=(1, 1))  # (a stamp of its own, whatever the clock)
     again = {v["path"]: v["sha"] for v in client.get(f"/api/conversations/{cid}/views").json()}
     assert read == ["a.png"]
     assert again["a.png"] != {v["path"]: v["sha"] for v in first}["a.png"]
     read.clear()
     b = next(line for line in first if line["path"] == "b.png")
     assert client.get(b["url"]).content == OLD
-    assert read == ["b.png"]                                      # the one asked for, alone
+    assert read == ["b.png"]  # the one asked for, alone
 
 
 # --- names Windows would not open as asked ---------------------------------------------------
 
 
-@pytest.mark.parametrize("asked", ["a%00.css", "CON", "nul.css", "com1.txt", "LPT9", "style.css.",
-                                   "style.css%20", "x%01y.css"])
+@pytest.mark.parametrize(
+    "asked",
+    ["a%00.css", "CON", "nul.css", "com1.txt", "LPT9", "style.css.", "style.css%20", "x%01y.css"],
+)
 def test_a_name_windows_would_open_otherwise_is_refused_not_failed(
     make_client, wait_run, project_dir, asked
 ):
@@ -208,16 +235,24 @@ def test_a_name_windows_would_open_otherwise_is_refused_not_failed(
 def test_a_waiting_change_is_what_a_page_gets_beside_it_by_any_case_of_its_name(
     make_client, project_dir
 ):
-    client, _model = make_client([
-        step(call("write_file", {"path": "page.html", "content": "<link href=Style.CSS>"}, "w1")),
-        step(call("write_file", {"path": "style.css", "content": "p{color:red}"}, "w2")),
-        text("ok")])
+    client, _model = make_client(
+        [
+            step(
+                call("write_file", {"path": "page.html", "content": "<link href=Style.CSS>"}, "w1")
+            ),
+            step(call("write_file", {"path": "style.css", "content": "p{color:red}"}, "w2")),
+            text("ok"),
+        ]
+    )
     cid, _run_id = start(client, project_dir)
     (page,) = wait_status(client, cid, "waiting_approval")["file_changes"]
     client.post(f"/api/file-changes/{page['id']}/approve")
-    until(client, cid, lambda s: [c["status"] for c in s["file_changes"]] == ["applied", "proposed"])
-    line = next(v for v in client.get(f"/api/conversations/{cid}/views").json()
-                if v["path"] == "page.html")
+    until(
+        client, cid, lambda s: [c["status"] for c in s["file_changes"]] == ["applied", "proposed"]
+    )
+    line = next(
+        v for v in client.get(f"/api/conversations/{cid}/views").json() if v["path"] == "page.html"
+    )
     beside = client.get(line["url"].rsplit("/", 1)[0] + "/Style.CSS")
     assert beside.status_code == 200 and beside.text == "p{color:red}"
 
@@ -228,13 +263,15 @@ def test_a_page_asked_for_under_the_address_of_its_kept_text_gets_that_and_not_a
     """K-e2e-titrek: the frame loaded the list's address of the kept page after a second
     change had come, and got the second's text; turned down, the list gave the same address
     again and the frame kept showing what nobody kept."""
-    client, _model = make_client([
-        write("page.html", "<p>one</p>", "w1"), write("page.html", "<p>two</p>", "w2"),
-        text("ok")])
+    client, _model = make_client(
+        [write("page.html", "<p>one</p>", "w1"), write("page.html", "<p>two</p>", "w2"), text("ok")]
+    )
     cid, _run_id = start(client, project_dir)
     (first,) = wait_status(client, cid, "waiting_approval")["file_changes"]
     client.post(f"/api/file-changes/{first['id']}/approve")
-    until(client, cid, lambda s: [c["status"] for c in s["file_changes"]] == ["applied", "proposed"])
+    until(
+        client, cid, lambda s: [c["status"] for c in s["file_changes"]] == ["applied", "proposed"]
+    )
     (line,) = client.get(f"/api/conversations/{cid}/views").json()
     assert (line["status"], line["sha"]) == ("proposed", sha256_text("<p>two</p>"))
     assert client.get(f"{line['url']}?v={sha256_text('<p>one</p>')}-applied").text == "<p>one</p>"
@@ -247,12 +284,20 @@ def test_a_page_asked_for_under_the_address_of_its_kept_text_gets_that_and_not_a
 
 def test_an_agent_answering_a_message_cannot_show_either(make_client, wait_run, project_dir):
     (project_dir / "chart.png").write_bytes(OLD)
-    client, _model = make_client({
-        "Lead": [spawn("Reviewer"), step(call("show", {"path": "chart.png"}, "v")),
-                 text("It is the chart."), text("done")],
-        "Reviewer": [step(call("message_agent", {"to": "Lead", "message": "what is it?"}, "m")),
-                     text("ok")],
-    })
+    client, _model = make_client(
+        {
+            "Lead": [
+                spawn("Reviewer"),
+                step(call("show", {"path": "chart.png"}, "v")),
+                text("It is the chart."),
+                text("done"),
+            ],
+            "Reviewer": [
+                step(call("message_agent", {"to": "Lead", "message": "what is it?"}, "m")),
+                text("ok"),
+            ],
+        }
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id)
     (shown,) = [t for t in snap["tool_calls"] if t["name"] == "show"]
@@ -277,7 +322,8 @@ def test_a_pdf_is_shown_and_served_for_the_browsers_viewer_by_both_ways(
         assert answer.content == pdf
         assert answer.headers["content-type"] == "application/pdf"
         assert answer.headers["content-security-policy"] == (
-            "script-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'")
+            "script-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'"
+        )
         assert answer.headers["x-content-type-options"] == "nosniff"
         assert answer.headers["x-frame-options"] == "SAMEORIGIN"
         assert answer.headers["cross-origin-resource-policy"] == "same-origin"

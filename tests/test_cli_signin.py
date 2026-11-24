@@ -51,7 +51,9 @@ def status_cli(tmp_path, answer: dict, code: int = 0) -> str:
         "    print('Commands:\\n  auth   Manage authentication')\n"
         "    sys.exit(0)\n"
         f"print(json.dumps({answer!r}))\n"
-        f"sys.exit({code})\n", encoding="utf-8")
+        f"sys.exit({code})\n",
+        encoding="utf-8",
+    )
     if sys.platform == "win32":
         shim = tmp_path / "claude.cmd"
         shim.write_text(f'@"{sys.executable}" "{script}" %*\r\n', encoding="utf-8")
@@ -66,12 +68,19 @@ def seen(tmp_path) -> list:
     return [json.loads(line) for line in (tmp_path / "seen.jsonl").read_text().splitlines()]
 
 
-@pytest.mark.parametrize(("kind", "mode", "built"), [
-    ("claude_cli", "session", ClaudeSessionClient), ("claude_cli", "step", ClaudeCliClient),
-    ("claude_cli", "native", ClaudeNativeClient), ("codex_cli", "step", CodexCliClient),
-    ("codex_cli", "native", CodexNativeClient)])
+@pytest.mark.parametrize(
+    ("kind", "mode", "built"),
+    [
+        ("claude_cli", "session", ClaudeSessionClient),
+        ("claude_cli", "step", ClaudeCliClient),
+        ("claude_cli", "native", ClaudeNativeClient),
+        ("codex_cli", "step", CodexCliClient),
+        ("codex_cli", "native", CodexNativeClient),
+    ],
+)
 def test_every_way_of_running_gets_the_providers_own_folder_and_its_own_limits(
-        settings_env, kind, mode, built):
+    settings_env, kind, mode, built
+):
     settings = load_settings(settings_env)
     providers = Providers(settings)
     own = Provider(id=A, name="Work", kind=kind, mode=mode, options=KOLONI)
@@ -80,7 +89,8 @@ def test_every_way_of_running_gets_the_providers_own_folder_and_its_own_limits(
     assert isinstance(client, built) and client.home == folder
     # Its settings are read there too: none of the user's ~/.claude or ~/.codex.
     assert client._env[{"claude_cli": "CLAUDE_CONFIG_DIR", "codex_cli": "CODEX_HOME"}[kind]] == str(
-        folder)
+        folder
+    )
     if kind == "claude_cli" or mode == "native":
         assert client.on_limits.args == ((A,),)  # what its runs say is its own account's
     mine = providers._build(Provider(id="p2", name="Mine", kind=kind, mode=mode), None)
@@ -89,17 +99,23 @@ def test_every_way_of_running_gets_the_providers_own_folder_and_its_own_limits(
 
 @pytest.mark.anyio
 async def test_it_and_its_talkers_start_in_its_folder_with_nothing_of_the_users_sign_in(
-        tmp_path, keys):
+    tmp_path, keys
+):
     folder = tmp_path / "runtime" / CLI_HOMES / "p1"
     claude, codex = ClaudeNativeClient(home=folder), CodexNativeClient(home=folder)
     for client in (claude, claude.talker(), codex, codex.talker(), ClaudeCliClient(home=folder)):
         # (As `run_native` starts it: with the secret variables a project passes as well.)
-        started, _job = await client._start([sys.executable, "-c", DUMP], False, tmp_path,
-                                      {"ANTHROPIC_API_KEY": PLANTED, "CODEX_API_KEY": PLANTED})
+        started, _job = await client._start(
+            [sys.executable, "-c", DUMP],
+            False,
+            tmp_path,
+            {"ANTHROPIC_API_KEY": PLANTED, "CODEX_API_KEY": PLANTED},
+        )
         told = json.loads((await started.communicate())[0])
         assert nothing_of_the_users(told, client.command), client
         assert told["CLAUDE_CONFIG_DIR" if client.command == "claude" else "CODEX_HOME"] == str(
-            folder)
+            folder
+        )
     assert folder.is_dir()  # made at its first start
 
 
@@ -115,12 +131,16 @@ def test_the_setting_is_checked():
     assert check_options("codex_cli", KOLONI, False) == KOLONI
     assert check_options("codex_cli", {"sign_in": "own"}, False) is None
     assert check_options("claude_cli", {"own_setup": True, "sign_in": "own"}, False) == {
-        "own_setup": True}
-    for kind, told, server in [("claude_cli", KOLONI, True), ("codex_cli", KOLONI, True),
-                               ("claude_cli", {"sign_in": "theirs"}, False),
-                               ("claude_cli", {**KOLONI, "own_setup": True}, False),
-                               ("codex_cli", {"own_setup": True}, False),
-                               ("copilot_cli", KOLONI, False)]:
+        "own_setup": True
+    }
+    for kind, told, server in [
+        ("claude_cli", KOLONI, True),
+        ("codex_cli", KOLONI, True),
+        ("claude_cli", {"sign_in": "theirs"}, False),
+        ("claude_cli", {**KOLONI, "own_setup": True}, False),
+        ("codex_cli", {"own_setup": True}, False),
+        ("copilot_cli", KOLONI, False),
+    ]:
         with pytest.raises(ValueError):
             check_options(kind, told, server)
 
@@ -130,7 +150,9 @@ def test_each_provider_with_a_folder_is_an_account_of_its_own_and_the_users_sess
     two = Provider(id=B, name="Home", kind="claude_cli", options=KOLONI)
     mine = Provider(id="c", name="Claude Code", kind="claude_cli")
     assert (account(one), account(two), account(mine)) == ((A,), (B,), ("claude_cli", None))
-    assert cli_home(Path("R"), one) == Path("R") / CLI_HOMES / A and cli_home(Path("R"), mine) is None
+    assert (
+        cli_home(Path("R"), one) == Path("R") / CLI_HOMES / A and cli_home(Path("R"), mine) is None
+    )
     limits = Limits()
     said = {"five_hour": {"used_percentage": 40, "resets_at": time.time() + 3600}}
     limits.from_session(of_session(said, datetime.now(UTC)))
@@ -141,8 +163,9 @@ def test_each_provider_with_a_folder_is_an_account_of_its_own_and_the_users_sess
 async def test_its_short_limits_turn_runs_in_its_folder(tmp_path, keys):
     folder = tmp_path / CLI_HOMES / "p1"
     planned, record = tmp_path / "plan.json", tmp_path / "record.json"
-    planned.write_text(json.dumps({"record": str(record), "limits": {"status": "allowed"}}),
-                       encoding="utf-8")
+    planned.write_text(
+        json.dumps({"record": str(record), "limits": {"status": "allowed"}}), encoding="utf-8"
+    )
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv("FAKE_CLI_PLAN", str(planned))
         assert await claude_turn(None, 20.0, launcher=FAKE, home=folder) == {"status": "allowed"}
@@ -151,11 +174,23 @@ async def test_its_short_limits_turn_runs_in_its_folder(tmp_path, keys):
 
 
 def test_its_status_is_read_in_its_folder_with_its_plan_and_nothing_else_of_the_account(
-        client, tmp_path, keys):
-    cli = status_cli(tmp_path, {"loggedIn": True, "authMethod": "claude.ai", "subscriptionType": "max",
-                                "email": "someone@example.com", "orgName": "Acme"})
-    made = client.post("/api/providers", headers=ORIGIN, json={
-        "name": "Work", "kind": "claude_cli", "executable": cli, "options": KOLONI}).json()
+    client, tmp_path, keys
+):
+    cli = status_cli(
+        tmp_path,
+        {
+            "loggedIn": True,
+            "authMethod": "claude.ai",
+            "subscriptionType": "max",
+            "email": "someone@example.com",
+            "orgName": "Acme",
+        },
+    )
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Work", "kind": "claude_cli", "executable": cli, "options": KOLONI},
+    ).json()
     told = client.get(f"/api/providers/{made['id']}/availability").json()
     folder = client.app.state.settings.runtime_root / CLI_HOMES / made["id"]
     assert (told["signed_in"], told["plan"]) == (True, "max")
@@ -163,25 +198,31 @@ def test_its_status_is_read_in_its_folder_with_its_plan_and_nothing_else_of_the_
     assert [one[1:] for one in seen(tmp_path)] == [[str(folder), False]] * 2  # --help, status
     if sys.platform != "win32":  # (off Windows: one sh line, `_login`)
         assert told["login"]["command"] == (
-            f"CLAUDE_CONFIG_DIR={shlex.quote(str(folder))} {shlex.quote(cli)} auth login")
+            f"CLAUDE_CONFIG_DIR={shlex.quote(str(folder))} {shlex.quote(cli)} auth login"
+        )
         assert told["login"]["cmd"] is None  # (RunCommand's: no cmd.exe form)
         return
     # How to log in there: in the user's own PowerShell, the folder set first.
-    assert told["login"]["command"] == (
-        f"$env:CLAUDE_CONFIG_DIR='{folder}'; & '{cli}' auth login")
+    assert told["login"]["command"] == (f"$env:CLAUDE_CONFIG_DIR='{folder}'; & '{cli}' auth login")
     # K-giris-cmd: and in cmd.exe, where $env: is a syntax error.
     assert told["login"]["cmd"] == f'set "CLAUDE_CONFIG_DIR={folder}"\n"{cli}" auth login'
 
 
 def test_not_signed_in_there_it_says_how_to_log_in_to_that_folder(client, tmp_path):
     cli = status_cli(tmp_path, {"loggedIn": False, "authMethod": "none"}, code=1)
-    made = client.post("/api/providers", headers=ORIGIN, json={
-        "name": "Home", "kind": "claude_cli", "executable": cli, "options": KOLONI}).json()
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Home", "kind": "claude_cli", "executable": cli, "options": KOLONI},
+    ).json()
     told = client.get(f"/api/providers/{made['id']}/availability").json()
     assert (told["signed_in"], told["plan"]) == (False, None)
     assert told["sign_in"] == told["login"] and "CLAUDE_CONFIG_DIR" in told["login"]["command"]
-    mine = client.post("/api/providers", headers=ORIGIN, json={
-        "name": "Mine", "kind": "claude_cli", "executable": cli}).json()
+    mine = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Mine", "kind": "claude_cli", "executable": cli},
+    ).json()
     theirs = client.get(f"/api/providers/{mine['id']}/availability").json()
     assert theirs["login"] is None and theirs["sign_in"]["command"] == "claude auth login"
     assert seen(tmp_path)[-1][1] is None  # the user's own: asked as before
@@ -193,7 +234,9 @@ def test_a_codex_folders_login_command_and_a_quote_in_the_path(monkeypatch):
     monkeypatch.setattr(sys, "platform", "win32")  # (Windows' forms, checked on every system)
     folder = Path("C:/K's/cli-homes/p")
     told = _login("codex_cli", None, folder)
-    assert told["command"] == "$env:CODEX_HOME='" + str(folder).replace("'", "''") + "'; codex login"
+    assert (
+        told["command"] == "$env:CODEX_HOME='" + str(folder).replace("'", "''") + "'; codex login"
+    )
     assert told["cmd"] == f'set "CODEX_HOME={folder}"\ncodex login'
 
 
@@ -211,12 +254,16 @@ def test_off_windows_the_login_is_one_sh_line(monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
     assert _login("claude_cli", "/opt/my claude", PurePosixPath("/home/k's/p")) == {  # type: ignore[arg-type]
         "command": "CLAUDE_CONFIG_DIR='/home/k'\"'\"'s/p' '/opt/my claude' auth login",
-        "docs": "https://code.claude.com/docs/en/cli-reference"}
+        "docs": "https://code.claude.com/docs/en/cli-reference",
+    }
 
 
 def test_its_folder_goes_with_the_provider(client):
-    made = client.post("/api/providers", headers=ORIGIN, json={
-        "name": "Gone", "kind": "codex_cli", "options": KOLONI}).json()
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Gone", "kind": "codex_cli", "options": KOLONI},
+    ).json()
     folder = client.app.state.settings.runtime_root / CLI_HOMES / made["id"]
     (folder / "auth.json").parent.mkdir(parents=True)
     (folder / "auth.json").write_text("{}", encoding="utf-8")
@@ -236,11 +283,13 @@ def test_agents_never_reach_the_folders(settings, project_dir, tmp_path, monkeyp
     assert not names_secret("type notes.txt")
     # And Copilot's sandbox keeps its commands out of them.
     assert str(tmp_path / CLI_HOMES) in sandbox_denied(
-        project_dir, project_dir, tmp_path / "data", tmp_path / "agy-home", tmp_path / CLI_HOMES)
+        project_dir, project_dir, tmp_path / "data", tmp_path / "agy-home", tmp_path / CLI_HOMES
+    )
 
 
 def test_an_agents_read_there_is_refused_without_a_card(
-        make_client, wait_run, project_dir, settings_env, monkeypatch):
+    make_client, wait_run, project_dir, settings_env, monkeypatch
+):
     monkeypatch.setenv("KOLONI_RUNTIME_ROOT", settings_env["KOLONI_RUNTIME_ROOT"])
     login = Path(settings_env["KOLONI_RUNTIME_ROOT"]) / CLI_HOMES / "p1" / ".credentials.json"
     login.parent.mkdir(parents=True)
@@ -255,8 +304,10 @@ def test_an_agents_read_there_is_refused_without_a_card(
 def test_a_crafted_provider_id_never_leads_out_of_the_folders(client):
     # Security review: a row restored from a backup could hold any id.
     for bad in ("..", "../../../../.claude", "C:/x", "ABCDEF0123456789abcdef0123456789"):
-        assert cli_home(Path("R"), Provider(id=bad, name="x", kind="claude_cli",
-                                            options=KOLONI)) is None, bad
+        assert (
+            cli_home(Path("R"), Provider(id=bad, name="x", kind="claude_cli", options=KOLONI))
+            is None
+        ), bad
     from types import SimpleNamespace
 
     from app.api.providers import delete_provider

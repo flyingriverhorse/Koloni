@@ -31,16 +31,22 @@ _PARSERS_JS = "commander|yargs|meow|cac"
 ANSWERS_HELP = {
     "python": re.compile(
         rf"^[ \t]*(?:from[ \t]+(?:{_PARSERS_PY})\b|import[ \t]+(?:[\w.]+[ \t]*,[ \t]*)*"
-        rf"(?:{_PARSERS_PY})\b)", re.MULTILINE),
+        rf"(?:{_PARSERS_PY})\b)",
+        re.MULTILINE,
+    ),
     "node": re.compile(
         rf"""\brequire\([ \t]*['"](?:{_PARSERS_JS})(?:/[\w./-]*)?['"][ \t]*\)|"""
-        rf"""^[ \t]*import\b[^\n]*?['"](?:{_PARSERS_JS})(?:/[\w./-]*)?['"]""", re.MULTILINE),
+        rf"""^[ \t]*import\b[^\n]*?['"](?:{_PARSERS_JS})(?:/[\w./-]*)?['"]""",
+        re.MULTILINE,
+    ),
     "sh": re.compile(r"""(?:-h[ \t]*\|[ \t]*)?--help[ \t]*\)|['"]--help['"]"""),
 }
 # A whole line that is a comment, by runner; and sh's comment after a word.
-_COMMENT = {"python": re.compile(r"^[ \t]*#[^\n]*", re.MULTILINE),
-            "node": re.compile(r"^[ \t]*(?://|/?\*)[^\n]*", re.MULTILINE),
-            "sh": re.compile(r"(?:^|[ \t])#[^\n]*", re.MULTILINE)}
+_COMMENT = {
+    "python": re.compile(r"^[ \t]*#[^\n]*", re.MULTILINE),
+    "node": re.compile(r"^[ \t]*(?://|/?\*)[^\n]*", re.MULTILINE),
+    "sh": re.compile(r"(?:^|[ \t])#[^\n]*", re.MULTILINE),
+}
 
 
 def _read(ws: Workspace, rel: str) -> str | None:
@@ -68,8 +74,11 @@ def _shebang(ws: Workspace, rel: str) -> str | None:
     if not first.startswith("#!"):
         return None
     words = first[2:].split()
-    name = PurePosixPath(words[1] if words and words[0].endswith("/env") and len(words) > 1
-                         else (words[0] if words else "")).name
+    name = PurePosixPath(
+        words[1]
+        if words and words[0].endswith("/env") and len(words) > 1
+        else (words[0] if words else "")
+    ).name
     return SHEBANG.get(name)
 
 
@@ -88,8 +97,11 @@ def _plain(path: str, module: bool = False) -> bool:
     name the agent chose is never a way to a command of its own under KOLONİ's call (review of
     S5b: `bin/$(...).py` ran)."""
     parts = path.split("." if module else "/")
-    return bool((_MODULE if module else _PATH).fullmatch(path)) and not path.startswith("/") and (
-        ".." not in parts and not any(part.startswith("-") for part in parts))
+    return (
+        bool((_MODULE if module else _PATH).fullmatch(path))
+        and not path.startswith("/")
+        and (".." not in parts and not any(part.startswith("-") for part in parts))
+    )
 
 
 def _answers_help(text: str, runner: str) -> bool:
@@ -124,13 +136,14 @@ def cli_tools(root: Path | Workspace, changed: list[str]) -> list[tuple[str, str
             found.append((path, NO_ARGUMENTS))
         else:
             found.append((f"{runner} {_quoted(path)}", None))
+
     for path in sorted(paths):
         if PurePosixPath(path).parent == PurePosixPath("bin"):
             runner = BY_SUFFIX.get(PurePosixPath(path).suffix) or _shebang(ws, path)
             if runner:
                 tool(runner, path)
     bins = _package(ws).get("bin")
-    for target in (bins.values() if isinstance(bins, dict) else [bins] if bins else []):
+    for target in bins.values() if isinstance(bins, dict) else [bins] if bins else []:
         rel = posixpath.normpath(str(target))
         if rel in paths and rel not in seen:
             tool("node", rel)
@@ -140,15 +153,32 @@ def cli_tools(root: Path | Workspace, changed: list[str]) -> list[tuple[str, str
             found.append((name, UNUSUAL))
             continue
         dotted = module.replace(".", "/")
-        hit = next((one for one in (f"{dotted}.py", f"src/{dotted}.py", f"{dotted}/__main__.py",
-                                    f"src/{dotted}/__main__.py") if one in paths), None)
+        hit = next(
+            (
+                one
+                for one in (
+                    f"{dotted}.py",
+                    f"src/{dotted}.py",
+                    f"{dotted}/__main__.py",
+                    f"src/{dotted}/__main__.py",
+                )
+                if one in paths
+            ),
+            None,
+        )
         if hit is None:
             continue
         text = _read(ws, hit) or ""
         runs = hit.endswith("__main__.py") or ("__name__" in text and "__main__" in text)
-        found.append((name, NO_MAIN.format(module=module)) if not runs else (
-            (name, NO_ARGUMENTS) if not _answers_help(text, "python") else (
-                f"python -m {module}", None)))
+        found.append(
+            (name, NO_MAIN.format(module=module))
+            if not runs
+            else (
+                (name, NO_ARGUMENTS)
+                if not _answers_help(text, "python")
+                else (f"python -m {module}", None)
+            )
+        )
     return found[:MOST_TOOLS]
 
 

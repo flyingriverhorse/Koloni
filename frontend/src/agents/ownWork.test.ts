@@ -2,7 +2,8 @@ import { expect, test } from 'vitest'
 import { convState, toolCall } from '../test-fixtures'
 import { innerCalls, isOwnSubAgent, ownSubAgentTask, ownTool, subAgentIds } from './ownWork'
 
-const own = (id: string, name: string, over = {}) => toolCall(id, 'r', name, 'succeeded', '{}', { origin: 'cli', ...over })
+const own = (id: string, name: string, over = {}) =>
+  toolCall(id, 'r', name, 'succeeded', '{}', { origin: 'cli', ...over })
 
 test('a tool of the CLI itself and a tool of an MCP server are told apart by the recorded name', () => {
   expect(ownTool('claude__Read')).toEqual({ server: null, tool: 'Read' })
@@ -46,8 +47,14 @@ test('what was done inside a sub-agent is found by the call it hangs off, in ord
 test('what is shown of a sub-agent’s ending claims no more than the record knows', async () => {
   const { ownSubAgentEnding } = await import('./ownWork')
   expect(ownSubAgentEnding({ status: 'running', result: null })).toBeNull()
-  expect(ownSubAgentEnding({ status: 'succeeded', result: 'It prints hi.' })).toEqual({ label: 'Its report', text: 'It prints hi.' })
-  expect(ownSubAgentEnding({ status: 'failed', result: 'It broke.' })).toEqual({ label: 'How it ended', text: 'It broke.' })
+  expect(ownSubAgentEnding({ status: 'succeeded', result: 'It prints hi.' })).toEqual({
+    label: 'Its report',
+    text: 'It prints hi.',
+  })
+  expect(ownSubAgentEnding({ status: 'failed', result: 'It broke.' })).toEqual({
+    label: 'How it ended',
+    text: 'It broke.',
+  })
   expect(ownSubAgentEnding({ status: 'interrupted', result: '' })).toBeNull()
   // a record from before its work was followed: launched is all that is known
   const old = ownSubAgentEnding({ status: 'succeeded', result: 'Async agent launched.' })

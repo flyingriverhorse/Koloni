@@ -47,7 +47,8 @@ interface Props {
  * What "Lead model: automatic" costs, and the rest of its note, which is folded under it.
  * Who is asked is the server's to say (the Lead role's own limits count too): not guessed here.
  */
-const AUTO_COSTS = 'One more request for each message you send: a fast model of your team guide is sent your message and asked how hard it is.'
+const AUTO_COSTS =
+  'One more request for each message you send: a fast model of your team guide is sent your message and asked how hard it is.'
 /** In sight too: the one thing "A role with its own model keeps it", above it, does not hold for. */
 const AUTO_OVERRIDES = 'It overrides the Orchestrator role’s own model and tier. A trigger’s message does not use it.'
 const AUTO_REST =
@@ -79,7 +80,19 @@ export function runsOn(p: Provider | undefined): string | null {
  * The button's words, the model first: a narrow chat's "…" cuts the least of it, and the provider and the lead give way
  * (sample C, base.css). `rest`: the name without the lead, where there is no model to put first.
  */
-function ButtonLabel({ provider, model, rest, leadAuto, picked }: { provider?: string; model: string | null; rest: string; leadAuto: boolean; picked: Picked | null }) {
+function ButtonLabel({
+  provider,
+  model,
+  rest,
+  leadAuto,
+  picked,
+}: {
+  provider?: string
+  model: string | null
+  rest: string
+  leadAuto: boolean
+  picked: Picked | null
+}) {
   return (
     <span className="model-picker-label">
       {provider && model ? (
@@ -106,7 +119,9 @@ type Picked = { model: string; why: string | null }
 function usePicked(provider: string | undefined, routing: string | null): Picked | null {
   const lead = useApp(s => s.conv?.agents.find(a => a.depth === 0 && a.run_id === s.conv?.runs.at(-1)?.id))
   const ours = lead?.model_id && lead.provider_name === provider && lead.model_from === routing && autoPicked(routing)
-  return ours ? { model: modelName(lead.model_id), why: pickedWhy(lead.effort_note, lead.model_from, lead.model_id) } : null
+  return ours
+    ? { model: modelName(lead.model_id), why: pickedWhy(lead.effort_note, lead.model_from, lead.model_id) }
+    : null
 }
 
 /**
@@ -126,7 +141,9 @@ function nowOf(providers: Provider[], providerId: string | null, modelId: string
   const usedModel = (providerId && modelId) || runsOn(used)
   // "Lead: automatic" first: it is what the Lead's model goes by, whatever the rest names. A CLI's own default is said (B-193).
   const cliOwn = used && !usedModel && used.kind !== 'openai_compat' && used.kind !== 'anthropic'
-  const rest = used ? `${used.name}${usedModel ? ` · ${modelName(usedModel)}` : cliOwn ? '’s own default (unknown model)' : ''}` : 'no provider'
+  const rest = used
+    ? `${used.name}${usedModel ? ` · ${modelName(usedModel)}` : cliOwn ? '’s own default (unknown model)' : ''}`
+    : 'no provider'
   const label = (leadAuto ? 'Orchestrator: automatic · ' : '') + rest
   return { used, usedModel, rest, label }
 }
@@ -149,7 +166,13 @@ function levelsOf(providers: Provider[], lead: Props['lead'], picked: Provider |
  * elsewhere there is no cache of it to lose.
  * shortcut: hasHistory counts turns on any provider, so a chat just moved onto Claude Code says it too; count its turns there if that confuses.
  */
-function switches(hasHistory: boolean, used: Provider | undefined, picked: Provider | undefined, model: string, usedModel: string | null) {
+function switches(
+  hasHistory: boolean,
+  used: Provider | undefined,
+  picked: Provider | undefined,
+  model: string,
+  usedModel: string | null,
+) {
   return (
     hasHistory &&
     used?.kind === 'claude_cli' &&
@@ -159,12 +182,24 @@ function switches(hasHistory: boolean, used: Provider | undefined, picked: Provi
 }
 
 /** Copilot's auto or fusion on your GitHub account, listed on its provider: its routing, saved at once on its Models row. */
-function RoutingField({ provider, model, onRouting }: { provider: Provider | undefined; model: string; onRouting: Props['onRouting'] }) {
+function RoutingField({
+  provider,
+  model,
+  onRouting,
+}: {
+  provider: Provider | undefined
+  model: string
+  onRouting: Props['onRouting']
+}) {
   const [error, setError] = useState<string | null>(null)
   const routed = routingOf(provider, model)
   const row = provider?.models.find(m => m.name === model)
   if (!provider || !routed || !row || !onRouting) return null
-  const save = (routing: Routing | null) => onRouting(provider.id, withRouting(provider, model, routing)).then(() => setError(null), err => setError(errorText(err)))
+  const save = (routing: Routing | null) =>
+    onRouting(provider.id, withRouting(provider, model, routing)).then(
+      () => setError(null),
+      err => setError(errorText(err)),
+    )
   return (
     <div className="field">
       <label htmlFor="pick-routing">Routing</label>
@@ -195,13 +230,26 @@ function RoutingField({ provider, model, onRouting }: { provider: Provider | und
 }
 
 /** Which model this conversation's agents use, unless their role has its own. */
-export function ModelPicker({ providers, providerId, modelId, leadAuto = false, leadEffort = null, onSave, onModels, onFacts, lead, hasHistory = false, onRouting }: Props) {
+export function ModelPicker({
+  providers,
+  providerId,
+  modelId,
+  leadAuto = false,
+  leadEffort = null,
+  onSave,
+  onModels,
+  onFacts,
+  lead,
+  hasHistory = false,
+  onRouting,
+}: Props) {
   const [provider, setProvider] = useState(providerId ?? '')
   const [model, setModel] = useState(modelId ?? '')
   const [auto, setAuto] = useState(leadAuto)
   const [effort, setEffort] = useState(leadEffort)
   // K-31: a pick not saved is not thrown away by a click elsewhere unasked (as Sub-agents, B-75).
-  const changed = provider !== (providerId ?? '') || model.trim() !== (modelId ?? '') || auto !== leadAuto || effort !== leadEffort
+  const changed =
+    provider !== (providerId ?? '') || model.trim() !== (modelId ?? '') || auto !== leadAuto || effort !== leadEffort
   const confirm = useConfirm()
   const mayClose = () => {
     // (Esc or a click elsewhere while it asks: back to the panel, as Keep editing.)
@@ -241,7 +289,9 @@ export function ModelPicker({ providers, providerId, modelId, leadAuto = false, 
     setError(null)
     try {
       await onSave({
-        ...(provider ? { provider_id: provider, model_id: model.trim() || null } : { provider_id: null, model_id: null }),
+        ...(provider
+          ? { provider_id: provider, model_id: model.trim() || null }
+          : { provider_id: null, model_id: null }),
         ...(auto !== leadAuto ? { lead_auto: auto } : {}),
         ...(effort !== leadEffort ? { lead_effort: effort } : {}),
       })
@@ -255,7 +305,13 @@ export function ModelPicker({ providers, providerId, modelId, leadAuto = false, 
 
   /** The panel: the provider and model for this conversation, the Orchestrator's automatic model and its level. */
   const pickForm = () => (
-    <form ref={panel} tabIndex={-1} className="allow-list-panel" aria-label="Model for this conversation" onSubmit={submit}>
+    <form
+      ref={panel}
+      tabIndex={-1}
+      className="allow-list-panel"
+      aria-label="Model for this conversation"
+      onSubmit={submit}
+    >
       <div className="kicker">Model for this conversation</div>
       {/* (The button may cut it: here it is whole.) */}
       <div className="muted cmd-approval-note">Now: {label}</div>
@@ -281,16 +337,17 @@ export function ModelPicker({ providers, providerId, modelId, leadAuto = false, 
             id="pick-model"
             value={model}
             // (The Anthropic API has no default of its own: with none set, a run is refused.)
-            placeholder={runsOn(picked) ?? (picked?.kind === 'anthropic' ? 'Needed: this provider has no default model' : "The provider's default")}
+            placeholder={
+              runsOn(picked) ??
+              (picked?.kind === 'anthropic' ? 'Needed: this provider has no default model' : "The provider's default")
+            }
             providerId={provider}
             loadModels={onModels}
             onChange={setModel}
           />
         </div>
       )}
-      <div className="muted cmd-approval-note">
-        Applies from the next turn. A role with its own model keeps it.
-      </div>
+      <div className="muted cmd-approval-note">Applies from the next turn. A role with its own model keeps it.</div>
       {switching && <div className="muted cmd-approval-note">{SWITCH_COSTS}</div>}
       <label className="choice" htmlFor="pick-lead-auto">
         {/* Named as it was, by all of its note: a browser leaves a closed hint out of a name, and would add its button’s name to it. */}
@@ -322,7 +379,8 @@ export function ModelPicker({ providers, providerId, modelId, leadAuto = false, 
         </select>
         <span id="pick-lead-effort-note" className="choice-note">
           {levelsKnown(takes, namedLevel(facts))} {own ? 'Of the Orchestrator role’s own model. ' : ''}
-          {facts?.deprecated ? 'Its model is being retired: it still runs. ' : ''}The Orchestrator’s level here. Default: the Orchestrator role’s.
+          {facts?.deprecated ? 'Its model is being retired: it still runs. ' : ''}The Orchestrator’s level here.
+          Default: the Orchestrator role’s.
         </span>
       </div>
       <RoutingField provider={picked} model={model.trim() || runsOn(picked) || ''} onRouting={onRouting} />

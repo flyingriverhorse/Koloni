@@ -19,6 +19,7 @@ one); when_away "waits" over "lead", away_minutes the largest; lead_work "delega
 Revision ID: 0147
 Revises: 0146
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -34,11 +35,25 @@ COLUMNS = (
     ("spawn_max_agents", sa.Integer(), "6"),
     ("spawn_max_parallel", sa.Integer(), "2"),
 )
-LIMITS = (("discussion_budget", None), ("room_posts", "40"), ("room_tokens", None),
-          ("room_minutes", "30"))
-SEEDED = ("spawn_approval", "spawn_max_depth", "spawn_max_agents", "spawn_max_parallel",
-          "room_posts", "room_minutes", "room_tokens", "discussion_budget", "when_away",
-          "away_minutes", "lead_work")
+LIMITS = (
+    ("discussion_budget", None),
+    ("room_posts", "40"),
+    ("room_tokens", None),
+    ("room_minutes", "30"),
+)
+SEEDED = (
+    "spawn_approval",
+    "spawn_max_depth",
+    "spawn_max_agents",
+    "spawn_max_parallel",
+    "room_posts",
+    "room_minutes",
+    "room_tokens",
+    "discussion_budget",
+    "when_away",
+    "away_minutes",
+    "lead_work",
+)
 # What a project had of its own before 0147 (0143 and before); the rest are new here.
 OWN_BEFORE = ("when_away", "away_minutes", "lead_work")
 
@@ -48,11 +63,14 @@ def upgrade() -> None:
         for name, kind, default in COLUMNS:
             batch.add_column(sa.Column(name, kind, nullable=False, server_default=default))
         for name, default in LIMITS:
-            batch.add_column(sa.Column(name, sa.Integer(), nullable=True,
-                                       server_default=default))
+            batch.add_column(sa.Column(name, sa.Integer(), nullable=True, server_default=default))
     with op.batch_alter_table("conversations") as batch:
-        batch.alter_column("discussion_budget", existing_type=sa.Integer(), server_default=None,
-                           existing_nullable=True)
+        batch.alter_column(
+            "discussion_budget",
+            existing_type=sa.Integer(),
+            server_default=None,
+            existing_nullable=True,
+        )
     _seed(op.get_bind())
 
 
@@ -73,8 +91,10 @@ def _strictest(project: dict, chats: list[dict]) -> dict:
 
     return {
         "spawn_approval": stricter("spawn_approval", ["never", "auto", "always"]),
-        **{name: min(of(name)) for name in (
-            "spawn_max_depth", "spawn_max_agents", "spawn_max_parallel")},
+        **{
+            name: min(of(name))
+            for name in ("spawn_max_depth", "spawn_max_agents", "spawn_max_parallel")
+        },
         # (None when every one had no limit: the project has none either.)
         **{name: min(of(name), default=None) for name in ("room_posts", "room_minutes")},
         "room_tokens": deliberate("room_tokens", 400_000),
@@ -90,28 +110,49 @@ def _seed(bind) -> None:
     for project in bind.execute(sa.text(f"SELECT id, {names} FROM projects")).mappings().all():
         # (Archived chats too: one taken out again follows the project, and leaving its stricter
         # values out would loosen it.)
-        chats = bind.execute(sa.text(f"SELECT {names} FROM conversations WHERE project_id = :p"),
-                             {"p": project["id"]}).mappings().all()
+        chats = (
+            bind.execute(
+                sa.text(f"SELECT {names} FROM conversations WHERE project_id = :p"),
+                {"p": project["id"]},
+            )
+            .mappings()
+            .all()
+        )
         if chats:
             seeded = _strictest(dict(project), [dict(chat) for chat in chats])
-            bind.execute(sa.text("UPDATE projects SET " + ", ".join(
-                f"{name} = :{name}" for name in SEEDED) + " WHERE id = :id"),
-                {**seeded, "id": project["id"]})
+            bind.execute(
+                sa.text(
+                    "UPDATE projects SET "
+                    + ", ".join(f"{name} = :{name}" for name in SEEDED)
+                    + " WHERE id = :id"
+                ),
+                {**seeded, "id": project["id"]},
+            )
 
 
 def downgrade() -> None:
     # Each chat takes back what it followed, so that none goes looser than it was: its project's
     # values - in a chat its To-do list opened, the To-do page's lead_work where it has one.
-    op.execute("UPDATE conversations SET " + ", ".join(
-        f"{name} = (SELECT {name} FROM projects WHERE projects.id = conversations.project_id)"
-        for name in SEEDED if name != "lead_work") + ", lead_work = (SELECT CASE WHEN "
+    op.execute(
+        "UPDATE conversations SET "
+        + ", ".join(
+            f"{name} = (SELECT {name} FROM projects WHERE projects.id = conversations.project_id)"
+            for name in SEEDED
+            if name != "lead_work"
+        )
+        + ", lead_work = (SELECT CASE WHEN "
         "projects.backlog_lead_work IS NOT NULL AND EXISTS (SELECT 1 FROM backlog_tasks WHERE "
         "backlog_tasks.conversation_id = conversations.id) THEN projects.backlog_lead_work "
         "ELSE projects.lead_work END FROM projects WHERE projects.id = conversations.project_id) "
-        "WHERE project_id IS NOT NULL")
+        "WHERE project_id IS NOT NULL"
+    )
     with op.batch_alter_table("conversations") as batch:
-        batch.alter_column("discussion_budget", existing_type=sa.Integer(),
-                           server_default="200000", existing_nullable=True)
+        batch.alter_column(
+            "discussion_budget",
+            existing_type=sa.Integer(),
+            server_default="200000",
+            existing_nullable=True,
+        )
     with op.batch_alter_table("projects") as batch:
         for name, _default in reversed(LIMITS):
             batch.drop_column(name)

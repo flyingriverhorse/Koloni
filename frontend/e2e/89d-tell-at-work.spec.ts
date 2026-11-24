@@ -13,7 +13,8 @@ const RECORD = path.join(E2E_ROOT, 'claude-tell-record.json')
 
 async function removeClaudeCode(request: APIRequestContext) {
   const listed: { id: string; name: string }[] = await (await request.get('/api/providers')).json()
-  for (const provider of listed.filter(p => p.name === 'Claude Code')) await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
+  for (const provider of listed.filter(p => p.name === 'Claude Code'))
+    await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
 }
 
 /** Light and dark, as the theme button sets them. */
@@ -32,10 +33,19 @@ test.describe('telling Claude Code something while it works', () => {
     mkdirSync(SHOTS, { recursive: true })
     kept = readFileSync(PLAN, 'utf8')
     // It says a word, waits for a line from KOLONİ, and takes a moment over it before it answers.
-    writeFileSync(PLAN, JSON.stringify({ record: RECORD, script: [{ say: 'Working on it.' }, { await_steer: 60 }, { sleep: 4 }, { say: 'Blue it is.' }] }))
+    writeFileSync(
+      PLAN,
+      JSON.stringify({
+        record: RECORD,
+        script: [{ say: 'Working on it.' }, { await_steer: 60 }, { sleep: 4 }, { say: 'Blue it is.' }],
+      }),
+    )
     await removeClaudeCode(request)
     const id = await openFreshConversation(page)
-    const patched = await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
+    const patched = await page.request.patch(`/api/conversations/${id}`, {
+      data: { permission_mode: 'full_auto' },
+      headers: OWN,
+    })
     expect(patched.ok()).toBe(true)
     await page.getByRole('button', { name: 'Models', exact: true }).click()
     await page.getByRole('button', { name: /Add a provider/ }).click()
@@ -64,7 +74,10 @@ test.describe('telling Claude Code something while it works', () => {
     await expect(chat.getByText('Working on it.')).toBeVisible()
 
     // Its window, opened while it works from the icon at its node's right (none opens by itself).
-    await page.locator('.react-flow__node-agent').getByRole('button', { name: /^Open .+'s window$/ }).click()
+    await page
+      .locator('.react-flow__node-agent')
+      .getByRole('button', { name: /^Open .+'s window$/ })
+      .click()
     const window = page.getByRole('region', { name: 'Agent window' })
     const tell = window.getByRole('textbox', { name: /^Tell / })
     await expect(tell).toBeVisible()
@@ -75,7 +88,9 @@ test.describe('telling Claude Code something while it works', () => {
     await both(page, window, 'tell-sent')
     const record = () => JSON.parse(readFileSync(RECORD, 'utf8'))
     await expect.poll(() => record().steered?.length ?? 0).toBe(1)
-    expect(record().steered[0].message.content).toContain('The user tells you while you work - their own word: "use blue"')
+    expect(record().steered[0].message.content).toContain(
+      'The user tells you while you work - their own word: "use blue"',
+    )
 
     // Its work over: nothing more to tell it here.
     await expect(chat.getByText('Blue it is.')).toBeVisible()

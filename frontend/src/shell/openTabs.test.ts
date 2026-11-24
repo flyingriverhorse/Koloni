@@ -1,12 +1,40 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 import type { Board, ListedConversation, Project } from '../api/types'
 import { boardTurn, convState } from '../test-fixtures'
-import { chatOf, closing, kept, MORE_W, opened, remember, rememberChat, remembered, split, standingOfTab, TAB_MIN } from './openTabs'
+import {
+  chatOf,
+  closing,
+  kept,
+  MORE_W,
+  opened,
+  remember,
+  rememberChat,
+  remembered,
+  split,
+  standingOfTab,
+  TAB_MIN,
+} from './openTabs'
 
-const listed = (id: string, project_id: string | null, archived = false): ListedConversation => ({ ...convState().conversation, id, title: id, project_id, kept: false, backlog_task: null, wrote: false, archived_at: archived ? '2026-10-24T10:00:00Z' : null })
+const listed = (id: string, project_id: string | null, archived = false): ListedConversation => ({
+  ...convState().conversation,
+  id,
+  title: id,
+  project_id,
+  kept: false,
+  backlog_task: null,
+  wrote: false,
+  archived_at: archived ? '2026-10-24T10:00:00Z' : null,
+})
 const project = (id: string) => ({ id, name: id }) as Project
 type BoardConversation = Board['conversations'][number]
-const onBoard = (id: string, over: Partial<BoardConversation> = {}): BoardConversation => ({ conversation_id: id, title: id, agents: [], merges_pending: 0, turn: null, ...over })
+const onBoard = (id: string, over: Partial<BoardConversation> = {}): BoardConversation => ({
+  conversation_id: id,
+  title: id,
+  agents: [],
+  merges_pending: 0,
+  turn: null,
+  ...over,
+})
 
 beforeEach(() => localStorage.clear())
 
@@ -16,7 +44,7 @@ test('a project opened gets its tab at the end; one that has a tab keeps its pla
   expect(opened(['p', 'none', 'q'], 'p')).toEqual(['p', 'none', 'q'])
 })
 
-test('closing the open tab opens its right neighbour, else its left, else nothing; another\'s opens nothing', () => {
+test("closing the open tab opens its right neighbour, else its left, else nothing; another's opens nothing", () => {
   expect(closing(['a', 'b', 'c'], 'b', 'b')).toEqual({ tabs: ['a', 'c'], next: 'c' })
   expect(closing(['a', 'b', 'c'], 'c', 'c')).toEqual({ tabs: ['a', 'b'], next: 'b' })
   expect(closing(['a'], 'a', 'a')).toEqual({ tabs: [], next: null })
@@ -44,7 +72,7 @@ test('the tabs are remembered in the browser, and without its storage there are 
   full.mockRestore()
 })
 
-test('86d\'s tabs, one per chat, are their chats\' folders\' tabs, each once; one of a chat or a folder gone goes', () => {
+test("86d's tabs, one per chat, are their chats' folders' tabs, each once; one of a chat or a folder gone goes", () => {
   const conversations = [listed('a', 'p'), listed('b', 'p'), listed('c', null), listed('d', 'q', true)]
   // (86d kept chat ids; 86e keeps a project's id, or 'none')
   expect(kept(['a', 'gone', 'b', 'c', 'd'], conversations, [project('p'), project('q')])).toEqual(['p', 'none', 'q'])
@@ -54,7 +82,7 @@ test('86d\'s tabs, one per chat, are their chats\' folders\' tabs, each once; on
   expect(kept(['r'], conversations, [project('p')])).toEqual([])
 })
 
-test('a tab opens the chat opened last in its project, while it is there; else the project\'s newest; else none', () => {
+test("a tab opens the chat opened last in its project, while it is there; else the project's newest; else none", () => {
   // (the latest first, as the server lists them)
   const conversations = [listed('new', 'p'), listed('old', 'p'), listed('away', 'p', true), listed('plain', null)]
   expect(chatOf('p', conversations)).toBe('new')
@@ -74,11 +102,20 @@ test('a tab opens the chat opened last in its project, while it is there; else t
   expect(chatOf('p', conversations)).toBe('new')
 })
 
-test('a tab\'s dot sums its project\'s chats: orange where one waits, green where one works, else grey', () => {
+test("a tab's dot sums its project's chats: orange where one waits, green where one works, else grey", () => {
   const conversations = [listed('a', 'p'), listed('b', 'p'), listed('c', null), listed('d', 'q')]
-  const asking = { status: 'waiting_approval', changes_to_approve: 1, questions: 0 } as BoardConversation['agents'][number]
+  const asking = {
+    status: 'waiting_approval',
+    changes_to_approve: 1,
+    questions: 0,
+  } as BoardConversation['agents'][number]
   const board = {
-    conversations: [onBoard('a', { turn: boardTurn('r', 'completed', 't') }), onBoard('b', { turn: boardTurn('s', 'running', null) }), onBoard('c', { merges_pending: 1 }), onBoard('d', { agents: [asking], turn: boardTurn('u', 'running', null) })],
+    conversations: [
+      onBoard('a', { turn: boardTurn('r', 'completed', 't') }),
+      onBoard('b', { turn: boardTurn('s', 'running', null) }),
+      onBoard('c', { merges_pending: 1 }),
+      onBoard('d', { agents: [asking], turn: boardTurn('u', 'running', null) }),
+    ],
     backlog_waiting: 0,
   } as unknown as Board
   expect(standingOfTab('p', conversations, board)).toEqual(['working', 'var(--ok)'])

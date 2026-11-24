@@ -1,8 +1,21 @@
+import { checksSize } from './checksLoop'
+import type { ChecksData } from './checksNode'
 import type { AgentData, GraphEdge, GraphNode, GroupData, TeamData } from './deriveGraph'
 import type { SharedData } from './sharedColumn'
 
 /** How the lines that are not plain are dashed: on the canvas, and in its legend. */
-export const DASH = { waits: '3 4', talk: '2 5', spawn: '6 5', findings: '8 3', handed: '5 4', talkLine: '1 5', request: '7 4', shared: '2 3', plan: '4 4', po: '4 2 1 2' }
+export const DASH = {
+  waits: '3 4',
+  talk: '2 5',
+  spawn: '6 5',
+  findings: '8 3',
+  handed: '5 4',
+  talkLine: '1 5',
+  request: '7 4',
+  shared: '2 3',
+  plan: '4 4',
+  po: '4 2 1 2',
+}
 
 export const NODE_W = 220
 // The user's (5 Nov): every node is small, three lines at most - its name, its state, what it did, counted; the rest is
@@ -116,7 +129,9 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
   const lines: Record<string, Line> = {}
   // shortcut: only a findings line between two boxes stacked next to each other opens the gap; one that skips a box crosses it.
   const found = (a: GraphNode, b: GraphNode) =>
-    edges.some(e => e.findings !== undefined && [e.source, e.target].includes(a.id) && [e.source, e.target].includes(b.id))
+    edges.some(
+      e => e.findings !== undefined && [e.source, e.target].includes(a.id) && [e.source, e.target].includes(b.id),
+    )
   // batch-26: a frame as tall as its card at its top-right and the line to Ready for you under it (`TEAM_OUT`).
   const cardRoom = (frame: GraphNode) => {
     const card = nodes.find(n => n.id === `shared:${frame.runId}:${frame.id}`)
@@ -130,8 +145,10 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     const held = inside.get(group.id) ?? []
     let size: Size
     if (group.kind === 'agent') size = { width: NODE_W, height: agentH(group.data as AgentData) }
-    else if (group.kind === 'team') size = { width: TEAM_W, height: Math.max(TEAM_SHUT_H, cardRoom(group)) } // (only a folded one is placed as a box)
-    else if (held.length === 0) size = { width: NODE_W, height: FILES_HEAD } // ("6 files", folded)
+    else if (group.kind === 'team')
+      size = { width: TEAM_W, height: Math.max(TEAM_SHUT_H, cardRoom(group)) } // (only a folded one is placed as a box)
+    else if (held.length === 0)
+      size = { width: NODE_W, height: FILES_HEAD } // ("6 files", folded)
     else {
       let y = FILES_HEAD
       for (const node of held) {
@@ -157,24 +174,31 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     // (below): by its opener, its lines to members in other frames ran through the frames between (the user, 4 Nov).
     // Both in the order they began: a discussion held before a room opened stands over it.
     const lane = own.filter(n => TALL.has(n.kind) && edges.some(e => e.member && e.target === n.id)).sort(began)
-    const talks = ['room', 'discussion'].flatMap(kind => own.filter(n => n.kind === kind && !lane.includes(n))).sort(began)
+    const talks = ['room', 'discussion']
+      .flatMap(kind => own.filter(n => n.kind === kind && !lane.includes(n)))
+      .sort(began)
     // A room whose opener is not drawn stands by the turn's first agent.
-    const opener = (talk: GraphNode) => (agents.some(a => key(a) === talk.agentId) ? talk.agentId : roots[0] && key(roots[0]))
+    const opener = (talk: GraphNode) =>
+      agents.some(a => key(a) === talk.agentId) ? talk.agentId : roots[0] && key(roots[0])
     const byId = new Map(own.map(n => [n.id, n]))
     // An open frame whose work line is known (K-canvas-dili): laid out by it, not as a tree.
-    const columnsOf = (team?: string) => (team ? ((byId.get(team)?.data as Partial<TeamData> | undefined)?.columns ?? []) : [])
+    const columnsOf = (team?: string) =>
+      team ? ((byId.get(team)?.data as Partial<TeamData> | undefined)?.columns ?? []) : []
     const lanedFrames = new Set<string>()
     // Room above and under a frame's rows for an arc between two of its agents (findings back, talk); above them, for the name of a
     // dashed box of steps at once.
     // (Its arcs each on a band of their own: as much more room for each.)
     const arcOf = (team?: string) => {
-      const arcs = edges.filter(e => team && arced(e) && byId.get(e.source)?.team === team && byId.get(e.target)?.team === team).length
+      const arcs = edges.filter(
+        e => team && arced(e) && byId.get(e.source)?.team === team && byId.get(e.target)?.team === team,
+      ).length
       return arcs ? ARC_ROOM + (arcs - 1) * ARC_STEP : 0
     }
     // Everyone's card: beside the Lead - each side's, in a compare turn -, level with it, on a short line from it; what
     // hangs off the Lead starts under it.
     const everyone = everyoneCards(own, edges, roots, runId)
-    const head = (team: string) => TEAM_HEAD + Math.max(arcOf(team), columnsOf(team).some(column => column.atOnce) ? AT_ONCE_HEAD : 0)
+    const head = (team: string) =>
+      TEAM_HEAD + Math.max(arcOf(team), columnsOf(team).some(column => column.atOnce) ? AT_ONCE_HEAD : 0)
     const foot = (team: string) => TEAM_PAD + TEAM_FOOT + arcOf(team)
 
     /** A frame laid out by its work line: a column for each of its steps, left to right; returns the height used. */
@@ -186,13 +210,23 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
         // it of its round, two to a row, and the agents of steps at once (the user's, 5 Nov) side by side, AT_ONCE_ROW to a
         // row - a helper on a row of its own under them -, and a round's line a row of its own. (A line that would run
         // through a card beside goes round it: `laneLine`.)
-        const rows = rowsOf(ids.flatMap(id => byId.get(id) ?? []), ids, new Set(rounds?.flat()), atOnce)
+        const rows = rowsOf(
+          ids.flatMap(id => byId.get(id) ?? []),
+          ids,
+          new Set(rounds?.flat()),
+          atOnce,
+        )
         let [top, width, end] = [y, NODE_W, y]
         for (const row of rows) {
           let [x, height] = [left, 0]
           for (const node of row) {
             positions[node.id] = { x, y: top }
-            const size = node.kind === 'agent' ? box(node) : node.kind === 'round' ? (sizes[node.id] = { width: ROUND_W, height: ROUND_H }) : { width: NODE_W, height: NODE_H }
+            const size =
+              node.kind === 'agent'
+                ? box(node)
+                : node.kind === 'round'
+                  ? (sizes[node.id] = { width: ROUND_W, height: ROUND_H })
+                  : { width: NODE_W, height: NODE_H }
             x += size.width + ROW_GAP
             height = Math.max(height, size.height)
           }
@@ -213,9 +247,11 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
       return card ? blockSize(card.data as SharedData).height + ROW_GAP : 0
     }
     /** The room between `before` and a child not of its team: the foot of the frame that ends, the header of the one that starts. */
-    const frameRoom = (before: GraphNode | null, child: GraphNode) => (before?.team ? foot(before.team) + (child.team ? FRAME_GAP : 0) : 0) + (child.team ? head(child.team) : 0)
+    const frameRoom = (before: GraphNode | null, child: GraphNode) =>
+      (before?.team ? foot(before.team) + (child.team ? FRAME_GAP : 0) : 0) + (child.team ? head(child.team) : 0)
     /** A child laid out - with its frame, where that is laid out by its work line; returns the height used. */
-    const laid = (child: GraphNode, x: number, y: number): number => (child.team && columnsOf(child.team).length ? lanes(child.team, x, y) : place(child, x, y))
+    const laid = (child: GraphNode, x: number, y: number): number =>
+      child.team && columnsOf(child.team).length ? lanes(child.team, x, y) : place(child, x, y)
 
     /** Place an agent's box and, right of it, all that hangs off it; returns the height used. */
     const place = (agent: GraphNode, x: number, y: number): number => {
@@ -226,7 +262,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
       let before: GraphNode | null = null
       const talk = (node: GraphNode) => {
         positions[node.id] = { x: next, y: below }
-        below += (NODE_H) + ROW_GAP
+        below += NODE_H + ROW_GAP
       }
       // (One in a team's frame stands at the head of the frame, below.)
       for (const one of talks.filter(t => opener(t) === key(agent) && !t.team)) {
@@ -245,7 +281,8 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
           below += frameRoom(before, child)
           // A room in a team's step (slice 84e), or a discussion among its agents only: at the head of its frame, over
           // its agents, whoever opened it. (In a frame laid out by its work line, in its column.)
-          if (child.team && !columnsOf(child.team).length) talks.filter(t => t.team === child.team && !positions[t.id]).forEach(talk)
+          if (child.team && !columnsOf(child.team).length)
+            talks.filter(t => t.team === child.team && !positions[t.id]).forEach(talk)
         }
         if (before && found(before, child)) below += FOUND_GAP - ROW_GAP
         below += laid(child, next, below) + ROW_GAP
@@ -257,9 +294,10 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
 
     let used = 0
     for (const root of roots) used += place(root, NODE_W + COL_GAP, top + used) + ROW_GAP
-    used += checksInFrame(own, edges, positions, sizes)
+    used += checksInFrame(own, positions, sizes)
     // An agent opened by one of a frame laid out by its work line, not in that frame (one the user declined): under the rest.
-    for (const agent of agents.filter(a => !positions[a.id])) used += place(agent, NODE_W + COL_GAP, top + used) + ROW_GAP
+    for (const agent of agents.filter(a => !positions[a.id]))
+      used += place(agent, NODE_W + COL_GAP, top + used) + ROW_GAP
     for (const node of own) {
       if (node.kind === 'request') positions[node.id] = { x: 0, y: top }
       // A plan turn's plan stands under its request: at the turn's start.
@@ -270,9 +308,12 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
       const members = own.filter(n => n.team === frame.id && positions[n.id])
       if (members.length === 0) continue
       const right = (n: GraphNode) => positions[n.id].x + (sizes[n.id]?.width ?? NODE_W)
-      const bottom = (n: GraphNode) => positions[n.id].y + (sizes[n.id]?.height ?? (NODE_H))
+      const bottom = (n: GraphNode) => positions[n.id].y + (sizes[n.id]?.height ?? NODE_H)
       // (Left of its agents, room for the fork from its door.)
-      const [x, y] = [Math.min(...members.map(n => positions[n.id].x)) - DOOR_PAD, Math.min(...members.map(n => positions[n.id].y)) - head(frame.id)]
+      const [x, y] = [
+        Math.min(...members.map(n => positions[n.id].x)) - DOOR_PAD,
+        Math.min(...members.map(n => positions[n.id].y)) - head(frame.id),
+      ]
       positions[frame.id] = { x, y }
       const done = (frame.data as GroupData).finished ? TEAM_FOOT : 0
       sizes[frame.id] = {
@@ -288,7 +329,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     // shortcut: a line that would still cross a box is not drawn (the card stays); route it round if that is met.
     used = sharedCards({ own, edges, positions, sizes, lines, byId, top }, everyone, used)
     used = besideTurn(own, talks, lane, top, used, positions, sizes)
-    used += checksUnder(own, top + used, positions)
+    used += checksUnder(own, top + used, positions, sizes)
     used += poUnder(own, top + used, positions)
     const under = filesUnder(own, runId, top, positions, box)
     top += Math.max(under - top, used)
@@ -331,10 +372,21 @@ interface Cards extends Placing {
  * beside (of `roots`; none: no agent is drawn). A compare turn has one for each side's Lead (21 Nov): found by its line,
  * as it keeps its own run's id.
  */
-function everyoneCards(own: GraphNode[], edges: GraphEdge[], roots: GraphNode[], runId: string): [GraphNode | undefined, GraphNode][] {
+function everyoneCards(
+  own: GraphNode[],
+  edges: GraphEdge[],
+  roots: GraphNode[],
+  runId: string,
+): [GraphNode | undefined, GraphNode][] {
   const first = own.find(n => n.kind === 'shared' && n.id === `shared:${runId}:top`)
   if (!roots.length) return first ? [[undefined, first]] : []
-  const lineTo = (root: GraphNode) => own.find(n => n.kind === 'shared' && n.id.endsWith(':top') && edges.some(e => e.shared && e.source === root.id && e.target === n.id))
+  const lineTo = (root: GraphNode) =>
+    own.find(
+      n =>
+        n.kind === 'shared' &&
+        n.id.endsWith(':top') &&
+        edges.some(e => e.shared && e.source === root.id && e.target === n.id),
+    )
   const pairs: [GraphNode, GraphNode][] = []
   for (const root of roots) {
     const card = lineTo(root) ?? (root === roots[0] ? first : undefined)
@@ -369,7 +421,9 @@ function sharedCards(placing: Placing, everyone: [GraphNode | undefined, GraphNo
   const laying: Cards = { ...placing, taken, rectOf, boxesBut, put, lineOf, draw }
   for (const [lead, card] of everyone) everyoneCard(laying, card, lead)
   const fromOf = (card: GraphNode) => byId.get(lineOf(card)?.source ?? '')
-  const others = cards.filter(card => !everyone.some(([, one]) => one === card)).sort((a, b) => (positions[fromOf(a)?.id ?? '']?.y ?? Infinity) - (positions[fromOf(b)?.id ?? '']?.y ?? Infinity))
+  const others = cards
+    .filter(card => !everyone.some(([, one]) => one === card))
+    .sort((a, b) => (positions[fromOf(a)?.id ?? '']?.y ?? Infinity) - (positions[fromOf(b)?.id ?? '']?.y ?? Infinity))
   const arm = (card: GraphNode) => Boolean(lineOf(card)?.shared?.arm)
   for (const card of others.filter(card => !arm(card) && fromOf(card)?.kind === 'team')) {
     const line = lineOf(card)!
@@ -378,14 +432,26 @@ function sharedCards(placing: Placing, everyone: [GraphNode | undefined, GraphNo
     const y = spot.y + blockSize(card.data as SharedData).door
     draw(line.id, { x1: from.x + from.width, y1: y, x2: spot.x, y2: y }, line.source)
   }
-  agentCards(laying, others.filter(card => !arm(card) && fromOf(card)?.kind !== 'team'))
+  agentCards(
+    laying,
+    others.filter(card => !arm(card) && fromOf(card)?.kind !== 'team'),
+  )
   armCards(laying, others.filter(arm))
   return Math.max(used, ...taken.map(card => card.y + card.height - top))
 }
 
 /** Everyone's card: beside the Lead (`lead`), level with it. */
-function everyoneCard({ positions, sizes, top, put, lineOf, rectOf, draw }: Cards, everyone: GraphNode, lead: GraphNode | undefined) {
-  const spot = put(everyone, lead ? { x: positions[lead.id].x + (sizes[lead.id]?.width ?? NODE_W) + COL_GAP, y: positions[lead.id].y } : { x: NODE_W + COL_GAP, y: top })
+function everyoneCard(
+  { positions, sizes, top, put, lineOf, rectOf, draw }: Cards,
+  everyone: GraphNode,
+  lead: GraphNode | undefined,
+) {
+  const spot = put(
+    everyone,
+    lead
+      ? { x: positions[lead.id].x + (sizes[lead.id]?.width ?? NODE_W) + COL_GAP, y: positions[lead.id].y }
+      : { x: NODE_W + COL_GAP, y: top },
+  )
   // Its short line from the Lead's right edge, level with the card's name, as a team's card has.
   const line = lineOf(everyone)
   if (line && positions[line.source]) {
@@ -403,7 +469,14 @@ function agentCards({ positions, top, taken, boxesBut, put, lineOf, rectOf, draw
     const line = lineOf(card)
     const from = line && positions[line.source] ? rectOf(line.source) : null
     const { door } = blockSize(card.data as SharedData)
-    const across = from && requestLine(from, { x, y: floor + door - REQUEST_INSET, width: CARD_W, height: Infinity }, [...boxesBut(line!.source), ...taken], 0)
+    const across =
+      from &&
+      requestLine(
+        from,
+        { x, y: floor + door - REQUEST_INSET, width: CARD_W, height: Infinity },
+        [...boxesBut(line!.source), ...taken],
+        0,
+      )
     const spot = put(card, { x, y: across ? across.y1 - door : Math.max(floor, from?.y ?? top) })
     if (across) draw(line!.id, { ...across, x2: spot.x }, line!.source)
     floor = spot.y + spot.height + CARD_GAP
@@ -418,8 +491,21 @@ function armCards({ edges, positions, byId, top, boxesBut, put, lineOf, rectOf, 
   for (const card of cards) {
     const line = lineOf(card)!
     const request = edges.find(e => e.id === line.shared!.arm)
-    const ask = request && positions[request.source] && positions[request.target] ? requestLine(rectOf(request.source), rectOf(request.target), boxesBut(request.source, request.target), requestFrom(request, edges)) : null
-    const ends = request ? [request.source, request.target].map(id => byId.get(id)?.team ?? id).filter(id => positions[id]).map(rectOf) : []
+    const ask =
+      request && positions[request.source] && positions[request.target]
+        ? requestLine(
+            rectOf(request.source),
+            rectOf(request.target),
+            boxesBut(request.source, request.target),
+            requestFrom(request, edges),
+          )
+        : null
+    const ends = request
+      ? [request.source, request.target]
+          .map(id => byId.get(id)?.team ?? id)
+          .filter(id => positions[id])
+          .map(rectOf)
+      : []
     const right = Math.max(0, ...ends.map(r => r.x + r.width)) + CARD_GAP
     const low = ask && ask.x1 === ask.x2 ? Math.max(ask.y1, ask.y2) - BLOCK_PAD : null
     const spot = put(card, { x: right, y: low === null ? top : low - blockSize(card.data as SharedData).door })
@@ -428,7 +514,15 @@ function armCards({ edges, positions, byId, top, boxesBut, put, lineOf, rectOf, 
 }
 
 /** What stands right of a turn's boxes and cards: `talks` not placed yet, the discussions' `lane`, Ready for you, a night's jobs; returns the height the turn uses, from `used`. */
-function besideTurn(own: GraphNode[], talks: GraphNode[], lane: GraphNode[], top: number, used: number, positions: Record<string, Point>, sizes: Record<string, Size>): number {
+function besideTurn(
+  own: GraphNode[],
+  talks: GraphNode[],
+  lane: GraphNode[],
+  top: number,
+  used: number,
+  positions: Record<string, Point>,
+  sizes: Record<string, Size>,
+): number {
   // A shared place opened by an agent of a frame laid out by its work line, and not in that frame: right of the turn.
   const unplaced = talks.filter(t => !positions[t.id])
   if (unplaced.length > 0) {
@@ -449,7 +543,10 @@ function besideTurn(own: GraphNode[], talks: GraphNode[], lane: GraphNode[], top
   for (const ready of own.filter(n => n.kind === 'ready')) {
     const placed = own.filter(n => positions[n.id] && !n.parent)
     // (Right of the cards too: the frames' lines to it leave their frames low, under their cards - canvas.css.)
-    positions[ready.id] = { x: Math.max(...placed.map(n => positions[n.id].x + (sizes[n.id]?.width ?? NODE_W))) + COL_GAP, y: top }
+    positions[ready.id] = {
+      x: Math.max(...placed.map(n => positions[n.id].x + (sizes[n.id]?.width ?? NODE_W))) + COL_GAP,
+      y: top,
+    }
   }
   // A night while you were away (slice 106): its jobs one under the other right of the turn, its report right of them.
   const jobs = own.filter(n => n.kind === 'awayjob')
@@ -464,7 +561,13 @@ function besideTurn(own: GraphNode[], talks: GraphNode[], lane: GraphNode[], top
 }
 
 /** The files of a turn's message placed under its request (and plan), with `box`; returns where the last of them ends. */
-function filesUnder(own: GraphNode[], runId: string, top: number, positions: Record<string, Point>, box: (group: GraphNode) => Size): number {
+function filesUnder(
+  own: GraphNode[],
+  runId: string,
+  top: number,
+  positions: Record<string, Point>,
+  box: (group: GraphNode) => Size,
+): number {
   const plans = own.some(n => n.id === `plan:${runId}`) ? 2 : 1
   // The files of its message, under its request (and plan): one under the other, or their box.
   let under = top + plans * (NODE_H + ROW_GAP)
@@ -484,10 +587,10 @@ function planAbove(own: GraphNode[], top: number, positions: Record<string, Poin
 }
 
 /**
- * The Assistant PO asked once the turn ended (`po:`): under all of the turn, in its Lead's column - its line straight down
+ * The Scout asked once the turn ended (`po:`): under all of the turn, in its Lead's column - its line straight down
  * from the Lead; returns the room it takes.
  * shortcut: another agent with no opener stands under the Lead in that column and the line runs over it; route it round if
- * such a turn is seen with a PO.
+ * such a turn is seen with a Scout.
  */
 function poUnder(own: GraphNode[], top: number, positions: Record<string, Point>): number {
   const po = own.find(n => n.kind === 'po')
@@ -497,32 +600,91 @@ function poUnder(own: GraphNode[], top: number, positions: Record<string, Point>
 }
 
 /**
- * KOLONİ's Checks node (`checks:`), under the turn's Orchestrator in its column, its line straight down from it - before the
- * Assistant PO; returns the room it takes. (In a recipe's turn it is in the frame: `checksInFrame`.)
- * shortcut: under the Orchestrator, not right of it as the sketch has it: placed as the PO is; move it once the canvas's
- * columns make room.
+ * KOLONİ's Checks node (`checks:`), before the Scout; returns the room it adds under the turn. Its box of agents
+ * (`checksBeside`) right of the Orchestrator's work. Its node of lines alone under all of the turn: under the Orchestrator
+ * in its column, its line straight down from it; where the Orchestrator's own agents stand right of it, in their column under
+ * them, with no line. (In a recipe's turn it is in the frame: `checksInFrame`.)
  */
-function checksUnder(own: GraphNode[], top: number, positions: Record<string, Point>): number {
+function checksUnder(
+  own: GraphNode[],
+  bottom: number,
+  positions: Record<string, Point>,
+  sizes: Record<string, Size>,
+): number {
   const checks = own.find(n => n.kind === 'checks')
   if (!checks || positions[checks.id]) return 0
-  positions[checks.id] = { x: NODE_W + COL_GAP, y: top }
-  return NODE_H + ROW_GAP
+  const { leadId, loop } = checks.data as ChecksData
+  const size = sized(checks, sizes)
+  const kids = own.filter(n => n.kind === 'agent' && (n.data as AgentData).parentId === leadId && positions[n.id])
+  if (loop)
+    return checksBeside(
+      checks,
+      own,
+      kids.length ? kids : own.filter(n => n.id === `agent:${leadId}` && positions[n.id]),
+      bottom,
+      positions,
+      sizes,
+    )
+  positions[checks.id] = {
+    x: (positions[`agent:${leadId}`]?.x ?? NODE_W + COL_GAP) + (kids.length ? NODE_W + COL_GAP : 0),
+    y: bottom,
+  }
+  return size.height + ROW_GAP
 }
 
 /**
- * S5c: in a recipe's turn its Checks node is the recipe's last step - inside its frame, under all of its agents, in the column of
- * the agent its line comes from (the last pass's: straight down, crossing none), else the last column - before the frame is
- * drawn round them; returns the room it adds under them.
+ * tuval-kontrol-dongusu (the sketch's state 1): the box right of the Orchestrator's work - its own agents, else itself -, its
+ * middle level with theirs, its arrow from them (`settleChecks`); past anything else of the turn in its rows. Returns the room
+ * it adds under the turn.
  */
-function checksInFrame(own: GraphNode[], edges: GraphEdge[], positions: Record<string, Point>, sizes: Record<string, Size>): number {
+function checksBeside(
+  checks: GraphNode,
+  own: GraphNode[],
+  work: GraphNode[],
+  bottom: number,
+  positions: Record<string, Point>,
+  sizes: Record<string, Size>,
+): number {
+  const size = sizes[checks.id]
+  const rect = (n: GraphNode) => ({ ...positions[n.id], ...(sizes[n.id] ?? { width: NODE_W, height: NODE_H }) })
+  if (!work.length) {
+    positions[checks.id] = { x: NODE_W + COL_GAP, y: bottom }
+    return size.height + ROW_GAP
+  }
+  const boxes = work.map(rect)
+  const [high, low] = [Math.min(...boxes.map(b => b.y)), Math.max(...boxes.map(b => b.y + b.height))]
+  const y = Math.max(high, high + (low - high - size.height) / 2)
+  const level = (b: Size & Point) => b.y < y + size.height && b.y + b.height > y
+  const placed = own
+    .filter(n => n.id !== checks.id && !n.parent && positions[n.id])
+    .map(rect)
+    .filter(level)
+  positions[checks.id] = { x: Math.max(...[...boxes, ...placed].map(b => b.x + b.width)) + COL_GAP, y }
+  return Math.max(0, y + size.height + ROW_GAP - bottom)
+}
+
+/** The Checks node's size, put down where its loop makes it bigger than a node. */
+function sized(checks: GraphNode, sizes: Record<string, Size>): Size {
+  const size = checksSize(checks.data as ChecksData)
+  if (size) sizes[checks.id] = size
+  return size ?? { width: NODE_W, height: NODE_H }
+}
+
+/**
+ * S5c, tuval-kontrol-dongusu (the recipe case): in a recipe's turn its Checks node - the box of KOLONİ's looks and fixes, or its
+ * lines - is the frame's last part: right of the recipe's own steps, inside the frame (drawn round it after), its middle level
+ * with theirs where it is not taller; returns the room it adds under them.
+ */
+function checksInFrame(own: GraphNode[], positions: Record<string, Point>, sizes: Record<string, Size>): number {
   const checks = own.find(n => n.kind === 'checks' && n.team)
   const members = checks ? own.filter(n => n.team === checks.team && n.id !== checks.id && positions[n.id]) : []
   if (!checks || !members.length) return 0
-  const from = edges.find(e => e.target === checks.id && members.some(n => n.id === e.source))?.source
-  const x = from ? positions[from].x : Math.max(...members.map(n => positions[n.id].x))
-  const y = Math.max(...members.map(n => positions[n.id].y + (sizes[n.id]?.height ?? NODE_H))) + ROW_GAP
-  positions[checks.id] = { x, y }
-  return NODE_H + ROW_GAP
+  const size = sized(checks, sizes)
+  const boxes = members.map(n => ({ ...positions[n.id], ...(sizes[n.id] ?? { width: NODE_W, height: NODE_H }) }))
+  const [high, low] = [Math.min(...boxes.map(b => b.y)), Math.max(...boxes.map(b => b.y + b.height))]
+  const y = Math.max(high, high + (low - high - size.height) / 2)
+  positions[checks.id] = { x: Math.max(...boxes.map(b => b.x + b.width)) + COL_GAP, y }
+  return Math.max(0, y + size.height - low)
 }
 
 /** A column's nodes in rows: an agent of a round or of steps at once beside the one before it of its round, so many to a row. */
@@ -531,7 +693,10 @@ function rowsOf(nodes: GraphNode[], ids: string[], inRounds: Set<string>, atOnce
   const rowOf = new Map<string | undefined, GraphNode[]>()
   const most = atOnce ? AT_ONCE_ROW : 2
   for (const node of nodes) {
-    const side = node.kind === 'agent' && (atOnce || inRounds.has(node.id)) && !ids.includes(`agent:${(node.data as AgentData).parentId}`)
+    const side =
+      node.kind === 'agent' &&
+      (atOnce || inRounds.has(node.id)) &&
+      !ids.includes(`agent:${(node.data as AgentData).parentId}`)
     const row = side ? rowOf.get(node.round) : undefined
     if (row && row.length < most) row.push(node)
     else {
@@ -542,11 +707,17 @@ function rowsOf(nodes: GraphNode[], ids: string[], inRounds: Set<string>, atOnce
   return rows
 }
 
-const overlaps = (a: Point & Size, b: Point & Size) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+const overlaps = (a: Point & Size, b: Point & Size) =>
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 
 /** Whether a straight line crosses any of the boxes (touching a box's edge is not crossing it). */
 export function crosses(line: Line, boxes: (Point & Size)[]): boolean {
-  const [left, right, top, bottom] = [Math.min(line.x1, line.x2), Math.max(line.x1, line.x2), Math.min(line.y1, line.y2), Math.max(line.y1, line.y2)]
+  const [left, right, top, bottom] = [
+    Math.min(line.x1, line.x2),
+    Math.max(line.x1, line.x2),
+    Math.min(line.y1, line.y2),
+    Math.max(line.y1, line.y2),
+  ]
   return boxes.some(box => left < box.x + box.width && right > box.x && top < box.y + box.height && bottom > box.y)
 }
 
@@ -564,7 +735,13 @@ export const requestFrom = (e: GraphEdge, edges: GraphEdge[]) =>
  */
 export function memberLine(from: Point & Size, framed: boolean, to: Point, over: number): Point[] {
   const [side, high] = [from.x + from.width, from.y + 8]
-  const start = framed ? [{ x: side, y: from.y + from.height - TEAM_OUT }] : [{ x: side, y: high }, { x: side + DOOR_PAD / 2, y: high }, { x: side + DOOR_PAD / 2, y: over }]
+  const start = framed
+    ? [{ x: side, y: from.y + from.height - TEAM_OUT }]
+    : [
+        { x: side, y: high },
+        { x: side + DOOR_PAD / 2, y: high },
+        { x: side + DOOR_PAD / 2, y: over },
+      ]
   const [bus, y] = [to.x - DOOR_PAD, to.y + MEMBER_IN]
   return [...start, { x: bus, y: start[start.length - 1].y }, { x: bus, y }, { x: to.x, y }]
 }
@@ -573,8 +750,11 @@ export function memberLine(from: Point & Size, framed: boolean, to: Point, over:
  * The frame a member's line to the lane leaves (`memberLine`): its agent's (`frameOf`), or - folded - the frame that
  * stands for it (`kindOf` says so): out of its side, not up through the frames over it (21 Nov). None: an agent of no frame.
  */
-export const memberFrame = (id: string, frameOf: (id: string) => string | undefined, kindOf: (id: string) => string | undefined) =>
-  frameOf(id) ?? (kindOf(id) === 'team' ? id : undefined)
+export const memberFrame = (
+  id: string,
+  frameOf: (id: string) => string | undefined,
+  kindOf: (id: string) => string | undefined,
+) => frameOf(id) ?? (kindOf(id) === 'team' ? id : undefined)
 
 /** Where a request's line keeps from a frame's corner, so it never runs along an edge of either frame; and its step. */
 export const REQUEST_INSET = 24
@@ -593,11 +773,15 @@ export function requestLine(a: Point & Size, b: Point & Size, boxes: (Point & Si
   const across = b.x >= a.x + a.width || a.x >= b.x + b.width
   if (down === across) return null
   // Along the span both frames share (x for a line down, y for one across), keeping off their edges.
-  const [lo, hi] = down ? [Math.max(a.x, b.x), Math.min(a.x + a.width, b.x + b.width)] : [Math.max(a.y, b.y), Math.min(a.y + a.height, b.y + b.height)]
+  const [lo, hi] = down
+    ? [Math.max(a.x, b.x), Math.min(a.x + a.width, b.x + b.width)]
+    : [Math.max(a.y, b.y), Math.min(a.y + a.height, b.y + b.height)]
   const [low, high] = [lo + REQUEST_INSET, hi - REQUEST_INSET]
   if (low > high) return null
   const first = Math.max(low, Math.min(high, lo + (hi - lo) * from))
-  const tries = [...Array(Math.ceil((high - low) / REQUEST_STEP) + 1).keys()].flatMap(i => [first - i * REQUEST_STEP, first + i * REQUEST_STEP]).filter(at => at >= low && at <= high)
+  const tries = [...Array(Math.ceil((high - low) / REQUEST_STEP) + 1).keys()]
+    .flatMap(i => [first - i * REQUEST_STEP, first + i * REQUEST_STEP])
+    .filter(at => at >= low && at <= high)
   for (const at of tries) {
     const line = edgeToEdge(a, b, down, at)
     if (!crosses(line, boxes)) return line
@@ -643,11 +827,25 @@ const ARC_SIDE = DOOR_PAD / 4
  * nearest it, so rounds of a loop and talk lie apart; `turned`, drawn from its target. `rect`: where the layout put a node;
  * `frameOf`: the frame it is in.
  */
-export function arcWay(e: GraphEdge, nodes: GraphNode[], edges: GraphEdge[], rect: (id: string) => Point & Size, frameOf: (id: string) => string | undefined) {
-  const way = (f: GraphEdge) => (f.messages && rect(f.target).x > rect(f.source).x ? { ...f, source: f.target, target: f.source } : f)
+export function arcWay(
+  e: GraphEdge,
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  rect: (id: string) => Point & Size,
+  frameOf: (id: string) => string | undefined,
+) {
+  const way = (f: GraphEdge) =>
+    f.messages && rect(f.target).x > rect(f.source).x ? { ...f, source: f.target, target: f.source } : f
   const frame = frameOf(e.source)
   const column = (f: GraphEdge, above: boolean) =>
-    nodes.some(n => frameOf(n.id) === frame && !n.parent && n.id !== f.target && Math.abs(rect(n.id).x - rect(f.target).x) < 1 && rect(n.id).y < rect(f.target).y === above)
+    nodes.some(
+      n =>
+        frameOf(n.id) === frame &&
+        !n.parent &&
+        n.id !== f.target &&
+        Math.abs(rect(n.id).x - rect(f.target).x) < 1 &&
+        rect(n.id).y < rect(f.target).y === above,
+    )
   const arcs = edges.filter(f => arced(f) && frameOf(f.source) === frame && frameOf(f.target) === frame).map(way)
   const me = way(e)
   const [box, over, under] = [rect(frame ?? ''), !column(me, true), !column(me, false)]
@@ -655,9 +853,21 @@ export function arcWay(e: GraphEdge, nodes: GraphNode[], edges: GraphEdge[], rec
     .filter(f => !column(f, true) === over)
     .sort((a, b) => (rect(b.source).y - rect(a.source).y) * (over ? -1 : 1))
     .findIndex(f => f.id === e.id)
-  const [room, foot] = [ARC_ROOM + (arcs.length - 1) * ARC_STEP, (nodes.find(n => n.id === frame)?.data as GroupData | undefined)?.finished ? TEAM_FOOT : 0]
-  const band = over ? box.y + TEAM_HEAD + room - (ARC_ROOM * 3) / 4 - ring * ARC_STEP : box.y + box.height - TEAM_PAD - foot - room + ARC_ROOM / 2 + ring * ARC_STEP
-  return { source: me.source, target: me.target, turned: me !== e, band, ring, into: over ? ('top' as const) : under ? ('foot' as const) : ('side' as const) }
+  const [room, foot] = [
+    ARC_ROOM + (arcs.length - 1) * ARC_STEP,
+    (nodes.find(n => n.id === frame)?.data as GroupData | undefined)?.finished ? TEAM_FOOT : 0,
+  ]
+  const band = over
+    ? box.y + TEAM_HEAD + room - (ARC_ROOM * 3) / 4 - ring * ARC_STEP
+    : box.y + box.height - TEAM_PAD - foot - room + ARC_ROOM / 2 + ring * ARC_STEP
+  return {
+    source: me.source,
+    target: me.target,
+    turned: me !== e,
+    band,
+    ring,
+    into: over ? ('top' as const) : under ? ('foot' as const) : ('side' as const),
+  }
 }
 
 /**
@@ -678,7 +888,15 @@ export function bendOf(sourceX: number, targetX: number, bus?: number): { center
  * shortcut: the hook goes ARC_HOOK out right whatever stands there - an agent beside it in a round's row, or a far band's
  * hook past COL_GAP into the next column; leave room right of the agent if that is seen.
  */
-export function arcPath(sourceX: number, sourceY: number, targetX: number, targetY: number, band: number, ring: number, side: boolean): string {
+export function arcPath(
+  sourceX: number,
+  sourceY: number,
+  targetX: number,
+  targetY: number,
+  band: number,
+  ring: number,
+  side: boolean,
+): string {
   // (An arc on a band further out goes out further: it passes beside those inside it, not over them.)
   const [hook, turn] = [sourceX + ARC_HOOK + ring * ARC_TURN, Math.sign(targetY - band) * ARC_TURN]
   const into = side
@@ -690,7 +908,12 @@ export function arcPath(sourceX: number, sourceY: number, targetX: number, targe
 type Rect = Point & Size
 
 /** A frame's header - its name, recipe, step strip and buttons -: no line crosses it. Right of where its door line turns in. */
-export const headOf = (frame: Rect): Rect => ({ x: frame.x + DOOR_PAD / 2, y: frame.y, width: frame.width - DOOR_PAD / 2, height: TEAM_HEAD })
+export const headOf = (frame: Rect): Rect => ({
+  x: frame.x + DOOR_PAD / 2,
+  y: frame.y,
+  width: frame.width - DOOR_PAD / 2,
+  height: TEAM_HEAD,
+})
 
 /** What a frame's own line goes round besides its cards: its header, and its outline - thin, just outside it (B-97). */
 export const wallsOf = (f: Rect): Rect[] => [
@@ -713,10 +936,18 @@ export function laneLegs(s: Rect, t: Rect, door: boolean): Line[] {
     const [sx, tx] = [s.x + s.width / 2, t.x + t.width / 2]
     const [out, into] = t.y > s.y ? [s.y + s.height, t.y] : [s.y, t.y + t.height]
     const mid = (out + into) / 2
-    return [{ x1: sx, y1: out, x2: sx, y2: mid }, { x1: sx, y1: mid, x2: tx, y2: mid }, { x1: tx, y1: mid, x2: tx, y2: into }]
+    return [
+      { x1: sx, y1: out, x2: sx, y2: mid },
+      { x1: sx, y1: mid, x2: tx, y2: mid },
+      { x1: tx, y1: mid, x2: tx, y2: into },
+    ]
   }
   const [sx, sy, cx, ty] = [door ? s.x : s.x + s.width, door ? s.y + 38 : side(s), t.x - DOOR_PAD / 2, side(t)]
-  return [{ x1: sx, y1: sy, x2: cx, y2: sy }, { x1: cx, y1: sy, x2: cx, y2: ty }, { x1: cx, y1: ty, x2: t.x, y2: ty }]
+  return [
+    { x1: sx, y1: sy, x2: cx, y2: sy },
+    { x1: cx, y1: sy, x2: cx, y2: ty },
+    { x1: cx, y1: ty, x2: t.x, y2: ty },
+  ]
 }
 
 /**
@@ -727,7 +958,10 @@ export function laneLegs(s: Rect, t: Rect, door: boolean): Line[] {
 export function laneLine(s: Rect, t: Rect, door: boolean, boxes: Rect[]): Point[] | null {
   const others = boxes.filter(b => !same(b, s) && !same(b, t))
   // (In its row, ROW_GAP from it: of its step, not of the next column - COL_GAP away.)
-  const beside = (b: Rect) => others.some(o => Math.abs(o.y - b.y) < 1 && Math.min(Math.abs(o.x - b.x - b.width), Math.abs(b.x - o.x - o.width)) <= ROW_GAP)
+  const beside = (b: Rect) =>
+    others.some(
+      o => Math.abs(o.y - b.y) < 1 && Math.min(Math.abs(o.x - b.x - b.width), Math.abs(b.x - o.x - o.width)) <= ROW_GAP,
+    )
   const [out, into] = [!door && beside(s), beside(t)]
   // (One right over the other goes into its top as drawn - a round's line into the cards of its row: f470d2d3.)
   if ((stacked(s, t) || (!out && !into)) && !laneLegs(s, t, door).some(leg => crosses(leg, others))) return null
@@ -735,25 +969,49 @@ export function laneLine(s: Rect, t: Rect, door: boolean, boxes: Rect[]): Point[
   // card - by any side.)
   const from = door ? { x: s.x, y: s.y + 38, width: 0, height: 0 } : s
   const sides: Side[] | undefined = door ? ['right'] : undefined
-  return route(from, t, others, PORT, out ? ['foot'] : sides, into ? ['top'] : undefined) ?? route(from, t, others, PORT, sides)
+  return (
+    route(from, t, others, PORT, out ? ['foot'] : sides, into ? ['top'] : undefined) ??
+    route(from, t, others, PORT, sides)
+  )
 }
 
-const same = (a: Point & Partial<Size>, b: Point & Partial<Size>) => a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+const same = (a: Point & Partial<Size>, b: Point & Partial<Size>) =>
+  a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
 
 /**
  * Talk between agents of two frames (the user's, 5 Nov): out of its frame by its right side, along the margin right of the
  * frames, and in at the other's right side to its agent - never through a frame between, a header or a card; its label
  * on the longest leg outside both frames. `cards`: every node not a frame; `i`: which such line it is, so that they lie apart.
  */
-export function crossTalk(a: Rect, b: Rect, frameA: Rect, frameB: Rect, frames: Rect[], cards: Rect[], i: number): { points: Point[]; at: Point } | null {
-  const edges = (f: Rect) => [headOf(f), { ...f, height: EDGE }, { ...f, y: f.y + f.height - EDGE, height: EDGE }, { ...f, width: EDGE }]
-  const boxes = [...cards.filter(c => !same(c, a) && !same(c, b)), ...edges(frameA), ...edges(frameB), ...frames.filter(f => !same(f, frameA) && !same(f, frameB))]
+export function crossTalk(
+  a: Rect,
+  b: Rect,
+  frameA: Rect,
+  frameB: Rect,
+  frames: Rect[],
+  cards: Rect[],
+  i: number,
+): { points: Point[]; at: Point } | null {
+  const edges = (f: Rect) => [
+    headOf(f),
+    { ...f, height: EDGE },
+    { ...f, y: f.y + f.height - EDGE, height: EDGE },
+    { ...f, width: EDGE },
+  ]
+  const boxes = [
+    ...cards.filter(c => !same(c, a) && !same(c, b)),
+    ...edges(frameA),
+    ...edges(frameB),
+    ...frames.filter(f => !same(f, frameA) && !same(f, frameB)),
+  ]
   // (Apart from the lines before it where there is room; where a frame's foot leaves none, as close as any.)
   const points = route(a, b, boxes, PORT + i * TALK_STEP) ?? route(a, b, boxes, PORT) ?? route(a, b, boxes, PORT / 3)
   if (!points) return null
   const inside = (p: Point, f: Rect) => p.x > f.x && p.x < f.x + f.width && p.y > f.y && p.y < f.y + f.height
   const legs = points.slice(1).map((p, k) => [points[k], p] as const)
-  const outside = legs.filter(([p, q]) => ![frameA, frameB].some(f => inside({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, f)))
+  const outside = legs.filter(
+    ([p, q]) => ![frameA, frameB].some(f => inside({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, f)),
+  )
   const [p, q] = (outside.length ? outside : legs).reduce((x, y) => (len(y) > len(x) ? y : x))
   return { points, at: { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 } }
 }
@@ -769,7 +1027,12 @@ const BEND = 40
 
 type Side = 'right' | 'left' | 'top' | 'foot'
 const SIDES: Side[] = ['right', 'left', 'top', 'foot']
-const OUT: Record<Side, Point> = { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, top: { x: 0, y: -1 }, foot: { x: 0, y: 1 } }
+const OUT: Record<Side, Point> = {
+  right: { x: 1, y: 0 },
+  left: { x: -1, y: 0 },
+  top: { x: 0, y: -1 },
+  foot: { x: 0, y: 1 },
+}
 const port = (b: Rect, side: Side): Point => ({
   x: side === 'right' ? b.x + b.width : side === 'left' ? b.x : b.x + b.width / 2,
   y: side === 'top' ? b.y : side === 'foot' ? b.y + b.height : b.y + b.height / 2,
@@ -780,16 +1043,33 @@ const port = (b: Rect, side: Side): Point => ({
  * shortest, a turn counted as BEND more, over the lanes each box's sides leave (a small grid; Dijkstra). Null: none.
  * `sides`, `into`: where it may leave `from` and come into `to` - any side where not said.
  */
-export function route(from: Rect, to: Rect, boxes: Rect[], gap = PORT, sides: Side[] = SIDES, into: Side[] = SIDES): Point[] | null {
-  const stub = (b: Rect, side: Side) => ({ x: port(b, side).x + OUT[side].x * gap, y: port(b, side).y + OUT[side].y * gap })
+export function route(
+  from: Rect,
+  to: Rect,
+  boxes: Rect[],
+  gap = PORT,
+  sides: Side[] = SIDES,
+  into: Side[] = SIDES,
+): Point[] | null {
+  const stub = (b: Rect, side: Side) => ({
+    x: port(b, side).x + OUT[side].x * gap,
+    y: port(b, side).y + OUT[side].y * gap,
+  })
   const free = (p: Point, q: Point) => !crosses({ x1: p.x, y1: p.y, x2: q.x, y2: q.y }, [...boxes, from, to])
   const starts = sides.filter(side => free(port(from, side), stub(from, side)))
   const ends = into.filter(side => free(stub(to, side), port(to, side)))
-  const lanes = (tips: number[], edges: (b: Rect) => number[]) => [...new Set([...tips, ...boxes.flatMap(edges)])].sort((p, q) => p - q)
+  const lanes = (tips: number[], edges: (b: Rect) => number[]) =>
+    [...new Set([...tips, ...boxes.flatMap(edges)])].sort((p, q) => p - q)
   const tips = [...starts.map(s => stub(from, s)), ...ends.map(s => stub(to, s))]
   const grid = new Grid(
-    lanes(tips.map(p => p.x), b => [b.x - gap, b.x + b.width + gap]),
-    lanes(tips.map(p => p.y), b => [b.y - gap, b.y + b.height + gap]),
+    lanes(
+      tips.map(p => p.x),
+      b => [b.x - gap, b.x + b.width + gap],
+    ),
+    lanes(
+      tips.map(p => p.y),
+      b => [b.y - gap, b.y + b.height + gap],
+    ),
   )
   for (const side of starts) grid.push(grid.keyOf(stub(from, side), SIDES.indexOf(side)), 0)
   for (let next = grid.pop(); next; next = grid.pop()) {
@@ -798,9 +1078,17 @@ export function route(from: Rect, to: Rect, boxes: Rect[], gap = PORT, sides: Si
     const end = ends.find(side => same(stub(to, side), p) && inward(SIDES[d], side))
     if (end) {
       const points = grid.back(next.k)
-      return straight([port(from, starts.find(s => same(stub(from, s), points[0]))!), ...points, port(to, end)])
+      return straight([
+        port(
+          from,
+          starts.find(s => same(stub(from, s), points[0]))!,
+        ),
+        ...points,
+        port(to, end),
+      ])
     }
-    for (const { k, q, n } of grid.around(state)) if (free(p, q)) grid.push(k, next.c + Math.abs(q.x - p.x) + Math.abs(q.y - p.y) + (n === d ? 0 : BEND), next.k)
+    for (const { k, q, n } of grid.around(state))
+      if (free(p, q)) grid.push(k, next.c + Math.abs(q.x - p.x) + Math.abs(q.y - p.y) + (n === d ? 0 : BEND), next.k)
   }
   return null
 }
@@ -839,7 +1127,12 @@ class Grid {
 
   /** The next points of the grid each way from a state: each one's key (come to that way), the point, and the way. */
   around({ i, j }: { i: number; j: number }): { k: number; q: Point; n: number }[] {
-    const steps = [[1, 0], [-1, 0], [0, -1], [0, 1]].map(([di, dj], n) => [n, i + di, j + dj] as const)
+    const steps = [
+      [1, 0],
+      [-1, 0],
+      [0, -1],
+      [0, 1],
+    ].map(([di, dj], n) => [n, i + di, j + dj] as const)
     return steps
       .filter(([, x, y]) => x >= 0 && y >= 0 && x < this.xs.length && y < this.ys.length)
       .map(([n, x, y]) => ({ k: this.key(x, y, n), q: { x: this.xs[x], y: this.ys[y] }, n }))
@@ -851,7 +1144,8 @@ class Grid {
     if (from !== undefined) this.from.set(k, from)
     const heap = this.heap
     heap.push({ c, k })
-    for (let n = heap.length - 1, up = (n - 1) >> 1; n > 0 && heap[up].c > heap[n].c; n = up, up = (n - 1) >> 1) [heap[n], heap[up]] = [heap[up], heap[n]]
+    for (let n = heap.length - 1, up = (n - 1) >> 1; n > 0 && heap[up].c > heap[n].c; n = up, up = (n - 1) >> 1)
+      [heap[n], heap[up]] = [heap[up], heap[n]]
   }
 
   /** The cheapest state left (one pushed again cheaper is passed over); none: the search is over. */
@@ -880,7 +1174,9 @@ class Grid {
 
   /** Of a node of the heap and its two children, the cheapest. */
   private least(n: number) {
-    return [2 * n + 1, 2 * n + 2].filter(c => c < this.heap.length).reduce((a, c) => (this.heap[c].c < this.heap[a].c ? c : a), n)
+    return [2 * n + 1, 2 * n + 2]
+      .filter(c => c < this.heap.length)
+      .reduce((a, c) => (this.heap[c].c < this.heap[a].c ? c : a), n)
   }
 
   /** The points a state was come to by, from the first. */
@@ -908,7 +1204,12 @@ function straight(points: Point[]): Point[] {
  * its arrow at its start), and its points where it goes round a card (`laneLine`); none: React Flow draws it from its
  * handles (`laneLegs`). `boxes`: the frame's nodes and its walls (`wallsOf`).
  */
-export function frameLine(e: GraphEdge, rect: (id: string) => Point & Size, door: boolean, boxes: (Point & Size)[]): { source: string; target: string; points: Point[] | null; turned: boolean } {
+export function frameLine(
+  e: GraphEdge,
+  rect: (id: string) => Point & Size,
+  door: boolean,
+  boxes: (Point & Size)[],
+): { source: string; target: string; points: Point[] | null; turned: boolean } {
   const [s, t] = [rect(e.source), rect(e.target)]
   const turned = !door && !stacked(s, t) && t.x < s.x
   const [source, target] = turned ? [e.target, e.source] : [e.source, e.target]

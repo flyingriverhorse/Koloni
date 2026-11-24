@@ -23,11 +23,27 @@ test('the bytes go to its own frame once both are there; only that frame is hear
   // (Read with the page's key, as the server asks of a document on its keyless door.)
   expect(fetch).toHaveBeenCalledWith('/api/x/plan.docx', { headers: { 'X-KOLONI-Key': 'the-key' } })
   // Another window's word is not taken for the frame's.
-  act(() => window.dispatchEvent(new MessageEvent('message', { data: { failed: 'from elsewhere' }, source: window, origin: 'null' })))
+  act(() =>
+    window.dispatchEvent(
+      new MessageEvent('message', { data: { failed: 'from elsewhere' }, source: window, origin: 'null' }),
+    ),
+  )
   // Nor its own frame's window with an origin: the sandboxed viewer is of none.
-  act(() => window.dispatchEvent(new MessageEvent('message', { data: { failed: 'from elsewhere' }, source: frame.contentWindow, origin: location.origin })))
+  act(() =>
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { failed: 'from elsewhere' },
+        source: frame.contentWindow,
+        origin: location.origin,
+      }),
+    ),
+  )
   expect(screen.queryByText(/from elsewhere/)).toBeNull()
-  act(() => window.dispatchEvent(new MessageEvent('message', { data: { failed: 'not a zip' }, source: frame.contentWindow, origin: 'null' })))
+  act(() =>
+    window.dispatchEvent(
+      new MessageEvent('message', { data: { failed: 'not a zip' }, source: frame.contentWindow, origin: 'null' }),
+    ),
+  )
   expect(screen.getByRole('status')).toHaveTextContent('It could not be drawn: not a zip')
   // A second load: it went elsewhere by itself.
   fireEvent.load(frame)
@@ -42,7 +58,14 @@ test('one over the size the server serves says so, and nothing is posted', async
 
 test('a workbook is drawn sheet by sheet, its text as text, and a long one only to its first rows', async () => {
   const book = utils.book_new()
-  utils.book_append_sheet(book, utils.aoa_to_sheet([['name', 'total'], ['<b>bold</b>', 3]]), 'Sums')
+  utils.book_append_sheet(
+    book,
+    utils.aoa_to_sheet([
+      ['name', 'total'],
+      ['<b>bold</b>', 3],
+    ]),
+    'Sums',
+  )
   utils.book_append_sheet(book, utils.aoa_to_sheet(Array.from({ length: MOST_ROWS + 5 }, (_, i) => [i])), 'Long')
   const into = document.createElement('main')
   await draw({ kind: 'xlsx', data: write(book, { type: 'array', bookType: 'xlsx' }) }, into)
@@ -61,7 +84,9 @@ test('the viewer hears its parent only from the origin it is served from, and an
   const book = utils.book_new()
   utils.book_append_sheet(book, utils.aoa_to_sheet([['name']]), 'Sums')
   const asked = { kind: 'xlsx', data: write(book, { type: 'array', bookType: 'xlsx' }) }
-  window.dispatchEvent(new MessageEvent('message', { data: asked, source: window, origin: 'https://elsewhere.example' }))
+  window.dispatchEvent(
+    new MessageEvent('message', { data: asked, source: window, origin: 'https://elsewhere.example' }),
+  )
   window.dispatchEvent(new MessageEvent('message', { data: asked, source: window, origin: location.origin }))
   await waitFor(() => expect(told).toHaveBeenCalledWith({ shown: true }, location.origin))
   expect(told).toHaveBeenCalledTimes(1)

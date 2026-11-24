@@ -51,16 +51,31 @@ test('while running, Stop appears and a new message can still be queued', async 
 })
 
 test('while the Orchestrator asks, the message box says to answer above - open, not as the closed chat’s small box', () => {
-  useApp.setState({ conv: convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r', 'waiting')], questions: [question('q', 'r')] }) })
+  useApp.setState({
+    conv: convState({
+      runs: [run('r', 'waiting_approval')],
+      agents: [agent('r', 'waiting')],
+      questions: [question('q', 'r')],
+    }),
+  })
   const { rerender } = render(<Composer {...props} running scope="c" />)
-  expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
+  expect(screen.getByLabelText('Message')).toHaveAttribute(
+    'placeholder',
+    'Answer the question above, or queue a message…',
+  )
   // (Closed, nothing above the box asks: its line says what the Orchestrator asks.)
   rerender(<Composer {...props} running scope="c" compact />)
-  expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
+  expect(screen.getByLabelText('Message')).not.toHaveAttribute(
+    'placeholder',
+    'Answer the question above, or queue a message…',
+  )
   // Nor on the Talk or Notes tab, over which the same box stands: the question is on the Chat tab.
   act(() => useApp.getState().showChatTab('Notes'))
   rerender(<Composer {...props} running scope="c" />)
-  expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
+  expect(screen.getByLabelText('Message')).not.toHaveAttribute(
+    'placeholder',
+    'Answer the question above, or queue a message…',
+  )
 })
 
 test('while running, Stop is a square with no words on the status line over the box, Queue in Send’s place; More keeps its name', () => {
@@ -123,7 +138,9 @@ test('the permission level’s menu reports the new level', async () => {
   const onPermissionMode = vi.fn()
   render(<Composer {...props} onPermissionMode={onPermissionMode} />)
   await userEvent.click(screen.getByRole('button', { name: 'Permission level: Ask before changes' }))
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('menuitemradio', { name: 'Full auto' }))
+  await userEvent.click(
+    within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('menuitemradio', { name: 'Full auto' }),
+  )
   expect(onPermissionMode).toHaveBeenCalledWith('full_auto')
 })
 
@@ -140,7 +157,13 @@ test('full auto on this machine carries a standing warning; in Docker it does no
 // may be cut with "…" (B-400: it broke letter by letter): model first, so the cut takes the least; its whole name in its
 // tooltip, its name and its window.
 test('the model on the status line over the box, New topic under it, 📎 first in its row; the model’s whole name in its tooltip and window', async () => {
-  const copilot = { id: 'p1', name: 'Copilot', kind: 'copilot_cli', default_model: 'gpt-6-luna', models: [] } as unknown as Provider
+  const copilot = {
+    id: 'p1',
+    name: 'Copilot',
+    kind: 'copilot_cli',
+    default_model: 'gpt-6-luna',
+    models: [],
+  } as unknown as Provider
   const model = <ModelPicker providers={[copilot]} providerId={null} modelId={null} leadAuto onSave={vi.fn()} />
   render(<Composer {...props} model={model} topic={{ title: 'Fix the greeting' }} />)
   const whole = 'Orchestrator: automatic · Copilot · gpt-6-luna'
@@ -173,7 +196,8 @@ test('the level shows its short name; its button and tooltip say it in full, and
 
 // (No line above the box: "New topic" stands beside the model, and says in its tooltip where the message goes.)
 const toggle = () => screen.getByRole('button', { name: 'New topic' })
-const goesOnWith = (title: string) => expect(toggle()).toHaveAttribute('title', expect.stringContaining(`goes on with ${title}`))
+const goesOnWith = (title: string) =>
+  expect(toggle()).toHaveAttribute('title', expect.stringContaining(`goes on with ${title}`))
 const startsNew = () => expect(toggle()).toHaveAttribute('aria-pressed', 'true')
 
 test('no "Continuing" line above the box; beside the model, "New topic" says in its tooltip which topic the message goes on with', () => {
@@ -307,7 +331,10 @@ test('before there is a conversation, a draft is the project’s: another projec
 const roles = (...names: string[]) => names.map(name => ({ id: name, name, description: `${name}'s work.` }) as Role)
 const menu = () => screen.queryByRole('listbox', { name: 'Commands' })
 const option = (name: RegExp) => within(menu()!).getByRole('option', { name })
-const names = () => within(menu()!).getAllByRole('option').map(o => o.querySelector('.palette-name')?.textContent)
+const names = () =>
+  within(menu()!)
+    .getAllByRole('option')
+    .map(o => o.querySelector('.palette-name')?.textContent)
 
 test('/ at the start opens the commands above the box; in the middle it is plain text', async () => {
   render(<Composer {...props} />)
@@ -424,7 +451,17 @@ test('/<role> task: a chip with its sign; the message asks the Lead to hand the 
   const box = screen.getByRole('textbox', { name: 'Message' })
   await userEvent.type(box, '/')
   // every role but the Lead's, which the message goes to anyway
-  expect(names()).toEqual(['/new', '/room', '/stop', '/model', '/mode', '/plan', '/compare', '/Coder', '/Security reviewer'])
+  expect(names()).toEqual([
+    '/new',
+    '/room',
+    '/stop',
+    '/model',
+    '/mode',
+    '/plan',
+    '/compare',
+    '/Coder',
+    '/Security reviewer',
+  ])
   await userEvent.type(box, 'cod{Tab}')
   const chip = screen.getByText('/Coder')
   expect(chip).toHaveClass('tag', 'tag-accent')
@@ -462,7 +499,15 @@ test('/model, /room and /mode open what their buttons open; closed, the chat say
       Model
     </button>
   )
-  const room = <WorkTogether roles={roles('Coder', 'Reviewer')} providers={[]} limits={{ posts: null, tokens: null, minutes: null }} busy={false} onOpen={vi.fn()} />
+  const room = (
+    <WorkTogether
+      roles={roles('Coder', 'Reviewer')}
+      providers={[]}
+      limits={{ posts: null, tokens: null, minutes: null }}
+      busy={false}
+      onOpen={vi.fn()}
+    />
+  )
   const { rerender } = render(<Composer {...props} model={model} beside={room} />)
   const box = screen.getByRole('textbox', { name: 'Message' })
   await userEvent.type(box, '/model{Enter}')
@@ -544,9 +589,15 @@ test('Plan first is set in the level’s menu only: the row has no button for it
 test('the level in the row says " · no checks" where this chat’s changes are not checked (S10)', async () => {
   const onChange = vi.fn()
   render(<Composer {...props} checks={{ command: 'pytest', rounds: 2, chat: 'off', project: 'check', onChange }} />)
-  expect(screen.getByRole('button', { name: 'Permission level: Ask before changes, no checks' })).toHaveTextContent(/^Ask · no checks$/)
+  expect(screen.getByRole('button', { name: 'Permission level: Ask before changes, no checks' })).toHaveTextContent(
+    /^Ask · no checks$/,
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Permission level:/ }))
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('switch', { name: 'Test and review changes' }))
+  await userEvent.click(
+    within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('switch', {
+      name: 'Test and review changes',
+    }),
+  )
   expect(onChange).toHaveBeenLastCalledWith(null)
 })
 
@@ -605,7 +656,10 @@ test('a text with no {args} has what was typed added after it', async () => {
 test('with a role, it becomes that role’s chip with the text; a role that is gone leaves the text alone', async () => {
   useApp.setState({
     roles: roles('Translator'),
-    ownCommands: [own('cevir', 'Translate to Turkish: {args}', { role: 'Translator' }), own('gone', 'Do {args}', { role: 'Ghost' })],
+    ownCommands: [
+      own('cevir', 'Translate to Turkish: {args}', { role: 'Translator' }),
+      own('gone', 'Do {args}', { role: 'Ghost' }),
+    ],
   })
   const onSend = vi.fn().mockResolvedValue(undefined)
   render(<Composer {...props} onSend={onSend} />)
@@ -614,7 +668,10 @@ test('with a role, it becomes that role’s chip with the text; a role that is g
   expect(screen.getByText('/Translator')).toBeInTheDocument()
   expect(box).toHaveValue('Translate to Turkish: hello')
   await userEvent.keyboard('{Enter}')
-  expect(onSend).toHaveBeenCalledWith('Ask a sub-agent in the Translator role to do this: Translate to Turkish: hello', false)
+  expect(onSend).toHaveBeenCalledWith(
+    'Ask a sub-agent in the Translator role to do this: Translate to Turkish: hello',
+    false,
+  )
   await userEvent.type(box, '/gone it{Enter}')
   expect(box).toHaveValue('Do it')
 })
@@ -689,7 +746,10 @@ test('the note goes with the next edit, or a few seconds on; prose is pasted as 
 })
 
 const FENCED = '```python\nimport os\n\ndef greet(name):\n    return name\n```'
-const caretOf = (box: HTMLElement) => [(box as HTMLTextAreaElement).selectionStart, (box as HTMLTextAreaElement).selectionEnd]
+const caretOf = (box: HTMLElement) => [
+  (box as HTMLTextAreaElement).selectionStart,
+  (box as HTMLTextAreaElement).selectionEnd,
+]
 
 test('pasted mid-line, before more words: the fence takes lines of its own, the cursor after it; back as pasted, after the paste', async () => {
   render(<Composer {...props} />)
@@ -772,9 +832,18 @@ test('one box: status line, message, one row - Attach, level, Auto-read, Dictate
     />,
   )
   const box = container.querySelector('.composer-row > .composer-box')!
-  expect(Array.from(box.children, child => child.className.split(' ')[0])).toEqual(['composer-status', 'composer-field', 'composer-pasted', 'composer-bar'])
+  expect(Array.from(box.children, child => child.className.split(' ')[0])).toEqual([
+    'composer-status',
+    'composer-field',
+    'composer-pasted',
+    'composer-bar',
+  ])
   const bar = box.querySelector<HTMLElement>('.composer-bar')!
-  expect(within(bar).getAllByRole('button').map(b => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+  expect(
+    within(bar)
+      .getAllByRole('button')
+      .map(b => b.getAttribute('aria-label') ?? b.textContent),
+  ).toEqual([
     'Attach',
     'Permission level: Ask before changes',
     // (Auto-read and Dictate stand before Send where this browser can speak and listen: jsdom can neither.)
@@ -782,7 +851,11 @@ test('one box: status line, message, one row - Attach, level, Auto-read, Dictate
   ])
   expect(within(bar).getByRole('button', { name: 'Send' }).closest('.composer-actions')).not.toBeNull()
   const below = container.querySelector<HTMLElement>('.composer-row > .composer-below')!
-  expect(within(below).getAllByRole('button').map(b => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+  expect(
+    within(below)
+      .getAllByRole('button')
+      .map(b => b.getAttribute('aria-label') ?? b.textContent),
+  ).toEqual([
     'Workspace 2 waiting',
     'New topic',
     'This chat’s settings',
@@ -791,18 +864,33 @@ test('one box: status line, message, one row - Attach, level, Auto-read, Dictate
   ])
   expect(within(below).getByRole('button', { name: 'This chat’s settings' })).toHaveTextContent(/Chat settings/)
   // The tab order is the box's: the status line, the message, the row, then under it.
-  expect(screen.getByLabelText('Message').compareDocumentPosition(within(bar).getByRole('button', { name: 'Send' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(
+    screen.getByLabelText('Message').compareDocumentPosition(within(bar).getByRole('button', { name: 'Send' })) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
 })
 
 test('the placeholder says what a message does now: ask, queue for after this turn, answer the question above', () => {
-  useApp.setState({ conv: convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')] }), projectId: 'p' })
+  useApp.setState({
+    conv: convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')] }),
+    projectId: 'p',
+  })
   const { rerender } = render(<Composer {...props} scope="c" />)
   expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Ask about this project or request a change…')
   rerender(<Composer {...props} scope="c" running />)
   expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Queue a message for after this turn…')
-  useApp.setState({ conv: convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r', 'waiting')], questions: [question('q', 'r')] }) })
+  useApp.setState({
+    conv: convState({
+      runs: [run('r', 'waiting_approval')],
+      agents: [agent('r', 'waiting')],
+      questions: [question('q', 'r')],
+    }),
+  })
   rerender(<Composer {...props} scope="c" running />)
-  expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
+  expect(screen.getByLabelText('Message')).toHaveAttribute(
+    'placeholder',
+    'Answer the question above, or queue a message…',
+  )
 })
 
 test('/mode opens the level’s menu', async () => {
@@ -863,7 +951,13 @@ test('the row under the box is in fewer words ("Settings", "2 wait") while, meas
 })
 
 test('/model opens the model’s window while a turn runs too', async () => {
-  const copilot = { id: 'p1', name: 'Copilot', kind: 'copilot_cli', default_model: 'gpt-6-luna', models: [] } as unknown as Provider
+  const copilot = {
+    id: 'p1',
+    name: 'Copilot',
+    kind: 'copilot_cli',
+    default_model: 'gpt-6-luna',
+    models: [],
+  } as unknown as Provider
   const model = <ModelPicker providers={[copilot]} providerId={null} modelId={null} leadAuto onSave={vi.fn()} />
   useApp.setState({ conv: convState({ runs: [run('r')], agents: [agent('r')] }), projectId: 'p' })
   render(<Composer {...props} scope="c" running model={model} />)

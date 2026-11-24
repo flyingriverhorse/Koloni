@@ -31,14 +31,22 @@ from app.workspace import Workspace
 NAMES = {"folder": "build folder", "worktree": "worktree", "branch": "branch"}
 # Why a delete found disposable is asked all the same: its second look, just before it runs (a
 # card of the turn waited for meanwhile), did not find what the first did.
-CHANGED = ("what it deletes changed between KOLONİ's first look and its run: asked as any delete "
-           "is")
+CHANGED = "what it deletes changed between KOLONİ's first look and its run: asked as any delete is"
 # Never disposable, whatever git says the default branch is.
 NEVER = ("main", "master")
 
 
-def what(command: str, project: Path, root: Path, cwd: str | None, *, in_copy: bool,
-         copies_at: list[Path], keep: str | None, shell: str | None) -> str | None:
+def what(
+    command: str,
+    project: Path,
+    root: Path,
+    cwd: str | None,
+    *,
+    in_copy: bool,
+    copies_at: list[Path],
+    keep: str | None,
+    shell: str | None,
+) -> str | None:
     """What a delete deletes, said as its row says it ("build folder dist; branch old"), where
     each thing it names is disposable; None where any is not, or it is no such delete. `root`:
     where it runs - the project, or a copy's tree (`in_copy`: a build folder there only); `cwd`:
@@ -56,11 +64,17 @@ def what(command: str, project: Path, root: Path, cwd: str | None, *, in_copy: b
     seen = git.where(project) if gits else None
     default = git.default_branch(project) if "branch" in gits else None
     for kind, target, force in targets:
-        if not (kind == "folder" and _folder(project, root, here, target)
-                or kind == "worktree" and seen is not None
-                and _worktree(project, here, target, seen, copies_at)
-                or kind == "branch" and seen is not None and default is not None
-                and _branch(project, target, force, seen, keep, default)):
+        if not (
+            kind == "folder"
+            and _folder(project, root, here, target)
+            or kind == "worktree"
+            and seen is not None
+            and _worktree(project, here, target, seen, copies_at)
+            or kind == "branch"
+            and seen is not None
+            and default is not None
+            and _branch(project, target, force, seen, keep, default)
+        ):
             return None
     return "; ".join(f"{NAMES[kind]} {target}" for kind, target, _force in targets)
 
@@ -80,16 +94,21 @@ def _the_projects_git(root: Path, here: str) -> bool:
     one, `mirror.git/`, has no `.git`)."""
     top = os.path.realpath(root)
     parts = [] if here == top else os.path.relpath(here, top).replace("\\", "/").split("/")
-    return _real(here) == os.path.normcase(here) and ".." not in parts and not (
-        _another_repository(top, parts)) and git.same_repository(Path(top), Path(here))
+    return (
+        _real(here) == os.path.normcase(here)
+        and ".." not in parts
+        and not (_another_repository(top, parts))
+        and git.same_repository(Path(top), Path(here))
+    )
 
 
 def _another_repository(top: str, parts: list[str]) -> bool:
     """Whether a `.git` - a repository's folder, or a submodule's or a worktree's file - is in a
     folder between `top` and the end of `parts`, that one too: git there is another
     repository's, or another worktree's index, not the project's."""
-    return any(os.path.lexists(os.path.join(top, *parts[:at], ".git"))
-               for at in range(1, len(parts) + 1))
+    return any(
+        os.path.lexists(os.path.join(top, *parts[:at], ".git")) for at in range(1, len(parts) + 1)
+    )
 
 
 def _real(path: str | Path) -> str:
@@ -122,15 +141,21 @@ def _folder(project: Path, root: Path, here: str, rel: str) -> bool:
     real = _a_folder(spelt)
     parts = os.path.relpath(spelt, top).replace("\\", "/").split("/") if real else [".."]
     inside = "/".join(parts)
-    if real != os.path.normcase(spelt) or not all(
-            _plain_name(part) and part.casefold() not in LINKED for part in parts[:-1]) or not (
-            _as_on_disk(top, parts)) or _koloni_s(top, spelt) or _another_repository(top, parts):
+    if (
+        real != os.path.normcase(spelt)
+        or not all(_plain_name(part) and part.casefold() not in LINKED for part in parts[:-1])
+        or not (_as_on_disk(top, parts))
+        or _koloni_s(top, spelt)
+        or _another_repository(top, parts)
+    ):
         return False
     # (ignored itself, no folder above it ignored: `env/`, a venv by another name, or `data/`)
     above = ["/".join(parts[:at]) + "/" for at in range(1, len(parts))]
-    return (not _holds_more(real)
-            and git.ignored(project, [*above, inside + "/"]) == {inside + "/"}
-            and git.kept_under(project, inside) is False)
+    return (
+        not _holds_more(real)
+        and git.ignored(project, [*above, inside + "/"]) == {inside + "/"}
+        and git.kept_under(project, inside) is False
+    )
 
 
 def _as_on_disk(top: str, parts: list[str]) -> bool:
@@ -163,8 +188,12 @@ def _holds_more(top: str, left: int = 10_000) -> bool:
             with os.scandir(folders.pop()) as found:
                 for entry in found:
                     left -= 1
-                    if (left < 0 or entry.name.casefold() == ".git" or entry.is_symlink()
-                            or entry.is_junction()):
+                    if (
+                        left < 0
+                        or entry.name.casefold() == ".git"
+                        or entry.is_symlink()
+                        or entry.is_junction()
+                    ):
                         return True
                     if entry.is_dir(follow_symlinks=False):
                         folders.append(entry.path)
@@ -184,9 +213,16 @@ def _worktree(project: Path, here: str, path: str, seen: dict, copies_at: list[P
     real = _a_folder(spelt)
     own = _real(project)
     listed = [one for one in seen["worktrees"][1:] if _real(one["path"]) == real]
-    if real != os.path.normcase(spelt) or _climbs_past_a_name(path) or not listed or listed[0][
-            "locked"] or listed[0]["branch"] is None or _under(own, real) or _ends_alike(
-            path, seen["worktrees"], real) or any(_under(real, _real(held)) for held in copies_at):
+    if (
+        real != os.path.normcase(spelt)
+        or _climbs_past_a_name(path)
+        or not listed
+        or listed[0]["locked"]
+        or listed[0]["branch"] is None
+        or _under(own, real)
+        or _ends_alike(path, seen["worktrees"], real)
+        or any(_under(real, _real(held)) for held in copies_at)
+    ):
         return False
     return _holds_nothing_else(real)
 
@@ -197,11 +233,17 @@ def _holds_nothing_else(real: str) -> bool:
     ignores with the worktree. No link anywhere in it, no secret file."""
     commands._held.pop(Path(real), None)  # (walked anew: a walk kept for 10 s misses a new one)
     left = git.left_out(Path(real))
-    return left is not None and all(
-        one.endswith("/") and one.rstrip("/").split("/")[-1] in DISPOSABLE_NAMES
-        and not _holds_more(os.path.join(real, one)) for one in left
-    ) and git.not_committed(Path(real)) == [] and not (
-        _holds_link([real]) or secret_files(Path(real)))
+    return (
+        left is not None
+        and all(
+            one.endswith("/")
+            and one.rstrip("/").split("/")[-1] in DISPOSABLE_NAMES
+            and not _holds_more(os.path.join(real, one))
+            for one in left
+        )
+        and git.not_committed(Path(real)) == []
+        and not (_holds_link([real]) or secret_files(Path(real)))
+    )
 
 
 def _climbs_past_a_name(path: str) -> bool:
@@ -217,18 +259,28 @@ def _ends_alike(path: str, worktrees: list[dict], real: str) -> bool:
     """Whether another listed worktree's path ends with `path` as written: git looks a worktree
     up by the end of its path first (`git worktree remove J/x` is any `.../J/x`)."""
     end = "/" + path.replace("\\", "/").strip("/").casefold()
-    return any(_real(one["path"]) != real and one["path"].replace("\\", "/").casefold().endswith(
-        end) for one in worktrees)
+    return any(
+        _real(one["path"]) != real and one["path"].replace("\\", "/").casefold().endswith(end)
+        for one in worktrees
+    )
 
 
-def _branch(project: Path, name: str, force: bool, seen: dict, keep: str | None,
-            default: str) -> bool:
+def _branch(
+    project: Path, name: str, force: bool, seen: dict, keep: str | None, default: str
+) -> bool:
     """A local branch by its exact name, not where the project, the turn or a worktree stands,
     not the default (nor main or master), not KOLONİ's own (Windows and macOS find a ref file
     in any case: compared so); forced (`-D`) only with no commit the default has not."""
-    standing = {seen["branch"], keep, default, *NEVER,
-                *(one["branch"] for one in seen["worktrees"])}
-    return (name in seen["names"]
-            and name.casefold() not in {one.casefold() for one in standing if one}
-            and not name.casefold().startswith(git.BRANCH_PREFIX)
-            and (not force or git.ahead(project, default, name) == 0))
+    standing = {
+        seen["branch"],
+        keep,
+        default,
+        *NEVER,
+        *(one["branch"] for one in seen["worktrees"]),
+    }
+    return (
+        name in seen["names"]
+        and name.casefold() not in {one.casefold() for one in standing if one}
+        and not name.casefold().startswith(git.BRANCH_PREFIX)
+        and (not force or git.ahead(project, default, name) == 0)
+    )

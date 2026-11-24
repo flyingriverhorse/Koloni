@@ -34,7 +34,13 @@ afterEach(() => vi.unstubAllGlobals())
 
 test('events sent without an id are reported as transient, whatever came before', () => {
   const seen: [number | null, string][] = []
-  openEvents('c', 0, (id, type) => seen.push([id, type]), () => {}, () => {})
+  openEvents(
+    'c',
+    0,
+    (id, type) => seen.push([id, type]),
+    () => {},
+    () => {},
+  )
   const source = StickyEventSource.last
 
   source.frame('message.created', {}, 5)
@@ -58,7 +64,13 @@ test('events sent without an id are reported as transient, whatever came before'
 
 test('a change to the project’s memory is heard, from this conversation or from another', () => {
   const seen: [number | null, string][] = []
-  openEvents('c', 0, (id, type) => seen.push([id, type]), () => {}, () => {})
+  openEvents(
+    'c',
+    0,
+    (id, type) => seen.push([id, type]),
+    () => {},
+    () => {},
+  )
   const source = StickyEventSource.last
   source.frame('memory.changed', { project_id: 'p' }, 7) // written in this conversation: on record
   source.frame('memory.changed', { project_id: 'p' }) // from elsewhere: passed on, with no id of its own
@@ -68,9 +80,18 @@ test('a change to the project’s memory is heard, from this conversation or fro
 
 test('a topic that is made or named is heard', () => {
   const seen: [number | null, string][] = []
-  openEvents('c', 0, (id, type) => seen.push([id, type]), () => {}, () => {})
+  openEvents(
+    'c',
+    0,
+    (id, type) => seen.push([id, type]),
+    () => {},
+    () => {},
+  )
   const source = StickyEventSource.last
   source.frame('topic.created', { id: 't1' }, 8)
   source.frame('topic.updated', { id: 't1' }, 9)
-  expect(seen).toEqual([[8, 'topic.created'], [9, 'topic.updated']])
+  expect(seen).toEqual([
+    [8, 'topic.created'],
+    [9, 'topic.updated'],
+  ])
 })

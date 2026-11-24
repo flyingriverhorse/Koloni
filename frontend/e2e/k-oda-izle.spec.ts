@@ -9,7 +9,9 @@ const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'oi-shots')
 /** Both themes for a picture: the page's own switch is a class on the root (theme.ts). */
 const dark = (page: Page, on: boolean) => page.evaluate(on => document.documentElement.classList.toggle('dark', on), on)
 
-test('K-oda-izle: a room you open is not followed by the Lead until you let it - then your word to it has it end the room', async ({ page }) => {
+test('K-oda-izle: a room you open is not followed by the Lead until you let it - then your word to it has it end the room', async ({
+  page,
+}) => {
   mkdirSync(SHOTS, { recursive: true })
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })

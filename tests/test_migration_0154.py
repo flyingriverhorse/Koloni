@@ -17,17 +17,24 @@ def test_every_conversation_and_project_gives_a_room_at_least_60000_tokens_and_b
     command.upgrade(cfg, "0153")
     with sqlite3.connect(db) as conn:
         conn.execute(ADD, ("old", AT, AT))
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) VALUES ('p', 'p', 'C:/p', ?)",
-                     (AT,))
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) VALUES ('p', 'p', 'C:/p', ?)",
+            (AT,),
+        )
 
     command.upgrade(cfg, "0154")
     with sqlite3.connect(db) as conn:
         conn.execute(ADD, ("new", AT, AT))
-        assert conn.execute("SELECT id, room_min_tokens FROM conversations ORDER BY id").fetchall() == [
-            ("new", 60_000), ("old", 60_000)]
-        assert conn.execute("SELECT id, room_min_tokens FROM projects").fetchall() == [("p", 60_000)]
+        assert conn.execute(
+            "SELECT id, room_min_tokens FROM conversations ORDER BY id"
+        ).fetchall() == [("new", 60_000), ("old", 60_000)]
+        assert conn.execute("SELECT id, room_min_tokens FROM projects").fetchall() == [
+            ("p", 60_000)
+        ]
 
     command.downgrade(cfg, "0153")
     with sqlite3.connect(db) as conn:
         for table in ("conversations", "projects"):
-            assert "room_min_tokens" not in [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
+            assert "room_min_tokens" not in [
+                row[1] for row in conn.execute(f"PRAGMA table_info({table})")
+            ]

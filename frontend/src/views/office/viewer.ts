@@ -56,7 +56,13 @@ export async function draw({ kind, data }: Asked, into: HTMLElement): Promise<vo
 /** Hears the app - its parent alone, of the origin this page is served from - and draws what it posts. */
 export function listen(into: HTMLElement): void {
   window.addEventListener('message', event => {
-    if (event.source !== window.parent || event.origin !== new URL(location.href).origin || !event.data || typeof event.data !== 'object') return
+    if (
+      event.source !== window.parent ||
+      event.origin !== new URL(location.href).origin ||
+      !event.data ||
+      typeof event.data !== 'object'
+    )
+      return
     const asked = event.data as Asked
     if (!['docx', 'xlsx', 'pptx'].includes(asked.kind) || !(asked.data instanceof ArrayBuffer)) return
     // (Its address's origin - the app's - though the page itself is of no origin; not `location.origin`, which a browser may say as 'null'.)

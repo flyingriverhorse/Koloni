@@ -4,6 +4,7 @@ marks and its trust stay. Each one from before is on.
 Revision ID: 0145
 Revises: 0144
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -16,8 +17,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("mcp_servers") as batch:
-        batch.add_column(sa.Column(
-            "enabled", sa.Boolean(), nullable=False, server_default=sa.true()))
+        batch.add_column(
+            sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true())
+        )
 
 
 def downgrade() -> None:

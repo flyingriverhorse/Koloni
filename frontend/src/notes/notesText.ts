@@ -31,7 +31,9 @@ const ASKED_CHARS = 40
 
 /** A message in the picker: its time, what was asked, how many notes. */
 export function turnLabel(state: ConvState, run: Run): string {
-  const asked = (state.messages.find(m => m.run_id === run.id && m.role === 'user')?.content ?? '').trim().replace(/\s+/g, ' ')
+  const asked = (state.messages.find(m => m.run_id === run.id && m.role === 'user')?.content ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
   const words = asked.length > ASKED_CHARS ? `${asked.slice(0, ASKED_CHARS)}…` : asked
   const notes = state.boardPosts.filter(p => p.run_id === run.id).length
   return `${messageTime(state, run.id)}${words ? ` · ${words}` : ''} · ${notes} ${notes === 1 ? 'note' : 'notes'}`
@@ -61,13 +63,18 @@ export function readersOf(state: ConvState, post: BoardPost): { read: Agent[]; u
   }
   // K-not-oda: a team's own note is for its agents, where the turn's record of the team says who they are; else (a team
   // with no recipe, framed by roles on the canvas only) for those it was handed to.
-  const team = post.team_id !== null && !post.everyone ? turnTeams(state, post.run_id).find(row => row.team_id === post.team_id) : undefined
+  const team =
+    post.team_id !== null && !post.everyone
+      ? turnTeams(state, post.run_id).find(row => row.team_id === post.team_id)
+      : undefined
   const meant = state.agents.filter(
     a =>
       a.run_id === post.run_id &&
       a.id !== post.agent_id &&
       !NOT_OPENED.has(a.status) &&
-      (post.team_id === null || post.everyone || (team ? team.state.agents.includes(a.id) || a.depth === 0 : handed.has(a.id))),
+      (post.team_id === null ||
+        post.everyone ||
+        (team ? team.state.agents.includes(a.id) || a.depth === 0 : handed.has(a.id))),
   )
   return { read: meant.filter(a => handed.has(a.id)), unread: meant.filter(a => !handed.has(a.id)) }
 }
@@ -79,9 +86,11 @@ export function readersOf(state: ConvState, post: BoardPost): { read: Agent[]; u
  */
 export function readLine(state: ConvState, post: BoardPost): string {
   const run = state.runs.find(r => r.id === post.run_id)
-  if (post.koloni && run?.ended_at && Date.parse(post.created_at) >= Date.parse(run.ended_at)) return 'written as this work ended, for the next turn'
+  if (post.koloni && run?.ended_at && Date.parse(post.created_at) >= Date.parse(run.ended_at))
+    return 'written as this work ended, for the next turn'
   const { read, unread } = readersOf(state, post)
-  if (read.length + unread.length === 0) return post.team && !post.everyone ? `for ${post.team} only · handed to nobody yet` : 'no other agent at this work'
+  if (read.length + unread.length === 0)
+    return post.team && !post.everyone ? `for ${post.team} only · handed to nobody yet` : 'no other agent at this work'
   const line = `handed to ${read.length} of ${read.length + unread.length}`
   return unread.length > 0 ? `${line} · not yet to ${unread.map(a => titleOf(a.name || 'Agent')).join(', ')}` : line
 }

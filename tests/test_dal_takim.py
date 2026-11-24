@@ -30,12 +30,16 @@ from tests.test_take_in_scenarios import (
     LINES,
     LONG,
     ORIGIN,
+    OWN,
+    RUNS,
     card,
     edit,
     lines,
     needs_git,
     of,
+    own_test,
     repository,
+    root_runs,
     start,
 )
 
@@ -63,8 +67,11 @@ def runtime(tmp_path):
 
 
 def worktrees(repo):
-    return [line for line in run(repo, "worktree", "list", "--porcelain").splitlines()
-            if line.startswith("worktree ")]
+    return [
+        line
+        for line in run(repo, "worktree", "list", "--porcelain").splitlines()
+        if line.startswith("worktree ")
+    ]
 
 
 def tip(repo, copy):
@@ -87,14 +94,29 @@ def test_a_branch_copy_is_merged_and_then_nothing_of_it_is_left_but_the_merge(re
     (copy.root / "b.txt").write_text("new\n")
     paths = [path for path, _kind, _state in copy.changes()]
     assert sorted(paths) == ["a.txt", "b.txt"]
-    assert git.commit_branch(copy.root, copy.branch, paths, "Coder: login form", runtime / "no-hooks")
+    assert git.commit_branch(
+        copy.root, copy.branch, paths, "Coder: login form", runtime / "no-hooks"
+    )
     assert run(repo, "log", "-1", "--format=%ae", "koloni/login-form") == "koloni@localhost"
     look = git.branch_look(repo, copy.branch)
     assert look.pop("tip") == run(repo, "rev-parse", copy.branch)
-    assert look == {"into": "main", "files": {"a.txt": "M", "b.txt": "A"}, "conflicts": [],
-                    "dirty": [], "special": [], "drift": None, "half": None}
-    sha = git.merge_branch(repo, tip(repo, copy), "Merge koloni/login-form", runtime / "no-hooks",
-                           "main", copy.start[1])
+    assert look == {
+        "into": "main",
+        "files": {"a.txt": "M", "b.txt": "A"},
+        "conflicts": [],
+        "dirty": [],
+        "special": [],
+        "drift": None,
+        "half": None,
+    }
+    sha = git.merge_branch(
+        repo,
+        tip(repo, copy),
+        "Merge koloni/login-form",
+        runtime / "no-hooks",
+        "main",
+        copy.start[1],
+    )
     assert run(repo, "rev-parse", "HEAD") == sha
     assert (repo / "b.txt").read_text() == "new\n"
     # (one commit by KOLONİ, on one parent: a squash - not the agents' own steps)
@@ -135,9 +157,7 @@ def test_no_branch_where_the_project_is_on_none_or_has_no_git(repo, runtime, tmp
         copies.make_branch(plain, runtime, "agent2", "x")
 
 
-def test_what_fails_after_the_worktree_leaves_neither_folder_nor_branch(
-    repo, runtime, monkeypatch
-):
+def test_what_fails_after_the_worktree_leaves_neither_folder_nor_branch(repo, runtime, monkeypatch):
     def too_big(*_args, **_kwargs):
         raise copies.TooBig("too big")
 
@@ -149,9 +169,7 @@ def test_what_fails_after_the_worktree_leaves_neither_folder_nor_branch(
     assert len(worktrees(repo)) == 1
 
 
-def test_the_users_files_in_the_way_and_a_conflict_are_said_and_nothing_is_merged(
-    repo, runtime
-):
+def test_the_users_files_in_the_way_and_a_conflict_are_said_and_nothing_is_merged(repo, runtime):
     copy = copies.make_branch(repo, runtime, "agent1", "x")
     (copy.root / "a.txt").write_text("one\nAGENT\n")
     (copy.root / "c.txt").write_text("agent's\n")
@@ -178,7 +196,9 @@ def test_the_users_files_in_the_way_and_a_conflict_are_said_and_nothing_is_merge
     run(repo, "commit", "-qam", "user")
     look = git.branch_look(repo, copy.branch)
     assert look["conflicts"] == ["a.txt"] and look["dirty"] == []
-    assert (repo / "a.txt").read_text() == "one\nUSER\n" and not (repo / ".git" / "MERGE_HEAD").exists()
+    assert (repo / "a.txt").read_text() == "one\nUSER\n" and not (
+        repo / ".git" / "MERGE_HEAD"
+    ).exists()
 
 
 def test_a_branch_not_koloni_s_is_never_dropped_and_one_with_work_stays_unless_turned_down(
@@ -211,8 +231,11 @@ def on_branch(make_client, repo, coder, then=(), wip=None, **conversation):
     run(repo, "commit", "-qm", "lines")
     for path, held in (wip or {}).items():
         (repo / path).write_bytes(held.encode())
-    lead = [step(call("spawn_agent", {"role": "Coder", "task": "fix two", "on_branch": "fix"},
-                      "s")), *then, text("done")]
+    lead = [
+        step(call("spawn_agent", {"role": "Coder", "task": "fix two", "on_branch": "fix"}, "s")),
+        *then,
+        text("done"),
+    ]
     client, _pid, cid, run_id = start(make_client, repo, coder, lead=lead, **conversation)
     return client, cid, run_id
 
@@ -221,13 +244,19 @@ def test_at_full_auto_a_branch_whose_check_passes_is_merged_and_nothing_is_left(
     make_client, wait_run, repo
 ):
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")],
-        project={"check_command": "python check.py TWO-agent"})
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent")), own_test("TWO-agent"), text("A done")],
+        project=root_runs(),
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     (merge,) = snap["merges"]
     assert merge["status"] == "applied" and merge["check"]["state"] == "passed"
-    assert [(f["path"], f["state"]) for f in merge["files"]] == [("lines.txt", "applied")]
+    assert [(f["path"], f["state"]) for f in merge["files"]] == [
+        ("lines.txt", "applied"),
+        (OWN, "applied"),
+    ]
     assert merge["branch"]["name"] == "koloni/fix" and merge["branch"]["into"] == "main"
     assert merge["commit"]["state"] == "committed" and merge["commit"]["sha"]
     assert lines(repo)[1] == "TWO-agent"
@@ -244,8 +273,11 @@ def test_asked_a_merge_waits_for_the_users_files_in_the_way_and_discard_drops_th
 ):
     held = Gate()
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), held.step(text("A done"))],
-        permission_mode="ask")
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent")), held.step(text("A done"))],
+        permission_mode="ask",
+    )
     held.wait_partial()
     (repo / "notes.txt").write_text("mine\n")
     run(repo, "add", "notes.txt")  # (staged: git merges nothing over it)
@@ -253,11 +285,14 @@ def test_asked_a_merge_waits_for_the_users_files_in_the_way_and_discard_drops_th
     merge = card(client, cid)
     assert merge["branch"]["dirty"] == ["notes.txt"] and merge["branch"]["conflicts"] == []
     assert [(f["path"], f["kind"], f["state"]) for f in merge["files"]] == [
-        ("lines.txt", "changed", "ready")]
+        ("lines.txt", "changed", "ready")
+    ]
     assert "+TWO-agent" in merge["files"][0]["diff"]
     assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 200
     merge = card(client, cid)  # (still asked: nothing merged over the user's)
-    assert lines(repo)[1] == "two" and run(repo, "branch", "--list", "koloni/*").endswith("koloni/fix")
+    assert lines(repo)[1] == "two" and run(repo, "branch", "--list", "koloni/*").endswith(
+        "koloni/fix"
+    )
     assert client.post(f"/api/merges/{merge['id']}/reject").status_code == 200
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert [m["status"] for m in snap["merges"]] == ["rejected"]
@@ -269,15 +304,25 @@ def test_asked_the_test_runs_on_the_users_click_and_the_merge_goes_in_on_their_y
     make_client, wait_run, repo
 ):
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")],
-        project={"check_command": "python check.py TWO-agent"}, permission_mode="ask")
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent")), own_test("TWO-agent"), text("A done")],
+        project=root_runs(f"{RUNS} -s"),  # (-s: what check.py prints is in its output)
+        permission_mode="ask",
+    )
     merge = card(client, cid)
-    assert merge["branch"] == {"name": "koloni/fix", "into": "main", "conflicts": [],
-                               "dirty": [], "note": None}
+    assert merge["branch"] == {
+        "name": "koloni/fix",
+        "into": "main",
+        "conflicts": [],
+        "dirty": [],
+        "note": None,
+    }
     assert merge["check"]["state"] == "not_run" and lines(repo)[1] == "two"
     merge = client.post(f"/api/merges/{merge['id']}/check").json()
-    merge = until(client, cid, lambda s: s["merges"][0]["check"]["state"] == "passed",
-                  timeout=LONG)["merges"][0]
+    merge = until(
+        client, cid, lambda s: s["merges"][0]["check"]["state"] == "passed", timeout=LONG
+    )["merges"][0]
     assert merge["status"] == "pending" and not merge["check"]["stale"]
     assert "CWD=" in merge["check"]["output"] and "koloni" not in lines(repo)[1]
     assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 200
@@ -289,8 +334,10 @@ def test_asked_the_test_runs_on_the_users_click_and_the_merge_goes_in_on_their_y
 def test_on_branch_is_refused_with_why_where_the_project_has_no_git(
     make_client, wait_run, project_dir
 ):
-    lead = [step(call("spawn_agent", {"role": "Coder", "task": "x", "on_branch": "fix"}, "s")),
-            text("done")]
+    lead = [
+        step(call("spawn_agent", {"role": "Coder", "task": "x", "on_branch": "fix"}, "s")),
+        text("done"),
+    ]
     client, _pid, cid, run_id = start(make_client, project_dir, [text("A done")], lead=lead)
     (tool,) = wait_run(client, cid, run_id, timeout=LONG)["tool_calls"]
     assert tool["status"] == "failed" and "not the top folder of a git" in tool["result"]
@@ -303,8 +350,10 @@ def test_a_team_that_runs_a_recipe_is_refused_a_branch_before_it_starts_saying_w
     # to the recipe's copy), and the second was refused "a recipe or a job while the user is away".
     from tests.test_recipe_ends_scenarios import SCRIPTS, rows_of
     from tests.test_recipe_run_scenarios import manual
-    lead = step(call("spawn_agent", {"role": "Web app lead", "task": "the page",
-                                     "on_branch": "web"}, "l1"))
+
+    lead = step(
+        call("spawn_agent", {"role": "Web app lead", "task": "the page", "on_branch": "web"}, "l1")
+    )
     client, _model = make_client({"Lead": [lead, text("done")], **SCRIPTS})
     cid, run_id = manual(client, repo, *rows_of(client, False))
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -322,8 +371,16 @@ def test_on_branch_with_a_tier_opens_the_agent_and_its_card_says_the_openers_why
     make_client, wait_run, repo
 ):
     # The on_branch check once rebound `why` to None: tier + on_branch was always "give why".
-    lead = [step(call("spawn_agent", {"role": "Coder", "task": "x", "on_branch": "fix",
-                                      "tier": "balanced", "why": WHY}, "s")), text("done")]
+    lead = [
+        step(
+            call(
+                "spawn_agent",
+                {"role": "Coder", "task": "x", "on_branch": "fix", "tier": "balanced", "why": WHY},
+                "s",
+            )
+        ),
+        text("done"),
+    ]
     client, _pid, cid, run_id = start(make_client, repo, [text("A done")], lead=lead)
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (tool,) = snap["tool_calls"]
@@ -338,8 +395,23 @@ def test_a_refused_branch_with_a_tier_and_why_is_still_refused(
     # No git there, or a folder beside on_branch: refused with the branch's own words, not "why".
     where = repo if more else project_dir.parent / "plain"
     where.mkdir(exist_ok=True)
-    lead = [step(call("spawn_agent", {"role": "Coder", "task": "x", "on_branch": "fix",
-                                      "tier": "balanced", "why": WHY, **more}, "s")), text("done")]
+    lead = [
+        step(
+            call(
+                "spawn_agent",
+                {
+                    "role": "Coder",
+                    "task": "x",
+                    "on_branch": "fix",
+                    "tier": "balanced",
+                    "why": WHY,
+                    **more,
+                },
+                "s",
+            )
+        ),
+        text("done"),
+    ]
     client, _pid, cid, run_id = start(make_client, where, [text("A done")], lead=lead)
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (tool,) = snap["tool_calls"]
@@ -348,9 +420,7 @@ def test_a_refused_branch_with_a_tier_and_why_is_still_refused(
     assert len(snap["agents"]) == 1
 
 
-def test_nothing_is_committed_onto_another_branch_an_agent_switched_its_worktree_to(
-    repo, runtime
-):
+def test_nothing_is_committed_onto_another_branch_an_agent_switched_its_worktree_to(repo, runtime):
     run(repo, "branch", "feature")
     copy = copies.make_branch(repo, runtime, "agent1", "x")
     run(copy.root, "switch", "-q", "feature")
@@ -364,8 +434,10 @@ def test_at_full_auto_a_root_lockfile_on_the_branch_waits_for_the_users_word(
     make_client, wait_run, repo
 ):
     client, cid, run_id = on_branch(
-        make_client, repo, [step(write("uv.lock", "x\n")), step(edit("two", "TWO-agent", "e2")),
-                            text("A done")])
+        make_client,
+        repo,
+        [step(write("uv.lock", "x\n")), step(edit("two", "TWO-agent", "e2")), text("A done")],
+    )
     merge = card(client, cid)
     head = run(repo, "rev-parse", "HEAD")
     assert "a lockfile at the project root" in of(merge, "uv.lock")["note"]
@@ -385,8 +457,9 @@ def test_a_file_holding_a_secret_given_this_turn_is_not_committed_and_says_why(r
     (copy.root / "b.txt").write_text("plain\n")
     assert _secret_in(copy, "a.txt") and not _secret_in(copy, "b.txt")
     git.commit_branch(copy.root, copy.branch, ["b.txt"], "m", runtime / "no-hooks")
-    files = _branch_files(copy, git.branch_look(repo, copy.branch), "full_auto",
-                          {"a.txt": SECRET_IN_COPY})
+    files = _branch_files(
+        copy, git.branch_look(repo, copy.branch), "full_auto", {"a.txt": SECRET_IN_COPY}
+    )
     assert files["a.txt"]["state"] == "refused" and files["a.txt"]["note"] == SECRET_IN_COPY
     assert files["b.txt"]["state"] == "ready" and files["b.txt"]["note"] is None
 
@@ -398,19 +471,25 @@ def beside(make_client, folder, gate):
     """A backlog task "first" at work (held at its model's first step), and "Second task" started
     beside it, whose Lead opens a Coder that writes b.txt - approved. The client, the project's
     id, the first task's id and the second's conversation."""
-    client, _model = make_client({
-        "Lead": [gate.step(text("first done")),
-                 step(call("spawn_agent", {"role": "Coder", "task": "write b"}, "s")),
-                 text("second done")],
-        "Coder": [step(write("b.txt", "b\n")), text("b written")]})
+    client, _model = make_client(
+        {
+            "Lead": [
+                gate.step(text("first done")),
+                step(call("spawn_agent", {"role": "Coder", "task": "write b"}, "s")),
+                text("second done"),
+            ],
+            "Coder": [step(write("b.txt", "b\n")), text("b written")],
+        }
+    )
     pid, (first,) = setup(client, folder, "first")
     assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] == first
     gate.wait_partial()  # (the first is at work, in the project)
     second = client.post(f"/api/projects/{pid}/backlog", json={"title": "Second task"}).json()
     assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] == second["id"]
     cid = tasks(client, pid)["Second task"]["conversation_id"]
-    coder = until(client, cid, lambda s: any(a["status"] == "proposed" for a in s["agents"]),
-                  timeout=LONG)["agents"][-1]
+    coder = until(
+        client, cid, lambda s: any(a["status"] == "proposed" for a in s["agents"]), timeout=LONG
+    )["agents"][-1]
     assert client.post(f"/api/agents/{coder['id']}/approve").status_code == 200
     return client, pid, first, cid
 
@@ -501,8 +580,9 @@ def test_a_file_of_the_users_git_ignores_is_never_merged_over(repo, runtime):
     (copy.root / ".gitignore").write_text(".venv/\n.env\n")
     (copy.root / "local.cfg").write_text("agent's\n")
     (copy.root / ".env").write_text("FAKE=1\n")
-    git.commit_branch(copy.root, copy.branch, [".gitignore", "local.cfg"], "m",
-                      runtime / "no-hooks")
+    git.commit_branch(
+        copy.root, copy.branch, [".gitignore", "local.cfg"], "m", runtime / "no-hooks"
+    )
     run(copy.root, "add", "-f", ".env")
     run(copy.root, "commit", "-qm", "the agent's own")
     look = git.branch_look(repo, copy.branch)
@@ -511,16 +591,21 @@ def test_a_file_of_the_users_git_ignores_is_never_merged_over(repo, runtime):
     assert (repo / ".env").read_text() == "REAL=1\n"
 
 
-def test_a_new_file_where_the_project_has_its_own_is_not_committed(
-    make_client, wait_run, repo
-):
+def test_a_new_file_where_the_project_has_its_own_is_not_committed(make_client, wait_run, repo):
     """Finding 1b: a new file the project has, which git ignores there, is not taken."""
     (repo / ".gitignore").write_text(".venv/\nlocal.cfg\n")
     (repo / "local.cfg").write_text("the user's\n")
     client, cid, run_id = on_branch(
-        make_client, repo, [step(write("local.cfg", "agent's\n")),
-                            step(edit("two", "TWO-agent", "e2")), text("A done")],
-        project={"check_command": "python check.py TWO-agent"})
+        make_client,
+        repo,
+        [
+            step(write("local.cfg", "agent's\n")),
+            step(edit("two", "TWO-agent", "e2")),
+            own_test("TWO-agent"),
+            text("A done"),
+        ],
+        project=root_runs(),
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
     assert merge["status"] == "applied" and of(merge, "local.cfg")["state"] == "refused"
@@ -528,9 +613,7 @@ def test_a_new_file_where_the_project_has_its_own_is_not_committed(
     assert (repo / "local.cfg").read_text() == "the user's\n" and lines(repo)[1] == "TWO-agent"
 
 
-def test_the_merge_waits_where_the_project_moved_off_what_the_branch_was_made_from(
-    repo, runtime
-):
+def test_the_merge_waits_where_the_project_moved_off_what_the_branch_was_made_from(repo, runtime):
     """Finding 3: switched to another branch, or the start reset away: said, for the user."""
     run(repo, "branch", "release")
     (repo / "a.txt").write_text("second\n")
@@ -540,7 +623,8 @@ def test_the_merge_waits_where_the_project_moved_off_what_the_branch_was_made_fr
     assert git.branch_look(repo, copy.branch, copy.start)["drift"] is None
     run(repo, "switch", "-q", "release")
     assert git.branch_look(repo, copy.branch, copy.start)["drift"] == (
-        "made from main, the project is on release now")
+        "made from main, the project is on release now"
+    )
     run(repo, "switch", "-q", "main")
     run(repo, "commit", "-q", "--amend", "-m", "rewritten")  # (the start is gone from main)
     assert "no longer holds the commit" in git.branch_look(repo, copy.branch, copy.start)["drift"]
@@ -562,18 +646,31 @@ def test_git_in_a_copy_is_given_an_empty_hooks_folder_after_the_config_it_had(tm
     tree = tmp_path / "it's" / "agent1" / copies.TREE  # (a quote in the path)
     tree.mkdir(parents=True)
     empty = tree.parent / copies.NO_HOOKS
-    ours = ("'core.hooksPath=" + str(empty).replace("'", "'\\''") + "' 'core.fsmonitor=false' "
-            "'commit.gpgsign=false' 'core.logAllRefUpdates=true'")
+    ours = (
+        "'core.hooksPath=" + str(empty).replace("'", "'\\''") + "' 'core.fsmonitor=false' "
+        "'commit.gpgsign=false' 'core.logAllRefUpdates=true'"
+    )
     told = copies.git_env(tree, {"GIT_CONFIG_PARAMETERS": "'user.name=x'"})
-    assert told == {"GIT_CEILING_DIRECTORIES": copies.ceiling(tree),
-                    "GIT_CONFIG_PARAMETERS": f"'user.name=x' {ours}"}
+    assert told == {
+        "GIT_CEILING_DIRECTORIES": copies.ceiling(tree),
+        "GIT_CONFIG_PARAMETERS": f"'user.name=x' {ours}",
+    }
     assert copies.git_env(tree, {})["GIT_CONFIG_PARAMETERS"] == ours and empty.is_dir()
     # git reads them back as written: the quote, and a Windows path's backslashes
-    for key, value in (("core.hooksPath", str(empty)), ("user.name", "x"),
-                       ("core.fsmonitor", "false"), ("commit.gpgsign", "false"),
-                       ("core.logAllRefUpdates", "true")):
-        done = subprocess.run(["git", "config", "--get", key], cwd=tree, capture_output=True,
-                              text=True, env={**os.environ, **told})
+    for key, value in (
+        ("core.hooksPath", str(empty)),
+        ("user.name", "x"),
+        ("core.fsmonitor", "false"),
+        ("commit.gpgsign", "false"),
+        ("core.logAllRefUpdates", "true"),
+    ):
+        done = subprocess.run(
+            ["git", "config", "--get", key],
+            cwd=tree,
+            capture_output=True,
+            text=True,
+            env={**os.environ, **told},
+        )
         assert (done.returncode, done.stdout.strip()) == (0, value), done.stderr
 
 
@@ -585,8 +682,9 @@ def test_no_fsmonitor_of_the_repository_runs_for_git_in_a_branch_copy(repo, runt
     run(repo, "config", "core.fsmonitor", line)
 
     def status(env=None):
-        done = subprocess.run(["git", "status", "--porcelain"], cwd=copy.root, env=env,
-                              capture_output=True, text=True)
+        done = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=copy.root, env=env, capture_output=True, text=True
+        )
         assert done.returncode == 0, done.stderr
 
     status()
@@ -601,8 +699,11 @@ def hooked(folder, marker):
     user's own runs it too."""
     folder.mkdir(parents=True, exist_ok=True)
     hook = folder / "pre-commit"
-    hook.write_text('#!/bin/sh\ncase "$(git rev-parse --abbrev-ref HEAD)" in koloni/*) '
-                    f"echo ran >> '{marker.as_posix()}' ;; esac\n", newline="\n")
+    hook.write_text(
+        '#!/bin/sh\ncase "$(git rev-parse --abbrev-ref HEAD)" in koloni/*) '
+        f"echo ran >> '{marker.as_posix()}' ;; esac\n",
+        newline="\n",
+    )
     os.chmod(hook, 0o755)
 
 
@@ -618,8 +719,13 @@ def test_no_hook_of_the_repository_runs_for_a_commit_in_a_branch_copy(repo, runt
 
     def commit(message, env=None):
         (copy.root / "a.txt").write_text(message)
-        done = subprocess.run(["git", "commit", "-qam", message], cwd=copy.root, env=env,
-                              capture_output=True, text=True)
+        done = subprocess.run(
+            ["git", "commit", "-qam", message],
+            cwd=copy.root,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
         assert done.returncode == 0, done.stderr  # (made: not a git that stopped at its config)
         assert run(copy.root, "log", "-1", "--format=%s") == message
 
@@ -635,9 +741,15 @@ def test_no_hook_of_the_repository_runs_for_an_agents_own_commit_on_its_branch(
 ):
     marker = repo.parent / "hook-ran"
     hooked(repo / ".git" / "hooks", marker)
-    client, cid, run_id = on_branch(make_client, repo, [
-        step(edit("two", "TWO-agent")),
-        step(call("run_command", {"command": "git commit -qam mine"}, "c")), text("A done")])
+    client, cid, run_id = on_branch(
+        make_client,
+        repo,
+        [
+            step(edit("two", "TWO-agent")),
+            step(call("run_command", {"command": "git commit -qam mine"}, "c")),
+            text("A done"),
+        ],
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     (ran,) = [one for one in snap["commands"] if one["command"] == "git commit -qam mine"]
@@ -653,10 +765,15 @@ def test_an_agent_on_a_branch_is_told_git_works_in_its_worktree_but_not_in_docke
 
     models: list = []
     # (In Docker the worktree's .git names a folder of this machine's: git fails in the container.)
-    project = {"project": {"exec_location": "docker", "docker_image": "python:3.12"}} if docker \
-        else {}
-    client, cid, run_id = on_branch(keeping(make_client, models), repo, [
-        step(edit("two", "TWO-agent")), text("A done")], **project)
+    project = (
+        {"project": {"exec_location": "docker", "docker_image": "python:3.12"}} if docker else {}
+    )
+    client, cid, run_id = on_branch(
+        keeping(make_client, models),
+        repo,
+        [step(edit("two", "TWO-agent")), text("A done")],
+        **project,
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     said = "\n".join(str(m.get("content")) for m in models[0].calls_of["Coder"][-1])
@@ -675,14 +792,30 @@ def test_a_secret_is_found_in_a_file_that_is_not_utf8(repo, runtime):
     assert _secret_in(copy, "latin.txt") and _secret_in(copy, "wide.txt")
 
 
-@pytest.mark.parametrize("command", [
-    "git stash pop", "git stash apply stash@{0}", "git stash drop", "git update-ref refs/heads/main HEAD~1",
-    "git symbolic-ref HEAD refs/heads/main", "git branch -f main HEAD", "git branch -D feature",
-    "git branch -m main old", "git reflog expire --expire=now --all", "git gc --prune=now",
-    "git prune", "git worktree remove ../x", "git config core.hooksPath x", "git remote add o u",
-    "git push origin main", "git checkout main", "git switch feature", "git reset --hard main",
-    "cd x && git -C . update-ref refs/heads/main HEAD",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git stash pop",
+        "git stash apply stash@{0}",
+        "git stash drop",
+        "git update-ref refs/heads/main HEAD~1",
+        "git symbolic-ref HEAD refs/heads/main",
+        "git branch -f main HEAD",
+        "git branch -D feature",
+        "git branch -m main old",
+        "git reflog expire --expire=now --all",
+        "git gc --prune=now",
+        "git prune",
+        "git worktree remove ../x",
+        "git config core.hooksPath x",
+        "git remote add o u",
+        "git push origin main",
+        "git checkout main",
+        "git switch feature",
+        "git reset --hard main",
+        "cd x && git -C . update-ref refs/heads/main HEAD",
+    ],
+)
 def test_what_reaches_the_users_shared_git_from_a_worktree_is_asked(command):
     """Finding 2: in a branch's worktree."""
     from app.commands import SHARED_GIT, reaches_shared_git
@@ -690,36 +823,67 @@ def test_what_reaches_the_users_shared_git_from_a_worktree_is_asked(command):
     assert reaches_shared_git(command) == SHARED_GIT
 
 
-@pytest.mark.parametrize("command", [
-    "git status", "git add -A", "git commit -m x", "git stash show", "git diff --stat",
-    "git stash list", "git diff HEAD", "git log", "git branch", "git branch --show-current",
-    "git log --oneline -5", "git checkout -- a.txt", "git show HEAD", "git rm -q a", "git mv a b",
-    "git restore a.txt", "git show HEAD --stat", "git rev-parse HEAD", "git ls-files",
-    "git grep foo", "git blame a", "git merge-base HEAD x", "git cat-file -p HEAD", "git tag",
-    "git commit --amend -m y", "cd src && git status", "git --no-pager log", "npm test",
-    "python -m pytest",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git status",
+        "git add -A",
+        "git commit -m x",
+        "git stash show",
+        "git diff --stat",
+        "git stash list",
+        "git diff HEAD",
+        "git log",
+        "git branch",
+        "git branch --show-current",
+        "git log --oneline -5",
+        "git checkout -- a.txt",
+        "git show HEAD",
+        "git rm -q a",
+        "git mv a b",
+        "git restore a.txt",
+        "git show HEAD --stat",
+        "git rev-parse HEAD",
+        "git ls-files",
+        "git grep foo",
+        "git blame a",
+        "git merge-base HEAD x",
+        "git cat-file -p HEAD",
+        "git tag",
+        "git commit --amend -m y",
+        "cd src && git status",
+        "git --no-pager log",
+        "npm test",
+        "python -m pytest",
+    ],
+)
 def test_the_worktrees_own_git_is_not_asked(command):
     from app.commands import reaches_shared_git
 
     assert reaches_shared_git(command) == ""
 
 
-@pytest.mark.parametrize("command", [
-    'echo "$(pwd -W)/x" > "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
-    "Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"",
-    'git rev-parse feat > "$(dirname "$(dirname "$(git rev-parse --git-dir)")")/refs/remotes/'
-    'origin/x"',
-    'cd "$(dirname "$(git rev-parse --git-dir)")" && echo x > users-wt/gitdir',
-    # (its review: a variable set before, `>|`, a link made to it, cmd's loop over the .git file,
-    # what the .git file says - CL-311: another worktree's HEAD and its history)
-    "echo x > $D/../users-wt/gitdir", 'echo x >| "$D/x"', 'ln -s "$D" g',
-    "New-Item -ItemType Junction -Path g -Target $d", "mklink /J g %D%",
-    'for /f "tokens=2" %%i in (.git) do copy x %%i\\..\\users-wt\\gitdir',
-    "echo x > \"$(cut -d' ' -f2 .git)/../users-wt/gitdir\"",
-    'git rev-parse HEAD > "$(git rev-parse --git-dir)/../users-wt/HEAD"',
-    ': > "$(git rev-parse --git-dir)/../users-wt/logs/HEAD"',
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        'echo "$(pwd -W)/x" > "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
+        "Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"",
+        'git rev-parse feat > "$(dirname "$(dirname "$(git rev-parse --git-dir)")")/refs/remotes/'
+        'origin/x"',
+        'cd "$(dirname "$(git rev-parse --git-dir)")" && echo x > users-wt/gitdir',
+        # (its review: a variable set before, `>|`, a link made to it, cmd's loop over the .git file,
+        # what the .git file says - CL-311: another worktree's HEAD and its history)
+        "echo x > $D/../users-wt/gitdir",
+        'echo x >| "$D/x"',
+        'ln -s "$D" g',
+        "New-Item -ItemType Junction -Path g -Target $d",
+        "mklink /J g %D%",
+        'for /f "tokens=2" %%i in (.git) do copy x %%i\\..\\users-wt\\gitdir',
+        "echo x > \"$(cut -d' ' -f2 .git)/../users-wt/gitdir\"",
+        'git rev-parse HEAD > "$(git rev-parse --git-dir)/../users-wt/HEAD"',
+        ': > "$(git rev-parse --git-dir)/../users-wt/logs/HEAD"',
+    ],
+)
 def test_in_a_worktree_a_write_to_a_place_built_at_run_time_is_asked(command):
     """K-okuyucu-3 (the k-pr-wt review): in a branch's worktree the place may be the user's shared
     git - another worktree's gitdir, a ref under refs/remotes/origin (the gate's `shared` has more)."""
@@ -728,14 +892,21 @@ def test_in_a_worktree_a_write_to_a_place_built_at_run_time_is_asked(command):
     assert reaches_shared_git(command, "koloni/x") == BUILT_TARGET
 
 
-@pytest.mark.parametrize("command", [
-    "git rev-parse --git-dir", "git rev-parse --absolute-git-dir", "git rev-parse --git-common-dir",
-    "git rev-parse --git-path hooks", 'ls "$(git rev-parse --git-dir)/.."',
-    'ls "$(dirname "$(git rev-parse --git-dir)")"', "export D=$(git rev-parse --git-dir)",
-    'sed -i "s#.*#$PWD/x#" "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
-    'tar -C "$(dirname "$(git rev-parse --git-dir)")" -xf evil.tar',
-    'robocopy . "$(git rev-parse --git-dir)" x',
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git rev-parse --git-dir",
+        "git rev-parse --absolute-git-dir",
+        "git rev-parse --git-common-dir",
+        "git rev-parse --git-path hooks",
+        'ls "$(git rev-parse --git-dir)/.."',
+        'ls "$(dirname "$(git rev-parse --git-dir)")"',
+        "export D=$(git rev-parse --git-dir)",
+        'sed -i "s#.*#$PWD/x#" "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
+        'tar -C "$(dirname "$(git rev-parse --git-dir)")" -xf evil.tar',
+        'robocopy . "$(git rev-parse --git-dir)" x',
+    ],
+)
 def test_in_a_worktree_computing_the_shared_gits_path_is_asked(command):
     """K-okuyucu-3 review (B1): whatever then writes there - `sed -i`, `tar -C`, `robocopy`, code -
     finds the shared git by `git rev-parse --git-dir` and the like: a read asked in a worktree."""
@@ -744,36 +915,56 @@ def test_in_a_worktree_computing_the_shared_gits_path_is_asked(command):
     assert reaches_shared_git(command, "koloni/x") == SHARED_GIT
 
 
-@pytest.mark.parametrize("command", [
-    'echo "$(date)" > log.txt',
-    "echo $(git rev-parse HEAD) > head.txt", 'Add-Content log.txt "$x"', "Set-Content out.txt $c",
-    "Set-Content -Path out.txt -Value (Get-Date) -Encoding utf8 -NoNewline",
-    "New-Item -ItemType File -Path notes.txt -Value $text -Force", 'cp "$src" dst/',
-    "Copy-Item $src -Destination dst/", "python -m pytest 2>$null", "npm test > $null 2>&1",
-    "npm test *> $null", "npm test 2>/dev/null", "npm test > NUL",
-    "npm test 2>&1 | Select-Object -Last 5", "git log --oneline > log.txt",
-    "[IO.File]::WriteAllText('out.txt', $x)", "echo x | tee out.txt", 'git commit -m "a > $b"',
-    'cd "$(git rev-parse --show-toplevel)" && npm test',
-    "cat > notes.md <<'EOF'\necho x > $HOME/y\nEOF", "echo done > out.txt # then > $x",
-    # (N6: the temp folder by its variable, a date in a file's name, a loop over names written out)
-    'echo x > "$TMPDIR/f"', "echo x > $TMP/f", 'Copy-Item a "$env:TEMP\\a"',
-    'for f in *.py; do black -q "$f" > "$f.new"; done', 'npm test > "build-$(date +%s).log"',
-    "echo x > logs/run-$(date +%F).txt", 'for f in a.txt b.txt; do cp "$f" "$f.bak"; done',
-    # (round 3: the folder the line runs in, at the target's start, its name given no value)
-    'echo x > "$PWD/out.txt"', 'echo x > "${PWD}/out.txt"', 'echo x > "$(pwd)/out.txt"',
-    'echo x > "$(pwd -W)/out.txt"', 'Set-Content -Path "$PWD/x" -Value y',
-    'Set-Content "$PWD\\x" y', "Set-Content (Join-Path $PWD out.txt) y",
-    'cd src && echo x > "$PWD/out.txt"',
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        'echo "$(date)" > log.txt',
+        "echo $(git rev-parse HEAD) > head.txt",
+        'Add-Content log.txt "$x"',
+        "Set-Content out.txt $c",
+        "Set-Content -Path out.txt -Value (Get-Date) -Encoding utf8 -NoNewline",
+        "New-Item -ItemType File -Path notes.txt -Value $text -Force",
+        'cp "$src" dst/',
+        "Copy-Item $src -Destination dst/",
+        "python -m pytest 2>$null",
+        "npm test > $null 2>&1",
+        "npm test *> $null",
+        "npm test 2>/dev/null",
+        "npm test > NUL",
+        "npm test 2>&1 | Select-Object -Last 5",
+        "git log --oneline > log.txt",
+        "[IO.File]::WriteAllText('out.txt', $x)",
+        "echo x | tee out.txt",
+        'git commit -m "a > $b"',
+        'cd "$(git rev-parse --show-toplevel)" && npm test',
+        "cat > notes.md <<'EOF'\necho x > $HOME/y\nEOF",
+        "echo done > out.txt # then > $x",
+        # (N6: the temp folder by its variable, a date in a file's name, a loop over names written out)
+        'echo x > "$TMPDIR/f"',
+        "echo x > $TMP/f",
+        'Copy-Item a "$env:TEMP\\a"',
+        'for f in *.py; do black -q "$f" > "$f.new"; done',
+        'npm test > "build-$(date +%s).log"',
+        "echo x > logs/run-$(date +%F).txt",
+        'for f in a.txt b.txt; do cp "$f" "$f.bak"; done',
+        # (round 3: the folder the line runs in, at the target's start, its name given no value)
+        'echo x > "$PWD/out.txt"',
+        'echo x > "${PWD}/out.txt"',
+        'echo x > "$(pwd)/out.txt"',
+        'echo x > "$(pwd -W)/out.txt"',
+        'Set-Content -Path "$PWD/x" -Value y',
+        'Set-Content "$PWD\\x" y',
+        "Set-Content (Join-Path $PWD out.txt) y",
+        'cd src && echo x > "$PWD/out.txt"',
+    ],
+)
 def test_in_a_worktree_a_read_or_a_write_to_a_place_written_out_is_not_asked(command):
     from app.commands import reaches_shared_git
 
     assert reaches_shared_git(command, "koloni/x") == ""
 
 
-def test_at_full_auto_a_stash_pop_in_a_branchs_worktree_waits_for_the_user(
-    make_client, repo
-):
+def test_at_full_auto_a_stash_pop_in_a_branchs_worktree_waits_for_the_user(make_client, repo):
     """Finding 2, agent level: the user's stash is theirs - not taken from the worktree unasked."""
     from tests.test_agent_writes import wait_status
     from tests.test_full_auto_harm import why_asked
@@ -781,8 +972,10 @@ def test_at_full_auto_a_stash_pop_in_a_branchs_worktree_waits_for_the_user(
     (repo / "a.txt").write_text("one\nmine, stashed\n")
     run(repo, "stash", "-q")
     client, cid, _run_id = on_branch(
-        make_client, repo, [step(call("run_command", {"command": "git stash pop"}, "c")),
-                            text("A done")])
+        make_client,
+        repo,
+        [step(call("run_command", {"command": "git stash pop"}, "c")), text("A done")],
+    )
     snap = wait_status(client, cid, "waiting_approval")
     (asked,) = snap["commands"]
     assert asked["status"] == "proposed"
@@ -797,10 +990,17 @@ def test_a_secret_the_agent_committed_itself_is_never_merged_not_even_on_a_click
     from app.agent import AgentRunner
 
     monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id: ["s3cr3t-value"])
-    client, cid, _run_id = on_branch(make_client, repo, [
-        step(write("token.txt", "s3cr3t-value\n")),
-        step(call("run_command", {"command": "git add token.txt && git commit -q -m mine"}, "c")),
-        text("A done")])
+    client, cid, _run_id = on_branch(
+        make_client,
+        repo,
+        [
+            step(write("token.txt", "s3cr3t-value\n")),
+            step(
+                call("run_command", {"command": "git add token.txt && git commit -q -m mine"}, "c")
+            ),
+            text("A done"),
+        ],
+    )
     merge = card(client, cid)
     assert "holds a secret given this turn" in merge["branch"]["note"]
     assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 200
@@ -817,10 +1017,17 @@ def test_stop_while_a_card_waits_on_a_secret_deletes_the_branch_and_says_so(
     from app.agent import AgentRunner
 
     monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id: ["s3cr3t-value"])
-    client, cid, run_id = on_branch(make_client, repo, [
-        step(write("token.txt", "s3cr3t-value\n")),
-        step(call("run_command", {"command": "git add token.txt && git commit -q -m mine"}, "c")),
-        text("A done")])
+    client, cid, run_id = on_branch(
+        make_client,
+        repo,
+        [
+            step(write("token.txt", "s3cr3t-value\n")),
+            step(
+                call("run_command", {"command": "git add token.txt && git commit -q -m mine"}, "c")
+            ),
+            text("A done"),
+        ],
+    )
     assert "holds a secret given this turn" in card(client, cid)["branch"]["note"]
     if how == "stop":
         assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
@@ -830,8 +1037,11 @@ def test_stop_while_a_card_waits_on_a_secret_deletes_the_branch_and_says_so(
         client, _model = make_client({})
         snap = client.get(f"/api/conversations/{cid}").json()
     assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
-    assert any("its branch koloni/fix was deleted" in m["content"]
-               for m in snap["messages"] if m["role"] == "koloni")
+    assert any(
+        "its branch koloni/fix was deleted" in m["content"]
+        for m in snap["messages"]
+        if m["role"] == "koloni"
+    )
     assert not (repo / "token.txt").exists()
 
 
@@ -844,28 +1054,40 @@ def test_stop_while_the_check_of_a_card_blocked_by_a_secret_runs_deletes_the_bra
 
     monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id: ["s3cr3t-value"])
     runs = (tmp_path / "runs").as_posix()  # (the first run, before the card, at once)
-    client, cid, run_id = on_branch(make_client, repo, [
-        step(write("token.txt", "s3cr3t-value\n")),
-        step(call("run_command", {"command": "git add token.txt && git commit -q -m mine"}, "c")),
-        text("A done")], project={"check_command": (
-            f"python -c \"import pathlib,time;p=pathlib.Path('{runs}');"
-            "n=p.exists();p.write_text('x');time.sleep(60*n)\"")})
+    client, cid, run_id = on_branch(
+        make_client,
+        repo,
+        [
+            step(write("token.txt", "s3cr3t-value\n")),
+            step(
+                call("run_command", {"command": "git add token.txt && git commit -q -m mine"}, "c")
+            ),
+            own_test(
+                body=f"import pathlib, time\np = pathlib.Path('{runs}')\nn = p.exists()\n"
+                "p.write_text('x')\ntime.sleep(60 * n)"
+            ),
+            text("A done"),
+        ],
+        project=root_runs(),
+    )
     merge = card(client, cid)
     assert "holds a secret given this turn" in merge["branch"]["note"]
     assert client.post(f"/api/merges/{merge['id']}/check").status_code == 200
-    until(client, cid, lambda s: "running" in [c["status"] for c in s["commands"]],
-          timeout=LONG)
+    until(client, cid, lambda s: "running" in [c["status"] for c in s["commands"]], timeout=LONG)
     assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
-    assert any("its branch koloni/fix was deleted" in m["content"]
-               for m in snap["messages"] if m["role"] == "koloni")
+    assert any(
+        "its branch koloni/fix was deleted" in m["content"]
+        for m in snap["messages"]
+        if m["role"] == "koloni"
+    )
 
 
 def test_stop_while_a_card_waits_with_no_secret_keeps_the_branch(make_client, wait_run, repo):
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")],
-        permission_mode="ask")
+        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")], permission_mode="ask"
+    )
     card(client, cid)
     assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
     wait_run(client, cid, run_id, timeout=LONG)
@@ -925,8 +1147,9 @@ def test_a_secret_on_the_branch_is_found_however_it_got_there(repo, runtime):
     (copy.root / "wide.txt").write_bytes("S3CR3T-TOKEN".encode("utf-16-le"))
     committed(copy, "wide.txt")
     files = list(git.branch_look(repo, copy.branch)["files"])
-    assert git.holding(repo, tip(repo, copy), files, [b"S3CR3T-TOKEN", "S3CR3T-TOKEN".encode(
-        "utf-16-le")]) == ["notes.md", "wide.txt"]
+    assert git.holding(
+        repo, tip(repo, copy), files, [b"S3CR3T-TOKEN", "S3CR3T-TOKEN".encode("utf-16-le")]
+    ) == ["notes.md", "wide.txt"]
 
 
 def test_the_merge_looks_again_right_before_it_writes(repo, runtime):
@@ -956,8 +1179,13 @@ def test_a_link_a_submodule_or_gits_own_files_on_the_branch_are_said_and_a_link_
     repo, runtime
 ):
     copy = copies.make_branch(repo, runtime, "agent1", "x")
-    blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=copy.root, input="../../out",
-                          capture_output=True, text=True).stdout.strip()
+    blob = subprocess.run(
+        ["git", "hash-object", "-w", "--stdin"],
+        cwd=copy.root,
+        input="../../out",
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
     run(copy.root, "update-index", "--add", "--cacheinfo", f"120000,{blob},lnk")
     run(copy.root, "commit", "-qm", "a link")
     (copy.root / ".gitignore").write_text(".venv/\n!.env\n")
@@ -968,39 +1196,55 @@ def test_a_link_a_submodule_or_gits_own_files_on_the_branch_are_said_and_a_link_
     assert not (repo / "lnk").is_symlink() and (repo / "lnk").read_text() == "../../out"
 
 
-def test_at_full_auto_a_branch_that_changes_gitignore_waits_for_the_user(
-    make_client, repo
-):
-    client, cid, _run_id = on_branch(make_client, repo, [
-        step(write(".gitignore", ".venv/\n!.env\n")), text("A done")])
+def test_at_full_auto_a_branch_that_changes_gitignore_waits_for_the_user(make_client, repo):
+    client, cid, _run_id = on_branch(
+        make_client, repo, [step(write(".gitignore", ".venv/\n!.env\n")), text("A done")]
+    )
     merge = card(client, cid)
     assert "changes how git reads the project" in merge["branch"]["note"]
     assert (repo / ".gitignore").read_text() == ".venv/\n"
 
 
-@pytest.mark.parametrize("command", [
-    "GIT_DIR=../x git update-ref refs/heads/main HEAD", "env git stash pop", "command git stash pop",
-    "cmd /c git stash pop", 'bash -c "git stash drop"', 'powershell -Command "git stash drop"',
-    "git -c alias.x=stash x pop", "git fetch . +HEAD:refs/heads/feature",
-    "git fetch --update-head-ok . HEAD", "git fetch -u origin", "git notes add -m x",
-    "git send-pack ../x main", "git fast-import", "git maintenance run", "git repack -ad",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "GIT_DIR=../x git update-ref refs/heads/main HEAD",
+        "env git stash pop",
+        "command git stash pop",
+        "cmd /c git stash pop",
+        'bash -c "git stash drop"',
+        'powershell -Command "git stash drop"',
+        "git -c alias.x=stash x pop",
+        "git fetch . +HEAD:refs/heads/feature",
+        "git fetch --update-head-ok . HEAD",
+        "git fetch -u origin",
+        "git notes add -m x",
+        "git send-pack ../x main",
+        "git fast-import",
+        "git maintenance run",
+        "git repack -ad",
+    ],
+)
 def test_through_a_wrapper_a_fetch_into_a_ref_or_an_alias_the_shared_git_is_still_asked(command):
     from app.commands import reaches_shared_git
 
     assert reaches_shared_git(command) == SHARED_GIT
 
 
-def test_what_an_agent_committed_and_took_back_is_not_what_is_merged(
-    make_client, wait_run, repo
-):
+def test_what_an_agent_committed_and_took_back_is_not_what_is_merged(make_client, wait_run, repo):
     """The branch's tip is the worktree as the agents left it: a file an agent committed itself,
     then put back, comes in as it is now - its secret neither merged nor in the history."""
-    client, cid, run_id = on_branch(make_client, repo, [
-        step(edit("two", "token=S3CR3T-TOKEN")),
-        step(call("run_command", {"command": "git commit -q -a -m mine"}, "c")),
-        step(edit("token=S3CR3T-TOKEN", "two", "e2")), step(write("b.txt", "b", "w2")),
-        text("A done")])
+    client, cid, run_id = on_branch(
+        make_client,
+        repo,
+        [
+            step(edit("two", "token=S3CR3T-TOKEN")),
+            step(call("run_command", {"command": "git commit -q -a -m mine"}, "c")),
+            step(edit("token=S3CR3T-TOKEN", "two", "e2")),
+            step(write("b.txt", "b", "w2")),
+            text("A done"),
+        ],
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert [m["status"] for m in snap["merges"]] == ["applied"]
     assert lines(repo)[1] == "two" and (repo / "b.txt").exists()
@@ -1011,94 +1255,176 @@ def test_what_an_agent_committed_and_took_back_is_not_what_is_merged(
 # --- the third review's round: an allow-list, and the squash held to what was looked at -------
 
 
-@pytest.mark.parametrize("command", [
-    # what the reviewer's probes ran (r3/cmds.py, cmds2.py): each asked
-    "git -c core.hooksPath=x commit -m y", "git -c core.fsmonitor=evil.sh status",
-    "git -C ../.. stash pop", "git -C ../.. checkout -- .",
-    r"git --work-tree=C:\Users\x\proj checkout .", r"git --work-tree C:\Users\x\proj checkout .",
-    "git restore --source=main -- ../../proj", "git worktree add C:/x y", "git clean -fdx",
-    r"& 'C:\Program Files\Git\cmd\git.exe' stash pop", r"C:\PROGRA~1\Git\cmd\git.exe stash pop",
-    "git stash apply", "git stash -q pop", "git stash --quiet drop", "git stash store abc",
-    "git stash create", "git stash branch x", "git stash push --all",
-    "git -c Alias.x=stash x pop", "git --config-env=alias.x=FOO x pop",
-    "git --config-env alias.x=FOO x drop", "git --git-dir=../../.git log",
-    "git checkout -B main", "git switch -C main", "git checkout -b koloni/x main",
-    "git branch -M main", "git branch new", "git tag v1", "git tag -d v1",
-    "git update-index --assume-unchanged a", "git read-tree main", "git commit-tree x",
-    "git hash-object -w x", "git rebase --update-refs main", "git pull", "git pull . main:main",
-    "git pull --no-rebase . +main:feature", "git fetch origin main:main", "git am",
-    "git apply --index x.patch", "git cherry-pick main", "git merge main", "git gc --prune=now",
-    "git submodule foreach git stash pop", "git bisect start", "git --exec-path=. stash",
-    "git --namespace=x branch -D main", 'pwsh -c "git stash pop"',
-    "powershell -Command git stash pop", "Start-Process git -ArgumentList 'stash','pop'",
-    "iex 'git stash pop'", "git `stash pop", "g`it stash pop", "git sta''sh pop",
-    "(git) stash pop", "$g='git'; & $g stash pop", "set GIT_DIR=../../.git && git log",
-    "git checkout main", "git checkout -", "git checkout @{-1}", "git switch -",
-    "git checkout HEAD~1", "git reset --hard HEAD@{1}", "git reset --soft main",
-    "$env:FOO='stash'; git --config-env=alias.x=FOO x drop",
-    "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.x GIT_CONFIG_VALUE_0=stash git x drop",
-    "$env:GIT_CONFIG_COUNT=1; $env:GIT_CONFIG_KEY_0='alias.x'; git x drop",
-    "export GIT_CONFIG_PARAMETERS=\"'alias.x=stash'\"; git x drop",
-    "git -C ../../ml-deneme stash -u", "git --work-tree=../../ml-deneme stash",
-    "git grep -O'sh -c x' foo", "git myalias",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        # what the reviewer's probes ran (r3/cmds.py, cmds2.py): each asked
+        "git -c core.hooksPath=x commit -m y",
+        "git -c core.fsmonitor=evil.sh status",
+        "git -C ../.. stash pop",
+        "git -C ../.. checkout -- .",
+        r"git --work-tree=C:\Users\x\proj checkout .",
+        r"git --work-tree C:\Users\x\proj checkout .",
+        "git restore --source=main -- ../../proj",
+        "git worktree add C:/x y",
+        "git clean -fdx",
+        r"& 'C:\Program Files\Git\cmd\git.exe' stash pop",
+        r"C:\PROGRA~1\Git\cmd\git.exe stash pop",
+        "git stash apply",
+        "git stash -q pop",
+        "git stash --quiet drop",
+        "git stash store abc",
+        "git stash create",
+        "git stash branch x",
+        "git stash push --all",
+        "git -c Alias.x=stash x pop",
+        "git --config-env=alias.x=FOO x pop",
+        "git --config-env alias.x=FOO x drop",
+        "git --git-dir=../../.git log",
+        "git checkout -B main",
+        "git switch -C main",
+        "git checkout -b koloni/x main",
+        "git branch -M main",
+        "git branch new",
+        "git tag v1",
+        "git tag -d v1",
+        "git update-index --assume-unchanged a",
+        "git read-tree main",
+        "git commit-tree x",
+        "git hash-object -w x",
+        "git rebase --update-refs main",
+        "git pull",
+        "git pull . main:main",
+        "git pull --no-rebase . +main:feature",
+        "git fetch origin main:main",
+        "git am",
+        "git apply --index x.patch",
+        "git cherry-pick main",
+        "git merge main",
+        "git gc --prune=now",
+        "git submodule foreach git stash pop",
+        "git bisect start",
+        "git --exec-path=. stash",
+        "git --namespace=x branch -D main",
+        'pwsh -c "git stash pop"',
+        "powershell -Command git stash pop",
+        "Start-Process git -ArgumentList 'stash','pop'",
+        "iex 'git stash pop'",
+        "git `stash pop",
+        "g`it stash pop",
+        "git sta''sh pop",
+        "(git) stash pop",
+        "$g='git'; & $g stash pop",
+        "set GIT_DIR=../../.git && git log",
+        "git checkout main",
+        "git checkout -",
+        "git checkout @{-1}",
+        "git switch -",
+        "git checkout HEAD~1",
+        "git reset --hard HEAD@{1}",
+        "git reset --soft main",
+        "$env:FOO='stash'; git --config-env=alias.x=FOO x drop",
+        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.x GIT_CONFIG_VALUE_0=stash git x drop",
+        "$env:GIT_CONFIG_COUNT=1; $env:GIT_CONFIG_KEY_0='alias.x'; git x drop",
+        "export GIT_CONFIG_PARAMETERS=\"'alias.x=stash'\"; git x drop",
+        "git -C ../../ml-deneme stash -u",
+        "git --work-tree=../../ml-deneme stash",
+        "git grep -O'sh -c x' foo",
+        "git myalias",
+    ],
+)
 def test_in_a_worktree_git_beyond_the_agents_own_work_is_asked(command):
     from app.commands import reaches_shared_git
 
     assert reaches_shared_git(command) == SHARED_GIT
 
 
-@pytest.mark.parametrize("command", [
-    # git's own variables cleared or unset: what KOLONİ gives git in a copy (`copies.git_env`: no
-    # hook, no repository above) would go - a commit would run the repository's hooks again
-    "unset GIT_CONFIG_PARAMETERS; git commit -m x", "unset -v GIT_CEILING_DIRECTORIES; git status",
-    "export -n GIT_CONFIG_PARAMETERS; git commit -m x", "declare +x GIT_DIR; git status",
-    "env -u GIT_CONFIG_PARAMETERS git commit -m x", "env -uGIT_CONFIG_PARAMETERS git status",
-    "env --unset=GIT_CONFIG_PARAMETERS git commit -m x", "env --unset GIT_WORK_TREE git status",
-    "env -i git commit -m x", "env - git commit -m x", "env --ignore-environment git status",
-    "env -v -i PATH=/usr/bin git commit -m x", "timeout 5 env -i git status",
-    "sh -c 'unset GIT_CONFIG_PARAMETERS; git commit -m x'", "env -i python x.py",
-    # ... or set (to nothing, or to something else)
-    "export GIT_CONFIG_PARAMETERS=''; git commit -m x", "GIT_CONFIG_PARAMETERS= git commit -m x",
-    "GIT_CEILING_DIRECTORIES=/ git status", "export GIT_WORK_TREE=../..; git status",
-    "$env:GIT_CONFIG_PARAMETERS = ''; git commit -m x", "${env:GIT_DIR} = 'x'; git status",
-    "Remove-Item env:GIT_CONFIG_PARAMETERS; git commit -m x",
-    r"Remove-Item Env:\GIT_CONFIG_PARAMETERS; git commit -m x",
-    "Remove-Item -Path 'Env:/GIT_DIR'; git status", r"Remove-Item Env:\*; git commit -m x",
-    "[Environment]::SetEnvironmentVariable('GIT_CONFIG_PARAMETERS', $null); git commit -m x",
-    "set GIT_CONFIG_PARAMETERS= && git commit -m x", 'set "GIT_CONFIG_PARAMETERS=" && git status',
-    'cmd /c "set GIT_DIR=x&& git status"',
-    # the review's (each ran the repository's hook end to end): a name not written out, env by
-    # its path, a wildcard of PowerShell's env: drive
-    "$n='GIT_CONFIG_PARAMETERS'; [Environment]::SetEnvironmentVariable($n,$null); git commit -qam x",
-    r"& 'C:\Program Files\Git\usr\bin\env.exe' -i PATH=x git commit -qam x",
-    "/usr/bin/env -i PATH=/usr/bin git commit -m x", r"\env -i git commit -m x",
-    'unset "${!GI@}"; git commit -m x', "Remove-Item Env:GIT*; git commit -m x",
-    'Remove-Item "Env:$v"; git commit -m x',
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        # git's own variables cleared or unset: what KOLONİ gives git in a copy (`copies.git_env`: no
+        # hook, no repository above) would go - a commit would run the repository's hooks again
+        "unset GIT_CONFIG_PARAMETERS; git commit -m x",
+        "unset -v GIT_CEILING_DIRECTORIES; git status",
+        "export -n GIT_CONFIG_PARAMETERS; git commit -m x",
+        "declare +x GIT_DIR; git status",
+        "env -u GIT_CONFIG_PARAMETERS git commit -m x",
+        "env -uGIT_CONFIG_PARAMETERS git status",
+        "env --unset=GIT_CONFIG_PARAMETERS git commit -m x",
+        "env --unset GIT_WORK_TREE git status",
+        "env -i git commit -m x",
+        "env - git commit -m x",
+        "env --ignore-environment git status",
+        "env -v -i PATH=/usr/bin git commit -m x",
+        "timeout 5 env -i git status",
+        "sh -c 'unset GIT_CONFIG_PARAMETERS; git commit -m x'",
+        "env -i python x.py",
+        # ... or set (to nothing, or to something else)
+        "export GIT_CONFIG_PARAMETERS=''; git commit -m x",
+        "GIT_CONFIG_PARAMETERS= git commit -m x",
+        "GIT_CEILING_DIRECTORIES=/ git status",
+        "export GIT_WORK_TREE=../..; git status",
+        "$env:GIT_CONFIG_PARAMETERS = ''; git commit -m x",
+        "${env:GIT_DIR} = 'x'; git status",
+        "Remove-Item env:GIT_CONFIG_PARAMETERS; git commit -m x",
+        r"Remove-Item Env:\GIT_CONFIG_PARAMETERS; git commit -m x",
+        "Remove-Item -Path 'Env:/GIT_DIR'; git status",
+        r"Remove-Item Env:\*; git commit -m x",
+        "[Environment]::SetEnvironmentVariable('GIT_CONFIG_PARAMETERS', $null); git commit -m x",
+        "set GIT_CONFIG_PARAMETERS= && git commit -m x",
+        'set "GIT_CONFIG_PARAMETERS=" && git status',
+        'cmd /c "set GIT_DIR=x&& git status"',
+        # the review's (each ran the repository's hook end to end): a name not written out, env by
+        # its path, a wildcard of PowerShell's env: drive
+        "$n='GIT_CONFIG_PARAMETERS'; [Environment]::SetEnvironmentVariable($n,$null); git commit -qam x",
+        r"& 'C:\Program Files\Git\usr\bin\env.exe' -i PATH=x git commit -qam x",
+        "/usr/bin/env -i PATH=/usr/bin git commit -m x",
+        r"\env -i git commit -m x",
+        'unset "${!GI@}"; git commit -m x',
+        "Remove-Item Env:GIT*; git commit -m x",
+        'Remove-Item "Env:$v"; git commit -m x',
+    ],
+)
 def test_a_command_that_clears_or_sets_gits_own_environment_is_asked(command):
     from app.commands import reaches_shared_git
 
     assert reaches_shared_git(command, "koloni/x") == SHARED_GIT
 
 
-@pytest.mark.parametrize("command", [
-    "/usr/lib/git-core/git-push origin HEAD", "git-reset --hard", "git-branch -D main",
-    "git-update-ref refs/heads/main HEAD~1",
-    r"& 'C:\Program Files\Git\mingw64\libexec\git-core\git-push.exe' origin HEAD",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "/usr/lib/git-core/git-push origin HEAD",
+        "git-reset --hard",
+        "git-branch -D main",
+        "git-update-ref refs/heads/main HEAD~1",
+        r"& 'C:\Program Files\Git\mingw64\libexec\git-core\git-push.exe' origin HEAD",
+    ],
+)
 def test_one_of_gits_own_programs_by_its_name_is_git_and_asked(command):
     from app.commands import reaches_shared_git
 
     assert reaches_shared_git(command, "koloni/x") == SHARED_GIT
 
 
-@pytest.mark.parametrize("command", [
-    "git commit -m x", "git status", "env git status", "env -C src git status", "npm test",
-    "env NODE_ENV=test npm test", "printenv PATH", "unset FOO; git status", "export X=1; git log",
-    "python scripts/git-stats.py", "cd /home/me/git-projects/x && git status",
-    "echo $env:PATH; git status", "Get-ChildItem env:",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit -m x",
+        "git status",
+        "env git status",
+        "env -C src git status",
+        "npm test",
+        "env NODE_ENV=test npm test",
+        "printenv PATH",
+        "unset FOO; git status",
+        "export X=1; git log",
+        "python scripts/git-stats.py",
+        "cd /home/me/git-projects/x && git status",
+        "echo $env:PATH; git status",
+        "Get-ChildItem env:",
+    ],
+)
 def test_git_with_its_environment_left_alone_is_not_asked(command):
     from app.commands import reaches_shared_git
 
@@ -1123,7 +1449,10 @@ def test_gits_own_files_are_found_in_any_case_and_lfs_too(repo, runtime):
     (copy.root / ".lfsconfig").write_text("[lfs]\n")
     committed(copy, "sub/.GitIgnore", ".GITATTRIBUTES", ".lfsconfig")
     assert git.branch_look(repo, copy.branch)["special"] == [
-        ".GITATTRIBUTES", ".lfsconfig", "sub/.GitIgnore"]
+        ".GITATTRIBUTES",
+        ".lfsconfig",
+        "sub/.GitIgnore",
+    ]
 
 
 def test_a_half_done_squash_in_the_tree_is_said_and_undone_by_the_user(repo, runtime):
@@ -1160,14 +1489,18 @@ def test_a_file_that_cannot_be_read_counts_as_holding_a_secret(repo, runtime):
     assert git.holding(repo, at, ["gone.txt"], [b"S3CR3T"]) == ["gone.txt"]
 
 
-def test_a_secret_given_this_turn_goes_into_no_commit_message(make_client, wait_run, repo,
-                                                              monkeypatch):
+def test_a_secret_given_this_turn_goes_into_no_commit_message(
+    make_client, wait_run, repo, monkeypatch
+):
     from app.agent import AgentRunner
 
     monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id: ["two"])
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")],
-        project={"check_command": "python check.py TWO-agent"})
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent")), own_test("TWO-agent"), text("A done")],
+        project=root_runs(),
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert [m["status"] for m in snap["merges"]] == ["applied"]
     assert run(repo, "log", "-1", "--format=%s") == "Merge koloni/fix: fix ***"
@@ -1178,36 +1511,78 @@ def test_a_secret_given_this_turn_goes_into_no_commit_message(make_client, wait_
 
 R4_ASKED = [
     # stuck values, bundled short options, unique prefixes of long ones (r4/c1..c7)
-    "git checkout -Bdevelop koloni/x", "git switch -Cdevelop koloni/x",
-    "git checkout --force-c=develop koloni/x", "git switch --force-cr=develop koloni/x",
-    "git checkout -bnew koloni/x", "git switch --ignore-other-worktrees koloni/other",
-    "git checkout --det koloni/x", "git checkout koloni/x~1", "git commit --fixup HEAD",
-    "git checkout -- ../../a.txt", "git checkout C:/proj/user/a.txt",
-    "git restore --worktree --source HEAD -- ../../a.txt", "git add ../../a.txt",
-    "git add C:/Users/x/a.txt", "git rm --cached ../../a.txt", "git mv a.txt ../../b.txt",
-    "git stash push", "git stash", "git stash push -u", "git stash push --include-untracked",
-    "git stash push -m x", "git stash push --al", "git stash --al", "git stash push -ua",
+    "git checkout -Bdevelop koloni/x",
+    "git switch -Cdevelop koloni/x",
+    "git checkout --force-c=develop koloni/x",
+    "git switch --force-cr=develop koloni/x",
+    "git checkout -bnew koloni/x",
+    "git switch --ignore-other-worktrees koloni/other",
+    "git checkout --det koloni/x",
+    "git checkout koloni/x~1",
+    "git commit --fixup HEAD",
+    "git checkout -- ../../a.txt",
+    "git checkout C:/proj/user/a.txt",
+    "git restore --worktree --source HEAD -- ../../a.txt",
+    "git add ../../a.txt",
+    "git add C:/Users/x/a.txt",
+    "git rm --cached ../../a.txt",
+    "git mv a.txt ../../b.txt",
+    "git stash push",
+    "git stash",
+    "git stash push -u",
+    "git stash push --include-untracked",
+    "git stash push -m x",
+    "git stash push --al",
+    "git stash --al",
+    "git stash push -ua",
     "git stash push --a",
-    "git log --output=C:/Users/Murat/.gitconfig", "git log -1 --format=x --output=../x",
-    "git diff --output=C:/x", "git show --output=../x", "git log -o x",
-    "git log --output ../../../proj/a.txt -1", "git log -1 --format=%H --output=../p",
-    "git cat-file --filters HEAD:a.txt", "git cat-file --textconv HEAD:a.txt",
-    "git grep --open-files-in-pager=notepad x", "git grep --open-files-in=notepad x",
-    "git grep --open x", "git grep -Onotepad x", 'git grep "--open=rm -rf ~; true" one',
-    'git grep --op="rm -rf ~;" one', 'git grep -O"rm -rf ~;" one',
-    "git diff --ext-diff", "git diff --textconv", "git log -p --ext-diff",
-    "git blame --contents ../../a.txt a.txt", "git describe --dirty",
-    "git stash show -p --ext-diff", "git commit -F ../../secret.txt", "git show --ext-diff HEAD",
-    "git log --no-pager", "git --paginate log", "git -p log", "git --exec-path",
-    "git rev-parse --git-common-dir", "git restore -s main a.txt",
-    "git restore --source=HEAD@{1} a.txt", "git restore --sourc=main a.txt",
-    "git restore --sour main a.txt", "git checkout main -- a.txt", "git checkout main .",
-    "git commit --template=../../x", "git tag -l --contains HEAD", "git branch --edit-description",
-    "git branch --no-color -lv", "git tag -n9 -l", "git stash list -p --ext-diff",
-    "git log --exec=x", "git diff --no-index ../../a C:/x",
+    "git log --output=C:/Users/Murat/.gitconfig",
+    "git log -1 --format=x --output=../x",
+    "git diff --output=C:/x",
+    "git show --output=../x",
+    "git log -o x",
+    "git log --output ../../../proj/a.txt -1",
+    "git log -1 --format=%H --output=../p",
+    "git cat-file --filters HEAD:a.txt",
+    "git cat-file --textconv HEAD:a.txt",
+    "git grep --open-files-in-pager=notepad x",
+    "git grep --open-files-in=notepad x",
+    "git grep --open x",
+    "git grep -Onotepad x",
+    'git grep "--open=rm -rf ~; true" one',
+    'git grep --op="rm -rf ~;" one',
+    'git grep -O"rm -rf ~;" one',
+    "git diff --ext-diff",
+    "git diff --textconv",
+    "git log -p --ext-diff",
+    "git blame --contents ../../a.txt a.txt",
+    "git describe --dirty",
+    "git stash show -p --ext-diff",
+    "git commit -F ../../secret.txt",
+    "git show --ext-diff HEAD",
+    "git log --no-pager",
+    "git --paginate log",
+    "git -p log",
+    "git --exec-path",
+    "git rev-parse --git-common-dir",
+    "git restore -s main a.txt",
+    "git restore --source=HEAD@{1} a.txt",
+    "git restore --sourc=main a.txt",
+    "git restore --sour main a.txt",
+    "git checkout main -- a.txt",
+    "git checkout main .",
+    "git commit --template=../../x",
+    "git tag -l --contains HEAD",
+    "git branch --edit-description",
+    "git branch --no-color -lv",
+    "git tag -n9 -l",
+    "git stash list -p --ext-diff",
+    "git log --exec=x",
+    "git diff --no-index ../../a C:/x",
     "git checkout --ignore-other-worktrees -Bmain koloni/x",
     "git switch --ignore-other-worktrees -Cmain koloni/x",
-    "git checkout --ignore-other-worktrees koloni/x -Bmain", "git switch -qCdevelop koloni/other",
+    "git checkout --ignore-other-worktrees koloni/x -Bmain",
+    "git switch -qCdevelop koloni/other",
     "git switch koloni/other",
 ]
 
@@ -1219,26 +1594,53 @@ def test_an_option_not_written_exactly_as_listed_is_asked(command):
     assert reaches_shared_git(command, "koloni/x") == SHARED_GIT
 
 
-@pytest.mark.parametrize("command", [
-    "git status", "git status --porcelain", "git add -A", 'git commit -m "x"', "git diff --stat",
-    "git log --oneline -5", "git log -n 3 --format=%H", "git show HEAD --stat", "git grep -n foo",
-    "git grep -n -e foo -- src", "git rev-parse --show-toplevel", "git switch koloni/x",
-    "git checkout -q koloni/x", "git checkout -- a.txt", "git commit --amend --no-edit",
-    "git stash list", "git branch --show-current", "git ls-files --others --exclude-standard",
-    "git blame -L 1,5 -- a.txt", "git cat-file -p HEAD:a.txt",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git status",
+        "git status --porcelain",
+        "git add -A",
+        'git commit -m "x"',
+        "git diff --stat",
+        "git log --oneline -5",
+        "git log -n 3 --format=%H",
+        "git show HEAD --stat",
+        "git grep -n foo",
+        "git grep -n -e foo -- src",
+        "git rev-parse --show-toplevel",
+        "git switch koloni/x",
+        "git checkout -q koloni/x",
+        "git checkout -- a.txt",
+        "git commit --amend --no-edit",
+        "git stash list",
+        "git branch --show-current",
+        "git ls-files --others --exclude-standard",
+        "git blame -L 1,5 -- a.txt",
+        "git cat-file -p HEAD:a.txt",
+    ],
+)
 def test_ordinary_work_on_its_own_branch_runs_unasked(command):
     from app.commands import reaches_shared_git
 
     assert reaches_shared_git(command, "koloni/x") == ""
 
 
-@pytest.mark.parametrize(("command", "asked"), [
-    ('git commit -am "x"', False), ("git commit -qam x", False), ("git commit -aqm x", False),
-    ("git commit -qm x", False), ("git commit -aq", False),
-    ("git commit -amend", True), ("git commit -ma x", True), ("git commit -aC x", True),
-    ("git commit -aam x", True), ("git add -Aq", True), ("git status -sb", True),
-])
+@pytest.mark.parametrize(
+    ("command", "asked"),
+    [
+        ('git commit -am "x"', False),
+        ("git commit -qam x", False),
+        ("git commit -aqm x", False),
+        ("git commit -qm x", False),
+        ("git commit -aq", False),
+        ("git commit -amend", True),
+        ("git commit -ma x", True),
+        ("git commit -aC x", True),
+        ("git commit -aam x", True),
+        ("git add -Aq", True),
+        ("git status -sb", True),
+    ],
+)
 def test_commit_alone_takes_a_bundle_of_a_q_and_a_last_m(command, asked):
     from app.commands import reaches_shared_git
 
@@ -1275,8 +1677,9 @@ def test_the_users_branch_is_merged_into_the_worktree_and_a_resolution_with_mark
     assert git.resolved(copy.root, copy.branch, before, sha, left) == "the merge was not committed"
     # An agent that adds the file with its marks and commits: not put together, undone.
     run(copy.root, "commit", "-qam", "as it is")
-    assert "still holds git's conflict marks" in git.resolved(copy.root, copy.branch, before,
-                                                             sha, left)
+    assert "still holds git's conflict marks" in git.resolved(
+        copy.root, copy.branch, before, sha, left
+    )
     git.undo_merge_in(copy.root, copy.branch, before, runtime / "no-hooks")
     assert tip(repo, copy) == before and "TWO-agent" in (copy.root / "lines.txt").read_text()
     # Put together: the branch holds the user's commit, and merges cleanly.
@@ -1290,13 +1693,16 @@ def test_the_users_branch_is_merged_into_the_worktree_and_a_resolution_with_mark
     assert lines(repo)[1] == "TWO-both"
 
 
-def clashing(make_client, repo, resolve, **conversation):
-    """A Coder on `koloni/fix` changes line two while the user commits their own line two; then,
-    told to resolve, it takes the `resolve` steps."""
+def clashing(make_client, repo, resolve, tests=(), **conversation):
+    """A Coder on `koloni/fix` changes line two (and takes the `tests` steps) while the user
+    commits their own line two; then, told to resolve, it takes the `resolve` steps."""
     held = Gate()
     client, cid, run_id = on_branch(
-        make_client, repo,
-        [step(edit("two", "TWO-agent")), held.step(text("A done")), *resolve], **conversation)
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent")), *tests, held.step(text("A done")), *resolve],
+        **conversation,
+    )
     held.wait_partial()
     (repo / "lines.txt").write_bytes(LINES.replace("two", "TWO-user").encode())
     (repo / "theirs.txt").write_bytes(b"the user's new file")  # (no file of the line's)
@@ -1307,21 +1713,28 @@ def clashing(make_client, repo, resolve, **conversation):
 
 
 RESOLVED = LINES.replace("two", "TWO-both")
-RESOLVING = [step(call("read_file", {"path": "lines.txt"}, "r")), step(write("lines.txt", RESOLVED)),
-             text("put together")]
+RESOLVING = [
+    step(call("read_file", {"path": "lines.txt"}, "r")),
+    step(write("lines.txt", RESOLVED)),
+    text("put together"),
+]
 
 
 def test_asked_an_agent_resolves_the_conflicts_on_the_card_and_the_merge_takes_its_resolution(
     make_client, wait_run, repo
 ):
-    client, cid, run_id = clashing(
-        make_client, repo, RESOLVING,
-        permission_mode="ask")
+    client, cid, run_id = clashing(make_client, repo, RESOLVING, permission_mode="ask")
     merge = card(client, cid)
     assert merge["branch"]["conflicts"] == ["lines.txt"] and merge["branch"]["resolve"]
     assert client.post(f"/api/merges/{merge['id']}/resolve").status_code == 200
-    merge = until(client, cid, lambda s: s["merges"][0]["branch"]["conflicts"] == []
-                  and s["merges"][0]["status"] == "pending", timeout=LONG)["merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: (
+            s["merges"][0]["branch"]["conflicts"] == [] and s["merges"][0]["status"] == "pending"
+        ),
+        timeout=LONG,
+    )["merges"][0]
     assert merge["branch"]["note"] is None and "resolve" not in merge["branch"]
     assert [(f["path"], f["state"]) for f in merge["files"]] == [("lines.txt", "ready")]
     assert lines(repo)[1] == "TWO-user"  # (nothing merged before the user's yes)
@@ -1335,13 +1748,16 @@ def test_asked_an_agent_resolves_the_conflicts_on_the_card_and_the_merge_takes_i
 def test_a_resolution_that_leaves_the_marks_is_undone_and_the_card_stays(
     make_client, wait_run, repo
 ):
-    client, cid, run_id = clashing(make_client, repo, [text("I could not")],
-                                   permission_mode="ask")
+    client, cid, run_id = clashing(make_client, repo, [text("I could not")], permission_mode="ask")
     merge = card(client, cid)
     sha = run(repo, "rev-parse", "koloni/fix")
     assert client.post(f"/api/merges/{merge['id']}/resolve").status_code == 200
-    merge = until(client, cid, lambda s: (s["merges"][0]["branch"]["note"] or "").startswith(
-        "Coder"), timeout=LONG)["merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: (s["merges"][0]["branch"]["note"] or "").startswith("Coder"),
+        timeout=LONG,
+    )["merges"][0]
     assert "could not put the conflicts together" in merge["branch"]["note"]
     assert merge["status"] == "pending" and merge["branch"]["conflicts"] == ["lines.txt"]
     assert run(repo, "rev-parse", "koloni/fix") == sha  # (back where it was)
@@ -1354,11 +1770,18 @@ def test_at_full_auto_an_agent_resolves_the_conflicts_by_itself_and_the_user_see
     make_client, wait_run, repo
 ):
     client, cid, run_id = clashing(
-        make_client, repo, RESOLVING,
-        project={"check_command": "python check.py TWO"})
+        make_client, repo, RESOLVING, tests=[own_test("TWO")], project=root_runs()
+    )
     # (A resolution may drop lines of the user's own commit: a card, even where the check passed.)
-    merge = until(client, cid, lambda s: [m["status"] for m in s["merges"]] == ["pending"]
-                  and s["merges"][0]["branch"]["conflicts"] == [], timeout=LONG)["merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: (
+            [m["status"] for m in s["merges"]] == ["pending"]
+            and s["merges"][0]["branch"]["conflicts"] == []
+        ),
+        timeout=LONG,
+    )["merges"][0]
     assert merge["check"]["state"] == "passed" and lines(repo)[1] == "TWO-user"
     assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -1372,8 +1795,11 @@ def test_a_clash_with_no_marked_lines_is_not_an_agents_and_the_users_deletion_st
 ):
     held = Gate()
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), held.step(text("A done")),
-                            *RESOLVING], permission_mode="ask")
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent")), held.step(text("A done")), *RESOLVING],
+        permission_mode="ask",
+    )
     held.wait_partial()
     run(repo, "rm", "-q", "lines.txt")
     run(repo, "commit", "-qm", "user deletes it")
@@ -1382,8 +1808,12 @@ def test_a_clash_with_no_marked_lines_is_not_an_agents_and_the_users_deletion_st
     assert merge["branch"]["conflicts"] == ["lines.txt"] and merge["branch"]["resolve"]
     sha = run(repo, "rev-parse", "koloni/fix")
     assert client.post(f"/api/merges/{merge['id']}/resolve").status_code == 200
-    merge = until(client, cid, lambda s: "no text lines" in (
-        s["merges"][0]["branch"]["note"] or ""), timeout=LONG)["merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: "no text lines" in (s["merges"][0]["branch"]["note"] or ""),
+        timeout=LONG,
+    )["merges"][0]
     assert merge["status"] == "pending" and run(repo, "rev-parse", "koloni/fix") == sha
     assert client.post(f"/api/merges/{merge['id']}/reject").status_code == 200
     wait_run(client, cid, run_id, timeout=LONG)
@@ -1392,8 +1822,8 @@ def test_a_clash_with_no_marked_lines_is_not_an_agents_and_the_users_deletion_st
 
 def test_resolve_is_refused_where_nothing_clashes(make_client, wait_run, repo):
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")],
-        permission_mode="ask")
+        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")], permission_mode="ask"
+    )
     merge = card(client, cid)
     assert "resolve" not in merge["branch"]
     assert client.post(f"/api/merges/{merge['id']}/resolve").status_code == 409
@@ -1403,11 +1833,15 @@ def test_resolve_is_refused_where_nothing_clashes(make_client, wait_run, repo):
 
 def test_a_branch_kept_after_its_merge_stays(make_client, wait_run, repo):
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")],
-        permission_mode="ask")
+        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")], permission_mode="ask"
+    )
     merge = card(client, cid)
-    assert client.post(f"/api/merges/{merge['id']}/approve",
-                       json={"keep_branch": True, "shown": {}}).status_code == 200
+    assert (
+        client.post(
+            f"/api/merges/{merge['id']}/approve", json={"keep_branch": True, "shown": {}}
+        ).status_code
+        == 200
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
     assert merge["status"] == "applied" and lines(repo)[1] == "TWO-agent"
@@ -1422,11 +1856,15 @@ def test_a_branch_is_not_kept_where_its_agents_commits_hold_a_secret(
     # (Its agents' own commits holding a secret given this turn: `git.held_since`, below.)
     monkeypatch.setattr(git, "held_since", lambda *_args: True)
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")],
-        permission_mode="ask")
+        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")], permission_mode="ask"
+    )
     merge = card(client, cid)
-    assert client.post(f"/api/merges/{merge['id']}/approve",
-                       json={"keep_branch": True, "shown": {}}).status_code == 200
+    assert (
+        client.post(
+            f"/api/merges/{merge['id']}/approve", json={"keep_branch": True, "shown": {}}
+        ).status_code
+        == 200
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert "was not kept" in snap["merges"][0]["commit"]["notes"][0]
     assert run(repo, "branch", "--list", "koloni/*") == ""
@@ -1507,13 +1945,18 @@ def test_the_first_finished_branch_on_github_asks_which_way_and_a_pull_request_i
 ):
     bare, log = github
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")])
+        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")]
+    )
     merge = card(client, cid)  # (at Full auto too: the way is the user's to choose)
     assert merge["branch"]["ask_way"] and "pr_off" not in merge["branch"]
     pushed_main(repo)
     main = run(repo, "rev-parse", "HEAD")
-    assert client.post(f"/api/merges/{merge['id']}/approve",
-                       json={"way": "pull_request", "shown": {}}).status_code == 200
+    assert (
+        client.post(
+            f"/api/merges/{merge['id']}/approve", json={"way": "pull_request", "shown": {}}
+        ).status_code
+        == 200
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
     assert merge["commit"]["state"] == "pull_request"
@@ -1521,7 +1964,8 @@ def test_the_first_finished_branch_on_github_asks_which_way_and_a_pull_request_i
     assert merge["commit"]["pushed"] == "origin/koloni/fix"
     # (B-205: KOLONİ's line under the answer says where it went - not "in the project".)
     assert [m["content"] for m in snap["messages"] if m["role"] == "landed"] == [
-        "Sent as a pull request: https://github.com/owner/repo/pull/7."]
+        "Sent as a pull request: https://github.com/owner/repo/pull/7."
+    ]
     # Nothing merged here; the branch went up as ONE commit by KOLONİ on main's commit.
     assert run(repo, "rev-parse", "HEAD") == main and lines(repo)[1] == "two"
     pushed = run(bare, "rev-parse", "refs/heads/koloni/fix")
@@ -1538,14 +1982,19 @@ def test_the_first_finished_branch_on_github_asks_which_way_and_a_pull_request_i
     assert project["finish_way"] == "pull_request"
 
 
-def pr_run(make_client, repo, meanwhile, wip=None, **conversation):
+def pr_run(make_client, repo, meanwhile, wip=None, tests=(), **conversation):
     """A Coder on `koloni/fix` in a project whose finished work goes as a pull request; the user
-    does `meanwhile` while it works (`wip`: as `on_branch`)."""
+    does `meanwhile` while it works (`wip`: as `on_branch`; `tests`: steps of the Coder's after
+    its change - its own test, for Take in's check)."""
     held = Gate()
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), held.step(text("A done"))], wip=wip,
-        project={"finish_way": "pull_request", "check_command": "python check.py TWO-agent"},
-        **conversation)
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent")), *tests, held.step(text("A done"))],
+        wip=wip,
+        project=root_runs(finish_way="pull_request"),
+        **conversation,
+    )
     held.wait_partial()
     meanwhile()
     held.release()
@@ -1556,13 +2005,16 @@ def test_with_pull_requests_set_full_auto_opens_one_unasked_and_never_merges(
     make_client, wait_run, repo, github
 ):
     bare, log = github
-    client, cid, run_id = pr_run(make_client, repo, lambda: pushed_main(repo))
+    client, cid, run_id = pr_run(
+        make_client, repo, lambda: pushed_main(repo), tests=[own_test("TWO-agent")]
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
     assert merge["commit"]["state"] == "pull_request" and merge["check"]["state"] == "passed"
     assert lines(repo)[1] == "two" and run(bare, "rev-parse", "refs/heads/koloni/fix")
     assert [m["content"] for m in snap["messages"] if m["role"] == "landed"] == [
-        "Sent as a pull request: https://github.com/owner/repo/pull/7."]  # (B-205)
+        "Sent as a pull request: https://github.com/owner/repo/pull/7."
+    ]  # (B-205)
 
 
 def test_the_users_own_commits_not_on_origin_never_go_up_with_a_pull_request(
@@ -1571,13 +2023,25 @@ def test_the_users_own_commits_not_on_origin_never_go_up_with_a_pull_request(
     bare, log = github
     client, cid, run_id = pr_run(make_client, repo, lambda: None)  # (main not pushed)
     # (At Full auto too, asked first: the user's branches hold commits not on GitHub.)
-    merge = until(client, cid, lambda s: "not on GitHub yet" in (
-        (s["merges"] or [{}])[0].get("branch") or {}).get("note", "") or "", timeout=LONG)[
-        "merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: (
+            "not on GitHub yet" in ((s["merges"] or [{}])[0].get("branch") or {}).get("note", "")
+            or ""
+        ),
+        timeout=LONG,
+    )["merges"][0]
     assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
-    merge = until(client, cid, lambda s: "push main first" in (
-        (s["merges"] or [{}])[0].get("branch") or {}).get("note", "") or "", timeout=LONG)[
-        "merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: (
+            "push main first" in ((s["merges"] or [{}])[0].get("branch") or {}).get("note", "")
+            or ""
+        ),
+        timeout=LONG,
+    )["merges"][0]
     assert run(bare, "for-each-ref") == ""
     pushed_main(repo)
     assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
@@ -1634,13 +2098,25 @@ def test_a_push_carries_no_tag_nor_unpushed_commit_and_runs_gits_own_receive_pac
     run(repo, "config", "push.followTags", "true")
     marker, script = tmp_path / "RAN", tmp_path / "rp.py"
     script.write_text(f"open({str(marker)!r}, 'w').write('x')\nraise SystemExit(1)\n")
-    run(repo, "config", "remote.origin.receivepack",
-        f'"{Path(sys.executable).as_posix()}" "{script.as_posix()}"')
+    run(
+        repo,
+        "config",
+        "remote.origin.receivepack",
+        f'"{Path(sys.executable).as_posix()}" "{script.as_posix()}"',
+    )
     copy = copies.make_branch(repo, runtime, "agent1", "x")
     (copy.root / "b.txt").write_text("agent\n")
     git.commit_branch(copy.root, copy.branch, ["b.txt"], "m", runtime / "no-hooks")
-    sha = git.push_one(repo, tip(repo, copy), copy.branch, "main", copy.start[1], "m",
-                       runtime / "no-hooks", under=copies.folders(runtime))
+    sha = git.push_one(
+        repo,
+        tip(repo, copy),
+        copy.branch,
+        "main",
+        copy.start[1],
+        "m",
+        runtime / "no-hooks",
+        under=copies.folders(runtime),
+    )
     assert not marker.exists() and run(bare, "tag") == ""
     assert run(bare, "rev-parse", "refs/heads/koloni/x") == sha
     # A commit of the user's not on origin yet: nothing goes up.
@@ -1651,8 +2127,16 @@ def test_a_push_carries_no_tag_nor_unpushed_commit_and_runs_gits_own_receive_pac
     (other.root / "c.txt").write_text("agent\n")
     git.commit_branch(other.root, other.branch, ["c.txt"], "m", runtime / "no-hooks")
     with pytest.raises(git.Refused, match="push main first"):
-        git.push_one(repo, tip(repo, other), other.branch, "main", other.start[1], "m",
-                     runtime / "no-hooks", under=copies.folders(runtime))
+        git.push_one(
+            repo,
+            tip(repo, other),
+            other.branch,
+            "main",
+            other.start[1],
+            "m",
+            runtime / "no-hooks",
+            under=copies.folders(runtime),
+        )
     assert run(bare, "branch", "--list", "koloni/y") == ""
 
 
@@ -1660,7 +2144,9 @@ def test_no_pull_request_where_origin_is_not_the_repository_gh_names(repo, githu
     assert git.pr_ready(repo) == ("owner/repo", None)
     run(repo, "remote", "set-url", "origin", "git@github.com:someone/thing.git")
     assert git.pr_ready(repo) == (
-        None, "origin is not owner/repo, the repository gh opens pull requests on")
+        None,
+        "origin is not owner/repo, the repository gh opens pull requests on",
+    )
     run(repo, "remote", "set-url", "origin", "git@github.com:Owner/Repo")
     assert git.pr_ready(repo)[0] == "owner/repo"
 
@@ -1670,12 +2156,20 @@ def test_a_way_said_on_a_card_that_did_not_ask_it_pushes_nothing(
 ):
     bare, log = github
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")],
-        project={"finish_way": "merge"}, permission_mode="ask")
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent")), text("A done")],
+        project={"finish_way": "merge"},
+        permission_mode="ask",
+    )
     merge = card(client, cid)
     assert "ask_way" not in merge["branch"] and "way" not in merge["branch"]
-    assert client.post(f"/api/merges/{merge['id']}/approve",
-                       json={"way": "pull_request", "shown": {}}).status_code == 200
+    assert (
+        client.post(
+            f"/api/merges/{merge['id']}/approve", json={"way": "pull_request", "shown": {}}
+        ).status_code
+        == 200
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["merges"][0]["commit"]["state"] == "committed" and lines(repo)[1] == "TWO-agent"
     assert run(bare, "for-each-ref") == "" and gh_calls(log) == []
@@ -1689,14 +2183,19 @@ def test_a_pull_request_cannot_be_chosen_where_gh_is_logged_out_and_says_why(
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
     assert client.get(f"/api/projects/{pid}/pull-request").json() == {
-        "why_not": "gh is not logged in: run gh auth login"}
+        "why_not": "gh is not logged in: run gh auth login"
+    }
     answer = client.patch(f"/api/projects/{pid}", json={"finish_way": "pull_request"})
     assert answer.status_code == 422 and "not logged in" in answer.json()["detail"]
     assert client.patch(f"/api/projects/{pid}", json={"finish_way": "merge"}).status_code == 200
     monkeypatch.setenv("FAKE_GH_IN", "1")
     assert client.get(f"/api/projects/{pid}/pull-request").json() == {"why_not": None}
-    assert client.patch(f"/api/projects/{pid}",
-                        json={"finish_way": "pull_request"}).json()["finish_way"] == "pull_request"
+    assert (
+        client.patch(f"/api/projects/{pid}", json={"finish_way": "pull_request"}).json()[
+            "finish_way"
+        ]
+        == "pull_request"
+    )
 
 
 def test_a_secret_amended_away_is_still_found_in_the_branchs_reflog(repo, runtime):
@@ -1735,18 +2234,32 @@ def test_no_push_of_a_branch_made_from_a_local_branch_the_user_left(repo, runtim
     git.commit_branch(copy.root, copy.branch, ["b.txt"], "m", runtime / "no-hooks")
     run(repo, "switch", "-q", "main")
     with pytest.raises(git.Refused, match="push main first"):
-        git.push_one(repo, tip(repo, copy), copy.branch, "main", copy.start[1], "m",
-                     runtime / "no-hooks", under=copies.folders(runtime))
+        git.push_one(
+            repo,
+            tip(repo, copy),
+            copy.branch,
+            "main",
+            copy.start[1],
+            "m",
+            runtime / "no-hooks",
+            under=copies.folders(runtime),
+        )
     assert run(bare, "branch", "--list", "koloni/*") == ""
 
 
-@pytest.mark.parametrize(("url", "names"), [
-    ("https://github.com/owner/repo.git", True), ("git@github.com:Owner/Repo", True),
-    ("ssh://git@github.com/owner/repo", True), ("https://user@github.com/owner/repo/", True),
-    ("https://evilgithub.com/owner/repo.git", False),
-    ("https://x.example/github.com/owner/repo", False),
-    ("git@github.com:owner/repo2", False), ("https://github.com/owner/repo.git.evil", False),
-])
+@pytest.mark.parametrize(
+    ("url", "names"),
+    [
+        ("https://github.com/owner/repo.git", True),
+        ("git@github.com:Owner/Repo", True),
+        ("ssh://git@github.com/owner/repo", True),
+        ("https://user@github.com/owner/repo/", True),
+        ("https://evilgithub.com/owner/repo.git", False),
+        ("https://x.example/github.com/owner/repo", False),
+        ("git@github.com:owner/repo2", False),
+        ("https://github.com/owner/repo.git.evil", False),
+    ],
+)
 def test_origin_names_the_repository_only_with_github_com_as_its_host(url, names):
     assert git._names(url, "owner/repo") is names
 
@@ -1796,8 +2309,9 @@ def test_a_branch_opened_again_holds_its_earlier_commit_and_new_work_goes_on_top
     assert git.commit_branch(copy.root, copy.branch, ["b.txt"], "Coder: rest", runtime / "no-hooks")
     look = git.branch_look(repo, copy.branch, copy.start)
     assert look["files"] == {"a.txt": "M", "b.txt": "A"} and look["drift"] is None
-    git.merge_branch(repo, look["tip"], "Merge koloni/x", runtime / "no-hooks", "main",
-                     copy.start[1])
+    git.merge_branch(
+        repo, look["tip"], "Merge koloni/x", runtime / "no-hooks", "main", copy.start[1]
+    )
     assert (repo / "a.txt").read_text() == "one\nTWO\n" and (repo / "b.txt").read_text() == "new\n"
     gone(repo, runtime, copy)
     assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
@@ -1858,8 +2372,9 @@ def test_another_branch_of_the_same_name_since_is_not_opened_again(repo, runtime
     with pytest.raises(git.Refused, match="not the one it stopped on"):
         copies.make_branch(repo, runtime, "agent1", "koloni/x", start=first.start, tip=stopped)
     assert tip(repo, other) != stopped and len(worktrees(repo)) == 1
-    copy = copies.make_branch(repo, runtime, "agent1", "koloni/x", start=other.start,
-                              tip=tip(repo, other))
+    copy = copies.make_branch(
+        repo, runtime, "agent1", "koloni/x", start=other.start, tip=tip(repo, other)
+    )
     assert copy.branch == "koloni/x"
 
 
@@ -1882,8 +2397,12 @@ GO_ON = step(call("message_agent", {"to": "Coder", "message": "go on"}, "m"))
 def test_told_to_go_on_an_agent_that_stopped_on_a_branch_goes_on_on_that_branch(
     make_client, wait_run, repo
 ):
-    client, cid, run_id = on_branch(make_client, repo, [
-        *STOP_ON_BRANCH, step(edit("TWO-agent", "TWO-again", "e2")), text("done")], then=[GO_ON])
+    client, cid, run_id = on_branch(
+        make_client,
+        repo,
+        [*STOP_ON_BRANCH, step(edit("TWO-agent", "TWO-again", "e2")), text("done")],
+        then=[GO_ON],
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     ((_status, stopped),) = calls(snap, "Lead", "spawn_agent")
     assert "committed on branch koloni/fix" in stopped
@@ -1898,13 +2417,17 @@ def test_told_to_go_on_an_agent_that_stopped_on_a_branch_goes_on_on_that_branch(
 def test_gone_on_with_in_a_later_turn_an_agent_that_stopped_on_a_branch_goes_on_on_it(
     make_client, wait_run, repo
 ):
-    client, cid, first = on_branch(make_client, repo, [
-        *STOP_ON_BRANCH, step(edit("TWO-agent", "TWO-again", "e2")), text("done")],
-        then=[text("stopped"), GO_ON])
+    client, cid, first = on_branch(
+        make_client,
+        repo,
+        [*STOP_ON_BRANCH, step(edit("TWO-agent", "TWO-again", "e2")), text("done")],
+        then=[text("stopped"), GO_ON],
+    )
     wait_run(client, cid, first, timeout=LONG)
     assert run(repo, "branch", "--list", "koloni/*").strip() == "koloni/fix"
-    second = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go on"}).json()["run"]["id"]
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "go on"}).json()[
+        "run"
+    ]["id"]
     snap = wait_run(client, cid, second, timeout=LONG)
     (merge,) = snap["merges"]
     assert merge["status"] == "applied" and merge["branch"]["name"] == "koloni/fix"
@@ -1917,9 +2440,17 @@ def test_stop_everything_mid_work_keeps_the_branch_with_its_work_and_a_later_go_
     """B-405 (live): Stop everything while a Coder works on its branch deleted the branch and
     its file - its worktree's work was never committed, and `branch -d` takes a branch with
     nothing on it. Now it is committed and kept, as where the agent stops by itself."""
-    client, cid, first = on_branch(make_client, repo, [
-        step(edit("two", "TWO-agent")), gate.step(text("never")),
-        step(edit("TWO-agent", "TWO-again", "e2")), text("done")], then=[GO_ON])
+    client, cid, first = on_branch(
+        make_client,
+        repo,
+        [
+            step(edit("two", "TWO-agent")),
+            gate.step(text("never")),
+            step(edit("TWO-agent", "TWO-again", "e2")),
+            text("done"),
+        ],
+        then=[GO_ON],
+    )
     gate.wait_partial()  # (its edit made, in its worktree; the next step held)
     assert client.post("/api/hold").json()["held"] is True
     snap = wait_run(client, cid, first, timeout=LONG)
@@ -1927,11 +2458,15 @@ def test_stop_everything_mid_work_keeps_the_branch_with_its_work_and_a_later_go_
     assert run(repo, "branch", "--list", "koloni/*").strip() == "koloni/fix"
     assert run(repo, "show", "koloni/fix:lines.txt").split("\n")[1] == "TWO-agent"
     assert len(worktrees(repo)) == 1 and lines(repo)[1] == "two"
-    assert any("committed on branch koloni/fix" in m["content"]
-               for m in snap["messages"] if m["role"] == "koloni")
+    assert any(
+        "committed on branch koloni/fix" in m["content"]
+        for m in snap["messages"]
+        if m["role"] == "koloni"
+    )
     gate.release()
-    second = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go on"}).json()["run"]["id"]
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "go on"}).json()[
+        "run"
+    ]["id"]
     snap = wait_run(client, cid, second, timeout=LONG)
     assert calls(snap, "Coder", "edit_file")[-1][0] == "succeeded"  # (on its branch: found)
     (merge,) = snap["merges"]
@@ -1953,8 +2488,9 @@ def test_a_second_stop_while_the_branch_work_is_saved_does_not_lose_it(
         return real(*args, **kwargs)
 
     monkeypatch.setattr(git, "commit_branch", slow)
-    client, cid, first = on_branch(make_client, repo, [
-        step(edit("two", "TWO-agent")), gate.step(text("never"))])
+    client, cid, first = on_branch(
+        make_client, repo, [step(edit("two", "TWO-agent")), gate.step(text("never"))]
+    )
     gate.wait_partial()
     assert client.post(f"/api/runs/{first}/cancel").status_code == 202
     assert committing.wait(LONG)
@@ -1969,7 +2505,10 @@ def test_a_second_stop_while_the_branch_work_is_saved_does_not_lose_it(
 
 
 def test_a_lead_that_breaks_stops_a_sub_agent_nobody_waited_for_before_its_copies_go(
-    session_app, wait_run, repo, monkeypatch  # noqa: F811
+    session_app,
+    wait_run,
+    repo,
+    monkeypatch,  # noqa: F811
 ):
     """B-405 (last review): the Lead's turn ending in an internal error deleted the copies
     first, and only then stopped the sub-agent a failed CLI opener had left at work - its copy
@@ -1981,15 +2520,22 @@ def test_a_lead_that_breaks_stops_a_sub_agent_nobody_waited_for_before_its_copie
 
     work, lead = Gate(), Gate()
     client, provider, _ = session_app(
-        [{"call": "spawn_agent", "args": {"role": "Debugger", "task": "fix two"}},
-         {"exit": 3, "stderr": "boom"}],
-        default_steps={"Lead": [step(call("spawn_agent", {"role": "Coder", "task": "make it"},
-                                          "s")), lead.step(text("done"))],
-                       "Debugger": [step(edit("two", "TWO-agent", path="a.txt")),
-                                    work.step(text("never"))]})
+        [
+            {"call": "spawn_agent", "args": {"role": "Debugger", "task": "fix two"}},
+            {"exit": 3, "stderr": "boom"},
+        ],
+        default_steps={
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "make it"}, "s")),
+                lead.step(text("done")),
+            ],
+            "Debugger": [step(edit("two", "TWO-agent", path="a.txt")), work.step(text("never"))],
+        },
+    )
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
-    client.patch(f"/api/roles/{role_id(client, 'Debugger')}",
-                 json={"provider_id": _local(client)["id"]})
+    client.patch(
+        f"/api/roles/{role_id(client, 'Debugger')}", json={"provider_id": _local(client)["id"]}
+    )
     real, real_drop = AgentRunner._attempt, AgentRunner._drop_copy
     # Once it broke: whether a sub-agent of the turn left at work was still at work as a copy
     # went (its tasks taken as it broke: `_saved` takes them off the turn's list).
@@ -2022,17 +2568,25 @@ def test_a_lead_that_breaks_stops_a_sub_agent_nobody_waited_for_before_its_copie
 
 def keeping(make_client, models):
     """`make_client` that keeps its model in `models`: what each agent was sent."""
+
     def make(*args, **kwargs):
         client, model = make_client(*args, **kwargs)
         models.append(model)
         return client, model
+
     return make
 
 
 def told(model, role="Coder"):
     """What of NOT_ON_BRANCH_AGAIN the agent was sent, in each step's messages."""
-    return [[m["content"] for m in sent if "You are not going on on your branch" in str(
-        m.get("content"))] for sent in model.calls_of[role]]
+    return [
+        [
+            m["content"]
+            for m in sent
+            if "You are not going on on your branch" in str(m.get("content"))
+        ]
+        for sent in model.calls_of[role]
+    ]
 
 
 def test_gone_on_with_after_the_project_switched_branch_the_merge_waits_for_the_user(
@@ -2040,13 +2594,17 @@ def test_gone_on_with_after_the_project_switched_branch_the_merge_waits_for_the_
 ):
     """Opened again, the branch is held to where it was first made from (main): on feature now,
     its merge would bring main's commits in - the user's word, at Full auto too."""
-    client, cid, first = on_branch(make_client, repo, [
-        *STOP_ON_BRANCH, step(edit("TWO-agent", "TWO-again", "e2")), text("done")],
-        then=[text("stopped"), GO_ON])
+    client, cid, first = on_branch(
+        make_client,
+        repo,
+        [*STOP_ON_BRANCH, step(edit("TWO-agent", "TWO-again", "e2")), text("done")],
+        then=[text("stopped"), GO_ON],
+    )
     wait_run(client, cid, first, timeout=LONG)
     run(repo, "switch", "-qc", "feature")
-    second = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go on"}).json()["run"]["id"]
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "go on"}).json()[
+        "run"
+    ]["id"]
     merge = card(client, cid)
     assert merge["branch"]["name"] == "koloni/fix" and merge["branch"]["into"] == "feature"
     assert merge["branch"]["note"] == "made from main, the project is on feature now"
@@ -2059,18 +2617,24 @@ def test_gone_on_with_where_its_branch_is_gone_the_agent_is_told_before_its_firs
     make_client, wait_run, repo
 ):
     models: list = []
-    client, cid, first = on_branch(keeping(make_client, models), repo, [
-        *STOP_ON_BRANCH, step(edit("two", "TWO-fresh", "e2")), text("done")],
-        then=[text("stopped"), GO_ON])
+    client, cid, first = on_branch(
+        keeping(make_client, models),
+        repo,
+        [*STOP_ON_BRANCH, step(edit("two", "TWO-fresh", "e2")), text("done")],
+        then=[text("stopped"), GO_ON],
+    )
     wait_run(client, cid, first, timeout=LONG)
     run(repo, "branch", "-D", "koloni/fix")
-    second = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go on"}).json()["run"]["id"]
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "go on"}).json()[
+        "run"
+    ]["id"]
     snap = wait_run(client, cid, second, timeout=LONG)
     assert snap["merges"][-1]["status"] == "applied" and lines(repo)[1] == "TWO-fresh"
-    words = ("You are not going on on your branch: there is no branch koloni/fix any more: merged "
-             "or deleted. You work in a new copy of the project as it is now: read each file "
-             "again before you change it.")
+    words = (
+        "You are not going on on your branch: there is no branch koloni/fix any more: merged "
+        "or deleted. You work in a new copy of the project as it is now: read each file "
+        "again before you change it."
+    )
     assert told(models[0])[-2:] == [[words]] * 2
     # (Where it stopped, before the go-on - not moved to the end at each step.)
     said = [str(m.get("content")) for m in models[0].calls_of["Coder"][-1]]
@@ -2080,15 +2644,20 @@ def test_gone_on_with_where_its_branch_is_gone_the_agent_is_told_before_its_firs
 def test_a_go_on_turned_down_on_its_card_leaves_no_branch_waiting_for_it(
     make_client, wait_run, repo
 ):
-    client, cid, first = on_branch(make_client, repo, [*STOP_ON_BRANCH],
-                                   then=[text("stopped"), GO_ON])
+    client, cid, first = on_branch(
+        make_client, repo, [*STOP_ON_BRANCH], then=[text("stopped"), GO_ON]
+    )
     wait_run(client, cid, first, timeout=LONG)
-    assert client.patch(f"/api/conversations/{cid}",
-                        json={"spawn_approval": "always"}).status_code == 200
-    second = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go on"}).json()["run"]["id"]
-    snap = until(client, cid, lambda s: any(a["status"] == "proposed" for a in s["agents"]),
-                 timeout=LONG)
+    assert (
+        client.patch(f"/api/conversations/{cid}", json={"spawn_approval": "always"}).status_code
+        == 200
+    )
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "go on"}).json()[
+        "run"
+    ]["id"]
+    snap = until(
+        client, cid, lambda s: any(a["status"] == "proposed" for a in s["agents"]), timeout=LONG
+    )
     (child,) = [a for a in snap["agents"] if a["status"] == "proposed"]
     runner = client.app.state.runner
     assert runner._on_branch[child["id"]] == "koloni/fix"
@@ -2101,18 +2670,36 @@ def test_told_to_go_on_after_its_branch_was_merged_an_agent_gets_a_copy_and_says
     make_client, wait_run, repo
 ):
     models: list = []
-    client, cid, run_id = on_branch(keeping(make_client, models), repo, [
-        step(edit("two", "TWO-agent")), text("A done"),
-        step(edit("TWO-agent", "TWO-again", "e2")), text("again")], then=[GO_ON])
+    client, cid, run_id = on_branch(
+        keeping(make_client, models),
+        repo,
+        [
+            step(edit("two", "TWO-agent")),
+            text("A done"),
+            step(edit("TWO-agent", "TWO-again", "e2")),
+            text("again"),
+        ],
+        then=[GO_ON],
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     ((_status, said),) = calls(snap, "Lead", "message_agent")
-    assert "not on a branch: its branch koloni/fix was merged, or sent as a pull request, already" in said
+    assert (
+        "not on a branch: its branch koloni/fix was merged, or sent as a pull request, already"
+        in said
+    )
     assert [m["status"] for m in snap["merges"]] == ["applied", "applied"]
     assert lines(repo)[1] == "TWO-again"
-    assert told(models[0])[-2:] == [[
-        "You are not going on on your branch: its branch koloni/fix was merged, or sent as a pull "
-        "request, already. You work in a new copy of the project as it is now: read each file "
-        "again before you change it."]] * 2
+    assert (
+        told(models[0])[-2:]
+        == [
+            [
+                "You are not going on on your branch: its branch koloni/fix was merged, or sent as a pull "
+                "request, already. You work in a new copy of the project as it is now: read each file "
+                "again before you change it."
+            ]
+        ]
+        * 2
+    )
 
 
 def test_told_to_go_on_where_its_branch_is_checked_out_elsewhere_an_agent_gets_a_copy(
@@ -2120,10 +2707,18 @@ def test_told_to_go_on_where_its_branch_is_checked_out_elsewhere_an_agent_gets_a
 ):
     held = Gate()
     models: list = []
-    client, cid, run_id = on_branch(keeping(make_client, models), repo, [
-        *STOP_ON_BRANCH, step(edit("two", "TWO-fresh", "e2")), text("done"),
-        step(edit("TWO-fresh", "TWO-third", "e3")), text("third")],
-        then=[held.step(GO_ON), text("first"), GO_ON])
+    client, cid, run_id = on_branch(
+        keeping(make_client, models),
+        repo,
+        [
+            *STOP_ON_BRANCH,
+            step(edit("two", "TWO-fresh", "e2")),
+            text("done"),
+            step(edit("TWO-fresh", "TWO-third", "e3")),
+            text("third"),
+        ],
+        then=[held.step(GO_ON), text("first"), GO_ON],
+    )
     held.wait_partial()
     run(repo, "worktree", "add", str(tmp_path / "elsewhere"), "koloni/fix")
     held.release()
@@ -2143,15 +2738,17 @@ def test_told_to_go_on_where_its_branch_is_checked_out_elsewhere_an_agent_gets_a
     # Its work went in from that copy: a later go-on, the branch free again, does not open the old
     # half-done branch over it - the agent is told, and goes on from the project.
     run(repo, "worktree", "remove", "--force", str(tmp_path / "elsewhere"))
-    second = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go on"}).json()["run"]["id"]
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "go on"}).json()[
+        "run"
+    ]["id"]
     snap = wait_run(client, cid, second, timeout=LONG)
     assert [m["status"] for m in snap["merges"]] == ["applied", "applied"]
     assert lines(repo)[1] == "TWO-third"
     assert told(models[0])[-1][-1] == (
         "You are not going on on your branch: its work went in from a copy since, not from its "
         "branch koloni/fix. You work in a new copy of the project as it is now: read each file "
-        "again before you change it.")
+        "again before you change it."
+    )
 
 
 def test_a_branch_opened_again_and_dropped_for_a_secret_says_its_earlier_work_went_too(
@@ -2161,13 +2758,17 @@ def test_a_branch_opened_again_and_dropped_for_a_secret_says_its_earlier_work_we
 
     given: list[str] = []
     monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id: given)
-    client, cid, first = on_branch(make_client, repo, [
-        *STOP_ON_BRANCH, ModelUnavailable("model server unreachable")],
-        then=[text("stopped"), GO_ON])
+    client, cid, first = on_branch(
+        make_client,
+        repo,
+        [*STOP_ON_BRANCH, ModelUnavailable("model server unreachable")],
+        then=[text("stopped"), GO_ON],
+    )
     wait_run(client, cid, first, timeout=LONG)
     given.append("TWO-agent")  # (given in the next turn: on the branch from the one before)
-    second = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go on"}).json()["run"]["id"]
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "go on"}).json()[
+        "run"
+    ]["id"]
     snap = wait_run(client, cid, second, timeout=LONG)
     (said,) = [t["result"] for t in snap["tool_calls"] if t["name"] == "message_agent"]
     assert "its branch koloni/fix was deleted, with the work of its earlier turns on it:" in said

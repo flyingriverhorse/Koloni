@@ -2,17 +2,18 @@
 project's test command(s), the turn's changes on record, whether a test run on record stands for
 this turn's, and the rows of the Checked section KOLONİ writes under the answer (`ProofMixin`)."""
 
-import contextlib
+import bisect
 import difflib
 import fnmatch
 import hashlib
 import json
 import os
 import re
+from collections import Counter
 from collections.abc import Collection, Iterable
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import NamedTuple, NotRequired, TypedDict
+from typing import Literal, NamedTuple, NotRequired, TypedDict
 
 from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
@@ -47,21 +48,43 @@ CHAT_AFTER_CHANGE = ("off", "on")
 
 # By the file's name, casefolded (a name wins over an extension).
 KIND_BY_NAME: dict[str, str] = {
-    **dict.fromkeys((
-        "requirements*.txt", "constraints*.txt", "pyproject.toml", "setup.py", "setup.cfg",
-        "tox.ini", "pytest.ini", "conftest.py", "package.json", "package-lock.json",
-        "pnpm-lock.yaml", "yarn.lock", "tsconfig*.json", "vite.config.*", "vitest.config.*",
-        "makefile", "dockerfile", "docker-compose*.yml", ".env*"), "config"),
+    **dict.fromkeys(
+        (
+            "requirements*.txt",
+            "constraints*.txt",
+            "pyproject.toml",
+            "setup.py",
+            "setup.cfg",
+            "tox.ini",
+            "pytest.ini",
+            "conftest.py",
+            "package.json",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "yarn.lock",
+            "tsconfig*.json",
+            "vite.config.*",
+            "vitest.config.*",
+            "makefile",
+            "dockerfile",
+            "docker-compose*.yml",
+            ".env*",
+        ),
+        "config",
+    ),
     "*.drawio.xml": "diagram",
 }
 KIND_BY_EXT: dict[str, str] = {
     **dict.fromkeys((".md", ".markdown", ".rst", ".adoc", ".txt", ".docx", ".odt"), "docs"),
     **dict.fromkeys((".pptx", ".odp", ".key"), "slides"),
-    **dict.fromkeys((".drawio", ".dio", ".mmd", ".mermaid", ".puml", ".plantuml", ".svg"),
-                    "diagram"),
+    **dict.fromkeys(
+        (".drawio", ".dio", ".mmd", ".mermaid", ".puml", ".plantuml", ".svg"), "diagram"
+    ),
     **dict.fromkeys((".csv", ".tsv", ".ipynb", ".parquet", ".xlsx", ".xls"), "data"),
-    **dict.fromkeys((".html", ".htm", ".css", ".scss", ".sass", ".less", ".vue", ".svelte",
-                     ".tsx", ".jsx"), "ui"),
+    **dict.fromkeys(
+        (".html", ".htm", ".css", ".scss", ".sass", ".less", ".vue", ".svelte", ".tsx", ".jsx"),
+        "ui",
+    ),
     **dict.fromkeys((".toml", ".yaml", ".yml", ".json", ".ini", ".cfg", ".lock"), "config"),
 }
 # What changes nothing a test reads: only such a turn runs no test.
@@ -72,13 +95,14 @@ MERGED = "merged"
 
 
 def kind_of(path: str) -> str:
-    """"code", "config", "docs", "slides", "diagram", "data" or "ui"; what no table names: code."""
+    """ "code", "config", "docs", "slides", "diagram", "data" or "ui"; what no table names: code."""
     posix = path.replace("\\", "/").casefold()
     if "/.github/workflows/" in f"/{posix}":
         return "config"
     name = posix.rsplit("/", 1)[-1]
-    named = next((kind for pattern, kind in KIND_BY_NAME.items()
-                  if fnmatch.fnmatchcase(name, pattern)), None)
+    named = next(
+        (kind for pattern, kind in KIND_BY_NAME.items() if fnmatch.fnmatchcase(name, pattern)), None
+    )
     return named or KIND_BY_EXT.get(PurePosixPath(name).suffix, "code")
 
 
@@ -93,6 +117,7 @@ class TestRun(NamedTuple):
     it runs as the user's own - their command, or one KOLONİ saved that an Always rule covers
     (else on a card below Full auto: KOLONİ's guess, or a saved one no rule covers); and whether
     KOLONİ saved it (`Project.tests_found`: no guess any more, said so)."""
+
     command: str
     cwd: str
     yours: bool
@@ -105,21 +130,32 @@ class TestRun(NamedTuple):
         return not (self.yours or self.saved)
 
 
+def root_off(project: Project) -> bool:
+    """Whether the user set the whole project's test command to none on the map ("" at its
+    root): no guess, nor a saved one, stands in for it (0.1.7 round 2)."""
+    return (project.test_commands or {}).get(project_map.ROOT) == ""
+
+
 def test_runs(project: Project, found: dict | None) -> list[TestRun]:
-    """The project's whole test command(s): the user's check command; else each part's test of
-    its map (the user's, or the map's guess); else the guess from its files; else none."""
-    if project.check_command and project.check_command.strip():
-        return [TestRun(project.check_command.strip(), ".", True)]
+    """The project's whole test command(s): each part's test of its map (the user's, or the map's
+    guess); else the guess from its files - not where the user said the root has none; else
+    none."""
     parts = project_map.edited(found, project.test_commands or {})["parts"] if found else []
-    runs = [TestRun(part["test"], part["path"].removeprefix("./").rstrip("/") or ".",
-                    bool(part["edited"])) for part in parts if part["test"]]
-    guess = None if runs else finish_tests.command_of(project.root_path, None)
+    runs = [
+        TestRun(
+            part["test"], part["path"].removeprefix("./").rstrip("/") or ".", bool(part["edited"])
+        )
+        for part in parts
+        if part["test"]
+    ]
+    guess = None if runs or root_off(project) else finish_tests.command_of(project.root_path, None)
     return runs or ([TestRun(guess, ".", False)] if guess else [])
 
 
 class Change(NamedTuple):
     """One path a turn changed: its kind, lines added and removed (first before to last after),
     whether it is gone, who changed it last, and whether it is where the tests run."""
+
     path: str
     kind: str
     added: int
@@ -133,8 +169,9 @@ class Change(NamedTuple):
     waiting: str | None = None
 
 
-def changes(session: Session, run_id: str, lead_id: str,
-            sharing: Collection[str] = ()) -> list[Change]:
+def changes(
+    session: Session, run_id: str, lead_id: str, sharing: Collection[str] = ()
+) -> list[Change]:
     """The turn's kept changes, one a path. Not in the project: a copy's (`in_copy`) of an agent
     other than the Lead, waiting in Ready for you - but where that agent works in the Lead's own
     copy (`sharing`: an Away job's, a branch turn's), where the tests run. A path the project
@@ -144,15 +181,29 @@ def changes(session: Session, run_id: str, lead_id: str,
     here = {lead_id, *sharing}
     found = []
     for path, made in _kept(session, run_id).items():
-        there = [at for at, one in enumerate(made)
-                 if one.status in ("applied", MERGED) or one.agent_id in here]
+        there = [
+            at
+            for at, one in enumerate(made)
+            if one.status in ("applied", MERGED) or one.agent_id in here
+        ]
         last = made[there[-1]] if there else made[-1]
-        _diff, added, removed = unified_diff(made[0].before_content, last.after_content or "",
-                                             path, context=0)
-        after = made[there[-1] + 1:] if there else []
-        found.append(Change(path, kind_of(path), added, removed, last.kind == "delete",
-                            last.agent_id, bool(there), made[0].kind != "create",
-                            after[-1].agent_id if after else None))
+        _diff, added, removed = unified_diff(
+            made[0].before_content, last.after_content or "", path, context=0
+        )
+        after = made[there[-1] + 1 :] if there else []
+        found.append(
+            Change(
+                path,
+                kind_of(path),
+                added,
+                removed,
+                last.kind == "delete",
+                last.agent_id,
+                bool(there),
+                made[0].kind != "create",
+                after[-1].agent_id if after else None,
+            )
+        )
     return found
 
 
@@ -160,9 +211,30 @@ def changes(session: Session, run_id: str, lead_id: str,
 # shortcut: by the file's name alone, as `code_map.tested` reads tests (`FooTest.java` is no test
 # there: a Java change with only such a test is asked for one); read a language's own test
 # convention if that is met.
-SOURCE = frozenset({*PYTHON, *SCRIPT, ".vue", ".svelte", ".go", ".rs", ".java", ".kt", ".cs",
-                    ".rb", ".php", ".ex", ".exs", ".swift", ".scala", ".c", ".cc", ".cpp", ".h",
-                    ".hpp"})
+SOURCE = frozenset(
+    {
+        *PYTHON,
+        *SCRIPT,
+        ".vue",
+        ".svelte",
+        ".go",
+        ".rs",
+        ".java",
+        ".kt",
+        ".cs",
+        ".rb",
+        ".php",
+        ".ex",
+        ".exs",
+        ".swift",
+        ".scala",
+        ".c",
+        ".cc",
+        ".cpp",
+        ".h",
+        ".hpp",
+    }
+)
 
 
 def is_test(path: str) -> bool:
@@ -178,8 +250,11 @@ def new_tests(changes: list[Change]) -> list[Change]:
 
 def removed_tests(changes: list[Change]) -> list[str]:
     """The test files the turn deleted that were there before it."""
-    return [one.path for one in changes
-            if one.in_project and one.deleted and one.existed and is_test(one.path)]
+    return [
+        one.path
+        for one in changes
+        if one.in_project and one.deleted and one.existed and is_test(one.path)
+    ]
 
 
 def untested(changes: list[Change]) -> list[str]:
@@ -187,9 +262,15 @@ def untested(changes: list[Change]) -> list[str]:
     not a test) where it changed no test; else none."""
     if new_tests(changes):
         return []
-    return [one.path for one in changes if one.in_project and not one.deleted
-            and one.kind in ("code", "ui") and not is_test(one.path)
-            and PurePosixPath(one.path.replace("\\", "/").casefold()).suffix in SOURCE]
+    return [
+        one.path
+        for one in changes
+        if one.in_project
+        and not one.deleted
+        and one.kind in ("code", "ui")
+        and not is_test(one.path)
+        and PurePosixPath(one.path.replace("\\", "/").casefold()).suffix in SOURCE
+    ]
 
 
 def before_of(session: Session, run_id: str) -> dict[str, str | None]:
@@ -197,34 +278,127 @@ def before_of(session: Session, run_id: str) -> dict[str, str | None]:
     return {path: made[0].before_content for path, made in _kept(session, run_id).items()}
 
 
-def added_lines(session: Session, run_id: str, lead_id: str,
-                sharing: Collection[str] = ()) -> dict[str, list[int]]:
+def added_lines(
+    session: Session, run_id: str, lead_id: str, sharing: Collection[str] = ()
+) -> dict[str, list[int] | None]:
     """S9: the lines the turn added (or rewrote) in each in-project file, by their number in
-    the file as it now is - from its first before to its last after on record."""
+    the file as it now is - from its first before to its last after on record. None: a file
+    too large to compare (`changed_lines`), counted by none."""
+    out: dict[str, list[int] | None] = {}
+    for path, (before, after) in turn_texts(session, run_id, lead_id, sharing).items():
+        if (lines := changed_lines(before, after)) is None or lines:
+            out[path] = lines
+    return out
+
+
+def turn_texts(
+    session: Session, run_id: str, lead_id: str, sharing: Collection[str] = ()
+) -> dict[str, tuple[str, str]]:
+    """Each in-project file the turn kept a change of, as (its first before, its last after)
+    on record - what `changed_lines` compares, for the files it is wanted for alone (W4)."""
     here = {lead_id, *sharing}
-    out: dict[str, list[int]] = {}
+    out: dict[str, tuple[str, str]] = {}
     for path, made in _kept(session, run_id).items():
         last = made[-1]
         if not (last.status in ("applied", MERGED) or last.agent_id in here) or (
-                last.kind == "delete"):
+            last.kind == "delete"
+        ):
             continue
-        before = (made[0].before_content or "").splitlines()
-        after = (last.after_content or "").splitlines()
-        lines = [number + 1 for tag, _a, _b, start, end in difflib.SequenceMatcher(
-            None, before, after, autojunk=False).get_opcodes() if tag in ("replace", "insert")
-            for number in range(start, end)]
-        if lines:
-            out[path] = lines
+        out[path] = (made[0].before_content or "", last.after_content or "")
     return out
+
+
+# W4: difflib alone (autojunk off) grew past the square of a file's lines - 1 000 repeated lines
+# 1.8 s, a 21 000-line file with every 40th line changed 127 s (measured). Lines found once on
+# each side anchor it first (patience); difflib compares only what lies between, at most
+# MOST_COMPARED line pairs in all (about 2 s at worst), and the whole scans at most
+# COMPARE_STEPS lines.
+MOST_COMPARED = 1_000_000
+COMPARE_STEPS = 2_000_000
+
+
+def changed_lines(before: str, after: str) -> list[int] | None:
+    """The numbers of the lines `after` added or rewrote, counted as the tools count them
+    (`_lines`); None: too large to compare in the time it may take - never "nothing changed"."""
+    a, b = _lines(before), _lines(after)
+    out: list[int] = []
+    steps, compared, stack = 0, 0, [(0, len(a), 0, len(b))]
+    while stack:
+        alo, ahi, blo, bhi = stack.pop()
+        while alo < ahi and blo < bhi and a[alo] == b[blo]:
+            alo, blo = alo + 1, blo + 1
+        while alo < ahi and blo < bhi and a[ahi - 1] == b[bhi - 1]:
+            ahi, bhi = ahi - 1, bhi - 1
+        steps += (ahi - alo) + (bhi - blo)
+        if steps > COMPARE_STEPS:
+            return None
+        if blo == bhi or alo == ahi:  # (only taken out, or only added)
+            out.extend(range(blo + 1, bhi + 1))
+            continue
+        if anchors := _anchors(a, alo, ahi, b, blo, bhi):
+            for (i, j), (k, m) in zip(
+                [(alo - 1, blo - 1), *anchors], [*anchors, (ahi, bhi)], strict=True
+            ):
+                stack.append((i + 1, k, j + 1, m))
+            continue
+        compared += (ahi - alo) * (bhi - blo)
+        if compared > MOST_COMPARED:
+            return None
+        matcher = difflib.SequenceMatcher(None, a[alo:ahi], b[blo:bhi], autojunk=False)
+        out += [
+            blo + number + 1
+            for tag, _a, _b, start, end in matcher.get_opcodes()
+            if tag in ("replace", "insert")
+            for number in range(start, end)
+        ]
+    return sorted(out)
+
+
+def _anchors(
+    a: list[str], alo: int, ahi: int, b: list[str], blo: int, bhi: int
+) -> list[tuple[int, int]]:
+    """The lines once in a[alo:ahi] and once in b[blo:bhi], the longest run of them in the same
+    order on both sides (patience sorting), as (index in a, index in b)."""
+    once_a, once_b = Counter(a[alo:ahi]), Counter(b[blo:bhi])
+    where_b = {b[j]: j for j in range(blo, bhi) if once_b[b[j]] == 1}
+    pairs = [(i, where_b[a[i]]) for i in range(alo, ahi) if once_a[a[i]] == 1 and a[i] in where_b]
+    tails: list[int] = []
+    tops: list[int] = []
+    back: list[int | None] = []
+    for k, (_i, j) in enumerate(pairs):
+        at = bisect.bisect_left(tails, j)
+        back.append(tops[at - 1] if at else None)
+        if at == len(tails):
+            tails.append(j)
+            tops.append(k)
+        else:
+            tails[at], tops[at] = j, k
+    found, k = [], tops[-1] if tops else None
+    while k is not None:
+        found.append(pairs[k])
+        k = back[k]
+    return found[::-1]
+
+
+def _lines(text: str) -> list[str]:
+    """A file's lines as its tools number them - split at `\\n`, `\\r\\n` and `\\r` only: a form
+    feed or a line separator inside a line is no line of its own to ruff, mypy, eslint or tsc
+    (`str.splitlines` would make it one, and blame the turn for a line it never wrote)."""
+    found = _LINE_END.split(text)
+    return found[:-1] if found[-1] == "" else found
+
+
+_LINE_END = re.compile(r"\r\n|[\r\n]")
 
 
 def _kept(session: Session, run_id: str) -> dict[str, list[FileChange]]:
     """The turn's kept changes by path, oldest first (none of its scratch folder)."""
     rows: dict[str, list[FileChange]] = {}
     for row in session.scalars(
-            select(FileChange).where(FileChange.run_id == run_id,
-                                     FileChange.status.in_((*ledger.KEPT, MERGED)))
-            .order_by(FileChange.created_at, literal_column("file_changes.rowid"))):
+        select(FileChange)
+        .where(FileChange.run_id == run_id, FileChange.status.in_((*ledger.KEPT, MERGED)))
+        .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
+    ):
         if not in_scratch(row.path):
             rows.setdefault(row.path, []).append(row)
     return rows
@@ -238,32 +412,75 @@ BIG_LINES, BIG_FILES = 80, 3
 REVIEWED_KINDS = frozenset({"code", "config", "ui"})
 # Path words, matched against each part of a path (casefolded), and file names, that make a
 # change security-touching whatever its size.
-SECURITY_PATHS = frozenset({
-    "auth", "authn", "authz", "authentication", "authorization", "oauth", "login", "session",
-    "sessions", "token", "tokens", "secret", "secrets", "password", "passwords", "passwd",
-    "credential", "credentials", "permission", "permissions", "cookie", "cookies", "crypto",
-    "cipher", "acl", "policy", "policies", "sandbox", "security", "jwt", "csrf", "cors"})
+SECURITY_PATHS = frozenset(
+    {
+        "auth",
+        "authn",
+        "authz",
+        "authentication",
+        "authorization",
+        "oauth",
+        "login",
+        "session",
+        "sessions",
+        "token",
+        "tokens",
+        "secret",
+        "secrets",
+        "password",
+        "passwords",
+        "passwd",
+        "credential",
+        "credentials",
+        "permission",
+        "permissions",
+        "cookie",
+        "cookies",
+        "crypto",
+        "cipher",
+        "acl",
+        "policy",
+        "policies",
+        "sandbox",
+        "security",
+        "jwt",
+        "csrf",
+        "cors",
+    }
+)
 SECURITY_NAMES = (".env*", "*.pem", "*.key", "dockerfile")
 # ...and what an ADDED line may do: run a command, run code, load what runs code, reach the
 # network, put HTML in a page, loosen a check or a file's rights.
 SECURITY_LINES: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
-    (name, re.compile(pattern)) for name, pattern in (
-        ("subprocess", r"\bsubprocess\b"), ("os.system", r"\bos\.system\b"),
-        ("shell=True", r"shell\s*=\s*True"), ("eval(", r"\beval\("), ("exec(", r"\bexec\("),
-        ("pickle.load", r"\bpickle\.loads?\b"), ("yaml.load(", r"\byaml\.load\("),
+    (name, re.compile(pattern))
+    for name, pattern in (
+        ("subprocess", r"\bsubprocess\b"),
+        ("os.system", r"\bos\.system\b"),
+        ("shell=True", r"shell\s*=\s*True"),
+        ("eval(", r"\beval\("),
+        ("exec(", r"\bexec\("),
+        ("pickle.load", r"\bpickle\.loads?\b"),
+        ("yaml.load(", r"\byaml\.load\("),
         ("child_process", r"\bchild_process\b"),
         ("dangerouslySetInnerHTML", r"dangerouslySetInnerHTML"),
-        (".innerHTML =", r"\.innerHTML\s*="), ("fetch(", r"\bfetch\("),
-        ("requests.", r"\brequests\.\w"), ("httpx.", r"\bhttpx\.\w"),
-        ("urllib.request", r"\burllib\.request\b"), ("socket.", r"\bsocket\.\w"),
-        ("verify=False", r"verify\s*=\s*False"), ("chmod", r"\bchmod\b"),
-        ("setuid", r"\bsetuid\b")))
+        (".innerHTML =", r"\.innerHTML\s*="),
+        ("fetch(", r"\bfetch\("),
+        ("requests.", r"\brequests\.\w"),
+        ("httpx.", r"\bhttpx\.\w"),
+        ("urllib.request", r"\burllib\.request\b"),
+        ("socket.", r"\bsocket\.\w"),
+        ("verify=False", r"verify\s*=\s*False"),
+        ("chmod", r"\bchmod\b"),
+        ("setuid", r"\bsetuid\b"),
+    )
+)
 
 
 class Review(NamedTuple):
     """Why a turn's change is looked over: it is big (`lines` / `files` of code, config and
     screens), and what makes it security-touching ("app/auth.py (path)", "shell=True (added in
     app/utils.py)")."""
+
     big: bool
     security: list[str]
     lines: int
@@ -282,9 +499,11 @@ def _security_path(path: str) -> bool:
     spaced = _CAMEL.sub(" ", path.replace("\\", "/"))
     words = {word.casefold() for word in re.split(r"[\W_]+", spaced) if word}
     # (Whole words, trailing digits off: "oauth2", "tokens" - not "author", "tokenizer".)
-    return any(word.rstrip("0123456789") in SECURITY_PATHS for word in words) or (
-        "/.github/workflows/" in f"/{posix}") or any(
-        fnmatch.fnmatchcase(name, pattern) for pattern in SECURITY_NAMES)
+    return (
+        any(word.rstrip("0123456789") in SECURITY_PATHS for word in words)
+        or ("/.github/workflows/" in f"/{posix}")
+        or any(fnmatch.fnmatchcase(name, pattern) for pattern in SECURITY_NAMES)
+    )
 
 
 def review_reasons(changes: Iterable[Change], diff: str) -> Review:
@@ -300,13 +519,17 @@ def review_reasons(changes: Iterable[Change], diff: str) -> Review:
         if line.startswith("+++ "):
             path = line[4:].removeprefix("b/")
         elif line.startswith("+") and not line.startswith("+++"):
-            found += [f"{name} (added in {path})" for name, pattern in SECURITY_LINES
-                      if pattern.search(line) and f"{name} (added in {path})" not in found]
+            found += [
+                f"{name} (added in {path})"
+                for name, pattern in SECURITY_LINES
+                if pattern.search(line) and f"{name} (added in {path})" not in found
+            ]
     return Review(lines > BIG_LINES or len(counted) > BIG_FILES, found, lines, len(counted))
 
 
-def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
-              sharing: Collection[str] = ()) -> tuple[str, str, list[str]]:
+def turn_diff(
+    session: Session, run_id: str, lead_id: str, most: int, sharing: Collection[str] = ()
+) -> tuple[str, str, list[str]]:
     """The turn's in-project kept changes as one diff (each file from its first before to its
     last after), cut at `most` characters: the text, the whole of it (what is scanned for a
     security touch: every line), and the files left out. A secret file is named, never shown."""
@@ -319,9 +542,16 @@ def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
         if secret_in_project(path):
             parts.append((path, f"{path}: a secret file - changed, not shown\n"))
             continue
-        diff, _added, _removed = unified_diff(made[0].before_content, last.after_content or "",
-                                              path)
+        diff, _added, _removed = unified_diff(
+            made[0].before_content, last.after_content or "", path
+        )
         parts.append((path, diff if diff.endswith("\n") or not diff else f"{diff}\n"))
+    return cut(parts, most)
+
+
+def cut(parts: list[tuple[str, str]], most: int) -> tuple[str, str, list[str]]:
+    """Each file's diff, (path, text), as one diff cut at `most` characters: the text, the whole
+    of it, and the files left out."""
     whole = "".join(text for _path, text in parts)
     shown, left = "", []
     for path, text in parts:
@@ -332,8 +562,9 @@ def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
     return shown, whole, left
 
 
-def unrecorded(session: Session, run_id: str, by: Collection[str], folder: str | None = None
-               ) -> tuple[str, datetime | None] | None:
+def unrecorded(
+    session: Session, run_id: str, by: Collection[str], folder: str | None = None
+) -> tuple[str, datetime | None] | None:
     """CL-321 Bulgu D: the commands of `by` (the Lead and the agents working where it does) this
     turn, in `folder` (the project), that may have changed files no change record holds - each
     with a part that is neither a mere read (`only_reads`), a lone search (`only_searches`) nor a
@@ -345,16 +576,21 @@ def unrecorded(session: Session, run_id: str, by: Collection[str], folder: str |
     None: none."""
     mine = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
     newest, oldest = None, None
-    for line, started, cwd in session.execute(select(
-            Command.command, Command.started_at, Command.cwd).where(
-            Command.run_id == run_id, Command.agent_id.in_(by),
+    for line, started, cwd in session.execute(
+        select(Command.command, Command.started_at, Command.cwd)
+        .where(
+            Command.run_id == run_id,
+            Command.agent_id.in_(by),
             Command.status.in_(("exited", "timed_out")),
-            Command.tool_call_id.is_not(None), Command.tool_call_id.not_in(mine))
-            .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
+            Command.tool_call_id.is_not(None),
+            Command.tool_call_id.not_in(mine),
+        )
+        .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())
+    ):
         if _ran_in(cwd, folder) and may_write(line):
             if newest is None:
                 said = " ".join(line.split())
-                newest = said if len(said) <= MOST_COMMAND else said[:MOST_COMMAND - 1] + "…"
+                newest = said if len(said) <= MOST_COMMAND else said[: MOST_COMMAND - 1] + "…"
             oldest = started
     return None if newest is None else (newest, oldest)
 
@@ -395,8 +631,9 @@ def may_write(line: str) -> bool:
     return False
 
 
-def touched_since(folder: Path, since: datetime | None, recorded: Collection[str],
-                  head: str | None = None) -> list[str] | None:
+def touched_since(
+    folder: Path, since: datetime | None, recorded: Collection[str], head: str | None = None
+) -> list[str] | None:
     """Review of CL-321 D: what commands may have changed, by git - the files `git status`
     lists in `folder` (changed, added, untracked; not ignored) and, from `head` (the turn's
     start), those committed since (`black . && git commit -am x`), but those on record
@@ -405,7 +642,9 @@ def touched_since(folder: Path, since: datetime | None, recorded: Collection[str
     off the event loop.
     shortcut: a tracked test file deleted before the turn is counted too (git says no when);
     read the deletions as the turn begins if that is seen.
-    shortcut: another tracked file deleted is not seen (no time to read); count those if missed.
+    A file committed since the turn began that cannot be read (a committed deletion) is
+    touched - never passed over (R's second round); one deleted by hand, listed by git as
+    deleted, is not.
     shortcut: a write that keeps an old time (`cp -p`, `tar x`, `unzip`, `touch -d`), one into
     an ignored folder and a secret-named file (`git.changes` leaves it out) are not seen; ask
     git for them, or read the files' hashes as the turn begins, if a change slips by so."""
@@ -413,16 +652,26 @@ def touched_since(folder: Path, since: datetime | None, recorded: Collection[str
     if listed is None:
         return None
     paths = [one["path"] for one in listed]
-    if head is not None:
-        paths += [one for one in git.committed_since(folder, head) if not is_secret(one)]
+    committed = (
+        {one for one in git.committed_since(folder, head) if not is_secret(one)}
+        if head is not None
+        else set()
+    )
+    paths += sorted(committed)
     edge = since.timestamp() - MTIME_SLACK if since is not None else float("-inf")
-    found = [one["path"] for one in listed
-             if one["status"] == "D" and is_test(one["path"]) and one["path"] not in recorded]
+    found = [
+        one["path"]
+        for one in listed
+        if one["status"] == "D" and is_test(one["path"]) and one["path"] not in recorded
+    ]
     for path in dict.fromkeys(paths):
         if path in recorded or path in found:
             continue
-        with contextlib.suppress(OSError):
+        try:
             if (folder / path).stat().st_mtime >= edge:
+                found.append(path)
+        except OSError:  # (a deletion committed since the turn began: touched, never passed over -
+            if path in committed:  # one deleted by hand before it, as git lists it, is not)
                 found.append(path)
     return sorted(found)
 
@@ -434,6 +683,7 @@ MOST_PUT_BACK = 2 * 1024 * 1024
 class Before(NamedTuple):
     """CL-329: the project as KOLONİ's own run found it - its commit, and each tracked file git
     listed as changed then, by its bytes (None: gone, or too big to keep)."""
+
     head: str | None
     files: dict[str, bytes | None]
 
@@ -473,8 +723,11 @@ def changed_during(folder: Path, before: Before, spare: Collection[str]) -> dict
     found: dict[str, str] = {}
     for one in git.changes(folder) or []:
         rel = one["path"]
-        if one["status"] == "?" or rel in spare or (rel in before.files and (
-                before.files[rel] is None)):
+        if (
+            one["status"] == "?"
+            or rel in spare
+            or (rel in before.files and (before.files[rel] is None))
+        ):
             continue
         if rel in before.files:
             try:
@@ -510,22 +763,34 @@ def put_back(folder: Path, rel: str, before: Before, after: str) -> str | None:
 def change_states(session: Session, run_id: str) -> dict[str, tuple[str, str | None]]:
     """k-sira-016: the turn's kept change records - each one's status and agent, by id: what
     Ready for you's pass saw, to tell its own Take in from work that came in after it."""
-    return {one: (status, agent) for one, status, agent in session.execute(select(
-        FileChange.id, FileChange.status, FileChange.agent_id).where(
-        FileChange.run_id == run_id, FileChange.status.in_((*ledger.KEPT, MERGED))))}
+    return {
+        one: (status, agent)
+        for one, status, agent in session.execute(
+            select(FileChange.id, FileChange.status, FileChange.agent_id).where(
+                FileChange.run_id == run_id, FileChange.status.in_((*ledger.KEPT, MERGED))
+            )
+        )
+    }
 
 
-def last_change(session: Session, run_id: str, made_there: Collection[str] = ()
-                ) -> datetime | None:
+def last_change(session: Session, run_id: str, made_there: Collection[str] = ()) -> datetime | None:
     """When the turn's newest kept change was made or taken in: a test run that started before
     it did not see it. (A merged branch's: when it was made - the gate ran on the branch. And,
     for a run where `made_there`'s agents worked, theirs: their copy held it when it was made.)"""
-    times = session.execute(select(FileChange.created_at, FileChange.decided_at,
-                                   FileChange.status, FileChange.agent_id).where(
-        FileChange.run_id == run_id, FileChange.status.in_((*ledger.KEPT, MERGED)))).all()
-    return max((one for made, decided, status, agent in times for one in (
-        made, None if status == MERGED or agent in made_there else decided) if one is not None),
-        default=None)
+    times = session.execute(
+        select(
+            FileChange.created_at, FileChange.decided_at, FileChange.status, FileChange.agent_id
+        ).where(FileChange.run_id == run_id, FileChange.status.in_((*ledger.KEPT, MERGED)))
+    ).all()
+    return max(
+        (
+            one
+            for made, decided, status, agent in times
+            for one in (made, None if status == MERGED or agent in made_there else decided)
+            if one is not None
+        ),
+        default=None,
+    )
 
 
 def _folded(command: str) -> str:
@@ -541,8 +806,9 @@ def _known_as(session: Session, one: Command) -> str:
     folded = _folded(one.command)
     if "coverage-" not in folded or one.tool_call_id is None:
         return folded
-    call = session.execute(select(ToolCall.provider_call_id, ToolCall.arguments).where(
-        ToolCall.id == one.tool_call_id)).first()
+    call = session.execute(
+        select(ToolCall.provider_call_id, ToolCall.arguments).where(ToolCall.id == one.tool_call_id)
+    ).first()
     if call is None or not (call[0] or "").startswith(PROOF_CALL):
         return folded
     try:
@@ -554,8 +820,15 @@ def _known_as(session: Session, one: Command) -> str:
     return _folded(plain) if built else folded
 
 
-def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: datetime | None,
-          sharing: Collection[str] = (), made: datetime | None = None) -> Command | None:
+def fresh(
+    session: Session,
+    run_id: str,
+    lead_id: str,
+    run: TestRun,
+    since: datetime | None,
+    sharing: Collection[str] = (),
+    made: datetime | None = None,
+) -> Command | None:
     """The newest run of exactly `run`'s command in its folder that ran to its end with an exit
     code and stands for the work as it is: the Lead's (or KOLONİ's, on its record) started after
     `since`; or one of `sharing`'s - the agents that worked where the Lead does, a recipe's Tester
@@ -569,35 +842,52 @@ def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: date
     double run is felt."""
     wanted, by, looked = _folded(run.command), {lead_id, *sharing}, set()
     for one in session.scalars(
-            select(Command).where(Command.run_id == run_id, Command.agent_id.in_(by),
-                                  Command.status == "exited", Command.exit_code.is_not(None),
-                                  Command.cwd == run.cwd, Command.started_at.is_not(None))
-            .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
+        select(Command)
+        .where(
+            Command.run_id == run_id,
+            Command.agent_id.in_(by),
+            Command.status == "exited",
+            Command.exit_code.is_not(None),
+            Command.cwd == run.cwd,
+            Command.started_at.is_not(None),
+        )
+        .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())
+    ):
         mine = one.agent_id == lead_id  # (the newest of each place's runs is its word)
         if _known_as(session, one) != wanted or mine in looked:
             continue
         looked.add(mine)
         after = since if mine else made
         if (after is None or (one.started_at or after) > after) and not _rewritten_after(
-                session, run_id, by, one, wanted):
+            session, run_id, by, one, wanted
+        ):
             return one
     return None
 
 
-def _rewritten_after(session: Session, run_id: str, by: Collection[str], ran: Command,
-                     wanted: str) -> bool:
+def _rewritten_after(
+    session: Session, run_id: str, by: Collection[str], ran: Command, wanted: str
+) -> bool:
     """Whether a command of `by` started after `ran` that may have changed files, or ran the same
     test command again and did not pass: any but one that only reads (`commands.only_reads`) or
     a clean pass of exactly the end check's command. A test tool on a line is no sign it only
     tested - `fmt && pytest`, `jest -u`, `--snapshot-update` write. Re-running is the safe way."""
     return any(
-        not only_reads(one.command) and not (
-            _known_as(session, one) == wanted and one.status == "exited" and one.exit_code == 0)
-        for one in session.scalars(select(Command).where(
-            Command.run_id == run_id, Command.agent_id.in_(by), Command.id != ran.id,
-            # (`>=`: a later line in the same tick of Windows' clock is no proof it came first)
-            Command.started_at.is_not(None), Command.started_at >= ran.started_at)))
-
+        not only_reads(one.command)
+        and not (
+            _known_as(session, one) == wanted and one.status == "exited" and one.exit_code == 0
+        )
+        for one in session.scalars(
+            select(Command).where(
+                Command.run_id == run_id,
+                Command.agent_id.in_(by),
+                Command.id != ran.id,
+                # (`>=`: a later line in the same tick of Windows' clock is no proof it came first)
+                Command.started_at.is_not(None),
+                Command.started_at >= ran.started_at,
+            )
+        )
+    )
 
 
 def after_change_of(session: Session, conversation: Conversation, run: Run | None = None) -> str:
@@ -616,14 +906,19 @@ def after_change_of(session: Session, conversation: Conversation, run: Run | Non
 
 
 # S5c (plan decision 16): what the end gate checks, part by part - the project's tests, the
-# Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.WRITTEN`: S5b's pages, "ui").
-PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui")
+# Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.WRITTEN`: S5b's pages, "ui";
+# 0.1.7's config files, shell scripts and code style and types, "config", "scripts" and
+# "style").
+PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui", "config", "scripts", "style")
+# (On in a recipe's Checks step unless unticked: a row's graph from before has no such key.)
+ON_UNLESS_UNTICKED = ("config", "scripts", "style")
 
 
 class Checks(NamedTuple):
     """What a turn's end gate checks (S5c): its parts `on`; its Fix rounds (0: check only; None:
     until it passes, k-canli-016); the effective After a change (`after_change_of`); and whether
     a recipe of the turn set its own (its Checks step's "Set for this recipe")."""
+
     on: frozenset[str]
     rounds: int | None
     setting: str
@@ -652,10 +947,16 @@ def recipe_checks(session: Session, run: Run | None) -> list[tuple[dict | None, 
     Manual, "lead" where the Orchestrator decides)."""
     if run is None or not run.teams:
         return []
-    rows = session.execute(select(ConversationTeam.state, ConversationTeam.picked_by).where(
-        ConversationTeam.conversation_id == run.conversation_id))
-    return [(state["graph"].get("checks"), picked) for state, picked in rows if state and state.get(
-        "run_id") == run.id and isinstance(state.get("graph"), dict)]
+    rows = session.execute(
+        select(ConversationTeam.state, ConversationTeam.picked_by).where(
+            ConversationTeam.conversation_id == run.conversation_id
+        )
+    )
+    return [
+        (state["graph"].get("checks"), picked)
+        for state, picked in rows
+        if state and state.get("run_id") == run.id and isinstance(state.get("graph"), dict)
+    ]
 
 
 def checks_of(session: Session, conversation: Conversation, run: Run | None = None) -> Checks:
@@ -672,16 +973,20 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
     rounds = project.fix_rounds if project is not None else None
     kinds = dict(project.check_kinds or {}) if project is not None else {}
     theirs = frozenset(
-        (["tests"] if setting in ("check", "tests") else []) + (
+        (["tests"] if setting in ("check", "tests") else [])
+        + (
             ["review", *(kind for kind in PARTS[2:] if kinds.get(kind, True))]
-            if setting == "check" else []))
+            if setting == "check"
+            else []
+        )
+    )
     recipes = recipe_checks(session, run)
     if all(one is None for one, _who in recipes):
         return Checks(theirs, rounds, setting, False)
     on: set[str] = set()
     most: int | None = 0
     for one, who in recipes:
-        parts = set() if one is None else {part for part in PARTS if one.get(part)}
+        parts = set() if one is None else {p for p in PARTS if one.get(p, p in ON_UNLESS_UNTICKED)}
         asked = None if one is None else one.get("fix_rounds")
         # (Review of S5c: only a recipe the user picked may lower the project's checks - one the
         # Orchestrator picked only adds to them, or it would switch its own checks off.)
@@ -692,6 +997,14 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
     return Checks(frozenset(on), most, setting, True)
 
 
+def with_held(turn: Checks, held: Checks) -> Checks:
+    """k-bakis-yeri: the checks of a turn Fix it started on held work (its kept copy) - the held
+    turn's own and never fewer than the tests and the review, whatever the chat's switch or the
+    project's After a change say now: the work goes in by this turn's end check alone. Its Fix
+    rounds are the turn's."""
+    return Checks(turn.on | held.on | {"tests", "review"}, turn.rounds, "check", False)
+
+
 def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> str | None:
     """Why `run` is not run where a turn's end waits at most `seconds` for it: the newest run of
     it in the project (any chat's, anyone's) ran longer, or was stopped at a limit of that wait or
@@ -700,20 +1013,35 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
     again."""
     wanted = _folded(run.command)
     for one in session.scalars(
-            select(Command).join(Run, Run.id == Command.run_id)
-            .join(Conversation, Conversation.id == Run.conversation_id)
-            .where(Conversation.project_id == project_id, Command.cwd == run.cwd,
-                   Command.status.in_(("exited", "timed_out")),
-                   Command.started_at.is_not(None), Command.ended_at.is_not(None))
-            .order_by(Command.ended_at.desc(), literal_column("commands.rowid").desc())):
+        select(Command)
+        .join(Run, Run.id == Command.run_id)
+        .join(Conversation, Conversation.id == Run.conversation_id)
+        .where(
+            Conversation.project_id == project_id,
+            Command.cwd == run.cwd,
+            Command.status.in_(("exited", "timed_out")),
+            Command.started_at.is_not(None),
+            Command.ended_at.is_not(None),
+        )
+        .order_by(Command.ended_at.desc(), literal_column("commands.rowid").desc())
+    ):
         if _known_as(session, one) != wanted or one.ended_at is None or one.started_at is None:
             continue
         took = (one.ended_at - one.started_at).total_seconds()
-        if took > seconds or one.status == "timed_out" and one.timeout_seconds >= seconds and (
-                took >= one.timeout_seconds - 1):  # (it ran its whole limit: a second's slack)
+        if (
+            took > seconds
+            or one.status == "timed_out"
+            and one.timeout_seconds >= seconds
+            and (took >= one.timeout_seconds - 1)
+        ):  # (it ran its whole limit: a second's slack)
             return f"they ran past {clock(seconds)} on {one.ended_at:%d %b %H:%M}"
         return None
     return None
+
+
+# S11: why a stronger model's rounds were no pass - a test changed without leave, the Reviewer
+# held or did not read the test change, the tests gave no verdict, or they still fail.
+Reason = Literal["touched", "held", "unread", "no_verdict", "still", "on_hold", "removed"]
 
 
 class Row(TypedDict):
@@ -732,6 +1060,14 @@ class Row(TypedDict):
     question: NotRequired[str]
     # S8: a "ci_offer" row's offer, by its name (`ci_commands.offer_id`): Run these approves it.
     offer: NotRequired[str]
+    # S11: why a stronger model's rounds were no pass (`Reason`): Fix it's fixed sentence goes by
+    # it, never by the row's text, which names what a model chose.
+    reason: NotRequired[Reason]
+    # N: a failed "tests" row whose every failure was failing before this turn, or flaky (S7, a
+    # lint's CL-336 M) - said, not sent back: no gate waits on it (`still_failing`).
+    before: NotRequired[bool]
+
+
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
 
 PASSED_ROW = "Tests passed: {command}{guessed} - {summary}"
@@ -745,15 +1081,22 @@ RAN_NONE = "Tests ran none: {command} collected no test"
 TIMED_OUT = "Tests timed out after {minutes} min: {command}"
 # A turn the user watches waits at most so long for them (S1, until they can run on in the
 # background): stopped then, and said so - never passed or failed.
-NOT_WAITED = ("Tests not waited for: still running at {clock}, so KOLONİ stopped them rather "
-              "than hold the answer - {command}")
+NOT_WAITED = (
+    "Tests not waited for: still running at {clock}, so KOLONİ stopped them rather "
+    "than hold the answer - {command}"
+)
 NOT_RUN = "Tests not run: {why}"
 # (A change made after the last run: that run did not see it.)
 NOT_AGAIN = "Tests not run on the last change: {why}"
 NOT_STARTED = "Tests could not start: {first}"
 STOPPED = "Tests not finished: stopped"
-NO_COMMAND = ("No test command: nothing was run (set one in Settings › This project › Checks "
-              "and git)")
+# Where the user sets a test command (0.1.7: Test before adding is gone from Checks and git): the
+# project map, its whole project's row ("./") or a part's - as the guide says it.
+SET_ONE = (
+    "set one on the project map, Settings › This project › This folder: the whole project's row "
+    "or a part's"
+)
+NO_COMMAND = f"No test command: nothing was run ({SET_ONE})"
 NO_TESTS_ROW = "No tests: only documents, slides, diagrams or data changed"
 SENT_BACK = "Sent back to fix: {n} of {most} rounds"
 # k-canli-016: Until it passes - how far it came, and why the rounds stopped short of a pass.
@@ -764,6 +1107,10 @@ AT_CEILING = "at most {most} rounds"
 TOKEN_LIMIT = "the turn's token limit"
 BUDGET = "the project's monthly budget"
 STILL_FAILING = "Still failing after {most} fix rounds: you decide (Fix it)"
+# R (CL-345): a whole suite's count against its last green run (`proof_before.green_said`) -
+# fewer tests, more skipped - the only failure left: said so, not as tests that fail.
+COUNT_ROWS = ("Tests went from ", "Skipped rose from ")
+STILL_FEWER = "Still fewer tests, or more skipped, after {most} fix rounds: you decide (Fix it)"
 RECIPE_SPENT = "Still failing after the recipe's fix rounds: you decide (Fix it)"
 WAITING = "Not in this run: {name}'s work waits in Ready for you"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
@@ -786,8 +1133,9 @@ OFF_FOR_CHAT = "Not checked: off for this chat"
 # S5c: a recipe's Checks step set to check nothing; its tests set off; its Fix rounds at 0.
 RECIPE_OFF = "Not checked: this recipe's Checks step checks nothing"
 TESTS_OFF = "Tests not checked: off in this recipe's Checks step"
-CHECK_ONLY = ("Checked only: this recipe's Checks step sends nothing back to fix - you decide "
-              "(Fix it)")
+CHECK_ONLY = (
+    "Checked only: this recipe's Checks step sends nothing back to fix - you decide (Fix it)"
+)
 LAST_RUN = "An agent ran {command} {when} the last change: {how}"
 # S2: the tests a turn added or changed; its Orchestrator's reason for none, where it was asked;
 # a test it removed.
@@ -796,10 +1144,42 @@ NO_NEW_TEST = "No new test: the Orchestrator said “{line}”"
 TEST_REMOVED = "Test removed: {path}"
 
 
-def row(kind: str, state: str, text: str, command: str | None = None,
-        guessed: bool = False) -> Row:
-    return {"kind": kind, "state": state, "text": text, "command": command, "guessed": guessed,
-            "started_at": None, "counts": None}
+def row(
+    kind: str,
+    state: str,
+    text: str,
+    command: str | None = None,
+    guessed: bool = False,
+    reason: "Reason | None" = None,
+) -> Row:
+    made: Row = {
+        "kind": kind,
+        "state": state,
+        "text": text,
+        "command": command,
+        "guessed": guessed,
+        "started_at": None,
+        "counts": None,
+    }
+    if reason is not None:
+        made["reason"] = reason
+    return made
+
+
+def counts_only(rows: list[Row]) -> bool:
+    """R: whether the failed "tests" rows are all a count against the last green run (fewer
+    tests, more skipped) - no test fails."""
+    failed = [one["text"] for one in rows if one["kind"] == "tests" and one["state"] == "failed"]
+    return bool(failed) and all(one.startswith(COUNT_ROWS) for one in failed)
+
+
+def still_failing(rows: list[Row]) -> bool:
+    """Whether a test run of the turn failed that is the turn's own: a failed "tests" row not
+    excused as failing before it (N: the review and the live try wait on these alone)."""
+    return any(
+        one["kind"] == "tests" and one["state"] == "failed" and not one.get("before")
+        for one in rows
+    )
 
 
 def clock(seconds: int) -> str:
@@ -808,8 +1188,11 @@ def clock(seconds: int) -> str:
 
 # What a runner says where it ran no test: unittest's "Ran 0 tests", jest's "No tests found",
 # vitest's "No test files found", pytest's "no tests ran" (its exit 5 too).
-RAN_NO_TEST = re.compile(r"\bRan 0 tests\b|\bNo tests found\b|\bNo test files found\b|"
-                         r"\bno tests ran\b", re.IGNORECASE)
+RAN_NO_TEST = re.compile(
+    r"\bRan 0 tests\b|\bNo tests found\b|\bNo test files found\b|"
+    r"\bno tests ran\b",
+    re.IGNORECASE,
+)
 SKIPPED = re.compile(r"\b[1-9]\d* skipped\b", re.IGNORECASE)
 
 
@@ -823,7 +1206,8 @@ def _ran_none(run: TestRun, code: int, output: str) -> bool:
     output counts none that passed or failed."""
     named = run.command.casefold()
     return (code == 5 and ("pytest" in named or "unittest" in named)) or (
-        _summary(output) is None and bool(RAN_NO_TEST.search(output[-4000:])))
+        _summary(output) is None and bool(RAN_NO_TEST.search(output[-4000:]))
+    )
 
 
 def _counted(found: "test_found.Counts | None") -> str | None:
@@ -832,8 +1216,11 @@ def _counted(found: "test_found.Counts | None") -> str | None:
     if found is None or not found.total:
         return None
     unit = "" if found.unit == "tests" else f" {found.unit}"
-    return ", ".join(f"{n}{unit} {word}" for n, word in zip(found[:3], (
-        "passed", "failed", "skipped"), strict=True) if n or word == "passed")
+    return ", ".join(
+        f"{n}{unit} {word}"
+        for n, word in zip(found[:3], ("passed", "failed", "skipped"), strict=True)
+        if n or word == "passed"
+    )
 
 
 def _skipped_only(output: str, found: "test_found.Counts | None") -> str | None:
@@ -850,8 +1237,14 @@ def _first(*said: str) -> str:
     return "no word of why"
 
 
-def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, said: str,
-              seconds: int = MAX_TIMEOUT) -> Row:
+def tests_row(
+    run: TestRun,
+    code: int | None,
+    output: str,
+    ended: str | None,
+    said: str,
+    seconds: int = MAX_TIMEOUT,
+) -> Row:
     """A test run as its Checked row: failed is any exit but 0 (pytest's 5, nothing collected,
     aside) or a failure its output counts; never passed without exit code 0. `ended`: its
     record's status (None: none - it never started); `seconds`: the wait it was given. Its
@@ -861,15 +1254,24 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
     found = test_found.counts(output, run.command)
 
     def made(state: str, text: str) -> Row:
-        return {**row("tests", state, text, run.command, run.guessed),
-                "counts": found._asdict() if found else None}
-    if ended in (None, "failed_to_start") or code not in (0, None) and (
-            finish_tests.did_not_start(code, output)):
+        return {
+            **row("tests", state, text, run.command, run.guessed),
+            "counts": found._asdict() if found else None,
+        }
+
+    if (
+        ended in (None, "failed_to_start")
+        or code not in (0, None)
+        and (finish_tests.did_not_start(code, output))
+    ):
         return made("not_run", NOT_STARTED.format(first=_first(said, output)))
     if ended == "timed_out":
-        return made("timed_out", TIMED_OUT.format(minutes=seconds // 60, command=run.command)
-                    if seconds >= MAX_TIMEOUT else
-                    NOT_WAITED.format(clock=clock(seconds), command=run.command))
+        return made(
+            "timed_out",
+            TIMED_OUT.format(minutes=seconds // 60, command=run.command)
+            if seconds >= MAX_TIMEOUT
+            else NOT_WAITED.format(clock=clock(seconds), command=run.command),
+        )
     if ended != "exited" or code is None:
         return made("not_run", STOPPED)
     counted = bool(ledger.FAILED.search(output[-4000:]))
@@ -879,12 +1281,20 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
         return made("not_run", RAN_NONE.format(command=run.command))
     summary = _summary(output) or _counted(found)
     if code != 0 or counted:
-        return made("failed", FAILED_ROW.format(command=run.command, guessed=guessed,
-                                                summary=summary or f"exit {code}"))
+        return made(
+            "failed",
+            FAILED_ROW.format(
+                command=run.command, guessed=guessed, summary=summary or f"exit {code}"
+            ),
+        )
     if (skipped := _skipped_only(output, found)) is not None:
         return made("not_run", SKIPPED_ONLY.format(command=run.command, summary=skipped))
-    return made("passed", PASSED_ROW.format(command=run.command, guessed=guessed, summary=summary)
-                if summary else BY_CODE.format(command=run.command, guessed=guessed))
+    return made(
+        "passed",
+        PASSED_ROW.format(command=run.command, guessed=guessed, summary=summary)
+        if summary
+        else BY_CODE.format(command=run.command, guessed=guessed),
+    )
 
 
 def checked_text(rows: list[Row]) -> str:
@@ -921,38 +1331,50 @@ def load_of(session: Session) -> tuple[int, int]:
     """KOLONİ's test runs at once, and the test processes each may start, as Settings › The app
     has them; a value out of its range is held to it, one that is no whole number is the
     default."""
+
     def read(name: str, low_high: tuple[int, int], default: int) -> int:
         value = session.scalar(select(Flag.value).where(Flag.name == name))
         try:
             return default if value is None else min(low_high[1], max(low_high[0], int(value)))
         except ValueError:
             return default
-    return (read(TEST_RUNS_FLAG, TEST_RUNS_RANGE, TEST_RUNS),
-            read(TEST_WORKERS_FLAG, TEST_WORKERS_RANGE, TEST_WORKERS))
+
+    return (
+        read(TEST_RUNS_FLAG, TEST_RUNS_RANGE, TEST_RUNS),
+        read(TEST_WORKERS_FLAG, TEST_WORKERS_RANGE, TEST_WORKERS),
+    )
 
 
-def written_since(session: Session, project_id: str,
-                  since: datetime) -> dict[str, list[tuple[datetime, str | None]]]:
+def written_since(
+    session: Session, project_id: str, since: datetime
+) -> dict[str, list[tuple[datetime, str | None]]]:
     """The project's paths a recorded change wrote after `since` - written there, taken in from a
     copy, or taken back (Undo), by any chat's turn - each with when, and what those changes
     left there (None: no file)."""
     left: dict[str, list[tuple[datetime, str | None]]] = {}
     for change in session.scalars(
-            select(FileChange).join(Run, Run.id == FileChange.run_id)
-            .join(Conversation, Conversation.id == Run.conversation_id)
-            .where(Conversation.project_id == project_id,
-                   FileChange.status.in_(("applied", MERGED, "reverted")),
-                   or_(FileChange.created_at > since, FileChange.decided_at > since))):
+        select(FileChange)
+        .join(Run, Run.id == FileChange.run_id)
+        .join(Conversation, Conversation.id == Run.conversation_id)
+        .where(
+            Conversation.project_id == project_id,
+            FileChange.status.in_(("applied", MERGED, "reverted")),
+            or_(FileChange.created_at > since, FileChange.decided_at > since),
+        )
+    ):
         # (Undo puts back what it replaced - nothing where it made the file: `revert_change`.)
-        held = (None if change.kind == "create" else change.before_content or "") if (
-            change.status == "reverted") else (
-            None if change.kind == "delete" else change.after_content)
+        held = (
+            (None if change.kind == "create" else change.before_content or "")
+            if (change.status == "reverted")
+            else (None if change.kind == "delete" else change.after_content)
+        )
         left.setdefault(change.path, []).append((change.decided_at or change.created_at, held))
     return left
 
 
-def changed_since(session: Session, project_id: str, since: datetime,
-                  ran: Command | None = None) -> bool:
+def changed_since(
+    session: Session, project_id: str, since: datetime, ran: Command | None = None
+) -> bool:
     """Whether the project changed after `since` beneath `ran` (a test run of KOLONİ's): a
     recorded change (`written_since`), or a command of any turn in it that may have changed
     files - `_rewritten_after`'s rule, the same as for a pass that stands.
@@ -967,28 +1389,75 @@ def changed_since(session: Session, project_id: str, since: datetime,
     # - the Reviewer's (a read, or the approved test command: decision 6) and S11's diagnosis.
     # S11's fixer, though KOLONİ opened it, writes: its commands count.)
     proofs = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
-    reads = select(ToolCall.id).where(or_(*(ToolCall.provider_call_id.startswith(
-        f"{PROOF_CALL}{kind}_") for kind in READ_ONLY_LOOKS)))
+    reads = select(ToolCall.id).where(
+        or_(
+            *(
+                ToolCall.provider_call_id.startswith(f"{PROOF_CALL}{kind}_")
+                for kind in READ_ONLY_LOOKS
+            )
+        )
+    )
     looks = select(Agent.id).where(Agent.tool_call_id.in_(reads))
     agents: dict[str, set[str]] = {}
     for run_id, agent_id in session.execute(
-            select(Command.run_id, Command.agent_id).join(Run, Run.id == Command.run_id)
-            .join(Conversation, Conversation.id == Run.conversation_id)
-            .where(Conversation.project_id == project_id, Command.id != ran.id,
-                   Command.started_at.is_not(None), Command.started_at >= since,
-                   or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(proofs)),
-                   Command.agent_id.not_in(looks))):
+        select(Command.run_id, Command.agent_id)
+        .join(Run, Run.id == Command.run_id)
+        .join(Conversation, Conversation.id == Run.conversation_id)
+        .where(
+            Conversation.project_id == project_id,
+            Command.id != ran.id,
+            Command.started_at.is_not(None),
+            Command.started_at >= since,
+            or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(proofs)),
+            Command.agent_id.not_in(looks),
+        )
+    ):
         agents.setdefault(run_id, set()).add(agent_id)
-    return any(_rewritten_after(session, run_id, by, ran, _known_as(session, ran))
-               for run_id, by in agents.items())
+    return any(
+        _rewritten_after(session, run_id, by, ran, _known_as(session, ran))
+        for run_id, by in agents.items()
+    )
+
+
+def new_pass(passes: list[dict], kind: str, **more) -> dict:
+    """tuval-kontrol-dongusu (round 2: the backend says the rounds, the canvas draws them): one
+    pass of KOLONİ's checks as it happens, added to `passes` - its number, kind ("check": the
+    gate's steps; "stronger": a stronger tier's round), how its tests came out (`tests_state`),
+    the looks it opened (each agent's id, role and verdict, recorded as the look ends:
+    `ReviewMixin._pass_looked`), why it went back and how ("fix": a fix round; "ask": the ask for a
+    test, no round), and the agents that fixed it - those its send-back had the Lead open
+    (`ProofMixin._fixed_by`), or a stronger tier's fixer; a tier's diagnosis is its own kind."""
+    one = {
+        "n": len(passes) + 1,
+        "kind": kind,
+        "tests": None,
+        "looks": [],
+        "why": None,
+        "sent": None,
+        "fixers": [],
+        **more,
+    }
+    passes.append(one)
+    return one
+
+
+def tests_state(rows: list[Row]) -> str | None:
+    """How a pass's test runs came out: "failed" where one failed, "passed" where one passed,
+    None where none ran (off, nothing to test, not reached)."""
+    states = {one["state"] for one in rows if one["kind"] == "tests"}
+    return "failed" if "failed" in states else "passed" if "passed" in states else None
 
 
 def settle_running(session: Session) -> None:
     """At start-up: a test run that went on after its turn ended with the process that ran it -
     its row says so, never "running" on (`recover_interrupted`)."""
-    for note in session.scalars(select(Message).where(
-            Message.role == "checked", Message.content.contains(ICONS["running"]))):
-        rows = [row("tests", "not_run", RESTARTED, one["command"], one["guessed"])
-                if one["state"] == "running" else one
-                for one in (note.blocks or {}).get("rows", [])]
-        note.blocks, note.content = {"rows": rows}, checked_text(rows)
+    for note in session.scalars(
+        select(Message).where(Message.role == "checked", Message.content.contains(ICONS["running"]))
+    ):
+        rows = [
+            row("tests", "not_run", RESTARTED, one["command"], one["guessed"])
+            if one["state"] == "running"
+            else one
+            for one in (note.blocks or {}).get("rows", [])
+        ]
+        note.blocks, note.content = {**(note.blocks or {}), "rows": rows}, checked_text(rows)

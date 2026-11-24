@@ -1,5 +1,15 @@
 import type { Element } from 'hast'
-import { type ReactNode, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  type ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import ReactMarkdown, { type Components, type UrlTransform, defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { LONGEST_COLOURED, MOST_COLOURED, canColour, colour } from '../changes/highlight'
@@ -15,7 +25,8 @@ const Source = createContext({ text: '', written: false })
  * such a path (https://github.com/x/copies/y/tree/z) stays a link.
  */
 const IN_COPY = /^(?!(?!file:)[a-z][a-z\d+.-]*:\/\/).*?[\\/]copies[\\/][^\\/]+[\\/]tree[\\/]([^?#]+)/i
-const urlTransform: UrlTransform = (url, key, node) => (node?.tagName === 'a' && key === 'href' && IN_COPY.test(url) ? url : defaultUrlTransform(url))
+const urlTransform: UrlTransform = (url, key, node) =>
+  node?.tagName === 'a' && key === 'href' && IN_COPY.test(url) ? url : defaultUrlTransform(url)
 
 /**
  * No image in a model's or an agent's words is drawn: drawing it would fetch its address
@@ -41,7 +52,12 @@ const components: Components = {
   a: ({ node: _node, href, children, ...props }) => {
     const inCopy = typeof href === 'string' ? IN_COPY.exec(href) : null
     // denetim-010 #20: in a tab of its own - in the app's, a link to it with `#key=` would offer the page another key.
-    if (!inCopy) return <a href={href} {...props} target="_blank" rel="noopener noreferrer">{children}</a>
+    if (!inCopy)
+      return (
+        <a href={href} {...props} target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      )
     const path = inCopy[1].replaceAll('\\', '/')
     return (
       <code className="md-path" title={`${path}, in the project`}>
@@ -60,13 +76,26 @@ const components: Components = {
     const { text: source, written } = useContext(Source)
     const child = node?.children[0]
     const code = child?.type === 'element' && child.tagName === 'code' ? child : null
-    const language = code && [code.properties.className].flat().map(String).find(name => name.startsWith('language-'))?.slice('language-'.length)
+    const language =
+      code &&
+      [code.properties.className]
+        .flat()
+        .map(String)
+        .find(name => name.startsWith('language-'))
+        ?.slice('language-'.length)
     const text = code ? textOf(code) : ''
     // Coloured as a file is (slice 85a): highlight.js's own output, which escapes the text. (Once per text: an
     // answer being written renders again on every token.)
     const coloured = useMemo(() => {
       const lines = text.split('\n')
-      if (!language || language === 'mermaid' || !canColour(language) || lines.length > MOST_COLOURED || lines.some(line => line.length > LONGEST_COLOURED)) return null
+      if (
+        !language ||
+        language === 'mermaid' ||
+        !canColour(language) ||
+        lines.length > MOST_COLOURED ||
+        lines.some(line => line.length > LONGEST_COLOURED)
+      )
+        return null
       return colour(text, language)
     }, [text, language])
     const block = <pre {...props} />
@@ -135,12 +164,30 @@ function Diagram({ text, children }: { text: string; children: ReactNode }) {
           swimlane: { layout: 'swimlane' },
           // mermaid's own list, and what a diagram's %%{init}%% or front matter would use to bring back HTML labels,
           // pick its own theme or layout, or add CSS that fetches (themeCSS is not in mermaid's list)
-          secure: ['secure', 'securityLevel', 'startOnLoad', 'maxTextSize', 'suppressErrorRendering', 'maxEdges', 'htmlLabels', 'theme', 'themeVariables', 'themeCSS', 'fontFamily', 'altFontFamily', 'darkMode', 'layout'],
+          secure: [
+            'secure',
+            'securityLevel',
+            'startOnLoad',
+            'maxTextSize',
+            'suppressErrorRendering',
+            'maxEdges',
+            'htmlLabels',
+            'theme',
+            'themeVariables',
+            'themeCSS',
+            'fontFamily',
+            'altFontFamily',
+            'darkMode',
+            'layout',
+          ],
         })
         const { svg, diagramType } = await mermaid.render(`mermaid-${++drawings}`, text)
         if (!gone) setDrawn({ svg, type: diagramType })
       })
-      .catch((error: unknown) => !gone && setDrawn({ error: String(error instanceof Error ? error.message : error).split('\n')[0] }))
+      .catch(
+        (error: unknown) =>
+          !gone && setDrawn({ error: String(error instanceof Error ? error.message : error).split('\n')[0] }),
+      )
     return () => {
       gone = true
     }

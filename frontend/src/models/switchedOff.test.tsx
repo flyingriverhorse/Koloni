@@ -23,7 +23,11 @@ const provider = (over: Partial<Provider>): Provider => ({
     { name: 'dear', note: null, tier: 'strongest', agents: true, enabled: false },
   ],
   only_listed: false,
-  max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
   has_key: true,
   position: 0,
   created_at: 't',
@@ -56,18 +60,39 @@ test('a model is switched off and on beside "Agents may use"; one off is greyed 
   })
   expect(await within(dialog).findByText('big is switched off.')).toBeInTheDocument()
   await userEvent.click(within(dialog).getByRole('switch', { name: 'dear on' }))
-  expect(h.onSave.mock.lastCall![1].models[1]).toEqual({ name: 'dear', note: null, tier: 'strongest', agents: true, enabled: true })
+  expect(h.onSave.mock.lastCall![1].models[1]).toEqual({
+    name: 'dear',
+    note: null,
+    tier: 'strongest',
+    agents: true,
+    enabled: true,
+  })
 })
 
 test('B-396: a model KOLONİ switched off as its CLI refused it says why; On sends no why back', async () => {
   const h = handlers()
   const why = 'Copilot refused it: not available on your account'
-  render(<ModelsPage providers={[provider({ models: [{ name: 'dear', note: null, tier: 'balanced', agents: true, enabled: false, off_why: why }] })]} {...h} />)
+  render(
+    <ModelsPage
+      providers={[
+        provider({
+          models: [{ name: 'dear', note: null, tier: 'balanced', agents: true, enabled: false, off_why: why }],
+        }),
+      ]}
+      {...h}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Local/ }))
   const dear = within(screen.getByRole('dialog', { name: 'Local' })).getByRole('switch', { name: 'dear on' })
   expect(within(dear.closest('tr')!).getByText(why)).toBeInTheDocument()
   await userEvent.click(dear)
-  expect(h.onSave.mock.lastCall![1].models[0]).toEqual({ name: 'dear', note: null, tier: 'balanced', agents: true, enabled: true })
+  expect(h.onSave.mock.lastCall![1].models[0]).toEqual({
+    name: 'dear',
+    note: null,
+    tier: 'balanced',
+    agents: true,
+    enabled: true,
+  })
 })
 
 test('a provider is switched off and on from its window’s head; one off is greyed on its card', async () => {
@@ -130,9 +155,20 @@ test('a picker shows a provider switched off and does not let it be picked', () 
 })
 
 test('a CLI switched off offers no “Read now”: Claude Code’s would be a model turn', async () => {
-  const onLimits = vi.fn().mockResolvedValue({ unknown: 'not read yet', read_at: null, source: null, plan: null, windows: [], credits: null })
+  const onLimits = vi
+    .fn()
+    .mockResolvedValue({ unknown: 'not read yet', read_at: null, source: null, plan: null, windows: [], credits: null })
   const cli = { kind: 'claude_cli' as const, base_url: null, models: [] }
-  render(<ModelsPage providers={[provider({ ...cli, id: 'on', name: 'On' }), provider({ ...cli, id: 'off', name: 'Off', enabled: false })]} {...handlers()} onLimits={onLimits} />)
+  render(
+    <ModelsPage
+      providers={[
+        provider({ ...cli, id: 'on', name: 'On' }),
+        provider({ ...cli, id: 'off', name: 'Off', enabled: false }),
+      ]}
+      {...handlers()}
+      onLimits={onLimits}
+    />,
+  )
   expect(await screen.findByRole('button', { name: 'Read On’s plan now' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Read Off’s plan now' })).toBeNull()
 })

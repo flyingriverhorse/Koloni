@@ -3,6 +3,7 @@
 Revision ID: 0031
 Revises: 0030
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -22,8 +23,9 @@ def upgrade() -> None:
         batch.add_column(sa.Column("lane", sa.Text(), nullable=True))
     # A change from before there were lanes was outside none.
     with op.batch_alter_table("file_changes") as batch:
-        batch.add_column(sa.Column(
-            "outside_lane", sa.Boolean(), server_default=sa.false(), nullable=False))
+        batch.add_column(
+            sa.Column("outside_lane", sa.Boolean(), server_default=sa.false(), nullable=False)
+        )
 
 
 def downgrade() -> None:

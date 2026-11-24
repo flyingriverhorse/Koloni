@@ -8,9 +8,14 @@ test('on a narrow window the teams list and the New role form lie one under the 
   await openFreshConversation(page)
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
   await page.getByRole('button', { name: 'New role' }).click()
-  const [teams, form] = [await page.locator('.agents-teams').boundingBox(), await page.locator('.role-panel').boundingBox()]
+  const [teams, form] = [
+    await page.locator('.agents-teams').boundingBox(),
+    await page.locator('.role-panel').boundingBox(),
+  ]
   expect(form!.y).toBeGreaterThanOrEqual(teams!.y + teams!.height - 1)
-  const switches = await page.locator('.agents-teams .switch, .agents-teams input[type=checkbox]').evaluateAll(all => all.map(one => one.getBoundingClientRect().bottom))
+  const switches = await page
+    .locator('.agents-teams .switch, .agents-teams input[type=checkbox]')
+    .evaluateAll(all => all.map(one => one.getBoundingClientRect().bottom))
   expect(Math.max(...switches)).toBeLessThanOrEqual(form!.y + 1)
 })
 
@@ -23,6 +28,9 @@ test('on a narrow window "Roles ▸ N" stays at the top of the page as it scroll
   const scroller = page.locator('.agents-page')
   // (Scrolled again till it goes: the page is tall enough only once the form and the teams' list are drawn.)
   await expect.poll(() => scroller.evaluate(one => (one.scrollTo(0, 800), one.scrollTop))).toBeGreaterThan(300)
-  const [toggle, top] = [await page.getByRole('button', { name: /^Roles ▸/ }).boundingBox(), await scroller.boundingBox()]
+  const [toggle, top] = [
+    await page.getByRole('button', { name: /^Roles ▸/ }).boundingBox(),
+    await scroller.boundingBox(),
+  ]
   expect(Math.abs(toggle!.y - top!.y)).toBeLessThan(24)
 })

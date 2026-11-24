@@ -94,7 +94,8 @@ class Claims:
         folder = str(Workspace(root).root).casefold()
         return sorted(
             (self._shown[key], stack[-1])
-            for key, stack in self._held.items() if key[0] == folder and stack
+            for key, stack in self._held.items()
+            if key[0] == folder and stack
         )
 
     def held_by(self, agent: str) -> list[str]:
@@ -108,7 +109,9 @@ class Claims:
         folder = str(Workspace(root).root).casefold()
         return sorted(
             (wait.path, wait.agent)
-            for key, queue in self._queue.items() if key[0] == folder for wait in queue
+            for key, queue in self._queue.items()
+            if key[0] == folder
+            for wait in queue
         )
 
     def waiting(self, agent: str) -> list[Wait]:
@@ -164,7 +167,11 @@ class Claims:
         return None
 
     def wait(
-        self, root: str | Path, path: object, agent: str, line: tuple[str, ...] = (),
+        self,
+        root: str | Path,
+        path: object,
+        agent: str,
+        line: tuple[str, ...] = (),
         changed: Callable[[], None] | None = None,
     ) -> Wait:
         """Stand in line for a file `take` did not give. The caller has asked `cycle`."""
@@ -172,8 +179,7 @@ class Claims:
         if found is None or not self._held.get(found[0]):
             raise ValueError("nothing to wait for: the file is not held")
         key, _shown = found
-        wait = Wait(agent, tuple(line), key, self._shown[key], self._held[key][-1],
-                    changed=changed)
+        wait = Wait(agent, tuple(line), key, self._shown[key], self._held[key][-1], changed=changed)
         self._queue.setdefault(key, []).append(wait)
         return wait
 
@@ -206,7 +212,8 @@ class Claims:
         Returns the waits this moved."""
         moved: list[Wait] = []
         for key in [
-            key for key, stack in self._held.items()
+            key
+            for key, stack in self._held.items()
             if agent in stack and (which is None or which(key))
         ]:
             stack = self._held[key]

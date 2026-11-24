@@ -6,7 +6,9 @@ import { Markdown } from './Markdown'
 
 /** KOLONİ's word to a CLI Lead that a sub-agent's report follows (app/agent.py SPAWN_ENDED_SEE): its model's, not the user's (K-r152). */
 export const isFrame = (m: Pick<Message, 'role' | 'from_agent_id' | 'content'>) =>
-  m.role === 'agent' && m.from_agent_id === null && /^KOLONİ, of your spawn_agent for .+: what came of it follows, as a message from /.test(m.content)
+  m.role === 'agent' &&
+  m.from_agent_id === null &&
+  /^KOLONİ, of your spawn_agent for .+: what came of it follows, as a message from /.test(m.content)
 
 // K-kanit's line under a report (app/ledger.py DID): in sight while the report is folded.
 const DID = /^What it did.*?, from KOLONİ's record: .*$/m
@@ -22,7 +24,10 @@ const SAID_CHARS = 140
 /** What a report says first: its first line that is no heading or fence, to its first full stop. */
 function firstSaid(text: string): string {
   for (const raw of text.split('\n')) {
-    const line = raw.replace(/[*_`]/g, '').replace(/^[\s>*-]+/, '').trim()
+    const line = raw
+      .replace(/[*_`]/g, '')
+      .replace(/^[\s>*-]+/, '')
+      .trim()
     if (!line || /^\s*(#|```)/.test(raw) || line === 'What it said last:' || DID.test(line)) continue
     const said = line.split(/(?<=[.!?])\s/)[0]
     return said.length > SAID_CHARS ? `${said.slice(0, SAID_CHARS - 1)}…` : said
@@ -37,7 +42,9 @@ function asData(content: string): { said: string; label: string; quoted: string 
   try {
     const quoted: unknown = JSON.parse(found[3])
     // (TO_LEAD's words go on after the quote, ". Decide what…": its full stop is the one before the label.)
-    return typeof quoted === 'string' ? { said: `${found[1]} ${found[4].replace(/^[.\s]+/, '')}`.trim(), label: found[2].trim(), quoted } : null
+    return typeof quoted === 'string'
+      ? { said: `${found[1]} ${found[4].replace(/^[.\s]+/, '')}`.trim(), label: found[2].trim(), quoted }
+      : null
   } catch {
     return null
   }

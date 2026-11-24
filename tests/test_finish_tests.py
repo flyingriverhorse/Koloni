@@ -10,11 +10,14 @@ from app.finish_tests import command_of, did_not_start
 def test_the_test_command_is_the_check_command_or_what_the_folder_shows(tmp_path):
     assert command_of(str(tmp_path), "make check") == "make check"
     assert command_of(str(tmp_path), None) is None
-    (tmp_path / "package.json").write_text(json.dumps({"scripts": {
-        "test": 'echo "Error: no test specified" && exit 1'}}), encoding="utf-8")
+    (tmp_path / "package.json").write_text(
+        json.dumps({"scripts": {"test": 'echo "Error: no test specified" && exit 1'}}),
+        encoding="utf-8",
+    )
     assert command_of(str(tmp_path), None) is None  # (npm init's: it only fails)
-    (tmp_path / "package.json").write_text(json.dumps({"scripts": {"test": "vitest run"}}),
-                                           encoding="utf-8")
+    (tmp_path / "package.json").write_text(
+        json.dumps({"scripts": {"test": "vitest run"}}), encoding="utf-8"
+    )
     assert command_of(str(tmp_path), None) == "npm test"
     (tmp_path / "tests").mkdir()
     assert command_of(str(tmp_path), None) == "npm test"  # (a Node project's tests/)
@@ -27,12 +30,18 @@ def test_the_test_command_is_the_check_command_or_what_the_folder_shows(tmp_path
 
 def test_what_a_missing_program_says_is_told_from_a_failing_test():
     # (wrapped by PowerShell at its console's width)
-    assert did_not_start(1, "pytest : The term 'pytest' is not recognized as the name of a\n"
-                            "cmdlet, function, script file, or operable program.")
+    assert did_not_start(
+        1,
+        "pytest : The term 'pytest' is not recognized as the name of a\n"
+        "cmdlet, function, script file, or operable program.",
+    )
     # PowerShell 7's wording (K-pwsh, measured)
-    assert did_not_start(1, "pytest: \nLine |\n   2 |  pytest -q\n     |  ~~~~~~\n     | The term "
-                            "'pytest' is not recognized as a name of a cmdlet, function, script "
-                            "file, or executable program.\nCheck the spelling of the name")
+    assert did_not_start(
+        1,
+        "pytest: \nLine |\n   2 |  pytest -q\n     |  ~~~~~~\n     | The term "
+        "'pytest' is not recognized as a name of a cmdlet, function, script "
+        "file, or executable program.\nCheck the spelling of the name",
+    )
     assert did_not_start(1, "'npm' is not recognized as an internal or external command,")
     assert did_not_start(127, "") and did_not_start(1, "bash: pytest: command not found")
     assert did_not_start(1, "C:/Python/python.exe: No module named pytest")

@@ -1,7 +1,27 @@
 import { Plus, X } from '@phosphor-icons/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { errorText } from '../api/client'
-import type { Availability, ClaudeSessionSetup, CatalogueDraft, CatalogueFill, CatalogueUpdate, FillAll, FilledProvider, Limits, LocalServer, LocalServerConfig, ModelInput, Price, Provider, ProviderTest, Suggestion, Tier, TierOrder, Tiers, Usage } from '../api/types'
+import type {
+  Availability,
+  ClaudeSessionSetup,
+  CatalogueDraft,
+  CatalogueFill,
+  CatalogueUpdate,
+  FillAll,
+  FilledProvider,
+  Limits,
+  LocalServer,
+  LocalServerConfig,
+  ModelInput,
+  Price,
+  Provider,
+  ProviderTest,
+  Suggestion,
+  Tier,
+  TierOrder,
+  Tiers,
+  Usage,
+} from '../api/types'
 import { useConfirm } from '../shell/Confirm'
 import { limitUnkept } from '../usage/cost'
 import { since } from '../usage/period'
@@ -134,7 +154,10 @@ export const isCli = (kind: ProviderKind) => kind !== 'openai_compat' && kind !=
 export const READ_NOW: ProviderKind[] = ['codex_cli', 'claude_cli', 'agy_cli', 'copilot_cli']
 
 /** A provider's state in a word or two, and how it looks: from what was last read of it (no model is run). */
-export function stateOf(provider: Provider, avail: Availability | null | undefined): [look: 'ok' | 'bad' | 'off', said: string] {
+export function stateOf(
+  provider: Provider,
+  avail: Availability | null | undefined,
+): [look: 'ok' | 'bad' | 'off', said: string] {
   if (provider.kind === 'anthropic' && !provider.has_key) return ['off', 'no key yet']
   if (avail === undefined) return ['off', 'looking…']
   if (avail === null) return ['off', 'not known']
@@ -187,7 +210,10 @@ export function ModelsPage({
   const [updating, setUpdating] = useState(false)
   useEffect(() => {
     let current = true
-    onCatalogue?.().then(told => current && setCatalogue(told), () => {})
+    onCatalogue?.().then(
+      told => current && setCatalogue(told),
+      () => {},
+    )
     return () => {
       current = false
     }
@@ -315,8 +341,14 @@ export function ModelsPage({
   useEffect(() => {
     if (!onUsage) return
     let live = true
-    onUsage(since('today')!).then(told => live && setToday(told.by_model), () => live && setToday(null))
-    onUsage(since('30')!).then(told => live && setMonth(told.by_model), () => live && setMonth(null))
+    onUsage(since('today')!).then(
+      told => live && setToday(told.by_model),
+      () => live && setToday(null),
+    )
+    onUsage(since('30')!).then(
+      told => live && setMonth(told.by_model),
+      () => live && setMonth(null),
+    )
     return () => {
       live = false
     }
@@ -345,7 +377,12 @@ export function ModelsPage({
     return look === 'bad' || said === 'no key yet' ? said : null
   }
   const reading = (p: Provider) =>
-    readingOf(p, { limits: onLimits ? limits[p.id] : null, today: onUsage ? today : null, avail: onAvailability ? availOf(p.id) : null, unkept })
+    readingOf(p, {
+      limits: onLimits ? limits[p.id] : null,
+      today: onUsage ? today : null,
+      avail: onAvailability ? availOf(p.id) : null,
+      unkept,
+    })
   // The window takes the keyboard when it opens and gives it back to what opened it when it closes.
   const back = useRef<HTMLElement | null>(null)
   const dialog = useRef<HTMLDivElement>(null)
@@ -404,8 +441,12 @@ export function ModelsPage({
           {updating ? 'Updating…' : 'Update catalogue'}
         </button>
         {onKeepFresh && catalogue && (
-          <label className="muted" title="When KOLONİ starts, a catalogue more than a week old is downloaded again, as Update catalogue does; without the network the old one stays.">
-            <input type="checkbox" checked={catalogue.keep_fresh} onChange={e => void keepFresh(e.target.checked)} /> Keep the catalogue fresh
+          <label
+            className="muted"
+            title="When KOLONİ starts, a catalogue more than a week old is downloaded again, as Update catalogue does; without the network the old one stays."
+          >
+            <input type="checkbox" checked={catalogue.keep_fresh} onChange={e => void keepFresh(e.target.checked)} />{' '}
+            Keep the catalogue fresh
           </label>
         )}
       </>
@@ -469,7 +510,8 @@ export function ModelsPage({
         className="provider-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="provider-dialog-title"          >
+        aria-labelledby="provider-dialog-title"
+      >
         {windowHead()}
         <ProviderEditor
           // (Not drawn anew by a save: a change the Models tab saved leaves what is typed on Connection.)
@@ -523,7 +565,11 @@ export function ModelsPage({
               onSwitch={on => void switchOn(provider.id, on)}
               onRead={
                 // (a CLI not installed has nothing to read it with)
-                onLimits && provider.enabled !== false && READ_NOW.includes(provider.kind) && !provider.base_url && availOf(provider.id)?.installed !== false
+                onLimits &&
+                provider.enabled !== false &&
+                READ_NOW.includes(provider.kind) &&
+                !provider.base_url &&
+                availOf(provider.id)?.installed !== false
                   ? () => void readNow(provider.id)
                   : undefined
               }

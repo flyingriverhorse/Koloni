@@ -33,5 +33,7 @@ export function queueLine(queue: Queue): string {
     queue.elapsed_s !== null && ` for ${spell(queue.elapsed_s)}`,
     queue.max_s !== null && ` (waits up to ${spell(queue.max_s)})`,
     queue.available === false && ', the service says it is not available',
-  ].filter(Boolean).join('')
+  ]
+    .filter(Boolean)
+    .join('')
 }

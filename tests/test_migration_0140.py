@@ -20,12 +20,16 @@ def test_a_project_gets_no_measure_command_and_back(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0139")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at, check_command) "
-                     "VALUES ('p', 'p', 'C:/p', ?, 'pytest -q')", (AT,))
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at, check_command) "
+            "VALUES ('p', 'p', 'C:/p', ?, 'pytest -q')",
+            (AT,),
+        )
     command.upgrade(cfg, "0140")
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT check_command, measure_command FROM projects").fetchall() == [
-            ("pytest -q", None)]
+            ("pytest -q", None)
+        ]
         conn.execute("UPDATE projects SET measure_command = 'python measure.py'")
     command.downgrade(cfg, "0139")
     assert "measure_command" not in _columns(db)

@@ -42,15 +42,23 @@ def in_project(client, tmp_path, project_dir):
     added and read with the user's yes; returns it, its record, the script, the address
     that reads it and the files the user said yes to."""
     client.headers["Origin"] = ORIGIN
-    assert client.post("/api/projects", json={"root_path": str(project_dir)}).status_code in (200, 201)
+    assert client.post("/api/projects", json={"root_path": str(project_dir)}).status_code in (
+        200,
+        201,
+    )
     script = project_dir / "tools" / "server.py"
     script.parent.mkdir()
     shutil.copyfile(FAKE[1], script)
     record, plan = tmp_path / "record.jsonl", tmp_path / "plan.json"
     plan.write_text(json.dumps({"record": str(record)}), encoding="utf-8")
-    made = client.post("/api/mcp-servers", json={
-        "name": "fake", "command": [sys.executable, str(script)],
-        "env": {"FAKE_MCP_PLAN": str(plan)}}).json()
+    made = client.post(
+        "/api/mcp-servers",
+        json={
+            "name": "fake",
+            "command": [sys.executable, str(script)],
+            "env": {"FAKE_MCP_PLAN": str(plan)},
+        },
+    ).json()
     url = f"/api/mcp-servers/{made['id']}/read"
     # asked first: nothing started, the file named with what it holds
     asked = client.post(url).json()
@@ -74,7 +82,7 @@ def test_a_server_starts_in_kolonis_own_folder_and_a_global_command_is_not_asked
     make_client, wait_run, project_dir, tmp_path
 ):
     client, _ = make_client([step(call("fake__where", {})), text("done")])
-    _made, record, _ = server(client, tmp_path, free=True)           # FAKE: outside every project
+    _made, record, _ = server(client, tmp_path, free=True)  # FAKE: outside every project
     give(client, "Lead", "fake")
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -111,13 +119,18 @@ def test_reading_a_project_script_asks_once_and_asks_again_when_it_changes(
 def test_an_agent_is_asked_before_a_changed_project_script_starts_at_every_level(
     make_client, wait_run, project_dir, tmp_path
 ):
-    client, _ = make_client({
-        "Lead": [step(call("fake__echo", {"text": "hi"}, "e1")),
-                 step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s1")),
-                 text("done")],
-        "Coder": [step(call("fake__echo", {"text": "again"}, "e2")), text("looked")]})
+    client, _ = make_client(
+        {
+            "Lead": [
+                step(call("fake__echo", {"text": "hi"}, "e1")),
+                step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s1")),
+                text("done"),
+            ],
+            "Coder": [step(call("fake__echo", {"text": "again"}, "e2")), text("looked")],
+        }
+    )
     made, record, script, *_ = in_project(client, tmp_path, project_dir)
-    mark(client, made, echo="free")                       # not even one never asked about
+    mark(client, made, echo="free")  # not even one never asked about
     give(client, "Lead", "fake")
     give(client, "Coder", "fake")
     with script.open("a", encoding="utf-8") as changed:
@@ -132,15 +145,22 @@ def test_an_agent_is_asked_before_a_changed_project_script_starts_at_every_level
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     # the Coder's own process of it started without a second card: the yes is remembered
     assert [t["status"] for t in snap["tool_calls"] if t["name"] == "fake__echo"] == [
-        "succeeded", "succeeded"]
+        "succeeded",
+        "succeeded",
+    ]
     assert len(snap["questions"]) == 1 and len(events(record, "start")) == 2
 
 
 def test_a_no_starts_nothing_and_stands_for_the_rest_of_the_turn(
     make_client, wait_run, project_dir, tmp_path
 ):
-    client, _ = make_client([step(call("fake__echo", {"text": "hi"}, "e1")),
-                             step(call("fake__echo", {"text": "again"}, "e2")), text("done")])
+    client, _ = make_client(
+        [
+            step(call("fake__echo", {"text": "hi"}, "e1")),
+            step(call("fake__echo", {"text": "again"}, "e2")),
+            text("done"),
+        ]
+    )
     made, record, script, *_ = in_project(client, tmp_path, project_dir)
     mark(client, made, echo="free")
     give(client, "Lead", "fake")
@@ -158,9 +178,11 @@ def test_no_project_script_server_starts_in_a_turn_nobody_watches(
     make_client, wait_run, project_dir, tmp_path
 ):
     client, model, pid, cid = unattended.setup(
-        make_client, project_dir,
+        make_client,
+        project_dir,
         [step(call("fake__echo", {"text": "hi"})), text("I could not.")],
-        permission_mode="full_auto")
+        permission_mode="full_auto",
+    )
     made, record, script, *_ = in_project(client, tmp_path, project_dir)
     mark(client, made, echo="free")
     give(client, "Lead", "fake")
@@ -199,7 +221,8 @@ def test_migration_0112_and_back(tmp_path):
     with sqlite3.connect(db) as conn:
         conn.execute(
             "INSERT INTO mcp_servers (id, name, command, env, tools, created_at) VALUES "
-            "('s', 'fake', '[\"python\"]', '{}', '[]', '2026-10-28 10:00:00')")
+            "('s', 'fake', '[\"python\"]', '{}', '[]', '2026-10-28 10:00:00')"
+        )
     command.upgrade(cfg, "0112")
     with sqlite3.connect(db) as conn:
         # a server from before was said yes to for no file
@@ -260,12 +283,17 @@ def test_uv_with_a_project_directory_is_asked_about(make_client, project_dir, tm
     client.headers["Origin"] = ORIGIN
     client.post("/api/projects", json={"root_path": str(project_dir)})
     (project_dir / "server.py").write_text("print()\n", encoding="utf-8")
-    made = client.post("/api/mcp-servers", json={  # MCP's own quickstart
-        "name": "weather", "command": ["uv", "--directory", str(project_dir), "run", "server.py"]})
+    made = client.post(
+        "/api/mcp-servers",
+        json={  # MCP's own quickstart
+            "name": "weather",
+            "command": ["uv", "--directory", str(project_dir), "run", "server.py"],
+        },
+    )
     assert made.status_code == 201, made.text
     asked = client.post(f"/api/mcp-servers/{made.json()['id']}/read").json()
     assert list(asked["in_project"]) == [str(project_dir.resolve())]
-    assert asked["server"]["read_at"] is None                   # nothing started
+    assert asked["server"]["read_at"] is None  # nothing started
 
 
 def test_a_changed_neighbour_of_the_script_is_asked_about_again(make_client, project_dir, tmp_path):
@@ -287,17 +315,19 @@ def test_a_start_that_fails_keeps_no_yes(make_client, project_dir, tmp_path):
     client.post("/api/projects", json={"root_path": str(project_dir)})
     script = project_dir / "broken.py"
     script.write_text("raise SystemExit(3)\n", encoding="utf-8")
-    made = client.post("/api/mcp-servers", json={"name": "broken", "command": [
-        sys.executable, str(script)]}).json()
+    made = client.post(
+        "/api/mcp-servers", json={"name": "broken", "command": [sys.executable, str(script)]}
+    ).json()
     url = f"/api/mcp-servers/{made['id']}/read"
     asked = client.post(url).json()["in_project"]
     assert client.post(url, json={"in_project": asked}).json()["server"]["read_error"]
-    assert client.post(url).json()["in_project"] == asked       # asked again
+    assert client.post(url).json()["in_project"] == asked  # asked again
 
 
 def link(at: Path, to: Path) -> None:
     if sys.platform == "win32":
         import _winapi
+
         _winapi.CreateJunction(str(to), str(at))
     else:
         at.symlink_to(to, target_is_directory=True)
@@ -310,7 +340,10 @@ def test_a_link_in_a_project_to_a_folder_outside_is_the_projects(tmp_path):
     (outside / "server.py").write_text("print()\n", encoding="utf-8")
     link(project / "tools", outside)
     found = mcp_client.in_project([sys.executable, str(project / "tools" / "server.py")], [project])
-    assert list(found) == [str(project / "tools" / "server.py")] and found[str(project / "tools" / "server.py")]
+    assert (
+        list(found) == [str(project / "tools" / "server.py")]
+        and found[str(project / "tools" / "server.py")]
+    )
     # and the other way: a link outside into the project
     link(tmp_path / "into", project)
     (project / "s.py").write_text("print()\n", encoding="utf-8")
@@ -371,10 +404,20 @@ def test_a_pth_line_is_read_as_site_reads_it(tmp_path):
     # relative: joined onto site-packages' folder, as `site` does (old code skipped it on every
     # version); `/x` with no drive: on that folder's drive (3.13's isabs drops it on Windows;
     # passes on 3.12 with the old code too); a comment and an import line: not folders.
-    pth.write_text("\n".join([
-        os.path.join("..", "..", "..", "rel"), os.path.splitdrive(project / "rooted")[1],
-        f"# {project / 'skipped'}", f"import os; {project / 'skipped'}", "", "  "]) + "\n",
-        encoding="utf-8")
+    pth.write_text(
+        "\n".join(
+            [
+                os.path.join("..", "..", "..", "rel"),
+                os.path.splitdrive(project / "rooted")[1],
+                f"# {project / 'skipped'}",
+                f"import os; {project / 'skipped'}",
+                "",
+                "  ",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     found = [path.resolve() for path in mcp_client._editable(pth, [project.resolve()])]
     assert found == [(project / "rel").resolve(), (project / "rooted").resolve()]
 
@@ -389,7 +432,8 @@ def test_a_pth_file_in_the_locales_encoding_is_read_as_site_reads_it(tmp_path, m
     pth = packages / "_srv.pth"
     pth.write_bytes(f"{project / 'kaynakşı'}\n".encode("cp1254"))
     assert [p.resolve() for p in mcp_client._editable(pth, [project.resolve()])] == [
-        (project / "kaynakşı").resolve()]
+        (project / "kaynakşı").resolve()
+    ]
     pth.write_bytes(f"﻿{project / 'kaynakşı'}\n".encode())  # and UTF-8, with its BOM
     assert len(mcp_client._editable(pth, [project.resolve()])) == 1
 

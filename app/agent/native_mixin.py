@@ -60,9 +60,22 @@ if TYPE_CHECKING:
 # shortcut: nor propose_trigger (slice 69) - a native CLI's Lead proposes no trigger; add it
 # here and to its rules' words when one should.
 COLLABORATION_TOOLS = (
-    "spawn_agent", "create_role", "ask_user", "ask_folder", "message_agent", "discuss",
-    "read_backlog", "add_task", "change_task", "assess_task", LEARN, LOOKUP, "post_note",
-    "read_notes", "remember", "recall",
+    "spawn_agent",
+    "create_role",
+    "ask_user",
+    "ask_folder",
+    "message_agent",
+    "discuss",
+    "read_backlog",
+    "add_task",
+    "change_task",
+    "assess_task",
+    LEARN,
+    LOOKUP,
+    "post_note",
+    "read_notes",
+    "remember",
+    "recall",
 )
 
 NATIVE_NEEDS_THE_TOOLS = (
@@ -84,16 +97,27 @@ NO_LINKED_COPY = (
 # read for, read as it is (`_handed_findings`); its `report` is the words shown.
 _TEXT = {"type": "string"}
 REPORT_SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["report", "findings"],
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["report", "findings"],
     "properties": {
-        "report": _TEXT, "checked": _TEXT,
+        "report": _TEXT,
+        "checked": _TEXT,
         "failing_before": {"type": "array", "items": _TEXT},
-        "findings": {"type": "array", "items": {
-            "type": "object", "additionalProperties": False,
-            "required": ["what", "kind", "role", "blocking"],
-            "properties": {"what": _TEXT, "kind": {"enum": list(FINDING_KINDS)}, "role": _TEXT,
-                           "blocking": {"type": "boolean"}},
-        }},
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["what", "kind", "role", "blocking"],
+                "properties": {
+                    "what": _TEXT,
+                    "kind": {"enum": list(FINDING_KINDS)},
+                    "role": _TEXT,
+                    "blocking": {"type": "boolean"},
+                },
+            },
+        },
     },
 }
 
@@ -102,8 +126,9 @@ LANDED_NATIVE = "stopped going round in circles after this turn's work was in th
 
 
 class NativeMixin:
-    async def _native_loop(self: "AgentRunner", ctx: Ctx,
-                           info: ModelInfo) -> tuple[str, str | None]:
+    async def _native_loop(
+        self: "AgentRunner", ctx: Ctx, info: ModelInfo
+    ) -> tuple[str, str | None]:
         """One agent with tools of its own at a time in a place (`_native_place`): what
         such an agent did is found by looking at its files, and two of them there could
         not be told apart."""
@@ -168,8 +193,12 @@ class NativeMixin:
         if _changes_nothing(ctx):  # (its id is no copy's: one that changes nothing makes none)
             return ctx.cid, ctx.agent_id
         owner = self._copy_owner(ctx)
-        if (owner is None or not _sandboxed(ctx.model) or not can_change_things(ctx.tools)
-                or self._native_refused(ctx)):
+        if (
+            owner is None
+            or not _sandboxed(ctx.model)
+            or not can_change_things(ctx.tools)
+            or self._native_refused(ctx)
+        ):
             return ctx.cid, None
         return ctx.cid, owner if await self._working_copy(ctx, owner) is not None else None
 
@@ -197,16 +226,19 @@ class NativeMixin:
         # A CLI that cannot be handed KOLONİ's tools is offered none, and what it is
         # told does not speak of any.
         collaborates = getattr(ctx.model, "collaborates", True)
-        told = ctx if collaborates else replace(
-            ctx, tools=tuple(tool for tool in ctx.tools if tool not in COLLABORATION_TOOLS)
+        told = (
+            ctx
+            if collaborates
+            else replace(
+                ctx, tools=tuple(tool for tool in ctx.tools if tool not in COLLABORATION_TOOLS)
+            )
         )
         # Read-only (B-301) it reads and writes with KOLONİ's file tools too, over the bridge:
         # held to KOLONİ's rules where they run (`_ws`: its line's copy, a recipe's).
-        bridged = COLLABORATION_TOOLS + tuple(READ_TOOLS | WRITE_TOOLS if ro and collaborates
-                                              else ())
-        offered = self._offered(
-            ctx, [tool for tool in told.tools if tool in bridged], always=True
+        bridged = COLLABORATION_TOOLS + tuple(
+            READ_TOOLS | WRITE_TOOLS if ro and collaborates else ()
         )
+        offered = self._offered(ctx, [tool for tool in told.tools if tool in bridged], always=True)
         # (One that asks does so over its own protocol: `call_tool("approve", ...)` below.)
         if not asks and (needs := needs_full_auto(ctx.model, level)):
             return "failed", needs.format(provider=who)
@@ -216,7 +248,8 @@ class NativeMixin:
         leave = None if self._watched(ctx.run_id) else self._leave(ctx.run_id)
         off = self._off()
         withheld = tuple(
-            what for what, has in (
+            what
+            for what, has in (
                 # A Lead that hands code on is started without its own writes (Claude Code).
                 # Copilot ignores what is withheld, and Codex keeps its sandbox: what they
                 # ask leave to write is refused in `_approve`; what a command of theirs
@@ -224,11 +257,16 @@ class NativeMixin:
                 # shortcut: Codex is not started read-only for it - measured (codex 0.164.0,
                 # Windows) to block the write, but it would also refuse its tests' caches;
                 # start it so if such writes are seen often.
-                ("write", any(tool in ctx.tools for tool in WRITE_TOOLS)
-                 and (leave is None or leave.get("write") is True)
-                 and not self._hands_code(told)),
-                ("run", "run_command" in ctx.tools
-                 and (leave is None or bool(leave.get("commands")))),
+                (
+                    "write",
+                    any(tool in ctx.tools for tool in WRITE_TOOLS)
+                    and (leave is None or leave.get("write") is True)
+                    and not self._hands_code(told),
+                ),
+                (
+                    "run",
+                    "run_command" in ctx.tools and (leave is None or bool(leave.get("commands"))),
+                ),
                 # and what could only be asked about in words is not there to be used
                 ("unasked", leave is None),
                 # Slice 61: its own web tools, where KOLONİ's are switched off on the Tools page.
@@ -239,7 +277,8 @@ class NativeMixin:
                 # B-385 (review): nor its own sub-agents (Claude Code's Agent), which would run on
                 # its model, where that is closed to agents. (agy's are refused anyway: AGY_NOT_YET)
                 ("agents", not self._closed_here(ctx)),
-            ) if not has
+            )
+            if not has
         )
         # A sub-agent that can change things is started in a working copy, made now: what
         # it writes cannot be seen beforehand, so there is no first change to wait for.
@@ -271,16 +310,16 @@ class NativeMixin:
             self._told_copy.discard(ctx.agent_id)
             # (Its own Read is not KOLONİ's: it reads what a copy left out only over the bridge.)
             reads = any(tool in bridged for tool in READ_TOOLS & set(told.tools) - self._off())
-            told = replace(told, instructions=told.instructions + self._told_of_copy(
-                ctx, owner, reads))
+            told = replace(
+                told, instructions=told.instructions + self._told_of_copy(ctx, owner, reads)
+            )
         transcript = _Transcript(self, ctx, held=False)
         self._native_work_notes(ctx, transcript, who, collaborates)
         await self._native_work_scratch(ctx, copy, root, ro)
         view, watch = await self._native_work_watch(ctx, root, copy, transcript, hold)
 
         async def call_tool(name: str, arguments: str) -> tuple[bool, str]:
-            return await self._native_work_call(
-                ctx, transcript, watch, view, hold, name, arguments)
+            return await self._native_work_call(ctx, transcript, watch, view, hold, name, arguments)
 
         # Only an agent that cannot be asked counts as one nothing can be asked of - and
         # one that only reads has nothing to be asked about.
@@ -308,9 +347,13 @@ class NativeMixin:
             kept = self._cli_session(ctx) if keeps else None  # (after it: notes handed now)
             self._slow(ctx, arm=True)  # (K-yavas: its model is asked until its run ends)
             usage = await model.run_native(
-                info.model_id, history, offered, root,
+                info.model_id,
+                history,
+                offered,
+                root,
                 call_tool,
-                transcript.on_text, partial(self._observe, ctx, transcript, watch),
+                transcript.on_text,
+                partial(self._observe, ctx, transcript, watch),
                 withheld=withheld,
                 linked=tuple(str(real) for real in copy.links.values()) if copy else (),
                 # (Not in a copy: what the copy's agent writes there goes straight in. A
@@ -323,10 +366,13 @@ class NativeMixin:
                 # Nor one that holds a place KOLONİ never opens (KOLONİ's own runtime, with
                 # its keys): in it only KOLONİ's own tools work, each path judged.
                 # Nor one that holds a folder to read in only: it would be open there too.
-                also=() if copy or ro or not (asks or level == "full_auto" and self._watched(
-                    ctx.run_id)) else self._add_dirs(ctx),
+                also=()
+                if copy or ro or not (asks or level == "full_auto" and self._watched(ctx.run_id))
+                else self._add_dirs(ctx),
                 git_env=partial(copies.git_env, copy.root) if copy else None,
-                pass_env=pass_env, denied=denied, planted=self._planted(ctx.run_id),
+                pass_env=pass_env,
+                denied=denied,
+                planted=self._planted(ctx.run_id),
                 skills={skill.name: skill.folder for skill in self._skills(ctx)},
                 skills_told=self._skills_told(told, False) if claude else "",
                 on_live=partial(self._native_work_door, ctx),
@@ -335,7 +381,9 @@ class NativeMixin:
                 **({"report_schema": REPORT_SCHEMA} if _hands_back(ctx) and findings else {}),
                 **({"effort": effort} if effort else {}),
                 **({"inside": inside} if inside else {}),
-                session=kept if kept and self._whole(kept) else None, keep=keeps, level=level,
+                session=kept if kept and self._whole(kept) else None,
+                keep=keeps,
+                level=level,
             )
             self._slow_off(ctx)  # (what follows may wait for the user)
             mark = self._session_mark(ctx) if keeps and usage.session else {}
@@ -363,13 +411,19 @@ class NativeMixin:
                     forget_session(kept, self.settings.runtime_root)  # (27: one no turn goes on in)
             self._native[ctx.cid] -= counted
             self._end_live(ctx)
+            self._last_looks.append(watch)  # (its looks still wait for Take in's writes)
             self._watches[ctx.cid].remove(watch)
-            if asks:
-                with contextlib.suppress(Exception):
-                    await self._settle_watch(ctx, watch)
-            await self._native_work_last_look(ctx, transcript, watch, view, copy)
+            try:
+                if asks:
+                    with contextlib.suppress(Exception):
+                        await self._settle_watch(ctx, watch)
+                await self._native_work_last_look(ctx, transcript, watch, view, copy)
+            finally:
+                self._last_looks.remove(watch)
         self._count_tokens(
-            ctx, usage.input_tokens, usage.output_tokens,
+            ctx,
+            usage.input_tokens,
+            usage.output_tokens,
             # (A result that has no word of a cache: not known.)
             read=getattr(usage, "cache_read", None),
             written=getattr(usage, "cache_write", None),
@@ -379,8 +433,9 @@ class NativeMixin:
         self._ran_on(ctx, usage.model, getattr(usage, "picked_why", None))
         return "completed", None
 
-    async def _native_work_denied(self: "AgentRunner", ctx: Ctx, root: str,
-                                  hide: bool) -> tuple[str, ...] | None:
+    async def _native_work_denied(
+        self: "AgentRunner", ctx: Ctx, root: str, hide: bool
+    ) -> tuple[str, ...] | None:
         """`_native_work`: what Copilot's sandbox is to keep its commands from, where secrets
         are hidden."""
         assert ctx.root is not None  # (as `_native_work` has it)
@@ -389,17 +444,22 @@ class NativeMixin:
             # shortcut: a folder it also works in (`also`, its sandbox's readwritePaths) is
             # not walked: its secret files are open to the commands; walk them too if needed.
             denied = await asyncio.to_thread(
-                sandbox_denied, Path(root), Path(ctx.root), self.settings.db_path.parent,
+                sandbox_denied,
+                Path(root),
+                Path(ctx.root),
+                self.settings.db_path.parent,
                 self.settings.runtime_root / "agy-home",  # (as `providers` names it for agy)
-                self.settings.runtime_root / CLI_HOMES)
+                self.settings.runtime_root / CLI_HOMES,
+            )
         return denied
 
-    def _native_work_notes(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", who: str,
-                           collaborates: bool) -> None:
+    def _native_work_notes(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", who: str, collaborates: bool
+    ) -> None:
         """`_native_work`: what a CLI that is handed none of KOLONİ's tools was not given, said
         in its transcript."""
         # (A server switched off on the Tools page is given to nobody: not named as withheld.)
-        servers = (list(ctx.mcp) if ctx.mcp and not collaborates else [])
+        servers = list(ctx.mcp) if ctx.mcp and not collaborates else []
         if servers:
             off = self._servers_off()
             servers = [name for name in servers if name not in off]
@@ -408,20 +468,33 @@ class NativeMixin:
             # (Said once a run, as a skill not given is: `_observe`.)
             # shortcut: on a message of its own before agy speaks, and said also where `_mcp`
             # would give none anyway (Docker, nobody watching); fold it in if that confuses.
-            self._note(ctx, transcript, "use_mcp_server", {"servers": servers}, "denied",
-                       f"the tools of the MCP server{'s' if len(servers) > 1 else ''} "
-                       f"{', '.join(servers)} were not given to {who}: it is handed none of "
-                       "KOLONİ's tools, and a server's tools reach a CLI only through them")
+            self._note(
+                ctx,
+                transcript,
+                "use_mcp_server",
+                {"servers": servers},
+                "denied",
+                f"the tools of the MCP server{'s' if len(servers) > 1 else ''} "
+                f"{', '.join(servers)} were not given to {who}: it is handed none of "
+                "KOLONİ's tools, and a server's tools reach a CLI only through them",
+            )
         if not collaborates:
             # B-310: an agy older than the one measured with KOLONİ's tools (`cli_surface`).
             # shortcut: its version is known only once it runs, so it can still be picked - a
             # reading Spec writer's step among them, whose document then is only its report.
-            self._note(ctx, transcript, "koloni_tools", {}, "denied",
-                       f"{who} cannot open sub-agents or write with KOLONİ's tools here: it is "
-                       "handed none of them (the Models page says why)")
+            self._note(
+                ctx,
+                transcript,
+                "koloni_tools",
+                {},
+                "denied",
+                f"{who} cannot open sub-agents or write with KOLONİ's tools here: it is "
+                "handed none of them (the Models page says why)",
+            )
 
-    async def _native_work_scratch(self: "AgentRunner", ctx: Ctx, copy: copies.Copy | None,
-                                   root: str, ro: bool) -> None:
+    async def _native_work_scratch(
+        self: "AgentRunner", ctx: Ctx, copy: copies.Copy | None, root: str, ro: bool
+    ) -> None:
         if getattr(ctx.model, "command", "") == "codex" and not ro:
             # B-358: where its commands keep their temporary files (`run_native`) - KOLONİ's
             # own making, before the folder is looked at. In a copy the folder alone: an ignore
@@ -433,8 +506,12 @@ class NativeMixin:
                     (Path(root) / koloni.SCRATCH).mkdir(parents=True, exist_ok=True)
 
     async def _native_work_watch(
-        self: "AgentRunner", ctx: Ctx, root: str, copy: copies.Copy | None,
-        transcript: "_Transcript", hold: "_Hold",
+        self: "AgentRunner",
+        ctx: Ctx,
+        root: str,
+        copy: copies.Copy | None,
+        transcript: "_Transcript",
+        hold: "_Hold",
     ) -> tuple[ProjectView, "_Watch"]:
         """`_native_work`: the folder as it stands before the CLI starts, and its watch."""
         assert ctx.root is not None  # (as `_native_work` has it)
@@ -455,8 +532,14 @@ class NativeMixin:
         return view, watch
 
     async def _native_work_call(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch",
-        view: ProjectView, hold: "_Hold", name: str, arguments: str,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        view: ProjectView,
+        hold: "_Hold",
+        name: str,
+        arguments: str,
     ) -> tuple[bool, str]:
         """`_native_work`'s `call_tool`, but for its Stop hook: what the CLI asks KOLONİ for."""
         if name == PATCH_MAY_RUN:  # (nor this: Codex's patch run as a command, R175)
@@ -468,8 +551,12 @@ class NativeMixin:
         if name == "approve":
             # Not a tool the agent uses: the CLI asking leave for one of its own.
             with self._factory() as session:
-                before = session.scalar(select(func.max(ToolCall.seq)).where(
-                    ToolCall.run_id == ctx.run_id)) or 0
+                before = (
+                    session.scalar(
+                        select(func.max(ToolCall.seq)).where(ToolCall.run_id == ctx.run_id)
+                    )
+                    or 0
+                )
             try:
                 return True, json.dumps(await self._approve(ctx, transcript, watch, arguments))
             except asyncio.CancelledError:
@@ -479,15 +566,15 @@ class NativeMixin:
                 # shortcut: the agent's other open cards and commands go with it (a change,
                 # a question, a command are not told apart by call here); tell them apart
                 # if a CLI that asks about two at once is seen to withdraw only one.
-                self._interrupt_open_calls(ctx.run_id, ctx.cid, ctx.agent_id,
-                                           after_call=before)
+                self._interrupt_open_calls(ctx.run_id, ctx.cid, ctx.agent_id, after_call=before)
                 raise
         # What the CLI changed itself goes on record first; what the tool (a
         # sub-agent, say) changes is that tool's doing and is already on record.
         await self._look(ctx, transcript, watch, "changed by the CLI")
         request = ToolCallRequest(f"cli_{uuid.uuid4().hex[:16]}", name, arguments)
         ((call_id, _payload),) = self._record_calls(
-            ctx, transcript.take(), [request], parent=watch.koloni_under(name, arguments))
+            ctx, transcript.take(), [request], parent=watch.koloni_under(name, arguments)
+        )
         try:
             # While KOLONİ works for it the CLI does nothing of its own: another
             # agent with tools of its own - a sub-agent it opens, say - may work.
@@ -515,8 +602,9 @@ class NativeMixin:
         else:
             self._doors[ctx.agent_id] = door
 
-    async def _native_work_puts_back(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
-                                     watch: "_Watch") -> None:
+    async def _native_work_puts_back(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch"
+    ) -> None:
         """`_native_work`'s end, first: what it wrote unnamed is taken back."""
         # Stopped, or failed: what it wrote unnamed is taken back all the same - with no card
         # now, as is one still open. (Off the event loop, and to its end whatever comes: a
@@ -525,9 +613,17 @@ class NativeMixin:
             for card, _theirs, whose, _run in list(self._keeps.get(ctx.folder, {}).values()):
                 if whose == ctx.agent_id:
                     card.cancel()
-            putting = asyncio.ensure_future(asyncio.to_thread(
-                _put_back, Path(ctx.folder), watch.standing, watch.named, frozenset(),
-                watch.since, self._taken_folder(ctx)))
+            putting = asyncio.ensure_future(
+                asyncio.to_thread(
+                    _put_back,
+                    Path(ctx.folder),
+                    watch.standing,
+                    watch.named,
+                    frozenset(),
+                    watch.since,
+                    self._taken_folder(ctx),
+                )
+            )
 
             def said(done: asyncio.Future) -> None:
                 # (Once it is done - also where a second Stop cut the wait for it short.)
@@ -537,29 +633,40 @@ class NativeMixin:
                         if self._closing:  # (after `shutdown`: no task it would not end)
                             return
                         # (Kept, as `shutdown` ends it: the loop holds a task weakly.)
-                        self._telling.add(standing := asyncio.ensure_future(
-                            self._stand_in_watches(ctx.folder, watch.standing, taken)))
+                        self._telling.add(
+                            standing := asyncio.ensure_future(
+                                self._stand_in_watches(ctx.folder, watch.standing, taken)
+                            )
+                        )
                         standing.add_done_callback(self._telling.discard)
 
             putting.add_done_callback(said)
             await asyncio.shield(putting)
 
     async def _native_work_last_look(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch",
-        view: ProjectView, copy: copies.Copy | None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        view: ProjectView,
+        copy: copies.Copy | None,
     ) -> None:
         """`_native_work`'s end, last: its last look, and its transcript's ending."""
         try:
             # Whatever it changed and did not report - or changed just before it
             # was stopped - is on record too.
             self._record_found(
-                ctx, transcript, await watch.look(view.changes), "changed by the CLI",
+                ctx,
+                transcript,
+                await watch.look(view.changes),
+                "changed by the CLI",
                 copy=copy,
             )
             if watch.project is not None:
                 # Before its copy is taken in: that is not its doing in the project.
-                self._record_found(ctx, transcript, await watch.look(watch.project.changes),
-                                   IN_THE_PROJECT)
+                self._record_found(
+                    ctx, transcript, await watch.look(watch.project.changes), IN_THE_PROJECT
+                )
         except Exception:  # the last look must not cost the transcript its ending
             pass
         finally:
@@ -567,8 +674,13 @@ class NativeMixin:
             self._native_looks(ctx.root, -1)
 
     async def _native_outside(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", under: str | None, name: str,
-        named: str, target: Path,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        under: str | None,
+        name: str,
+        named: str,
+        target: Path,
     ) -> str | None:
         """A path a CLI working with its own tools names outside the project: None where
         it may go there now - a folder the project or the conversation also works in, or
@@ -585,16 +697,23 @@ class NativeMixin:
         except Outside as exc:
             folder = exc.folder
         except (WorkspaceError, OSError) as exc:
-            self._note(ctx, transcript, name, {"path": named}, "failed", f"error: {exc}",
-                       parent=under)
+            self._note(
+                ctx, transcript, name, {"path": named}, "failed", f"error: {exc}", parent=under
+            )
             return str(exc)
         call_id = self._note(ctx, transcript, name, {"path": named}, None, None, parent=under)
         try:
-            await self._ask_outside(ctx, call_id, named, folder,
-                                    "write" if name in WRITE_TOOLS else "read")
+            await self._ask_outside(
+                ctx, call_id, named, folder, "write" if name in WRITE_TOOLS else "read"
+            )
         except _NobodyToAsk as exc:
             self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
             return str(exc)
-        self._set_call(ctx.cid, call_id, status="succeeded", ended_at=now(),
-                       result=f"allowed: {named}, outside the project")
+        self._set_call(
+            ctx.cid,
+            call_id,
+            status="succeeded",
+            ended_at=now(),
+            result=f"allowed: {named}, outside the project",
+        )
         return None

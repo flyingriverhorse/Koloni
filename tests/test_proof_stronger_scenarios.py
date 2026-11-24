@@ -2,7 +2,8 @@
 fix is handed to the next stronger tier - fast, balanced, strongest - the same role on that
 tier's model, each once a turn; its diagnosis first, read by its own line; failing work never
 taken in. Scripted models by tier (`tiered`: Fast · quick is fast, Fast · deep balanced, Local ·
-big-model strongest) and a scripted executor."""
+big-model strongest) and a scripted executor - its runs the end check's: a Coder's Take in runs only
+the tests it wrote (0.1.7), and `python check.py` cannot be narrowed to them, so none runs there."""
 
 import pytest
 
@@ -29,18 +30,29 @@ def said(kind, why="the zero case is not handled", asked="May the total be zero?
 
 
 def rows_of(snap, run_id):
-    return [(r["kind"], r["state"], r["text"]) for m in snap["messages"]
-            if m["role"] == "checked" and m["run_id"] == run_id for r in m["checked"]]
+    return [
+        (r["kind"], r["state"], r["text"])
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == run_id
+        for r in m["checked"]
+    ]
 
 
 def started(team, project_dir, lead, fast, executor, approval="never", **project):  # noqa: F811
     client, _default, _quick = team(lead, fast, executor=executor)
     tiered(team, client)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={
-        "check_command": CHECK, "fix_rounds": 1, **project}, headers=OWN).status_code == 200
-    cid, run_id = begin(client, project_dir, mode="full_auto",
-                        **({"spawn_approval": approval} if approval else {}))
+    assert (
+        client.patch(
+            f"/api/projects/{pid}",
+            json={"check_command": CHECK, "fix_rounds": 1, **project},
+            headers=OWN,
+        ).status_code
+        == 200
+    )
+    cid, run_id = begin(
+        client, project_dir, mode="full_auto", **({"spawn_approval": approval} if approval else {})
+    )
     return client, cid, run_id
 
 
@@ -48,25 +60,52 @@ FIRST = [step(spawn("Coder", "fast", WHY)), text("done"), text("done, as it is")
 
 
 def test_a_failing_turn_goes_up_the_tiers_until_it_passes(team, wait_run, project_dir):  # noqa: F811
-    # (Each Coder's copy is taken in at Full auto after the check passes there; then the end
-    # check fails on the project, twice, and passes after the strongest's round.)
-    executor = ScriptedExecutor([PASS, failing(), PASS, failing(), PASS, PASS])
-    client, cid, run_id = started(team, project_dir, {
-        "Lead": FIRST, "Coder 4": [said(s11.FIX_INCOMPLETE)],
-        "Coder 5": [step(write("a.py", "x = 3\n").tool_calls[0]), text("fixed the zero case")]},
-        {"Coder": [step(write("a.py", "x = 1\n").tool_calls[0]), text("wrote it")],
-         "Coder 2": [said(s11.FIX_INCOMPLETE)],
-         "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("tried")]}, executor)
+    # (Each Coder's copy is taken in at Full auto - no test of its own to run there, 0.1.7; then
+    # the end check fails on the project, twice, and passes after the strongest's round.)
+    executor = ScriptedExecutor([failing(), failing(), PASS])
+    client, cid, run_id = started(
+        team,
+        project_dir,
+        {
+            "Lead": FIRST,
+            "Coder 4": [said(s11.FIX_INCOMPLETE)],
+            "Coder 5": [step(write("a.py", "x = 3\n").tool_calls[0]), text("fixed the zero case")],
+        },
+        {
+            "Coder": [step(write("a.py", "x = 1\n").tool_calls[0]), text("wrote it")],
+            "Coder 2": [said(s11.FIX_INCOMPLETE)],
+            "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("tried")],
+        },
+        executor,
+    )
     snap = wait_run(client, cid, run_id, timeout=60)
     rows = rows_of(snap, run_id)
     texts = [one[2] for one in rows]
     # (The stand-in Fast model calls itself fast-model, whatever tier it was asked as.)
     assert s11.HANDED.format(model="deep", tier="Balanced", n="1 round", by="fast-model") in (
-        texts), rows
-    assert s11.HANDED.format(model="big-model", tier="Strongest", n="1 round",
-                             by="fast-model and deep") in texts, rows
+        texts
+    ), rows
+    assert (
+        s11.HANDED.format(
+            model="big-model", tier="Strongest", n="1 round", by="fast-model and deep"
+        )
+        in texts
+    ), rows
     assert ("tests", "passed") in [(k, st) for k, st, _t in rows], (rows, executor.started)
     assert not any(st == "failed" for _k, st, _t in rows), rows
+    # (tuval-kontrol-dongusu, round 2: the passes say each tier's diagnosis - its own kind, never a
+    # look - and its fixer, for the canvas to draw)
+    (note,) = [m for m in snap["messages"] if m["role"] == "checked"]
+    by = {a["name"]: a["id"] for a in snap["agents"]}
+    tiers = [
+        (one["tier"], one["diagnosis"], one["fixers"], one["looks"], one["tests"])
+        for one in note["passes"]
+        if one["kind"] == "stronger"
+    ]
+    assert tiers == [
+        ("balanced", by["Coder 2"], [by["Coder 3"]], [], "failed"),
+        ("strongest", by["Coder 4"], [by["Coder 5"]], [], "passed"),
+    ], note["passes"]
 
 
 ONE = [step(spawn("Coder", "balanced", WHY)), text("done"), text("done, as it is")]
@@ -77,70 +116,119 @@ ASKED = "please check my greeting"  # (`test_spawn.begin`'s request)
 def one_tier(team, wait_run, project_dir, strongest, scripts, **project):  # noqa: F811
     """The work by the balanced model, the strongest one handed it: its rows and the run."""
     executor = ScriptedExecutor(scripts)
-    client, cid, run_id = started(team, project_dir, {"Lead": ONE, **strongest}, WORK, executor,
-                                  **project)
+    client, cid, run_id = started(
+        team, project_dir, {"Lead": ONE, **strongest}, WORK, executor, **project
+    )
     snap = wait_run(client, cid, run_id, timeout=60)
     return [one[2] for one in rows_of(snap, run_id)], snap, executor
 
 
-def test_test_wrong_with_the_requests_words_may_change_the_test(team, wait_run,  # noqa: F811
-                                                                 project_dir, monkeypatch):
+def test_test_wrong_with_the_requests_words_may_change_the_test(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+    monkeypatch,
+):
     from app.agent.review_mixin import ReviewMixin
 
     async def merges(_self, _ctx, held):  # (the Reviewer's fresh MERGE: the pass counts)
         held.verdict = "MERGE"
+
     monkeypatch.setattr(ReviewMixin, "_proof_review", merges)
     why = 'the request asks to "check my greeting", the test wants another'
-    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
-        "Coder 2": [said(s11.TEST_WRONG, why)],
-        "Coder 3": [step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
-                    text("changed the test as the request asks")]},
-        [PASS, failing(), PASS, PASS])
+    texts, _snap, _executor = one_tier(
+        team,
+        wait_run,
+        project_dir,
+        {
+            "Coder 2": [said(s11.TEST_WRONG, why)],
+            "Coder 3": [
+                step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
+                text("changed the test as the request asks"),
+            ],
+        },
+        [failing(), PASS],
+    )
     assert s11.TEST_CHANGED.format(why=why) in texts, texts
     assert "Tests passed: python check.py - 4 passed in 0.1s" in texts, texts
 
 
-def test_test_wrong_without_the_requests_words_is_fix_incomplete(team, wait_run,  # noqa: F811
-                                                                  project_dir):
-    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
-        "Coder 2": [said(s11.TEST_WRONG, "the test is too strict")],
-        "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed")]},
-        [PASS, failing(), PASS, PASS])
+def test_test_wrong_without_the_requests_words_is_fix_incomplete(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+):
+    texts, _snap, _executor = one_tier(
+        team,
+        wait_run,
+        project_dir,
+        {
+            "Coder 2": [said(s11.TEST_WRONG, "the test is too strict")],
+            "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed")],
+        },
+        [failing(), PASS],
+    )
     assert s11.NOT_QUOTED.format(model="big-model") in texts, texts
     assert not any(one.startswith("Test changed") for one in texts), texts
 
 
-def test_approach_wrong_in_the_project_goes_on_from_the_work(team, wait_run,  # noqa: F811
-                                                              project_dir):
-    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
-        "Coder 2": [said(s11.APPROACH_WRONG, "a cache cannot pass this")],
-        "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("did it another way")]},
-        [PASS, failing(), PASS, failing()])
+def test_approach_wrong_in_the_project_goes_on_from_the_work(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+):
+    texts, _snap, _executor = one_tier(
+        team,
+        wait_run,
+        project_dir,
+        {
+            "Coder 2": [said(s11.APPROACH_WRONG, "a cache cannot pass this")],
+            "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("did it another way")],
+        },
+        [failing(), failing()],
+    )
     assert s11.IN_PROJECT in texts, texts
     # (nothing passed: the failing line names every model that had rounds)
     assert s11.STILL_HANDED.format(by="fast-model and big-model") in texts, texts
 
 
-def test_with_the_switch_off_no_stronger_model_is_handed_it(team, wait_run,  # noqa: F811
-                                                             project_dir):
-    texts, snap, _executor = one_tier(team, wait_run, project_dir, {}, [PASS, failing()],
-                                      stronger_model=False)
+def test_with_the_switch_off_no_stronger_model_is_handed_it(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+):
+    texts, snap, _executor = one_tier(
+        team, wait_run, project_dir, {}, [failing()], stronger_model=False
+    )
     assert not any(one.startswith("Handed to") for one in texts), texts
     assert [a["name"] for a in snap["agents"]] == ["Lead", "Coder"]
 
 
-def test_flaky_or_failing_before_is_not_handed_on(team, wait_run, project_dir,  # noqa: F811
-                                                   monkeypatch):
+def test_flaky_or_failing_before_is_not_handed_on(
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
+    monkeypatch,
+):
     # (S7 tells them apart first: none of the failures is this turn's - nothing to hand on)
     from app.agent.before_mixin import BeforeMixin
 
     async def none_new(_self, _ctx, held, _failed):
-        held.rows.append({"kind": "before", "state": "note", "text": "Flaky: test_a",
-                          "command": None, "guessed": False, "started_at": None,
-                          "counts": None})
+        held.rows.append(
+            {
+                "kind": "before",
+                "state": "note",
+                "text": "Flaky: test_a",
+                "command": None,
+                "guessed": False,
+                "started_at": None,
+                "counts": None,
+            }
+        )
         return []
+
     monkeypatch.setattr(BeforeMixin, "_proof_before", none_new)
-    texts, snap, _executor = one_tier(team, wait_run, project_dir, {}, [PASS, failing()])
+    texts, snap, _executor = one_tier(team, wait_run, project_dir, {}, [failing()])
     assert not any(one.startswith("Handed to") for one in texts), texts
     assert [a["name"] for a in snap["agents"]] == ["Lead", "Coder"]
 
@@ -148,9 +236,11 @@ def test_flaky_or_failing_before_is_not_handed_on(team, wait_run, project_dir,  
 def test_an_away_job_whose_tests_still_fail_ends_not_taken_in(make_client, project_dir):
     # (decision 18: an Away job ends there - its work kept in its copy, its report says why)
     from tests.test_proof_end_scenarios import away_job, job_rows
+
     check = "import sys\nprint('FAILED test_x - no')\nprint('1 failed')\nsys.exit(1)\n"
-    client, _pid, job = away_job(make_client, project_dir, "full_auto", check=check,
-                                 check_command=CHECK, fix_rounds=1)
+    client, _pid, job = away_job(
+        make_client, project_dir, "full_auto", check=check, check_command=CHECK, fix_rounds=1
+    )
     _snap, rows = job_rows(client, job)
     held = [r for one in rows for r in one if r["kind"] == "not_taken"]
     assert held and held[0]["text"].startswith("Not taken in"), rows
@@ -158,22 +248,31 @@ def test_an_away_job_whose_tests_still_fail_ends_not_taken_in(make_client, proje
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"  # (never taken in)
 
 
-
-def test_with_the_default_spawn_approval_the_hand_off_asks_nothing(team, wait_run,  # noqa: F811
-                                                                   project_dir):
+def test_with_the_default_spawn_approval_the_hand_off_asks_nothing(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+):
     # (KOLONİ's own hand-off is no pick of an agent's: no card at Full auto)
-    executor = ScriptedExecutor([PASS, failing(), PASS, PASS])
-    client, cid, run_id = started(team, project_dir, {
-        "Lead": ONE, "Coder 2": [said(s11.FIX_INCOMPLETE)],
-        "Coder 3": [step(write("a.py", "x = 3\n").tool_calls[0]), text("fixed")]}, WORK,
-        executor, approval=None)
+    executor = ScriptedExecutor([failing(), PASS])
+    client, cid, run_id = started(
+        team,
+        project_dir,
+        {
+            "Lead": ONE,
+            "Coder 2": [said(s11.FIX_INCOMPLETE)],
+            "Coder 3": [step(write("a.py", "x = 3\n").tool_calls[0]), text("fixed")],
+        },
+        WORK,
+        executor,
+        approval=None,
+    )
     snap = wait_run(client, cid, run_id, timeout=60)
     texts = [one[2] for one in rows_of(snap, run_id)]
     assert "Tests passed: python check.py - 4 passed in 0.1s" in texts, (texts, snap["agents"])
 
 
-def test_approach_wrong_in_a_copy_starts_over_in_a_fresh_one(make_client, project_dir,
-                                                             monkeypatch):
+def test_approach_wrong_in_a_copy_starts_over_in_a_fresh_one(make_client, project_dir, monkeypatch):
     # (decision 19: the copy's changes dropped, a fresh copy from the start state, only the short
     # note of what was tried - here an Away job's copy; the tier given, as `make_client` has none)
     from tests.test_agent_writes import edit
@@ -181,102 +280,187 @@ def test_approach_wrong_in_a_copy_starts_over_in_a_fresh_one(make_client, projec
     from tests.test_backlog_auto import until
     from tests.test_proof_end_scenarios import ONE_JOB, job_rows
 
-    monkeypatch.setattr(s11.StrongerMixin, "_stronger_tiers",
-                        lambda _self, _ctx, _held, _first: ([("strongest", "Local", "big")], []))
-    check = ("import sys\nok = 'bye' in open('hello.py').read()\n"
-             "print('3 passed' if ok else '1 failed')\nsys.exit(0 if ok else 1)\n")
+    monkeypatch.setattr(
+        s11.StrongerMixin,
+        "_stronger_tiers",
+        lambda _self, _ctx, _held, _first: ([("strongest", "Local", "big")], []),
+    )
+    check = (
+        "import sys\nok = 'bye' in open('hello.py').read()\n"
+        "print('3 passed' if ok else '1 failed')\nsys.exit(0 if ok else 1)\n"
+    )
     (project_dir / "check.py").write_text(check, encoding="utf-8")
     client, _model, pid, cid, _run = evening(
-        make_client, project_dir,
-        [edit(), text("one done"), text("good morning"),
-         said(s11.APPROACH_WRONG, "printing hello was never the way"),
-         step(write("hello.py", "print('bye')\n", "wb").tool_calls[0]), text("did it another way")],
-        mode="full_auto", plan=ONE_JOB, lead_work="itself", check_command=CHECK, fix_rounds=1)
-    until(lambda: client.get(f"/api/conversations/{cid}").json()["runs"][0]["status"]
-          == "completed")
+        make_client,
+        project_dir,
+        [
+            edit(),
+            text("one done"),
+            text("good morning"),
+            said(s11.APPROACH_WRONG, "printing hello was never the way"),
+            step(write("hello.py", "print('bye')\n", "wb").tool_calls[0]),
+            text("did it another way"),
+        ],
+        mode="full_auto",
+        plan=ONE_JOB,
+        lead_work="itself",
+        check_command=CHECK,
+        fix_rounds=1,
+    )
+    until(
+        lambda: client.get(f"/api/conversations/{cid}").json()["runs"][0]["status"] == "completed"
+    )
     assert go_away(client, cid).status_code in (200, 201)
     job = until(lambda: (n := night(client, pid)) and looked_at(n) and n, seconds=30)["jobs"][0]
     snap, rows = job_rows(client, job)
     texts = [r["text"] for one in rows for r in one]
     assert s11.STARTED_OVER.format(why="printing hello was never the way") in texts, texts
-    assert any(one.startswith("Tests passed") for one in texts), (texts, [(c["name"], c["status"], (c.get("result") or "")[:160]) for c in snap["tool_calls"]])
+    assert any(one.startswith("Tests passed") for one in texts), (
+        texts,
+        [(c["name"], c["status"], (c.get("result") or "")[:160]) for c in snap["tool_calls"]],
+    )
     # (the first approach's edit is no change of the work any more: dropped with its copy)
-    assert [c["status"] for c in snap["file_changes"] if c["agent_id"] == snap["agents"][0]["id"]
-            and c["path"] == "hello.py"][:1] == ["discarded"], snap["file_changes"]
+    assert [
+        c["status"]
+        for c in snap["file_changes"]
+        if c["agent_id"] == snap["agents"][0]["id"] and c["path"] == "hello.py"
+    ][:1] == ["discarded"], snap["file_changes"]
 
 
-def test_a_tier_over_its_limit_is_skipped_and_said(team, wait_run, project_dir,  # noqa: F811
-                                                   monkeypatch):
-    monkeypatch.setattr(s11, "over_limit",
-                        lambda _session, provider: "over" if provider.name == "Local" else None)
-    executor = ScriptedExecutor([PASS, failing(), PASS, PASS])
-    client, cid, run_id = started(team, project_dir, {"Lead": FIRST}, {
-        "Coder": [step(write("a.py", "x = 1\n").tool_calls[0]), text("wrote it")],
-        "Coder 2": [said(s11.FIX_INCOMPLETE)],
-        "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed")]}, executor)
+def test_a_tier_over_its_limit_is_skipped_and_said(
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        s11, "over_limit", lambda _session, provider: "over" if provider.name == "Local" else None
+    )
+    executor = ScriptedExecutor([failing(), PASS])
+    client, cid, run_id = started(
+        team,
+        project_dir,
+        {"Lead": FIRST},
+        {
+            "Coder": [step(write("a.py", "x = 1\n").tool_calls[0]), text("wrote it")],
+            "Coder 2": [said(s11.FIX_INCOMPLETE)],
+            "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed")],
+        },
+        executor,
+    )
     snap = wait_run(client, cid, run_id, timeout=60)
     texts = [one[2] for one in rows_of(snap, run_id)]
     assert s11.SKIPPED.format(tier="Strongest", why=s11.OVER_ITS_LIMIT) in texts, texts
     assert not any("(Strongest)" in one for one in texts), texts
 
 
-def test_a_round_that_loosens_the_test_without_leave_is_no_pass(team, wait_run,  # noqa: F811
-                                                                 project_dir):
+def test_a_round_that_loosens_the_test_without_leave_is_no_pass(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+):
     # (S11 review: under fix-incomplete the stronger model rewrote the failing test to pass)
     (project_dir / "test_a.py").write_text("def test_a():\n    assert 1 == 2\n", encoding="utf-8")
-    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
-        "Coder 2": [said(s11.FIX_INCOMPLETE)],
-        "Coder 3": [step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
-                    text("fixed")]},
-        [PASS, failing(), PASS, PASS])
+    texts, _snap, _executor = one_tier(
+        team,
+        wait_run,
+        project_dir,
+        {
+            "Coder 2": [said(s11.FIX_INCOMPLETE)],
+            "Coder 3": [
+                step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
+                text("fixed"),
+            ],
+        },
+        [failing(), PASS],
+    )
     assert s11.TESTS_TOUCHED.format(model="big-model", paths="test_a.py") in texts, texts
     assert s11.STILL_HANDED.format(by="fast-model and big-model") in texts, texts
     # (each says it with the failing command: Fix it's, as a failing tests row's)
-    rows = [r for m in _snap["messages"] if m["role"] == "checked" for r in m["checked"]
-            if r["kind"] in ("stronger", "rounds") and r["state"] == "failed"]
+    rows = [
+        r
+        for m in _snap["messages"]
+        if m["role"] == "checked"
+        for r in m["checked"]
+        if r["kind"] in ("stronger", "rounds") and r["state"] == "failed"
+    ]
     assert rows and all(r["command"] == CHECK for r in rows), rows
+    # (and why, as a code of KOLONİ's: Fix it's sentence goes by it, never by the row's words)
+    assert [r["reason"] for r in rows] == ["touched", "still"], rows
 
 
-def test_a_test_wrong_round_is_read_by_the_reviewer(team, wait_run, project_dir,  # noqa: F811
-                                                     monkeypatch):
+def test_a_test_wrong_round_is_read_by_the_reviewer(
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
+    monkeypatch,
+):
     from app.agent.review_mixin import ReviewMixin
+
     seen = []
 
     async def recording(_self, _ctx, held):
         seen.append((len(held.handed), held.review_forced))
         held.verdict = "HOLD"  # (it holds the change)
         return None
+
     monkeypatch.setattr(ReviewMixin, "_proof_review", recording)
     why = 'the request asks to "check my greeting", the test wants another'
-    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
-        "Coder 2": [said(s11.TEST_WRONG, why)],
-        "Coder 3": [step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
-                    text("changed the test as the request asks")]},
-        [PASS, failing(), PASS, PASS])
+    texts, _snap, _executor = one_tier(
+        team,
+        wait_run,
+        project_dir,
+        {
+            "Coder 2": [said(s11.TEST_WRONG, why)],
+            "Coder 3": [
+                step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
+                text("changed the test as the request asks"),
+            ],
+        },
+        [failing(), PASS],
+    )
     assert (1, True) in seen, (seen, texts)
     assert s11.TEST_HELD.format(model="big-model") in texts, texts
+    reasons = [
+        r["reason"]
+        for m in _snap["messages"]
+        if m["role"] == "checked"
+        for r in m["checked"]
+        if r["kind"] == "stronger" and r["state"] == "failed"
+    ]
+    assert reasons == ["held"], reasons
 
 
 def test_s7s_failed_row_is_no_stronger_pass():
     from app import proof
     from app.agent.proof_mixin import Proof
+
     run = proof.TestRun(CHECK, ".", True)
     held = Proof()
-    held.rows = [proof.row("tests", "passed", f"Tests passed: {CHECK} - 3 passed", CHECK),
-                 proof.row("tests", "failed", "Fewer tests than the last green run: 3 of 4",
-                           CHECK)]
+    held.rows = [
+        proof.row("tests", "passed", f"Tests passed: {CHECK} - 3 passed", CHECK),
+        proof.row("tests", "failed", "Fewer tests than the last green run: 3 of 4", CHECK),
+    ]
     assert s11.StrongerMixin._handed_passed(held, [(run, "1 failed")]) is False
 
 
-def test_held_fix_refuses_another_origin_a_made_up_merge_and_a_second_click(make_client,
-                                                                            project_dir):
+def test_held_fix_refuses_another_origin_a_made_up_merge_and_a_second_click(
+    make_client, project_dir
+):
     from tests.test_proof_end_scenarios import away_job, job_rows
+
     check = "import sys\nprint('FAILED test_x - no')\nprint('1 failed')\nsys.exit(1)\n"
-    client, _pid, job = away_job(make_client, project_dir, "full_auto", check=check,
-                                 check_command=CHECK, fix_rounds=1)
+    client, _pid, job = away_job(
+        make_client, project_dir, "full_auto", check=check, check_command=CHECK, fix_rounds=1
+    )
     snap, _rows = job_rows(client, job)
-    row, run_id = next((r, m["run_id"]) for m in snap["messages"] if m["role"] == "checked"
-                       for r in m["checked"] if r["kind"] == "not_taken")
+    row, run_id = next(
+        (r, m["run_id"])
+        for m in snap["messages"]
+        if m["role"] == "checked"
+        for r in m["checked"]
+        if r["kind"] == "not_taken"
+    )
     body = {"merge_id": row["merge_id"], "reply": "the code"}
     url = f"/api/runs/{run_id}/held/fix"
     assert client.post(url, json=body, headers={"Origin": "http://evil.invalid"}).status_code == 403
@@ -289,81 +473,146 @@ WRONG = 'the request asks to "check my greeting", the test wants another'
 
 
 @pytest.mark.parametrize("unread", ["failed", "no verdict", "over"])
-def test_a_test_wrong_round_the_reviewer_did_not_read_is_no_pass(team, wait_run,  # noqa: F811
-                                                                  project_dir, monkeypatch,
-                                                                  unread):
+def test_a_test_wrong_round_the_reviewer_did_not_read_is_no_pass(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+    monkeypatch,
+    unread,
+):
     # (S11 re-check: the forced look failed open where the Reviewer could not look, gave no
     # verdict, or the turn was over its limit - the earlier verdict stood)
     from app.agent.review_mixin import Look, ReviewMixin
+
     monkeypatch.setattr(ReviewMixin, "_proof_review", REVIEW)
     look = Look("Reviewer", "x · y", None, None, "it failed" if unread == "failed" else None)
 
     async def no_look(_self, _ctx, _role, _task):
         return look
+
     monkeypatch.setattr(ReviewMixin, "_review_look", no_look)
     if unread == "over":  # (under the limit as it is handed on, over it by the forced look)
         calls = []
-        monkeypatch.setattr(ReviewMixin, "_review_over",
-                            lambda *_args: bool(calls.append(1)) or len(calls) > 1)
-    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
-        "Coder 2": [said(s11.TEST_WRONG, WRONG)],
-        "Coder 3": [step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
-                    text("changed the test as the request asks")]},
-        [PASS, failing(), PASS, PASS])
-    assert any(one.startswith("Not a pass: the Reviewer did not read big-model") for one in texts), (
-        texts)
+        monkeypatch.setattr(
+            ReviewMixin, "_review_over", lambda *_args: bool(calls.append(1)) or len(calls) > 1
+        )
+    texts, _snap, _executor = one_tier(
+        team,
+        wait_run,
+        project_dir,
+        {
+            "Coder 2": [said(s11.TEST_WRONG, WRONG)],
+            "Coder 3": [
+                step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
+                text("changed the test as the request asks"),
+            ],
+        },
+        [failing(), PASS],
+    )
+    assert any(
+        one.startswith("Not a pass: the Reviewer did not read big-model") for one in texts
+    ), texts
 
 
-def test_a_conftest_that_deselects_the_test_is_a_test_change(team, wait_run,  # noqa: F811
-                                                              project_dir):
-    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
-        "Coder 2": [said(s11.FIX_INCOMPLETE)],
-        "Coder 3": [step(write("conftest.py", "collect_ignore = ['test_a.py']\n").tool_calls[0]),
-                    text("fixed")]},
-        [PASS, failing(), PASS, PASS])
+def test_a_conftest_that_deselects_the_test_is_a_test_change(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+):
+    texts, _snap, _executor = one_tier(
+        team,
+        wait_run,
+        project_dir,
+        {
+            "Coder 2": [said(s11.FIX_INCOMPLETE)],
+            "Coder 3": [
+                step(write("conftest.py", "collect_ignore = ['test_a.py']\n").tool_calls[0]),
+                text("fixed"),
+            ],
+        },
+        [failing(), PASS],
+    )
     assert s11.TESTS_TOUCHED.format(model="big-model", paths="conftest.py") in texts, texts
 
 
-@pytest.mark.parametrize("path", ["conftest.py", "tests/conftest.py", "pytest.ini", "tox.ini",
-                                  ".pytest.ini", "pytest.toml", ".pytest.toml",
-                                  "vitest.workspace.ts",
-                                  "setup.cfg", "pyproject.toml", "noxfile.py", "package.json",
-                                  "vitest.config.ts", "vite.config.mts", "jest.config.js",
-                                  "karma.conf.js", ".mocharc.yml", "playwright.config.ts"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "conftest.py",
+        "tests/conftest.py",
+        "pytest.ini",
+        "tox.ini",
+        ".pytest.ini",
+        "pytest.toml",
+        ".pytest.toml",
+        "vitest.workspace.ts",
+        "setup.cfg",
+        "pyproject.toml",
+        "noxfile.py",
+        "package.json",
+        "vitest.config.ts",
+        "vite.config.mts",
+        "jest.config.js",
+        "karma.conf.js",
+        ".mocharc.yml",
+        "playwright.config.ts",
+    ],
+)
 def test_what_steers_the_tests_is_a_test_change(path):
     assert s11.steers_tests(path) and not s11.steers_tests("src/config.py")
 
 
 def test_until_it_passes_a_stronger_models_rounds_stop_where_they_make_no_progress(
-        team, wait_run, project_dir):  # noqa: F811
+    team, wait_run, project_dir
+):  # noqa: F811
     # (k-canli-016: the first model's answer to its round changed nothing - no progress: the
     # rounds stop and the strongest tier is handed the fix; its own round leaves the same test
     # failing - it stops there too, never 20 rounds of the same failure.)
     from app import proof
-    texts, _snap, executor = one_tier(team, wait_run, project_dir, {
-        "Coder 2": [said(s11.FIX_INCOMPLETE)],
-        "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed")]},
-        [PASS, failing(), PASS, failing()], fix_rounds="until")
-    assert s11.HANDED.format(model="big-model", tier="Strongest", n="1 round",
-                             by="fast-model") in texts, texts
+
+    texts, _snap, executor = one_tier(
+        team,
+        wait_run,
+        project_dir,
+        {
+            "Coder 2": [said(s11.FIX_INCOMPLETE)],
+            "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed")],
+        },
+        [failing(), failing()],
+        fix_rounds="until",
+    )
+    assert (
+        s11.HANDED.format(model="big-model", tier="Strongest", n="1 round", by="fast-model")
+        in texts
+    ), texts
     assert s11.STRONGER_HALTED.format(model="big-model", why=proof.NO_PROGRESS) in texts, texts
-    assert len(executor.started) == 4, executor.started  # (its copy's check, then the end's)
+    assert len(executor.started) == 2, executor.started  # (the end's: its copy wrote no test)
 
 
 def test_until_it_passes_one_ceiling_holds_the_turns_rounds_and_the_stronger_ones(
-        team, wait_run, project_dir, monkeypatch):  # noqa: F811
+    team, wait_run, project_dir, monkeypatch
+):  # noqa: F811
     # (A stronger model that keeps making progress is held to the ceiling with the first model's
     # rounds - 1 here, 20 in use -, and no tier more is tried after it: never 20 rounds a tier.)
     from app import proof
     from tests.test_proof_until_scenarios import fails
+
     monkeypatch.setattr(proof, "UNTIL_CEILING", 1)
-    texts, _snap, executor = one_tier(team, wait_run, project_dir, {
-        "Coder 2": [said(s11.FIX_INCOMPLETE)],
-        "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed one")]},
-        [PASS, fails(3), PASS, fails(2)], fix_rounds="until")
+    texts, _snap, executor = one_tier(
+        team,
+        wait_run,
+        project_dir,
+        {
+            "Coder 2": [said(s11.FIX_INCOMPLETE)],
+            "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed one")],
+        },
+        [fails(3), fails(2)],
+        fix_rounds="until",
+    )
     assert s11.STRONGER_HALTED.format(model="big-model", why=proof.AT_CEILING.format(most=1)) in (
-        texts), texts
-    assert len(executor.started) == 4, executor.started
+        texts
+    ), texts
+    assert len(executor.started) == 2, executor.started
 
 
 # --- k-onceki-1: the second session's J and K ------------------------------------------------
@@ -372,8 +621,8 @@ PYTEST = "python -m pytest -q"
 
 
 class ByTheWork(ScriptedExecutor):
-    """The project's tests as they would run: they pass where `a.py` holds the fix, x = 3 - the
-    first run (the first Coder's Take in check) passes, as its suite did then."""
+    """The project's tests as they would run: they pass where `a.py` holds the fix, x = 3 - a
+    Take in's check of the tests a Coder wrote (0.1.7) as the end's."""
 
     def __init__(self):
         super().__init__([])
@@ -381,9 +630,10 @@ class ByTheWork(ScriptedExecutor):
 
     async def start(self, command_id, command, cwd, copy=None, links=None, secrets=None, env=None):
         from pathlib import Path
+
         a = Path(cwd) / "a.py"
         fixed = a.exists() and "x = 3" in a.read_text(encoding="utf-8")
-        self.scripts = [PASS if fixed or not self.runs else failing()]
+        self.scripts = [PASS if fixed else failing()]
         self.runs += 1
         return await super().start(command_id, command, cwd, copy, links, secrets, env)
 
@@ -391,44 +641,75 @@ class ByTheWork(ScriptedExecutor):
 def fixer_writes(*files, again=()):
     """The strongest model's fix round: its diagnosis (fix-incomplete), then `files` written -
     and `again`, in a step after."""
+
     def wrote(written, first):
-        return step(*(write(path, body, f"w{first + at}").tool_calls[0]
-                      for at, (path, body) in enumerate(written)))
-    return {"Coder 2": [said(s11.FIX_INCOMPLETE)],
-            "Coder 3": [wrote(files, 0), *([wrote(again, len(files))] if again else []),
-                        text("fixed")]}
+        return step(
+            *(
+                write(path, body, f"w{first + at}").tool_calls[0]
+                for at, (path, body) in enumerate(written)
+            )
+        )
+
+    return {
+        "Coder 2": [said(s11.FIX_INCOMPLETE)],
+        "Coder 3": [wrote(files, 0), *([wrote(again, len(files))] if again else []), text("fixed")],
+    }
 
 
 def handed(team, wait_run, project_dir, files, again=(), **project):  # noqa: F811
     """J's turn: the balanced model's work fails the project's own pytest; the strongest is
     handed it and writes `files` (and `again`, after)."""
     executor = ByTheWork()
-    client, cid, run_id = started(team, project_dir, {
-        "Lead": ONE, **fixer_writes(*files, again=again)}, WORK, executor, check_command=PYTEST,
-        **project)
+    client, cid, run_id = started(
+        team,
+        project_dir,
+        {"Lead": ONE, **fixer_writes(*files, again=again)},
+        WORK,
+        executor,
+        check_command=PYTEST,
+        **project,
+    )
     snap = wait_run(client, cid, run_id, timeout=60)
     return [one[2] for one in rows_of(snap, run_id)], snap
 
 
 @pytest.mark.parametrize("again", [(), [("test_new.py", "def test_new():\n    assert 3\n")]])
-def test_a_fix_with_a_new_test_is_judged_on_the_whole_suites_verdict(team, wait_run,  # noqa: F811
-                                                                      project_dir, again):
+def test_a_fix_with_a_new_test_is_judged_on_the_whole_suites_verdict(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+    again,
+):
     # (J: the related tests passed, the whole suite went on after the answer - and the hand-off
     # judged "no verdict" before it ended: "Still failing" over passing work. Its new test
     # written again is still a new test of its own - no test changed without leave.)
-    texts, _snap = handed(team, wait_run, project_dir,
-                          [("a.py", "x = 3\n"), ("test_new.py", "def test_new(): pass\n")], again)
+    texts, _snap = handed(
+        team,
+        wait_run,
+        project_dir,
+        [("a.py", "x = 3\n"), ("test_new.py", "def test_new(): pass\n")],
+        again,
+    )
     assert s11.NO_VERDICT not in texts, texts
     assert not any(one.startswith("Not a pass") for one in texts), texts
     assert not any(one.startswith("Still failing") for one in texts), texts
     assert f"Tests passed: {PYTEST} - 4 passed in 0.1s" in texts, texts
 
 
-@pytest.mark.parametrize("path, body", [
-    ("test_a.py", "def test_a():\n    assert True\n"),
-    ("conftest.py", "collect_ignore = ['test_a.py']\n")])
-def test_a_loosened_test_is_said_as_no_pass_whatever_ran(team, wait_run, project_dir,  # noqa: F811
-                                                        path, body):
+@pytest.mark.parametrize(
+    "path, body",
+    [
+        ("test_a.py", "def test_a():\n    assert True\n"),
+        ("conftest.py", "collect_ignore = ['test_a.py']\n"),
+    ],
+)
+def test_a_loosened_test_is_said_as_no_pass_whatever_ran(
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
+    path,
+    body,
+):
     # (J: with the project's own pytest, the round that loosened the test or left it out gave
     # "no verdict" first - the row that says why never came, and the test counted as new)
     (project_dir / "test_a.py").write_text("def test_a():\n    assert 1 == 2\n", encoding="utf-8")
@@ -437,15 +718,70 @@ def test_a_loosened_test_is_said_as_no_pass_whatever_ran(team, wait_run, project
     assert not any(one.startswith("New tests") and path in one for one in texts), texts
 
 
-def test_a_fix_that_fails_take_ins_check_is_said_in_checked_and_stays_out(team, wait_run,  # noqa: F811
-                                                                          project_dir):
+def test_a_fix_that_fails_take_ins_check_is_said_in_checked_and_stays_out(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+):
     # (K: with the project's own check command, the fixer's work failed Take in's own check
     # and stayed in its copy - and no Checked section came at all: the newest record of a.py
-    # was that copy's, so nothing of the turn counted as in the project)
-    texts, snap = handed(team, wait_run, project_dir, [("a.py", "x = 2\n")])
-    assert s11.HANDED.format(model="big-model", tier="Strongest", n="1 round",
-                             by="fast-model") in texts, texts
+    # was that copy's, so nothing of the turn counted as in the project. 0.1.7: the check is
+    # the tests the fixer wrote - a new one here)
+    texts, snap = handed(
+        team,
+        wait_run,
+        project_dir,
+        [("a.py", "x = 2\n"), ("test_fix.py", "def test_fix(): pass\n")],
+    )
+    assert (
+        s11.HANDED.format(model="big-model", tier="Strongest", n="1 round", by="fast-model")
+        in texts
+    ), texts
     assert s11.STILL_HANDED.format(by="fast-model and big-model") in texts, texts
     assert s11.FIX_KEPT_OUT.format(model="big-model") in texts, texts
     assert not any(one.startswith("Tests not run") for one in texts), texts
     assert (project_dir / "a.py").read_text(encoding="utf-8") == "x = 1\n"  # (never taken in)
+
+
+def test_work_a_stronger_model_made_pass_is_looked_over_once(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+    monkeypatch,
+):
+    # (k-bakis-yeri O: the first pass's "No review: the tests still fail" stood for work that
+    # passes now - a big change's look, once, on the work as the stronger model left it)
+    from app.agent.review_mixin import TESTS_FAIL, Look, ReviewMixin
+
+    monkeypatch.setattr(ReviewMixin, "_proof_review", REVIEW)
+    looked = []
+
+    async def merges(_self, _ctx, role, _task):
+        looked.append(role)
+        return Look(role, "x · y", "MERGE", [], None)
+
+    monkeypatch.setattr(ReviewMixin, "_review_look", merges)
+    big = "".join(f"x{i} = {i}\n" for i in range(90))
+    executor = ScriptedExecutor([failing(), PASS])
+    # (its round's answer - a write of its own, refused: the Orchestrator hands code on - leaves
+    # the failure standing with no round left - "No review: the tests still fail" - and the
+    # stronger model is handed it; 0.1.7: no Take in check of a copy with no test of its own, so
+    # the runs are the end check's two)
+    lead = [*ONE[:2], step(write("c.py", "z = 1\n", "w9").tool_calls[0]), text("tried")]
+    client, cid, run_id = started(
+        team,
+        project_dir,
+        {
+            "Lead": lead,
+            "Coder 2": [said(s11.FIX_INCOMPLETE)],
+            "Coder 3": [step(write("b.py", "y = 2\n").tool_calls[0]), text("fixed")],
+        },
+        {"Coder": [step(write("a.py", big).tool_calls[0]), text("wrote it")]},
+        executor,
+    )
+    snap = wait_run(client, cid, run_id, timeout=60)
+    texts = [one[2] for one in rows_of(snap, run_id)]
+    assert looked == ["Reviewer"], (looked, texts)
+    assert "Review: Reviewer (x · y) - MERGE, no findings" in texts, texts
+    assert TESTS_FAIL not in texts, texts
+    assert "Tests passed: python check.py - 4 passed in 0.1s" in texts, texts

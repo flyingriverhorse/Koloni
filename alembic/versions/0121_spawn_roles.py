@@ -9,6 +9,7 @@ record (migration 0106). Going back takes it off where the list is still as this
 Revision ID: 0121
 Revises: 0120
 """
+
 import json
 
 import sqlalchemy as sa
@@ -47,13 +48,17 @@ def _swap(back: bool) -> None:
     bind = op.get_bind()
     for name, was in ROLES:
         old, new = (_with_spawn(was), was) if back else (was, _with_spawn(was))
-        for id_, held in bind.execute(sa.text(
-                "SELECT id, tools FROM roles WHERE name = :name AND builtin = 1"), {"name": name}):
+        for id_, held in bind.execute(
+            sa.text("SELECT id, tools FROM roles WHERE name = :name AND builtin = 1"),
+            {"name": name},
+        ):
             # (The same tools in another order are still as KOLONİ gave them: 0097 and older
             # migrations put theirs last, so an upgraded Lead was skipped - B-335.)
             if sorted(json.loads(held) if isinstance(held, str) else held) == sorted(old):
-                bind.execute(sa.text("UPDATE roles SET tools = :tools WHERE id = :id"),
-                             {"tools": json.dumps(new), "id": id_})
+                bind.execute(
+                    sa.text("UPDATE roles SET tools = :tools WHERE id = :id"),
+                    {"tools": json.dumps(new), "id": id_},
+                )
 
 
 def upgrade() -> None:

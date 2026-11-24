@@ -17,8 +17,17 @@ from tests.test_agent_writes import wait_status
 from tests.test_claude_native import BASH, FAKE, WRITE, hello, start
 
 # None of Claude Code's own extras: not measured on Qoder.
-CLAUDE_ONLY = ("--agents", "--json-schema", "--settings", "--plugin-dir", "--add-dir",
-               "--disable-slash-commands", "--verbose", "--effort", "--disallowedTools")
+CLAUDE_ONLY = (
+    "--agents",
+    "--json-schema",
+    "--settings",
+    "--plugin-dir",
+    "--add-dir",
+    "--disable-slash-commands",
+    "--verbose",
+    "--effort",
+    "--disallowedTools",
+)
 
 
 @pytest.fixture
@@ -28,17 +37,22 @@ def qoder_app(settings_env, tmp_path, project_dir):
 
     def make(script, **more):
         script = json.loads(json.dumps(script).replace("PROJECT", project_dir.as_posix()))
-        plan.write_text(json.dumps({"record": str(record), "script": script,
-                                    "version": "1.1.51", **more}), encoding="utf-8")
-        cli = QoderNativeClient(launcher=FAKE, model="Qwen3.8-Flash", timeout=30,
-                                env={"FAKE_CLI_PLAN": str(plan)})
-        app = create_app(load_settings(settings_env), model=ScriptedModel([]),
-                         clients={"Qoder": cli})
+        plan.write_text(
+            json.dumps({"record": str(record), "script": script, "version": "1.1.51", **more}),
+            encoding="utf-8",
+        )
+        cli = QoderNativeClient(
+            launcher=FAKE, model="Qwen3.8-Flash", timeout=30, env={"FAKE_CLI_PLAN": str(plan)}
+        )
+        app = create_app(
+            load_settings(settings_env), model=ScriptedModel([]), clients={"Qoder": cli}
+        )
         client = TestClient(app, base_url="http://127.0.0.1:8790")
         client.__enter__()
         opened.append(client)
-        provider = client.post("/api/providers", json={
-            "name": "Qoder", "kind": "qoder_cli", "mode": "native"})
+        provider = client.post(
+            "/api/providers", json={"name": "Qoder", "kind": "qoder_cli", "mode": "native"}
+        )
         assert provider.status_code == 201, provider.text
         return client, provider.json()
 
@@ -64,7 +78,8 @@ def test_qoder_asks_before_it_writes_on_its_own_line(qoder_app, wait_run, projec
     assert argv[argv.index("-m") + 1] == "Qwen3.8-Flash"
     assert "--strict-mcp-config" in argv and "--disallowed-tools" in argv
     assert "mcp__koloni__spawn_agent" in [
-        argv[i + 1] for i, one in enumerate(argv) if one == "--allowed-tools"]
+        argv[i + 1] for i, one in enumerate(argv) if one == "--allowed-tools"
+    ]
     assert not [one for one in CLAUDE_ONLY if one in argv]
     assert list(seen["init"]["request"]["hooks"]) == ["PreToolUse"]  # (no Stop hook, 89m)
 
@@ -82,8 +97,9 @@ def test_a_tool_qoder_runs_without_asking_stops_the_run(qoder_app, wait_run, pro
 
 
 def test_a_tool_qoder_runs_unasked_that_fails_stops_the_run_too(qoder_app, wait_run, project_dir):
-    client, provider = qoder_app([{**BASH, "unhooked": True, "error": "Exit code 1"}, WRITE,
-                                  {"say": "done"}])
+    client, provider = qoder_app(
+        [{**BASH, "unhooked": True, "error": "Exit code 1"}, WRITE, {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     run = wait_run(client, cid, run_id, timeout=15)["runs"][0]
     assert run["status"] == "failed" and "without KOLONİ being asked" in run["error"]
@@ -93,14 +109,20 @@ def test_a_tool_qoder_runs_unasked_that_fails_stops_the_run_too(qoder_app, wait_
 def test_a_qoder_tool_koloni_does_not_know_by_name_is_a_card_below_full_auto(
     qoder_app, wait_run, project_dir
 ):
-    client, provider = qoder_app([
-        {"tool": "run_shell_command", "input": {"command": "cat .env"}, "result": "K=v"},
-        {"say": "done"}])
+    client, provider = qoder_app(
+        [
+            {"tool": "run_shell_command", "input": {"command": "cat .env"}, "result": "K=v"},
+            {"say": "done"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, "auto_edit")
     question = wait_status(client, cid, "waiting_approval")["questions"][0]
     assert "run_shell_command" in question["question"]
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Deny"},
-                headers={"Origin": "http://127.0.0.1:8790"})
+    client.post(
+        f"/api/questions/{question['id']}/answer",
+        json={"answer": "Deny"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    )
     wait_run(client, cid, run_id)
     assert [one["behavior"] for one in qoder_app.record()["asked"]] == ["deny"]
 
@@ -110,20 +132,27 @@ def test_at_full_auto_a_qoder_tool_koloni_does_not_know_by_name_is_still_a_card(
 ):
     """K-fullauto-sorma 2 review (B-306): an unknown name may be a shell, a write or the
     network past every check - a card at Full auto too, until Qoder's tool names are measured."""
-    client, provider = qoder_app([
-        {"tool": "run_shell_command", "input": {"command": "echo hi"}, "result": "hi"},
-        {"say": "done"}])
+    client, provider = qoder_app(
+        [
+            {"tool": "run_shell_command", "input": {"command": "echo hi"}, "result": "hi"},
+            {"say": "done"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     question = wait_status(client, cid, "waiting_approval")["questions"][0]
     assert "run_shell_command" in question["question"]
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Allow"},
-                headers={"Origin": "http://127.0.0.1:8790"})
+    client.post(
+        f"/api/questions/{question['id']}/answer",
+        json={"answer": "Allow"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    )
     wait_run(client, cid, run_id)
     assert [one["behavior"] for one in qoder_app.record()["asked"]] == ["allow"]
 
 
-@pytest.mark.parametrize("answer, said", [("silent", "did not answer for 1 seconds"),
-                                          ("error", "unknown hook event")])
+@pytest.mark.parametrize(
+    "answer, said", [("silent", "did not answer for 1 seconds"), ("error", "unknown hook event")]
+)
 def test_a_qoder_that_does_not_answer_initialize_is_stopped_before_its_prompt(
     qoder_app, wait_run, project_dir, monkeypatch, answer, said
 ):
@@ -179,13 +208,13 @@ def test_qoder_natively_is_built_and_speaks_as_its_session(settings):
 
 
 def test_qoders_cd_into_the_scratch_is_asked_whatever_cwd_the_model_writes_in_its_input(
-        qoder_app, project_dir):
+    qoder_app, project_dir
+):
     # (review: where Qoder's shell stands is not known, and its Bash input is the model's own -
     # `"cwd": "."` there is no report that the command runs at the root)
     (project_dir / ".koloni" / "tmp").mkdir(parents=True)
     line = "cd .koloni/tmp; ls"
-    client, provider = qoder_app([{**BASH, "input": {"command": line, "cwd": "."}},
-                                  {"say": "ok"}])
+    client, provider = qoder_app([{**BASH, "input": {"command": line, "cwd": "."}}, {"say": "ok"}])
     cid, _run_id = start(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert (asked["command"], asked["status"], asked["cwd"]) == (line, "proposed", None)
@@ -193,27 +222,34 @@ def test_qoders_cd_into_the_scratch_is_asked_whatever_cwd_the_model_writes_in_it
 
 
 def test_a_command_of_qoders_that_names_a_folder_to_run_in_is_asked_at_every_level(
-        qoder_app, project_dir):
+    qoder_app, project_dir
+):
     # (review: the `cwd` goes back to Qoder as it came - if its tool runs the command there, this
     # line writes .claude/settings.json; KOLONİ cannot check, so it asks)
     from app.agent.approvals_mixin import CWD_NOT_KNOWN
 
-    client, provider = qoder_app([
-        {**BASH, "input": {"command": "echo x > settings.json", "cwd": ".claude"}},
-        {"say": "ok"}])
+    client, provider = qoder_app(
+        [{**BASH, "input": {"command": "echo x > settings.json", "cwd": ".claude"}}, {"say": "ok"}]
+    )
     cid, _run_id = start(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
-    assert asked["status"] == "proposed" and asked["danger"] == CWD_NOT_KNOWN.format(cwd='".claude"')
+    assert asked["status"] == "proposed" and asked["danger"] == CWD_NOT_KNOWN.format(
+        cwd='".claude"'
+    )
 
 
 def test_a_qoder_orchestrators_go_away_line_sends_no_task_of_its_own_accord(
-        qoder_app, wait_run, project_dir):
+    qoder_app, wait_run, project_dir
+):
     # ☾ Away (re-check): whether Qoder's hook names its own sub-agents is not measured - its
     # line names no task, and the user ticks them in the panel.
-    client, provider = qoder_app([
-        {"koloni": "add_task", "args": {"title": "mine"}},
-        {"koloni": "offer_away", "args": {}},
-        {"say": "It is on your To-do."}])
+    client, provider = qoder_app(
+        [
+            {"koloni": "add_task", "args": {"title": "mine"}},
+            {"koloni": "offer_away", "args": {}},
+            {"say": "It is on your To-do."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]

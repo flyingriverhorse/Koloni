@@ -13,7 +13,8 @@ const role = (over: Partial<Role>): Role => ({
   instructions: 'Write it.',
   tools: ['read_file', 'write_file'],
   builtin: false,
-  created_by_agent: false, locked_tools: [],
+  created_by_agent: false,
+  locked_tools: [],
   models: null,
   provider_id: null,
   model_id: null,
@@ -49,7 +50,17 @@ const handlers = () => ({
   onPatch: vi.fn().mockResolvedValue(undefined),
 })
 const coder = role({})
-const tester = role({ id: 'r2', name: 'Tester', kind: 'check', tools: ['read_file', 'run_command'], max_steps: 40, mcp: ['github'], skills: ['tidy'], teams: ['t1'], knows: [{ knowledge_id: 'k1', mode: 'map' }] as Role['knows'] })
+const tester = role({
+  id: 'r2',
+  name: 'Tester',
+  kind: 'check',
+  tools: ['read_file', 'run_command'],
+  max_steps: 40,
+  mcp: ['github'],
+  skills: ['tidy'],
+  teams: ['t1'],
+  knows: [{ knowledge_id: 'k1', mode: 'map' }] as Role['knows'],
+})
 const summary = () => screen.getByText(/^be called/).closest('[aria-live]') as HTMLElement
 
 test('the library keeps its filter at the top of its own scroll, and it filters', async () => {
@@ -81,7 +92,8 @@ test('a new role: the Orchestrator picks its model unless told, its packs tick t
   await userEvent.click(within(form).getByRole('checkbox', { name: /^Run commands/ }))
   expect(within(form).getByRole('checkbox', { name: /^Run commands/ })).toHaveAccessibleName(/asks/)
   await userEvent.click(within(form).getByText('Pick tools one by one'))
-  for (const name of ['list_dir', 'read_file', 'search', 'view_image', 'run_command']) expect(within(form).getByRole('switch', { name })).toBeChecked()
+  for (const name of ['list_dir', 'read_file', 'search', 'view_image', 'run_command'])
+    expect(within(form).getByRole('switch', { name })).toBeChecked()
   expect(within(form).getByRole('switch', { name: 'write_file' })).not.toBeChecked()
   await userEvent.click(within(form).getByRole('switch', { name: 'search' }))
   expect(within(form).getByRole('checkbox', { name: /^Read and search/ })).not.toBeChecked()
@@ -95,7 +107,14 @@ test('a new role: the Orchestrator picks its model unless told, its packs tick t
     'ask you first before it may run commands, as the chat’s permission level says',
   ])
   await userEvent.click(within(form).getByRole('button', { name: 'Create role' }))
-  expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Data checker', kind: 'check', tier: 'fast', tools: ['list_dir', 'read_file', 'search', 'view_image', 'run_command'] }))
+  expect(h.onCreate).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: 'Data checker',
+      kind: 'check',
+      tier: 'fast',
+      tools: ['list_dir', 'read_file', 'search', 'view_image', 'run_command'],
+    }),
+  )
 })
 
 test('a new role from a copy: its fields, tools and limits, then its servers, skills and knowledge; not its teams', async () => {
@@ -112,10 +131,14 @@ test('a new role from a copy: its fields, tools and limits, then its servers, sk
   expect(within(form).getByLabelText('Category')).toHaveValue('check')
   expect(within(form).getByLabelText('At most this many steps')).toHaveValue('40')
   // its folded safety stops say they are set
-  expect(within(form).getByText('Safety stops for one agent').closest('summary')).toHaveTextContent('Safety stops for one agent · set')
+  expect(within(form).getByText('Safety stops for one agent').closest('summary')).toHaveTextContent(
+    'Safety stops for one agent · set',
+  )
   await userEvent.click(within(form).getByRole('button', { name: 'Create role' }))
   const sent = h.onCreate.mock.calls[0][0]
-  expect(sent).toEqual(expect.objectContaining({ name: 'Tester copy', tools: ['read_file', 'run_command'], max_steps: 40 }))
+  expect(sent).toEqual(
+    expect.objectContaining({ name: 'Tester copy', tools: ['read_file', 'run_command'], max_steps: 40 }),
+  )
   expect(sent.teams).toBeUndefined()
   await vi.waitFor(() => expect(useKnowledge).toHaveBeenCalledWith('k1', 'new', 'map'))
   expect(h.onPatch).toHaveBeenCalledWith('new', { mcp: ['github'] })
@@ -124,7 +147,9 @@ test('a new role from a copy: its fields, tools and limits, then its servers, sk
 
 test('a copy whose skills or knowledge are refused is made all the same: the form closes and says what was not given', async () => {
   const h = { ...handlers(), onCreate: vi.fn().mockResolvedValue({ ...tester, id: 'new', name: 'Tester copy' }) }
-  h.onPatch.mockImplementation((_id: string, change: object) => ('skills' in change ? Promise.reject({ detail: 'unknown skill' }) : Promise.resolve()))
+  h.onPatch.mockImplementation((_id: string, change: object) =>
+    'skills' in change ? Promise.reject({ detail: 'unknown skill' }) : Promise.resolve(),
+  )
   const useKnowledge = vi.fn().mockRejectedValue({ detail: 'no such knowledge' })
   render(<AgentsPage roles={[coder, tester]} categories={categories} knowledgeActions={{ useKnowledge }} {...h} />)
   await userEvent.click(screen.getByRole('button', { name: 'New role' }))
@@ -132,7 +157,9 @@ test('a copy whose skills or knowledge are refused is made all the same: the for
   await userEvent.click(within(form).getByRole('button', { name: 'A copy' }))
   await userEvent.selectOptions(within(form).getByLabelText('Copy of'), 'Tester')
   await userEvent.click(within(form).getByRole('button', { name: 'Create role' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('Made Tester copy; not given: its skills — unknown skill; a knowledge — no such knowledge')
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Made Tester copy; not given: its skills — unknown skill; a knowledge — no such knowledge',
+  )
   expect(h.onPatch).toHaveBeenCalledWith('new', { mcp: ['github'] })
   expect(screen.queryByRole('complementary', { name: 'New role' })).toBeNull()
   expect(h.onCreate).toHaveBeenCalledTimes(1)
@@ -148,14 +175,18 @@ test('editing a role is the same form, filled, opened at the section its Edit na
   await userEvent.click(within(panel).getByRole('button', { name: 'Edit may' }))
   expect(within(panel).getByText('Pick tools one by one').closest('details')).toHaveAttribute('open')
   expect(within(panel).getByRole('switch', { name: 'write_file' })).toBeChecked()
-  for (const title of ['Model', 'It may', 'This role will']) expect(within(panel).getByRole('region', { name: title })).toBeInTheDocument()
+  for (const title of ['Model', 'It may', 'This role will'])
+    expect(within(panel).getByRole('region', { name: title })).toBeInTheDocument()
   expect(within(panel).getByLabelText('Name')).toHaveValue('Coder')
   expect(within(panel).getByRole('radio', { name: 'Orchestrator' })).toBeChecked()
   expect(within(panel).queryByRole('group', { name: 'Start from' })).toBeNull()
   expect(within(panel).queryByRole('button', { name: 'Create role' })).toBeNull()
   await userEvent.click(within(panel).getByRole('checkbox', { name: /^Use the web/ }))
   await userEvent.click(within(panel).getByRole('button', { name: 'Save' }))
-  expect(h.onSave).toHaveBeenCalledWith('r1', expect.objectContaining({ tools: ['read_file', 'write_file', 'web_search', 'http_request'] }))
+  expect(h.onSave).toHaveBeenCalledWith(
+    'r1',
+    expect.objectContaining({ tools: ['read_file', 'write_file', 'web_search', 'http_request'] }),
+  )
 })
 
 const history: RolesHistory = {
@@ -169,29 +200,74 @@ const history: RolesHistory = {
   teams: [{ name: 'Web app', done: 3, failed: 1, running: 0 }],
   recipes: [{ name: 'Feature', done: 2, failed: 0, running: 1 }],
   jobs: [
-    { id: 'a1', role_name: 'Coder', conversation_id: 'c1', conversation_title: 'Paginate the notes', status: 'completed', provider_name: 'Local', model_id: 'qwen', created_at: '2026-11-03T10:00:00Z', teams: ['Web app'], recipes: ['Feature'] },
-    { id: 'a2', role_name: 'Tester', conversation_id: 'c2', conversation_title: 'Flaky login test', status: 'failed', provider_name: 'Local', model_id: null, created_at: '2026-11-02T10:00:00Z', teams: [], recipes: [] },
-    { id: 'a3', role_name: 'Coder', conversation_id: 'c3', conversation_title: 'Tags on notes', status: 'running', provider_name: null, model_id: null, created_at: '2026-11-01T10:00:00Z', teams: ['Web app'], recipes: [] },
+    {
+      id: 'a1',
+      role_name: 'Coder',
+      conversation_id: 'c1',
+      conversation_title: 'Paginate the notes',
+      status: 'completed',
+      provider_name: 'Local',
+      model_id: 'qwen',
+      created_at: '2026-11-03T10:00:00Z',
+      teams: ['Web app'],
+      recipes: ['Feature'],
+    },
+    {
+      id: 'a2',
+      role_name: 'Tester',
+      conversation_id: 'c2',
+      conversation_title: 'Flaky login test',
+      status: 'failed',
+      provider_name: 'Local',
+      model_id: null,
+      created_at: '2026-11-02T10:00:00Z',
+      teams: [],
+      recipes: [],
+    },
+    {
+      id: 'a3',
+      role_name: 'Coder',
+      conversation_id: 'c3',
+      conversation_title: 'Tags on notes',
+      status: 'running',
+      provider_name: null,
+      model_id: null,
+      created_at: '2026-11-01T10:00:00Z',
+      teams: ['Web app'],
+      recipes: [],
+    },
   ],
 }
 
 test('History: totals, a box each for roles, teams and recipes with how they ended, the Lead apart; the jobs filtered, each opening its chat', async () => {
   const onHistory = vi.fn().mockResolvedValue(history)
   const onOpenConversation = vi.fn()
-  render(<AgentsPage roles={[coder, tester]} onHistory={onHistory} onOpenConversation={onOpenConversation} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[coder, tester]}
+      onHistory={onHistory}
+      onOpenConversation={onOpenConversation}
+      {...handlers()}
+    />,
+  )
   await userEvent.click(screen.getByRole('tab', { name: 'History' }))
   expect(onHistory).toHaveBeenLastCalledWith(30)
   const stats = await screen.findByText('agents opened')
   // 10 opened; of the 9 that ended, 6 done
   expect(stats.closest('.history-stats')).toHaveTextContent('10agents opened67%ended done4team runs3recipe runs')
   const roles = screen.getByRole('region', { name: 'Roles' })
-  expect(within(roles).getByText('Coder').closest('.history-row')).toHaveTextContent('8 · 86%: 6 done, 1 failed or stopped, 1 in progress')
+  expect(within(roles).getByText('Coder').closest('.history-row')).toHaveTextContent(
+    '8 · 86%: 6 done, 1 failed or stopped, 1 in progress',
+  )
   expect(within(roles).getByText('Tester').closest('.history-row')).toHaveTextContent('2 · 0%')
   expect(roles).toHaveTextContent('9 turns led by the Orchestrator')
   expect(screen.getByRole('region', { name: 'Teams' })).toHaveTextContent('Web app4 · 75%')
   expect(screen.getByRole('region', { name: 'Recipes' })).toHaveTextContent('Feature3 · 100%')
   const jobs = screen.getByRole('region', { name: 'Jobs' })
-  const titles = () => within(jobs).queryAllByRole('button').map(b => b.textContent)
+  const titles = () =>
+    within(jobs)
+      .queryAllByRole('button')
+      .map(b => b.textContent)
   expect(titles()).toEqual(['Paginate the notes', 'Flaky login test', 'Tags on notes'])
   await userEvent.selectOptions(within(jobs).getByRole('combobox', { name: 'Team' }), 'Web app')
   expect(titles()).toEqual(['Paginate the notes', 'Tags on notes'])

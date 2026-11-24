@@ -4,6 +4,7 @@ line the lead wrote to be said, on its message (slice 32a)
 Revision ID: 0046
 Revises: 0045
 """
+
 import sqlalchemy as sa
 from alembic import op
 

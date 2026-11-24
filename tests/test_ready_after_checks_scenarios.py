@@ -19,25 +19,43 @@ DONE = [text(f"done {i}") for i in range(4)]
 ONCE = [spawn("Coder", "build greet.py", "c1"), *DONE]
 # (the round's failure goes back: the recipe's Coder again, in the recipe's copy)
 TWICE = [spawn("Coder", "build greet.py", "c1"), spawn("Coder", "fix greet.py", "c2"), *DONE]
-CODERS = {"Coder": [step(write("greet.py", "print('Hello')\n")), text("built")],
-          "Coder 2": [step(write("greet.py", "print('Hello!')\n", "w2")), text("fixed")]}
+CODERS = {
+    "Coder": [step(write("greet.py", "print('Hello')\n")), text("built")],
+    "Coder 2": [step(write("greet.py", "print('Hello!')\n", "w2")), text("fixed")],
+}
 
 
 def started(make_client, project_dir, mode, scripts, lead=ONCE, rounds=1):
     executor = ScriptedExecutor(scripts)
     client, model = make_client({"Lead": list(lead), **CODERS}, executor=executor)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={"check_command": "python check.py", **(
-        {"fix_rounds": rounds} if rounds else {})}, headers=OWN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/projects/{pid}",
+            json={"check_command": "python check.py", **({"fix_rounds": rounds} if rounds else {})},
+            headers=OWN,
+        ).status_code
+        == 200
+    )
     web, recipe = teams_of(client)["Web app"], one_step(client, "Build", "Coder")
-    cid, run_id = begin(client, project_dir, mode=mode, spawn_approval="never",
-                        teams_mode="manual", teams=[{"team_id": web["id"], "recipe_id": recipe["id"]}])
+    cid, run_id = begin(
+        client,
+        project_dir,
+        mode=mode,
+        spawn_approval="never",
+        teams_mode="manual",
+        teams=[{"team_id": web["id"], "recipe_id": recipe["id"]}],
+    )
     return client, executor, cid, run_id
 
 
 def rows(snap, run_id):
-    return [(r["kind"], r["state"], r["text"]) for m in snap["messages"]
-            if m["role"] == "checked" and m["run_id"] == run_id for r in m["checked"]]
+    return [
+        (r["kind"], r["state"], r["text"])
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == run_id
+        for r in m["checked"]
+    ]
 
 
 def in_copy(executor, project_dir):
@@ -71,16 +89,20 @@ def test_at_full_auto_passing_work_is_taken_in_after_its_checks(make_client, wai
     assert (project_dir / "greet.py").read_bytes() == b"print('Hello')\n"
 
 
-def test_a_fix_round_goes_back_into_the_recipe_and_its_fix_is_taken_in(make_client, wait_run,
-                                                                      project_dir):
-    client, executor, cid, run_id = started(make_client, project_dir, "full_auto",
-                                            [failing(), PASS, PASS], lead=TWICE)
+def test_a_fix_round_goes_back_into_the_recipe_and_its_fix_is_taken_in(
+    make_client, wait_run, project_dir
+):
+    client, executor, cid, run_id = started(
+        make_client, project_dir, "full_auto", [failing(), PASS, PASS], lead=TWICE
+    )
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     first = next(c for c in snap["tool_calls"] if c["name"] == "spawn_agent")["result"]
     assert FIX_IN_RECIPE.split("{back}")[0] in first, first  # (no role is refused the fix)
     assert [c["status"] for c in snap["tool_calls"] if c["name"] == "spawn_agent"] == [
-        "succeeded", "succeeded"]
+        "succeeded",
+        "succeeded",
+    ]
     said = [one for _k, _s, one in rows(snap, run_id)]
     assert passed(snap, run_id) and "Sent back to fix: 1 of 1 rounds" in said, said
     assert in_copy(executor, project_dir), executor.started
@@ -88,8 +110,9 @@ def test_a_fix_round_goes_back_into_the_recipe_and_its_fix_is_taken_in(make_clie
 
 
 def test_at_full_auto_failing_work_is_never_taken_in_nor_carded(make_client, wait_run, project_dir):
-    client, executor, cid, run_id = started(make_client, project_dir, "full_auto",
-                                            [failing() for _ in range(4)], lead=TWICE)
+    client, executor, cid, run_id = started(
+        make_client, project_dir, "full_auto", [failing() for _ in range(4)], lead=TWICE
+    )
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert any(kind == "not_taken" for kind, _s, _t in rows(snap, run_id)), rows(snap, run_id)
@@ -98,12 +121,19 @@ def test_at_full_auto_failing_work_is_never_taken_in_nor_carded(make_client, wai
     assert not (project_dir / "greet.py").exists()
 
 
-def test_until_it_passes_a_round_that_made_no_progress_stops_the_recipe_short(make_client, wait_run,
-                                                                             project_dir):
+def test_until_it_passes_a_round_that_made_no_progress_stops_the_recipe_short(
+    make_client, wait_run, project_dir
+):
     # (k-canli-016's default: the send-back is `_round_left`'s - the same failing set again is no
     # progress, `held.halted`, and no round more is sent into the recipe)
-    client, executor, cid, run_id = started(make_client, project_dir, "full_auto",
-                                            [failing() for _ in range(4)], lead=TWICE, rounds=None)
+    client, executor, cid, run_id = started(
+        make_client,
+        project_dir,
+        "full_auto",
+        [failing() for _ in range(4)],
+        lead=TWICE,
+        rounds=None,
+    )
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     spawns = [c["result"] for c in snap["tool_calls"] if c["name"] == "spawn_agent"]
@@ -114,29 +144,50 @@ def test_until_it_passes_a_round_that_made_no_progress_stops_the_recipe_short(ma
     assert not (project_dir / "greet.py").exists()
 
 
-
-def test_an_agent_beside_the_recipe_that_ends_after_its_take_in_is_checked(make_client, wait_run,
-                                                                          project_dir, gate):
+def test_an_agent_beside_the_recipe_that_ends_after_its_take_in_is_checked(
+    make_client, wait_run, project_dir, gate
+):
     # (review of k-sira-016: Ready for you's pass checked the recipe's copy only - a Debugger
     # opened beside it, ending after its Take in at Full auto, brings work of its own in: the end
     # gate runs again for it, though the Lead made no call since. Every run passes here: Take
     # in's own check runs too, and a failing one would only card the merge.)
     from tests.test_proof_end_scenarios import proof_calls
     from tests.test_spawn import call
+
     executor = ScriptedExecutor([PASS for _ in range(6)])
-    client, _model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Debugger", "task": "look at it"}, "d1"),
-                      call("spawn_agent", {"role": "Coder", "task": "build greet.py"}, "c1")),
-                 *DONE],
-        "Debugger": [gate.step(step(write("b.py", "b = 1\n", "wb"))), text("debugged")],
-        **CODERS}, executor=executor)
+    client, _model = make_client(
+        {
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Debugger", "task": "look at it"}, "d1"),
+                    call("spawn_agent", {"role": "Coder", "task": "build greet.py"}, "c1"),
+                ),
+                *DONE,
+            ],
+            "Debugger": [gate.step(step(write("b.py", "b = 1\n", "wb"))), text("debugged")],
+            **CODERS,
+        },
+        executor=executor,
+    )
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={"check_command": "python check.py",
-                        "fix_rounds": 1}, headers=OWN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/projects/{pid}",
+            json={"check_command": "python check.py", "fix_rounds": 1},
+            headers=OWN,
+        ).status_code
+        == 200
+    )
     web, recipe = teams_of(client)["Web app"], one_step(client, "Build", "Coder")
-    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never",
-                        content="fix it, with the Debugger too", teams_mode="manual",
-                        teams=[{"team_id": web["id"], "recipe_id": recipe["id"]}])
+    cid, run_id = begin(
+        client,
+        project_dir,
+        mode="full_auto",
+        spawn_approval="never",
+        content="fix it, with the Debugger too",
+        teams_mode="manual",
+        teams=[{"team_id": web["id"], "recipe_id": recipe["id"]}],
+    )
     gate.wait_partial()
     until(client, cid, lambda _s: (project_dir / "greet.py").exists(), timeout=20)
     assert len(proof_calls(until(client, cid, lambda _s: True))) == 1  # (Ready for you's pass)

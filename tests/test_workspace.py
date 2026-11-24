@@ -21,10 +21,20 @@ def ws(tmp_path):
 BACKSLASH = pytest.mark.skipif(os.name != "nt", reason="a backslash is a folder's mark on Windows")
 
 
-@pytest.mark.parametrize("bad", [
-    "../outside.txt", pytest.param("..\\outside.txt", marks=BACKSLASH), "src/../../outside.txt",
-    "C:\\Windows\\win.ini", "/etc/passwd", "\\\\server\\share\\x", "C:relative.txt", "", "   ",
-])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "../outside.txt",
+        pytest.param("..\\outside.txt", marks=BACKSLASH),
+        "src/../../outside.txt",
+        "C:\\Windows\\win.ini",
+        "/etc/passwd",
+        "\\\\server\\share\\x",
+        "C:relative.txt",
+        "",
+        "   ",
+    ],
+)
 def test_paths_outside_the_root_are_rejected(ws, bad):
     with pytest.raises(WorkspaceError, match="outside the project|empty path|never opened"):
         ws.resolve(bad)
@@ -118,11 +128,21 @@ def test_diff_counts(ws):
     assert sha256_text(None) is None and len(sha256_text("x")) == 64
 
 
-
 @pytest.mark.skipif(os.name != "nt", reason="Windows' devices and streams")
-@pytest.mark.parametrize("bad", [
-    "CON", "con.txt", "src/COM1.txt", "lpt9", "NUL.", "aux .", "a.txt:evil", "a.txt::$DATA",
-    "src:x/a.txt"])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "CON",
+        "con.txt",
+        "src/COM1.txt",
+        "lpt9",
+        "NUL.",
+        "aux .",
+        "a.txt:evil",
+        "a.txt::$DATA",
+        "src:x/a.txt",
+    ],
+)
 def test_a_device_or_a_file_s_stream_is_never_written(ws, bad):
     from app.tools import ToolError, plan_write
 
@@ -174,5 +194,6 @@ def test_a_new_file_is_0644_and_one_there_keeps_its_mode(ws):
         ws.write_text("run.sh", "#!/bin/sh\necho hi\n")
     finally:
         os.umask(old)
-    assert [stat.S_IMODE((ws.root / name).stat().st_mode)
-            for name in ("new.md", "given.bin", "run.sh")] == [0o644, 0o644, 0o755]
+    assert [
+        stat.S_IMODE((ws.root / name).stat().st_mode) for name in ("new.md", "given.bin", "run.sh")
+    ] == [0o644, 0o644, 0o755]

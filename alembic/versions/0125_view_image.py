@@ -7,6 +7,7 @@ reading tools, where app.roles puts it. Going back takes it off every role.
 Revision ID: 0125
 Revises: 0124
 """
+
 import json
 
 import sqlalchemy as sa
@@ -36,8 +37,10 @@ def _swap(back: bool) -> None:
     for id_, held in bind.execute(sa.text("SELECT id, tools FROM roles")):
         tools = json.loads(held) if isinstance(held, str) else held
         if (new := _changed(tools, back)) != tools:
-            bind.execute(sa.text("UPDATE roles SET tools = :tools WHERE id = :id"),
-                         {"tools": json.dumps(new), "id": id_})
+            bind.execute(
+                sa.text("UPDATE roles SET tools = :tools WHERE id = :id"),
+                {"tools": json.dumps(new), "id": id_},
+            )
 
 
 def upgrade() -> None:

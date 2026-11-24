@@ -7,13 +7,20 @@ const COPY = 'Evolve copy'
 let project = ''
 
 test.afterEach(async ({ request }) => {
-  if (project) expect((await request.patch(`/api/projects/${project}`, { headers: OWN, data: { measure_command: '' } })).ok()).toBe(true)
+  if (project)
+    expect(
+      (await request.patch(`/api/projects/${project}`, { headers: OWN, data: { measure_command: '' } })).ok(),
+    ).toBe(true)
   const { recipes } = (await (await request.get('/api/recipes')).json()) as { recipes: { id: string; name: string }[] }
-  for (const recipe of recipes) if (recipe.name === COPY) expect((await request.delete(`/api/recipes/${recipe.id}`, { headers: OWN })).ok()).toBe(true)
+  for (const recipe of recipes)
+    if (recipe.name === COPY)
+      expect((await request.delete(`/api/recipes/${recipe.id}`, { headers: OWN })).ok()).toBe(true)
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`the measure command is set, and the ready Evolve recipe's copy takes another target (${theme})`, async ({ page }) => {
+  test(`the measure command is set, and the ready Evolve recipe's copy takes another target (${theme})`, async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -25,7 +32,9 @@ for (const theme of ['light', 'dark'] as const)
     const settings = page.getByRole('form', { name: 'Project settings' })
     await settings.getByRole('button', { name: /^Checks/ }).click()
     // (its why behind ⓘ, describing the field)
-    await expect(settings.getByLabel('Measure command')).toHaveAccessibleDescription(/^The last line of its output is a number from 0 to 100/)
+    await expect(settings.getByLabel('Measure command')).toHaveAccessibleDescription(
+      /^The last line of its output is a number from 0 to 100/,
+    )
     const sent = page.waitForRequest(r => r.method() === 'PATCH' && /\/api\/projects\/[^/]+$/.test(r.url()))
     await settings.getByLabel('Measure command').fill('python measure.py')
     await settings.getByRole('button', { name: 'Save' }).click()

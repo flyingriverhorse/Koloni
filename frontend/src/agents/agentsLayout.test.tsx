@@ -6,6 +6,7 @@ import { ranOn } from '../shell/modelName'
 import { AgentsPage } from './AgentsPage'
 import type { RecipeActions } from './RecipesTab'
 import { groupsOf, lastLine, mayDo, ruleText } from './chart'
+import { SCOUT_AFTER } from './RolePanel'
 import { ROLE_TOOLS } from './roleTools'
 
 // Slice 81b: a role's lines say its tier rule and where it last ran; a role opens beside. Slice 63a: a team's lead and
@@ -19,7 +20,9 @@ const role = (over: Partial<Role>): Role => ({
   instructions: '',
   tools: ['read_file', 'run_command'],
   builtin: true,
-  created_by_agent: false, locked_tools: [], models: null,
+  created_by_agent: false,
+  locked_tools: [],
+  models: null,
   provider_id: null,
   model_id: null,
   tier: null,
@@ -98,7 +101,14 @@ const teamOf = (id: string, name: string, stages: [string, string[]][]): Team =>
   name,
   roles: stages.flatMap(([, ids]) => ids),
   stages: stages.map(([stage, ids], at) => ({ id: `${id}-${at}`, name: stage, together: false, roles: ids })),
-  lead: role({ id: `${id}-lead`, name: `${name} lead`, kind: 'lead', builtin: false, tier_min: 'balanced', description: 'Runs its team’s stages' }),
+  lead: role({
+    id: `${id}-lead`,
+    name: `${name} lead`,
+    kind: 'lead',
+    builtin: false,
+    tier_min: 'balanced',
+    description: 'Runs its team’s stages',
+  }),
   lead_on: true,
   lead_may_pick: true,
   default_recipe_id: null,
@@ -112,7 +122,10 @@ const teams: Team[] = [
   teamOf('api', 'Backend / API', [['Build', ['c']]]),
 ]
 const activity: RolesActivity = {
-  last: { Coder: { provider_name: 'Claude Code', model_id: 'sonnet-4-8', tier: 'balanced' }, Lead: { provider_name: 'Claude Code', model_id: 'opus-4-8', tier: null } },
+  last: {
+    Coder: { provider_name: 'Claude Code', model_id: 'sonnet-4-8', tier: 'balanced' },
+    Lead: { provider_name: 'Claude Code', model_id: 'opus-4-8', tier: null },
+  },
   running: { Lead: 1 },
 }
 const library = () => screen.getByRole('complementary', { name: 'Roles' })
@@ -122,7 +135,10 @@ const openTeam = async (name: string) => {
   await userEvent.click(within(region(name)).getByRole('button', { name: new RegExp(`^${name.replace('/', '\\/')}`) }))
   return region(name)
 }
-const options = () => within(screen.getByRole('listbox')).getAllByRole('option').map(o => o.querySelector('.palette-name')?.textContent)
+const options = () =>
+  within(screen.getByRole('listbox'))
+    .getAllByRole('option')
+    .map(o => o.querySelector('.palette-name')?.textContent)
 
 // (The team open is the browser's: each test begins with none.)
 beforeEach(() => localStorage.clear())
@@ -146,7 +162,9 @@ test('a role’s lines: the tier rule, then whose rule it is, where it last ran,
 })
 
 test('the library’s groups: the categories in their order, an empty one too, then a kind no category has', () => {
-  expect(groupsOf([coder, tester, devops, mine], categories).map(g => [g.name, g.roles.map(r => r.name), g.listed])).toEqual([
+  expect(
+    groupsOf([coder, tester, devops, mine], categories).map(g => [g.name, g.roles.map(r => r.name), g.listed]),
+  ).toEqual([
     ['Plan', [], true],
     ['Build', ['Coder', 'DevOps'], true],
     ['Check', ['Tester'], true],
@@ -161,13 +179,21 @@ test('the library: every role once by category, how many teams each is in, on / 
   const lib = library()
   expect(within(lib).getByRole('heading', { level: 3 })).toHaveTextContent('Roles')
   expect(lib).toHaveTextContent('Roles4 · 1 off')
-  expect(within(lib).getAllByRole('region').map(r => r.getAttribute('aria-label'))).toEqual(['Plan', 'Build', 'Check', 'Write & keep up', 'Ship it'])
+  expect(
+    within(lib)
+      .getAllByRole('region')
+      .map(r => r.getAttribute('aria-label')),
+  ).toEqual(['Plan', 'Build', 'Check', 'Write & keep up', 'Ship it'])
   const build = region('Build', lib)
   expect(within(build).getByRole('button', { name: /^Build/, expanded: true })).toHaveTextContent('Build2 · 1 off')
   expect(within(build).getByRole('button', { name: /^Coder/ })).toHaveTextContent('Coder2 teams')
   expect(within(build).getByRole('button', { name: /^DevOps/ })).toHaveTextContent('DevOpsno team')
   expect(within(build).getByText('no team')).toHaveClass('lib-uses-none')
-  expect(within(build).getByRole('button', { name: /^DevOps/ }).closest('.lib-row')).toHaveClass('lib-row-off')
+  expect(
+    within(build)
+      .getByRole('button', { name: /^DevOps/ })
+      .closest('.lib-row'),
+  ).toHaveClass('lib-row-off')
   // the Lead is on its strip, not in the library; its switch is none
   expect(within(lib).queryByRole('button', { name: /^Lead/ })).not.toBeInTheDocument()
   expect(screen.queryByRole('switch', { name: 'Lead on' })).not.toBeInTheDocument()
@@ -179,14 +205,26 @@ test('the library: every role once by category, how many teams each is in, on / 
   expect(within(build).queryByRole('button', { name: /^Coder/ })).not.toBeInTheDocument()
   // the filters, with their counts; looking for some leaves out the categories with none
   await userEvent.click(within(lib).getByRole('button', { name: 'In no team · 2' }))
-  expect(within(lib).getAllByRole('region').map(r => r.getAttribute('aria-label'))).toEqual(['Build', 'Ship it'])
+  expect(
+    within(lib)
+      .getAllByRole('region')
+      .map(r => r.getAttribute('aria-label')),
+  ).toEqual(['Build', 'Ship it'])
   expect(within(lib).getByRole('button', { name: /^DevOps/ })).toBeInTheDocument()
   expect(within(lib).queryByRole('button', { name: /^Coder/ })).not.toBeInTheDocument()
   await userEvent.click(within(lib).getByRole('button', { name: 'Off · 1' }))
-  expect(within(lib).getAllByRole('button', { name: /teams?$/ }).map(b => b.querySelector('.lib-row-name')?.textContent)).toEqual(['DevOps'])
+  expect(
+    within(lib)
+      .getAllByRole('button', { name: /teams?$/ })
+      .map(b => b.querySelector('.lib-row-name')?.textContent),
+  ).toEqual(['DevOps'])
   await userEvent.click(within(lib).getByRole('button', { name: 'All' }))
   await userEvent.type(within(lib).getByLabelText('Search roles'), 'test')
-  expect(within(lib).getAllByRole('region').map(r => r.getAttribute('aria-label'))).toEqual(['Check'])
+  expect(
+    within(lib)
+      .getAllByRole('region')
+      .map(r => r.getAttribute('aria-label')),
+  ).toEqual(['Check'])
 })
 
 test('the tabs: Teams & roles, Recipes and History, with the arrows, Home and End; the head makes a role and a team', async () => {
@@ -214,7 +252,9 @@ test('the tabs: Teams & roles, Recipes and History, with the arrows, Home and En
 
 test('the Lead’s strip and the folded teams: their stages and counts, faces, default recipe and lead; one opens at a time, as the browser remembers', async () => {
   const h = handlers()
-  const { unmount } = render(<AgentsPage roles={[lead, coder, tester]} teams={teams} {...h} onActivity={() => Promise.resolve(activity)} />)
+  const { unmount } = render(
+    <AgentsPage roles={[lead, coder, tester]} teams={teams} {...h} onActivity={() => Promise.resolve(activity)} />,
+  )
   expect(await screen.findByText(/· Talks with the user · Last: opus-4-8/)).toBeInTheDocument()
   expect(screen.getByText('now')).toBeInTheDocument()
   expect(screen.getByText('2 teams · one open at a time · drag a role from the left into a stage')).toBeInTheDocument()
@@ -227,7 +267,11 @@ test('the Lead’s strip and the folded teams: their stages and counts, faces, d
   await userEvent.click(within(web).getByRole('switch', { name: 'Web app lead on' }))
   expect(h.teamActions.changeTeam).toHaveBeenCalledWith('web', { lead_on: false })
   await userEvent.click(toggle)
-  expect(within(web).getAllByRole('region').map(r => r.getAttribute('aria-label'))).toEqual(['Stage 1, Plan', 'Stage 2, Build', 'Stage 3, Check'])
+  expect(
+    within(web)
+      .getAllByRole('region')
+      .map(r => r.getAttribute('aria-label')),
+  ).toEqual(['Stage 1, Plan', 'Stage 2, Build', 'Stage 3, Check'])
   // another opened, this one folds
   await openTeam('Backend / API')
   expect(within(web).queryByRole('region', { name: 'Stage 1, Plan' })).not.toBeInTheDocument()
@@ -246,7 +290,9 @@ test('an open team: its lead as a line, saying when it steps in, its stages with
   const web = await openTeam('Web app')
   const name = within(web).getByRole('button', { name: 'Web app lead' })
   expect(name.closest('.team-lead-row')).toHaveTextContent('Orchestrator · balanced–strongest')
-  expect(name.closest('.team-lead-row')).toHaveTextContent('Steps in only when this team works beside another team; else the Orchestrator runs it.')
+  expect(name.closest('.team-lead-row')).toHaveTextContent(
+    'Steps in only when this team works beside another team; else the Orchestrator runs it.',
+  )
   const recipe = within(web).getByRole('combobox', { name: "Web app's default recipe" })
   expect(recipe.closest('label')).toHaveTextContent(/^Default recipe/)
   expect(recipe).toHaveDisplayValue('none')
@@ -336,7 +382,9 @@ test('a role goes in a stage from its list, from the library by a drag, or from 
   expect(await screen.findByText('Tester is in Build now, not Check.')).toHaveClass('visually-hidden')
   // dragged from the library: while it is, each stage says it may land there
   const plan = region('Stage 1, Plan', web)
-  const row = within(library()).getByRole('button', { name: /^DevOps/ }).closest('.lib-row')!
+  const row = within(library())
+    .getByRole('button', { name: /^DevOps/ })
+    .closest('.lib-row')!
   fireEvent.dragStart(row, { dataTransfer: { setData: () => undefined } })
   await vi.waitFor(() => expect(plan).toHaveTextContent('Drop: DevOps joins Plan'))
   fireEvent.drop(plan, { dataTransfer: { getData: () => 'library d' } })
@@ -377,14 +425,22 @@ test('a team is renamed and deleted from its foot, after saying its roles stay',
   await userEvent.type(within(web).getByLabelText('Team’s new name'), 'Site{Enter}')
   expect(h.teamActions.changeTeam).toHaveBeenCalledWith('web', { name: 'Site' })
   await userEvent.click(within(web).getByRole('button', { name: 'Delete Web app' }))
-  expect(web).toHaveTextContent('Delete Web app? Its roles stay and its lead goes; its conversations will use every team.')
+  expect(web).toHaveTextContent(
+    'Delete Web app? Its roles stay and its lead goes; its conversations will use every team.',
+  )
   expect(h.teamActions.deleteTeam).not.toHaveBeenCalled()
   await userEvent.click(within(web).getByRole('button', { name: 'Delete team' }))
   expect(h.teamActions.deleteTeam).toHaveBeenCalledWith('web')
 })
 
 test('a role open beside marks the teams it is in, and says it; the others are faded', async () => {
-  render(<AgentsPage roles={[lead, coder, tester]} teams={[...teams, teamOf('ops', 'Ops', [['Plan', []]])]} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[lead, coder, tester]}
+      teams={[...teams, teamOf('ops', 'Ops', [['Plan', []]])]}
+      {...handlers()}
+    />,
+  )
   await userEvent.click(within(library()).getByRole('button', { name: /^Tester/ }))
   expect(screen.getByText('Tester is in 1 of 3 teams · the others are faded while it is open')).toBeInTheDocument()
   expect(region('Web app')).toHaveClass('team-box-hit')
@@ -397,8 +453,12 @@ test('a role open beside marks the teams it is in, and says it; the others are f
 
 test('categories: renamed and recoloured, put in order, a new one added; KOLONİ’s four and one with roles are not deleted, an empty one is', async () => {
   const h = handlers()
-  const scout = role({ id: 'x', name: 'Scout', kind: 'k1', builtin: false })
-  const mineToo = [...categories, { key: 'k1', name: 'Research', colour: 'rose' as const }, { key: 'k2', name: 'Ops', colour: 'teal' as const }]
+  const scout = role({ id: 'x', name: 'Forager', kind: 'k1', builtin: false })
+  const mineToo = [
+    ...categories,
+    { key: 'k1', name: 'Research', colour: 'rose' as const },
+    { key: 'k2', name: 'Ops', colour: 'teal' as const },
+  ]
   render(<AgentsPage roles={[lead, coder, tester, scout]} teams={teams} {...h} categories={mineToo} />)
   const lib = library()
   // Check says what its key does beyond a label
@@ -425,7 +485,9 @@ test('categories: renamed and recoloured, put in order, a new one added; KOLONİ
   await userEvent.type(within(lib).getByLabelText('Category’s name'), 'Docs{Enter}')
   expect(h.categoryActions.addCategory).toHaveBeenCalledWith('Docs', 'rose')
   // the server's refusal is said
-  h.categoryActions.deleteCategory.mockRejectedValue({ detail: 'Ops holds 1 role: move them to another category first' })
+  h.categoryActions.deleteCategory.mockRejectedValue({
+    detail: 'Ops holds 1 role: move them to another category first',
+  })
   await userEvent.click(within(lib).getByRole('button', { name: 'Ops: more' }))
   await userEvent.click(within(lib).getByRole('button', { name: 'Delete' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Ops holds 1 role: move them to another category first')
@@ -475,7 +537,11 @@ test('the Lead has no range to be picked in: always a tier, a model, or the conv
   await userEvent.click(screen.getByRole('button', { name: 'Edit model' }))
   const uses = screen.getByRole('radiogroup', { name: 'Who picks it?' })
   expect(within(uses).getByRole('radio', { name: 'As the chat' })).toBeChecked()
-  expect(within(uses).getAllByRole('radio').map(o => o.closest('label')?.textContent)).toEqual(['As the chat', 'One tier', 'One model'])
+  expect(
+    within(uses)
+      .getAllByRole('radio')
+      .map(o => o.closest('label')?.textContent),
+  ).toEqual(['As the chat', 'One tier', 'One model'])
   expect(screen.queryByLabelText('From')).not.toBeInTheDocument()
 })
 
@@ -492,7 +558,11 @@ test('the role panel: its category, the teams it is in with their stages, tiers,
   await userEvent.click(screen.getByRole('button', { name: /^Coder/ }))
   const panel = screen.getByRole('complementary', { name: 'Role Coder' })
   // 0.1.0-ui: its history is the page's History tab; no "Last picks" or "30 days" here
-  expect(within(panel).getAllByRole('tab').map(t => t.textContent)).toEqual(['Overview', 'Instructions', 'Tools', 'Knowledge'])
+  expect(
+    within(panel)
+      .getAllByRole('tab')
+      .map(t => t.textContent),
+  ).toEqual(['Overview', 'Instructions', 'Tools', 'Knowledge'])
   expect(panel).not.toHaveTextContent('Last picks')
   expect(panel).not.toHaveTextContent('30 days')
   expect(within(panel).getByLabelText("Coder's category")).toHaveDisplayValue('Build')
@@ -516,7 +586,9 @@ test('the role panel: its category, the teams it is in with their stages, tiers,
 })
 
 test('a role’s model part says where it runs now, then its sections; a new role’s every tool is one switch', async () => {
-  const onRoleModels = vi.fn().mockResolvedValue([row({ cannot_run: 'Claude Code does not run with the model "haiku" here' })])
+  const onRoleModels = vi
+    .fn()
+    .mockResolvedValue([row({ cannot_run: 'Claude Code does not run with the model "haiku" here' })])
   render(<AgentsPage roles={[role({})]} {...handlers()} onRoleModels={onRoleModels} />)
   await userEvent.click(screen.getByRole('button', { name: /^Summarizer/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Edit model' }))
@@ -524,15 +596,26 @@ test('a role’s model part says where it runs now, then its sections; a new rol
     'Runs on Claude Code · haiku, thinking Low, up to High — the first balanced model of your team guide, where the Orchestrator names no tier. It would not run there now: Claude Code does not run with the model "haiku" here',
   )
   // 0.1.0-ui: the whole form, the same as a new role's, opened at its model
-  expect(screen.getAllByRole('region').filter(r => r.classList.contains('role-section')).map(s => document.getElementById(s.getAttribute('aria-labelledby')!)?.textContent)).toEqual(['Model', 'It may', 'This role will'])
+  expect(
+    screen
+      .getAllByRole('region')
+      .filter(r => r.classList.contains('role-section'))
+      .map(s => document.getElementById(s.getAttribute('aria-labelledby')!)?.textContent),
+  ).toEqual(['Model', 'It may', 'This role will'])
   // the safety stops after them, folded and closed: they are no money limit
   const stops = screen.getByText('Safety stops for one agent').closest('details')!
   expect(stops).not.toHaveAttribute('open')
-  expect(screen.getByRole('region', { name: 'It may' }).compareDocumentPosition(stops) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(
+    screen.getByRole('region', { name: 'It may' }).compareDocumentPosition(stops) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
   // a new role's tools: packs, and every tool one switch behind "Pick tools one by one"
   await userEvent.click(screen.getByRole('button', { name: 'New role' }))
   const tools = screen.getByRole('region', { name: 'It may' })
-  expect(within(tools).getAllByRole('heading').map(h => h.textContent)).toEqual(['It may', 'Files', 'Commands', 'Web', 'Browser', 'Team', 'To-do', 'Memory'])
+  expect(
+    within(tools)
+      .getAllByRole('heading')
+      .map(h => h.textContent),
+  ).toEqual(['It may', 'Files', 'Commands', 'Web', 'Browser', 'Team', 'To-do', 'Memory'])
   const switches = within(tools).getAllByRole('switch')
   expect(switches.map(s => s.getAttribute('aria-label')).sort()).toEqual(ROLE_TOOLS.map(t => t.name).sort())
   expect(within(tools).getByRole('switch', { name: 'run_command' })).not.toBeChecked()
@@ -544,22 +627,36 @@ test('why a role runs where it does, where its tier did not give its first model
   render(<AgentsPage roles={[role({})]} {...handlers()} onRoleModels={onRoleModels} />)
   await userEvent.click(screen.getByRole('button', { name: /^Summarizer/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Edit model' }))
-  expect(await screen.findByText(/^Runs on/)).toHaveTextContent(`Runs on the conversation’s model, thinking Low, up to High — ${moved}.`)
+  expect(await screen.findByText(/^Runs on/)).toHaveTextContent(
+    `Runs on the conversation’s model, thinking Low, up to High — ${moved}.`,
+  )
 })
 
 test('what stands in a role’s way where it runs is said before any run: on its panel, and marked on its team’s stage (B-89)', async () => {
   const step = 'agy works with tools of its own in the project itself: a recipe’s work stays in its copy'
   const room = 'Codex works with tools of its own here: the Coder cannot be a member on it'
   const tools = 'The Tester role cannot work on Codex: write files and run commands'
-  const onRoleModels = vi.fn().mockResolvedValue([row({ role: 'Coder', cannot_step: step, cannot_room: room }), row({ role: 'Tester', cannot_run: tools })])
+  const onRoleModels = vi
+    .fn()
+    .mockResolvedValue([
+      row({ role: 'Coder', cannot_step: step, cannot_room: room }),
+      row({ role: 'Tester', cannot_run: tools }),
+    ])
   render(<AgentsPage roles={[lead, coder, tester]} teams={teams} {...handlers()} onRoleModels={onRoleModels} />)
   const web = await openTeam('Web app')
   // (No recipe of the team's own: its stages' roles are no steps, only what stops any agent is marked.)
-  expect(await within(region('Stage 3, Check', web)).findByRole('img', { name: `It would not run there now: ${tools}` })).toBeInTheDocument()
+  expect(
+    await within(region('Stage 3, Check', web)).findByRole('img', { name: `It would not run there now: ${tools}` }),
+  ).toBeInTheDocument()
   expect(within(region('Stage 2, Build', web)).queryByRole('img')).toBeNull()
-  expect(web.querySelector('.team-flow .team-st-warn')).toHaveAttribute('title', `Tester: It would not run there now: ${tools}`)
+  expect(web.querySelector('.team-flow .team-st-warn')).toHaveAttribute(
+    'title',
+    `Tester: It would not run there now: ${tools}`,
+  )
   await userEvent.click(within(library()).getByRole('button', { name: /^Coder/ }))
-  const said = within(screen.getByRole('list', { name: 'Will not run' })).getAllByRole('listitem').map(item => item.textContent)
+  const said = within(screen.getByRole('list', { name: 'Will not run' }))
+    .getAllByRole('listitem')
+    .map(item => item.textContent)
   expect(said).toEqual([`⚠ Not as a recipe’s step: ${step}`, `⚠ Not in a room: ${room}`])
 })
 
@@ -570,31 +667,40 @@ test('where an agent ran says its tier between its model and its level; with non
 
 test('a stage’s "New role…" makes a role in that team beside the teams, and puts it in that stage', async () => {
   const h = handlers()
-  h.onCreate.mockResolvedValue(role({ id: 's', name: 'Scout', kind: 'build' }))
+  h.onCreate.mockResolvedValue(role({ id: 's', name: 'Forager', kind: 'build' }))
   render(<AgentsPage roles={[lead, coder, tester]} teams={teams} {...h} />)
-  await userEvent.click(within(region('Stage 1, Plan', await openTeam('Web app'))).getByRole('button', { name: '+ Add a role' }))
+  await userEvent.click(
+    within(region('Stage 1, Plan', await openTeam('Web app'))).getByRole('button', { name: '+ Add a role' }),
+  )
   await userEvent.click(screen.getByRole('option', { name: 'New role…' }))
   const made = screen.getByRole('complementary', { name: 'New role' })
-  await userEvent.type(within(made).getByLabelText('Name'), 'Scout')
+  await userEvent.type(within(made).getByLabelText('Name'), 'Forager')
   await userEvent.selectOptions(within(made).getByLabelText('Category'), 'plan')
   await userEvent.click(within(made).getByRole('switch', { name: 'read_file' }))
   await userEvent.click(within(made).getByRole('button', { name: 'Create role' }))
-  expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Scout', teams: ['web'], kind: 'plan' }))
+  expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Forager', teams: ['web'], kind: 'plan' }))
   // in the stage it was asked from
   await vi.waitFor(() => expect(h.teamActions.placeRole).toHaveBeenCalledWith('web', 's', 'web-0'))
 })
 
 test('a role panel’s head: on or off, made by an agent, how a team’s lead is shown; a role with no team to go in says so', async () => {
-  const scout = role({ id: 'x', name: 'Scout', kind: 'build', builtin: false, enabled: false, created_by_agent: true })
+  const scout = role({
+    id: 'x',
+    name: 'Forager',
+    kind: 'build',
+    builtin: false,
+    enabled: false,
+    created_by_agent: true,
+  })
   const { unmount } = render(<AgentsPage roles={[lead, scout]} {...handlers()} />)
-  await userEvent.click(within(library()).getByRole('button', { name: /^Scout/ }))
-  let panel = screen.getByRole('complementary', { name: 'Role Scout' })
+  await userEvent.click(within(library()).getByRole('button', { name: /^Forager/ }))
+  let panel = screen.getByRole('complementary', { name: 'Role Forager' })
   expect(panel.querySelector('h2 .tag')).toHaveTextContent(/^off$/)
   expect(panel.querySelector('h2 .tag')?.className).toBe('tag')
   expect(panel.querySelector('.role-panel-head .tag-accent')).toHaveTextContent('Created by an agent')
   expect(panel).not.toHaveTextContent('— shown as')
   expect(panel).toHaveTextContent('In teamsNo team yet')
-  expect(within(panel).queryByRole('combobox', { name: 'Put Scout in a team' })).toBeNull()
+  expect(within(panel).queryByRole('combobox', { name: 'Put Forager in a team' })).toBeNull()
   unmount()
   render(<AgentsPage roles={[lead, coder]} teams={teams} {...handlers()} />)
   await userEvent.click(within(await openTeam('Web app')).getByRole('button', { name: 'Web app lead: Instructions' }))
@@ -608,21 +714,60 @@ test('a team’s default is one of KOLONİ’s recipes; Recipes says what one is
   const graph: RecipeGraph = { version: 1, steps: [], groups: [], ends: [], arrows: [], loops: [] }
   const ours: Recipe = { id: 'feature', name: 'Feature', ready: true, project_id: null, file: null, graph }
   const folders: Recipe = { id: 'f1', name: 'Folder fix', ready: false, project_id: 'p', file: 'fix.json', graph }
-  const recipeActions: RecipeActions = { recipes: vi.fn().mockResolvedValue({ recipes: [ours, folders], broken: [], writer: { why: null } }), saveRecipe: vi.fn(), deleteRecipe: vi.fn(), draftRecipe: vi.fn() }
-  const history = { days: 30, lead_turns: 0, jobs_limit: 200, roles: [{ name: 'Coder', done: 1, failed: 0, running: 0 }], teams: [], recipes: [], jobs: [] }
+  const recipeActions: RecipeActions = {
+    recipes: vi.fn().mockResolvedValue({ recipes: [ours, folders], broken: [], writer: { why: null } }),
+    saveRecipe: vi.fn(),
+    deleteRecipe: vi.fn(),
+    draftRecipe: vi.fn(),
+  }
+  const history = {
+    days: 30,
+    lead_turns: 0,
+    jobs_limit: 200,
+    roles: [{ name: 'Coder', done: 1, failed: 0, running: 0 }],
+    teams: [],
+    recipes: [],
+    jobs: [],
+  }
   // (React Flow, on the Recipes tab, watches its pane: jsdom has nothing to watch with. Unmounted before it goes.)
-  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
   onTestFinished(() => {
     cleanup()
     vi.unstubAllGlobals()
   })
-  render(<AgentsPage roles={[lead, coder]} teams={teams} picked="c" recipeActions={recipeActions} projectId="p" onRecord={vi.fn().mockRejectedValue({ detail: 'down' })} onHistory={vi.fn().mockResolvedValue(history)} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[lead, coder]}
+      teams={teams}
+      picked="c"
+      recipeActions={recipeActions}
+      projectId="p"
+      onRecord={vi.fn().mockRejectedValue({ detail: 'down' })}
+      onHistory={vi.fn().mockResolvedValue(history)}
+      {...handlers()}
+    />,
+  )
   expect(recipeActions.recipes).toHaveBeenCalledWith('p')
   const recipe = within(await openTeam('Web app')).getByRole('combobox', { name: "Web app's default recipe" })
-  await vi.waitFor(() => expect(within(recipe).getAllByRole('option').map(o => o.textContent)).toEqual(['none', 'Feature']))
+  await vi.waitFor(() =>
+    expect(
+      within(recipe)
+        .getAllByRole('option')
+        .map(o => o.textContent),
+    ).toEqual(['none', 'Feature']),
+  )
   expect(screen.getByRole('complementary', { name: 'Role Coder' })).toBeInTheDocument()
   await userEvent.click(screen.getByRole('tab', { name: 'Recipes' }))
-  expect(screen.getByText(/^A recipe says who does each step, what runs at once and how far it loops back\./)).toHaveClass('muted', 'provider-note')
+  expect(
+    screen.getByText(/^A recipe says who does each step, what runs at once and how far it loops back\./),
+  ).toHaveClass('muted', 'provider-note')
   expect(screen.getByRole('button', { name: /^Folder fix/ })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /^Feature/ })).toBeInTheDocument()
   expect(screen.queryByRole('complementary', { name: 'Role Coder' })).toBeNull()
@@ -648,19 +793,33 @@ test('a role dragged from the library marks the page while it is dragged', async
 test('a copy made from a stage’s "New role…" goes in that team too', async () => {
   const h = handlers()
   render(<AgentsPage roles={[lead, coder, tester]} teams={teams} {...h} />)
-  await userEvent.click(within(region('Stage 1, Plan', await openTeam('Web app'))).getByRole('button', { name: '+ Add a role' }))
+  await userEvent.click(
+    within(region('Stage 1, Plan', await openTeam('Web app'))).getByRole('button', { name: '+ Add a role' }),
+  )
   await userEvent.click(screen.getByRole('option', { name: 'New role…' }))
   const made = screen.getByRole('complementary', { name: 'New role' })
   await userEvent.click(within(made).getByRole('button', { name: 'A copy' }))
   await userEvent.selectOptions(within(made).getByLabelText('Copy of'), 'Tester')
   expect(within(made).getByLabelText('Name')).toHaveValue('Tester copy')
   await userEvent.click(within(made).getByRole('button', { name: 'Create role' }))
-  expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Tester copy', teams: ['web'], kind: 'check', tier: 'fast' }))
+  expect(h.onCreate).toHaveBeenCalledWith(
+    expect.objectContaining({ name: 'Tester copy', teams: ['web'], kind: 'check', tier: 'fast' }),
+  )
 })
 
 test('a category with two roles says to move both before it is deleted', async () => {
-  const scouts = [role({ id: 'x', name: 'Scout', kind: 'k1', builtin: false }), role({ id: 'y', name: 'Ranger', kind: 'k1', builtin: false })]
-  render(<AgentsPage roles={[lead, coder, tester, ...scouts]} teams={teams} {...handlers()} categories={[...categories, { key: 'k1', name: 'Research', colour: 'rose' as const }]} />)
+  const scouts = [
+    role({ id: 'x', name: 'Forager', kind: 'k1', builtin: false }),
+    role({ id: 'y', name: 'Ranger', kind: 'k1', builtin: false }),
+  ]
+  render(
+    <AgentsPage
+      roles={[lead, coder, tester, ...scouts]}
+      teams={teams}
+      {...handlers()}
+      categories={[...categories, { key: 'k1', name: 'Research', colour: 'rose' as const }]}
+    />,
+  )
   const lib = library()
   await userEvent.click(within(lib).getByRole('button', { name: 'Research: more' }))
   expect(within(lib).getByRole('button', { name: 'Delete — move its 2 roles first' })).toBeDisabled()
@@ -677,11 +836,33 @@ test('a lead that is on says when it steps in, and its row is marked once it is 
   expect(name).not.toHaveAttribute('aria-current')
   expect(line).toHaveTextContent('— shown as Backend / API coordinator')
   expect(line).not.toHaveTextContent('Off: the Orchestrator always runs')
-  expect(line.querySelector('.team-lead-when')).toHaveTextContent('Steps in only when this team works beside another team; else the Orchestrator runs it.')
-  expect(Array.from(line.querySelectorAll('.team-lead-links > button'), button => button.textContent)).toEqual(['Instructions', 'Model', 'Tools'])
+  expect(line.querySelector('.team-lead-when')).toHaveTextContent(
+    'Steps in only when this team works beside another team; else the Orchestrator runs it.',
+  )
+  expect(Array.from(line.querySelectorAll('.team-lead-links > button'), button => button.textContent)).toEqual([
+    'Instructions',
+    'Model',
+    'Tools',
+  ])
   expect(within(api).getByText('lead')).toHaveClass('team-leadmark')
   expect(api.className).toBe('team-box')
   await userEvent.click(name)
   expect(name.closest('.team-lead-row')).toHaveClass('team-lead-row', 'team-lead-chosen')
   expect(name).toHaveAttribute('aria-current', 'true')
+})
+
+test('the built-in Scout’s card says what an opened Scout does, and that KOLONİ also asks in its name after each turn', async () => {
+  const scout = role({
+    id: 'sc',
+    name: 'Scout (built-in)',
+    kind: 'plan',
+    builtin: true,
+    description: 'Keeps watch on the To-do list.',
+  })
+  const mine = role({ id: 'fo', name: 'Forager', kind: 'plan', builtin: false })
+  render(<AgentsPage roles={[lead, scout, mine]} {...handlers()} />)
+  await userEvent.click(within(library()).getByRole('button', { name: /^Scout \(built-in\)/ }))
+  expect(screen.getByRole('complementary', { name: 'Role Scout (built-in)' })).toHaveTextContent(SCOUT_AFTER)
+  await userEvent.click(within(library()).getByRole('button', { name: /^Forager/ }))
+  expect(screen.getByRole('complementary', { name: 'Role Forager' })).not.toHaveTextContent(SCOUT_AFTER)
 })

@@ -40,7 +40,8 @@ def _found(body: SkillIn) -> skills.Found:
 @router.get("", response_model=list[SkillOut])
 def list_skills(session: Session = Depends(get_session)):
     return session.scalars(
-        select(Skill).order_by(Skill.created_at, literal_column("skills.rowid"))).all()
+        select(Skill).order_by(Skill.created_at, literal_column("skills.rowid"))
+    ).all()
 
 
 # (Sync routes: FastAPI runs them in its threads, so a folder read or a download never
@@ -68,13 +69,19 @@ def add_skill(body: SkillIn, request: Request, session: Session = Depends(get_se
             # A role names its skills exactly: one that had "tidy" has the "Tidy" put in.
             for role in session.scalars(select(Role)):
                 if taken.name in role.skills:
-                    role.skills = [found.name if name == taken.name else name
-                                   for name in role.skills]
+                    role.skills = [
+                        found.name if name == taken.name else name for name in role.skills
+                    ]
             # (One commit with the new one: a failed add leaves the old one as it was.)
             session.delete(taken)
             session.flush()
-        added = skills.add(session, request.app.state.settings.runtime_root,
-                           skills.whole(found), body.scripts_run_unasked, enabled)
+        added = skills.add(
+            session,
+            request.app.state.settings.runtime_root,
+            skills.whole(found),
+            body.scripts_run_unasked,
+            enabled,
+        )
     except skills.SkillError as exc:
         raise HTTPException(409, str(exc)) from None
     if old is not None:

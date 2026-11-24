@@ -29,8 +29,12 @@ SHELLS = [
 
 
 def _git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c",
-                    "commit.gpgsign=false", *args], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
 
 
 @pytest.fixture
@@ -55,23 +59,35 @@ def _free_port() -> int:
 
 
 def _run(repo: Path, args: list[str], tmp_path: Path, port: int | None = None, *extra: str):
-    shell = (shutil.which("pwsh") or shutil.which("powershell")) if args[0] == "-NoProfile" \
-        else _bash()
+    shell = (
+        (shutil.which("pwsh") or shutil.which("powershell")) if args[0] == "-NoProfile" else _bash()
+    )
     if shell is None:
         pytest.skip("no such shell here")
     # Never the user's KOLONİ (8790) nor runtime: a port nothing answers on, an empty runtime.
     # (No GIT_DIR or the like a hook set: git would act on that repository, not this one.)
-    env = {**{k: v for k, v in os.environ.items() if not k.startswith("GIT_")},
-           "KOLONI_PORT": str(port or _free_port()),
-           "KOLONI_RUNTIME_ROOT": str(tmp_path / "runtime")}
-    done = subprocess.run([shell, *args, *extra], cwd=repo, env=env, capture_output=True,
-                          text=True, encoding="utf-8", errors="replace", timeout=60)
+    env = {
+        **{k: v for k, v in os.environ.items() if not k.startswith("GIT_")},
+        "KOLONI_PORT": str(port or _free_port()),
+        "KOLONI_RUNTIME_ROOT": str(tmp_path / "runtime"),
+    }
+    done = subprocess.run(
+        [shell, *args, *extra],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
     return done.returncode, done.stdout + done.stderr
 
 
 def _head(repo: Path) -> str:
-    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True,
-                          text=True, check=True).stdout
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout
 
 
 @pytest.mark.parametrize(("args", "dry"), SHELLS)
@@ -80,11 +96,19 @@ def test_the_dry_run_lists_every_step_and_runs_none(repo, tmp_path, args, dry):
     head = _head(repo)
     code, said = _run(repo, args, tmp_path, None, dry)
     assert code == 0, said
-    steps = ["refuse if tracked files have changes", "answers on 127.0.0.1",  # (İ: as the pipe's code page has it)
-             "back up the database to", "git pull --ff-only",
-             "uv pip sync requirements-dev.lock", "uv pip install --no-deps -e .",
-             "npm --prefix frontend ci", "npm --prefix frontend run build",
-             "uv pip install -r pyproject.toml --extra docs", "zensical build", "a failure only warns"]
+    steps = [
+        "refuse if tracked files have changes",
+        "answers on 127.0.0.1",  # (İ: as the pipe's code page has it)
+        "back up the database to",
+        "git pull --ff-only",
+        "uv pip sync requirements-dev.lock",
+        "uv pip install --no-deps -e .",
+        "npm --prefix frontend ci",
+        "npm --prefix frontend run build",
+        "uv pip install -r pyproject.toml --extra docs",
+        "zensical build",
+        "a failure only warns",
+    ]
     at = [said.find(step) for step in steps]
     assert -1 not in at and at == sorted(at), said
     assert "Updated to" not in said
@@ -145,7 +169,8 @@ def test_a_linked_working_copy_is_refused_before_any_step(repo, tmp_path, args, 
 
 @pytest.mark.parametrize(("args", "dry"), SHELLS)
 def test_a_guide_that_cannot_be_rebuilt_only_warns_and_the_update_ends_as_usual(
-        repo, tmp_path, args, dry, monkeypatch):
+    repo, tmp_path, args, dry, monkeypatch
+):
     """Every step a stand-in that passes, but the docs extra's install fails (no network, say)."""
     if args[0] == "-NoProfile" and sys.platform != "win32":
         pytest.skip("its stand-ins are .cmd files, which pwsh runs only on Windows")
@@ -157,13 +182,16 @@ def test_a_guide_that_cannot_be_rebuilt_only_warns_and_the_update_ends_as_usual(
         (work / ".venv" / "Scripts").mkdir(parents=True)
         (work / ".venv" / "Scripts" / "zensical.exe").write_bytes(b"")  # (installed: looked at)
         (tools / "uv.cmd").write_text(
-            '@echo %* | findstr /c:"--extra" >nul && exit /b 1\n@exit /b 0\n', encoding="utf-8")
+            '@echo %* | findstr /c:"--extra" >nul && exit /b 1\n@exit /b 0\n', encoding="utf-8"
+        )
         (tools / "npm.cmd").write_text("@exit /b 0\n", encoding="utf-8")
     else:
         (work / ".venv" / "bin").mkdir(parents=True)
-        for path, body in ((work / ".venv" / "bin" / "zensical", "exit 0"),
-                           (tools / "uv", 'case "$*" in *--extra*) exit 1;; esac'),
-                           (tools / "npm", "exit 0")):
+        for path, body in (
+            (work / ".venv" / "bin" / "zensical", "exit 0"),
+            (tools / "uv", 'case "$*" in *--extra*) exit 1;; esac'),
+            (tools / "npm", "exit 0"),
+        ):
             path.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8", newline="\n")
             path.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tools}{os.pathsep}{os.environ['PATH']}")

@@ -27,7 +27,8 @@ EDITED = "Run the stages; a small job stays with you."
 
 
 def test_koloni_s_lead_words_are_rewritten_an_edited_one_and_the_orchestrators_are_not_and_back(
-        tmp_path):
+    tmp_path,
+):
     db = tmp_path / "old.db"
     cfg = _config(db)
     command.upgrade(cfg, "0152")

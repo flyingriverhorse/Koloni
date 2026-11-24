@@ -90,10 +90,12 @@ class ByTask:
         return ModelInfo("fake-model", True)
 
     def _spawn(self, count: int, task: str):
-        return step(*[
-            call("spawn_agent", {"role": "Coder", "task": f"[[{task}]]"}, f"s{next(self.ids)}")
-            for _ in range(count)
-        ])
+        return step(
+            *[
+                call("spawn_agent", {"role": "Coder", "task": f"[[{task}]]"}, f"s{next(self.ids)}")
+                for _ in range(count)
+            ]
+        )
 
     def _write(self, path: str):
         return step(write(path, f"{next(self.ids)}\n", f"w{next(self.ids)}"))
@@ -107,8 +109,9 @@ class ByTask:
         if "write_file" in has and roll < 0.78:
             return self._write(self.rng.choice(FILES))
         if "run_command" in has and roll < 0.9:
-            return step(call(
-                "run_command", {"command": self.rng.choice(COMMANDS)}, f"k{next(self.ids)}"))
+            return step(
+                call("run_command", {"command": self.rng.choice(COMMANDS)}, f"k{next(self.ids)}")
+            )
         if "ask_user" in has:
             return step(call("ask_user", {"question": "Go on?"}, f"q{next(self.ids)}"))
         return text("done")
@@ -151,9 +154,13 @@ def told(settings_env):
     def make(rng: random.Random | None = None, executor: ScriptedExecutor | None = None):
         model = ByTask(rng)
         client = TestClient(
-            create_app(load_settings(settings_env), model=model,
-                       executors=executor.factory if executor else None),
-            base_url="http://127.0.0.1:8790")
+            create_app(
+                load_settings(settings_env),
+                model=model,
+                executors=executor.factory if executor else None,
+            ),
+            base_url="http://127.0.0.1:8790",
+        )
         client.__enter__()
         client.headers["Origin"] = ORIGIN
         opened.append(client)
@@ -173,8 +180,9 @@ def limited(client, project_dir, limit):
 
 
 def say(client, cid, content):
-    return client.post(
-        f"/api/conversations/{cid}/messages", json={"content": content}).json()["run"]["id"]
+    return client.post(f"/api/conversations/{cid}/messages", json={"content": content}).json()[
+        "run"
+    ]["id"]
 
 
 def proposed(snap):
@@ -197,9 +205,9 @@ def see_through(client, cid, run_id, seconds=15.0):
         snap = client.get(f"/api/conversations/{cid}").json()
         if next(r for r in snap["runs"] if r["id"] == run_id)["status"] in TERMINAL:
             return snap
-        assert time.monotonic() < deadline, (
-            "the turn never ended: "
-            + str([(a["name"], a["status"]) for a in snap["agents"]]))
+        assert time.monotonic() < deadline, "the turn never ended: " + str(
+            [(a["name"], a["status"]) for a in snap["agents"]]
+        )
         for agent_id in proposed(snap):
             assert client.post(f"/api/agents/{agent_id}/approve").status_code in (200, 409)
         time.sleep(0.02)
@@ -221,7 +229,7 @@ def test_two_sub_agents_approved_while_another_conversation_has_the_only_place(
     run_a = say(client, a, "[[spawn 2 leaf]]")
     first, second = proposed(until(client, a, lambda s: len(proposed(s)) == 2))
     run_b = say(client, b, "[[hold b]]")
-    model.gate("b").wait_partial()                       # B's lead has the one place
+    model.gate("b").wait_partial()  # B's lead has the one place
     for agent_id in (first, second):
         began = time.monotonic()
         said = client.post(f"/api/agents/{agent_id}/approve")
@@ -231,21 +239,28 @@ def test_two_sub_agents_approved_while_another_conversation_has_the_only_place(
         assert client.post(f"/api/agents/{agent_id}/approve").status_code == 409
     snap = client.get(f"/api/conversations/{a}").json()
     assert {x["name"]: x["status"] for x in snap["agents"]} == {
-        "Lead": "waiting", "Coder": "queued", "Coder 2": "queued"}
-    assert snap["runs"][0]["status"] == "running"        # nothing is asked of the user
+        "Lead": "waiting",
+        "Coder": "queued",
+        "Coder 2": "queued",
+    }
+    assert snap["runs"][0]["status"] == "running"  # nothing is asked of the user
     assert board(client, pid)["running"] == 1
     model.gate("b").release()
     assert wait_run(client, b, run_b)["runs"][0]["status"] == "completed"
     snap = wait_run(client, a, run_a)
     assert snap["runs"][0]["status"] == "completed"
     assert {x["name"]: x["status"] for x in snap["agents"]} == {
-        "Lead": "completed", "Coder": "completed", "Coder 2": "completed"}
+        "Lead": "completed",
+        "Coder": "completed",
+        "Coder 2": "completed",
+    }
     nobody_holds_anything(client, pid)
 
 
 @pytest.mark.parametrize("task", ["leaf", "nest"])
 @pytest.mark.parametrize(
-    "order", [order for n in (2, 3) for order in itertools.permutations(range(n))])
+    "order", [order for n in (2, 3) for order in itertools.permutations(range(n))]
+)
 def test_sub_agents_opened_in_one_step_are_approved_in_any_order_under_a_limit_of_one(
     told, wait_run, project_dir, order, task
 ):
@@ -261,7 +276,7 @@ def test_sub_agents_opened_in_one_step_are_approved_in_any_order_under_a_limit_o
     for at in order:
         said = client.post(f"/api/agents/{asked[at]}/approve")
         assert (said.status_code, said.json()["status"]) == (200, "queued")
-    assert board(client, pid)["running"] == 1            # B's lead, and nobody of A
+    assert board(client, pid)["running"] == 1  # B's lead, and nobody of A
     model.gate("b").release()
     assert wait_run(client, b, run_b)["runs"][0]["status"] == "completed"
     snap = see_through(client, a, run_a)
@@ -284,7 +299,7 @@ def test_a_no_among_the_decisions_needs_no_place_and_the_lead_goes_on_when_it_ha
     run_b = say(client, b, "[[hold b]]")
     model.gate("b").wait_partial()
     said = client.post(f"/api/agents/{asked[no]}/reject")
-    assert (said.status_code, said.json()["status"]) == (200, "rejected")   # at once
+    assert (said.status_code, said.json()["status"]) == (200, "rejected")  # at once
     for at in set(range(3)) - {no}:
         assert client.post(f"/api/agents/{asked[at]}/approve").json()["status"] == "queued"
     assert board(client, pid)["running"] == 1
@@ -293,7 +308,11 @@ def test_a_no_among_the_decisions_needs_no_place_and_the_lead_goes_on_when_it_ha
     snap = wait_run(client, a, run_a)
     assert snap["runs"][0]["status"] == "completed"
     assert sorted(x["status"] for x in snap["agents"]) == [
-        "completed", "completed", "completed", "rejected"]
+        "completed",
+        "completed",
+        "completed",
+        "rejected",
+    ]
     nobody_holds_anything(client, pid)
 
 
@@ -326,6 +345,7 @@ def _decide(client, runner, dice, first: dict[str, list]):
     `first`: what the first cards of a kind are told, in turn, before the dice - each answer
     the test asserts on is given at least once, whatever the dice throw (under load "Always
     run" was never thrown once). One answered too late (409) is given to the next card."""
+
     def some(waiting: dict) -> list[str]:
         try:
             return [one for one in list(waiting) if dice.random() < 0.7]
@@ -343,14 +363,22 @@ def _decide(client, runner, dice, first: dict[str, list]):
 
     yes = lambda: "approve" if dice.random() < 0.7 else "reject"  # noqa: E731
     # A command: no, once, or "Always run" - after which that command is not asked about.
-    command = lambda: "reject" if dice.random() < 0.3 else (  # noqa: E731
-        "approve", {"remember": dice.random() < 0.3})
+    command = lambda: (  # noqa: E731
+        "reject"
+        if dice.random() < 0.3
+        else (
+            "approve",
+            {"remember": dice.random() < 0.3},
+        )
+    )
     sent = [told("agents", one, yes) for one in some(runner._spawn_decisions)]
     sent += [told("file-changes", one, yes) for one in some(runner._decisions)]
     sent += [told("commands", one, command) for one in some(runner.commands._decisions)]
     sent += [told("merges", one, yes) for one in some(runner._merge_decisions)]
-    sent += [client.post(f"/api/questions/{one}/answer", json={"answer": "yes"})
-             for one in some(runner._answers)]
+    sent += [
+        client.post(f"/api/questions/{one}/answer", json={"answer": "yes"})
+        for one in some(runner._answers)
+    ]
     assert all(one.status_code in (200, 409) for one in sent), [one.text for one in sent]
 
 
@@ -373,8 +401,10 @@ def _counted(runner, too_many: list[tuple[int, int]], in_line: list[int], at_onc
             for ctx in new:
                 for allowed, under in (
                     (most.get(ctx.cid), sum(one.root == ctx.root for one in at_work)),
-                    (running.get(ctx.provider_id),
-                     sum(one.provider_id == ctx.provider_id for one in at_work)),
+                    (
+                        running.get(ctx.provider_id),
+                        sum(one.provider_id == ctx.provider_id for one in at_work),
+                    ),
                 ):
                     if allowed and under > allowed:
                         too_many.append((under, allowed))
@@ -394,8 +424,9 @@ def _all_over(client, cids: list[str], each: int) -> dict[str, int]:
         assert not [c for c in snap["file_changes"] if c["status"] in ("proposed", "approved")]
         assert not [q for q in snap["questions"] if q["status"] == "pending"]
         assert not [m for m in snap["merges"] if m["status"] == "pending"]
-        assert not [c for c in snap["commands"]
-                    if c["status"] in ("proposed", "approved", "running")]
+        assert not [
+            c for c in snap["commands"] if c["status"] in ("proposed", "approved", "running")
+        ]
         for kind in ("runs", "agents", "file_changes", "questions", "merges", "commands"):
             for one in snap[kind]:
                 key = f"{kind} {one['status']}"
@@ -424,23 +455,38 @@ def test_a_few_hundred_small_turns_with_random_decisions_and_stops_leave_nothing
     pid = limited(client, project_dir, 3 if narrow else limit)
     provider = client.get("/api/providers").json()[0]["id"]
     if moving or narrow:
-        assert client.patch(
-            f"/api/providers/{provider}", json={"max_running": 1 if narrow else 2}
-        ).status_code == 200
+        assert (
+            client.patch(
+                f"/api/providers/{provider}", json={"max_running": 1 if narrow else 2}
+            ).status_code
+            == 200
+        )
     moved = 0
     runner = client.app.state.runner
     cids = [
-        talk(client, pid, permission_mode="ask", spawn_approval="always",
-             spawn_max_parallel=3, spawn_max_depth=2),
+        talk(
+            client,
+            pid,
+            permission_mode="ask",
+            spawn_approval="always",
+            spawn_max_parallel=3,
+            spawn_max_depth=2,
+        ),
         talk(client, pid, spawn_approval="never", spawn_max_parallel=2, spawn_max_depth=2),
         talk(client, pid, permission_mode="ask", spawn_approval="auto", spawn_max_parallel=1),
     ]
     if narrow:
-        other = client.post("/api/providers", json={
-            "name": "other", "kind": "openai_compat", "base_url": "http://127.0.0.1:9/v1"})
+        other = client.post(
+            "/api/providers",
+            json={"name": "other", "kind": "openai_compat", "base_url": "http://127.0.0.1:9/v1"},
+        )
         assert other.status_code == 201, other.text
-        assert client.patch(f"/api/conversations/{cids[1]}", json={
-            "provider_id": other.json()["id"]}).status_code == 200
+        assert (
+            client.patch(
+                f"/api/conversations/{cids[1]}", json={"provider_id": other.json()["id"]}
+            ).status_code
+            == 200
+        )
     too_many: list[tuple[int, int]] = []
     in_line, at_once = [0], [0]
     runner.let_in = _counted(runner, too_many, in_line, at_once)
@@ -451,8 +497,12 @@ def test_a_few_hundred_small_turns_with_random_decisions_and_stops_leave_nothing
     # 36 to 47 of the 150: more than 100 come to their end however many of those are stopped.)
     stops = random.Random(seed * limit)
     stop_in = dict.fromkeys(cids, 0)  # (0: not stopped)
-    first: dict[str, list] = {"agents": ["reject"], "file-changes": ["approve", "reject"],
-                              "commands": [("approve", {"remember": True}), "reject"], "merges": []}
+    first: dict[str, list] = {
+        "agents": ["reject"],
+        "file-changes": ["approve", "reject"],
+        "commands": [("approve", {"remember": True}), "reject"],
+        "merges": [],
+    }
     # Stuck, not slow: a busy machine takes longer for all of them (55-65 s alone, past a
     # total of 150 s in a full run), but a line that moves ends a turn every so often.
     moved_on = time.monotonic()
@@ -460,7 +510,8 @@ def test_a_few_hundred_small_turns_with_random_decisions_and_stops_leave_nothing
         assert time.monotonic() - moved_on < stall, (
             f"stuck with {left} turns to go: placed {runner._placed}, in line "
             f"{[ctx.name for ctx, _ in runner._line_up]}, away {runner._away}, "
-            f"asks {runner._asks}, out {runner._out}, held up {runner._held_up}")
+            f"asks {runner._asks}, out {runner._out}, held up {runner._held_up}"
+        )
         for cid in cids:
             if going[cid] and not runner.is_active(going[cid]):
                 going[cid], moved_on = None, time.monotonic()
@@ -472,16 +523,18 @@ def test_a_few_hundred_small_turns_with_random_decisions_and_stops_leave_nothing
                 if not stop_in[cid]:
                     assert client.post(f"/api/runs/{going[cid]}/cancel").status_code in (202, 409)
         if moving and dice.random() < 0.1:
-            where, new = dice.choice((
-                (f"/api/projects/{pid}", {"max_agents": dice.choice((1, 2, 3))}),
-                (f"/api/providers/{provider}", {"max_running": dice.choice((1, 2, None))}),
-            ))
+            where, new = dice.choice(
+                (
+                    (f"/api/projects/{pid}", {"max_agents": dice.choice((1, 2, 3))}),
+                    (f"/api/providers/{provider}", {"max_running": dice.choice((1, 2, None))}),
+                )
+            )
             assert client.patch(where, json=new).status_code == 200
             moved += 1
         _decide(client, runner, dice, first)
         time.sleep(0.002)
 
-    assert too_many == []                                # nobody let in beyond a limit
+    assert too_many == []  # nobody let in beyond a limit
     assert moved > 5 or not moving
     # ...and the provider's line did not hold up the agents of the other provider.
     assert at_once[0] > 1 or not narrow
@@ -490,12 +543,22 @@ def test_a_few_hundred_small_turns_with_random_decisions_and_stops_leave_nothing
     assert runner.claims_of(str(project_dir)) == []
     # It was not a quiet run: agents stood in line, sub-agents opened sub-agents, the user
     # said yes and no, turns were stopped, and most of them came to their end.
-    print(f"limit {limit}: {model.steps} steps, {in_line[0]} in line at most, "
-          f"{moved} changes of a limit, {seen}")
+    print(
+        f"limit {limit}: {model.steps} steps, {in_line[0]} in line at most, "
+        f"{moved} changes of a limit, {seen}"
+    )
     assert in_line[0] >= 1 and seen["deep"] > 0 and model.steps > 3 * each
-    for happened in ("runs completed", "runs cancelled", "agents rejected",
-                     "file_changes applied", "file_changes rejected", "questions answered",
-                     "commands exited", "commands rejected", "rules"):
+    for happened in (
+        "runs completed",
+        "runs cancelled",
+        "agents rejected",
+        "file_changes applied",
+        "file_changes rejected",
+        "questions answered",
+        "commands exited",
+        "commands rejected",
+        "rules",
+    ):
         assert seen.get(happened, 0) > 0, (happened, seen)
     assert seen["runs completed"] > 2 * each
 
@@ -507,11 +570,12 @@ def test_the_server_going_down_with_agents_in_line_leaves_none_of_them_at_work(
     settings_env, project_dir
 ):
     """...and what comes up again starts with every place free."""
+
     def up():
         model = ByTask()
         client = TestClient(
-            create_app(load_settings(settings_env), model=model),
-            base_url="http://127.0.0.1:8790")
+            create_app(load_settings(settings_env), model=model), base_url="http://127.0.0.1:8790"
+        )
         client.__enter__()
         client.headers["Origin"] = ORIGIN
         return client, model
@@ -523,7 +587,7 @@ def test_the_server_going_down_with_agents_in_line_leaves_none_of_them_at_work(
     model.gate("a").wait_partial()
     say(client, b, "[[spawn 2 leaf]]")
     queued(client, b)
-    client.__exit__(None, None, None)                    # the lead of B never got its place
+    client.__exit__(None, None, None)  # the lead of B never got its place
 
     client, model = up()
     try:
@@ -550,20 +614,35 @@ def test_a_restart_finds_agents_on_record_as_queued_and_closes_them(tmp_path):
         s.flush()
         s.add_all([Conversation(id="a", project_id="p"), Conversation(id="b", project_id="p")])
         s.flush()
-        s.add_all([Run(id="ra", conversation_id="a", status="running"),
-                   Run(id="rb", conversation_id="b", status="running")])
+        s.add_all(
+            [
+                Run(id="ra", conversation_id="a", status="running"),
+                Run(id="rb", conversation_id="b", status="running"),
+            ]
+        )
         s.flush()
-        s.add_all([
-            Agent(id="la", run_id="ra", role_name="Lead", tools=[], status="waiting"),
-            Agent(id="ca", run_id="ra", role_name="Coder", tools=[], status="queued",
-                  parent_agent_id="la", depth=1),
-            Agent(id="lb", run_id="rb", role_name="Lead", tools=[], status="queued"),
-        ])
+        s.add_all(
+            [
+                Agent(id="la", run_id="ra", role_name="Lead", tools=[], status="waiting"),
+                Agent(
+                    id="ca",
+                    run_id="ra",
+                    role_name="Coder",
+                    tools=[],
+                    status="queued",
+                    parent_agent_id="la",
+                    depth=1,
+                ),
+                Agent(id="lb", run_id="rb", role_name="Lead", tools=[], status="queued"),
+            ]
+        )
         s.commit()
     assert recover_interrupted(factory) == 2
     with factory() as s:
         assert {run.id: run.status for run in s.query(Run)} == {
-            "ra": "interrupted", "rb": "interrupted"}
+            "ra": "interrupted",
+            "rb": "interrupted",
+        }
         assert {one.status for one in s.query(Agent)} == {"interrupted"}
         assert all(one.ended_at is not None for one in s.query(Agent))
 
@@ -576,12 +655,15 @@ def test_changing_a_limit_lets_the_waiting_agents_in_on_the_event_loop(
 ):
     first, second = Gate(), Gate()
     client, model, pid = project(
-        make_client, project_dir,
+        make_client,
+        project_dir,
         [first.step(text("A done")), second.step(text("B done")), text("C done")],
-        max_agents=1)
+        max_agents=1,
+    )
     provider = client.get("/api/providers").json()[0]
-    assert client.patch(
-        f"/api/providers/{provider['id']}", json={"max_running": 1}).status_code == 200
+    assert (
+        client.patch(f"/api/providers/{provider['id']}", json={"max_running": 1}).status_code == 200
+    )
     runner = client.app.state.runner
     loop_thread = on_loop(client, threading.get_ident)
     seen: list[tuple[int, bool]] = []
@@ -607,10 +689,11 @@ def test_changing_a_limit_lets_the_waiting_agents_in_on_the_event_loop(
     assert client.patch(f"/api/projects/{pid}", json={"max_agents": 5}).status_code == 200
     assert seen == [(loop_thread, True)]
     assert agent(client.get(f"/api/conversations/{b}").json(), "Lead")["status"] == "queued"
-    assert client.patch(
-        f"/api/providers/{provider['id']}", json={"max_running": 2}).status_code == 200
+    assert (
+        client.patch(f"/api/providers/{provider['id']}", json={"max_running": 2}).status_code == 200
+    )
     assert seen == [(loop_thread, True)] * 2
-    second.wait_partial()                                # B's lead is at work beside A's
+    second.wait_partial()  # B's lead is at work beside A's
     run_c = go(client, c)
     queued(client, c)
     for gate in (first, second):
@@ -636,7 +719,8 @@ def test_limits_that_cannot_be_read_do_not_break_the_turn_that_ends_nor_stop_the
     monkeypatch.setattr(slots_mixin, "LOOK_AGAIN", 0.05)
     first = Gate()
     client, model, pid = project(
-        make_client, project_dir, [first.step(text("A done")), text("B done")], max_agents=1)
+        make_client, project_dir, [first.step(text("A done")), text("B done")], max_agents=1
+    )
     runner = client.app.state.runner
     a, b = talk(client, pid), talk(client, pid)
     run_a = go(client, a)
@@ -666,9 +750,11 @@ def test_limits_that_cannot_be_read_do_not_break_the_turn_that_ends_nor_stop_the
 def test_the_limits_are_read_once_for_the_whole_line(make_client, wait_run, project_dir):
     first = Gate()
     client, model, pid = project(
-        make_client, project_dir,
+        make_client,
+        project_dir,
         [first.step(text("A done")), text("B done"), text("C done"), text("D done")],
-        max_agents=1)
+        max_agents=1,
+    )
     runner = client.app.state.runner
     turns = [(cid, go(client, cid)) for cid in [talk(client, pid) for _ in range(4)][:1]]
     first.wait_partial()
@@ -684,7 +770,7 @@ def test_the_limits_are_read_once_for_the_whole_line(make_client, wait_run, proj
 
     runner._limits = counted
     assert client.patch(f"/api/projects/{pid}", json={"max_agents": 1}).status_code == 200
-    assert reads == [3]                                  # three in line, one read
+    assert reads == [3]  # three in line, one read
     first.release()
     for cid, run in turns:
         assert wait_run(client, cid, run)["runs"][0]["status"] == "completed"
@@ -704,8 +790,14 @@ class Line:
         self.runner._set_agent = lambda *args, **fields: None
 
     def one(self, cid, provider, run="r"):
-        ctx = SimpleNamespace(agent_id=f"n{next(self.ids)}", run_id=run, cid=cid,
-                              root=cid.upper(), provider_id=provider, name="")
+        ctx = SimpleNamespace(
+            agent_id=f"n{next(self.ids)}",
+            run_id=run,
+            cid=cid,
+            root=cid.upper(),
+            provider_id=provider,
+            name="",
+        )
         self.runner._ctxs[ctx.agent_id] = ctx
         return ctx
 
@@ -759,7 +851,7 @@ def test_an_agent_that_stands_under_two_limits_is_not_passed_by_for_good(told):
             assert line.placed(a) and not line.placed(later)
             assert not line.placed(line.arrive("y", "p"))
             line.leave(a)
-            assert line.placed(later)                    # and then the next, in its order
+            assert line.placed(later)  # and then the next, in its order
             assert len(line.runner._placed) == 4
         finally:
             line.away()
@@ -806,7 +898,7 @@ def test_an_agent_whose_provider_is_full_keeps_one_place_of_its_project_not_all(
             others = [line.arrive("x", "q") for _ in range(5)]
             assert [line.placed(one) for one in others] == [True, True, True, True, False]
             line.leave(on_p)
-            assert line.placed(a) and not line.placed(b)         # five at work, and no more
+            assert line.placed(a) and not line.placed(b)  # five at work, and no more
             assert not line.placed(others[4])
         finally:
             line.away()
@@ -882,9 +974,9 @@ def test_a_place_another_call_of_the_agent_gave_up_is_not_given_back_a_second_ti
             taking = asyncio.ensure_future(runner._take(mine))
             await asyncio.sleep(0)
             assert [ctx for ctx, _came in runner._line_up] == [mine] and slots._value == 1
-            line.leave(other)                            # let in - and not woken yet
-            runner._step_aside(mine)                     # another call of its waits
-            taking.cancel()                              # Stop
+            line.leave(other)  # let in - and not woken yet
+            runner._step_aside(mine)  # another call of its waits
+            taking.cancel()  # Stop
             await asyncio.gather(taking, return_exceptions=True)
             done.append((taking.cancelled(), slots._value, line.placed(mine)))
         except BaseException as exc:
@@ -908,7 +1000,8 @@ def test_the_minutes_of_an_unattended_turn_do_not_run_while_it_stands_in_line(
     place and one stands in line, and goes on with what was left when one has."""
     first = Gate()
     client, model, pid = project(
-        make_client, project_dir, [first.step(text("A done")), text("looked")], max_agents=1)
+        make_client, project_dir, [first.step(text("A done")), text("looked")], max_agents=1
+    )
     a, b = talk(client, pid), talk(client, pid)
     run_a = go(client, a)
     first.wait_partial()
@@ -916,15 +1009,17 @@ def test_the_minutes_of_an_unattended_turn_do_not_run_while_it_stands_in_line(
     made = trigger(client, pid, b, budget={"steps": 15, "minutes": 7, "per_day": 24})
     run_b = run_now(client, made["id"])
     queued(client, b)
-    until_true(lambda: clock.set and all(t.cancelled for t in clock.set),
-               "the clock is put away while the turn stands in line")
+    until_true(
+        lambda: clock.set and all(t.cancelled for t in clock.set),
+        "the clock is put away while the turn stands in line",
+    )
     assert [t.delay for t in clock.set] == [7 * 60] and len(model.calls) == 1
     first.release()
     assert wait_run(client, a, run_a)["runs"][0]["status"] == "completed"
     snap = wait_run(client, b, run_b)
     assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == ("completed", None)
     again = clock.set[1]
-    assert len(clock.set) == 2 and 7 * 60 - 30 < again.delay <= 7 * 60   # what was left
+    assert len(clock.set) == 2 and 7 * 60 - 30 < again.delay <= 7 * 60  # what was left
     until_true(lambda: again.cancelled, "the clock is put away with the turn")
 
 
@@ -936,14 +1031,16 @@ def test_the_minutes_run_on_while_another_agent_of_the_turn_waits_for_a_file(
     run - they are what ends a wait for a file in a turn nobody watches (slice 19a)."""
     first = Gate()
     client, model, pid = project(
-        make_client, project_dir, [first.step(text("A done")), text("looked")], max_agents=1)
+        make_client, project_dir, [first.step(text("A done")), text("looked")], max_agents=1
+    )
     a, b = talk(client, pid), talk(client, pid)
     run_a = go(client, a)
     first.wait_partial()
     runner = client.app.state.runner
     clock = runner.call_later = HeldClock(but=NOT_SLOW)
-    run_b = run_now(client, trigger(
-        client, pid, b, budget={"steps": 15, "minutes": 7, "per_day": 24})["id"])
+    run_b = run_now(
+        client, trigger(client, pid, b, budget={"steps": 15, "minutes": 7, "per_day": 24})["id"]
+    )
     queued(client, b)
     until_true(lambda: clock.set and clock.set[-1].cancelled, "put away: it stands in line")
 
@@ -974,7 +1071,8 @@ def _a_full_project(make_client, project_dir, first_step, executor=None):
     """A's lead asks for something in ask mode, and B's lead has the one place."""
     held = Gate()
     client, model = make_client(
-        {"Lead": [first_step, held.step(text("B done")), text("A done")]}, executor=executor)
+        {"Lead": [first_step, held.step(text("B done")), text("A done")]}, executor=executor
+    )
     client.headers["Origin"] = ORIGIN
     pid = limited(client, project_dir, 1)
     a, b = talk(client, pid, permission_mode="ask"), talk(client, pid)
@@ -996,7 +1094,8 @@ def test_a_change_approved_while_the_project_is_full_says_so_and_is_made_once(
     make_client, wait_run, project_dir
 ):
     client, held, snap, (a, run_a), (b, run_b) = _a_full_project(
-        make_client, project_dir, step(write("a.txt", "A")))
+        make_client, project_dir, step(write("a.txt", "A"))
+    )
     change = snap["file_changes"][0]["id"]
     assert _at_once(client, f"/api/file-changes/{change}/approve")["status"] == "approved"
     # A second click, and a reload: decided, not to be decided again, and not made yet.
@@ -1017,11 +1116,12 @@ def test_a_change_rejected_while_the_project_is_full_is_rejected_at_once(
     make_client, wait_run, project_dir
 ):
     client, held, snap, (a, run_a), (b, run_b) = _a_full_project(
-        make_client, project_dir, step(write("a.txt", "A")))
+        make_client, project_dir, step(write("a.txt", "A"))
+    )
     change = snap["file_changes"][0]["id"]
     assert _at_once(client, f"/api/file-changes/{change}/reject")["status"] == "rejected"
     assert client.post(f"/api/file-changes/{change}/approve").status_code == 409
-    queued(client, a)                                    # its lead still needs a place to go on
+    queued(client, a)  # its lead still needs a place to go on
     held.release()
     snap = wait_run(client, a, run_a)
     assert [c["status"] for c in snap["file_changes"]] == ["rejected"]
@@ -1034,7 +1134,8 @@ def test_an_approved_change_whose_turn_is_stopped_in_line_is_not_left_approved(
     """...nor called "rejected", which is the user's own no: it was never made, and when
     the yes was said stays on its record."""
     client, held, snap, (a, run_a), (b, run_b) = _a_full_project(
-        make_client, project_dir, step(write("a.txt", "A")))
+        make_client, project_dir, step(write("a.txt", "A"))
+    )
     change = snap["file_changes"][0]["id"]
     said = _at_once(client, f"/api/file-changes/{change}/approve")
     assert said["status"] == "approved" and said["decided_at"]
@@ -1043,7 +1144,8 @@ def test_an_approved_change_whose_turn_is_stopped_in_line_is_not_left_approved(
     snap = wait_run(client, a, run_a)
     assert snap["runs"][0]["status"] == "cancelled"
     assert [(c["status"], c["decided_at"]) for c in snap["file_changes"]] == [
-        ("discarded", said["decided_at"])]
+        ("discarded", said["decided_at"])
+    ]
     assert [t["status"] for t in snap["tool_calls"]] == ["interrupted"]
     assert not (project_dir / "a.txt").exists()
     held.release()
@@ -1055,12 +1157,15 @@ def test_a_command_approved_while_the_project_is_full_says_so_and_runs_once(
 ):
     executor = ScriptedExecutor([Script(["2 passed\n"])])
     client, held, snap, (a, run_a), (b, run_b) = _a_full_project(
-        make_client, project_dir, cmd(), executor=executor)
+        make_client, project_dir, cmd(), executor=executor
+    )
     command_id = snap["commands"][0]["id"]
     said = _at_once(client, f"/api/commands/{command_id}/approve", remember=False)
     assert said["status"] == "approved"
-    assert client.post(
-        f"/api/commands/{command_id}/approve", json={"remember": False}).status_code == 409
+    assert (
+        client.post(f"/api/commands/{command_id}/approve", json={"remember": False}).status_code
+        == 409
+    )
     snap = queued(client, a)
     assert [c["status"] for c in snap["commands"]] == ["approved"] and executor.started == []
     held.release()
@@ -1075,7 +1180,8 @@ def test_a_command_rejected_or_stopped_while_the_project_is_full(
 ):
     executor = ScriptedExecutor([])
     client, held, snap, (a, run_a), (b, run_b) = _a_full_project(
-        make_client, project_dir, cmd(), executor=executor)
+        make_client, project_dir, cmd(), executor=executor
+    )
     command_id = snap["commands"][0]["id"]
     assert _at_once(client, f"/api/commands/{command_id}/reject")["status"] == "rejected"
     held.release()
@@ -1092,7 +1198,8 @@ def test_an_approved_command_whose_turn_is_stopped_in_line_never_runs(
     rule is there from the moment it is said, though this command never got its place."""
     executor = ScriptedExecutor([])
     client, held, snap, (a, run_a), (b, run_b) = _a_full_project(
-        make_client, project_dir, cmd(), executor=executor)
+        make_client, project_dir, cmd(), executor=executor
+    )
     command_id = snap["commands"][0]["id"]
     said = _at_once(client, f"/api/commands/{command_id}/approve", remember=remember)
     assert said["status"] == "approved"
@@ -1119,19 +1226,39 @@ def test_a_restart_does_not_call_what_the_user_approved_rejected(tmp_path):
     with factory() as s:
         change = s.get_one(FileChange, "f")
         change.status, change.decided_at = "approved", said_yes
-        s.add_all([
-            Command(id="yes", run_id="r1", agent_id="a", tool_call_id="t1", command="pytest",
-                    location="host", timeout_seconds=60, status="approved"),
-            Command(id="asked", run_id="r1", agent_id="a", tool_call_id="t2", command="ls",
-                    location="host", timeout_seconds=60, status="proposed"),
-        ])
+        s.add_all(
+            [
+                Command(
+                    id="yes",
+                    run_id="r1",
+                    agent_id="a",
+                    tool_call_id="t1",
+                    command="pytest",
+                    location="host",
+                    timeout_seconds=60,
+                    status="approved",
+                ),
+                Command(
+                    id="asked",
+                    run_id="r1",
+                    agent_id="a",
+                    tool_call_id="t2",
+                    command="ls",
+                    location="host",
+                    timeout_seconds=60,
+                    status="proposed",
+                ),
+            ]
+        )
         s.commit()
     recover_interrupted(factory)
     with factory() as s:
         change = s.get_one(FileChange, "f")
         assert (change.status, change.decided_at) == ("discarded", said_yes)
         assert {one.id: (one.status, one.started_at) for one in s.query(Command)} == {
-            "yes": ("interrupted", None), "asked": ("rejected", None)}
+            "yes": ("interrupted", None),
+            "asked": ("rejected", None),
+        }
     assert not (tmp_path / "f.txt").exists()
 
 
@@ -1166,19 +1293,19 @@ def test_an_approved_command_whose_start_never_comes_back_is_approved_and_never_
     down; the start hung, the approve call answered "proposed" after five seconds, and
     Stop left the command "rejected" - with the rule "Always run" had written."""
     executor = NeverStarts()
-    client, pid, cid, run_id, snap = _asked_in_ask_mode(
-        make_client, project_dir, cmd(), executor)
+    client, pid, cid, run_id, snap = _asked_in_ask_mode(make_client, project_dir, cmd(), executor)
     command_id = snap["commands"][0]["id"]
     said = _at_once(client, f"/api/commands/{command_id}/approve", remember=remember)
     assert said["status"] == "approved" and executor.asked.wait(5)
-    assert client.post(
-        f"/api/commands/{command_id}/approve", json={"remember": False}).status_code == 409
+    assert (
+        client.post(f"/api/commands/{command_id}/approve", json={"remember": False}).status_code
+        == 409
+    )
     cancel(client, run_id)
     snap = wait_run(client, cid, run_id)
     assert [(c["status"], c["started_at"]) for c in snap["commands"]] == [("interrupted", None)]
     assert [t["status"] for t in snap["tool_calls"]] == ["interrupted"]
-    assert [rule["prefix"] for rule in snap["allowed_commands"]] == (
-        ["pytest"] if remember else [])
+    assert [rule["prefix"] for rule in snap["allowed_commands"]] == (["pytest"] if remember else [])
     nobody_holds_anything(client, pid)
 
 
@@ -1211,8 +1338,7 @@ def test_a_decision_given_while_the_limits_cannot_be_read_is_not_lost(
     stands in line until the limits can be read."""
     monkeypatch.setattr(slots_mixin, "LOOK_AGAIN", 0.05)
     executor = ScriptedExecutor([Script(["2 passed\n"])])
-    client, pid, cid, run_id, snap = _asked_in_ask_mode(
-        make_client, project_dir, cmd(), executor)
+    client, pid, cid, run_id, snap = _asked_in_ask_mode(make_client, project_dir, cmd(), executor)
     runner = client.app.state.runner
     read, failed = runner._limits, []
 
@@ -1226,7 +1352,7 @@ def test_a_decision_given_while_the_limits_cannot_be_read_is_not_lost(
     said = _at_once(client, f"/api/commands/{snap['commands'][0]['id']}/approve", remember=True)
     assert said["status"] == "approved"
     snap = wait_run(client, cid, run_id)
-    assert len(failed) == 2                              # asked whether it waits, and the line
+    assert len(failed) == 2  # asked whether it waits, and the line
     assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == ("completed", None)
     assert [c["status"] for c in snap["commands"]] == ["exited"]
     assert [rule["prefix"] for rule in snap["allowed_commands"]] == ["pytest"]
@@ -1236,11 +1362,12 @@ def test_a_decision_given_while_the_limits_cannot_be_read_is_not_lost(
 def test_a_request_approved_in_line_and_never_sent_is_not_left_approved(
     make_client, wait_run, project_dir, monkeypatch
 ):
-    """"approved" is what a request that went out is. One whose agent never got its
+    """ "approved" is what a request that went out is. One whose agent never got its
     place is "interrupted", as its call is - and when the yes was said stays."""
     net = Net(monkeypatch)
     client, held, snap, (a, run_a), (b, run_b) = _a_full_project(
-        make_client, project_dir, step(get("https://example.com/x")))
+        make_client, project_dir, step(get("https://example.com/x"))
+    )
     asked = snap["web_requests"][0]["id"]
     said = _at_once(client, f"/api/web-requests/{asked}/approve", remember=False)
     assert said["status"] == "approved" and said["decided_at"]
@@ -1248,7 +1375,8 @@ def test_a_request_approved_in_line_and_never_sent_is_not_left_approved(
     cancel(client, run_a)
     snap = wait_run(client, a, run_a)
     assert [(w["status"], w["decided_at"]) for w in snap["web_requests"]] == [
-        ("interrupted", said["decided_at"])]
+        ("interrupted", said["decided_at"])
+    ]
     assert [t["status"] for t in snap["tool_calls"]] == ["interrupted"] and net.asked == []
     held.release()
     wait_run(client, b, run_b)
@@ -1267,19 +1395,30 @@ def test_a_request_stopped_on_its_way_is_interrupted_and_one_that_went_out_stays
         return await answer(method, url, *more)
 
     monkeypatch.setattr(app.web, "raw", raw)
-    client, _model = make_client({"Lead": [
-        step(get("https://example.com/a", "h1")), step(get("https://example.com/hangs", "h2")),
-        text("never said")]})
+    client, _model = make_client(
+        {
+            "Lead": [
+                step(get("https://example.com/a", "h1")),
+                step(get("https://example.com/hangs", "h2")),
+                text("never said"),
+            ]
+        }
+    )
     client.headers["Origin"] = ORIGIN
     pid = limited(client, project_dir, 1)
     cid = talk(client, pid, permission_mode="ask")
     run_id = go(client, cid)
     for count in (1, 2):
-        snap = until(client, cid, lambda s, count=count: len(s["web_requests"]) == count
-                     and s["web_requests"][-1]["status"] == "proposed")
+        snap = until(
+            client,
+            cid,
+            lambda s, count=count: (
+                len(s["web_requests"]) == count and s["web_requests"][-1]["status"] == "proposed"
+            ),
+        )
         said = _at_once(
-            client, f"/api/web-requests/{snap['web_requests'][-1]['id']}/approve",
-            remember=False)
+            client, f"/api/web-requests/{snap['web_requests'][-1]['id']}/approve", remember=False
+        )
         assert said["status"] == "approved"
     assert on_its_way.wait(5)
     cancel(client, run_id)
@@ -1298,18 +1437,35 @@ def test_a_restart_does_not_leave_a_request_that_never_went_out_approved(tmp_pat
     seed(factory, tmp_path)
     said_yes = datetime(2026, 10, 12, 9, 0, tzinfo=UTC)
     with factory() as s:
-        s.add_all([
-            WebRequest(id=id, run_id="r1", agent_id="a", tool_call_id=call, kind="http",
-                       method="GET", target="https://example.com/", host="example.com",
-                       status=status, decided_at=said_yes if status == "approved" else None)
-            for id, call, status in (
-                ("cut", "t1", "approved"), ("sent", "t3", "approved"), ("asked", "t2", "proposed"))
-        ])
+        s.add_all(
+            [
+                WebRequest(
+                    id=id,
+                    run_id="r1",
+                    agent_id="a",
+                    tool_call_id=call,
+                    kind="http",
+                    method="GET",
+                    target="https://example.com/",
+                    host="example.com",
+                    status=status,
+                    decided_at=said_yes if status == "approved" else None,
+                )
+                for id, call, status in (
+                    ("cut", "t1", "approved"),
+                    ("sent", "t3", "approved"),
+                    ("asked", "t2", "proposed"),
+                )
+            ]
+        )
         s.commit()
     recover_interrupted(factory)
     with factory() as s:
         assert {one.id: one.status for one in s.query(WebRequest)} == {
-            "cut": "interrupted", "sent": "approved", "asked": "rejected"}
+            "cut": "interrupted",
+            "sent": "approved",
+            "asked": "rejected",
+        }
         assert s.get_one(WebRequest, "cut").decided_at.replace(tzinfo=UTC) == said_yes
 
 
@@ -1343,13 +1499,17 @@ def test_a_question_answered_while_the_project_is_full_is_answered_at_once(
     make_client, wait_run, project_dir
 ):
     client, held, snap, (a, run_a), (b, run_b) = _a_full_project(
-        make_client, project_dir, step(call("ask_user", {"question": "Which one?"}, "q")))
+        make_client, project_dir, step(call("ask_user", {"question": "Which one?"}, "q"))
+    )
     question = snap["questions"][0]["id"]
     said = _at_once(client, f"/api/questions/{question}/answer", answer="the first")
     assert (said["status"], said["answer"]) == ("answered", "the first")
-    assert client.post(
-        f"/api/questions/{question}/answer", json={"answer": "no, the second"}
-    ).status_code == 409
+    assert (
+        client.post(
+            f"/api/questions/{question}/answer", json={"answer": "no, the second"}
+        ).status_code
+        == 409
+    )
     snap = queued(client, a)
     assert snap["runs"][0]["status"] == "running"
     held.release()
@@ -1362,8 +1522,7 @@ def test_a_role_decided_while_the_project_is_full_is_off_its_card_at_once(
     make_client, wait_run, project_dir
 ):
     asks = new_role("Documenter", ["read_file"], description="Docs.")
-    client, held, snap, (a, run_a), (b, run_b) = _a_full_project(
-        make_client, project_dir, asks)
+    client, held, snap, (a, run_a), (b, run_b) = _a_full_project(make_client, project_dir, asks)
     call_id = snap["pending_roles"][0]["tool_call_id"]
     _at_once(client, f"/api/tool-calls/{call_id}/approve")
     assert client.post(f"/api/tool-calls/{call_id}/approve").status_code == 409
@@ -1382,22 +1541,28 @@ def test_the_user_ends_a_discussion_whose_speaker_stands_in_line_for_a_place(
     make_client, wait_run, project_dir
 ):
     speaking, held = Gate(), Gate()
-    client, model = make_client({
-        "Lead": [TWO, discuss("Go?", ["Coder", "Reviewer"]), held.step(text("B done")),
-                 text("Carrying on.")],
-        "Coder": [text("coder ready"), speaking.step(text("Yes."))],
-        "Reviewer": [text("reviewer ready"), text("never said")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                TWO,
+                discuss("Go?", ["Coder", "Reviewer"]),
+                held.step(text("B done")),
+                text("Carrying on."),
+            ],
+            "Coder": [text("coder ready"), speaking.step(text("Yes."))],
+            "Reviewer": [text("reviewer ready"), text("never said")],
+        }
+    )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     a, b = talk(client, pid, spawn_approval="never"), talk(client, pid)
     run_a = go(client, a)
-    speaking.wait_partial()                              # the Coder speaks: one agent at work
+    speaking.wait_partial()  # the Coder speaks: one agent at work
     assert client.patch(f"/api/projects/{pid}", json={"max_agents": 1}).status_code == 200
     run_b = go(client, b)
-    queued(client, b)                                    # B's lead is first in line
+    queued(client, b)  # B's lead is first in line
     speaking.release()
-    held.wait_partial()                                  # ...and has the place: B's lead works
+    held.wait_partial()  # ...and has the place: B's lead works
     snap = until(client, a, lambda s: agent(s, "Reviewer")["status"] == "queued")
     talked = snap["discussions"][0]
     assert talked["status"] == "running" and board(client, pid)["running"] == 1
@@ -1405,11 +1570,11 @@ def test_the_user_ends_a_discussion_whose_speaker_stands_in_line_for_a_place(
     # Ended while B's lead still has the one place: nobody waited for it.
     snap = until(client, a, lambda s: s["discussions"][0]["status"] == "ended", timeout=3)
     assert snap["discussions"][0]["outcome"] == "ended_by_user" and not held.released
-    assert agent(snap, "Reviewer")["status"] == "completed"   # what it was before its turn
+    assert agent(snap, "Reviewer")["status"] == "completed"  # what it was before its turn
     held.release()
     for cid, run in ((b, run_b), (a, run_a)):
         assert wait_run(client, cid, run, timeout=10)["runs"][0]["status"] == "completed"
-    assert len(model.calls_of["Reviewer"]) == 1          # it never got to speak
+    assert len(model.calls_of["Reviewer"]) == 1  # it never got to speak
     nobody_holds_anything(client, pid)
 
 
@@ -1424,8 +1589,10 @@ def test_a_wait_that_is_stopped_is_told_to_the_conversation_that_holds_the_file(
     wait is stopped - nothing the holder holds changed either time."""
     first = Gate()
     client, model, pid = project(
-        make_client, project_dir,
-        [step(write("a.txt", "A")), first.step(text("A done")), step(write("a.txt", "B"))])
+        make_client,
+        project_dir,
+        [step(write("a.txt", "A")), first.step(text("A done")), step(write("a.txt", "B"))],
+    )
     a, b = talk(client, pid), talk(client, pid)
     run_a = go(client, a)
     first.wait_partial()
@@ -1455,9 +1622,15 @@ def test_the_agent_that_waited_is_told_which_conversation_held_the_file(
 ):
     first = Gate()
     client, model, pid = project(
-        make_client, project_dir,
-        [step(write("a.txt", "A")), first.step(text("A done")),
-         step(write("a.txt", "B")), text("B done")])
+        make_client,
+        project_dir,
+        [
+            step(write("a.txt", "A")),
+            first.step(text("A done")),
+            step(write("a.txt", "B")),
+            text("B done"),
+        ],
+    )
     a, b = talk(client, pid), talk(client, pid)
     run_a = go(client, a)
     first.wait_partial()
@@ -1483,20 +1656,29 @@ def test_migration_0031_and_back(tmp_path):
     def columns(conn, table):
         return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
 
-    new = {"projects": {"max_agents"}, "providers": {"max_running"},
-           "conversations": {"lane"}, "file_changes": {"outside_lane"}}
+    new = {
+        "projects": {"max_agents"},
+        "providers": {"max_running"},
+        "conversations": {"lane"},
+        "file_changes": {"outside_lane"},
+    }
     with sqlite3.connect(db) as conn:
         assert not any(added & columns(conn, table) for table, added in new.items())
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
-                     "VALUES ('p', 'p', 'C:/p', '2026-10-11 10:00:00')")
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) "
+            "VALUES ('p', 'p', 'C:/p', '2026-10-11 10:00:00')"
+        )
         was = {table: columns(conn, table) for table in new}
     command.upgrade(cfg, "0031")
     with sqlite3.connect(db) as conn:
         assert all(columns(conn, table) == was[table] | added for table, added in new.items())
         # What was there has no limit; a change from before there were lanes was outside none.
         assert conn.execute("SELECT max_agents FROM projects").fetchall() == [(None,)]
-        default = next(row[4] for row in conn.execute("PRAGMA table_info(file_changes)")
-                       if row[1] == "outside_lane")
+        default = next(
+            row[4]
+            for row in conn.execute("PRAGMA table_info(file_changes)")
+            if row[1] == "outside_lane"
+        )
         assert default in ("0", "false", "(0)")
         conn.execute("UPDATE projects SET max_agents = 2")
     command.downgrade(cfg, "0030")

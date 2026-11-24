@@ -41,7 +41,9 @@ LICENSE = "MIT, Copyright (c) 2025 models.dev (app/models_dev.LICENSE)"
 # model it lacks fails the turn, saying so - B-176); mark them once a call that lists the
 # account's models (headless, beside `account.getQuota`) is measured live.
 SERVICES = {
-    "anthropic": "anthropic", "claude_cli": "anthropic", "codex_cli": "openai",
+    "anthropic": "anthropic",
+    "claude_cli": "anthropic",
+    "codex_cli": "openai",
     "copilot_cli": "github-copilot",
 }
 # What the app ships: the services above and those KOLONİ knew by address before models.dev.
@@ -87,7 +89,8 @@ def _model(told: dict) -> dict:
             {"type": "effort", "values": [v for v in one["values"] if _text(v, 20)][:10]}
             if one.get("type") == "effort" and isinstance(one.get("values"), list)
             else {"type": one["type"]}
-            for one in options[:10] if isinstance(one, dict) and _text(one.get("type"), 40)
+            for one in options[:10]
+            if isinstance(one, dict) and _text(one.get("type"), 40)
         ]
     for field, parts in (("limit", ("context", "output")), ("cost", COSTS)):
         said = told.get(field)
@@ -96,8 +99,11 @@ def _model(told: dict) -> dict:
     # What it reads and writes besides text (slice 85b): only the kinds its README names.
     said = told.get("modalities")
     if isinstance(said, dict):
-        kept["modalities"] = {way: [m for m in said[way] if m in MODALITIES]
-                              for way in ("input", "output") if isinstance(said.get(way), list)}
+        kept["modalities"] = {
+            way: [m for m in said[way] if m in MODALITIES]
+            for way in ("input", "output")
+            if isinstance(said.get(way), list)
+        }
     return kept
 
 
@@ -110,20 +116,29 @@ def clean(told: object, only: tuple[str, ...] | None = None) -> dict:
         raise ValueError("not models.dev's list of services")
     kept: dict = {}
     for service, said in told.items():
-        if not (isinstance(said, dict) and isinstance(said.get("models"), dict)
-                and _text(service, 100) and service != ABOUT):
+        if not (
+            isinstance(said, dict)
+            and isinstance(said.get("models"), dict)
+            and _text(service, 100)
+            and service != ABOUT
+        ):
             continue
         api = _https(said.get("api"))
         if (service not in only) if only else (service not in SERVICES.values() and not api):
             continue
         env = said.get("env")
         kept[service] = {
-            "id": service, "name": _text(said.get("name")) or service, "api": api,
+            "id": service,
+            "name": _text(said.get("name")) or service,
+            "api": api,
             "env": [e for e in env[:5] if _text(e, 100)] if isinstance(env, list) else [],
             "doc": _https(said.get("doc")),
             "models": {
-                name: _model(model) for name, model in said["models"].items()
-                if isinstance(model, dict) and name == name.strip() and name.isprintable()
+                name: _model(model)
+                for name, model in said["models"].items()
+                if isinstance(model, dict)
+                and name == name.strip()
+                and name.isprintable()
                 and 0 < len(name) <= MAX_MODEL_NAME
             },
         }
@@ -170,7 +185,6 @@ def load(runtime_root: Path | None) -> dict:
             _read[path] = (stamp, None)  # not read again until it changes
     told = _read[path][1]
     return told if told is not None else load(None)
-
 
 
 _transport: httpx2.AsyncBaseTransport | None = None  # a test's stand-in for models.dev
@@ -240,8 +254,11 @@ async def refresh(runtime_root: Path) -> bool:
 def summary(copy: dict) -> dict:
     """How many services and models a copy holds, and when it was read."""
     found = services(copy).values()
-    return {"providers": len(found), "models": sum(len(s["models"]) for s in found),
-            "updated_at": read_on(copy)}
+    return {
+        "providers": len(found),
+        "models": sum(len(s["models"]) for s in found),
+        "updated_at": read_on(copy),
+    }
 
 
 if __name__ == "__main__":

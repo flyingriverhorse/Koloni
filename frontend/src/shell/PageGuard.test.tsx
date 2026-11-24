@@ -7,7 +7,7 @@ function Broken(): never {
 }
 
 test('a page that throws shows a short note in its place, not a blank app', () => {
-  vi.spyOn(console, 'error').mockImplementation(() => {})  // React reports the caught error; the note is the point
+  vi.spyOn(console, 'error').mockImplementation(() => {}) // React reports the caught error; the note is the point
   render(
     <>
       <nav>rail</nav>

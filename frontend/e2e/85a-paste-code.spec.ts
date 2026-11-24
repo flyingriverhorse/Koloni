@@ -18,7 +18,11 @@ const paste = (box: Locator, text: string) =>
   }, text)
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`pasted code is fenced, can go back to plain text, and is sent and shown as code (${theme})`, async ({ page }: { page: Page }) => {
+  test(`pasted code is fenced, can go back to plain text, and is sent and shown as code (${theme})`, async ({
+    page,
+  }: {
+    page: Page
+  }) => {
     await page.addInitScript(theme => localStorage.setItem('koloni-theme', theme), theme)
     await openFreshConversation(page)
     const box = page.getByLabel('Message')

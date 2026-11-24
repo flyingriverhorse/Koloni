@@ -4,6 +4,7 @@ and the shared notebook (post_note / read_notes) - `TalkMixin`.
 """
 
 import asyncio
+import logging
 from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -28,6 +29,7 @@ from app.agent.cards import _changes_nothing
 from app.agent.ctx import Ctx, announce
 from app.agent.summary import _lines_written_out
 from app.agent.words import CANT_UNDO, FROM, HANDED, LEADS_LATER, NOT_HEARD
+from app.api.recipes import agents_of
 from app.db.models import (
     Agent,
     BoardPost,
@@ -42,6 +44,7 @@ from app.db.models import (
 from app.discussion import MEMORY_HEAD
 from app.providers import list_providers
 from app.roles import LEAD, ORCHESTRATOR, agent_roles, closed, pickable, team_roles, tools_off
+from app.schemas import RecipeAgents, RecipeGraph
 from app.serialize import board_post_out, message_out
 from app.team import guide, quoted
 from app.tools import (
@@ -74,7 +77,8 @@ AGENT_STEERED = "{message}\n\n(An agent's words, passed on by KOLONİ - not the 
 SENT_WHILE_IT_WORKS = (
     "sent while it works: written into {name}'s current turn - not yet that it read it; if it "
     "finishes first, you are told. It does not reply unless it messages you; go on with your "
-    "own work.")
+    "own work."
+)
 
 # A Claude Code's or Codex's door that did not take it: its turn is over, or about to be.
 TURN_ENDING = "{name}'s turn is ending; try again once it has finished"
@@ -82,20 +86,38 @@ TURN_ENDING = "{name}'s turn is ending; try again once it has finished"
 # What a recipe's runner is told with where its recipe is (B-67: a Lead asked mid-recipe whether
 # to copy the work into the project, then ended its turn).
 # (K-r144, live: in Manual a Lead reviewed the work itself instead of running the chosen recipe.)
-RECIPE_RULES = ("Work a chosen team's recipe covers runs through the recipe: open its step's "
-                "roles - never do a step's work (writing, reviewing, testing) yourself in its "
-                "place. "
-                "While a recipe runs, do not ask the user yourself (no ask_user): the recipe "
-                "asks at its Ask me steps and at its end. Its work goes into the project only "
-                "by the user's Take in at Ready for you - never offer to copy it in another way. "
-                "Go on step by step to its end. With findings left it goes back along its loop by "
-                "itself: open the step it names - never end your turn to ask the user what to do "
-                "with them; the user decides at Ready for you. A role the step does not name is "
-                "refused: the way on is the step's own role, or the user's Finish now or Stop on "
-                "the team - never offer the user a way round the recipe (you or another role "
-                "doing the step's work). When the user says to stop, open no other agent")
+RECIPE_RULES = (
+    "Work a chosen team's recipe covers runs through the recipe: open its step's "
+    "roles - never do a step's work (writing, reviewing, testing) yourself in its "
+    "place. "
+    "While a recipe runs, do not ask the user yourself (no ask_user): the recipe "
+    "asks at its Ask me steps and at its end. Its work goes into the project only "
+    "by the user's Take in at Ready for you - never offer to copy it in another way. "
+    "Go on step by step to its end. With findings left it goes back along its loop by "
+    "itself: open the step it names - never end your turn to ask the user what to do "
+    "with them; the user decides at Ready for you. A role the step does not name is "
+    "refused: the way on is the step's own role, or the user's Finish now or Stop on "
+    "the team - never offer the user a way round the recipe (you or another role "
+    "doing the step's work). When the user says to stop, open no other agent"
+)
 
 MAX_MESSAGES_PER_TURN = 30
+
+log = logging.getLogger(__name__)
+# Review of T2: the stored recipes that no longer read, each said once (read at every Lead step).
+_UNREAD: set[str] = set()
+
+
+def _counted(name: str, graph: dict) -> tuple[str, RecipeAgents | None] | None:
+    """A recipe as pick_teams lists it: its name and its agents (`agents_of`); None - left out,
+    logged once - where its stored drawing no longer reads: one old recipe fails no turn."""
+    try:
+        return name, agents_of(RecipeGraph.model_validate(graph))
+    except Exception as exc:  # (a stored row is untrusted here: whatever it breaks)
+        if name not in _UNREAD:
+            _UNREAD.add(name)
+            log.warning("recipe %r is not offered to pick_teams: %s", name, exc)
+        return None
 
 
 class TalkMixin:
@@ -111,9 +133,15 @@ class TalkMixin:
         work. Not agy or Codex with tools of their own (as the design has it): what git
         shows is all that is said of theirs."""
         model = ctx.model
-        return bool(self._git_of(ctx)) and not ctx.answering and getattr(
-            model, "collaborates", True) and not (
-            getattr(model, "native", False) and getattr(model, "command", "") in ("codex", "agy"))
+        return (
+            bool(self._git_of(ctx))
+            and not ctx.answering
+            and getattr(model, "collaborates", True)
+            and not (
+                getattr(model, "native", False)
+                and getattr(model, "command", "") in ("codex", "agy")
+            )
+        )
 
     def _report_git(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
         """What a CLI says it did in git (report_git): kept for the turn's end, where it is
@@ -125,19 +153,25 @@ class TalkMixin:
         except ValueError as exc:
             raise ToolError(str(exc)) from None
         self._git_said.setdefault(ctx.run_id, []).append((ctx.name, said))
-        return ("Noted. The user sees it on the project's git map, and KOLONİ compares it "
-                "with git at the end of the turn.")
+        return (
+            "Noted. The user sees it on the project's git map, and KOLONİ compares it "
+            "with git at the end of the turn."
+        )
 
-    def _offered(self: "AgentRunner", ctx: Ctx, tools, always: bool = False,
-                 show: bool = False) -> list[dict]:
+    def _offered(
+        self: "AgentRunner", ctx: Ctx, tools, always: bool = False, show: bool = False
+    ) -> list[dict]:
         """The schemas of `tools` for this agent, as things stand right now."""
         if not ctx.answering and ctx.agent_id in self._following:
             # K-oda-lead: following the room it opened, it is offered only that (`_follow_call`).
             # shortcut: its tools - and the parts of its instructions they gate - change as it
             # starts and stops following: two prompt-cache rewrites of the opener a room; keep its
             # own tools offered and refused if that cost is seen to matter.
-            return [ROOM_SCHEMAS["post_to_room"], ROOM_SCHEMAS["invite_to_room"],
-                    *FOLLOW_SCHEMAS.values()]
+            return [
+                ROOM_SCHEMAS["post_to_room"],
+                ROOM_SCHEMAS["invite_to_room"],
+                *FOLLOW_SCHEMAS.values(),
+            ]
         if self._hands_code(ctx):  # (kept in ctx.tools: a sub-agent's are capped by them)
             tools = [tool for tool in tools if tool not in HANDED]
         door, running = None, False
@@ -153,59 +187,108 @@ class TalkMixin:
                 door = self._door(session, ctx)
                 # B-67: a recipe it runs is at work (or starts with its next agent).
                 running = any(
-                    state["status"] == recipe_run.RUNNING if (
-                        state := self._live_state(row, ctx.run_id)) else
-                    self._recipe_of(session, row, team) is not None
-                    for row, team in self._runs(session, ctx))
+                    state["status"] == recipe_run.RUNNING
+                    if (state := self._live_state(row, ctx.run_id))
+                    else self._recipe_of(session, row, team) is not None
+                    for row, team in self._runs(session, ctx)
+                )
                 named = self._names_past(session, ctx)
-                roles = [role for role in agent_roles(session) if not closed(role, door, named)
-                         ] + [lead for _r, _t, lead in self._rows(session, ctx.cid)
-                              if lead and not ctx.depth]
+                roles = [role for role in agent_roles(session) if not closed(role, door, named)] + [
+                    lead for _r, _t, lead in self._rows(session, ctx.cid) if lead and not ctx.depth
+                ]
             # Lead decides (slice 84b): the Lead at its own work picks the chat's teams.
             may = [] if self._no_pick(ctx, conversation) else pickable(session)
-            pick = [pick_schema(
-                [(team, team_roles(session, team)) for team in may],
-                session.scalars(select(Recipe.name).order_by(Recipe.created_at)).all(),
-            )] if may else []
+            pick = (
+                [
+                    pick_schema(
+                        [(team, team_roles(session, team)) for team in may],
+                        [  # (T2: each with its agents, as the Recipes list says them)
+                            one
+                            for name, graph in session.execute(
+                                select(Recipe.name, Recipe.graph).order_by(Recipe.created_at)
+                            )
+                            if (one := _counted(name, graph)) is not None
+                        ],
+                    )
+                ]
+                if may
+                else []
+            )
             # ☾ Away: the Lead at the user's own turn may offer them to go away.
             away_tool = [offer_schema()] if self._no_away(session, ctx) is None else []
             # Read at every step, like the roles: what the user unticks is gone at once.
-            team = guide(list_providers(session), models_dev.load(
-                self.settings.runtime_root)) if "spawn_agent" in tools else []
+            team = (
+                guide(list_providers(session), models_dev.load(self.settings.runtime_root))
+                if "spawn_agent" in tools
+                else []
+            )
             files = self._files_of(session, ctx)
             # (No team's tools for KOLONİ's Reviewer: it reads, `_review_refuses`.)
-            between = [] if ctx.run_id in self._sides or ctx.agent_id in (
-                self._read_only_agents) else team_requests.schemas(self, session, ctx)
-        facts = self._who(ctx.run_id) if {"message_agent", "discuss"} & set(tools) else {}
-        reachable = [
-            who_line(other.name, other.role, *facts[other.agent_id], CAN[kind])
-            for other, kind in self._reachable(ctx)
-        ] if "message_agent" in tools else []
-        others = [
-            who_line(other.name, other.role, *known)
-            for agent_id, known in facts.items()
-            if agent_id != ctx.agent_id and (other := self._ctxs.get(agent_id))
-            and known[2] in ("running", "queued", "waiting", "blocked", "completed", "failed")
-        ] if "discuss" in tools else []
-        earlier = [
-            earlier_line(
-                before.name, before.role, before.provider,
-                # (One Copilot's auto or fusion picked goes on with that: `_ran_on_before`.)
-                before.model_from if before.model_from in ("auto", "fusion")
-                else None if before.model_from == "settings" else before.model, before.status,
-                before.task, before.turn,
+            between = (
+                []
+                if ctx.run_id in self._sides or ctx.agent_id in (self._read_only_agents)
+                else team_requests.schemas(self, session, ctx)
             )
-            for before in self._earlier(ctx)
-        ] if "message_agent" in tools else []
+        facts = self._who(ctx.run_id) if {"message_agent", "discuss"} & set(tools) else {}
+        reachable = (
+            [
+                who_line(other.name, other.role, *facts[other.agent_id], CAN[kind])
+                for other, kind in self._reachable(ctx)
+            ]
+            if "message_agent" in tools
+            else []
+        )
+        others = (
+            [
+                who_line(other.name, other.role, *known)
+                for agent_id, known in facts.items()
+                if agent_id != ctx.agent_id
+                and (other := self._ctxs.get(agent_id))
+                and known[2] in ("running", "queued", "waiting", "blocked", "completed", "failed")
+            ]
+            if "discuss" in tools
+            else []
+        )
+        earlier = (
+            [
+                earlier_line(
+                    before.name,
+                    before.role,
+                    before.provider,
+                    # (One Copilot's auto or fusion picked goes on with that: `_ran_on_before`.)
+                    before.model_from
+                    if before.model_from in ("auto", "fusion")
+                    else None
+                    if before.model_from == "settings"
+                    else before.model,
+                    before.status,
+                    before.task,
+                    before.turn,
+                )
+                for before in self._earlier(ctx)
+            ]
+            if "message_agent" in tools
+            else []
+        )
         # shortcut: a CLI working with its own tools is given its skills whole in its
         # instructions (`_skills_told`), not use_skill; measure the CLIs' own skill folders
         # with the real CLIs (slice 45 design, 3 and 7).
         known = [] if getattr(ctx.model, "native", False) else self._skills(ctx)
-        schemas = tool_schemas_for(tools, roles, reachable, always, team, others, earlier,
-                                   show and ctx.agent_id not in self._read_only_agents)
+        schemas = tool_schemas_for(
+            tools,
+            roles,
+            reachable,
+            always,
+            team,
+            others,
+            earlier,
+            show and ctx.agent_id not in self._read_only_agents,
+        )
         # (with the To-do list's tools: the jobs go onto it)
-        at = next((i + 1 for i, s in enumerate(schemas) if s["function"]["name"] == "assess_task"),
-                  len(schemas))
+        at = next(
+            (i + 1 for i, s in enumerate(schemas) if s["function"]["name"] == "assess_task"),
+            len(schemas),
+        )
         schemas[at:at] = away_tool
         if door is not None and door.step and door.step[1]:
             self._offered_step(ctx, schemas, door.step, running)
@@ -222,38 +305,63 @@ class TalkMixin:
             # K-dal-takim: only where it can be had - offered as it was elsewhere.
             for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
                 spawn["parameters"]["properties"]["on_branch"] = ON_BRANCH_PROPERTY
-        if getattr(ctx.model, "collaborates", True) and not ctx.answering and (
-                "recall_output" not in off):
+        if (
+            getattr(ctx.model, "collaborates", True)
+            and not ctx.answering
+            and ("recall_output" not in off)
+        ):
             # At its own work, as show is; always, not only once something was cut: the tools
             # are the cache's first part.
             schemas = [*schemas, RECALL_OUTPUT_SCHEMA]
-        return schemas + between + [
-            mcp_client.schema(server.name, tool) for server, tool in self._mcp(ctx).values()
-        ] + skill_schemas(known, "run_command" in tools and ctx.agent_id not in (
-            self._read_only_agents)) + pick  # (a skill's script: not for KOLONİ's Reviewer)
+        return (
+            schemas
+            + between
+            + [mcp_client.schema(server.name, tool) for server, tool in self._mcp(ctx).values()]
+            + skill_schemas(
+                known, "run_command" in tools and ctx.agent_id not in (self._read_only_agents)
+            )
+            + pick
+        )  # (a skill's script: not for KOLONİ's Reviewer)
 
-    def _offered_step(self: "AgentRunner", ctx: Ctx, schemas: list[dict],
-                      step: tuple[frozenset[str], str], running: bool) -> None:
+    def _offered_step(
+        self: "AgentRunner",
+        ctx: Ctx,
+        schemas: list[dict],
+        step: tuple[frozenset[str], str],
+        running: bool,
+    ) -> None:
         """`_offered`'s spawn_agent in a recipe's step (`Door.step`): told where the recipe is."""
         # Where the chat's recipes are, read at every step as the roles are (slice 84b-2).
         # (R57: a Lead refused the Coder at the spec step asked for it first again.)
-        refused = sorted(role for role in self._refused_roles.get(ctx.run_id, ())
-                         if role.casefold() not in step[0])
+        refused = sorted(
+            role
+            for role in self._refused_roles.get(ctx.run_id, ())
+            if role.casefold() not in step[0]
+        )
         for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
-            spawn["description"] += f"\nNow: {step[1]}." + (
-                f"\nRefused in this turn, and no role of this step either: "
-                f"{', '.join(refused)}. Do not ask for {'it' if len(refused) == 1 else 'them'}"
-                " again here: open the step's own roles." if refused else "") + (
-                f"\n{RECIPE_RULES}." if running else "")
+            spawn["description"] += (
+                f"\nNow: {step[1]}."
+                + (
+                    f"\nRefused in this turn, and no role of this step either: "
+                    f"{', '.join(refused)}. Do not ask for {'it' if len(refused) == 1 else 'them'}"
+                    " again here: open the step's own roles."
+                    if refused
+                    else ""
+                )
+                + (f"\n{RECIPE_RULES}." if running else "")
+            )
 
-    def _offered_files(self: "AgentRunner", schemas: list[dict],
-                       off: frozenset[str]) -> list[dict]:
+    def _offered_files(self: "AgentRunner", schemas: list[dict], off: frozenset[str]) -> list[dict]:
         """`_offered`'s schemas where the user attached files."""
         # The files the user attached (slice 85b): read, and handed on by their names.
-        for one in (s["function"] for s in schemas
-                    if s["function"]["name"] in ("spawn_agent", "message_agent")):
-            one["parameters"]["properties"]["attachments"] = ATTACHMENTS_PROPERTY if (
-                "read_attachment" not in off) else ATTACHMENTS_UNREAD
+        for one in (
+            s["function"]
+            for s in schemas
+            if s["function"]["name"] in ("spawn_agent", "message_agent")
+        ):
+            one["parameters"]["properties"]["attachments"] = (
+                ATTACHMENTS_PROPERTY if ("read_attachment" not in off) else ATTACHMENTS_UNREAD
+            )
         if "read_attachment" not in off:
             schemas = [*schemas, READ_ATTACHMENT_SCHEMA]
         return schemas
@@ -269,8 +377,9 @@ class TalkMixin:
         with self._factory() as session:
             return topics.continuable(session, ctx.run_id)
 
-    def _who(self: "AgentRunner",
-             run_id: str) -> dict[str, tuple[str | None, str | None, str, str | None]]:
+    def _who(
+        self: "AgentRunner", run_id: str
+    ) -> dict[str, tuple[str | None, str | None, str, str | None]]:
         """Where each agent of a turn runs, its state and its task, oldest first."""
         with self._factory() as session:
             rows = session.execute(
@@ -284,23 +393,35 @@ class TalkMixin:
             for agent_id, provider, model, status, task in rows
         }
 
-    def _from(self: "AgentRunner", ctx: Ctx, message_id: str, sender: str | None, name: str,
-              relation: str,
-              content: str) -> str:
+    def _from(
+        self: "AgentRunner",
+        ctx: Ctx,
+        message_id: str,
+        sender: str | None,
+        name: str,
+        relation: str,
+        content: str,
+    ) -> str:
         """A message from another agent as its receiver reads it. A note - nobody waits
         for an answer to it - also says how to answer, when its sender can be reached."""
         how = ""
         if (
-            message_id in self._notes and "message_agent" in ctx.tools
+            message_id in self._notes
+            and "message_agent" in ctx.tools
             and any(other.agent_id == sender for other, _kind in self._reachable(ctx))
         ):
             how = f'; reply with message_agent(to="{name}")'
         # (What comes from elsewhere is KOLONİ's own words, and what the agent it works for
         # says is its word: neither is looked at, 93-A4.)
         # Nor what a member keeps of a discussion: it holds the user's words too.
-        said = injection.noted(content, "agent") if sender and relation not in (
-            "elsewhere", "above") and not self._is_above(sender, ctx) and not (
-            content.startswith(MEMORY_HEAD)) else content
+        said = (
+            injection.noted(content, "agent")
+            if sender
+            and relation not in ("elsewhere", "above")
+            and not self._is_above(sender, ctx)
+            and not (content.startswith(MEMORY_HEAD))
+            else content
+        )
         return f"Message from {name} ({FROM[relation]}{how}):\n\n{said}"
 
     def _is_above(self: "AgentRunner", agent_id: str, other: Ctx) -> bool:
@@ -352,8 +473,11 @@ class TalkMixin:
             # no telling when, if ever, a note would reach it - but for the agent it works for,
             # into its turn, where its CLI has a door (89d B: "steer", `_steer_message`).
             if kind != "continue" and getattr(other.model, "native", False):
-                if not (kind == "note" and agent_id in self._doors
-                        and self._is_above(ctx.agent_id, other)):
+                if not (
+                    kind == "note"
+                    and agent_id in self._doors
+                    and self._is_above(ctx.agent_id, other)
+                ):
                     continue
                 kind = "steer"
             found.append((other, kind))
@@ -384,13 +508,18 @@ class TalkMixin:
             return await self._message_unknown(ctx, call_id, to, body, reachable)
         target, kind = match
         in_room = self._member_of(ctx)
-        if in_room is not None and in_room[0].outcome is None and (
-            target.agent_id == in_room[0].lead.agent_id
+        if (
+            in_room is not None
+            and in_room[0].outcome is None
+            and (target.agent_id == in_room[0].lead.agent_id)
         ):
             # It would have the lead take a step while its room runs - which one following its
             # room reads there (K-oda-lead).
-            raise ToolError(rooms.TO_THE_OPENER.format(opener=target.name)
-                            if in_room[0].reads else rooms.NOT_THE_LEAD)
+            raise ToolError(
+                rooms.TO_THE_OPENER.format(opener=target.name)
+                if in_room[0].reads
+                else rooms.NOT_THE_LEAD
+            )
         self._within_limit(ctx)
         if kind == "steer":  # (its files only once its CLI took the message)
             return await self._steer_message(ctx, target, body, handed_files)
@@ -409,22 +538,26 @@ class TalkMixin:
             )
         return await self._message_turn(ctx, call_id, target, body)
 
-    async def _message_unknown(self: "AgentRunner", ctx: Ctx, call_id: str, to: str, body: str,
-                               reachable) -> tuple[str, str]:
+    async def _message_unknown(
+        self: "AgentRunner", ctx: Ctx, call_id: str, to: str, body: str, reachable
+    ) -> tuple[str, str]:
         """`_message` to a name it cannot reach now: an earlier turn's agent goes on (its
         reply), else why not, raised."""
         known = next(
-            (c for c in self._ctxs.values()
-             if c.run_id == ctx.run_id and c.name.casefold() == to.casefold()), None)
+            (
+                c
+                for c in self._ctxs.values()
+                if c.run_id == ctx.run_id and c.name.casefold() == to.casefold()
+            ),
+            None,
+        )
         # Found by its name, among the agents `_earlier` finds and nowhere else:
         # nothing an agent writes here names an agent of another topic.
         before = [] if known is not None else self._earlier(ctx)
         earlier = next((e for e in before if e.name.casefold() == to.casefold()), None)
         if earlier is not None:  # (one gone on with is below it: its reply is looked at)
-            return self._reply_read(ctx, call_id, *await self._go_on(
-                ctx, call_id, earlier, body))
-        listed = ", ".join(
-            [other.name for other, _kind in reachable] + [e.name for e in before])
+            return self._reply_read(ctx, call_id, *await self._go_on(ctx, call_id, earlier, body))
+        listed = ", ".join([other.name for other, _kind in reachable] + [e.name for e in before])
         can = f"You can reach: {listed}." if listed else "Right now nobody can be reached."
         if known is None:
             with self._factory() as session:
@@ -450,16 +583,20 @@ class TalkMixin:
             )
         elif getattr(known.model, "native", False):
             # (agy reading only: B-310 gave it KOLONİ's tools, and it is held to reading.)
-            held = "" if getattr(known.model, "reads", False) else (
-                " that cannot be held to reading")
-            why = (f"it works with tools of its own{held}, so only the agent it works for "
-                   "can message it")
+            held = (
+                "" if getattr(known.model, "reads", False) else (" that cannot be held to reading")
+            )
+            why = (
+                f"it works with tools of its own{held}, so only the agent it works for "
+                "can message it"
+            )
         else:
             why = "it is not at work, waiting or finished"
         return why
 
-    async def _message_turn(self: "AgentRunner", ctx: Ctx, call_id: str, target: Ctx,
-                            body: str) -> tuple[str, str]:
+    async def _message_turn(
+        self: "AgentRunner", ctx: Ctx, call_id: str, target: Ctx, body: str
+    ) -> tuple[str, str]:
         """`_message`: the receiver's turn on it - taken once it is the sender's to give."""
         async with self._handing_over(ctx), self._turn_of(target.agent_id):
             # Things may have moved while this waited its turn with the receiver.
@@ -473,9 +610,12 @@ class TalkMixin:
             if now_kind == "note":
                 self._send(ctx, target, body, delivered=False)
                 self._channel(ctx, ctx.agent_id, target.agent_id, "note", body)
-                status, result = "succeeded", (
-                    f"noted: {target.name} is at work again and is handed this at its "
-                    "next step, if it takes one. It does not reply unless it messages you."
+                status, result = (
+                    "succeeded",
+                    (
+                        f"noted: {target.name} is at work again and is handed this at its "
+                        "next step, if it takes one. It does not reply unless it messages you."
+                    ),
                 )
             elif now_kind is None:
                 raise ToolError(f"{target.name} can no longer be messaged by you")
@@ -487,17 +627,21 @@ class TalkMixin:
                     return self._reply_read(ctx, call_id, status, result)
         return status, result
 
-    async def _steer_message(self: "AgentRunner", ctx: Ctx, target: Ctx, body: str,
-                             files: list) -> tuple[str, str]:
+    async def _steer_message(
+        self: "AgentRunner", ctx: Ctx, target: Ctx, body: str, files: list
+    ) -> tuple[str, str]:
         """89d B: a message of the agent a CLI works for into the CLI's turn while it works
         (`steer`, Claude Code's or Codex's door: `_reachable`) - as that agent's, `quoted()`,
         never as the user's; on record in its conversation, with its `files`, once its CLI took
         it. Its sender is told if its turn ends before it read it (`_observe`)."""
-        said = AGENT_STEERED.format(message=self._from(
-            target, "", ctx.agent_id, ctx.name, "above", quoted(body)))
+        said = AGENT_STEERED.format(
+            message=self._from(target, "", ctx.agent_id, ctx.name, "above", quoted(body))
+        )
         if why := await self.steer(target, said, kept=True):
-            raise ToolError(f"{target.name} cannot be messaged by you now: "
-                            f"{self._not_taken(target, why, door=True)}")
+            raise ToolError(
+                f"{target.name} cannot be messaged by you now: "
+                f"{self._not_taken(target, why, door=True)}"
+            )
         self._steered_by[target.agent_id] = (ctx.agent_id, said, body)
         self._hand_files(ctx, files, target.agent_id)
         self._send(ctx, target, body, delivered=True)
@@ -513,8 +657,9 @@ class TalkMixin:
         ending = door and why == NOT_HEARD.format(name=name)
         return TURN_ENDING.format(name=name) if ending else why.removeprefix(CANT_UNDO)
 
-    def _reply_read(self: "AgentRunner", ctx: Ctx, call_id: str, status: str,
-                    result: str) -> tuple[str, str]:
+    def _reply_read(
+        self: "AgentRunner", ctx: Ctx, call_id: str, status: str, result: str
+    ) -> tuple[str, str]:
         """Another agent's reply as the agent that messaged it reads it: after the note where
         it reads like orders (93-A4) - not called for a reply of the agent it works for."""
         if self._orders(ctx, "agent", "another agent's reply", result, call_id):
@@ -524,7 +669,9 @@ class TalkMixin:
     def _within_limit(self: "AgentRunner", ctx: Ctx) -> None:
         with self._factory() as session:
             sent = session.scalar(
-                select(func.count()).select_from(ChannelMessage).where(
+                select(func.count())
+                .select_from(ChannelMessage)
+                .where(
                     ChannelMessage.run_id == ctx.run_id,
                     ChannelMessage.kind.in_(("message", "note")),
                 )
@@ -535,16 +682,21 @@ class TalkMixin:
                 "reached. Go on with what you know."
             )
 
-    def _send(self: "AgentRunner", ctx: Ctx, target: Ctx, body: str, delivered: bool,
-              koloni: bool = False) -> str:
+    def _send(
+        self: "AgentRunner", ctx: Ctx, target: Ctx, body: str, delivered: bool, koloni: bool = False
+    ) -> str:
         """Put a message from one agent into another's conversation; returns its id.
         (The receiver's turn is where it goes: the two are of one turn, but for what
         KOLONİ says of a file held by an agent of another conversation.) `koloni`: KOLONİ's
         own word (from nobody), read as it is."""
         with self._factory() as session:
             inbound = Message(
-                conversation_id=target.cid, run_id=target.run_id, agent_id=target.agent_id,
-                from_agent_id=None if koloni else ctx.agent_id, role="agent", content=body,
+                conversation_id=target.cid,
+                run_id=target.run_id,
+                agent_id=target.agent_id,
+                from_agent_id=None if koloni else ctx.agent_id,
+                role="agent",
+                content=body,
                 status="complete",
                 delivered_at=now() if delivered else None,
             )
@@ -572,8 +724,11 @@ class TalkMixin:
             ).all()
             if not waiting and not handed:
                 return posts
-            names = dict(session.execute(
-                select(Agent.id, Agent.name).where(Agent.run_id == ctx.run_id)).all())
+            names = dict(
+                session.execute(
+                    select(Agent.id, Agent.name).where(Agent.run_id == ctx.run_id)
+                ).all()
+            )
             for message in waiting:
                 message.delivered_at = now()
             # One commit: the notes in its conversation and the mark of how far it has
@@ -581,41 +736,60 @@ class TalkMixin:
             session.commit()
             payloads = [message_out(message) for message in waiting]
             notes = [
-                (m.id, m.from_agent_id, names.get(m.from_agent_id or "", "another agent"),
-                 m.content)
+                (
+                    m.id,
+                    m.from_agent_id,
+                    names.get(m.from_agent_id or "", "another agent"),
+                    m.content,
+                )
                 for m in waiting
             ]
             # One from an agent that is not of this turn: of another conversation.
             far = {
                 m.from_agent_id: session.scalar(
-                    select(Agent.name).where(Agent.id == m.from_agent_id))
-                for m in waiting if m.from_agent_id and m.from_agent_id not in names
+                    select(Agent.name).where(Agent.id == m.from_agent_id)
+                )
+                for m in waiting
+                if m.from_agent_id and m.from_agent_id not in names
             }
             new = [message_out(message) for message in handed]
-            of = {post.id: post for post in session.scalars(select(BoardPost).where(
-                BoardPost.id.in_([m.board_post_id for m in handed])))}
+            of = {
+                post.id: post
+                for post in session.scalars(
+                    select(BoardPost).where(BoardPost.id.in_([m.board_post_id for m in handed]))
+                )
+            }
             from_notebook = [
                 board.handed(
                     board.labelled(names.get(m.from_agent_id, "another agent"), of[m.board_post_id])
-                    if m.from_agent_id else None,
-                    self._note_from(ctx, m.from_agent_id, of[m.board_post_id]), m.content,
+                    if m.from_agent_id
+                    else None,
+                    self._note_from(ctx, m.from_agent_id, of[m.board_post_id]),
+                    m.content,
                     of[m.board_post_id].koloni,
                 )
                 for m in handed
             ]
             # Other agents' words (not KOLONİ's, from elsewhere or on the notebook): their
             # note to the agent is where it reads them (`_from`, `board.handed`).
-            heard = [(f"a message from {name}", content) for _id, sender, name, content in notes
-                     if sender and sender not in far and not self._is_above(sender, ctx)] + [
+            heard = [
+                (f"a message from {name}", content)
+                for _id, sender, name, content in notes
+                if sender and sender not in far and not self._is_above(sender, ctx)
+            ] + [
                 (f"a note from {names.get(m.from_agent_id, 'another agent')}", m.content)
-                for m in handed if m.from_agent_id and not of[m.board_post_id].koloni
-                and m.from_agent_id != ctx.parent_id]
+                for m in handed
+                if m.from_agent_id
+                and not of[m.board_post_id].koloni
+                and m.from_agent_id != ctx.parent_id
+            ]
         for payload in payloads:
             self.bus.emit(ctx.cid, ctx.run_id, "message.completed", payload)
         for payload in new:
             self.bus.emit(ctx.cid, ctx.run_id, "message.created", payload)
         for where, content in heard:
             self._orders(ctx, "agent", where, content)
+
         def relation(sender: str) -> str:
             # As its conversation says it later (`_history`): one of its sub-agents is "below".
             if sender in far:
@@ -623,20 +797,33 @@ class TalkMixin:
             below = self._ctxs.get(sender)
             return "below" if below is not None and self._is_above(ctx.agent_id, below) else "other"
 
-        return [
-            # (From nobody: KOLONİ's own word, `_send(koloni=True)`, read as it is.)
-            content if sender is None else self._from(
-                ctx, message_id, sender, far.get(sender) or name, relation(sender), content)
-            for message_id, sender, name, content in notes
-        ] + from_notebook + posts
+        return (
+            [
+                # (From nobody: KOLONİ's own word, `_send(koloni=True)`, read as it is.)
+                content
+                if sender is None
+                else self._from(
+                    ctx, message_id, sender, far.get(sender) or name, relation(sender), content
+                )
+                for message_id, sender, name, content in notes
+            ]
+            + from_notebook
+            + posts
+        )
 
     @staticmethod
     def _note_from(ctx: Ctx, writer: str | None, post: BoardPost) -> str:
         """Who a note on the notebook is from, to the agent handed it. The agent that
         opened it is the one it works for - and its note is still no task."""
-        return board.FROM_ABOVE.format(whom="your team" if post.team_id and not post.everyone
-                                       else "every agent of this turn") if (
-            writer and writer == ctx.parent_id) else FROM["other"]
+        return (
+            board.FROM_ABOVE.format(
+                whom="your team"
+                if post.team_id and not post.everyone
+                else "every agent of this turn"
+            )
+            if (writer and writer == ctx.parent_id)
+            else FROM["other"]
+        )
 
     def _hand_notes(self: "AgentRunner", session, ctx: Ctx) -> list[Message]:
         """Write the notebook's notes this agent has not seen into its conversation, and
@@ -663,17 +850,25 @@ class TalkMixin:
             return []
         rows = [
             Message(
-                conversation_id=ctx.cid, run_id=ctx.run_id, agent_id=ctx.agent_id,
-                from_agent_id=post.agent_id, role="agent", content=post.content,
-                status="complete", delivered_at=now(), board_post_id=post.id,
+                conversation_id=ctx.cid,
+                run_id=ctx.run_id,
+                agent_id=ctx.agent_id,
+                from_agent_id=post.agent_id,
+                role="agent",
+                content=post.content,
+                status="complete",
+                delivered_at=now(),
+                board_post_id=post.id,
             )
-            for post in posts if post.agent_id != ctx.agent_id and reads(post)
+            for post in posts
+            if post.agent_id != ctx.agent_id and reads(post)
         ]
         session.add_all(rows)
         return rows
 
-    def _team_of(self: "AgentRunner", session, cid: str, run_id: str,
-                 agent_id: str) -> tuple[str, str] | None:
+    def _team_of(
+        self: "AgentRunner", session, cid: str, run_id: str, agent_id: str
+    ) -> tuple[str, str] | None:
         """K-not-oda: the team an agent of a turn works in, (id, name), by the rule the canvas
         frames its agents by: where a row of the chat's teams ran in the turn, the row whose
         agents it is among; else (B-101's frames by roles) the team whose lead opened it or an
@@ -687,11 +882,20 @@ class TalkMixin:
         rows = self._rows(session, cid)
         if not rows:
             return None
-        ran = [(row.state or {}, team) for row, team, _lead in rows
-               if (row.state or {}).get("run_id") == run_id]
+        ran = [
+            (row.state or {}, team)
+            for row, team, _lead in rows
+            if (row.state or {}).get("run_id") == run_id
+        ]
         if ran:
-            return next(((team.id, team.name) for state, team in ran
-                         if agent_id in state.get("agents", ())), None)
+            return next(
+                (
+                    (team.id, team.name)
+                    for state, team in ran
+                    if agent_id in state.get("agents", ())
+                ),
+                None,
+            )
         roles = self._chat_roles(session, rows)
         led = {lead.name: team for _row, team, lead in rows if lead}
         walk = session.get(Agent, agent_id)
@@ -705,7 +909,8 @@ class TalkMixin:
             if agent is None or agent.depth == 0:
                 return None
             found = next(
-                (team for _row, team, _lead in rows if agent.role_name in roles[team.id]), None)
+                (team for _row, team, _lead in rows if agent.role_name in roles[team.id]), None
+            )
             if found is not None:
                 return found.id, found.name
             agent_id = agent.parent_agent_id or ""
@@ -714,11 +919,17 @@ class TalkMixin:
     @staticmethod
     def _chat_roles(session, rows) -> dict[str, set[str]]:
         """Each of the chat's teams' roles by the team's id: those that are on, and its lead."""
-        return {team.id: {*team_roles(session, team), *session.scalars(
-            select(Role.name).where(Role.id == team.lead_role_id))} for _row, team, _lead in rows}
+        return {
+            team.id: {
+                *team_roles(session, team),
+                *session.scalars(select(Role.name).where(Role.id == team.lead_role_id)),
+            }
+            for _row, team, _lead in rows
+        }
 
-    def _between(self: "AgentRunner", session, ctx: Ctx, roles: list[str],
-                 agents: list[str]) -> list[str]:
+    def _between(
+        self: "AgentRunner", session, ctx: Ctx, roles: list[str], agents: list[str]
+    ) -> list[str]:
         """K-not-oda: the teams a room's or a discussion's members come from - of these roles,
         and agents of the turn - where no one of the chat's teams holds them all: a room
         between teams. [] within one team, or in a chat with no teams. A role is of each team
@@ -729,8 +940,10 @@ class TalkMixin:
             return []
         of = self._chat_roles(session, rows)
         held = [{team for team, names in of.items() if role in names} for role in roles] + [
-            {found[0]} for agent in agents
-            if (found := self._team_of(session, ctx.cid, ctx.run_id, agent))]
+            {found[0]}
+            for agent in agents
+            if (found := self._team_of(session, ctx.cid, ctx.run_id, agent))
+        ]
         held = [one for one in held if one]
         if len(held) < 2 or set.intersection(*held):
             return []
@@ -742,8 +955,9 @@ class TalkMixin:
         """Whether this agent may bring teams together (a room, a note for every team): the
         Lead, or the lead of one of the chat's teams that runs it beside another (`_rows`)."""
         return ctx.depth == 0 or any(
-            lead is not None and lead.name == ctx.role for _row, _team, lead in self._rows(
-                session, ctx.cid))
+            lead is not None and lead.name == ctx.role
+            for _row, _team, lead in self._rows(session, ctx.cid)
+        )
 
     def _reader(self: "AgentRunner", session, ctx: Ctx) -> Callable[[BoardPost], bool]:
         """Which notes an agent reads: the Lead every team's; any other its own team's, the
@@ -756,9 +970,16 @@ class TalkMixin:
 
     # --- the shared notebook ---------------------------------------------------
 
-    def _write_note(self: "AgentRunner", run_id: str, cid: str, agent_id: str | None, content: str,
-                    team: tuple[str, str] | None = None, everyone: bool = False,
-                    koloni: bool = False) -> dict:
+    def _write_note(
+        self: "AgentRunner",
+        run_id: str,
+        cid: str,
+        agent_id: str | None,
+        content: str,
+        team: tuple[str, str] | None = None,
+        everyone: bool = False,
+        koloni: bool = False,
+    ) -> dict:
         """Put a note on a turn's notebook (the user's, with no agent; KOLONİ's own with
         `koloni`) - on its team's (id, name), or for every team; ToolError when the notebook
         is full.
@@ -769,8 +990,9 @@ class TalkMixin:
         the same."""
         with self._factory() as session:
             last, written = session.execute(
-                select(func.max(BoardPost.seq), func.sum(func.length(BoardPost.content)))
-                .where(BoardPost.run_id == run_id)
+                select(func.max(BoardPost.seq), func.sum(func.length(BoardPost.content))).where(
+                    BoardPost.run_id == run_id
+                )
             ).one()
             last, written = last or 0, written or 0
             if last >= board.MAX_NOTES_PER_TURN:
@@ -778,9 +1000,15 @@ class TalkMixin:
             if written + len(content) > board.room(self.settings.context_char_budget):
                 raise ToolError(board.no_room())
             post = BoardPost(
-                run_id=run_id, conversation_id=cid, agent_id=agent_id, content=content,
-                seq=last + 1, team_id=team[0] if team else None, team=team[1] if team else None,
-                everyone=everyone, koloni=koloni,
+                run_id=run_id,
+                conversation_id=cid,
+                agent_id=agent_id,
+                content=content,
+                seq=last + 1,
+                team_id=team[0] if team else None,
+                team=team[1] if team else None,
+                everyone=everyone,
+                koloni=koloni,
             )
             session.add(post)
             session.commit()
@@ -794,8 +1022,11 @@ class TalkMixin:
         with self._factory() as session:
             try:
                 project_id = backlog.project_of(session, ctx.cid)
-                said = backlog.add_task(session, project_id, args, ctx.cid) if (
-                    name == "add_task") else getattr(backlog, name)(session, project_id, args)
+                said = (
+                    backlog.add_task(session, project_id, args, ctx.cid)
+                    if (name == "add_task")
+                    else getattr(backlog, name)(session, project_id, args)
+                )
             except backlog.Refused as exc:
                 raise ToolError(str(exc)) from None
             session.commit()
@@ -811,17 +1042,20 @@ class TalkMixin:
             team = self._team_of(session, ctx.cid, ctx.run_id, ctx.agent_id)
             if everyone and team is not None and not self._leads_teams(session, ctx):
                 raise ToolError(board.NOT_A_LEAD)
-        payload = self._write_note(ctx.run_id, ctx.cid, ctx.agent_id, note, team,
-                                   everyone and team is not None)
+        payload = self._write_note(
+            ctx.run_id, ctx.cid, ctx.agent_id, note, team, everyone and team is not None
+        )
         with self._factory() as session:
             post = session.get_one(BoardPost, payload["id"])
             # (Those that read it: not another team's.)
             at_work = sum(
-                1 for agent_id, known in self._who(ctx.run_id).items()
+                1
+                for agent_id, known in self._who(ctx.run_id).items()
                 if agent_id != ctx.agent_id
                 and known[2] in ("running", "queued", "waiting", "blocked")
-                and (agent_id not in self._ctxs
-                     or self._reader(session, self._ctxs[agent_id])(post))
+                and (
+                    agent_id not in self._ctxs or self._reader(session, self._ctxs[agent_id])(post)
+                )
             )
         # No promise that it is read: an agent that takes no further step, or a CLI at
         # work with its own tools that asks KOLONİ for nothing, is never handed it.
@@ -852,14 +1086,21 @@ class TalkMixin:
         writing the project by its path): look there too if such outputs are missed."""
         if _changes_nothing(ctx):  # (what changed beside it, at work at once: not its)
             return
-        owner = None if copy is None else next(
-            (one for one, held in self._copies.items() if held is copy), None)
+        owner = (
+            None
+            if copy is None
+            else next((one for one, held in self._copies.items() if held is copy), None)
+        )
         ws = copy.workspace() if copy is not None else Workspace(str(root))
         with self._factory() as session:
-            had = set(session.scalars(select(ShownFile.path).where(
-                ShownFile.conversation_id == ctx.cid)))
-            left = views.MOST_MADE - session.scalar(select(func.count()).where(
-                ShownFile.conversation_id == ctx.cid, ShownFile.agent_id == ctx.agent_id))
+            had = set(
+                session.scalars(select(ShownFile.path).where(ShownFile.conversation_id == ctx.cid))
+            )
+            left = views.MOST_MADE - session.scalar(
+                select(func.count()).where(
+                    ShownFile.conversation_id == ctx.cid, ShownFile.agent_id == ctx.agent_id
+                )
+            )
         wanted = sorted(rel for rel in paths if rel not in had and views.made_here(rel))
         if left <= 0 or not wanted:
             return
@@ -881,12 +1122,18 @@ class TalkMixin:
 
         found = await asyncio.to_thread(vetted)
         with self._factory() as session:
-            rows = [ShownFile(conversation_id=ctx.cid, agent_id=ctx.agent_id, path=rel,
-                              copy_owner=owner) for rel in found]
+            rows = [
+                ShownFile(
+                    conversation_id=ctx.cid, agent_id=ctx.agent_id, path=rel, copy_owner=owner
+                )
+                for rel in found
+            ]
             session.add_all(rows)
             session.commit()
-            payloads = [{"id": row.id, "path": row.path, "agent_id": ctx.agent_id, "note": None}
-                        for row in rows]
+            payloads = [
+                {"id": row.id, "path": row.path, "agent_id": ctx.agent_id, "note": None}
+                for row in rows
+            ]
         for payload in payloads:
             self.bus.emit(ctx.cid, ctx.run_id, "view.shown", payload)
 
@@ -906,8 +1153,13 @@ class TalkMixin:
         # Shown from a working copy: served from there while it is (`copy_workspace`).
         owner = self._copy_owner(ctx) if self._copy_of(ctx) is not None else None
         with self._factory() as session:
-            row = ShownFile(conversation_id=ctx.cid, agent_id=ctx.agent_id, path=rel, note=note,
-                            copy_owner=owner)
+            row = ShownFile(
+                conversation_id=ctx.cid,
+                agent_id=ctx.agent_id,
+                path=rel,
+                note=note,
+                copy_owner=owner,
+            )
             session.add(row)
             session.commit()
             payload = {"id": row.id, "path": rel, "agent_id": ctx.agent_id, "note": note}

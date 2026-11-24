@@ -11,24 +11,61 @@ import { decidedOf, waitingOf } from './waiting'
 /** K-vekil-karar: "When you're away" in the chat's settings, and "Decided for you" in Ready for you. */
 
 const lead = agent('r', 'running', { id: 'lead', name: 'Lead', depth: 0 })
-const writer = agent('r', 'running', { id: 'spec', name: 'Spec writer', role_name: 'Spec writer', depth: 1, parent_agent_id: 'lead' })
-const tester = agent('r', 'completed', { id: 'tester', name: 'Tester', role_name: 'Tester', depth: 1, parent_agent_id: 'lead' })
+const writer = agent('r', 'running', {
+  id: 'spec',
+  name: 'Spec writer',
+  role_name: 'Spec writer',
+  depth: 1,
+  parent_agent_id: 'lead',
+})
+const tester = agent('r', 'completed', {
+  id: 'tester',
+  name: 'Tester',
+  role_name: 'Tester',
+  depth: 1,
+  parent_agent_id: 'lead',
+})
 const decided = (id: string, over: Parameters<typeof question>[2]) =>
-  question(id, 'r', { status: 'answered', answered_at: '2026-10-27T02:10:00Z', lead_why: 'The spec says newest first; by date matches it.', ...over })
+  question(id, 'r', {
+    status: 'answered',
+    answered_at: '2026-10-27T02:10:00Z',
+    lead_why: 'The spec says newest first; by date matches it.',
+    ...over,
+  })
 const state = convState({
   runs: [run('r', 'running')],
   agents: [lead, writer, tester],
   questions: [
-    decided('sort', { agent_id: 'spec', question: 'sort the list by date or by name?', options: ['by date', 'by name'], answer: 'by date' }),
-    decided('ask', { agent_id: 'lead', leave: true, question: 'Ask me · Write the spec: Go on or Ask for changes?', options: ['Go on', 'Ask for changes', 'Stop'], answer: 'Go on', answered_at: '2026-10-27T02:40:00Z' }),
+    decided('sort', {
+      agent_id: 'spec',
+      question: 'sort the list by date or by name?',
+      options: ['by date', 'by name'],
+      answer: 'by date',
+    }),
+    decided('ask', {
+      agent_id: 'lead',
+      leave: true,
+      question: 'Ask me · Write the spec: Go on or Ask for changes?',
+      options: ['Go on', 'Ask for changes', 'Stop'],
+      answer: 'Go on',
+      answered_at: '2026-10-27T02:40:00Z',
+    }),
     decided('slow', { agent_id: 'tester', question: 'run the slow tests too?', options: ['Yes', 'No'], answer: 'No' }),
     decided('seen', { agent_id: 'spec', seen_at: '2026-10-27T08:00:00Z' }),
   ],
 })
 const known = { roles: [], providers: [] }
 const on = {
-  onOpenChange: vi.fn(), onDecide: vi.fn(), onDecideCommand: vi.fn(async () => {}), onDecideWeb: vi.fn(), onSelectAgent: vi.fn(),
-  onDecideSpawn: vi.fn(), onDecideRole: vi.fn(), onDecideMerge: vi.fn(async () => {}), onCheckMerge: vi.fn(), onCommitMerge: vi.fn(),
+  onOpenChange: vi.fn(),
+  onDecide: vi.fn(),
+  onDecideCommand: vi.fn(async () => {}),
+  onDecideWeb: vi.fn(),
+  onSelectAgent: vi.fn(),
+  onDecideSpawn: vi.fn(),
+  onDecideRole: vi.fn(),
+  onDecideMerge: vi.fn(async () => {}),
+  onCheckMerge: vi.fn(),
+  onCommitMerge: vi.fn(),
   onAnswer: vi.fn(async () => {}),
 }
 
@@ -37,7 +74,10 @@ afterEach(() => vi.restoreAllMocks())
 test('what the Lead decided and you did not say OK to is to look at, not waiting', () => {
   expect(decidedOf(state).map(q => q.id)).toEqual(['sort', 'ask', 'slow'])
   // (answered only: one cut short, or asked again since - a Go on superseded - is no decision)
-  const cut = convState({ ...state, questions: ['pending', 'interrupted', 'superseded'].map(status => decided(status, { status: status as 'pending' })) })
+  const cut = convState({
+    ...state,
+    questions: ['pending', 'interrupted', 'superseded'].map(status => decided(status, { status: status as 'pending' })),
+  })
   expect(decidedOf(cut)).toEqual([])
   expect(waitingOf(state)).toEqual([])
 })
@@ -56,7 +96,9 @@ test('OK takes it off; Change sends your choice while the agent is at work; else
   const ok = vi.spyOn(useApp.getState(), 'decidedOk').mockResolvedValue()
   const change = vi.spyOn(useApp.getState(), 'decidedChange').mockResolvedValue()
   render(<WaitingList state={state} on={on} onDecidePlan={vi.fn()} known={known} />)
-  const [sort, ask, slow] = screen.getAllByRole('button', { name: 'OK' }).map(button => button.closest('.decided-item') as HTMLElement)
+  const [sort, ask, slow] = screen
+    .getAllByRole('button', { name: 'OK' })
+    .map(button => button.closest('.decided-item') as HTMLElement)
   // the Spec writer is at work: Change → the other option
   await userEvent.click(within(sort).getByRole('button', { name: 'Change → by name' }))
   expect(change).toHaveBeenCalledWith('sort', 'by name')
@@ -78,24 +120,53 @@ test('Change is offered where a CLI at work hears it, and sent while it works; n
   useApp.setState({ providers })
   const change = vi.spyOn(useApp.getState(), 'decidedChange').mockResolvedValue()
   const cli = (provider_name: string, provider_mode: string, status: 'running' | 'completed' = 'running') => {
-    const coder = agent('r', status, { id: 'coder', name: 'Coder', role_name: 'Coder', depth: 1, parent_agent_id: 'lead', provider_name, provider_mode })
-    return convState({ ...state, agents: [lead, coder], questions: [decided('colour', { agent_id: 'coder', question: 'red or blue?', options: ['red', 'blue'], answer: 'red' })] })
+    const coder = agent('r', status, {
+      id: 'coder',
+      name: 'Coder',
+      role_name: 'Coder',
+      depth: 1,
+      parent_agent_id: 'lead',
+      provider_name,
+      provider_mode,
+    })
+    return convState({
+      ...state,
+      agents: [lead, coder],
+      questions: [
+        decided('colour', { agent_id: 'coder', question: 'red or blue?', options: ['red', 'blue'], answer: 'red' }),
+      ],
+    })
   }
-  const at = (provider_name: string, provider_mode: string) => render(<WaitingList state={cli(provider_name, provider_mode)} on={on} onDecidePlan={vi.fn()} known={known} />)
-  for (const [name, mode] of [['Copilot', 'native'], ['agy', 'reads'], ['agy', 'native']]) {
+  const at = (provider_name: string, provider_mode: string) =>
+    render(<WaitingList state={cli(provider_name, provider_mode)} on={on} onDecidePlan={vi.fn()} known={known} />)
+  for (const [name, mode] of [
+    ['Copilot', 'native'],
+    ['agy', 'reads'],
+    ['agy', 'native'],
+  ]) {
     const { unmount } = at(name, mode)
     expect(screen.queryByRole('button', { name: /Change/ })).toBeNull()
     expect(screen.getByText("can't be undone: Coder works on in its CLI, which hears nothing more")).toBeInTheDocument()
     unmount()
   }
-  for (const [name, mode] of [['Copilot', 'session'], ['Claude', 'native']]) {
+  for (const [name, mode] of [
+    ['Copilot', 'session'],
+    ['Claude', 'native'],
+  ]) {
     const { rerender, unmount } = at(name, mode)
     await userEvent.click(screen.getByRole('button', { name: 'Change → blue' }))
     expect(change).toHaveBeenLastCalledWith('colour', 'blue')
     expect(screen.getByRole('status')).toHaveTextContent('Sent to Coder while it works')
     // B-183: still said once that was the last one decided - Change takes it off the list
     const taken = cli(name, mode)
-    rerender(<WaitingList state={{ ...taken, questions: taken.questions.map(q => ({ ...q, seen_at: '2026-10-27T08:00:00Z' })) }} on={on} onDecidePlan={vi.fn()} known={known} />)
+    rerender(
+      <WaitingList
+        state={{ ...taken, questions: taken.questions.map(q => ({ ...q, seen_at: '2026-10-27T08:00:00Z' })) }}
+        on={on}
+        onDecidePlan={vi.fn()}
+        known={known}
+      />,
+    )
     expect(screen.getByRole('status')).toHaveTextContent('Sent to Coder while it works')
     // (said only while it works: N3)
     rerender(<WaitingList state={cli(name, mode, 'completed')} on={on} onDecidePlan={vi.fn()} known={known} />)
@@ -106,14 +177,32 @@ test('Change is offered where a CLI at work hears it, and sent while it works; n
 })
 
 test('with nothing decided and nothing waiting, nothing waits', () => {
-  render(<WaitingList state={convState({ runs: [run('r', 'running')] })} on={on} onDecidePlan={vi.fn()} known={known} />)
+  render(
+    <WaitingList state={convState({ runs: [run('r', 'running')] })} on={on} onDecidePlan={vi.fn()} known={known} />,
+  )
   expect(screen.getByText('Nothing waits for you.')).toBeInTheDocument()
   expect(screen.queryByRole('region', { name: /Decided for you/ })).toBeNull()
 })
 
 test('the canvas’s Ready for you says what was decided for you apart from what waits', () => {
-  const row = { team_id: 'web', recipe_id: null, no_recipe: false, picked_by: 'user' as const, why: null,
-    state: { run_id: 'r', team: 'Web app', recipe: 'Feature', status: 'running' as const, why: null, steps: [], agents: ['spec'], ended_ready: false, passes: [] } }
+  const row = {
+    team_id: 'web',
+    recipe_id: null,
+    no_recipe: false,
+    picked_by: 'user' as const,
+    why: null,
+    state: {
+      run_id: 'r',
+      team: 'Web app',
+      recipe: 'Feature',
+      status: 'running' as const,
+      why: null,
+      steps: [],
+      agents: ['spec'],
+      ended_ready: false,
+      passes: [],
+    },
+  }
   const teamed = convState({ ...state, conversation: { ...conversation, teams_mode: 'manual', teams: [row] } })
   const ready = deriveGraph(teamed).nodes.find(node => node.id === 'ready:r')
   // (to look at, beside what waits - not counted as waiting)
@@ -135,19 +224,58 @@ test('a night past midnight reads from its first time to its last', () => {
 })
 
 test('a follow-up task the Orchestrator decided at Full auto: OK keeps its word, Change undoes it', async () => {
-  const po = (lead: 'add' | 'no') => ({ chat: state.conversation.id, why: 'the parser tests', lead, lead_why: `It said ${lead}.`, seen: false, injection: [] })
-  const task = (id: string, status: 'todo' | 'proposed' | 'doing', lead: 'add' | 'no'): BacklogTask => ({
-    id, title: id, detail: null, criteria: null, priority: 'normal', status, position: 0, conversation_id: null, created_by: 'agent',
-    pending: null, assessment: null, not_in: false, after: [], queued: false, stuck: null, waiting: false, created_at: '2026-10-05T10:00:00Z', po: po(lead),
+  const po = (lead: 'add' | 'no') => ({
+    chat: state.conversation.id,
+    why: 'the parser tests',
+    lead,
+    lead_why: `It said ${lead}.`,
+    seen: false,
+    injection: [],
   })
-  useApp.setState({ backlog: [task('tests', 'todo', 'add'), task('help', 'proposed', 'no'), task('docs', 'doing', 'add'), { ...task('other', 'todo', 'add'), po: { ...po('add'), chat: 'elsewhere' } }] })
+  const task = (id: string, status: 'todo' | 'proposed' | 'doing', lead: 'add' | 'no'): BacklogTask => ({
+    id,
+    title: id,
+    detail: null,
+    criteria: null,
+    priority: 'normal',
+    status,
+    position: 0,
+    conversation_id: null,
+    created_by: 'agent',
+    pending: null,
+    assessment: null,
+    not_in: false,
+    after: [],
+    queued: false,
+    stuck: null,
+    waiting: false,
+    created_at: '2026-10-05T10:00:00Z',
+    po: po(lead),
+  })
+  useApp.setState({
+    backlog: [
+      task('tests', 'todo', 'add'),
+      task('help', 'proposed', 'no'),
+      task('docs', 'doing', 'add'),
+      { ...task('other', 'todo', 'add'), po: { ...po('add'), chat: 'elsewhere' } },
+    ],
+  })
   const seen = vi.spyOn(useApp.getState(), 'seenTask').mockResolvedValue()
   const decide = vi.spyOn(useApp.getState(), 'decideTask').mockResolvedValue()
-  render(<WaitingList state={convState({ runs: [run('r', 'running')], agents: [lead] })} on={on} onDecidePlan={vi.fn()} known={known} />)
+  render(
+    <WaitingList
+      state={convState({ runs: [run('r', 'running')], agents: [lead] })}
+      on={on}
+      onDecidePlan={vi.fn()}
+      known={known}
+    />,
+  )
   const section = screen.getByRole('region', { name: /Decided for you/ })
   expect(within(section).getByText('3')).toBeInTheDocument() // (this chat's only; no times)
-  const [tests, help, docs] = within(section).getAllByRole('button', { name: 'OK' }).map(button => button.closest('.decided-item') as HTMLElement)
-  expect(tests).toHaveTextContent('The Assistant PO proposed a To-do task: tests')
+  const [tests, help, docs] = within(section)
+    .getAllByRole('button', { name: 'OK' })
+    .map(button => button.closest('.decided-item') as HTMLElement)
+  expect(tests).toHaveTextContent('The Scout proposed a To-do task: tests')
   expect(tests).toHaveTextContent('Orchestrator chose Add')
   expect(tests).toHaveTextContent('“It said add.”')
   await userEvent.click(within(tests).getByRole('button', { name: 'OK' }))
@@ -167,12 +295,33 @@ test('a follow-up task the Orchestrator decided at Full auto: OK keeps its word,
 
 test('a command the check of your words let run waits under Decided for you until OK', async () => {
   const rule = 'You may delete build/ and dist/.'
-  const judged = { verdict: 'run' as const, quote: rule, source: 'rules' as const, why: 'It names build/.', model: 'Fast · quick', seen: false }
+  const judged = {
+    verdict: 'run' as const,
+    quote: rule,
+    source: 'rules' as const,
+    why: 'It names build/.',
+    model: 'Fast · quick',
+    seen: false,
+  }
   const ran = command('c1', 'r', { agent_id: 'lead', command: 'rm -rf build', judged })
-  const asked = vi.fn(async () => new Response(JSON.stringify({ ...ran, judged: { ...judged, seen: true } }), { status: 200 }))
+  const asked = vi.fn(
+    async () => new Response(JSON.stringify({ ...ran, judged: { ...judged, seen: true } }), { status: 200 }),
+  )
   vi.stubGlobal('fetch', asked)
-  const commands = [ran, command('c2', 'r', { judged: { ...judged, seen: true } }), command('c3', 'r', { judged: { ...judged, verdict: 'ask' } }), command('c4', 'r')]
-  render(<WaitingList state={convState({ runs: [run('r', 'running')], agents: [lead], commands })} on={on} onDecidePlan={vi.fn()} known={known} />)
+  const commands = [
+    ran,
+    command('c2', 'r', { judged: { ...judged, seen: true } }),
+    command('c3', 'r', { judged: { ...judged, verdict: 'ask' } }),
+    command('c4', 'r'),
+  ]
+  render(
+    <WaitingList
+      state={convState({ runs: [run('r', 'running')], agents: [lead], commands })}
+      on={on}
+      onDecidePlan={vi.fn()}
+      known={known}
+    />,
+  )
   const section = screen.getByRole('region', { name: /Decided for you/ })
   expect(within(section).getByText('1')).toBeInTheDocument()
   const item = within(section).getByRole('button', { name: 'OK' }).closest('.decided-item') as HTMLElement
@@ -186,11 +335,27 @@ test('a command the check of your words let run waits under Decided for you unti
 
 test('a command a line of yours kept from running waits under Decided for you until OK, with no Run it', async () => {
   const rule = 'Never push to main.'
-  const judged = { verdict: 'refuse' as const, quote: rule, source: 'rules' as const, why: 'The rule forbids it.', model: 'Fast · quick', seen: false }
+  const judged = {
+    verdict: 'refuse' as const,
+    quote: rule,
+    source: 'rules' as const,
+    why: 'The rule forbids it.',
+    model: 'Fast · quick',
+    seen: false,
+  }
   const refused = command('c1', 'r', { agent_id: 'lead', command: 'git push origin main', status: 'refused', judged })
-  const asked = vi.fn(async () => new Response(JSON.stringify({ ...refused, judged: { ...judged, seen: true } }), { status: 200 }))
+  const asked = vi.fn(
+    async () => new Response(JSON.stringify({ ...refused, judged: { ...judged, seen: true } }), { status: 200 }),
+  )
   vi.stubGlobal('fetch', asked)
-  render(<WaitingList state={convState({ runs: [run('r', 'running')], agents: [lead], commands: [refused] })} on={on} onDecidePlan={vi.fn()} known={known} />)
+  render(
+    <WaitingList
+      state={convState({ runs: [run('r', 'running')], agents: [lead], commands: [refused] })}
+      on={on}
+      onDecidePlan={vi.fn()}
+      known={known}
+    />,
+  )
   const section = screen.getByRole('region', { name: /Decided for you/ })
   const item = within(section).getByRole('button', { name: 'OK' }).closest('.decided-item') as HTMLElement
   expect(item).toHaveTextContent('KOLONİ did not run git push origin main for Lead')

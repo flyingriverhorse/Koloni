@@ -1,4 +1,13 @@
-import { BookOpen, Browser, Globe, type Icon, MagnifyingGlass, PencilSimple, TerminalWindow, Wrench } from '@phosphor-icons/react'
+import {
+  BookOpen,
+  Browser,
+  Globe,
+  type Icon,
+  MagnifyingGlass,
+  PencilSimple,
+  TerminalWindow,
+  Wrench,
+} from '@phosphor-icons/react'
 import type { Command, FileChange, Message, ToolCall } from '../api/types'
 import { commandStatus } from '../commands/commandStatus'
 import { toolName, toolSummary } from './toolSummary'
@@ -20,11 +29,21 @@ export function callsByMessage(calls: ToolCall[]): Map<string, ToolCall[]> {
  * own, so a run goes on across empty messages of the same agent and turn; words, anybody
  * else's message, or a call that stands alone (a card, a row that waits for you) end it.
  */
-export function toolRuns(messages: Message[], callsOf: Map<string, ToolCall[]>, stands: (call: ToolCall) => boolean): ToolCall[][] {
+export function toolRuns(
+  messages: Message[],
+  callsOf: Map<string, ToolCall[]>,
+  stands: (call: ToolCall) => boolean,
+): ToolCall[][] {
   const runs: ToolCall[][] = [[]]
   let before: Message | undefined
   for (const message of messages) {
-    if (message.role !== 'assistant' || message.content || message.run_id !== before?.run_id || message.agent_id !== before.agent_id) runs.push([])
+    if (
+      message.role !== 'assistant' ||
+      message.content ||
+      message.run_id !== before?.run_id ||
+      message.agent_id !== before.agent_id
+    )
+      runs.push([])
     before = message
     for (const call of callsOf.get(message.id) ?? []) {
       if (stands(call)) runs.push([])
@@ -50,9 +69,18 @@ const rank = (kind: string) => (ORDER.includes(kind) ? ORDER.indexOf(kind) : ORD
 
 /** The kind a call is counted under: a change to a file, a command, the agent's browser, its own (KINDS), else its tool as shown. */
 export function kindOf(call: ToolCall, commands: Command[], fileChanges: FileChange[]): string {
-  const changes = fileChanges.some(f => f.tool_call_id === call.id) || call.name === 'write_file' || call.name === 'edit_file'
+  const changes =
+    fileChanges.some(f => f.tool_call_id === call.id) || call.name === 'write_file' || call.name === 'edit_file'
   const ran = commands.some(c => c.tool_call_id === call.id) || call.name === 'run_command'
-  return changes ? 'edit_file' : ran ? 'run_command' : call.name.startsWith('browser_') ? 'browser' : Object.hasOwn(KINDS, call.name) ? call.name : toolName(call)
+  return changes
+    ? 'edit_file'
+    : ran
+      ? 'run_command'
+      : call.name.startsWith('browser_')
+        ? 'browser'
+        : Object.hasOwn(KINDS, call.name)
+          ? call.name
+          : toolName(call)
 }
 
 /**
@@ -61,9 +89,16 @@ export function kindOf(call: ToolCall, commands: Command[], fileChanges: FileCha
  * refused or were cut off (`marks`); its state. Only what was done is counted: what did not
  * end well is in its mark, and what still runs is the one named.
  */
-export function runHead(given: ToolCall[], { commands, fileChanges }: { commands: Command[]; fileChanges: FileChange[] }) {
+export function runHead(
+  given: ToolCall[],
+  { commands, fileChanges }: { commands: Command[]; fileChanges: FileChange[] },
+) {
   // A command that exited with an error ended its call well (app/agent): its own record says it failed.
-  const calls = given.map(call => (call.status === 'succeeded' && commands.some(c => c.tool_call_id === call.id && commandStatus(c).tone === 'del') ? { ...call, status: 'failed' as const } : call))
+  const calls = given.map(call =>
+    call.status === 'succeeded' && commands.some(c => c.tool_call_id === call.id && commandStatus(c).tone === 'del')
+      ? { ...call, status: 'failed' as const }
+      : call,
+  )
   const kinds = new Map<string, ToolCall[]>()
   for (const call of calls.filter(c => c.status === 'succeeded')) {
     const kind = kindOf(call, commands, fileChanges)
@@ -78,7 +113,9 @@ export function runHead(given: ToolCall[], { commands, fileChanges }: { commands
       if (kind !== 'edit_file') return said
       // (Lines made, in the project or the agent's copy: not those of a change turned down or undone.)
       const made = fileChanges.filter(f => MADE.has(f.status) && of.some(call => call.id === f.tool_call_id))
-      return made.length ? `${said} (+${made.reduce((n, f) => n + f.additions, 0)} −${made.reduce((n, f) => n + f.deletions, 0)})` : said
+      return made.length
+        ? `${said} (+${made.reduce((n, f) => n + f.additions, 0)} −${made.reduce((n, f) => n + f.deletions, 0)})`
+        : said
     })
   const now = calls.find(call => call.status === 'running')
   const what = [done.join(', '), now && `now: ${toolSummary(now)}`].filter(Boolean).join(' · ')
@@ -86,8 +123,10 @@ export function runHead(given: ToolCall[], { commands, fileChanges }: { commands
   // Done if any was; else the worst there is.
   const status: ToolCall['status'] = calls.some(call => call.status === 'running' || call.status === 'pending')
     ? 'running'
-    : ENDS.find(end => count(end) > 0) ?? 'succeeded'
-  const marks = ENDS.slice(1).filter(end => count(end) > 0).map(end => [end, count(end)] as [ToolCall['status'], number])
+    : (ENDS.find(end => count(end) > 0) ?? 'succeeded')
+  const marks = ENDS.slice(1)
+    .filter(end => count(end) > 0)
+    .map(end => [end, count(end)] as [ToolCall['status'], number])
   return { what: what.charAt(0).toUpperCase() + what.slice(1), marks, status }
 }
 
@@ -108,6 +147,9 @@ const ICONS: Record<string, Icon> = {
 }
 
 /** The icon a step leads with in the chat: its kind's, else a tool's. */
-export function stepIcon(call: ToolCall, { commands, fileChanges }: { commands: Command[]; fileChanges: FileChange[] }): Icon {
+export function stepIcon(
+  call: ToolCall,
+  { commands, fileChanges }: { commands: Command[]; fileChanges: FileChange[] },
+): Icon {
   return ICONS[kindOf(call, commands, fileChanges)] ?? Wrench
 }

@@ -83,12 +83,19 @@ def test_a_copy_made_while_a_take_in_writes_gets_what_was_taken(
         return copy
 
     monkeypatch.setattr(copies, "make", make)
-    client, _model, cid, run_id = setup(make_client, project_dir, {
-        "Lead": [two(), text("done")],
-        "Coder": [step(edit("two", "TWO-agent")), first.step(text("A done"))],
-        "Coder 2": [second.step(step(write("b.txt", "b\n"))), step(read("lines.txt")),
-                    text("B done")],
-    })
+    client, _model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [two(), text("done")],
+            "Coder": [step(edit("two", "TWO-agent")), first.step(text("A done"))],
+            "Coder 2": [
+                second.step(step(write("b.txt", "b\n"))),
+                step(read("lines.txt")),
+                text("B done"),
+            ],
+        },
+    )
     first.wait_partial()  # (the Coder's copy is made, its change in it)
     holding.set()
     second.release()
@@ -108,12 +115,16 @@ def branch_and_copy(make_client, repo, coder, coder_2):  # noqa: F811
     (repo / "lines.txt").write_bytes(LINES.encode())
     run(repo, "add", "-A")
     run(repo, "commit", "-qm", "lines")
-    lead = [step(call("spawn_agent", {"role": "Coder", "task": "fix two", "on_branch": "fix"},
-                      "s1"),
-                 call("spawn_agent", {"role": "Coder", "task": "write notes"}, "s2")),
-            text("done")]
+    lead = [
+        step(
+            call("spawn_agent", {"role": "Coder", "task": "fix two", "on_branch": "fix"}, "s1"),
+            call("spawn_agent", {"role": "Coder", "task": "write notes"}, "s2"),
+        ),
+        text("done"),
+    ]
     client, _model, cid, run_id = setup(
-        make_client, repo, {"Lead": lead, "Coder": coder, "Coder 2": coder_2})
+        make_client, repo, {"Lead": lead, "Coder": coder, "Coder 2": coder_2}
+    )
     return client, cid, run_id
 
 
@@ -123,7 +134,10 @@ def test_a_take_in_waits_while_a_branch_merges(make_client, wait_run, repo, monk
     merging, looked = threading.Event(), threading.Event()
     order: list[str] = []
     real_merge, real_changes, real_apply = (
-        git.merge_branch, AgentRunner._copy_changes, AgentRunner._apply)
+        git.merge_branch,
+        AgentRunner._copy_changes,
+        AgentRunner._apply,
+    )
 
     def merge_branch(*args, **kwargs):
         merging.set()
@@ -147,8 +161,11 @@ def test_a_take_in_waits_while_a_branch_merges(make_client, wait_run, repo, monk
     monkeypatch.setattr(AgentRunner, "_copy_changes", copy_changes)
     monkeypatch.setattr(AgentRunner, "_apply", apply)
     client, cid, run_id = branch_and_copy(
-        make_client, repo, [step(edit("two", "TWO-branch")), text("A done")],
-        [step(write("notes.txt", "b\n")), held.step(text("B done"))])
+        make_client,
+        repo,
+        [step(edit("two", "TWO-branch")), text("A done")],
+        [step(write("notes.txt", "b\n")), held.step(text("B done"))],
+    )
     assert merging.wait(scaled(LONG))
     held.release()
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -162,14 +179,15 @@ def test_a_take_in_waits_while_a_branch_merges(make_client, wait_run, repo, monk
 def test_a_copy_gets_what_a_branchs_merge_brought(make_client, wait_run, repo):  # noqa: F811
     first, second = Gate(), Gate()
     client, cid, run_id = branch_and_copy(
-        make_client, repo, [step(edit("two", "TWO-branch")), first.step(text("A done"))],
-        [step(write("notes.txt", "b\n")), second.step(step(read("lines.txt"))),
-         text("B done")])
+        make_client,
+        repo,
+        [step(edit("two", "TWO-branch")), first.step(text("A done"))],
+        [step(write("notes.txt", "b\n")), second.step(step(read("lines.txt"))), text("B done")],
+    )
     first.wait_partial()
     second.wait_partial()  # (the Coder 2's copy is made: it wrote its notes there)
     first.release()
-    until(client, cid, lambda s: [m["status"] for m in s["merges"]] == ["applied"],
-          timeout=LONG)
+    until(client, cid, lambda s: [m["status"] for m in s["merges"]] == ["applied"], timeout=LONG)
     second.release()
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -182,7 +200,10 @@ def test_a_copy_gets_what_a_branchs_merge_brought(make_client, wait_run, repo): 
 
 @needs_git
 def test_a_stop_while_a_branch_merges_waits_for_git_and_the_merge_is_on_record(
-    make_client, wait_run, repo, monkeypatch  # noqa: F811
+    make_client,
+    wait_run,
+    repo,
+    monkeypatch,  # noqa: F811
 ):
     merging, go = threading.Event(), threading.Event()
     real = git.merge_branch
@@ -193,8 +214,9 @@ def test_a_stop_while_a_branch_merges_waits_for_git_and_the_merge_is_on_record(
         return real(*args, **kwargs)
 
     monkeypatch.setattr(git, "merge_branch", merge_branch)
-    client, cid, run_id = on_branch(make_client, repo, [step(edit("two", "TWO-agent")),
-                                                        text("A done")])
+    client, cid, run_id = on_branch(
+        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")]
+    )
     assert merging.wait(scaled(LONG))
     assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
     go.set()
@@ -207,7 +229,10 @@ def test_a_stop_while_a_branch_merges_waits_for_git_and_the_merge_is_on_record(
 
 @needs_git
 def test_a_merged_branch_and_its_worktree_go_while_no_other_merge_writes(
-    make_client, wait_run, repo, monkeypatch  # noqa: F811
+    make_client,
+    wait_run,
+    repo,
+    monkeypatch,  # noqa: F811
 ):
     held: list[bool] = []
     real = AgentRunner._drop_copy
@@ -218,8 +243,9 @@ def test_a_merged_branch_and_its_worktree_go_while_no_other_merge_writes(
         return real(self, owner, became)
 
     monkeypatch.setattr(AgentRunner, "_drop_copy", drop_copy)
-    client, cid, run_id = on_branch(make_client, repo, [step(edit("two", "TWO-agent")),
-                                                        text("A done")])
+    client, cid, run_id = on_branch(
+        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")]
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert [m["status"] for m in snap["merges"]] == ["applied"]
     # (git's `worktree remove` and `branch -D` of one team never meet another team's merge)
@@ -278,15 +304,18 @@ def test_a_branch_whose_locked_worktree_lost_its_folder_opens_again(repo, runtim
 
 @needs_git
 def test_a_record_of_a_worktree_not_kolonis_is_never_removed_to_open_a_branch_again(
-    repo, runtime, tmp_path  # noqa: F811
+    repo,
+    runtime,
+    tmp_path,  # noqa: F811
 ):
     run(repo, "branch", "koloni/x")
     mine = tmp_path / "users-own"
     run(repo, "worktree", "add", "-q", str(mine), "koloni/x")
     shutil.rmtree(mine)  # (the user's own worktree of it, its folder gone: theirs)
     with pytest.raises(git.Refused):
-        copies.make_branch(repo, runtime, "agent1", "koloni/x",
-                           start=("main", run(repo, "rev-parse", "HEAD")))
+        copies.make_branch(
+            repo, runtime, "agent1", "koloni/x", start=("main", run(repo, "rev-parse", "HEAD"))
+        )
     assert key(mine) in listed(repo)
 
 
@@ -297,13 +326,17 @@ def test_at_start_koloni_forgets_its_worktree_that_a_crash_left(make_client, wai
     pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
-        "run"]["id"]
+        "run"
+    ]["id"]
     (lead,) = wait_run(client, cid, run_id)["agents"]
     root = client.app.state.settings.runtime_root
     copy = copies.make_branch(repo, root, lead["id"], "x")  # (its agent at work: a crash)
     with client.app.state.session_factory() as session:
-        session.get_one(Agent, lead["id"]).copy = {"state": "own", "tree": str(copy.root),
-                                                   "on_branch": copy.branch}
+        session.get_one(Agent, lead["id"]).copy = {
+            "state": "own",
+            "tree": str(copy.root),
+            "on_branch": copy.branch,
+        }
         session.commit()
     copies.remove(root, copy.name)  # (its folder gone, git's record of it left)
     recover_copies(client.app.state.session_factory, root)  # (as at the next start)
@@ -314,82 +347,174 @@ def test_at_start_koloni_forgets_its_worktree_that_a_crash_left(make_client, wai
 # --- what a copy's command is asked ----------------------------------------------------------
 
 # By a name that is not KOLONİ's own (python, node, uvicorn): the user's words may let it run.
-KILLS = ["taskkill /IM notepad.exe /F", "taskkill /f /im chrome.exe", "taskkill //F //IM x.exe",
-         "pkill vite", "killall ruby", "Stop-Process -Name java", "spps -n code",
-         "kill -Name java", "Stop-Process -Name:java", "spps -name:code", "kill -name:vim",
-         "Stop-Process -Name java,ruby", 'Stop-Process -Name "java","ruby"',
-         "taskkill /IM:notepad.exe /F", "tskill notepad", "pkill -9 vite"]
+KILLS = [
+    "taskkill /IM notepad.exe /F",
+    "taskkill /f /im chrome.exe",
+    "taskkill //F //IM x.exe",
+    "pkill vite",
+    "killall ruby",
+    "Stop-Process -Name java",
+    "spps -n code",
+    "kill -Name java",
+    "Stop-Process -Name:java",
+    "spps -name:code",
+    "kill -name:vim",
+    "Stop-Process -Name java,ruby",
+    'Stop-Process -Name "java","ruby"',
+    "taskkill /IM:notepad.exe /F",
+    "tskill notepad",
+    "pkill -9 vite",
+]
 # By a name KOLONİ itself may run under, a filter, a wildcard, or a process looked up (by its
 # port, say: 8790 is KOLONİ's) - always asked.
 KILLS_KOLONI = [
-    "taskkill /IM python.exe /F", "taskkill /f /im node.exe", "taskkill /FI \"PID gt 0\" /F",
-    "pkill -f uvicorn", "pkill -f server", "killall node", "Stop-Process -Name python",
-    "spps -n node", "kill -Name pythonw", "taskkill /IM py.exe", "Stop-Process -Name *",
-    "Stop-Process -Name node -ErrorAction 0", "Stop-Process -Name node -InformationAction Ignore",
-    "Stop-Process -Name node -ia 0", "Stop-Process -Name $n",
+    "taskkill /IM python.exe /F",
+    "taskkill /f /im node.exe",
+    'taskkill /FI "PID gt 0" /F',
+    "pkill -f uvicorn",
+    "pkill -f server",
+    "killall node",
+    "Stop-Process -Name python",
+    "spps -n node",
+    "kill -Name pythonw",
+    "taskkill /IM py.exe",
+    "Stop-Process -Name *",
+    "Stop-Process -Name node -ErrorAction 0",
+    "Stop-Process -Name node -InformationAction Ignore",
+    "Stop-Process -Name node -ia 0",
+    "Stop-Process -Name $n",
     "Stop-Process -Id (Get-Process python).Id -Force",
-    "Stop-Process -InputObject (Get-Process python)", "(Get-Process python).Kill()",
-    "$p = Get-Process python; $p.Kill()", "Get-Process node | % { $_.Kill() }",
-    "kill $(pgrep node)", "pgrep node | xargs kill", "lsof -ti:3000 | xargs kill -9",
+    "Stop-Process -InputObject (Get-Process python)",
+    "(Get-Process python).Kill()",
+    "$p = Get-Process python; $p.Kill()",
+    "Get-Process node | % { $_.Kill() }",
+    "kill $(pgrep node)",
+    "pgrep node | xargs kill",
+    "lsof -ti:3000 | xargs kill -9",
     "kill -9 $(lsof -t -i:8000)",
     "Get-NetTCPConnection -LocalPort 8000 | % { Stop-Process -Id $_.OwningProcess -Force }",
     "Stop-Process -Id (Get-NetTCPConnection -LocalPort 8790).OwningProcess -Force",
-    'wmic process where name="node.exe" delete', "wmic process where processid=1 call terminate",
-    "Invoke-CimMethod -Query \"select * from Win32_Process\" -MethodName Terminate",
-    "fuser -k 8000/tcp", "npx kill-port 3000", "npx -y kill-port 8790", "fkill node",
+    'wmic process where name="node.exe" delete',
+    "wmic process where processid=1 call terminate",
+    'Invoke-CimMethod -Query "select * from Win32_Process" -MethodName Terminate',
+    "fuser -k 8000/tcp",
+    "npx kill-port 3000",
+    "npx -y kill-port 8790",
+    "fkill node",
     # (review round 2: a switch with its value after `:`; .NET's and CIM's own; tskill; a package
     # runner's kill-port; a pid that is everyone's, a group or a variable; owners and parents)
-    "taskkill /IM:python.exe /F", 'taskkill /FI:"IMAGENAME eq node.exe"', "taskkill /im:node.exe",
+    "taskkill /IM:python.exe /F",
+    'taskkill /FI:"IMAGENAME eq node.exe"',
+    "taskkill /im:node.exe",
     "[Diagnostics.Process]::GetProcessesByName('node') | % { $_.Kill() }",
     "[System.Diagnostics.Process]::GetProcesses() | % Kill",
     "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Remove-CimInstance",
-    "gwmi Win32_Process | rwmi", "tskill python", "npm exec kill-port 3000",
-    "npm x kill-port 3000", "pnpm dlx kill-port 3000", "pnpm exec kill-port 3000",
-    "yarn dlx kill-port 3000", "kill -9 -1", "kill -- -1", "kill -s KILL -1", "kill 0",
-    "kill -9 -1234", "kill $PPID", "kill $pid", "Stop-Process -Name:python",
-    "Stop-Process -N:python", "spps -name:node", "kill -name:node", "Stop-Process -Name node,java",
-    'Stop-Process -Name "java","node"', "pkill -u me", "pkill -U 1000 x", "pkill -P 1",
-    "pkill -s 0", "pkill -t pts/1", "pkill -G staff", "killall -u me",
+    "gwmi Win32_Process | rwmi",
+    "tskill python",
+    "npm exec kill-port 3000",
+    "npm x kill-port 3000",
+    "pnpm dlx kill-port 3000",
+    "pnpm exec kill-port 3000",
+    "yarn dlx kill-port 3000",
+    "kill -9 -1",
+    "kill -- -1",
+    "kill -s KILL -1",
+    "kill 0",
+    "kill -9 -1234",
+    "kill $PPID",
+    "kill $pid",
+    "Stop-Process -Name:python",
+    "Stop-Process -N:python",
+    "spps -name:node",
+    "kill -name:node",
+    "Stop-Process -Name node,java",
+    'Stop-Process -Name "java","node"',
+    "pkill -u me",
+    "pkill -U 1000 x",
+    "pkill -P 1",
+    "pkill -s 0",
+    "pkill -t pts/1",
+    "pkill -G staff",
+    "killall -u me",
     # (the CLIs KOLONİ runs agents on: other agents' runs)
-    "killall claude", "pkill codex", "Stop-Process -Name copilot", "taskkill /IM qodercli.exe",
+    "killall claude",
+    "pkill codex",
+    "Stop-Process -Name copilot",
+    "taskkill /IM qodercli.exe",
     "killall agy",
 ]
 KILLS_HANDED = ["Get-Process python | Stop-Process", 'cmd /c "taskkill /IM x.exe"']
-BY_ID = ["taskkill /PID 1234 /F", "kill 1234", "kill -9 1234", "Stop-Process -Id 1234",
-         "Stop-Process 1234", "Stop-Process -Force 1234", "Stop-Process -Id:1234",
-         "$p = Start-Process python -PassThru; Stop-Process -Id $p.Id", "kill -l", "kill %1",
-         # (a process the line itself started - what ALONGSIDE tells agents to do)
-         "python -m uvicorn app:app --port 0 & sleep 2; kill $!"]
+BY_ID = [
+    "taskkill /PID 1234 /F",
+    "kill 1234",
+    "kill -9 1234",
+    "Stop-Process -Id 1234",
+    "Stop-Process 1234",
+    "Stop-Process -Force 1234",
+    "Stop-Process -Id:1234",
+    "$p = Start-Process python -PassThru; Stop-Process -Id $p.Id",
+    "kill -l",
+    "kill %1",
+    # (a process the line itself started - what ALONGSIDE tells agents to do)
+    "python -m uvicorn app:app --port 0 & sleep 2; kill $!",
+]
 # Words of a line that are no process looked up or stopped: a message, a path, a search.
-NO_STOP = ['git commit -m "fix: kill stale ps entries"', "cat docs/ps/kill.md",
-           'git grep -n "taskkill\\|tasklist"', 'grep -rn "Stop-Process" . | grep -v Get-Process',
-           'Select-String -Pattern "kill" -Path ps.log', "grep -n terminate x.py && ps aux",
-           # (review round 3, OA-a: a kill with no target that no pipe or block hands one)
-           'git commit -m "refactor(kill): by id"', 'git commit -m "tidy; kill"',
-           'git log --grep "(kill)"', 'rg -n "(kill|terminate)" app',
-           "sed -i 's/(kill)/(stop)/' src/a.ts", 'echo "a; kill"', "echo 'x (kill) y'",
-           'Write-Host "Stopping (kill)"',
-           # (review round 4: a bare stop's name past a quoted line's first word is no word of its
-           # own - one with a word after it is asked: `rg -n 'terminate|kill' app` over-asks)
-           'git commit -m "x | kill"', 'git commit -m "a|kill"', 'git log --grep="x|kill"',
-           'grep -E "(foo|kill)" app', 'echo "a | kill"']
+NO_STOP = [
+    'git commit -m "fix: kill stale ps entries"',
+    "cat docs/ps/kill.md",
+    'git grep -n "taskkill\\|tasklist"',
+    'grep -rn "Stop-Process" . | grep -v Get-Process',
+    'Select-String -Pattern "kill" -Path ps.log',
+    "grep -n terminate x.py && ps aux",
+    # (review round 3, OA-a: a kill with no target that no pipe or block hands one)
+    'git commit -m "refactor(kill): by id"',
+    'git commit -m "tidy; kill"',
+    'git log --grep "(kill)"',
+    'rg -n "(kill|terminate)" app',
+    "sed -i 's/(kill)/(stop)/' src/a.ts",
+    'echo "a; kill"',
+    "echo 'x (kill) y'",
+    'Write-Host "Stopping (kill)"',
+    # (review round 4: a bare stop's name past a quoted line's first word is no word of its
+    # own - one with a word after it is asked: `rg -n 'terminate|kill' app` over-asks)
+    'git commit -m "x | kill"',
+    'git commit -m "a|kill"',
+    'git log --grep="x|kill"',
+    'grep -E "(foo|kill)" app',
+    'echo "a | kill"',
+]
 # A stop handed what it stops by a pipe, a file or a block (review round 4): of whatever it is
 # handed - by `xargs` or `parallel` even with words of its own.
 PIPED_STOPS = [
-    "pgrep python | xargs /bin/kill", "pgrep python | xargs -n 1 /bin/kill",
-    "pgrep python | xargs 'kill'", "pgrep python | parallel kill", "pgrep x | xargs -I 99 kill 99",
-    "pgrep x | xargs -I %% kill %%", "Get-Process python | & Stop-Process",
-    "Get-Process python | & 'Stop-Process'", "Get-Process python | . Stop-Process",
+    "pgrep python | xargs /bin/kill",
+    "pgrep python | xargs -n 1 /bin/kill",
+    "pgrep python | xargs 'kill'",
+    "pgrep python | parallel kill",
+    "pgrep x | xargs -I 99 kill 99",
+    "pgrep x | xargs -I %% kill %%",
+    "Get-Process python | & Stop-Process",
+    "Get-Process python | & 'Stop-Process'",
+    "Get-Process python | . Stop-Process",
     "Get-Process python | Microsoft.PowerShell.Management\\Stop-Process",
-    "xargs -a pids.txt kill", "xargs --arg-file=pids.txt kill", "xargs kill < pids.txt",
-    "gps python | Invoke-Method Kill", "kill -9 $(pgrep python)", "Stop-Process (gps node).Id",
+    "xargs -a pids.txt kill",
+    "xargs --arg-file=pids.txt kill",
+    "xargs kill < pids.txt",
+    "gps python | Invoke-Method Kill",
+    "kill -9 $(pgrep python)",
+    "Stop-Process (gps node).Id",
     # (review round 5: a stop with a target in a line a shell or a wrapper is handed by quotes)
-    'start "" cmd /c "echo & taskkill /F /IM python.exe"', 'echo "echo; pkill python" | bash',
-    "bash <<< 'echo; pkill python'", 'echo "Get-Date; Stop-Process -Name python" | pwsh -c -',
-    "tmux new -d 'sleep 1; pkill python'", "script -c 'echo; pkill python' /dev/null",
-    "xterm -e 'sleep 1; pkill python'", 'wt.exe -w 0 cmd /c "echo; taskkill /F /IM python.exe"',
+    'start "" cmd /c "echo & taskkill /F /IM python.exe"',
+    'echo "echo; pkill python" | bash',
+    "bash <<< 'echo; pkill python'",
+    'echo "Get-Date; Stop-Process -Name python" | pwsh -c -',
+    "tmux new -d 'sleep 1; pkill python'",
+    "script -c 'echo; pkill python' /dev/null",
+    "xterm -e 'sleep 1; pkill python'",
+    'wt.exe -w 0 cmd /c "echo; taskkill /F /IM python.exe"',
     'schtasks /create /tn x /tr "cmd /c echo & taskkill /F /IM python.exe" /sc once',
-    'at 12:00 "echo & taskkill /F /IM python.exe"', 'npm run stop -- "x; pkill python"']
+    'at 12:00 "echo & taskkill /F /IM python.exe"',
+    'npm run stop -- "x; pkill python"',
+]
 
 
 @pytest.mark.parametrize("wrapper", ["{c}", 'bash -c "{c}"', "env X=1 {c}"])
@@ -428,8 +553,10 @@ def test_stopping_a_program_by_its_id_is_no_harm(command):
     assert copy_reason(command, True, "/work/proj", "/work/rt") == "", command
 
 
-@pytest.mark.parametrize("command", [
-    "rm -rf taskkill /etc", 'rm -rf "my-taskkill" /home', "rm -rf x; echo taskkill /home"])
+@pytest.mark.parametrize(
+    "command",
+    ["rm -rf taskkill /etc", 'rm -rf "my-taskkill" /home', "rm -rf x; echo taskkill /home"],
+)
 def test_only_taskkills_own_switches_are_no_paths(command):
     assert harm_class(command) == "always"
 
@@ -438,15 +565,32 @@ def test_only_taskkills_own_switches_are_no_paths(command):
 # other stop, in every wrapper, is asked at every level (review round 3: a matrix, not examples).
 STOPS_BY_ID = ["taskkill /F /PID {t}", "Stop-Process -Id {t}", "kill -9 {t}", "tskill {t}"]
 TARGETS_UNKNOWN = ["$PPID", "$x", "%a", "$(pgrep node)", "(Get-Process node).Id", "0", "-1"]
-WRAPPERS = ["{c}", 'cmd /c "{c}"', 'bash -c "{c}"', 'pwsh -c "{c}"', 'iex "{c}"',
-            "for /f %a in ('x') do {c}", "env X=1 {c}"]
+WRAPPERS = [
+    "{c}",
+    'cmd /c "{c}"',
+    'bash -c "{c}"',
+    'pwsh -c "{c}"',
+    'iex "{c}"',
+    "for /f %a in ('x') do {c}",
+    "env X=1 {c}",
+]
 STOPS_OF_WHAT_IS_FOUND = [
-    "(Get-Process node).Kill()", "$w.Terminate()", "(gwmi win32_process).Terminate()",
-    "Get-Process node | % Kill", "gwmi win32_process | % terminate",
-    "gwmi win32_process | ForEach-Object Terminate", "foreach ($p in Get-Process node) { $p.Kill() }",
-    "Get-CimInstance Win32_Process | Remove-CimInstance", "gwmi Win32_Process | rwmi",
-    'wmic process where name="x.exe" delete', "wmic process call terminate",
-    "fuser -k 8790/tcp", "npx kill-port 8790", "npm exec kill-port 8790", "pnpm dlx kill-port 8790"]
+    "(Get-Process node).Kill()",
+    "$w.Terminate()",
+    "(gwmi win32_process).Terminate()",
+    "Get-Process node | % Kill",
+    "gwmi win32_process | % terminate",
+    "gwmi win32_process | ForEach-Object Terminate",
+    "foreach ($p in Get-Process node) { $p.Kill() }",
+    "Get-CimInstance Win32_Process | Remove-CimInstance",
+    "gwmi Win32_Process | rwmi",
+    'wmic process where name="x.exe" delete',
+    "wmic process call terminate",
+    "fuser -k 8790/tcp",
+    "npx kill-port 8790",
+    "npm exec kill-port 8790",
+    "pnpm dlx kill-port 8790",
+]
 
 
 @pytest.mark.parametrize("wrapper", WRAPPERS)
@@ -467,10 +611,18 @@ def test_a_stop_of_what_a_lookup_found_is_always_asked(command, wrapper):
 
 
 @pytest.mark.parametrize("wrapper", ["{c}", "env X=1 {c}"])
-@pytest.mark.parametrize("command", [
-    "taskkill /F /PID 1234", "Stop-Process -Id 1234", "kill -9 1234", "tskill 1234",
-    "python x.py & kill $!", "python x.py & PID=$!; sleep 1; kill $PID", "kill %1",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "taskkill /F /PID 1234",
+        "Stop-Process -Id 1234",
+        "kill -9 1234",
+        "tskill 1234",
+        "python x.py & kill $!",
+        "python x.py & PID=$!; sleep 1; kill $PID",
+        "kill %1",
+    ],
+)
 def test_a_stop_of_a_pid_written_out_or_the_lines_own_is_no_harm(command, wrapper):
     command = wrapper.replace("{c}", command)
     assert harms(command) == "", command
@@ -479,74 +631,141 @@ def test_a_stop_of_a_pid_written_out_or_the_lines_own_is_no_harm(command, wrappe
 
 # A started variable is the line's own only where nothing else on it names it, in any spelling -
 # any other place may set it to another process - and never one the shell keeps (review round 4).
-@pytest.mark.parametrize("command", [
-    "PID=$!; for PID in $(pgrep python); do kill $PID; done",
-    "PID=$!; read PID < other.pid; kill $PID", "PID=$!; ((PID++)); kill $PID",
-    "PID=$!; mapfile -t PID < <(pgrep python); kill $PID",
-    "PID=$!; printf -v PID %s $(pgrep python); kill $PID", "PPID=$!; kill $PPID",
-    "sleep 9 & PPID=$!; kill -9 $PPID", "UID=$!; kill $UID",
-    "$PID = Start-Process python -PassThru; Stop-Process -Id $PID.Id",
-    *[f"$p = Start-Process python -PassThru; {then}; Stop-Process -Id $p.Id" for then in [
-        "${p} = Get-Process python", "$script:p = Get-Process python", "$global:p = gps node",
-        "$p, $q = (Get-Process python), 1", "Get-Process python -OutVariable p",
-        "Set-Variable p (Get-Process python)", "sv p (gps python)",
-        "gps python | Tee-Object -Variable p", "$p = gps python",
-        "Get-Process -Id $p.Id"]],
-    # (review round 5: a start's value piped on, or with a block or a subexpression in it)
-    "$p = Start-Process python -PassThru | % { Get-Process node }; Stop-Process -Id $p.Id",
-    "$p = Start-Process python -PassThru | ForEach-Object { gps node }; Stop-Process -Id $p.Id",
-    "$p = Start-Process python -PassThru | Select-Object @{n='Id';e={(Get-Process node).Id}}; "
-    "Stop-Process -Id $p.Id",
-    "$p = Start-Process python -PassThru -ArgumentList (gps node).Id; Stop-Process -Id $p.Id",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "PID=$!; for PID in $(pgrep python); do kill $PID; done",
+        "PID=$!; read PID < other.pid; kill $PID",
+        "PID=$!; ((PID++)); kill $PID",
+        "PID=$!; mapfile -t PID < <(pgrep python); kill $PID",
+        "PID=$!; printf -v PID %s $(pgrep python); kill $PID",
+        "PPID=$!; kill $PPID",
+        "sleep 9 & PPID=$!; kill -9 $PPID",
+        "UID=$!; kill $UID",
+        "$PID = Start-Process python -PassThru; Stop-Process -Id $PID.Id",
+        *[
+            f"$p = Start-Process python -PassThru; {then}; Stop-Process -Id $p.Id"
+            for then in [
+                "${p} = Get-Process python",
+                "$script:p = Get-Process python",
+                "$global:p = gps node",
+                "$p, $q = (Get-Process python), 1",
+                "Get-Process python -OutVariable p",
+                "Set-Variable p (Get-Process python)",
+                "sv p (gps python)",
+                "gps python | Tee-Object -Variable p",
+                "$p = gps python",
+                "Get-Process -Id $p.Id",
+            ]
+        ],
+        # (review round 5: a start's value piped on, or with a block or a subexpression in it)
+        "$p = Start-Process python -PassThru | % { Get-Process node }; Stop-Process -Id $p.Id",
+        "$p = Start-Process python -PassThru | ForEach-Object { gps node }; Stop-Process -Id $p.Id",
+        "$p = Start-Process python -PassThru | Select-Object @{n='Id';e={(Get-Process node).Id}}; "
+        "Stop-Process -Id $p.Id",
+        "$p = Start-Process python -PassThru -ArgumentList (gps node).Id; Stop-Process -Id $p.Id",
+    ],
+)
 def test_a_started_variable_named_anywhere_else_is_not_the_lines_own(command):
     assert harm_class(command) == "always", command
 
 
-@pytest.mark.parametrize("command", [
-    "$p = Start-Process x -PassThru; Stop-Process -Id $p.Id",
-    "$p = Start-Process x -PassThru; taskkill /F /PID $p.Id",
-    "$p=Start-Process python -PassThru;Stop-Process -Id $p.Id",
-    "$p = Start-Process python -ArgumentList '-m','http.server' -PassThru; Start-Sleep 2; "
-    "Stop-Process -Id $p.Id",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "$p = Start-Process x -PassThru; Stop-Process -Id $p.Id",
+        "$p = Start-Process x -PassThru; taskkill /F /PID $p.Id",
+        "$p=Start-Process python -PassThru;Stop-Process -Id $p.Id",
+        "$p = Start-Process python -ArgumentList '-m','http.server' -PassThru; Start-Sleep 2; "
+        "Stop-Process -Id $p.Id",
+    ],
+)
 def test_a_process_started_on_the_line_and_named_only_by_its_stop_is_its_own(command):
     assert harms(command) == "", command
     assert copy_reason(command, False, "/work/proj", "/work/rt") == "", command
 
 
-@pytest.mark.parametrize("command, kind", [
-    ("pkill thon", "always"), ("pkill p.thon", "always"), ("pkill laude", "always"),
-    ("killall pytho[n]", "always"), ("pkill [p]ython", "always"),
-    ("Stop-Process -Name nod[e]", "always"), ("pkill vite", "soft"), ("pkill -x vite", "soft"),
-    ("killall vite", "soft"),
-    # (a process the line started, then something else in its name: its id is not that one)
-    ("$p = Start-Process x -PassThru; $p = Get-Process node; Stop-Process -Id $p.Id", "always"),
-])
+@pytest.mark.parametrize(
+    "command, kind",
+    [
+        ("pkill thon", "always"),
+        ("pkill p.thon", "always"),
+        ("pkill laude", "always"),
+        ("killall pytho[n]", "always"),
+        ("pkill [p]ython", "always"),
+        ("Stop-Process -Name nod[e]", "always"),
+        ("pkill vite", "soft"),
+        ("pkill -x vite", "soft"),
+        ("killall vite", "soft"),
+        # (a process the line started, then something else in its name: its id is not that one)
+        ("$p = Start-Process x -PassThru; $p = Get-Process node; Stop-Process -Id $p.Id", "always"),
+    ],
+)
 def test_a_name_that_may_match_kolonis_own_is_always_asked(command, kind):
     assert harm_class(command) == kind, command
 
 
 # What leads into a command is no command of its own (review round 4): every rule reads past
 # sh's and cmd's keywords, a loop's `do`, trap's line, to what runs.
-LEADS = ["! {c}", "if {c}; then :; fi", "if ! {c}; then :; fi", "while {c}; do :; done",
-         "until {c}; do :; done", "if true; then :; elif {c}; then :; fi", "coproc {c}",
-         "if exist x {c}", "if not exist x {c}", "if /i not defined X {c}", "if errorlevel 1 {c}",
-         "if %ERRORLEVEL% NEQ 0 {c}", "for i in 1; do {c}; done",
-         "for /f %a in ('dir /b') do {c}", "trap '{c}' EXIT", "time -p {c}", "@{c}",
-         # (k-okuyucu: cmd's quoted comparison, however the quotes split it; trap's `--`)
-         'if "%a%"=="x" {c}', 'if /i "%a%"=="x" {c}', 'if not "%a%"=="" {c}',
-         'if "%a%" == "x" {c}', "if %a%==x {c}", "trap -- '{c}' EXIT"]
+LEADS = [
+    "! {c}",
+    "if {c}; then :; fi",
+    "if ! {c}; then :; fi",
+    "while {c}; do :; done",
+    "until {c}; do :; done",
+    "if true; then :; elif {c}; then :; fi",
+    "coproc {c}",
+    "if exist x {c}",
+    "if not exist x {c}",
+    "if /i not defined X {c}",
+    "if errorlevel 1 {c}",
+    "if %ERRORLEVEL% NEQ 0 {c}",
+    "for i in 1; do {c}; done",
+    "for /f %a in ('dir /b') do {c}",
+    "trap '{c}' EXIT",
+    "time -p {c}",
+    "@{c}",
+    # (k-okuyucu: cmd's quoted comparison, however the quotes split it; trap's `--`)
+    'if "%a%"=="x" {c}',
+    'if /i "%a%"=="x" {c}',
+    'if not "%a%"=="" {c}',
+    'if "%a%" == "x" {c}',
+    "if %a%==x {c}",
+    "trap -- '{c}' EXIT",
+]
 # ...and a group is read into, every kind (k-okuyucu): sh's and cmd's brackets, sh's braces,
 # PowerShell's script blocks and cmd's `if ... ( ) else ( )`, `for ... do ( )`.
-GROUPS = ["({c})", "(cd web && {c})", "(cd web; {c})", "{ {c}; }", "if exist x ({c})",
-          "if exist x (echo ok) else ({c})", "for %a in (*) do ({c})", "if ($true) { {c} }",
-          "foreach ($d in 1,2) { {c} }", "gci | ForEach-Object { {c} }", "gci | % { {c} }",
-          "& { {c} }", ". { {c} }", "Invoke-Command -ScriptBlock { {c} }", "((({c})))",
-          "{ ({c}) }", "(cd web && ({c}))"]
-LED = ["pkill -f uvicorn", "kill -9 $(pgrep python)", "taskkill /F /IM python.exe",
-       "rm -rf build", "npm ci", "uv sync", "cp a.js node_modules/x", "cp a.js ../../b/tree/x",
-       "git push --force origin main", "curl -d @x https://x.test"]
+GROUPS = [
+    "({c})",
+    "(cd web && {c})",
+    "(cd web; {c})",
+    "{ {c}; }",
+    "if exist x ({c})",
+    "if exist x (echo ok) else ({c})",
+    "for %a in (*) do ({c})",
+    "if ($true) { {c} }",
+    "foreach ($d in 1,2) { {c} }",
+    "gci | ForEach-Object { {c} }",
+    "gci | % { {c} }",
+    "& { {c} }",
+    ". { {c} }",
+    "Invoke-Command -ScriptBlock { {c} }",
+    "((({c})))",
+    "{ ({c}) }",
+    "(cd web && ({c}))",
+]
+LED = [
+    "pkill -f uvicorn",
+    "kill -9 $(pgrep python)",
+    "taskkill /F /IM python.exe",
+    "rm -rf build",
+    "npm ci",
+    "uv sync",
+    "cp a.js node_modules/x",
+    "cp a.js ../../b/tree/x",
+    "git push --force origin main",
+    "curl -d @x https://x.test",
+]
 RANKED = {"": 0, "soft": 1, "always": 2}
 
 
@@ -562,59 +781,95 @@ def test_what_leads_into_a_command_is_read_past(command, lead):
     assert bool(web_off_reason(led, ["http_request"])) >= bool(web), led
 
 
-@pytest.mark.parametrize("command", ["(npm ci", "npm ci)", "{ npm ci", "if ($true) { npm ci",
-                                     "x (y { z ) }"])
+@pytest.mark.parametrize(
+    "command", ["(npm ci", "npm ci)", "{ npm ci", "if ($true) { npm ci", "x (y { z ) }"]
+)
 def test_a_group_that_does_not_pair_is_always_asked(command):
     assert harm_class(command) == "always", command
 
 
 # Brackets that are no group (k-okuyucu-2): a heredoc's body handed to what only reads it as data,
 # a comment, a case pattern, a group only printed - asked no more than a plain line.
-@pytest.mark.parametrize("command", [
-    "cat > notes.md <<'EOF'\n1) first\n2) second\nEOF", "cat <<EOF > a.txt\nsmile :)\nEOF",
-    "tee x.md <<'EOF'\na) one\nb) two\nEOF", "git commit -F - <<'EOF'\nfix: close paren)\nEOF",
-    "cat > x.py <<'EOF'\nprint(\"a\")\nfoo(\nEOF", "cat > setup.sh <<'EOF'\n(cd web && npm ci)\nEOF",
-    "cat > notes.md <<-EOF\n\t1) first\n\tEOF", "cat > a.md <<'EOF'\r\n1) first\r\nEOF\r\n",
-    "echo done # 1) first step", "ls -la # see (notes", "npm test # } end of block",
-    "REM (a cmd remark\ndir", ":: (another remark\ndir", "echo ok & rem )",
-    "case \"$1\" in\n  start) echo s ;;\n  stop) echo t ;;\nesac",
-    "case $x in a|b) ls ;; *) pwd ;; esac", "echo \"(npm ci)\"",
-    "git commit -m \"run (npm ci) first\""])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cat > notes.md <<'EOF'\n1) first\n2) second\nEOF",
+        "cat <<EOF > a.txt\nsmile :)\nEOF",
+        "tee x.md <<'EOF'\na) one\nb) two\nEOF",
+        "git commit -F - <<'EOF'\nfix: close paren)\nEOF",
+        "cat > x.py <<'EOF'\nprint(\"a\")\nfoo(\nEOF",
+        "cat > setup.sh <<'EOF'\n(cd web && npm ci)\nEOF",
+        "cat > notes.md <<-EOF\n\t1) first\n\tEOF",
+        "cat > a.md <<'EOF'\r\n1) first\r\nEOF\r\n",
+        "echo done # 1) first step",
+        "ls -la # see (notes",
+        "npm test # } end of block",
+        "REM (a cmd remark\ndir",
+        ":: (another remark\ndir",
+        "echo ok & rem )",
+        'case "$1" in\n  start) echo s ;;\n  stop) echo t ;;\nesac',
+        "case $x in a|b) ls ;; *) pwd ;; esac",
+        'echo "(npm ci)"',
+        'git commit -m "run (npm ci) first"',
+    ],
+)
 def test_brackets_that_are_no_group_ask_nothing(command):
     assert harm_class(command) == "" and not installs(command), command
     assert not web_off_reason(command, ["http_request"]), command
     assert not copy_reason(command, True, "/work/proj", "/work/rt"), command
 
 
-@pytest.mark.parametrize("command", [
-    "bash <<EOF\npkill python\nEOF", "sh -s <<EOF\ncd web\npkill python\nEOF",
-    "cat <<EOF | bash\npkill python\nEOF", "case \"$1\" in stop) pkill python ;; esac",
-    "pkill python # )", "(pkill python) # (", "echo x; rem\npkill python"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "bash <<EOF\npkill python\nEOF",
+        "sh -s <<EOF\ncd web\npkill python\nEOF",
+        "cat <<EOF | bash\npkill python\nEOF",
+        'case "$1" in stop) pkill python ;; esac',
+        "pkill python # )",
+        "(pkill python) # (",
+        "echo x; rem\npkill python",
+    ],
+)
 def test_what_a_shell_is_handed_past_a_heredoc_a_comment_or_a_case_still_stops(command):
     assert harm_class(command) == "always", command
 
 
-@pytest.mark.parametrize("command", [
-    "sh -s <<EOF\ncd web\nnpm ci\nEOF", "case \"$1\" in start) npm ci ;; esac",
-    "case \"$1\" in\n  start)\n    npm ci\n    ;;\nesac", "npm ci # )"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "sh -s <<EOF\ncd web\nnpm ci\nEOF",
+        'case "$1" in start) npm ci ;; esac',
+        'case "$1" in\n  start)\n    npm ci\n    ;;\nesac',
+        "npm ci # )",
+    ],
+)
 def test_an_install_past_a_heredoc_a_comment_or_a_case_is_one(command):
     assert installs(command), command
 
 
 # A line a launcher hands a shell, a package runner's `-c` / `--call`, a script block made of a
 # string and PowerShell's encoded command are read - or, encoded, asked (k-okuyucu-2).
-@pytest.mark.parametrize("command", [
-    "Start-Process powershell -WindowStyle Hidden -Wait -ArgumentList "
-    "'-Command','taskkill /IM python.exe /F'",
-    "Start-Process -FilePath pwsh -ArgumentList '-c','Stop-Process -Name python'",
-    "Start-Process cmd -ArgumentList '/c taskkill /F /IM python.exe'",
-    "Start-Process bash -Args '-c','pkill python'", "Start-Process wsl -ArgumentList 'pkill','python'",
-    'saps powershell "-Command taskkill /IM python.exe /F"',
-    "Start-Process powershell -ArgumentList '-EncodedCommand','ZQBjAGgAbwA='",
-    "powershell -EncodedCommand ZQBjAGgAbwA=", "pwsh -NoProfile -enc ZQBjAGgAbwA=",
-    "npx -c 'taskkill /IM python.exe /F'", "npx --call 'pkill python'", "npm exec -c 'pkill python'",
-    "[scriptblock]::Create('taskkill /IM python.exe /F').Invoke()",
-    "&([scriptblock]::Create('taskkill /IM python.exe /F'))"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "Start-Process powershell -WindowStyle Hidden -Wait -ArgumentList "
+        "'-Command','taskkill /IM python.exe /F'",
+        "Start-Process -FilePath pwsh -ArgumentList '-c','Stop-Process -Name python'",
+        "Start-Process cmd -ArgumentList '/c taskkill /F /IM python.exe'",
+        "Start-Process bash -Args '-c','pkill python'",
+        "Start-Process wsl -ArgumentList 'pkill','python'",
+        'saps powershell "-Command taskkill /IM python.exe /F"',
+        "Start-Process powershell -ArgumentList '-EncodedCommand','ZQBjAGgAbwA='",
+        "powershell -EncodedCommand ZQBjAGgAbwA=",
+        "pwsh -NoProfile -enc ZQBjAGgAbwA=",
+        "npx -c 'taskkill /IM python.exe /F'",
+        "npx --call 'pkill python'",
+        "npm exec -c 'pkill python'",
+        "[scriptblock]::Create('taskkill /IM python.exe /F').Invoke()",
+        "&([scriptblock]::Create('taskkill /IM python.exe /F'))",
+    ],
+)
 def test_a_line_a_launcher_hands_on_is_read(command):
     assert harm_class(command) == "always", command
 
@@ -626,17 +881,34 @@ def test_an_install_a_launcher_hands_a_shell_is_one():
 
 
 # What a `$( ... )` runs installs as the line it is (k-okuyucu-2), sh's and PowerShell's.
-@pytest.mark.parametrize("command", [
-    "out=$(npm ci)", "output=$(npm install 2>&1)", 'echo "$(npm ci)"', "result=$(cd web && npm ci)",
-    "v=$(pip install -r requirements.txt) && echo $v", "$r = $(npm ci)", "Write-Host $(npm ci)"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "out=$(npm ci)",
+        "output=$(npm install 2>&1)",
+        'echo "$(npm ci)"',
+        "result=$(cd web && npm ci)",
+        "v=$(pip install -r requirements.txt) && echo $v",
+        "$r = $(npm ci)",
+        "Write-Host $(npm ci)",
+    ],
+)
 def test_an_install_a_substitution_runs_is_one(command):
     assert installs(command), command
     assert web_off_reason(command, ["http_request"]), command
 
 
-@pytest.mark.parametrize("command", [
-    "echo '$(npm ci)'", "git commit -m 'use $(npm ci)'", "grep '$(npm ci)' x.sh",
-    'echo "\\$(npm ci)"', "$m = @'\n$(npm ci)\n'@", "cat > a.txt <<'EOF'\n$(npm ci)\nEOF"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo '$(npm ci)'",
+        "git commit -m 'use $(npm ci)'",
+        "grep '$(npm ci)' x.sh",
+        'echo "\\$(npm ci)"',
+        "$m = @'\n$(npm ci)\n'@",
+        "cat > a.txt <<'EOF'\n$(npm ci)\nEOF",
+    ],
+)
 def test_a_substitution_no_shell_runs_installs_nothing(command):
     # (k-okuyucu-2: single quotes, `\$(`, a literal here-string, a quoted delimiter's data body)
     assert not installs(command), command
@@ -644,32 +916,49 @@ def test_a_substitution_no_shell_runs_installs_nothing(command):
 
 # A data heredoc hides nothing after it, and an unquoted delimiter's body runs its `$( )` and
 # backticks (the check of df5901d): every line is read as written too.
-@pytest.mark.parametrize("command", [
-    "cat > x.py <<'EOF'\nprint(1)\nEOF\npython x.py && pkill -f uvicorn",
-    "git commit -F - <<'EOF'\nmsg\nEOF\npkill python", "cat <<'EOF'\ndata\nEOF\ntaskkill /F /IM python.exe",
-    "cat <<'EOF'\ndata\nEOF\nStop-Process -Name python", "cat <<'EOF'\ndata\nEOF\npgrep x | xargs kill",
-    "cat << EOF\ndata\nEOF\npkill python", "cat <<-EOF\ndata\n\tEOF\npkill python",
-    "cat <<EOF\r\ndata\r\nEOF\r\npkill python", "cat <<'E'OF\ndata\nEOF\npkill python",
-    "cat <<A <<B\nx\nA\ny\nB\npkill python", "bash <<'OUT'\ncat <<'IN'\ndata\nIN\npkill python\nOUT",
-    "cat <<EOF\n$(pkill python)\nEOF", "git commit -F - <<EOF\nmsg $(pkill python)\nEOF",
-    "cat <<EOF\n${x:-$(pkill python)}\nEOF", "cat <<-EOF\n\t$(pkill python)\n\tEOF",
-    "cat <<EOF\n`pkill python`\nEOF", "<# c #> Stop-Process -Name python"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cat > x.py <<'EOF'\nprint(1)\nEOF\npython x.py && pkill -f uvicorn",
+        "git commit -F - <<'EOF'\nmsg\nEOF\npkill python",
+        "cat <<'EOF'\ndata\nEOF\ntaskkill /F /IM python.exe",
+        "cat <<'EOF'\ndata\nEOF\nStop-Process -Name python",
+        "cat <<'EOF'\ndata\nEOF\npgrep x | xargs kill",
+        "cat << EOF\ndata\nEOF\npkill python",
+        "cat <<-EOF\ndata\n\tEOF\npkill python",
+        "cat <<EOF\r\ndata\r\nEOF\r\npkill python",
+        "cat <<'E'OF\ndata\nEOF\npkill python",
+        "cat <<A <<B\nx\nA\ny\nB\npkill python",
+        "bash <<'OUT'\ncat <<'IN'\ndata\nIN\npkill python\nOUT",
+        "cat <<EOF\n$(pkill python)\nEOF",
+        "git commit -F - <<EOF\nmsg $(pkill python)\nEOF",
+        "cat <<EOF\n${x:-$(pkill python)}\nEOF",
+        "cat <<-EOF\n\t$(pkill python)\n\tEOF",
+        "cat <<EOF\n`pkill python`\nEOF",
+        "<# c #> Stop-Process -Name python",
+    ],
+)
 def test_a_stop_past_a_heredoc_or_in_its_substitution_is_asked(command):
     assert harm_class(command) == "always", command
     assert command in readings(command)
 
 
-@pytest.mark.parametrize("command", [
-    "Start-Process -FilePath \"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -ArgumentList "
-    "'-c','Stop-Process -Name python'",
-    "Start-Process pwsh -ArgumentList @('-c','Stop-Process -Name python')",
-    "Start-Process pwsh -ArgumentList $a",
-    "Start-Process -ArgumentList '-c','Stop-Process -Name python' -FilePath pwsh",
-    "Start-Process -ArgumentList '/c taskkill /F /IM python.exe' cmd",
-    "Start-Process taskkill -ArgumentList '/F /IM python.exe'", "saps pkill python",
-    "powershell /enc ZQBjAGgAbwA=",
-    "[System.Management.Automation.ScriptBlock]::Create('Stop-Process -Name python').Invoke()",
-    "Start-Process python -ArgumentList '-c \"import os; os.system(''pkill python'')\"'"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        'Start-Process -FilePath "C:\\Program Files\\PowerShell\\7\\pwsh.exe" -ArgumentList '
+        "'-c','Stop-Process -Name python'",
+        "Start-Process pwsh -ArgumentList @('-c','Stop-Process -Name python')",
+        "Start-Process pwsh -ArgumentList $a",
+        "Start-Process -ArgumentList '-c','Stop-Process -Name python' -FilePath pwsh",
+        "Start-Process -ArgumentList '/c taskkill /F /IM python.exe' cmd",
+        "Start-Process taskkill -ArgumentList '/F /IM python.exe'",
+        "saps pkill python",
+        "powershell /enc ZQBjAGgAbwA=",
+        "[System.Management.Automation.ScriptBlock]::Create('Stop-Process -Name python').Invoke()",
+        "Start-Process python -ArgumentList '-c \"import os; os.system(''pkill python'')\"'",
+    ],
+)
 def test_a_launchers_other_spellings_are_read(command):
     assert harm_class(command) == "always", command
 
@@ -677,13 +966,21 @@ def test_a_launchers_other_spellings_are_read(command):
 # The four checks that read a line as written read every reading (k-okuyucu): a continued line
 # and a group too - the strictest of them.
 def test_the_checks_that_read_a_line_as_written_read_every_reading():
-    for line in ["git `\nswitch main", "git `\r\ncheckout -b x", "(git switch main)",
-                 "{ git checkout -b x; }"]:
+    for line in [
+        "git `\nswitch main",
+        "git `\r\ncheckout -b x",
+        "(git switch main)",
+        "{ git checkout -b x; }",
+    ]:
         assert switches_branch(line), line
     for line in ['python `\n-c "import os"', 'node `\n-e "x"', '(python -c "import os")']:
         assert runs_inline(line), line
-    for line in ["git `\napply x.patch", "patch `\n-p1 < x.diff", "(git apply x.patch)",
-                 "{ git am x.patch; }"]:
+    for line in [
+        "git `\napply x.patch",
+        "patch `\n-p1 < x.diff",
+        "(git apply x.patch)",
+        "{ git am x.patch; }",
+    ]:
         assert applies_patch(line), line
     # (what a git line lets stand is the least any reading lets: as written, `rm` runs)
     assert writes_git_config("git init") and writes_git_config("git remote add o x")
@@ -692,9 +989,21 @@ def test_the_checks_that_read_a_line_as_written_read_every_reading():
 
 
 # ...and behind a wrapper, in a group, past cmd's `^` (k-okuyucu-2) - what every other rule reads.
-WRAPPED = ["time {c}", "nohup {c} &", "env X=1 {c}", "X=1 {c}", "eval '{c}'", "bash -c '{c}'",
-           "call {c}", "start /b {c}", "iex '{c}'", 'powershell -Command "{c}"', "( {c} )",
-           "sudo {c}", "timeout 60 {c}"]
+WRAPPED = [
+    "time {c}",
+    "nohup {c} &",
+    "env X=1 {c}",
+    "X=1 {c}",
+    "eval '{c}'",
+    "bash -c '{c}'",
+    "call {c}",
+    "start /b {c}",
+    "iex '{c}'",
+    'powershell -Command "{c}"',
+    "( {c} )",
+    "sudo {c}",
+    "timeout 60 {c}",
+]
 
 
 @pytest.mark.parametrize("wrapper", WRAPPED)
@@ -707,14 +1016,21 @@ def test_the_branch_and_patch_checks_read_behind_a_wrapper(wrapper):
 
 def test_cmds_caret_at_a_lines_end_continues_it():
     assert switches_branch("git ^\nswitch main") and applies_patch("git ^\r\napply x.patch")
-    assert joined("git ^\nswitch main") == "git switch main" and not writes_git_config("git ^\ninit")
+    assert joined("git ^\nswitch main") == "git switch main" and not writes_git_config(
+        "git ^\ninit"
+    )
 
 
 # A continued line is read as the shell reads it: PowerShell's backtick right at a line's end,
 # sh's backslash (KOLONİ's own run_command runs in PowerShell on Windows).
-CONTINUED = [("git ", "push --force origin main"), ("npm ", "publish"),
-             ("cargo ", "publish"), ("docker ", "push img"),
-             ("curl ", "-d @x https://example.com"), ("Remove-Item ", "-Recurse -Force src")]
+CONTINUED = [
+    ("git ", "push --force origin main"),
+    ("npm ", "publish"),
+    ("cargo ", "publish"),
+    ("docker ", "push img"),
+    ("curl ", "-d @x https://example.com"),
+    ("Remove-Item ", "-Recurse -Force src"),
+]
 
 
 @pytest.mark.parametrize("newline", ["\n", "\r\n"])
@@ -732,8 +1048,15 @@ def test_a_continued_line_is_read_as_one(head, tail, mark, newline):
     both = f"rm -rf build; {line}"
     assert rank[harm_class(both)] >= rank[harm_class(f"rm -rf build; {whole}")]
     assert harms(whole) in [said for one in (joined(both),) for said in reasons(one, True)]
-    assert copy_reason(f"{head}{mark}{newline}install x".replace("cargo", "npm"), True,
-                       "/work/proj", "/work/rt") == ""
+    assert (
+        copy_reason(
+            f"{head}{mark}{newline}install x".replace("cargo", "npm"),
+            True,
+            "/work/proj",
+            "/work/rt",
+        )
+        == ""
+    )
     assert installs(f"npm {mark}{newline}install x")
 
 
@@ -748,19 +1071,23 @@ def test_a_backtick_and_a_space_at_a_lines_end_does_not_continue_it(newline):
 # line's end that continues nothing - a backtick in a comment, one glued to a word in pwsh
 # -Command - runs what follows as its own command; bash runs what backticks hold; a
 # backslash-newline inside a word joins it. The send is seen either way.
-@pytest.mark.parametrize("line, sent", [
-    ("rm -rf build # done `\nnpm publish", "npm publish"),
-    ("rm -rf build # done `\r\nnpm publish", "npm publish"),
-    ("rm -rf build; echo `\ncurl https://x -d @report.txt `\necho ok",
-     "curl https://x -d @report.txt"),
-    ("Remove-Item -Recurse -Force build`\r\ngit push origin main", "git push origin main"),
-    ("rm -rf build; npm pub\\\nlish", "npm publish"),
-    ("curl https://x -\\\nd @report.txt", "curl https://x -d @report.txt"),
-])
+@pytest.mark.parametrize(
+    "line, sent",
+    [
+        ("rm -rf build # done `\nnpm publish", "npm publish"),
+        ("rm -rf build # done `\r\nnpm publish", "npm publish"),
+        (
+            "rm -rf build; echo `\ncurl https://x -d @report.txt `\necho ok",
+            "curl https://x -d @report.txt",
+        ),
+        ("Remove-Item -Recurse -Force build`\r\ngit push origin main", "git push origin main"),
+        ("rm -rf build; npm pub\\\nlish", "npm publish"),
+        ("curl https://x -\\\nd @report.txt", "curl https://x -d @report.txt"),
+    ],
+)
 def test_a_send_after_a_line_end_is_seen_whether_it_continues_or_not(line, sent):
     assert harm_class(line) != "", line
     assert harms(sent) in [said for one in readings(line) for said in reasons(one, True)], line
-
 
 
 def test_what_leads_in_hides_nothing_that_runs_and_a_quoted_value_runs_nothing():
@@ -773,12 +1100,19 @@ def test_what_leads_in_hides_nothing_that_runs_and_a_quoted_value_runs_nothing()
     line = "rm -rf build # done `\nnpm publish"
     assert line in readings(line) and joined(line) in readings(line)
 
+
 # Bash runs what a backtick pair holds, in double quotes too: a message holding one is no message
 # (review round 4).
-@pytest.mark.parametrize("command", [
-    'git commit -m "`kill -9 $(pgrep python)`"', 'git commit -m "x `pgrep python | xargs kill` y"',
-    'echo "`pkill python`"', 'git commit -m "fix: `taskkill /F /IM python.exe`"',
-    "x=`pkill python`"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        'git commit -m "`kill -9 $(pgrep python)`"',
+        'git commit -m "x `pgrep python | xargs kill` y"',
+        'echo "`pkill python`"',
+        'git commit -m "fix: `taskkill /F /IM python.exe`"',
+        "x=`pkill python`",
+    ],
+)
 def test_what_a_backtick_pair_holds_is_read(command):
     assert harm_class(command) == "always", command
     assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME, command
@@ -786,35 +1120,51 @@ def test_what_a_backtick_pair_holds_is_read(command):
 
 # An interpreter's code on the line is not read: a stop's name in it may stop KOLONİ itself
 # (review round 5 - 650e22a asked these).
-@pytest.mark.parametrize("command", [
-    "python -c \"import os; os.system('pkill -f uvicorn')\"",
-    "python -c \"import os; os.system('taskkill /F /IM python.exe')\"",
-    "python3 -c 'import os; os.system(\"kill -9 -1\")'",
-    "node -e \"require('child_process').execSync('taskkill /F /IM node.exe')\"",
-    "perl -e 'system(\"pkill python\")'", "ruby -e 'system(\"pkill python\")'",
-    "awk 'BEGIN{system(\"pkill python\")}'", "node -e \"process.kill(1234)\"",
-    "python -c \"import os,signal; os.kill(os.getppid(), signal.SIGKILL)\"",
-    "uv run python -c \"import os; os.system('pkill -f uvicorn')\""])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python -c \"import os; os.system('pkill -f uvicorn')\"",
+        "python -c \"import os; os.system('taskkill /F /IM python.exe')\"",
+        "python3 -c 'import os; os.system(\"kill -9 -1\")'",
+        "node -e \"require('child_process').execSync('taskkill /F /IM node.exe')\"",
+        "perl -e 'system(\"pkill python\")'",
+        "ruby -e 'system(\"pkill python\")'",
+        "awk 'BEGIN{system(\"pkill python\")}'",
+        'node -e "process.kill(1234)"',
+        'python -c "import os,signal; os.kill(os.getppid(), signal.SIGKILL)"',
+        "uv run python -c \"import os; os.system('pkill -f uvicorn')\"",
+    ],
+)
 def test_a_stop_in_code_an_interpreter_is_handed_is_always_asked(command):
     assert harm_class(command) == "always", command
 
 
 # ...on stdin too, and php's, lua's, R's, julia's (k-okuyucu-2).
-@pytest.mark.parametrize("command", [
-    "echo \"import os; os.system('pkill python')\" | python",
-    "python - <<'EOF'\nimport subprocess\nsubprocess.run(['pkill', 'uvicorn'])\nEOF",
-    "node <<EOF\nrequire('child_process').execSync('taskkill /IM node.exe /F')\nEOF",
-    "cat pids | python3 -c 'import os; os.kill(1, 9)'", "tclsh <<< 'exec pkill uvicorn'",
-    "php -r 'exec(\"pkill python\");'", "lua -e 'os.execute(\"pkill python\")'",
-    "Rscript -e 'system(\"pkill python\")'", "R -e 'system(\"pkill uvicorn\")'",
-    "julia -e 'run(`pkill uvicorn`)'", "python -c \"import os; os.killpg(0, 9)\"",
-    "go run - <<'EOF'\nfunc main() { exec.Command(\"pkill\", \"uvicorn\").Run() }\nEOF"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo \"import os; os.system('pkill python')\" | python",
+        "python - <<'EOF'\nimport subprocess\nsubprocess.run(['pkill', 'uvicorn'])\nEOF",
+        "node <<EOF\nrequire('child_process').execSync('taskkill /IM node.exe /F')\nEOF",
+        "cat pids | python3 -c 'import os; os.kill(1, 9)'",
+        "tclsh <<< 'exec pkill uvicorn'",
+        "php -r 'exec(\"pkill python\");'",
+        "lua -e 'os.execute(\"pkill python\")'",
+        "Rscript -e 'system(\"pkill python\")'",
+        "R -e 'system(\"pkill uvicorn\")'",
+        "julia -e 'run(`pkill uvicorn`)'",
+        'python -c "import os; os.killpg(0, 9)"',
+        'go run - <<\'EOF\'\nfunc main() { exec.Command("pkill", "uvicorn").Run() }\nEOF',
+    ],
+)
 def test_a_stop_in_code_an_interpreter_reads_on_stdin_is_always_asked(command):
     assert harm_class(command) == "always", command
 
 
-@pytest.mark.parametrize("line", ["echo " + "$(" * 1000 + "x" + ")" * 1000,
-                                  "echo " + " ".join("`x`" for _ in range(1000))])
+@pytest.mark.parametrize(
+    "line",
+    ["echo " + "$(" * 1000 + "x" + ")" * 1000, "echo " + " ".join("`x`" for _ in range(1000))],
+)
 def test_a_line_too_deep_to_read_is_asked_and_read_quickly(line):
     # (review round 5: 1000 nested `$(` took 8.3 s to read; past MAX_OTHER_READINGS of them a
     # line is not read further and is asked as what may stop KOLONİ itself)
@@ -834,21 +1184,26 @@ def places(tmp_path):
 
 def asked_in_copy(tmp_path, command, cwd="."):
     project, runtime, own, _held, worktree = places(tmp_path)  # noqa: F811
-    return copy_reason(command, True, str(project), runtime, own, cwd,
-                       [str(project), str(worktree)])
+    return copy_reason(
+        command, True, str(project), runtime, own, cwd, [str(project), str(worktree)]
+    )
 
 
 def test_a_copys_command_naming_another_copy_a_worktree_or_above_it_is_asked(tmp_path):
     _project, _runtime, own, held, worktree = places(tmp_path)
     for command, named in [
-        ("cp x ../../b/tree/y", "../../b/tree/y"), (r"echo x > ..\base.json", r"..\base.json"),
+        ("cp x ../../b/tree/y", "../../b/tree/y"),
+        (r"echo x > ..\base.json", r"..\base.json"),
         (f"Set-Content {held / 'b' / 'tree' / 'x.txt'} hi", str(held)),
-        (f"Copy-Item x {worktree}/y", str(worktree)), ("cd src; cp x ../../y", "../../y"),
-        ("cd ..; ls", ".."), ("ls -la ../..", "../.."),
+        (f"Copy-Item x {worktree}/y", str(worktree)),
+        ("cd src; cp x ../../y", "../../y"),
+        ("cd ..; ls", ".."),
+        ("ls -la ../..", "../.."),
         # (by its own full path, and up out of it: read as the path it leads to)
         (f"cp x {own}/../../b/tree/y", str(held)),
         # (`..` spliced with quotes, sh's `.\.`)
-        ("cp x .''./.''./b/tree/y", "../../b/tree/y"), (r"cp x .\./.\./b", "../../b"),
+        ("cp x .''./.''./b/tree/y", "../../b/tree/y"),
+        (r"cp x .\./.\./b", "../../b"),
         # (quoted, glued to an option or a redirect)
         ('cp x --target-directory="../../b/tree"', "../../b/tree"),
         ('echo x >"../base.json"', "../base.json"),
@@ -862,56 +1217,102 @@ def test_a_copys_command_naming_another_copy_a_worktree_or_above_it_is_asked(tmp
 
 def test_a_copys_command_naming_its_own_copy_or_below_is_not_asked(tmp_path):
     _project, _runtime, own, _held, _worktree = places(tmp_path)
-    for command in [f"python {own}/x.py > {own}/out.txt", *LIVE, "git log HEAD..main",
-                    "git diff main...HEAD", f"cd {own}/src && pytest", "cd src; cp x ../y",
-                    "cd src && cd .. && pytest", "cd $X; pytest", "D=src/x; cp y $D/z",
-                    "python -c \"print('a..b')\"",
-                    # (a search's or sed's pattern is no path: JS / TS imports)
-                    "rg \"from '../utils'\" src", "grep -rn \"from '../\" src",
-                    "sed -i \"s#'../a'#'../b'#\" src/x.ts", "rg '../utils' src",
-                    "grep -e '../x' src", "Select-String -Pattern '\\.\\./x' -Path src/a.ts"]:
+    for command in [
+        f"python {own}/x.py > {own}/out.txt",
+        *LIVE,
+        "git log HEAD..main",
+        "git diff main...HEAD",
+        f"cd {own}/src && pytest",
+        "cd src; cp x ../y",
+        "cd src && cd .. && pytest",
+        "cd $X; pytest",
+        "D=src/x; cp y $D/z",
+        "python -c \"print('a..b')\"",
+        # (a search's or sed's pattern is no path: JS / TS imports)
+        "rg \"from '../utils'\" src",
+        'grep -rn "from \'../" src',
+        "sed -i \"s#'../a'#'../b'#\" src/x.ts",
+        "rg '../utils' src",
+        "grep -e '../x' src",
+        "Select-String -Pattern '\\.\\./x' -Path src/a.ts",
+    ]:
         assert asked_in_copy(tmp_path, command) == "", command
 
 
-@pytest.mark.parametrize("command, named", [
-    # (past a `cd` that is not followed, a `..` is taken as out of the copy: fail closed)
-    ("cd $PWD; cp x ../../b", "../../b"), ("cd -; cat ../x", "../x"), ("popd; cat ../x", "../x"),
-    ("cd $X; ls ..", ".."), (r"Set-Location $PSScriptRoot; cp x ..\y", r"..\y"),
-    ("cd; ls ../..", "../.."), ("cd /elsewhere; cat ../x", "../x"), ("cd $X; cd ..", ".."),
-    # (in quotes or a bracket of code)
-    (r"""python -c "open(r'..\..\b\x','w')" """, r"..\..\b\x"),
-    ("python -c \"import os; os.path.join('..','x')\"", ".."),
-    # (a variable set to a path up out of it)
-    ("D=../../b/tree; cp x $D/y", "../../b/tree"), ("export D=../../b; cp x $D", "../../b"),
-])
+@pytest.mark.parametrize(
+    "command, named",
+    [
+        # (past a `cd` that is not followed, a `..` is taken as out of the copy: fail closed)
+        ("cd $PWD; cp x ../../b", "../../b"),
+        ("cd -; cat ../x", "../x"),
+        ("popd; cat ../x", "../x"),
+        ("cd $X; ls ..", ".."),
+        (r"Set-Location $PSScriptRoot; cp x ..\y", r"..\y"),
+        ("cd; ls ../..", "../.."),
+        ("cd /elsewhere; cat ../x", "../x"),
+        ("cd $X; cd ..", ".."),
+        # (in quotes or a bracket of code)
+        (r"""python -c "open(r'..\..\b\x','w')" """, r"..\..\b\x"),
+        ("python -c \"import os; os.path.join('..','x')\"", ".."),
+        # (a variable set to a path up out of it)
+        ("D=../../b/tree; cp x $D/y", "../../b/tree"),
+        ("export D=../../b; cp x $D", "../../b"),
+    ],
+)
 def test_a_climb_out_of_the_copy_is_seen_where_the_line_is_not_followed(tmp_path, command, named):
     assert asked_in_copy(tmp_path, command) == OUT_OF_COPY.format(path=named), command
 
 
 # A search's pattern is skipped only where it is the tool's own positional one: where an option
 # gave the pattern, the words after it are paths (review round 3: a matrix, not examples).
-GIVEN_PATTERN = {"sed -i": ["-es/a/b/", "--expression=s/a/b/", "-e s/a/b/", "--file=x.sed",
-                            "-fx.sed", "-f x.sed"],
-                 "grep": ["--regexp=x", "-ex", "-e x", "-f x.txt", "--file=x.txt"],
-                 "rg": ["--regexp=x", "-ex", "-e x", "--files"],
-                 "perl -pi": ["-es/a/b/", "-e s/a/b/"],
-                 "Select-String -Pattern x": [""], "sls -Pattern:x": [""],
-                 # (review round 4: an option not known before it - a long one cut short, a
-                 # cluster with a letter that takes a value, one whose value is a path)
-                 "grep ": ["-iex", "-rnex", "-rfpats.txt", "--regex=x", "--reg=x", "--fi=pats",
-                           "--foo x", "-A3 x"],
-                 "sed ": ["-i --expr=s/a/b/", "-i --fil=x.sed", "-i -nes/a/b/", "-nes/a/b/p"],
-                 "rg ": ["-iex", "--ignore-file", "--pre", "--pre-glob '*' x", "--foo x"],
-                 "sls ": ["-Pa x", "-Patt x", "-Foo x"]}
+GIVEN_PATTERN = {
+    "sed -i": [
+        "-es/a/b/",
+        "--expression=s/a/b/",
+        "-e s/a/b/",
+        "--file=x.sed",
+        "-fx.sed",
+        "-f x.sed",
+    ],
+    "grep": ["--regexp=x", "-ex", "-e x", "-f x.txt", "--file=x.txt"],
+    "rg": ["--regexp=x", "-ex", "-e x", "--files"],
+    "perl -pi": ["-es/a/b/", "-e s/a/b/"],
+    "Select-String -Pattern x": [""],
+    "sls -Pattern:x": [""],
+    # (review round 4: an option not known before it - a long one cut short, a
+    # cluster with a letter that takes a value, one whose value is a path)
+    "grep ": [
+        "-iex",
+        "-rnex",
+        "-rfpats.txt",
+        "--regex=x",
+        "--reg=x",
+        "--fi=pats",
+        "--foo x",
+        "-A3 x",
+    ],
+    "sed ": ["-i --expr=s/a/b/", "-i --fil=x.sed", "-i -nes/a/b/", "-nes/a/b/p"],
+    "rg ": ["-iex", "--ignore-file", "--pre", "--pre-glob '*' x", "--foo x"],
+    "sls ": ["-Pa x", "-Patt x", "-Foo x"],
+}
 
 
 @pytest.mark.parametrize("wrapper", ["{c}", 'cmd /c "{c}"', "env X=1 {c}"])
-@pytest.mark.parametrize("command", [
-    f"{tool} {given} ../../b/tree/x".replace("  ", " ")
-    for tool, givens in GIVEN_PATTERN.items() for given in givens] + [
-    "Select-String -Path ../../b/tree/secret.txt -Pattern .", "sls -LiteralPath ../../b/tree/s",
-    "sls -Path ../../y x", "Select-String -Path:../../b/y -Pattern x",
-    "grep -f ../../b/patterns.txt src"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"{tool} {given} ../../b/tree/x".replace("  ", " ")
+        for tool, givens in GIVEN_PATTERN.items()
+        for given in givens
+    ]
+    + [
+        "Select-String -Path ../../b/tree/secret.txt -Pattern .",
+        "sls -LiteralPath ../../b/tree/s",
+        "sls -Path ../../y x",
+        "Select-String -Path:../../b/y -Pattern x",
+        "grep -f ../../b/patterns.txt src",
+    ],
+)
 def test_a_path_after_a_pattern_an_option_gave_is_a_path(tmp_path, command, wrapper):
     command = wrapper.replace("{c}", command)
     assert asked_in_copy(tmp_path, command).startswith("it names .."), command
@@ -925,20 +1326,27 @@ def test_before_its_copy_is_made_every_copy_is_anothers(tmp_path):
 
 def spellings(path):
     """A full path as a command may write it, doubled and dotted separators and all."""
-    forms = [re.sub(r"[\\/]", lambda one: one[0] * 2, path),  # (`C:\\Users\\...`)
-             re.sub(r"(?<=.)[\\/]", lambda one: f"{one[0]}.{one[0]}", path),  # (`C:\.\Users`)
-             path.replace(os.sep, os.sep * 2, 1)]  # (one doubled anywhere)
+    forms = [
+        re.sub(r"[\\/]", lambda one: one[0] * 2, path),  # (`C:\\Users\\...`)
+        re.sub(r"(?<=.)[\\/]", lambda one: f"{one[0]}.{one[0]}", path),  # (`C:\.\Users`)
+        path.replace(os.sep, os.sep * 2, 1),
+    ]  # (one doubled anywhere)
     if sys.platform == "win32":
         head, _sep, tail = path.rpartition("\\")
-        forms += [path.replace("\\", "//"), f"/{path[0]}{path[2:]}".replace("\\", "//"),
-                  f"{head}.\\{tail}"]  # (`proj.\x`: Windows drops a name's last dots)
+        forms += [
+            path.replace("\\", "//"),
+            f"/{path[0]}{path[2:]}".replace("\\", "//"),
+            f"{head}.\\{tail}",
+        ]  # (`proj.\x`: Windows drops a name's last dots)
     return forms
 
 
 def test_a_full_path_with_doubled_or_dotted_separators_is_still_seen(tmp_path):
     project, runtime, own, held, worktree = places(tmp_path)  # noqa: F811
-    for path, said in [(str(project / "x"), NAMES_PROJECT.format(root=str(project))),
-                       (str(held / "b" / "tree" / "x"), OUT_OF_COPY.format(path=str(held)))]:
+    for path, said in [
+        (str(project / "x"), NAMES_PROJECT.format(root=str(project))),
+        (str(held / "b" / "tree" / "x"), OUT_OF_COPY.format(path=str(held))),
+    ]:
         for spelt in spellings(path):
             for command in (f"cp y {spelt}", f"python -c \"open('{spelt}','w')\""):
                 assert asked_in_copy(tmp_path, command) == said, command
@@ -955,8 +1363,11 @@ def test_a_copies_folder_by_the_users_environment_is_still_seen(tmp_path, monkey
     spelt = [f"$HOME/{rest}", f"${{HOME}}/{rest}", f"~/{rest}"]
     if sys.platform == "win32":
         local = users.relative_to(tmp_path / "user-data")
-        spelt += [f"%LOCALAPPDATA%\\{local}", f"$env:LOCALAPPDATA/{local.as_posix()}",
-                  f"%USERPROFILE%\\{users.relative_to(tmp_path)}"]
+        spelt += [
+            f"%LOCALAPPDATA%\\{local}",
+            f"$env:LOCALAPPDATA/{local.as_posix()}",
+            f"%USERPROFILE%\\{users.relative_to(tmp_path)}",
+        ]
     for one in spelt:
         command = f"cp y {one}/b/tree/x"
         said = copy_reason(command, False, str(project), runtime, own)
@@ -990,10 +1401,17 @@ def test_windows_spellings_of_a_path_still_name_it(tmp_path, monkeypatch):
     monkeypatch.setenv("HOMEDRIVE", drive)
     monkeypatch.setenv("HOMEPATH", str(tmp_path)[2:])
     monkeypatch.setenv("SystemDrive", drive)
-    for spelt in [f"{project}.", f"{project}..", "%HOMEDRIVE%%HOMEPATH%\\proj\\x",
-                  f"%SystemDrive%{rest}\\x", f"$env:SystemDrive{rest}\\x",
-                  f"$env:HOMEDRIVE{rest}\\x", f"\\\\localhost\\{drive[0]}$\\{rest[1:]}\\x",
-                  f"\\\\127.0.0.1\\{drive[0]}$\\{rest[1:]}\\x", f"\\\\?\\{project}\\x"]:
+    for spelt in [
+        f"{project}.",
+        f"{project}..",
+        "%HOMEDRIVE%%HOMEPATH%\\proj\\x",
+        f"%SystemDrive%{rest}\\x",
+        f"$env:SystemDrive{rest}\\x",
+        f"$env:HOMEDRIVE{rest}\\x",
+        f"\\\\localhost\\{drive[0]}$\\{rest[1:]}\\x",
+        f"\\\\127.0.0.1\\{drive[0]}$\\{rest[1:]}\\x",
+        f"\\\\?\\{project}\\x",
+    ]:
         assert copy_reason(f"Copy-Item x {spelt}", False, str(project), runtime) == said, spelt
     # (a name's last dots before `;` or `,`; this machine by its name, any 127.x, `[::1]` or
     # `\\?\UNC\`; a folder of the machine's by any variable that holds one path, then up)
@@ -1001,18 +1419,28 @@ def test_windows_spellings_of_a_path_still_name_it(tmp_path, monkeypatch):
     monkeypatch.setenv("windir", f"{drive}\\WINDOWS")
     monkeypatch.setenv("ProgramData", f"{drive}\\ProgramData")
     share = f"{drive[0]}$\\{rest[1:]}\\x"
-    for spelt in [f"{project}.; ls", f"{project}., y", f"\\\\{os.environ['COMPUTERNAME']}\\{share}",
-                  f"\\\\$env:COMPUTERNAME\\{share}", f"\\\\%COMPUTERNAME%\\{share}",
-                  f"\\\\127.0.0.2\\{share}", f"\\\\[::1]\\{share}",
-                  f"\\\\?\\UNC\\localhost\\{share}", f"%SYSTEMROOT%\\..{rest}\\x",
-                  f"$env:windir\\..{rest}\\x", f"$env:ProgramData\\..{rest}\\x"]:
+    for spelt in [
+        f"{project}.; ls",
+        f"{project}., y",
+        f"\\\\{os.environ['COMPUTERNAME']}\\{share}",
+        f"\\\\$env:COMPUTERNAME\\{share}",
+        f"\\\\%COMPUTERNAME%\\{share}",
+        f"\\\\127.0.0.2\\{share}",
+        f"\\\\[::1]\\{share}",
+        f"\\\\?\\UNC\\localhost\\{share}",
+        f"%SYSTEMROOT%\\..{rest}\\x",
+        f"$env:windir\\..{rest}\\x",
+        f"$env:ProgramData\\..{rest}\\x",
+    ]:
         assert copy_reason(f"Copy-Item x {spelt}", False, str(project), runtime) == said, spelt
-    assert copy_reason(f"Copy-Item x {held}\\b\\tree.", False, str(project), runtime,
-                       held / "a" / "tree") == OUT_OF_COPY.format(path=str(held))
+    assert copy_reason(
+        f"Copy-Item x {held}\\b\\tree.", False, str(project), runtime, held / "a" / "tree"
+    ) == OUT_OF_COPY.format(path=str(held))
 
 
-def test_a_variable_that_holds_one_folder_is_read_as_it_but_the_shells_own_place(tmp_path,
-                                                                                monkeypatch):
+def test_a_variable_that_holds_one_folder_is_read_as_it_but_the_shells_own_place(
+    tmp_path, monkeypatch
+):
     project, records = tmp_path / "proj", tmp_path / "rt"
     said = NAMES_PROJECT.format(root=str(project))
     monkeypatch.setenv("KOLONI_TEST_DIR", str(tmp_path / "other"))
@@ -1024,55 +1452,148 @@ def test_a_variable_that_holds_one_folder_is_read_as_it_but_the_shells_own_place
     assert copy_reason("cp x $KOLONI_TEST_DIR/../proj/y", False, str(project), records) == ""
 
 
-@pytest.mark.parametrize("command", [
-    'cmd /c "npm i x"', 'powershell -c "pip install x"', "npm --prefix web install x",
-    "pnpm --filter web add x", "pnpm -C web i", "yarn --cwd web add x", "yarn", "npm update",
-    "npm up x", "npm rebuild", "npm dedupe", "npm prune", "npm link ../lib", "yarn up x",
-    "yarn upgrade", "pnpm update", "poetry update", "pip3.12 install x", "py -m pip install x",
-    "python -I -m pip install x", "python3 -m pip uninstall x", "pipenv install x",
-    # (npm 11's own aliases, `lib/utils/cmd-list.js`; options before the verb, as `_after_options`)
-    "npm rm x", "npm r x", "npm un x", "npm unlink x", "npm in x", "npm ins x", "npm inst x",
-    "npm insta x", "npm instal x", "npm isnt x", "npm it", "npm upgrade", "npm udpate", "npm rb",
-    "npm ddp", "npm ln ../x", "npm sit", "npm -g i x", "python -X utf8 -m pip install x",
-    "uv pip install x", "uv --quiet add x",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        'cmd /c "npm i x"',
+        'powershell -c "pip install x"',
+        "npm --prefix web install x",
+        "pnpm --filter web add x",
+        "pnpm -C web i",
+        "yarn --cwd web add x",
+        "yarn",
+        "npm update",
+        "npm up x",
+        "npm rebuild",
+        "npm dedupe",
+        "npm prune",
+        "npm link ../lib",
+        "yarn up x",
+        "yarn upgrade",
+        "pnpm update",
+        "poetry update",
+        "pip3.12 install x",
+        "py -m pip install x",
+        "python -I -m pip install x",
+        "python3 -m pip uninstall x",
+        "pipenv install x",
+        # (npm 11's own aliases, `lib/utils/cmd-list.js`; options before the verb, as `_after_options`)
+        "npm rm x",
+        "npm r x",
+        "npm un x",
+        "npm unlink x",
+        "npm in x",
+        "npm ins x",
+        "npm inst x",
+        "npm insta x",
+        "npm instal x",
+        "npm isnt x",
+        "npm it",
+        "npm upgrade",
+        "npm udpate",
+        "npm rb",
+        "npm ddp",
+        "npm ln ../x",
+        "npm sit",
+        "npm -g i x",
+        "python -X utf8 -m pip install x",
+        "uv pip install x",
+        "uv --quiet add x",
+    ],
+)
 def test_an_install_however_it_is_written_is_one(command):
     assert installs(command), command
 
 
-@pytest.mark.parametrize("command", [
-    "npm run build", "npm test", "yarn test", "yarn --version", "pip list", "pip --version",
-    "npx create-vite x", "python -m pytest", "py -m venv env", "npm run install-x",
-    # (only the verb counts: a script's name, a word after it, is none)
-    "uv run pytest -k sync", "npm run install", "pnpm run add", "pip show install",
-    "uv pip list", "uv pip show x", "uv pip freeze", "uv pip compile r.in",
-    # (k-okuyucu-3: a bare runner runs the project's own bin, as before)
-    "npx eslint src", "npx tsc --noEmit", "npm exec eslint", "pnpm exec vitest", "yarn exec x",
-    "uv run pytest", "npx tsc -p tsconfig.json", "npx -- cowsay -p x", "uv run pytest -W error",
-    "uv run ruff check -w", "npm exec eslint -- -p x", "npx vitest run -p 2",
-    "npx --no-install tsc -p x", "npx -y tsc -p tsconfig.json", "npm exec -- cowsay --package=x",
-    "npm init", "npm init -y", "go run ./cmd/x", "go run main.go -email a@b.com", "deno run main.ts",
-    "npm exec tsc -p tsconfig.json",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "npm run build",
+        "npm test",
+        "yarn test",
+        "yarn --version",
+        "pip list",
+        "pip --version",
+        "npx create-vite x",
+        "python -m pytest",
+        "py -m venv env",
+        "npm run install-x",
+        # (only the verb counts: a script's name, a word after it, is none)
+        "uv run pytest -k sync",
+        "npm run install",
+        "pnpm run add",
+        "pip show install",
+        "uv pip list",
+        "uv pip show x",
+        "uv pip freeze",
+        "uv pip compile r.in",
+        # (k-okuyucu-3: a bare runner runs the project's own bin, as before)
+        "npx eslint src",
+        "npx tsc --noEmit",
+        "npm exec eslint",
+        "pnpm exec vitest",
+        "yarn exec x",
+        "uv run pytest",
+        "npx tsc -p tsconfig.json",
+        "npx -- cowsay -p x",
+        "uv run pytest -W error",
+        "uv run ruff check -w",
+        "npm exec eslint -- -p x",
+        "npx vitest run -p 2",
+        "npx --no-install tsc -p x",
+        "npx -y tsc -p tsconfig.json",
+        "npm exec -- cowsay --package=x",
+        "npm init",
+        "npm init -y",
+        "go run ./cmd/x",
+        "go run main.go -email a@b.com",
+        "deno run main.ts",
+        "npm exec tsc -p tsconfig.json",
+    ],
+)
 def test_what_installs_nothing_is_none(command):
     assert installs(command) == "", command
 
 
-@pytest.mark.parametrize("command", [
-    "npx -p cowsay cowsay hi", "npx --package=cowsay cowsay", "npm exec --package cowsay cowsay",
-    "npm x --package=cowsay cowsay", "uv run --with requests python x.py", "uvx ruff check",
-    "uv tool run ruff check", "pipx run black .", "bunx cowsay", "bun x cowsay", "pnpx cowsay",
-    "pnpm dlx create-vite", "yarn dlx cowsay", 'cmd /c "uvx ruff check"',
-    "python -m uv run --with x pytest", "uv run -w requests python x.py", "uv run -wx pytest",
-    "npx --yes -p cowsay cowsay", "npm --prefix web exec --package x y",
-    "uv --directory x run --python 3.12 --with y pytest",
-    # (N3: npm exec reads --package anywhere before `--`; N4: create-x, npm: / jsr:, a module's
-    # version, corepack's manager)
-    "npm exec cowsay --package=evil", "npm x tsc --package=evil", "npm create vite",
-    "npm init vite", "npm init @scope/x", "yarn create vite", "pnpm create vite", "bun create vite",
-    "deno run npm:cowsay", "deno run -A jsr:@std/http/file-server",
-    "go run golang.org/x/tools/cmd/stringer@latest", "corepack pnpm dlx cowsay",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "npx -p cowsay cowsay hi",
+        "npx --package=cowsay cowsay",
+        "npm exec --package cowsay cowsay",
+        "npm x --package=cowsay cowsay",
+        "uv run --with requests python x.py",
+        "uvx ruff check",
+        "uv tool run ruff check",
+        "pipx run black .",
+        "bunx cowsay",
+        "bun x cowsay",
+        "pnpx cowsay",
+        "pnpm dlx create-vite",
+        "yarn dlx cowsay",
+        'cmd /c "uvx ruff check"',
+        "python -m uv run --with x pytest",
+        "uv run -w requests python x.py",
+        "uv run -wx pytest",
+        "npx --yes -p cowsay cowsay",
+        "npm --prefix web exec --package x y",
+        "uv --directory x run --python 3.12 --with y pytest",
+        # (N3: npm exec reads --package anywhere before `--`; N4: create-x, npm: / jsr:, a module's
+        # version, corepack's manager)
+        "npm exec cowsay --package=evil",
+        "npm x tsc --package=evil",
+        "npm create vite",
+        "npm init vite",
+        "npm init @scope/x",
+        "yarn create vite",
+        "pnpm create vite",
+        "bun create vite",
+        "deno run npm:cowsay",
+        "deno run -A jsr:@std/http/file-server",
+        "go run golang.org/x/tools/cmd/stringer@latest",
+        "corepack pnpm dlx cowsay",
+    ],
+)
 def test_a_runner_that_downloads_a_package_to_run_it_is_an_install(command):
     """K-okuyucu-3: a card in a copy with links, asked with web off - what runs is the internet's."""
     assert installs(command).startswith("It downloads a package and runs it"), command
@@ -1083,18 +1604,40 @@ def test_a_runner_that_downloads_a_package_to_run_it_is_an_install(command):
 # (it may not be: `pip install x # --dry-run`); with web off every such line is asked - a
 # package manager's install word anywhere in it too, carve-out or not.
 RUNS_AN_INSTALL = [
-    "uv run pip install x", "uv run -- npm ci", "uv run python -m pip install x", "uv run uv sync",
-    "uv run --with x pip install y", "poetry run pip install x", "pipenv run pip install x",
-    "pdm run pip install x", "hatch run pip install x", "conda run -n e pip install x",
-    "npm exec --yes -- npm ci", "npm exec -c \"npm ci\"", "npm exec --call \"npm ci\"",
-    "npx -c \"npm ci\"", "npm x -- npm ci", "pip install --dry-run x", "pip install x --dry-run",
-    "pip install x # --dry-run", "pip install \"--dry-run\" x", "npm i x --dry-run",
-    "npm –g ci", "pip –q install x", "uv ––project x sync",
+    "uv run pip install x",
+    "uv run -- npm ci",
+    "uv run python -m pip install x",
+    "uv run uv sync",
+    "uv run --with x pip install y",
+    "poetry run pip install x",
+    "pipenv run pip install x",
+    "pdm run pip install x",
+    "hatch run pip install x",
+    "conda run -n e pip install x",
+    "npm exec --yes -- npm ci",
+    'npm exec -c "npm ci"',
+    'npm exec --call "npm ci"',
+    'npx -c "npm ci"',
+    "npm x -- npm ci",
+    "pip install --dry-run x",
+    "pip install x --dry-run",
+    "pip install x # --dry-run",
+    'pip install "--dry-run" x',
+    "npm i x --dry-run",
+    "npm –g ci",
+    "pip –q install x",
+    "uv ––project x sync",
     # (review round 5: a line glued to its option; a tool's runner)
-    'npm exec --call="npm ci"', 'npm exec -c="npm ci"', "npm exec --call='npm install x'",
-    "pipx run pip install x", "uv tool run pip install x",
+    'npm exec --call="npm ci"',
+    'npm exec -c="npm ci"',
+    "npm exec --call='npm install x'",
+    "pipx run pip install x",
+    "uv tool run pip install x",
     # (k-okuyucu: npx's own option handing it a line, as npm exec's)
-    'npx --call="npm ci"', "npx --call='npm install x'", 'npx -c="npm ci"']
+    'npx --call="npm ci"',
+    "npx --call='npm install x'",
+    'npx -c="npm ci"',
+]
 
 
 @pytest.mark.parametrize("wrapper", ["{c}", "cmd /c {c}", "env X=1 {c}"])
@@ -1105,50 +1648,105 @@ def test_what_a_runner_hands_on_installs_and_reaches_the_web(command, wrapper):
     assert web_off_reason(command, ["http_request"]), command
 
 
-@pytest.mark.parametrize("command", [
-    "uv pip compile r.in", "npm run install", "pip show install", "uv pip list",
-    "uv run pytest -k sync"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "uv pip compile r.in",
+        "npm run install",
+        "pip show install",
+        "uv pip list",
+        "uv run pytest -k sync",
+    ],
+)
 def test_with_web_off_a_package_managers_install_word_anywhere_is_asked(command):
     assert web_off_reason(command, ["http_request"]), command
 
 
 # An option before the verb that is not known may take a value or not: either word after it may
 # be the verb, and the line counts if either reading finds one (review round 3: a matrix).
-OPTIONS_BEFORE = {"npm": ["--include dev", "--install-strategy hoisted", "--omit dev", "-p",
-                          "--loglevel warn", "--some-new value", "--some-new"],
-                  "pip": ["--proxy http://x", "--cache-dir x", "--log x", "--timeout 5",
-                          "--exists-action w", "--some-new value"],
-                  "uv": ["--color never", "--cache-dir x", "-q", "--some-new value"]}
+OPTIONS_BEFORE = {
+    "npm": [
+        "--include dev",
+        "--install-strategy hoisted",
+        "--omit dev",
+        "-p",
+        "--loglevel warn",
+        "--some-new value",
+        "--some-new",
+    ],
+    "pip": [
+        "--proxy http://x",
+        "--cache-dir x",
+        "--log x",
+        "--timeout 5",
+        "--exists-action w",
+        "--some-new value",
+    ],
+    "uv": ["--color never", "--cache-dir x", "-q", "--some-new value"],
+}
 VERBS_AFTER = {"npm": ["install", "ci", "i x"], "pip": ["install y"], "uv": ["sync", "add x"]}
 
 
-@pytest.mark.parametrize("wrapper", ["{c}", 'cmd /c "{c}"', "env X=1 {c}", "npm exec -- {c}",
-                                     "npx {c}"])
-@pytest.mark.parametrize("command", [
-    f"{program} {option} {verb}" for program, options in OPTIONS_BEFORE.items()
-    for option in options for verb in VERBS_AFTER[program]])
+@pytest.mark.parametrize(
+    "wrapper", ["{c}", 'cmd /c "{c}"', "env X=1 {c}", "npm exec -- {c}", "npx {c}"]
+)
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"{program} {option} {verb}"
+        for program, options in OPTIONS_BEFORE.items()
+        for option in options
+        for verb in VERBS_AFTER[program]
+    ],
+)
 def test_an_install_past_options_not_known_is_one(command, wrapper):
     assert installs(wrapper.replace("{c}", command)), command
 
 
-@pytest.mark.parametrize("command", ["npm --omit dev ci", "npm --install-strategy hoisted ci",
-                                     "npm -p ci", "uv --color never sync", "uv --cache-dir x sync",
-                                     "uv --some-new value venv"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "npm --omit dev ci",
+        "npm --install-strategy hoisted ci",
+        "npm -p ci",
+        "uv --color never sync",
+        "uv --cache-dir x sync",
+        "uv --some-new value venv",
+    ],
+)
 def test_a_rebuild_past_options_not_known_is_one(command):
     assert "rebuild" in copy_reason(command, True, "/work/proj", "/work/rt"), command
 
 
-@pytest.mark.parametrize("command", [
-    "python -m venv --clear .venv", "virtualenv .venv", "py -m venv --clear venv",
-    # (argparse takes a prefix of --clear; any venv made at a linked folder rewrites it)
-    "python -m venv --clea .venv", "python -m venv --cl .venv", "python -m venv .venv",
-    "python -m venv --upgrade .venv", "python -m venv --upgrade-deps venv",
-    "python -m virtualenv .venv", "python -X utf8 -m venv --clear .venv",
-    # (npm's own names for ci, and options before a verb)
-    "npm clean-install", "npm ic", "npm install-clean", "npm cit", "npm install-ci-test",
-    "npm sit", "uv -q venv", "uv --quiet venv", "npm -s ci", "npm --prefix . ci",
-    "uv --quiet sync", "env X=1 uv sync",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python -m venv --clear .venv",
+        "virtualenv .venv",
+        "py -m venv --clear venv",
+        # (argparse takes a prefix of --clear; any venv made at a linked folder rewrites it)
+        "python -m venv --clea .venv",
+        "python -m venv --cl .venv",
+        "python -m venv .venv",
+        "python -m venv --upgrade .venv",
+        "python -m venv --upgrade-deps venv",
+        "python -m virtualenv .venv",
+        "python -X utf8 -m venv --clear .venv",
+        # (npm's own names for ci, and options before a verb)
+        "npm clean-install",
+        "npm ic",
+        "npm install-clean",
+        "npm cit",
+        "npm install-ci-test",
+        "npm sit",
+        "uv -q venv",
+        "uv --quiet venv",
+        "npm -s ci",
+        "npm --prefix . ci",
+        "uv --quiet sync",
+        "env X=1 uv sync",
+    ],
+)
 def test_in_a_copy_with_links_making_a_venv_anew_is_asked(command):
     assert "rebuild" in copy_reason(command, True, "/work/proj", "/work/rt"), command
 
@@ -1157,20 +1755,39 @@ def test_a_venv_made_elsewhere_in_a_copy_is_no_rebuild_of_a_linked_one():
     assert copy_reason("python -m venv build/env", True, "/work/proj", "/work/rt") == ""
 
 
-@pytest.mark.parametrize("command", [
-    "echo x > node_modules/a.js", "echo x >> .venv/pyvenv.cfg", "echo x >node_modules/a.js",
-    "pytest 2> .venv/log.txt", r"echo x > .\node_modules\a.js", "echo x > ./venv/x",
-    "sed -i s/a/b/ node_modules/x/index.js", "sed -i.bak s/a/b/ .venv/x.py",
-    "cp a.js node_modules/x/", "mv a .venv/lib/x", "Copy-Item a.js node_modules/x",
-    "Move-Item a VENV/x", "Set-Content node_modules/x.js hi", "Add-Content .venv/x hi",
-    '"hi" | Out-File node_modules/x', "echo x | tee node_modules/x",
-    'cmd /c "echo x > node_modules/a.js"', "Set-Content -Path:node_modules/x.js hi",
-    # (glued on both sides; a copy's target by its option; a path that leads there)
-    "echo x>node_modules/a.js", r"Copy-Item -Destination node_modules\x a.js",
-    r"Copy-Item a.js -Destination:node_modules\x", "cp -t node_modules/x a.js",
-    "cp --target-directory=node_modules/x a.js", "echo x > src/../node_modules/a.js",
-    "cp -rt node_modules/x a.js", "mv -ft node_modules/x a.js", "cp -tnode_modules/x a.js",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo x > node_modules/a.js",
+        "echo x >> .venv/pyvenv.cfg",
+        "echo x >node_modules/a.js",
+        "pytest 2> .venv/log.txt",
+        r"echo x > .\node_modules\a.js",
+        "echo x > ./venv/x",
+        "sed -i s/a/b/ node_modules/x/index.js",
+        "sed -i.bak s/a/b/ .venv/x.py",
+        "cp a.js node_modules/x/",
+        "mv a .venv/lib/x",
+        "Copy-Item a.js node_modules/x",
+        "Move-Item a VENV/x",
+        "Set-Content node_modules/x.js hi",
+        "Add-Content .venv/x hi",
+        '"hi" | Out-File node_modules/x',
+        "echo x | tee node_modules/x",
+        'cmd /c "echo x > node_modules/a.js"',
+        "Set-Content -Path:node_modules/x.js hi",
+        # (glued on both sides; a copy's target by its option; a path that leads there)
+        "echo x>node_modules/a.js",
+        r"Copy-Item -Destination node_modules\x a.js",
+        r"Copy-Item a.js -Destination:node_modules\x",
+        "cp -t node_modules/x a.js",
+        "cp --target-directory=node_modules/x a.js",
+        "echo x > src/../node_modules/a.js",
+        "cp -rt node_modules/x a.js",
+        "mv -ft node_modules/x a.js",
+        "cp -tnode_modules/x a.js",
+    ],
+)
 def test_in_a_copy_with_links_a_write_in_them_is_asked(command):
     assert copy_reason(command, True, "/work/proj", "/work/rt") == WRITES_THROUGH_LINKS, command
     assert copy_reason(command, False, "/work/proj", "/work/rt") == "", command
@@ -1178,8 +1795,11 @@ def test_in_a_copy_with_links_a_write_in_them_is_asked(command):
 
 def test_in_a_copy_with_links_a_write_in_them_by_its_own_full_path_is_asked(tmp_path):
     project, runtime, own, _held, _worktree = places(tmp_path)  # noqa: F811
-    for command in [f"echo x > {own}/node_modules/a.js", f"cp a.js {own}/node_modules/x/",
-                    f"Set-Content {own}/.venv/x hi"]:
+    for command in [
+        f"echo x > {own}/node_modules/a.js",
+        f"cp a.js {own}/node_modules/x/",
+        f"Set-Content {own}/.venv/x hi",
+    ]:
         said = copy_reason(command, True, str(project), runtime, own)
         assert said == WRITES_THROUGH_LINKS, command
 
@@ -1187,10 +1807,23 @@ def test_in_a_copy_with_links_a_write_in_them_by_its_own_full_path_is_asked(tmp_
 # A path is asked where it reads as written OR where it leads (review round 3): reading where it
 # leads may only add - `node_modules/..` is where a junction is left (Git Bash's `..` after one
 # is not measured).
-WRITES = ["echo x > {p}", "echo x >> {p}", "cp a.py {p}", "mv a.py {p}", "Set-Content {p} hi",
-          "tee {p}", "sed -i s/a/b/ {p}", "Copy-Item a.py -Destination:{p}"]
-THROUGH_LINKS = ["node_modules/../src/a.py", ".venv/../app/x.py", "venv/../src/",
-                 "node_modules/x/../../src/a.py", "node_modules/../.git/hooks/pre-commit"]
+WRITES = [
+    "echo x > {p}",
+    "echo x >> {p}",
+    "cp a.py {p}",
+    "mv a.py {p}",
+    "Set-Content {p} hi",
+    "tee {p}",
+    "sed -i s/a/b/ {p}",
+    "Copy-Item a.py -Destination:{p}",
+]
+THROUGH_LINKS = [
+    "node_modules/../src/a.py",
+    ".venv/../app/x.py",
+    "venv/../src/",
+    "node_modules/x/../../src/a.py",
+    "node_modules/../.git/hooks/pre-commit",
+]
 
 
 @pytest.mark.parametrize("wrapper", ["{c}", 'cmd /c "{c}"', 'bash -c "{c}"', "env X=1 {c}"])
@@ -1208,8 +1841,15 @@ def test_a_full_path_through_another_folder_after_an_option_names_the_project(tm
     assert said == NAMES_PROJECT.format(root=str(project))
 
 
-@pytest.mark.parametrize("make", ["python -m venv --clear {v}", "virtualenv {v}",
-                                  "python -m virtualenv {v}", "python -m venv {v}"])
+@pytest.mark.parametrize(
+    "make",
+    [
+        "python -m venv --clear {v}",
+        "virtualenv {v}",
+        "python -m virtualenv {v}",
+        "python -m venv {v}",
+    ],
+)
 def test_a_venv_made_at_its_own_linked_folder_by_its_full_path_is_a_rebuild(tmp_path, make):
     project, runtime, own, _held, _worktree = places(tmp_path)  # noqa: F811
     for venv in (own / ".venv", own / "venv"):
@@ -1217,11 +1857,18 @@ def test_a_venv_made_at_its_own_linked_folder_by_its_full_path_is_a_rebuild(tmp_
         assert "rebuild" in said, venv
 
 
-@pytest.mark.parametrize("command", [
-    "cp node_modules/x/a.js src/", "cat node_modules/x/package.json", "echo x > build/out.txt",
-    "python .venv/Scripts/x.py", "Set-Content src/x.txt hi", "pytest 2>&1 | tee out.txt",
-    "echo node_modules > x.txt",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cp node_modules/x/a.js src/",
+        "cat node_modules/x/package.json",
+        "echo x > build/out.txt",
+        "python .venv/Scripts/x.py",
+        "Set-Content src/x.txt hi",
+        "pytest 2>&1 | tee out.txt",
+        "echo node_modules > x.txt",
+    ],
+)
 def test_in_a_copy_with_links_reading_them_or_writing_elsewhere_is_not(command):
     assert copy_reason(command, True, "/work/proj", "/work/rt") == "", command
 
@@ -1233,9 +1880,17 @@ def chat(make_client, folder, scripts, executor):
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(folder)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={
-        "permission_mode": "full_auto", "spawn_approval": "never", "lead_hands_code": False,
-    }).status_code == 200
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}",
+            json={
+                "permission_mode": "full_auto",
+                "spawn_approval": "never",
+                "lead_hands_code": False,
+            },
+        ).status_code
+        == 200
+    )
     posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()
     return client, cid, posted["run"]["id"]
 
@@ -1245,10 +1900,19 @@ def test_an_install_into_a_linked_copy_waits_at_full_auto_and_the_leads_own_runs
 ):
     (project_dir / "node_modules").mkdir()  # (linked into the copy: the project's own)
     executor = ScriptedExecutor([Script(["added 1 package\n"])])
-    client, cid, run_id = chat(make_client, project_dir, {
-        "Lead": [cmd("npm install left-pad", "k1"), spawn("Coder", "add left-pad"),
-                 text("done")],
-        "Coder": [cmd("npm install left-pad", "k2"), text("left it")]}, executor)
+    client, cid, run_id = chat(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                cmd("npm install left-pad", "k1"),
+                spawn("Coder", "add left-pad"),
+                text("done"),
+            ],
+            "Coder": [cmd("npm install left-pad", "k2"), text("left it")],
+        },
+        executor,
+    )
     snap = wait_status(client, cid, "waiting_approval")
     leads, coders = snap["commands"]
     assert leads["status"] == "exited" and coders["status"] == "proposed"
@@ -1259,21 +1923,36 @@ def test_an_install_into_a_linked_copy_waits_at_full_auto_and_the_leads_own_runs
 
 
 @pytest.mark.no_po
-@pytest.mark.parametrize("command, said", [
-    ("cp x ../../b/tree/y", OUT_OF_COPY.format(path="../../b/tree/y")),
-    # (a delete the user's words allow takes no install past its card)
-    ("rm notes.txt; npm install left-pad", installs("npm install left-pad")),
-])
+@pytest.mark.parametrize(
+    "command, said",
+    [
+        ("cp x ../../b/tree/y", OUT_OF_COPY.format(path="../../b/tree/y")),
+        # (a delete the user's words allow takes no install past its card)
+        ("rm notes.txt; npm install left-pad", installs("npm install left-pad")),
+    ],
+)
 def test_at_full_auto_a_sub_agents_command_out_of_its_copy_or_into_shared_folders_waits(
-    judging, wait_run, project_dir, command, said  # noqa: F811
+    judging,
+    wait_run,
+    project_dir,
+    command,
+    said,  # noqa: F811
 ):
     (project_dir / ".venv").mkdir()  # (linked into the copy: the project's own)
     client, _model, judge, executor = judging(
-        {"Lead": [spawn("Coder", "tidy up"), text("done")],
-         "Coder": [cmd(command, id="k1"), text("left it")]},
-        [verdict_line("run", RULE)], [])
-    _, cid, run_id = begin(client, project_dir, "tidy up",
-                           rules=f"{RULE} You may delete notes.txt and copy files anywhere.")
+        {
+            "Lead": [spawn("Coder", "tidy up"), text("done")],
+            "Coder": [cmd(command, id="k1"), text("left it")],
+        },
+        [verdict_line("run", RULE)],
+        [],
+    )
+    _, cid, run_id = begin(
+        client,
+        project_dir,
+        "tidy up",
+        rules=f"{RULE} You may delete notes.txt and copy files anywhere.",
+    )
     snap = wait_status(client, cid, "waiting_approval")
     (asked,) = snap["commands"]
     assert asked["status"] == "proposed" and why_asked(snap, asked) == said
@@ -1293,9 +1972,14 @@ def test_an_agent_in_a_copy_is_told_others_work_beside_it(
     (project_dir / ".venv").mkdir()
     if not linked:  # (as a CLI's copy without the project's dependency folders)
         monkeypatch.setattr(agent_module, "_links_in_copy", lambda model: False)
-    client, _model, cid, run_id = setup(make_client, project_dir, {
-        "Lead": [spawn("Coder", "write a"), text("done")],
-        "Coder": [step(write("a.txt", "A")), text("A done")]})
+    client, _model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [spawn("Coder", "write a"), text("done")],
+            "Coder": [step(write("a.txt", "A")), text("A done")],
+        },
+    )
     snap = wait_run(client, cid, run_id)
     ((_status, told),) = calls(snap, "Coder", "write_file")
     assert ALONGSIDE in told and "never kill programs by name" in told
@@ -1308,11 +1992,14 @@ def test_the_orchestrator_is_told_to_give_each_its_own_files_and_leave_koloni_br
 ):
     client, model, cid, run_id = setup(make_client, project_dir, {"Lead": [text("done")]})
     wait_run(client, cid, run_id)
-    (spawn_agent,) = [one["function"] for one in model.tool_args[0]
-                      if one["function"]["name"] == "spawn_agent"]
+    (spawn_agent,) = [
+        one["function"] for one in model.tool_args[0] if one["function"]["name"] == "spawn_agent"
+    ]
     assert OPENED_TOGETHER in spawn_agent["description"]
     assert spawn_agent["description"].index(OPENED_TOGETHER) < spawn_agent["description"].index(
-        "Available roles")
+        "Available roles"
+    )
     # (offered where the project is on a git branch: `_no_branch_here`)
     assert ON_BRANCH_PROPERTY["description"].endswith(
-        "never delete, rename or switch to them; KOLONİ removes them.")
+        "never delete, rename or switch to them; KOLONİ removes them."
+    )

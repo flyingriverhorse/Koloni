@@ -13,7 +13,10 @@ const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'bekleyen-shots')
 const B23 = path.join(os.tmpdir(), 'koloni-docs', 'b23-shots')
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`a question, a command and a copy to take in are answered from Ready for you (${theme})`, async ({ page, request }) => {
+  test(`a question, a command and a copy to take in are answered from Ready for you (${theme})`, async ({
+    page,
+    request,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -24,11 +27,18 @@ for (const theme of ['light', 'dark'] as const) {
       version: 1,
       steps: [{ id: 'build', name: 'Build it', who: { role: 'Coder' } }],
       ends: [{ id: 'end', then: 'in' }],
-      arrows: [{ from: 'start', to: 'build' }, { from: 'build', to: 'end' }],
+      arrows: [
+        { from: 'start', to: 'build' },
+        { from: 'build', to: 'end' },
+      ],
     }
     await request.post('/api/recipes', { headers: OWN, data: { name: RECIPE, graph } })
-    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === RECIPE)
-    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+      r => r.name === RECIPE,
+    )
+    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+      t => t.name === 'Web app',
+    )
     // (Ask before changes: the command is asked about.)
     await setProject(page, { spawn_approval: 'never' })
     const set = await request.patch(`/api/conversations/${id}`, {

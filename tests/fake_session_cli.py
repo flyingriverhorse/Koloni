@@ -61,17 +61,37 @@ if argv == ["--list-models"]:
 stdin = sys.stdin.buffer.read().decode("utf-8")
 cwd = Path.cwd()
 record = {
-    "argv": argv, "cwd": str(cwd), "stdin": stdin, "pid": os.getpid(), "results": [],
+    "argv": argv,
+    "cwd": str(cwd),
+    "stdin": stdin,
+    "pid": os.getpid(),
+    "results": [],
     "env_tool_wait": os.environ.get("MCP_TOOL_TIMEOUT"),
     "files": sorted(f.name for f in cwd.iterdir()),
     # Where it was pointed, whether with KOLONİ's stand-in token, and which keys it got.
-    "sign_in": {"base_url": os.environ.get("ANTHROPIC_BASE_URL"),
-                "placeholder": os.environ.get("ANTHROPIC_AUTH_TOKEN") == "koloni-local",
-                **{name: os.environ.get(name) for name in (
-                    "CLAUDE_CONFIG_DIR", "CODEX_HOME", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC")},
-                **{name: name in os.environ for name in (
-                    "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY",
-                    "CODEX_ACCESS_TOKEN", "CLAUDE_CODE_USE_BEDROCK")}},
+    "sign_in": {
+        "base_url": os.environ.get("ANTHROPIC_BASE_URL"),
+        "placeholder": os.environ.get("ANTHROPIC_AUTH_TOKEN") == "koloni-local",
+        **{
+            name: os.environ.get(name)
+            for name in (
+                "CLAUDE_CONFIG_DIR",
+                "CODEX_HOME",
+                "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+            )
+        },
+        **{
+            name: name in os.environ
+            for name in (
+                "ANTHROPIC_API_KEY",
+                "CLAUDE_CODE_OAUTH_TOKEN",
+                "OPENAI_API_KEY",
+                "CODEX_API_KEY",
+                "CODEX_ACCESS_TOKEN",
+                "CLAUDE_CODE_USE_BEDROCK",
+            )
+        },
+    },
 }
 
 
@@ -86,16 +106,20 @@ def emit(event: dict) -> None:
 config = json.loads(Path(argv[argv.index("--mcp-config") + 1]).read_text(encoding="utf-8"))
 spec = config["mcpServers"]["koloni"]
 env = {**os.environ, **spec.get("env", {}), **plan.get("bridge_env", {})}
-bridge = subprocess.Popen([spec["command"], *spec["args"]], stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, env=env)
+bridge = subprocess.Popen(
+    [spec["command"], *spec["args"]], stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=env
+)
 next_id = 0
 
 
 def rpc(method: str, params: dict) -> dict:
     global next_id
     next_id += 1
-    bridge.stdin.write((json.dumps(
-        {"jsonrpc": "2.0", "id": next_id, "method": method, "params": params}) + "\n").encode())
+    bridge.stdin.write(
+        (
+            json.dumps({"jsonrpc": "2.0", "id": next_id, "method": method, "params": params}) + "\n"
+        ).encode()
+    )
     bridge.stdin.flush()
     while True:
         line = bridge.stdout.readline()
@@ -118,18 +142,28 @@ except SystemExit as closed:
 record["tools"] = [tool["name"] for tool in listed]
 save()
 if not plan.get("no_init"):
-    emit({"type": "system", "subtype": "init", **(
-        {"model": plan["model"]} if "model" in plan else {}),
-          "tools": [f"mcp__koloni__{tool['name']}" for tool in listed] + plan.get("own_tools", [])})
+    emit(
+        {
+            "type": "system",
+            "subtype": "init",
+            **({"model": plan["model"]} if "model" in plan else {}),
+            "tools": [f"mcp__koloni__{tool['name']}" for tool in listed]
+            + plan.get("own_tools", []),
+        }
+    )
 
 
 def send(method: str, params: dict) -> int:
     global next_id
     next_id += 1
-    bridge.stdin.write((json.dumps(
-        {"jsonrpc": "2.0", "id": next_id, "method": method, "params": params}) + "\n").encode())
+    bridge.stdin.write(
+        (
+            json.dumps({"jsonrpc": "2.0", "id": next_id, "method": method, "params": params}) + "\n"
+        ).encode()
+    )
     bridge.stdin.flush()
     return next_id
+
 
 # Started again to answer another agent, it follows "answer_script" when there is one - and,
 # started again after its turn to read what came for it (a sub-agent's report), "later_script"
@@ -154,15 +188,34 @@ for number, action in enumerate(script):
     # with text and several calls as one event each, all under the message's id.
     message_id = action.get("message") or f"msg_{number}"
     if "say" in action:
-        emit({"type": "assistant",
-              "message": {"id": message_id, "content": [{"type": "text", "text": action["say"]}]}})
+        emit(
+            {
+                "type": "assistant",
+                "message": {"id": message_id, "content": [{"type": "text", "text": action["say"]}]},
+            }
+        )
     elif "call" in action:
         call_id = f"toolu_{number}"
-        emit({"type": "assistant", "message": {"id": message_id, "content": [{
-            "type": "tool_use", "id": call_id, "name": f"mcp__koloni__{action['call']}",
-            "input": action.get("args", {})}]}})
+        emit(
+            {
+                "type": "assistant",
+                "message": {
+                    "id": message_id,
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": call_id,
+                            "name": f"mcp__koloni__{action['call']}",
+                            "input": action.get("args", {}),
+                        }
+                    ],
+                },
+            }
+        )
         try:
-            answer = rpc("tools/call", {"name": action["call"], "arguments": action.get("args", {})})
+            answer = rpc(
+                "tools/call", {"name": action["call"], "arguments": action.get("args", {})}
+            )
         except SystemExit:
             record["cut_off"] = True
             save()
@@ -170,38 +223,98 @@ for number, action in enumerate(script):
         result = answer.get("result", answer)
         record["results"].append(result)
         save()
-        emit({"type": "user", "message": {"content": [{
-            "type": "tool_result", "tool_use_id": call_id,
-            "content": result.get("content"), "is_error": result.get("isError", False)}]}})
+        emit(
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": call_id,
+                            "content": result.get("content"),
+                            "is_error": result.get("isError", False),
+                        }
+                    ]
+                },
+            }
+        )
     elif "parallel" in action:
         # One model message with several tool calls, all in flight together.
         for index, item in enumerate(action["parallel"]):
-            emit({"type": "assistant", "message": {"id": message_id, "content": [{
-                "type": "tool_use", "id": f"toolu_{number}_{index}",
-                "name": f"mcp__koloni__{item['call']}", "input": item.get("args", {})}]}})
+            emit(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "id": message_id,
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": f"toolu_{number}_{index}",
+                                "name": f"mcp__koloni__{item['call']}",
+                                "input": item.get("args", {}),
+                            }
+                        ],
+                    },
+                }
+            )
         for item in action["parallel"]:
             send("tools/call", {"name": item["call"], "arguments": item.get("args", {})})
         for _ in action["parallel"]:
             record["results"].append(json.loads(bridge.stdout.readline()).get("result"))
         save()
     elif "call_then_die" in action:
-        emit({"type": "assistant", "message": {"id": message_id, "content": [{
-            "type": "tool_use", "id": f"toolu_{number}",
-            "name": f"mcp__koloni__{action['call_then_die']}", "input": action.get("args", {})}]}})
+        emit(
+            {
+                "type": "assistant",
+                "message": {
+                    "id": message_id,
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": f"toolu_{number}",
+                            "name": f"mcp__koloni__{action['call_then_die']}",
+                            "input": action.get("args", {}),
+                        }
+                    ],
+                },
+            }
+        )
         send("tools/call", {"name": action["call_then_die"], "arguments": action.get("args", {})})
         time.sleep(action.get("after", 1))
         sys.stderr.write("fatal: the CLI crashed\n")
         sys.exit(9)
     elif "send" in action:
-        emit({"type": "assistant", "message": {"id": message_id, "content": [{
-            "type": "tool_use", "id": f"toolu_{number}",
-            "name": f"mcp__koloni__{action['send']}", "input": action.get("args", {})}]}})
+        emit(
+            {
+                "type": "assistant",
+                "message": {
+                    "id": message_id,
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": f"toolu_{number}",
+                            "name": f"mcp__koloni__{action['send']}",
+                            "input": action.get("args", {}),
+                        }
+                    ],
+                },
+            }
+        )
         sent = send("tools/call", {"name": action["send"], "arguments": action.get("args", {})})
     elif action.get("cancel"):
         # As the MCP SDKs do on a tool's timeout: the answer is not waited for any more.
-        bridge.stdin.write((json.dumps({"jsonrpc": "2.0", "method": "notifications/cancelled",
-                                        "params": {"requestId": sent, "reason": "timed out"}})
-                            + "\n").encode())
+        bridge.stdin.write(
+            (
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "notifications/cancelled",
+                        "params": {"requestId": sent, "reason": "timed out"},
+                    }
+                )
+                + "\n"
+            ).encode()
+        )
         bridge.stdin.flush()
     elif action.get("hang"):
         time.sleep(120)
@@ -217,5 +330,7 @@ for number, action in enumerate(script):
         while not Path(action["wait_for"]).exists():
             time.sleep(0.02)
 
-usage = plan.get("usage", {"input_tokens": 300, "cache_read_input_tokens": 200, "output_tokens": 40})
+usage = plan.get(
+    "usage", {"input_tokens": 300, "cache_read_input_tokens": 200, "output_tokens": 40}
+)
 emit({"type": "result", "is_error": False, "result": "done", "usage": usage, "total_cost_usd": 1.0})

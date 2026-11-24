@@ -13,7 +13,9 @@ const SEARX = MODEL_URL
 async function searchAddress(request: APIRequestContext, url: string) {
   const projects: { id: string }[] = await (await request.get('/api/projects')).json()
   for (const project of projects) {
-    expect((await request.patch(`/api/projects/${project.id}`, { headers: OWN, data: { search_url: url } })).ok()).toBe(true)
+    expect((await request.patch(`/api/projects/${project.id}`, { headers: OWN, data: { search_url: url } })).ok()).toBe(
+      true,
+    )
   }
 }
 
@@ -21,7 +23,10 @@ test.afterEach(async ({ request }) => {
   await searchAddress(request, '')
 })
 
-test('a web search asks first, goes out once it is approved, and its row says which way answered', async ({ page, request }) => {
+test('a web search asks first, goes out once it is approved, and its row says which way answered', async ({
+  page,
+  request,
+}) => {
   await openFreshConversation(page)
   await searchAddress(request, SEARX)
   const chat = page.getByRole('region', { name: 'Chat' })
@@ -46,10 +51,12 @@ test('a web search asks first, goes out once it is approved, and its row says wh
   await expect(row.locator('.tool-row-detail')).not.toContainText('did not answer')
   // Opened, its detail is under its head, as wide (K-arac-satiri: once beside it, in a narrow column).
   // (Both read at one moment: measured one after the other, the chat scrolled in between on a CI runner.)
-  const [head, detail] = await row.evaluate(el => ['.tool-row-head', '.tool-row-detail'].map(part => {
-    const box = el.querySelector(part)!.getBoundingClientRect()
-    return { x: box.x, y: box.y, width: box.width, height: box.height }
-  }))
+  const [head, detail] = await row.evaluate(el =>
+    ['.tool-row-head', '.tool-row-detail'].map(part => {
+      const box = el.querySelector(part)!.getBoundingClientRect()
+      return { x: box.x, y: box.y, width: box.width, height: box.height }
+    }),
+  )
   expect(detail.y).toBeGreaterThanOrEqual(head.y + head.height - 1)
   expect(Math.abs(detail.x - head.x)).toBeLessThanOrEqual(1)
   expect(Math.abs(detail.width - head.width)).toBeLessThanOrEqual(2)
@@ -57,7 +64,10 @@ test('a web search asks first, goes out once it is approved, and its row says wh
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`in the ${theme} theme a search result that reads like orders is given to the agent and warned of, with a False alarm (93-A4)`, async ({ page, request }) => {
+  test(`in the ${theme} theme a search result that reads like orders is given to the agent and warned of, with a False alarm (93-A4)`, async ({
+    page,
+    request,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     await searchAddress(request, SEARX)
@@ -69,7 +79,9 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(chat.getByText('I took it as data.')).toBeVisible()
     const warned = chat.locator('.injection-warning')
     await expect(warned).toHaveCount(2)
-    await expect(warned.first()).toContainText('Text from a web search looks like it tries to give the agent orders (rule: ignore previous).')
+    await expect(warned.first()).toContainText(
+      'Text from a web search looks like it tries to give the agent orders (rule: ignore previous).',
+    )
     await expect(warned.nth(1)).toContainText('(rule: hide from user)')
     await expect(warned.first()).not.toContainText('Ignore all previous')
     expect((await chat.locator('.msg-group').last().evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
@@ -81,7 +93,9 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(warned.nth(1).getByRole('button', { name: 'False alarm' })).toBeEnabled()
   })
 
-  test(`in the ${theme} theme a Lead's calls in a row are one closed line that counts them, says what failed, and opens to the rows (K-ozet-satiri)`, async ({ page }) => {
+  test(`in the ${theme} theme a Lead's calls in a row are one closed line that counts them, says what failed, and opens to the rows (K-ozet-satiri)`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     const chat = page.getByRole('region', { name: 'Chat' })
@@ -90,7 +104,9 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(chat.getByText('Looked around.')).toBeVisible({ timeout: 15_000 })
 
     // Four steps of one call each: one line, closed, before the words.
-    const head = chat.getByRole('button', { name: 'Read 1 file, listed 1 folder, searched 1 time, 1 failed, 4 calls, done' })
+    const head = chat.getByRole('button', {
+      name: 'Read 1 file, listed 1 folder, searched 1 time, 1 failed, 4 calls, done',
+    })
     await expect(head).toHaveAttribute('aria-expanded', 'false')
     await expect(chat.locator('.tool-run')).toHaveCount(1)
     await expect(chat.locator('.tool-row')).toHaveCount(0)

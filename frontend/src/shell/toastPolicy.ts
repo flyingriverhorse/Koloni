@@ -35,7 +35,10 @@ export function admit<T extends Said>(policy: Policy<T>, note: T): [Policy<T>, T
   if (same) {
     if (!note.error) return [{ ...policy, shown }, null]
     const counted = { ...same, count: (same.count ?? 1) + 1 }
-    return [{ ...policy, shown: shown.map(one => (one === same ? counted : one)) }, { ...counted, at: note.at }]
+    return [
+      { ...policy, shown: shown.map(one => (one === same ? counted : one)) },
+      { ...counted, at: note.at },
+    ]
   }
   if (mine.length >= PER_SOURCE) {
     if (!note.error) return [{ ...policy, shown }, null]
@@ -59,7 +62,13 @@ export function settle<T extends Said>(policy: Policy<T>, at: number): [Policy<T
       next = next === null ? frees : Math.min(next, frees)
       continue
     }
-    const note = { ...last, key: `owed ${source} ${at}`, text: `${count} ${count === 1 ? 'error' : 'errors'} not shown · last: ${last.text}`, at, count: undefined }
+    const note = {
+      ...last,
+      key: `owed ${source} ${at}`,
+      text: `${count} ${count === 1 ? 'error' : 'errors'} not shown · last: ${last.text}`,
+      at,
+      count: undefined,
+    }
     notes.push(note)
     shown.push(note)
     delete owed[source]

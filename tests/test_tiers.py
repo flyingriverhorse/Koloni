@@ -16,8 +16,12 @@ from tests.test_trigger_scenarios import run_now, trigger
 
 
 def table(client, cid=None):
-    return {row["role"]: row for row in client.get(
-        "/api/roles/models", params={"conversation_id": cid} if cid else None).json()}
+    return {
+        row["role"]: row
+        for row in client.get(
+            "/api/roles/models", params={"conversation_id": cid} if cid else None
+        ).json()
+    }
 
 
 # --- a tier on a model ----------------------------------------------------------------------
@@ -26,10 +30,24 @@ def table(client, cid=None):
 def test_agents_read_a_models_tier_beside_it_and_a_model_without_one_reads_as_before():
     from app.team import describe, guide
 
-    listed = describe(guide([Provider(
-        id="fast", name="Fast", kind="openai_compat", for_agents=True, default_model="quick",
-        models=[{"name": "quick", "tier": "fast"}, {"name": "plain", "note": None},
-                {"name": "deep", "note": "slow", "tier": "balanced"}])]))
+    listed = describe(
+        guide(
+            [
+                Provider(
+                    id="fast",
+                    name="Fast",
+                    kind="openai_compat",
+                    for_agents=True,
+                    default_model="quick",
+                    models=[
+                        {"name": "quick", "tier": "fast"},
+                        {"name": "plain", "note": None},
+                        {"name": "deep", "note": "slow", "tier": "balanced"},
+                    ],
+                )
+            ]
+        )
+    )
     assert 'Models: "quick" (fast tier), "plain", "deep" (balanced tier; "slow").' in listed
 
 
@@ -37,14 +55,45 @@ def test_a_models_tier_stays_when_something_else_of_its_provider_is_saved(team):
     client, _default, _fast = team([text("x")])
     _local, fast = tiered(team, client)
     kept = client.patch(f"/api/providers/{fast}", json={"note": "Another note."}).json()
-    assert kept["models"] == [{"name": "quick", "note": None, "tier": "fast", "agents": True, "enabled": None, "off_why": None,
-                               "inputs": None, "context": None, "routing": None},
-                              {"name": "deep", "note": None, "tier": "balanced",
-                               "agents": True, "enabled": None, "off_why": None, "inputs": None, "context": None, "routing": None}]
+    assert kept["models"] == [
+        {
+            "name": "quick",
+            "note": None,
+            "tier": "fast",
+            "agents": True,
+            "enabled": None,
+            "off_why": None,
+            "inputs": None,
+            "context": None,
+            "routing": None,
+        },
+        {
+            "name": "deep",
+            "note": None,
+            "tier": "balanced",
+            "agents": True,
+            "enabled": None,
+            "off_why": None,
+            "inputs": None,
+            "context": None,
+            "routing": None,
+        },
+    ]
     # and a list sent without one takes it away again
     cleared = client.patch(f"/api/providers/{fast}", json={"models": [{"name": "quick"}]}).json()
-    assert cleared["models"] == [{"name": "quick", "note": None, "tier": None, "agents": True, "enabled": None, "off_why": None,
-                                  "inputs": None, "context": None, "routing": None}]
+    assert cleared["models"] == [
+        {
+            "name": "quick",
+            "note": None,
+            "tier": None,
+            "agents": True,
+            "enabled": None,
+            "off_why": None,
+            "inputs": None,
+            "context": None,
+            "routing": None,
+        }
+    ]
 
 
 # --- a role's tier --------------------------------------------------------------------------
@@ -52,7 +101,7 @@ def test_a_models_tier_stays_when_something_else_of_its_provider_is_saved(team):
 
 def test_the_table_says_when_a_roles_tier_has_no_model_and_what_decided_then(team):  # noqa: F811
     client, _default, _fast = team([text("x")])
-    client.headers["Origin"] = ORIGIN                 # no model has a tier here
+    client.headers["Origin"] = ORIGIN  # no model has a tier here
     role_tier(client, "Reviewer", "strongest")
     row = table(client)["Reviewer"]
     assert (row["provider_name"], row["source"], row["tier"]) == ("Local", "default", "strongest")
@@ -64,9 +113,13 @@ def test_a_tier_is_looked_for_only_among_what_may_be_picked_for_the_role(team): 
     local, _fast_id = tiered(team, client)
     role_tier(client, "Reviewer", "balanced")
     assert table(client)["Reviewer"]["source"] == "tier"
-    assert client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                        json={"pick_from": [local["id"]]}).status_code == 200
-    row = table(client)["Reviewer"]                   # Fast, which has the balanced one, is out
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Reviewer')}", json={"pick_from": [local["id"]]}
+        ).status_code
+        == 200
+    )
+    row = table(client)["Reviewer"]  # Fast, which has the balanced one, is out
     assert (row["provider_name"], row["source"]) == ("Local", "default")
 
 
@@ -88,12 +141,25 @@ def test_resetting_a_built_in_role_gives_it_the_tier_it_came_with(team):  # noqa
     client, _default, _fast = team([text("x")])
     client.headers["Origin"] = ORIGIN
     for name, kind in (("Debugger", "build"), ("Coder", "build"), ("Lead", "plan")):
-        assert client.patch(f"/api/roles/{role_id(client, name)}", json={
-            # (a kind is a category's key since 63b: one the role does not come with)
-            "tier": "fast", "tier_min": "balanced", "kind": "write"}).status_code == 200
+        assert (
+            client.patch(
+                f"/api/roles/{role_id(client, name)}",
+                json={
+                    # (a kind is a category's key since 63b: one the role does not come with)
+                    "tier": "fast",
+                    "tier_min": "balanced",
+                    "kind": "write",
+                },
+            ).status_code
+            == 200
+        )
         reset = client.post(f"/api/roles/{role_id(client, name)}/reset").json()
         assert (reset["tier"], reset["tier_min"], reset["tier_max"], reset["kind"]) == (
-            None, None, None, kind), name
+            None,
+            None,
+            None,
+            kind,
+        ), name
 
 
 def test_a_role_of_the_users_own_keeps_a_built_in_one_of_its_name_from_being_added(team):  # noqa: F811
@@ -103,7 +169,7 @@ def test_a_role_of_the_users_own_keeps_a_built_in_one_of_its_name_from_being_add
         session.delete(built_in)
         session.add(Role(name="debugger", description="mine", instructions="", tools=["search"]))
         session.commit()
-        seed_builtin_roles(session)                    # as at the next start
+        seed_builtin_roles(session)  # as at the next start
         named = session.scalars(select(Role).where(Role.name.ilike("debugger"))).all()
     assert [(role.name, role.builtin, role.tier) for role in named] == [("debugger", False, None)]
 
@@ -113,11 +179,26 @@ def test_a_role_of_the_users_own_keeps_a_built_in_one_of_its_name_from_being_add
 
 def test_a_tier_is_one_of_three_and_is_not_given_with_a_provider(team, wait_run, project_dir):  # noqa: F811
     # (Slice 81b: `tier` took `difficulty`'s place; a model named is the pick, and decides.)
-    client, default, fast = team([
-        step(call("spawn_agent", {"role": "Coder", "task": "t", "provider": "Fast",
-                                  "model": "quick", "tier": "strongest", "why": WHY}, "b")),
-        step(spawn("Coder", "impossible", WHY, id="c")),
-        text("done")])
+    client, default, fast = team(
+        [
+            step(
+                call(
+                    "spawn_agent",
+                    {
+                        "role": "Coder",
+                        "task": "t",
+                        "provider": "Fast",
+                        "model": "quick",
+                        "tier": "strongest",
+                        "why": WHY,
+                    },
+                    "b",
+                )
+            ),
+            step(spawn("Coder", "impossible", WHY, id="c")),
+            text("done"),
+        ]
+    )
     tiered(team, client)
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     snap = wait_run(client, cid, run_id)
@@ -130,8 +211,13 @@ def test_a_tier_is_one_of_three_and_is_not_given_with_a_provider(team, wait_run,
 def test_a_role_with_its_own_model_is_given_no_tier(team, wait_run, project_dir):  # noqa: F811
     client, default, fast = team([step(spawn("Coder", "strongest", WHY)), text("done")])
     _local, fast_id = tiered(team, client)
-    assert client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={
-        "provider_id": fast_id, "model_id": "deep"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Coder')}",
+            json={"provider_id": fast_id, "model_id": "deep"},
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     ((status, said),) = results(snap)
@@ -143,8 +229,13 @@ def test_a_tier_the_role_may_not_have_is_said_before_why_is_asked_for(team, wait
     # two rounds where one says it.
     client, default, fast = team([step(spawn("Coder", "strongest")), text("done")])
     _local, fast_id = tiered(team, client)
-    assert client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={
-        "provider_id": fast_id, "model_id": "deep"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Coder')}",
+            json={"provider_id": fast_id, "model_id": "deep"},
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     ((status, said),) = results(wait_run(client, cid, run_id))
     assert status == "failed" and "own model" in said and "give why" not in said
@@ -153,13 +244,19 @@ def test_a_tier_the_role_may_not_have_is_said_before_why_is_asked_for(team, wait
 def test_a_tier_within_the_rule_is_not_asked_about(team, wait_run, project_dir):  # noqa: F811
     # The range is the user's leave: a tier in it is the Lead's to give, and not a pick of a
     # model the user is asked about (one named by provider still is).
-    client, default, fast = team([step(spawn("Coder", "balanced", WHY)), text("done")], [text("ok")])
+    client, default, fast = team(
+        [step(spawn("Coder", "balanced", WHY)), text("done")], [text("ok")]
+    )
     tiered(team, client)
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     coder = snap["agents"][1]
     assert (coder["status"], coder["tier"], coder["chosen"], coder["chosen_why"]) == (
-        "completed", "balanced", False, WHY)
+        "completed",
+        "balanced",
+        False,
+        WHY,
+    )
     assert ("Fast", "deep") in team.asked
 
 
@@ -167,31 +264,42 @@ def test_an_opener_is_told_when_the_tier_it_gave_changed_nothing(team, wait_run,
     client, default, fast = team([step(spawn("Coder", "fast", WHY)), text("done")], [text("ok")])
     local, _fast_id = tiered(team, client)
     # the fast model is Fast's, which may not be picked for a Coder: it runs where it would
-    assert client.patch(f"/api/roles/{role_id(client, 'Coder')}",
-                        json={"pick_from": [local["id"]]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Coder')}", json={"pick_from": [local["id"]]}
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     ((status, said),) = results(snap)
     assert status == "succeeded" and said.endswith(
         "\n\ntier fast changed nothing: no model of that tier may be picked for this role now, "
-        "so it ran where it would without one.")
+        "so it ran where it would without one."
+    )
     assert (snap["agents"][1]["provider_name"], snap["agents"][1]["tier"]) == ("Local", None)
 
 
 def test_after_the_users_no_nothing_is_said_of_a_tier_that_changed_nothing(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     from tests.test_agent_writes import wait_status
 
     client, _default, _fast = team([step(spawn("Coder", "fast", WHY)), text("done")])
     local, _fast_id = tiered(team, client)
-    assert client.patch(f"/api/roles/{role_id(client, 'Coder')}",
-                        json={"pick_from": [local["id"]]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Coder')}", json={"pick_from": [local["id"]]}
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="always")
     kid = wait_status(client, cid, "waiting_approval")["agents"][1]
     client.post(f"/api/agents/{kid['id']}/reject")
     ((status, said),) = results(wait_run(client, cid, run_id))
-    assert status == "denied" and "changed nothing" not in said   # no agent was opened
+    assert status == "denied" and "changed nothing" not in said  # no agent was opened
 
 
 # --- a tier that cannot be had where the agent would really run decides nothing ---------------
@@ -201,12 +309,19 @@ def strongest_on_codex(team, client):  # noqa: F811
     """The only strongest model there is is native Codex's: a CLI at work with its own
     tools, which does not ask before it writes or runs."""
     client.headers["Origin"] = ORIGIN
-    assert client.patch(f"/api/providers/{team.providers['Codex']['id']}", json={
-        "models": [{"name": "max", "tier": "strongest"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{team.providers['Codex']['id']}",
+            json={"models": [{"name": "max", "tier": "strongest"}]},
+        ).status_code
+        == 200
+    )
 
 
 def test_in_a_turn_nobody_watches_a_tier_does_not_land_on_a_cli_with_its_own_tools(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, default, fast = team([step(spawn("Coder")), text("the coder looked"), text("done")])
     strongest_on_codex(team, client)
@@ -214,24 +329,32 @@ def test_in_a_turn_nobody_watches_a_tier_does_not_land_on_a_cli_with_its_own_too
     role_tier(client, "Coder", "strongest")
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}",
-                        json={"permission_mode": "full_auto"}).status_code == 200
+    assert (
+        client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}).status_code
+        == 200
+    )
     # with the user there both run on it, which is what the table says
     rows = table(client, cid)
     assert [(rows[role]["provider_name"], rows[role]["source"]) for role in ("Lead", "Coder")] == [
-        ("Codex", "tier")] * 2
+        ("Codex", "tier")
+    ] * 2
     made = trigger(client, pid, cid, permissions={"write": False, "commands": [], "agents": 1})
     snap = wait_run(client, cid, run_now(client, made["id"]))
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     lead, coder = snap["agents"]
     # the tier decided nothing there: the next rule did, for the lead and for whom it opened
     assert (lead["provider_name"], coder["provider_name"], coder["status"]) == (
-        "Local", "Local", "completed")
+        "Local",
+        "Local",
+        "completed",
+    )
     assert team.stubs["Codex"].started == 0
 
 
 def test_a_tier_lands_on_codex_for_a_coder_the_opener_leaves_no_commands(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # Before B-301 the tier passed Codex over (a Coder without run_command could not look at
     # files there); now Codex is started read-only for it and reads with KOLONİ's tools.
@@ -241,8 +364,13 @@ def test_a_tier_lands_on_codex_for_a_coder_the_opener_leaves_no_commands(
     role_tier(client, "Coder", "strongest")
     # a Lead that may run no command leaves none to whom it opens
     lead = next(role for role in client.get("/api/roles").json() if role["name"] == "Lead")
-    assert client.patch(f"/api/roles/{lead['id']}", json={
-        "tools": [tool for tool in lead["tools"] if tool != "run_command"]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{lead['id']}",
+            json={"tools": [tool for tool in lead["tools"] if tool != "run_command"]},
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     coder = snap["agents"][1]
@@ -258,7 +386,9 @@ def real_codex(stub):
 
 
 def test_a_reviewer_whose_own_model_is_codex_runs_there_read_only(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # B-301 (live, R93): "The Reviewer role cannot work on Codex: ... write files and run
     # commands". Read-only, it reads with KOLONİ's tools: nothing stands in its way now.
@@ -266,8 +396,13 @@ def test_a_reviewer_whose_own_model_is_codex_runs_there_read_only(
     real_codex(team.stubs["Codex"])
     client.headers["Origin"] = ORIGIN
     for role in ("Reviewer", "Coder"):
-        assert client.patch(f"/api/roles/{role_id(client, role)}", json={
-            "provider_id": team.providers["Codex"]["id"]}).status_code == 200
+        assert (
+            client.patch(
+                f"/api/roles/{role_id(client, role)}",
+                json={"provider_id": team.providers["Codex"]["id"]},
+            ).status_code
+            == 200
+        )
     cid, run_id = begin(client, project_dir, mode="ask", spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     row = table(client, cid)["Reviewer"]
@@ -280,7 +415,9 @@ def test_a_reviewer_whose_own_model_is_codex_runs_there_read_only(
 
 
 def test_the_table_says_before_any_run_where_a_role_could_be_no_recipe_step_and_no_room_member(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     """B-89: an agy Reviewer refused as a recipe's step, a Codex Coder as a room's member -
     found only as they ran. The table says it with the words the opener would be told."""
@@ -289,8 +426,13 @@ def test_the_table_says_before_any_run_where_a_role_could_be_no_recipe_step_and_
 
     client, default, fast = team([text("done")])
     client.headers["Origin"] = ORIGIN
-    assert client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={
-        "provider_id": team.providers["Codex"]["id"]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Coder')}",
+            json={"provider_id": team.providers["Codex"]["id"]},
+        ).status_code
+        == 200
+    )
     rows = table(client)
     # (The stand-in is a CLI of its own tools not started in a copy, as native agy is.)
     assert rows["Coder"]["cannot_step"] == ONLY_IN_THE_PROJECT.format(provider="Codex")
@@ -303,21 +445,33 @@ def test_the_table_says_before_any_run_where_a_role_could_be_no_recipe_step_and_
 # --- one tier up, said to the opener --------------------------------------------------------
 
 
-def test_what_is_one_tier_up_is_said_from_the_model_the_agent_ran_on(team, wait_run,  # noqa: F811
-                                                                     project_dir):
+def test_what_is_one_tier_up_is_said_from_the_model_the_agent_ran_on(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+):
     looks = [step(call("list_dir", {}, f"c{n}")) for n in range(2)]
     client, default, fast = team(
-        [step(spawn("Coder", "balanced", WHY, id="a")), step(spawn("Reviewer", id="b")),
-         text("the reviewer finished"), text("done")], looks)
+        [
+            step(spawn("Coder", "balanced", WHY, id="a")),
+            step(spawn("Reviewer", id="b")),
+            text("the reviewer finished"),
+            text("done"),
+        ],
+        looks,
+    )
     tiered(team, client)
     role_tier(client, "Reviewer", "strongest")  # on Local, which answers it
-    assert client.patch(f"/api/roles/{role_id(client, 'Coder')}",
-                        json={"max_steps": 1}).status_code == 200
+    assert (
+        client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"max_steps": 1}).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     (coder, said), (reviewer, heard) = results(wait_run(client, cid, run_id))
     # it ran on the balanced model: the strongest is within its range (81b), and is named
     assert coder == "failed" and said.endswith(
-        'One tier up: "Local" · "big-model" (strongest) - give the job again with tier strongest.')
+        'One tier up: "Local" · "big-model" (strongest) - give the job again with tier strongest.'
+    )
     # an agent that finished is given no advice
     assert reviewer == "succeeded" and "tier" not in heard
 
@@ -326,22 +480,32 @@ def test_what_is_one_tier_up_is_said_from_the_model_the_agent_ran_on(team, wait_
 
 
 def by_model(client):
-    return {(row["provider_name"], row["model_id"]): row
-            for row in client.get("/api/usage").json()["by_model"]}
+    return {
+        (row["provider_name"], row["model_id"]): row
+        for row in client.get("/api/usage").json()["by_model"]
+    }
 
 
 def price(client, model, each):
-    assert client.put("/api/prices", json={
-        "model_id": model, "input": each, "output": each, "currency": "USD"}).status_code == 200
+    assert (
+        client.put(
+            "/api/prices",
+            json={"model_id": model, "input": each, "output": each, "currency": "USD"},
+        ).status_code
+        == 200
+    )
 
 
 def test_the_question_is_paid_for_under_the_model_that_was_asked_and_is_not_in_the_conversation(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     from app.agent import HOW_HARD
 
     client, default, fast = team(
-        [text("the lead answers", i=50, o=7)], [text("Hard - it touches many files.", i=40, o=9)])
+        [text("the lead answers", i=50, o=7)], [text("Hard - it touches many files.", i=40, o=9)]
+    )
     tiered(team, client)
     price(client, "quick", 1)
     price(client, "big-model", 10)
@@ -349,10 +513,16 @@ def test_the_question_is_paid_for_under_the_model_that_was_asked_and_is_not_in_t
     snap = wait_run(client, cid, run_id)
     # said as the system's word and again where the message is, which is under it as data -
     # with what KOLONİ knows of it, here nothing (K-zor-ipucu)
-    assert fast.calls == [[
-        {"role": "system", "content": HOW_HARD},
-        {"role": "user", "content": HOW_HARD + '\n\nThe message:\n"rewrite the parser"'
-                                    "\n\nFacts: none found."}]]
+    assert fast.calls == [
+        [
+            {"role": "system", "content": HOW_HARD},
+            {
+                "role": "user",
+                "content": HOW_HARD + '\n\nThe message:\n"rewrite the parser"'
+                "\n\nFacts: none found.",
+            },
+        ]
+    ]
     assert not fast.tool_args[0]  # (no tools: one word and why)
     assert [m["content"] for m in snap["messages"]] == ["rewrite the parser", "the lead answers"]
     lead, run = snap["agents"][0], snap["runs"][0]
@@ -372,7 +542,9 @@ def test_the_question_is_paid_for_under_the_model_that_was_asked_and_is_not_in_t
 
 
 def test_the_question_is_given_the_files_parts_and_steps_of_similar_jobs_it_names(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     from app.agent import HOW_HARD
 
@@ -383,40 +555,61 @@ def test_the_question_is_given_the_files_parts_and_steps_of_similar_jobs_it_name
         (core / name).write_text("x = 1\n", encoding="utf-8")
     client, default, fast = team(
         [step(call("list_dir", {}, "l")), text("one"), text("two")],
-        [text("hard: a loader"), text("normal: two files")])
+        [text("hard: a loader"), text("normal: two files")],
+    )
     tiered(team, client)
     cid, run_id = begin(client, project_dir, lead_auto=True, content="fix the etl loader")
     wait_run(client, cid, run_id)
     asked = "fix the etl loader in core/etl.py and core/load.py"
-    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": asked},
-                         headers={"Origin": ORIGIN}).json()["run"]["id"]
+    run_id = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": asked}, headers={"Origin": ORIGIN}
+    ).json()["run"]["id"]
     snap = wait_run(client, cid, run_id)
-    assert fast.calls[1][1]["content"] == HOW_HARD + f'\n\nThe message:\n"{asked}"\n\n' + "\n".join([
-        "Facts:",
-        'Files it names that are in the project: 2 ("core/etl.py", "core/load.py")',
-        'Parts of the project it touches: "core/" (3 files)',
-        # the first turn's Orchestrator: a look and its answer
-        "Steps the Orchestrator took on similar earlier jobs: median 2 (of 1)",
-    ])
+    assert fast.calls[1][1]["content"] == HOW_HARD + f'\n\nThe message:\n"{asked}"\n\n' + "\n".join(
+        [
+            "Facts:",
+            'Files it names that are in the project: 2 ("core/etl.py", "core/load.py")',
+            'Parts of the project it touches: "core/" (3 files)',
+            # the first turn's Orchestrator: a look and its answer
+            "Steps the Orchestrator took on similar earlier jobs: median 2 (of 1)",
+        ]
+    )
     # the answer is read as before: one word, then why
     assert snap["agents"][-1]["chosen_why"].startswith("normal: two files")
 
 
 def test_a_question_an_api_answered_keeps_its_price_when_the_lead_then_runs_on_a_cli(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     from tests.fakes import ScriptedModel
 
     client, default, fast = team([], [text("hard: it needs care", i=40, o=9)])
     local, _fast_id = tiered(team, client)
     # the strongest model is a CLI's now (one step at a time): a plan, with no price for a token
-    assert client.patch(f"/api/providers/{local['id']}",
-                        json={"models": [{"name": "big-model"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{local['id']}", json={"models": [{"name": "big-model"}]}
+        ).status_code
+        == 200
+    )
     client.app.state.providers.named["Plan"] = ScriptedModel(
-        [text("the lead answers", i=50, o=7)], model_id="cli-strong")
-    assert client.post("/api/providers", json={
-        "name": "Plan", "kind": "codex_cli", "mode": "step", "for_agents": True,
-        "models": [{"name": "cli-strong", "tier": "strongest"}]}).status_code == 201
+        [text("the lead answers", i=50, o=7)], model_id="cli-strong"
+    )
+    assert (
+        client.post(
+            "/api/providers",
+            json={
+                "name": "Plan",
+                "kind": "codex_cli",
+                "mode": "step",
+                "for_agents": True,
+                "models": [{"name": "cli-strong", "tier": "strongest"}],
+            },
+        ).status_code
+        == 201
+    )
     price(client, "quick", 1)
     price(client, "cli-strong", 10)
     cid, run_id = begin(client, project_dir, lead_auto=True)
@@ -430,35 +623,48 @@ def test_a_question_an_api_answered_keeps_its_price_when_the_lead_then_runs_on_a
 
 
 def test_the_question_counts_toward_the_turns_limit_and_not_toward_the_lead_roles(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, default, fast = team(
         [step(call("list_dir", {}, "c1"), i=5, o=2), text("never said")],
-        [text("hard: it needs care", i=40, o=9)])
+        [text("hard: it needs care", i=40, o=9)],
+    )
     tiered(team, client)
     # one agent of the Lead role may use 20 tokens: its own step's 7 are well inside that
-    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}",
-                        json={"max_tokens": 20}).status_code == 200
+    assert (
+        client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_tokens": 20}).status_code
+        == 200
+    )
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     assert client.patch(f"/api/projects/{pid}", json={"turn_token_limit": 50}).status_code == 200
     cid, run_id = begin(client, project_dir, lead_auto=True)
     run = wait_run(client, cid, run_id)["runs"][0]
     # the question's 49 and the lead's 7 are what the turn spent
     assert (run["status"], run["error"]) == (
-        "failed", "this turn used 56 tokens, over the project's limit of 50")
+        "failed",
+        "this turn used 56 tokens, over the project's limit of 50",
+    )
 
 
-@pytest.mark.parametrize("said, read", [
-    ("<think>Is it hard? It looks easy.</think>\n\nhard: it needs care", "hard: it needs care"),
-    ("<THINK>\nnormal?\n</THINK>Easy - a greeting", "easy: a greeting"),
-    ("This is hard.", None),                          # not an answer: nothing is read into it
-    ("<think>hard", None),
-])
+@pytest.mark.parametrize(
+    "said, read",
+    [
+        ("<think>Is it hard? It looks easy.</think>\n\nhard: it needs care", "hard: it needs care"),
+        ("<THINK>\nnormal?\n</THINK>Easy - a greeting", "easy: a greeting"),
+        ("This is hard.", None),  # not an answer: nothing is read into it
+        ("<think>hard", None),
+    ],
+)
 def test_what_a_model_thinks_first_is_not_its_answer_and_nothing_else_is_read_into_one(
-    team, wait_run, project_dir, said, read  # noqa: F811
+    team,
+    wait_run,
+    project_dir,
+    said,
+    read,  # noqa: F811
 ):
-    client, default, fast = team(
-        [text("the lead answers")], [text(said), text("the lead answers")])
+    client, default, fast = team([text("the lead answers")], [text(said), text("the lead answers")])
     tiered(team, client)
     cid, run_id = begin(client, project_dir, lead_auto=True)
     lead = wait_run(client, cid, run_id)["agents"][0]
@@ -468,40 +674,58 @@ def test_what_a_model_thinks_first_is_not_its_answer_and_nothing_else_is_read_in
 
 
 def test_a_cli_that_cannot_speak_without_its_own_tools_is_never_asked_how_hard_it_is(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, default, fast = team(
-        [text("first"), text("second")], [text("hard: it needs care")])
+    client, default, fast = team([text("first"), text("second")], [text("hard: it needs care")])
     local, fast_id = tiered(team, client)
     # The first fast model there is now is a CLI's that works with its own tools - and
     # whose way of speaking with them off still has them (the stand-in's is itself).
     codex, stub = team.providers["Codex"]["id"], team.stubs["Codex"]
     assert stub.talker() is stub
-    assert client.patch(f"/api/providers/{codex}", json={
-        "models": [{"name": "mini", "tier": "fast"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{codex}", json={"models": [{"name": "mini", "tier": "fast"}]}
+        ).status_code
+        == 200
+    )
     assert client.post(f"/api/providers/{codex}/default").status_code == 200
     # Full auto, and a Lead may write and run: nothing else keeps that CLI from a pick
-    cid, run_id = begin(client, project_dir, mode="full_auto", lead_auto=True,
-                        provider_id=local["id"])
+    cid, run_id = begin(
+        client, project_dir, mode="full_auto", lead_auto=True, provider_id=local["id"]
+    )
     assert table(client, cid)["Lead"]["cannot_pick"] == {}
     assert table(client, cid)["Lead"]["asks_how_hard"] == {
-        "provider_name": "Fast", "model_id": "quick"}
+        "provider_name": "Fast",
+        "model_id": "quick",
+    }
     snap = wait_run(client, cid, run_id)
     lead = snap["agents"][0]
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     # the user's message was not handed to it: the next fast model was asked
     assert stub.calls == [] and stub.started == 0 and len(fast.calls) == 1
     assert (lead["asked_how_hard"], lead["chosen_why"]) == (
-        {"provider_name": "Fast", "model_id": "quick"}, "hard: it needs care")
+        {"provider_name": "Fast", "model_id": "quick"},
+        "hard: it needs care",
+    )
 
     # with no other fast model nobody is asked, and the table says so
-    assert client.patch(f"/api/providers/{fast_id}", json={"models": [
-        {"name": "quick"}, {"name": "deep", "tier": "balanced"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{fast_id}",
+            json={"models": [{"name": "quick"}, {"name": "deep", "tier": "balanced"}]},
+        ).status_code
+        == 200
+    )
     assert table(client, cid)["Lead"]["asks_how_hard"] is None
     posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "and now?"})
     lead = wait_run(client, cid, posted.json()["run"]["id"])["agents"][1]
     assert (lead["provider_name"], lead["asked_how_hard"], lead["chosen_why"]) == (
-        "Local", None, None)
+        "Local",
+        None,
+        None,
+    )
     assert stub.calls == [] and len(fast.calls) == 1
     # a conversation that does not follow the message has nobody to say it of
     assert client.patch(f"/api/conversations/{cid}", json={"lead_auto": False}).status_code == 200
@@ -522,17 +746,30 @@ def test_of_the_real_clis_only_agy_still_has_its_own_tools_when_they_are_to_be_o
 
 
 def test_where_the_lead_goes_is_looked_up_again_when_the_answer_is_there(
-    team, wait_run, project_dir, gate  # noqa: F811
+    team,
+    wait_run,
+    project_dir,
+    gate,  # noqa: F811
 ):
     client, default, fast = team(
-        [text("the lead answers")], [gate.step(text("hard: it needs care"))])
+        [text("the lead answers")], [gate.step(text("hard: it needs care"))]
+    )
     local, _fast_id = tiered(team, client)
     # the only strongest model is on a provider that is gone by the time the answer is there
-    assert client.patch(f"/api/providers/{local['id']}",
-                        json={"models": [{"name": "big-model"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{local['id']}", json={"models": [{"name": "big-model"}]}
+        ).status_code
+        == 200
+    )
     paid = team.providers["Paid Api"]["id"]
-    assert client.patch(f"/api/providers/{paid}", json={
-        "for_agents": True, "models": [{"name": "gold", "tier": "strongest"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{paid}",
+            json={"for_agents": True, "models": [{"name": "gold", "tier": "strongest"}]},
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, lead_auto=True)
     gate.wait_partial()
     assert client.delete(f"/api/providers/{paid}").status_code == 204
@@ -546,19 +783,29 @@ def test_where_the_lead_goes_is_looked_up_again_when_the_answer_is_there(
 
 
 def test_a_question_that_fails_or_a_tier_nobody_has_leaves_the_lead_where_it_was(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, default, fast = team(
         [text("first"), text("second")],
-        [ModelUnavailable("the server is down"), text("normal: nothing special")])
+        [ModelUnavailable("the server is down"), text("normal: nothing special")],
+    )
     local, fast_id = tiered(team, client)
     cid, run_id = begin(client, project_dir, lead_auto=True)
     lead = wait_run(client, cid, run_id)["agents"][0]
     assert (lead["provider_name"], lead["chosen_why"], lead["status"]) == (
-        "Local", None, "completed")
+        "Local",
+        None,
+        "completed",
+    )
     # nobody has a balanced model now: "normal" has nowhere to go
-    assert client.patch(f"/api/providers/{fast_id}", json={"models": [
-        {"name": "quick", "tier": "fast"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{fast_id}", json={"models": [{"name": "quick", "tier": "fast"}]}
+        ).status_code
+        == 200
+    )
     posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "and now?"})
     lead = wait_run(client, cid, posted.json()["run"]["id"])["agents"][1]
     assert (lead["provider_name"], lead["chosen_why"]) == ("Local", None)
@@ -566,19 +813,23 @@ def test_a_question_that_fails_or_a_tier_nobody_has_leaves_the_lead_where_it_was
 
 
 def test_the_question_stands_in_line_where_the_provider_it_goes_to_is_full(
-    team, wait_run, project_dir, gate  # noqa: F811
+    team,
+    wait_run,
+    project_dir,
+    gate,  # noqa: F811
 ):
     client, default, fast = team(
-        [text("B's lead answers")], [gate.step(text("A done")), text("hard: it needs care")])
+        [text("B's lead answers")], [gate.step(text("A done")), text("hard: it needs care")]
+    )
     _local, fast_id = tiered(team, client)
     assert client.patch(f"/api/providers/{fast_id}", json={"max_running": 1}).status_code == 200
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     a, b = talk(client, pid, provider_id=fast_id), talk(client, pid, lead_auto=True)
     run_a = go(client, a)
-    gate.wait_partial()                               # A's lead holds Fast's only place
+    gate.wait_partial()  # A's lead holds Fast's only place
     run_b = go(client, b)
     queued(client, b)
-    assert len(fast.calls) == 1 and default.calls == []   # nobody was asked anything for B
+    assert len(fast.calls) == 1 and default.calls == []  # nobody was asked anything for B
     gate.release()
     assert wait_run(client, a, run_a)["runs"][0]["status"] == "completed"
     lead = wait_run(client, b, run_b)["agents"][0]
@@ -586,8 +837,12 @@ def test_the_question_stands_in_line_where_the_provider_it_goes_to_is_full(
     assert len(fast.calls) == 2 and len(default.calls) == 1
 
 
-def test_stop_ends_a_turn_while_it_is_being_asked_how_hard_it_is(team, wait_run,  # noqa: F811
-                                                                project_dir, gate):
+def test_stop_ends_a_turn_while_it_is_being_asked_how_hard_it_is(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+    gate,
+):
     client, default, fast = team([], [gate.step(text("hard: never heard"))])
     tiered(team, client)
     cid, run_id = begin(client, project_dir, lead_auto=True)
@@ -597,7 +852,10 @@ def test_stop_ends_a_turn_while_it_is_being_asked_how_hard_it_is(team, wait_run,
     lead = snap["agents"][0]
     assert snap["runs"][0]["status"] == "cancelled" and default.calls == []
     assert (lead["status"], lead["provider_name"], lead["chosen_why"]) == (
-        "cancelled", "Local", None)
+        "cancelled",
+        "Local",
+        None,
+    )
     assert lead["asked_how_hard"] == {"provider_name": "Fast", "model_id": "quick"}
     # what the question spent before it was cut is not known, and its own record says so -
     # not the lead's, which sent nothing
@@ -605,14 +863,21 @@ def test_stop_ends_a_turn_while_it_is_being_asked_how_hard_it_is(team, wait_run,
         assert session.scalar(select(Agent.cut_short).where(Agent.id == lead["id"])) is False
         (asked,) = session.scalars(select(OwnRequest)).all()
         assert (asked.agent_id, asked.provider_name, asked.model_id, asked.cut_short) == (
-            lead["id"], "Fast", "quick", True)
+            lead["id"],
+            "Fast",
+            "quick",
+            True,
+        )
         assert (asked.input_tokens, asked.output_tokens) == (None, None)
     row = by_model(client)["Fast", "quick"]
     assert (row["input_tokens"], row["output_tokens"], row["unknown_agents"]) == (None, None, 1)
 
 
 def test_a_lead_moved_to_another_tier_keeps_no_reason_copilot_gave_for_its_model_before(
-    team, wait_run, project_dir, gate  # noqa: F811
+    team,
+    wait_run,
+    project_dir,
+    gate,  # noqa: F811
 ):
     # (Review, 21 Nov: a Lead moved off a fusion pick kept fusion's reason for the model before.)
     client, default, fast = team([text("the lead answers")], [gate.step(text("hard: many files"))])
@@ -632,7 +897,10 @@ def test_a_lead_moved_to_another_tier_keeps_no_reason_copilot_gave_for_its_model
 
 
 def test_a_turn_stopped_while_it_stands_in_line_for_the_question_leaves_no_record_of_one(
-    team, wait_run, project_dir, gate  # noqa: F811
+    team,
+    wait_run,
+    project_dir,
+    gate,  # noqa: F811
 ):
     client, default, fast = team([], [gate.step(text("A done"))])
     _local, fast_id = tiered(team, client)
@@ -640,7 +908,7 @@ def test_a_turn_stopped_while_it_stands_in_line_for_the_question_leaves_no_recor
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     a, b = talk(client, pid, provider_id=fast_id), talk(client, pid, lead_auto=True)
     run_a = go(client, a)
-    gate.wait_partial()                               # A's lead holds Fast's only place
+    gate.wait_partial()  # A's lead holds Fast's only place
     run_b = go(client, b)
     queued(client, b)
     cancel(client, run_b)
@@ -673,17 +941,26 @@ def test_a_tier_says_why_each_one_before_its_pick_was_passed_over_in_sentences()
     def entry(name):
         return Entry(name, name, "x", "api", None, (("m", None),), None, tiers=(("m", "balanced"),))
 
-    would = Would(None, None, "tier", [entry("Local"), entry("Codex"), entry("Claude")],  # type: ignore[arg-type]
-                  cannot_pick={"Codex": PICK_NEEDS_THE_TOOLS.format(role="Reviewer", provider="Codex")},
-                  down={"Local": "Local was not answering when last looked at"})
+    would = Would(
+        None,
+        None,
+        "tier",
+        [entry("Local"), entry("Codex"), entry("Claude")],  # type: ignore[arg-type]
+        cannot_pick={"Codex": PICK_NEEDS_THE_TOOLS.format(role="Reviewer", provider="Codex")},
+        down={"Local": "Local was not answering when last looked at"},
+    )
     found, moved = would.pick("balanced")
     assert found is not None and found[0].name == "Claude"
-    assert moved == ("Codex cannot be chosen for the Reviewer role; Local was not answering when "
-                     "last looked at: the next balanced model")
+    assert moved == (
+        "Codex cannot be chosen for the Reviewer role; Local was not answering when "
+        "last looked at: the next balanced model"
+    )
     # not on the Lead's own row, where a reason reads as the guess of how hard the message is
     from dataclasses import replace
+
     assert replace(would, says_blocked=False).pick("balanced")[1] == (
-        "Local was not answering when last looked at: the next balanced model")
+        "Local was not answering when last looked at: the next balanced model"
+    )
     assert _then("Check hello.py.", "local was down") == "Check hello.py. Local was down"
     assert _then("", "local was down") == "local was down" and _then("Check it", None) == "Check it"
 
@@ -694,8 +971,11 @@ def test_b193_a_cli_named_no_model_runs_its_lists_balanced_one_not_its_own_defau
     from app.team import would_run
 
     # (live: a new chat on "Default (Claude Code)" ran the Lead on claude-fable-5-1, its dearest)
-    listed = [{"name": "claude-fable", "tier": "strongest"},
-              {"name": "claude-sonnet", "tier": "balanced"}, {"name": "claude-haiku", "tier": "fast"}]
+    listed = [
+        {"name": "claude-fable", "tier": "strongest"},
+        {"name": "claude-sonnet", "tier": "balanced"},
+        {"name": "claude-haiku", "tier": "fast"},
+    ]
     client, _model = make_client([])
     with client.app.state.session_factory() as session:
         session.add(Provider(name="Claude Code", kind="claude_cli", position=-1, models=listed))
@@ -714,13 +994,15 @@ def test_only_the_leads_own_pick_leaves_out_who_its_tier_passed_over(make_client
 
     client, _model = make_client([])
     with client.app.state.session_factory() as session:
-        said = {name: would_run(session, find_role(session, name), None).says_blocked
-                for name in ("Lead", "Reviewer")}
+        said = {
+            name: would_run(session, find_role(session, name), None).says_blocked
+            for name in ("Lead", "Reviewer")
+        }
     assert said == {"Lead": False, "Reviewer": True}
 
 
 def test_the_table_says_where_a_roles_agents_could_run_instead_and_with_what_model(
-    team  # noqa: F811
+    team,  # noqa: F811
 ):
     """The chat's team picker offers a step's role only providers it could be that step on,
     with a model they may run (batch-18 review)."""
@@ -728,12 +1010,20 @@ def test_the_table_says_where_a_roles_agents_could_run_instead_and_with_what_mod
     client.headers["Origin"] = ORIGIN
     ids = {name: provider["id"] for name, provider in team.providers.items()}
     # Paid Api runs only its listed models now, and its default is not one of them
-    assert client.patch(f"/api/providers/{ids['Paid Api']}", json={
-        "only_listed": True, "models": [{"name": "silver"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{ids['Paid Api']}",
+            json={"only_listed": True, "models": [{"name": "silver"}]},
+        ).status_code
+        == 200
+    )
     on = {one["provider_id"]: one for one in table(client)["Coder"]["run_on"]}
     assert (on[ids["Paid Api"]]["model_id"], on[ids["Paid Api"]]["step"]) == ("silver", True)
     assert (on[ids["Fast"]]["model_id"], on[ids["Fast"]]["step"], on[ids["Fast"]]["room"]) == (
-        "quick", True, True)
+        "quick",
+        True,
+        True,
+    )
     # (the stand-in works in the project itself, with tools of its own)
     assert (on[ids["Codex"]]["step"], on[ids["Codex"]]["room"]) == (False, False)
 
@@ -743,16 +1033,34 @@ def test_past_its_plan_share_a_cli_steps_down_on_its_own_plan_or_another_kind_ne
     from app.team import Entry, Would
 
     def entry(name, kind, tiers):
-        return Entry(name, name, kind, "cli", None, tuple((m, None) for m, _ in tiers), None,
-                     tiers=tiers)
+        return Entry(
+            name, name, kind, "cli", None, tuple((m, None) for m, _ in tiers), None, tiers=tiers
+        )
 
     work = entry("Work", "claude_cli", (("opus", "strongest"),))
     home = entry("Home", "claude_cli", (("sonnet", "balanced"),))
     codex = entry("Cx", "codex_cli", (("gpt", "balanced"),))
-    would = Would(None, None, "tier", [work, home, codex],  # type: ignore[arg-type]
-                  plan_used={"Work": "Work's weekly plan 90% used"}, steps=("balanced", "strongest"))
+    would = Would(
+        None,
+        None,
+        "tier",
+        [work, home, codex],  # type: ignore[arg-type]
+        plan_used={"Work": "Work's weekly plan 90% used"},
+        steps=("balanced", "strongest"),
+    )
     found, moved = would.pick("strongest")
     assert found is not None and found[0].name == "Cx" and "balanced instead of strongest" in moved
     # With only the other account below, it stays where it was.
-    assert Would(None, None, "tier", [work, home],  # type: ignore[arg-type]
-                 plan_used=would.plan_used, steps=would.steps).pick("strongest")[0][0].name == "Work"
+    assert (
+        Would(
+            None,
+            None,
+            "tier",
+            [work, home],  # type: ignore[arg-type]
+            plan_used=would.plan_used,
+            steps=would.steps,
+        )
+        .pick("strongest")[0][0]
+        .name
+        == "Work"
+    )

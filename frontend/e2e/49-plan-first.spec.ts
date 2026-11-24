@@ -32,7 +32,9 @@ for (const theme of ['light', 'dark'] as const)
     await page.keyboard.press('Enter')
     // On, the level's button says so: "Ask · plan", named "Plan first on".
     // (The e2e project's After a change is Nothing - `helpers.ts` - and S10 says so on the button: " · no checks".)
-    await expect(chat.getByRole('button', { name: /^Permission level: Ask before changes, Plan first on/ })).toHaveText(/^Ask · plan · no checks$/)
+    await expect(chat.getByRole('button', { name: /^Permission level: Ask before changes, Plan first on/ })).toHaveText(
+      /^Ask · plan · no checks$/,
+    )
     await levelMenu.click()
     await expect(planFirst).toBeChecked()
     // (The menu's switch rows: Plan first, and the project's Check what I said first - each reads.)
@@ -46,7 +48,10 @@ for (const theme of ['light', 'dark'] as const)
     await expect(levelMenu).toHaveText(/^Ask · plan · no checks$/)
     const row = await chat.locator('.composer-bar').evaluate(bar => {
       const edge = bar.getBoundingClientRect()
-      return { height: Math.round(edge.height), past: [...bar.children].filter(c => c.getBoundingClientRect().right > edge.right + 1).map(c => c.className) }
+      return {
+        height: Math.round(edge.height),
+        past: [...bar.children].filter(c => c.getBoundingClientRect().right > edge.right + 1).map(c => c.className),
+      }
     })
     expect(row.past).toEqual([])
     expect(row.height).toBeLessThanOrEqual(40)
@@ -70,7 +75,9 @@ for (const theme of ['light', 'dark'] as const)
     await plan.fill('PLAN: 1. Read hello.py. 2. Say it in one line.')
     await card.getByRole('button', { name: 'Approve edited plan' }).click()
     await expect(chat.getByText('Plan approved: its work starts as a new turn.')).toBeVisible()
-    await expect(chat.getByText(/The approved plan:\s*PLAN: 1\. Read hello\.py\. 2\. Say it in one line\./)).toBeVisible()
+    await expect(
+      chat.getByText(/The approved plan:\s*PLAN: 1\. Read hello\.py\. 2\. Say it in one line\./),
+    ).toBeVisible()
     await expect(chat.getByText('Done, as the approved plan said.')).toBeVisible({ timeout: 20_000 })
     // the work turn shows the plan it carries out, over its Lead; a click opens it in the panel
     const carried = page.locator('.react-flow__node-plan[data-id^="planned:"]')

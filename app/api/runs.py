@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app import away, backlog, ci_commands
 from app.agent import TERMINAL
-from app.agent.stronger_mixin import FIX_HELD
+from app.agent.stronger_mixin import FIX_HELD, HELD_WHY, HELD_WHY_TESTS
 from app.api.conversations import new_turn, queue_or_start
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.api.usage import over_budget
@@ -47,20 +47,30 @@ def approve_ci(run_id: str, body: CiApproveIn, session: Session = Depends(get_se
     on this turn's row, be the project's offer still, and its workflow files be as they are now -
     else 409, offered again after the next change (another turn may have offered other lines)."""
     run = session.get(Run, run_id)
-    project = project_of(session, session.get_one(Conversation, run.conversation_id)) if run else (
-        None)
+    project = (
+        project_of(session, session.get_one(Conversation, run.conversation_id)) if run else (None)
+    )
     if project is None:
         raise HTTPException(404, "run not found")
-    note = session.scalar(select(Message).where(Message.run_id == run_id,
-                                                Message.role == "checked"))
-    shown = any(row.get("kind") == "ci_offer" and row.get("offer") == body.offer
-                for row in ((note.blocks or {}).get("rows") or [] if note else []))
+    note = session.scalar(
+        select(Message).where(Message.run_id == run_id, Message.role == "checked")
+    )
+    shown = any(
+        row.get("kind") == "ci_offer" and row.get("offer") == body.offer
+        for row in ((note.blocks or {}).get("rows") or [] if note else [])
+    )
     known = dict(project.ci_commands or {})
     offered = known.get("offered") or {}
-    if not shown or offered.get("offer") != body.offer or offered.get(
-            "hash") != ci_commands.fingerprint(Path(project.root_path)):
-        raise HTTPException(409, "the CI commands changed since this turn offered them: they are "
-                                 "offered again after the next change")
+    if (
+        not shown
+        or offered.get("offer") != body.offer
+        or offered.get("hash") != ci_commands.fingerprint(Path(project.root_path))
+    ):
+        raise HTTPException(
+            409,
+            "the CI commands changed since this turn offered them: they are "
+            "offered again after the next change",
+        )
     project.ci_commands = {**known, "approved": offered}
     session.commit()
     return {"approved": len(offered.get("commands") or [])}
@@ -68,7 +78,7 @@ def approve_ci(run_id: str, body: CiApproveIn, session: Session = Depends(get_se
 
 @router.post("/{run_id}/check/stop", dependencies=[Depends(require_own_origin)])
 async def stop_check(run_id: str, request: Request, session: Session = Depends(get_session)):
-    """"Stop this check" (kanıtlı bitiş S6): the turn's test run that runs now - its related
+    """ "Stop this check" (kanıtlı bitiş S6): the turn's test run that runs now - its related
     tests while the answer waits, or its whole suite gone on after the answer - is stopped; what
     finished stays. The user's, from the app's own page, at every level."""
     if session.get(Run, run_id) is None:
@@ -116,24 +126,35 @@ def _over(session: Session, conversation: Conversation, go_on: bool) -> None:
     to go on over it - already their word, from the app's own page."""
     project = project_of(session, conversation)
     if (over := over_budget(session, project, conversation)) and not go_on:
-        raise HTTPException(409, f"this {'project' if project else 'chat'} is {over}: say to "
-                                 "go on over it")
+        raise HTTPException(
+            409, f"this {'project' if project else 'chat'} is {over}: say to go on over it"
+        )
 
 
 # Sent on the user's word, from the app's own page: an agent's request starts no turn.
-@router.post("/{run_id}/send", response_model=PostMessageOut,
-             dependencies=[Depends(require_own_origin)])
-async def send_again(run_id: str, request: Request, body: SendIn | None = None,
-                     session: Session = Depends(get_session)):
+@router.post(
+    "/{run_id}/send", response_model=PostMessageOut, dependencies=[Depends(require_own_origin)]
+)
+async def send_again(
+    run_id: str,
+    request: Request,
+    body: SendIn | None = None,
+    session: Session = Depends(get_session),
+):
     """A message of the user's still queued when KOLONİ restarted, sent now: its turn runs, or
     waits behind one at work, as the newest - nothing is ever sent again by itself."""
     run = session.get(Run, run_id)
     if run is None:
         raise HTTPException(404, "run not found")
-    message = session.scalar(select(Message).where(Message.run_id == run.id,
-                                                   Message.role == "user").limit(1))
-    if message is None or run.status != "interrupted" or run.started_at is not None or (
-            not run.by_user or run.unattended or run.compare_id is not None):
+    message = session.scalar(
+        select(Message).where(Message.run_id == run.id, Message.role == "user").limit(1)
+    )
+    if (
+        message is None
+        or run.status != "interrupted"
+        or run.started_at is not None
+        or (not run.by_user or run.unattended or run.compare_id is not None)
+    ):
         raise HTTPException(409, "only a message of yours that was never sent can be sent")
     conversation = session.get_one(Conversation, run.conversation_id)
     _over(session, conversation, bool(body and body.over_budget))
@@ -153,7 +174,9 @@ async def send_again(run_id: str, request: Request, body: SendIn | None = None,
 
 
 @router.post(
-    "/{run_id}/notes", response_model=BoardPostOut, status_code=201,
+    "/{run_id}/notes",
+    response_model=BoardPostOut,
+    status_code=201,
     dependencies=[Depends(require_origin)],
 )
 async def write_note(
@@ -197,14 +220,15 @@ async def approve_plan(
     turn of the same topic that carries it, with the conversation's own model and tools."""
     run = _proposed(session, run_id)
     newest = session.scalar(
-        select(Run.id).where(Run.conversation_id == run.conversation_id)
-        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc()).limit(1)
+        select(Run.id)
+        .where(Run.conversation_id == run.conversation_id)
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+        .limit(1)
     )
     if newest != run.id:
         # The user wrote again instead: the work of an older plan would run beside, or
         # after, what came of that. It can still be turned down.
-        raise HTTPException(
-            409, "a later turn has started since this plan; reject it or ask again")
+        raise HTTPException(409, "a later turn has started since this plan; reject it or ask again")
     conversation = session.get_one(Conversation, run.conversation_id)
     # The work spends as a message's turn does: held back the same way, the plan still
     # proposed.
@@ -226,28 +250,49 @@ async def approve_plan(
 
 
 @router.post("/{run_id}/held/fix", status_code=202, dependencies=[Depends(require_own_origin)])
-async def fix_held(run_id: str, body: HeldFixIn, request: Request,
-                   session: Session = Depends(get_session)):
+async def fix_held(
+    run_id: str, body: HeldFixIn, request: Request, session: Session = Depends(get_session)
+):
     """S11 (decision 18) Fix it on a "Not taken in" row: the user's answer to its question starts
     a turn that goes on in the kept work's copy - the row's own kept copy, still undecided (409:
     decided since - Take in anyway, then Fix it)."""
     run = session.get(Run, run_id)
     if run is None:
         raise HTTPException(404, "run not found")
-    note = session.scalar(select(Message).where(Message.run_id == run_id,
-                                                Message.role == "checked"))
-    row = next((one for one in ((note.blocks or {}).get("rows") or [] if note else [])
-                if one.get("kind") == "not_taken" and one.get("merge_id") == body.merge_id),
-               None)
+    note = session.scalar(
+        select(Message).where(Message.run_id == run_id, Message.role == "checked")
+    )
+    row = next(
+        (
+            one
+            for one in ((note.blocks or {}).get("rows") or [] if note else [])
+            if one.get("kind") == "not_taken" and one.get("merge_id") == body.merge_id
+        ),
+        None,
+    )
     runner = request.app.state.runner
-    why = "that work is not this turn's held work" if row is None else runner.held_fix(
-        run_id, body.merge_id)
+    why = (
+        "that work is not this turn's held work"
+        if row is None
+        else runner.held_fix(run_id, body.merge_id)
+    )
     if why:
-        raise HTTPException(409, f"Fix it cannot go on in the kept work: {why}. Take it in "
-                                 "(Take in anyway), then ask for the fix.")
+        raise HTTPException(
+            409,
+            f"Fix it cannot go on in the kept work: {why}. Take it in "
+            "(Take in anyway), then ask for the fix.",
+        )
     conversation = session.get_one(Conversation, run.conversation_id)
-    work, message = new_turn(session, run.conversation_id, run.topic_id, FIX_HELD.format(
-        question=(row or {}).get("question") or "", reply=" ".join(body.reply.split())))
+    work, message = new_turn(
+        session,
+        run.conversation_id,
+        run.topic_id,
+        FIX_HELD.format(
+            why=HELD_WHY.get((row or {}).get("reason") or "", HELD_WHY_TESTS),
+            question=(row or {}).get("question") or "",
+            reply=" ".join(body.reply.split()),
+        ),
+    )
     runner.resume_on(work.id, body.merge_id)
     conversation.updated_at = now()
     session.commit()

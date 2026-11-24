@@ -21,8 +21,10 @@ def test_a_database_behind_is_copied_aside_before_it_is_moved_on(tmp_path):
     db = tmp_path / "koloni.db"
     command.upgrade(_config(db), "0066")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
-                     "VALUES ('p', 'mine', 'C:/work/mine', '2026-10-24 01:00:00')")
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) "
+            "VALUES ('p', 'mine', 'C:/work/mine', '2026-10-24 01:00:00')"
+        )
     upgrade_db(db)
     (copy,) = (tmp_path / "backups").glob("koloni-0066-*.db")
     assert revision(copy) == "0066"  # as it was before the move
@@ -66,8 +68,10 @@ def test_a_start_with_no_copy_of_the_day_makes_one_and_the_same_day_no_other(tmp
     db = tmp_path / "koloni.db"
     upgrade_db(db)
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
-                     "VALUES ('p', 'mine', 'C:/work/mine', '2026-10-24 01:00:00')")
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) "
+            "VALUES ('p', 'mine', 'C:/work/mine', '2026-10-24 01:00:00')"
+        )
     back_up_daily(db, AT)
     assert _daily(tmp_path) == ["daily-koloni-20261114T090000.db"]
     with sqlite3.connect(tmp_path / "backups" / "daily-koloni-20261114T090000.db") as conn:
@@ -78,8 +82,10 @@ def test_a_start_with_no_copy_of_the_day_makes_one_and_the_same_day_no_other(tmp
     assert _daily(tmp_path) == ["daily-koloni-20261114T090000.db"]
     # The next date, though less than a day on (09:00, then 08:58): one.
     back_up_daily(db, AT + timedelta(hours=23, minutes=58))
-    assert _daily(tmp_path) == ["daily-koloni-20261114T090000.db",
-                                "daily-koloni-20261115T085800.db"]
+    assert _daily(tmp_path) == [
+        "daily-koloni-20261114T090000.db",
+        "daily-koloni-20261115T085800.db",
+    ]
 
 
 def test_a_copy_named_later_than_now_is_no_copy_of_today_and_the_first_to_go(tmp_path):
@@ -92,13 +98,17 @@ def test_a_copy_named_later_than_now_is_no_copy_of_today_and_the_first_to_go(tmp
     for day in range(DAILY_KEPT - 1):
         back_up_daily(db, AT + timedelta(days=day))
     # Kept while the copies are few: it may be the newest there is.
-    assert _daily(tmp_path) == ["daily-koloni-20261114T090000.db",
-                                "daily-koloni-20261115T090000.db",
-                                "daily-koloni-20271114T090000.db"]
+    assert _daily(tmp_path) == [
+        "daily-koloni-20261114T090000.db",
+        "daily-koloni-20261115T090000.db",
+        "daily-koloni-20271114T090000.db",
+    ]
     back_up_daily(db, AT + timedelta(days=DAILY_KEPT))
-    assert _daily(tmp_path) == ["daily-koloni-20261114T090000.db",
-                                "daily-koloni-20261115T090000.db",
-                                f"daily-koloni-202611{14 + DAILY_KEPT}T090000.db"]
+    assert _daily(tmp_path) == [
+        "daily-koloni-20261114T090000.db",
+        "daily-koloni-20261115T090000.db",
+        f"daily-koloni-202611{14 + DAILY_KEPT}T090000.db",
+    ]
 
 
 def test_only_the_last_routine_copies_are_kept_and_no_other_file_goes(tmp_path):
@@ -110,15 +120,23 @@ def test_only_the_last_routine_copies_are_kept_and_no_other_file_goes(tmp_path):
         (backups / f"daily-koloni-2026110{day}T000000.db").write_bytes(b"old")
     # A copy made before a migration, the update script's, a file of the user's, one of another
     # shape, and what a copy that was cut short left.
-    others = ["koloni-0060-20250101T000000.db", "koloni-20250101T000000.db", "notes.txt",
-              "daily-koloni-mine.db"]
+    others = [
+        "koloni-0060-20250101T000000.db",
+        "koloni-20250101T000000.db",
+        "notes.txt",
+        "daily-koloni-mine.db",
+    ]
     for name in others:
         (backups / name).write_bytes(b"not ours")
     (backups / "daily-koloni-20261101T000000.db.part").write_bytes(b"half")
     back_up_daily(db, AT)
-    assert sorted(p.name for p in backups.iterdir()) == sorted([
-        *others, *(f"daily-koloni-2026110{day}T000000.db" for day in (DAILY_KEPT, DAILY_KEPT + 1)),
-        "daily-koloni-20261114T090000.db"])
+    assert sorted(p.name for p in backups.iterdir()) == sorted(
+        [
+            *others,
+            *(f"daily-koloni-2026110{day}T000000.db" for day in (DAILY_KEPT, DAILY_KEPT + 1)),
+            "daily-koloni-20261114T090000.db",
+        ]
+    )
     # And the copy before a migration neither counts a routine one among its own nor deletes it.
     upgrade_db(db)
     assert len(_daily(tmp_path)) == DAILY_KEPT + 1  # (the one of another shape too)
@@ -141,18 +159,19 @@ def test_a_copy_that_fails_is_logged_and_the_start_goes_on(tmp_path, monkeypatch
     assert not list((tmp_path / "backups").iterdir())  # no copy, and none half made
     # What cannot be deleted either stops no start; the next one makes the copy and clears it.
     held = tmp_path / "backups" / "daily-koloni-20261114T090000.db.part"
-    monkeypatch.setattr(type(held), "unlink", lambda *_, **__: (_ for _ in ()).throw(
-        PermissionError("held")))
+    monkeypatch.setattr(
+        type(held), "unlink", lambda *_, **__: (_ for _ in ()).throw(PermissionError("held"))
+    )
     back_up_daily(db, AT)
     assert held.exists()
     monkeypatch.undo()
     back_up_daily(db, AT + timedelta(minutes=5))
-    assert [p.name for p in (tmp_path / "backups").iterdir()] == [
-        "daily-koloni-20261114T090500.db"]
+    assert [p.name for p in (tmp_path / "backups").iterdir()] == ["daily-koloni-20261114T090500.db"]
 
 
 def test_the_start_that_serves_makes_the_copy_and_an_app_a_test_makes_does_not(
-        tmp_path, monkeypatch, settings):
+    tmp_path, monkeypatch, settings
+):
     import logging.config
     from types import SimpleNamespace
 
@@ -164,8 +183,9 @@ def test_the_start_that_serves_makes_the_copy_and_an_app_a_test_makes_does_not(
     monkeypatch.setenv("KOLONI_RUNTIME_ROOT", str(tmp_path / "served"))
     monkeypatch.setattr(main, "not_dumpable", lambda: None)
     monkeypatch.setattr(logging.config, "dictConfig", lambda _config: None)
-    monkeypatch.setattr(main, "create_app", lambda _settings: SimpleNamespace(
-        state=SimpleNamespace(page_key="k")))
+    monkeypatch.setattr(
+        main, "create_app", lambda _settings: SimpleNamespace(state=SimpleNamespace(page_key="k"))
+    )
     monkeypatch.setattr(main, "show_link", lambda *_: None)
     monkeypatch.setattr(main, "back_up_daily", copied.append)
     monkeypatch.setattr(main, "serve", lambda *_, **__: copied.append("served"))

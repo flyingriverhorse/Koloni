@@ -42,7 +42,9 @@ export function quoteOf({ path, from, to, text }: Picked, writer: Writer | null,
 export async function writerOf(path: string): Promise<Writer | null> {
   const { projectId, conv, teams } = useApp.getState()
   if (!projectId) return null
-  const found = await api.get<FileHistory[] | null>(`/projects/${projectId}/file-history?path=${encodeURIComponent(path)}`).catch(() => null)
+  const found = await api
+    .get<FileHistory[] | null>(`/projects/${projectId}/file-history?path=${encodeURIComponent(path)}`)
+    .catch(() => null)
   const last = Array.isArray(found) ? found[0] : undefined
   if (!last || !WROTE.has(last.status)) return null
   const agent = conv?.agents.find(one => one.id === last.agent_id)
@@ -53,14 +55,18 @@ const LINE = '.diff-line, .diff-half'
 
 /** A line's number: the new side's where a diff has two, the old one's for a removed line. */
 function numberOf(line: Element): number | null {
-  const said = Array.from(line.querySelectorAll('.diff-no')).map(no => no.textContent ?? '').filter(Boolean)
+  const said = Array.from(line.querySelectorAll('.diff-no'))
+    .map(no => no.textContent ?? '')
+    .filter(Boolean)
   return said.length ? Number(said.at(-1)) : null
 }
 
 /** Every line under `root` a selection that begins in `first` may cover: a file view's or a diff's, or - side by side - those of its side. */
 function linesOf(root: Element, first: Element): Element[] {
   const side = first.matches('.diff-half') ? Array.from(first.parentElement?.children ?? []).indexOf(first) : -1
-  return side < 0 ? Array.from(root.querySelectorAll('.diff-line')) : Array.from(root.querySelectorAll('.diff-row')).map(row => row.children[side])
+  return side < 0
+    ? Array.from(root.querySelectorAll('.diff-line'))
+    : Array.from(root.querySelectorAll('.diff-row')).map(row => row.children[side])
 }
 
 /**

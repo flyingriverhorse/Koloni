@@ -9,8 +9,19 @@
  */
 ;(function () {
   var NOWHERE = 'data:,'
-  ;['PROXY_URL', 'STYLE_PATH', 'SHAPES_PATH', 'STENCIL_PATH', 'DRAW_MATH_URL', 'GRAPH_IMAGE_PATH', 'mxImageBasePath', 'mxBasePath',
-    'DRAWIO_BASE_URL', 'DRAWIO_LIGHTBOX_URL', 'DRAWIO_SERVER_URL'].forEach(function (name) {
+  ;[
+    'PROXY_URL',
+    'STYLE_PATH',
+    'SHAPES_PATH',
+    'STENCIL_PATH',
+    'DRAW_MATH_URL',
+    'GRAPH_IMAGE_PATH',
+    'mxImageBasePath',
+    'mxBasePath',
+    'DRAWIO_BASE_URL',
+    'DRAWIO_LIGHTBOX_URL',
+    'DRAWIO_SERVER_URL',
+  ].forEach(function (name) {
     window[name] = NOWHERE
   })
   window.mxLoadResources = false
@@ -30,7 +41,8 @@ var koloniViewer = null
 function koloniLaidOut(xml) {
   var doc = mxUtils.parseXml(xml)
   var root = doc.documentElement
-  if (!root || root.nodeName === 'parsererror' || root.getElementsByTagName('parsererror').length) throw new Error('This is not a draw.io file: its XML could not be read.')
+  if (!root || root.nodeName === 'parsererror' || root.getElementsByTagName('parsererror').length)
+    throw new Error('This is not a draw.io file: its XML could not be read.')
   var models = []
   if (root.nodeName === 'mxGraphModel') models.push(root)
   var pages = root.getElementsByTagName('diagram')
@@ -57,7 +69,8 @@ function koloniPlace(model) {
     // (A cell inside <object> or <UserObject> has its id on that.)
     var id = cell.getAttribute('id') || cell.parentNode.getAttribute('id')
     var placed = false
-    for (var child = cell.firstChild; child; child = child.nextSibling) placed = placed || (child.nodeName === 'mxGeometry' && child.getAttribute('as') === 'geometry')
+    for (var child = cell.firstChild; child; child = child.nextSibling)
+      placed = placed || (child.nodeName === 'mxGeometry' && child.getAttribute('as') === 'geometry')
     if (cell.getAttribute('vertex') === '1' && !placed) bare.push({ id: id, cell: cell })
     if (cell.getAttribute('edge') === '1') {
       edges.push([cell.getAttribute('source'), cell.getAttribute('target')])
@@ -85,7 +98,9 @@ function koloniPlace(model) {
   bare.forEach(function (one) {
     var row = rank[one.id]
     var column = (inRow[row] = (inRow[row] || 0) + 1) - 1
-    one.cell.appendChild(koloniGeometry(model, { x: String(column * 180), y: String(row * 120), width: '140', height: '60' }))
+    one.cell.appendChild(
+      koloniGeometry(model, { x: String(column * 180), y: String(row * 120), width: '140', height: '60' }),
+    )
   })
 }
 
@@ -126,7 +141,9 @@ function koloniShow(xml) {
 /** The page shown as a picture: the SVG's text, or a PNG (at twice its size, on white) as a data: URL. */
 function koloniPicture(format) {
   var graph = koloniViewer.graph
-  var svg = '<?xml version="1.0" encoding="UTF-8"?>\n' + mxUtils.getXml(graph.getSvg(format === 'png' ? '#ffffff' : null, 1, 10))
+  var svg =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    mxUtils.getXml(graph.getSvg(format === 'png' ? '#ffffff' : null, 1, 10))
   if (format !== 'png') return Promise.resolve(svg)
   return new Promise(function (done, fail) {
     var image = new Image()
@@ -155,7 +172,13 @@ window.koloniDraw = function (xml, format) {
 // `new URL(location.href).origin`: the page itself is of no origin).
 window.addEventListener('message', function (event) {
   var said = event.data
-  if (event.source !== window.parent || event.origin !== new URL(location.href).origin || !said || typeof said !== 'object') return
+  if (
+    event.source !== window.parent ||
+    event.origin !== new URL(location.href).origin ||
+    !said ||
+    typeof said !== 'object'
+  )
+    return
   var answer = function (message) {
     window.parent.postMessage(message, new URL(location.href).origin)
   }

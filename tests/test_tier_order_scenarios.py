@@ -43,8 +43,15 @@ if not _built():
 def both_strongest(team, client):  # noqa: F811
     """Local · big-model and Fast · deep both strongest; Fast · quick fast."""
     local, fast = tiered(team, client)
-    assert client.patch(f"/api/providers/{fast}", json={"models": [
-        {"name": "quick", "tier": "fast"}, {"name": "deep", "tier": "strongest"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{fast}",
+            json={
+                "models": [{"name": "quick", "tier": "fast"}, {"name": "deep", "tier": "strongest"}]
+            },
+        ).status_code
+        == 200
+    )
     return local["id"], fast
 
 
@@ -73,36 +80,60 @@ def test_the_users_order_decides_which_model_of_a_tier_runs(team):  # noqa: F811
     client, _default, _fast = team([], [])
     local, fast = both_strongest(team, client)
     role_tier(client, "Reviewer", "strongest")
-    body = {"strongest": [{"provider_id": fast, "model": "deep"}, {"provider_id": local, "model": "big-model"}],
-            "balanced": [], "fast": [{"provider_id": fast, "model": "quick"}]}
+    body = {
+        "strongest": [
+            {"provider_id": fast, "model": "deep"},
+            {"provider_id": local, "model": "big-model"},
+        ],
+        "balanced": [],
+        "fast": [{"provider_id": fast, "model": "quick"}],
+    }
     del client.headers["Origin"]
     assert client.put("/api/tiers", json=body).status_code == 403  # only the app's own page
     client.headers["Origin"] = ORIGIN
     saved = client.put("/api/tiers", json=body)
     assert saved.status_code == 200, saved.text
     assert [(one["provider_name"], one["model"]) for one in saved.json()["strongest"]] == [
-        ("Fast", "deep"), ("Local", "big-model")]
+        ("Fast", "deep"),
+        ("Local", "big-model"),
+    ]
     assert order(client, "strongest") == [("Fast", "deep"), ("Local", "big-model")]
     assert picked(client, "Reviewer") == ("Fast", "deep", "tier")
 
 
-@pytest.mark.parametrize("strongest", [
-    "missing",   # big-model left out
-    "extra",     # quick is fast, not strongest
-    "unknown",   # a model no provider has
-], ids=str)
+@pytest.mark.parametrize(
+    "strongest",
+    [
+        "missing",  # big-model left out
+        "extra",  # quick is fast, not strongest
+        "unknown",  # a model no provider has
+    ],
+    ids=str,
+)
 def test_the_order_is_set_here_and_the_tier_on_the_provider(team, strongest):  # noqa: F811
     client, _default, _fast = team([], [])
     local, fast = both_strongest(team, client)
     lists = {
         "missing": [{"provider_id": fast, "model": "deep"}],
-        "extra": [{"provider_id": fast, "model": "deep"}, {"provider_id": local, "model": "big-model"},
-                  {"provider_id": fast, "model": "quick"}],
-        "unknown": [{"provider_id": fast, "model": "deep"}, {"provider_id": local, "model": "big-model"},
-                    {"provider_id": fast, "model": "nobody-has-it"}],
+        "extra": [
+            {"provider_id": fast, "model": "deep"},
+            {"provider_id": local, "model": "big-model"},
+            {"provider_id": fast, "model": "quick"},
+        ],
+        "unknown": [
+            {"provider_id": fast, "model": "deep"},
+            {"provider_id": local, "model": "big-model"},
+            {"provider_id": fast, "model": "nobody-has-it"},
+        ],
     }
-    refused = client.put("/api/tiers", json={
-        "strongest": lists[strongest], "balanced": [], "fast": [{"provider_id": fast, "model": "quick"}]})
+    refused = client.put(
+        "/api/tiers",
+        json={
+            "strongest": lists[strongest],
+            "balanced": [],
+            "fast": [{"provider_id": fast, "model": "quick"}],
+        },
+    )
     assert refused.status_code == 422, refused.text
     assert order(client, "strongest") == [("Local", "big-model"), ("Fast", "deep")]  # nothing saved
 
@@ -110,13 +141,35 @@ def test_the_order_is_set_here_and_the_tier_on_the_provider(team, strongest):  #
 def test_a_model_that_changes_tier_comes_last_in_its_new_one(team):  # noqa: F811
     client, _default, _fast = team([], [])
     local, fast = both_strongest(team, client)
-    client.put("/api/tiers", json={
-        "strongest": [{"provider_id": fast, "model": "deep"}, {"provider_id": local, "model": "big-model"}],
-        "balanced": [], "fast": [{"provider_id": fast, "model": "quick"}]})
+    client.put(
+        "/api/tiers",
+        json={
+            "strongest": [
+                {"provider_id": fast, "model": "deep"},
+                {"provider_id": local, "model": "big-model"},
+            ],
+            "balanced": [],
+            "fast": [{"provider_id": fast, "model": "quick"}],
+        },
+    )
     # quick becomes strongest: it joins at the end, and the user's order before it stays
-    assert client.patch(f"/api/providers/{fast}", json={"models": [
-        {"name": "quick", "tier": "strongest"}, {"name": "deep", "tier": "strongest"}]}).status_code == 200
-    assert order(client, "strongest") == [("Fast", "deep"), ("Local", "big-model"), ("Fast", "quick")]
+    assert (
+        client.patch(
+            f"/api/providers/{fast}",
+            json={
+                "models": [
+                    {"name": "quick", "tier": "strongest"},
+                    {"name": "deep", "tier": "strongest"},
+                ]
+            },
+        ).status_code
+        == 200
+    )
+    assert order(client, "strongest") == [
+        ("Fast", "deep"),
+        ("Local", "big-model"),
+        ("Fast", "quick"),
+    ]
     assert order(client, "fast") == []
 
 
@@ -175,7 +228,9 @@ def test_only_a_list_nothing_answered_holds_a_tier_back_and_only_for_a_while(tea
         return httpx2.Response(answer["now"], json={"error": "no such route"})
 
     async def served(base_url, key):
-        return await OpenAICompatClient(base_url, key, transport=httpx2.MockTransport(server)).models()
+        return await OpenAICompatClient(
+            base_url, key, transport=httpx2.MockTransport(server)
+        ).models()
 
     monkeypatch.setattr(api, "served_models", served)
 
@@ -202,8 +257,11 @@ def _down(client, monkeypatch, *down):
     from app.api import providers as api
 
     async def listed(provider, providers):
-        return ([], "model server unreachable: refused", False) if provider.id in down else (
-            ["big-model", "deep", "quick", "gold"], None, False)
+        return (
+            ([], "model server unreachable: refused", False)
+            if provider.id in down
+            else (["big-model", "deep", "quick", "gold"], None, False)
+        )
 
     monkeypatch.setattr(api, "_own_list", listed)
     for one in down:
@@ -211,11 +269,13 @@ def _down(client, monkeypatch, *down):
 
 
 def test_koloni_moving_an_agent_onto_a_pay_per_token_provider_asks_at_full_auto_once(
-        team, wait_run, project_dir, monkeypatch):  # noqa: F811
+    team, wait_run, project_dir, monkeypatch
+):  # noqa: F811
     # B-373 / R173 (the user's call): past Fable's full plan KOLONİ opened the Coder on a paid
     # API key, at Full auto and spawn approval "auto", with no card.
-    client, _default, fast = team([spawn("Reviewer", id="s1"), spawn("Reviewer", id="s2"),
-                                   text("done")], [])
+    client, _default, fast = team(
+        [spawn("Reviewer", id="s1"), spawn("Reviewer", id="s2"), text("done")], []
+    )
     local, _fast = both_strongest(team, client)
     role_tier(client, "Reviewer", "strongest")
     _down(client, monkeypatch, local)  # (Local, on this machine, first; Fast is an API key)
@@ -223,8 +283,10 @@ def test_koloni_moving_an_agent_onto_a_pay_per_token_provider_asks_at_full_auto_
     snap = until(client, cid, lambda s: any(a["status"] == "proposed" for a in s["agents"]))
     reviewer = next(a for a in snap["agents"] if a["status"] == "proposed")
     assert reviewer["provider_name"] == "Fast"
-    assert "Fast is paid per token, Local is not: the user says whether it is used" in reviewer[
-        "chosen_why"]
+    assert (
+        "Fast is paid per token, Local is not: the user says whether it is used"
+        in reviewer["chosen_why"]
+    )
     assert client.post(f"/api/agents/{reviewer['id']}/reject").status_code == 200
     snap = wait_run(client, cid, run_id)
     first, again = [t for t in snap["tool_calls"] if t["name"] == "spawn_agent"]
@@ -236,14 +298,24 @@ def test_koloni_moving_an_agent_onto_a_pay_per_token_provider_asks_at_full_auto_
 
 
 def test_no_card_where_the_roles_own_model_is_paid_per_token_already(
-        team, wait_run, project_dir, monkeypatch):  # noqa: F811
+    team, wait_run, project_dir, monkeypatch
+):  # noqa: F811
     client, _default, _fast = team([spawn("Reviewer"), text("done")], [text("looked")])
     fast, paid = team.providers["Fast"]["id"], team.providers["Paid Api"]["id"]
     client.headers["Origin"] = ORIGIN
-    assert client.patch(f"/api/providers/{fast}", json={"models": [
-        {"name": "deep", "tier": "strongest"}]}).status_code == 200
-    assert client.patch(f"/api/providers/{paid}", json={"for_agents": True, "models": [
-        {"name": "gold", "tier": "strongest"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{fast}", json={"models": [{"name": "deep", "tier": "strongest"}]}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.patch(
+            f"/api/providers/{paid}",
+            json={"for_agents": True, "models": [{"name": "gold", "tier": "strongest"}]},
+        ).status_code
+        == 200
+    )
     role_tier(client, "Reviewer", "strongest")
     assert picked(client, "Reviewer") == ("Fast", "deep", "tier")
     _down(client, monkeypatch, fast)
@@ -255,7 +327,8 @@ def test_no_card_where_the_roles_own_model_is_paid_per_token_already(
 
 
 def test_a_paid_move_in_a_turn_nobody_watches_is_refused_also_past_a_cli_it_skips(
-        team, wait_run, project_dir, monkeypatch):  # noqa: F811
+    team, wait_run, project_dir, monkeypatch
+):  # noqa: F811
     # Review M3: nobody is there to say yes. Past a down Local - and past a CLI that works with
     # tools of its own, which such a turn never runs (no `moved` said then).
     from tests.test_triggers import leave, place, run_now, trigger
@@ -267,15 +340,33 @@ def test_a_paid_move_in_a_turn_nobody_watches_is_refused_also_past_a_cli_it_skip
             _down(client, monkeypatch, local)
         else:
             codex = team.providers["Codex"]["id"]
-            assert client.patch(f"/api/providers/{local}", json={"models": [
-                {"name": "big-model"}]}).status_code == 200
-            assert client.patch(f"/api/providers/{codex}", json={"models": [
-                {"name": "gpt-x", "tier": "strongest"}]}).status_code == 200
-            assert client.put("/api/tiers", json={
-                "strongest": [{"provider_id": codex, "model": "gpt-x"},
-                              {"provider_id": fast_id, "model": "deep"}],
-                "balanced": [], "fast": [{"provider_id": fast_id, "model": "quick"}]},
-            ).status_code == 200
+            assert (
+                client.patch(
+                    f"/api/providers/{local}", json={"models": [{"name": "big-model"}]}
+                ).status_code
+                == 200
+            )
+            assert (
+                client.patch(
+                    f"/api/providers/{codex}",
+                    json={"models": [{"name": "gpt-x", "tier": "strongest"}]},
+                ).status_code
+                == 200
+            )
+            assert (
+                client.put(
+                    "/api/tiers",
+                    json={
+                        "strongest": [
+                            {"provider_id": codex, "model": "gpt-x"},
+                            {"provider_id": fast_id, "model": "deep"},
+                        ],
+                        "balanced": [],
+                        "fast": [{"provider_id": fast_id, "model": "quick"}],
+                    },
+                ).status_code
+                == 200
+            )
         role_tier(client, "Reviewer", "strongest")
         pid, cid = place(client, project_dir, permission_mode="full_auto")
         run_id = run_now(client, trigger(client, pid, cid, permissions=leave(agents=2))["id"])
@@ -283,27 +374,37 @@ def test_a_paid_move_in_a_turn_nobody_watches_is_refused_also_past_a_cli_it_skip
         (opening,) = [t for t in snap["tool_calls"] if t["name"] == "spawn_agent"]
         assert opening["status"] != "succeeded", skipped
         assert "nobody is watching this turn to be asked about money" in opening["result"], opening[
-        "result"]
+            "result"
+        ]
         assert len(snap["agents"]) == 1 and not fast.calls
 
 
 def test_a_paid_move_of_a_room_member_is_asked_and_a_discussion_member_is_sent_to_spawn_agent(
-        team, wait_run, project_dir, monkeypatch):  # noqa: F811
+    team, wait_run, project_dir, monkeypatch
+):  # noqa: F811
     # Review M2: a room's and a discussion's members are opened on the same rule.
-    room = step(call("open_room", {"goal": "agree", "with": ["Coder", "Reviewer"],
-                                   "follow": False}, "o"))
+    room = step(
+        call("open_room", {"goal": "agree", "with": ["Coder", "Reviewer"], "follow": False}, "o")
+    )
     talk = step(call("discuss", {"topic": "agree", "with": ["Reviewer"], "rounds": 1}, "d"))
     client, _default, fast = team([talk, room, text("done")], [])
     local, _fast = both_strongest(team, client)
     role_tier(client, "Reviewer", "strongest")
     _down(client, monkeypatch, local)
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="auto")
-    snap = until(client, cid, lambda s: any(a["status"] == "proposed" and a["role_name"] == (
-        "Reviewer") for a in s["agents"]))
-    reviewer = next(a for a in snap["agents"] if a["status"] == "proposed"
-                    and a["role_name"] == "Reviewer")
+    snap = until(
+        client,
+        cid,
+        lambda s: any(
+            a["status"] == "proposed" and a["role_name"] == ("Reviewer") for a in s["agents"]
+        ),
+    )
+    reviewer = next(
+        a for a in snap["agents"] if a["status"] == "proposed" and a["role_name"] == "Reviewer"
+    )
     assert reviewer["provider_name"] == "Fast" and reviewer["chosen_why"].startswith(
-        "Fast is paid per token, Local is not")
+        "Fast is paid per token, Local is not"
+    )
     assert client.post(f"/api/agents/{reviewer['id']}/reject").status_code == 200
     snap = wait_run(client, cid, run_id)
     said = {t["name"]: t for t in snap["tool_calls"]}
@@ -314,10 +415,12 @@ def test_a_paid_move_of_a_room_member_is_asked_and_a_discussion_member_is_sent_t
 
 
 def test_a_no_on_a_card_asked_for_more_than_money_does_not_bar_the_provider(
-        team, wait_run, project_dir, monkeypatch):  # noqa: F811
+    team, wait_run, project_dir, monkeypatch
+):  # noqa: F811
     # Review L3: spawn approval "always" asks this card anyway - its no is about this agent.
-    client, _default, _fast = team([spawn("Reviewer", id="s1"), spawn("Reviewer", id="s2"),
-                                    text("done")], [])
+    client, _default, _fast = team(
+        [spawn("Reviewer", id="s1"), spawn("Reviewer", id="s2"), text("done")], []
+    )
     local, _fast = both_strongest(team, client)
     role_tier(client, "Reviewer", "strongest")
     _down(client, monkeypatch, local)
@@ -328,4 +431,6 @@ def test_a_no_on_a_card_asked_for_more_than_money_does_not_bar_the_provider(
         assert client.post(f"/api/agents/{kid['id']}/reject").status_code == 200
     snap = wait_run(client, cid, run_id)
     assert [t["status"] for t in snap["tool_calls"] if t["name"] == "spawn_agent"] == [
-        "denied", "denied"]
+        "denied",
+        "denied",
+    ]

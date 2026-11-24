@@ -17,7 +17,8 @@ def looking(n):
 
 
 def test_steps_an_agent_may_take_is_a_setting_of_the_app_and_is_the_limit(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     client, _model = make_client([spawn("Researcher"), *looking(6), text("never said")])
     assert client.get("/api/steps").json() == {"max_steps": 25}
     for wrong in (4, 201, "9"):
@@ -36,21 +37,34 @@ def test_steps_an_agent_may_take_is_a_setting_of_the_app_and_is_the_limit(
 
 
 def test_a_team_the_user_gave_the_chat_and_the_lead_did_not_open_is_said_once(
-        make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [spawn("Web app lead", "build the page", "l1"), text("done"),
-                 text("Backend had nothing to do")],
-        "Web app lead": [spawn("Coder", "build the page", "c1"), text("web done")],
-        "Coder": [step(call("write_file", {"path": "page.html", "content": "<p>hi</p>\n"}, "f1")),
-                  text("built")],
-    })
+    make_client, wait_run, project_dir
+):
+    client, model = make_client(
+        {
+            "Lead": [
+                spawn("Web app lead", "build the page", "l1"),
+                text("done"),
+                text("Backend had nothing to do"),
+            ],
+            "Web app lead": [spawn("Coder", "build the page", "c1"), text("web done")],
+            "Coder": [
+                step(call("write_file", {"path": "page.html", "content": "<p>hi</p>\n"}, "f1")),
+                text("built"),
+            ],
+        }
+    )
     cid, run_id = two_teams(client, project_dir)
     snap = wait_run(client, cid, run_id, timeout=20)
-    told = [m["content"] for m in model.calls_of["Lead"][-1]
-            if f"{API} was not opened" in str(m["content"])]
-    assert len(told) == 1 and f"{API} was not opened: open {API} lead with spawn_agent, or say " \
-        "why not" in told[0]
+    told = [
+        m["content"]
+        for m in model.calls_of["Lead"][-1]
+        if f"{API} was not opened" in str(m["content"])
+    ]
+    assert (
+        len(told) == 1
+        and f"{API} was not opened: open {API} lead with spawn_agent, or say why not" in told[0]
+    )
     assert agent(snap, "Lead")["status"] == "completed"
     assert [m["content"] for m in snap["messages"] if m["role"] == "koloni"] == [
-        f"{API} was not opened in this turn."]
-
+        f"{API} was not opened in this turn."
+    ]

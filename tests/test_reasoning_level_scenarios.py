@@ -51,8 +51,9 @@ class Leveled(ScriptedModel):
     async def info(self) -> ModelInfo:
         return ModelInfo(self.model_id, True, efforts=self.efforts, context_window=100_000)
 
-    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None,
-                          effort=None, **_more):
+    async def stream_step(
+        self, model_id, messages, tools, on_delta, on_thinking=None, effort=None, **_more
+    ):
         named = str(messages[0]["content"]).split("Your name here is ", 1)
         name = named[1].split(".", 1)[0] if len(named) > 1 else "Lead"
         self.levels.setdefault(name, []).append(effort)
@@ -65,8 +66,7 @@ def leveled(settings_env):
 
     def make(steps, efforts=LEVELS):
         model = Leveled(steps, efforts)
-        client = TestClient(create_app(load_settings(settings_env), model=model),
-                            base_url=ORIGIN)
+        client = TestClient(create_app(load_settings(settings_env), model=model), base_url=ORIGIN)
         client.__enter__()
         opened.append(client)
         client.headers["Origin"] = ORIGIN
@@ -84,8 +84,9 @@ def set_role(client, name, **levels):
 
 
 def ran(client, wait_run, project_dir, **conversation):
-    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never",
-                        **conversation)
+    cid, run_id = begin(
+        client, project_dir, mode="full_auto", spawn_approval="never", **conversation
+    )
     wait_run(client, cid, run_id)
     return cid
 
@@ -104,11 +105,15 @@ def test_a_roles_level_goes_with_its_agents_steps_and_default_sends_none(
 def test_the_lead_asks_a_level_for_a_task_never_above_the_roles_most(
     leveled, wait_run, project_dir, asked, given
 ):
-    client, model = leveled({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "a hard bug", "effort": asked})),
-                 text("done")],
-        "Coder": [text("fixed")],
-    })
+    client, model = leveled(
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "a hard bug", "effort": asked})),
+                text("done"),
+            ],
+            "Coder": [text("fixed")],
+        }
+    )
     set_role(client, "Coder", effort="medium", max_effort="high")
     ran(client, wait_run, project_dir)
     assert model.levels["Coder"] == [given]
@@ -147,7 +152,9 @@ def test_levels_are_set_only_from_the_apps_own_page_and_must_make_sense(leveled,
     assert client.patch(coder, json={"effort": None}).json()["effort"] is None
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={"lead_effort": "turbo"}).status_code == 422
+    assert (
+        client.patch(f"/api/conversations/{cid}", json={"lead_effort": "turbo"}).status_code == 422
+    )
 
 
 # --- Anthropic ------------------------------------------------------------------------
@@ -160,9 +167,15 @@ ENDED = events(
     {"type": "message_stop"},
 )
 MODEL = {
-    "id": "claude-sonnet-5-5", "max_input_tokens": 1_000_000, "max_tokens": 128_000,
-    "capabilities": {"effort": {"supported": True, **{
-        level: {"supported": level != "xhigh"} for level in LEVELS}}},
+    "id": "claude-sonnet-5-5",
+    "max_input_tokens": 1_000_000,
+    "max_tokens": 128_000,
+    "capabilities": {
+        "effort": {
+            "supported": True,
+            **{level: {"supported": level != "xhigh"} for level in LEVELS},
+        }
+    },
 }
 
 
@@ -194,5 +207,6 @@ async def test_anthropic_says_which_levels_a_model_takes_and_its_window():
     assert tuple(info.efforts) == ("low", "medium", "high", "max")
     assert info.context_window == 1_000_000
     bare = await client_for(
-        lambda _r: httpx2.Response(200, content=json.dumps({"id": "claude-sonnet-5-5"}))).info()
+        lambda _r: httpx2.Response(200, content=json.dumps({"id": "claude-sonnet-5-5"}))
+    ).info()
     assert (bare.efforts, bare.context_window) == (None, None)  # not said: unknown, never guessed

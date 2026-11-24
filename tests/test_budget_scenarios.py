@@ -58,9 +58,18 @@ def test_a_turn_on_two_models_with_no_price_is_one_turn(make_client, wait_run, p
     run = turn(client, wait_run, cid)
     with client.app.state.session_factory() as session:
         lead = session.scalars(select(Agent)).one()
-        session.add(Agent(run_id=run["id"], role_name="Other", tools=[], provider_name="Elsewhere",
-                          model_id="big", input_tokens_total=10, output_tokens=5,
-                          started_at=lead.started_at))
+        session.add(
+            Agent(
+                run_id=run["id"],
+                role_name="Other",
+                tools=[],
+                provider_name="Elsewhere",
+                model_id="big",
+                input_tokens_total=10,
+                output_tokens=5,
+                started_at=lead.started_at,
+            )
+        )
         session.commit()
     assert budget(client, pid)["unpriced_runs"] == 1
     # with a price for one of them, the turn still has a part that has none

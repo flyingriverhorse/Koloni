@@ -58,8 +58,10 @@ def day_of(client, pid):
 
 
 def words(client, pid, cid):
-    return client.post(f"/api/projects/{pid}/day/words",
-                       json={"since": MIDNIGHT.isoformat(), "conversation_id": cid})
+    return client.post(
+        f"/api/projects/{pid}/day/words",
+        json={"since": MIDNIGHT.isoformat(), "conversation_id": cid},
+    )
 
 
 def test_the_time_is_the_users_own_and_needs_a_way_to_send(make_client, project_dir):
@@ -82,8 +84,9 @@ def test_the_time_is_the_users_own_and_needs_a_way_to_send(make_client, project_
 
 
 def test_the_note_goes_once_a_day_after_its_time(make_client, wait_run, project_dir, monkeypatch):
-    client, _model, pid, cid = began(make_client, project_dir, [text("hi", 3, 1)],
-                                     notify_url=HOOK, notify_format="text")
+    client, _model, pid, cid = began(
+        make_client, project_dir, [text("hi", 3, 1)], notify_url=HOOK, notify_format="text"
+    )
     client.patch(f"/api/projects/{pid}", json={"day_note_at": "18:00"})
     midnight = midnight_of(turn(client, wait_run, cid))  # the turn's day, whenever it ran
     sent: list[tuple[str, str, str]] = []
@@ -112,8 +115,13 @@ def test_a_day_the_app_was_closed_all_evening_is_sent_late_once_and_counts_only_
 ):
     from app.db.models import Project, Run
 
-    client, _model, pid, cid = began(make_client, project_dir, [text("hi", 3, 1), text("on", 3, 1)],
-                                     notify_url=HOOK, notify_format="text")
+    client, _model, pid, cid = began(
+        make_client,
+        project_dir,
+        [text("hi", 3, 1), text("on", 3, 1)],
+        notify_url=HOOK,
+        notify_format="text",
+    )
     client.patch(f"/api/projects/{pid}", json={"day_note_at": "18:00"})
     midnight = midnight_of(turn(client, wait_run, cid))
     morning = turn(client, wait_run, cid)
@@ -210,8 +218,12 @@ def test_one_project_that_cannot_be_counted_keeps_no_other_from_its_note(
     other.mkdir()
     second = client.post("/api/projects", json={"root_path": str(other)}).json()["id"]
     for project in (pid, second):
-        assert client.patch(f"/api/projects/{project}", json={
-            "notify_url": HOOK, "day_note_at": "08:00"}).status_code == 200
+        assert (
+            client.patch(
+                f"/api/projects/{project}", json={"notify_url": HOOK, "day_note_at": "08:00"}
+            ).status_code
+            == 200
+        )
     sent = []
 
     async def post(url, message, form="slack"):
@@ -245,24 +257,37 @@ def test_a_cost_is_said_only_when_every_model_has_one_in_one_currency(
     # two models, priced in two currencies: never a sum of the two
     def two(**_asked):
         row = {"input_tokens": 1, "output_tokens": 1, "unknown_agents": 0}
-        return {"by_model": [{**row, "cost": {"amount": 1.0, "currency": "USD"}},
-                             {**row, "cost": {"amount": 1.0, "currency": "EUR"}}]}
+        return {
+            "by_model": [
+                {**row, "cost": {"amount": 1.0, "currency": "USD"}},
+                {**row, "cost": {"amount": 1.0, "currency": "EUR"}},
+            ]
+        }
 
     monkeypatch.setattr(day_api, "usage", two)
     assert day_of(client, pid)["cost"] is None
 
 
 def test_only_what_reached_the_project_is_a_changed_file(make_client, wait_run, project_dir):
-    client, _model, pid, cid = began(make_client, project_dir,
-                                     [write("a.txt", "one\n"), text("made a")])
+    client, _model, pid, cid = began(
+        make_client, project_dir, [write("a.txt", "one\n"), text("made a")]
+    )
     client.patch(f"/api/conversations/{cid}", json={"lead_hands_code": False})
     run = turn(client, wait_run, cid, "make a")
     agent = client.get(f"/api/conversations/{cid}").json()["agents"][0]["id"]
     with client.app.state.session_factory() as session:
         for status in ("proposed", "rejected", "in_copy", "discarded", "merged"):
-            session.add(FileChange(run_id=run["id"], agent_id=agent, path=f"{status}.txt",
-                                   kind="create", after_content="x", after_sha="0",
-                                   status=status))
+            session.add(
+                FileChange(
+                    run_id=run["id"],
+                    agent_id=agent,
+                    path=f"{status}.txt",
+                    kind="create",
+                    after_content="x",
+                    after_sha="0",
+                    status=status,
+                )
+            )
         session.commit()
     assert day_of(client, pid)["changed_files"] == ["a.txt", "merged.txt"]
 
@@ -275,23 +300,43 @@ def test_at_most_20_paths_are_said():
 
 def test_what_waits_is_counted_as_the_page_counts_it():
     # the same cases as `waitCount`'s in frontend/src/shell/seen.test.tsx
-    board = {"merges_pending": 2, "agents": [
-        {"status": "proposed"}, {"status": "waiting_approval"}, {"status": "running"}]}
+    board = {
+        "merges_pending": 2,
+        "agents": [{"status": "proposed"}, {"status": "waiting_approval"}, {"status": "running"}],
+    }
     assert waiting_in(board) == 3
     assert waiting_in({"merges_pending": 0, "agents": [{"status": "proposed"}]}) == 1
-    assert waiting_in({"merges_pending": 0, "agents": [
-        {"status": "waiting_approval"}, {"status": "waiting_approval"},
-        {"status": "proposed"}]}) == 2
+    assert (
+        waiting_in(
+            {
+                "merges_pending": 0,
+                "agents": [
+                    {"status": "waiting_approval"},
+                    {"status": "waiting_approval"},
+                    {"status": "proposed"},
+                ],
+            }
+        )
+        == 2
+    )
     # a plan that waits for a yes is one thing more (K-60b-kalan)
     assert waiting_in({"merges_pending": 1, "agents": [], "turn": {"plan_waits": True}}) == 2
     # an agent that asks two questions at once, and a change, is three things (K-38f2)
-    assert waiting_in({"merges_pending": 0, "agents": [{
-        "status": "waiting_approval", "questions": 2, "changes_to_approve": 1}]}) == 3
+    assert (
+        waiting_in(
+            {
+                "merges_pending": 0,
+                "agents": [{"status": "waiting_approval", "questions": 2, "changes_to_approve": 1}],
+            }
+        )
+        == 3
+    )
 
 
 def test_the_numbers_said_in_words_by_the_conversations_model(make_client, wait_run, project_dir):
     client, model, pid, cid = began(
-        make_client, project_dir, [text("done"), text("One turn. Nothing failed. Quiet day.")])
+        make_client, project_dir, [text("done"), text("One turn. Nothing failed. Quiet day.")]
+    )
     turn(client, wait_run, cid)
     del client.headers["Origin"]
     assert words(client, pid, cid).status_code == 403
@@ -310,8 +355,12 @@ def test_the_numbers_said_in_words_by_the_conversations_model(make_client, wait_
 def test_the_words_go_to_a_fast_model_when_there_is_one(make_client, project_dir):
     client, _model, pid, cid = began(make_client, project_dir, [text("A quiet day.")])
     local = client.get("/api/providers").json()[0]
-    assert client.patch(f"/api/providers/{local['id']}", json={
-        "models": [{"name": "quick", "tier": "fast"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{local['id']}", json={"models": [{"name": "quick", "tier": "fast"}]}
+        ).status_code
+        == 200
+    )
     said = words(client, pid, cid)
     assert said.status_code == 200, said.text
     assert said.json()["model_id"] == "quick"
@@ -320,8 +369,13 @@ def test_the_words_go_to_a_fast_model_when_there_is_one(make_client, project_dir
 def test_a_model_that_may_not_run_is_said_to_the_user(make_client, project_dir):
     client, model, pid, cid = began(make_client, project_dir, [text("never")])
     local = client.get("/api/providers").json()[0]
-    assert client.patch(f"/api/providers/{local['id']}", json={
-        "models": [{"name": "other"}], "only_listed": True}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{local['id']}",
+            json={"models": [{"name": "other"}], "only_listed": True},
+        ).status_code
+        == 200
+    )
     said = words(client, pid, cid)
     assert said.status_code == 409
     assert "Models page" in said.json()["detail"]
@@ -332,7 +386,8 @@ def test_a_model_that_may_not_run_is_said_to_the_user(make_client, project_dir):
 def test_a_failure_never_repeats_the_key(make_client, project_dir):
     key = "sk-day-test-0000"
     client, _model, pid, cid = began(
-        make_client, project_dir, [ModelUnavailable(f"401: the key {key} is not valid")])
+        make_client, project_dir, [ModelUnavailable(f"401: the key {key} is not valid")]
+    )
     local = client.get("/api/providers").json()[0]
     assert client.patch(f"/api/providers/{local['id']}", json={"api_key": key}).status_code == 200
     said = words(client, pid, cid)
@@ -342,18 +397,22 @@ def test_a_failure_never_repeats_the_key(make_client, project_dir):
 
 def test_over_the_budget_the_words_wait_for_the_users_word(make_client, wait_run, project_dir):
     client, model, pid, cid = began(
-        make_client, project_dir, [text("a", 1_000_000, 500_000), text("A costly day.")])
+        make_client, project_dir, [text("a", 1_000_000, 500_000), text("A costly day.")]
+    )
     turn(client, wait_run, cid)
-    client.put("/api/prices", json={
-        "model_id": "fake-model", "input": 3, "output": 15, "currency": "USD"})
+    client.put(
+        "/api/prices", json={"model_id": "fake-model", "input": 3, "output": 15, "currency": "USD"}
+    )
     assert client.patch(f"/api/projects/{pid}", json={"monthly_budget": 10}).status_code == 200
     before = len(model.calls)
     refused = words(client, pid, cid)
     assert refused.status_code == 409
     assert refused.json()["detail"].startswith("this project is over this month's budget")
     assert len(model.calls) == before  # nothing was asked
-    going = client.post(f"/api/projects/{pid}/day/words", json={
-        "since": MIDNIGHT.isoformat(), "conversation_id": cid, "over_budget": True})
+    going = client.post(
+        f"/api/projects/{pid}/day/words",
+        json={"since": MIDNIGHT.isoformat(), "conversation_id": cid, "over_budget": True},
+    )
     assert going.status_code == 200, going.text
     assert going.json()["text"] == "A costly day."
 

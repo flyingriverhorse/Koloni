@@ -13,7 +13,9 @@ const coder: Role = {
   instructions: '',
   tools: ['list_dir', 'read_file', 'search', 'run_command', 'assess_task'],
   builtin: true,
-  created_by_agent: false, locked_tools: [], models: null,
+  created_by_agent: false,
+  locked_tools: [],
+  models: null,
   provider_id: null,
   model_id: null,
   tier: null,
@@ -59,13 +61,24 @@ test('the tiles show what the role may use, and the summary and each group count
   expect(tile('Read files')).toHaveAttribute('aria-pressed', 'true')
   expect(tile('Read files')).toHaveAccessibleDescription('open and read')
   expect(tile('Write files')).toHaveAttribute('aria-pressed', 'false')
-  expect(screen.getAllByRole('button', { pressed: true }).filter(b => b.classList.contains('tool-tile'))).toHaveLength(4)
+  expect(screen.getAllByRole('button', { pressed: true }).filter(b => b.classList.contains('tool-tile'))).toHaveLength(
+    4,
+  )
   expect(screen.getAllByRole('button').filter(b => b.classList.contains('tool-tile'))).toHaveLength(ROLE_TOOLS.length)
   expect(screen.getByText('github')).toHaveClass('chip')
 })
 
 test('"asks" is on the tools that wait for your yes at the permission level, where they are on; the permission level is said once, behind the "?"', async () => {
-  expect(ROLE_TOOLS.filter(tool => tool.asks).map(tool => tool.name)).toEqual(['write_file', 'edit_file', 'run_command', 'web_search', 'http_request', 'create_role', 'add_task', 'change_task'])
+  expect(ROLE_TOOLS.filter(tool => tool.asks).map(tool => tool.name)).toEqual([
+    'write_file',
+    'edit_file',
+    'run_command',
+    'web_search',
+    'http_request',
+    'create_role',
+    'add_task',
+    'change_task',
+  ])
   await open({ ...coder, tools: ['read_file', 'write_file', 'run_command'] })
   expect(tile('Write files')).toHaveTextContent('asks')
   expect(tile('Run commands')).toHaveTextContent('asks')
@@ -83,7 +96,9 @@ test('a click saves the role’s tools at once, with the one changed, and says s
   expect(tile('Write files')).toHaveAttribute('aria-pressed', 'true')
   expect(await screen.findByText('Write files: on, saved.')).toHaveAttribute('role', 'status')
   await userEvent.click(tile('Run commands'))
-  expect(onPatch).toHaveBeenLastCalledWith('r1', { tools: ['list_dir', 'read_file', 'search', 'assess_task', 'write_file'] })
+  expect(onPatch).toHaveBeenLastCalledWith('r1', {
+    tools: ['list_dir', 'read_file', 'search', 'assess_task', 'write_file'],
+  })
   expect(await screen.findByText('Run commands: off, saved.')).toBeInTheDocument()
 })
 
@@ -133,7 +148,14 @@ test("a locked tool's tile is ticked, disabled and says why", async () => {
 })
 
 test('a core role has no off switch', async () => {
-  render(<AgentsPage roles={[core, { ...coder, id: 'r2', name: 'Translator', builtin: true }]} picked={core.id} onPatch={vi.fn()} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[core, { ...coder, id: 'r2', name: 'Translator', builtin: true }]}
+      picked={core.id}
+      onPatch={vi.fn()}
+      {...handlers()}
+    />,
+  )
   expect(screen.queryByRole('switch', { name: 'Coder on' })).toBeNull()
   expect(screen.getAllByRole('switch', { name: 'Translator on' }).length).toBeGreaterThan(0)
 })
@@ -142,7 +164,16 @@ test("0.1.0-ui: the role's MCP servers and skills are a list, each opening the T
   const onPatch = vi.fn().mockResolvedValue(undefined)
   const onOpenTools = vi.fn()
   const onOpenSkills = vi.fn()
-  render(<AgentsPage roles={[coder]} picked={coder.id} onPatch={onPatch} onOpenTools={onOpenTools} onOpenSkills={onOpenSkills} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[coder]}
+      picked={coder.id}
+      onPatch={onPatch}
+      onOpenTools={onOpenTools}
+      onOpenSkills={onOpenSkills}
+      {...handlers()}
+    />,
+  )
   await userEvent.click(screen.getByRole('tab', { name: 'Tools' }))
   // no box, no ✕, no "+ add" to give or take one here
   expect(screen.queryByRole('combobox', { name: /MCP server/ })).toBeNull()
@@ -160,11 +191,29 @@ test("0.1.0-ui: the role's MCP servers and skills are a list, each opening the T
 })
 
 test('a server switched off on the Tools page says off on the role, and a skill that asks for it cannot run there', async () => {
-  const ponytail = { id: 'k1', name: 'ponytail', description: '', enabled: true, needs: { groups: [], mcp: ['github'], unknown: [], tools: {} } } as unknown as Skill
-  render(<AgentsPage roles={[coder]} picked={coder.id} serversOff={['github']} skills={[ponytail]} onOpenTools={vi.fn()} onOpenSkills={vi.fn()} {...handlers()} />)
+  const ponytail = {
+    id: 'k1',
+    name: 'ponytail',
+    description: '',
+    enabled: true,
+    needs: { groups: [], mcp: ['github'], unknown: [], tools: {} },
+  } as unknown as Skill
+  render(
+    <AgentsPage
+      roles={[coder]}
+      picked={coder.id}
+      serversOff={['github']}
+      skills={[ponytail]}
+      onOpenTools={vi.fn()}
+      onOpenSkills={vi.fn()}
+      {...handlers()}
+    />,
+  )
   await userEvent.click(screen.getByRole('tab', { name: 'Tools' }))
   expect(screen.getByRole('button', { name: 'github, off, on the Tools page' })).toHaveTextContent('github · off')
-  expect(screen.getByRole('button', { name: 'ponytail, cannot run here: no MCP server github, on the Tools page' })).toHaveTextContent('⚠ ponytail')
+  expect(
+    screen.getByRole('button', { name: 'ponytail, cannot run here: no MCP server github, on the Tools page' }),
+  ).toHaveTextContent('⚠ ponytail')
 })
 
 test('a role with no server and no skill says none', async () => {
@@ -176,12 +225,28 @@ test('a role with no server and no skill says none', async () => {
 })
 
 test('0.1.0-ui: the texts the user named are gone from the Tools and Knowledge tabs', async () => {
-  const knowledge = [{ id: 'k1', project_id: 'p1', knowledge: { topic: 'Stripe' }, state: { learned: null } }] as unknown as KnowledgeItem[]
-  render(<AgentsPage roles={[coder]} picked={coder.id} onPatch={vi.fn()} onOpenTools={vi.fn()} onOpenSkills={vi.fn()} projectId="p1" knowledge={knowledge} onOpenKnowledge={vi.fn()} {...handlers()} />)
+  const knowledge = [
+    { id: 'k1', project_id: 'p1', knowledge: { topic: 'Stripe' }, state: { learned: null } },
+  ] as unknown as KnowledgeItem[]
+  render(
+    <AgentsPage
+      roles={[coder]}
+      picked={coder.id}
+      onPatch={vi.fn()}
+      onOpenTools={vi.fn()}
+      onOpenSkills={vi.fn()}
+      projectId="p1"
+      knowledge={knowledge}
+      onOpenKnowledge={vi.fn()}
+      {...handlers()}
+    />,
+  )
   await userEvent.click(screen.getByRole('tab', { name: 'Tools' }))
   const panel = screen.getByRole('complementary', { name: 'Role Coder' })
-  for (const gone of ['+ add a server on Tools', 'A click turns a tool or skill on or off', 'says why']) expect(panel).not.toHaveTextContent(gone)
-  for (const gone of ['MCP servers', 'Skills', '+ add']) expect(within(panel).queryByText(gone, { exact: true })).toBeNull()
+  for (const gone of ['+ add a server on Tools', 'A click turns a tool or skill on or off', 'says why'])
+    expect(panel).not.toHaveTextContent(gone)
+  for (const gone of ['MCP servers', 'Skills', '+ add'])
+    expect(within(panel).queryByText(gone, { exact: true })).toBeNull()
   await userEvent.click(screen.getByRole('tab', { name: 'Knowledge' }))
   expect(panel).not.toHaveTextContent('+ Add knowledge on the Knowledge page')
   expect(panel).not.toHaveTextContent('A switch turns it on (as a map) or off and saves at once.')
@@ -189,7 +254,14 @@ test('0.1.0-ui: the texts the user named are gone from the Tools and Knowledge t
 })
 
 test('a tool switched off on the Tools page is said to be, and the role keeps it (slice 61)', async () => {
-  render(<AgentsPage roles={[{ ...coder, tools: [...coder.tools, 'web_search'] }]} picked="r1" off={['web_search', 'http_request']} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[{ ...coder, tools: [...coder.tools, 'web_search'] }]}
+      picked="r1"
+      off={['web_search', 'http_request']}
+      {...handlers()}
+    />,
+  )
   await userEvent.click(screen.getByRole('tab', { name: 'Tools' }))
   expect(tile('Search the web')).toHaveAttribute('aria-pressed', 'true')
   expect(tile('Search the web')).toHaveAccessibleDescription(/off on the Tools page/)

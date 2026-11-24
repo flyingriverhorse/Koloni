@@ -10,10 +10,18 @@ import { PROJECT_DIR } from './paths.mjs'
 // A PNG of one pixel.
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
-test('a pasted picture, ticked, is saved into docs/attachments/ and said under the message', async ({ page }: { page: Page }) => {
+test('a pasted picture, ticked, is saved into docs/attachments/ and said under the message', async ({
+  page,
+}: {
+  page: Page
+}) => {
   const id = await openFreshConversation(page)
   // (At Auto edit the save is no card: what is looked at here is where it goes.)
-  expect((await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'auto_edit' }, headers: OWN })).ok()).toBe(true)
+  expect(
+    (
+      await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'auto_edit' }, headers: OWN })
+    ).ok(),
+  ).toBe(true)
   const box = page.getByLabel('Message')
   // A paste as the browser makes one, from its own data: the machine's clipboard is not touched.
   await box.evaluate((element, png) => {
@@ -36,11 +44,15 @@ test('a pasted picture, ticked, is saved into docs/attachments/ and said under t
   const snap = await (await page.request.get(`/api/conversations/${id}`)).json()
   const change = snap.file_changes.find((one: { path: string }) => one.path === where)
   expect(change.status).toBe('applied')
-  const raw = await page.request.get(`/api/projects/${snap.conversation.project_id}/raw/${where.split('/').map(encodeURIComponent).join('/')}`)
+  const raw = await page.request.get(
+    `/api/projects/${snap.conversation.project_id}/raw/${where.split('/').map(encodeURIComponent).join('/')}`,
+  )
   expect(Buffer.from(await raw.body()).equals(Buffer.from(PNG, 'base64'))).toBe(true)
 
   // Remembered for the project: the next file's box is ticked already.
-  await page.locator('.att-menu-box input[type=file]').setInputFiles([{ name: 'note23.txt', mimeType: 'text/plain', buffer: Buffer.from('a note\n') }])
+  await page
+    .locator('.att-menu-box input[type=file]')
+    .setInputFiles([{ name: 'note23.txt', mimeType: 'text/plain', buffer: Buffer.from('a note\n') }])
   await expect(save).toBeChecked()
 
   // (The shared e2e project is left as it was.)

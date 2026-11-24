@@ -36,7 +36,12 @@ function Bars({ title, unit, rows, foot }: { title: string; unit: string; rows: 
           <div key={one.name} className="history-row">
             <span className="history-name">{one.name}</span>
             <span className="history-bar" aria-hidden="true">
-              {(['done', 'failed', 'running'] as const).map(end => one[end] > 0 && <i key={end} className={`history-${end}`} style={{ width: `${(one[end] / most) * 100}%` }} />)}
+              {(['done', 'failed', 'running'] as const).map(
+                end =>
+                  one[end] > 0 && (
+                    <i key={end} className={`history-${end}`} style={{ width: `${(one[end] / most) * 100}%` }} />
+                  ),
+              )}
             </span>
             <span className="muted history-n">
               {total(one)}
@@ -132,17 +137,29 @@ export function HistoryTab({ onHistory, onOpenConversation, recordOf }: Props) {
             ))}
           </div>
           <div className="history-boxes">
-            <Bars title="Roles" unit="jobs" rows={history.roles} foot={`${history.lead_turns} ${history.lead_turns === 1 ? 'turn' : 'turns'} led by the Orchestrator`} />
+            <Bars
+              title="Roles"
+              unit="jobs"
+              rows={history.roles}
+              foot={`${history.lead_turns} ${history.lead_turns === 1 ? 'turn' : 'turns'} led by the Orchestrator`}
+            />
             <Bars title="Teams" unit="runs" rows={history.teams} />
             <Bars title="Recipes" unit="runs" rows={history.recipes} />
           </div>
           <p className="muted history-key" aria-hidden="true">
-            <i className="history-done" /> done <i className="history-failed" /> failed or stopped <i className="history-running" /> in progress
+            <i className="history-done" /> done <i className="history-failed" /> failed or stopped{' '}
+            <i className="history-running" /> in progress
           </p>
           <section className="history-box history-jobs" aria-label="Jobs">
             <div className="history-filters">
               {filters.map(([label, every, value, change, rows]) => (
-                <select key={label} className="input" aria-label={label} value={value} onChange={e => change(e.target.value)}>
+                <select
+                  key={label}
+                  className="input"
+                  aria-label={label}
+                  value={value}
+                  onChange={e => change(e.target.value)}
+                >
                   <option value="">{every}</option>
                   {rows.map(one => (
                     <option key={one.name} value={one.name}>
@@ -179,14 +196,20 @@ export function HistoryTab({ onHistory, onOpenConversation, recordOf }: Props) {
                           <td>{job.role_name}</td>
                           <td>
                             {onOpenConversation ? (
-                              <button type="button" className="link-btn" onClick={() => onOpenConversation(job.conversation_id)}>
+                              <button
+                                type="button"
+                                className="link-btn"
+                                onClick={() => onOpenConversation(job.conversation_id)}
+                              >
                                 {job.conversation_title}
                               </button>
                             ) : (
                               job.conversation_title
                             )}
                           </td>
-                          <td className="mono">{job.model_id ? modelName(job.model_id) : (job.provider_name ?? 'unknown')}</td>
+                          <td className="mono">
+                            {job.model_id ? modelName(job.model_id) : (job.provider_name ?? 'unknown')}
+                          </td>
                           <td>
                             <span className={`tag ${tag}`}>{word}</span>
                           </td>
@@ -198,7 +221,9 @@ export function HistoryTab({ onHistory, onOpenConversation, recordOf }: Props) {
               </div>
             )}
             {/* shortcut: the newest jobs_limit jobs of the period are listed (the boxes count them all); page them if more are wanted. */}
-            {history.jobs.length === history.jobs_limit && <p className="muted">The newest {history.jobs_limit} jobs of the period.</p>}
+            {history.jobs.length === history.jobs_limit && (
+              <p className="muted">The newest {history.jobs_limit} jobs of the period.</p>
+            )}
           </section>
           {role && recordOf(role)}
         </>

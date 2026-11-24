@@ -55,7 +55,11 @@ export function PlanUse({ providers, onLimits, every, onOpen, onNear }: Props) {
       providers.flatMap(provider => {
         const limits = read[provider.id]
         return limits && !limits.unknown
-          ? nearOf(limits).map(w => ({ key: `${provider.id} ${w.name ?? w.minutes}`, resets_at: w.resets_at, text: nearWords(provider.name, w) }))
+          ? nearOf(limits).map(w => ({
+              key: `${provider.id} ${w.name ?? w.minutes}`,
+              resets_at: w.resets_at,
+              text: nearWords(provider.name, w),
+            }))
           : []
       }),
     )
@@ -71,7 +75,11 @@ export function PlanUse({ providers, onLimits, every, onOpen, onNear }: Props) {
   // How old each reading is, and why the last read failed, as its Models card says it.
   const title = plans
     .map(({ provider, limits, w, used }) =>
-      [`${provider.name}: ${used}% of ${windowName(w)} used`, limits.read_at && readAgo(limits.read_at), limits.failed && `not read now: ${limits.failed}`]
+      [
+        `${provider.name}: ${used}% of ${windowName(w)} used`,
+        limits.read_at && readAgo(limits.read_at),
+        limits.failed && `not read now: ${limits.failed}`,
+      ]
         .filter(Boolean)
         .join(', '),
     )

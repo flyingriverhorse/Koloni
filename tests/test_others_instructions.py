@@ -25,18 +25,44 @@ def _found(client, project_dir):
 
 
 def test_another_projects_instructions_are_said_and_the_roots_own_are_not(client, project_dir):
-    _put(project_dir, "CLAUDE.md", "AGENTS.md", ".claude/settings.json",
-         ".claude/skills/x/CLAUDE.md", ".github/copilot-instructions.md",
-         "vendor/lib/CLAUDE.md", "sub/.claude/settings.json", "sub/.claude/skills/y/CLAUDE.md",
-         "x/AGENTS.md", "y/.github/copilot-instructions.md", "y/.github/skills/s/SKILL.md",
-         "y/.github/workflows/ci.yml", ".github/skills/mine/SKILL.md", "z/GEMINI.md",
-         "w/.Codex/", "v/_agent/rules.md",
-         "node_modules/pkg/CLAUDE.md", "node_modules/pkg/.claude/", ".git/modules/CLAUDE.md",
-         ".venv/lib/AGENTS.md", "dist/AGENTS.md", "plain/readme.md")
+    _put(
+        project_dir,
+        "CLAUDE.md",
+        "AGENTS.md",
+        ".claude/settings.json",
+        ".claude/skills/x/CLAUDE.md",
+        ".github/copilot-instructions.md",
+        "vendor/lib/CLAUDE.md",
+        "sub/.claude/settings.json",
+        "sub/.claude/skills/y/CLAUDE.md",
+        "x/AGENTS.md",
+        "y/.github/copilot-instructions.md",
+        "y/.github/skills/s/SKILL.md",
+        "y/.github/workflows/ci.yml",
+        ".github/skills/mine/SKILL.md",
+        "z/GEMINI.md",
+        "w/.Codex/",
+        "v/_agent/rules.md",
+        "node_modules/pkg/CLAUDE.md",
+        "node_modules/pkg/.claude/",
+        ".git/modules/CLAUDE.md",
+        ".venv/lib/AGENTS.md",
+        "dist/AGENTS.md",
+        "plain/readme.md",
+    )
     assert _found(client, project_dir) == {
-        "paths": ["sub/.claude/", "v/_agent/", "w/.Codex/", "x/AGENTS.md", "z/GEMINI.md",
-                  "vendor/lib/CLAUDE.md", "y/.github/copilot-instructions.md", "y/.github/skills/"],
-        "more": 0, "partial": False,
+        "paths": [
+            "sub/.claude/",
+            "v/_agent/",
+            "w/.Codex/",
+            "x/AGENTS.md",
+            "z/GEMINI.md",
+            "vendor/lib/CLAUDE.md",
+            "y/.github/copilot-instructions.md",
+            "y/.github/skills/",
+        ],
+        "more": 0,
+        "partial": False,
     }
 
 
@@ -56,7 +82,9 @@ def test_too_deep_is_not_looked_in(project_dir, monkeypatch):
     monkeypatch.setattr(project_files, "MOST_DEEP", 2)
     _put(project_dir, "a/AGENTS.md", "a/b/AGENTS.md", "a/b/c/AGENTS.md")
     assert project_files.others_instructions(str(project_dir))["paths"] == [
-        "a/AGENTS.md", "a/b/AGENTS.md"]
+        "a/AGENTS.md",
+        "a/b/AGENTS.md",
+    ]
 
 
 def test_many_are_counted_past_the_first_ten(project_dir):
@@ -70,7 +98,10 @@ def test_a_walk_cut_short_says_so(project_dir, monkeypatch):
     _put(project_dir, "a/AGENTS.md", "b/c/AGENTS.md")
     monkeypatch.setattr(project_files, "MOST_FOLDERS", 3)  # the root, a, b - not b/c
     assert project_files.others_instructions(str(project_dir)) == {
-        "paths": ["a/AGENTS.md"], "more": 0, "partial": True}
+        "paths": ["a/AGENTS.md"],
+        "more": 0,
+        "partial": True,
+    }
     monkeypatch.setattr(project_files, "MOST_FOLDERS", 5000)
     monkeypatch.setattr(project_files, "MOST_SECONDS", -1.0)
     assert project_files.others_instructions(str(project_dir))["partial"]

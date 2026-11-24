@@ -13,6 +13,8 @@ export type LineData = {
   who?: string
   /** Findings handed back: how many. */
   findings?: number
+  /** A recipe's own findings back, inside its frame: grey, KOLONİ's loop alone is in the warn colour. */
+  loopBack?: boolean
   /** A findings arc: the height it goes over or under the work line at, inside its frame, and which band out it is. */
   band?: number
   ring?: number
@@ -38,7 +40,19 @@ export type LineData = {
 type Line = Edge<LineData>
 
 /** Its talk, as said on it: how many messages (the last words on hover) - on an arc, with room, in words; a click shows who said what, and only its lines. */
-function TalkLabel({ id, data, x, y, words = false }: { id: string; data: LineData; x: number; y: number; words?: boolean }) {
+function TalkLabel({
+  id,
+  data,
+  x,
+  y,
+  words = false,
+}: {
+  id: string
+  data: LineData
+  x: number
+  y: number
+  words?: boolean
+}) {
   const { showTalk } = useContext(NodeActions)
   return (
     <EdgeLabelRenderer>
@@ -46,7 +60,10 @@ function TalkLabel({ id, data, x, y, words = false }: { id: string; data: LineDa
         type="button"
         className={`edge-talk nodrag nopan${data.faded ? ' edge-faded' : ''}`}
         // (The words stay in the text colour: the pair's colour is on the border and the dot, never text to read.)
-        style={{ transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`, ...(data.colour && { borderColor: data.colour }) }}
+        style={{
+          transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`,
+          ...(data.colour && { borderColor: data.colour }),
+        }}
         title={[data.who, data.last && `the last: ${data.last}`].filter(Boolean).join(' · ') || undefined}
         aria-label={`${data.who ? `${data.who}: ` : ''}${data.messages} message${data.messages === 1 ? '' : 's'}${data.last ? `, the last: ${data.last}` : ''}`}
         onClick={event => {
@@ -54,7 +71,8 @@ function TalkLabel({ id, data, x, y, words = false }: { id: string; data: LineDa
           showTalk?.(id)
         }}
       >
-        {data.colour && <span className="edge-talk-dot" style={{ background: data.colour }} aria-hidden="true" />}💬 {data.messages}
+        {data.colour && <span className="edge-talk-dot" style={{ background: data.colour }} aria-hidden="true" />}💬{' '}
+        {data.messages}
         {words && ` message${data.messages === 1 ? '' : 's'}`}
       </button>
     </EdgeLabelRenderer>
@@ -66,11 +84,31 @@ function TalkLabel({ id, data, x, y, words = false }: { id: string; data: LineDa
  * column it goes to - so the lines into a step share one fork and the lines out of it one join; between two of one
  * column, straight up or down.
  */
-export function LaneEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, data }: EdgeProps<Line>) {
+export function LaneEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  markerEnd,
+  style,
+  data,
+}: EdgeProps<Line>) {
   // (From a frame's door, on its left edge: inward.)
   const from = sourcePosition === Position.Left ? Position.Right : sourcePosition
   const across = from === Position.Right && targetPosition === Position.Left
-  const [path, x, y] = getSmoothStepPath({ sourceX, sourceY, sourcePosition: from, targetX, targetY, targetPosition, borderRadius: 8, ...(across && bendOf(sourceX, targetX, data?.bus)) })
+  const [path, x, y] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    sourcePosition: from,
+    targetX,
+    targetY,
+    targetPosition,
+    borderRadius: 8,
+    ...(across && bendOf(sourceX, targetX, data?.bus)),
+  })
   return (
     <>
       <BaseEdge id={id} path={path} {...arrowOf(markerEnd, data)} style={style} />
@@ -81,13 +119,20 @@ export function LaneEdge({ id, sourceX, sourceY, targetX, targetY, sourcePositio
 }
 
 /** Where a line's arrow goes: at its end, or - drawn from the end it goes to (`turned`) - at its start. */
-const arrowOf = (marker: string | undefined, data: LineData | undefined) => (data?.turned ? { markerStart: marker } : { markerEnd: marker })
+const arrowOf = (marker: string | undefined, data: LineData | undefined) =>
+  data?.turned ? { markerStart: marker } : { markerEnd: marker }
 
 /** How many findings a line carries, in its colour. */
 function FindingsLabel({ data, x, y, back = false }: { data: LineData; x: number; y: number; back?: boolean }) {
   return (
     <EdgeLabelRenderer>
-      <div className={`edge-arc nodrag nopan${data.faded ? ' edge-faded' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${x}px, ${y}px)` }}>
+      <div
+        className={`edge-arc nodrag nopan${data.faded ? ' edge-faded' : ''}`}
+        style={{
+          transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`,
+          ...(data.loopBack && { color: 'var(--muted)' }),
+        }}
+      >
         {data.findings} finding{data.findings === 1 ? '' : 's'}
         {back && ' back'}
       </div>
@@ -100,7 +145,17 @@ function FindingsLabel({ data, x, y, back = false }: { data: LineData; x: number
  * under) the work line, and down (or up) into the one given them -, and talk between two agents of a frame, the same way
  * in its pair's colour: never across the line, nor under a card (`arcPath`).
  */
-export function ArcEdge({ id, sourceX, sourceY, targetX, targetY, targetPosition, markerEnd, style, data }: EdgeProps<Line>) {
+export function ArcEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  targetPosition,
+  markerEnd,
+  style,
+  data,
+}: EdgeProps<Line>) {
   const [band, mid] = [data?.band ?? Math.min(sourceY, targetY) - 40, (sourceX + targetX) / 2]
   const path = arcPath(sourceX, sourceY, targetX, targetY, band, data?.ring ?? 0, targetPosition === Position.Left)
   return (
@@ -127,7 +182,10 @@ export function RequestEdge({ id, markerEnd, style, data }: EdgeProps<Line>) {
       <EdgeLabelRenderer>
         <div
           className={`edge-request nodrag nopan${data.open ? '' : ' edge-request-done'}${data.faded ? ' edge-faded' : ''}`}
-          style={{ transform: `translate(-50%, -50%) translate(${(x1 + x2) / 2}px, ${(y1 + y2) / 2}px)`, maxWidth: most }}
+          style={{
+            transform: `translate(-50%, -50%) translate(${(x1 + x2) / 2}px, ${(y1 + y2) / 2}px)`,
+            maxWidth: most,
+          }}
           title={data.title ?? data.label}
         >
           {data.label}
@@ -146,11 +204,20 @@ export function MemberEdge({ id, markerEnd, style, data }: EdgeProps<Line>) {
   const points = data?.points ?? []
   if (!points.length) return null
   const legs = points.slice(1).map((p, i) => [points[i], p] as const)
-  const [p, q] = legs.reduce((a, b) => (Math.abs(b[1].x - b[0].x) + Math.abs(b[1].y - b[0].y) > Math.abs(a[1].x - a[0].x) + Math.abs(a[1].y - a[0].y) ? b : a))
+  const [p, q] = legs.reduce((a, b) =>
+    Math.abs(b[1].x - b[0].x) + Math.abs(b[1].y - b[0].y) > Math.abs(a[1].x - a[0].x) + Math.abs(a[1].y - a[0].y)
+      ? b
+      : a,
+  )
   const at = data?.at ?? { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }
   return (
     <>
-      <BaseEdge id={id} path={points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ')} {...arrowOf(markerEnd, data)} style={style} />
+      <BaseEdge
+        id={id}
+        path={points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ')}
+        {...arrowOf(markerEnd, data)}
+        style={style}
+      />
       {data?.messages && <TalkLabel id={id} data={data} x={at.x} y={at.y} />}
     </>
   )

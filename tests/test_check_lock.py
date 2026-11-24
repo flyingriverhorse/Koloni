@@ -25,7 +25,8 @@ def test_a_bumped_requirement_or_a_missing_package_fails():
     lock = "fastapi==0.140.0\nuvicorn==0.53.0\npypdf==6.20.0\n"
     assert check_lock.problems(PYPROJECT, lock) == [
         "fastapi: locked 0.140.0, pyproject.toml wants <0.142,>=0.141",
-        "pytest-xdist: not in requirements-dev.lock"]
+        "pytest-xdist: not in requirements-dev.lock",
+    ]
 
 
 def test_the_repositorys_lock_satisfies_its_pyproject():

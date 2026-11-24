@@ -20,11 +20,14 @@ async function waiting(page: Page) {
 async function steady(page: Page) {
   let last = NaN
   await expect
-    .poll(async () => {
-      const [was, now] = [last, await waiting(page)]
-      last = now
-      return was === now
-    }, { intervals: [1000], timeout: 15_000 })
+    .poll(
+      async () => {
+        const [was, now] = [last, await waiting(page)]
+        last = now
+        return was === now
+      },
+      { intervals: [1000], timeout: 15_000 },
+    )
     .toBe(true)
   return last
 }
@@ -37,7 +40,9 @@ async function readable(root: Locator) {
 }
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`what waits out of sight, ${theme}: the badge counts it, a toast says it once and opens it; archived, a conversation comes back whole`, async ({ page }) => {
+  test(`what waits out of sight, ${theme}: the badge counts it, a toast says it once and opens it; archived, a conversation comes back whole`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     // (Ends in "slowly": the scripted model takes a moment over each step, and asks to run a command.)
     const title = `seen ${theme} ${Date.now()} run it slowly`

@@ -53,43 +53,76 @@ def agent(snap, role):
     return next(a for a in snap["agents"] if a["role_name"] == role)
 
 
-def test_a_check_role_is_told_the_findings_section_and_a_build_role_is_not(make_client, wait_run, project_dir):
-    _, model, _ = run(make_client, wait_run, project_dir,
-                      [spawn("Reviewer", "Review hello.py"),
-                       step(call("spawn_agent", {"role": "Coder", "task": "Tidy hello.py"}, "s2")),
-                       text("done")],
-                      Reviewer=[text("Findings: none")], Coder=[text("tidied")])
+def test_a_check_role_is_told_the_findings_section_and_a_build_role_is_not(
+    make_client, wait_run, project_dir
+):
+    _, model, _ = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Reviewer", "Review hello.py"),
+            step(call("spawn_agent", {"role": "Coder", "task": "Tidy hello.py"}, "s2")),
+            text("done"),
+        ],
+        Reviewer=[text("Findings: none")],
+        Coder=[text("tidied")],
+    )
     told = model.calls_of["Reviewer"][0][0]["content"]
     assert "Findings" in told and "| kind:" in told and "| role:" in told
     assert "| kind:" not in model.calls_of["Coder"][0][0]["content"]
 
 
-def test_a_report_s_findings_are_read_each_with_its_kind_and_an_existing_role(make_client, wait_run, project_dir):
-    _, _, snap = run(make_client, wait_run, project_dir,
-                     [spawn("Reviewer", "Review hello.py"), text("done")],
-                     Reviewer=[text(REPORT)])
+def test_a_report_s_findings_are_read_each_with_its_kind_and_an_existing_role(
+    make_client, wait_run, project_dir
+):
+    _, _, snap = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [spawn("Reviewer", "Review hello.py"), text("done")],
+        Reviewer=[text(REPORT)],
+    )
     assert agent(snap, "Reviewer")["findings"] == [
         {"what": 'greet() prints "Helo"', "kind": "code", "role": "Coder", "blocking": True},
-        {"what": "the button text is too light to read", "kind": "ui", "role": "UI designer", "blocking": True},
+        {
+            "what": "the button text is too light to read",
+            "kind": "ui",
+            "role": "UI designer",
+            "blocking": True,
+        },
         {"what": "a slow loop in main", "kind": "other", "role": None, "blocking": True},
     ]
 
 
-@pytest.mark.parametrize(("report", "found"), [
-    ("Looks fine.\n\nFindings: none", []),
-    ("Looks fine.", None),
-])
-def test_none_is_an_empty_list_and_no_section_is_not_said(make_client, wait_run, project_dir, report, found):
-    _, _, snap = run(make_client, wait_run, project_dir,
-                     [spawn("Reviewer", "Review hello.py"), text("done")],
-                     Reviewer=[text(report)])
+@pytest.mark.parametrize(
+    ("report", "found"),
+    [
+        ("Looks fine.\n\nFindings: none", []),
+        ("Looks fine.", None),
+    ],
+)
+def test_none_is_an_empty_list_and_no_section_is_not_said(
+    make_client, wait_run, project_dir, report, found
+):
+    _, _, snap = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [spawn("Reviewer", "Review hello.py"), text("done")],
+        Reviewer=[text(report)],
+    )
     assert agent(snap, "Reviewer")["findings"] == found
 
 
 def test_the_lead_is_told_which_roles_the_findings_are_for(make_client, wait_run, project_dir):
-    _, model, _ = run(make_client, wait_run, project_dir,
-                      [spawn("Reviewer", "Review hello.py"), text("done")],
-                      Reviewer=[text(REPORT)])
+    _, model, _ = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [spawn("Reviewer", "Review hello.py"), text("done")],
+        Reviewer=[text(REPORT)],
+    )
     lead = model.calls_of["Lead"]
     assert "each blocking finding" in lead[0][0]["content"]  # its instructions
     back = lead[1][-1]
@@ -97,54 +130,113 @@ def test_the_lead_is_told_which_roles_the_findings_are_for(make_client, wait_run
     assert "Findings to hand on: Coder (1), UI designer (1), no role named (1)" in back["content"]
 
 
-def test_a_report_with_no_findings_adds_nothing_to_the_lead_s_result(make_client, wait_run, project_dir):
-    _, model, _ = run(make_client, wait_run, project_dir,
-                      [spawn("Reviewer", "Review hello.py"), text("done")],
-                      Reviewer=[text("Looks fine.\n\nFindings: none")])
+def test_a_report_with_no_findings_adds_nothing_to_the_lead_s_result(
+    make_client, wait_run, project_dir
+):
+    _, model, _ = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [spawn("Reviewer", "Review hello.py"), text("done")],
+        Reviewer=[text("Looks fine.\n\nFindings: none")],
+    )
     assert "Findings to hand on" not in model.calls_of["Lead"][1][-1]["content"]
 
 
-def test_findings_from_gives_the_new_agent_its_role_s_findings_word_for_word(make_client, wait_run, project_dir):
-    _, model, snap = run(make_client, wait_run, project_dir,
-                         [spawn("Reviewer", "Review hello.py"),
-                          step(call("spawn_agent", {"role": "Coder", "task": "Fix what the review found",
-                                                    "findings_from": "Reviewer"}, "s2")),
-                          text("done")],
-                         Reviewer=[text(REPORT)], Coder=[text("fixed")])
+def test_findings_from_gives_the_new_agent_its_role_s_findings_word_for_word(
+    make_client, wait_run, project_dir
+):
+    _, model, snap = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Reviewer", "Review hello.py"),
+            step(
+                call(
+                    "spawn_agent",
+                    {
+                        "role": "Coder",
+                        "task": "Fix what the review found",
+                        "findings_from": "Reviewer",
+                    },
+                    "s2",
+                )
+            ),
+            text("done"),
+        ],
+        Reviewer=[text(REPORT)],
+        Coder=[text("fixed")],
+    )
     first = model.calls_of["Coder"][0][1]["content"]
     assert first.startswith("Fix what the review found")
     assert 'greet() prints "Helo"' in first
     assert "too light to read" not in first  # the UI designer's, not the Coder's
     # G1.4: each is answered one of two ways.
-    assert "`- <what> | fixed: <how>` or `- <what> | disputed: <why it is not to be fixed>`" in first
+    assert (
+        "`- <what> | fixed: <how>` or `- <what> | disputed: <why it is not to be fixed>`" in first
+    )
     reviewer, coder = agent(snap, "Reviewer"), agent(snap, "Coder")
     given = [m for m in snap["channel_messages"] if m["kind"] == "findings"]
-    assert [(m["from_agent_id"], m["to_agent_id"]) for m in given] == [(reviewer["id"], coder["id"])]
+    assert [(m["from_agent_id"], m["to_agent_id"]) for m in given] == [
+        (reviewer["id"], coder["id"])
+    ]
     assert 'greet() prints "Helo"' in given[0]["content"]
 
 
 def test_findings_for_no_agent_of_its_role_are_all_given(make_client, wait_run, project_dir):
-    _, model, _ = run(make_client, wait_run, project_dir,
-                      [spawn("Reviewer", "Review hello.py"),
-                       step(call("spawn_agent", {"role": "Debugger", "task": "Look into these",
-                                                 "findings_from": "Reviewer"}, "s2")),
-                       text("done")],
-                      Reviewer=[text(REPORT)], Debugger=[text("looked")])
+    _, model, _ = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Reviewer", "Review hello.py"),
+            step(
+                call(
+                    "spawn_agent",
+                    {"role": "Debugger", "task": "Look into these", "findings_from": "Reviewer"},
+                    "s2",
+                )
+            ),
+            text("done"),
+        ],
+        Reviewer=[text(REPORT)],
+        Debugger=[text("looked")],
+    )
     first = model.calls_of["Debugger"][0][1]["content"]
-    assert 'greet() prints "Helo"' in first and "too light to read" in first and "slow loop" in first
+    assert (
+        'greet() prints "Helo"' in first and "too light to read" in first and "slow loop" in first
+    )
 
 
-@pytest.mark.parametrize(("source", "why"), [
-    ("Nobody", "Nobody"),          # not an agent of this turn
-    ("Reviewer", "no findings"),   # one with none
-])
-def test_findings_from_an_unknown_agent_or_one_with_none_is_refused(make_client, wait_run, project_dir, source, why):
-    _, model, snap = run(make_client, wait_run, project_dir,
-                         [spawn("Reviewer", "Review hello.py"),
-                          step(call("spawn_agent", {"role": "Coder", "task": "Fix it",
-                                                    "findings_from": source}, "s2")),
-                          text("done")],
-                         Reviewer=[text("Looks fine.\n\nFindings: none")], Coder=[text("fixed")])
+@pytest.mark.parametrize(
+    ("source", "why"),
+    [
+        ("Nobody", "Nobody"),  # not an agent of this turn
+        ("Reviewer", "no findings"),  # one with none
+    ],
+)
+def test_findings_from_an_unknown_agent_or_one_with_none_is_refused(
+    make_client, wait_run, project_dir, source, why
+):
+    _, model, snap = run(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Reviewer", "Review hello.py"),
+            step(
+                call(
+                    "spawn_agent",
+                    {"role": "Coder", "task": "Fix it", "findings_from": source},
+                    "s2",
+                )
+            ),
+            text("done"),
+        ],
+        Reviewer=[text("Looks fine.\n\nFindings: none")],
+        Coder=[text("fixed")],
+    )
     refused = model.calls_of["Lead"][2][-1]
     assert refused["role"] == "tool" and why in refused["content"]
     assert [a["role_name"] for a in snap["agents"]] == ["Lead", "Reviewer"]
@@ -160,10 +252,17 @@ def test_disputed_lines_are_found_as_before_and_a_line_of_spaces_at_once():
 
     from app.agent.spawn_mixin import DISPUTED
 
-    report = ("- a.py:3 wrong | disputed: it is right\n  * x |disputed: y\n   | disputed: x\n"
-              "a | fixed: b\n-|disputed:z\n\t• q | DISPUTED: r\nb")
-    assert DISPUTED.findall(report) == ["a.py:3 wrong | disputed: it is right", "x |disputed: y",
-                                        " | disputed: x", "-|disputed:z", "q | DISPUTED: r"]
+    report = (
+        "- a.py:3 wrong | disputed: it is right\n  * x |disputed: y\n   | disputed: x\n"
+        "a | fixed: b\n-|disputed:z\n\t• q | DISPUTED: r\nb"
+    )
+    assert DISPUTED.findall(report) == [
+        "a.py:3 wrong | disputed: it is right",
+        "x |disputed: y",
+        " | disputed: x",
+        "-|disputed:z",
+        "q | DISPUTED: r",
+    ]
     began = time.perf_counter()
     assert DISPUTED.findall("a | fixed: y\n" + " " * 2000 + "\n") == []
     took = time.perf_counter() - began

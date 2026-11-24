@@ -5,7 +5,8 @@ import type { Health, Provider } from '../api/types'
 import { FirstSteps } from './FirstSteps'
 
 const down = { model_reachable: false, not_listed: false, provider_id: 'p-local', provider_name: 'Local' } as Health
-const provider = (id: string, name: string, over: Partial<Provider> = {}) => ({ id, name, kind: 'claude_cli', ...over }) as Provider
+const provider = (id: string, name: string, over: Partial<Provider> = {}) =>
+  ({ id, name, kind: 'claude_cli', ...over }) as Provider
 const LOCAL = provider('p-local', 'Local', { kind: 'openai_compat' })
 
 const steps = (over: Partial<Parameters<typeof FirstSteps>[0]> = {}) => {
@@ -68,11 +69,16 @@ test('the folder step says the open chat’s folder once it is done, or only tha
   expect(step).toHaveTextContent(/^Done: Project folder: D:\\work\\shop$/)
   expect(screen.getByText('D:\\work\\shop')).toHaveClass('mono')
   expect(screen.getByText('D:\\work\\shop')).toHaveAttribute('title', 'D:\\work\\shop')
-  expect(screen.getByText('Your first message: what you want done.').closest('li')).toHaveAttribute('aria-current', 'step')
+  expect(screen.getByText('Your first message: what you want done.').closest('li')).toHaveAttribute(
+    'aria-current',
+    'step',
+  )
 })
 
 test('a plain chat’s folder step, done, says a project folder is added; not done, what a folder is', () => {
   steps({ health: { ...down, model_reachable: true }, project: true, folder: null })
-  expect(screen.getByText('A project folder is added.').closest('li')).toHaveTextContent(/^Done: A project folder is added\.$/)
+  expect(screen.getByText('A project folder is added.').closest('li')).toHaveTextContent(
+    /^Done: A project folder is added\.$/,
+  )
   expect(screen.queryByText('A folder: the project your agents work in.')).toBeNull()
 })

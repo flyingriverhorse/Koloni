@@ -47,7 +47,8 @@ do:
 | **May make requests to these hosts** | Plain GET and HEAD requests, to hosts ticked from the chat's allowed list. |
 | **May send you notifications** | Notifications, where you set an address. |
 
-The project's own test command also runs without being ticked.
+A test command you set for a part on the project map (Settings › This project › This folder) also
+runs without being ticked, exactly as written, in that part's folder.
 
 ### Budget and end
 

@@ -17,7 +17,7 @@ export interface Actions {
   light?: (nodeId: string) => void
   /** Open the Memory page, from a block's memory row. */
   openMemory?: () => void
-  /** Open the To-do page, from the Assistant PO's node. */
+  /** Open the To-do page, from the Scout's node. */
   openTodo?: () => void
 }
 

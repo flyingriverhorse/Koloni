@@ -37,19 +37,24 @@ def env(project_dir):
 
 
 def read(named, tool="Read", **more):
-    return {"tool": tool, "input": {"file_path": named} if tool == "Read" else
-            {"pattern": "KEY", **more}, "result": "x"}
+    return {
+        "tool": tool,
+        "input": {"file_path": named} if tool == "Read" else {"pattern": "KEY", **more},
+        "result": "x",
+    }
 
 
 def write(named, content="x"):
-    return {"tool": "Write", "input": {"file_path": f"PROJECT/{named}", "content": content},
-            "write": [named, content]}
+    return {
+        "tool": "Write",
+        "input": {"file_path": f"PROJECT/{named}", "content": content},
+        "write": [named, content],
+    }
 
 
 def decisions(claude_app):  # noqa: F811
     """What KOLONİ's hook said of each tool, in order."""
-    return [one["hookSpecificOutput"]["permissionDecision"]
-            for one in claude_app.record()["hooks"]]
+    return [one["hookSpecificOutput"]["permissionDecision"] for one in claude_app.record()["hooks"]]
 
 
 def verdicts(claude_app):  # noqa: F811
@@ -65,7 +70,9 @@ def pending(client, cid):
 
 
 def test_it_is_started_over_the_control_protocol_with_one_hook_for_every_tool(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _ = claude_app([{"say": "done"}])
     cid, run_id = start(client, project_dir, provider, "ask")
@@ -96,11 +103,14 @@ def test_it_is_started_over_the_control_protocol_with_one_hook_for_every_tool(
 
 
 def test_at_full_auto_a_read_of_a_secret_is_a_card_and_an_ordinary_read_is_not(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     env(project_dir)
-    client, provider, _ = claude_app([read("PROJECT/hello.py"), read("PROJECT/.env"),
-                                      {"say": "done"}])
+    client, provider, _ = claude_app(
+        [read("PROJECT/hello.py"), read("PROJECT/.env"), {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     _snap, (asked,) = pending(client, cid)
     assert asked["name"] == "read_file" and asked["why_asked"] == SECRET_CARD
@@ -112,12 +122,19 @@ def test_at_full_auto_a_read_of_a_secret_is_a_card_and_an_ordinary_read_is_not(
 
 
 def test_at_full_auto_a_grep_of_a_secret_is_a_card_by_its_path_or_its_glob(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     env(project_dir)
-    client, provider, _ = claude_app([
-        read(None, "Grep", path=".env"), read(None, "Grep", glob=".env"),
-        read(None, "Grep", path="hello.py"), {"say": "done"}])
+    client, provider, _ = claude_app(
+        [
+            read(None, "Grep", path=".env"),
+            read(None, "Grep", glob=".env"),
+            read(None, "Grep", path="hello.py"),
+            {"say": "done"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     seen = set()
     for _ in range(2):
@@ -131,12 +148,22 @@ def test_at_full_auto_a_grep_of_a_secret_is_a_card_by_its_path_or_its_glob(
     assert verdicts(claude_app) == ["deny", "deny", "allow"]
 
 
-@pytest.mark.parametrize("given", [
-    {"glob": ".env*", "output_mode": "content"},  # (as measured on 2.1.310)
-    {"glob": "*"}, {"glob": "{.env,a.py}"}, {"glob": "**/*"}, {"path": "."}, {},
-])
+@pytest.mark.parametrize(
+    "given",
+    [
+        {"glob": ".env*", "output_mode": "content"},  # (as measured on 2.1.310)
+        {"glob": "*"},
+        {"glob": "{.env,a.py}"},
+        {"glob": "**/*"},
+        {"path": "."},
+        {},
+    ],
+)
 def test_at_full_auto_a_grep_over_a_folder_with_a_secret_its_glob_could_match_is_a_card(
-    claude_app, wait_run, project_dir, given  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    given,  # noqa: F811
 ):
     env(project_dir)
     client, provider, _ = claude_app([read(None, "Grep", **given), {"say": "done"}])
@@ -149,11 +176,12 @@ def test_at_full_auto_a_grep_over_a_folder_with_a_secret_its_glob_could_match_is
 
 
 def test_a_grep_whose_glob_cannot_match_a_secret_is_no_card(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     env(project_dir)
-    client, provider, _ = claude_app([read(None, "Grep", glob="*.py", path="."),
-                                      {"say": "done"}])
+    client, provider, _ = claude_app([read(None, "Grep", glob="*.py", path="."), {"say": "done"}])
     statuses = watched(client)
     cid, run_id = start(client, project_dir, provider, "full_auto")
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
@@ -161,11 +189,14 @@ def test_a_grep_whose_glob_cannot_match_a_secret_is_no_card(
 
 
 def test_at_full_auto_a_command_that_reads_a_secret_is_a_command_card(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     env(project_dir)
-    client, provider, _ = claude_app([
-        {"tool": "Bash", "input": {"command": "cat .env"}, "result": SECRET}, {"say": "done"}])
+    client, provider, _ = claude_app(
+        [{"tool": "Bash", "input": {"command": "cat .env"}, "result": SECRET}, {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     snap = wait_status(client, cid, "waiting_approval")
     (asked,) = snap["commands"]
@@ -176,13 +207,15 @@ def test_at_full_auto_a_command_that_reads_a_secret_is_a_command_card(
 
 
 def test_at_full_auto_a_write_of_github_is_a_card_and_claude_md_or_an_ordinary_one_is_not(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # (K-fullauto-sorma 2: an instruction file alone is written unasked at Full auto; a
     # workflow, which runs by itself, is a card there as before.)
-    client, provider, _ = claude_app([
-        write("CLAUDE.md"), write(".github/workflows/ci.yml"), write("notes.txt"),
-        {"say": "done"}])
+    client, provider, _ = claude_app(
+        [write("CLAUDE.md"), write(".github/workflows/ci.yml"), write("notes.txt"), {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     snap = wait_status(client, cid, "waiting_approval")
     (proposed,) = [c for c in snap["file_changes"] if c["status"] == "proposed"]
@@ -200,7 +233,9 @@ def test_at_full_auto_a_write_of_github_is_a_card_and_claude_md_or_an_ordinary_o
 
 
 def test_at_ask_an_ordinary_write_is_one_card_and_approved_it_is_written(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _ = claude_app([write("hello.py", "print('hello')\n"), {"say": "done"}])
     cid, run_id = start(client, project_dir, provider, "ask")
@@ -216,7 +251,9 @@ def test_at_ask_an_ordinary_write_is_one_card_and_approved_it_is_written(
 
 
 def test_at_ask_a_rejected_write_is_denied_and_not_made(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _ = claude_app([write("hello.py", "print('hello')\n"), {"say": "done"}])
     cid, run_id = start(client, project_dir, provider, "ask")
@@ -229,11 +266,18 @@ def test_at_ask_a_rejected_write_is_denied_and_not_made(
 
 
 def test_at_ask_an_ordinary_read_inside_the_project_is_no_card(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        read("PROJECT/hello.py"), read(None, "Grep", path="hello.py"),
-        {"tool": "Glob", "input": {"pattern": "*.py"}, "result": "hello.py"}, {"say": "done"}])
+    client, provider, _ = claude_app(
+        [
+            read("PROJECT/hello.py"),
+            read(None, "Grep", path="hello.py"),
+            {"tool": "Glob", "input": {"pattern": "*.py"}, "result": "hello.py"},
+            {"say": "done"},
+        ]
+    )
     statuses = watched(client)
     cid, run_id = start(client, project_dir, provider, "ask")
     snap = wait_run(client, cid, run_id)
@@ -243,11 +287,17 @@ def test_at_ask_an_ordinary_read_inside_the_project_is_no_card(
 
 
 def test_at_ask_reading_a_background_commands_output_is_no_card(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "BashOutput", "input": {"bash_id": "b1"}, "result": "still going"},
-        {"tool": "KillShell", "input": {"shell_id": "b1"}, "result": "ended"}, {"say": "done"}])
+    client, provider, _ = claude_app(
+        [
+            {"tool": "BashOutput", "input": {"bash_id": "b1"}, "result": "still going"},
+            {"tool": "KillShell", "input": {"shell_id": "b1"}, "result": "ended"},
+            {"say": "done"},
+        ]
+    )
     statuses = watched(client)
     cid, run_id = start(client, project_dir, provider, "ask")
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
@@ -259,10 +309,13 @@ def test_at_ask_reading_a_background_commands_output_is_no_card(
 
 
 def test_kolonis_own_tools_are_let_through_by_the_hook(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"koloni": "post_note", "args": {"text": "looked at hello.py"}}, {"say": "done"}])
+    client, provider, _ = claude_app(
+        [{"koloni": "post_note", "args": {"text": "looked at hello.py"}}, {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider, "ask")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -271,27 +324,44 @@ def test_kolonis_own_tools_are_let_through_by_the_hook(
 
 
 def test_a_tool_koloni_does_not_know_is_a_card_and_denied_it_does_not_run(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "mcp__theirs__do", "input": {"what": "x"}, "write": ["did.txt", "x"]},
-        {"say": "done"}])
+    client, provider, _ = claude_app(
+        [
+            {"tool": "mcp__theirs__do", "input": {"what": "x"}, "write": ["did.txt", "x"]},
+            {"say": "done"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, "ask")
     question = wait_status(client, cid, "waiting_approval")["questions"][0]
     assert "mcp__theirs__do" in question["question"]
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Deny"},
-                headers={"Origin": ORIGIN})
+    client.post(
+        f"/api/questions/{question['id']}/answer",
+        json={"answer": "Deny"},
+        headers={"Origin": ORIGIN},
+    )
     wait_run(client, cid, run_id)
     assert verdicts(claude_app) == ["deny"]
     assert not (project_dir / "did.txt").exists()
 
 
 def test_its_monitor_tool_is_asked_about_as_a_command(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "Monitor", "input": {"command": "tail -f app.log", "description": "log"},
-         "result": "line"}, {"say": "done"}])
+    client, provider, _ = claude_app(
+        [
+            {
+                "tool": "Monitor",
+                "input": {"command": "tail -f app.log", "description": "log"},
+                "result": "line",
+            },
+            {"say": "done"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, "ask")
     (asked,) = wait_status(client, cid, "waiting_approval")["commands"]
     assert (asked["status"], asked["command"]) == ("proposed", "tail -f app.log")
@@ -301,10 +371,13 @@ def test_its_monitor_tool_is_asked_about_as_a_command(
 
 
 def test_a_monitor_that_names_no_command_is_refused(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "Monitor", "input": {"ws": {"url": "wss://example.com"}}}, {"say": "done"}])
+    client, provider, _ = claude_app(
+        [{"tool": "Monitor", "input": {"ws": {"url": "wss://example.com"}}}, {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     wait_run(client, cid, run_id)
     (verdict,) = claude_app.record()["asked"]
@@ -312,29 +385,61 @@ def test_a_monitor_that_names_no_command_is_refused(
 
 
 def test_its_tools_that_act_later_or_elsewhere_are_never_given(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _ = claude_app([{"say": "done"}])
     cid, run_id = start(client, project_dir, provider, "full_auto")
     wait_run(client, cid, run_id)
     argv = claude_app.record()["argv"]
     withheld = set(argv[argv.index("--disallowedTools") + 1].split(","))
-    assert {"EnterWorktree", "ExitWorktree", "CronCreate", "CronDelete", "ScheduleWakeup",
-            "RemoteTrigger", "PushNotification", "AskUserQuestion", "Workflow",
-            "DesignSync", "SendMessage", "ListAgents"} <= withheld
+    assert {
+        "EnterWorktree",
+        "ExitWorktree",
+        "CronCreate",
+        "CronDelete",
+        "ScheduleWakeup",
+        "RemoteTrigger",
+        "PushNotification",
+        "AskUserQuestion",
+        "Workflow",
+        "DesignSync",
+        "SendMessage",
+        "ListAgents",
+    } <= withheld
 
 
 def test_its_task_tool_is_one_of_its_sub_agents_as_agent_is(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "Task", "id": "toolu_sub", "result": "Async agent launched.",
-         "input": {"description": "Look around", "prompt": "read hello.py"}},
-        {"tool": "Read", "input": {"file_path": "PROJECT/hello.py"}, "result": "x",
-         "parent": "toolu_sub"},
-        {"system": {"subtype": "task_notification", "tool_use_id": "toolu_sub",
-                    "status": "completed", "summary": "It prints hi."}},
-        {"say": "Done."}])
+    client, provider, _ = claude_app(
+        [
+            {
+                "tool": "Task",
+                "id": "toolu_sub",
+                "result": "Async agent launched.",
+                "input": {"description": "Look around", "prompt": "read hello.py"},
+            },
+            {
+                "tool": "Read",
+                "input": {"file_path": "PROJECT/hello.py"},
+                "result": "x",
+                "parent": "toolu_sub",
+            },
+            {
+                "system": {
+                    "subtype": "task_notification",
+                    "tool_use_id": "toolu_sub",
+                    "status": "completed",
+                    "summary": "It prints hi.",
+                }
+            },
+            {"say": "Done."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     snap = wait_run(client, cid, run_id)
     calls = {c["name"]: c for c in snap["tool_calls"]}
@@ -344,7 +449,9 @@ def test_its_task_tool_is_one_of_its_sub_agents_as_agent_is(
 
 
 def test_a_permission_prompt_koloni_cannot_tie_to_a_tool_use_is_denied(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # (Measured: every prompt names its tool use. One that names none is not answered yes.)
     client, provider, _ = claude_app([{**write("hello.py"), "no_id": True}, {"say": "done"}])
@@ -359,7 +466,9 @@ def test_a_permission_prompt_koloni_cannot_tie_to_a_tool_use_is_denied(
 
 
 def test_a_claude_code_that_refuses_the_hook_is_stopped_with_its_version_and_never_prompted(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _ = claude_app([write("hello.py"), {"say": "done"}], initialize="error")
     cid, run_id = start(client, project_dir, provider, "full_auto")
@@ -372,7 +481,10 @@ def test_a_claude_code_that_refuses_the_hook_is_stopped_with_its_version_and_nev
 
 
 def test_a_claude_code_that_never_answers_initialize_is_stopped_soon(
-    claude_app, wait_run, project_dir, monkeypatch  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     monkeypatch.setattr(model_native, "START_SECONDS", 1)  # (not its 30 s of silence)
     client, provider, _ = claude_app([write("hello.py")], initialize="silent")
@@ -384,7 +496,9 @@ def test_a_claude_code_that_never_answers_initialize_is_stopped_soon(
 
 
 def test_a_claude_code_that_answers_without_applying_the_hook_is_stopped(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _ = claude_app([write("hello.py")], hooks_applied=False)
     cid, run_id = start(client, project_dir, provider, "full_auto")
@@ -395,7 +509,9 @@ def test_a_claude_code_that_answers_without_applying_the_hook_is_stopped(
 
 
 def test_a_claude_code_that_dies_before_it_answers_says_why(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _ = claude_app([write("hello.py")], initialize="die")
     cid, run_id = start(client, project_dir, provider, "full_auto")
@@ -421,15 +537,28 @@ def kept(client, tmp_path, text):
     add(client, folder)
 
 
-@pytest.mark.parametrize(("version", "plugin"), [("2.1.310", False), ("2.1.311", True),
-                                                  ("2.2.0", True), ("garbled", False)])
+@pytest.mark.parametrize(
+    ("version", "plugin"),
+    [("2.1.310", False), ("2.1.311", True), ("2.2.0", True), ("garbled", False)],
+)
 def test_the_roles_skills_go_as_koloni_s_plugin_from_2_1_311_and_load_without_a_card(
-    claude_app, wait_run, project_dir, tmp_path, version, plugin  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    tmp_path,
+    version,
+    plugin,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "Skill", "input": {"skill": "koloni:tidy"}, "result": "Launching skill: tidy"},
-        {**read("PLUGIN_DIR/skills/tidy/ref.md"), "result": "more"},
-        {"say": "done"}] if plugin else [{"say": "done"}], version=version)
+    client, provider, _ = claude_app(
+        [
+            {"tool": "Skill", "input": {"skill": "koloni:tidy"}, "result": "Launching skill: tidy"},
+            {**read("PLUGIN_DIR/skills/tidy/ref.md"), "result": "more"},
+            {"say": "done"},
+        ]
+        if plugin
+        else [{"say": "done"}],
+        version=version,
+    )
     kept(client, tmp_path, TIDY)
     kept(client, tmp_path, BANG)
     give(client, "Lead", "tidy", "bang")
@@ -445,29 +574,48 @@ def test_the_roles_skills_go_as_koloni_s_plugin_from_2_1_311_and_load_without_a_
     # command as it loads is not given at all - and that is said once. Else both are there.
     told = seen["stdin"]
     assert ("koloni:tidy" in told, "Write less." in told, "echo BANG" in told) == (
-        (True, False, False) if plugin else (False, True, True))
+        (True, False, False) if plugin else (False, True, True)
+    )
     said = [(c["status"], c["result"]) for c in snap["tool_calls"] if c["name"] == "use_skill"]
-    assert said == ([("denied", "skill bang was not given to Claude Code: it runs a command "
-                      "when it loads")] if plugin else [])
+    assert said == (
+        [("denied", "skill bang was not given to Claude Code: it runs a command when it loads")]
+        if plugin
+        else []
+    )
     if plugin:
         # its own skill, and a file of it, only read what KOLONİ gave: no card
         assert verdicts(claude_app) == ["allow", "allow"]
         assert seen["plugin_json"]["name"] == "koloni"
         # a skill whose text would run as it loads is not given; the other's SKILL.md is
         # written afresh, with its name and description only
-        assert seen["plugin"] == [".claude-plugin/plugin.json", "skills/tidy/SKILL.md",
-                                  "skills/tidy/ref.md"]
+        assert seen["plugin"] == [
+            ".claude-plugin/plugin.json",
+            "skills/tidy/SKILL.md",
+            "skills/tidy/ref.md",
+        ]
         assert seen["skill_md"] == {
-            "tidy": '---\nname: tidy\ndescription: "Keep it small."\n---\n\nWrite less.\n'}
+            "tidy": '---\nname: tidy\ndescription: "Keep it small."\n---\n\nWrite less.\n'
+        }
         assert not Path(argv[argv.index("--plugin-dir") + 1]).exists()  # gone after the run
 
 
-@pytest.mark.parametrize(("skill", "projects"), [
-    (None, None), (BANG, None),
-    # a cloned repo's own skills and commands, unprefixed, would load with KOLONİ's
-    (TIDY, "commands/deploy.md"), (TIDY, "skills/cloned/SKILL.md")])
+@pytest.mark.parametrize(
+    ("skill", "projects"),
+    [
+        (None, None),
+        (BANG, None),
+        # a cloned repo's own skills and commands, unprefixed, would load with KOLONİ's
+        (TIDY, "commands/deploy.md"),
+        (TIDY, "skills/cloned/SKILL.md"),
+    ],
+)
 def test_a_run_with_no_skill_to_give_safely_keeps_every_command_off(
-    claude_app, wait_run, project_dir, tmp_path, skill, projects  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    tmp_path,
+    skill,
+    projects,  # noqa: F811
 ):
     client, provider, _ = claude_app([{"say": "done"}], version="2.1.311")
     if skill:
@@ -503,7 +651,8 @@ def test_only_a_file_inside_the_runs_plugin_is_read_without_a_card(tmp_path):
     assert not given("Read", file_path="skills/tidy/ref.md")
     assert not given("Grep", path=str(plugin / "skills" / "tidy"), pattern="x")
     assert not model_native.only_given(
-        "Read", {"file_path": str(plugin / "skills" / "tidy" / "ref.md")}, ours, None)
+        "Read", {"file_path": str(plugin / "skills" / "tidy" / "ref.md")}, ours, None
+    )
 
 
 def test_its_version_is_asked_each_run(claude_app, wait_run, project_dir, tmp_path):  # noqa: F811
@@ -514,15 +663,20 @@ def test_its_version_is_asked_each_run(claude_app, wait_run, project_dir, tmp_pa
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     assert "--plugin-dir" not in claude_app.record()["argv"]
     plan = tmp_path / "plan.json"  # (claude_app's) - it is updated in between
-    plan.write_text(json.dumps({**json.loads(plan.read_text(encoding="utf-8")),
-                                "version": "2.1.311"}), encoding="utf-8")
+    plan.write_text(
+        json.dumps({**json.loads(plan.read_text(encoding="utf-8")), "version": "2.1.311"}),
+        encoding="utf-8",
+    )
     again = client.post(f"/api/conversations/{cid}/messages", json={"content": "again"})
     assert wait_run(client, cid, again.json()["run"]["id"])["runs"][-1]["status"] == "completed"
     assert "--plugin-dir" in claude_app.record()["argv"]
 
 
 def test_the_users_own_setup_goes_as_it_is_without_koloni_s_plugin(
-    claude_app, wait_run, project_dir, tmp_path  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    tmp_path,  # noqa: F811
 ):
     client, provider, _ = claude_app([{"say": "done"}], version="2.1.311", own_setup=True)
     kept(client, tmp_path, TIDY)
@@ -534,13 +688,20 @@ def test_the_users_own_setup_goes_as_it_is_without_koloni_s_plugin(
 
 
 def test_a_read_only_role_loads_only_koloni_s_skills(
-    claude_app, wait_run, project_dir, tmp_path  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    tmp_path,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "Skill", "input": {"skill": "koloni:tidy"}, "result": "Launching skill: tidy"},
-        {"tool": "Skill", "input": {"skill": "review"}, "result": "Launching skill: review"},
-        {"say": "Reviewed."}],
-        default_steps=[spawn("Reviewer", "Review hello.py"), text("ok")], version="2.1.311")
+    client, provider, _ = claude_app(
+        [
+            {"tool": "Skill", "input": {"skill": "koloni:tidy"}, "result": "Launching skill: tidy"},
+            {"tool": "Skill", "input": {"skill": "review"}, "result": "Launching skill: review"},
+            {"say": "Reviewed."},
+        ],
+        default_steps=[spawn("Reviewer", "Review hello.py"), text("ok")],
+        version="2.1.311",
+    )
     # (Without its Bash: a skill that needs a shell is never given to a role with none.)
     kept(client, tmp_path, TIDY.replace("allowed-tools: Bash\n", ""))
     give(client, "Reviewer", "tidy")
@@ -552,20 +713,29 @@ def test_a_read_only_role_loads_only_koloni_s_skills(
     assert "Reviewer role" in asked[1]["message"]
 
 
-@pytest.mark.parametrize(("commands", "own"), [
-    ([{"name": "init"}, {"name": "anthropic-skills:docx"}], None),  # another plugin's
-    ([{"name": "init"}, {"name": "mine"}], "HOME/skills/mine"),  # the user's own skill
-    ([{"name": "init"}, {"name": "deploy"}], "HOME/commands/deploy.md"),  # and command
-])
+@pytest.mark.parametrize(
+    ("commands", "own"),
+    [
+        ([{"name": "init"}, {"name": "anthropic-skills:docx"}], None),  # another plugin's
+        ([{"name": "init"}, {"name": "mine"}], "HOME/skills/mine"),  # the user's own skill
+        ([{"name": "init"}, {"name": "deploy"}], "HOME/commands/deploy.md"),  # and command
+    ],
+)
 def test_a_claude_code_that_loads_commands_koloni_did_not_give_is_stopped_before_its_prompt(
-    claude_app, wait_run, project_dir, tmp_path, commands, own  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    tmp_path,
+    commands,
+    own,  # noqa: F811
 ):
     if own:  # (the test's home: conftest)
         mine = Path(own.replace("HOME", str(tmp_path / "home" / ".claude")))
         mine.parent.mkdir(parents=True, exist_ok=True)
         (mine.mkdir() if not own.endswith(".md") else mine.write_text("x", encoding="utf-8"))
-    client, provider, _ = claude_app([write("hello.py"), {"say": "done"}], version="2.1.311",
-                                     commands=commands)
+    client, provider, _ = claude_app(
+        [write("hello.py"), {"say": "done"}], version="2.1.311", commands=commands
+    )
     kept(client, tmp_path, TIDY)
     give(client, "Lead", "tidy")
     cid, run_id = start(client, project_dir, provider, "full_auto")
@@ -580,29 +750,45 @@ def test_a_claude_code_that_loads_commands_koloni_did_not_give_is_stopped_before
 
 
 def test_a_tool_it_ran_without_its_hook_is_on_record_as_unasked(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "Bash", "input": {"command": "echo hi"}, "result": "hi", "unhooked": True},
-        {**read("PROJECT/hello.py"), "unhooked": True},
-        {**write("notes.txt"), "unhooked": True},
-        {"say": "done"}])
+    client, provider, _ = claude_app(
+        [
+            {"tool": "Bash", "input": {"command": "echo hi"}, "result": "hi", "unhooked": True},
+            {**read("PROJECT/hello.py"), "unhooked": True},
+            {**write("notes.txt"), "unhooked": True},
+            {"say": "done"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     results = {t["name"]: t["result"] for t in snap["tool_calls"]}
     assert results["run_command"].startswith(UNASKED)
     assert results["claude__Read"].startswith(UNASKED)
-    assert UNASKED in " ".join(t["result"] or "" for t in snap["tool_calls"]
-                                      if t["name"] == "edit_file")
+    assert UNASKED in " ".join(
+        t["result"] or "" for t in snap["tool_calls"] if t["name"] == "edit_file"
+    )
 
 
 def test_a_tool_its_own_rules_refused_is_not_called_unasked(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "Read", "input": {"file_path": "PROJECT/x"}, "error": "denied by a rule",
-         "unhooked": True}, {"say": "done"}])
+    client, provider, _ = claude_app(
+        [
+            {
+                "tool": "Read",
+                "input": {"file_path": "PROJECT/x"},
+                "error": "denied by a rule",
+                "unhooked": True,
+            },
+            {"say": "done"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     (call,) = wait_run(client, cid, run_id)["tool_calls"]
     assert call["status"] == "failed" and UNASKED not in (call["result"] or "")
@@ -612,10 +798,13 @@ def test_a_tool_its_own_rules_refused_is_not_called_unasked(
 
 
 def test_a_prompt_it_withdraws_closes_its_card_and_nothing_is_written(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {**write("hello.py", "print('hello')\n"), "cancel": 1.0}, {"say": "done"}])
+    client, provider, _ = claude_app(
+        [{**write("hello.py", "print('hello')\n"), "cancel": 1.0}, {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider, "ask")
     snap = wait_run(client, cid, run_id, timeout=15)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -649,10 +838,13 @@ def test_stop_sends_interrupt(claude_app, wait_run, project_dir):  # noqa: F811
 
 
 def test_its_account_and_its_transcripts_path_are_kept_nowhere(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([read("PROJECT/hello.py"), write("notes.txt"),
-                                      {"say": "done"}], account=ACCOUNT)
+    client, provider, _ = claude_app(
+        [read("PROJECT/hello.py"), write("notes.txt"), {"say": "done"}], account=ACCOUNT
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -666,15 +858,23 @@ def test_its_account_and_its_transcripts_path_are_kept_nowhere(
 
 # --- 89d: words into its turn while it works -------------------------------------------------
 
+
 @pytest.mark.anyio
 async def test_a_steer_is_a_user_line_into_its_turn_and_none_after_it_ended(tmp_path):
-    client = ClaudeNativeClient(launcher=FAKE_CLAUDE, **plan(
-        tmp_path, [{"say": "working"}, {"await_steer": 5}, {"say": "done"}]))
+    client = ClaudeNativeClient(
+        launcher=FAKE_CLAUDE,
+        **plan(tmp_path, [{"say": "working"}, {"await_steer": 5}, {"say": "done"}]),
+    )
     took, usage, _said, items, steer = await steered(client, tmp_path)
     assert took is True and usage.output_tokens == 30
-    assert record(tmp_path)["steered"] == [{"type": "user", "message": {
-        "role": "user", "content": "use blue"}, "parent_tool_use_id": None,
-        "session_id": "default"}]
+    assert record(tmp_path)["steered"] == [
+        {
+            "type": "user",
+            "message": {"role": "user", "content": "use blue"},
+            "parent_tool_use_id": None,
+            "session_id": "default",
+        }
+    ]
     assert not [item for _phase, item in items if item.get("type") == "steer_unread"]
     assert await steer("too late") is False  # (its turn is over: nothing is written)
     assert len(record(tmp_path)["steered"]) == 1
@@ -682,8 +882,12 @@ async def test_a_steer_is_a_user_line_into_its_turn_and_none_after_it_ended(tmp_
 
 @pytest.mark.anyio
 async def test_a_steer_after_its_last_word_is_read_through_to_the_turn_it_takes_on_it(tmp_path):
-    client = ClaudeNativeClient(launcher=FAKE_CLAUDE, **plan(
-        tmp_path, [{"say": "done"}, {"await_steer": 5}], second_turn_on_steer=True, linger=True))
+    client = ClaudeNativeClient(
+        launcher=FAKE_CLAUDE,
+        **plan(
+            tmp_path, [{"say": "done"}, {"await_steer": 5}], second_turn_on_steer=True, linger=True
+        ),
+    )
     took, usage, said, items, _steer = await steered(client, tmp_path, said_first=True)
     assert took is True and "heard it late" in "".join(said)
     assert usage.output_tokens == 35  # (both turns)
@@ -692,12 +896,19 @@ async def test_a_steer_after_its_last_word_is_read_through_to_the_turn_it_takes_
 
 @pytest.mark.anyio
 async def test_a_message_after_a_steer_is_not_taken_for_its_reading_and_its_turn_on_it_is_read(
-        tmp_path):
+    tmp_path,
+):
     # (Review M1: its last message, from a request made before the steer, came after it and
     # was taken for its reading; the turn it took on the steer was cut off.)
-    client = ClaudeNativeClient(launcher=FAKE_CLAUDE, **plan(
-        tmp_path, [{"say": "working"}, {"await_steer": 5}, {"say": "done"}],
-        second_turn_on_steer=True, linger=True))
+    client = ClaudeNativeClient(
+        launcher=FAKE_CLAUDE,
+        **plan(
+            tmp_path,
+            [{"say": "working"}, {"await_steer": 5}, {"say": "done"}],
+            second_turn_on_steer=True,
+            linger=True,
+        ),
+    )
     took, usage, said, _items, _steer = await steered(client, tmp_path)
     assert took is True and "heard it late" in "".join(said)
     assert usage.output_tokens == 35
@@ -705,10 +916,12 @@ async def test_a_message_after_a_steer_is_not_taken_for_its_reading_and_its_turn
 
 @pytest.mark.anyio
 async def test_a_steer_its_turn_ended_before_is_said_unread_and_its_work_stands(
-        tmp_path, monkeypatch):
+    tmp_path, monkeypatch
+):
     monkeypatch.setattr(model_native, "LATE_SECONDS", 0.5)
-    client = ClaudeNativeClient(launcher=FAKE_CLAUDE, **plan(
-        tmp_path, [{"say": "done"}, {"await_steer": 5}], linger=True))
+    client = ClaudeNativeClient(
+        launcher=FAKE_CLAUDE, **plan(tmp_path, [{"say": "done"}, {"await_steer": 5}], linger=True)
+    )
     took, usage, _said, items, _steer = await steered(client, tmp_path, said_first=True)
     assert took is True and usage.output_tokens == 30
     assert ("completed", {"type": "steer_unread", "text": "use blue"}) in items
@@ -718,30 +931,39 @@ async def test_a_steer_its_turn_ended_before_is_said_unread_and_its_work_stands(
 async def test_a_claude_code_that_crashes_while_its_tool_runs_fails_the_turn_at_once(tmp_path):
     # denetim-010 #3: its tool kept the limit on silence off and a child of its own held its
     # output open: the turn waited for Stop.
-    client = ClaudeNativeClient(launcher=FAKE_CLAUDE, **plan(tmp_path, [
-        {"tool": "Bash", "input": {"command": "pytest"}, "open": True}, {"die": 7}]))
+    client = ClaudeNativeClient(
+        launcher=FAKE_CLAUDE,
+        **plan(
+            tmp_path, [{"tool": "Bash", "input": {"command": "pytest"}, "open": True}, {"die": 7}]
+        ),
+    )
 
     async def allowed(_name, _arguments):  # (KOLONİ's yes to its tool)
         return True, json.dumps({"behavior": "allow"})
 
     started = time.monotonic()
     with pytest.raises(ModelUnavailable, match="code 7"):
-        await client.run_native("m", [{"role": "user", "content": "go"}], [], str(tmp_path),
-                                allowed, nothing, nothing)
+        await client.run_native(
+            "m", [{"role": "user", "content": "go"}], [], str(tmp_path), allowed, nothing, nothing
+        )
     assert time.monotonic() - started < 20
 
 
 @pytest.mark.anyio
 async def test_a_turn_whose_last_lines_are_read_slowly_after_it_exited_still_stands(
-        tmp_path, monkeypatch):
+    tmp_path, monkeypatch
+):
     # Review B2: it said its last and exited while KOLONİ was still busy with what it said
     # before (a look at the project, say): not given up as a crash past the grace.
     monkeypatch.setattr(model_cli, "EXIT_GRACE_SECONDS", 0.3)
-    client = ClaudeNativeClient(launcher=FAKE_CLAUDE, **plan(tmp_path, [{"say": "done"}], exits=True))
+    client = ClaudeNativeClient(
+        launcher=FAKE_CLAUDE, **plan(tmp_path, [{"say": "done"}], exits=True)
+    )
 
     async def slowly(_text):
         await asyncio.sleep(2)
 
-    usage = await client.run_native("m", [{"role": "user", "content": "go"}], [],
-                                    str(tmp_path), answered, slowly, nothing)
+    usage = await client.run_native(
+        "m", [{"role": "user", "content": "go"}], [], str(tmp_path), answered, slowly, nothing
+    )
     assert usage.output_tokens == 30

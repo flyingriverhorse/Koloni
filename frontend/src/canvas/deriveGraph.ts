@@ -8,7 +8,19 @@ import { talkOf } from '../chat/TalkRow'
 import { atGivenSteps, isKept, pendingMerge } from '../changes/copies'
 import { waitLine } from '../claims/claims'
 import { discussionLine, nameIn, speakerOf } from '../discussion/discussionText'
-import { atWork, byWatcher, held, isRunning, leadOf, memberTag, movesIn, nameIn as nameInRoom, roomLine, waitsForYou, watchedBy } from '../room/roomText'
+import {
+  atWork,
+  byWatcher,
+  held,
+  isRunning,
+  leadOf,
+  memberTag,
+  movesIn,
+  nameIn as nameInRoom,
+  roomLine,
+  waitsForYou,
+  watchedBy,
+} from '../room/roomText'
 import { toolSummary } from '../chat/toolSummary'
 import { TERMINAL, type ConvState } from '../state/applyEvent'
 import { plannedBy } from '../chat/planText'
@@ -18,6 +30,7 @@ import { shown } from '../chat/attachments'
 import { decidedOf, waitingOf, waitingSummary } from '../chat/waiting'
 import { firstLine } from '../chat/chatLine'
 import { outputCards } from './outputs'
+import { settleChecks } from './checksLoop'
 import { type ChecksData, checksNode } from './checksNode'
 import { liveKind } from '../agents/liveLine'
 import { type SharedData, sharedColumn } from './sharedColumn'
@@ -42,12 +55,12 @@ export type NodeKind =
   | 'away'
   // The user's (4 Nov): an earlier round of a step in a team's frame, as one line - its agents under it once opened.
   | 'round'
-  // The Assistant PO, asked once the turn ended (the user's, 7 Nov): under its Lead, only where it was asked.
+  // The Scout, asked once the turn ended (the user's, 7 Nov): under its Lead, only where it was asked.
   | 'po'
   // Kanıtlı bitiş (plan decision 12): KOLONİ's own checks after the Orchestrator's work (`checksNode`).
   | 'checks'
 
-/** The Assistant PO's request after a turn, as it was recorded (`Run.po`). */
+/** The Scout's request after a turn, as it was recorded (`Run.po`). */
 export type PoData = NonNullable<Run['po']>
 
 /** More files than these on a message are one box, "N files", folded until the user opens it. */
@@ -293,6 +306,8 @@ export interface GraphEdge {
   waits?: boolean
   /** From the agent whose report had findings to the one they were handed to: how many. */
   findings?: number
+  /** tuval-kontrol-dongusu (the recipe case): findings handed back inside a recipe's frame - its own loop, drawn grey (KOLONİ's, in its Checks box, red). */
+  loopBack?: boolean
   /** A request between teams (K-takimlar-arasi): one short line from frame to frame, its label; open while it is at work. */
   request?: { label: string; open: boolean; title: string; calls: string[] }
   /** K-shared-bagli: a team's (or an agent's) line to its card, in its colour; a contract's arm from its request's line. */
@@ -302,10 +317,8 @@ export interface GraphEdge {
    * to its plan: not a flow - one short straight dashed line.
    */
   plan?: boolean
-  /** With `plan`: from the Lead down to the Assistant PO asked as its turn ended - the same line, dashed its own way. */
+  /** With `plan`: from the Lead down to the Scout asked as its turn ended - the same line, dashed its own way. */
   po?: boolean
-  /** Kanıtlı bitiş: from the Checks node back to the Orchestrator, a fix round - its words ("round 1 of 2: tests fail"). */
-  round?: string
 }
 
 /**
@@ -321,15 +334,23 @@ export function findingsLine(findings: Agent['findings']): { line: string; detai
   // B-192: a suggestion sends no work back - said apart, as Ready for you says it: "1 finding left, 1 suggestion".
   const left = findings.filter(f => f.blocking !== false).length
   const ideas = findings.length - left
-  const said = ideas ? [...(left ? [`${plural(left, 'finding')} left`] : []), plural(ideas, 'suggestion')].join(', ') : plural(left, 'finding')
+  const said = ideas
+    ? [...(left ? [`${plural(left, 'finding')} left`] : []), plural(ideas, 'suggestion')].join(', ')
+    : plural(left, 'finding')
   return {
     line: `${said} → ${roles}`,
-    detail: findings.map(f => `${f.what} (${f.kind}${f.blocking === false ? ', suggestion' : ''}) → ${f.role ?? 'no role named'}`).join('\n'),
+    detail: findings
+      .map(f => `${f.what} (${f.kind}${f.blocking === false ? ', suggestion' : ''}) → ${f.role ?? 'no role named'}`)
+      .join('\n'),
   }
 }
 
 /** Its state in plain words (the user's, 5 Nov): what it does now, or how it ended. */
-export function statusWords({ status, activity, findings }: Pick<AgentData, 'status' | 'activity' | 'findings'>): string {
+export function statusWords({
+  status,
+  activity,
+  findings,
+}: Pick<AgentData, 'status' | 'activity' | 'findings'>): string {
   if (status === 'running') return `Working · ${activity.charAt(0).toLowerCase()}${activity.slice(1)}`
   if (activity === 'Waits for your approval') return 'Waits for your OK'
   if (status === 'completed') return findings && findings.line !== 'no findings' ? `Done · ${findings.line}` : 'Done ✓'
@@ -429,13 +450,20 @@ function roomWait(agent: Agent, run: Run, state: ConvState): string | null {
   const room = state.rooms.find(r => r.run_id === run.id && isRunning(r))
   if (room && agent.depth === 0) return 'Waiting for the room'
   if (room?.members.some(m => m.agent_id === agent.id && held(state, room, m))) return 'Paused with the room'
-  if (room && state.toolCalls.some(t => t.agent_id === agent.id && t.name === 'wait_for_post' && t.status === 'running')) {
+  if (
+    room &&
+    state.toolCalls.some(t => t.agent_id === agent.id && t.name === 'wait_for_post' && t.status === 'running')
+  ) {
     return 'Waiting for a post in the room'
   }
-  if (room && state.toolCalls.some(t => t.agent_id === agent.id && t.name === 'wait_for_item' && t.status === 'running')) {
+  if (
+    room &&
+    state.toolCalls.some(t => t.agent_id === agent.id && t.name === 'wait_for_item' && t.status === 'running')
+  ) {
     return 'Waiting for an item in the room'
   }
-  if (room?.status === 'sharing' && room.members.some(m => m.agent_id === agent.id)) return 'Waiting for the work to be shared out'
+  if (room?.status === 'sharing' && room.members.some(m => m.agent_id === agent.id))
+    return 'Waiting for the work to be shared out'
   return null
 }
 
@@ -459,7 +487,9 @@ function waitingFor(agent: Agent, run: Run, state: ConvState, teams: Team[]): st
   const child = state.agents.findLast(a => a.parent_agent_id === agent.id && OPEN.has(a.status))
   // Waiting for a reply to a message, or for a sub-agent it opened.
   // Waiting for another team's answer (K-takimlar-arasi): at its request, or once its own work is done.
-  const request = requestsOf(state, run.id).findLast(r => r.from?.id === agent.id && (r.stands === 'waits' || r.stands === 'at work'))
+  const request = requestsOf(state, run.id).findLast(
+    r => r.from?.id === agent.id && (r.stands === 'waits' || r.stands === 'at work'),
+  )
   if (request && (request.stands === 'waits' || !child)) return `Waiting for ${request.to}`
   const asked = state.toolCalls.findLast(
     t => t.agent_id === agent.id && t.name === 'message_agent' && t.status === 'running',
@@ -471,7 +501,11 @@ function waitingFor(agent: Agent, run: Run, state: ConvState, teams: Team[]): st
 /** While an agent is at work: since when, the tokens it wrote, its tier or model (a lead's turn's, from before models were per agent). */
 function liveOf(agent: Agent, run: Run, status: AgentData['status']): Pick<AgentData, 'since' | 'wrote' | 'kind'> {
   if (status !== 'running') return { since: null, wrote: null, kind: null }
-  return { since: agent.started_at, wrote: agent.output_tokens, kind: liveKind(agent, agent.depth === 0 ? run.model_id : null) }
+  return {
+    since: agent.started_at,
+    wrote: agent.output_tokens,
+    kind: liveKind(agent, agent.depth === 0 ? run.model_id : null),
+  }
 }
 
 /** What an agent at work does now. */
@@ -480,9 +514,7 @@ function workingOn(agent: Agent, state: ConvState): string {
   if (state.live[agent.id]?.queue) return 'Queued at Qoder'
   const working = toolNow(agent, state)
   if (working) return working
-  const writing = state.messages.some(
-    m => m.agent_id === agent.id && m.status === 'streaming' && m.content,
-  )
+  const writing = state.messages.some(m => m.agent_id === agent.id && m.status === 'streaming' && m.content)
   if (writing) return 'Writing reply…'
   if (state.summarisingAgents.includes(agent.id)) return SUMMARISING
   // Each agent for itself: several work, and think, at the same time.
@@ -494,7 +526,8 @@ function workingOn(agent: Agent, state: ConvState): string {
 function endedAs(agent: Agent, run: Run, status: AgentData['status']): string {
   if (status === 'failed' && (agent.error ?? run.error) === 'step_limit') return 'Stopped at its step limit'
   // K-devam-butce (B-327): at the end of the steps it was given, the budget - not the app's limit.
-  if (status === 'failed' && atGivenSteps(agent.error)) return `Stopped after the ${agent.error!.slice('stopped after the '.length)}`
+  if (status === 'failed' && atGivenSteps(agent.error))
+    return `Stopped after the ${agent.error!.slice('stopped after the '.length)}`
   // Why its model failed, where its provider said why.
   return (status === 'failed' && failureText(agent)) || (ENDED[status] ?? status)
 }
@@ -525,7 +558,8 @@ function doneLine(state: ConvState, row: RanRow): string {
   // shortcut: two loops over different steps are counted as the longer one; add them if seen.
   const rounds = Math.max(0, ...row.state.steps.map(step => step.round))
   // B-126: what a command wrote is on record only once taken in - the count leaves it out till then.
-  const ran = row.state.status !== 'in' && state.commands.some(c => c.started_at && row.state.agents.includes(c.agent_id))
+  const ran =
+    row.state.status !== 'in' && state.commands.some(c => c.started_at && row.state.agents.includes(c.agent_id))
   const files = plural(filesOf(state, row), 'file') + (ran ? " · commands' changes, if any, counted at Take in" : '')
   const parts = ['done', files, ...(rounds ? [plural(rounds, 'round') + ' back'] : [])]
   return [...parts, tokensLine(rowTokens(state.agents, row.state.agents))].join(' · ')
@@ -542,23 +576,43 @@ const atEnd = ({ status, why }: ChatTeamState) => AT_END.has(status) && !(status
  */
 function byRoles(state: ConvState, run: Run, teams: Team[]): RanRow[] {
   if (state.conversation.teams_mode === 'none') return []
-  const rows = state.conversation.teams.flatMap(row => teams.filter(team => team.id === row.team_id).map(team => ({ row, team, agents: [] as string[] })))
+  const rows = state.conversation.teams.flatMap(row =>
+    teams.filter(team => team.id === row.team_id).map(team => ({ row, team, agents: [] as string[] })),
+  )
   // (K-takimlar-arasi: what a team's lead opened, and all under it, is of its team - a Coder Backend's lead opened is
   // Backend's, though the Web app comes first and has a Coder too; app/agent.py `_team_of`. A lead only where it runs
   // its team: beside another team, and on.)
   const ledBy = (agent: Agent): (typeof rows)[number] | undefined => {
     const opener = state.agents.find(a => a.id === agent.parent_agent_id)
     if (!opener) return undefined
-    return rows.find(({ team }) => rows.length > 1 && team.lead_on && team.lead.name === opener.role_name) ?? ledBy(opener)
+    return (
+      rows.find(({ team }) => rows.length > 1 && team.lead_on && team.lead.name === opener.role_name) ?? ledBy(opener)
+    )
   }
   for (const agent of state.agents.filter(a => a.run_id === run.id && a.depth > 0)) {
-    const own = ledBy(agent) ?? rows.find(({ team }) => team.roles.includes(agent.role_name) || team.lead.name === agent.role_name)
+    const own =
+      ledBy(agent) ??
+      rows.find(({ team }) => team.roles.includes(agent.role_name) || team.lead.name === agent.role_name)
     ;(own ?? rows.find(one => one.agents.includes(agent.parent_agent_id ?? '')))?.agents.push(agent.id)
   }
-  const status = run.status === 'running' || run.status === 'waiting_approval' ? ('running' as const) : ('done' as const)
+  const status =
+    run.status === 'running' || run.status === 'waiting_approval' ? ('running' as const) : ('done' as const)
   return rows
     .filter(one => one.agents.length > 0)
-    .map(({ row, team, agents }) => ({ ...row, state: { run_id: run.id, team: team.name, recipe: '', status, why: null, steps: [], agents, ended_ready: null, passes: [] } }))
+    .map(({ row, team, agents }) => ({
+      ...row,
+      state: {
+        run_id: run.id,
+        team: team.name,
+        recipe: '',
+        status,
+        why: null,
+        steps: [],
+        agents,
+        ended_ready: null,
+        passes: [],
+      },
+    }))
 }
 
 /** Agents that are no part of what a step did: failed, stopped, declined, cut off by a restart. */
@@ -581,7 +635,9 @@ function roundData(state: ConvState, agentIds: string[], drawn: GraphNode[], n: 
     const count = ran.filter(a => a.status === status).length
     return count ? [`${count} ${ENDED[status]!.toLowerCase()}`] : []
   })
-  const names = drawn.flatMap(node => (node.agentId && agentIds.includes(node.agentId) ? [(node.data as AgentData).name] : []))
+  const names = drawn.flatMap(node =>
+    node.agentId && agentIds.includes(node.agentId) ? [(node.data as AgentData).name] : [],
+  )
   const said = `Round ${n + 1} · ${reviewed.length ? `${reviewed.length} reviewed` : names.join(', ')}`
   const groups = drawn.map(node => node.data as GroupData)
   return {
@@ -600,8 +656,10 @@ function roundData(state: ConvState, agentIds: string[], drawn: GraphNode[], n: 
 function chipOf(data: AgentData, agent: Agent | undefined): void {
   if (!agent || !data.finished || data.attention) return
   const blocking = blockingOf(agent)
-  if (agent.status !== 'completed') data.chip = { said: ENDED[agent.status]!.toLowerCase(), colour: AGENT_STATUS[agent.status][1] }
-  else data.chip = blocking ? { said: `${blocking} blocking`, colour: 'var(--warn)' } : { said: '✓', colour: 'var(--ok)' }
+  if (agent.status !== 'completed')
+    data.chip = { said: ENDED[agent.status]!.toLowerCase(), colour: AGENT_STATUS[agent.status][1] }
+  else
+    data.chip = blocking ? { said: `${blocking} blocking`, colour: 'var(--warn)' } : { said: '✓', colour: 'var(--ok)' }
 }
 
 function teamData(state: ConvState, row: RanRow, colour: string, parentId: string | null): TeamData {
@@ -639,7 +697,11 @@ function teamData(state: ConvState, row: RanRow, colour: string, parentId: strin
     columns: [],
     inside: agents.length,
     // (In with the copy though it ended early, B-84: why it ended is kept.)
-    summary: finished ? doneLine(state, row) + (why ? ` · ${why}` : '') : status === 'running' ? `${steps.length ? `at ${now?.name ?? 'its start'}${round}` : 'at work'}${why ? ' · ' + why : ''}` : `${status}${why ? ': ' + why : ''}`,
+    summary: finished
+      ? doneLine(state, row) + (why ? ` · ${why}` : '')
+      : status === 'running'
+        ? `${steps.length ? `at ${now?.name ?? 'its start'}${round}` : 'at work'}${why ? ' · ' + why : ''}`
+        : `${status}${why ? ': ' + why : ''}`,
     attention: status === 'ready',
     finished,
     open: true,
@@ -657,32 +719,44 @@ function readyData(state: ConvState, run: Run, all: RanRow[]): ReadyData {
     const at = steps.findIndex(step => step.state === 'now')
     if (status === 'waiting') return run.status === 'running' ? 'not started yet' : 'did not start'
     // (A team with no recipe has no steps: at work.)
-    if (status === 'running') return steps.length ? `step ${at + 1} of ${steps.length} · ${steps[at]?.name ?? ''}` : 'at work'
-    if (atEnd(row.state)) return doneLine(state, row) + (status === 'in' ? ` · in the project${why ? ` · ${why}` : ''}` : '')
+    if (status === 'running')
+      return steps.length ? `step ${at + 1} of ${steps.length} · ${steps[at]?.name ?? ''}` : 'at work'
+    if (atEnd(row.state))
+      return doneLine(state, row) + (status === 'in' ? ` · in the project${why ? ` · ${why}` : ''}` : '')
     return `${status}${why ? ': ' + why : ''}`
   }
   // What each review role said last: a check that ran, or the findings it left. Nothing for one that said nothing.
   const checks = rows.flatMap(row => {
     const said = new Map<string, Agent>()
-    for (const agent of state.agents.filter(a => row.state.agents.includes(a.id) && a.findings)) said.set(agent.role_name, agent)
+    for (const agent of state.agents.filter(a => row.state.agents.includes(a.id) && a.findings))
+      said.set(agent.role_name, agent)
     // B-192: a suggestion is the user's to read, never "left" - it sent no work back.
     return [...said.values()].map(agent => {
       const left = agent.findings!.filter(f => f.blocking !== false).length
       const ideas = agent.findings!.length - left
-      const parts = [...(left ? [`${plural(left, 'finding')} left`] : []), ...(ideas ? [plural(ideas, 'suggestion')] : [])]
+      const parts = [
+        ...(left ? [`${plural(left, 'finding')} left`] : []),
+        ...(ideas ? [plural(ideas, 'suggestion')] : []),
+      ]
       return { text: `${agent.role_name}: ${parts.join(', ') || 'no findings'}`, passed: left === 0 }
     })
   })
   const waiting = [
-    ...rows.filter(row => row.state.status === 'running').map(row => `${row.state.team}: ${row.state.steps.find(s => s.state === 'now')?.name ?? 'at work'}`),
+    ...rows
+      .filter(row => row.state.status === 'running')
+      .map(row => `${row.state.team}: ${row.state.steps.find(s => s.state === 'now')?.name ?? 'at work'}`),
     ...(run.status === 'running' ? notStarted.map(row => `${row.state.team}: not started yet`) : []),
   ]
   const lead = state.agents.find(a => a.run_id === runId && a.depth === 0)?.id
-  const keptOf = (agents: string[]) => state.merges.find(m => m.run_id === runId && isKept(m) && agents.includes(m.agent_id))?.id ?? null
+  const keptOf = (agents: string[]) =>
+    state.merges.find(m => m.run_id === runId && isKept(m) && agents.includes(m.agent_id))?.id ?? null
   // B-110: an agent kept beside the recipe (a role named, the Planner) - its copy its own, in no team's row.
   const rowed = new Set(all.flatMap(row => row.state.agents))
   const beside = state.agents.filter(a => a.run_id === runId && a.id !== lead && !rowed.has(a.id) && keptOf([a.id]))
-  const colours = chatColours(state, beside.map(agent => agent.id))
+  const colours = chatColours(
+    state,
+    beside.map(agent => agent.id),
+  )
   const now = waitingOf(state).filter(row => row.current)
   return {
     rows: [
@@ -695,7 +769,14 @@ function readyData(state: ConvState, run: Run, all: RanRow[]): ReadyData {
         // (A team with no recipe beside one: its copy is its own, kept in its lead's name.)
         kept: row.state.recipe ? null : keptOf(row.state.agents),
       })),
-      ...beside.map(agent => ({ team: agent.name, recipe: 'beside the recipe', colour: colours.get(agent.id)!, line: 'its own kept copy', done: false, kept: keptOf([agent.id]) })),
+      ...beside.map(agent => ({
+        team: agent.name,
+        recipe: 'beside the recipe',
+        colour: colours.get(agent.id)!,
+        line: 'its own kept copy',
+        done: false,
+        kept: keptOf([agent.id]),
+      })),
     ],
     alsoTakes: endedEarly(all, state.fileChanges, runId).left,
     checks,
@@ -720,7 +801,12 @@ function readyData(state: ConvState, run: Run, all: RanRow[]): ReadyData {
  * `teams`: every team there is, by its roles - a chat whose teams have no recipe has its turns' agents framed by them
  * (B-101), on the canvas only.
  */
-export function deriveGraph(state: ConvState, teams: Team[] = [], shared: SharedFile[] = [], outputs: View[] = []): { nodes: GraphNode[]; edges: GraphEdge[] } {
+export function deriveGraph(
+  state: ConvState,
+  teams: Team[] = [],
+  shared: SharedFile[] = [],
+  outputs: View[] = [],
+): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
   const link = (source: string, target: string, active: boolean, spawn = false) =>
@@ -734,6 +820,8 @@ export function deriveGraph(state: ConvState, teams: Team[] = [], shared: Shared
   const numbers = turnNumbers(state)
   // A comparison's later sides, by run: each with the turn it is drawn in.
   const laterSides = new Map<string, string>()
+  // The agents drawn in a turn's Checks box (`settleChecks`): no nodes, nor lines, of their own.
+  const inChecks = new Set<string>()
 
   for (const run of state.runs) {
     // A message removed from the queue never became work; it stays in the chat only.
@@ -758,7 +846,7 @@ export function deriveGraph(state: ConvState, teams: Team[] = [], shared: Shared
     // A turn still queued has no agent yet: only its request is shown.
     for (const agent of state.agents.filter(a => a.run_id === run.id))
       agentNodes(state, run, agent, nodes, link, { teams, opened, frameOf, request, requestId })
-    checksNode(state, run, nodes, edges)
+    checksBox(state, run, nodes, edges, inChecks)
 
     // K-canvas-dili (W): the agent that opens a team's agents - the Lead - reaches them at their frame's door, and in the
     // frame the work goes left to right in its recipe's order: one fork into each pass of a step, one join out of it,
@@ -792,17 +880,45 @@ export function deriveGraph(state: ConvState, teams: Team[] = [], shared: Shared
   agentLines(state, nodes, edges, unspawned)
   // (Drawn, laid out and picked as the turn they are: a comparison's sides as its first side's.)
   for (const node of nodes) node.runId = laterSides.get(node.runId) ?? node.runId
-  return { nodes, edges: framed(nodes, edges.filter(e => !(e.spawn && unspawned.has(e.target)))) }
+  const drawn = (e: GraphEdge) =>
+    !(e.spawn && unspawned.has(e.target)) && !inChecks.has(e.source) && !inChecks.has(e.target)
+  loopsBack(nodes, edges)
+  return { nodes, edges: framed(nodes, edges.filter(drawn)) }
+}
+
+/** Findings handed back inside one recipe's frame: its own loop (`GraphEdge.loopBack`). */
+function loopsBack(nodes: GraphNode[], edges: GraphEdge[]) {
+  const teamOf = new Map(nodes.map(n => [n.id, n.team]))
+  for (const e of edges)
+    if (e.findings !== undefined && teamOf.get(e.source) && teamOf.get(e.source) === teamOf.get(e.target))
+      e.loopBack = true
+}
+
+/** KOLONİ's checks of a turn (`checksNode`), and the agents drawn in its box (`settleChecks`), put down in `inChecks`. */
+function checksBox(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphEdge[], inChecks: Set<string>) {
+  if (!checksNode(state, run, nodes, edges)) return
+  const box = nodes.find(node => node.id === `checks:${run.id}`)
+  if (box) for (const id of settleChecks(state, run, box, nodes, edges)) inChecks.add(id)
 }
 
 type Link = (source: string, target: string, active: boolean, spawn?: boolean) => void
 
 /** The frames of a turn's teams, each put before its agents and put down for them in `frameOf`; returns the rows framed. */
-function teamFrames(state: ConvState, run: Run, ran: RanRow[], teams: Team[], frameOf: Map<string, { id: string; colour: string }>, nodes: GraphNode[]): RanRow[] {
+function teamFrames(
+  state: ConvState,
+  run: Run,
+  ran: RanRow[],
+  teams: Team[],
+  frameOf: Map<string, { id: string; colour: string }>,
+  nodes: GraphNode[],
+): RanRow[] {
   const colours = chatColours(state)
   const lead = state.agents.find(a => a.run_id === run.id && a.depth === 0)
   // (A team not started has no agents to frame: Ready for you names it.)
-  const frames = [...ran.filter(one => one.state.status !== 'waiting'), ...(ran.length ? [] : byRoles(state, run, teams))]
+  const frames = [
+    ...ran.filter(one => one.state.status !== 'waiting'),
+    ...(ran.length ? [] : byRoles(state, run, teams)),
+  ]
   for (const row of frames) {
     const frame = { id: `team:${run.id}:${row.team_id}`, colour: colours.get(row.team_id)! }
     for (const id of row.state.agents) frameOf.set(id, frame)
@@ -817,7 +933,8 @@ function handedLines(attached: ConvState['attachments'], nodes: GraphNode[], edg
   for (const file of attached) {
     for (const agentId of file.given_to) {
       const [source, target] = [`attachment:${file.id}`, `agent:${agentId}`]
-      if (nodes.some(n => n.id === target)) edges.push({ id: `handed:${source}>${target}`, source, target, active: false, handed: true })
+      if (nodes.some(n => n.id === target))
+        edges.push({ id: `handed:${source}>${target}`, source, target, active: false, handed: true })
     }
   }
 }
@@ -826,12 +943,21 @@ function readyNode(state: ConvState, run: Run, ran: RanRow[], nodes: GraphNode[]
   if (ran.length > 0) {
     const id = `ready:${run.id}`
     nodes.push({ id, kind: 'ready', runId: run.id, refId: run.id, data: readyData(state, run, ran) })
-    for (const row of ran.filter(one => one.state.status !== 'waiting')) link(`team:${run.id}:${row.team_id}`, id, row.state.status === 'ready')
+    for (const row of ran.filter(one => one.state.status !== 'waiting'))
+      link(`team:${run.id}:${row.team_id}`, id, row.state.status === 'ready')
   }
 }
 
 /** What started a turn: its request, the files attached to it, and its plan. Returns the files, which are handed on below. */
-function requestNodes(state: ConvState, run: Run, request: ConvState['messages'][number] | undefined, turn: string, requestId: string, nodes: GraphNode[], edges: GraphEdge[]) {
+function requestNodes(
+  state: ConvState,
+  run: Run,
+  request: ConvState['messages'][number] | undefined,
+  turn: string,
+  requestId: string,
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+) {
   if (request && turn === run.id) {
     nodes.push({
       id: requestId,
@@ -849,25 +975,47 @@ function requestNodes(state: ConvState, run: Run, request: ConvState['messages']
 
   // The files the user attached to it (slice 85b): small nodes beside its request - more than FOLD_FILES, a box of
   // them, folded - each joined by a dashed line to the agents it was handed to (drawn below, once they are).
-  const attached = request && turn === run.id ? state.attachments.filter(a => a.message_id === request.id && !a.frame_of) : []
+  const attached =
+    request && turn === run.id ? state.attachments.filter(a => a.message_id === request.id && !a.frame_of) : []
   const box = attached.length > FOLD_FILES ? `files:${run.id}` : undefined
   if (box) {
-    const data: GroupData = { inside: attached.length, summary: `${attached.length} files`, attention: false, finished: true, open: true }
+    const data: GroupData = {
+      inside: attached.length,
+      summary: `${attached.length} files`,
+      attention: false,
+      finished: true,
+      open: true,
+    }
     nodes.push({ id: box, kind: 'files', runId: run.id, refId: request!.id, data })
   }
   for (const file of attached) {
     const { label, colour, meta } = shown(file)
-    nodes.push({ id: `attachment:${file.id}`, kind: 'attachment', runId: run.id, refId: file.id, ...(box && { parent: box }), data: { name: file.name, label, colour, meta } })
+    nodes.push({
+      id: `attachment:${file.id}`,
+      kind: 'attachment',
+      runId: run.id,
+      refId: file.id,
+      ...(box && { parent: box }),
+      data: { name: file.name, label, colour, meta },
+    })
   }
 
   planNode(run, request, requestId, nodes, edges)
   return attached
 }
 
-function planNode(run: Run, request: ConvState['messages'][number] | undefined, requestId: string, nodes: GraphNode[], edges: GraphEdge[]) {
+function planNode(
+  run: Run,
+  request: ConvState['messages'][number] | undefined,
+  requestId: string,
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+) {
   // A plan turn: what became of its plan, at its start. (Queued, or ended with none, no node.)
   if (request && run.plan_turn && (run.plan || (run.status !== 'queued' && !TERMINAL.has(run.status)))) {
-    const data: PlanData = run.plan ? { status: run.plan.status, by: plannedBy(run.plan) } : { status: 'writing', by: null }
+    const data: PlanData = run.plan
+      ? { status: run.plan.status, by: plannedBy(run.plan) }
+      : { status: 'writing', by: null }
     const id = `plan:${run.id}`
     nodes.push({ id, kind: 'plan', runId: run.id, refId: run.id, data })
     // (Right under the message: a plan's short straight line down into it - 21 Nov: not a curve's scribble and hooks.)
@@ -887,23 +1035,41 @@ function approvedPlan(state: ConvState, run: Run, nodes: GraphNode[], edges: Gra
   nodes.push({ id, kind: 'plan', runId: run.id, refId: before.id, data })
   // (A turn not started yet has no Lead to draw it to.)
   const lead = state.agents.find(a => a.run_id === run.id && a.depth === 0)
-  if (lead) edges.push({ id: `${id}>agent:${lead.id}`, source: id, target: `agent:${lead.id}`, active: false, plan: true })
+  if (lead)
+    edges.push({ id: `${id}>agent:${lead.id}`, source: id, target: `agent:${lead.id}`, active: false, plan: true })
 }
 
-/** The Assistant PO asked once the turn ended (`Run.po`): small, under the turn's Lead, on a dashed line down from it. None where it was not asked. */
+/** The Scout asked once the turn ended (`Run.po`): small, under the turn's Lead, on a dashed line down from it. None where it was not asked. */
 function assistantPo(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphEdge[]) {
   const lead = state.agents.find(a => a.run_id === run.id && a.depth === 0)
   if (!run.po || !lead) return
   const id = `po:${run.id}`
   nodes.push({ id, kind: 'po', runId: run.id, refId: run.id, data: run.po })
-  edges.push({ id: `agent:${lead.id}>${id}`, source: `agent:${lead.id}`, target: id, active: false, plan: true, po: true })
+  edges.push({
+    id: `agent:${lead.id}>${id}`,
+    source: `agent:${lead.id}`,
+    target: id,
+    active: false,
+    plan: true,
+    po: true,
+  })
 }
 
-/** What came of the Assistant PO's request, counted - "2 proposed · 1 dropped · Orchestrator added 1" - or that it was not heard out. */
+/** What the Scout is, where it shows (its box's hover, its panel): its name does not say it. */
+export const SCOUT_DOES =
+  'The Scout looks for what is left after each turn and suggests follow-up tasks for the To-do list.'
+
+/** What came of the Scout's request, counted - "2 proposed · 1 dropped · Orchestrator added 1" - or that it was not heard out. */
 export function poSaid(po: PoData): string {
   if (!po.heard) return 'Sent, not heard out'
   const dropped = po.dropped.length + po.dropped_more
-  return [`${po.proposed} proposed`, dropped > 0 && `${dropped} dropped`, typeof po.lead_added === 'number' && `Orchestrator added ${po.lead_added}`].filter(Boolean).join(' · ')
+  return [
+    `${po.proposed} proposed`,
+    dropped > 0 && `${dropped} dropped`,
+    typeof po.lead_added === 'number' && `Orchestrator added ${po.lead_added}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 /** What it spent, as the canvas says tokens: "– tokens" where it said nothing - never 0. */
@@ -919,7 +1085,13 @@ function agentNodes(
   agent: Agent,
   nodes: GraphNode[],
   link: Link,
-  { teams, opened, frameOf, request, requestId }: {
+  {
+    teams,
+    opened,
+    frameOf,
+    request,
+    requestId,
+  }: {
     teams: Team[]
     opened: Set<string | null>
     frameOf: Map<string, { id: string; colour: string }>
@@ -967,31 +1139,66 @@ function agentNodes(
     finished: status in ENDED,
     open: true,
   }
-  nodes.push({ id: agentId, kind: 'agent', runId: run.id, refId: agent.id, agentId: agent.id, team: frameOf.get(agent.id)?.id, data })
+  nodes.push({
+    id: agentId,
+    kind: 'agent',
+    runId: run.id,
+    refId: agent.id,
+    agentId: agent.id,
+    team: frameOf.get(agent.id)?.id,
+    data,
+  })
   if (agent.parent_agent_id) link(`agent:${agent.parent_agent_id}`, agentId, OPEN.has(agent.status), true)
   else if (request) link(requestId, agentId, run.status === 'running')
 }
 
 /** A team frame's door and work lines, and how its agents are laid out in it. */
-function workLines(state: ConvState, run: Run, row: RanRow, nodes: GraphNode[], edges: GraphEdge[], unspawned: Set<string>) {
+function workLines(
+  state: ConvState,
+  run: Run,
+  row: RanRow,
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  unspawned: Set<string>,
+) {
   const frame = `team:${run.id}:${row.team_id}`
-  const mine = new Set(row.state.agents.filter(id => state.agents.some(a => a.id === id && a.run_id === run.id)))
+  // (Not those KOLONİ's Checks box took - its send-back rounds' agents: `settleChecks`.)
+  const mine = new Set(
+    row.state.agents.filter(
+      id => state.agents.some(a => a.id === id && a.run_id === run.id) && nodes.some(n => n.id === `agent:${id}`),
+    ),
+  )
   const parentOf = (id: string) => state.agents.find(a => a.id === id)?.parent_agent_id ?? ''
   const roots = [...mine].filter(id => !mine.has(parentOf(id)))
   if (roots.length === 0) return
   const passes = row.state.passes
-    .map(pass => ({ at: row.state.steps.findIndex(step => step.id === pass.part), agents: pass.agents.filter(id => mine.has(id)) }))
+    .map(pass => ({
+      at: row.state.steps.findIndex(step => step.id === pass.part),
+      agents: pass.agents.filter(id => mine.has(id)),
+    }))
     .filter(pass => pass.agents.length > 0)
   const heads = roots.filter(id => !passes.some(pass => pass.agents.includes(id)))
   const at = (id: string) => `agent:${id}`
   const open = (id: string) => state.agents.some(a => a.id === id && OPEN.has(a.status))
   for (const id of passes.length ? [...heads, ...passes.flatMap(pass => pass.agents)] : roots) unspawned.add(at(id))
-  edges.push({ id: `door:${parentOf(roots[0])}>${frame}`, source: at(parentOf(roots[0])), target: frame, active: row.state.status === 'running', door: true })
+  edges.push({
+    id: `door:${parentOf(roots[0])}>${frame}`,
+    source: at(parentOf(roots[0])),
+    target: frame,
+    active: row.state.status === 'running',
+    door: true,
+  })
   workForks(frame, roots, heads, passes, open, edges)
   // Laid out so: its lead, then a column for each step, its passes one under the other; a helper under the agent
   // that opened it. (Its passes not known - a row from before, no recipe - it is laid out as a tree.)
   if (passes.length === 0) return
-  const columns: TeamData['columns'] = [{ ids: heads, atOnce: false }, ...row.state.steps.map((step, i) => ({ ids: passes.filter(pass => pass.at === i).flatMap(pass => pass.agents), atOnce: step.group }))]
+  const columns: TeamData['columns'] = [
+    { ids: heads, atOnce: false },
+    ...row.state.steps.map((step, i) => ({
+      ids: passes.filter(pass => pass.at === i).flatMap(pass => pass.agents),
+      atOnce: step.group,
+    })),
+  ]
     .map(column => ({ ...column, ids: column.ids.map(at) }))
     .filter(column => column.ids.length > 0)
   if (columns.length === 0) return
@@ -1008,7 +1215,14 @@ function workLines(state: ConvState, run: Run, row: RanRow, nodes: GraphNode[], 
 }
 
 /** A frame's work lines: from its door into its first agents, then from each pass on to the next (`open`: whether an agent is at work). */
-function workForks(frame: string, roots: string[], heads: string[], passes: { at: number; agents: string[] }[], open: (id: string) => boolean, edges: GraphEdge[]) {
+function workForks(
+  frame: string,
+  roots: string[],
+  heads: string[],
+  passes: { at: number; agents: string[] }[],
+  open: (id: string) => boolean,
+  edges: GraphEdge[],
+) {
   const at = (id: string) => `agent:${id}`
   // From each of `from` to the first of `to`, and from the first of `from` to each of `to`: one fork, one join.
   const fork = (from: string[], to: string[]) => {
@@ -1025,7 +1239,15 @@ function workForks(frame: string, roots: string[], heads: string[], passes: { at
   }
 }
 
-function foldRounds(state: ConvState, run: Run, row: RanRow, frame: string, passes: { at: number; agents: string[] }[], columns: TeamData['columns'], nodes: GraphNode[]) {
+function foldRounds(
+  state: ConvState,
+  run: Run,
+  row: RanRow,
+  frame: string,
+  passes: { at: number; agents: string[] }[],
+  columns: TeamData['columns'],
+  nodes: GraphNode[],
+) {
   const at = (id: string) => `agent:${id}`
   // The user's (4 Nov): a step that ran more than once - a loop's rounds - shows each earlier round (its pass, and the
   // helpers its agents opened) as one line, its agents under it once opened; the newest in full, its finished agents
@@ -1046,7 +1268,11 @@ function foldRounds(state: ConvState, run: Run, row: RanRow, frame: string, pass
     for (const [i, { ids, n }] of rounds.entries()) {
       const drawn = nodes.filter(node => ids.includes(node.id))
       if (i === rounds.length - 1) {
-        for (const node of drawn) chipOf(node.data as AgentData, state.agents.find(a => a.id === node.agentId))
+        for (const node of drawn)
+          chipOf(
+            node.data as AgentData,
+            state.agents.find(a => a.id === node.agentId),
+          )
         continue
       }
       // By its step's id: what the user opened or folded stays with it, whatever columns are drawn before it.
@@ -1055,7 +1281,14 @@ function foldRounds(state: ConvState, run: Run, row: RanRow, frame: string, pass
       // (Before its agents: what is folded comes after what folds it - `foldGraph`.)
       const first = nodes.findIndex(node => ids.includes(node.id))
       const counted = ran[n].agents.filter(one => ids.includes(at(one)))
-      nodes.splice(first < 0 ? nodes.length : first, 0, { id, kind: 'round', runId: run.id, refId: run.id, team: frame, data: roundData(state, counted, drawn, n, run.status === 'running' || run.status === 'waiting_approval') })
+      nodes.splice(first < 0 ? nodes.length : first, 0, {
+        id,
+        kind: 'round',
+        runId: run.id,
+        refId: run.id,
+        team: frame,
+        data: roundData(state, counted, drawn, n, run.status === 'running' || run.status === 'waiting_approval'),
+      })
       ids.unshift(id)
     }
     column.ids = rounds.flatMap(round => round.ids)
@@ -1068,7 +1301,8 @@ function askLines(between: TeamRequest[], frameOf: Map<string, { id: string; col
   const ways = new Map<string, TeamRequest[]>()
   for (const request of between) {
     const [from, to] = [frameOf.get(request.from?.id ?? ''), frameOf.get(request.lead?.id ?? '')]
-    if (from && to && from.id !== to.id) ways.set(`${from.id}>${to.id}`, [...(ways.get(`${from.id}>${to.id}`) ?? []), request])
+    if (from && to && from.id !== to.id)
+      ways.set(`${from.id}>${to.id}`, [...(ways.get(`${from.id}>${to.id}`) ?? []), request])
   }
   for (const [way, asks] of ways) {
     const [source, target] = way.split('>')
@@ -1077,7 +1311,13 @@ function askLines(between: TeamRequest[], frameOf: Map<string, { id: string; col
     const count = (one: string) => labels.filter(l => l === one).length
     const label = [...new Set(labels)].map(one => (count(one) > 1 ? `${one} ×${count(one)}` : one)).join(' · ')
     const title = asks.map(r => `${askerOf(r)} → ${r.to}: ${shortWhat(r.what, 80)} - ${standsLine(r)}`).join('\n')
-    edges.push({ id: `ask:${asks[0].call.id}`, source, target, active: open, request: { label, open, title, calls: asks.map(r => r.call.id) } })
+    edges.push({
+      id: `ask:${asks[0].call.id}`,
+      source,
+      target,
+      active: open,
+      request: { label, open, title, calls: asks.map(r => r.call.id) },
+    })
   }
 }
 
@@ -1085,12 +1325,15 @@ function askLines(between: TeamRequest[], frameOf: Map<string, { id: string; col
 function awayNodes(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphEdge[], link: Link) {
   for (const away of state.away.filter(card => card.run_id === run.id && card.started_at)) {
     const report = `away:${away.id}`
-    const lead = nodes.find(n => n.kind === 'agent' && n.runId === run.id && n.agentId && !(n.data as AgentData).parentId)
+    const lead = nodes.find(
+      n => n.kind === 'agent' && n.runId === run.id && n.agentId && !(n.data as AgentData).parentId,
+    )
     for (const job of away.jobs) {
       const id = `awayjob:${away.id}:${job.task_id ?? job.title}`
       nodes.push({ id, kind: 'awayjob', runId: run.id, refId: job.conversation_id ?? away.id, data: { job } })
       if (lead) link(lead.id, id, job.state === 'working')
-      if (job.state === 'done' || job.state === 'waits') edges.push({ id: `${id}>${report}`, source: id, target: report, active: false, waits: job.state === 'waits' })
+      if (job.state === 'done' || job.state === 'waits')
+        edges.push({ id: `${id}>${report}`, source: id, target: report, active: false, waits: job.state === 'waits' })
     }
     nodes.push({ id: report, kind: 'away', runId: run.id, refId: away.id, data: { away } })
   }
@@ -1110,7 +1353,9 @@ const frameOfAll = (nodes: GraphNode[], agentIds: string[]): { team?: string } =
 }
 // In a frame laid out by its work line, a shared place stands at the head of its members' column.
 const headOfColumn = (nodes: GraphNode[], place: string, team: string | undefined, agentIds: string[]) =>
-  (nodes.find(n => n.id === team)?.data as TeamData | undefined)?.columns.find(column => agentIds.some(id => column.ids.includes(`agent:${id}`)))?.ids.unshift(place)
+  (nodes.find(n => n.id === team)?.data as TeamData | undefined)?.columns
+    .find(column => agentIds.some(id => column.ids.includes(`agent:${id}`)))
+    ?.ids.unshift(place)
 
 function discussionPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[], teams: Team[]) {
   // A discussion is a shared place: one node, joined to everyone who takes part.
@@ -1119,9 +1364,7 @@ function discussionPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge
     const id = `discussion:${discussion.id}`
     if (!nodes.some(n => n.id === `agent:${discussion.agent_id}`)) continue
     const speaker = speakerOf(state, discussion)
-    const said = state.discussionPosts.filter(
-      p => p.discussion_id === discussion.id && p.kind === 'said' && !p.passed,
-    )
+    const said = state.discussionPosts.filter(p => p.discussion_id === discussion.id && p.kind === 'said' && !p.passed)
     const members = discussion.members.map(m => m.agent_id)
     const framed = frameOfAll(nodes, members)
     // Not in one frame, in a turn with frames: in the lane (layout.ts). (In a turn with none, by its opener as before.)
@@ -1148,7 +1391,14 @@ function discussionPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge
     for (const member of discussion.members) {
       const source = `agent:${member.agent_id}`
       if (!nodes.some(n => n.id === source)) continue
-      edges.push({ id: `${source}>${id}`, source, target: id, active: speaker?.id === member.agent_id, talk: true, ...(laned && { member: true }) })
+      edges.push({
+        id: `${source}>${id}`,
+        source,
+        target: id,
+        active: speaker?.id === member.agent_id,
+        talk: true,
+        ...(laned && { member: true }),
+      })
     }
   }
 }
@@ -1168,7 +1418,10 @@ function roomPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[], te
       members: room.members.map(m => memberTag(state, room, m, teams)),
       watched: watchedBy(state, room, teams),
       items: items.length ? `${items.filter(i => i.status === 'done').length} of ${items.length} items done` : '',
-      last: said.slice(-2).map(p => ({ who: `${nameInRoom(state, p.agent_id, teams)}${byWatcher(state, room, p.agent_id) ? ' (watching)' : ''}`, text: p.text.slice(0, 90) })),
+      last: said.slice(-2).map(p => ({
+        who: `${nameInRoom(state, p.agent_id, teams)}${byWatcher(state, room, p.agent_id) ? ' (watching)' : ''}`,
+        text: p.text.slice(0, 90),
+      })),
       running: atWork(room),
       attention: waitsForYou(state, room),
     }
@@ -1177,12 +1430,28 @@ function roomPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[], te
     const drawn = room.members.map(m => m.agent_id).filter(one => nodes.some(n => n.id === `agent:${one}`))
     const { team } = frameOfAll(nodes, drawn)
     const laned = !team && nodes.some(n => n.kind === 'team' && n.runId === room.run_id)
-    nodes.push({ id, kind: 'room', runId: room.run_id, refId: room.id, agentId: lead.id, at: room.created_at, data, ...(team && { team }) })
+    nodes.push({
+      id,
+      kind: 'room',
+      runId: room.run_id,
+      refId: room.id,
+      agentId: lead.id,
+      at: room.created_at,
+      data,
+      ...(team && { team }),
+    })
     headOfColumn(nodes, id, team, drawn)
     for (const member of room.members) {
       const source = `agent:${member.agent_id}`
       if (!nodes.some(n => n.id === source)) continue
-      edges.push({ id: `${source}>${id}`, source, target: id, active: movesIn(state, room, member), talk: true, ...(laned && { member: true }) })
+      edges.push({
+        id: `${source}>${id}`,
+        source,
+        target: id,
+        active: movesIn(state, room, member),
+        talk: true,
+        ...(laned && { member: true }),
+      })
     }
   }
 }
@@ -1214,17 +1483,36 @@ function talkLines(state: ConvState, drawn: Set<string>, edges: GraphEdge[], uns
 }
 
 /** A message or a reply between two agents' boxes (`from`, `to`): counted on the line they share, or a line of its own. */
-function saidBetween(message: ConvState['channelMessages'][number], from: string, to: string, edges: GraphEdge[], unspawned: Set<string>) {
+function saidBetween(
+  message: ConvState['channelMessages'][number],
+  from: string,
+  to: string,
+  edges: GraphEdge[],
+  unspawned: Set<string>,
+) {
   // (Two a team's work line joins: on that line, not a second one on the same way.)
   const between = edges.find(
     e =>
       ((e.spawn && !unspawned.has(e.target)) || e.work || e.messages) &&
       ((e.source === from && e.target === to) || (e.source === to && e.target === from)),
   )
-  const first = message.content.split('\n').find(line => line.trim())?.trim() ?? ''
-  const said = { last: first.length > LAST_CHARS ? `${first.slice(0, LAST_CHARS)}…` : first, lastAt: message.created_at }
-  if (between) Object.assign(between, { messages: (between.messages ?? 0) + 1 }, message.created_at >= (between.lastAt ?? '') && said)
-  else edges.push({ id: `talk:${from}>${to}`, source: from, target: to, active: false, talk: true, messages: 1, ...said })
+  const first =
+    message.content
+      .split('\n')
+      .find(line => line.trim())
+      ?.trim() ?? ''
+  const said = {
+    last: first.length > LAST_CHARS ? `${first.slice(0, LAST_CHARS)}…` : first,
+    lastAt: message.created_at,
+  }
+  if (between)
+    Object.assign(
+      between,
+      { messages: (between.messages ?? 0) + 1 },
+      message.created_at >= (between.lastAt ?? '') && said,
+    )
+  else
+    edges.push({ id: `talk:${from}>${to}`, source: from, target: to, active: false, talk: true, messages: 1, ...said })
 }
 
 function waitLines(state: ConvState, drawn: Set<string>, edges: GraphEdge[]) {
@@ -1272,12 +1560,24 @@ function framed(nodes: GraphNode[], edges: GraphEdge[]): GraphEdge[] {
 const lineKind = (e: GraphEdge) => (e.door || e.messages ? 'talk' : e.findings !== undefined ? 'findings' : 'line')
 
 /** A line drawn to a frame's door (`source`, `target`: its ends as drawn): kept, or added up on the one kept for the same way (`ways`). */
-function doorLine(e: GraphEdge, source: string, target: string, ways: Map<string, GraphEdge>, keep: (e: GraphEdge) => void) {
+function doorLine(
+  e: GraphEdge,
+  source: string,
+  target: string,
+  ways: Map<string, GraphEdge>,
+  keep: (e: GraphEdge) => void,
+) {
   // (Talk goes either way: on the door line too.)
-  const same = ways.get(`${lineKind(e)}:${source}>${target}`) ?? (e.messages ? ways.get(`talk:${target}>${source}`) : undefined)
+  const same =
+    ways.get(`${lineKind(e)}:${source}>${target}`) ?? (e.messages ? ways.get(`talk:${target}>${source}`) : undefined)
   if (!same) keep({ ...e, source, target })
   else {
-    if (e.messages) Object.assign(same, { messages: (same.messages ?? 0) + e.messages }, (e.lastAt ?? '') >= (same.lastAt ?? '') && { last: e.last, lastAt: e.lastAt })
+    if (e.messages)
+      Object.assign(
+        same,
+        { messages: (same.messages ?? 0) + e.messages },
+        (e.lastAt ?? '') >= (same.lastAt ?? '') && { last: e.last, lastAt: e.lastAt },
+      )
     if (e.findings !== undefined) same.findings = (same.findings ?? 0) + e.findings
     same.active ||= e.active
   }

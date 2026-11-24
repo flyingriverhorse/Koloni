@@ -8,6 +8,7 @@ so its track record says what it had then, whatever the role has now.
 Revision ID: 0123
 Revises: 0122
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -19,8 +20,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("skills", sa.Column(
-        "enabled", sa.Boolean(), nullable=False, server_default=sa.true()))
+    op.add_column(
+        "skills", sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true())
+    )
     op.add_column("agents", sa.Column("skills", sa.JSON(), nullable=True))
 
 

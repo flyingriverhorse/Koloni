@@ -1,7 +1,13 @@
 import { expect, test } from 'vitest'
 import { PER_SOURCE, type Said, WINDOW_MS, admit, fresh, settle } from './toastPolicy'
 
-const note = (text: string, at: number, more: Partial<Said> = {}): Said => ({ key: `${text} ${at}`, source: 'a', text, at, ...more })
+const note = (text: string, at: number, more: Partial<Said> = {}): Said => ({
+  key: `${text} ${at}`,
+  source: 'a',
+  text,
+  at,
+  ...more,
+})
 
 /** Each note in turn; what was shown for each (null: nothing), and the policy after. */
 function run(notes: Said[]) {
@@ -15,7 +21,12 @@ function run(notes: Said[]) {
 }
 
 test('the same note of the same source is shown once a minute; of another source, or a minute later, again', () => {
-  const { shown } = run([note('Done · Docs', 0), note('Done · Docs', 1000), note('Done · Docs', 2000, { source: 'b' }), note('Done · Docs', WINDOW_MS)])
+  const { shown } = run([
+    note('Done · Docs', 0),
+    note('Done · Docs', 1000),
+    note('Done · Docs', 2000, { source: 'b' }),
+    note('Done · Docs', WINDOW_MS),
+  ])
   expect(shown.map(one => one?.at ?? null)).toEqual([0, null, 2000, WINDOW_MS])
 })
 
@@ -29,13 +40,22 @@ test('a source shows at most four a minute; the fifth is not shown until the fir
 })
 
 test('an error said again is counted on the one shown: ×N, its key, said now', () => {
-  const { shown } = run([note('Failed · Docs', 0, { error: true }), note('Failed · Docs', 500, { error: true }), note('Failed · Docs', 900, { error: true })])
+  const { shown } = run([
+    note('Failed · Docs', 0, { error: true }),
+    note('Failed · Docs', 500, { error: true }),
+    note('Failed · Docs', 900, { error: true }),
+  ])
   expect(shown[2]).toMatchObject({ key: 'Failed · Docs 0', count: 3, at: 900 })
 })
 
 test('an error over the limit is owed, never dropped, and said once its source has room again', () => {
   const full = Array.from({ length: PER_SOURCE }, (_, n) => note(`n${n}`, n * 1000))
-  const { policy, shown } = run([...full, note('Failed · A', 5000, { error: true }), note('Failed · B', 6000, { error: true }), note('plain', 7000)])
+  const { policy, shown } = run([
+    ...full,
+    note('Failed · A', 5000, { error: true }),
+    note('Failed · B', 6000, { error: true }),
+    note('plain', 7000),
+  ])
   expect(shown.slice(PER_SOURCE)).toEqual([null, null, null])
   expect(policy.owed.a.count).toBe(2)
   // before the oldest is a minute old: nothing yet, and when to look again

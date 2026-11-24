@@ -23,11 +23,16 @@ from tests.test_chat_flow import start, text  # noqa: E402
 from tests.test_view_scenarios import content, show  # noqa: E402
 from tests.test_view_scenarios import views as listed  # noqa: E402
 
-STL = b"solid cube\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\n" \
-      b"endloop\nendfacet\nendsolid cube\n"
+STL = (
+    b"solid cube\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\n"
+    b"endloop\nendfacet\nendsolid cube\n"
+)
 TYPES = {
-    "part.stl": "model/stl", "part.obj": "model/obj", "part.gltf": "model/gltf+json",
-    "part.glb": "model/gltf-binary", "part.3mf": "model/3mf",
+    "part.stl": "model/stl",
+    "part.obj": "model/obj",
+    "part.gltf": "model/gltf+json",
+    "part.glb": "model/gltf-binary",
+    "part.3mf": "model/3mf",
 }
 MB = 1024 * 1024
 
@@ -61,7 +66,9 @@ def test_what_a_model_names_beside_it_is_served_and_nothing_outside(make_client,
 
 
 def test_a_model_may_be_larger_than_a_page_up_to_50_mb(make_client, wait_run, project_dir):
-    (project_dir / "big.glb").write_bytes(b"\0" * (6 * MB))  # a page or picture this size is refused
+    (project_dir / "big.glb").write_bytes(
+        b"\0" * (6 * MB)
+    )  # a page or picture this size is refused
     (project_dir / "huge.stl").write_bytes(b"\0" * (50 * MB + 1))
     client, _model = make_client([show("big.glb", id="a"), show("huge.stl", id="b"), text("ok")])
     cid, run_id = start(client, project_dir)

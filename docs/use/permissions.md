@@ -104,6 +104,74 @@ You can see and remove the rules you made under Settings › This project › **
 
 Below Full auto, a command that keeps running (a server) asks every time, even with a rule.
 
+Nor does a rule - or a yes you gave before - cover a command whose program, named by its path in
+the project (`node_modules/.bin/tsc`, `./scripts/check`), is one an agent wrote, or sits in an
+install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in, while that file still
+holds what the agent wrote: below Full auto it asks on a card that says so ("an agent wrote its
+program (web/node_modules): no rule covers a program an agent wrote, so none is offered - run it
+once or reject it"), with **Run once** and **Reject** alone - an **Always run** rule would not
+cover it either while that write stands -, and in a turn nobody can be asked in - a trigger's,
+whatever its leave - it is not run at any level. A rule matches by its
+words in any folder, so the same line in another folder, or after an agent's write over the
+project's own install, would otherwise run what the agent wrote. Once your own install writes
+over it, the rule covers it again. A package runner finds its program by itself, so its rule
+(`npx tsc`, `npm exec tsc`, `yarn tsc`, `bun x tsc`, `corepack pnpm exec tsc`, `uv run ruff`,
+`python -m mypy`) is read the same way: npx, npm, pnpm, yarn and bun look in the `node_modules`
+of the folder the command runs in or of one above it - and read an `.npmrc` there, yarn its
+`.yarnrc.yml`, `.yarnrc`, `.yarn` folder and Plug'n'Play loader, pnpm its `.pnpmfile.cjs`, bun its
+`bunfig.toml` - and an agent's write in any of them stops the rule.
+
+A rule for a node runner (npx, pnpx, bunx, npm, pnpm, yarn, bun; `corepack` before one) is
+closed on two sides. **What an agent wrote:** while an agent's write of any `package.json`, any
+`.npmrc` or `x.npmrc`, `.yarnrc*`, `.yarn/`, `.pnpmfile.cjs`, `pnpm-workspace.yaml` or
+`bunfig.toml` anywhere in the project still holds what it wrote, no node runner's rule covers a
+line - npx and `npm exec` run a name the package's own `bin` gives before any installed one, yarn
+and pnpm a script of that name, `npm install` every workspace's lifecycle scripts, and npm reads
+any settings file it is pointed at. The cost: after an agent edits a `package.json` (adding a
+dependency, say), node runner rules ask until that write is replaced - by your own edit or
+install. A line of npm's or pnpm's that runs a script by its name under its own rule (`npm run
+build`, `npm test`) is the exception: the script is the project's code by design, as a test is.
+yarn's and bun's `run` run a bin too, and npx's `test` is a package - those are not. **Its own
+options:** past the rule's words (up to `--` for npm; up to the verb that hands the rest on -
+`exec`, `dlx`, `x`, `run` - for pnpm, yarn and bun), a rule covers only options that change what
+the runner prints, where it fetches from or that it runs less: `--silent` / `-s`, `--quiet` /
+`-q`, `--loglevel`, `--color` / `--no-color`, `--offline`, `--prefer-offline`, `--no`,
+`--no-audit`, `--no-fund`, `--ignore-scripts`, `--frozen-lockfile`, `--immutable`. Any other
+(`--globalconfig=x` - a settings file whose `node-options` loads code -, `--shell=`, `--node-gyp=`)
+and no rule covers the line or is offered for it. So `yarn tsc --noEmit` is offered none: use
+`yarn run tsc --noEmit`, or for npm `npm exec tsc -- --noEmit` (past `--`, tsc's own).
+
+For uv, poetry, pipenv, pdm, hatch and `python -m`, whose
+environment KOLONİ cannot always place, an agent's write in any `.venv`, `venv` or
+`site-packages` of the project does, and for uv, poetry, pipenv, pdm and hatch one in a
+`pyproject.toml` or `setup.py` in the folder or above (they run its `[project.scripts]` and build
+the project first) - but not for a test run (`uv run pytest`). Their rule names what they run
+(`poetry run ruff`, `uv run python -m ruff`), never the tool alone; and npm's PowerShell shims are
+npm's own (`npx.ps1 tsc` is `npx tsc`). A runner's line sent to another package or folder of a
+monorepo - npm's and npx's `-w` / `--workspace` / `--workspaces` / `--ws` / `--prefix` / `-C`,
+pnpm's `--filter` / `-F` / `-r` / `--dir` / `-C` / `-w`, yarn's `workspace x` / `workspaces
+foreach` / `--cwd`, bun's `--filter` / `--cwd` - runs that package's own `bin` and scripts, which
+the folder's checks do not read: no rule covers it, none is offered, and a trigger's turn does not
+run it. Nor does a rule for `npm exec tsc` cover `npm exec tsc -c x` (`--call`: a shell line). `python -m x` (any Python: `python3.12`, `pythonw`, one
+named by its path) also imports what its folder holds before the standard library and the tool's
+own - so an agent's `.py` file, or package `__init__.py`, there stops its rule too, unless it runs
+with `-I` or `-P` (or `PYTHONSAFEPATH`); `python -m pytest` is the exception, since its tests
+import the project's code anyway. In a working copy every command's Python also reads the
+copy's root and its `src` first (KOLONİ puts them on `PYTHONPATH`), so there an agent's module in
+either stops a `python -m` rule, a `uv run` rule or a rule for a `.venv` console script
+(`.venv/Scripts/uvicorn.exe`) in any folder of the copy - and a `sitecustomize.py` or
+`usercustomize.py` there, which Python imports before anything it runs, stops `python -m pytest`
+too (not under `-E` or `-I`). `node <script>` with the script in an install folder
+(`node node_modules/typescript/bin/tsc`) is read as that program.
+
+On Windows, a command KOLONİ runs, a server it starts and an agent's CLI (started in the work's
+folder) find a program named bare - `node`, which an npm `.cmd` shim calls - on PATH only, never
+first in the folder they run in, where an agent could have written a `node.cmd` (git's own runs
+are started so too). So a batch file of yours that calls its neighbour by its bare name (`call
+helper.cmd`, an npm script `"t": "helper.cmd"`) does not find it under KOLONİ: call it as
+`.\helper.cmd`, or `%~dp0helper.cmd` inside a batch file - where cmd.exe says such a name "is not
+recognized" and the folder has it, the command's result says so too.
+
 ## How a command is read
 
 KOLONİ reads an agent's command line the way its shell will run it, and judges every command it
@@ -213,10 +281,15 @@ get a card, at any level. You decide once, when their work comes back:
 
 - At **Ask before changes**, a card asks whether to take their changes into the project.
 - At **Auto-edit files** and **Full auto**, the changes come in without a card when the sub-agent
-  finished, its changes do not clash with yours, and the project's test passed (if you set one
-  under Settings › This project › Checks and git). Otherwise a card asks.
+  finished, its changes do not clash with yours, and the tests it wrote passed - each part's test
+  command narrowed to them ([Checked](checked.md#when-the-tests-fail)). Those tests are its own
+  code: they run by themselves at Full auto, or where the part's command is yours (set on the
+  project map, or a saved one under an **Always** rule). With KOLONİ's guess at Auto-edit the
+  card waits for your **Run the test** first. Otherwise a card asks.
 - At **Full auto**, if the test fails, the work goes back to the Orchestrator a few times before the card
   asks you.
+- While you are away, or in a trigger's turn, KOLONİ's guess never runs a sub-agent's tests: the
+  work comes in as one with no test would, said "not run". Your own command runs there.
 
 Files that steer agents are held for your card at every level.
 
@@ -262,6 +335,11 @@ a git remote's branch, Docker's prune or volumes, a file that steers agents and 
 another through a shell or a wrapper keep their card. The
 same holds in the chat you went away from, while you're away. A plain chat has no such switch.
 
+How often each of these happened - and the cards asked, by why - is on the Usage page under
+[Cards](../money/usage.md#cards). There a delete you approved unchanged 5 times is suggested as a line
+for this project's rules ("You may delete ./build."); it is added only when you press **Add to
+rules**.
+
 ## Plan first
 
 With **Plan first** on, each new message first gets a plan to approve. While it plans, an agent
@@ -271,8 +349,14 @@ can only read, search and ask you. It cannot write or run anything, at any level
 
 A turn started by a trigger has nobody to ask. There the permission level and your rules do not
 count. The trigger's own permissions decide, and anything they do not allow is refused, not
-asked - except the project's own test command, which runs even when it is not ticked. Secret files, files that steer agents, files outside the project and MCP tools are always
+asked - except a test command you set for a part on the project map, which runs, exactly as written in its part's folder, even when it is not ticked. Secret files, files that steer agents, files outside the project and MCP tools are always
 refused in such a turn. See [Triggers](../automation/triggers.md).
+
+KOLONİ's own check of [code style and types](checked.md#documents-diagrams-data-and-slides) runs
+the project's ruff, eslint, tsc or mypy as it runs the test command: at Ask and Auto-edit it asks
+on a card - a yes is that line in that folder for the turn, and **Always** keeps that line, never
+the bare program; while you are away, or in a turn nobody watches without its trigger's leave for
+the line, it is not run, and says so. A program the turn wrote itself is never run.
 
 ## Choosing a level
 

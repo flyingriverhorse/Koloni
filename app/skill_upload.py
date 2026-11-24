@@ -56,7 +56,7 @@ def _chosen[T](entries: list[tuple[str, T | None]]) -> tuple[str | None, dict[st
         parts = rel.split("/")[1:] if top else rel.split("/")
         out = next((at for at, part in enumerate(parts[:-1]) if left_out_dir(part)), None)
         if out is not None:
-            skipped.append("/".join(parts[:out + 1]) + "/")
+            skipped.append("/".join(parts[: out + 1]) + "/")
         elif payload is None or left_out_file(parts[-1]):
             skipped.append("/".join(parts))
         else:
@@ -70,11 +70,17 @@ def _unzipped(data: str) -> tuple[str | None, dict[str, bytes], list[str]]:
     try:
         with zipfile.ZipFile(io.BytesIO(_bytes(data))) as archive:
             # (__MACOSX/: what macOS's Finder puts beside the folder it zipped, not the skill)
-            infos = [info for info in archive.infolist()
-                     if not info.is_dir() and not info.filename.startswith("__MACOSX/")]
-            top, kept, skipped = _chosen([
-                (info.filename, None if stat.S_ISLNK(info.external_attr >> 16) else info)
-                for info in infos])
+            infos = [
+                info
+                for info in archive.infolist()
+                if not info.is_dir() and not info.filename.startswith("__MACOSX/")
+            ]
+            top, kept, skipped = _chosen(
+                [
+                    (info.filename, None if stat.S_ISLNK(info.external_attr >> 16) else info)
+                    for info in infos
+                ]
+            )
             capped({rel: ("", info.file_size) for rel, info in kept.items()})  # (as it says)
             contents: dict[str, bytes] = {}
             for rel, info in kept.items():
@@ -88,8 +94,16 @@ def _unzipped(data: str) -> tuple[str | None, dict[str, bytes], list[str]]:
     # (an encrypted member: RuntimeError; an unknown compression: NotImplementedError; a
     # broken bzip2 / lzma member: OSError / LZMAError; a broken header: ValueError - a name
     # that is not the UTF-8 it says among them)
-    except (zipfile.BadZipFile, RuntimeError, NotImplementedError, zlib.error, EOFError,
-            OSError, lzma.LZMAError, ValueError) as exc:
+    except (
+        zipfile.BadZipFile,
+        RuntimeError,
+        NotImplementedError,
+        zlib.error,
+        EOFError,
+        OSError,
+        lzma.LZMAError,
+        ValueError,
+    ) as exc:
         raise SkillError(f"the .zip could not be read: {exc}") from None
 
 

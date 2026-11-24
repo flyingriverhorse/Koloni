@@ -13,15 +13,16 @@ from app import ledger
 
 # A bug-fix turn, by the user's words (S7; or a Bugfix recipe of the turn).
 BUGFIX = re.compile(
-    r"\b(fix|bug|broken|regress\w*|crash\w*|error|hata\w*|düzelt\w*|bozuk|çök\w*)\b",
-    re.IGNORECASE)
+    r"\b(fix|bug|broken|regress\w*|crash\w*|error|hata\w*|düzelt\w*|bozuk|çök\w*)\b", re.IGNORECASE
+)
 _PYTEST = re.compile(r"^(?:FAILED|ERROR) (\S+?)(?: - .*)?$", re.MULTILINE)
 # vitest's " FAIL  src/a.test.ts > adds" and jest's "FAIL src/a.test.js": the file.
 _FILE_FAIL = re.compile(r"^\s*FAIL\s+(\S+)", re.MULTILINE)
 _FILE_TOOLS = frozenset({"vitest", "jest", "npm test", "pnpm test", "yarn test", "bun test"})
 # A test file by its name: test_x.py, x_test.py / .go, x.test.ts, x.spec.js, ...
 TEST_FILE = re.compile(
-    r"(?:^|/)(?:test_[^/]+\.py|[^/]+_test\.(?:py|go)|[^/]+\.(?:test|spec)\.[cm]?[jt]sx?)$")
+    r"(?:^|/)(?:test_[^/]+\.py|[^/]+_test\.(?:py|go)|[^/]+\.(?:test|spec)\.[cm]?[jt]sx?)$"
+)
 # The passes a run lists: pytest's "<id> PASSED" (with -v / -rA), jest's "PASS <file>", vitest's
 # " ✓ <file>". A run that lists none keeps only its counts.
 # (a node id is a word with `::` inside it, kept by `passed_ids`: `\S+::\S+` split a long word
@@ -48,16 +49,20 @@ _PLAIN_ID = re.compile(r"[\w\-./\\:\[\]]{1,500}")
 # format, black, prettier; eslint's and pyright's file above its lines) and eslint's
 # `  3:1  error ...` under it. (Not inside a line: ruff quotes the code, `np.zeros(3,4)`.)
 _AT = re.compile(r"^\s*(?:-->\s*)?([^\s:()\"'<>\[\]`]+\.[A-Za-z0-9]{1,8})(?::\d+|\(\d+,\d+\))")
-_BARE = re.compile(r"^\s*(?:would reformat:?\s+|\[warn\]\s+)?([^\s:]+\.[A-Za-z0-9]{1,8})\s*$",
-                   re.IGNORECASE)
+_BARE = re.compile(
+    r"^\s*(?:would reformat:?\s+|\[warn\]\s+)?([^\s:]+\.[A-Za-z0-9]{1,8})\s*$", re.IGNORECASE
+)
 _UNDER = re.compile(r"^\s+\d+:\d+\s")
 # (review of CL-336 M) ...and every other line that reads like a problem - an error, a warning, a
 # failure, a code (`E501`, `TS5023`) - or names a file of the project anywhere (`mypy.ini: [mypy]:
 # Unrecognized option`); not a summary line, whose counts move with what was checked.
 _PROBLEM = re.compile(r"(?i:\b(?:error|errors|warning|failed|fatal)\b)|\b[A-Z]{1,6}\d{3,5}\b")
-_SUMMARY = re.compile(r"^(?:found\s+)?\d+\s+(?:source\s+)?"
-                      r"(?:files?|errors?|problems?|warnings?|fixable)\b|^\[\*\]\s+\d+\s+fixable|^[✖✗]\s+\d+\s+problems?|^success:"
-                      r"|^all checks passed", re.IGNORECASE)
+_SUMMARY = re.compile(
+    r"^(?:found\s+)?\d+\s+(?:source\s+)?"
+    r"(?:files?|errors?|problems?|warnings?|fixable)\b|^\[\*\]\s+\d+\s+fixable|^[✖✗]\s+\d+\s+problems?|^success:"
+    r"|^all checks passed",
+    re.IGNORECASE,
+)
 _TOKEN = re.compile(r"[^\s:()\"'<>\[\]`,;=]+\.[A-Za-z0-9]{1,8}")
 MOST_LINT_CHARS = 100_000  # (of the output's end, its colours off)
 
@@ -68,8 +73,13 @@ def failed_ids(command: str, output: str) -> list[str]:
     read = ledger.read_test(command)
     tool = read[0] if read else ""
     text = ledger.tail(output, 20_000)
-    found = _PYTEST.findall(text) if tool == "pytest" else _FILE_FAIL.findall(text) if (
-        tool in _FILE_TOOLS) else []
+    found = (
+        _PYTEST.findall(text)
+        if tool == "pytest"
+        else _FILE_FAIL.findall(text)
+        if (tool in _FILE_TOOLS)
+        else []
+    )
     return list(dict.fromkeys(found))
 
 
@@ -79,8 +89,13 @@ def passed_ids(command: str, output: str) -> list[str] | None:
     read = ledger.read_test(command)
     tool = read[0] if read else ""
     text = ledger.tail(output, max(len(output), 1))
-    found = [one for one in _PYTEST_PASSED.findall(text) if "::" in one[1:-1]] if (
-        tool == "pytest") else _FILE_PASS.findall(text) if tool in _FILE_TOOLS else []
+    found = (
+        [one for one in _PYTEST_PASSED.findall(text) if "::" in one[1:-1]]
+        if (tool == "pytest")
+        else _FILE_PASS.findall(text)
+        if tool in _FILE_TOOLS
+        else []
+    )
     return list(dict.fromkeys(found))[:MOST_IDS] or None
 
 
@@ -123,8 +138,9 @@ def alone(command: str, ids: list[str]) -> str | None:
     return f"{command} -- {named}" if read[0] in _FILE_TOOLS else None
 
 
-def lint_findings(output: str, root: Path, cwd: str,
-                  mine: Collection[str] = ()) -> tuple[frozenset[str], Counter[str]] | None:
+def lint_findings(
+    output: str, root: Path, cwd: str, mine: Collection[str] = ()
+) -> tuple[frozenset[str], Counter[str]] | None:
     """CL-336 M: a failed lint, format or type check's (`ci_commands.checks_files`) files - each
     project-relative, named where a finding starts - and findings, counted: each line that names
     a file there, or reads like a problem anywhere (`_PROBLEM`, a project file in it), its
@@ -153,8 +169,14 @@ def lint_findings(output: str, root: Path, cwd: str,
             found[f"{last} {said}" if said.startswith("-->") else said] += 1
         elif header and _UNDER.match(line):
             found[f"{header} {said}"] += 1
-        elif said and not _SUMMARY.match(said) and (_PROBLEM.search(said) or any(
-                _project_file(one, folder, root) for one in _TOKEN.findall(said))):
+        elif (
+            said
+            and not _SUMMARY.match(said)
+            and (
+                _PROBLEM.search(said)
+                or any(_project_file(one, folder, root) for one in _TOKEN.findall(said))
+            )
+        ):
             found[said] += 1
         last = said or last
     return (frozenset(files), found) if files else None
@@ -164,8 +186,9 @@ def _names_any(text: str, mine: Collection[str], cwd: str) -> bool:
     """Whether `text` (casefolded, `/`) names any of `mine` (project-relative): as it is, or from
     the run's folder `cwd`."""
     at = "" if cwd in ("", ".") else cwd.casefold().strip("/") + "/"
-    forms = {form for one in mine for form in (one.casefold(), one.casefold().removeprefix(at))
-             if form}
+    forms = {
+        form for one in mine for form in (one.casefold(), one.casefold().removeprefix(at)) if form
+    }
     return any(re.search(rf"(?<![\w.-]){re.escape(form)}(?!\w)", text) for form in forms)
 
 
@@ -208,10 +231,33 @@ def excuse(answer: str, said: str) -> str | None:
     skipped ones, one that names skip or xfail. None: the answer says no why."""
     skips = said.startswith("Skipped rose")
     for sentence in (one.strip() for one in _SENTENCE.split(answer)):
-        if skips and _SKIPS.search(sentence) or not skips and SAID_WHY.search(
-                sentence) and _NAMES_TESTS.search(sentence):
-            return sentence if len(sentence) <= MOST_SAID else sentence[:MOST_SAID - 1] + "…"
+        if (
+            skips
+            and _SKIPS.search(sentence)
+            or not skips
+            and SAID_WHY.search(sentence)
+            and _NAMES_TESTS.search(sentence)
+        ):
+            return sentence if len(sentence) <= MOST_SAID else sentence[: MOST_SAID - 1] + "…"
     return None
+
+
+def _added(was: str, now: str) -> list[str] | None:
+    """The lines of `now` that are not `was`'s, where all of `was` is in it, in order (one walk:
+    linear); None where a line of `was` was taken out or changed."""
+    old, added, at = was.splitlines(), [], 0
+    for line in now.splitlines():
+        if at < len(old) and line == old[at]:
+            at += 1
+        else:
+            added.append(line)
+    return added if at == len(old) else None
+
+
+def kept_lines(was: str, now: str) -> bool:
+    """R: whether `now` keeps every line of `was`, in order - lines added only (a record of
+    another turn's that took lines out of a test file: `BeforeMixin._tests_cut_since`)."""
+    return _added(was, now) is not None
 
 
 def green_said(was: dict | None, ran: int, skipped: int) -> list[str]:

@@ -25,8 +25,10 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("app.agent")
 # Said once in the chat when the check stands aside for the rest of a turn (`_judgement`).
-CHECK_STOOD_ASIDE = ("Full auto's check of your words refused {count} this turn: until the turn "
-                     "ends, each harmful-looking command waits for you on a card.")
+CHECK_STOOD_ASIDE = (
+    "Full auto's check of your words refused {count} this turn: until the turn "
+    "ends, each harmful-looking command waits for you on a card."
+)
 
 
 # ☾ Away (spec §6): what a check of the user's words may let run in a job, or in the chat the user
@@ -51,8 +53,14 @@ def only_deletes(line: str) -> bool:
 
 
 class JudgeMixin:
-    async def _judged(self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, reason: str,
-                      asked_anyway: bool = False) -> tuple[str, dict | None]:
+    async def _judged(
+        self: "AgentRunner",
+        ctx: Ctx,
+        command: str,
+        cwd: str | None,
+        reason: str,
+        asked_anyway: bool = False,
+    ) -> tuple[str, dict | None]:
         """K-yargıç: `reason`, why `command` (run in `cwd`, as `with_cwd` judges it) waits for
         the user, checked first against the user's own words where the project says so
         (`Project.full_auto_check` "judge"): ("", record) - a line of theirs names it, and it
@@ -76,43 +84,74 @@ class JudgeMixin:
             log.warning("run %s: the check of the user's words failed", ctx.run_id, exc_info=True)
             return reason, None
 
-    async def _judging(self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, reason: str,
-                       asked_anyway: bool) -> tuple[str, dict | None]:
+    async def _judging(
+        self: "AgentRunner",
+        ctx: Ctx,
+        command: str,
+        cwd: str | None,
+        reason: str,
+        asked_anyway: bool,
+    ) -> tuple[str, dict | None]:
         """`_judged`'s work, which may raise. ☾ Away: in a job too, its chat at Full auto
         (`_away_full_auto`) - its check reads the chat the user went away from."""
         line, job = with_cwd(command, cwd), ctx.run_id in self._away_jobs
-        if (not reason or asked_anyway or ctx.run_id in self._sides
-                or self._stood_aside(ctx.run_id)
-                # (In a job an instruction file is no file the check may let go: `standing_asked`.)
-                or harm_class(line, job) != "soft"
-                or not (self._full_auto(ctx) or self._away_full_auto(ctx))):
+        if (
+            not reason
+            or asked_anyway
+            or ctx.run_id in self._sides
+            or self._stood_aside(ctx.run_id)
+            # (In a job an instruction file is no file the check may let go: `standing_asked`.)
+            or harm_class(line, job) != "soft"
+            or not (self._full_auto(ctx) or self._away_full_auto(ctx))
+        ):
             return reason, None
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             project = project_of(session, conversation)
-            if (project is None or project.full_auto_check != "judge"
-                    or self._away_holds(session, ctx, line)):
+            if (
+                project is None
+                or project.full_auto_check != "judge"
+                or self._away_holds(session, ctx, line)
+            ):
                 return reason, None
             # (A job's: the chat the user went away from - never its task's own words.)
             night = away.night_of(session, ctx.cid) if ctx.run_id in self._away_jobs else None
-            texts = self._users_words(session, night.conversation_id if night else ctx.cid,
-                                      project.rules)
-            key = (command.strip(), cwd, hashlib.sha256(
-                json.dumps(texts, sort_keys=True).encode()).hexdigest())
+            texts = self._users_words(
+                session, night.conversation_id if night else ctx.cid, project.rules
+            )
+            key = (
+                command.strip(),
+                cwd,
+                hashlib.sha256(json.dumps(texts, sort_keys=True).encode()).hexdigest(),
+            )
             if key in (cache := self._judge_cache.setdefault(ctx.run_id, {})):
                 return self._judgement(ctx, reason, cache[key])
             limit = project.turn_token_limit
-            fast = asked_how_hard(session, would_run(
-                session, find_role(session, LEAD), conversation), self.providers, "fast")
-            if (limit and self._turn_spent(session, ctx.run_id)[0] > limit or fast is None
-                    or not self._has_room(
-                        session, session.get_one(Provider, fast[0].provider_id), project)):
+            fast = asked_how_hard(
+                session,
+                would_run(session, find_role(session, LEAD), conversation),
+                self.providers,
+                "fast",
+            )
+            if (
+                limit
+                and self._turn_spent(session, ctx.run_id)[0] > limit
+                or fast is None
+                or not self._has_room(
+                    session, session.get_one(Provider, fast[0].provider_id), project
+                )
+            ):
                 return reason, None
             asking, mode = self._on(session, ctx, *fast)
-        asked = judge.prompt(texts, {
-            "command": raw.hidden(command), "where": raw.hidden(cwd) if cwd else "not known",
-            "flagged_because": raw.hidden(reason),
-            "by": "Orchestrator" if not ctx.depth else raw.hidden(f"sub-agent {ctx.role}")})
+        asked = judge.prompt(
+            texts,
+            {
+                "command": raw.hidden(command),
+                "where": raw.hidden(cwd) if cwd else "not known",
+                "flagged_because": raw.hidden(reason),
+                "by": "Orchestrator" if not ctx.depth else raw.hidden(f"sub-agent {ctx.role}"),
+            },
+        )
         cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts)
         return self._judgement(ctx, reason, cache[key])
 
@@ -129,23 +168,39 @@ class JudgeMixin:
         project's `rules` as saved, and their own messages in chat `cid` - those whose turn the
         app's own page started (`Run.by_user`), not one KOLONİ or an agent wrote as theirs."""
         messages = session.scalars(
-            select(Message.content).join(Run, Run.id == Message.run_id).where(
-                Message.conversation_id == cid, Message.role == "user",
-                Message.agent_id.is_(None), Run.by_user.is_(True))
+            select(Message.content)
+            .join(Run, Run.id == Message.run_id)
+            .where(
+                Message.conversation_id == cid,
+                Message.role == "user",
+                Message.agent_id.is_(None),
+                Run.by_user.is_(True),
+            )
             .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
-            .limit(judge.MOST_MESSAGES)).all()
-        return judge.said(raw.hidden(kept.preferences(session) or ""), raw.hidden(rules or ""),
-                          list(map(raw.hidden, messages)))
+            .limit(judge.MOST_MESSAGES)
+        ).all()
+        return judge.said(
+            raw.hidden(kept.preferences(session) or ""),
+            raw.hidden(rules or ""),
+            list(map(raw.hidden, messages)),
+        )
 
-    async def _judge_asks(self: "AgentRunner", ctx: Ctx, asking: Ctx, mode: str | None,
-                          asked: str, texts: dict[str, list[str]]) -> dict | None:
+    async def _judge_asks(
+        self: "AgentRunner",
+        ctx: Ctx,
+        asking: Ctx,
+        mode: str | None,
+        asked: str,
+        texts: dict[str, list[str]],
+    ) -> dict | None:
         """`_judged`'s one request: the record of what the judge said, or None where it failed,
         timed out or said nothing that can be read. Stop goes on as Stop."""
         try:
             try:
                 async with asyncio.timeout(judge.JUDGE_SECONDS):
-                    said, answer = await ask_once(asking.model, asking.model_name or "", [
-                        {"role": "user", "content": asked}])
+                    said, answer = await ask_once(
+                        asking.model, asking.model_name or "", [{"role": "user", "content": asked}]
+                    )
             except BaseException:
                 self._own_request(ctx, asking, mode, None)  # sent, and not heard out
                 raise
@@ -166,8 +221,9 @@ class JudgeMixin:
         row, turn = self._judge_refused.get(run_id, (0, 0))
         return row >= judge.MOST_REFUSED_IN_A_ROW or turn >= judge.MOST_REFUSED_IN_A_TURN
 
-    def _judgement(self: "AgentRunner", ctx: Ctx, reason: str,
-                   record: dict | None) -> tuple[str, dict | None]:
+    def _judgement(
+        self: "AgentRunner", ctx: Ctx, reason: str, record: dict | None
+    ) -> tuple[str, dict | None]:
         """`_judged`'s answer from a record: no reason where it says run; not checked where it
         failed, or the check stood aside since it was asked. Counted for the turn, by all its
         agents: a refusal (one kept for it too) in a row and in all, a run or an ask ends a row;
@@ -179,7 +235,13 @@ class JudgeMixin:
         row, turn = (row + 1, turn + 1) if refused else (0, turn)
         self._judge_refused[ctx.run_id] = (row, turn)
         if self._stood_aside(ctx.run_id):
-            self._koloni_line(ctx.cid, ctx.run_id, CHECK_STOOD_ASIDE.format(
-                count=f"{row} commands in a row" if row >= judge.MOST_REFUSED_IN_A_ROW
-                else f"{turn} commands"))
+            self._koloni_line(
+                ctx.cid,
+                ctx.run_id,
+                CHECK_STOOD_ASIDE.format(
+                    count=f"{row} commands in a row"
+                    if row >= judge.MOST_REFUSED_IN_A_ROW
+                    else f"{turn} commands"
+                ),
+            )
         return ("" if record["verdict"] == "run" else reason), dict(record)

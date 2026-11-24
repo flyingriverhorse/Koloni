@@ -22,20 +22,31 @@ from tests.test_observer_model_scenarios import (
 )
 from tests.test_parallel import until
 from tests.test_spawn import begin, call, reported, spawn, step
+from tests.test_take_in_scenarios import RUNS, own_test
 
 
 def test_it_sees_the_diff_and_the_check_and_what_it_spent_is_under_the_model_it_asked(
     make_client, wait_run, project_dir
 ):
-    client, model = make_client([
-        spawn("Coder", TASK),
-        step(write("a.txt", "NEW-LINE")),
-        text(REPORT),
-        text(SAID, i=11, o=7),  # the observer
-        text("Good."),
-    ])
-    pid = project(client, project_dir, observe_reports=True,
-                  check_command="python -c \"print('CHECKED')\"")
+    # (0.1.7: the check is the Coder's own test, written in the same step - with -s, what it
+    # prints is in the check's output)
+    (checks,) = own_test(body="print('CHECKED')").tool_calls
+    client, model = make_client(
+        [
+            spawn("Coder", TASK),
+            step(write("a.txt", "NEW-LINE"), checks),
+            text(REPORT),
+            text(SAID, i=11, o=7),  # the observer
+            text("Good."),
+        ]
+    )
+    pid = project(
+        client,
+        project_dir,
+        observe_reports=True,
+        check_command=f"{RUNS} -s",
+        after_change="nothing",
+    )
     cid, run_id = turn(client, pid)
     snap = wait_run(client, cid, run_id, timeout=20)
     seen = model.calls[3][-1]["content"]
@@ -48,7 +59,11 @@ def test_it_sees_the_diff_and_the_check_and_what_it_spent_is_under_the_model_it_
     with client.app.state.session_factory() as session:
         (own,) = session.scalars(select(OwnRequest))
         assert (own.agent_id, own.provider_name, own.input_tokens, own.output_tokens) == (
-            kid["id"], kid["provider_name"], 11, 7)
+            kid["id"],
+            kid["provider_name"],
+            11,
+            7,
+        )
 
 
 def test_no_agent_is_offered_the_observer_and_its_role_saves_with_no_tools(
@@ -67,8 +82,11 @@ def test_no_agent_is_offered_the_observer_and_its_role_saves_with_no_tools(
     roles = {r["name"]: r for r in client.get("/api/roles").json()}
     observer, reviewer = roles["Observer"], roles["Reviewer"]
     assert observer["tools"] == []
-    saved = client.patch(f"/api/roles/{observer['id']}", json={"tools": [], "tier": "fast"},
-                         headers={"Origin": ORIGIN})
+    saved = client.patch(
+        f"/api/roles/{observer['id']}",
+        json={"tools": [], "tier": "fast"},
+        headers={"Origin": ORIGIN},
+    )
     assert saved.status_code == 200 and saved.json()["tier"] == "fast"
     # any other role still needs a tool
     assert client.patch(f"/api/roles/{reviewer['id']}", json={"tools": []}).status_code == 422
@@ -81,33 +99,53 @@ def test_while_the_observer_is_asked_a_sibling_reaches_the_agent_only_with_a_not
     make_client, wait_run, project_dir
 ):
     held, tester = Gate(), Gate()
-    client, model = make_client({
-        # (the Observer's request carries no agent's name: it is taken from the Lead's)
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1"),
-                      call("spawn_agent", {"role": "Tester", "task": "do B"}, "s2")),
-                 held.step(text(SAID)), text("Fine."), text("done")],
-        "Coder": [text("A done")],
-        "Tester": [tester.step(step(call("message_agent", {"to": "Coder", "message": "hi"}, "q"))),
-                   text("B done")],
-    })
+    client, model = make_client(
+        {
+            # (the Observer's request carries no agent's name: it is taken from the Lead's)
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1"),
+                    call("spawn_agent", {"role": "Tester", "task": "do B"}, "s2"),
+                ),
+                held.step(text(SAID)),
+                text("Fine."),
+                text("done"),
+            ],
+            "Coder": [text("A done")],
+            "Tester": [
+                tester.step(step(call("message_agent", {"to": "Coder", "message": "hi"}, "q"))),
+                text("B done"),
+            ],
+        }
+    )
     project(client, project_dir, observe_reports=True)
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_max_parallel=3)
     held.wait_partial()  # the Coder is done, and its observer is being asked
     tester.release()
-    until(client, cid, lambda s: any(
-        t["name"] == "message_agent" and t["status"] == "succeeded" for t in s["tool_calls"]))
+    until(
+        client,
+        cid,
+        lambda s: any(
+            t["name"] == "message_agent" and t["status"] == "succeeded" for t in s["tool_calls"]
+        ),
+    )
     held.release()
     snap = wait_run(client, cid, run_id)
     (sent,) = [t for t in snap["tool_calls"] if t["name"] == "message_agent"]
     assert sent["result"].startswith("noted: Coder is at work")
     assert len(model.calls_of["Coder"]) == 1  # no turn of its own, on the observer's model
     assert {a["name"]: a["status"] for a in snap["agents"]} == {
-        "Lead": "completed", "Coder": "completed", "Tester": "completed"}
+        "Lead": "completed",
+        "Coder": "completed",
+        "Tester": "completed",
+    }
 
 
 def test_a_room_cannot_open_an_observer(client):
-    with (client.app.state.session_factory() as session,
-          pytest.raises(ValueError, match="unknown role: Observer")):
+    with (
+        client.app.state.session_factory() as session,
+        pytest.raises(ValueError, match="unknown role: Observer"),
+    ):
         member_model(session, None, "Observer", None, None)
 
 
@@ -132,8 +170,9 @@ def test_an_observer_that_does_not_answer_in_time_is_not_waited_for(
 ):
     monkeypatch.setattr(observer, "SECONDS", 0.3)
     held = Gate()
-    client, model = make_client([spawn("Reviewer", TASK), text(REPORT), held.step(text(SAID)),
-                                 text("Good.")])
+    client, model = make_client(
+        [spawn("Reviewer", TASK), text(REPORT), held.step(text(SAID)), text("Good.")]
+    )
     pid = project(client, project_dir, observe_reports=True)
     cid, run_id = turn(client, pid)
     snap = wait_run(client, cid, run_id)
@@ -145,8 +184,9 @@ def test_an_observer_that_does_not_answer_in_time_is_not_waited_for(
 
 
 def test_a_failure_that_says_nothing_still_says_why(make_client, wait_run, project_dir):
-    client, _model = make_client([spawn("Reviewer", TASK), text(REPORT), ModelUnavailable(""),
-                                  text("Good.")])
+    client, _model = make_client(
+        [spawn("Reviewer", TASK), text(REPORT), ModelUnavailable(""), text("Good.")]
+    )
     cid, run_id = turn(client, project(client, project_dir, observe_reports=True))
     kid = child_of(wait_run(client, cid, run_id))
     assert kid["observation_note"] == observer.FAILED.format(why=observer.FAILED_SILENTLY)
@@ -171,11 +211,17 @@ def test_what_the_agent_wrote_is_quoted_with_its_secrets_masked_and_the_diff_has
     make_client, wait_run, project_dir, monkeypatch
 ):
     monkeypatch.setattr(observer, "DIFF_CHARS", 45)  # a.txt's header and its first word
-    client, model = make_client([
-        spawn("Coder", TASK),
-        step(write("a.txt", f"{SECRET} is where it posts", "w1"), write("b.txt", "B-LINE", "w2")),
-        text(REPORT), text(SAID), text("Good."),
-    ])
+    client, model = make_client(
+        [
+            spawn("Coder", TASK),
+            step(
+                write("a.txt", f"{SECRET} is where it posts", "w1"), write("b.txt", "B-LINE", "w2")
+            ),
+            text(REPORT),
+            text(SAID),
+            text("Good."),
+        ]
+    )
     pid = project(client, project_dir, observe_reports=True, notify_url=SECRET)
     cid, run_id = turn(client, pid)
     wait_run(client, cid, run_id, timeout=20)
@@ -185,11 +231,14 @@ def test_what_the_agent_wrote_is_quoted_with_its_secrets_masked_and_the_diff_has
     assert observer.CUT in seen
 
 
-@pytest.mark.parametrize("said, kept", [
-    ("One, e.g. this. Two. Three. Four.", "One, e.g. this. Two. Three."),
-    ("Testler 3. adımda geçti. İki. Üç. Dört.", "Testler 3. adımda geçti. İki. Üç."),
-    ("A. (B.) “C.” D.", "A. (B.) “C.”"),
-])
+@pytest.mark.parametrize(
+    "said, kept",
+    [
+        ("One, e.g. this. Two. Three. Four.", "One, e.g. this. Two. Three."),
+        ("Testler 3. adımda geçti. İki. Üç. Dört.", "Testler 3. adımda geçti. İki. Üç."),
+        ("A. (B.) “C.” D.", "A. (B.) “C.”"),
+    ],
+)
 def test_a_sentence_ends_only_where_the_next_begins_as_one(said, kept):
     assert observer.kept_of(said) == kept
 

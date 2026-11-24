@@ -40,11 +40,16 @@ def hello(project_dir):
 
 
 def test_at_ask_copilots_command_is_a_card_and_runs_once_approved(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": "pytest -q", "output": "2 passed", "touches": {"ran.txt": "x"}},
-        {"say": "Tests pass."}])
+    client, provider = copilot_native(
+        [
+            {"shell": "pytest -q", "output": "2 passed", "touches": {"ran.txt": "x"}},
+            {"say": "Tests pass."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, mode="ask")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert (asked["status"], asked["command"], asked["origin"]) == ("proposed", "pytest -q", "cli")
@@ -60,10 +65,13 @@ def test_at_ask_copilots_command_is_a_card_and_runs_once_approved(
 
 
 def test_at_ask_a_rejected_command_is_rejected_and_never_runs(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": "pytest -q", "touches": {"ran.txt": "x"}}, {"say": "Left it."}])
+    client, provider = copilot_native(
+        [{"shell": "pytest -q", "touches": {"ran.txt": "x"}}, {"say": "Left it."}]
+    )
     cid, run_id = start(client, project_dir, provider, mode="ask")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
@@ -79,7 +87,9 @@ def test_at_ask_a_rejected_command_is_rejected_and_never_runs(
 
 
 def test_at_full_auto_an_ordinary_command_is_approved_unasked(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider = copilot_native([{"shell": "pytest -q", "output": "ok"}, {"say": "ok"}])
     statuses = watched(client)
@@ -91,12 +101,19 @@ def test_at_full_auto_an_ordinary_command_is_approved_unasked(
 
 
 def test_at_full_auto_a_command_and_a_read_of_a_secret_are_cards(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     (project_dir / ".env").write_text("TOKEN=x\n", encoding="utf-8")
-    client, provider = copilot_native([
-        {"shell": "type .env", "output": "TOKEN=x"}, {"read": ".env", "result": "TOKEN=x"},
-        {"read": "hello.py"}, {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {"shell": "type .env", "output": "TOKEN=x"},
+            {"read": ".env", "result": "TOKEN=x"},
+            {"read": "hello.py"},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert (asked["command"], asked["status"]) == ("type .env", "proposed")
@@ -114,14 +131,20 @@ def test_at_full_auto_a_command_and_a_read_of_a_secret_are_cards(
 
 
 def test_at_full_auto_a_write_to_a_workflow_is_a_card_and_claude_md_or_an_ordinary_one_is_not(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # (As 1.0.91 asks, with no fileEdits: each card is a question with its diff. K-fullauto-
     # sorma 2: an instruction file alone is no card at Full auto; a workflow still is.)
-    client, provider = copilot_native([
-        {"write": "hello.py", "content": "print('hello')\n"},
-        {"write": ".github/workflows/x.yml", "content": "on: push\n"},
-        {"write": "CLAUDE.md", "content": "# rules\n"}, {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {"write": "hello.py", "content": "print('hello')\n"},
+            {"write": ".github/workflows/x.yml", "content": "on: push\n"},
+            {"write": "CLAUDE.md", "content": "# rules\n"},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     asked = question(client, cid, 1)
     assert hello(project_dir) == "print('hello')\n"  # the ordinary one: unasked
@@ -160,31 +183,61 @@ def test_kolonis_own_tools_are_approved_once(copilot_native, wait_run, project_d
 
 
 def test_every_other_kind_of_request_is_rejected_and_on_record(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"ask": {"kind": "url", "url": "https://example.com", "intention": "Fetch"},
-         "tool": "web_fetch"},
-        {"ask": {"kind": "mcp", "serverName": "github", "toolName": "t", "toolTitle": "t",
-                 "readOnly": True}, "tool": "github-t"},
-        {"ask": {"kind": "memory", "action": "store", "subject": "s", "fact": "f"},
-         "tool": "store_memory"},
-        {"ask": {"kind": "custom-tool", "toolName": "x"}, "tool": "x"},
-        # a write that would also move or change another file than the one it names
-        {"write": "hello.py", "content": "x\n",
-         "edits": [{"before": {"path": "hello.py", "content": "print('hi')\n"},
-                    "after": {"path": "moved.py", "content": "x\n"}}]},
-        # the same tool asked about again: the second time is not answered yes
-        {"shell": "pytest -q", "twice": True},
-        # a request of its own over JSON-RPC: answered with an error, never left waiting
-        {"request": "userInput.request", "params": {"question": "?"}},
-        {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {
+                "ask": {"kind": "url", "url": "https://example.com", "intention": "Fetch"},
+                "tool": "web_fetch",
+            },
+            {
+                "ask": {
+                    "kind": "mcp",
+                    "serverName": "github",
+                    "toolName": "t",
+                    "toolTitle": "t",
+                    "readOnly": True,
+                },
+                "tool": "github-t",
+            },
+            {
+                "ask": {"kind": "memory", "action": "store", "subject": "s", "fact": "f"},
+                "tool": "store_memory",
+            },
+            {"ask": {"kind": "custom-tool", "toolName": "x"}, "tool": "x"},
+            # a write that would also move or change another file than the one it names
+            {
+                "write": "hello.py",
+                "content": "x\n",
+                "edits": [
+                    {
+                        "before": {"path": "hello.py", "content": "print('hi')\n"},
+                        "after": {"path": "moved.py", "content": "x\n"},
+                    }
+                ],
+            },
+            # the same tool asked about again: the second time is not answered yes
+            {"shell": "pytest -q", "twice": True},
+            # a request of its own over JSON-RPC: answered with an error, never left waiting
+            {"request": "userInput.request", "params": {"question": "?"}},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert answers(copilot_native) == [
-        ("url", REJECT), ("mcp", REJECT), ("memory", REJECT), ("custom-tool", REJECT),
-        ("write", REJECT), ("shell", APPROVE), ("shell", REJECT)]
+        ("url", REJECT),
+        ("mcp", REJECT),
+        ("memory", REJECT),
+        ("custom-tool", REJECT),
+        ("write", REJECT),
+        ("shell", APPROVE),
+        ("shell", REJECT),
+    ]
     assert hello(project_dir) == "print('hi')\n"
     (reply,) = copilot_native.record()["replies"]
     assert "error" in reply["answer"]
@@ -195,11 +248,22 @@ def test_every_other_kind_of_request_is_rejected_and_on_record(
 
 
 def test_a_rejected_tool_it_never_says_is_done_does_not_hold_off_the_silence_limit(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"ask": {"kind": "url", "url": "https://example.com", "intention": "Fetch"},
-         "tool": "web_fetch", "no_complete": True}, {"pause": 6}, {"say": "ok"}], timeout=2)
+    client, provider = copilot_native(
+        [
+            {
+                "ask": {"kind": "url", "url": "https://example.com", "intention": "Fetch"},
+                "tool": "web_fetch",
+                "no_complete": True,
+            },
+            {"pause": 6},
+            {"say": "ok"},
+        ],
+        timeout=2,
+    )
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id, timeout=20)["runs"][0]
     assert run["status"] == "failed" and "sent nothing for 2 seconds" in run["error"]
@@ -209,19 +273,29 @@ def test_a_rejected_tool_it_never_says_is_done_does_not_hold_off_the_silence_lim
 
 
 def test_unattended_copilot_is_refused_what_its_trigger_does_not_allow_and_nobody_is_asked(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": "pytest -q", "output": "ok"},
-        {"shell": "pytest -q && echo x", "touches": {"ran.txt": "x"}},
-        {"write": "hello.py", "content": "changed\n"}, {"say": "done"}])
+    client, provider = copilot_native(
+        [
+            {"shell": "pytest -q", "output": "ok"},
+            {"shell": "pytest -q && echo x", "touches": {"ran.txt": "x"}},
+            {"write": "hello.py", "content": "changed\n"},
+            {"say": "done"},
+        ]
+    )
     snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"])
+        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
+    )
     assert run["status"] == "completed", run
     assert answers(copilot_native) == [("shell", APPROVE), ("shell", REJECT), ("write", REJECT)]
     assert hello(project_dir) == "print('hi')\n" and not (project_dir / "ran.txt").exists()
     assert [(t["name"], t["status"]) for t in snap["tool_calls"]] == [
-        ("run_command", "succeeded"), ("run_command", "denied"), ("edit_file", "denied")]
+        ("run_command", "succeeded"),
+        ("run_command", "denied"),
+        ("edit_file", "denied"),
+    ]
     assert all(NOBODY in t["result"] for t in snap["tool_calls"][1:])
     nothing_was_asked(snap, statuses)
 
@@ -230,22 +304,32 @@ def test_unattended_copilot_is_refused_what_its_trigger_does_not_allow_and_nobod
 
 
 def test_what_copilot_does_is_on_record_and_its_account_is_nowhere(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"say": "I will fix it."}, {"read": "hello.py", "result": "print('hi')"},
-        {"write": "hello.py", "content": "print('hello')\n"},
-        {"shell": "python hello.py", "output": "hello", "exit": 0},
-        {"say": "Fixed."}], model="qwen-as-served")
+    client, provider = copilot_native(
+        [
+            {"say": "I will fix it."},
+            {"read": "hello.py", "result": "print('hi')"},
+            {"write": "hello.py", "content": "print('hello')\n"},
+            {"shell": "python hello.py", "output": "hello", "exit": 0},
+            {"say": "Fixed."},
+        ],
+        model="qwen-as-served",
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     # (Not what KOLONİ checked at the turn's end: in the turn's foot, `test_proof_end_scenarios`.)
-    assert [m["content"] for m in snap["messages"][1:] if m["content"] and m["role"] != "checked"] == [
-        "I will fix it.", "Fixed.", "In the project: hello.py (+1 −1)."]  # (B-205: KOLONİ's line)
+    assert [
+        m["content"] for m in snap["messages"][1:] if m["content"] and m["role"] != "checked"
+    ] == ["I will fix it.", "Fixed.", "In the project: hello.py (+1 −1)."]  # (B-205: KOLONİ's line)
     assert [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]] == [
-        ("copilot__view", "succeeded", "cli"), ("edit_file", "succeeded", "cli"),
-        ("run_command", "succeeded", "cli")]
+        ("copilot__view", "succeeded", "cli"),
+        ("edit_file", "succeeded", "cli"),
+        ("run_command", "succeeded", "cli"),
+    ]
     (change,) = snap["file_changes"]
     assert (change["path"], change["kind"], change["status"]) == ("hello.py", "modify", "applied")
     assert "+print('hello')" in change["diff"]
@@ -263,16 +347,26 @@ def test_what_copilot_does_is_on_record_and_its_account_is_nowhere(
 
 
 def test_a_copilot_that_cannot_be_asked_first_is_stopped_with_its_version(
-    copilot_native, wait_run, project_dir, tmp_path  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    tmp_path,  # noqa: F811
 ):
     starts = tmp_path / "starts.jsonl"
     client, provider = copilot_native([])
-    for handshake, why in (("ping", "not ready"), ("version", "protocol 2"),
-                           ("create", "unknown field mcpServers")):
+    for handshake, why in (
+        ("ping", "not ready"),
+        ("version", "protocol 2"),
+        ("create", "unknown field mcpServers"),
+    ):
         starts.unlink(missing_ok=True)
         # (its version is its own `status.get`, as KOLONİ starts it: not a plain --version's)
-        copilot_native.rescript([{"write": "hello.py", "content": "x"}], handshake=handshake,
-                                starts=str(starts), updated="1.0.200")
+        copilot_native.rescript(
+            [{"write": "hello.py", "content": "x"}],
+            handshake=handshake,
+            starts=str(starts),
+            updated="1.0.200",
+        )
         cid, run_id = start(client, project_dir, provider)
         run = wait_run(client, cid, run_id)["runs"][0]
         assert run["status"] == "failed"
@@ -287,57 +381,96 @@ def test_a_copilot_that_cannot_be_asked_first_is_stopped_with_its_version(
 
 
 def test_a_model_not_on_the_account_is_named_as_the_cause(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     """B-176: the turn says the model is the cause, and nothing of a session. R166: as soon as
     Copilot refuses - its fake stays alive and silent after, so a KOLONİ that waited on it would
     reach its silence limit (60 s here) long after wait_run's 20."""
-    client, provider = copilot_native([{"write": "hello.py", "content": "x"}], handshake="model",
-                                      timeout=60)
+    client, provider = copilot_native(
+        [{"write": "hello.py", "content": "x"}], handshake="model", timeout=60
+    )
     # B-396: on its list, it is switched off with why - no tier offers it again
-    assert client.patch(f"/api/providers/{provider['id']}", json={
-        "models": [{"name": "qwen-local", "tier": "balanced"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{provider['id']}",
+            json={"models": [{"name": "qwen-local", "tier": "balanced"}]},
+        ).status_code
+        == 200
+    )
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
     assert run["status"] == "failed"
     assert run["error"] == "Copilot can't use qwen-local on your account: pick another model"
     assert copilot_native.record()["create"]["model"] == "qwen-local"
     assert hello(project_dir) == "print('hi')\n"
-    (row,) = next(p for p in client.get("/api/providers").json()
-                  if p["id"] == provider["id"])["models"]
+    (row,) = next(p for p in client.get("/api/providers").json() if p["id"] == provider["id"])[
+        "models"
+    ]
     assert (row["enabled"], row["off_why"]) == (
-        False, f"{provider['name']} refused it: not available on your account" + REFUSED_LAST)
+        False,
+        f"{provider['name']} refused it: not available on your account" + REFUSED_LAST,
+    )
 
 
 def test_a_sub_agent_on_a_model_not_on_the_account_switches_it_off_and_moves_on(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     """B-396 (R194, live): a Coder on native Copilot, refused its model at session.create -
     switched off with why, and the role's next model takes the job."""
     client, provider = copilot_native(
-        [{"write": "hello.py", "content": "x"}], handshake="model", timeout=60,
-        default_steps=[step(spawn("Coder")), text("done"), text("fixed")])
-    assert client.patch(f"/api/providers/{provider['id']}", json={"for_agents": True, "models": [
-        {"name": "qwen-local", "tier": "balanced", "agents": True}]}).status_code == 200
+        [{"write": "hello.py", "content": "x"}],
+        handshake="model",
+        timeout=60,
+        default_steps=[step(spawn("Coder")), text("done"), text("fixed")],
+    )
+    assert (
+        client.patch(
+            f"/api/providers/{provider['id']}",
+            json={
+                "for_agents": True,
+                "models": [{"name": "qwen-local", "tier": "balanced", "agents": True}],
+            },
+        ).status_code
+        == 200
+    )
     local = next(p for p in client.get("/api/providers").json() if p["id"] != provider["id"])
-    assert patch_role(client, "Coder", models=[
-        {"provider_id": provider["id"], "model_id": "qwen-local"},
-        {"provider_id": local["id"], "model_id": "fake-model"}]).status_code == 200
+    assert (
+        patch_role(
+            client,
+            "Coder",
+            models=[
+                {"provider_id": provider["id"], "model_id": "qwen-local"},
+                {"provider_id": local["id"], "model_id": "fake-model"},
+            ],
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     coder = wait_run(client, cid, run_id)["agents"][1]
     assert (coder["provider_name"], coder["status"]) == ("Local", "completed")
     assert coder["chosen_why"] == (
         "Coder moved from Copilot to Local, the role's 2nd choice: Copilot can't use qwen-local "
-        "on your account: pick another model.")
-    (row,) = next(p for p in client.get("/api/providers").json()
-                  if p["id"] == provider["id"])["models"]
+        "on your account: pick another model."
+    )
+    (row,) = next(p for p in client.get("/api/providers").json() if p["id"] == provider["id"])[
+        "models"
+    ]
     assert (row["enabled"], row["off_why"]) == (
-        False, "Copilot refused it: not available on your account" + REFUSED_LAST)
+        False,
+        "Copilot refused it: not available on your account" + REFUSED_LAST,
+    )
     assert hello(project_dir) == "print('hi')\n"
 
 
 def test_a_copilot_that_never_answers_is_stopped(
-    copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     # (Its version is waited for for its error: not 10 s here. Before its run, one that says
     # nothing runs the old way - `test_cli_surface`: here its run is reached all the same.)
@@ -359,73 +492,102 @@ def test_a_copilot_that_never_answers_is_stopped(
 
 
 def test_a_tool_copilot_ran_without_asking_is_marked_so(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": "Get-ChildItem", "output": "hello.py", "unasked": True},
-        {"write": "hello.py", "content": "changed\n", "unasked": True},
-        {"read": "hello.py", "unasked": True}, {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {"shell": "Get-ChildItem", "output": "hello.py", "unasked": True},
+            {"write": "hello.py", "content": "changed\n", "unasked": True},
+            {"read": "hello.py", "unasked": True},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed"  # the turn goes on
     assert answers(copilot_native) == []
     (ran,) = [t for t in snap["tool_calls"] if t["name"] == "run_command"]
     assert UNASKED in ran["result"]
-    assert [t for t in snap["tool_calls"] if t["name"] == "edit_file"
-            and UNASKED in (t["result"] or "") and "hello.py" in t["result"]]
+    assert [
+        t
+        for t in snap["tool_calls"]
+        if t["name"] == "edit_file" and UNASKED in (t["result"] or "") and "hello.py" in t["result"]
+    ]
     (view,) = [t for t in snap["tool_calls"] if t["name"] == "copilot__view"]
     assert UNASKED in view["result"]
 
 
 # --- 9. Its session is made with only the tools KOLONİ can judge (fix round) ---------------
 
-BUILT_IN = ["powershell", "read_powershell", "stop_powershell", "list_powershell", "view",
-            "create", "edit", "apply_patch"]
+BUILT_IN = [
+    "powershell",
+    "read_powershell",
+    "stop_powershell",
+    "list_powershell",
+    "view",
+    "create",
+    "edit",
+    "apply_patch",
+]
 
 
 def test_its_session_has_only_the_tools_koloni_judges_and_none_of_its_own_set_up(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider = copilot_native([{"say": "ok"}])
     cid, run_id = start(client, project_dir, provider)
     wait_run(client, cid, run_id)
     made = copilot_native.record()["create"]
     given = made["availableTools"]
-    assert given[:len(BUILT_IN)] == BUILT_IN
+    assert given[: len(BUILT_IN)] == BUILT_IN
     # KOLONİ's own tools, by the names Copilot gives an MCP server's tools
-    ours = given[len(BUILT_IN):]
+    ours = given[len(BUILT_IN) :]
     assert ours and all(name.startswith("koloni-") for name in ours)
     assert "koloni-spawn_agent" in ours and "koloni-approve" not in ours
     for left_out in ("grep", "glob", "task", "web_fetch", "web_search", "sql", "skill"):
         assert left_out not in given
     # none of a repository's own hooks, config or skills, and no folder beyond its own
-    assert (made["enableFileHooks"], made["enableConfigDiscovery"], made["enableSkills"],
-            made["enableHostGitOperations"]) == (False, False, False, False)
+    assert (
+        made["enableFileHooks"],
+        made["enableConfigDiscovery"],
+        made["enableSkills"],
+        made["enableHostGitOperations"],
+    ) == (False, False, False, False)
     assert "additionalDirectories" not in made
 
 
 def test_a_request_a_hook_of_its_own_answered_stops_the_run(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"write": "hello.py", "content": "changed\n", "hooked": True}, {"say": "ok"}])
+    client, provider = copilot_native(
+        [{"write": "hello.py", "content": "changed\n", "hooked": True}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
     assert run["status"] == "failed" and "a hook of Copilot's own" in run["error"]
 
 
 def test_an_answer_it_did_not_take_stops_the_run(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([{"shell": "pytest -q", "unapplied": True},
-                                       {"say": "ok"}])
+    client, provider = copilot_native([{"shell": "pytest -q", "unapplied": True}, {"say": "ok"}])
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
     assert run["status"] == "failed" and "did not take KOLONİ's answer" in run["error"]
 
 
 def test_a_turn_that_ends_aborted_is_not_a_success(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider = copilot_native([{"say": "ok"}], aborted=True)
     cid, run_id = start(client, project_dir, provider)
@@ -439,12 +601,14 @@ def test_a_turn_that_ends_aborted_is_not_a_success(
 
 
 def test_the_content_asked_about_is_its_file_edit_not_its_new_file_contents(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # (An empty newFileContents is not a deletion: what it will hold is in fileEdits.)
-    client, provider = copilot_native([
-        {"write": "notes.txt", "content": "kept\n", "contents": "", "edits": True},
-        {"say": "ok"}])
+    client, provider = copilot_native(
+        [{"write": "notes.txt", "content": "kept\n", "contents": "", "edits": True}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider, mode="ask")
     card = proposed(client, cid, "notes.txt")
     assert "+kept" in card["diff"]
@@ -458,24 +622,34 @@ def test_a_deletion_is_asked_about_as_one(copilot_native, wait_run, project_dir)
     cid, run_id = start(client, project_dir, provider, mode="ask")
     question = wait_status(client, cid, "waiting_approval")["questions"][0]
     assert "hello.py" in question["question"] and "delete" in question["question"]
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Deny"},
-                headers=ORIGIN)
+    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Deny"}, headers=ORIGIN)
     wait_run(client, cid, run_id)
     assert answers(copilot_native) == [("write", REJECT)]
     assert hello(project_dir) == "print('hi')\n"
 
 
 def test_without_file_edits_a_write_elsewhere_than_it_names_is_rejected(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"write": "hello.py", "content": "x\n", "resolved": "other.py"},
-        {"write": "hello.py", "content": "x\n",
-         "diff": "--- a/hello.py\n+++ b/moved.py\n@@ -1 +1 @@\n-print('hi')\n+x"},
-        # its own name in the diff's headers, and no fileEdits: asked about with its diff
-        {"write": "hello.py", "content": "x\n",
-         "diff": "--- a/hello.py\n+++ b/hello.py\n@@ -1 +1 @@\n-print('hi')\n+x"},
-        {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {"write": "hello.py", "content": "x\n", "resolved": "other.py"},
+            {
+                "write": "hello.py",
+                "content": "x\n",
+                "diff": "--- a/hello.py\n+++ b/moved.py\n@@ -1 +1 @@\n-print('hi')\n+x",
+            },
+            # its own name in the diff's headers, and no fileEdits: asked about with its diff
+            {
+                "write": "hello.py",
+                "content": "x\n",
+                "diff": "--- a/hello.py\n+++ b/hello.py\n@@ -1 +1 @@\n-print('hi')\n+x",
+            },
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert answers(copilot_native) == [("write", REJECT), ("write", REJECT), ("write", APPROVE)]
@@ -484,12 +658,16 @@ def test_without_file_edits_a_write_elsewhere_than_it_names_is_rejected(
 
 
 def test_a_command_it_says_runs_outside_the_project_is_a_card_even_at_full_auto(
-    copilot_native, wait_run, project_dir, tmp_path  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    tmp_path,  # noqa: F811
 ):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    client, provider = copilot_native([{"shell": "pytest -q", "cwd": str(elsewhere)},
-                                       {"say": "ok"}])
+    client, provider = copilot_native(
+        [{"shell": "pytest -q", "cwd": str(elsewhere)}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     (asked,) = wait_status(client, cid, "waiting_approval")["commands"]
     assert asked["status"] == "proposed"
@@ -499,13 +677,16 @@ def test_a_command_it_says_runs_outside_the_project_is_a_card_even_at_full_auto(
 
 
 def test_a_command_is_judged_in_the_folder_it_says_it_runs_in_even_at_full_auto(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # denetim-010 #18: the line names no `.claude`, its folder does.
     (project_dir / ".claude").mkdir()
     line = "Set-Content settings.json x"
-    client, provider = copilot_native([
-        {"shell": line, "cwd": str(project_dir / ".claude")}, {"say": "ok"}])
+    client, provider = copilot_native(
+        [{"shell": line, "cwd": str(project_dir / ".claude")}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     asked = card_for(client, cid, line)
     assert asked["cwd"] == ".claude"
@@ -519,21 +700,30 @@ def test_a_command_is_judged_in_the_folder_it_says_it_runs_in_even_at_full_auto(
 
 
 def test_a_command_naming_a_secret_outside_or_a_standing_file_is_a_card_at_full_auto(
-    copilot_native, wait_run, project_dir, tmp_path  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    tmp_path,  # noqa: F811
 ):
     (project_dir / ".env").write_text("TOKEN=x\n", encoding="utf-8")
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    client, provider = copilot_native([
-        {"shell": "Get-Content .env", "paths": [".env"]},
-        {"shell": "Get-ChildItem x", "paths": [str(elsewhere / "x")]},
-        {"shell": "echo on > .github/x.yml", "paths": [".github/x.yml"], "redirect": True},
-        {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {"shell": "Get-Content .env", "paths": [".env"]},
+            {"shell": "Get-ChildItem x", "paths": [str(elsewhere / "x")]},
+            {"shell": "echo on > .github/x.yml", "paths": [".github/x.yml"], "redirect": True},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     for number, why in enumerate(("secret", "outside", "later turns")):
         for _ in range(500):
-            waiting = [c for c in client.get(f"/api/conversations/{cid}").json()["commands"]
-                       if c["status"] == "proposed"]
+            waiting = [
+                c
+                for c in client.get(f"/api/conversations/{cid}").json()["commands"]
+                if c["status"] == "proposed"
+            ]
             if waiting:
                 break
             time.sleep(0.02)
@@ -547,20 +737,28 @@ def test_a_command_naming_a_secret_outside_or_a_standing_file_is_a_card_at_full_
 
 
 def test_at_auto_edit_copilots_read_only_word_can_only_make_a_command_asked(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     """K-copilot-ayristirma: a command KOLONİ takes for a read is asked once Copilot says it
     is not read-only; Copilot's "read-only" never lets one through that KOLONİ would ask."""
-    client, provider = copilot_native([
-        {"shell": "Get-Content hello.py", "readonly": True},
-        {"shell": "python fix.py", "readonly": True},
-        {"shell": "Get-Content hello.py", "readonly": False},
-        {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {"shell": "Get-Content hello.py", "readonly": True},
+            {"shell": "python fix.py", "readonly": True},
+            {"shell": "Get-Content hello.py", "readonly": False},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, mode="auto_edit")
     for command in ("python fix.py", "Get-Content hello.py"):
         for _ in range(500):
-            waiting = [c for c in client.get(f"/api/conversations/{cid}").json()["commands"]
-                       if c["status"] == "proposed"]
+            waiting = [
+                c
+                for c in client.get(f"/api/conversations/{cid}").json()["commands"]
+                if c["status"] == "proposed"
+            ]
             if waiting:
                 break
             time.sleep(0.02)
@@ -572,11 +770,20 @@ def test_at_auto_edit_copilots_read_only_word_can_only_make_a_command_asked(
 
 
 def test_a_command_naming_only_ordinary_paths_runs_unasked_at_full_auto(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": "python hello.py > out.txt", "paths": ["hello.py", "out.txt"],
-         "redirect": True}, {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {
+                "shell": "python hello.py > out.txt",
+                "paths": ["hello.py", "out.txt"],
+                "redirect": True,
+            },
+            {"say": "ok"},
+        ]
+    )
     statuses = watched(client)
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
@@ -585,13 +792,15 @@ def test_a_command_naming_only_ordinary_paths_runs_unasked_at_full_auto(
 
 
 def test_unattended_a_command_naming_a_secret_is_refused_though_its_trigger_allows_it(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     (project_dir / ".env").write_text("TOKEN=x\n", encoding="utf-8")
-    client, provider = copilot_native([
-        {"shell": "pytest -q", "paths": [".env"]}, {"say": "done"}])
+    client, provider = copilot_native([{"shell": "pytest -q", "paths": [".env"]}, {"say": "done"}])
     snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"])
+        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
+    )
     assert answers(copilot_native) == [("shell", REJECT)]
     assert NOBODY in snap["tool_calls"][0]["result"]
     nothing_was_asked(snap, statuses)
@@ -601,11 +810,17 @@ def test_unattended_a_command_naming_a_secret_is_refused_though_its_trigger_allo
 
 
 def test_at_full_auto_a_command_or_a_read_asking_to_leave_its_sandbox_is_a_card(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": "pytest -q", "bypass": "the sandbox blocked it"},
-        {"read": "hello.py", "bypass": "outside the readable paths"}, {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {"shell": "pytest -q", "bypass": "the sandbox blocked it"},
+            {"read": "hello.py", "bypass": "outside the readable paths"},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     (asked,) = wait_status(client, cid, "waiting_approval")["commands"]
     assert asked["status"] == "proposed"
@@ -620,35 +835,50 @@ def test_at_full_auto_a_command_or_a_read_asking_to_leave_its_sandbox_is_a_card(
 
 
 def test_unattended_asking_to_leave_its_sandbox_is_refused_though_its_trigger_allows_it(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": "pytest -q", "bypass": "the sandbox blocked it"},
-        {"read": "hello.py", "bypass": "outside the readable paths"}, {"say": "done"}])
+    client, provider = copilot_native(
+        [
+            {"shell": "pytest -q", "bypass": "the sandbox blocked it"},
+            {"read": "hello.py", "bypass": "outside the readable paths"},
+            {"say": "done"},
+        ]
+    )
     snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"])
+        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
+    )
     assert answers(copilot_native) == [("shell", REJECT), ("read", REJECT)]
     assert all(NOBODY in call["result"] for call in snap["tool_calls"])
     nothing_was_asked(snap, statuses)
 
 
 def test_a_command_with_no_exit_code_is_no_success_and_a_python_its_sandbox_kept_is_blocked(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # B-377 (live): ".venv\Scripts\python.exe -m unittest" printed uv's trampoline error, Copilot
     # gave no exit code, and KOLONİ had the run "succeeded, no exit code reported".
-    trampoline = ("uv trampoline failed to spawn Python child process: permission denied "
-                  "(os error 5)")
-    client, provider = copilot_native([
-        {"shell": "python -m unittest", "output": trampoline, "no_code": True},
-        {"shell": "pytest -q", "output": "cut off", "no_code": True}, {"say": "ok"}])
+    trampoline = (
+        "uv trampoline failed to spawn Python child process: permission denied (os error 5)"
+    )
+    client, provider = copilot_native(
+        [
+            {"shell": "python -m unittest", "output": trampoline, "no_code": True},
+            {"shell": "pytest -q", "output": "cut off", "no_code": True},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     blocked, quiet = [t for t in snap["tool_calls"] if t["name"] == "run_command"]
     assert blocked["status"] == quiet["status"] == "failed"
     assert blocked["result"].startswith(
         "no exit code reported, blocked: Copilot's sandbox could not start Python: run tests "
-        "with a sub-agent or in session mode\nuv trampoline failed"), blocked
+        "with a sub-agent or in session mode\nuv trampoline failed"
+    ), blocked
     assert quiet["result"].startswith("no exit code reported\ncut off")
     assert [c["status"] for c in snap["commands"]] == ["blocked", "exited"]
 
@@ -667,40 +897,51 @@ UPDATE_HELLO = "*** Update File: hello.py\n@@\n-print('hi')\n+print('hello')"
 def test_a_powershell_here_string_piped_to_apply_patch_is_a_patch():
     changes = _heredoc_patch(here_string(UPDATE_HELLO), "C:/p", powershell=True)
     assert [(Path(p).name, how, diff) for p, how, diff in _files(changes)] == [
-        ("hello.py", "update", "@@\n-print('hi')\n+print('hello')\n")]
+        ("hello.py", "update", "@@\n-print('hi')\n+print('hello')\n")
+    ]
     # PowerShell reads CRLF as one line break: the same lines, the same patch.
-    assert _heredoc_patch(here_string(UPDATE_HELLO).replace("\n", "\r\n"), "C:/p",
-                          powershell=True) == changes
+    assert (
+        _heredoc_patch(here_string(UPDATE_HELLO).replace("\n", "\r\n"), "C:/p", powershell=True)
+        == changes
+    )
     # (A quote in the patch is nothing to PowerShell's here-string - in bash it would end it.)
     assert _heredoc_patch(here_string(UPDATE_HELLO), "C:/p") is None
     assert _heredoc_patch(heredoc(ADD_B), "C:/p", powershell=True) is None
 
 
-@pytest.mark.parametrize("command", [
-    here_string(ADD_B, before="cd ..; "),                 # more before it
-    here_string(ADD_B, after="; Remove-Item -Recurse x"),  # a second command
-    here_string(ADD_B, after="\nrm -rf build"),           # more after it
-    here_string(ADD_B, opening='@"', end='"@'),           # double-quoted: $(...) would run
-    here_string(ADD_B + "\n'@ | Out-Null\nrm -rf build\n+x"),   # a line ends it early
-    here_string(ADD_B + "\n  '@\nrm x\n+x"),
-    here_string(ADD_B + "\n\u2019@\nrm x\n+x"),           # a typographic quote is one to it
-    here_string(ADD_B + "\r'@\nrm x\n+x"),                # a lone CR
-    here_string(ADD_B + "\u2028'@\nrm x\n+x"),            # a break only Unicode calls one
-    here_string(ADD_B, after="\u2028"),                   # a blank only Unicode calls one
-    here_string("*** Update File: a.py\n@@\n *** Add File: x.py\n+x"),   # a hidden header
-    here_string("*** Add File: ../b.py\n+x"),             # out of the folder it runs in
-    here_string("*** Add File: C:/b.py\n+x"),             # a whole path
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        here_string(ADD_B, before="cd ..; "),  # more before it
+        here_string(ADD_B, after="; Remove-Item -Recurse x"),  # a second command
+        here_string(ADD_B, after="\nrm -rf build"),  # more after it
+        here_string(ADD_B, opening='@"', end='"@'),  # double-quoted: $(...) would run
+        here_string(ADD_B + "\n'@ | Out-Null\nrm -rf build\n+x"),  # a line ends it early
+        here_string(ADD_B + "\n  '@\nrm x\n+x"),
+        here_string(ADD_B + "\n\u2019@\nrm x\n+x"),  # a typographic quote is one to it
+        here_string(ADD_B + "\r'@\nrm x\n+x"),  # a lone CR
+        here_string(ADD_B + "\u2028'@\nrm x\n+x"),  # a break only Unicode calls one
+        here_string(ADD_B, after="\u2028"),  # a blank only Unicode calls one
+        here_string("*** Update File: a.py\n@@\n *** Add File: x.py\n+x"),  # a hidden header
+        here_string("*** Add File: ../b.py\n+x"),  # out of the folder it runs in
+        here_string("*** Add File: C:/b.py\n+x"),  # a whole path
+    ],
+)
 def test_only_a_whole_single_quoted_here_string_to_apply_patch_is_a_patch(command):
     assert _heredoc_patch(command, "C:/p", powershell=True) is None
 
 
 def test_at_auto_edit_copilots_powershell_patch_is_taken_as_a_patch_without_a_card(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": here_string(UPDATE_HELLO), "touches": {"hello.py": "print('hello')\n"}},
-        {"say": "Patched."}])
+    client, provider = copilot_native(
+        [
+            {"shell": here_string(UPDATE_HELLO), "touches": {"hello.py": "print('hello')\n"}},
+            {"say": "Patched."},
+        ]
+    )
     statuses = watched(client)
     cid, run_id = start(client, project_dir, provider, mode="auto_edit")
     snap = wait_run(client, cid, run_id)
@@ -714,12 +955,21 @@ def test_at_auto_edit_copilots_powershell_patch_is_taken_as_a_patch_without_a_ca
 
 
 def test_a_powershell_patch_copilot_asks_to_run_outside_its_sandbox_stays_a_command_card(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # (Its shell still starts: what makes a command a card at every level makes this one.)
-    client, provider = copilot_native([
-        {"shell": here_string(ADD_B), "touches": {"b.py": "x"}, "bypass": "outside the sandbox"},
-        {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {
+                "shell": here_string(ADD_B),
+                "touches": {"b.py": "x"},
+                "bypass": "outside the sandbox",
+            },
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)  # full_auto
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert asked["command"] == here_string(ADD_B) and asked["status"] == "proposed"
@@ -729,11 +979,14 @@ def test_a_powershell_patch_copilot_asks_to_run_outside_its_sandbox_stays_a_comm
 
 
 def test_copilots_powershell_patch_with_a_second_command_stays_a_command_card(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     command = here_string(UPDATE_HELLO, after="; Remove-Item build")
-    client, provider = copilot_native([
-        {"shell": command, "touches": {"hello.py": "x"}}, {"say": "ok"}])
+    client, provider = copilot_native(
+        [{"shell": command, "touches": {"hello.py": "x"}}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider, mode="auto_edit")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert (asked["command"], asked["status"]) == (command, "proposed")
@@ -743,10 +996,13 @@ def test_copilots_powershell_patch_with_a_second_command_stays_a_command_card(
 
 
 def test_a_rejected_powershell_patch_writes_nothing_and_closes_its_card(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": here_string(ADD_B), "touches": {"b.py": "x"}}, {"say": "ok"}])
+    client, provider = copilot_native(
+        [{"shell": here_string(ADD_B), "touches": {"b.py": "x"}}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider, mode="ask")
     card = proposed(client, cid, "b.py")
     assert "+print('b')" in card["diff"]
@@ -762,15 +1018,62 @@ def test_a_rejected_powershell_patch_writes_nothing_and_closes_its_card(
 
 UPDATE_A = "*** Update File: a.py\n@@\n"
 # Each a line inside the patch, with a command after it that would run if the line ended it.
-ENDS = ["\t'@", "\u00a0'@", "\u200b'@", "\ufeff'@", "\uff07@", "\u2032@", "\u2018@", "\u2019@",
-        "\u201a@", "\u201b@", "\u201c@", "'\ufe6b", "'\uff20", "x\x85'@", "x\x0c'@", "x\x0b'@",
-        "x\u2028'@", "x\x1c'@", "x\x1f'@", "x\x03", "x\x1a", "\x1b[201~", "x\x00", "x\x7f",
-        "x\x08", "x\r'@"]
+ENDS = [
+    "\t'@",
+    "\u00a0'@",
+    "\u200b'@",
+    "\ufeff'@",
+    "\uff07@",
+    "\u2032@",
+    "\u2018@",
+    "\u2019@",
+    "\u201a@",
+    "\u201b@",
+    "\u201c@",
+    "'\ufe6b",
+    "'\uff20",
+    "x\x85'@",
+    "x\x0c'@",
+    "x\x0b'@",
+    "x\u2028'@",
+    "x\x1c'@",
+    "x\x1f'@",
+    "x\x03",
+    "x\x1a",
+    "\x1b[201~",
+    "x\x00",
+    "x\x7f",
+    "x\x08",
+    "x\r'@",
+]
 # A path a card would name otherwise than it is written, or that is no plain file in the folder.
-ODD = ["b.py:evil", ".:evil", r".git.\hooks\pre-commit", r".git \config", "CON", "sub/NUL.txt",
-       r"\\srv\share\x", "C:x", r"\x", "~/x", "$env:USERPROFILE/x", ".../x", ".. /x",
-       ". ./x", "..:s/x", r"\\?\C:\x", "//?/C:/x", "a/..\t/x", "..\u00a0/x", "... /x",
-       "  ../x", "AGENTS.md\u00a0", "AGENTS.md\u3000", "AGENTS.md\u2003", "AGENTS.md\x85"]
+ODD = [
+    "b.py:evil",
+    ".:evil",
+    r".git.\hooks\pre-commit",
+    r".git \config",
+    "CON",
+    "sub/NUL.txt",
+    r"\\srv\share\x",
+    "C:x",
+    r"\x",
+    "~/x",
+    "$env:USERPROFILE/x",
+    ".../x",
+    ".. /x",
+    ". ./x",
+    "..:s/x",
+    r"\\?\C:\x",
+    "//?/C:/x",
+    "a/..\t/x",
+    "..\u00a0/x",
+    "... /x",
+    "  ../x",
+    "AGENTS.md\u00a0",
+    "AGENTS.md\u3000",
+    "AGENTS.md\u2003",
+    "AGENTS.md\x85",
+]
 
 
 @pytest.mark.parametrize("line", ENDS)
@@ -781,19 +1084,28 @@ def test_a_line_that_could_end_the_here_string_or_reach_a_console_stays_a_comman
 
 @pytest.mark.parametrize("path", ODD)
 def test_an_odd_path_in_a_patch_stays_a_command_in_either_shell(path):
-    for body in (f"*** Add File: {path}\n+x", f"*** Update File: a.py\n*** Move to: {path}\n@@\n+x"):
+    for body in (
+        f"*** Add File: {path}\n+x",
+        f"*** Update File: a.py\n*** Move to: {path}\n@@\n+x",
+    ):
         assert _heredoc_patch(here_string(body), "C:/p", powershell=True) is None, body
         assert _heredoc_patch(heredoc(body), "C:/p") is None, body
 
 
-@pytest.mark.parametrize("command", [
-    here_string(ADD_B, after=" # x"), here_string(ADD_B, after=" `\nrm x"),
-    here_string(ADD_B, after="; rm x"), here_string(ADD_B, after=" | iex"),
-    here_string(ADD_B, after=" --% & calc"), here_string(ADD_B, before="& { "),
-    here_string(ADD_B).replace("| apply_patch", "| iex"),
-    here_string(ADD_B).replace("| apply_patch", "|\u00a0apply_patch"),
-    here_string("*** Update File: a.py\n@@\n+x\n*** End of File"),
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        here_string(ADD_B, after=" # x"),
+        here_string(ADD_B, after=" `\nrm x"),
+        here_string(ADD_B, after="; rm x"),
+        here_string(ADD_B, after=" | iex"),
+        here_string(ADD_B, after=" --% & calc"),
+        here_string(ADD_B, before="& { "),
+        here_string(ADD_B).replace("| apply_patch", "| iex"),
+        here_string(ADD_B).replace("| apply_patch", "|\u00a0apply_patch"),
+        here_string("*** Update File: a.py\n@@\n+x\n*** End of File"),
+    ],
+)
 def test_anything_around_or_in_place_of_apply_patch_stays_a_command(command):
     assert _heredoc_patch(command, "C:/p", powershell=True) is None
 
@@ -808,19 +1120,34 @@ def test_a_plain_patch_still_is_one_in_either_shell():
     assert _heredoc_patch(heredoc(UPDATE_A + "+\tx"), "C:/p")
 
 
-@pytest.mark.parametrize("before", ["Set-Location sub", "cd ..", "Push-Location sub",
-                                    "function apply_patch { calc }", "Set-Alias apply_patch calc",
-                                    r"$env:PATH = 'C:\x;' + $env:PATH", r". .\setup.ps1",
-                                    r".venv\Scripts\Activate.ps1", r".\setup.ps1",
-                                    "& ./setup.ps1", "using module ./m.psm1",
-                                    "Import-Module ./m.psm1", "ipmo m"])
+@pytest.mark.parametrize(
+    "before",
+    [
+        "Set-Location sub",
+        "cd ..",
+        "Push-Location sub",
+        "function apply_patch { calc }",
+        "Set-Alias apply_patch calc",
+        r"$env:PATH = 'C:\x;' + $env:PATH",
+        r". .\setup.ps1",
+        r".venv\Scripts\Activate.ps1",
+        r".\setup.ps1",
+        "& ./setup.ps1",
+        "using module ./m.psm1",
+        "Import-Module ./m.psm1",
+        "ipmo m",
+    ],
+)
 def test_after_a_command_that_may_move_copilots_shell_a_patch_is_asked_as_a_command(
-    copilot_native, wait_run, project_dir, before  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    before,  # noqa: F811
 ):
     # (Review: its shell is one session - where it is, or what apply_patch is, may have changed.)
-    client, provider = copilot_native([
-        {"shell": before}, {"shell": here_string(ADD_B), "touches": {"b.py": "x"}},
-        {"say": "ok"}])
+    client, provider = copilot_native(
+        [{"shell": before}, {"shell": here_string(ADD_B), "touches": {"b.py": "x"}}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)  # full_auto: commands run unasked
     snap = wait_run(client, cid, run_id)
     assert [c["command"] for c in snap["commands"]] == [before, here_string(ADD_B)]
@@ -828,11 +1155,17 @@ def test_after_a_command_that_may_move_copilots_shell_a_patch_is_asked_as_a_comm
 
 @pytest.mark.parametrize("shell_type", [None, "cmd"])
 def test_a_here_string_in_a_shell_not_said_to_be_powershell_stays_a_command(
-    copilot_native, wait_run, project_dir, shell_type  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    shell_type,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": here_string(ADD_B), "touches": {"b.py": "x"}, "shell_type": shell_type},
-        {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {"shell": here_string(ADD_B), "touches": {"b.py": "x"}, "shell_type": shell_type},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider, mode="auto_edit")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert asked["command"] == here_string(ADD_B)
@@ -840,14 +1173,26 @@ def test_a_here_string_in_a_shell_not_said_to_be_powershell_stays_a_command(
     wait_run(client, cid, run_id)
 
 
-@pytest.mark.parametrize(("shell_type", "patch"), [(None, False), ("powershell", False),
-                                                    ("bash", True)])
+@pytest.mark.parametrize(
+    ("shell_type", "patch"), [(None, False), ("powershell", False), ("bash", True)]
+)
 def test_copilots_bash_heredoc_is_a_patch_only_where_its_shell_is_bash(
-    copilot_native, wait_run, project_dir, shell_type, patch  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    shell_type,
+    patch,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"shell": heredoc(ADD_B), "touches": {"b.py": "print('b')\n"},
-         "shell_type": shell_type}, {"say": "ok"}])
+    client, provider = copilot_native(
+        [
+            {
+                "shell": heredoc(ADD_B),
+                "touches": {"b.py": "print('b')\n"},
+                "shell_type": shell_type,
+            },
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)  # full_auto
     snap = wait_run(client, cid, run_id)
     assert [c["command"] for c in snap["commands"]] == ([] if patch else [heredoc(ADD_B)])
@@ -871,35 +1216,46 @@ def scratch(project_dir):
 
 def control_ran(snap):
     assert [(c["command"], c["cwd"], c["status"]) for c in snap["commands"][:1]] == [
-        (CONTROL, ".", "exited")]
+        (CONTROL, ".", "exited")
+    ]
 
 
-@pytest.mark.parametrize("args", [
-    {}, {"description": "Run it", "mode": "sync", "initial_wait": 30, "detach": False}],
-    ids=["its-command-alone", "as-a-model-calls-it"])
+@pytest.mark.parametrize(
+    "args",
+    [{}, {"description": "Run it", "mode": "sync", "initial_wait": 30, "detach": False}],
+    ids=["its-command-alone", "as-a-model-calls-it"],
+)
 def test_at_full_auto_work_in_the_scratch_from_a_new_shell_runs_unasked(
-    args, copilot_native, wait_run, project_dir  # noqa: F811
+    args,
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": SCRATCH_LINE, "args": args}, {"say": "ok"}],
-                                      version=READ)
+    client, provider = copilot_native(
+        [{"shell": SCRATCH_LINE, "args": args}, {"say": "ok"}], version=READ
+    )
     statuses = watched(client)
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert answers(copilot_native) == [("shell", APPROVE)]
     nothing_was_asked(snap, statuses)
     assert [(c["command"], c["cwd"], c["status"]) for c in snap["commands"]] == [
-        (SCRATCH_LINE, ".", "exited")]
+        (SCRATCH_LINE, ".", "exited")
+    ]
 
 
 def test_from_a_new_shell_a_delete_in_the_scratch_is_still_a_card(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # (Never put to the user: 1.0.67 has no sandbox, and a junction a script makes there after
     # the ask is followed by the delete - `commands.scratch_delete_only`.)
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": CONTROL}, {"shell": SCRATCH_DELETE},
-                                       {"say": "ok"}], version=READ)
+    client, provider = copilot_native(
+        [{"shell": CONTROL}, {"shell": SCRATCH_DELETE}, {"say": "ok"}], version=READ
+    )
     cid, run_id = start(client, project_dir, provider)
     asked = card_for(client, cid, SCRATCH_DELETE)
     assert (asked["cwd"], asked["danger"]) == (".", "Deletes files or disks.")
@@ -910,16 +1266,29 @@ def test_from_a_new_shell_a_delete_in_the_scratch_is_still_a_card(
 
 
 def test_a_new_shell_is_kolonis_own_word_never_one_copilot_or_its_model_sends(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # (A "new_shell" in its request is not read, nor one in its model's arguments: a key not
     # known, its shell not known to be new - `_permit` writes KOLONİ's own last.)
     scratch(project_dir)
-    client, provider = copilot_native([
-        {"ask": {"kind": "shell", "fullCommandText": SCRATCH_LINE, "shellType": "powershell",
-                 "new_shell": True},
-         "tool": "powershell", "args": {"command": SCRATCH_LINE, "new_shell": True}},
-        {"say": "ok"}], version=READ)
+    client, provider = copilot_native(
+        [
+            {
+                "ask": {
+                    "kind": "shell",
+                    "fullCommandText": SCRATCH_LINE,
+                    "shellType": "powershell",
+                    "new_shell": True,
+                },
+                "tool": "powershell",
+                "args": {"command": SCRATCH_LINE, "new_shell": True},
+            },
+            {"say": "ok"},
+        ],
+        version=READ,
+    )
     cid, run_id = start(client, project_dir, provider)
     asked = card_for(client, cid, SCRATCH_LINE)
     assert asked["cwd"] is None and asked["danger"].startswith("Climbs out of .koloni/tmp")
@@ -928,22 +1297,35 @@ def test_a_new_shell_is_kolonis_own_word_never_one_copilot_or_its_model_sends(
     assert answers(copilot_native) == [("shell", REJECT)]
 
 
-@pytest.mark.parametrize("steps", [
-    [{"shell": SCRATCH_LINE, "args": {"shellId": "1"}}],
-    [{"shell": "pytest -q", "args": {"shellId": "2"}}, {"shell": SCRATCH_LINE}],
-    [{"shell": SCRATCH_LINE, "args": {"shell_id": "1"}}],
-    [{"shell": SCRATCH_LINE, "args": {"session": "1"}}],
-    [{"shell": SCRATCH_LINE, "start": "after"}],
-    [{"shell": SCRATCH_LINE, "start": "none"}],
-    [{"shell": SCRATCH_LINE, "parent": "call_x"}],
-], ids=["names-its-shell", "an-earlier-call-named-one", "named-another-way", "a-key-not-known",
-        "start-after-the-request", "no-start", "in-a-sub-agent"])
+@pytest.mark.parametrize(
+    "steps",
+    [
+        [{"shell": SCRATCH_LINE, "args": {"shellId": "1"}}],
+        [{"shell": "pytest -q", "args": {"shellId": "2"}}, {"shell": SCRATCH_LINE}],
+        [{"shell": SCRATCH_LINE, "args": {"shell_id": "1"}}],
+        [{"shell": SCRATCH_LINE, "args": {"session": "1"}}],
+        [{"shell": SCRATCH_LINE, "start": "after"}],
+        [{"shell": SCRATCH_LINE, "start": "none"}],
+        [{"shell": SCRATCH_LINE, "parent": "call_x"}],
+    ],
+    ids=[
+        "names-its-shell",
+        "an-earlier-call-named-one",
+        "named-another-way",
+        "a-key-not-known",
+        "start-after-the-request",
+        "no-start",
+        "in-a-sub-agent",
+    ],
+)
 def test_where_its_shell_is_not_known_to_be_new_work_in_the_scratch_is_still_a_card(
-    steps, copilot_native, wait_run, project_dir  # noqa: F811
+    steps,
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": CONTROL}, *steps, {"say": "ok"}],
-                                      version=READ)
+    client, provider = copilot_native([{"shell": CONTROL}, *steps, {"say": "ok"}], version=READ)
     cid, run_id = start(client, project_dir, provider)
     asked = card_for(client, cid, SCRATCH_LINE)
     assert asked["cwd"] is None and asked["danger"].startswith("Climbs out of .koloni/tmp")
@@ -953,14 +1335,19 @@ def test_where_its_shell_is_not_known_to_be_new_work_in_the_scratch_is_still_a_c
     control_ran(snap)
 
 
-@pytest.mark.parametrize("line", ["cd ..; Remove-Item -Recurse x",
-                                  "cd .claude; Set-Content settings.json x"])
+@pytest.mark.parametrize(
+    "line", ["cd ..; Remove-Item -Recurse x", "cd .claude; Set-Content settings.json x"]
+)
 def test_from_a_new_shell_a_cd_out_of_the_project_or_into_a_protected_folder_is_still_a_card(
-    line, copilot_native, wait_run, project_dir  # noqa: F811
+    line,
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": CONTROL}, {"shell": line}, {"say": "ok"}],
-                                      version=READ)
+    client, provider = copilot_native(
+        [{"shell": CONTROL}, {"shell": line}, {"say": "ok"}], version=READ
+    )
     cid, run_id = start(client, project_dir, provider)
     asked = card_for(client, cid, line)
     assert asked["cwd"] == "." and asked["danger"]
@@ -970,10 +1357,13 @@ def test_from_a_new_shell_a_cd_out_of_the_project_or_into_a_protected_folder_is_
     control_ran(snap)
 
 
-@pytest.mark.parametrize("told", [
-    {"version": "1.0.103"}, {}], ids=["an-earlier-one", "another"])
+@pytest.mark.parametrize("told", [{"version": "1.0.103"}, {}], ids=["an-earlier-one", "another"])
 def test_on_a_copilot_whose_shell_was_not_read_work_in_the_scratch_is_still_a_card(
-    told, copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
+    told,
+    copilot_native,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     # (By its own `status.get`; one that does not say runs the old way, `test_cli_surface`.
     # Before the run its version is waited for, VERSION_SECONDS: not 10 s here.)
@@ -989,7 +1379,10 @@ def test_on_a_copilot_whose_shell_was_not_read_work_in_the_scratch_is_still_a_ca
 
 
 def test_in_a_working_copy_a_new_shells_work_in_the_scratch_is_still_a_card(
-    copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     # (Natively it works in the project - `own_copy` - so a copy is reached only by saying it
     # may work in one; this guard alone makes the card, so this passes before k-copilot-cd too.)
@@ -998,8 +1391,9 @@ def test_in_a_working_copy_a_new_shells_work_in_the_scratch_is_still_a_card(
 
     monkeypatch.setattr(CopilotNativeClient, "own_copy", True)
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": SCRATCH_LINE}, {"say": "ok"}],
-                                      default_steps=LEAD, version=READ)
+    client, provider = copilot_native(
+        [{"shell": SCRATCH_LINE}, {"say": "ok"}], default_steps=LEAD, version=READ
+    )
     cid, run_id = begin(client, project_dir, provider)
     asked = card_for(client, cid, SCRATCH_LINE)
     assert asked["cwd"] is None and asked["danger"].startswith("Climbs out of .koloni/tmp")
@@ -1016,10 +1410,13 @@ TWO = "*** Begin Patch\n*** Add File: a.txt\n+made a\n*** Add File: b.txt\n+made
 
 
 def test_a_one_file_apply_patch_is_its_file_card(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider = copilot_native([
-        {"patch": f"*** Begin Patch\n{UPDATE_HELLO}\n*** End Patch"}, {"say": "Patched."}])
+    client, provider = copilot_native(
+        [{"patch": f"*** Begin Patch\n{UPDATE_HELLO}\n*** End Patch"}, {"say": "Patched."}]
+    )
     cid, run_id = start(client, project_dir, provider, mode="ask")
     card = proposed(client, cid, "hello.py")
     assert "+print('hello')" in card["diff"]
@@ -1034,7 +1431,9 @@ def test_a_one_file_apply_patch_is_its_file_card(
 
 
 def test_a_two_file_apply_patch_is_asked_file_by_file_and_both_are_taken_in(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider = copilot_native([{"patch": TWO}, {"say": "ok"}])
     cid, run_id = start(client, project_dir, provider, mode="ask")
@@ -1047,13 +1446,17 @@ def test_a_two_file_apply_patch_is_asked_file_by_file_and_both_are_taken_in(
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert answers(copilot_native) == [("write", APPROVE)]
     assert sorted((f["path"], f["status"]) for f in snap["file_changes"]) == [
-        ("a.txt", "applied"), ("b.txt", "applied")]
+        ("a.txt", "applied"),
+        ("b.txt", "applied"),
+    ]
     assert (project_dir / "b.txt").read_text(encoding="utf-8") == "made b\n"
     assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")]
 
 
 def test_one_refused_file_of_an_apply_patch_refuses_it_all(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider = copilot_native([{"patch": TWO}, {"say": "ok"}])
     cid, run_id = start(client, project_dir, provider, mode="ask")
@@ -1064,20 +1467,27 @@ def test_one_refused_file_of_an_apply_patch_refuses_it_all(
     assert not (project_dir / "a.txt").exists() and not (project_dir / "b.txt").exists()
     # (the one approved is closed as never made: its patch was declined)
     assert sorted((f["path"], f["status"]) for f in snap["file_changes"]) == [
-        ("a.txt", "failed"), ("b.txt", "rejected")]
+        ("a.txt", "failed"),
+        ("b.txt", "rejected"),
+    ]
     assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")]
 
 
 def test_an_apply_patch_that_ran_unasked_names_each_file(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider = copilot_native([{"patch": TWO, "unasked": True}, {"say": "ok"}])
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert answers(copilot_native) == []
     for path in ("a.txt", "b.txt"):
-        assert [t for t in snap["tool_calls"] if t["name"] == "edit_file"
-                and UNASKED in (t["result"] or "") and path in t["result"]], path
+        assert [
+            t
+            for t in snap["tool_calls"]
+            if t["name"] == "edit_file" and UNASKED in (t["result"] or "") and path in t["result"]
+        ], path
 
 
 def test_its_rules_say_its_own_apply_patch_is_its_file_tool():
@@ -1085,17 +1495,23 @@ def test_its_rules_say_its_own_apply_patch_is_its_file_tool():
 
     assert "or apply_patch where that is yours" in CopilotNativeClient.rules
     assert "a patch piped into apply_patch in the shell) is asked about as a command" in (
-        CopilotNativeClient.rules)
+        CopilotNativeClient.rules
+    )
 
 
 def test_a_patch_of_several_files_that_moves_one_or_names_one_twice_is_declined_whole():
     made = {"after": {"path": "C:/p/a.txt", "content": "x"}}
     gone = {"before": {"path": "C:/p/b.txt", "content": "y"}}
     assert [tool for tool, _input in _edits_patch([made, gone], {})] == ["Write", "Edit"]
-    for other in ({"before": {"path": "C:/p/b.txt", "content": ""},
-                   "after": {"path": "C:/p/c.txt", "content": ""}},  # a move
-                  {"after": {"path": "C:/p/a.txt", "content": "z"}},  # a file twice
-                  {"after": {"path": "C:/p/b.txt"}}, {}):  # no content, nothing named
+    for other in (
+        {
+            "before": {"path": "C:/p/b.txt", "content": ""},
+            "after": {"path": "C:/p/c.txt", "content": ""},
+        },  # a move
+        {"after": {"path": "C:/p/a.txt", "content": "z"}},  # a file twice
+        {"after": {"path": "C:/p/b.txt"}},
+        {},
+    ):  # no content, nothing named
         assert _edits_patch([made, other], {}) == [], other
 
 

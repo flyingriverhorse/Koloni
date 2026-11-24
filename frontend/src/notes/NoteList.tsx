@@ -9,8 +9,17 @@ import { noteId, readLine, writerOf } from './notesText'
  */
 export function NoteList({ state, runId }: { state: ConvState; runId: string }) {
   const notes = state.boardPosts.filter(p => p.run_id === runId).sort((a, b) => a.seq - b.seq)
-  const teams = [...new Map(notes.flatMap(n => (n.team_id === null ? [] : [[n.team_id, n.team ?? 'Team'] as const]))).entries()]
-  if (!teams.length) return <>{notes.map(note => <Note key={note.id} state={state} note={note} />)}</>
+  const teams = [
+    ...new Map(notes.flatMap(n => (n.team_id === null ? [] : [[n.team_id, n.team ?? 'Team'] as const]))).entries(),
+  ]
+  if (!teams.length)
+    return (
+      <>
+        {notes.map(note => (
+          <Note key={note.id} state={state} note={note} />
+        ))}
+      </>
+    )
   const colours = chatColours(state)
   const whole = notes.filter(n => n.team_id === null)
   return (
@@ -18,7 +27,9 @@ export function NoteList({ state, runId }: { state: ConvState; runId: string }) 
       {whole.length > 0 && (
         <section className="note-team" aria-label="For every team">
           <div className="note-team-head mono">For every team</div>
-          {whole.map(note => <Note key={note.id} state={state} note={note} />)}
+          {whole.map(note => (
+            <Note key={note.id} state={state} note={note} />
+          ))}
         </section>
       )}
       {teams.map(([id, name]) => (
@@ -27,7 +38,11 @@ export function NoteList({ state, runId }: { state: ConvState; runId: string }) 
             <span className="team-dot" style={{ background: colours.get(id) }} aria-hidden="true" />
             {name}
           </div>
-          {notes.filter(n => n.team_id === id).map(note => <Note key={note.id} state={state} note={note} />)}
+          {notes
+            .filter(n => n.team_id === id)
+            .map(note => (
+              <Note key={note.id} state={state} note={note} />
+            ))}
         </section>
       ))}
     </>

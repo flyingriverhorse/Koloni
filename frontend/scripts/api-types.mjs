@@ -15,7 +15,11 @@ const python = path.join(repo, '.venv', process.platform === 'win32' ? 'Scripts/
 
 mkdirSync(path.dirname(schema), { recursive: true })
 execFileSync(python, [path.join(repo, 'scripts', 'export_openapi.py'), schema], { stdio: 'inherit' })
-execFileSync(process.execPath, [path.join(frontend, 'node_modules', 'openapi-typescript', 'bin', 'cli.js'), schema, '-o', target], { stdio: 'inherit' })
+execFileSync(
+  process.execPath,
+  [path.join(frontend, 'node_modules', 'openapi-typescript', 'bin', 'cli.js'), schema, '-o', target],
+  { stdio: 'inherit' },
+)
 
 if (check) {
   const read = file => readFileSync(file, 'utf8').replace(/\r\n/g, '\n')

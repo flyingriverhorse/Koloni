@@ -62,7 +62,13 @@ export function AskCard({ conv, open, tab, onAnswer }: Props) {
   // (Closed, or on Talk or Notes, hidden, not gone: an answer half written in it stays. Its form is the question's own:
   // what one refused is not said on another.)
   return (
-    <div id={ASK_CARD_ID} role="form" aria-label="Orchestrator asks" className="ask-card" hidden={!open || tab !== 'Chat'}>
+    <div
+      id={ASK_CARD_ID}
+      role="form"
+      aria-label="Orchestrator asks"
+      className="ask-card"
+      hidden={!open || tab !== 'Chat'}
+    >
       {head}
       {!folded && (
         <AskForm
@@ -186,66 +192,74 @@ function AskForm(p: {
     if (typing || !Number.isInteger(n) || n < 1 || n > question.options.length + 1) return
     event.preventDefault()
     // (The number after the options is your own answer's: its words are written then.)
-    if (n > question.options.length) return event.currentTarget.querySelector<HTMLInputElement>('input[type=text]')?.focus()
+    if (n > question.options.length)
+      return event.currentTarget.querySelector<HTMLInputElement>('input[type=text]')?.focus()
     setChoice(question.options[n - 1])
     event.currentTarget.querySelectorAll<HTMLInputElement>('input[type=radio]')[n - 1]?.focus()
   }
 
   return (
     <form className="ask-form" onSubmit={submit} onKeyDown={onKeyDown}>
-        <div className="ask-body">
-          <div className="ask-title">{title}</div>
-          {more && <p className="ask-more">{more}</p>}
-          <div role="radiogroup" aria-label={title} className="ask-options">
-            {question.options.map((option, i) => (
-              <label key={option} className="ask-option">
-                <input type="radio" ref={i === 0 ? first : undefined} name={name} checked={choice === option} disabled={busy} onChange={() => setChoice(option)} />
-                <span className="ask-n" aria-hidden>
-                  {i + 1}
-                </span>
-                <span className="ask-label">{shownOption(option, false)}</span>
-                {choice === option && <Check size={14} className="ask-check" aria-hidden />}
-              </label>
-            ))}
-            <div className="ask-option ask-own">
+      <div className="ask-body">
+        <div className="ask-title">{title}</div>
+        {more && <p className="ask-more">{more}</p>}
+        <div role="radiogroup" aria-label={title} className="ask-options">
+          {question.options.map((option, i) => (
+            <label key={option} className="ask-option">
               <input
                 type="radio"
-                ref={question.options.length === 0 ? first : undefined}
+                ref={i === 0 ? first : undefined}
                 name={name}
-                aria-label="Answer in your own words"
-                checked={choice === OWN}
+                checked={choice === option}
                 disabled={busy}
-                onChange={() => setChoice(OWN)}
+                onChange={() => setChoice(option)}
               />
               <span className="ask-n" aria-hidden>
-                {question.options.length + 1}
+                {i + 1}
               </span>
-              <input
-                type="text"
-                className="input"
-                aria-label="Your answer"
-                placeholder={question.options.length > 0 ? 'Or answer in your own words…' : 'Your answer…'}
-                value={own}
-                disabled={busy}
-                onChange={e => {
-                  p.onDraft({ choice: OWN, own: e.target.value })
-                  // (☾ Away: the Orchestrator does not decide it for you while you write it.)
-                  useApp.getState().typing(question.id)
-                }}
-              />
-            </div>
-          </div>
-          {error && (
-            <div role="alert" className="alert">
-              {error}
-            </div>
-          )}
-          <div className="ask-foot">
-            <button type="submit" className="btn btn-small btn-primary" disabled={!answer || busy}>
-              Submit
-            </button>
+              <span className="ask-label">{shownOption(option, false)}</span>
+              {choice === option && <Check size={14} className="ask-check" aria-hidden />}
+            </label>
+          ))}
+          <div className="ask-option ask-own">
+            <input
+              type="radio"
+              ref={question.options.length === 0 ? first : undefined}
+              name={name}
+              aria-label="Answer in your own words"
+              checked={choice === OWN}
+              disabled={busy}
+              onChange={() => setChoice(OWN)}
+            />
+            <span className="ask-n" aria-hidden>
+              {question.options.length + 1}
+            </span>
+            <input
+              type="text"
+              className="input"
+              aria-label="Your answer"
+              placeholder={question.options.length > 0 ? 'Or answer in your own words…' : 'Your answer…'}
+              value={own}
+              disabled={busy}
+              onChange={e => {
+                p.onDraft({ choice: OWN, own: e.target.value })
+                // (☾ Away: the Orchestrator does not decide it for you while you write it.)
+                useApp.getState().typing(question.id)
+              }}
+            />
           </div>
         </div>
+        {error && (
+          <div role="alert" className="alert">
+            {error}
+          </div>
+        )}
+        <div className="ask-foot">
+          <button type="submit" className="btn btn-small btn-primary" disabled={!answer || busy}>
+            Submit
+          </button>
+        </div>
+      </div>
     </form>
   )
 }
@@ -253,7 +267,11 @@ function AskForm(p: {
 /** In its turn, the Orchestrator's open question as one line: a click goes to its question on the card over the message box. */
 export function AskLine({ question, who }: { question: Question; who: string }) {
   return (
-    <button type="button" className="ask-line" onClick={() => document.dispatchEvent(new CustomEvent(ASKED, { detail: question.id }))}>
+    <button
+      type="button"
+      className="ask-line"
+      onClick={() => document.dispatchEvent(new CustomEvent(ASKED, { detail: question.id }))}
+    >
       <QuestionIcon size={13} aria-hidden />
       <span className="ask-line-words">
         {who} asks: {firstLine(question.question)} · <span className="ask-line-waits">waits for you</span>
@@ -262,7 +280,11 @@ export function AskLine({ question, who }: { question: Question; who: string }) 
   )
 }
 
-const ENDED: Partial<Record<Question['status'], string>> = { cancelled: 'not answered', interrupted: 'not answered', superseded: 'asked again: its files changed since' }
+const ENDED: Partial<Record<Question['status'], string>> = {
+  cancelled: 'not answered',
+  interrupted: 'not answered',
+  superseded: 'asked again: its files changed since',
+}
 
 /** In its turn, the Orchestrator's question once it is over: "Question: … / Answered: …"; opened, its options, the one given ticked. */
 export function AskedRow({ question }: { question: Question }) {

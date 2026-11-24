@@ -27,8 +27,13 @@ from app.main import create_app  # noqa: E402
 
 ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 RESETS = int(time.time()) + 3600
-SAID = {"status": "allowed", "rateLimitType": "five_hour", "utilization": 0.42, "resetsAt": RESETS,
-        "unifiedWindows": {"five_hour": {"utilization": 0.42, "resetsAt": RESETS}}}
+SAID = {
+    "status": "allowed",
+    "rateLimitType": "five_hour",
+    "utilization": 0.42,
+    "resetsAt": RESETS,
+    "unifiedWindows": {"five_hour": {"utilization": 0.42, "resetsAt": RESETS}},
+}
 
 
 def started(settings_env):
@@ -40,8 +45,9 @@ def started(settings_env):
 def test_claude_codes_last_reading_is_there_after_a_restart(settings_env):
     first = started(settings_env)
     try:
-        made = first.post("/api/providers", json={"name": "Claude", "kind": "claude_cli"},
-                          headers=ORIGIN)
+        made = first.post(
+            "/api/providers", json={"name": "Claude", "kind": "claude_cli"}, headers=ORIGIN
+        )
         assert made.status_code == 201, made.text
         provider = first.app.state.providers
         with first.app.state.session_factory() as session:

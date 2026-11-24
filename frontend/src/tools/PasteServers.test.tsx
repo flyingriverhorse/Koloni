@@ -5,7 +5,17 @@ import type { McpServer } from '../api/types'
 import { ToolsPage } from './ToolsPage'
 
 // The Tools page's "A server, from its page" (slice 74), from its Add menu.
-const fetchServer: McpServer = { id: 's1', name: 'fetch', command: ['uvx', 'mcp-server-fetch'], env_names: [], tools: [], read_at: null, read_error: null, trusted: true, enabled: true }
+const fetchServer: McpServer = {
+  id: 's1',
+  name: 'fetch',
+  command: ['uvx', 'mcp-server-fetch'],
+  env_names: [],
+  tools: [],
+  read_at: null,
+  read_error: null,
+  trusted: true,
+  enabled: true,
+}
 const handlers = () => ({
   onAdd: vi.fn().mockResolvedValue({ ...fetchServer, id: 's2', name: 'github' }),
   onSave: vi.fn().mockResolvedValue(undefined),
@@ -17,13 +27,20 @@ const handlers = () => ({
 const TOKEN = 'ghp_secret123456'
 const block = JSON.stringify({
   mcpServers: {
-    github: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_PERSONAL_ACCESS_TOKEN: TOKEN } },
+    github: {
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-github'],
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: TOKEN },
+    },
     fetch: { command: 'uvx', args: ['mcp-server-fetch'] },
   },
 })
-const card = (name: string) => within(screen.getByRole('region', { name: 'A server, from its page' })).getByRole('button', { name: new RegExp(`^${name}`) })
+const card = (name: string) =>
+  within(screen.getByRole('region', { name: 'A server, from its page' })).getByRole('button', {
+    name: new RegExp(`^${name}`),
+  })
 const form = () => within(screen.getByRole('region', { name: 'A server, by hand' }))
-const textOf = () => (screen.getByRole('textbox', { name: '1 · What you pasted' }) as HTMLTextAreaElement)
+const textOf = () => screen.getByRole('textbox', { name: '1 · What you pasted' }) as HTMLTextAreaElement
 
 async function pasteTab(h: ReturnType<typeof handlers>, servers: McpServer[] = [fetchServer]) {
   const page = render(<ToolsPage servers={servers} roles={[]} {...h} />)
@@ -57,8 +74,12 @@ test('a pasted block: each server a compact card, its token put away at once, on
   expect(body).toHaveTextContent('Commandnpx')
   expect(body).toHaveTextContent('Arguments-y @modelcontextprotocol/server-github')
   expect(body).toHaveTextContent('VariablesGITHUB_PERSONAL_ACCESS_TOKEN kept secret')
-  expect(body).toHaveTextContent('The token was in what you pasted: it is moved to the secret field and never shown again.')
-  expect(body).toHaveTextContent('Downloads on first read: npx fetches @modelcontextprotocol/server-github from the internet. You are asked before it runs.')
+  expect(body).toHaveTextContent(
+    'The token was in what you pasted: it is moved to the secret field and never shown again.',
+  )
+  expect(body).toHaveTextContent(
+    'Downloads on first read: npx fetches @modelcontextprotocol/server-github from the internet. You are asked before it runs.',
+  )
   await userEvent.click(card('github'))
   expect(body).not.toBeVisible()
   // ticking a box does not open its card
@@ -83,7 +104,9 @@ test('a pasted block: each server a compact card, its token put away at once, on
 test('one server alone is open and asks for its name; a value left to the reader is to be typed before adding', async () => {
   const h = handlers()
   await pasteTab(h, [])
-  await userEvent.paste(JSON.stringify({ command: 'node', args: ['C:/srv/index.js'], env: { API_KEY: '${input:key}' } }))
+  await userEvent.paste(
+    JSON.stringify({ command: 'node', args: ['C:/srv/index.js'], env: { API_KEY: '${input:key}' } }),
+  )
   const head = card('no name yet')
   expect(head).toHaveAttribute('aria-expanded', 'true')
   expect(head).toHaveTextContent('node index.js')
@@ -108,13 +131,18 @@ test('"Edit before adding" carries the pasted value into the form’s secret fie
   const h = handlers()
   const page = await pasteTab(h, [])
   // typed, not pasted: the value is put away when the box is left
-  await userEvent.type(textOf(), `claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=${TOKEN} -- npx -y @modelcontextprotocol/server-github`)
+  await userEvent.type(
+    textOf(),
+    `claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=${TOKEN} -- npx -y @modelcontextprotocol/server-github`,
+  )
   await userEvent.tab()
   expect(textOf().value).not.toContain(TOKEN)
   expect(page.container.innerHTML).not.toContain(TOKEN)
   h.onAdd.mockRejectedValueOnce({ detail: 'this command cannot be started: % in an argument' })
   await userEvent.click(screen.getByRole('button', { name: 'Add 1 server' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('github was not added: this command cannot be started: % in an argument')
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'github was not added: this command cannot be started: % in an argument',
+  )
   // what was pasted is kept, to try again or to change by hand
   await userEvent.click(screen.getByRole('button', { name: 'Edit before adding' }))
   expect(form().getByLabelText('Name')).toHaveValue('github')
@@ -123,25 +151,39 @@ test('"Edit before adding" carries the pasted value into the form’s secret fie
   // in the field's value only: never in the page's markup
   expect(page.container.innerHTML).not.toContain(TOKEN)
   await userEvent.click(form().getByRole('button', { name: 'Add server' }))
-  expect(h.onAdd).toHaveBeenLastCalledWith({ name: 'github', command: ['npx', '-y', '@modelcontextprotocol/server-github'], env: { GITHUB_PERSONAL_ACCESS_TOKEN: TOKEN } })
+  expect(h.onAdd).toHaveBeenLastCalledWith({
+    name: 'github',
+    command: ['npx', '-y', '@modelcontextprotocol/server-github'],
+    env: { GITHUB_PERSONAL_ACCESS_TOKEN: TOKEN },
+  })
 })
 
 test('a key in the arguments: MASK on the card and in the box, the key itself sent when the server is added', async () => {
   const h = handlers()
   const page = await pasteTab(h, [])
-  await userEvent.paste(JSON.stringify({ mcpServers: { brave: { command: 'npx', args: ['-y', 'brave-mcp', '--api-key', TOKEN] } } }))
+  await userEvent.paste(
+    JSON.stringify({ mcpServers: { brave: { command: 'npx', args: ['-y', 'brave-mcp', '--api-key', TOKEN] } } }),
+  )
   expect(textOf().value).not.toContain(TOKEN)
   expect(page.container.innerHTML).not.toContain(TOKEN)
   expect(screen.getByText('-y brave-mcp --api-key ••••••••')).toBeInTheDocument()
   h.onAdd.mockRejectedValueOnce({ detail: 'refused' })
   await userEvent.click(screen.getByRole('button', { name: 'Add 1 server' }))
-  expect(h.onAdd).toHaveBeenLastCalledWith({ name: 'brave', command: ['npx', '-y', 'brave-mcp', '--api-key', TOKEN], env: {} })
+  expect(h.onAdd).toHaveBeenLastCalledWith({
+    name: 'brave',
+    command: ['npx', '-y', 'brave-mcp', '--api-key', TOKEN],
+    env: {},
+  })
   // "Edit before adding" too: MASK in the form's box, the key sent for the line left as it was
   await userEvent.click(screen.getByRole('button', { name: 'Edit before adding' }))
   expect(form().getByLabelText('Command')).toHaveValue('npx\n-y\nbrave-mcp\n--api-key\n••••••••')
   expect(page.container.innerHTML).not.toContain(TOKEN)
   await userEvent.click(form().getByRole('button', { name: 'Add server' }))
-  expect(h.onAdd).toHaveBeenLastCalledWith({ name: 'brave', command: ['npx', '-y', 'brave-mcp', '--api-key', TOKEN], env: {} })
+  expect(h.onAdd).toHaveBeenLastCalledWith({
+    name: 'brave',
+    command: ['npx', '-y', 'brave-mcp', '--api-key', TOKEN],
+    env: {},
+  })
 })
 
 test('what cannot be read says which shapes can; one reached over the network is named and the others still read', async () => {
@@ -151,37 +193,64 @@ test('what cannot be read says which shapes can; one reached over the network is
   await userEvent.clear(textOf())
   // its address and headers may carry a key: neither stays in the box
   await userEvent.paste(
-    JSON.stringify({ servers: { notion: { type: 'http', url: 'https://mcp.example.test/?key=k1', headers: { Authorization: `Bearer ${TOKEN}` } }, fetch: { command: 'uvx', args: ['mcp-server-fetch'] } } }),
+    JSON.stringify({
+      servers: {
+        notion: {
+          type: 'http',
+          url: 'https://mcp.example.test/?key=k1',
+          headers: { Authorization: `Bearer ${TOKEN}` },
+        },
+        fetch: { command: 'uvx', args: ['mcp-server-fetch'] },
+      },
+    }),
   )
-  expect(screen.getByText(/Not added: notion - reached over the network \(url\)\. Only servers started by a command can be added yet\./)).toBeInTheDocument()
+  expect(
+    screen.getByText(
+      /Not added: notion - reached over the network \(url\)\. Only servers started by a command can be added yet\./,
+    ),
+  ).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Add 1 server' })).toBeEnabled()
   expect(textOf().value).not.toMatch(/ghp_|k1/)
   await userEvent.clear(textOf())
-  await userEvent.paste(`claude mcp add --transport http notion https://mcp.example.test -H "Authorization: Bearer ${TOKEN}"`)
+  await userEvent.paste(
+    `claude mcp add --transport http notion https://mcp.example.test -H "Authorization: Bearer ${TOKEN}"`,
+  )
   expect(screen.getByText(/Not added: notion/)).toBeInTheDocument()
   expect(textOf().value).not.toContain(TOKEN)
 })
 
 test('JSONC with comments is read and its key put away; a block still unread says so without its key, which stays only in the box', async () => {
   const page = await pasteTab(handlers(), [])
-  await userEvent.paste(`{\n  // from the README\n  "mcpServers": { "github": { "command": "npx", "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${TOKEN}", }, }, },\n}`)
+  await userEvent.paste(
+    `{\n  // from the README\n  "mcpServers": { "github": { "command": "npx", "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${TOKEN}", }, }, },\n}`,
+  )
   expect(textOf().value).toContain('"GITHUB_PERSONAL_ACCESS_TOKEN": "••••••••"')
   expect(page.container.innerHTML).not.toContain(TOKEN)
   await userEvent.clear(textOf())
   await userEvent.paste(`{mcpServers: {github: {command: 'npx', env: {GITHUB_PERSONAL_ACCESS_TOKEN: '${TOKEN}'}}}}`)
   const read = screen.getByRole('region', { name: '2 · What KOLONİ read from it' })
-  expect(within(read).getByRole('status')).toHaveTextContent('This looks like JSON5 (a key without quotes, or a string in single quotes), which KOLONİ does not read')
+  expect(within(read).getByRole('status')).toHaveTextContent(
+    'This looks like JSON5 (a key without quotes, or a string in single quotes), which KOLONİ does not read',
+  )
   expect(read.textContent).not.toContain(TOKEN)
 })
 
 test('two new servers ticked: Add adds both, one request each', async () => {
   const h = handlers()
-  h.onAdd.mockResolvedValueOnce({ ...fetchServer, id: 'a1', name: 'github' }).mockResolvedValueOnce({ ...fetchServer, id: 'a2', name: 'fetch' })
+  h.onAdd
+    .mockResolvedValueOnce({ ...fetchServer, id: 'a1', name: 'github' })
+    .mockResolvedValueOnce({ ...fetchServer, id: 'a2', name: 'fetch' })
   await pasteTab(h, [])
   await userEvent.paste(block)
   await userEvent.click(screen.getByRole('button', { name: 'Add 2 servers' }))
   expect(h.onAdd.mock.calls).toEqual([
-    [{ name: 'github', command: ['npx', '-y', '@modelcontextprotocol/server-github'], env: { GITHUB_PERSONAL_ACCESS_TOKEN: TOKEN } }],
+    [
+      {
+        name: 'github',
+        command: ['npx', '-y', '@modelcontextprotocol/server-github'],
+        env: { GITHUB_PERSONAL_ACCESS_TOKEN: TOKEN },
+      },
+    ],
     [{ name: 'fetch', command: ['uvx', 'mcp-server-fetch'], env: {} }],
   ])
 })
@@ -189,12 +258,18 @@ test('two new servers ticked: Add adds both, one request each', async () => {
 test('servers named __proto__ or constructor, and a variable named __proto__, are read as any other', async () => {
   const h = handlers()
   const page = await pasteTab(h, [])
-  await userEvent.paste('{"mcpServers": {"__proto__": {"command": "a"}, "constructor": {"command": "b", "env": {"__proto__": "v1"}}}}')
+  await userEvent.paste(
+    '{"mcpServers": {"__proto__": {"command": "a"}, "constructor": {"command": "b", "env": {"__proto__": "v1"}}}}',
+  )
   expect(card('__proto__')).toHaveTextContent('needs a name')
   expect(card('constructor')).toHaveTextContent(/^constructorbnew key kept secret$/)
   expect(page.container.querySelector('[role="alert"]')).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Add 1 server' }))
-  expect(h.onAdd).toHaveBeenCalledExactlyOnceWith({ name: 'constructor', command: ['b'], env: JSON.parse('{"__proto__": "v1"}') })
+  expect(h.onAdd).toHaveBeenCalledExactlyOnceWith({
+    name: 'constructor',
+    command: ['b'],
+    env: JSON.parse('{"__proto__": "v1"}'),
+  })
   // from a claude mcp add line too
   cleanup()
   await pasteTab(handlers(), [])
@@ -204,7 +279,14 @@ test('servers named __proto__ or constructor, and a variable named __proto__, ar
 
 test('"Edit before adding" takes the server that needs a value first, though another is ticked', async () => {
   await pasteTab(handlers(), [])
-  await userEvent.paste(JSON.stringify({ mcpServers: { fetch: { command: 'uvx', args: ['mcp-server-fetch'] }, brave: { command: 'npx', args: ['-y', 'brave'], env: { BRAVE_API_KEY: 'YOUR_API_KEY_HERE' } } } }))
+  await userEvent.paste(
+    JSON.stringify({
+      mcpServers: {
+        fetch: { command: 'uvx', args: ['mcp-server-fetch'] },
+        brave: { command: 'npx', args: ['-y', 'brave'], env: { BRAVE_API_KEY: 'YOUR_API_KEY_HERE' } },
+      },
+    }),
+  )
   expect(screen.getByRole('checkbox', { name: 'Add fetch' })).toBeChecked()
   expect(card('brave')).toHaveTextContent('needs a value')
   await userEvent.click(screen.getByRole('button', { name: 'Edit before adding' }))
@@ -218,16 +300,23 @@ test('nothing pasted says so; two values left to the reader are named together, 
   const read = screen.getByRole('region', { name: '2 · What KOLONİ read from it' })
   expect(within(read).getByText('Nothing pasted yet.')).toHaveClass('muted', 'provider-note')
   expect(within(read).queryByRole('list')).toBeNull()
-  await userEvent.paste(JSON.stringify({ command: 'node', args: ['C:/srv/index.js'], env: { API_KEY: '${input:key}', OTHER: '${input:other}' } }))
+  await userEvent.paste(
+    JSON.stringify({
+      command: 'node',
+      args: ['C:/srv/index.js'],
+      env: { API_KEY: '${input:key}', OTHER: '${input:other}' },
+    }),
+  )
   expect(within(read).queryByText('Nothing pasted yet.')).toBeNull()
   expect(screen.getByText(/API_KEY and OTHER have no value in what you pasted:/).closest('p')).toHaveTextContent(
     /^API_KEY and OTHER have no value in what you pasted: “Edit before adding” to type it\.$/,
   )
-  expect(Array.from(card('no name yet').querySelectorAll('.paste-server-tags > .tag'), tag => `${tag.className}: ${tag.textContent}`)).toEqual([
-    'tag tag-ok: new',
-    'tag tag-warn: needs a value',
-    'tag tag-warn: needs a name',
-  ])
+  expect(
+    Array.from(
+      card('no name yet').querySelectorAll('.paste-server-tags > .tag'),
+      tag => `${tag.className}: ${tag.textContent}`,
+    ),
+  ).toEqual(['tag tag-ok: new', 'tag tag-warn: needs a value', 'tag tag-warn: needs a name'])
   expect(screen.getByRole('textbox', { name: 'Name of this server' })).toHaveAttribute('aria-invalid', 'true')
   expect(within(read).queryByText(/The token was in what you pasted|Downloads on first read/)).toBeNull()
 })

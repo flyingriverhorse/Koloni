@@ -7,6 +7,7 @@ changed is left alone. Going back takes it off where the list is still as this m
 Revision ID: 0128
 Revises: 0127
 """
+
 import json
 
 import sqlalchemy as sa
@@ -23,13 +24,44 @@ READ = ["list_dir", "read_file", "search"]
 WRITE = ["write_file", "edit_file"]
 TALK = ["ask_user", "message_agent"]
 KEEP = ["post_note", "read_notes", "remember", "recall"]
-BROWSER = ["browser_open", "browser_screenshot", "browser_click", "browser_type", "browser_key",
-           "browser_scroll", "browser_read", "browser_console"]
+BROWSER = [
+    "browser_open",
+    "browser_screenshot",
+    "browser_click",
+    "browser_type",
+    "browser_key",
+    "browser_scroll",
+    "browser_read",
+    "browser_console",
+]
 ROLES = (
-    ("Lead", [*READ, *WRITE, "show", "run_command", "web_search", "http_request", *BROWSER,
-              "notify", "spawn_agent", "create_role", "add_skill", "ask_user", "ask_folder",
-              "message_agent", "open_room", "discuss", "read_backlog", "add_task", "change_task",
-              "assess_task", "propose_trigger", *KEEP]),
+    (
+        "Lead",
+        [
+            *READ,
+            *WRITE,
+            "show",
+            "run_command",
+            "web_search",
+            "http_request",
+            *BROWSER,
+            "notify",
+            "spawn_agent",
+            "create_role",
+            "add_skill",
+            "ask_user",
+            "ask_folder",
+            "message_agent",
+            "open_room",
+            "discuss",
+            "read_backlog",
+            "add_task",
+            "change_task",
+            "assess_task",
+            "propose_trigger",
+            *KEEP,
+        ],
+    ),
     ("Coder", [*READ, *WRITE, "run_command", *BROWSER, "spawn_agent", *TALK, *KEEP]),
     ("Docs writer", [*READ, *WRITE, *TALK, *KEEP]),
     ("UI designer", [*READ, *WRITE, "show", *BROWSER, *TALK, *KEEP]),
@@ -51,14 +83,18 @@ def _swap(back: bool) -> None:
     bind = op.get_bind()
     for name, was in ROLES:
         old = set(was) - EITHER | ({"diagram_image"} if back else set())
-        for id_, held in bind.execute(sa.text(
-                "SELECT id, tools FROM roles WHERE name = :name AND builtin = 1"), {"name": name}):
+        for id_, held in bind.execute(
+            sa.text("SELECT id, tools FROM roles WHERE name = :name AND builtin = 1"),
+            {"name": name},
+        ):
             tools = json.loads(held) if isinstance(held, str) else held
             if set(tools) - EITHER != old:
                 continue
             new = [tool for tool in tools if tool != "diagram_image"] if back else _with(tools)
-            bind.execute(sa.text("UPDATE roles SET tools = :tools WHERE id = :id"),
-                         {"tools": json.dumps(new), "id": id_})
+            bind.execute(
+                sa.text("UPDATE roles SET tools = :tools WHERE id = :id"),
+                {"tools": json.dumps(new), "id": id_},
+            )
 
 
 def upgrade() -> None:

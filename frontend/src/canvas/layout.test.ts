@@ -3,23 +3,21 @@ import type { Discussion, Room } from '../api/types'
 import { agent, command, convState, fileChange, note, run, toolCall, userMessage } from '../test-fixtures'
 import { deriveGraph, type GraphEdge, type GraphNode, type NodeKind } from './deriveGraph'
 import { foldAll, foldGraph } from './foldGraph'
-import {
-  COL_GAP,
-  FILES_HEAD,
-  FOUND_GAP,
-  NODE_H,
-  NODE_W,
-  ROW_GAP,
-  keepInside,
-  layoutGraph,
-} from './layout'
+import { COL_GAP, FILES_HEAD, FOUND_GAP, NODE_H, NODE_W, ROW_GAP, keepInside, layoutGraph } from './layout'
 import { topicOf } from './thread.fixtures'
 import { oneTurn } from './turns'
 
 const node = (id: string, kind: NodeKind, runId: string, parent?: string, data: object = {}) =>
   ({ id, kind, runId, refId: id, parent, agentId: parent?.split(':')[1], data }) as GraphNode
 const agentNode = (id: string, parentId: string | null = null, data: object = {}) =>
-  ({ id: `agent:${id}`, kind: 'agent', runId: 'a', refId: id, agentId: id, data: { parentId, ...data } }) as unknown as GraphNode
+  ({
+    id: `agent:${id}`,
+    kind: 'agent',
+    runId: 'a',
+    refId: id,
+    agentId: id,
+    data: { parentId, ...data },
+  }) as unknown as GraphNode
 
 const FIRST = NODE_W + COL_GAP // where a turn's lead stands, right of the request
 /** From an agent to the column of those it opened: every agent is one small node (the user's, 5 Nov). */
@@ -52,7 +50,8 @@ function rects(nodes: GraphNode[]): Map<string, Rect> {
   return placed
 }
 const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
-const contains = (box: Rect, r: Rect) => r.x >= box.x && r.y >= box.y && r.x + r.w <= box.x + box.w && r.y + r.h <= box.y + box.h
+const contains = (box: Rect, r: Rect) =>
+  r.x >= box.x && r.y >= box.y && r.x + r.w <= box.x + box.w && r.y + r.h <= box.y + box.h
 
 /** The two things a layout must always give: boxes hold what is in them, and nothing sits on anything else. */
 function expectSound(nodes: GraphNode[]) {
@@ -104,7 +103,13 @@ test('a sub-agent’s box stands right of its parent’s, one under the other, a
 })
 
 test('two boxes one under the other that a findings line joins stand further apart, either way round (slice 84d)', () => {
-  const nodes = [node('request:a', 'request', 'a'), agentNode('lead'), agentNode('rev', 'lead'), agentNode('fix', 'lead'), agentNode('test', 'lead')]
+  const nodes = [
+    node('request:a', 'request', 'a'),
+    agentNode('lead'),
+    agentNode('rev', 'lead'),
+    agentNode('fix', 'lead'),
+    agentNode('test', 'lead'),
+  ]
   const found = (source: string, target: string): GraphEdge => ({ id: 'f', source, target, active: false, findings: 1 })
   const below = (edges: GraphEdge[]) => {
     const { positions: pos } = layoutGraph(nodes, edges)
@@ -114,7 +119,10 @@ test('two boxes one under the other that a findings line joins stand further apa
   expect(below([found('agent:rev', 'agent:fix')])).toEqual([FOUND_GAP, ROW_GAP])
   expect(below([found('agent:test', 'agent:fix')])).toEqual([ROW_GAP, FOUND_GAP])
   // (any other line between them leaves the gap as it was)
-  expect(below([{ id: 't', source: 'agent:rev', target: 'agent:fix', active: false, talk: true }])).toEqual([ROW_GAP, ROW_GAP])
+  expect(below([{ id: 't', source: 'agent:rev', target: 'agent:fix', active: false, talk: true }])).toEqual([
+    ROW_GAP,
+    ROW_GAP,
+  ])
   expect(FOUND_GAP).toBeGreaterThanOrEqual(2 * ROW_GAP)
 })
 
@@ -156,23 +164,53 @@ test('a discussion opened by the lead, and one by a sub-agent: each in its opene
 test('a discussion and a room one agent opened stand in its next column in the order they began, whichever kind came first', () => {
   const at = (s: number) => `2026-10-05T10:00:0${s}Z`
   const room: Room = {
-    id: 'o', run_id: 'r', goal: 'Build it', agent_id: 'lead', status: 'working', outcome: null, why: null,
-    budget: { posts: 40, tokens: null, minutes: 30 }, spent: { posts: 0, tokens: null, minutes: 0 }, summary: null, paused: false,
-    lead_follows: 'off', members: [{ agent_id: 'kid', role: 'Coder', status: 'in' }], created_at: at(1), ended_at: null,
+    id: 'o',
+    run_id: 'r',
+    goal: 'Build it',
+    agent_id: 'lead',
+    status: 'working',
+    outcome: null,
+    why: null,
+    budget: { posts: 40, tokens: null, minutes: 30 },
+    spent: { posts: 0, tokens: null, minutes: 0 },
+    summary: null,
+    paused: false,
+    lead_follows: 'off',
+    members: [{ agent_id: 'kid', role: 'Coder', status: 'in' }],
+    created_at: at(1),
+    ended_at: null,
   }
   const talk: Discussion = {
-    id: 'd', run_id: 'r', agent_id: 'lead', tool_call_id: 'x', topic: 'Ship it?', status: 'ended', outcome: 'agreed', round: 1, max_rounds: 3,
-    created_at: at(0), ended_at: at(0), members: [{ agent_id: 'kid', status: 'in', opened_here: false }],
+    id: 'd',
+    run_id: 'r',
+    agent_id: 'lead',
+    tool_call_id: 'x',
+    topic: 'Ship it?',
+    status: 'ended',
+    outcome: 'agreed',
+    round: 1,
+    max_rounds: 3,
+    created_at: at(0),
+    ended_at: at(0),
+    members: [{ agent_id: 'kid', status: 'in', opened_here: false }],
   }
   // (As the canvas lays them out: through foldGraph, which keeps when each began.)
   const drawn = (rooms: Room[], discussions: Discussion[]) => {
-    const { nodes, edges } = foldGraph(deriveGraph(convState({
-      runs: [run('r')],
-      messages: [userMessage('r', 'x')],
-      agents: [agent('r', 'waiting', { id: 'lead' }), agent('r', 'running', { id: 'kid', parent_agent_id: 'lead', depth: 1, role_name: 'Coder' })],
-      rooms,
-      discussions,
-    })), {})
+    const { nodes, edges } = foldGraph(
+      deriveGraph(
+        convState({
+          runs: [run('r')],
+          messages: [userMessage('r', 'x')],
+          agents: [
+            agent('r', 'waiting', { id: 'lead' }),
+            agent('r', 'running', { id: 'kid', parent_agent_id: 'lead', depth: 1, role_name: 'Coder' }),
+          ],
+          rooms,
+          discussions,
+        }),
+      ),
+      {},
+    )
     const { positions: pos } = layoutGraph(nodes, edges)
     return [pos['discussion:d'], pos['room:o'], pos['agent:kid']]
   }
@@ -192,25 +230,48 @@ test('records with a discussion and notes: the graph drawn from them is sound, o
     messages: [userMessage('r', 'x'), userMessage('s', 'y')],
     agents: [
       ...ids.map((id, index) =>
-        agent('r', 'completed', { id, parent_agent_id: index ? 'lead' : null, depth: index ? 1 : 0, role_name: `Role ${index}` }),
+        agent('r', 'completed', {
+          id,
+          parent_agent_id: index ? 'lead' : null,
+          depth: index ? 1 : 0,
+          role_name: `Role ${index}`,
+        }),
       ),
       agent('s', 'running', { id: 'next' }),
     ],
-    toolCalls: ids.map((id, index) => toolCall(String(index + 1), 'r', 'read_file', 'succeeded', '{}', { agent_id: id })),
+    toolCalls: ids.map((id, index) =>
+      toolCall(String(index + 1), 'r', 'read_file', 'succeeded', '{}', { agent_id: id }),
+    ),
     fileChanges: ids.flatMap(id => [1, 2].map(n => fileChange(`f${n}-${id}`, 'r', { agent_id: id }))),
     discussions: [
       {
-        id: 'd', run_id: 'r', agent_id: 'lead', tool_call_id: 'x', topic: 'Ship it?', status: 'ended', outcome: 'agreed',
-        round: 1, max_rounds: 3, created_at: '2026-10-05T10:00:02Z', ended_at: '2026-10-05T10:00:09Z',
+        id: 'd',
+        run_id: 'r',
+        agent_id: 'lead',
+        tool_call_id: 'x',
+        topic: 'Ship it?',
+        status: 'ended',
+        outcome: 'agreed',
+        round: 1,
+        max_rounds: 3,
+        created_at: '2026-10-05T10:00:02Z',
+        ended_at: '2026-10-05T10:00:09Z',
         members: ids.map(id => ({ agent_id: id, status: 'in' as const, opened_here: false })),
       },
     ],
-    boardPosts: [note('n1', 'r', { agent_id: 'a1' }), note('n2', 'r', { agent_id: null }), note('n3', 's', { agent_id: 'next' })],
+    boardPosts: [
+      note('n1', 'r', { agent_id: 'a1' }),
+      note('n2', 'r', { agent_id: null }),
+      note('n3', 's', { agent_id: 'next' }),
+    ],
   })
   const whole = deriveGraph(state)
-  expect(whole.nodes.filter(n => n.kind === 'shared' || n.kind === 'discussion').map(n => n.id).sort()).toEqual([
-    'discussion:d', 'shared:r:agent:a1', 'shared:r:top', 'shared:s:top',
-  ])
+  expect(
+    whole.nodes
+      .filter(n => n.kind === 'shared' || n.kind === 'discussion')
+      .map(n => n.id)
+      .sort(),
+  ).toEqual(['discussion:d', 'shared:r:agent:a1', 'shared:r:top', 'shared:s:top'])
   expectSound(foldGraph(whole, foldAll(whole, true)).nodes)
   expectSound(foldGraph(whole, foldAll(whole, false)).nodes)
   expectSound(foldGraph(whole, {}).nodes)
@@ -235,8 +296,18 @@ test('a large turn: six agents, each with tools, commands, files and own sub-age
     toolCalls: ids.flatMap(id => [
       toolCall(String(++seq), 'r', 'read_file', 'succeeded', '{}', { agent_id: id }),
       toolCall(`sub-${id}`, 'r', 'claude__Agent', 'running', '{}', { ...cli, agent_id: id, seq: ++seq }),
-      toolCall(`in-${id}`, 'r', 'claude__Read', 'succeeded', '{}', { ...cli, agent_id: id, seq: ++seq, parent_call_id: `sub-${id}` }),
-      toolCall(`run-${id}`, 'r', 'run_command', 'succeeded', '{}', { ...cli, agent_id: id, seq: ++seq, parent_call_id: `sub-${id}` }),
+      toolCall(`in-${id}`, 'r', 'claude__Read', 'succeeded', '{}', {
+        ...cli,
+        agent_id: id,
+        seq: ++seq,
+        parent_call_id: `sub-${id}`,
+      }),
+      toolCall(`run-${id}`, 'r', 'run_command', 'succeeded', '{}', {
+        ...cli,
+        agent_id: id,
+        seq: ++seq,
+        parent_call_id: `sub-${id}`,
+      }),
       toolCall(String(++seq), 'r', 'claude__Grep', 'succeeded', '{}', { ...cli, agent_id: id }),
     ]),
     commands: ids.flatMap(id => [
@@ -249,7 +320,9 @@ test('a large turn: six agents, each with tools, commands, files and own sub-age
   const graph = foldGraph(whole, foldAll(whole, true))
   // 1 request, and an agent's node each: what it did is counted on it (the user's, 5 Nov)
   expect(graph.nodes).toHaveLength(1 + 6)
-  expect(graph.nodes.filter(n => n.kind === 'agent').map(n => (n.data as { summary: string }).summary)).toEqual(Array(6).fill('3 tools · 4 commands · 4 files · 1 own sub-agent'))
+  expect(graph.nodes.filter(n => n.kind === 'agent').map(n => (n.data as { summary: string }).summary)).toEqual(
+    Array(6).fill('3 tools · 4 commands · 4 files · 1 own sub-agent'),
+  )
   expect(Object.values(layoutGraph(graph.nodes).sizes)).toEqual(Array(6).fill({ width: NODE_W, height: NODE_H }))
   expectSound(graph.nodes)
 
@@ -285,7 +358,9 @@ test('records of three turns: each drawn alone, with its boxes open or closed, i
       agent('t', 'running', { id: 'third' }),
     ],
     toolCalls: [...ids, 'second', 'third'].map((id, index) =>
-      toolCall(String(index + 1), id === 'second' ? 's' : id === 'third' ? 't' : 'r', 'read_file', 'succeeded', '{}', { agent_id: id }),
+      toolCall(String(index + 1), id === 'second' ? 's' : id === 'third' ? 't' : 'r', 'read_file', 'succeeded', '{}', {
+        agent_id: id,
+      }),
     ),
     fileChanges: ids.map(id => fileChange(`f-${id}`, 'r', { agent_id: id })),
     boardPosts: [note('n1', 'r', { agent_id: 'a1' })],
@@ -314,17 +389,32 @@ const busy = (over: Parameters<typeof convState>[0] = {}, facts: Record<string, 
     agents: [
       ...ids.map((id, index) =>
         agent('r', 'completed', {
-          id, parent_agent_id: index ? 'lead' : null, depth: index ? 1 : 0, role_name: `Role ${index}`, facts_given: facts[id] ?? [],
+          id,
+          parent_agent_id: index ? 'lead' : null,
+          depth: index ? 1 : 0,
+          role_name: `Role ${index}`,
+          facts_given: facts[id] ?? [],
         }),
       ),
       agent('s', 'running', { id: 'next' }),
     ],
-    toolCalls: ids.map((id, index) => toolCall(String(index + 1), 'r', 'read_file', 'succeeded', '{}', { agent_id: id })),
+    toolCalls: ids.map((id, index) =>
+      toolCall(String(index + 1), 'r', 'read_file', 'succeeded', '{}', { agent_id: id }),
+    ),
     fileChanges: [fileChange('f1', 'r', { agent_id: 'a1' })],
     discussions: [
       {
-        id: 'd', run_id: 'r', agent_id: 'lead', tool_call_id: 'x', topic: 'Ship it?', status: 'ended', outcome: 'agreed',
-        round: 1, max_rounds: 3, created_at: '2026-10-05T10:00:02Z', ended_at: '2026-10-05T10:00:09Z',
+        id: 'd',
+        run_id: 'r',
+        agent_id: 'lead',
+        tool_call_id: 'x',
+        topic: 'Ship it?',
+        status: 'ended',
+        outcome: 'agreed',
+        round: 1,
+        max_rounds: 3,
+        created_at: '2026-10-05T10:00:02Z',
+        ended_at: '2026-10-05T10:00:09Z',
         members: ids.map(id => ({ agent_id: id, status: 'in' as const, opened_here: false })),
       },
     ],
@@ -423,9 +513,12 @@ test('records with a discussion, notes and memory: the graph drawn from them is 
     { lead: ['f1'], a1: ['f1'], a2: ['f1'] },
   )
   const whole = deriveGraph(state)
-  expect(whole.nodes.filter(n => !n.parent && n.kind !== 'agent' && n.kind !== 'request').map(n => n.id).sort()).toEqual([
-    'discussion:d', 'shared:r:agent:a1', 'shared:r:agent:a2', 'shared:r:top',
-  ])
+  expect(
+    whole.nodes
+      .filter(n => !n.parent && n.kind !== 'agent' && n.kind !== 'request')
+      .map(n => n.id)
+      .sort(),
+  ).toEqual(['discussion:d', 'shared:r:agent:a1', 'shared:r:agent:a2', 'shared:r:top'])
   for (const folds of [foldAll(whole, true), foldAll(whole, false), {}]) {
     const drawn = foldGraph(whole, folds)
     expect(drawn.nodes.some(n => n.id === 'shared:r:agent:a2')).toBe(true)
@@ -436,23 +529,30 @@ test('records with a discussion, notes and memory: the graph drawn from them is 
   const [before, after] = [deriveGraph(busy()), whole].map(g => layoutGraph(foldGraph(g, foldAll(g, true)).nodes))
   const lower = after.sizes['shared:r:top'].height + ROW_GAP
   for (const id of ['request:r', 'agent:lead']) expect(after.positions[id]).toEqual(before.positions[id])
-  expect(after.positions['shared:r:top']).toEqual({ x: before.positions['agent:lead'].x + after.sizes['agent:lead'].width + COL_GAP, y: 0 })
-  for (const id of ['agent:a1', 'agent:a2', 'discussion:d']) expect(after.positions[id]).toEqual({ ...before.positions[id], y: before.positions[id].y + lower })
+  expect(after.positions['shared:r:top']).toEqual({
+    x: before.positions['agent:lead'].x + after.sizes['agent:lead'].width + COL_GAP,
+    y: 0,
+  })
+  for (const id of ['agent:a1', 'agent:a2', 'discussion:d'])
+    expect(after.positions[id]).toEqual({ ...before.positions[id], y: before.positions[id].y + lower })
 })
 
 // --- topics (slice 18b) ------------------------------------------------------------------------
 
-test.each([1, 3, 12])('a topic of %i turns: whichever turn is drawn, open or closed, boxes hold their own and nothing overlaps', turns => {
-  const state = topicOf(turns)
-  for (let n = 1; n <= turns; n++) {
-    const own = oneTurn(deriveGraph(state), `t${n}`)
-    for (const folds of [{}, foldAll(own, true), foldAll(own, false)]) {
-      const nodes = foldGraph(own, folds).nodes
-      expectSound(nodes)
-      expect(layoutGraph(nodes).positions[`request:t${n}`]).toEqual({ x: 0, y: 0 })
+test.each([1, 3, 12])(
+  'a topic of %i turns: whichever turn is drawn, open or closed, boxes hold their own and nothing overlaps',
+  turns => {
+    const state = topicOf(turns)
+    for (let n = 1; n <= turns; n++) {
+      const own = oneTurn(deriveGraph(state), `t${n}`)
+      for (const folds of [{}, foldAll(own, true), foldAll(own, false)]) {
+        const nodes = foldGraph(own, folds).nodes
+        expectSound(nodes)
+        expect(layoutGraph(nodes).positions[`request:t${n}`]).toEqual({ x: 0, y: 0 })
+      }
     }
-  }
-})
+  },
+)
 
 test('a plan turn’s Plan node stands under its request, and the next turn below both', () => {
   const { positions: pos } = layoutGraph([
@@ -468,7 +568,12 @@ test('a plan turn’s Plan node stands under its request, and the next turn belo
 test('an approved plan stands over the Lead of its work turn, the request level with the Lead', () => {
   const line: GraphEdge = { id: 'planned:p>agent:a', source: 'planned:p', target: 'agent:a', active: false, plan: true }
   const { positions: pos, lines } = layoutGraph(
-    [node('request:b', 'request', 'b'), node('request:a', 'request', 'a'), node('planned:p', 'plan', 'a'), agentNode('a')],
+    [
+      node('request:b', 'request', 'b'),
+      node('request:a', 'request', 'a'),
+      node('planned:p', 'plan', 'a'),
+      agentNode('a'),
+    ],
     [line],
   )
   const row = NODE_H + ROW_GAP
@@ -479,7 +584,7 @@ test('an approved plan stands over the Lead of its work turn, the request level 
   expect(pos['request:a']).toEqual({ x: 0, y: 2 * row })
 })
 
-test('the Assistant PO stands under all of its turn, in its Lead’s column, and the next turn under it', () => {
+test('the Scout stands under all of its turn, in its Lead’s column, and the next turn under it', () => {
   const { positions: pos } = layoutGraph([
     node('request:a', 'request', 'a'),
     agentNode('a'),
@@ -505,7 +610,10 @@ test('21 Nov: a compare turn’s second Everyone card stands beside its own Orch
   expect(g.nodes.filter(n => n.kind === 'shared').map(n => n.id)).toEqual(['shared:s1:top', 'shared:s2:top'])
   const { positions: pos, lines } = layoutGraph(g.nodes, g.edges)
   for (const side of ['s1', 's2']) {
-    expect(pos[`shared:${side}:top`], side).toEqual({ x: pos[`agent:${side}`].x + NODE_W + COL_GAP, y: pos[`agent:${side}`].y })
+    expect(pos[`shared:${side}:top`], side).toEqual({
+      x: pos[`agent:${side}`].x + NODE_W + COL_GAP,
+      y: pos[`agent:${side}`].y,
+    })
     expect(lines[`shared:shared:${side}:top`], side).toBeDefined()
   }
   expectSound(g.nodes)

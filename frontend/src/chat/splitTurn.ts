@@ -13,15 +13,30 @@ export type Group = { message: Message; pieces: Piece[] }
  * A finished turn's groups: what before its answer folds (null under two steps), what of it stays out - in its order -,
  * and the answer on. Each step is one piece - the Lead's words, a line of calls, a row -, and `calls` all the folded ones.
  */
-export function splitTurn(groups: Group[], answerId: string): { leads: Piece[]; fold: Group[] | null; kept: Group[]; rest: Group[]; count: number; calls: ToolCall[] } {
+export function splitTurn(
+  groups: Group[],
+  answerId: string,
+): { leads: Piece[]; fold: Group[] | null; kept: Group[]; rest: Group[]; count: number; calls: ToolCall[] } {
   const at = groups.findIndex(group => group.message.id === answerId)
   const before = groups.slice(0, Math.max(at, 0))
   // (A message's group split in two keeps its message: kept outside, it is the group it was while the turn ran.)
   const part = (folds: boolean) =>
-    before.map(group => ({ message: group.message, pieces: group.pieces.filter(piece => piece.folds === folds && !piece.leads) })).filter(group => group.pieces.length > 0)
+    before
+      .map(group => ({
+        message: group.message,
+        pieces: group.pieces.filter(piece => piece.folds === folds && !piece.leads),
+      }))
+      .filter(group => group.pieces.length > 0)
   const fold = part(true)
   const count = fold.reduce((n, group) => n + group.pieces.length, 0)
   if (count < 2) return { leads: [], fold: null, kept: [], rest: groups, count, calls: [] }
   const leads = before.flatMap(group => group.pieces.filter(piece => piece.leads))
-  return { leads, fold, kept: part(false), rest: groups.slice(at), count, calls: fold.flatMap(group => group.pieces.flatMap(piece => piece.calls ?? [])) }
+  return {
+    leads,
+    fold,
+    kept: part(false),
+    rest: groups.slice(at),
+    count,
+    calls: fold.flatMap(group => group.pieces.flatMap(piece => piece.calls ?? [])),
+  }
 }

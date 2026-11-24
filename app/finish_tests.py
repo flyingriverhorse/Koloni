@@ -10,17 +10,21 @@ from pathlib import Path
 # (Measured, both exit 1: Windows PowerShell 5.1 "The term 'x' is not recognized as the name of
 # a cmdlet, function, script file, or operable program" + CommandNotFoundException; PowerShell 7
 # "… is not recognized as a name of a cmdlet, function, script file, or executable program".)
-NOT_FOUND = ("not recognized as the name of a cmdlet", "not recognized as a name of a cmdlet",
-             "is not recognized as an internal or external command", "command not found",
-             "No module named pytest")
+NOT_FOUND = (
+    "not recognized as the name of a cmdlet",
+    "not recognized as a name of a cmdlet",
+    "is not recognized as an internal or external command",
+    "command not found",
+    "No module named pytest",
+)
 NOT_FOUND_CODES = (127, 9009)
 
 
-def command_of(root: str, check_command: str | None) -> str | None:
+def command_of(root: str, named: str | None) -> str | None:
     """The project's check command, or one the files of a folder show (S1b, plan decision 11:
     any language): pytest, `npm test`, then each marker of `MARKER_TESTS` in its order."""
-    if check_command:
-        return check_command
+    if named:
+        return named
     folder = Path(root)
     if (folder / "pyproject.toml").is_file() or (folder / "pytest.ini").is_file():
         return "python -m pytest -q"
@@ -70,14 +74,28 @@ MARKER_TESTS: tuple[Callable[[Path], str | None], ...] = (
     lambda folder: "cargo test" if (folder / "Cargo.toml").is_file() else None,
     # (Not -q: it would hide surefire's "Tests run:" line - no count, never saved.)
     lambda folder: "mvn test" if (folder / "pom.xml").is_file() else None,
-    lambda folder: ("./gradlew test" if (folder / "gradlew").is_file() else "gradle test")
-    if _has(folder, "build.gradle", "build.gradle.kts") else None,
+    lambda folder: (
+        ("./gradlew test" if (folder / "gradlew").is_file() else "gradle test")
+        if _has(folder, "build.gradle", "build.gradle.kts")
+        else None
+    ),
     lambda folder: "dotnet test" if _has(folder, "*.sln", "*.csproj", "*.fsproj") else None,
-    lambda folder: "bundle exec rspec" if (folder / "Gemfile").is_file() and (
-        folder / "spec").is_dir() else None,
-    lambda folder: ("composer test" if _script(folder / "composer.json") else
-                    "vendor/bin/phpunit" if _has(folder, "phpunit.xml", "phpunit.xml.dist")
-                    else None) if (folder / "composer.json").is_file() else None,
+    lambda folder: (
+        "bundle exec rspec"
+        if (folder / "Gemfile").is_file() and (folder / "spec").is_dir()
+        else None
+    ),
+    lambda folder: (
+        (
+            "composer test"
+            if _script(folder / "composer.json")
+            else "vendor/bin/phpunit"
+            if _has(folder, "phpunit.xml", "phpunit.xml.dist")
+            else None
+        )
+        if (folder / "composer.json").is_file()
+        else None
+    ),
     lambda folder: "mix test" if (folder / "mix.exs").is_file() else None,
     lambda folder: "swift test" if (folder / "Package.swift").is_file() else None,
     lambda folder: "ctest --test-dir build" if (folder / "CMakeLists.txt").is_file() else None,

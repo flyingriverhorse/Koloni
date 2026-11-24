@@ -34,15 +34,30 @@ def test_with_no_message_waiting_the_question_is_a_card_as_before(
     cid, run_id = start_in_mode(client, project_dir, "ask")
     (question,) = wait_status(client, cid, "waiting_approval")["questions"]
     assert question["question"] == "Which colour?"
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Red"},
-                headers={"Origin": "http://127.0.0.1:8790"})
+    client.post(
+        f"/api/questions/{question['id']}/answer",
+        json={"answer": "Red"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    )
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
 
 
 # --- B-359: ask_user does not offer a Take in card's own words while that card waits ----------
 
-TAKE_IN = step(call("ask_user", {"question": "Take the Coder's work in? And HEAD?", "options": [
-    "Take in, HEAD stays as it is", "Take in, and make HEAD match GET", "Discard the copy"]}, "q1"))
+TAKE_IN = step(
+    call(
+        "ask_user",
+        {
+            "question": "Take the Coder's work in? And HEAD?",
+            "options": [
+                "Take in, HEAD stays as it is",
+                "Take in, and make HEAD match GET",
+                "Discard the copy",
+            ],
+        },
+        "q1",
+    )
+)
 
 
 def test_card_words_are_matched_by_their_leading_words_only():
@@ -65,8 +80,15 @@ def test_while_a_kept_copy_waits_its_take_in_is_not_asked_again(
     gate.wait_partial()
     with client.app.state.session_factory() as session:
         lead = session.query(Agent).filter_by(run_id=run_id).one()
-        session.add(Merge(run_id=run_id, agent_id=lead.id, status="interrupted", files=[],
-                          kept_in=str(project_dir / "kept")))
+        session.add(
+            Merge(
+                run_id=run_id,
+                agent_id=lead.id,
+                status="interrupted",
+                files=[],
+                kept_in=str(project_dir / "kept"),
+            )
+        )
         session.commit()
     gate.release()
     snap = wait_run(client, cid, run_id)
@@ -83,7 +105,9 @@ def test_after_the_user_rejected_this_turn_s_card_its_words_are_not_asked_again(
     from app.agent import CARD_DECIDES
     from app.db.models import Agent, Merge
 
-    asks = step(call("ask_user", {"question": "And now?", "options": ["Take in", "Discard", "Apply"]}))
+    asks = step(
+        call("ask_user", {"question": "And now?", "options": ["Take in", "Discard", "Apply"]})
+    )
     client, _ = make_client([gate.step(asks), text("asked otherwise")])
     cid, run_id = start_in_mode(client, project_dir, "auto_edit")
     gate.wait_partial()
@@ -103,6 +127,9 @@ def test_with_no_card_waiting_take_in_words_are_a_question_as_any(
     client, _ = make_client([TAKE_IN, text("done")])
     cid, run_id = start_in_mode(client, project_dir, "auto_edit")
     (question,) = wait_status(client, cid, "waiting_approval")["questions"]
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Discard the copy"},
-                headers={"Origin": "http://127.0.0.1:8790"})
+    client.post(
+        f"/api/questions/{question['id']}/answer",
+        json={"answer": "Discard the copy"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    )
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"

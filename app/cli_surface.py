@@ -30,11 +30,20 @@ SECONDS = 30.0  # from its start to its answer (Claude Code's own wait: START_SE
 # What each says first in its protocol, as its run says it (`_converse`, `_control`); agy has
 # no protocol, Copilot says its own (`_copilot`).
 FIRST = {
-    "codex": {"jsonrpc": "2.0", "id": 1, "method": "initialize",
-              "params": {"clientInfo": {"name": "koloni", "version": "0"}}},
-    "claude": {"type": "control_request", "request_id": "init", "request": {
-        "subtype": "initialize",
-        "hooks": {"PreToolUse": [{"matcher": None, "hookCallbackIds": [HOOK]}]}}},
+    "codex": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {"clientInfo": {"name": "koloni", "version": "0"}},
+    },
+    "claude": {
+        "type": "control_request",
+        "request_id": "init",
+        "request": {
+            "subtype": "initialize",
+            "hooks": {"PreToolUse": [{"matcher": None, "hookCallbackIds": [HOOK]}]},
+        },
+    },
 }
 
 # shortcut: kept while KOLONİ runs, not on disk: after a restart each new version is asked
@@ -74,8 +83,10 @@ async def checked(client):
             _said.pop(whose, None)
             return client
         # (Ends as the Models card's louder words do: `cards.tsx`.)
-        _said[whose] = (f"agy {version} cannot open sub-agents here (KOLONİ's tools reach agy "
-                        f"from {'.'.join(map(str, BRIDGE_FROM))} on): running the old way")
+        _said[whose] = (
+            f"agy {version} cannot open sub-agents here (KOLONİ's tools reach agy "
+            f"from {'.'.join(map(str, BRIDGE_FROM))} on): running the old way"
+        )
         older = copy.copy(client)
         older.collaborates = False  # (offered none: `AgentRunner._native_work` says so)
         return older
@@ -92,8 +103,9 @@ async def checked(client):
             # shortcut: a slow start (a busy machine) is not kept as a no: asked again next run.
             answered = False
         except Exception:  # (not found, a line it cannot take: its run says so itself)
-            log.warning("%s %s could not be asked its first request", command, version,
-                        exc_info=True)
+            log.warning(
+                "%s %s could not be asked its first request", command, version, exc_info=True
+            )
             return client
     label = SURFACE[command]["label"]
     if answered:
@@ -120,10 +132,17 @@ async def _copilot(client, whose: tuple[str, str]):
         else:
             _said[whose] = f"{label} {version} not measured with KOLONİ"
         return client
-    _said[whose] = f"{label} {version} " + (
-        "not measured" if protocol in PROTOCOLS
-        else "is newer than KOLONİ knows" if protocol > max(PROTOCOLS)
-        else "speaks a protocol KOLONİ does not know") + "; running the old way"
+    _said[whose] = (
+        f"{label} {version} "
+        + (
+            "not measured"
+            if protocol in PROTOCOLS
+            else "is newer than KOLONİ knows"
+            if protocol > max(PROTOCOLS)
+            else "speaks a protocol KOLONİ does not know"
+        )
+        + "; running the old way"
+    )
     return client.talker()
 
 
@@ -139,9 +158,11 @@ async def _shakes(client) -> bool:
         # (Claude Code's line names KOLONİ's bridge with no bridge.json yet: the bridge exits
         # at once, `mcp_bridge.where`, and its server is only missing.)
         arguments = await asyncio.to_thread(
-            client._native_arguments, workdir, workdir / "bridge.json")
-        process, job = await client._start([*command, *arguments], shim, workdir,
-                                      client._native_env(workdir))
+            client._native_arguments, workdir, workdir / "bridge.json"
+        )
+        process, job = await client._start(
+            [*command, *arguments], shim, workdir, client._native_env(workdir)
+        )
         stdin, stdout, errors = process.stdin, process.stdout, process.stderr
         assert stdin is not None and stdout is not None and errors is not None  # all piped
         drained = asyncio.ensure_future(errors.read())  # so that it cannot fill up
@@ -169,6 +190,8 @@ async def _answer(command: str, stdout: asyncio.StreamReader) -> bool:
             return "result" in told
         response = _dict(told.get("response"))
         if told.get("type") == "control_response" and response.get("request_id") == "init":
-            return response.get("subtype") == "success" and _dict(
-                response.get("response")).get("hooks_applied") is True
+            return (
+                response.get("subtype") == "success"
+                and _dict(response.get("response")).get("hooks_applied") is True
+            )
     return False

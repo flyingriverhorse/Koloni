@@ -4,13 +4,14 @@ kept on a card, who is told, and a watch settled when a turn ends - `ObserveMixi
 """
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import os
 import re
 import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -59,8 +60,10 @@ HANDS_CODE_WROTE = (
 
 # K-fikir-okunmamis: the agent that sent a message is told, where the turn it was sent into
 # ended before it read it.
-UNREAD_TOLD = ("KOLONİ: {name} finished its turn before it read your message ({words}); it is on "
-               "its record, read if it is gone on with.")
+UNREAD_TOLD = (
+    "KOLONİ: {name} finished its turn before it read your message ({words}); it is on "
+    "its record, read if it is gone on with."
+)
 
 # A tool of a CLI's own that it said it started and never said it ended.
 NEVER_ENDED = "the CLI started this and never said how it ended: not known whether it finished"
@@ -70,8 +73,9 @@ NEVER_ENDED = "the CLI started this and never said how it ended: not known wheth
 # Measured (REA R127, R128): Codex's imageView, Copilot's view, agy's file reading (its stream
 # names it view_file, AbsolutePath; REA's note read_file). shortcut: Claude Code's Read of an
 # image is not measured, nor Qoder's; take them off if a look is seen named otherwise.
-IMAGE_LOOKS = frozenset({"codex__imageView", "copilot__view", "agy__view_file", "agy__read_file",
-                         "claude__Read"})
+IMAGE_LOOKS = frozenset(
+    {"codex__imageView", "copilot__view", "agy__view_file", "agy__read_file", "claude__Read"}
+)
 
 # A CLI that does not ask before it writes cannot be made to wait: what it changed under
 # another agent is put on record, and that agent is told.
@@ -106,18 +110,25 @@ class ObserveMixin:
             for path in paths if str(here) in self._native_in else ():
                 data = copies._bytes(here / path)
                 self._wrote_for[(str(here), path)] = (
-                    None if data is None else hashlib.sha256(data).hexdigest())
+                    None if data is None else hashlib.sha256(data).hexdigest()
+                )
             await self.seen_in_project(ctx.folder, paths)
         beside = [watch for watches in list(self._watches.values()) for watch in watches]
         for watch in beside:
-            if watch.ctx is None or watch.transcript is None or watch.copy is not copy or (
-                copy is None and watch.ctx.root != ctx.root
+            if (
+                watch.ctx is None
+                or watch.transcript is None
+                or watch.copy is not copy
+                or (copy is None and watch.ctx.root != ctx.root)
             ):
                 continue
             # Its own, or its sub-agent's: taken in when the call it made returns - but not
             # one whose call returned while it works (K-paralel-spawn: `_run_from_cli`).
-            if watch.ctx.agent_id == ctx.agent_id or self._is_above(
-                    watch.ctx.agent_id, ctx) and not self._answers_out.get(watch.ctx.agent_id):
+            if (
+                watch.ctx.agent_id == ctx.agent_id
+                or self._is_above(watch.ctx.agent_id, ctx)
+                and not self._answers_out.get(watch.ctx.agent_id)
+            ):
                 continue
             async with watch.looking:
                 found = await asyncio.to_thread(watch.view.changes)
@@ -162,8 +173,14 @@ class ObserveMixin:
         return self._native.get(conversation_id, 0) > 0
 
     def _note(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript | None", name: str, arguments: dict,
-        status: str | None, result: str | None, message_id: str | None = None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript | None",
+        name: str,
+        arguments: dict,
+        status: str | None,
+        result: str | None,
+        message_id: str | None = None,
         parent: str | None = None,
     ) -> str:
         """Write down a tool the CLI used on its own; returns the call's id. `parent`:
@@ -177,16 +194,21 @@ class ObserveMixin:
             ctx, message_id, [request], origin="cli", parent=parent
         )
         if status:
-            self._set_call(ctx.cid, call_id, status=status, result=result,
-                           started_at=now(), ended_at=now())
+            self._set_call(
+                ctx.cid, call_id, status=status, result=result, started_at=now(), ended_at=now()
+            )
         else:
             self._set_call(ctx.cid, call_id, status="running", started_at=now())
         return call_id
 
     async def _standing_look(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch",
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
         command: str = "",
-        but: set[str] | frozenset[str] = frozenset(), parent: str | None = None,
+        but: set[str] | frozenset[str] = frozenset(),
+        parent: str | None = None,
         approved: bool = False,
     ) -> None:
         """K-yazma-denetimi: a file of the project that tells later turns what they may do or
@@ -196,21 +218,34 @@ class ObserveMixin:
         itself; and at the look just after a `command` what it names (`_command_names`; its
         standing name only where the user `approved` it). Never another agent's names."""
         paths, names = _command_names(
-            command, approved, not self._watched(ctx.run_id) or self._full_auto(ctx))
+            command, approved, not self._watched(ctx.run_id) or self._full_auto(ctx)
+        )
         paths |= watch.named | {one.casefold() for one in but}
         async with watch.looking:
             taken, let = await asyncio.to_thread(
-                _put_back, Path(ctx.folder), watch.standing, paths, names, watch.since,
-                self._taken_folder(ctx))
+                _put_back,
+                Path(ctx.folder),
+                watch.standing,
+                paths,
+                names,
+                watch.since,
+                self._taken_folder(ctx),
+            )
         kept = [rel for rel in let if "*.pth" in names and rel.endswith(".pth")]
         if taken or kept:
             self._taken_back(ctx, taken, transcript.take(), command, parent=parent, kept=kept)
         await self._stand_in_watches(ctx.folder, watch.standing, taken)
 
     async def _own_command_looked(
-        self: "AgentRunner", ctx: Ctx, call_id: str, command: str, before: dict[str, bytes],
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        command: str,
+        before: dict[str, bytes],
         since: float,
-        ended: bool, approved: bool, stand: Mapping[str, Written] | None = None,
+        ended: bool,
+        approved: bool,
+        stand: Mapping[str, Written] | None = None,
     ) -> None:
         """K-yazma-denetimi for a command KOLONİ ran itself (`run_command`): what it wrote of the
         project's standing files (`before`: as they were when it started, at `since`) is put
@@ -221,18 +256,30 @@ class ObserveMixin:
         meanwhile, on record, by path and the digests it left (S6: a test run that outlives its
         turn) - not its to put back while it holds that (`_put_back`)."""
         paths, names = _command_names(
-            command, approved, not self._watched(ctx.run_id) or self._full_auto(ctx))
-        taken, let = await asyncio.shield(asyncio.to_thread(
-            _put_back, Path(ctx.folder), before, paths, names, since, self._taken_folder(ctx),
-            stand))
+            command, approved, not self._watched(ctx.run_id) or self._full_auto(ctx)
+        )
+        taken, let = await asyncio.shield(
+            asyncio.to_thread(
+                _put_back,
+                Path(ctx.folder),
+                before,
+                paths,
+                names,
+                since,
+                self._taken_folder(ctx),
+                stand,
+            )
+        )
         kept = [rel for rel in let if "*.pth" in names and rel.endswith(".pth")]
         cards: list[asyncio.Task] = []
         if taken or kept:
             with self._factory() as session:
                 call = session.get_one(ToolCall, call_id)
                 # (CL-316: KOLONİ's own test run wrote it, not the agent it ran for.)
-                message_id, by = call.message_id, (
-                    TESTS_WROTE if call.provider_call_id.startswith(PROOF_CALL) else None)
+                message_id, by = (
+                    call.message_id,
+                    (TESTS_WROTE if call.provider_call_id.startswith(PROOF_CALL) else None),
+                )
             cards = self._taken_back(ctx, taken, message_id, command, ask=ended, kept=kept, by=by)
         if cards:
             self._on_file_card(call_id)
@@ -268,15 +315,47 @@ class ObserveMixin:
         """Where what a turn takes back is kept first, KOLONİ's own (`_keep_aside`)."""
         return self.settings.runtime_root / "taken-back" / ctx.run_id
 
+    @contextlib.asynccontextmanager
+    async def _looks_held(self: "AgentRunner", project: Path) -> AsyncIterator[None]:
+        """Take in writes a project (`_apply`): no native agent at work there, or in a copy of
+        it, looks meanwhile - a look runs in a thread beside the writes, and one that read a file
+        still half written put it down to its CLI (a macOS runner, 23 Nov: the Lead's last look
+        and its Coder's made.txt). A look waits for the last file written; let go with no await
+        before `_seen_by_watchers`, which marks those files as KOLONİ's before any look goes on.
+        (By the folder as it resolves: a copy's `project` does, an agent's root may not.) Its
+        last looks too, once its watch is out of `_watches` (`_last_looks`)."""
+        here = project.resolve()
+        at_work = [one for watches in list(self._watches.values()) for one in watches]
+        async with contextlib.AsyncExitStack() as held:
+            # (Each once: a lock taken twice would wait for itself.)
+            for watch in {id(one): one for one in [*at_work, *self._last_looks]}.values():
+                if (
+                    watch.ctx is not None
+                    and watch.ctx.root
+                    and Path(watch.ctx.root).resolve() == here
+                ):
+                    await held.enter_async_context(watch.looking)
+            yield
+
     def _watches_in(self: "AgentRunner", root: str) -> list["_Watch"]:
         """The native agents at work in this project folder, in a copy of it too."""
-        return [watch for watches in list(self._watches.values()) for watch in watches
-                if watch.ctx is not None and watch.ctx.root and Path(watch.ctx.root) == Path(root)]
+        return [
+            watch
+            for watches in list(self._watches.values())
+            for watch in watches
+            if watch.ctx is not None and watch.ctx.root and Path(watch.ctx.root) == Path(root)
+        ]
 
     def _taken_back(
-        self: "AgentRunner", ctx: Ctx, taken: "list[Taken]", message_id: str, command: str = "",
+        self: "AgentRunner",
+        ctx: Ctx,
+        taken: "list[Taken]",
+        message_id: str,
+        command: str = "",
         ask: bool = True,
-        parent: str | None = None, kept: list[str] | None = None, by: str | None = None,
+        parent: str | None = None,
+        kept: list[str] | None = None,
+        by: str | None = None,
     ) -> list[asyncio.Task]:
         """Put on record what `_put_back` took back of an agent's (`taken`), and the `.pth`
         files its install added that were `kept` (nobody watching). With somebody watching,
@@ -287,41 +366,77 @@ class ObserveMixin:
         cards: list[asyncio.Task] = []
         held = self._keeps.setdefault(ctx.folder, {})
         for rel in kept or []:
-            self._note(ctx, None, "write_file", {"path": rel}, "succeeded",
-                       f"{quoted(command[:200])} installed {rel}: let stand - whether the install "
-                       "ran was its own approval's", message_id, parent)
+            self._note(
+                ctx,
+                None,
+                "write_file",
+                {"path": rel},
+                "succeeded",
+                f"{quoted(command[:200])} installed {rel}: let stand - whether the install "
+                "ran was its own approval's",
+                message_id,
+                parent,
+            )
         for rel, theirs, failed, said in taken:
             done = "deleted" if theirs is None else "wrote"
             wrote = f"{by or ctx.name} {done} {rel} without naming it"
             if said:
                 wrote += f" ({said})"
             if failed:
-                self._note(ctx, None, "write_file", {"path": rel}, "failed",
-                           f"{wrote}, and it could not be taken back: {failed}", message_id, parent)
+                self._note(
+                    ctx,
+                    None,
+                    "write_file",
+                    {"path": rel},
+                    "failed",
+                    f"{wrote}, and it could not be taken back: {failed}",
+                    message_id,
+                    parent,
+                )
                 continue
             refused = self._nobody_to_ask(
-                ctx, "standing file", f"write {quoted(rel)} without naming it: such a file tells "
-                "later turns what they may do, or runs by itself")
+                ctx,
+                "standing file",
+                f"write {quoted(rel)} without naming it: such a file tells "
+                "later turns what they may do, or runs by itself",
+            )
             # shortcut: a card each for the first KEEP_CARDS of one look, the rest refused; ask
             # about them together if a CLI is seen to write many such files at once.
             if refused is not None or not ask or len(cards) >= KEEP_CARDS:
-                why = refused or ("its turn was over" if not ask else
-                                  f"more than {KEEP_CARDS} at once are not asked about one by one")
-                self._note(ctx, None, "write_file", {"path": rel}, "denied",
-                           f"{wrote}; it was taken back: {why}", message_id, parent)
+                why = refused or (
+                    "its turn was over"
+                    if not ask
+                    else f"more than {KEEP_CARDS} at once are not asked about one by one"
+                )
+                self._note(
+                    ctx,
+                    None,
+                    "write_file",
+                    {"path": rel},
+                    "denied",
+                    f"{wrote}; it was taken back: {why}",
+                    message_id,
+                    parent,
+                )
                 continue
             if rel in held:
                 held[rel][1] = theirs  # (one card: the answer goes for what it wrote last)
                 continue
-            call_id = self._note(ctx, None, "write_file", {"path": rel}, None, None,
-                                 message_id, parent)
+            call_id = self._note(
+                ctx, None, "write_file", {"path": rel}, None, None, message_id, parent
+            )
             card = asyncio.ensure_future(self._keep_or_not(ctx, call_id, rel, command, said, by))
             held[rel] = [card, theirs, ctx.agent_id, ctx.run_id]
             cards.append(card)
         return cards
 
     async def _keep_or_not(
-        self: "AgentRunner", ctx: Ctx, call_id: str, rel: str, command: str, said: str | None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        rel: str,
+        command: str,
+        said: str | None,
         by: str | None = None,
     ) -> None:
         """The card of a standing file `_taken_back` took back: Keep puts what the agent wrote
@@ -330,37 +445,65 @@ class ObserveMixin:
         try:
             theirs = held[rel][1]
             if rel.endswith(".pth") and command and installs(command):
-                question = (f"{ctx.name} ran {quoted(command[:200])}: this install "
-                            f"{'deleted' if theirs is None else 'added'} `{Path(rel).name}`: "
-                            "keep or take back? (It is taken back until you say.)")
+                question = (
+                    f"{ctx.name} ran {quoted(command[:200])}: this install "
+                    f"{'deleted' if theirs is None else 'added'} `{Path(rel).name}`: "
+                    "keep or take back? (It is taken back until you say.)"
+                )
             else:
-                question = (f"{by or ctx.name} {'deleted' if theirs is None else 'wrote'} "
-                            f"`{rel}` without naming it — taken back. Keep it?")
+                question = (
+                    f"{by or ctx.name} {'deleted' if theirs is None else 'wrote'} "
+                    f"`{rel}` without naming it — taken back. Keep it?"
+                )
             if said:
                 question += f" ({said[0].upper()}{said[1:]}.)"
             try:
-                _status, answer = await self._ask_user(ctx, call_id, {
-                    "question": mcp_client.visible(question), "options": ["Keep", "Take back"]},
-                    leave=True)
+                _status, answer = await self._ask_user(
+                    ctx,
+                    call_id,
+                    {"question": mcp_client.visible(question), "options": ["Keep", "Take back"]},
+                    leave=True,
+                )
             except _NobodyToAsk as exc:  # (as where nobody watches: it stays taken back)
-                self._set_call(ctx.cid, call_id, status="denied", ended_at=now(),
-                               result=f"taken back: {rel}: {exc}")
+                self._set_call(
+                    ctx.cid,
+                    call_id,
+                    status="denied",
+                    ended_at=now(),
+                    result=f"taken back: {rel}: {exc}",
+                )
                 return
             theirs = held[rel][1]
             if answer.removeprefix(ANSWER_PREFIX).strip().casefold() != "keep":
-                self._set_call(ctx.cid, call_id, status="denied", ended_at=now(),
-                               result=f"taken back: {rel} (the user's choice)")
+                self._set_call(
+                    ctx.cid,
+                    call_id,
+                    status="denied",
+                    ended_at=now(),
+                    result=f"taken back: {rel} (the user's choice)",
+                )
                 return
             failed = await asyncio.to_thread(_restore, Path(ctx.folder), rel, theirs)
             if failed is None:
                 # (It stands now for every agent at work there: KOLONİ wrote it.)
                 await self.seen_in_project(ctx.folder, {rel})
-            self._set_call(ctx.cid, call_id, status="failed" if failed else "succeeded",
-                           ended_at=now(), result=f"error: it could not be kept: {failed}"
-                           if failed else f"kept: {rel}, as {ctx.name} left it (the user's choice)")
+            self._set_call(
+                ctx.cid,
+                call_id,
+                status="failed" if failed else "succeeded",
+                ended_at=now(),
+                result=f"error: it could not be kept: {failed}"
+                if failed
+                else f"kept: {rel}, as {ctx.name} left it (the user's choice)",
+            )
         except asyncio.CancelledError:
-            self._set_call(ctx.cid, call_id, status="interrupted", ended_at=now(),
-                           result=f"taken back: {rel} (the turn ended before the user answered)")
+            self._set_call(
+                ctx.cid,
+                call_id,
+                status="interrupted",
+                ended_at=now(),
+                result=f"taken back: {rel} (the turn ended before the user answered)",
+            )
             raise
         finally:
             held.pop(rel, None)
@@ -376,8 +519,11 @@ class ObserveMixin:
             await asyncio.wait(cards)
             return ""
 
-        while cards := [card for card, _theirs, whose, run in self._keeps.get(ctx.root, {}).values()
-                        if run == ctx.run_id and (not own or whose == ctx.agent_id)]:
+        while cards := [
+            card
+            for card, _theirs, whose, run in self._keeps.get(ctx.root, {}).values()
+            if run == ctx.run_id and (not own or whose == ctx.agent_id)
+        ]:
             self._update_run(ctx.run_id, ctx.cid, status="waiting_approval")
             try:
                 # (each card was told as it was asked, `_keep_or_not`)
@@ -386,8 +532,14 @@ class ObserveMixin:
                 self._update_run(ctx.run_id, ctx.cid, status="running")
 
     async def _look(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", how: str,
-        parent: str | None = None, command: str = "", approved: bool = False,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        how: str,
+        parent: str | None = None,
+        command: str = "",
+        approved: bool = False,
     ) -> set[str]:
         """Look at the project again, off the event loop, and record what differs.
 
@@ -396,8 +548,7 @@ class ObserveMixin:
         the same moment. `command`: the command that gave cause, where one did - `approved`
         by the user."""
         # (First: a standing file put back is no change of its, and not on its record.)
-        await self._standing_look(ctx, transcript, watch, command, parent=parent,
-                                  approved=approved)
+        await self._standing_look(ctx, transcript, watch, command, parent=parent, approved=approved)
         async with watch.looking:
             found = await asyncio.to_thread(watch.view.changes)
             recorded = self._record_found(ctx, transcript, found, how, parent, watch.copy)
@@ -407,9 +558,15 @@ class ObserveMixin:
             closed = [] if _changes_nothing(ctx) else watch.view.blocked
             for relative in closed[:MAX_CHANGES_PER_LOOK]:
                 # There, but closed to KOLONİ: say so rather than say nothing.
-                self._note(ctx, transcript, "write_file", {"path": relative}, "succeeded",
-                           f"{how}: {relative} (KOLONİ is not allowed to read it, so there "
-                           "is no diff)", parent=parent)
+                self._note(
+                    ctx,
+                    transcript,
+                    "write_file",
+                    {"path": relative},
+                    "succeeded",
+                    f"{how}: {relative} (KOLONİ is not allowed to read it, so there is no diff)",
+                    parent=parent,
+                )
             blocked = set(closed)
         if watch.copy is None and recorded:
             # B-199: its own in the project, not a change there of a CLI at work in a copy
@@ -444,9 +601,13 @@ class ObserveMixin:
         return False
 
     def _record_found(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
-        found: list[tuple[str, str | None, str | None]], how: str,
-        parent: str | None = None, copy: copies.Copy | None = None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        found: list[tuple[str, str | None, str | None]],
+        how: str,
+        parent: str | None = None,
+        copy: copies.Copy | None = None,
     ) -> set[str]:
         """Write down files that differ from what they last held; returns their paths.
         `copy`: the working copy they were found in - then the changes are on record
@@ -460,12 +621,18 @@ class ObserveMixin:
             # (`koloni.WROTE`: the scratch's `.koloni/.gitignore`, the page's rules) is not
             # the CLI's doing either.
             here = str(Path(ctx.folder).resolve())
-            found = [one for one in found if (wrote := koloni.WROTE.get((here, one[0]))) is None
-                     or wrote[0] != (None if one[2] is None else one[2].encode())]
+            found = [
+                one
+                for one in found
+                if (wrote := koloni.WROTE.get((here, one[0]))) is None
+                or wrote[0] != (None if one[2] is None else one[2].encode())
+            ]
             # Nor what KOLONİ wrote there for another agent, taken in from its copy say, and
-            # still as it wrote it - however this look and that write met in time.
-            # shortcut: a write still under way when the look read it (a part of the file) is
-            # put down to the CLI; hold the looks off the writes if that is seen.
+            # still as it wrote it - however this look and that write met in time (a look waits
+            # for Take in's writes, `_looks_held`).
+            # shortcut: another write of KOLONİ's for an agent (its write_file in the project,
+            # a branch's merge) still under way when a look read it is put down to the CLI; hold
+            # the looks off those writes too if that is seen.
             found = [one for one in found if not self._still_wrote_for(here, one)]
         if _changes_nothing(ctx):  # (what changed beside it, at work at once: not its)
             return set()
@@ -473,29 +640,41 @@ class ObserveMixin:
         for relative in sorted(hidden)[:MAX_CHANGES_PER_LOOK]:
             # Maybe the user's own: what a secret file holds is kept nowhere and shown to no
             # model (the Observer reads the agent's changes) - its name only.
-            self._note(ctx, transcript, "write_file", {"path": relative}, "succeeded",
-                       f"{how}: {relative} (a secret file: KOLONİ keeps no copy of it)",
-                       parent=parent)
+            self._note(
+                ctx,
+                transcript,
+                "write_file",
+                {"path": relative},
+                "succeeded",
+                f"{how}: {relative} (a secret file: KOLONİ keeps no copy of it)",
+                parent=parent,
+            )
         found = [one for one in found if one[0] not in hidden]
         if not found:
             return hidden
         message_id = transcript.take()  # one look is one step, however many files
         for relative, before, after in found[:MAX_CHANGES_PER_LOOK]:
-            name = ("delete_file" if after is None
-                    else "write_file" if before is None else "edit_file")
-            call_id = self._note(ctx, transcript, name, {"path": relative}, None, None,
-                                 message_id, parent)
+            name = (
+                "delete_file" if after is None else "write_file" if before is None else "edit_file"
+            )
+            call_id = self._note(
+                ctx, transcript, name, {"path": relative}, None, None, message_id, parent
+            )
             with self._factory() as session:
                 row = FileChange(
-                    run_id=ctx.run_id, agent_id=ctx.agent_id, tool_call_id=call_id,
+                    run_id=ctx.run_id,
+                    agent_id=ctx.agent_id,
+                    tool_call_id=call_id,
                     path=relative,
                     kind="delete" if after is None else "create" if before is None else "modify",
-                    before_content=before, after_content=after or "",
+                    before_content=before,
+                    after_content=after or "",
                     before_sha=sha256_text(before),
                     # A deleted file has no content to take a digest of.
                     after_sha=sha256_text(after) or DELETED_SHA,
                     status="in_copy" if copy else "applied",
-                    decided_at=None if copy else now(), origin="cli",
+                    decided_at=None if copy else now(),
+                    origin="cli",
                 )
                 session.add(row)
                 session.commit()
@@ -504,13 +683,25 @@ class ObserveMixin:
             _, added, removed = unified_diff(before, after or "", relative)
             # (In a copy nothing was changed under anyone: taking it in compares.)
             under_whom = "" if copy else self._changed_under(ctx, relative)
-            self._set_call(ctx.cid, call_id, status="succeeded", ended_at=now(),
-                           result=f"{how}: {relative} (+{added} -{removed}){under_whom}")
+            self._set_call(
+                ctx.cid,
+                call_id,
+                status="succeeded",
+                ended_at=now(),
+                result=f"{how}: {relative} (+{added} -{removed}){under_whom}",
+            )
         more = len(found) - MAX_CHANGES_PER_LOOK
         if more > 0:
-            self._note(ctx, transcript, "files_changed", {"count": more}, "succeeded",
-                       f"{more} more files changed at the same time; they are not recorded "
-                       "one by one", message_id, parent)
+            self._note(
+                ctx,
+                transcript,
+                "files_changed",
+                {"count": more},
+                "succeeded",
+                f"{more} more files changed at the same time; they are not recorded one by one",
+                message_id,
+                parent,
+            )
         return hidden | {relative for relative, _before, _after in found}
 
     def _tell_hands_on(self: "AgentRunner", ctx: Ctx, watch: "_Watch", changed: set[str]) -> None:
@@ -544,14 +735,20 @@ class ObserveMixin:
         held_by = self._ctxs.get(holder)
         if held_by is not None:
             self._send(
-                ctx, held_by, CHANGED_UNDER_YOU.format(path=relative, name=ctx.name),
+                ctx,
+                held_by,
+                CHANGED_UNDER_YOU.format(path=relative, name=ctx.name),
                 delivered=False,
             )
         return "; " + CHANGED_WHILE_HELD.format(name=self._name_of(holder))
 
     async def _observe(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", phase: str,
-        item: dict
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        phase: str,
+        item: dict,
     ) -> None:
         """Turn one thing a native CLI did with its own tools into KOLONİ's records."""
         kind = item.get("type")
@@ -560,8 +757,14 @@ class ObserveMixin:
             return
         self._touch(ctx)
         if kind == "skill_not_given":  # (B-151, `run_native`: said once, as a skill refused)
-            self._note(ctx, transcript, "use_skill", {"name": item.get("name")}, "denied",
-                       f"skill {item.get('name')} was not given to Claude Code: {item.get('why')}")
+            self._note(
+                ctx,
+                transcript,
+                "use_skill",
+                {"name": item.get("name")},
+                "denied",
+                f"skill {item.get('name')} was not given to Claude Code: {item.get('why')}",
+            )
             return
         if kind == "bridge_not_started":  # (B-310, agy's `run_native`: before its task)
             watch.unbridged = True
@@ -569,8 +772,14 @@ class ObserveMixin:
             return
         if kind == "inside_not_given":  # (89g, `run_native`: they are KOLONİ's agents only)
             names = [watch.roles.pop(name, (name, []))[0] for name in item.get("names") or []]
-            self._note(ctx, transcript, "claude__agents", {"roles": names}, "failed",
-                       f"not offered inside Claude Code: {item.get('why')}")
+            self._note(
+                ctx,
+                transcript,
+                "claude__agents",
+                {"roles": names},
+                "failed",
+                f"not offered inside Claude Code: {item.get('why')}",
+            )
             return
         if kind == "structured_report":  # (89p, 93-B6: `ClaudeNativeClient._control`)
             await self._observe_report(ctx, transcript, item)
@@ -580,40 +789,65 @@ class ObserveMixin:
             return
         await self._observe_use(ctx, transcript, watch, phase, item, kind)
 
-    async def _observe_report(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
-                              item: dict) -> None:
+    async def _observe_report(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", item: dict
+    ) -> None:
         """`_observe`: a report handed back in its schema (89p), or why none came."""
         if "asked_again" in item:
-            status, said = "failed", ("its report did not keep to its schema, so it was "
-                                      "asked once more: " + "; ".join(item["asked_again"]))
+            status, said = (
+                "failed",
+                (
+                    "its report did not keep to its schema, so it was "
+                    "asked once more: " + "; ".join(item["asked_again"])
+                ),
+            )
         elif "report" in item:
-            status, said = "succeeded", ("its report came back in its schema: its findings "
-                                         "are read from it")
+            status, said = (
+                "succeeded",
+                ("its report came back in its schema: its findings are read from it"),
+            )
         else:
             why = "; ".join(item.get("errors") or []) or "none came back"
-            status, said = "failed", f"no report in its schema ({why}): its words are its " \
-                                     "report"
+            status, said = "failed", f"no report in its schema ({why}): its words are its report"
         self._note(ctx, transcript, "report_schema", {}, status, said, transcript.said())
         if "report" in item:
             self._schema_reports[ctx.agent_id] = item["report"]  # (what `_found` reads)
             if item["report"]["report"].strip():  # (else its words stand: `report_line`)
                 await transcript.on_text(item["report"]["report"].strip())  # (its last word)
 
-    def _observe_unread(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
-                        item: dict) -> None:
+    def _observe_unread(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", item: dict
+    ) -> None:
         """`_observe`: its turn ended before it read what `steer` sent it (89d)."""
         words = str(item.get("text") or "").removeprefix(f"{STEERED}\n\n")
-        self._note(ctx, transcript, "steer", {}, "failed",
-                   f"{ctx.name or ctx.role} finished before it read: {words}")
+        self._note(
+            ctx,
+            transcript,
+            "steer",
+            {},
+            "failed",
+            f"{ctx.name or ctx.role} finished before it read: {words}",
+        )
         by = self._steered_by.pop(ctx.agent_id, None)
         if by is not None and by[1] == words and (sender := self._ctxs.get(by[0])):
             # (B: the agent that sent it is not left believing it was acted on.)
-            self._send(sender, sender, UNREAD_TOLD.format(
-                name=ctx.name or ctx.role, words=quoted(by[2][:200])),
-                delivered=False, koloni=True)
+            self._send(
+                sender,
+                sender,
+                UNREAD_TOLD.format(name=ctx.name or ctx.role, words=quoted(by[2][:200])),
+                delivered=False,
+                koloni=True,
+            )
 
-    async def _observe_use(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
-                           watch: "_Watch", phase: str, item: dict, kind) -> None:
+    async def _observe_use(
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        phase: str,
+        item: dict,
+        kind,
+    ) -> None:
         """`_observe`, for one use of a tool (its id): announced, refused, a sub-agent of the
         CLI's own, the end of one asked about - else `_observe_done`."""
         use_id = str(item.get("id") or "")
@@ -639,9 +873,16 @@ class ObserveMixin:
             return
         await self._observe_done(ctx, transcript, watch, phase, item, kind, under)
 
-    def _observe_sub_agent(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
-                           watch: "_Watch", phase: str, item: dict, use_id: str,
-                           under) -> None:
+    def _observe_sub_agent(
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        phase: str,
+        item: dict,
+        use_id: str,
+        under,
+    ) -> None:
         """`_observe`: a sub-agent of the CLI's own, started or ended."""
         if phase == "started":
             # A sub-agent of the CLI's own is not an agent of KOLONİ's: one tool call,
@@ -658,20 +899,29 @@ class ObserveMixin:
             if asked and (role or "koloni_role" in said):
                 self._set_call(ctx.cid, asked, arguments=json.dumps(given))
             watch.subs[use_id] = asked or self._note(
-                ctx, transcript, name[:64], given, None, None, parent=under,
+                ctx,
+                transcript,
+                name[:64],
+                given,
+                None,
+                None,
+                parent=under,
             )
             watch.at_work.add(use_id)
         elif use_id in watch.at_work:
             watch.at_work.discard(use_id)
             ended = {"completed": "succeeded", "failed": "failed"}
             self._set_call(
-                ctx.cid, watch.subs[use_id], ended_at=now(),
+                ctx.cid,
+                watch.subs[use_id],
+                ended_at=now(),
                 status=ended.get(str(item.get("status")), "interrupted"),
                 result=str(item.get("text") or "")[:OBSERVED_RESULT_CHARS],
             )
 
-    def _observe_other_end(self: "AgentRunner", ctx: Ctx, watch: "_Watch", use_id: str,
-                           item: dict) -> None:
+    def _observe_other_end(
+        self: "AgentRunner", ctx: Ctx, watch: "_Watch", use_id: str, item: dict
+    ) -> None:
         """`_observe`: the end of a tool the CLI asked leave for in words."""
         call_id = watch.asked_other.pop(use_id)
         failed = bool(item.get("error")) or item.get("status") == "failed"
@@ -683,13 +933,23 @@ class ObserveMixin:
         # (One the CLI never said the end of is not put down as done: `NEVER_ENDED`.)
         ended = item.get("status") == "interrupted"
         self._set_call(
-            ctx.cid, call_id, ended_at=now(),
+            ctx.cid,
+            call_id,
+            ended_at=now(),
             status="interrupted" if ended else "failed" if failed else "succeeded",
             result=NEVER_ENDED if ended else said[:OBSERVED_RESULT_CHARS],
         )
 
-    async def _observe_done(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
-                            watch: "_Watch", phase: str, item: dict, kind, under) -> None:
+    async def _observe_done(
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        phase: str,
+        item: dict,
+        kind,
+        under,
+    ) -> None:
         """`_observe`: a command, a file change, an MCP tool or a web search of the CLI's."""
         if kind == "command_execution":
             await self._observe_command(ctx, transcript, watch, phase, item)
@@ -698,11 +958,19 @@ class ObserveMixin:
         elif kind == "mcp_tool_call" and phase == "completed":
             self._observe_mcp(ctx, transcript, watch, item, under)
         elif kind == "web_search" and phase == "completed":
-            self._note(ctx, transcript, "web_search", {"query": str(item.get("query") or "")},
-                       "succeeded", "", parent=under)
+            self._note(
+                ctx,
+                transcript,
+                "web_search",
+                {"query": str(item.get("query") or "")},
+                "succeeded",
+                "",
+                parent=under,
+            )
 
-    def _observe_mcp(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
-                     watch: "_Watch", item: dict, under) -> None:
+    def _observe_mcp(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", item: dict, under
+    ) -> None:
         """`_observe`: a tool of an MCP server the CLI used, done - refused, cut off, or ended."""
         error = item.get("error")
         said = "".join(
@@ -717,58 +985,108 @@ class ObserveMixin:
         if item.get("status") in ("denied", "declined"):
             # The CLI itself refused its own tool, or KOLONİ declined a request of the
             # CLI's (`CodexNativeClient._decide`): on record as denied, never as done.
-            why = (str(reason) if item["status"] == "declined"
-                   else f"refused by the CLI: {reason or 'no reason given'}")
+            why = (
+                str(reason)
+                if item["status"] == "declined"
+                else f"refused by the CLI: {reason or 'no reason given'}"
+            )
             self._note(
-                ctx, transcript, name[:64], _as_dict(item.get("arguments")), "denied",
-                why[:OBSERVED_RESULT_CHARS], parent=under,
+                ctx,
+                transcript,
+                name[:64],
+                _as_dict(item.get("arguments")),
+                "denied",
+                why[:OBSERVED_RESULT_CHARS],
+                parent=under,
             )
             return
         if item.get("status") == "interrupted":
             # It started, and the CLI never said how it ended: not put down as done.
             self._note(
-                ctx, transcript, name[:64], _as_dict(item.get("arguments")),
-                "interrupted", NEVER_ENDED, parent=under,
+                ctx,
+                transcript,
+                name[:64],
+                _as_dict(item.get("arguments")),
+                "interrupted",
+                NEVER_ENDED,
+                parent=under,
             )
             return
         self._observe_mcp_ended(ctx, transcript, watch, item, under, name, said, failed, reason)
 
-    def _observe_mcp_ended(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
-                           watch: "_Watch", item: dict, under, name: str, said: str,
-                           failed: bool, reason) -> None:
+    def _observe_mcp_ended(
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        item: dict,
+        under,
+        name: str,
+        said: str,
+        failed: bool,
+        reason,
+    ) -> None:
         """`_observe_mcp`: one that ran to its end, on record; an image it looked at, shown."""
         # (One it never asked about: Copilot's own tools, slice 89c; Claude Code's past
         # its hook, slice 89b.)
         unasked = f"{_unasked_note(ctx)}\n" if item.get("unasked") is True else ""
-        result = unasked + (f"error: {reason}" if failed and reason else said)[
-            :OBSERVED_RESULT_CHARS]
+        result = (
+            unasked + (f"error: {reason}" if failed and reason else said)[:OBSERVED_RESULT_CHARS]
+        )
         call_id = self._note(
-            ctx, transcript, name[:64], _as_dict(item.get("arguments")),
-            "failed" if failed else "succeeded", result, parent=under,
+            ctx,
+            transcript,
+            name[:64],
+            _as_dict(item.get("arguments")),
+            "failed" if failed else "succeeded",
+            result,
+            parent=under,
         )
         if not failed and name in IMAGE_LOOKS:
             # Never put to KOLONİ: Codex's imageView (no request comes for it), agy's
             # reading only (no hook), and whatever the CLI says ran unasked.
-            unasked = (name == "codex__imageView" or item.get("unasked") is True
-                       or name.startswith("agy__") and bool(getattr(ctx.model, "reads", False)))
-            self._own_look(ctx, transcript, watch, call_id, name,
-                           _as_dict(item.get("arguments")), result, under, unasked)
+            unasked = (
+                name == "codex__imageView"
+                or item.get("unasked") is True
+                or name.startswith("agy__")
+                and bool(getattr(ctx.model, "reads", False))
+            )
+            self._own_look(
+                ctx,
+                transcript,
+                watch,
+                call_id,
+                name,
+                _as_dict(item.get("arguments")),
+                result,
+                under,
+                unasked,
+            )
 
-    async def _observe_command(self: "AgentRunner", ctx, transcript, watch: "_Watch", phase,
-                               item) -> None:
+    async def _observe_command(
+        self: "AgentRunner", ctx, transcript, watch: "_Watch", phase, item
+    ) -> None:
         cid, run_id = ctx.cid, ctx.run_id
         # Without an id a start and its end cannot be told to belong together.
         item_id = str(item.get("id") or f"anonymous-{phase}-{uuid.uuid4().hex}")
         under = watch.under(item_id)
         if item_id not in watch.commands:
             text = str(item.get("command") or "")
-            call_id = self._note(ctx, transcript, "run_command", {"command": text}, None, None,
-                                 parent=under)
+            call_id = self._note(
+                ctx, transcript, "run_command", {"command": text}, None, None, parent=under
+            )
             with self._factory() as session:
                 row = Command(
-                    run_id=run_id, agent_id=ctx.agent_id, tool_call_id=call_id, command=text,
-                    cwd=None, location="host", status="running", started_at=now(),
-                    timeout_seconds=0, origin="cli",
+                    run_id=run_id,
+                    agent_id=ctx.agent_id,
+                    tool_call_id=call_id,
+                    command=text,
+                    cwd=None,
+                    location="host",
+                    status="running",
+                    started_at=now(),
+                    timeout_seconds=0,
+                    origin="cli",
                 )
                 session.add(row)
                 session.commit()
@@ -791,8 +1109,13 @@ class ObserveMixin:
         with self._factory() as session:
             row = session.get_one(Command, command_id)
             # (B-357: one its CLI was let run and never said a word of: `CodexNativeClient`.)
-            row.status = ("failed_to_start" if item.get("never_started")
-                          else "blocked" if item.get("blocked") else "exited")
+            row.status = (
+                "failed_to_start"
+                if item.get("never_started")
+                else "blocked"
+                if item.get("blocked")
+                else "exited"
+            )
             row.ended_at = now()
             row.exit_code = code if isinstance(code, int) else None
             row.output = output[:MAX_STORED_OUTPUT]
@@ -800,16 +1123,25 @@ class ObserveMixin:
             session.commit()
             payload = command_event(row)
         self.bus.emit(cid, run_id, "command.updated", payload)
-        shown = output if len(output) <= OBSERVED_RESULT_CHARS else (
-            output[:OBSERVED_RESULT_CHARS] + "\n[the rest is in the command's record]" + (
-                RECALL_HINT.format(id=call_id) if getattr(ctx.model, "collaborates", True)
-                and recallable("run_command", None, None, row.command) else ""))
+        shown = (
+            output
+            if len(output) <= OBSERVED_RESULT_CHARS
+            else (
+                output[:OBSERVED_RESULT_CHARS]
+                + "\n[the rest is in the command's record]"
+                + (
+                    RECALL_HINT.format(id=call_id)
+                    if getattr(ctx.model, "collaborates", True)
+                    and recallable("run_command", None, None, row.command)
+                    else ""
+                )
+            )
+        )
         # A CLI that gives no exit code may still say the command failed.
         # K-48: or say it ended well where its sandbox refused it (`model_native.WRITE_REFUSED`).
         blocked = item.get("blocked")
         failed = bool(blocked) or row.exit_code is None and item.get("status") == "failed"
-        ended = ("no exit code reported" if row.exit_code is None
-                 else f"exit code {row.exit_code}")
+        ended = "no exit code reported" if row.exit_code is None else f"exit code {row.exit_code}"
         if item.get("sandboxed") is True:  # in its sandbox, kept from the secret files
             ended += ", sandboxed"
         if blocked:
@@ -819,14 +1151,25 @@ class ObserveMixin:
         result = f"{unasked}{ended}\n{shown}".rstrip()
         status = "failed" if failed else "succeeded"
         self._set_call(cid, call_id, status=status, ended_at=now(), result=result)
-        self._counted(ctx, call_id, ToolCallRequest(
-            call_id, "run_command", json.dumps({"command": row.command})), status, result,
-            own=True)
+        self._counted(
+            ctx,
+            call_id,
+            ToolCallRequest(call_id, "run_command", json.dumps({"command": row.command})),
+            status,
+            result,
+            own=True,
+        )
         # A command can change files without saying so.
         lead = self._own_writes_refused(ctx, watch)
         changed = await self._look(
-            ctx, transcript, watch, LEAD_COMMAND if lead else "changed by a command the CLI ran",
-            under, row.command, item_id in watch.approved)
+            ctx,
+            transcript,
+            watch,
+            LEAD_COMMAND if lead else "changed by a command the CLI ran",
+            under,
+            row.command,
+            item_id in watch.approved,
+        )
         if lead:
             self._tell_hands_on(ctx, watch, changed)
         watch.approved.discard(item_id)
@@ -842,22 +1185,38 @@ class ObserveMixin:
         # (A patch of Codex's was asked about file by file: `parts`, the id of each; and
         # `unasked`, those of its files it changed without being asked about them.)
         for named in [one for one in item.get("unasked") or [] if isinstance(one, str)]:
-            self._note(ctx, transcript, "edit_file", {"path": named}, "succeeded",
-                       f"{_unasked_note(ctx)}: {named}", parent=under)
-        asked = [watch.asked.pop(one) for one in (use_id, *(item.get("parts") or ()))
-                 if one in watch.asked]
+            self._note(
+                ctx,
+                transcript,
+                "edit_file",
+                {"path": named},
+                "succeeded",
+                f"{_unasked_note(ctx)}: {named}",
+                parent=under,
+            )
+        asked = [
+            watch.asked.pop(one)
+            for one in (use_id, *(item.get("parts") or ()))
+            if one in watch.asked
+        ]
         if asked:
             # The changes the user approved: each one's record is its proposal. Whatever
             # else is found is written down; these files are taken in, not recorded twice.
             await self._standing_look(ctx, transcript, watch, parent=under)  # (as `_look`)
             with self._factory() as session:
-                paths = {change_id: session.get_one(FileChange, change_id).path
-                         for _call, change_id in asked}
+                paths = {
+                    change_id: session.get_one(FileChange, change_id).path
+                    for _call, change_id in asked
+                }
             async with watch.looking:
                 found = await asyncio.to_thread(watch.view.changes)
                 self._record_found(
-                    ctx, transcript, [c for c in found if c[0] not in paths.values()],
-                    "changed by the CLI", under, watch.copy,
+                    ctx,
+                    transcript,
+                    [c for c in found if c[0] not in paths.values()],
+                    "changed by the CLI",
+                    under,
+                    watch.copy,
                 )
             declined = "the patch it was part of was declined" if item.get("declined") else None
             for call_id, change_id in asked:
@@ -880,19 +1239,39 @@ class ObserveMixin:
                 # (A file of the project's that was looked at and not found changed: no note.)
                 if straight is None and not failed:
                     where = "its working copy" if watch.copy else "the project folder"
-                    self._note(ctx, transcript, name, {"path": str(path)}, "succeeded",
-                               f"changed a file outside {where}; KOLONİ keeps no copy",
-                               parent=under)
+                    self._note(
+                        ctx,
+                        transcript,
+                        name,
+                        {"path": str(path)},
+                        "succeeded",
+                        f"changed a file outside {where}; KOLONİ keeps no copy",
+                        parent=under,
+                    )
                 continue
             if relative in recorded or how == "delete" or failed:
                 continue  # on record now, or (a deletion) noticed at an earlier look
-            why = ("already shown in the change before" if watch.view.covers(relative)
-                   else "what it held before is not known, so there is no diff")
-            self._note(ctx, transcript, name, {"path": relative}, "succeeded",
-                       f"changed by the CLI: {relative} ({why})", parent=under)
+            why = (
+                "already shown in the change before"
+                if watch.view.covers(relative)
+                else "what it held before is not known, so there is no diff"
+            )
+            self._note(
+                ctx,
+                transcript,
+                name,
+                {"path": relative},
+                "succeeded",
+                f"changed by the CLI: {relative} ({why})",
+                parent=under,
+            )
 
     async def _changed_in_project(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", target: Path,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        target: Path,
         parent: str | None,
     ) -> bool | None:
         """A CLI at work in a copy says it changed a file by a path that is not in the
@@ -911,7 +1290,10 @@ class ObserveMixin:
         return relative in watch.straight
 
     async def _look_at_project(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch",
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
         parent: str | None,
         but: set[str] | frozenset[str] = frozenset(),
     ) -> None:
@@ -930,7 +1312,10 @@ class ObserveMixin:
         # All that is found, not one file alone: a look moves on what was last seen, so
         # what it is not asked about now would be found by no later look.
         watch.straight |= self._record_found(
-            ctx, transcript, [one for one in found if one[0] not in but], IN_THE_PROJECT,
+            ctx,
+            transcript,
+            [one for one in found if one[0] not in but],
+            IN_THE_PROJECT,
             parent,
         )
 
@@ -940,13 +1325,15 @@ class ObserveMixin:
         not run itself cannot be known to have finished."""
         # First what needs no look at the disk: a failure there must not leave these open.
         for call_id in list(watch.asked_other.values()):
-            self._set_call(ctx.cid, call_id, status="interrupted", result=UNFINISHED,
-                           ended_at=now())
+            self._set_call(
+                ctx.cid, call_id, status="interrupted", result=UNFINISHED, ended_at=now()
+            )
         watch.asked_other.clear()
         # A sub-agent of its own that was never said to be done is not known to be.
         for use_id in list(watch.at_work):
-            self._set_call(ctx.cid, watch.subs[use_id], status="interrupted", result=UNFINISHED,
-                           ended_at=now())
+            self._set_call(
+                ctx.cid, watch.subs[use_id], status="interrupted", result=UNFINISHED, ended_at=now()
+            )
         watch.at_work.clear()
         if watch.asked and watch.transcript is not None:
             # What is on disk now: the approved changes are closed by it and taken in,
@@ -959,8 +1346,11 @@ class ObserveMixin:
                 }
             mine = set(paths.values())
             self._record_found(
-                ctx, watch.transcript, [c for c in found if c[0] not in mine],
-                "changed by the CLI", copy=watch.copy,
+                ctx,
+                watch.transcript,
+                [c for c in found if c[0] not in mine],
+                "changed by the CLI",
+                copy=watch.copy,
             )
             for call_id, change_id in list(watch.asked.values()):
                 wrote = next((c for c in found if c[0] == paths[change_id]), None)
@@ -974,13 +1364,18 @@ class ObserveMixin:
                     session.commit()
                 payload = command_event(row)
             self.bus.emit(ctx.cid, ctx.run_id, "command.updated", payload)
-            self._set_call(ctx.cid, call_id, status="interrupted", result=UNFINISHED,
-                           ended_at=now())
+            self._set_call(
+                ctx.cid, call_id, status="interrupted", result=UNFINISHED, ended_at=now()
+            )
         watch.commands.clear()
 
     def _close_asked_change(
-        self: "AgentRunner", ctx: Ctx, call_id: str, change_id: str,
-        wrote: tuple[str, str | None, str | None] | None, failure: str | None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        change_id: str,
+        wrote: tuple[str, str | None, str | None] | None,
+        failure: str | None,
     ) -> None:
         """A change that was approved before the CLI made it: say how it ended."""
         with self._factory() as session:
@@ -999,18 +1394,17 @@ class ObserveMixin:
             path = change.path
         self.bus.emit(ctx.cid, ctx.run_id, "file_change.updated", payload)
         self._set_call(
-            ctx.cid, call_id, ended_at=now(),
+            ctx.cid,
+            call_id,
+            ended_at=now(),
             status="succeeded" if applied else "failed",
-            result=(f"applied: {path} (+{added} -{removed})" if applied
-                    else f"error: {failure}"),
+            result=(f"applied: {path} (+{added} -{removed})" if applied else f"error: {failure}"),
         )
 
     def _settle_session(self: "AgentRunner", ctx: Ctx) -> None:
         """Close what a session that ended on its own left open: this agent's calls,
         changes, commands and questions, and any sub-agent still marked as at work."""
-        self._interrupt_open_calls(
-            ctx.run_id, ctx.cid, ctx.agent_id, ctx.calls_from, ctx.own_calls
-        )
+        self._interrupt_open_calls(ctx.run_id, ctx.cid, ctx.agent_id, ctx.calls_from, ctx.own_calls)
         if ctx.answering:
             return  # its sub-agents are at work for its own, unfinished call
         # Not those an opener did not wait for (`_run_from_cli`, the leads beside them too),
@@ -1022,11 +1416,17 @@ class ObserveMixin:
             for agent in agents:  # stored parents first
                 if agent.parent_agent_id in below and agent.id not in going:
                     below.add(agent.id)
-            left = [a.id for a in agents
-                    if a.id in below - {ctx.agent_id} and a.status not in AGENT_TERMINAL]
+            left = [
+                a.id
+                for a in agents
+                if a.id in below - {ctx.agent_id} and a.status not in AGENT_TERMINAL
+            ]
         for agent_id in left:
             self._interrupt_open_calls(ctx.run_id, ctx.cid, agent_id)
             self._set_agent(
-                ctx.cid, agent_id, status="failed", ended_at=now(),
+                ctx.cid,
+                agent_id,
+                status="failed",
+                ended_at=now(),
                 error="the agent that opened it stopped before it finished",
             )

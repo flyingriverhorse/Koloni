@@ -24,7 +24,8 @@ interface Props {
 }
 
 const MARK: Record<Tone, string> = { ok: '✓', now: '●', warn: '–', bad: '!' }
-const hm = (iso: string) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '')
+const hm = (iso: string) =>
+  iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''
 
 /**
  * What it did, told plainly (design A): its phases in order (`phasesOf`), each with its result in words and what it
@@ -38,7 +39,14 @@ export function Story({ state, agent, asks, onOpenChange, onSelectAgent, asksAbo
   return (
     <ol className="agent-story">
       {phases.map(phase => (
-        <PhaseItem key={phase.calls[0]?.id ?? phase.message?.id ?? phase.kind} state={state} agent={agent} phase={phase} onOpenChange={onOpenChange} onSelectAgent={onSelectAgent} />
+        <PhaseItem
+          key={phase.calls[0]?.id ?? phase.message?.id ?? phase.kind}
+          state={state}
+          agent={agent}
+          phase={phase}
+          onOpenChange={onOpenChange}
+          onSelectAgent={onSelectAgent}
+        />
       ))}
       {waits && (
         <li className="agent-phase agent-phase-asks">
@@ -49,7 +57,11 @@ export function Story({ state, agent, asks, onOpenChange, onSelectAgent, asksAbo
             <div className="agent-phase-head">
               <h4>Waits for you</h4>
             </div>
-            {asksAbove ? <p className="muted">Its decision is on top of this window.</p> : <AsksNow state={state} agent={agent} asks={asks} />}
+            {asksAbove ? (
+              <p className="muted">Its decision is on top of this window.</p>
+            ) : (
+              <AsksNow state={state} agent={agent} asks={asks} />
+            )}
           </div>
         </li>
       )}
@@ -57,7 +69,13 @@ export function Story({ state, agent, asks, onOpenChange, onSelectAgent, asksAbo
   )
 }
 
-function PhaseItem({ state, agent, phase, onOpenChange, onSelectAgent }: Omit<Props, 'asks' | 'asksAbove'> & { phase: Phase }) {
+function PhaseItem({
+  state,
+  agent,
+  phase,
+  onOpenChange,
+  onSelectAgent,
+}: Omit<Props, 'asks' | 'asksAbove'> & { phase: Phase }) {
   const { title, result } = phaseLine(state, phase)
   const tone = phaseTone(state, phase)
   return (
@@ -125,21 +143,33 @@ const BODY: Record<Phase['kind'], (props: BodyProps) => ReactNode> = {
   change: ({ state, phase, onOpenChange }) =>
     phase.calls.map(call => {
       const change = state.fileChanges.find(f => f.tool_call_id === call.id)
-      return change ? <ChangeRow key={call.id} change={change} onOpenChange={onOpenChange} /> : <ToolRow key={call.id} call={call} waits={callWaits(state, call)} sized />
+      return change ? (
+        <ChangeRow key={call.id} change={change} onOpenChange={onOpenChange} />
+      ) : (
+        <ToolRow key={call.id} call={call} waits={callWaits(state, call)} sized />
+      )
     }),
   command: ({ state, phase, open }) => (
     <More title="What happened" open={open}>
       {phase.calls.map(call => {
         const ran = state.commands.find(c => c.tool_call_id === call.id)
-        return ran ? <CommandRow key={call.id} command={ran} failed={call.status === 'failed'} /> : <ToolRow key={call.id} call={call} sized />
+        return ran ? (
+          <CommandRow key={call.id} command={ran} failed={call.status === 'failed'} />
+        ) : (
+          <ToolRow key={call.id} call={call} sized />
+        )
       })}
     </More>
   ),
   opened: ({ state, phase, onSelectAgent }) =>
     state.agents
       .filter(a => a.tool_call_id === phase.calls[0].id)
-      .map(child => <SpawnRow key={child.id} agent={child} onSelect={onSelectAgent} asks={pendingMerge(state, child.id) !== null} />),
-  own: ({ state, phase, onOpenChange }) => <OwnSubAgentBlock state={state} call={phase.calls[0]} onOpenChange={onOpenChange} />,
+      .map(child => (
+        <SpawnRow key={child.id} agent={child} onSelect={onSelectAgent} asks={pendingMerge(state, child.id) !== null} />
+      )),
+  own: ({ state, phase, onOpenChange }) => (
+    <OwnSubAgentBlock state={state} call={phase.calls[0]} onOpenChange={onOpenChange} />
+  ),
   talked: ({ agent, phase, open }) => (
     <More title="What was said" open={open}>
       {phase.calls.map(call => (

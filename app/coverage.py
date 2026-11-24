@@ -16,15 +16,21 @@ from app.workspace import SCRATCH
 
 # A report this big is not read (a project's whole coverage, its every file).
 MOST_REPORT = 20 * 1024 * 1024
-REPORT = {"pytest-cov": "coverage.json", "vitest": "coverage-final.json",
-          "c8": "coverage-final.json"}
+REPORT = {
+    "pytest-cov": "coverage.json",
+    "vitest": "coverage-final.json",
+    "c8": "coverage-final.json",
+}
 # What a runner says of an option it does not know, or of a coverage threshold of the project's
 # that measuring turned on (pytest-cov's, coverage.py's, Vitest's and c8's): the flags failed,
 # not the tests - the run goes again without them.
-FLAGS_FAILED = re.compile(r"unrecognized (?:arguments|option)|unknown option|no such option|"
-                          r"Unknown (?:argument|option)|error: unexpected argument|"
-                          r"Required test coverage of|less than fail-under|"
-                          r"does not meet (?:global )?threshold", re.IGNORECASE)
+FLAGS_FAILED = re.compile(
+    r"unrecognized (?:arguments|option)|unknown option|no such option|"
+    r"Unknown (?:argument|option)|error: unexpected argument|"
+    r"Required test coverage of|less than fail-under|"
+    r"does not meet (?:global )?threshold",
+    re.IGNORECASE,
+)
 # The package managers whose `test` script may run vitest or be run under c8; and node's runners.
 SCRIPTS = frozenset({"npm test", "pnpm test", "yarn test"})
 NODE = SCRIPTS | {"vitest", "jest", "mocha"}
@@ -33,6 +39,7 @@ NODE = SCRIPTS | {"vitest", "jest", "mocha"}
 class Covered(NamedTuple):
     """Of the changed lines a test could run: the share run (None: none could be), and the ones
     no test ran, by path."""
+
     percent: int | None
     uncovered: dict[str, list[int]]
 
@@ -53,8 +60,10 @@ def _package(folder: Path) -> tuple[dict, str]:
         return {}, ""
     if not isinstance(data, dict):
         return {}, ""
-    return ({**(data.get("dependencies") or {}), **(data.get("devDependencies") or {})},
-            str((data.get("scripts") or {}).get("test") or ""))
+    return (
+        {**(data.get("dependencies") or {}), **(data.get("devDependencies") or {})},
+        str((data.get("scripts") or {}).get("test") or ""),
+    )
 
 
 def tool_of(folder: Path, command: str) -> str | None:
@@ -75,8 +84,12 @@ def tool_of(folder: Path, command: str) -> str | None:
     vitest = tool == "vitest" or tool in SCRIPTS and "vitest" in script
     if vitest and ({"@vitest/coverage-v8", "@vitest/coverage-istanbul"} & set(deps)):
         return "vitest"
-    if "c8" in deps and (folder / "node_modules" / ".bin" / ("c8.cmd" if sys.platform == "win32"
-                                                             else "c8")).exists():
+    if (
+        "c8" in deps
+        and (
+            folder / "node_modules" / ".bin" / ("c8.cmd" if sys.platform == "win32" else "c8")
+        ).exists()
+    ):
         return "c8"
     return None
 
@@ -90,8 +103,10 @@ def config_mark(folder: Path) -> str:
     """A folder's coverage settings as they are now: where the flags failed, a change to them
     tries the flags again."""
     digest = hashlib.sha256()
-    names = [*CONFIGS, *sorted({one.name for pattern in CONFIG_GLOBS
-                                for one in folder.glob(pattern)})]
+    names = [
+        *CONFIGS,
+        *sorted({one.name for pattern in CONFIG_GLOBS for one in folder.glob(pattern)}),
+    ]
     for name in names:
         digest.update(name.encode() + b"\0" + _text(folder / name).encode() + b"\0")
     return digest.hexdigest()
@@ -144,8 +159,9 @@ def _rel(root: Path, cwd: str, name: str) -> str:
         return ""
 
 
-def _lines(root: Path, data: dict, tool: str,
-           cwd: str = ".") -> dict[str, tuple[set[int], set[int]]]:
+def _lines(
+    root: Path, data: dict, tool: str, cwd: str = "."
+) -> dict[str, tuple[set[int], set[int]]]:
     """By project path: the lines a test could run, and those it ran."""
     out: dict[str, tuple[set[int], set[int]]] = {}
     if tool == "pytest-cov":
@@ -176,8 +192,9 @@ def _numbers(given: object) -> set[int]:
     return {one for one in given if isinstance(one, int)} if isinstance(given, list) else set()
 
 
-def changed_lines_covered(root: Path, data: dict, tool: str, added: dict[str, list[int]],
-                          cwd: str = ".") -> Covered:
+def changed_lines_covered(
+    root: Path, data: dict, tool: str, added: dict[str, list[int]], cwd: str = "."
+) -> Covered:
     """Of the turn's added lines a test could run (the report's), the share it ran, and those
     it did not, by path. `cwd`: the folder the run ran in, from `root`."""
     lines = _lines(root, data, tool, cwd)

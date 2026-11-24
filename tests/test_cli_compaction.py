@@ -39,25 +39,39 @@ def cli_chat(settings_env, project_dir, wait_run, fake):  # noqa: F811
 
     def make(resumes: bool, window: int | None, qoder: bool = False, summary=None):
         planned = fake(script=[{"say": "OLDWORD fixed it."}])
-        cli = QoderNativeClient(launcher=FAKE, model="Qwen3.8-Flash", timeout=30,
-                                env=dict(planned._env)) if qoder else ClaudeNativeClient(
-            launcher=FAKE, timeout=30, env=dict(planned._env),
-            home=fake.home if resumes else None)
+        cli = (
+            QoderNativeClient(
+                launcher=FAKE, model="Qwen3.8-Flash", timeout=30, env=dict(planned._env)
+            )
+            if qoder
+            else ClaudeNativeClient(
+                launcher=FAKE,
+                timeout=30,
+                env=dict(planned._env),
+                home=fake.home if resumes else None,
+            )
+        )
         # What it is asked with its own tools off (`ask_once`): a step that, as agy's and Codex's,
         # takes no `max_tokens`.
         summariser = ScriptedModel(summary or [text(SUMMARY)])
         cli.talker = lambda: summariser
-        app = create_app(load_settings(settings_env), model=ScriptedModel([]),
-                         clients={"CLI": cli})
+        app = create_app(load_settings(settings_env), model=ScriptedModel([]), clients={"CLI": cli})
         client = TestClient(app, base_url="http://127.0.0.1:8790")
         client.__enter__()
         opened.append(client)
-        provider = client.post("/api/providers", json={
-            "name": "CLI", "kind": "qoder_cli" if qoder else "claude_cli",
-            "mode": "native"}).json()
+        provider = client.post(
+            "/api/providers",
+            json={"name": "CLI", "kind": "qoder_cli" if qoder else "claude_cli", "mode": "native"},
+        ).json()
         if window:  # (None: its role sets none, as a new role's)
-            assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", headers=ORIGIN,
-                                json={"context_window": window}).status_code == 200
+            assert (
+                client.patch(
+                    f"/api/roles/{role_id(client, 'Lead')}",
+                    headers=ORIGIN,
+                    json={"context_window": window},
+                ).status_code
+                == 200
+            )
         cid, run_id = start(client, project_dir, provider, "full_auto")
         wait_run(client, cid, run_id, timeout=30)
 
@@ -67,11 +81,17 @@ def cli_chat(settings_env, project_dir, wait_run, fake):  # noqa: F811
             and the next one says that. `how`: "complain", in words of the CLI's own (its
             stderr); "fail", in its `result`, which can be its model's words."""
             at = len(fake.starts()) + (3 if resumes else 2)
-            fake(script=[*first, {how: fails} if fails else {"say": said}], **(
-                {"at_start": {str(at): then or [{"say": said}]}}
-                if fails and (said or then) else {}))
-            return client.post(f"/api/conversations/{cid}/messages",
-                               json={"content": words}).json()["run"]["id"]
+            fake(
+                script=[*first, {how: fails} if fails else {"say": said}],
+                **(
+                    {"at_start": {str(at): then or [{"say": said}]}}
+                    if fails and (said or then)
+                    else {}
+                ),
+            )
+            return client.post(
+                f"/api/conversations/{cid}/messages", json={"content": words}
+            ).json()["run"]["id"]
 
         def turn(words, said, fails=None, how="complain", first=()):
             snap = wait_run(client, cid, send(words, said, fails, how, first), timeout=30)
@@ -106,14 +126,30 @@ def catalogued(settings_env, window):
     """The runtime's copy of models.dev: the fake CLI's model, with this window."""
     root = Path(settings_env["KOLONI_RUNTIME_ROOT"])
     root.mkdir(parents=True, exist_ok=True)
-    (root / "models_dev.json").write_text(json.dumps({"anthropic": {
-        "id": "anthropic", "name": "Anthropic", "models": {"claude-fake-1": {
-            "id": "claude-fake-1", "name": "Fake", "family": "claude-fake",
-            "limit": {"context": window, "output": 100}}}}}), encoding="utf-8")
+    (root / "models_dev.json").write_text(
+        json.dumps(
+            {
+                "anthropic": {
+                    "id": "anthropic",
+                    "name": "Anthropic",
+                    "models": {
+                        "claude-fake-1": {
+                            "id": "claude-fake-1",
+                            "name": "Fake",
+                            "family": "claude-fake",
+                            "limit": {"context": window, "output": 100},
+                        }
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_with_no_window_on_its_role_it_is_compacted_against_the_catalogues(
-        settings_env, cli_chat, fake):  # noqa: F811
+    settings_env, cli_chat, fake
+):  # noqa: F811
     catalogued(settings_env, 500)  # (its instructions alone fill that)
     turn = cli_chat(resumes=False, window=None)
     turn("now the tests", "Tested.")
@@ -138,7 +174,8 @@ FULL_WORDS = "The context window is full and the request cannot be processed."  
 
 @pytest.mark.parametrize("resumes", [False, True])
 def test_a_turn_refused_for_its_size_is_summarised_and_started_again_once(
-        cli_chat, fake, resumes, caplog):  # noqa: F811
+    cli_chat, fake, resumes, caplog
+):  # noqa: F811
     turn = cli_chat(resumes=resumes, window=10_000_000)  # (never past the threshold by itself)
     turn("now the tests", "Tested.")
     before = len(fake.starts())
@@ -154,11 +191,13 @@ def test_a_turn_refused_for_its_size_is_summarised_and_started_again_once(
     said = [m["content"] for m in turn.snap["messages"] if m["role"] == "koloni"]
     assert said == [STARTED_AGAIN], said
     assert [m["content"] for m in turn.snap["messages"] if m["role"] == "user"].count(
-        "and the docs") == 1  # (the user wrote it once)
+        "and the docs"
+    ) == 1  # (the user wrote it once)
 
 
 def test_refused_again_after_that_it_ends_failed_and_is_not_started_a_third_time(
-        cli_chat, fake, caplog):  # noqa: F811
+    cli_chat, fake, caplog
+):  # noqa: F811
     turn = cli_chat(resumes=False, window=10_000_000)
     turn("now the tests", "Tested.")
     before = len(fake.starts())
@@ -176,8 +215,9 @@ def test_refused_again_after_it_worked_on_it_says_what_to_do(cli_chat, fake, wai
     turn = cli_chat(resumes=False, window=10_000_000)
     turn("now the tests", "Tested.")
     before = len(fake.starts())
-    run_id = turn.send("and the docs", None, fails=TOO_LONG,
-                       then=[{"say": "Half of it."}, {"complain": TOO_LONG}])
+    run_id = turn.send(
+        "and the docs", None, fails=TOO_LONG, then=[{"say": "Half of it."}, {"complain": TOO_LONG}]
+    )
     run = wait_run(turn.client, turn.cid, run_id, timeout=30)["runs"][-1]
     assert run["status"] == "failed", run
     assert run["error"].endswith(FULL_AGAIN + FULL_AGAIN_DO), run["error"]
@@ -185,9 +225,14 @@ def test_refused_again_after_it_worked_on_it_says_what_to_do(cli_chat, fake, wai
 
 
 # (The last two are no refusal for its size: a line KOLONİ could not read or start, `_fits`.)
-@pytest.mark.parametrize("why", [
-    "boom", "Claude Code sent a line too long to read",
-    "its line is 40000 characters, too long for Windows (32767 at most)"])
+@pytest.mark.parametrize(
+    "why",
+    [
+        "boom",
+        "Claude Code sent a line too long to read",
+        "its line is 40000 characters, too long for Windows (32767 at most)",
+    ],
+)
 def test_a_turn_that_failed_otherwise_is_not(cli_chat, fake, why):  # noqa: F811
     turn = cli_chat(resumes=False, window=10_000_000)
     turn("now the tests", "Tested.")
@@ -199,8 +244,7 @@ def test_a_turn_that_failed_otherwise_is_not(cli_chat, fake, why):  # noqa: F811
     assert not turn.summariser.calls and "OLDWORD" in fake.stdin()
 
 
-def test_refused_for_its_size_with_no_older_part_nothing_is_said_of_a_summary(
-        cli_chat, fake):  # noqa: F811
+def test_refused_for_its_size_with_no_older_part_nothing_is_said_of_a_summary(cli_chat, fake):  # noqa: F811
     # (After one turn only: what is before its last answer is the user's, never summarised.)
     turn = cli_chat(resumes=False, window=10_000_000)
     error = turn("now the tests", None, fails=TOO_LONG)
@@ -208,8 +252,7 @@ def test_refused_for_its_size_with_no_older_part_nothing_is_said_of_a_summary(
     assert not turn.summariser.calls and len(fake.starts()) == 2
 
 
-def test_a_refusal_in_words_that_may_be_its_models_is_not_taken_as_one(
-        cli_chat, fake):  # noqa: F811
+def test_a_refusal_in_words_that_may_be_its_models_is_not_taken_as_one(cli_chat, fake):  # noqa: F811
     # (Its `result` with is_error: a page it read could have its model say these words.)
     turn = cli_chat(resumes=False, window=10_000_000)
     turn("now the tests", "Tested.")
@@ -233,7 +276,8 @@ def test_a_refusal_with_a_class_of_its_own_is_no_refusal_for_its_size():
 
 
 def test_a_lead_not_working_alone_is_not_started_again_but_summarised_for_the_next(
-        cli_chat, fake, monkeypatch, caplog):  # noqa: F811
+    cli_chat, fake, monkeypatch, caplog
+):  # noqa: F811
     monkeypatch.setattr(AgentRunner, "_alone", lambda self, ctx: False)
     turn = cli_chat(resumes=False, window=10_000_000)
     turn("now the tests", "Tested.")
@@ -244,8 +288,7 @@ def test_a_lead_not_working_alone_is_not_started_again_but_summarised_for_the_ne
     assert not [m for m in turn.snap["messages"] if m["role"] == "koloni"]
     leads = turn("and the docs", "Documented.")  # (it waits for the summary made after)
     told = fake.stdin()
-    assert SUMMARY in told and "OLDWORD" not in told, (
-        leads[-2]["summary_note"], told, caplog.text)
+    assert SUMMARY in told and "OLDWORD" not in told, (leads[-2]["summary_note"], told, caplog.text)
     assert len(turn.summariser.calls) == 1
 
 
@@ -262,7 +305,8 @@ def test_where_no_summary_can_be_made_it_is_not_started_again(cli_chat, fake):  
 
 
 def test_stop_while_it_is_summarised_stops_the_turn_and_nothing_starts_again(
-        cli_chat, fake, wait_run):  # noqa: F811
+    cli_chat, fake, wait_run
+):  # noqa: F811
     async def held(_on_delta):
         await asyncio.sleep(3600)  # (until Stop cancels it)
 
@@ -282,7 +326,8 @@ def test_stop_while_it_is_summarised_stops_the_turn_and_nothing_starts_again(
 
 
 def test_what_it_wrote_before_it_was_refused_stands_once_after_it_is_started_again(
-        cli_chat, fake, project_dir, caplog):  # noqa: F811
+    cli_chat, fake, project_dir, caplog
+):  # noqa: F811
     turn = cli_chat(resumes=False, window=10_000_000)
     turn("now the tests", "Tested.")
     before = len(fake.starts())
@@ -360,22 +405,34 @@ def test_a_completed_turn_is_looked_at_past_the_threshold_as_before():
         assert _summary_after(a_turn(**{kind: True}), "completed", False) is None, kind
 
 
-@pytest.mark.parametrize("kind, service", [
-    ("claude_cli", "anthropic"), ("codex_cli", "openai"), ("copilot_cli", "github-copilot")])
+@pytest.mark.parametrize(
+    "kind, service",
+    [("claude_cli", "anthropic"), ("codex_cli", "openai"), ("copilot_cli", "github-copilot")],
+)
 def test_a_clis_model_has_its_vendors_catalogued_window(kind, service):
-    copy = models_dev.clean({service: {"id": service, "name": service, "models": {
-        "m-1": {"id": "m-1", "name": "M", "limit": {"context": 500, "output": 100}}}}})
+    copy = models_dev.clean(
+        {
+            service: {
+                "id": service,
+                "name": service,
+                "models": {
+                    "m-1": {"id": "m-1", "name": "M", "limit": {"context": 500, "output": 100}}
+                },
+            }
+        }
+    )
     assert catalog.facts(kind, None, "m-1", copy)[0]["context_window"] == 500
     assert catalog.facts(kind, None, "m-2", copy)[0]["context_window"] is None
     # (On a model server of the user's own, the model is that server's: not the vendor's.)
-    assert catalog.facts(kind, "http://127.0.0.1:8080/v1", "m-1", copy)[0][
-        "context_window"] is None
+    assert catalog.facts(kind, "http://127.0.0.1:8080/v1", "m-1", copy)[0]["context_window"] is None
 
 
 @pytest.mark.parametrize("kind", ["qoder_cli", "agy_cli"])
 def test_qoders_and_agys_models_have_none(kind):
-    assert catalog.facts(kind, None, "Qwen3.8-Flash", models_dev.load(None))[0][
-        "context_window"] is None
+    assert (
+        catalog.facts(kind, None, "Qwen3.8-Flash", models_dev.load(None))[0]["context_window"]
+        is None
+    )
 
 
 def test_below_the_threshold_it_is_not(cli_chat, fake):  # noqa: F811
@@ -408,10 +465,12 @@ def test_a_cli_run_step_by_step_is_asked_a_summary_without_max_tokens():
     # N1: its provider switched to step by step between turns, Compact now asks its step,
     # which takes no `max_tokens` (`CliStepClient.stream_step`).
     class Step(CliStepClient):
-        async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None,
-                              effort=None):
+        async def stream_step(
+            self, model_id, messages, tools, on_delta, on_thinking=None, effort=None
+        ):
             return text(SUMMARY)
 
-    said, _answer = asyncio.run(ask_once(Step(), "m", [{"role": "user", "content": "x"}],
-                                         max_tokens=10))
+    said, _answer = asyncio.run(
+        ask_once(Step(), "m", [{"role": "user", "content": "x"}], max_tokens=10)
+    )
     assert said == SUMMARY

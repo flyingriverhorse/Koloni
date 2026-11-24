@@ -15,18 +15,26 @@ def test_a_rows_state_comes_empty_and_goes_back_with_the_row_kept(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0075")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO teams (id, name, created_at, lead_on, lead_may_pick) "
-                     "VALUES ('g', 'Art', ?, 1, 1)", (AT,))
-        conn.execute("INSERT INTO conversations (id, title, teams_mode, created_at, updated_at) "
-                     "VALUES ('c', 't', 'manual', ?, ?)", (AT, AT))
-        conn.execute("INSERT INTO conversation_teams (id, conversation_id, team_id, picked_by, "
-                     "position) VALUES ('r', 'c', 'g', 'user', 0)")
+        conn.execute(
+            "INSERT INTO teams (id, name, created_at, lead_on, lead_may_pick) "
+            "VALUES ('g', 'Art', ?, 1, 1)",
+            (AT,),
+        )
+        conn.execute(
+            "INSERT INTO conversations (id, title, teams_mode, created_at, updated_at) "
+            "VALUES ('c', 't', 'manual', ?, ?)",
+            (AT, AT),
+        )
+        conn.execute(
+            "INSERT INTO conversation_teams (id, conversation_id, team_id, picked_by, "
+            "position) VALUES ('r', 'c', 'g', 'user', 0)"
+        )
 
     command.upgrade(cfg, "head")
 
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT id, state FROM conversation_teams").fetchall() == [("r", None)]
-        conn.execute("UPDATE conversation_teams SET state = '{\"status\": \"running\"}'")
+        conn.execute('UPDATE conversation_teams SET state = \'{"status": "running"}\'')
 
     command.downgrade(cfg, "0075")
 

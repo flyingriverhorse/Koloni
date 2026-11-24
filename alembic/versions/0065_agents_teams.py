@@ -7,6 +7,7 @@ picks a tier for each job now. A tier the user gave one is kept.
 Revision ID: 0065
 Revises: 0064
 """
+
 import uuid
 from datetime import UTC, datetime
 
@@ -20,27 +21,60 @@ depends_on = None
 
 # As they were when this was written (app.roles): a migration does not follow later code.
 OLD_TIERS = {
-    "Planner": "strongest", "Coder": "strongest", "Tester": "balanced", "Reviewer": "strongest",
-    "Researcher": "balanced", "Debugger": "strongest", "Architect": "strongest",
-    "Security reviewer": "strongest", "Docs writer": "fast", "Refactorer": "balanced",
-    "UI designer": "balanced", "Data analyst": "balanced", "DevOps": "balanced",
-    "Spec writer": "strongest", "Performance engineer": "balanced",
-    "Database engineer": "balanced", "Dependency keeper": "balanced", "Translator": "fast",
-    "Summarizer": "fast", "Product owner": "strongest", "Assistant product owner": "balanced",
+    "Planner": "strongest",
+    "Coder": "strongest",
+    "Tester": "balanced",
+    "Reviewer": "strongest",
+    "Researcher": "balanced",
+    "Debugger": "strongest",
+    "Architect": "strongest",
+    "Security reviewer": "strongest",
+    "Docs writer": "fast",
+    "Refactorer": "balanced",
+    "UI designer": "balanced",
+    "Data analyst": "balanced",
+    "DevOps": "balanced",
+    "Spec writer": "strongest",
+    "Performance engineer": "balanced",
+    "Database engineer": "balanced",
+    "Dependency keeper": "balanced",
+    "Translator": "fast",
+    "Summarizer": "fast",
+    "Product owner": "strongest",
+    "Assistant product owner": "balanced",
     "Observer": "balanced",
 }
 KINDS = {
-    "plan": ("Lead", "Planner", "Architect", "Researcher", "Product owner",
-             "Assistant product owner"),
-    "check": ("Tester", "Reviewer", "Security reviewer", "Performance engineer",
-              "Data analyst", "Observer"),
+    "plan": (
+        "Lead",
+        "Planner",
+        "Architect",
+        "Researcher",
+        "Product owner",
+        "Assistant product owner",
+    ),
+    "check": (
+        "Tester",
+        "Reviewer",
+        "Security reviewer",
+        "Performance engineer",
+        "Data analyst",
+        "Observer",
+    ),
     "write": ("Docs writer", "Spec writer", "Translator", "Summarizer", "Dependency keeper"),
 }
 # Slice 62's ready teams.
 TEAMS = {
     "Web app": ("Coder", "UI designer", "Tester", "Reviewer", "Debugger", "Refactorer"),
-    "Backend / API": ("Coder", "Architect", "Database engineer", "Tester", "Reviewer",
-                      "Security reviewer", "Performance engineer"),
+    "Backend / API": (
+        "Coder",
+        "Architect",
+        "Database engineer",
+        "Tester",
+        "Reviewer",
+        "Security reviewer",
+        "Performance engineer",
+    ),
     "Data": ("Data analyst", "Database engineer", "Researcher", "Reviewer"),
     "Docs": ("Docs writer", "Spec writer", "Translator", "Summarizer"),
     "Ops": ("DevOps", "Security reviewer", "Dependency keeper", "Performance engineer"),
@@ -57,17 +91,20 @@ def upgrade() -> None:
         batch.alter_column("tier", type_=sa.String(length=16), existing_type=sa.String(length=10))
         batch.add_column(sa.Column("tier_min", sa.String(length=10), nullable=True))
         batch.add_column(sa.Column("tier_max", sa.String(length=10), nullable=True))
-        batch.add_column(sa.Column(
-            "kind", sa.String(length=40), server_default="build", nullable=False))
-        batch.add_column(sa.Column(
-            "enabled", sa.Boolean(), server_default=sa.true(), nullable=False))
+        batch.add_column(
+            sa.Column("kind", sa.String(length=40), server_default="build", nullable=False)
+        )
+        batch.add_column(
+            sa.Column("enabled", sa.Boolean(), server_default=sa.true(), nullable=False)
+        )
     with op.batch_alter_table("conversations") as batch:
         batch.add_column(sa.Column("team_id", sa.String(length=32), nullable=True))
     with op.batch_alter_table("agents") as batch:
         batch.add_column(sa.Column("tier", sa.String(length=10), nullable=True))
     with op.batch_alter_table("runs") as batch:
-        batch.add_column(sa.Column(
-            "by_user", sa.Boolean(), server_default=sa.false(), nullable=False))
+        batch.add_column(
+            sa.Column("by_user", sa.Boolean(), server_default=sa.false(), nullable=False)
+        )
     op.create_table(
         "teams",
         sa.Column("id", sa.String(length=32), nullable=False),
@@ -87,25 +124,33 @@ def upgrade() -> None:
 
     bind = op.get_bind()
     for name, tier in OLD_TIERS.items():
-        bind.execute(sa.text(
-            "UPDATE roles SET tier = NULL WHERE builtin AND name = :name AND tier = :tier"
-        ), {"name": name, "tier": tier})
+        bind.execute(
+            sa.text("UPDATE roles SET tier = NULL WHERE builtin AND name = :name AND tier = :tier"),
+            {"name": name, "tier": tier},
+        )
     for kind, names in KINDS.items():
         for name in names:
-            bind.execute(sa.text("UPDATE roles SET kind = :kind WHERE builtin AND name = :name"),
-                         {"kind": kind, "name": name})
+            bind.execute(
+                sa.text("UPDATE roles SET kind = :kind WHERE builtin AND name = :name"),
+                {"kind": kind, "name": name},
+            )
     # The ready teams, once: a fresh database has no roles yet, and its built-in ones join
     # these as they are added (`app.roles.seed_builtin_roles`).
     made = datetime.now(UTC).replace(tzinfo=None).isoformat(" ", "microseconds")
     for team, names in TEAMS.items():
         team_id = uuid.uuid4().hex
-        bind.execute(sa.text("INSERT INTO teams (id, name, created_at) VALUES (:id, :name, :at)"),
-                     {"id": team_id, "name": team, "at": made})
+        bind.execute(
+            sa.text("INSERT INTO teams (id, name, created_at) VALUES (:id, :name, :at)"),
+            {"id": team_id, "name": team, "at": made},
+        )
         for name in names:
-            bind.execute(sa.text(
-                "INSERT INTO role_teams (role_id, team_id) "
-                "SELECT id, :team FROM roles WHERE builtin AND name = :name"
-            ), {"team": team_id, "name": name})
+            bind.execute(
+                sa.text(
+                    "INSERT INTO role_teams (role_id, team_id) "
+                    "SELECT id, :team FROM roles WHERE builtin AND name = :name"
+                ),
+                {"team": team_id, "name": name},
+            )
 
 
 def downgrade() -> None:

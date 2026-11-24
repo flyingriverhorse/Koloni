@@ -1,9 +1,13 @@
 import { expect, test } from './fixtures'
 import { editRole, openFreshConversation, OWN, rail, openAgentFold } from './helpers'
 
-test('a window set in the Lead role is used: past three quarters its older part is summarised, said with the summary to read, and the record is whole', async ({ page, request }) => {
+test('a window set in the Lead role is used: past three quarters its older part is summarised, said with the summary to read, and the record is whole', async ({
+  page,
+  request,
+}) => {
   await openFreshConversation(page)
-  const lead = async () => (await (await request.get('/api/roles')).json()).find((r: { name: string }) => r.name === 'Lead')
+  const lead = async () =>
+    (await (await request.get('/api/roles')).json()).find((r: { name: string }) => r.name === 'Lead')
 
   // The fake model is no llama-server: its window is not found, and the user sets one.
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
@@ -23,12 +27,18 @@ test('a window set in the Lead role is used: past three quarters its older part 
   await expect(chat.getByText('Summarised, and on.')).toBeVisible()
 
   await rail(page, 'Canvas').click()
-  await page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Orchestrator/ }) })
-    .last().locator('.node-title').click()
+  await page
+    .locator('.react-flow__node-agent')
+    .filter({ has: page.locator('.node-title', { hasText: /^Orchestrator/ }) })
+    .last()
+    .locator('.node-title')
+    .click()
   await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Open window' }).click()
   const own = page.getByRole('region', { name: 'Agent window' })
   await openAgentFold(own, 'Details')
-  await expect(own.locator('dt', { hasText: 'Context' }).locator('xpath=following-sibling::dd[1]')).toHaveText(/^12% · 120 in \/ \d+ out$/) // its last step: 120 of 1000
+  await expect(own.locator('dt', { hasText: 'Context' }).locator('xpath=following-sibling::dd[1]')).toHaveText(
+    /^12% · 120 in \/ \d+ out$/,
+  ) // its last step: 120 of 1000
   await own.getByText('2 messages summarised for its model').click()
   await expect(own.getByText('SUMMARY: hello.py prints hi.')).toBeVisible()
   // The record is whole: both calls are in its steps.

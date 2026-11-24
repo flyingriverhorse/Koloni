@@ -27,8 +27,7 @@ def test_the_last_steps_of_a_roles_limit_are_said_before_they_are_taken(
 def test_an_agent_near_its_roles_tokens_is_told_how_far_it_has_gone(
     make_client, wait_run, project_dir
 ):
-    client, model = make_client({"Lead": [spawn("Coder"), looks(9)],
-                                 "Coder": [looks(1), looks(2)]})
+    client, model = make_client({"Lead": [spawn("Coder"), looks(9)], "Coder": [looks(1), looks(2)]})
     client.headers["Origin"] = ORIGIN
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"max_tokens": 7})
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")

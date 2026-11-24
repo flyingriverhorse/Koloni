@@ -29,12 +29,19 @@ function shownRun(conv: ConvState): Run | null {
 /** Whom the bar names, and how many of the turn's agents are at work. */
 function atWorkIn(conv: ConvState, run: Run) {
   // While a sub-agent is the one at work, say which.
-  const worker = !TERMINAL.has(run.status) ? conv.agents.findLast(a => a.run_id === run.id && a.depth > 0 && a.status === 'running') : undefined
+  const worker = !TERMINAL.has(run.status)
+    ? conv.agents.findLast(a => a.run_id === run.id && a.depth > 0 && a.status === 'running')
+    : undefined
   // Several may be at work at the same time.
-  const atWork = !TERMINAL.has(run.status) ? conv.agents.filter(a => a.run_id === run.id && a.status === 'running').length : 0
+  const atWork = !TERMINAL.has(run.status)
+    ? conv.agents.filter(a => a.run_id === run.id && a.status === 'running').length
+    : 0
   // The turn waits for your word on what an agent changed in its working copy: that agent
   // is done, and is the one to name - not whoever else is still at work.
-  const decides = run.status === 'waiting_approval' ? conv.agents.find(a => a.run_id === run.id && pendingMerge(conv, a.id) !== null) : undefined
+  const decides =
+    run.status === 'waiting_approval'
+      ? conv.agents.find(a => a.run_id === run.id && pendingMerge(conv, a.id) !== null)
+      : undefined
   return { named: decides ?? (atWork > 1 ? undefined : worker), atWork }
 }
 
@@ -47,7 +54,13 @@ function atWorkIn(conv: ConvState, run: Run) {
  */
 function leadContext(conv: ConvState, run: Run) {
   const lead = conv.agents.find(a => a.run_id === run.id && a.depth === 0 && a.started_at)
-  return lead && (contextFull(lead.input_tokens, lead.context_window) ?? (lead.provider_mode || lead.input_tokens === null ? 'context –' : `context ${lead.input_tokens.toLocaleString('en-US')} tokens`))
+  return (
+    lead &&
+    (contextFull(lead.input_tokens, lead.context_window) ??
+      (lead.provider_mode || lead.input_tokens === null
+        ? 'context –'
+        : `context ${lead.input_tokens.toLocaleString('en-US')} tokens`))
+  )
 }
 
 /** The turn the bar reports on: its word (or, waiting, whom), its tokens, and its lead's context. */
@@ -60,7 +73,8 @@ function runTag(conv: ConvState, run: Run) {
         <span className="dot" />
         {/* (Waiting: the dot and whom - how many wait, and the way there, is the Ready pill beside it: tek-ev §1.) */}
         {run.status === 'waiting_approval' ? named && (named.name || named.role_name) : LABEL[run.status][0]}
-        {run.status !== 'waiting_approval' && (named ? ` · ${named.name || named.role_name}` : atWork > 1 && ` · ${atWork} agents`)}
+        {run.status !== 'waiting_approval' &&
+          (named ? ` · ${named.name || named.role_name}` : atWork > 1 && ` · ${atWork} agents`)}
       </span>
       <span className="mono muted topbar-tokens">{partTokens(conv, run) ?? tokens(turnTokens(conv, run))}</span>
       {full && <Contexts conv={conv} run={run} label={full} />}
@@ -91,13 +105,21 @@ function Contexts({ conv, run, label }: { conv: ConvState; run: Run; label: stri
   const { open, setOpen, close, button, panel } = usePanel()
   return (
     <>
-      <button ref={button} type="button" className="mono muted topbar-context" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
+      <button
+        ref={button}
+        type="button"
+        className="mono muted topbar-context"
+        aria-expanded={open}
+        onClick={() => (open ? close() : setOpen(true))}
+      >
         {label}
       </button>
       {open && (
         <div ref={panel} tabIndex={-1} className="allow-list-panel" role="dialog" aria-label="Each agent’s context">
           <div className="kicker">Each agent’s context</div>
-          <p className="muted context-note">Its last step’s input, of its model’s window: after Compact now, until its next step.</p>
+          <p className="muted context-note">
+            Its last step’s input, of its model’s window: after Compact now, until its next step.
+          </p>
           <ul className="context-list">
             {/* (Not one that never started: proposed, rejected, or stopped before it began.) */}
             {conv.agents
@@ -113,7 +135,9 @@ function Contexts({ conv, run, label }: { conv: ConvState; run: Run; label: stri
                     </span>
                   </div>
                   {a.compacts_itself ? (
-                    <span className="muted context-note">{a.provider_mode === 'step' ? STEP_TRIMMED : 'compacts itself'}</span>
+                    <span className="muted context-note">
+                      {a.provider_mode === 'step' ? STEP_TRIMMED : 'compacts itself'}
+                    </span>
                   ) : (
                     // (The agent window's Edit is not locked meanwhile: the server refuses its Save while this compacts.)
                     <CompactNow agent={a} goesOn={conv.agents.some(b => b.continues_id === a.id)} onBusy={() => {}} />

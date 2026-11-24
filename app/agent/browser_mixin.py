@@ -47,8 +47,9 @@ SITE_UNWATCHED = (
 )
 
 # S5b: KOLONİ's Tester at its live try opens this machine's preview alone.
-TRY_ONLY_HERE = ("browser_open is not available here: KOLONİ's Tester opens the preview it "
-                 "tries alone, {url}")
+TRY_ONLY_HERE = (
+    "browser_open is not available here: KOLONİ's Tester opens the preview it tries alone, {url}"
+)
 
 KEY_HELD = (
     "not pressed: on a site, a key goes into a password field (or a field KOLONİ cannot see, "
@@ -71,8 +72,9 @@ def _number(args: dict, key: str) -> float | None:
 class BrowserMixin:
     # --- the agent's own browser (slice 51, `app.browser`) -----------------------------
 
-    async def _browser(self: "AgentRunner", ctx: Ctx, ws: Workspace, call_id: str, name: str,
-                       args: dict) -> str:
+    async def _browser(
+        self: "AgentRunner", ctx: Ctx, ws: Workspace, call_id: str, name: str, args: dict
+    ) -> str:
         """A browser tool: on the agent's own headless browser, started at its first. Only
         this machine's previews are opened (`browser.allowed`) - nor is anything a page loads
         by itself that is not (`Browser._judge`); what was refused ends the result. Nobody is
@@ -140,14 +142,23 @@ class BrowserMixin:
         except browser.BrowserError as exc:
             raise ToolError(str(exc)) from None
         tried = self._try_agents.get(ctx.agent_id)
-        if tried is not None and name == "browser_open" and (
-                site is not None or browser.origin(args.get("url")) != browser.origin(tried)):
+        if (
+            tried is not None
+            and name == "browser_open"
+            and (site is not None or browser.origin(args.get("url")) != browser.origin(tried))
+        ):
             raise ToolError(TRY_ONLY_HERE.format(url=tried))
         return site
 
     async def _browser_does(
-        self: "AgentRunner", ctx: Ctx, ws: Workspace, call_id: str, name: str, args: dict,
-        one: "browser.Browser", site: str | None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        ws: Workspace,
+        call_id: str,
+        name: str,
+        args: dict,
+        one: "browser.Browser",
+        site: str | None,
     ) -> str:
         """`_browser`'s tool itself, on the agent's browser as it stands: what it says."""
         if name == "browser_open" and site is not None:
@@ -163,9 +174,13 @@ class BrowserMixin:
         elif name == "browser_screenshot":
             said = await self._shot(ctx, one, call_id, args.get("marks") is True)
         elif name == "browser_click":
-            at, named = await one.point(args.get("selector"), args.get("text"),
-                                        _number(args, "x"), _number(args, "y"),
-                                        _number(args, "mark"))
+            at, named = await one.point(
+                args.get("selector"),
+                args.get("text"),
+                _number(args, "x"),
+                _number(args, "y"),
+                _number(args, "mark"),
+            )
             if one.away:
                 await self._page_stop(ctx, call_id, one, "click", await one.what(at=at))
             said = await one.click_at(at, named)
@@ -173,9 +188,12 @@ class BrowserMixin:
             if not isinstance(args.get("text"), str):
                 raise ToolError("missing required argument: text")
             said = await one.type(
-                args.get("selector"), args["text"],
+                args.get("selector"),
+                args["text"],
                 (lambda found: self._page_stop(ctx, call_id, one, "type", found))
-                if one.away else None)
+                if one.away
+                else None,
+            )
         elif name == "browser_key":
             said = await self._browser_key(ctx, call_id, one, args)
         else:
@@ -185,8 +203,9 @@ class BrowserMixin:
             said = await one.scroll(dy)
         return said
 
-    async def _browser_key(self: "AgentRunner", ctx: Ctx, call_id: str, one: "browser.Browser",
-                           args: dict) -> str:
+    async def _browser_key(
+        self: "AgentRunner", ctx: Ctx, call_id: str, one: "browser.Browser", args: dict
+    ) -> str:
         """`_browser`'s browser_key: a key pressed, held on a site's page as a click is."""
         if not isinstance(args.get("key"), str):
             raise ToolError("missing required argument: key")
@@ -212,8 +231,11 @@ class BrowserMixin:
         with self._factory() as session:
             project = self._project(session, ctx.cid)
         # (As `_web`: the user took the network from this project - no tool is a way round.)
-        if project is not None and project.exec_location == "docker" and not (
-                project.docker_network):
+        if (
+            project is not None
+            and project.exec_location == "docker"
+            and not (project.docker_network)
+        ):
             raise ToolError(NETWORK_OFF)
         if self._site_unwatched(ctx):
             raise _NobodyToAsk(SITE_UNWATCHED.format(host=host))
@@ -230,8 +252,14 @@ class BrowserMixin:
         # for this browser alone, whichever button.)
         return decision == "once" or marked is True
 
-    async def _page_stop(self: "AgentRunner", ctx: Ctx, call_id: str, one: "browser.Browser",
-                         action: str, found: object) -> None:
+    async def _page_stop(
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        one: "browser.Browser",
+        action: str,
+        found: object,
+    ) -> None:
         """K-tarayici-disari A2: on a site's page, an action that sends a form, types into a
         password field or clicks words like Sign in or Pay (`browser.stop`) waits for the
         user's yes on the web card - at every level, Full auto too; refused where nobody
@@ -256,8 +284,12 @@ class BrowserMixin:
         if not self._watched(ctx.run_id) or ctx.run_id in self._away_jobs:
             return True
         with self._factory() as session:
-            return session.scalar(select(BacklogTask.id).where(
-                BacklogTask.conversation_id == ctx.cid).limit(1)) is not None
+            return (
+                session.scalar(
+                    select(BacklogTask.id).where(BacklogTask.conversation_id == ctx.cid).limit(1)
+                )
+                is not None
+            )
 
     def _page_rules(self: "AgentRunner", cid: str) -> dict[str, bool]:
         """The sites the project's agents open (K-tarayici-disari), each with its Ask first
@@ -265,13 +297,18 @@ class BrowserMixin:
         asked about if either says so."""
         marks: dict[str, bool] = {}
         with self._factory() as session:
-            for rule in session.scalars(web_rules_here(session.get_one(Conversation, cid))
-                                        .where(AllowedWeb.kind == "page")):
+            for rule in session.scalars(
+                web_rules_here(session.get_one(Conversation, cid)).where(AllowedWeb.kind == "page")
+            ):
                 marks[rule.host] = marks.get(rule.host, False) or rule.ask_first
         return marks
 
-    def _scratch_folder(self: "AgentRunner", ctx: Ctx, sub: str = "browser",
-                        what: str = "the browser is not started there") -> Path:
+    def _scratch_folder(
+        self: "AgentRunner",
+        ctx: Ctx,
+        sub: str = "browser",
+        what: str = "the browser is not started there",
+    ) -> Path:
         """`.koloni/tmp/<sub>` of the project, looked at from the root down: a link (a
         junction at .koloni/tmp) would put the profile and the screenshots outside it."""
         root = Path(ctx.folder).resolve()
@@ -306,8 +343,11 @@ class BrowserMixin:
         try:
             data = views.read_file(ws, rel, IMAGE_MOST)
         except views.Refused as exc:
-            raise ToolError(f"{path!r} is over {IMAGE_MOST // 2**20} MB" if exc.status == 413
-                            else f"{path!r}: {exc}") from None
+            raise ToolError(
+                f"{path!r} is over {IMAGE_MOST // 2**20} MB"
+                if exc.status == 413
+                else f"{path!r}: {exc}"
+            ) from None
         kind, mime = attachments.kind_of(data, rel)
         if kind != "image":
             raise ToolError(f"{path!r} is not an image by its bytes: PNG, JPEG, GIF or WebP")
@@ -321,8 +361,10 @@ class BrowserMixin:
         if "image" not in takes:
             return f"{_who(ctx)} does not take images; its size is {said}{copy}"
         if len(data) > most:  # (never more than the view serves: `_history` sends the copy)
-            return (f"{rel}, {said}: over {attachments.size_text(most)}, too big to be shown "
-                    f"to {_who(ctx)} as it is{copy}")
+            return (
+                f"{rel}, {said}: over {attachments.size_text(most)}, too big to be shown "
+                f"to {_who(ctx)} as it is{copy}"
+            )
         if in_result:
             self._in_result[call_id] = (mime, data)
             return f"{rel}, {said}: {IMAGE_HERE}{copy}"
@@ -330,8 +372,9 @@ class BrowserMixin:
             return f"{rel}, {said}: not shown to you{copy}"
         return f"{rel}, {said}: {IMAGE_SHOWN}{copy}"
 
-    def _image_copy(self: "AgentRunner", ctx: Ctx, call_id: str, rel: str, data: bytes,
-                    mime: str) -> str:
+    def _image_copy(
+        self: "AgentRunner", ctx: Ctx, call_id: str, rel: str, data: bytes, mime: str
+    ) -> str:
         """A copy of an image an agent looked at, under the scratch, put before the user under
         its call's step (`app.views` serves it under the call's id). What its result says of
         that, at its end: the copy (`UNDER_STEP`), or why there is none - too big for the view
@@ -355,29 +398,47 @@ class BrowserMixin:
             target.mkdir(parents=True, exist_ok=True)
             (target / name).write_bytes(data)
         except OSError as exc:
-            return (" (not shown under the step: its copy could not be written: "
-                    f"{exc.strerror or exc})")
+            return (
+                f" (not shown under the step: its copy could not be written: {exc.strerror or exc})"
+            )
         copy = f"{koloni.SCRATCH}/images/{folder}/{name}"
         with self._factory() as session:
-            session.add(ShownFile(id=call_id, conversation_id=ctx.cid, agent_id=ctx.agent_id,
-                                  path=copy))
+            session.add(
+                ShownFile(id=call_id, conversation_id=ctx.cid, agent_id=ctx.agent_id, path=copy)
+            )
             session.commit()
-        self.bus.emit(ctx.cid, ctx.run_id, "view.shown", {
-            "id": call_id, "path": copy, "agent_id": ctx.agent_id, "note": None})
+        self.bus.emit(
+            ctx.cid,
+            ctx.run_id,
+            "view.shown",
+            {"id": call_id, "path": copy, "agent_id": ctx.agent_id, "note": None},
+        )
         return f"{UNDER_STEP}{copy})"
 
-    def _own_look(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch",
-                  call_id: str,
-                  name: str, args: dict, said: str, under: str | None, unasked: bool) -> None:
+    def _own_look(
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        call_id: str,
+        name: str,
+        args: dict,
+        said: str,
+        under: str | None,
+        unasked: bool,
+    ) -> None:
         """B-347: a native CLI looked at an image with a tool of its own (`IMAGE_LOOKS`): its
         model saw it, so the user is shown it under that call as under a view_image's - an
         image by its name, then its bytes. A secret, or a file outside the project, is not
         copied; one KOLONİ was not asked about (`unasked`) gets a note in red, as KOLONİ could
         not stop it. Its model is told nothing."""
-        path = next((given for key in LOOK_PATHS if isinstance(given := args.get(key), str)
-                     and given), None)
+        path = next(
+            (given for key in LOOK_PATHS if isinstance(given := args.get(key), str) and given), None
+        )
         if path is None or os.path.splitext(path)[1].lower().lstrip(".") not in {
-                *IMAGE_MIME, "jpeg"}:
+            *IMAGE_MIME,
+            "jpeg",
+        }:
             return
         ws = watch.copy.workspace() if watch.copy else Workspace(ctx.folder)
         try:
@@ -389,11 +450,19 @@ class BrowserMixin:
                 return
             # shortcut: an image KOLONİ handed it itself outside the project (an attachment's
             # copy) would be named here too; none is measured to be looked at with these tools.
-            what = "outside the project folder" if rel is None else (
-                "a secret file (keys, passwords)")
-            self._note(ctx, transcript, "image_look", {"path": path}, "failed",
-                       f"{name} showed its model {path!r}, {what}: KOLONİ cannot stop a CLI's "
-                       "own tool; it is not copied for the user", parent=under)
+            what = (
+                "outside the project folder" if rel is None else ("a secret file (keys, passwords)")
+            )
+            self._note(
+                ctx,
+                transcript,
+                "image_look",
+                {"path": path},
+                "failed",
+                f"{name} showed its model {path!r}, {what}: KOLONİ cannot stop a CLI's "
+                "own tool; it is not copied for the user",
+                parent=under,
+            )
             return
         try:
             data = views.read_file(ws, rel, IMAGE_MOST)
@@ -404,8 +473,9 @@ class BrowserMixin:
         if copy != "":
             self._set_call(ctx.cid, call_id, result=(said + copy).lstrip())
 
-    async def _shot(self: "AgentRunner", ctx: Ctx, one: "browser.Browser", call_id: str,
-                    marks: bool = False) -> str:
+    async def _shot(
+        self: "AgentRunner", ctx: Ctx, one: "browser.Browser", call_id: str, marks: bool = False
+    ) -> str:
         """A screenshot: saved under the scratch for the user, put in the view beside the
         chat under the call's own id (`app.views` serves it there), and shown to the model
         at its next step where it takes images (`_history`) - a CLI session's in this result
@@ -420,20 +490,30 @@ class BrowserMixin:
         in_result = bool(getattr(ctx.model, "session", False))
         with self._factory() as session:
             takes, _without, most = self._takes(session, ctx, in_result)
-            session.add(ShownFile(id=call_id, conversation_id=ctx.cid, agent_id=ctx.agent_id,
-                                  path=rel))
+            session.add(
+                ShownFile(id=call_id, conversation_id=ctx.cid, agent_id=ctx.agent_id, path=rel)
+            )
             session.commit()
-        self.bus.emit(ctx.cid, ctx.run_id, "view.shown", {
-            "id": call_id, "path": rel, "agent_id": ctx.agent_id, "note": None})
-        said = ((f"marks (for browser_click's mark): {listed}\n" if marks else "")
-                + f"screenshot saved: {rel} (the user sees it beside the chat); ")
+        self.bus.emit(
+            ctx.cid,
+            ctx.run_id,
+            "view.shown",
+            {"id": call_id, "path": rel, "agent_id": ctx.agent_id, "note": None},
+        )
+        said = (
+            f"marks (for browser_click's mark): {listed}\n" if marks else ""
+        ) + f"screenshot saved: {rel} (the user sees it beside the chat); "
         if "image" not in takes:
-            return said + ("your model is not known to see images, so it is not shown to you: "
-                           "browser_read gives the page's text and outline")
+            return said + (
+                "your model is not known to see images, so it is not shown to you: "
+                "browser_read gives the page's text and outline"
+            )
         if not in_result:
             return said + IMAGE_SHOWN
         if len(data) > most:
-            return said + (f"over {attachments.size_text(most)}, too big to be shown to you: "
-                           "browser_read gives the page's text and outline")
+            return said + (
+                f"over {attachments.size_text(most)}, too big to be shown to you: "
+                "browser_read gives the page's text and outline"
+            )
         self._in_result[call_id] = ("image/png", data)
         return said + IMAGE_HERE

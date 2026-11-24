@@ -115,6 +115,7 @@ jobs:
       - name: ruff and ty
         run: |
           .venv/bin/python -m ruff check app tests scripts alembic
+          .venv/bin/python -m ruff format --check app tests scripts alembic
           .venv/bin/python -m ty check app
       - uses: actions/setup-node@v7
         with:
@@ -127,6 +128,7 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run lint
+          npm run format:check
           npm run build
       - name: Source archive with frontend/dist
         env:

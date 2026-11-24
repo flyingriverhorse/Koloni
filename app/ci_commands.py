@@ -22,13 +22,19 @@ from app.commands import is_plain
 
 WORKFLOWS = ".github/workflows"
 # Lint and typecheck commands, by their start; a test is `ledger.read_test`'s.
-LINTS = re.compile(r"^(?:uv run |python -m |npx |pnpm |yarn |npm run )?"
-                   r"(?:ruff\b|flake8\b|eslint\b|oxlint\b|lint\b|pylint\b|black --check\b)")
-TYPECHECKS = re.compile(r"^(?:uv run |python -m |npx |pnpm |yarn |npm run )?"
-                        r"(?:mypy\b|ty check\b|pyright\b|tsc\b|typecheck\b)")
+LINTS = re.compile(
+    r"^(?:uv run |python -m |npx |pnpm |yarn |npm run )?"
+    r"(?:ruff\b|flake8\b|eslint\b|oxlint\b|lint\b|pylint\b|black --check\b)"
+)
+TYPECHECKS = re.compile(
+    r"^(?:uv run |python -m |npx |pnpm |yarn |npm run )?"
+    r"(?:mypy\b|ty check\b|pyright\b|tsc\b|typecheck\b)"
+)
 E2E = re.compile(r"\b(?:playwright|cypress|e2e)\b", re.IGNORECASE)
-INSTALL = re.compile(r"\b(?:pip install|npm ci|npm install|pnpm install|yarn install|uv sync|"
-                     r"apt-get|brew install|poetry install)\b")
+INSTALL = re.compile(
+    r"\b(?:pip install|npm ci|npm install|pnpm install|yarn install|uv sync|"
+    r"apt-get|brew install|poetry install)\b"
+)
 MOST_RUNS = 12
 # What of the workflow folder is read: so many files, each at most so big, so much in all.
 MOST_FILES = 50
@@ -45,6 +51,7 @@ MOST_NAME = 80
 
 class CiRun(NamedTuple):
     """A command a workflow runs, the folder it runs in ("." the root), and its step's name."""
+
     command: str
     cwd: str
     step: str
@@ -53,21 +60,22 @@ class CiRun(NamedTuple):
 class Found(NamedTuple):
     """The project's CI lines, what was left out and why, and the files' fingerprint - of the
     same bytes."""
+
     runs: list[CiRun]
     said: list[str]
     mark: str
 
 
-class _Alias(yaml.YAMLError):
+class Alias(yaml.YAMLError):
     pass
 
 
-class _NoAliases(yaml.SafeLoader):
+class NoAliases(yaml.SafeLoader):
     """YAML without aliases: one alias may stand for millions of nodes (a billion laughs)."""
 
     def compose_node(self, parent, index):
         if self.check_event(yaml.AliasEvent):
-            raise _Alias("aliases are not read")
+            raise Alias("aliases are not read")
         return super().compose_node(parent, index)
 
 
@@ -88,15 +96,45 @@ SENDS = "not run: it sends to a server"
 ENDLESS = "not run: it does not end by itself"
 ITS_OWN = "not run: it runs code of its own beside the tool"
 A_FILE = "not run: it runs a file, not the tool by its name"
-_FIXES = frozenset({"--fix", "--fix-only", "--unsafe-fixes", "--write", "--in-place",
-                    "--build", "-b", "--outdir", "--outfile", "--emit"})
+_FIXES = frozenset(
+    {
+        "--fix",
+        "--fix-only",
+        "--unsafe-fixes",
+        "--write",
+        "--in-place",
+        "--build",
+        "-b",
+        "--outdir",
+        "--outfile",
+        "--emit",
+    }
+)
 _WATCHES = frozenset({"--watch", "-w", "--watchall", "--serve"})
 _GETS = frozenset({"--install-types", "--with", "--with-requirements", "--refresh"})
-_HOOKS = frozenset({"--init-hook", "--load-plugins", "-exec", "-toolexec", "--plugins",
-                    "--require"})
+_HOOKS = frozenset(
+    {"--init-hook", "--load-plugins", "-exec", "-toolexec", "--plugins", "--require"}
+)
 # The Python modules a CI line may run (`python -m <one>`): the tools by their names.
-_MODULES = frozenset({"pytest", "unittest", "ruff", "flake8", "pylint", "mypy", "black",
-                      "pyright", "ty", "isort", "pyflakes", "pycodestyle", "nose2", "tox", "nox"})
+_MODULES = frozenset(
+    {
+        "pytest",
+        "unittest",
+        "ruff",
+        "flake8",
+        "pylint",
+        "mypy",
+        "black",
+        "pyright",
+        "ty",
+        "isort",
+        "pyflakes",
+        "pycodestyle",
+        "nose2",
+        "tox",
+        "nox",
+    }
+)
 
 
 def refused(line: str, folder: Path | None = None) -> str | None:
@@ -108,20 +146,36 @@ def refused(line: str, folder: Path | None = None) -> str | None:
     named = _named(words)
     if named is not None:
         return named
-    if words[0] in ("npx", "bunx") and words[1:2] not in (["--no"], ["--no-install"]) and (
-            _installed(words, folder)):
+    if (
+        words[0] in ("npx", "bunx")
+        and words[1:2] not in (["--no"], ["--no-install"])
+        and (_installed(words, folder))
+    ):
         words = [words[0], "--no", *words[1:]]  # (its own: read as the local run it is)
     # (a long option by its name in any case, before its `=`; a short one as written: -W is not -w)
-    lowered = {(word.casefold() if word.startswith("--") else word).partition("=")[0]
-               for word in words}
-    return next((why for why, found in (
-        (DOWNLOADS, lowered & _GETS or words[0] in ("npx", "uvx", "pipx", "bunx") and (
-            words[1:2] not in (["--no"], ["--no-install"])) or words[1:2] == ["dlx"]),
-        (SENDS, any(word.startswith("--pastebin") for word in lowered)),
-        (CHANGES, lowered & _FIXES or ledger.test_writes(line) or _formats(words)),
-        (ENDLESS, lowered & _WATCHES or words[1:2] == ["server"]),
-        (ITS_OWN, lowered & _HOOKS or _plugin(words)),
-    ) if found), None)
+    lowered = {
+        (word.casefold() if word.startswith("--") else word).partition("=")[0] for word in words
+    }
+    return next(
+        (
+            why
+            for why, found in (
+                (
+                    DOWNLOADS,
+                    lowered & _GETS
+                    or words[0] in ("npx", "uvx", "pipx", "bunx")
+                    and (words[1:2] not in (["--no"], ["--no-install"]))
+                    or words[1:2] == ["dlx"],
+                ),
+                (SENDS, any(word.startswith("--pastebin") for word in lowered)),
+                (CHANGES, lowered & _FIXES or ledger.test_writes(line) or _formats(words)),
+                (ENDLESS, lowered & _WATCHES or words[1:2] == ["server"]),
+                (ITS_OWN, lowered & _HOOKS or _plugin(words)),
+            )
+            if found
+        ),
+        None,
+    )
 
 
 def _installed(words: list[str], folder: Path | None) -> bool:
@@ -131,9 +185,11 @@ def _installed(words: list[str], folder: Path | None) -> bool:
     if folder is None or not re.fullmatch(r"[\w.@/-]+", tool):
         return False
     name = tool.rsplit("/", 1)[-1].split("@")[0]
-    return any((where / "node_modules" / ".bin" / one).is_file()
-               for where in (folder, *folder.parents)
-               for one in (name, f"{name}.cmd"))
+    return any(
+        (where / "node_modules" / ".bin" / one).is_file()
+        for where in (folder, *folder.parents)
+        for one in (name, f"{name}.cmd")
+    )
 
 
 def _named(words: list[str]) -> str | None:
@@ -153,14 +209,15 @@ def _formats(words: list[str]) -> bool:
     `prettier`, `isort` with no `--check` (`--diff`, `--check-only`)."""
     checks = {"--check", "--diff", "--check-only", "-c", "--list-different"}
     tools = [word for word in words if word in ("format", "black", "prettier", "isort")]
-    return bool(tools) and not checks & set(words) and (
-        "format" not in tools or "ruff" in words)
+    return bool(tools) and not checks & set(words) and ("format" not in tools or "ruff" in words)
 
 
 def _plugin(words: list[str]) -> bool:
     """A plugin loaded by the line (`pytest -p x`; `-p no:x` turns one off)."""
-    return any(word == "-p" and at + 1 < len(words) and not words[at + 1].startswith("no:")
-               for at, word in enumerate(words))
+    return any(
+        word == "-p" and at + 1 < len(words) and not words[at + 1].startswith("no:")
+        for at, word in enumerate(words)
+    )
 
 
 def checks_files(line: str) -> bool:
@@ -267,8 +324,9 @@ def _folder(step: dict, defaults: dict) -> str | None:
     return path.as_posix().removeprefix("./") or "."
 
 
-def _skipped(step: dict, defaults: dict, lines: list[str], name: str,
-             root: Path | None = None) -> str | None:
+def _skipped(
+    step: dict, defaults: dict, lines: list[str], name: str, root: Path | None = None
+) -> str | None:
     """Why a step's lines are not run: an e2e step, an expression or a secret, an install, a
     shell of another language, a folder outside the project, a check in a form that does more
     than check (`refused`)."""
@@ -280,8 +338,9 @@ def _skipped(step: dict, defaults: dict, lines: list[str], name: str,
     if INSTALL.search(text):
         return "not run: it installs"
     shell = step.get("shell", defaults.get("shell"))
-    if shell is not None and not (isinstance(shell, str) and shell.split()[:1] and (
-            shell.split()[0] in SHELLS)):
+    if shell is not None and not (
+        isinstance(shell, str) and shell.split()[:1] and (shell.split()[0] in SHELLS)
+    ):
         return "not run: its shell is not a shell"
     if (cwd := _folder(step, defaults)) is None:
         return "not run: its working directory is not a folder of the project"
@@ -290,11 +349,17 @@ def _skipped(step: dict, defaults: dict, lines: list[str], name: str,
     return next((said for one in lines if _checks(one) and (said := refused(one, where))), None)
 
 
-def _read_one(name: str, data: bytes, runs: list[CiRun], said: list[str],
-              seen: set[tuple[str, str]], root: Path | None = None) -> None:
+def _read_one(
+    name: str,
+    data: bytes,
+    runs: list[CiRun],
+    said: list[str],
+    seen: set[tuple[str, str]],
+    root: Path | None = None,
+) -> None:
     try:
-        parsed = yaml.load(data.decode("utf-8"), Loader=_NoAliases)  # noqa: S506 (SafeLoader's)
-    except _Alias:
+        parsed = yaml.load(data.decode("utf-8"), Loader=NoAliases)  # noqa: S506 (SafeLoader's)
+    except Alias:
         said.append(f"CI file not read: {name} - it uses YAML aliases, which are not read")
         return
     except (ValueError, yaml.YAMLError, RecursionError, MemoryError):
@@ -310,15 +375,21 @@ def _read_one(name: str, data: bytes, runs: list[CiRun], said: list[str],
         why = _skipped(step, defaults, lines, name_of, root)
         if why is None and any(len(one) > MOST_LINE for one in lines):
             why = f"not run: a line over {MOST_LINE} characters"
-        if why is None and not all(kept(one, (root / (_folder(step, defaults) or ".")) if (
-                root is not None) else None) for one in lines):
+        if why is None and not all(
+            kept(one, (root / (_folder(step, defaults) or ".")) if (root is not None) else None)
+            for one in lines
+        ):
             # (a test or lint line chained with another, piped, redirected: said; an unrelated
             # line beside: the step is none of the CI's checks, left out unsaid)
-            why = f"not run: {NOT_PLAIN}" if any(
-                _checks(one) and not is_plain(one) for one in lines) else ""
+            why = (
+                f"not run: {NOT_PLAIN}"
+                if any(_checks(one) and not is_plain(one) for one in lines)
+                else ""
+            )
         if why:
-            said.append(f"{why}: {name_of}" if why == "e2e not run" else (
-                f"CI step {name_of}: {why}"))
+            said.append(
+                f"{why}: {name_of}" if why == "e2e not run" else (f"CI step {name_of}: {why}")
+            )
         if why is not None:
             continue
         cwd = _folder(step, defaults) or "."

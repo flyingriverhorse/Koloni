@@ -22,7 +22,8 @@ import { AgentWindow } from '../agents/AgentWindow'
 import { Inspector } from './Inspector'
 
 /** One of an agent's folds, by the words its line starts with. */
-const fold = (name: string) => screen.getByText(name, { selector: 'summary, summary *' }).closest('details') as HTMLElement
+const fold = (name: string) =>
+  screen.getByText(name, { selector: 'summary, summary *' }).closest('details') as HTMLElement
 
 const state = convState({
   runs: [run('r', 'completed', { input_tokens: null, output_tokens: 42 })],
@@ -116,7 +117,9 @@ test('the agent node shows its key numbers, an unknown count a dash; its window 
   // what its provider did not report is said so, and no fill is made of it
   expect(screen.getByText('Tokens').nextElementSibling).toHaveTextContent(/^– in \/ 42 out$/)
   cleanup()
-  const { container } = render(<AgentWindow state={state} agentId="r" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  const { container } = render(
+    <AgentWindow state={state} agentId="r" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   await openAgentFold('Details')
   expect(screen.getByText('Context').nextElementSibling).toHaveTextContent(/^unknown in \/ 42 out$/)
   expect(screen.getByText('Model').nextElementSibling).toHaveTextContent('qwen')
@@ -144,7 +147,14 @@ const family = convState({
   runs: [run('r', 'running')],
   agents: [
     agent('r', 'waiting', { id: 'lead' }),
-    agent('r', 'running', { id: 'kid', parent_agent_id: 'lead', role_name: 'Reviewer', task: 'Review hello.py carefully', depth: 1, tools: ['read_file', 'search'] }),
+    agent('r', 'running', {
+      id: 'kid',
+      parent_agent_id: 'lead',
+      role_name: 'Reviewer',
+      task: 'Review hello.py carefully',
+      depth: 1,
+      tools: ['read_file', 'search'],
+    }),
   ],
   messages: [
     userMessage('r', 'x'),
@@ -160,9 +170,13 @@ const family = convState({
 test('a sub-agent shows its role and who asked it what; its window its tools and only its own conversation', async () => {
   render(<Inspector state={family} selectedId="agent:kid" onClose={() => {}} />)
   expect(screen.getByText('Reviewer')).toBeInTheDocument()
-  expect(screen.getByText('Review hello.py carefully').closest('p')).toHaveTextContent('Asked by Orchestrator: Review hello.py carefully')
+  expect(screen.getByText('Review hello.py carefully').closest('p')).toHaveTextContent(
+    'Asked by Orchestrator: Review hello.py carefully',
+  )
   cleanup()
-  render(<AgentWindow state={family} agentId="kid" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  render(
+    <AgentWindow state={family} agentId="kid" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   await openAgentFold('Details')
   expect(screen.getByText('search')).toBeInTheDocument()
   expect(screen.getByText('Depth').nextElementSibling).toHaveTextContent('1')
@@ -174,7 +188,9 @@ test('a sub-agent shows its role and who asked it what; its window its tools and
 
 test('an agent’s window lists its sub-agents and selecting one reports it', async () => {
   const onSelect = vi.fn()
-  render(<AgentWindow state={family} agentId="lead" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={onSelect} />)
+  render(
+    <AgentWindow state={family} agentId="lead" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={onSelect} />,
+  )
   const kids = fold('Sub-agents')
   expect(kids.querySelector('summary')).toHaveTextContent('Sub-agents 1')
   await userEvent.click(within(kids).getByText('Sub-agents'))
@@ -185,10 +201,18 @@ test('an agent’s window lists its sub-agents and selecting one reports it', as
 test('a proposed sub-agent can be decided from the inspector', () => {
   const state = convState({
     runs: [run('r', 'waiting_approval')],
-    agents: [agent('r', 'running', { id: 'lead' }), agent('r', 'proposed', { id: 'kid', parent_agent_id: 'lead', role_name: 'Coder', task: 't', depth: 1 })],
+    agents: [
+      agent('r', 'running', { id: 'lead' }),
+      agent('r', 'proposed', { id: 'kid', parent_agent_id: 'lead', role_name: 'Coder', task: 't', depth: 1 }),
+    ],
   })
   render(
-    <Inspector state={state} selectedId="agent:kid" onClose={() => {}} renderSpawnApproval={a => <div>decide {a.role_name}</div>} />,
+    <Inspector
+      state={state}
+      selectedId="agent:kid"
+      onClose={() => {}}
+      renderSpawnApproval={a => <div>decide {a.role_name}</div>}
+    />,
   )
   expect(screen.getByText('decide Coder')).toBeInTheDocument()
 })
@@ -196,12 +220,27 @@ test('a proposed sub-agent can be decided from the inspector', () => {
 test('a role an agent asked for can be decided from that agent, and requests name their agent', () => {
   const state = convState({
     ...family,
-    pendingRoles: [{ tool_call_id: '9', run_id: 'r', agent_id: 'kid', name: 'Documenter', description: '', instructions: '', tools: ['read_file'] }],
+    pendingRoles: [
+      {
+        tool_call_id: '9',
+        run_id: 'r',
+        agent_id: 'kid',
+        name: 'Documenter',
+        description: '',
+        instructions: '',
+        tools: ['read_file'],
+      },
+    ],
     commands: [command('k1', 'r', { agent_id: 'kid' })],
     fileChanges: [fileChange('f1', 'r', { agent_id: 'kid' })],
   })
   const { rerender } = render(
-    <Inspector state={state} selectedId="agent:kid" onClose={() => {}} renderRoleApproval={r => <div>decide {r.name}</div>} />,
+    <Inspector
+      state={state}
+      selectedId="agent:kid"
+      onClose={() => {}}
+      renderRoleApproval={r => <div>decide {r.name}</div>}
+    />,
   )
   expect(screen.getByText('decide Documenter')).toBeInTheDocument()
   rerender(<Inspector state={state} selectedId="command:k1" onClose={() => {}} />)
@@ -213,9 +252,19 @@ test('a role an agent asked for can be decided from that agent, and requests nam
 test('an agent’s open question can be answered from the inspector', () => {
   const state = convState({
     ...family,
-    questions: [question('q', 'r', { agent_id: 'kid' }), question('done', 'r', { agent_id: 'kid', status: 'answered', answer: 'x' })],
+    questions: [
+      question('q', 'r', { agent_id: 'kid' }),
+      question('done', 'r', { agent_id: 'kid', status: 'answered', answer: 'x' }),
+    ],
   })
-  render(<Inspector state={state} selectedId="agent:kid" onClose={() => {}} renderQuestion={q => <div>answer {q.id}</div>} />)
+  render(
+    <Inspector
+      state={state}
+      selectedId="agent:kid"
+      onClose={() => {}}
+      renderQuestion={q => <div>answer {q.id}</div>}
+    />,
+  )
   expect(screen.getByText('answer q')).toBeInTheDocument()
   expect(screen.queryByText('answer done')).not.toBeInTheDocument()
 })
@@ -253,7 +302,9 @@ test('an agent on a CLI that only reads: its role’s write and command tools ar
   // said on the panel without a click; why, under its window's Details
   expect(screen.getByText('reads only', { selector: '.tag' })).toBeVisible()
   cleanup()
-  const window = (s: typeof reading) => <AgentWindow state={s} agentId="r" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />
+  const window = (s: typeof reading) => (
+    <AgentWindow state={s} agentId="r" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />
+  )
   const { rerender } = render(window(reading))
   expect(screen.getByText('reads only', { selector: '.tag' })).toBeVisible()
   await openAgentFold('Details')
@@ -274,7 +325,15 @@ test('an agent on a CLI that only reads: its role’s write and command tools ar
 test('an agent that goes on from an earlier turn says so on its task’s line, its earlier work folded in its window; one a later agent went on from leads there', async () => {
   const onSelect = vi.fn()
   const chained = topicOf(3)
-  render(<AgentWindow state={chained} agentId="coder-t3" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  render(
+    <AgentWindow
+      state={chained}
+      agentId="coder-t3"
+      onClose={() => {}}
+      onOpenChange={() => {}}
+      onSelectAgent={() => {}}
+    />,
+  )
   const earlier = fold('Earlier work')
   expect(earlier).not.toHaveAttribute('open')
   await userEvent.click(within(earlier).getByText('Earlier work'))
@@ -282,7 +341,9 @@ test('an agent that goes on from an earlier turn says so on its task’s line, i
   expect(screen.getByRole('group', { name: `The ${sentAt(1)} message` })).toHaveTextContent('report 1')
   expect(screen.getByRole('group', { name: `The ${sentAt(2)} message` })).toHaveTextContent('report 2')
   cleanup()
-  const { rerender } = render(<Inspector state={chained} selectedId="agent:coder-t3" onClose={() => {}} onSelect={onSelect} />)
+  const { rerender } = render(
+    <Inspector state={chained} selectedId="agent:coder-t3" onClose={() => {}} onSelect={onSelect} />,
+  )
   expect(screen.getByText(/^Asked by/).closest('p')).toHaveTextContent(`(continues from the ${sentAt(2)} message)`)
   expect(screen.queryByRole('button', { name: /^went on in/ })).not.toBeInTheDocument()
 
@@ -311,7 +372,10 @@ test('Esc closes the inspector, like its close button, and the focus goes back t
   }
   render(<Opened />)
   const node = screen.getByRole('button', { name: "the agent's node" })
-  for (const close of [() => userEvent.keyboard('{Escape}'), () => userEvent.click(screen.getByRole('button', { name: 'Close inspector' }))]) {
+  for (const close of [
+    () => userEvent.keyboard('{Escape}'),
+    () => userEvent.click(screen.getByRole('button', { name: 'Close inspector' })),
+  ]) {
     await userEvent.click(node)
     const inspector = screen.getByRole('complementary', { name: 'Inspector' })
     // reached by Tab from what opened it
@@ -359,28 +423,57 @@ test('an agent that failed says, under its error, the one step to take', () => {
     agents: [agent('r', 'failed', { error: 'model server unreachable: refused' })],
   })
   render(<Inspector state={down} selectedId="agent:r" onClose={() => {}} />)
-  expect(screen.getByRole('alert')).toHaveTextContent('model server unreachable: refusedCheck that the model server is running, or pick another model.')
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'model server unreachable: refusedCheck that the model server is running, or pick another model.',
+  )
 })
 
 test("an agent on Alibaba's plan key whose quota is used up says when it comes back, and where to see what is left", () => {
   const error = 'model server returned 429: Your token-plan quota has been exhausted.'
-  const usedUp = convState({ runs: [run('r', 'failed', { error })], agents: [agent('r', 'failed', { error, failure: 'rate_limited' })] })
-  const alibaba = [{ name: 'Local', plan: true, base_url: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/v1' }] as Provider[]
+  const usedUp = convState({
+    runs: [run('r', 'failed', { error })],
+    agents: [agent('r', 'failed', { error, failure: 'rate_limited' })],
+  })
+  const alibaba = [
+    { name: 'Local', plan: true, base_url: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/v1' },
+  ] as Provider[]
   render(<Inspector state={usedUp} providers={alibaba} selectedId="agent:r" onClose={() => {}} />)
-  expect(screen.getByRole('alert')).toHaveTextContent(/Plan quota used up – it comes back at the start of its next subscription month, or with a usage bundle\./)
-  expect(screen.getByRole('link', { name: "See what is left in Alibaba's console" })).toHaveAttribute('href', ALIBABA_CONSOLE)
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    /Plan quota used up – it comes back at the start of its next subscription month, or with a usage bundle\./,
+  )
+  expect(screen.getByRole('link', { name: "See what is left in Alibaba's console" })).toHaveAttribute(
+    'href',
+    ALIBABA_CONSOLE,
+  )
 })
 
 test('a decided sub-agent’s card goes once it starts, also from a renderer that keys it by the agent (no key twice in one list)', () => {
   const at = (status: 'proposed' | 'running') =>
     convState({
       runs: [run('r', 'running')],
-      agents: [agent('r', 'running', { id: 'lead' }), agent('r', status, { id: 'kid', parent_agent_id: 'lead', role_name: 'Coder', task: 't', depth: 1 })],
+      agents: [
+        agent('r', 'running', { id: 'lead' }),
+        agent('r', status, { id: 'kid', parent_agent_id: 'lead', role_name: 'Coder', task: 't', depth: 1 }),
+      ],
     })
   const renderSpawnApproval = (a: { id: string; role_name: string }) => <div key={a.id}>decide {a.role_name}</div>
-  const { rerender } = render(<Inspector state={at('proposed')} selectedId="agent:kid" onClose={() => {}} renderSpawnApproval={renderSpawnApproval} />)
+  const { rerender } = render(
+    <Inspector
+      state={at('proposed')}
+      selectedId="agent:kid"
+      onClose={() => {}}
+      renderSpawnApproval={renderSpawnApproval}
+    />,
+  )
   expect(screen.getByText('decide Coder')).toBeInTheDocument()
-  rerender(<Inspector state={at('running')} selectedId="agent:kid" onClose={() => {}} renderSpawnApproval={renderSpawnApproval} />)
+  rerender(
+    <Inspector
+      state={at('running')}
+      selectedId="agent:kid"
+      onClose={() => {}}
+      renderSpawnApproval={renderSpawnApproval}
+    />,
+  )
   expect(screen.queryByText('decide Coder')).not.toBeInTheDocument()
 })
 
@@ -410,7 +503,15 @@ test('Open window opens the agent’s window, closes the panel and hands the win
     return (
       <>
         {shown && <section className="agent-window" tabIndex={-1} aria-label="Agent window" />}
-        <Inspector state={state} selectedId={selected} onClose={() => setSelected(null)} onOpenAgent={id => { onOpenAgent(id); setShown(id) }} />
+        <Inspector
+          state={state}
+          selectedId={selected}
+          onClose={() => setSelected(null)}
+          onOpenAgent={id => {
+            onOpenAgent(id)
+            setShown(id)
+          }}
+        />
       </>
     )
   }
@@ -421,30 +522,60 @@ test('Open window opens the agent’s window, closes the panel and hands the win
   expect(screen.getByRole('region', { name: 'Agent window' })).toHaveFocus()
 })
 
-test('the Assistant PO’s node opens what came of its request and why each one was dropped, in plain words', () => {
+test('the Scout’s node opens what came of its request and why each one was dropped, in plain words', () => {
   const po = {
-    provider_name: 'Fast', model_id: 'gpt-6-luna', heard: true, input_tokens: 3000, output_tokens: null, proposed: 1, dropped_more: 0,
-    dropped: [{ title: 'Rotate the keys', why: 'its source (30 characters) is not words said in the turn' }, { title: 'Docs', why: "like the open task 'Write the docs'" }],
+    provider_name: 'Fast',
+    model_id: 'gpt-6-luna',
+    heard: true,
+    input_tokens: 3000,
+    output_tokens: null,
+    proposed: 1,
+    dropped_more: 0,
+    dropped: [
+      { title: 'Rotate the keys', why: 'its source (30 characters) is not words said in the turn' },
+      { title: 'Docs', why: "like the open task 'Write the docs'" },
+    ],
   }
-  render(<Inspector state={convState({ runs: [run('r', 'completed', { po })] })} selectedId="po:r" onClose={() => {}} />)
-  expect(screen.getByText('Assistant PO')).toBeInTheDocument()
+  render(
+    <Inspector state={convState({ runs: [run('r', 'completed', { po })] })} selectedId="po:r" onClose={() => {}} />,
+  )
+  expect(screen.getByText('Scout')).toBeInTheDocument()
   expect(screen.getByText('Fast · gpt-6-luna · 3k tokens + –')).toBeInTheDocument()
   expect(screen.getByText('1 proposed · 2 dropped')).toBeInTheDocument()
-  expect(screen.getByText('Rotate the keys:').parentElement).toHaveTextContent('Rotate the keys: its source (30 characters) is not words said in the turn')
+  expect(screen.getByText('Rotate the keys:').parentElement).toHaveTextContent(
+    'Rotate the keys: its source (30 characters) is not words said in the turn',
+  )
   expect(screen.getByText('Docs:').parentElement).toHaveTextContent("Docs: like the open task 'Write the docs'")
   cleanup()
   // a turn it was not asked about: nothing to open
-  const { container } = render(<Inspector state={convState({ runs: [run('r')] })} selectedId="po:r" onClose={() => {}} />)
+  const { container } = render(
+    <Inspector state={convState({ runs: [run('r')] })} selectedId="po:r" onClose={() => {}} />,
+  )
   expect(container).toBeEmptyDOMElement()
 })
 
 /** The inspector's head: its title and the line under it. */
-const head = () => [document.querySelector('.insp-title')?.textContent, document.querySelector('.insp-sub')?.textContent]
+const head = () => [
+  document.querySelector('.insp-title')?.textContent,
+  document.querySelector('.insp-sub')?.textContent,
+]
 
 test('a file you attached opens on its own, handed to whom; the box of a message’s files opens on them all, not a frame of a video', () => {
   const file = (id: string, over: Partial<Attachment> = {}): Attachment => ({
-    id, conversation_id: 'c', message_id: 'u-r', frame_of: null, given_to: [], keep_in_project: false, kind: 'image', mime: 'image/png',
-    name: `${id}.png`, shown_to: {}, size: 10, summary: '', created_at: '2026-10-05T10:00:00Z', ...over,
+    id,
+    conversation_id: 'c',
+    message_id: 'u-r',
+    frame_of: null,
+    given_to: [],
+    keep_in_project: false,
+    kind: 'image',
+    mime: 'image/png',
+    name: `${id}.png`,
+    shown_to: {},
+    size: 10,
+    summary: '',
+    created_at: '2026-10-05T10:00:00Z',
+    ...over,
   })
   const files = convState({
     runs: [run('r')],
@@ -469,12 +600,28 @@ test('a file you attached opens on its own, handed to whom; the box of a message
 
 test('a discussion opens its shared place from its button, when there is a way to; one not there opens nothing', async () => {
   const talk: Discussion = {
-    id: 'd', run_id: 'r', agent_id: 'r', tool_call_id: '9', topic: 'Which way?', max_rounds: 3, round: 1, status: 'running', outcome: null,
-    created_at: '2026-10-05T10:00:00Z', ended_at: null, members: [{ agent_id: 'r', status: 'in', opened_here: false }],
+    id: 'd',
+    run_id: 'r',
+    agent_id: 'r',
+    tool_call_id: '9',
+    topic: 'Which way?',
+    max_rounds: 3,
+    round: 1,
+    status: 'running',
+    outcome: null,
+    created_at: '2026-10-05T10:00:00Z',
+    ended_at: null,
+    members: [{ agent_id: 'r', status: 'in', opened_here: false }],
   }
-  const talking = convState({ runs: [run('r')], agents: [agent('r', 'running', { name: 'Coder' })], discussions: [talk] })
+  const talking = convState({
+    runs: [run('r')],
+    agents: [agent('r', 'running', { name: 'Coder' })],
+    discussions: [talk],
+  })
   const onOpenDiscussion = vi.fn()
-  const { rerender } = render(<Inspector state={talking} selectedId="discussion:d" onClose={() => {}} onOpenDiscussion={onOpenDiscussion} />)
+  const { rerender } = render(
+    <Inspector state={talking} selectedId="discussion:d" onClose={() => {}} onOpenDiscussion={onOpenDiscussion} />,
+  )
   expect(screen.getByText('Nothing yet.')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Open discussion' }))
   expect(onOpenDiscussion).toHaveBeenCalledWith('d')
@@ -501,13 +648,26 @@ const withSub = convState({
   runs: [run('r')],
   agents: [agent('r', 'running', { name: 'Coder' })],
   toolCalls: [
-    toolCall('2', 'r', 'claude__Agent', 'running', '{"description":"Look around","prompt":"x","subagent_type":"Explore"}', { origin: 'cli' }),
+    toolCall(
+      '2',
+      'r',
+      'claude__Agent',
+      'running',
+      '{"description":"Look around","prompt":"x","subagent_type":"Explore"}',
+      { origin: 'cli' },
+    ),
     toolCall('4', 'r', 'run_command', 'succeeded', '{}', { origin: 'cli', parent_call_id: '2' }),
     toolCall('5', 'r', 'edit_file', 'succeeded', '{"path":"hello.py"}', { origin: 'cli', parent_call_id: '2' }),
     toolCall('6', 'r', 'run_command', 'failed', '{}'),
   ],
-  commands: [command('k1', 'r', { origin: 'cli', tool_call_id: '4', command: 'python hello.py' }), command('k2', 'r', { tool_call_id: '6', command: 'git status' })],
-  fileChanges: [fileChange('f1', 'r', { origin: 'cli', tool_call_id: '5', path: 'hello.py' }), fileChange('f2', 'r', { path: 'b.py' })],
+  commands: [
+    command('k1', 'r', { origin: 'cli', tool_call_id: '4', command: 'python hello.py' }),
+    command('k2', 'r', { tool_call_id: '6', command: 'git status' }),
+  ],
+  fileChanges: [
+    fileChange('f1', 'r', { origin: 'cli', tool_call_id: '5', path: 'hello.py' }),
+    fileChange('f2', 'r', { path: 'b.py' }),
+  ],
   questions: [
     question('q1', 'r', { tool_call_id: '4' }),
     question('q2', 'r', { tool_call_id: '2' }),
@@ -519,7 +679,13 @@ const withSub = convState({
 test('a sub-agent of the CLI’s own asks what waits on it and on its tools, opens its agent’s window; its commands and files are its own', async () => {
   const onOpenAgent = vi.fn()
   const { rerender } = render(
-    <Inspector state={withSub} selectedId="subagent:2" onClose={() => {}} onOpenAgent={onOpenAgent} renderQuestion={q => <p key={q.id}>asks {q.id}</p>} />,
+    <Inspector
+      state={withSub}
+      selectedId="subagent:2"
+      onClose={() => {}}
+      onOpenAgent={onOpenAgent}
+      renderQuestion={q => <p key={q.id}>asks {q.id}</p>}
+    />,
   )
   expect(head()).toEqual(['Look around', 'own sub-agent of Coder'])
   expect(screen.getAllByText(/^asks /).map(p => p.textContent)).toEqual(['asks q1', 'asks q2'])
@@ -549,11 +715,29 @@ test('one command opens with what it is, its card while it waits and no "No outp
     runs: [run('r')],
     agents: [agent('r', 'running', { name: 'Coder' })],
     commands: [waits],
-    fileChanges: [fileChange('new', 'r', { origin: 'cli', kind: 'create', path: 'src/new.py' }), fileChange('gone', 'r', { kind: 'delete', path: 'old.py' })],
+    fileChanges: [
+      fileChange('new', 'r', { origin: 'cli', kind: 'create', path: 'src/new.py' }),
+      fileChange('gone', 'r', { kind: 'delete', path: 'old.py' }),
+    ],
   })
   const facts = () => Array.from(document.querySelectorAll('.facts dd'), dd => dd.textContent)
-  const { rerender } = render(<Inspector state={state} selectedId="command:k" onClose={() => {}} renderCommandApproval={c => <p>decide {c.id}</p>} />)
-  expect(facts()).toEqual(['waits for you', 'Coder', 'the CLI itself, with a tool of its own', 'not known', 'This machine', '—', '120s'])
+  const { rerender } = render(
+    <Inspector
+      state={state}
+      selectedId="command:k"
+      onClose={() => {}}
+      renderCommandApproval={c => <p>decide {c.id}</p>}
+    />,
+  )
+  expect(facts()).toEqual([
+    'waits for you',
+    'Coder',
+    'the CLI itself, with a tool of its own',
+    'not known',
+    'This machine',
+    '—',
+    '120s',
+  ])
   expect(screen.getByText('decide k')).toBeInTheDocument()
   expect(screen.queryByText('No output.')).toBeNull()
   rerender(<Inspector state={state} selectedId="file:new" onClose={() => {}} />)

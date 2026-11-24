@@ -46,12 +46,21 @@ export function withoutFindings(report: string): string {
     else if (!fenced && /^#*\s*\**\s*findings\s*\**\s*(:|$)/i.test(line.trim())) at = i
   })
   if (at < 0) return report
-  const end = lines.findIndex((line, i) => i > at && (fence(line) || /^(#|[-*•\s]*checked\s*\**\s*:)/i.test(line.trim())))
+  const end = lines.findIndex(
+    (line, i) => i > at && (fence(line) || /^(#|[-*•\s]*checked\s*\**\s*:)/i.test(line.trim())),
+  )
   return [...lines.slice(0, at), ...(end < 0 ? [] : lines.slice(end))].join('\n').trimEnd()
 }
 
 /** One fold of an agent: its body is drawn only while it is open - a hidden one would be drawn again at every streamed word. */
-export function Fold({ title, count, open, onToggle, className = '', children }: {
+export function Fold({
+  title,
+  count,
+  open,
+  onToggle,
+  className = '',
+  children,
+}: {
   title: string
   count: ReactNode
   open: boolean
@@ -70,16 +79,33 @@ export function Fold({ title, count, open, onToggle, className = '', children }:
 }
 
 /** One changed file: its lines, where it stands (`labelled`) and its diff a click away. */
-export function ChangeRow({ change, labelled = false, onOpenChange }: { change: FileChange; labelled?: boolean; onOpenChange: (changeId: string) => void }) {
+export function ChangeRow({
+  change,
+  labelled = false,
+  onOpenChange,
+}: {
+  change: FileChange
+  labelled?: boolean
+  onOpenChange: (changeId: string) => void
+}) {
   return (
     <div className="chat-change">
       <span className="mono chat-change-path" title={change.path}>
         {change.path}
       </span>
-      <span className="mono" style={{ color: 'var(--ok)' }}>+{change.additions}</span>
-      <span className="mono" style={{ color: 'var(--del)' }}>−{change.deletions}</span>
+      <span className="mono" style={{ color: 'var(--ok)' }}>
+        +{change.additions}
+      </span>
+      <span className="mono" style={{ color: 'var(--del)' }}>
+        −{change.deletions}
+      </span>
       {labelled && <span className={CHANGE_LABEL[change.status][1]}>{CHANGE_LABEL[change.status][0]}</span>}
-      <button type="button" className="btn btn-small" aria-label={`View diff of ${change.path}`} onClick={() => onOpenChange(change.id)}>
+      <button
+        type="button"
+        className="btn btn-small"
+        aria-label={`View diff of ${change.path}`}
+        onClick={() => onOpenChange(change.id)}
+      >
         View diff
       </button>
     </div>
@@ -118,7 +144,8 @@ export function ErrorAlert({ state, agent, providers }: { state: ConvState; agen
 }
 
 /** The commands of its that wait for the user's yes. */
-export const waitingCommands = (state: ConvState, agentId: string) => state.commands.filter(c => c.agent_id === agentId && c.status === 'proposed')
+export const waitingCommands = (state: ConvState, agentId: string) =>
+  state.commands.filter(c => c.agent_id === agentId && c.status === 'proposed')
 
 /** Whether anything of it waits for the user now. */
 export function asksNow(state: ConvState, agent: Agent): boolean {
@@ -141,7 +168,9 @@ export function AsksNow({ state, agent, asks }: { state: ConvState; agent: Agent
       {agent.status === 'proposed' && asks.renderSpawnApproval?.(agent)}
       {cardMerges(state, agent.id).map(m => asks.renderMerge?.(m, agent))}
       {state.pendingRoles.filter(r => r.agent_id === agent.id).map(r => asks.renderRoleApproval?.(r))}
-      {state.questions.filter(q => q.agent_id === agent.id && q.status === 'pending').map(q => asks.renderQuestion?.(q))}
+      {state.questions
+        .filter(q => q.agent_id === agent.id && q.status === 'pending')
+        .map(q => asks.renderQuestion?.(q))}
       {waitingCommands(state, agent.id).map(c => asks.renderCommandApproval?.(c))}
     </>
   )
@@ -163,7 +192,15 @@ export function QueueLine({ state, agent }: { state: ConvState; agent: Agent }) 
 const TASK_LINE = 120
 
 /** Who asked it, and what: its task's first line, the rest a click away - and where its work came from or went on. */
-export function Asked({ state, agent, onSelectAgent }: { state: ConvState; agent: Agent; onSelectAgent: (agentId: string) => void }) {
+export function Asked({
+  state,
+  agent,
+  onSelectAgent,
+}: {
+  state: ConvState
+  agent: Agent
+  onSelectAgent: (agentId: string) => void
+}) {
   // (A sub-agent that waits to be let start has its task in the card that asks.)
   const task = agent.status === 'proposed' ? null : agent.task
   const continuesTurn = continuesFrom(state, agent.id)
@@ -190,7 +227,9 @@ function TaskText({ task }: { task: string }) {
   if (lines === 1 && task.length <= TASK_LINE) return task
   return (
     <>
-      <span className={open ? undefined : 'agent-task-line'}>{open ? task : task.split('\n').find(line => line.trim())}</span>
+      <span className={open ? undefined : 'agent-task-line'}>
+        {open ? task : task.split('\n').find(line => line.trim())}
+      </span>
       <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? '▾ fold' : `▸ ${lines > 1 ? many(lines, 'line') : 'all of it'}`}
       </button>
@@ -202,7 +241,15 @@ function TaskText({ task }: { task: string }) {
  * K-devir-1: the ended agents whose work its briefing carried. B-366: one of another chat is not in this state - its
  * name and chat are asked of the server, and which chat it is is the server's to say.
  */
-function HandedFrom({ state, agent, onSelectAgent }: { state: ConvState; agent: Agent; onSelectAgent: (agentId: string) => void }) {
+function HandedFrom({
+  state,
+  agent,
+  onSelectAgent,
+}: {
+  state: ConvState
+  agent: Agent
+  onSelectAgent: (agentId: string) => void
+}) {
   const handed = (agent.handed_from ?? []).map(id => ({ id, from: state.agents.find(a => a.id === id) }))
   const elsewhere = handed.some(one => !one.from)
   const [told, setTold] = useState<Handed[]>([])
@@ -227,7 +274,13 @@ function HandedFrom({ state, agent, onSelectAgent }: { state: ConvState; agent: 
         <ul className="inline-list">
           {handed.map(({ id, from }, i) => (
             <li key={id}>
-              <HandedOne state={state} id={id} from={from} far={told.find(one => one.agent_id === id)} onSelectAgent={onSelectAgent} />
+              <HandedOne
+                state={state}
+                id={id}
+                from={from}
+                far={told.find(one => one.agent_id === id)}
+                onSelectAgent={onSelectAgent}
+              />
               {i < handed.length - 1 && ', '}
             </li>
           ))}
@@ -237,7 +290,19 @@ function HandedFrom({ state, agent, onSelectAgent }: { state: ConvState; agent: 
   )
 }
 
-function HandedOne({ state, id, from, far, onSelectAgent }: { state: ConvState; id: string; from?: Agent; far?: Handed; onSelectAgent: (agentId: string) => void }) {
+function HandedOne({
+  state,
+  id,
+  from,
+  far,
+  onSelectAgent,
+}: {
+  state: ConvState
+  id: string
+  from?: Agent
+  far?: Handed
+  onSelectAgent: (agentId: string) => void
+}) {
   if (from) {
     return (
       <button type="button" className="link-btn" onClick={() => onSelectAgent(id)}>
@@ -250,7 +315,11 @@ function HandedOne({ state, id, from, far, onSelectAgent }: { state: ConvState; 
   // Of another chat: a click opens that chat, as the Workspace's "Last on this file" does.
   return (
     <>
-      <button type="button" className="link-btn" onClick={() => (here ? onSelectAgent(id) : void useApp.getState().openConversation(far.conversation_id))}>
+      <button
+        type="button"
+        className="link-btn"
+        onClick={() => (here ? onSelectAgent(id) : void useApp.getState().openConversation(far.conversation_id))}
+      >
         {titleOf(far.agent_name || far.agent_role)} ({clock(far.at)})
       </button>
       {!here && ` in chat «${far.conversation_title}»`}
@@ -271,7 +340,13 @@ export function HowItRuns({ state, agent }: { state: ConvState; agent: Agent }) 
     <>
       {(agent.provider_mode === 'reads' || ownTools || unwatched) && (
         <p>
-          <span className="tag tag-warn">{agent.provider_mode === 'reads' ? <>reads only{letThrough(state, agent.id) && LET_THROUGH}</> : 'works with its own tools'}</span>
+          <span className="tag tag-warn">
+            {agent.provider_mode === 'reads' ? (
+              <>reads only{letThrough(state, agent.id) && LET_THROUGH}</>
+            ) : (
+              'works with its own tools'
+            )}
+          </span>
         </p>
       )}
       {unwatched && (
@@ -375,12 +450,26 @@ function NoReport({ state, agent }: { state: ConvState; agent: Agent }) {
 // shortcut: no cost per agent is on record (the Usage page prices the turn); add it here if the agent gets one.
 export function KeyNumbers({ state, agent }: { state: ConvState; agent: Agent }) {
   const stepped = stepsOf(state, agent.id, agent.report)
-  const own = (callId: string | null) => homeOf(state.toolCalls.find(t => t.id === callId), stepped.subAgents) === null
-  const commands = state.commands.filter(c => c.agent_id === agent.id && !['proposed', 'rejected', 'refused'].includes(c.status) && own(c.tool_call_id))
-  const tools = state.toolCalls.filter(
-    t => t.agent_id === agent.id && t.name !== 'run_command' && homeOf(t, stepped.subAgents) === null && !state.commands.some(c => c.tool_call_id === t.id),
+  const own = (callId: string | null) =>
+    homeOf(
+      state.toolCalls.find(t => t.id === callId),
+      stepped.subAgents,
+    ) === null
+  const commands = state.commands.filter(
+    c => c.agent_id === agent.id && !['proposed', 'rejected', 'refused'].includes(c.status) && own(c.tool_call_id),
   )
-  const made = new Set(state.fileChanges.filter(f => f.agent_id === agent.id && !inScratch(f.path) && f.status !== 'discarded').map(f => f.path)).size
+  const tools = state.toolCalls.filter(
+    t =>
+      t.agent_id === agent.id &&
+      t.name !== 'run_command' &&
+      homeOf(t, stepped.subAgents) === null &&
+      !state.commands.some(c => c.tool_call_id === t.id),
+  )
+  const made = new Set(
+    state.fileChanges
+      .filter(f => f.agent_id === agent.id && !inScratch(f.path) && f.status !== 'discarded')
+      .map(f => f.path),
+  ).size
   const show = (n: number | null) => (n === null ? '–' : n.toLocaleString('en-US'))
   const units = spent(agent)
   if (!agent.started_at) return null
@@ -388,7 +477,8 @@ export function KeyNumbers({ state, agent }: { state: ConvState; agent: Agent })
     <dl className="facts agent-sum agent-numbers">
       <dt>Did</dt>
       <dd>
-        {many(made, 'file')} changed · {many(tools.length, 'tool')} · {many(commands.length, 'command')} · {many(stepped.steps.length, 'step')}
+        {many(made, 'file')} changed · {many(tools.length, 'tool')} · {many(commands.length, 'command')} ·{' '}
+        {many(stepped.steps.length, 'step')}
       </dd>
       <dt>Tokens</dt>
       <dd>
@@ -403,7 +493,13 @@ export function KeyNumbers({ state, agent }: { state: ConvState; agent: Agent })
  * What it changed: where its work is kept (its own copy, or why not), what of it did not reach the project and why, and
  * each file with its diff a click away - in the Workspace's Files view.
  */
-export function AgentChanges({ state, agent, open, onToggle, onOpenChange }: {
+export function AgentChanges({
+  state,
+  agent,
+  open,
+  onToggle,
+  onOpenChange,
+}: {
   state: ConvState
   agent: Agent
   open: boolean
@@ -413,7 +509,9 @@ export function AgentChanges({ state, agent, open, onToggle, onOpenChange }: {
   // (Its scratch writes are on their calls' cards in its steps, with their undo.)
   const changes = state.fileChanges.filter(f => f.agent_id === agent.id && !inScratch(f.path))
   // What of its changes did not reach the project, with why: also a file no change record shows.
-  const unapplied = state.merges.filter(m => m.agent_id === agent.id && m.status !== 'pending' && !isKept(m) && m.files.some(f => f.state !== 'applied'))
+  const unapplied = state.merges.filter(
+    m => m.agent_id === agent.id && m.status !== 'pending' && !isKept(m) && m.files.some(f => f.state !== 'applied'),
+  )
   const files = new Set(changes.map(f => f.path)).size
   return (
     <Fold title="Changes" count={files ? many(files, 'file') : 'none'} open={open} onToggle={onToggle}>
@@ -435,15 +533,28 @@ export function AgentChanges({ state, agent, open, onToggle, onOpenChange }: {
 function CopyNote({ state, agent }: { state: ConvState; agent: Agent }) {
   const copy = copyLine(state, agent)
   const live = agent.copy?.state === 'own' && AT_WORK.has(agent.status)
-  const working = useWorkingCopy(live ? agent.id : null, `${state.fileChanges.filter(f => f.status === 'in_copy').length}`)
+  const working = useWorkingCopy(
+    live ? agent.id : null,
+    `${state.fileChanges.filter(f => f.status === 'in_copy').length}`,
+  )
   const why: Record<string, string> = {
     too_big: 'This project is too big to copy: it works in the project itself, beside the other agents.',
     failed: 'This project could not be copied: it works in the project itself, beside the other agents.',
   }
   return (
     <>
-      {copy && <p className="muted provider-note">{why[agent.copy?.state ?? ''] ?? `It ${copy}: the project gets its changes when its work is over.`}</p>}
-      {working && <CopyCounts agentId={agent.id} counts={counted(working)} onSee={() => useApp.getState().openFiles(`copy:${agent.id}`)} />}
+      {copy && (
+        <p className="muted provider-note">
+          {why[agent.copy?.state ?? ''] ?? `It ${copy}: the project gets its changes when its work is over.`}
+        </p>
+      )}
+      {working && (
+        <CopyCounts
+          agentId={agent.id}
+          counts={counted(working)}
+          onSee={() => useApp.getState().openFiles(`copy:${agent.id}`)}
+        />
+      )}
     </>
   )
 }

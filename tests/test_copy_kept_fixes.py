@@ -66,7 +66,7 @@ def test_a_file_the_kept_copy_no_longer_changes_leaves_the_card_and_the_copy_is_
     with again(settings_env) as client:
         card = card_of(client, cid)
         assert files(card) == {"a.txt": "ready"}
-        (folder / "tree" / "a.txt").unlink()            # since the card was shown
+        (folder / "tree" / "a.txt").unlink()  # since the card was shown
         said = client.post(f"/api/merges/{card['id']}/approve")
         assert said.status_code == 200 and said.json()["files"] == []
         assert said.json()["status"] == "discarded"
@@ -78,19 +78,22 @@ def test_after_a_restart_a_card_apply_took_nothing_of_is_as_it_was_shown_again(
 ):
     """Apply took nothing and showed a file again (B-56): the copy stays, and so does the
     card as it was shown again; its Apply, with the user's word on that file, takes it."""
-    cid = at_work(settings_env, project_dir, [
-        step(write("a.txt", "A")), step(write("b.txt", "B", "w2"))])
+    cid = at_work(
+        settings_env, project_dir, [step(write("a.txt", "A")), step(write("b.txt", "B", "w2"))]
+    )
     with again(settings_env) as client:
         card = card_of(client, cid)
         assert files(card) == {"a.txt": "ready", "b.txt": "ready"}
-        (project_dir / "b.txt").write_text("THE USER'S OWN", encoding="utf-8")   # since
+        (project_dir / "b.txt").write_text("THE USER'S OWN", encoding="utf-8")  # since
         assert client.post(f"/api/merges/{card['id']}/approve").status_code == 409
     with again(settings_env) as client:
         card = card_of(client, cid)
         assert files(card) == {"a.txt": "ready", "b.txt": "conflict"}
         assert not (project_dir / "a.txt").exists()
-        said = client.post(f"/api/merges/{card['id']}/approve",
-                           json={"choices": {"b.txt": "project"}, "shown": seen(card)})
+        said = client.post(
+            f"/api/merges/{card['id']}/approve",
+            json={"choices": {"b.txt": "project"}, "shown": seen(card)},
+        )
         assert said.status_code == 200 and said.json()["status"] == "applied"
         assert (project_dir / "a.txt").read_text(encoding="utf-8") == "A"
         assert (project_dir / "b.txt").read_text(encoding="utf-8") == "THE USER'S OWN"
@@ -130,7 +133,7 @@ def test_a_decision_on_one_kept_folder_leaves_the_records_of_the_agents_other_on
     project.mkdir()
     first, second = (copies.make(project, settings.runtime_root, name) for name in ("x", "x-2"))
     (first.root / "a.txt").write_text("A", encoding="utf-8")
-    (second.root / "b.txt").write_text("A", encoding="utf-8")   # as its record has it
+    (second.root / "b.txt").write_text("A", encoding="utf-8")  # as its record has it
     with factory() as s:
         on_record(s, project)
         an_agent(s, "x")
@@ -145,7 +148,9 @@ def test_a_decision_on_one_kept_folder_leaves_the_records_of_the_agents_other_on
         assert client.post(f"/api/merges/{by_folder[str(first.root)]}/reject").status_code == 200
         with factory() as s:
             assert {c.id: c.status for c in s.scalars(select(FileChange))} == {
-                "f1": "rejected", "f2": "in_copy"}
+                "f1": "rejected",
+                "f2": "in_copy",
+            }
         assert (second.root / "b.txt").read_text(encoding="utf-8") == "A"
         assert client.post(f"/api/merges/{by_folder[str(second.root)]}/approve").status_code == 200
         with factory() as s:
@@ -192,8 +197,9 @@ def test_a_copy_kept_by_an_error_is_shown_at_once_as_it_is_after_a_restart(
         raise RuntimeError("the database is locked")
 
     monkeypatch.setattr(AgentRunner, "_record_merge", record)
-    client, model, cid, run_id = one(make_client, project_dir, [
-        step(write("a.txt", "A")), text("A done")], permission_mode="ask")
+    client, model, cid, run_id = one(
+        make_client, project_dir, [step(write("a.txt", "A")), text("A done")], permission_mode="ask"
+    )
     snap = wait_run(client, cid, run_id)
     (card,) = snap["merges"]
     assert card["status"] == "kept" and files(card) == {"a.txt": "ready"}
@@ -203,30 +209,47 @@ def test_a_copy_kept_by_an_error_is_shown_at_once_as_it_is_after_a_restart(
     assert snap["merges"][0]["status"] == "applied"
     assert (project_dir / "a.txt").read_text(encoding="utf-8") == "A"
     assert [f["status"] for f in snap["file_changes"]] == ["applied"]
-    assert not copies.folder(client.app.state.settings.runtime_root).joinpath(
-        card["agent_id"]).exists()
+    assert (
+        not copies.folder(client.app.state.settings.runtime_root)
+        .joinpath(card["agent_id"])
+        .exists()
+    )
 
 
 def test_nobody_watching_and_no_leave_to_write_the_agent_is_not_told_its_changes_are_taken(
     make_client, wait_run, project_dir
 ):
     (project_dir / "make.py").write_text("open('made.txt', 'w').write('m')\n", encoding="utf-8")
-    client, model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                 text("done")],
-        "Coder": [step(run("python make.py")), text("A done")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
+                text("done"),
+            ],
+            "Coder": [step(run("python make.py")), text("A done")],
+        }
+    )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(client, pid, cid, permissions={
-        "write": False, "commands": [allow(client, cid, "python make.py")], "agents": 1})
+    made = trigger(
+        client,
+        pid,
+        cid,
+        permissions={
+            "write": False,
+            "commands": [allow(client, cid, "python make.py")],
+            "agents": 1,
+        },
+    )
     snap = wait_run(client, cid, run_now(client, made["id"]), timeout=15)
     status, said = calls(snap, "Coder", "run_command")[0]
     assert status == "succeeded" and "you work in a copy of the project of your own" in said
     assert "taken into the project when" not in said
-    assert ("this turn may not change the project: what you or your commands change in the "
-            "copy is not taken into it. git does not work in the copy.") in said
+    assert (
+        "this turn may not change the project: what you or your commands change in the "
+        "copy is not taken into it. git does not work in the copy."
+    ) in said
     assert not (project_dir / "made.txt").exists()
 
 
@@ -252,16 +275,30 @@ def test_a_kept_copy_reaches_nothing_a_copy_at_work_could_not_whatever_its_base_
     made = copies.make(project_dir, tmp_path / "runtime", "a1")
     (made.root / ".git" / "hooks").mkdir(parents=True)
     (made.root / ".git" / "hooks" / "pre-commit").write_text("#!/bin/sh", encoding="utf-8")
-    copies.unlink(tmp_path / "runtime", "a1")           # kept: it has lost its links
+    copies.unlink(tmp_path / "runtime", "a1")  # kept: it has lost its links
     short = short_name(project_dir / "node_modules") if os.name == "nt" else None
-    forge(made.root.parent, {
-        ".git/config": "x", ".GIT/config": "x", ".git/hooks/pre-commit": "x",
-        "node_modules/pkg/index.js": "x", "Node_Modules/pkg/index.js": "x",
-        "sub/.venv/x.py": "x", "build/out.js": "x", "node_modules": "x",
-        "../outside.txt": "x", "sub/../hello.py": "x", "./hello.py": "x", "/hello.py": "x",
-        "sub\\x.py": "x", "C:/x.py": "x", "": "x", "sub//x.py": "x",
-        **({f"{short}/pkg/index.js": "x"} if short else {}),
-    })
+    forge(
+        made.root.parent,
+        {
+            ".git/config": "x",
+            ".GIT/config": "x",
+            ".git/hooks/pre-commit": "x",
+            "node_modules/pkg/index.js": "x",
+            "Node_Modules/pkg/index.js": "x",
+            "sub/.venv/x.py": "x",
+            "build/out.js": "x",
+            "node_modules": "x",
+            "../outside.txt": "x",
+            "sub/../hello.py": "x",
+            "./hello.py": "x",
+            "/hello.py": "x",
+            "sub\\x.py": "x",
+            "C:/x.py": "x",
+            "": "x",
+            "sub//x.py": "x",
+            **({f"{short}/pkg/index.js": "x"} if short else {}),
+        },
+    )
     kept = copies.load(project_dir, tmp_path / "runtime", "a1")
     # (another name for a folder is known only by where it leads: `changes` looks there)
     assert set(kept.names.values()) == {"hello.py", *([f"{short}/pkg/index.js"] if short else [])}
@@ -296,7 +333,8 @@ def test_a_copy_whose_tree_is_a_link_is_not_read(tmp_path, project_dir):
 def test_what_a_copy_was_made_from_is_not_parsed_beyond_a_size(tmp_path, project_dir, monkeypatch):
     copies.make(project_dir, tmp_path / "runtime", "a1")
     assert copies.load(project_dir, tmp_path / "runtime", "a1").names == {
-        copies._key("hello.py"): "hello.py"}
+        copies._key("hello.py"): "hello.py"
+    }
     monkeypatch.setattr(copies, "MAX_BASE_BYTES", 10)
     with pytest.raises(ValueError):
         copies.load(project_dir, tmp_path / "runtime", "a1")
@@ -324,7 +362,8 @@ def test_after_a_restart_a_kept_copy_whose_tree_became_a_link_is_only_to_discard
 
 
 @pytest.mark.parametrize(
-    "hostile", ["[" * 200000, '{"files": {"a.txt": 1}}', "\ud800"],
+    "hostile",
+    ["[" * 200000, '{"files": {"a.txt": 1}}', "\ud800"],
     ids=["too deep", "not digests", "not text"],
 )
 def test_a_base_that_cannot_be_read_never_keeps_the_app_from_starting(
@@ -391,18 +430,24 @@ def test_a_kept_file_with_no_diff_to_show_is_a_conflict_wherever_the_project_has
         card = card_of(client, cid)
         assert files(card) == {"data.bin": "conflict", "made.txt": "ready"}
         assert card["files"][0]["diff"] is None
-        (project_dir / "made.txt").write_text("THE USER'S OWN", encoding="utf-8")    # since
+        (project_dir / "made.txt").write_text("THE USER'S OWN", encoding="utf-8")  # since
         # (slice 30: whose file is taken of such a one is the user's to say)
         assert client.post(f"/api/merges/{card['id']}/approve").status_code == 409
         # made.txt moved since: nothing is taken, and it is asked about
-        assert client.post(f"/api/merges/{card['id']}/approve", json={
-            "choices": {"data.bin": "agent"}, "shown": seen(card)}).status_code == 409
+        assert (
+            client.post(
+                f"/api/merges/{card['id']}/approve",
+                json={"choices": {"data.bin": "agent"}, "shown": seen(card)},
+            ).status_code
+            == 409
+        )
         card = card_of(client, cid)
         assert files(card) == {"data.bin": "conflict", "made.txt": "conflict"}
         assert (project_dir / "data.bin").read_bytes() == b"\xfe1"
-        said = client.post(f"/api/merges/{card['id']}/approve", json={
-            "choices": {"data.bin": "agent", "made.txt": "project"},
-            "shown": seen(card)}).json()
+        said = client.post(
+            f"/api/merges/{card['id']}/approve",
+            json={"choices": {"data.bin": "agent", "made.txt": "project"}, "shown": seen(card)},
+        ).json()
         assert files(said) == {"data.bin": "applied", "made.txt": "refused"}
         assert (project_dir / "data.bin").read_bytes() == b"\xfe2"
 
@@ -426,8 +471,8 @@ def test_a_kept_copy_without_its_base_is_shown_against_the_project_and_apply_del
     cid = interrupted(settings_env, project_dir)
     (folder,) = kept_folders(settings_env)
     lose_the_base(folder, how)
-    (folder / "tree" / "gone.txt").unlink()     # deleted in the copy - or never copied
-    (folder / "tree" / "dist").mkdir()          # what a copy leaves out is not its to give
+    (folder / "tree" / "gone.txt").unlink()  # deleted in the copy - or never copied
+    (folder / "tree" / "dist").mkdir()  # what a copy leaves out is not its to give
     (folder / "tree" / "dist" / "out.js").write_text("built", encoding="utf-8")
     (folder / "tree" / "node_modules" / "pkg").mkdir(parents=True)
     (folder / "tree" / "node_modules" / "pkg" / "evil.js").write_text("x", encoding="utf-8")
@@ -465,7 +510,7 @@ def test_a_copy_laid_out_as_before_there_were_trees_can_be_applied(settings_env,
         shutil.move(str(entry), str(folder / entry.name))
     (folder / "tree").rmdir()
     (folder / copies.BASE_FILE).unlink()
-    shutil.rmtree(folder / copies.BASE)     # (nor did it keep what each file was copied from)
+    shutil.rmtree(folder / copies.BASE)  # (nor did it keep what each file was copied from)
     with make_session_factory(make_engine(load_settings(settings_env).db_path))() as s:
         # As slice 19b's own records had it: kept in the folder itself, and no tree on the
         # agent's row. (How a kept copy is laid out is what the records say.)
@@ -480,7 +525,7 @@ def test_a_copy_laid_out_as_before_there_were_trees_can_be_applied(settings_env,
         assert files(card) == {"a.txt": "conflict"} and card["files"][0]["two_way"]
         assert client.post(f"/api/merges/{card['id']}/approve").json()["status"] == "applied"
         assert (project_dir / "a.txt").read_text(encoding="utf-8") == "A"
-        assert kept_folders(settings_env) == []   # nor a base written beside the copy's folder
+        assert kept_folders(settings_env) == []  # nor a base written beside the copy's folder
 
 
 def test_apply_on_a_two_way_card_writes_what_it_showed_and_discard_touches_nothing(

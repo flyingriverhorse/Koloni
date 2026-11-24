@@ -3,6 +3,7 @@
 Revision ID: 0003
 Revises: 0002
 """
+
 import json
 
 import sqlalchemy as sa
@@ -14,9 +15,16 @@ branch_labels = None
 depends_on = None
 
 # What the single agent of slices 1 and 2 could use; later tools did not exist yet.
-_LEAD_TOOLS = json.dumps([
-    "list_dir", "read_file", "search", "write_file", "edit_file", "run_command",
-])
+_LEAD_TOOLS = json.dumps(
+    [
+        "list_dir",
+        "read_file",
+        "search",
+        "write_file",
+        "edit_file",
+        "run_command",
+    ]
+)
 
 
 def upgrade() -> None:
@@ -98,14 +106,15 @@ def upgrade() -> None:
     )
     lead_of_run = "(SELECT agents.id FROM agents WHERE agents.run_id = {table}.run_id)"
     for table, nullable in (
-        ("messages", True), ("tool_calls", False), ("commands", False), ("file_changes", False),
+        ("messages", True),
+        ("tool_calls", False),
+        ("commands", False),
+        ("file_changes", False),
     ):
         with op.batch_alter_table(table) as batch:
             batch.add_column(sa.Column("agent_id", sa.String(length=32), nullable=True))
         only_agents = " WHERE role = 'assistant'" if table == "messages" else ""
-        op.execute(
-            f"UPDATE {table} SET agent_id = {lead_of_run.format(table=table)}{only_agents}"
-        )
+        op.execute(f"UPDATE {table} SET agent_id = {lead_of_run.format(table=table)}{only_agents}")
         with op.batch_alter_table(table) as batch:
             batch.alter_column("agent_id", existing_type=sa.String(length=32), nullable=nullable)
             batch.create_foreign_key(f"fk_{table}_agent_id_agents", "agents", ["agent_id"], ["id"])

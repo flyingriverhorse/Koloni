@@ -37,7 +37,13 @@ export function OfficeView({ src, path, kind }: { src: string; path: string; kin
   useEffect(() => {
     // Only its own frame is heard: no other page, no other frame. (Sandboxed, it is of no origin: 'null' - one of an origin is not it.)
     function heard(event: MessageEvent) {
-      if (event.source !== frame.current?.contentWindow || event.origin !== 'null' || !event.data || typeof event.data !== 'object') return
+      if (
+        event.source !== frame.current?.contentWindow ||
+        event.origin !== 'null' ||
+        !event.data ||
+        typeof event.data !== 'object'
+      )
+        return
       const said = event.data as Said
       if ('failed' in said) setLine(`It could not be drawn: ${String(said.failed)}`)
     }

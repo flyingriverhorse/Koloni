@@ -15,12 +15,20 @@ def test_a_room_from_before_is_not_followed_by_the_lead(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0104")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO conversations (id, title, created_at, updated_at) "
-                     "VALUES ('c', 'c', ?, ?)", (AT, AT))
-        conn.execute("INSERT INTO runs (id, conversation_id, status, created_at) "
-                     "VALUES ('r', 'c', 'completed', ?)", (AT,))
-        conn.execute("INSERT INTO rooms (id, run_id, goal, status, seconds, created_at) "
-                     "VALUES ('o', 'r', 'g', 'ended', 0, ?)", (AT,))
+        conn.execute(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c', 'c', ?, ?)",
+            (AT, AT),
+        )
+        conn.execute(
+            "INSERT INTO runs (id, conversation_id, status, created_at) "
+            "VALUES ('r', 'c', 'completed', ?)",
+            (AT,),
+        )
+        conn.execute(
+            "INSERT INTO rooms (id, run_id, goal, status, seconds, created_at) "
+            "VALUES ('o', 'r', 'g', 'ended', 0, ?)",
+            (AT,),
+        )
 
     command.upgrade(cfg, "0105")
     with sqlite3.connect(db) as conn:

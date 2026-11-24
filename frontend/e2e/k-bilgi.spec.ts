@@ -8,7 +8,8 @@ test.afterEach(async ({ request }) => {
   await dropKnowledge(request, 'KOLONİ guide')
 })
 
-const lowContrast = async (page: Page, where: string) => (await page.locator(where).evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
+const lowContrast = async (page: Page, where: string) =>
+  (await page.locator(where).evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
 
 for (const theme of ['light', 'dark'] as const) {
   test(`the Knowledge page lists, opens a row and adds knowledge (${theme})`, async ({ page }) => {
@@ -37,7 +38,10 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.getByRole('article', { name: 'Tomli' })).toContainText('not learned')
     // This project's, not every project's.
     const pid = await e2eProject(page)
-    const listed = (await (await page.request.get(`/api/projects/${pid}/knowledge`, { headers: OWN })).json()) as { project_id: string | null; knowledge: { topic: string } }[]
+    const listed = (await (await page.request.get(`/api/projects/${pid}/knowledge`, { headers: OWN })).json()) as {
+      project_id: string | null
+      knowledge: { topic: string }
+    }[]
     expect(listed.find(one => one.knowledge.topic === 'Tomli')?.project_id).toBe(pid)
   })
 }
@@ -53,7 +57,10 @@ test('KOLONİ’s own guide is added in one click and learns only on Learn', asy
   await expect(guide).toContainText('not learned')
   await expect(page.getByRole('button', { name: 'Add KOLONİ’s own guide' })).toHaveCount(0)
   const pid = await e2eProject(page)
-  const listed = (await (await page.request.get(`/api/projects/${pid}/knowledge`)).json()) as { knowledge: { topic: string; sources: string[] }; state: { learning: boolean; learned: unknown } }[]
+  const listed = (await (await page.request.get(`/api/projects/${pid}/knowledge`)).json()) as {
+    knowledge: { topic: string; sources: string[] }
+    state: { learning: boolean; learned: unknown }
+  }[]
   const kept = listed.find(one => one.knowledge.topic === 'KOLONİ guide')!
   expect(kept.knowledge.sources).toEqual(['koloni-guide:'])
   expect(kept.state.learning).toBe(false)

@@ -7,6 +7,7 @@ change that key at every run.
 Revision ID: 0124
 Revises: 0123
 """
+
 import sqlalchemy as sa
 from alembic import op
 

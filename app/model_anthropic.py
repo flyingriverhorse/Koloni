@@ -57,10 +57,18 @@ REFUSED_KEY = (
 # shortcut: any other id (a gateway's own name, a model newer than this) is asked nothing,
 # as before; add its start here when its way is known.
 THINKS = {
-    "claude-opus-5": "on", "claude-opus-4-8": "adaptive", "claude-opus-4-7": "adaptive",
-    "claude-opus-4-6": "summarised", "claude-sonnet-5-5": "on", "claude-sonnet-5": "adaptive",
-    "claude-sonnet-4-6": "summarised", "claude-haiku-5": "on", "claude-fable-5": "on",
-    "claude-haiku-4-5": "budget", "claude-sonnet-4-5": "budget", "claude-opus-4-5": "budget",
+    "claude-opus-5": "on",
+    "claude-opus-4-8": "adaptive",
+    "claude-opus-4-7": "adaptive",
+    "claude-opus-4-6": "summarised",
+    "claude-sonnet-5-5": "on",
+    "claude-sonnet-5": "adaptive",
+    "claude-sonnet-4-6": "summarised",
+    "claude-haiku-5": "on",
+    "claude-fable-5": "on",
+    "claude-haiku-4-5": "budget",
+    "claude-sonnet-4-5": "budget",
+    "claude-opus-4-5": "budget",
 }
 MIN_BUDGET = 1024  # the least the API takes
 THOUGHT = ("thinking", "redacted_thinking")
@@ -173,7 +181,8 @@ def search_results(told: object) -> list[dict]:  # noqa: C901
         raise ModelUnavailable("the search failed" + (f": {failed}" if failed else ""))
     if stop == "refusal":
         raise ModelUnavailable(
-            "the model declined to search" + (f" ({category})" if category else ""))
+            "the model declined to search" + (f" ({category})" if category else "")
+        )
     if stop in ("pause_turn", "max_tokens"):
         raise ModelUnavailable(f"the search did not finish ({stop})")
     raise ModelUnavailable("the search found nothing" if searched else "the model made no search")
@@ -198,34 +207,53 @@ def to_anthropic(messages: list[dict]) -> tuple[str, list[dict]]:
                 out[-1]["content"].append(block)
             else:
                 out.append({"role": "user", "content": [block]})
-        elif role == "assistant" and message.get("blocks") and [
-                b.get("id") for b in message["blocks"]["content"] if b.get("type") == "tool_use"
-        ] == [call["id"] for call in message.get("tool_calls") or ()]:
+        elif (
+            role == "assistant"
+            and message.get("blocks")
+            and [b.get("id") for b in message["blocks"]["content"] if b.get("type") == "tool_use"]
+            == [call["id"] for call in message.get("tool_calls") or ()]
+        ):
             # As the API gave it, its thinking first (`StepResult.blocks`): never rebuilt -
             # unless KOLONİ filed calls of its own under it since (a lead beside, a team's
             # request), which it does not hold: rebuilt below then, without its thinking.
             kept = message["blocks"]
-            out.append({"role": "assistant", "content": list(kept["content"]),
-                        AFTER: kept["after"]})
+            out.append(
+                {"role": "assistant", "content": list(kept["content"]), AFTER: kept["after"]}
+            )
         elif role == "assistant":
             blocks: list[dict] = []
             if message.get("content"):
                 blocks.append({"type": "text", "text": message["content"]})
             for call in message.get("tool_calls") or []:
-                blocks.append({
-                    "type": "tool_use",
-                    "id": call["id"],
-                    "name": call["function"]["name"],
-                    "input": _object(call["function"]["arguments"]),
-                })
+                blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": call["id"],
+                        "name": call["function"]["name"],
+                        "input": _object(call["function"]["arguments"]),
+                    }
+                )
             if blocks:  # the API refuses an empty message
                 out.append({"role": "assistant", "content": blocks})
         elif "files" in message:
             # The files sent as they are (slice 85b): images as base64 blocks after the text.
             # (The API takes no video: KOLONİ never says one of its models does.)
-            out.append({"role": "user", "content": [{"type": "text", "text": message["content"]}, *(
-                {"type": "image", "source": {"type": "base64", "media_type": mime, "data": data}}
-                for kind, mime, data in files_of(message) if kind == "image")]})
+            out.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": message["content"]},
+                        *(
+                            {
+                                "type": "image",
+                                "source": {"type": "base64", "media_type": mime, "data": data},
+                            }
+                            for kind, mime, data in files_of(message)
+                            if kind == "image"
+                        ),
+                    ],
+                }
+            )
         else:
             out.append({"role": "user", "content": message["content"]})
     return "\n\n".join(system), out
@@ -242,12 +270,17 @@ def _told(model_id: str, response: httpx2.Response) -> tuple[ModelInfo, int | No
     capabilities = told.get("capabilities")
     effort = capabilities.get("effort") if isinstance(capabilities, dict) else None
     takes = tuple(
-        level for level in EFFORTS
-        if isinstance(effort, dict) and effort.get("supported") is True
-        and isinstance(effort.get(level), dict) and effort[level].get("supported") is True
+        level
+        for level in EFFORTS
+        if isinstance(effort, dict)
+        and effort.get("supported") is True
+        and isinstance(effort.get(level), dict)
+        and effort[level].get("supported") is True
     )
     info = ModelInfo(
-        model_id, True, efforts=takes or None,
+        model_id,
+        True,
+        efforts=takes or None,
         context_window=count_of(told.get("max_input_tokens")),
     )
     return info, count_of(told.get("max_tokens"))
@@ -310,7 +343,8 @@ class AnthropicClient:
                     data = told.get("data") if isinstance(told, dict) else None
                     if not isinstance(data, list):
                         raise ModelUnavailable(
-                            "the model server did not answer with a list of models")
+                            "the model server did not answer with a list of models"
+                        )
                     ids = [str(m["id"]) for m in data if isinstance(m, dict) and m.get("id")]
                     listed += ids
                     last = told.get("last_id")
@@ -321,7 +355,8 @@ class AnthropicClient:
             raise ModelUnavailable(_said(exc, self._key)) from exc
         except ValueError:
             raise ModelUnavailable(
-                "the model server did not answer with a list of models") from None
+                "the model server did not answer with a list of models"
+            ) from None
         return list(dict.fromkeys(listed))
 
     async def info(self) -> ModelInfo:
@@ -393,8 +428,16 @@ class AnthropicClient:
     replays_blocks = True
 
     async def stream_step(  # noqa: C901
-        self, model_id, messages, tools, on_delta, on_thinking=None, so_far=None,
-        cache: bool = False, effort: str | None = None, max_tokens: int | None = None,
+        self,
+        model_id,
+        messages,
+        tools,
+        on_delta,
+        on_thinking=None,
+        so_far=None,
+        cache: bool = False,
+        effort: str | None = None,
+        max_tokens: int | None = None,
         think: bool = True,
     ) -> StepResult:
         """`max_tokens`: the most it may write (a summary of KOLONİ's own), under the
@@ -462,8 +505,10 @@ class AnthropicClient:
             payload["output_config"] = {"effort": effort}
         thinks = family if on_thinking and (think or family == "on") else None
         if thinks in ("on", "adaptive", "summarised"):
-            payload["thinking"] = {"type": "adaptive", **(
-                {} if thinks == "summarised" else {"display": "summarized"})}
+            payload["thinking"] = {
+                "type": "adaptive",
+                **({} if thinks == "summarised" else {"display": "summarized"}),
+            }
         elif thinks == "budget" and payload["max_tokens"] // 2 >= MIN_BUDGET:
             # shortcut: half of what the step may write, whatever its level; set it by the
             # level if a budget is seen to be too much or too little. An answer of its open
@@ -517,7 +562,8 @@ class AnthropicClient:
                     if kind == "error":
                         error = event.get("error") or {}
                         failed = ModelUnavailable(
-                            f"model server reported an error: {error.get('message')}")
+                            f"model server reported an error: {error.get('message')}"
+                        )
                         # (Overloaded, said in the stream: as short as a 529 - `brief`.)
                         failed.retry_in = 1.0 if error.get("type") == "overloaded_error" else None
                         raise failed
@@ -540,7 +586,8 @@ class AnthropicClient:
                         raw[last] = dict(block)  # (redacted thinking comes whole)
                         if block.get("type") == "tool_use":
                             calls[event.get("index", 0)] = {
-                                "id": block.get("id") or "", "name": block.get("name") or "",
+                                "id": block.get("id") or "",
+                                "name": block.get("name") or "",
                                 "arguments": "",
                             }
                     elif kind == "content_block_delta":
@@ -553,12 +600,14 @@ class AnthropicClient:
                             await on_delta(delta["text"])
                         elif delta.get("type") == "thinking_delta":
                             into["thinking"] = into.get("thinking", "") + (
-                                delta.get("thinking") or "")
+                                delta.get("thinking") or ""
+                            )
                             if on_thinking:
                                 await on_thinking(delta.get("thinking") or "")
                         elif delta.get("type") == "signature_delta":
                             into["signature"] = into.get("signature", "") + (
-                                delta.get("signature") or "")
+                                delta.get("signature") or ""
+                            )
                         elif delta.get("type") == "input_json_delta":
                             slot = calls.get(event.get("index", 0))
                             if slot is not None:
@@ -571,7 +620,8 @@ class AnthropicClient:
             # Not an empty answer: the turn fails, and says what happened.
             category = _word(details.get("category")) if isinstance(details, dict) else ""
             raise ModelUnavailable(
-                "the model declined to answer" + (f" ({category})" if category else ""))
+                "the model declined to answer" + (f" ({category})" if category else "")
+            )
         cut = None
         if stop == "max_tokens":
             # The output limit came in the middle of something. In a tool call (its
@@ -593,14 +643,18 @@ class AnthropicClient:
         # (A thinking block cut before its signature cannot be sent back: the last one only.
         # Nor a text block that began and said nothing: the API takes no empty text, and
         # reads none in what an answer was written after, so leaving it out is no edit.)
-        answer = [b for _, b in sorted(raw.items())
-                  if (b.get("type") != "thinking" or b.get("signature"))
-                  and (b.get("type") != "text" or b.get("text"))]
+        answer = [
+            b
+            for _, b in sorted(raw.items())
+            if (b.get("type") != "thinking" or b.get("signature"))
+            and (b.get("type") != "text" or b.get("text"))
+        ]
         return StepResult(
             content="".join(content),
             tool_calls=made,
-            blocks={"after": after, "content": answer} if any(
-                b.get("type") in THOUGHT for b in answer) else None,
+            blocks={"after": after, "content": answer}
+            if any(b.get("type") in THOUGHT for b in answer)
+            else None,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cache_read=cached[0],

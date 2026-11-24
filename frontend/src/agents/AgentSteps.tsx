@@ -41,13 +41,16 @@ export function stepsOf(state: ConvState, agentId: string, without: string | nul
       .sort((a, b) => a.seq - b.seq)
   const last = messages[messages.length - 1]
   const said = (message: (typeof messages)[number]) =>
-    without !== null && message === last && message.role === 'assistant' && message.content.trim() === without.trim() ? '' : message.content
+    without !== null && message === last && message.role === 'assistant' && message.content.trim() === without.trim()
+      ? ''
+      : message.content
   const shown = messages.filter(m => said(m) || callsOf(m.id).length > 0)
   // What KOLONİ told it the same, several times in a row, is one step (×N); never its own or anybody's words.
   return { steps: foldRepeats(shown, m => (m.role === 'memory' ? m.content : null)), said, callsOf, subAgents }
 }
 
-const at = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+const at = (iso: string) =>
+  new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 
 /** What one agent said and did, step by step, in order, each step with its time. */
 export function AgentSteps({ state, agent, onOpenChange, onSelectAgent, without = null, empty, of }: Props) {
@@ -66,7 +69,9 @@ export function AgentSteps({ state, agent, onOpenChange, onSelectAgent, without 
             <div className="msg-from">
               <div className="asked-by mono">
                 note from the notebook, written by{' '}
-                {message.from_agent_id ? titleOf(state.agents.find(a => a.id === message.from_agent_id)?.name || 'an agent') : 'you'}
+                {message.from_agent_id
+                  ? titleOf(state.agents.find(a => a.id === message.from_agent_id)?.name || 'an agent')
+                  : 'you'}
               </div>
               <div className="msg-quote">{message.content}</div>
             </div>
@@ -82,7 +87,10 @@ export function AgentSteps({ state, agent, onOpenChange, onSelectAgent, without 
             <div className="msg-from">
               {/* (From nobody: KOLONİ's own word - the user's said to it while it works, 89d C, among them.) */}
               <div className="asked-by mono">
-                from {message.from_agent_id ? titleOf(state.agents.find(a => a.id === message.from_agent_id)?.name || 'Agent') : 'KOLONİ'}
+                from{' '}
+                {message.from_agent_id
+                  ? titleOf(state.agents.find(a => a.id === message.from_agent_id)?.name || 'Agent')
+                  : 'KOLONİ'}
               </div>
               <div className="msg-quote">{message.content}</div>
             </div>
@@ -96,7 +104,14 @@ export function AgentSteps({ state, agent, onOpenChange, onSelectAgent, without 
           {callsOf(message.id).map(call => {
             const child = state.agents.find(a => a.tool_call_id === call.id)
             if (child) {
-              return <SpawnRow key={call.id} agent={child} onSelect={onSelectAgent} asks={pendingMerge(state, child.id) !== null} />
+              return (
+                <SpawnRow
+                  key={call.id}
+                  agent={child}
+                  onSelect={onSelectAgent}
+                  asks={pendingMerge(state, child.id) !== null}
+                />
+              )
             }
             if (subAgents.has(call.id)) {
               return <OwnSubAgentBlock key={call.id} state={state} call={call} onOpenChange={onOpenChange} />
@@ -108,9 +123,18 @@ export function AgentSteps({ state, agent, onOpenChange, onSelectAgent, without 
               return (
                 <div key={call.id} className="chat-change">
                   <span className="mono chat-change-path">{change.path}</span>
-                  <span className="mono" style={{ color: 'var(--ok)' }}>+{change.additions}</span>
-                  <span className="mono" style={{ color: 'var(--del)' }}>−{change.deletions}</span>
-                  <button type="button" className="btn btn-small" aria-label={`View diff of ${change.path}`} onClick={() => onOpenChange(change.id)}>
+                  <span className="mono" style={{ color: 'var(--ok)' }}>
+                    +{change.additions}
+                  </span>
+                  <span className="mono" style={{ color: 'var(--del)' }}>
+                    −{change.deletions}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    aria-label={`View diff of ${change.path}`}
+                    onClick={() => onOpenChange(change.id)}
+                  >
                     View diff
                   </button>
                 </div>

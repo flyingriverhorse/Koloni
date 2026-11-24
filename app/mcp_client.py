@@ -83,28 +83,50 @@ NOT_WHERE_IT_STANDS = {"NODEFAULTCURRENTDIRECTORYINEXEPATH": "1"}
 # shortcut: a proxy or CA variable (HTTPS_PROXY, NODE_EXTRA_CA_CERTS) is not passed on; the
 # user puts it in the server's own variables.
 SYSTEM_VARIABLES = frozenset(
-    {"SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "PATH", "TEMP", "TMP", "USERPROFILE",
-     "APPDATA", "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH", "PROGRAMDATA", "PROGRAMFILES",
-     "SYSTEMDRIVE", "PROCESSOR_ARCHITECTURE", "USERNAME",
-     # where a browser a server drives (Playwright: Edge, a 32-bit Chrome) is looked for
-     "PROGRAMFILES(X86)", "PROGRAMW6432", "COMMONPROGRAMFILES", "COMMONPROGRAMFILES(X86)"}
-    if sys.platform == "win32" else
-    {"PATH", "HOME", "TMPDIR", "LANG", "TERM", "USER", "LOGNAME", "SHELL"}
+    {
+        "SYSTEMROOT",
+        "WINDIR",
+        "COMSPEC",
+        "PATHEXT",
+        "PATH",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "PROGRAMDATA",
+        "PROGRAMFILES",
+        "SYSTEMDRIVE",
+        "PROCESSOR_ARCHITECTURE",
+        "USERNAME",
+        # where a browser a server drives (Playwright: Edge, a 32-bit Chrome) is looked for
+        "PROGRAMFILES(X86)",
+        "PROGRAMW6432",
+        "COMMONPROGRAMFILES",
+        "COMMONPROGRAMFILES(X86)",
+    }
+    if sys.platform == "win32"
+    else {"PATH", "HOME", "TMPDIR", "LANG", "TERM", "USER", "LOGNAME", "SHELL"}
 ) | {"PYTHONUTF8", "PYTHONIOENCODING"}  # the user's own choice of how Python writes
 # A key in a command's argument as it is shown: the shapes frontend/src/tools/paste.ts has.
 # shortcut: the same shapes in two places, change both together; make them one if a third
 # place needs them.
 MASK = "••••••••"
-KEY_LIKE = re.compile(r"(?:sk-|gh[pousr]_|github_pat_|xox[a-z]-)\S{6,}|[0-9a-f]{32,}"
-                      r"|(?=.*\d)(?=.*[a-z])[\w+-]{40,}={0,2}", re.I | re.A)
-PLACEHOLDER = re.compile(r"\$\{.*\}|<.*>|\$[A-Za-z_]\w*|x{3,}|your[\W_].*|.*[\W_]here",
-                         re.I | re.S | re.A)
+KEY_LIKE = re.compile(
+    r"(?:sk-|gh[pousr]_|github_pat_|xox[a-z]-)\S{6,}|[0-9a-f]{32,}"
+    r"|(?=.*\d)(?=.*[a-z])[\w+-]{40,}={0,2}",
+    re.I | re.A,
+)
+PLACEHOLDER = re.compile(
+    r"\$\{.*\}|<.*>|\$[A-Za-z_]\w*|x{3,}|your[\W_].*|.*[\W_]here", re.I | re.S | re.A
+)
 # An address in an argument, the user (and password) before its host, a field of its query.
 URL = re.compile(r"[a-z][a-z0-9+.-]*://[^\s\"'<>]+", re.I)
 USERINFO = re.compile(r"^([a-z][a-z0-9+.-]*://)([^/?#@]+)@", re.I)
 FIELD = re.compile(r"([?&])([^=&#]+)=([^&#]*)")
-AUTHORIZATION = re.compile(r"(authorization:\s*(?:(?:bearer|basic|token)\s+)?)(\S.*)",
-                           re.I | re.S)
+AUTHORIZATION = re.compile(r"(authorization:\s*(?:(?:bearer|basic|token)\s+)?)(\S.*)", re.I | re.S)
 # NAME=VALUE: a flag's (--token=…) or a variable's (docker's -e GITHUB_TOKEN=…); a flag alone.
 NAMED = re.compile(r"(-{0,2}[\w.-]+)=(.*)", re.S | re.A)
 FLAG = re.compile(r"-{1,2}([\w-]+)", re.A)
@@ -113,8 +135,16 @@ FLAG = re.compile(r"-{1,2}([\w-]+)", re.A)
 DRIVE_RELATIVE = re.compile(r"[A-Za-z]:(?![\\/])(?!\d+$)[\w.-]", re.A)
 # What a server runs from a project (97, `in_project`): a folder after one of these flags
 # (uv --directory, npm --prefix, ...) or as an interpreter's first argument is its code.
-RUN_FROM = {"--directory", "--project", "--cwd", "--prefix", "--dir", "-C", "--from",
-            "--with-editable"}
+RUN_FROM = {
+    "--directory",
+    "--project",
+    "--cwd",
+    "--prefix",
+    "--dir",
+    "-C",
+    "--from",
+    "--with-editable",
+}
 INTERPRETERS = {"python", "pythonw", "py", "node", "deno", "bun"}
 # Not hashed with a script's folder: what tools make, and packages (`_held`'s shortcut).
 SKIPPED = {".git", ".venv", "node_modules", "__pycache__", "dist", "build"}
@@ -158,19 +188,27 @@ def not_startable(argv: list[str]) -> str | None:
     command interpreter runs it, reads the whole line itself first, and would act on
     some characters - in the program's own path as in an argument."""
     if sys.platform == "win32" and any(
-        DRIVE_RELATIVE.match(part) or (named := NAMED.fullmatch(part))
-        and DRIVE_RELATIVE.match(named[2]) for part in argv[1:]
+        DRIVE_RELATIVE.match(part)
+        or (named := NAMED.fullmatch(part))
+        and DRIVE_RELATIVE.match(named[2])
+        for part in argv[1:]
     ):
-        return ("an argument names a drive without a folder from its root (D:proj): write "
-                "it in full (D:\\proj)")
+        return (
+            "an argument names a drive without a folder from its root (D:proj): write "
+            "it in full (D:\\proj)"
+        )
     if not _launcher(argv[0]):
         return None
     if any(CMD_ACTS_ON.search(part) for part in argv):
-        return ("its program is a .cmd or .bat file, which the Windows command interpreter "
-                "runs: the characters % ! ^ & | < > cannot be in its path or in an argument")
+        return (
+            "its program is a .cmd or .bat file, which the Windows command interpreter "
+            "runs: the characters % ! ^ & | < > cannot be in its path or in an argument"
+        )
     if len(subprocess.list2cmdline(argv)) > MAX_SHIM_LINE:
-        return ("its program is a .cmd or .bat file, and its command line is too long for "
-                f"one on Windows ({MAX_SHIM_LINE} characters at most)")
+        return (
+            "its program is a .cmd or .bat file, and its command line is too long for "
+            f"one on Windows ({MAX_SHIM_LINE} characters at most)"
+        )
     return None
 
 
@@ -192,8 +230,12 @@ def _part_shown(command: list[str], at: int) -> tuple[str, list[str]]:
 
     def in_url(url: re.Match) -> str:
         bare = USERINFO.sub(lambda m: m[1] + put_away(m[2]) + "@", url[0])
-        return FIELD.sub(lambda m: f"{m[1]}{m[2]}={put_away(m[3])}" if _secret_name(m[2])
-                         and _is_value(m[3]) else m[0], bare)
+        return FIELD.sub(
+            lambda m: (
+                f"{m[1]}{m[2]}={put_away(m[3])}" if _secret_name(m[2]) and _is_value(m[3]) else m[0]
+            ),
+            bare,
+        )
 
     shown = AUTHORIZATION.sub(lambda m: m[1] + put_away(m[2]), URL.sub(in_url, part))
     if shown != part:
@@ -201,8 +243,11 @@ def _part_shown(command: list[str], at: int) -> tuple[str, list[str]]:
     named = NAMED.fullmatch(part)
     name, value = (named[1], named[2]) if named else (None, part)
     flag = FLAG.fullmatch(command[at - 1]) if at > 1 else None
-    secret = _secret_name(name.lstrip("-")) if name else (
-        flag is not None and _secret_name(flag[1]) and not part.startswith("-"))
+    secret = (
+        _secret_name(name.lstrip("-"))
+        if name
+        else (flag is not None and _secret_name(flag[1]) and not part.startswith("-"))
+    )
     if (secret and _is_value(value)) or KEY_LIKE.fullmatch(value):
         shown = f"{name}={put_away(value)}" if name else put_away(value)
     return shown, away
@@ -226,8 +271,11 @@ def visible(text: str) -> str:
     """Text as the user is shown it where they give leave: a character that does not show
     is written out as its escape, so that what is seen is what is sent."""
     return "".join(
-        ch if unicodedata.category(ch) not in UNSEEN
-        else f"\\u{ord(ch):04x}" if ord(ch) < 0x10000 else f"\\U{ord(ch):08x}"
+        ch
+        if unicodedata.category(ch) not in UNSEEN
+        else f"\\u{ord(ch):04x}"
+        if ord(ch) < 0x10000
+        else f"\\U{ord(ch):08x}"
         for ch in text
     )
 
@@ -261,11 +309,15 @@ def _editable(pth: Path, roots: list[Path]) -> list[Path]:
     except UnicodeDecodeError:
         text = held.decode(locale.getencoding(), errors="replace")
     lines = text.splitlines()
-    return [path for line in lines
-            if line.strip() and not line.startswith(("#", "import ", "import\t"))
-            and not far_or_device(joined := os.path.join(pth.parent, line.rstrip()))
-            and (path := Path(os.path.abspath(joined))).is_dir()
-            and any(path.resolve().is_relative_to(r) for r in roots)]
+    return [
+        path
+        for line in lines
+        if line.strip()
+        and not line.startswith(("#", "import ", "import\t"))
+        and not far_or_device(joined := os.path.join(pth.parent, line.rstrip()))
+        and (path := Path(os.path.abspath(joined))).is_dir()
+        and any(path.resolve().is_relative_to(r) for r in roots)
+    ]
 
 
 def _held(entry: Path, roots: list[Path]) -> str | None:
@@ -286,8 +338,10 @@ def _held(entry: Path, roots: list[Path]) -> str | None:
     digest, count, size = hashlib.sha256(), 0, 0
     try:
         if entry.is_file() and venv.is_file():
-            pths = [*sorted(folder.parent.glob("Lib/site-packages/*.pth")),
-                    *sorted(folder.parent.glob("lib/python*/site-packages/*.pth"))]
+            pths = [
+                *sorted(folder.parent.glob("Lib/site-packages/*.pth")),
+                *sorted(folder.parent.glob("lib/python*/site-packages/*.pth")),
+            ]
             parts += [venv, *pths, *(source for pth in pths for source in _editable(pth, roots))]
         for part in parts:
             walked = os.walk(part) if part.is_dir() else [(str(part.parent), [], [part.name])]
@@ -340,8 +394,12 @@ def in_project(command: list[str], folders: list[Path]) -> dict[str, str | None]
             given = Path(os.path.abspath(part))
             real = given.resolve()
             inside = [p for p in (given, real) if any(p.is_relative_to(r) for r in roots)]
-            if (not inside or never(given) or never(real)
-                    or not (real.is_file() or (code and real.is_dir()))):
+            if (
+                not inside
+                or never(given)
+                or never(real)
+                or not (real.is_file() or (code and real.is_dir()))
+            ):
                 continue
             files[str(inside[0])] = _held(real, roots)
         except (OSError, ValueError):  # gone meanwhile, a NUL in it, too long a path
@@ -365,9 +423,11 @@ def runs(files: dict[str, str | None], shown: int = 3) -> str:
     if len(files) > shown:
         named += f" and {len(files) - shown} more"
     if None in files.values():
-        named += (f" (a folder of it holds more than {MAX_TREE_FILES} files or "
-                  f"{MAX_TREE_BYTES // 1_000_000} MB, or what could not be read: you are "
-                  "asked every time it starts)")
+        named += (
+            f" (a folder of it holds more than {MAX_TREE_FILES} files or "
+            f"{MAX_TREE_BYTES // 1_000_000} MB, or what could not be read: you are "
+            "asked every time it starts)"
+        )
     return named
 
 
@@ -411,8 +471,11 @@ class _Starter(CliStepClient):
     label = "this server"
 
     def _inherited(self, pass_env: str | None = None) -> dict[str, str]:
-        return {name: value for name, value in os.environ.items()
-                if name.upper() in SYSTEM_VARIABLES or name.startswith("LC_")}
+        return {
+            name: value
+            for name, value in os.environ.items()
+            if name.upper() in SYSTEM_VARIABLES or name.startswith("LC_")
+        }
 
 
 class Client:
@@ -424,8 +487,7 @@ class Client:
     # ... and what git was given besides, for an agent in a working copy (`copies.git_env`).
     git: dict[str, str] = {}  # (replaced, never changed in place)
 
-    def __init__(self, process: asyncio.subprocess.Process, job, secrets: list[str],
-                 folder: Path):
+    def __init__(self, process: asyncio.subprocess.Process, job, secrets: list[str], folder: Path):
         self._process, self._job, self._folder = process, job, folder
         # Its variables' values and its arguments' keys, as they are looked for in whatever
         # it says (`raw.spellings`).
@@ -437,8 +499,9 @@ class Client:
             self._errors = asyncio.ensure_future(complaints(process.stderr))
 
     @classmethod
-    async def start(cls, command: list[str], env: dict[str, str], home: Path,
-                    git: dict[str, str] | None = None) -> "Client":
+    async def start(
+        cls, command: list[str], env: dict[str, str], home: Path, git: dict[str, str] | None = None
+    ) -> "Client":
         """Start the program and say hello: in an empty folder made for it in `home`
         (`Settings.mcp_home`: no folder above it can be a project), which is gone when it
         is ended - never in the project, a working copy or the system's temp folder, whose
@@ -454,9 +517,13 @@ class Client:
         hidden = raw.spellings([*env.values(), *keys_in(command)])
         at = found(command[0])
         if at is None:
-            raise McpError(raw.hide(
-                f"could not be started: the program {command[0]} was not found (a name is "
-                "looked for on PATH; a program in a folder is given by its full path)", hidden))
+            raise McpError(
+                raw.hide(
+                    f"could not be started: the program {command[0]} was not found (a name is "
+                    "looked for on PATH; a program in a folder is given by its full path)",
+                    hidden,
+                )
+            )
         argv = [at, *command[1:]]
         why = not_startable(argv)
         if why:
@@ -487,11 +554,15 @@ class Client:
             raise
         client = cls(process, job, hidden, folder)
         client.started_as, client.git = started_as, dict(git or {})
-        await client._within(START_SECONDS, "initialize", {
-            "protocolVersion": PROTOCOLS[0],
-            "capabilities": {},  # none: nothing is to be asked of KOLONİ
-            "clientInfo": {"name": "koloni", "version": "1"},
-        })
+        await client._within(
+            START_SECONDS,
+            "initialize",
+            {
+                "protocolVersion": PROTOCOLS[0],
+                "capabilities": {},  # none: nothing is to be asked of KOLONİ
+                "clientInfo": {"name": "koloni", "version": "1"},
+            },
+        )
         try:
             await client._say({"method": "notifications/initialized"})
         except BaseException:  # a Stop too: nobody else has it yet to end it
@@ -541,11 +612,21 @@ class Client:
             if "method" in told:
                 if told.get("id") is not None:
                     # `ping` asks nothing of KOLONİ: the protocol has it answered.
-                    await self._say({"id": told["id"], **(
-                        {"result": {}} if told["method"] == "ping" else {"error": {
-                            "code": -32601, "message": "KOLONİ answers no request of a server's",
-                        }}
-                    )})
+                    await self._say(
+                        {
+                            "id": told["id"],
+                            **(
+                                {"result": {}}
+                                if told["method"] == "ping"
+                                else {
+                                    "error": {
+                                        "code": -32601,
+                                        "message": "KOLONİ answers no request of a server's",
+                                    }
+                                }
+                            ),
+                        }
+                    )
                 continue
             if told.get("id") != self._asked:
                 continue
@@ -577,8 +658,15 @@ class Client:
                     # Written, and not waited for: a server that reads nothing any more
                     # is ended all the same, and at once.
                     with contextlib.suppress(Exception):
-                        self._write({"method": "notifications/cancelled", "params": {
-                            "requestId": self._asked, "reason": "the call was given up"}})
+                        self._write(
+                            {
+                                "method": "notifications/cancelled",
+                                "params": {
+                                    "requestId": self._asked,
+                                    "reason": "the call was given up",
+                                },
+                            }
+                        )
             finally:
                 last = await self.end()
             if isinstance(exc, TimeoutError):
@@ -600,7 +688,8 @@ class Client:
             async with asyncio.timeout(START_SECONDS):
                 while len(listed) < MAX_TOOLS:
                     page = await self._within(
-                        START_SECONDS, "tools/list", {"cursor": cursor} if cursor else {})
+                        START_SECONDS, "tools/list", {"cursor": cursor} if cursor else {}
+                    )
                     tools = page.get("tools")
                     listed += tools if isinstance(tools, list) else []
                     cursor = page.get("nextCursor")
@@ -609,8 +698,8 @@ class Client:
                         break
         except TimeoutError:
             raise McpError(
-                f"did not list its tools within {START_SECONDS:g} seconds"
-                + _last(await self.end())) from None
+                f"did not list its tools within {START_SECONDS:g} seconds" + _last(await self.end())
+            ) from None
         return listed[:MAX_TOOLS]
 
     async def call(self, tool: str, arguments: dict) -> tuple[bool, str]:
@@ -619,7 +708,8 @@ class Client:
         another."""
         try:
             result = await self._within(
-                CALL_SECONDS, "tools/call", {"name": tool, "arguments": arguments})
+                CALL_SECONDS, "tools/call", {"name": tool, "arguments": arguments}
+            )
         except _Refused as exc:
             return True, str(exc)
         failed, text = said(result)
@@ -646,7 +736,8 @@ class Client:
         # Hidden first, cut after: a secret across the cut would be left half in sight.
         lines = raw.hide(errors.decode("utf-8", errors="replace"), self._secrets).split("\n")
         self._ended = next(
-            (line.strip()[-ERROR_CHARS:] for line in reversed(lines) if line.strip()), "")
+            (line.strip()[-ERROR_CHARS:] for line in reversed(lines) if line.strip()), ""
+        )
         return self._ended
 
 
@@ -673,8 +764,12 @@ def _depth(value: object) -> int:
     deep, level = 0, [value]
     while level and deep <= MAX_SCHEMA_DEPTH:
         deep += 1
-        level = [inner for one in level if isinstance(one, dict | list)
-                 for inner in (one.values() if isinstance(one, dict) else one)]
+        level = [
+            inner
+            for one in level
+            if isinstance(one, dict | list)
+            for inner in (one.values() if isinstance(one, dict) else one)
+        ]
     return deep
 
 
@@ -708,16 +803,20 @@ def _as_read(server: str, listed: object) -> dict | None:
     if not TOOL_NAME.fullmatch(name):
         why = "its name has characters other than letters, digits, _ and -"
     elif len(f"{server}__{name}") > MAX_OFFERED_NAME:
-        why = (f"with the server's name before it, its name has {len(server) + 2 + len(name)} "
-               f"characters ({MAX_OFFERED_NAME} at most)")
+        why = (
+            f"with the server's name before it, its name has {len(server) + 2 + len(name)} "
+            f"characters ({MAX_OFFERED_NAME} at most)"
+        )
     elif not listed_one or schema.get("type") != "object":
         why = "it lists no input schema of an object"
     else:
         why = not_kept
     # The server's words, without what does not show (a line end and a tab do).
-    plain = "".join(
-        ch for ch in described if ch in "\n\t" or unicodedata.category(ch) not in UNSEEN
-    ) if isinstance(described, str) else ""
+    plain = (
+        "".join(ch for ch in described if ch in "\n\t" or unicodedata.category(ch) not in UNSEEN)
+        if isinstance(described, str)
+        else ""
+    )
     return {
         "name": name[:MAX_KEPT_NAME],
         "description": plain[:MAX_DESCRIPTION],
@@ -740,7 +839,8 @@ def kept(server: str, before: list[dict], listed: list) -> tuple[list[dict], dic
             continue  # listed twice: the first is the tool
         was = marks.get(read["name"])
         same = was is not None and all(
-            was[key] == read[key] for key in ("description", "input_schema"))
+            was[key] == read[key] for key in ("description", "input_schema")
+        )
         if was is None:
             new.append(read["name"])
         elif not same:
@@ -755,11 +855,14 @@ def schema(server: str, tool: dict) -> dict:
     """A kept tool as a model is offered it: under the server's name, and its description
     and its inputs said to be the server's."""
     told = SAID_BY.format(server=server)
-    return {"type": "function", "function": {
-        "name": f"{server}__{tool['name']}",
-        "description": f"{told}\n{tool['description']}" if tool["description"] else told,
-        "parameters": tool["input_schema"],
-    }}
+    return {
+        "type": "function",
+        "function": {
+            "name": f"{server}__{tool['name']}",
+            "description": f"{told}\n{tool['description']}" if tool["description"] else told,
+            "parameters": tool["input_schema"],
+        },
+    }
 
 
 def watched(server, tool: dict, room: int) -> str:
@@ -774,10 +877,12 @@ def watched(server, tool: dict, room: int) -> str:
     listed = ", ".join(names)
     if len(listed) > 300:
         listed = f"{listed[:300].rsplit(', ', 1)[0]} … ({len(names)} in all)"
-    head = ("\n\nThis server is watched: every call of it asks you, at every level, until you "
-            "trust it on the Tools page, which lists each of its tools with what it says of it."
-            f"\nIts tools: {listed}.\nWhat the server says of {tool['name']} (its words, not "
-            "KOLONİ's): ")
+    head = (
+        "\n\nThis server is watched: every call of it asks you, at every level, until you "
+        "trust it on the Tools page, which lists each of its tools with what it says of it."
+        f"\nIts tools: {listed}.\nWhat the server says of {tool['name']} (its words, not "
+        "KOLONİ's): "
+    )
     # One line, without the letters that show as nothing, quoted as JSON: nothing in it can
     # end the quote or start a line of KOLONİ's.
     said = "".join(ch for ch in tool["description"] if ch not in BLANK_LETTERS).lstrip()
@@ -788,7 +893,7 @@ def watched(server, tool: dict, room: int) -> str:
         return f"{head}nothing."
     left = room - len(head)
     while (over := len(json.dumps(said, ensure_ascii=False)) - left) > 0 and said != "…":
-        said = said[:-(over + 1)] + "…"
+        said = said[: -(over + 1)] + "…"
     return head + json.dumps(said, ensure_ascii=False)
 
 
@@ -798,6 +903,7 @@ def usable(servers: Iterable) -> dict[str, tuple]:
     be offered."""
     return {
         f"{server.name}__{tool['name']}": (server, tool)
-        for server in servers for tool in server.tools
+        for server in servers
+        for tool in server.tools
         if tool["mark"] != "off" and not tool["unusable"]
     }

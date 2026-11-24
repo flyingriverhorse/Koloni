@@ -457,7 +457,7 @@ export interface paths {
         put?: never;
         /**
          * Seen
-         * @description The user's OK of the Lead's word on a proposal of the Assistant PO's at Full auto: it
+         * @description The user's OK of the Lead's word on a proposal of the Scout's at Full auto: it
          *     leaves "Decided for you".
          */
         post: operations["seen_api_backlog__task_id__seen_post"];
@@ -581,6 +581,27 @@ export interface paths {
         get?: never;
         /** Switch Tool */
         put: operations["switch_tool_api_builtin_tools__name__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Cards
+         * @description The cards asked since `since` (all without it), in one project's chats or in all; for one
+         *     project, the rules its approvals suggest too.
+         */
+        get: operations["read_cards_api_cards_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -2482,7 +2503,7 @@ export interface paths {
         /**
          * Draft Tasks
          * @description The user's rough note written as tasks by a model asked once, with no tools, as the
-         *     Product owner breaks a goal (`backlog.DRAFT`): nothing is saved - the page shows them, and
+         *     Hive keeper breaks a goal (`backlog.DRAFT`): nothing is saved - the page shows them, and
          *     each is added by the user's word. What it spends is on Usage as KOLONİ itself, in this
          *     project.
          */
@@ -2547,6 +2568,29 @@ export interface paths {
         get: operations["project_budget_api_projects__project_id__budget_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/card-suggestions/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Suggested Rule
+         * @description Cards measured (0.1.7): the user's click on a rule the Usage page suggests - by its key
+         *     alone, never text: its line, KOLONİ's, found again among what this project's approvals
+         *     suggest (`cards.suggestions`), at the end of the project's rules, saved as `set_rules` saves
+         *     them. Once there, the same click changes nothing.
+         */
+        post: operations["add_suggested_rule_api_projects__project_id__card_suggestions__key__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5701,6 +5745,79 @@ export interface components {
             provider_id: string;
         };
         /**
+         * CardReasonOut
+         * @description Cards measured: the cards asked for one reason (`app.cards.REASONS`), and their answers.
+         */
+        CardReasonOut: {
+            /** Approved */
+            approved: number;
+            /** Asked */
+            asked: number;
+            /** Reason */
+            reason: string;
+            /** Rejected */
+            rejected: number;
+            /** Said */
+            said: string;
+            /** Unanswered */
+            unanswered: number;
+        };
+        /**
+         * CardSuggestionOut
+         * @description A delete the user approved unchanged `times` times, and the line for the project's rules
+         *     that would spare its card at Full auto with Check what I said first on - KOLONİ's words.
+         */
+        CardSuggestionOut: {
+            /** Command */
+            command: string;
+            /** Cwd */
+            cwd: string;
+            /** Key */
+            key: string;
+            /** Rule */
+            rule: string;
+            /** Times */
+            times: number;
+        };
+        /**
+         * CardsCheckedOut
+         * @description "Check what I said first"'s outcomes: ran on a line of the user's, not run, asked.
+         */
+        CardsCheckedOut: {
+            /** Ask */
+            ask: number;
+            /** Refuse */
+            refuse: number;
+            /** Run */
+            run: number;
+        };
+        /**
+         * CardsOut
+         * @description Cards measured (0.1.7): the command cards asked in a period, answered how, by reason - only
+         *     cards from 0.1.7 on carry one - the seconds to an answer on average (None: none answered),
+         *     the check's outcomes, and, for one project, the rules it suggests.
+         */
+        CardsOut: {
+            /** Approved */
+            approved: number;
+            /** Asked */
+            asked: number;
+            /** By Reason */
+            by_reason: components["schemas"]["CardReasonOut"][];
+            checked: components["schemas"]["CardsCheckedOut"];
+            /** Decide Seconds */
+            decide_seconds: number | null;
+            /** Rejected */
+            rejected: number;
+            /**
+             * Suggestions
+             * @default []
+             */
+            suggestions: components["schemas"]["CardSuggestionOut"][];
+            /** Unanswered */
+            unanswered: number;
+        };
+        /**
          * CatalogueFillIn
          * @description A provider not added yet, as the form has it so far.
          */
@@ -5924,6 +6041,49 @@ export interface components {
             unit: string;
         };
         /**
+         * CheckedLook
+         * @description One look of a pass: KOLONİ's agent, its role and the verdict KOLONİ acted on (None: none
+         *     said) - and its report's own word where that differs (a MERGE with a blocking finding).
+         */
+        CheckedLook: {
+            /** Agent Id */
+            agent_id: string;
+            /** Role */
+            role: string;
+            /** Said */
+            said?: string | null;
+            /** Verdict */
+            verdict: string | null;
+        };
+        /**
+         * CheckedPass
+         * @description One pass of KOLONİ's checks of a turn (`app.proof.new_pass`), as it happened:
+         *     the canvas draws its loop from these, never from the order agents were opened in.
+         */
+        CheckedPass: {
+            /** Diagnosis */
+            diagnosis?: string | null;
+            /** Fixers */
+            fixers: string[];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "check" | "stronger";
+            /** Looks */
+            looks: components["schemas"]["CheckedLook"][];
+            /** N */
+            n: number;
+            /** Sent */
+            sent: ("fix" | "ask") | null;
+            /** Tests */
+            tests: ("passed" | "failed") | null;
+            /** Tier */
+            tier?: string | null;
+            /** Why */
+            why: string | null;
+        };
+        /**
          * CheckedRow
          * @description One line of a turn's Checked section (`app.proof.Row`).
          */
@@ -5941,6 +6101,8 @@ export interface components {
             offer?: string | null;
             /** Question */
             question?: string | null;
+            /** Reason */
+            reason?: ("touched" | "held" | "unread" | "no_verdict" | "still" | "on_hold" | "removed") | null;
             /** Started At */
             started_at: string | null;
             /**
@@ -8254,6 +8416,8 @@ export interface components {
             from_agent_id: string | null;
             /** Id */
             id: string;
+            /** Passes */
+            passes?: components["schemas"]["CheckedPass"][] | null;
             /**
              * Role
              * @enum {string}
@@ -8704,7 +8868,7 @@ export interface components {
         };
         /**
          * PoOut
-         * @description The Assistant PO's one request after a turn (`PoMixin`): the model asked, whether it
+         * @description The Scout's one request after a turn (`PoMixin`): the model asked, whether it
          *     was heard out and what it spent (None: not said), how many of its proposals went on the
          *     To-do list, and why each other was dropped - never its answer nor words the turn did not
          *     say. `note`: why its answer proposed nothing it could read.
@@ -8933,8 +9097,6 @@ export interface components {
             away_minutes: number;
             /** Canary */
             canary: boolean;
-            /** Check Command */
-            check_command: string | null;
             /**
              * Check Kinds
              * @default {}
@@ -9133,8 +9295,6 @@ export interface components {
             away_minutes?: number | null;
             /** Canary */
             canary?: boolean | null;
-            /** Check Command */
-            check_command?: string | null;
             /** Check Kinds */
             check_kinds?: {
                 [key: string]: boolean;
@@ -9505,6 +9665,13 @@ export interface components {
             /** More */
             more: boolean;
         };
+        /** RecipeAgents */
+        RecipeAgents: {
+            /** Least */
+            least: number;
+            /** Most */
+            most: number;
+        };
         /** RecipeArrow */
         RecipeArrow: {
             /** From */
@@ -9533,6 +9700,11 @@ export interface components {
          */
         RecipeChecks: {
             /**
+             * Config
+             * @default true
+             */
+            config: boolean;
+            /**
              * Data
              * @default false
              */
@@ -9555,10 +9727,20 @@ export interface components {
              */
             review: boolean;
             /**
+             * Scripts
+             * @default true
+             */
+            scripts: boolean;
+            /**
              * Slides
              * @default false
              */
             slides: boolean;
+            /**
+             * Style
+             * @default true
+             */
+            style: boolean;
             /**
              * Tests
              * @default true
@@ -9665,6 +9847,7 @@ export interface components {
         };
         /** RecipeOut */
         RecipeOut: {
+            agents?: components["schemas"]["RecipeAgents"] | null;
             /** File */
             file?: string | null;
             graph: components["schemas"]["RecipeGraph"];
@@ -12747,6 +12930,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BuiltinToolOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_cards_api_cards_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+                since?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardsOut"];
                 };
             };
             /** @description Validation Error */
@@ -16416,6 +16631,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_suggested_rule_api_projects__project_id__card_suggestions__key__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RulesOut"];
                 };
             };
             /** @description Validation Error */

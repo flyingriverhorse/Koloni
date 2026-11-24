@@ -3,6 +3,7 @@
 Revision ID: 0069
 Revises: 0068
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -29,21 +30,25 @@ def upgrade() -> None:
         batch.alter_column("project_id", existing_type=sa.String(32), nullable=False)
         batch.drop_constraint("uq_allowed_commands_prefix", type_="unique")
         batch.create_unique_constraint(
-            "uq_allowed_commands_prefix", ["conversation_id", "project_id", "prefix"])
+            "uq_allowed_commands_prefix", ["conversation_id", "project_id", "prefix"]
+        )
 
 
 def downgrade() -> None:
-    if op.get_bind().execute(
-            sa.text("SELECT 1 FROM conversations WHERE project_id IS NULL LIMIT 1")).first():
+    if (
+        op.get_bind()
+        .execute(sa.text("SELECT 1 FROM conversations WHERE project_id IS NULL LIMIT 1"))
+        .first()
+    ):
         raise RuntimeError(
             "there are chats with no folder, which the schema before 0069 cannot hold: give "
-            "each one a folder, or delete it, first")
+            "each one a folder, or delete it, first"
+        )
     # Before, a chat's rules held wherever it was: only the ones of its folder now are kept.
     op.execute(f"DELETE FROM allowed_commands WHERE project_id IS NOT {FOLDER_OF_ITS_CHAT}")
     with op.batch_alter_table("allowed_commands") as batch:
         batch.drop_constraint("uq_allowed_commands_prefix", type_="unique")
-        batch.create_unique_constraint(
-            "uq_allowed_commands_prefix", ["conversation_id", "prefix"])
+        batch.create_unique_constraint("uq_allowed_commands_prefix", ["conversation_id", "prefix"])
         batch.drop_column("project_id")
     with op.batch_alter_table("conversations") as batch:
         batch.alter_column("project_id", existing_type=sa.String(32), nullable=False)

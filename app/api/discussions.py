@@ -12,11 +12,15 @@ OVER = "this discussion is over"
 
 
 @router.post(
-    "/discussions/{discussion_id}/posts", response_model=DiscussionPostOut, status_code=201,
+    "/discussions/{discussion_id}/posts",
+    response_model=DiscussionPostOut,
+    status_code=201,
     dependencies=[Depends(require_own_origin)],
 )
 async def say(
-    discussion_id: str, body: DiscussionPostIn, request: Request,
+    discussion_id: str,
+    body: DiscussionPostIn,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     """The user speaks in the shared place; whoever speaks next reads it."""

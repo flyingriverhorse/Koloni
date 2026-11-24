@@ -21,28 +21,50 @@ def test_an_archived_conversation_is_deleted_with_everything_of_its_turns(
     make_client, wait_run, project_dir
 ):
     (project_dir / "README.md").write_text("mine\n")
-    client, _model, pid, cid = began(make_client, project_dir, [
-        write("hello.txt", "hi\n"), text("wrote it", 3, 1), text("again", 2, 1)])
+    client, _model, pid, cid = began(
+        make_client,
+        project_dir,
+        [write("hello.txt", "hi\n"), text("wrote it", 3, 1), text("again", 2, 1)],
+    )
     turn(client, wait_run, cid)
     turn(client, wait_run, cid, "and again")
     keep = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     factory = client.app.state.session_factory
     with factory() as session:
         runs = list(session.scalars(select(Run.id).where(Run.conversation_id == cid)))
-        session.add(Memory(project_id=pid, tier="note", text="kept", origin="agent",
-                           conversation_id=cid, run_id=runs[0]))
+        session.add(
+            Memory(
+                project_id=pid,
+                tier="note",
+                text="kept",
+                origin="agent",
+                conversation_id=cid,
+                run_id=runs[0],
+            )
+        )
         session.commit()
     gone = {cid, *runs}
 
     def pointing():  # the tables with a row of it or of its turns
         with factory() as session:
-            return {f"{table.name}.{name}" for table in Base.metadata.sorted_tables
-                    for name in ("conversation_id", "run_id") if name in table.c
-                    and session.execute(select(table.c[name]).where(
-                        table.c[name].in_(gone)).limit(1)).first()}
+            return {
+                f"{table.name}.{name}"
+                for table in Base.metadata.sorted_tables
+                for name in ("conversation_id", "run_id")
+                if name in table.c
+                and session.execute(
+                    select(table.c[name]).where(table.c[name].in_(gone)).limit(1)
+                ).first()
+            }
 
-    assert {"runs.conversation_id", "agents.run_id", "messages.run_id", "tool_calls.run_id",
-            "events.conversation_id", "memories.run_id"} <= pointing()
+    assert {
+        "runs.conversation_id",
+        "agents.run_id",
+        "messages.run_id",
+        "tool_calls.run_id",
+        "events.conversation_id",
+        "memories.run_id",
+    } <= pointing()
     # Only one put away first.
     refused = delete(client, cid)
     assert refused["deleted"] == [] and "archive" in refused["refused"][0]["why"]
@@ -55,8 +77,12 @@ def test_an_archived_conversation_is_deleted_with_everything_of_its_turns(
     assert pointing() == set()
     with factory() as session:
         # ...not even what was said, as recall finds it; the memory stays, pointing nowhere.
-        assert session.execute(sql(
-            "SELECT count(*) FROM said_in_turns WHERE conversation_id = :c"), {"c": cid}).scalar() == 0
+        assert (
+            session.execute(
+                sql("SELECT count(*) FROM said_in_turns WHERE conversation_id = :c"), {"c": cid}
+            ).scalar()
+            == 0
+        )
         note = session.scalars(select(Memory).where(Memory.text == "kept")).one()
         assert (note.conversation_id, note.run_id) == (None, None)
 
@@ -75,23 +101,42 @@ def test_a_sub_agent_a_room_a_discussion_its_talk_and_a_compare_go_with_it(
         session.add(sub)
         session.flush()
         message = session.scalars(select(m.Message).where(m.Message.run_id == run_id)).first()
-        call = m.ToolCall(run_id=run_id, agent_id=lead.id, message_id=message.id, seq=9,
-                          provider_call_id="c9", name="discuss", arguments="{}")
+        call = m.ToolCall(
+            run_id=run_id,
+            agent_id=lead.id,
+            message_id=message.id,
+            seq=9,
+            provider_call_id="c9",
+            name="discuss",
+            arguments="{}",
+        )
         room = m.Room(run_id=run_id, goal="agree")
         session.add_all([call, room])
         session.flush()
-        talk = m.Discussion(run_id=run_id, agent_id=lead.id, tool_call_id=call.id, topic="t",
-                            max_rounds=1)
+        talk = m.Discussion(
+            run_id=run_id, agent_id=lead.id, tool_call_id=call.id, topic="t", max_rounds=1
+        )
         session.add(talk)
         session.flush()
-        made = [sub, call, room, talk, m.Compare(conversation_id=cid, sides=[]),
-                m.RoomMember(room_id=room.id, position=0, role="Coder", agent_id=sub.id),
-                m.RoomPost(room_id=room.id, number=1, type="note", text="hi"),
-                m.RoomItem(room_id=room.id, number=1, title="do it"),
-                m.DiscussionMember(discussion_id=talk.id, agent_id=sub.id, position=0),
-                m.DiscussionPost(discussion_id=talk.id, round=1, content="mine"),
-                m.ChannelMessage(run_id=run_id, from_agent_id=sub.id, to_agent_id=lead.id,
-                                 kind="message", content="done")]
+        made = [
+            sub,
+            call,
+            room,
+            talk,
+            m.Compare(conversation_id=cid, sides=[]),
+            m.RoomMember(room_id=room.id, position=0, role="Coder", agent_id=sub.id),
+            m.RoomPost(room_id=room.id, number=1, type="note", text="hi"),
+            m.RoomItem(room_id=room.id, number=1, title="do it"),
+            m.DiscussionMember(discussion_id=talk.id, agent_id=sub.id, position=0),
+            m.DiscussionPost(discussion_id=talk.id, round=1, content="mine"),
+            m.ChannelMessage(
+                run_id=run_id,
+                from_agent_id=sub.id,
+                to_agent_id=lead.id,
+                kind="message",
+                content="done",
+            ),
+        ]
         session.add_all(made)
         session.commit()
         kept = [(type(one), one.id) for one in made]
@@ -105,9 +150,16 @@ def test_one_with_a_trigger_is_not_deleted_and_the_rest_are(make_client, wait_ru
     client, _model, pid, cid = began(make_client, project_dir, [text("a", 1, 1)])
     turn(client, wait_run, cid)
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = client.post(f"/api/projects/{pid}/triggers", json={
-        "name": "Nightly", "kind": "schedule", "conversation_id": cid, "message": "look",
-        "config": {"every_minutes": 60}})
+    made = client.post(
+        f"/api/projects/{pid}/triggers",
+        json={
+            "name": "Nightly",
+            "kind": "schedule",
+            "conversation_id": cid,
+            "message": "look",
+            "config": {"every_minutes": 60},
+        },
+    )
     assert made.status_code == 201, made.text
     for one in (cid, other):
         assert client.patch(f"/api/conversations/{one}", json={"archived": True}).status_code == 200
@@ -158,5 +210,7 @@ def test_only_from_the_apps_own_page(make_client, project_dir):
     del client.headers["Origin"]  # an agent's command against the app's address
     assert client.post("/api/conversations/delete", json={"ids": [cid]}).status_code == 403
     client.headers["Origin"] = ORIGIN
-    assert client.post("/api/conversations/delete", json={"ids": ["nope"]}).json()["refused"][0][
-        "why"] == "not found"
+    assert (
+        client.post("/api/conversations/delete", json={"ids": ["nope"]}).json()["refused"][0]["why"]
+        == "not found"
+    )

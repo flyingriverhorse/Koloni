@@ -4,6 +4,7 @@ variables (slices 103-105)
 Revision ID: 0070
 Revises: 0069
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -15,8 +16,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column(
-            "hide_secrets", sa.Boolean(), nullable=False, server_default=sa.true()))
+        batch.add_column(
+            sa.Column("hide_secrets", sa.Boolean(), nullable=False, server_default=sa.true())
+        )
         batch.add_column(sa.Column("pass_env", sa.Text(), nullable=True))
 
 

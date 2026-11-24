@@ -102,8 +102,11 @@ def load_settings(env: Mapping[str, str] | None = None, repo_root: Path | None =
             f"http://127.0.0.1:{port}",
             f"http://localhost:{port}",
             # Vite's dev page (scripts/dev.ps1) only then: an agent's Vite page is on 5173 too.
-            *(("http://127.0.0.1:5173", "http://localhost:5173")
-              if env.get("KOLONI_DEV") == "1" else ()),
+            *(
+                ("http://127.0.0.1:5173", "http://localhost:5173")
+                if env.get("KOLONI_DEV") == "1"
+                else ()
+            ),
         ),
         context_char_budget=int(env.get("KOLONI_CONTEXT_CHARS") or 240_000),
         max_steps=25,
@@ -120,8 +123,10 @@ def load_settings(env: Mapping[str, str] | None = None, repo_root: Path | None =
         local_server=Path(env.get("KOLONI_LOCAL_SERVER") or LOCAL_SERVER),
         nvidia_smi=env.get("KOLONI_NVIDIA_SMI") or "nvidia-smi",
         # One folder for each runtime: the e2e's KOLONİ never clears the user's servers' folders.
-        mcp_home=Path(env.get("KOLONI_MCP_HOME") or mcp_base() / hashlib.sha256(
-            str(runtime.resolve()).encode()).hexdigest()[:12]),
+        mcp_home=Path(
+            env.get("KOLONI_MCP_HOME")
+            or mcp_base() / hashlib.sha256(str(runtime.resolve()).encode()).hexdigest()[:12]
+        ),
     )
 
 

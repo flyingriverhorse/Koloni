@@ -32,8 +32,16 @@ from tests.test_spawn import call, step  # noqa: E402
 ORIGIN = "http://127.0.0.1:8790"
 HOME = Path.home()
 NEVER = [
-    HOME / ".ssh", HOME / ".SSH", HOME / "x" / ".." / ".codex", HOME / ".claude", HOME / ".aws",
-    HOME, Path(HOME.anchor), Path("C:/Windows"), Path("C:/Program Files"), Path("C:/PROGRA~1"),
+    HOME / ".ssh",
+    HOME / ".SSH",
+    HOME / "x" / ".." / ".codex",
+    HOME / ".claude",
+    HOME / ".aws",
+    HOME,
+    Path(HOME.anchor),
+    Path("C:/Windows"),
+    Path("C:/Program Files"),
+    Path("C:/PROGRA~1"),
 ]
 
 
@@ -51,11 +59,13 @@ def project(client, project_dir, **patch):
 
 def converse(client, pid, mode="ask", content="go on"):
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode},
-                 headers={"Origin": ORIGIN})
+    client.patch(
+        f"/api/conversations/{cid}", json={"permission_mode": mode}, headers={"Origin": ORIGIN}
+    )
     # (From the app's own page: since slice 75 only there does a folder it names open.)
-    run = client.post(f"/api/conversations/{cid}/messages", json={"content": content},
-                      headers={"Origin": ORIGIN}).json()
+    run = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": content}, headers={"Origin": ORIGIN}
+    ).json()
     return cid, run["run"]["id"]
 
 
@@ -78,9 +88,9 @@ def other(tmp_path):
 def test_in_a_folder_of_the_projects_list_the_tools_work_as_in_the_project(
     make_client, wait_run, project_dir, other
 ):
-    client, _model = make_client([
-        read(other / "notes.md"),
-        write(str(other / "out.md"), "written\n", id="w"), text("done")])
+    client, _model = make_client(
+        [read(other / "notes.md"), write(str(other / "out.md"), "written\n", id="w"), text("done")]
+    )
     pid = project(client, project_dir, also_in=[str(other)])
     assert client.get(f"/api/projects/{pid}").json()["also_in"] == [str(other)]
     cid, run_id = converse(client, pid, mode="auto_edit")
@@ -117,28 +127,46 @@ def test_a_command_runs_in_a_folder_of_the_list(make_client, wait_run, project_d
 def test_the_list_never_takes_a_secret_or_system_folder(make_client, project_dir, never):
     client, _model = make_client([])
     pid = project(client, project_dir)
-    refused = client.patch(f"/api/projects/{pid}", json={"also_in": [str(never)]},
-                           headers={"Origin": ORIGIN})
+    refused = client.patch(
+        f"/api/projects/{pid}", json={"also_in": [str(never)]}, headers={"Origin": ORIGIN}
+    )
     assert refused.status_code == 422, (never, refused.text)
 
 
-@pytest.mark.parametrize("name", [".qoder", ".kaggle", ".docker", ".azure",
-                                  ".databricks", ".cline", ".continue", ".lmstudio",  # (B-65)
-                                  ".ollama", ".qoder-cli", ".qodersec", ".lingma", ".cagent",
-                                  ".claude-server-commander"])  # (B-94)
+@pytest.mark.parametrize(
+    "name",
+    [
+        ".qoder",
+        ".kaggle",
+        ".docker",
+        ".azure",
+        ".databricks",
+        ".cline",
+        ".continue",
+        ".lmstudio",  # (B-65)
+        ".ollama",
+        ".qoder-cli",
+        ".qodersec",
+        ".lingma",
+        ".cagent",
+        ".claude-server-commander",
+    ],
+)  # (B-94)
 def test_other_clis_and_clouds_homes_are_never_opened(name):
     # (seen live, 24 Oct: B-47; KOLONİ itself reads none of them through these rules)
     assert never(HOME / name / "x.json") == "it holds the user's settings and secrets"
 
 
 @pytest.mark.parametrize("bad", ["relative/path", "\\\\host\\share", "MISSING"])
-def test_the_list_takes_existing_absolute_local_folders_only(make_client, project_dir, tmp_path,
-                                                             bad):
+def test_the_list_takes_existing_absolute_local_folders_only(
+    make_client, project_dir, tmp_path, bad
+):
     client, _model = make_client([])
     pid = project(client, project_dir)
     bad = str(tmp_path / "missing") if bad == "MISSING" else bad
-    refused = client.patch(f"/api/projects/{pid}", json={"also_in": [bad]},
-                           headers={"Origin": ORIGIN})
+    refused = client.patch(
+        f"/api/projects/{pid}", json={"also_in": [bad]}, headers={"Origin": ORIGIN}
+    )
     assert refused.status_code == 422
 
 
@@ -156,10 +184,11 @@ def test_a_folder_the_user_names_is_opened_for_that_conversation_with_no_card(
 ):
     client, _model = make_client([read(other / "notes.md"), text("read it")])
     pid = project(client, project_dir)
-    cid, run_id = converse(client, pid, mode="ask",
-                           content=f"Read {other / 'notes.md'} and tell me what it says")
+    cid, run_id = converse(
+        client, pid, mode="ask", content=f"Read {other / 'notes.md'} and tell me what it says"
+    )
     snap = wait_run(client, cid, run_id)
-    assert snap["tool_calls"][0]["status"] == "succeeded"       # nobody was asked
+    assert snap["tool_calls"][0]["status"] == "succeeded"  # nobody was asked
     # The file's folder, to read in (B-52): a name in a message is no leave to change files.
     assert conversation(client, cid)["read_in"] == [str(other)]
     assert conversation(client, cid)["also_in"] == []
@@ -167,8 +196,9 @@ def test_a_folder_the_user_names_is_opened_for_that_conversation_with_no_card(
     other_cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     assert conversation(client, other_cid)["read_in"] == []
     # and the user takes it back
-    taken = client.patch(f"/api/conversations/{cid}", json={"read_in": []},
-                         headers={"Origin": ORIGIN})
+    taken = client.patch(
+        f"/api/conversations/{cid}", json={"read_in": []}, headers={"Origin": ORIGIN}
+    )
     assert taken.status_code == 200 and conversation(client, cid)["read_in"] == []
 
 
@@ -206,22 +236,33 @@ def test_the_project_named_by_the_user_is_not_one_of_its_own_folders(
     chat's list holds the project from before."""
     (project_dir / "src").mkdir()
     named = f"type {project_dir / 'hello.py'}"
-    client, _model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                 text("done")],
-        "Coder": [step(call("run_command", {"command": named}, "c")), text("A done")]})
+    client, _model = make_client(
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
+                text("done"),
+            ],
+            "Coder": [step(call("run_command", {"command": named}, "c")), text("A done")],
+        }
+    )
     pid = project(client, project_dir)
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={
-        "permission_mode": "full_auto", "spawn_approval": "never"}, headers={"Origin": ORIGIN})
+    client.patch(
+        f"/api/conversations/{cid}",
+        json={"permission_mode": "full_auto", "spawn_approval": "never"},
+        headers={"Origin": ORIGIN},
+    )
     if kept:  # (put on the list before B-93, when it could be: no request lists it now)
         from app.db.models import Conversation
 
         with client.app.state.session_factory() as session:
             session.get_one(Conversation, cid).read_in = [str(project_dir)]
             session.commit()
-    client.post(f"/api/conversations/{cid}/messages", headers={"Origin": ORIGIN}, json={
-        "content": "go on" if kept else f"{named} and look in {project_dir / 'src'}"})
+    client.post(
+        f"/api/conversations/{cid}/messages",
+        headers={"Origin": ORIGIN},
+        json={"content": "go on" if kept else f"{named} and look in {project_dir / 'src'}"},
+    )
     assert conversation(client, cid)["read_in"] == ([str(project_dir)] if kept else [])
     snap = wait_status(client, cid, "waiting_approval")
     assert [(c["command"], c["status"]) for c in snap["commands"]] == [(named, "proposed")]
@@ -229,7 +270,8 @@ def test_the_project_named_by_the_user_is_not_one_of_its_own_folders(
     # Its card says why it is asked (B-99's Test-Path card said nothing).
     (asked,) = [t for t in snap["tool_calls"] if t["name"] == "run_command"]
     assert asked["status"] == "running" and asked["why_asked"].startswith(
-        f"it names the project folder ({project_dir})")
+        f"it names the project folder ({project_dir})"
+    )
     client.post(f"/api/commands/{snap['commands'][0]['id']}/reject", headers={"Origin": ORIGIN})
 
 
@@ -237,27 +279,32 @@ def test_a_path_named_by_anybody_but_the_user_opens_nothing(
     make_client, wait_run, project_dir, other
 ):
     (project_dir / "README.md").write_text(f"See {other} for more.\n", encoding="utf-8")
-    client, _model = make_client([
-        step(call("read_file", {"path": "README.md"}, "r1"), content=f"I will look in {other}"),
-        read(other / "notes.md", "r2"), text("ok")])
+    client, _model = make_client(
+        [
+            step(call("read_file", {"path": "README.md"}, "r1"), content=f"I will look in {other}"),
+            read(other / "notes.md", "r2"),
+            text("ok"),
+        ]
+    )
     pid = project(client, project_dir)
     cid, _run_id = converse(client, pid, mode="full_auto", content="read the readme")
-    snap = wait_status(client, cid, "waiting_approval")      # asked, at Full auto too
+    snap = wait_status(client, cid, "waiting_approval")  # asked, at Full auto too
     assert conversation(client, cid)["also_in"] == []
     assert snap["tool_calls"][-1]["status"] == "pending"
 
 
 # (~/.codex is a CLI's own folder since K-ev-klasoru: a file there is a card - tests/test_cli_home.py)
 @pytest.mark.parametrize("never", NEVER[:2], ids=str)
-def test_a_secret_folder_named_by_the_user_is_not_opened(make_client, wait_run, project_dir,
-                                                         never):
+def test_a_secret_folder_named_by_the_user_is_not_opened(make_client, wait_run, project_dir, never):
     client, _model = make_client([read(never / "koloni-test-none"), text("ok")])
     pid = project(client, project_dir)
-    cid, run_id = converse(client, pid, mode="full_auto", content=f"read {never / 'koloni-test-none'}")
+    cid, run_id = converse(
+        client, pid, mode="full_auto", content=f"read {never / 'koloni-test-none'}"
+    )
     snap = wait_run(client, cid, run_id)
     assert conversation(client, cid)["also_in"] == []
     (tool,) = snap["tool_calls"]
-    assert tool["status"] == "failed"                         # refused outright, nobody asked
+    assert tool["status"] == "failed"  # refused outright, nobody asked
 
 
 # --- any other path: asked -----------------------------------------------------------------------
@@ -274,15 +321,17 @@ def test_another_path_outside_is_asked_for_at_every_level(make_client, project_d
 
 
 def test_allowed_once_it_is_asked_for_again_next_time(make_client, wait_run, project_dir, other):
-    client, _model = make_client([read(other / "notes.md", "r1"),
-                                  read(other / "notes.md", "r2"), text("ok")])
+    client, _model = make_client(
+        [read(other / "notes.md", "r1"), read(other / "notes.md", "r2"), text("ok")]
+    )
     pid = project(client, project_dir)
     cid, run_id = converse(client, pid, mode="full_auto")
     first = wait_status(client, cid, "waiting_approval")["tool_calls"][0]
-    once = client.post(f"/api/tool-calls/{first['id']}/approve", json={"scope": "once"},
-                       headers={"Origin": ORIGIN})
+    once = client.post(
+        f"/api/tool-calls/{first['id']}/approve", json={"scope": "once"}, headers={"Origin": ORIGIN}
+    )
     assert once.status_code == 200, once.text
-    snap = wait_status(client, cid, "waiting_approval")      # the second read asks again
+    snap = wait_status(client, cid, "waiting_approval")  # the second read asks again
     assert [t["status"] for t in snap["tool_calls"]] == ["succeeded", "pending"]
     assert conversation(client, cid)["also_in"] == []
     client.post(f"/api/tool-calls/{snap['tool_calls'][1]['id']}/reject", headers={"Origin": ORIGIN})
@@ -290,15 +339,23 @@ def test_allowed_once_it_is_asked_for_again_next_time(make_client, wait_run, pro
     assert snap["tool_calls"][1]["status"] == "denied"
 
 
-def test_allowed_for_its_folder_it_is_not_asked_for_again(make_client, wait_run, project_dir,
-                                                         other):
-    client, _model = make_client([read(other / "notes.md", "r1"),
-                                  read(other / "notes.md", "r2"), text("ok")])
+def test_allowed_for_its_folder_it_is_not_asked_for_again(
+    make_client, wait_run, project_dir, other
+):
+    client, _model = make_client(
+        [read(other / "notes.md", "r1"), read(other / "notes.md", "r2"), text("ok")]
+    )
     pid = project(client, project_dir)
     cid, run_id = converse(client, pid, mode="full_auto")
     first = wait_status(client, cid, "waiting_approval")["tool_calls"][0]
-    assert client.post(f"/api/tool-calls/{first['id']}/approve", json={"scope": "folder"},
-                       headers={"Origin": ORIGIN}).status_code == 200
+    assert (
+        client.post(
+            f"/api/tool-calls/{first['id']}/approve",
+            json={"scope": "folder"},
+            headers={"Origin": ORIGIN},
+        ).status_code
+        == 200
+    )
     snap = wait_run(client, cid, run_id)
     assert [t["status"] for t in snap["tool_calls"]] == ["succeeded", "succeeded"]
     # (A read's card opens the folder to read in, since slice 75: never to change files.)
@@ -306,8 +363,9 @@ def test_allowed_for_its_folder_it_is_not_asked_for_again(make_client, wait_run,
 
 
 def junction(link, target):
-    made = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
-                          capture_output=True, text=True)
+    made = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, text=True
+    )
     if made.returncode != 0:
         pytest.skip(f"no junctions here: {made.stderr}")
 
@@ -323,15 +381,17 @@ def test_a_link_inside_a_listed_folder_does_not_lead_past_the_list(
     client, _model = make_client([read(other / "door" / "secret.md"), text("ok")])
     pid = project(client, project_dir, also_in=[str(other)])
     cid, _run_id = converse(client, pid, mode="full_auto")
-    snap = wait_status(client, cid, "waiting_approval")      # it is where the link leads
+    snap = wait_status(client, cid, "waiting_approval")  # it is where the link leads
     (tool,) = snap["tool_calls"]
     assert tool["status"] == "pending" and "beyond" not in (tool["result"] or "")
 
 
-@pytest.mark.parametrize("path", ["\\\\127.0.0.1\\c$\\Windows\\win.ini",
-                                  str(HOME / ".ssh" / "koloni-test-none")])
-def test_a_network_path_or_a_secret_is_refused_without_asking(make_client, wait_run,
-                                                               project_dir, path):
+@pytest.mark.parametrize(
+    "path", ["\\\\127.0.0.1\\c$\\Windows\\win.ini", str(HOME / ".ssh" / "koloni-test-none")]
+)
+def test_a_network_path_or_a_secret_is_refused_without_asking(
+    make_client, wait_run, project_dir, path
+):
     client, _model = make_client([read(path), text("ok")])
     pid = project(client, project_dir)
     cid, run_id = converse(client, pid, mode="full_auto")
@@ -344,16 +404,21 @@ def test_a_network_path_or_a_secret_is_refused_without_asking(make_client, wait_
 
 
 def test_claude_code_is_given_the_folders_with_add_dir(
-    claude_app, wait_run, project_dir, other  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    other,  # noqa: F811
 ):
     client, provider, _ = claude_app([{"say": "Looked."}], model="claude-sonnet-5-5")
     pid = project(client, project_dir, also_in=[str(other)])
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={
-        "permission_mode": "ask", "provider_id": provider["id"]}, headers={"Origin": ORIGIN})
+    client.patch(
+        f"/api/conversations/{cid}",
+        json={"permission_mode": "ask", "provider_id": provider["id"]},
+        headers={"Origin": ORIGIN},
+    )
     run = client.post(f"/api/conversations/{cid}/messages", json={"content": "look"}).json()
     wait_run(client, cid, run["run"]["id"])
     argv = claude_app.record()["argv"]
     given = [argv[i + 1] for i, word in enumerate(argv) if word == "--add-dir"]
     assert str(other) in given
-

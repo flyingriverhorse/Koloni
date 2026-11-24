@@ -47,52 +47,81 @@ def _where_it_stood(snap, head):
     lines = [f"{head}. Turn: {run.get('status') or 'not on record'}.", "Agents:"]
     for agent in agents:
         where = " · ".join(
-            part for part in (agent.get("provider_name"), agent.get("model_id")) if part)
+            part for part in (agent.get("provider_name"), agent.get("model_id")) if part
+        )
         last = next((t for t in reversed(calls) if t.get("agent_id") == agent.get("id")), None)
-        did = (f"last tool call: {last.get('name')} {_short(last.get('arguments'))} - "
-               f"{last.get('status')}") if last else "no tool call yet"
+        did = (
+            (
+                f"last tool call: {last.get('name')} {_short(last.get('arguments'))} - "
+                f"{last.get('status')}"
+            )
+            if last
+            else "no tool call yet"
+        )
         error = f"; error: {_short(agent['error'])}" if agent.get("error") else ""
         lines.append(
             f"- {name[agent.get('id')]} ({agent.get('role_name')} role"
-            f"{', ' + where if where else ''}): {agent.get('status')}; {did}{error}")
+            f"{', ' + where if where else ''}): {agent.get('status')}; {did}{error}"
+        )
 
     who = lambda row: name.get(row.get("agent_id"), "an agent")  # noqa: E731
-    waits = [f"your approval to open {name[a.get('id')]}"
-             for a in agents if a.get("status") == "proposed"]
-    waits += [f"your answer to {who(q)}: {json.dumps(_short(q.get('question')))}"
-              for q in of_turn(snap.get("questions")) if q.get("status") == "pending"]
-    waits += [f"your approval of a change to {f.get('path')} ({who(f)})"
-              for f in of_turn(snap.get("file_changes")) if f.get("status") == "proposed"]
+    waits = [
+        f"your approval to open {name[a.get('id')]}"
+        for a in agents
+        if a.get("status") == "proposed"
+    ]
+    waits += [
+        f"your answer to {who(q)}: {json.dumps(_short(q.get('question')))}"
+        for q in of_turn(snap.get("questions"))
+        if q.get("status") == "pending"
+    ]
+    waits += [
+        f"your approval of a change to {f.get('path')} ({who(f)})"
+        for f in of_turn(snap.get("file_changes"))
+        if f.get("status") == "proposed"
+    ]
     for command in of_turn(snap.get("commands")):
         if command.get("status") == "proposed":
-            waits.append(f"your approval of the command {_short(command.get('command'))} "
-                         f"({who(command)})")
+            waits.append(
+                f"your approval of the command {_short(command.get('command'))} ({who(command)})"
+            )
         elif command.get("status") == "running":
-            waits.append(f"the command {_short(command.get('command'))} of {who(command)}, "
-                         "still running")
-    waits += [f"your approval of the role {r.get('name')} ({who(r)})"
-              for r in of_turn(snap.get("pending_roles"))]
-    waits += [f"the discussion {json.dumps(_short(d.get('topic')))}, in round "
-              f"{d.get('round')} of {d.get('max_rounds')}"
-              for d in snap.get("discussions") or []
-              if d.get("run_id") == run.get("id") and d.get("status") == "running"]
+            waits.append(
+                f"the command {_short(command.get('command'))} of {who(command)}, still running"
+            )
+    waits += [
+        f"your approval of the role {r.get('name')} ({who(r)})"
+        for r in of_turn(snap.get("pending_roles"))
+    ]
+    waits += [
+        f"the discussion {json.dumps(_short(d.get('topic')))}, in round "
+        f"{d.get('round')} of {d.get('max_rounds')}"
+        for d in snap.get("discussions") or []
+        if d.get("run_id") == run.get("id") and d.get("status") == "running"
+    ]
     waits += [f"the tool call {t.get('name')} of {who(t)} ({t.get('status')})" for t in is_open]
     for agent in agents:
         if agent.get("status") == "queued":
             waits.append(f"a free slot for {name[agent.get('id')]}")
         if agent.get("status") != "running":
             continue
-        written = sum(len(m.get("content") or "")
-                      for m in writing if m.get("agent_id") == agent.get("id"))
+        written = sum(
+            len(m.get("content") or "") for m in writing if m.get("agent_id") == agent.get("id")
+        )
         if written:
-            waits.append(f"the model of {name[agent.get('id')]}: {written} characters of its "
-                         "message written so far")
+            waits.append(
+                f"the model of {name[agent.get('id')]}: {written} characters of its "
+                "message written so far"
+            )
         elif not any(t.get("agent_id") == agent.get("id") for t in is_open):
-            waits.append(f"the model of {name[agent.get('id')]}: no open call and nothing "
-                         "written yet (its first token, or a CLI that has said nothing)")
+            waits.append(
+                f"the model of {name[agent.get('id')]}: no open call and nothing "
+                "written yet (its first token, or a CLI that has said nothing)"
+            )
     lines.append("Waiting on:")
     lines += [f"- {wait}" for wait in waits] or [
-        "- nothing on record: no open call, question, approval or model step"]
+        "- nothing on record: no open call, question, approval or model step"
+    ]
     return "\n".join(lines)
 
 
@@ -107,17 +136,20 @@ def test_the_agent_reads_and_edits_a_file_with_the_real_model(tmp_path):
     project = tmp_path / "proj"
     project.mkdir()
     (project / "hello.py").write_bytes(b"print('hi')\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
         # Full auto: the model may run the file to check its edit, and nobody is here
         # to approve a command.
-        client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"},
-                     headers=OWN)
+        client.patch(
+            f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}, headers=OWN
+        )
         client.post(
             f"/api/conversations/{cid}/messages",
             json={"content": "Read hello.py and change the greeting it prints from hi to hello."},
@@ -144,25 +176,32 @@ def test_the_agent_runs_tests_fixes_the_bug_and_reruns_them(tmp_path):
     project = tmp_path / "proj"
     project.mkdir()
     (project / "calc.py").write_bytes(
-        b"def average(values):\n    return sum(values) / (len(values) + 1)\n")
+        b"def average(values):\n    return sum(values) / (len(values) + 1)\n"
+    )
     (project / "test_calc.py").write_bytes(
         b"import unittest\n\nfrom calc import average\n\n\n"
         b"class AverageTest(unittest.TestCase):\n"
         b"    def test_mean(self):\n        self.assertEqual(average([2, 4]), 3)\n\n\n"
-        b"if __name__ == \"__main__\":\n    unittest.main()\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-    })
+        b'if __name__ == "__main__":\n    unittest.main()\n'
+    )
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"},
-                     headers=OWN)
+        client.patch(
+            f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}, headers=OWN
+        )
         client.post(
             f"/api/conversations/{cid}/messages",
-            json={"content": "Run the tests with `python -m unittest`, fix the bug they find, "
-                             "and run them again to confirm."},
+            json={
+                "content": "Run the tests with `python -m unittest`, fix the bug they find, "
+                "and run them again to confirm."
+            },
         )
         deadline = time.monotonic() + 400
         while True:
@@ -185,20 +224,26 @@ def test_the_lead_fixes_a_bug_and_has_a_reviewer_check_it(tmp_path):
     project = tmp_path / "proj"
     project.mkdir()
     (project / "calc.py").write_bytes(
-        b"def average(values):\n    return sum(values) / (len(values) + 1)\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-    })
+        b"def average(values):\n    return sum(values) / (len(values) + 1)\n"
+    )
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"},
-                     headers=OWN)
+        client.patch(
+            f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}, headers=OWN
+        )
         client.post(
             f"/api/conversations/{cid}/messages",
-            json={"content": "average() in calc.py returns the wrong value. Fix the bug, then "
-                             "have a Reviewer sub-agent check the fix and tell me what it said."},
+            json={
+                "content": "average() in calc.py returns the wrong value. Fix the bug, then "
+                "have a Reviewer sub-agent check the fix and tell me what it said."
+            },
         )
         deadline = time.monotonic() + 600
         while True:
@@ -229,19 +274,24 @@ def test_the_lead_fixes_a_bug_and_has_a_reviewer_check_it(tmp_path):
 def test_the_agent_asks_before_it_writes_and_uses_the_answer(tmp_path):
     project = tmp_path / "proj"
     project.mkdir()
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"},
-                     headers=OWN)
+        client.patch(
+            f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}, headers=OWN
+        )
         client.post(
             f"/api/conversations/{cid}/messages",
-            json={"content": "Create greet.py that prints one word. I have not told you the "
-                             "word: ask me which word first, then write the file with it."},
+            json={
+                "content": "Create greet.py that prints one word. I have not told you the "
+                "word: ask me which word first, then write the file with it."
+            },
         )
         deadline = time.monotonic() + 300
         answered = False
@@ -249,8 +299,11 @@ def test_the_agent_asks_before_it_writes_and_uses_the_answer(tmp_path):
             snap = client.get(f"/api/conversations/{cid}").json()
             waiting = [q for q in snap["questions"] if q["status"] == "pending"]
             if waiting:
-                sent = client.post(f"/api/questions/{waiting[0]['id']}/answer",
-                                   json={"answer": "merhaba-koloni"}, headers=OWN)
+                sent = client.post(
+                    f"/api/questions/{waiting[0]['id']}/answer",
+                    json={"answer": "merhaba-koloni"},
+                    headers=OWN,
+                )
                 assert sent.status_code == 200, sent.text
                 answered = True
             elif snap["runs"][0]["status"] not in ("running", "waiting_approval"):
@@ -264,17 +317,28 @@ def test_the_agent_asks_before_it_writes_and_uses_the_answer(tmp_path):
     assert "merhaba-koloni" in (project / "greet.py").read_text(encoding="utf-8")
 
 
-def _cli_turn(tmp_path, kind, model, content, timeout=600, role_provider=None, mode=None,
-              permission="full_auto", on_waiting=None):
+def _cli_turn(
+    tmp_path,
+    kind,
+    model,
+    content,
+    timeout=600,
+    role_provider=None,
+    mode=None,
+    permission="full_auto",
+    on_waiting=None,
+):
     """One real turn on a CLI provider; returns (snapshot, project folder)."""
     project = tmp_path / "proj"
     project.mkdir()
     (project / "hello.py").write_bytes(b"print('hi')\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         body = {"name": "CLI", "kind": kind}
         if model:
@@ -284,11 +348,16 @@ def _cli_turn(tmp_path, kind, model, content, timeout=600, role_provider=None, m
         provider = client.post("/api/providers", json=body).json()
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        client.patch(f"/api/conversations/{cid}", headers=OWN,
-                     json={"permission_mode": permission, "provider_id": provider["id"]})
+        client.patch(
+            f"/api/conversations/{cid}",
+            headers=OWN,
+            json={"permission_mode": permission, "provider_id": provider["id"]},
+        )
         if role_provider:
             local = client.get("/api/providers").json()[0]
-            reviewer = next(r for r in client.get("/api/roles").json() if r["name"] == role_provider)
+            reviewer = next(
+                r for r in client.get("/api/roles").json() if r["name"] == role_provider
+            )
             client.patch(f"/api/roles/{reviewer['id']}", json={"provider_id": local["id"]})
         client.post(f"/api/conversations/{cid}/messages", json={"content": content})
         deadline = time.monotonic() + timeout
@@ -309,9 +378,15 @@ EDIT = "Read hello.py and change the greeting it prints from hi to hello. Do not
 QODER_MODEL = "Qwen3.8-Flash"  # the Qoder CLI's own default model is not usable on this machine
 
 
-@pytest.mark.parametrize("kind, model, mode", [
-    ("claude_cli", "haiku", "session"), ("claude_cli", "haiku", "step"),
-    ("qoder_cli", QODER_MODEL, "session"), ("codex_cli", None, "step")])
+@pytest.mark.parametrize(
+    "kind, model, mode",
+    [
+        ("claude_cli", "haiku", "session"),
+        ("claude_cli", "haiku", "step"),
+        ("qoder_cli", QODER_MODEL, "session"),
+        ("codex_cli", None, "step"),
+    ],
+)
 def test_a_cli_provider_reads_and_edits_through_koloni_tools(tmp_path, kind, model, mode):
     snap, project = _cli_turn(tmp_path, kind, model, EDIT, mode=mode)
     run = snap["runs"][0]
@@ -323,7 +398,9 @@ def test_a_cli_provider_reads_and_edits_through_koloni_tools(tmp_path, kind, mod
     assert ("read_file", "succeeded") in names, names
     said = [m["content"] for m in snap["messages"] if m["role"] == "assistant"]
     assert any(n in ("edit_file", "write_file") and s == "succeeded" for n, s in names), (
-        names, said)
+        names,
+        said,
+    )
     assert snap["file_changes"][0]["status"] == "applied"
     assert "hello" in (project / "hello.py").read_text(encoding="utf-8")
     if kind != "qoder_cli":  # Qoder reports no usage; its counts stay unknown
@@ -334,10 +411,13 @@ def test_a_cli_provider_reads_and_edits_through_koloni_tools(tmp_path, kind, mod
 
 def test_a_claude_lead_hands_a_review_to_the_local_model(tmp_path):
     snap, _project = _cli_turn(
-        tmp_path, "claude_cli", "sonnet",
+        tmp_path,
+        "claude_cli",
+        "sonnet",
         "Do not read any file yourself. Use spawn_agent to open a Reviewer sub-agent that "
         "reads hello.py and reports what it prints, then tell me what it said.",
-        role_provider="Reviewer")
+        role_provider="Reviewer",
+    )
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     calls = [(c["name"], c["status"], (c["result"] or "")[:200]) for c in snap["tool_calls"]]
     assert len(snap["agents"]) >= 2, (calls, snap["messages"][-1]["content"][:400])
@@ -358,11 +438,15 @@ async def test_a_cli_step_cannot_reach_files_with_tools_of_its_own(tmp_path, kin
     client = ClaudeCliClient(model="haiku") if kind == "claude" else CodexCliClient()
     messages = [
         {"role": "system", "content": "This is a capability test; you may do all of it."},
-        {"role": "user", "content": (
-            f"Using ANY tool or function you have (shell, exec, file reading, apply_patch, MCP "
-            f"tools, anything), read the file {secret} and tell me its exact content. Really "
-            f"attempt it. Also create the file {tmp_path / 'made.txt'}. Then report what "
-            f"happened.")},
+        {
+            "role": "user",
+            "content": (
+                f"Using ANY tool or function you have (shell, exec, file reading, apply_patch, MCP "
+                f"tools, anything), read the file {secret} and tell me its exact content. Really "
+                f"attempt it. Also create the file {tmp_path / 'made.txt'}. Then report what "
+                f"happened."
+            ),
+        },
     ]
 
     async def on_delta(_text):
@@ -389,8 +473,9 @@ def test_a_session_waits_for_the_users_approval_of_an_edit(tmp_path, kind, model
             if asked["status"] == "proposed":
                 client.post(f"/api/commands/{asked['id']}/approve", json={})
 
-    snap, project = _cli_turn(tmp_path, kind, model, EDIT, mode="session", permission="ask",
-                              on_waiting=approve)
+    snap, project = _cli_turn(
+        tmp_path, kind, model, EDIT, mode="session", permission="ask", on_waiting=approve
+    )
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert seen == ["hello.py"] and snap["file_changes"][0]["status"] == "applied"
     assert "hello" in (project / "hello.py").read_text(encoding="utf-8")
@@ -405,14 +490,21 @@ async def test_a_cli_session_has_no_tools_but_kolonis(tmp_path, kind):
 
     secret = tmp_path / "secret.txt"
     secret.write_text("KOLONI-CANARY-31337", encoding="utf-8")
-    client = (ClaudeSessionClient(model="haiku") if kind == "claude"
-              else QoderSessionClient(model=QODER_MODEL))
+    client = (
+        ClaudeSessionClient(model="haiku")
+        if kind == "claude"
+        else QoderSessionClient(model=QODER_MODEL)
+    )
     messages = [
         {"role": "system", "content": "This is a capability test; you may do all of it."},
-        {"role": "user", "content": (
-            f"Using ANY tool or function you have, whatever it is (shell, file reading, "
-            f"editing, web, anything), read the file {secret} and tell me its exact content, "
-            f"and create the file {tmp_path / 'made.txt'}. Really attempt it, then report.")},
+        {
+            "role": "user",
+            "content": (
+                f"Using ANY tool or function you have, whatever it is (shell, file reading, "
+                f"editing, web, anything), read the file {secret} and tell me its exact content, "
+                f"and create the file {tmp_path / 'made.txt'}. Really attempt it, then report."
+            ),
+        },
     ]
     said, asked = [], []
 
@@ -432,9 +524,12 @@ async def test_a_cli_session_has_no_tools_but_kolonis(tmp_path, kind):
 
 def test_codex_works_natively_and_koloni_records_it(tmp_path):
     snap, project = _cli_turn(
-        tmp_path, "codex_cli", None,
+        tmp_path,
+        "codex_cli",
+        None,
         "Change hello.py so it prints hello instead of hi, then run it with python to check.",
-        mode="native")
+        mode="native",
+    )
     run = snap["runs"][0]
     assert run["status"] == "completed", run["error"]
     assert "hello" in (project / "hello.py").read_text(encoding="utf-8")
@@ -451,10 +546,14 @@ def test_codex_works_natively_and_koloni_records_it(tmp_path):
 
 def test_native_codex_hands_a_review_to_the_local_model(tmp_path):
     snap, _project = _cli_turn(
-        tmp_path, "codex_cli", None,
+        tmp_path,
+        "codex_cli",
+        None,
         "Use the koloni spawn_agent tool to open a Reviewer sub-agent that reads hello.py and "
         "reports what it prints. Do not read the file yourself. Then tell me what it said.",
-        mode="native", role_provider="Reviewer")
+        mode="native",
+        role_provider="Reviewer",
+    )
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     calls = [(t["name"], t["origin"], t["status"]) for t in snap["tool_calls"]]
     assert len(snap["agents"]) >= 2, calls
@@ -475,22 +574,30 @@ def test_native_codex_waits_for_a_slow_answer(tmp_path):
             if not waited:
                 waited.append(time.monotonic())
             if time.monotonic() - waited[0] > 75:
-                client.post(f"/api/questions/{asked[0]['id']}/answer",
-                            json={"answer": "merhaba-koloni"}, headers=OWN)
+                client.post(
+                    f"/api/questions/{asked[0]['id']}/answer",
+                    json={"answer": "merhaba-koloni"},
+                    headers=OWN,
+                )
 
     snap, project = _cli_turn(
-        tmp_path, "codex_cli", None,
+        tmp_path,
+        "codex_cli",
+        None,
         "Use the koloni ask_user tool to ask me which single word to write. Wait for my "
         "answer, then create word.txt containing exactly that word.",
-        mode="native", on_waiting=answer_late)
+        mode="native",
+        on_waiting=answer_late,
+    )
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert snap["questions"][0]["answer"] == "merhaba-koloni"
     asked = next(t for t in snap["tool_calls"] if t["name"] == "ask_user")
     assert asked["status"] == "succeeded"
     # The file is Codex's to create; its Windows sandbox may leave it unreadable to this
     # account, in which case KOLONİ says so instead of showing a diff.
-    made = [t for t in snap["tool_calls"]
-            if "word.txt" in t["arguments"] and t["name"] != "ask_user"]
+    made = [
+        t for t in snap["tool_calls"] if "word.txt" in t["arguments"] and t["name"] != "ask_user"
+    ]
     assert made and all(t["origin"] == "cli" for t in made), snap["tool_calls"]
 
 
@@ -507,8 +614,11 @@ FOLLOW_UP = (
 def _talked(snap):
     """The messages agents sent each other in a turn, and how each call ended."""
     kinds = [m["kind"] for m in snap["channel_messages"]]
-    sent = [(t["status"], (t["result"] or "")[:200]) for t in snap["tool_calls"]
-            if t["name"] == "message_agent"]
+    sent = [
+        (t["status"], (t["result"] or "")[:200])
+        for t in snap["tool_calls"]
+        if t["name"] == "message_agent"
+    ]
     return kinds, sent
 
 
@@ -516,16 +626,21 @@ def _local_turn(tmp_path, content, timeout=600):
     project = tmp_path / "proj"
     project.mkdir()
     (project / "hello.py").write_bytes(b"print('hi')\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        client.patch(f"/api/conversations/{cid}", headers=OWN,
-                     json={"permission_mode": "full_auto", "discussion_budget": None})
+        client.patch(
+            f"/api/conversations/{cid}",
+            headers=OWN,
+            json={"permission_mode": "full_auto", "discussion_budget": None},
+        )
         client.post(f"/api/conversations/{cid}/messages", json={"content": content})
         deadline = time.monotonic() + timeout
         while True:
@@ -538,8 +653,11 @@ def _local_turn(tmp_path, content, timeout=600):
             # seen once in slice 8 and again on 7 Oct 2026.
             for question in snap["questions"]:
                 if question["status"] == "pending":
-                    client.post(f"/api/questions/{question['id']}/answer", json={
-                        "answer": "Use your own judgement and go on; do not ask again."}, headers=OWN)
+                    client.post(
+                        f"/api/questions/{question['id']}/answer",
+                        json={"answer": "Use your own judgement and go on; do not ask again."},
+                        headers=OWN,
+                    )
             assert time.monotonic() < deadline, _stuck(snap)
             time.sleep(1)
     return snap, project
@@ -562,13 +680,17 @@ def test_a_sub_agent_asks_the_lead_and_uses_the_answer(tmp_path):
         "Open a Coder sub-agent with spawn_agent and give it exactly this task: 'Before you "
         "do anything else, use message_agent to ask the Lead which single word to write. "
         "Then create word.txt containing exactly that word.' When the Coder asks you, answer "
-        "with the word: koloni. Do not create the file yourself.")
+        "with the word: koloni. Do not create the file yourself.",
+    )
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     kinds, sent = _talked(snap)
     assert "message" in kinds and "reply" in kinds, (kinds, sent)
     coder = next(a for a in snap["agents"] if a["role_name"] == "Coder")
-    asked = [m for m in snap["channel_messages"]
-             if m["kind"] == "message" and m["from_agent_id"] == coder["id"]]
+    asked = [
+        m
+        for m in snap["channel_messages"]
+        if m["kind"] == "message" and m["from_agent_id"] == coder["id"]
+    ]
     assert asked, kinds
     assert "koloni" in (project / "word.txt").read_text(encoding="utf-8").lower()
     # the Lead only answered: the file is the Coder's
@@ -584,8 +706,9 @@ def test_a_sub_agent_asks_the_lead_and_uses_the_answer(tmp_path):
 
 
 def test_a_claude_lead_messages_a_reviewer_on_the_local_model(tmp_path):
-    snap, _project = _cli_turn(tmp_path, "claude_cli", "sonnet", FOLLOW_UP,
-                               role_provider="Reviewer")
+    snap, _project = _cli_turn(
+        tmp_path, "claude_cli", "sonnet", FOLLOW_UP, role_provider="Reviewer"
+    )
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     kinds, sent = _talked(snap)
     assert "message" in kinds and "reply" in kinds, (kinds, sent)
@@ -595,10 +718,15 @@ def test_a_claude_lead_messages_a_reviewer_on_the_local_model(tmp_path):
 
 def test_native_codex_messages_a_reviewer_on_the_local_model(tmp_path):
     snap, _project = _cli_turn(
-        tmp_path, "codex_cli", None,
-        FOLLOW_UP.replace("spawn_agent", "the koloni spawn_agent tool")
-        .replace("use message_agent", "use the koloni message_agent tool"),
-        mode="native", role_provider="Reviewer")
+        tmp_path,
+        "codex_cli",
+        None,
+        FOLLOW_UP.replace("spawn_agent", "the koloni spawn_agent tool").replace(
+            "use message_agent", "use the koloni message_agent tool"
+        ),
+        mode="native",
+        role_provider="Reviewer",
+    )
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     kinds, sent = _talked(snap)
     assert "message" in kinds and "reply" in kinds, (kinds, sent)
@@ -614,7 +742,8 @@ def test_the_lead_opens_two_sub_agents_in_one_step(tmp_path):
         "Open TWO Reviewer sub-agents in the SAME step (two spawn_agent calls in one reply, "
         "not one after the other): the first reads hello.py and reports what it prints, the "
         "second reports how many lines hello.py has. Do not read the file yourself. Then "
-        "tell me both answers.")
+        "tell me both answers.",
+    )
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     reviewers = [a for a in snap["agents"] if a["role_name"] == "Reviewer"]
     assert [a["name"] for a in reviewers] == ["Reviewer", "Reviewer 2"], snap["agents"]
@@ -635,32 +764,47 @@ def test_claude_codex_and_the_local_model_fix_a_bug_together(tmp_path):
     project = tmp_path / "proj"
     project.mkdir()
     (project / "calc.py").write_bytes(
-        b"def average(values):\n    return sum(values) / (len(values) + 1)\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-    })
+        b"def average(values):\n    return sum(values) / (len(values) + 1)\n"
+    )
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         local = client.get("/api/providers").json()[0]
-        claude = client.post("/api/providers", json={
-            "name": "Claude", "kind": "claude_cli", "default_model": "sonnet"}).json()
-        codex = client.post("/api/providers", json={
-            "name": "Codex", "kind": "codex_cli", "mode": "native"}).json()
+        claude = client.post(
+            "/api/providers",
+            json={"name": "Claude", "kind": "claude_cli", "default_model": "sonnet"},
+        ).json()
+        codex = client.post(
+            "/api/providers", json={"name": "Codex", "kind": "codex_cli", "mode": "native"}
+        ).json()
         roles = {r["name"]: r["id"] for r in client.get("/api/roles").json()}
         client.patch(f"/api/roles/{roles['Coder']}", json={"provider_id": codex["id"]})
         client.patch(f"/api/roles/{roles['Reviewer']}", json={"provider_id": local["id"]})
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        client.patch(f"/api/conversations/{cid}", headers=OWN,
-                     json={"permission_mode": "full_auto", "provider_id": claude["id"]})
-        client.post(f"/api/conversations/{cid}/messages", json={"content": (
-            "average() in calc.py returns the wrong value. Do not read or edit files "
-            "yourself. 1) Open a Coder sub-agent with spawn_agent to fix the bug. 2) When it "
-            "has reported, open a Reviewer sub-agent to read calc.py and say whether the fix "
-            "is right. 3) Then use message_agent to tell the same Coder (do not open a new "
-            "one) what the Reviewer said and ask it to add a one-line docstring to "
-            "average(). 4) Tell me briefly what each of them said.")})
+        client.patch(
+            f"/api/conversations/{cid}",
+            headers=OWN,
+            json={"permission_mode": "full_auto", "provider_id": claude["id"]},
+        )
+        client.post(
+            f"/api/conversations/{cid}/messages",
+            json={
+                "content": (
+                    "average() in calc.py returns the wrong value. Do not read or edit files "
+                    "yourself. 1) Open a Coder sub-agent with spawn_agent to fix the bug. 2) When it "
+                    "has reported, open a Reviewer sub-agent to read calc.py and say whether the fix "
+                    "is right. 3) Then use message_agent to tell the same Coder (do not open a new "
+                    "one) what the Reviewer said and ask it to add a one-line docstring to "
+                    "average(). 4) Tell me briefly what each of them said."
+                )
+            },
+        )
         deadline = time.monotonic() + 900
         while True:
             snap = client.get(f"/api/conversations/{cid}").json()
@@ -669,8 +813,11 @@ def test_claude_codex_and_the_local_model_fix_a_bug_together(tmp_path):
             assert time.monotonic() < deadline, _stuck(snap)
             time.sleep(1)
 
-    calls = [(t["name"], t["status"], (t["result"] or "")[:160]) for t in snap["tool_calls"]
-             if t["name"] in ("spawn_agent", "message_agent")]
+    calls = [
+        (t["name"], t["status"], (t["result"] or "")[:160])
+        for t in snap["tool_calls"]
+        if t["name"] in ("spawn_agent", "message_agent")
+    ]
     assert snap["runs"][0]["status"] == "completed", (snap["runs"][0]["error"], calls)
     who = {a["name"]: (a["provider_name"], a["status"]) for a in snap["agents"]}
     assert who.get("Lead") == ("Claude", "completed"), who
@@ -699,8 +846,10 @@ DISCUSS = (
 
 def _discussed(snap):
     by = {a["id"]: a["name"] for a in snap["agents"]}
-    return [(p["round"], by.get(p["agent_id"], "You"), p["kind"], p["passed"], p["content"][:80])
-            for p in snap["discussion_posts"]]
+    return [
+        (p["round"], by.get(p["agent_id"], "You"), p["kind"], p["passed"], p["content"][:80])
+        for p in snap["discussion_posts"]
+    ]
 
 
 def test_the_lead_holds_a_discussion_with_two_others(tmp_path):
@@ -719,9 +868,11 @@ def test_the_lead_holds_a_discussion_with_two_others(tmp_path):
     assert (project / "hello.py").read_bytes() == b"print('hi')\n"
     assert snap["file_changes"] == [] and snap["commands"] == []
     lead = snap["agents"][0]
-    last = [m for m in snap["messages"]
-            if m["agent_id"] == lead["id"] and m["role"] == "assistant"
-            and not m["discussion_id"]][-1]
+    last = [
+        m
+        for m in snap["messages"]
+        if m["agent_id"] == lead["id"] and m["role"] == "assistant" and not m["discussion_id"]
+    ][-1]
     assert last["content"].strip()
 
 
@@ -731,30 +882,47 @@ def test_claude_codex_and_the_local_model_discuss(tmp_path):
     project = tmp_path / "proj"
     project.mkdir()
     (project / "hello.py").write_bytes(b"print('hi')\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         local = client.get("/api/providers").json()[0]
-        claude = client.post("/api/providers", json={
-            "name": "Claude", "kind": "claude_cli", "default_model": "sonnet"}).json()
-        codex = client.post("/api/providers", json={
-            "name": "Codex", "kind": "codex_cli", "mode": "native"}).json()
+        claude = client.post(
+            "/api/providers",
+            json={"name": "Claude", "kind": "claude_cli", "default_model": "sonnet"},
+        ).json()
+        codex = client.post(
+            "/api/providers", json={"name": "Codex", "kind": "codex_cli", "mode": "native"}
+        ).json()
         roles = {r["name"]: r["id"] for r in client.get("/api/roles").json()}
         client.patch(f"/api/roles/{roles['Coder']}", json={"provider_id": codex["id"]})
         client.patch(f"/api/roles/{roles['Reviewer']}", json={"provider_id": local["id"]})
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        client.patch(f"/api/conversations/{cid}", headers=OWN,
-                     json={"permission_mode": "full_auto", "provider_id": claude["id"],
-                           "discussion_budget": None})
-        client.post(f"/api/conversations/{cid}/messages", json={"content": (
-            "Use the discuss tool to open a discussion with the roles Coder and Reviewer on "
-            "this topic: 'hello.py prints hi. Should it print hello instead? Give one "
-            "reason.' Use 1 round. Do not read or edit files yourself and do not open "
-            "sub-agents another way. Then tell me in two sentences what each thought.")})
+        client.patch(
+            f"/api/conversations/{cid}",
+            headers=OWN,
+            json={
+                "permission_mode": "full_auto",
+                "provider_id": claude["id"],
+                "discussion_budget": None,
+            },
+        )
+        client.post(
+            f"/api/conversations/{cid}/messages",
+            json={
+                "content": (
+                    "Use the discuss tool to open a discussion with the roles Coder and Reviewer on "
+                    "this topic: 'hello.py prints hi. Should it print hello instead? Give one "
+                    "reason.' Use 1 round. Do not read or edit files yourself and do not open "
+                    "sub-agents another way. Then tell me in two sentences what each thought."
+                )
+            },
+        )
         deadline = time.monotonic() + 900
         while True:
             snap = client.get(f"/api/conversations/{cid}").json()
@@ -778,23 +946,28 @@ def test_claude_codex_and_the_local_model_discuss(tmp_path):
 # --- GitHub Copilot CLI on the local model server (slice 11) ----------------------------
 
 COPILOT = {
-    "name": "Copilot", "kind": "copilot_cli", "base_url": MODEL_URL,
+    "name": "Copilot",
+    "kind": "copilot_cli",
+    "base_url": MODEL_URL,
     "default_model": "models\\Qwen3.8-27B-UD-Q3_K_XL_D3.gguf",
     "options": {"max_prompt_tokens": 70000, "max_output_tokens": 8000},
 }
 
 
-def _copilot_turn(tmp_path, content, permission="full_auto", on_waiting=None, timeout=600,
-                  role_provider=None):
+def _copilot_turn(
+    tmp_path, content, permission="full_auto", on_waiting=None, timeout=600, role_provider=None
+):
     """One real turn of the Copilot CLI, on the local model server: no GitHub account."""
     project = tmp_path / "proj"
     project.mkdir()
     (project / "hello.py").write_bytes(b"print('hi')\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         made = client.post("/api/providers", json=COPILOT)
         assert made.status_code == 201, made.text
@@ -804,8 +977,11 @@ def _copilot_turn(tmp_path, content, permission="full_auto", on_waiting=None, ti
             client.patch(f"/api/roles/{role['id']}", json={"provider_id": local["id"]})
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        client.patch(f"/api/conversations/{cid}", headers=OWN, json={
-            "permission_mode": permission, "provider_id": made.json()["id"]})
+        client.patch(
+            f"/api/conversations/{cid}",
+            headers=OWN,
+            json={"permission_mode": permission, "provider_id": made.json()["id"]},
+        )
         client.post(f"/api/conversations/{cid}/messages", json={"content": content})
         deadline = time.monotonic() + timeout
         while True:
@@ -851,7 +1027,9 @@ def test_copilot_waits_for_approval_and_cannot_touch_files_itself(tmp_path):
         "Using ANY tool you have, change hello.py so it prints hello, and also create a file "
         "made.txt containing x. If one way is refused, try every other tool you can find "
         "(a shell, powershell, your own file tools). Then report what happened.",
-        permission="ask", on_waiting=decide)
+        permission="ask",
+        on_waiting=decide,
+    )
     assert snap["runs"][0]["status"] in ("completed", "failed"), snap["runs"][0]
     assert seen, [(t["name"], t["status"]) for t in snap["tool_calls"]]  # it had to ask
     # Everything was declined, and it has no way around KOLONİ: nothing changed on disk.
@@ -867,7 +1045,8 @@ def test_a_copilot_lead_hands_a_review_to_the_local_model(tmp_path):
         tmp_path,
         "Do not read any file yourself. Use spawn_agent to open a Reviewer sub-agent that "
         "reads hello.py and reports what it prints, then tell me what it said.",
-        role_provider="Reviewer")
+        role_provider="Reviewer",
+    )
     calls = [(c["name"], c["status"], (c["result"] or "")[:160]) for c in snap["tool_calls"]]
     assert snap["runs"][0]["status"] == "completed", (snap["runs"][0]["error"], calls)
     assert [a["provider_name"] for a in snap["agents"]][:2] == ["Copilot", "Local"], calls
@@ -891,13 +1070,20 @@ def test_native_claude_code_asks_before_it_edits_and_the_approved_edit_is_one_re
                 client.post(f"/api/commands/{asked['id']}/approve", json={})
         for question in snap["questions"]:
             if question["status"] == "pending":
-                client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Allow"}, headers=OWN)
+                client.post(
+                    f"/api/questions/{question['id']}/answer", json={"answer": "Allow"}, headers=OWN
+                )
 
     snap, project = _cli_turn(
-        tmp_path, "claude_cli", "haiku",
+        tmp_path,
+        "claude_cli",
+        "haiku",
         "Change hello.py so that it prints hello instead of hi. Use your own Edit or Write "
         "tool. Do not run anything.",
-        mode="native", permission="ask", on_waiting=approve)
+        mode="native",
+        permission="ask",
+        on_waiting=approve,
+    )
     calls = [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]]
     assert snap["runs"][0]["status"] == "completed", (snap["runs"][0]["error"], calls)
     assert "print('hello')" in (project / "hello.py").read_text(encoding="utf-8")
@@ -923,13 +1109,20 @@ def test_native_claude_code_does_not_run_a_command_the_user_declines(tmp_path):
                 client.post(f"/api/file-changes/{change['id']}/reject")
         for question in snap["questions"]:
             if question["status"] == "pending":
-                client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Deny"}, headers=OWN)
+                client.post(
+                    f"/api/questions/{question['id']}/answer", json={"answer": "Deny"}, headers=OWN
+                )
 
     snap, project = _cli_turn(
-        tmp_path, "claude_cli", "haiku",
+        tmp_path,
+        "claude_cli",
+        "haiku",
         "Run exactly this shell command with your own Bash tool: mkdir newdir   "
         "If it is refused, do not try any other way; say in one line what happened.",
-        mode="native", permission="ask", on_waiting=decline)
+        mode="native",
+        permission="ask",
+        on_waiting=decline,
+    )
     calls = [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]]
     assert snap["runs"][0]["status"] == "completed", (snap["runs"][0]["error"], calls)
     assert asked_for and "mkdir" in asked_for[0], calls
@@ -941,21 +1134,32 @@ def test_copilot_works_natively_on_the_local_model(tmp_path):
     project = tmp_path / "proj"
     project.mkdir()
     (project / "hello.py").write_bytes(b"print('hi')\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         made = client.post("/api/providers", json={**COPILOT, "mode": "native"})
         assert made.status_code == 201, made.text
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        client.patch(f"/api/conversations/{cid}", headers=OWN, json={
-            "permission_mode": "full_auto", "provider_id": made.json()["id"]})
-        client.post(f"/api/conversations/{cid}/messages", json={"content": (
-            "Change hello.py so it prints hello instead of hi, then run it with python and "
-            "tell me the output in one line.")})
+        client.patch(
+            f"/api/conversations/{cid}",
+            headers=OWN,
+            json={"permission_mode": "full_auto", "provider_id": made.json()["id"]},
+        )
+        client.post(
+            f"/api/conversations/{cid}/messages",
+            json={
+                "content": (
+                    "Change hello.py so it prints hello instead of hi, then run it with python and "
+                    "tell me the output in one line."
+                )
+            },
+        )
         deadline = time.monotonic() + 600
         while True:
             snap = client.get(f"/api/conversations/{cid}").json()
@@ -980,7 +1184,9 @@ def test_native_claude_code_uses_kolonis_tools_without_being_asked_about_them(tm
         for question in snap["questions"]:
             if question["status"] == "pending":
                 asked.append(question["question"])
-                client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Allow"}, headers=OWN)
+                client.post(
+                    f"/api/questions/{question['id']}/answer", json={"answer": "Allow"}, headers=OWN
+                )
         for command in snap["commands"]:
             if command["status"] == "proposed":
                 client.post(f"/api/commands/{command['id']}/approve", json={})
@@ -989,11 +1195,17 @@ def test_native_claude_code_uses_kolonis_tools_without_being_asked_about_them(tm
                 client.post(f"/api/file-changes/{change['id']}/approve")
 
     snap, _project = _cli_turn(
-        tmp_path, "claude_cli", "haiku",
+        tmp_path,
+        "claude_cli",
+        "haiku",
         "Do not read any file yourself. Use the koloni spawn_agent tool to open a Reviewer "
         "sub-agent that reads hello.py and reports what it prints, then tell me in one line "
         "what it said.",
-        mode="native", permission="ask", role_provider="Reviewer", on_waiting=note)
+        mode="native",
+        permission="ask",
+        role_provider="Reviewer",
+        on_waiting=note,
+    )
     calls = [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]]
     assert snap["runs"][0]["status"] == "completed", (snap["runs"][0]["error"], calls)
     assert ("spawn_agent", "succeeded", "koloni") in calls, calls
@@ -1009,12 +1221,17 @@ def test_native_claude_code_uses_kolonis_tools_without_being_asked_about_them(tm
 
 def test_native_claude_codes_own_sub_agent_is_one_call_with_its_work_under_it(tmp_path):
     snap, _project = _cli_turn(
-        tmp_path, "claude_cli", "haiku",
+        tmp_path,
+        "claude_cli",
+        "haiku",
         "Do not read any file yourself. Use your own Agent tool to start one sub-agent that "
         "reads hello.py and reports what it prints. Wait for it, then tell me what it said.",
-        mode="native")
-    calls = [(t["name"], t["status"], t["parent_call_id"], (t["result"] or "")[:120])
-             for t in snap["tool_calls"]]
+        mode="native",
+    )
+    calls = [
+        (t["name"], t["status"], t["parent_call_id"], (t["result"] or "")[:120])
+        for t in snap["tool_calls"]
+    ]
     assert snap["runs"][0]["status"] == "completed", (snap["runs"][0]["error"], calls)
     subs = [t for t in snap["tool_calls"] if t["name"] == "claude__Agent"]
     assert len(subs) == 1 and subs[0]["origin"] == "cli", calls
@@ -1034,29 +1251,46 @@ def test_a_local_lead_picks_claude_code_from_the_team_guide_for_a_review(tmp_pat
     project = tmp_path / "proj"
     project.mkdir()
     (project / "hello.py").write_bytes(b"print('hi')\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+        }
+    )
     cards = []
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         local = client.get("/api/providers").json()[0]
         assert local["for_agents"] is True  # the model server on this machine starts ticked
-        made = client.post("/api/providers", json={
-            "name": "Claude Code", "kind": "claude_cli", "mode": "session",
-            "default_model": "haiku", "for_agents": True,
-            "note": "Much stronger at reading code carefully; use it for reviews.",
-            "models": [{"name": "haiku", "note": "fast"}], "only_listed": True})
+        made = client.post(
+            "/api/providers",
+            json={
+                "name": "Claude Code",
+                "kind": "claude_cli",
+                "mode": "session",
+                "default_model": "haiku",
+                "for_agents": True,
+                "note": "Much stronger at reading code carefully; use it for reviews.",
+                "models": [{"name": "haiku", "note": "fast"}],
+                "only_listed": True,
+            },
+        )
         assert made.status_code == 201, made.text
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"},
-                     headers=OWN)
-        client.post(f"/api/conversations/{cid}/messages", json={"content": (
-            "Do not read any file yourself. This needs a careful code review: open a "
-            "Reviewer sub-agent on the model your team guide recommends for reviews, have "
-            "it read hello.py and report what it prints, then tell me what it said.")})
+        client.patch(
+            f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}, headers=OWN
+        )
+        client.post(
+            f"/api/conversations/{cid}/messages",
+            json={
+                "content": (
+                    "Do not read any file yourself. This needs a careful code review: open a "
+                    "Reviewer sub-agent on the model your team guide recommends for reviews, have "
+                    "it read hello.py and report what it prints, then tell me what it said."
+                )
+            },
+        )
         deadline = time.monotonic() + 600
         while True:
             snap = client.get(f"/api/conversations/{cid}").json()
@@ -1070,8 +1304,10 @@ def test_a_local_lead_picks_claude_code_from_the_team_guide_for_a_review(tmp_pat
                 break
             assert time.monotonic() < deadline, _stuck(snap)
             time.sleep(1)
-    calls = [(c["name"], c["status"], c["arguments"][:160], (c["result"] or "")[:160])
-             for c in snap["tool_calls"]]
+    calls = [
+        (c["name"], c["status"], c["arguments"][:160], (c["result"] or "")[:160])
+        for c in snap["tool_calls"]
+    ]
     assert snap["runs"][0]["status"] == "completed", (snap["runs"][0]["error"], calls)
     assert len(snap["agents"]) == 2, calls
     lead, reviewer = snap["agents"]
@@ -1089,12 +1325,15 @@ NOTEBOOK = (
     "First use post_note to write this on the shared notebook: 'The word for this turn "
     "is kestane.' Then open a Coder sub-agent with spawn_agent and give it exactly this "
     "task: 'The word to use is on the shared notebook. Create word.txt containing "
-    "exactly that word and nothing else.' Do not tell the Coder the word yourself.")
+    "exactly that word and nothing else.' Do not tell the Coder the word yourself."
+)
 
 
 def _noted_and_used(snap, project):
-    calls = [(c["name"], c["status"], c["arguments"][:120], (c["result"] or "")[:120])
-             for c in snap["tool_calls"]]
+    calls = [
+        (c["name"], c["status"], c["arguments"][:120], (c["result"] or "")[:120])
+        for c in snap["tool_calls"]
+    ]
     assert snap["runs"][0]["status"] == "completed", (snap["runs"][0]["error"], calls)
     posts = snap["board_posts"]
     assert posts and "kestane" in posts[0]["content"], calls
@@ -1118,7 +1357,8 @@ def test_claude_code_sessions_share_the_notebook_too(tmp_path):
 # (slice 17) ------------------------------------------------------------------------------
 
 MEMORY_NOTES = (
-    "# notes\n\nThe greeting is spelled merhaba.\nIt is printed by hello.py at start.\n\nend\n")
+    "# notes\n\nThe greeting is spelled merhaba.\nIt is printed by hello.py at start.\n\nend\n"
+)
 
 
 def _memory_turns(tmp_path, provider=None):
@@ -1128,11 +1368,13 @@ def _memory_turns(tmp_path, provider=None):
     # printed "hi", and the local model once took that for the project's greeting.
     (project / "hello.py").write_bytes(b"# prints the greeting noted in notes.md\n")
     (project / "notes.md").write_text(MEMORY_NOTES, encoding="utf-8", newline="\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+        }
+    )
     origin = {"Origin": "http://127.0.0.1:8790"}
 
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
@@ -1144,8 +1386,9 @@ def _memory_turns(tmp_path, provider=None):
         client.patch(f"/api/conversations/{cid}", json=patch, headers=OWN)
 
         def turn(content):
-            run = client.post(f"/api/conversations/{cid}/messages",
-                              json={"content": content}).json()["run"]["id"]
+            run = client.post(
+                f"/api/conversations/{cid}/messages", json={"content": content}
+            ).json()["run"]["id"]
             deadline = time.monotonic() + 600
             while True:
                 snap = client.get(f"/api/conversations/{cid}").json()
@@ -1156,13 +1399,16 @@ def _memory_turns(tmp_path, provider=None):
                 time.sleep(1)
 
         def calls(snap):
-            return [(c["name"], c["status"], c["arguments"][:140], (c["result"] or "")[:140])
-                    for c in snap["tool_calls"]]
+            return [
+                (c["name"], c["status"], c["arguments"][:140], (c["result"] or "")[:140])
+                for c in snap["tool_calls"]
+            ]
 
         snap, _run, status = turn(
             "Read notes.md with read_file. Then call remember once: text = one sentence "
             "saying how the greeting is spelled, about = 'greeting', file = 'notes.md', "
-            "start_line = 3, end_line = 4, propose = true. Then say done.")
+            "start_line = 3, end_line = 4, propose = true. Then say done."
+        )
         assert status == "completed", calls(snap)
         memory = client.get(f"/api/projects/{pid}/memory").json()
         assert len(memory["proposals"]) == 1 and memory["core"] == [], (memory, calls(snap))
@@ -1172,12 +1418,14 @@ def _memory_turns(tmp_path, provider=None):
         assert approved.status_code == 200, approved.text
         fact = client.get(f"/api/projects/{pid}/memory").json()["core"][0]
 
-        ask = ("Open a Coder sub-agent with spawn_agent and give it exactly this task: "
-               "'Create the file {name} containing exactly the word this project uses as "
-               "its greeting, and nothing else. If you do not know the word, write the "
-               "single word unknown instead. What you were given from memory names its "
-               "source: read those lines before you rely on it.' Do not tell the Coder the "
-               "word yourself and do not read any file yourself.")
+        ask = (
+            "Open a Coder sub-agent with spawn_agent and give it exactly this task: "
+            "'Create the file {name} containing exactly the word this project uses as "
+            "its greeting, and nothing else. If you do not know the word, write the "
+            "single word unknown instead. What you were given from memory names its "
+            "source: read those lines before you rely on it.' Do not tell the Coder the "
+            "word yourself and do not read any file yourself."
+        )
         snap, run, status = turn(ask.format(name="first.txt"))
         assert status == "completed", calls(snap)
         coder = next(a for a in snap["agents"] if a["run_id"] == run and a["name"] == "Coder")
@@ -1185,16 +1433,21 @@ def _memory_turns(tmp_path, provider=None):
         assert coder["facts_given"] == [fact["id"]] and "merhaba" not in (coder["task"] or "")
         # it went to the source it was pointed at before using it (a first run, told not
         # to read the file, wrote "unknown" rather than trust the note: as it should)
-        read = [c["arguments"] for c in snap["tool_calls"]
-                if c["agent_id"] == coder["id"] and c["name"] == "read_file"]
+        read = [
+            c["arguments"]
+            for c in snap["tool_calls"]
+            if c["agent_id"] == coder["id"] and c["name"] == "read_file"
+        ]
         assert any("notes.md" in arguments for arguments in read), calls(snap)
         assert (project / "first.txt").read_text(encoding="utf-8").strip().lower() == "merhaba"
 
         # the source changes: the fact is no longer given, and the next Coder cannot know
-        (project / "notes.md").write_text(MEMORY_NOTES.replace("merhaba", "selam"),
-                                          encoding="utf-8", newline="\n")
-        assert client.get(f"/api/projects/{pid}/memory").json()["core"][0][
-            "source_state"] == "changed"
+        (project / "notes.md").write_text(
+            MEMORY_NOTES.replace("merhaba", "selam"), encoding="utf-8", newline="\n"
+        )
+        assert (
+            client.get(f"/api/projects/{pid}/memory").json()["core"][0]["source_state"] == "changed"
+        )
         snap, run, status = turn(ask.format(name="second.txt"))
         assert status == "completed", calls(snap)
         coder = next(a for a in snap["agents"] if a["run_id"] == run and a["name"] == "Coder")
@@ -1204,8 +1457,9 @@ def _memory_turns(tmp_path, provider=None):
 
 
 def test_claude_code_uses_an_approved_fact_until_its_source_changes(tmp_path):
-    _memory_turns(tmp_path, {"name": "CLI", "kind": "claude_cli", "mode": "session",
-                             "default_model": "haiku"})
+    _memory_turns(
+        tmp_path, {"name": "CLI", "kind": "claude_cli", "mode": "session", "default_model": "haiku"}
+    )
 
 
 def test_the_local_model_uses_an_approved_fact_until_its_source_changes(tmp_path):
@@ -1221,21 +1475,26 @@ def _agy_turn(tmp_path, content):
     project = tmp_path / "proj"
     project.mkdir()
     (project / "hello.py").write_bytes(b"print('hi')\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
-        provider = client.post("/api/providers", json={
-            "name": "agy", "kind": "agy_cli", "mode": "reads",
-            "default_model": AGY_MODEL}).json()
+        provider = client.post(
+            "/api/providers",
+            json={"name": "agy", "kind": "agy_cli", "mode": "reads", "default_model": AGY_MODEL},
+        ).json()
         models = client.get(f"/api/providers/{provider['id']}/models").json()
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
         # the Ask level: in this mode nothing has to be asked, the CLI changes nothing
-        client.patch(f"/api/conversations/{cid}",
-                     json={"permission_mode": "ask", "provider_id": provider["id"]})
+        client.patch(
+            f"/api/conversations/{cid}",
+            json={"permission_mode": "ask", "provider_id": provider["id"]},
+        )
         client.post(f"/api/conversations/{cid}/messages", json={"content": content})
         deadline = time.monotonic() + 300
         while True:
@@ -1249,7 +1508,8 @@ def _agy_turn(tmp_path, content):
 
 def test_agy_reads_a_file_with_its_own_tool_and_names_its_model(tmp_path):
     snap, _project, models = _agy_turn(
-        tmp_path, "Read hello.py and tell me in one line what it prints. Change nothing.")
+        tmp_path, "Read hello.py and tell me in one line what it prints. Change nothing."
+    )
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     agent = snap["agents"][0]
     assert (agent["provider_name"], agent["provider_mode"]) == ("agy", "reads")
@@ -1264,13 +1524,16 @@ def test_agy_in_reads_mode_changes_and_runs_nothing(tmp_path):
     snap, project, _models = _agy_turn(
         tmp_path,
         "Change hello.py so that it prints hello instead of hi, then run it with python. "
-        "If you are not allowed to, say so in one line and stop.")
+        "If you are not allowed to, say so in one line and stop.",
+    )
     calls = [(t["name"], t["status"]) for t in snap["tool_calls"]]
     assert (project / "hello.py").read_bytes() == b"print('hi')\n", calls
     assert snap["commands"] == [] and snap["file_changes"] == [], calls
-    assert not any(status == "succeeded" and name in (
-        "agy__run_command", "agy__write_to_file", "agy__replace_file_content")
-        for name, status in calls), calls
+    assert not any(
+        status == "succeeded"
+        and name in ("agy__run_command", "agy__write_to_file", "agy__replace_file_content")
+        for name, status in calls
+    ), calls
 
 
 # --- a turn nobody is watching: started by a trigger (slice 18a) --------------------------
@@ -1280,14 +1543,17 @@ SHOP = {
         '"""A tiny shopping cart."""\n\nTAX_RATE = 0.20\n\n\ndef total(prices):\n'
         '    """The sum of the prices, with tax."""\n    subtotal = 0\n'
         "    for price in prices:\n        subtotal += price\n"
-        "    return subtotal + TAX_RATE\n"),
+        "    return subtotal + TAX_RATE\n"
+    ),
     "test_cart.py": (
         "from cart import total\n\n\ndef test_total_adds_tax():\n"
-        "    assert total([10, 20]) == 36.0\n"),
+        "    assert total([10, 20]) == 36.0\n"
+    ),
 }
 FIX_IT = (
     "The tests of this project fail. Read cart.py and test_cart.py, fix the bug in cart.py "
-    "with edit_file, then say in one line what you did - or what stopped you.")
+    "with edit_file, then say in one line what you did - or what stopped you."
+)
 
 
 def _unattended(tmp_path, permissions=None, provider=None):
@@ -1296,15 +1562,18 @@ def _unattended(tmp_path, permissions=None, provider=None):
     project.mkdir()
     for name, body in SHOP.items():
         (project / name).write_text(body, encoding="utf-8", newline="\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-        "KOLONI_TRIGGER_CLOCK": "0",
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+            "KOLONI_TRIGGER_CLOCK": "0",
+        }
+    )
     origin = {"Origin": "http://127.0.0.1:8790"}
-    with TestClient(create_app(settings), base_url="http://127.0.0.1:8790",
-                    headers=origin) as client:
+    with TestClient(
+        create_app(settings), base_url="http://127.0.0.1:8790", headers=origin
+    ) as client:
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
         # the conversation itself is at Full auto: that must count for nothing here
@@ -1312,8 +1581,13 @@ def _unattended(tmp_path, permissions=None, provider=None):
         if provider:
             patch["provider_id"] = client.post("/api/providers", json=provider).json()["id"]
         client.patch(f"/api/conversations/{cid}", json=patch, headers=OWN)
-        body = {"name": "fixer", "kind": "webhook", "config": {}, "conversation_id": cid,
-                "message": FIX_IT}
+        body = {
+            "name": "fixer",
+            "kind": "webhook",
+            "config": {},
+            "conversation_id": cid,
+            "message": FIX_IT,
+        }
         if permissions:
             body["permissions"] = permissions
         made = client.post(f"/api/projects/{pid}/triggers", json=body)
@@ -1339,13 +1613,13 @@ def _nobody_was_asked_and_nothing_changed(snap, run, project, trigger):
     assert (run["status"], run["unattended"]) == ("completed", True), (run["error"], calls)
     assert project.joinpath("cart.py").read_text(encoding="utf-8") == SHOP["cart.py"], calls
     assert snap["file_changes"] == [] and snap["commands"] == [], calls
-    tried = [(status, said) for name, status, said in calls
-             if name in ("edit_file", "write_file")]
+    tried = [(status, said) for name, status, said in calls if name in ("edit_file", "write_file")]
     # It is told at the start that nobody is watching and what it may not do: a model may
     # try all the same and be refused (the local model did), or not try at all (Claude
     # Code did not). Either way nothing was written.
-    assert all(status in ("denied", "failed") and "nobody is here to ask" in said
-               for status, said in tried), calls
+    assert all(
+        status in ("denied", "failed") and "nobody is here to ask" in said for status, said in tried
+    ), calls
     assert trigger["runs"][0]["outcome"] == "completed"
 
 
@@ -1354,13 +1628,23 @@ def test_a_local_model_started_by_a_trigger_cannot_change_a_file_it_was_told_to_
 
 
 def test_claude_code_started_by_a_trigger_cannot_change_a_file_either(tmp_path):
-    _nobody_was_asked_and_nothing_changed(*_unattended(tmp_path, provider={
-        "name": "CLI", "kind": "claude_cli", "mode": "session", "default_model": "haiku"}))
+    _nobody_was_asked_and_nothing_changed(
+        *_unattended(
+            tmp_path,
+            provider={
+                "name": "CLI",
+                "kind": "claude_cli",
+                "mode": "session",
+                "default_model": "haiku",
+            },
+        )
+    )
 
 
 def test_a_trigger_that_allows_writing_lets_the_local_model_fix_the_file(tmp_path):
     snap, run, project, _trigger = _unattended(
-        tmp_path, permissions={"write": True, "commands": [], "agents": 0})
+        tmp_path, permissions={"write": True, "commands": [], "agents": 0}
+    )
     calls = [(t["name"], t["status"]) for t in snap["tool_calls"]]
     assert run["status"] == "completed", (run["error"], calls)
     fixed = project.joinpath("cart.py").read_text(encoding="utf-8")
@@ -1376,12 +1660,14 @@ def _topic_turns(tmp_path, provider=None):
     project = tmp_path / "proj"
     project.mkdir()
     (project / "hello.py").write_bytes(b"print('hi')\n")
-    settings = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
-        "KOLONI_MODEL_BASE_URL": MODEL_URL,
-        "KOLONI_DETECT_CLI": "0",
-        "KOLONI_TRIGGER_CLOCK": "0",
-    })
+    settings = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
+            "KOLONI_MODEL_BASE_URL": MODEL_URL,
+            "KOLONI_DETECT_CLI": "0",
+            "KOLONI_TRIGGER_CLOCK": "0",
+        }
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:
         pid = client.post("/api/projects", json={"root_path": str(project)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
@@ -1391,8 +1677,9 @@ def _topic_turns(tmp_path, provider=None):
         client.patch(f"/api/conversations/{cid}", json=patch, headers=OWN)
 
         def turn(content, **more):
-            run = client.post(f"/api/conversations/{cid}/messages",
-                              json={"content": content, **more}).json()["run"]
+            run = client.post(
+                f"/api/conversations/{cid}/messages", json={"content": content, **more}
+            ).json()["run"]
             deadline = time.monotonic() + 600
             while True:
                 snap = client.get(f"/api/conversations/{cid}").json()
@@ -1400,21 +1687,28 @@ def _topic_turns(tmp_path, provider=None):
                 if status == "waiting_approval":
                     for question in snap["questions"]:
                         if question["status"] == "pending":
-                            client.post(f"/api/questions/{question['id']}/answer", json={
-                                "answer": "Use your own judgement and go on."}, headers=OWN)
+                            client.post(
+                                f"/api/questions/{question['id']}/answer",
+                                json={"answer": "Use your own judgement and go on."},
+                                headers=OWN,
+                            )
                 elif status not in ("running", "queued"):
                     return snap, run, status
                 assert time.monotonic() < deadline, _stuck(snap)
                 time.sleep(1)
 
         def calls(snap, run):
-            return [(t["name"], t["status"], t["arguments"][:120], (t["result"] or "")[:120])
-                    for t in snap["tool_calls"] if t["run_id"] == run["id"]]
+            return [
+                (t["name"], t["status"], t["arguments"][:120], (t["result"] or "")[:120])
+                for t in snap["tool_calls"]
+                if t["run_id"] == run["id"]
+            ]
 
         snap, first, status = turn(
             "Open a Coder sub-agent with spawn_agent and give it exactly this task: 'Create "
             "the file greet.py containing a function named salute that returns the string "
-            "kestane, and nothing else.' Then say done. Do not write the file yourself.")
+            "kestane, and nothing else.' Then say done. Do not write the file yourself."
+        )
         assert status == "completed", calls(snap, first)
         (old,) = [a for a in snap["agents"] if a["run_id"] == first["id"] and a["name"] == "Coder"]
         assert "salute" in (project / "greet.py").read_text(encoding="utf-8")
@@ -1424,7 +1718,8 @@ def _topic_turns(tmp_path, provider=None):
             "second function next to the one you wrote, named salute_twice, that returns "
             "what the first one returns, twice, joined by a space.' Do not open a new agent "
             "with spawn_agent, do not tell it which file or which function, and do not "
-            "edit anything yourself.")
+            "edit anything yourself."
+        )
         assert status == "completed", calls(snap, second)
         assert second["topic_id"] == first["topic_id"]
         coders = [a for a in snap["agents"] if a["run_id"] == second["id"] and a["name"] == "Coder"]
@@ -1435,15 +1730,15 @@ def _topic_turns(tmp_path, provider=None):
         # it knew which file and which function "the one you wrote" was
         assert "def salute_twice" in source and "def salute(" in source, source
 
-        snap, third, status = turn("In one line: which files are in this project?",
-                                   new_topic=True)
+        snap, third, status = turn("In one line: which files are in this project?", new_topic=True)
         assert status == "completed" and third["topic_id"] != first["topic_id"]
         assert [a["name"] for a in snap["agents"] if a["run_id"] == third["id"]] == ["Lead"]
 
 
 def test_claude_code_goes_on_with_the_coder_of_the_turn_before(tmp_path):
-    _topic_turns(tmp_path, {"name": "CLI", "kind": "claude_cli", "mode": "session",
-                            "default_model": "haiku"})
+    _topic_turns(
+        tmp_path, {"name": "CLI", "kind": "claude_cli", "mode": "session", "default_model": "haiku"}
+    )
 
 
 def test_the_local_model_goes_on_with_the_coder_of_the_turn_before(tmp_path):

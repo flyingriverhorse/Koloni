@@ -14,8 +14,11 @@ AT = "2026-11-22 10:00:00"
 def _three_projects(db):
     with sqlite3.connect(db) as conn:
         for pid, finish in (("unset", None), ("on", 1), ("off", 0)):
-            conn.execute("INSERT INTO projects (id, name, root_path, created_at, finish_tests) "
-                         "VALUES (?, ?, ?, ?, ?)", (pid, pid, f"C:/{pid}", AT, finish))
+            conn.execute(
+                "INSERT INTO projects (id, name, root_path, created_at, finish_tests) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (pid, pid, f"C:/{pid}", AT, finish),
+            )
 
 
 def test_finish_tests_off_becomes_nothing_and_the_rest_check_it(tmp_path):
@@ -28,10 +31,14 @@ def test_finish_tests_off_becomes_nothing_and_the_rest_check_it(tmp_path):
     with sqlite3.connect(db) as conn:
         got = dict(conn.execute("SELECT id, after_change FROM projects").fetchall())
         assert got == {"unset": "check", "on": "check", "off": "nothing"}
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
-                     "VALUES ('new', 'new', 'C:/new', ?)", (AT,))
-        assert conn.execute("SELECT after_change FROM projects WHERE id = 'new'").fetchone() \
-            == ("check",)
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) "
+            "VALUES ('new', 'new', 'C:/new', ?)",
+            (AT,),
+        )
+        assert conn.execute("SELECT after_change FROM projects WHERE id = 'new'").fetchone() == (
+            "check",
+        )
 
 
 def test_downgrade_drops_after_change_and_keeps_finish_tests(tmp_path):
@@ -43,7 +50,9 @@ def test_downgrade_drops_after_change_and_keeps_finish_tests(tmp_path):
 
     command.downgrade(cfg, "0161")
     with sqlite3.connect(db) as conn:
-        assert "after_change" not in [
-            row[1] for row in conn.execute("PRAGMA table_info(projects)")]
+        assert "after_change" not in [row[1] for row in conn.execute("PRAGMA table_info(projects)")]
         assert dict(conn.execute("SELECT id, finish_tests FROM projects").fetchall()) == {
-            "unset": None, "on": 1, "off": 0}
+            "unset": None,
+            "on": 1,
+            "off": 0,
+        }

@@ -1,13 +1,13 @@
 import type { Message, Run } from '../api/types'
+import { CHECK_KINDS } from '../shell/sections/CheckKinds'
 import type { ConvState } from '../state/applyEvent'
+import type { Loop } from './checksLoop'
 import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
 
 /** KOLONİ's own end-of-turn test run: its call on the Lead's answer (`ProofMixin.PROOF_CALL`). */
 export const PROOF_CALL = 'koloni_proof_'
 /** ...and S5b's live try's own runs (`try_mixin.TRY_CALL`): no test run. */
 export const TRY_CALL = `${PROOF_CALL}try_`
-/** How often the end check sends work back, at most, where its Checked section does not say yet (the project's Fix rounds' default). */
-export const MOST_ROUNDS = 2
 /**
  * S10: a turn of a chat whose Check after a change was off - no node, only the Orchestrator's strip says so (a choice made for this
  * chat). One of a project whose After a change is Nothing has neither: its standing choice, which the Checked section already says.
@@ -34,13 +34,16 @@ export interface ChecksData extends Record<string, unknown> {
   recipe: boolean
   /** k-canli-016: what failed is a look's hold (a Reviewer's, a Tester's), every check passed: "on hold", not "still failing". */
   held?: boolean
+  /** tuval-kontrol-dongusu: the agents its checks opened, and the rounds - drawn in the box (`checksLoop.settleChecks`); null: none. */
+  loop?: Loop | null
 }
 
 /** The Checked rows of a look - a review, its findings, the live try's Tester -: their failing is a hold. */
 const LOOKS = new Set(['review', 'finding', 'try'])
 
 /** Whether what failed in the Checked rows is only a look's hold. */
-const heldOnly = (checked: Message | undefined, rows = checked?.checked ?? []) => rows.some(row => row.state === 'failed') && rows.every(row => row.state !== 'failed' || LOOKS.has(row.kind))
+const heldOnly = (checked: Message | undefined, rows = checked?.checked ?? []) =>
+  rows.some(row => row.state === 'failed') && rows.every(row => row.state !== 'failed' || LOOKS.has(row.kind))
 
 /**
  * A command's tool, short: "pytest" of `python -m pytest -q`, "c8" of S9's `npx --no c8 …`, "python -c" of `python -c "…"`
@@ -51,18 +54,28 @@ export function toolOf(command: string): string {
   const after = words.indexOf('-m')
   const inline = inlineAt(words)
   if (inline > 0 && (after < 0 || inline < after)) return `${words[inline - 1].split(/[\\/]/).at(-1)} ${words[inline]}`
-  return (after >= 0 ? words[after + 1] : words.find(word => !word.startsWith('-') && !/^(npx|uv|poetry|run|python[\d.]*|py)$/.test(word))) ?? command
+  return (
+    (after >= 0
+      ? words[after + 1]
+      : words.find(word => !word.startsWith('-') && !/^(npx|uv|poetry|run|python[\d.]*|py)$/.test(word))) ?? command
+  )
 }
 
 /** Where an interpreter is handed its code on the line - `python -c`, `node -e`, `bash -c` -; -1 for none. */
 const inlineAt = (words: string[]) =>
-  words.findIndex((word, at) => at > 0 && /^-[ce]$/.test(word) && /^(python[\d.]*|py|node|bash|sh|zsh|pwsh|ruby|perl)(\.exe)?$/i.test(words[at - 1].split(/[\\/]/).at(-1) ?? ''))
+  words.findIndex(
+    (word, at) =>
+      at > 0 &&
+      /^-[ce]$/.test(word) &&
+      /^(python[\d.]*|py|node|bash|sh|zsh|pwsh|ruby|perl)(\.exe)?$/i.test(words[at - 1].split(/[\\/]/).at(-1) ?? ''),
+  )
 
 export type Line = { state: Row['state']; text: string; since?: string | null }
 
 /** S6's rows by their step: "Full tests running: cmd" is "full tests · running", "Related tests passed: cmd" "related tests · passed"; any other row as it is. */
 function stepOf(row: Row): string | null {
-  const own = row.command && row.text.endsWith(`: ${row.command}`) ? row.text.slice(0, -row.command.length - 2) : row.text
+  const own =
+    row.command && row.text.endsWith(`: ${row.command}`) ? row.text.slice(0, -row.command.length - 2) : row.text
   const step = /^(Full|Related) tests (.*)$/.exec(own)
   return step ? `${step[1].toLowerCase()} tests · ${step[2]}` : null
 }
@@ -76,22 +89,36 @@ export function lineOf(row: Row): Line {
   if (row.state === 'running' && row.started_at) return { state: row.state, text: 'full tests', since: row.started_at }
   const step = stepOf(row)
   const counts = row.counts
-  if (!counts || !row.command || counts.passed + counts.failed === 0) return { state: row.state, text: step ?? row.text }
-  if (step?.startsWith('related')) return { state: row.state, text: `related tests · ${counts.passed} passed${counts.failed ? ` · ${counts.failed} failed` : ''}` }
+  if (!counts || !row.command || counts.passed + counts.failed === 0)
+    return { state: row.state, text: step ?? row.text }
+  if (step?.startsWith('related'))
+    return {
+      state: row.state,
+      text: `related tests · ${counts.passed} passed${counts.failed ? ` · ${counts.failed} failed` : ''}`,
+    }
   const unit = counts.unit === 'tests' ? '' : ` ${counts.unit}`
   const failed = counts.failed ? ` · ${counts.failed} ✗` : ''
   return { state: row.state, text: `${toolOf(row.command)} · ${counts.passed}${unit} ✓${failed}` }
 }
 
-/** S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`), each one line on the node. */
-const KINDS: Record<string, string> = { docs: 'documents', slides: 'slides', diagram: 'diagrams', data: 'data' }
+/**
+ * S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`, and S5b's Pages), each one line on the
+ * node - by the one list Settings names them by (`CHECK_KINDS`).
+ */
+export const KINDS: Record<string, string> = Object.fromEntries(
+  CHECK_KINDS.map(([kind, label]) => [kind, label.toLowerCase()]),
+)
 
 /** A kind's rows as one line, as a test run's: "documents · 2 ✓ · 1 ✗" - its files that passed and failed; "documents · not checked" where it was switched off. */
 function kindLine(kind: string, rows: Row[]): Line {
   const passed = rows.filter(one => one.state === 'passed').length
   const failed = rows.filter(one => one.state === 'failed').length
   const state: Row['state'] = failed ? 'failed' : passed ? 'passed' : 'note'
-  if (!passed && !failed) return { state, text: `${KINDS[kind]} · ${rows.some(one => one.text.startsWith('Not checked')) ? 'not checked' : 'noted'}` }
+  if (!passed && !failed)
+    return {
+      state,
+      text: `${KINDS[kind]} · ${rows.some(one => one.text.startsWith('Not checked')) ? 'not checked' : 'noted'}`,
+    }
   return { state, text: `${KINDS[kind]} · ${passed} ✓${failed ? ` · ${failed} ✗` : ''}` }
 }
 
@@ -103,7 +130,12 @@ export function linesOf(rows: Row[]): Line[] {
     if (!(one.kind in KINDS)) lines.push(lineOf(one))
     else if (!seen.has(one.kind)) {
       seen.add(one.kind)
-      lines.push(kindLine(one.kind, rows.filter(other => other.kind === one.kind)))
+      lines.push(
+        kindLine(
+          one.kind,
+          rows.filter(other => other.kind === one.kind),
+        ),
+      )
     }
   }
   return lines
@@ -125,7 +157,8 @@ function passesOf(calls: { arguments: string }[]): number {
 }
 
 /** Its fix rounds: at its end the Checked section's count (the tests run again on a test KOLONİ asked for are none), before it each pass again. */
-const roundsOf = (checked: Message | undefined, said: number, calls: { arguments: string }[]) => (checked ? said : Math.max(passesOf(calls) - 1, 0))
+const roundsOf = (checked: Message | undefined, said: number, calls: { arguments: string }[]) =>
+  checked ? said : Math.max(passesOf(calls) - 1, 0)
 
 /** The Orchestrator's strip: "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "✗ on hold" (a look holds, every check passed), "not checked" - or nothing before its end. */
 export function stripOf(data: ChecksData): string | null {
@@ -140,9 +173,9 @@ export function stripOf(data: ChecksData): string | null {
 }
 
 /**
- * A turn's Checks node, after its Orchestrator: from KOLONİ's own test calls (live) and its Checked section (at its end).
- * Each fix round is a line back to the Orchestrator, "round 1 of 2: tests fail" - "2 blocking findings" for a Reviewer's
- * (S3), whose agents KOLONİ opened come after the node. None where nothing was checked.
+ * A turn's Checks node, after its Orchestrator: from KOLONİ's own test calls (live) and its Checked section (at its end). Its
+ * rounds are in it, not lines back to the Orchestrator: the agents KOLONİ opened, and those it sent work back to, are drawn in
+ * it (`checksLoop`). None where nothing was checked.
  */
 export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphEdge[]): ChecksData | null {
   const lead = state.agents.find(a => a.run_id === run.id && a.depth === 0)
@@ -173,8 +206,6 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const { team, from } = recipeEnd(run, nodes, lead.id)
   nodes.push({ id, kind: 'checks', runId: run.id, refId: run.id, data, ...(team && { team }) })
   edges.push({ id: `${from}>${id}`, source: from, target: id, active: Boolean(at), plan: true, po: true })
-  edges.push(...roundsBack(id, `agent:${lead.id}`, rounds, said))
-  reviewersAfter(state, own, `agent:${lead.id}`, id, edges)
   // (The Orchestrator's strip says it too.)
   const leadNode = nodes.find(node => node.id === `agent:${lead.id}`)
   if (leadNode) (leadNode.data as AgentData).checked = stripOf(data)
@@ -188,12 +219,22 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
 function recipeEnd(run: Run, nodes: GraphNode[], leadId: string): { team?: string; from: string } {
   const frame = nodes.filter(node => node.kind === 'team' && node.runId === run.id).at(-1)
   if (!frame) return { from: `agent:${leadId}` }
-  const last = run.teams?.find(row => row.team_id === frame.refId)?.state?.passes.at(-1)?.agents.at(-1)
-  return { team: frame.id, from: last && nodes.some(node => node.id === `agent:${last}`) ? `agent:${last}` : `agent:${leadId}` }
+  const last = run.teams
+    ?.find(row => row.team_id === frame.refId)
+    ?.state?.passes.at(-1)
+    ?.agents.at(-1)
+  return {
+    team: frame.id,
+    from: last && nodes.some(node => node.id === `agent:${last}`) ? `agent:${last}` : `agent:${leadId}`,
+  }
 }
 
 /** The Checked rows that say nothing was checked, each with the strip's words (none at Nothing: the project's standing choice). */
-const OFF_STRIPS: Record<string, string | null> = { chat_off: OFF_FOR_CHAT, not_checked: null, recipe_off: OFF_IN_RECIPE }
+const OFF_STRIPS: Record<string, string | null> = {
+  chat_off: OFF_FOR_CHAT,
+  not_checked: null,
+  recipe_off: OFF_IN_RECIPE,
+}
 
 /** Off for this chat, or set to Nothing: no Checks node is drawn - the Orchestrator's strip says it, so nobody takes the turn as checked. */
 function notChecked(nodes: GraphNode[], leadId: string, said: string | null): null {
@@ -208,39 +249,17 @@ function sinceOf(state: ConvState, callId: string): string | null {
 }
 
 /**
- * What the Checked section says of its fix rounds at its end: how many, of how many (the project's Fix rounds), and why each
- * went back where a Reviewer's findings did - "Sent back to fix: 2 of 3 rounds (tests fail; 2 blocking findings)". Before
- * its end, none (a pass after a round may run nothing: the Orchestrator's own run stood - counted here then).
+ * What the Checked section says of its fix rounds at its end: how many, and why each went back where a Reviewer's findings
+ * did - "Sent back to fix: 2 of 3 rounds (tests fail; 2 blocking findings)". Before its end, none (a pass after a round may
+ * run nothing: the Orchestrator's own run stood - counted here then).
  */
-function roundsSaid(checked: Message | undefined): Said {
+export function roundsSaid(checked: Message | undefined): { n: number; why: string[] } {
   const text = checked?.checked?.find(row => row.kind === 'rounds')?.text ?? ''
   // (k-canli-016: "Sent back to fix: round 3 (until it passes, 3 failing → 1)" - no count of rounds, no why each)
   const until = /round (\d+) \(until it passes/.exec(text)
-  if (until) return { n: Number(until[1]), most: null, why: [] }
-  const [, n, most, why] = /(\d+) of (\d+) rounds?(?: \((.*)\))?/.exec(text) ?? []
-  return { n: Number(n ?? 0), most: most ? Number(most) : MOST_ROUNDS, why: why ? why.split('; ') : [] }
-}
-
-/** Each fix round a line back from the node to the Orchestrator - no more than the Fix rounds (until it passes: as many as went back). */
-function roundsBack(id: string, lead: string, rounds: number, said: Said): GraphEdge[] {
-  const most = Math.min(rounds, said.most ?? rounds)
-  return Array.from({ length: most }, (_, n) => ({ id: `${id}>${lead}:${n + 1}`, source: id, target: lead, active: false, round: roundLine(n + 1, said) }))
-}
-
-/** What the Checked section says of its rounds: how many, of how many (null: until it passes), why each went back. */
-type Said = { n: number; most: number | null; why: string[] }
-
-/** A round's line back: "round 1 of 2: tests fail" once the Checked section says its rounds; before that only "round 1" - the Fix rounds and what sent it back are not known yet. */
-function roundLine(round: number, said: Said): string {
-  return said.n && said.most !== null ? `round ${round} of ${said.most}: ${said.why[round - 1] ?? 'tests fail'}` : `round ${round}`
-}
-
-/** S3: the Reviewers KOLONİ opened at the turn's end are drawn after its Checks node - their spawn line from it, not the Orchestrator. */
-function reviewersAfter(state: ConvState, own: { id: string; name: string }[], from: string, to: string, edges: GraphEdge[]) {
-  const looks = new Set(own.filter(c => c.name === 'spawn_agent').map(c => c.id))
-  const mine = new Set(state.agents.filter(a => looks.has(a.tool_call_id ?? '')).map(a => `agent:${a.id}`))
-  for (const edge of edges)
-    if (edge.source === from && mine.has(edge.target)) Object.assign(edge, { id: `${to}>${edge.target}`, source: to })
+  if (until) return { n: Number(until[1]), why: [] }
+  const [, n, why] = /(\d+) of \d+ rounds?(?: \((.*)\))?/.exec(text) ?? []
+  return { n: Number(n ?? 0), why: why ? why.split('; ') : [] }
 }
 
 function commandOf(argumentsJson: string): string {

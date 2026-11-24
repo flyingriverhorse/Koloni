@@ -3,6 +3,7 @@
 Revision ID: 0036
 Revises: 0035
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -15,8 +16,9 @@ depends_on = None
 def upgrade() -> None:
     # A question from before this is shown as an agent's own, as it was then.
     with op.batch_alter_table("questions") as batch:
-        batch.add_column(sa.Column(
-            "leave", sa.Boolean(), server_default=sa.false(), nullable=False))
+        batch.add_column(
+            sa.Column("leave", sa.Boolean(), server_default=sa.false(), nullable=False)
+        )
 
 
 def downgrade() -> None:

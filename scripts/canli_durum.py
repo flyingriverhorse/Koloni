@@ -4,6 +4,7 @@ Run again after every live run; it rewrites what it wrote before.
 
     .venv\\Scripts\\python.exe scripts\\canli_durum.py
 """
+
 import re
 import sys
 from pathlib import Path
@@ -11,20 +12,27 @@ from pathlib import Path
 FILE = Path(__file__).resolve().parent.parent / "tasarim" / "plans" / "canli-test-senaryolari.md"
 MARKS = {"geçti": "✅", "kısmen": "◐", "kaldı": "❌", "atlandı": "⏭"}
 NOT_RUN, NOT_BUILT = "⏳", "🚧"
-NAMES = {"✅": "geçti", "◐": "kısmen", "❌": "kaldı", "⏭": "atlandı",
-         NOT_RUN: "koşulmadı", NOT_BUILT: "dilim yok"}
+NAMES = {
+    "✅": "geçti",
+    "◐": "kısmen",
+    "❌": "kaldı",
+    "⏭": "atlandı",
+    NOT_RUN: "koşulmadı",
+    NOT_BUILT: "dilim yok",
+}
 # Slices not on main yet: their scenarios wait for them. Take one out when it merges.
 UNBUILT = ("PLAN-82-", "PLAN-83-")
 START = "<!-- durum: başla (scripts/canli_durum.py yazar) -->"
 END = "<!-- durum: bitti -->"
 HEADING = re.compile(
-    r"^(#### ((?:DUMAN|CANLI|PLAN)-[A-Z0-9]+(?:-\d+)?) · )(.*?)(?: [✅◐❌⏭⏳🚧])?$", re.M)
+    r"^(#### ((?:DUMAN|CANLI|PLAN)-[A-Z0-9]+(?:-\d+)?) · )(.*?)(?: [✅◐❌⏭⏳🚧])?$", re.M
+)
 
 
 def main() -> None:
     text = FILE.read_text(encoding="utf-8")
     last: dict[str, tuple[str, str, str]] = {}
-    for row in text[text.index("## Sonuç kaydı"):].splitlines():
+    for row in text[text.index("## Sonuç kaydı") :].splitlines():
         cells = [c.strip() for c in row.split("|")]
         if len(cells) > 6 and re.match(r"(DUMAN|CANLI|PLAN)-", cells[3]):
             last[cells[3]] = (cells[5], cells[1], cells[2])  # result, date, commit
@@ -45,15 +53,24 @@ def main() -> None:
         when = f"{last[sid][1]} {last[sid][2]}" if sid in last else ""
         rows.append(f"| {m} | {sid} | {title} | {when} |")
     summary = " · ".join(f"{m} {counts[m]} {NAMES[m]}" for m in NAMES if m in counts)
-    table = "\n".join([
-        START, "## Durum tablosu", "",
-        f"{len(found)} senaryo: {summary}. Her senaryonun son sonucu; ayrıntısı en alttaki "
-        "\"Sonuç kaydı\"nda.",
-        "Başlıklardaki işaret aynıdır. Bir koşudan sonra `scripts/canli_durum.py` ile yeniden "
-        "yazılır.", "",
-        "| | Senaryo | Başlık | Son koşu |", "|---|---|---|---|", *rows, END])
+    table = "\n".join(
+        [
+            START,
+            "## Durum tablosu",
+            "",
+            f"{len(found)} senaryo: {summary}. Her senaryonun son sonucu; ayrıntısı en alttaki "
+            '"Sonuç kaydı"nda.',
+            "Başlıklardaki işaret aynıdır. Bir koşudan sonra `scripts/canli_durum.py` ile yeniden "
+            "yazılır.",
+            "",
+            "| | Senaryo | Başlık | Son koşu |",
+            "|---|---|---|---|",
+            *rows,
+            END,
+        ]
+    )
     if START in text:
-        text = text[:text.index(START)] + table + text[text.index(END) + len(END):]
+        text = text[: text.index(START)] + table + text[text.index(END) + len(END) :]
     else:
         at = text.index("\n---\n\n## 1. ")
         text = text[:at] + "\n\n" + table + "\n" + text[at:]

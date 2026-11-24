@@ -9,7 +9,9 @@ test.use({ viewport: { width: 1440, height: 900 } })
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Go to' })
 const steps = (page: Page) => page.getByRole('region', { name: 'First steps' })
 
-test('Ctrl+K from the message box: it filters as it is typed, the arrows and Enter go there, Esc gives the focus back', async ({ page }) => {
+test('Ctrl+K from the message box: it filters as it is typed, the arrows and Enter go there, Esc gives the focus back', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const box = page.getByRole('region', { name: 'Chat' }).getByLabel('Message')
   await box.click()
@@ -43,22 +45,40 @@ test('Ctrl+K from the message box: it filters as it is typed, the arrows and Ent
   await page.keyboard.press('Control+k')
   await palette(page).getByRole('combobox').fill('greeting')
   const searched = page.waitForResponse(r => r.url().includes('/memory/search?q=greeting'))
-  await palette(page).getByRole('option', { name: /Search in messages/ }).click()
+  await palette(page)
+    .getByRole('option', { name: /Search in messages/ })
+    .click()
   await searched
   const search = page.getByLabel('Search everything this project remembers')
   await expect(search).toHaveValue('greeting')
   await expect(search).toBeFocused()
 })
 
-test('on an empty install the first steps are one path - a provider, a folder, a message - and the current one goes where it is done', async ({ page }) => {
+test('on an empty install the first steps are one path - a provider, a folder, a message - and the current one goes where it is done', async ({
+  page,
+}) => {
   // (This install has folders and chats from the other specs: the page is told it has none, and that its provider - as
   // "Local", made at the first start - does not answer: a seeded provider with no model server behind it is not done.)
   const empty = ['/api/providers', '/api/projects', '/api/conversations']
-  await page.route(url => empty.includes(url.pathname), route => (route.request().method() === 'GET' ? route.fulfill({ json: [] }) : route.fallback()))
-  await page.route(url => url.pathname === '/api/health', async route => {
-    const response = await route.fetch()
-    await route.fulfill({ response, json: { ...(await response.json()), provider_name: 'Local', model_reachable: false, error: 'model server unreachable: refused' } })
-  })
+  await page.route(
+    url => empty.includes(url.pathname),
+    route => (route.request().method() === 'GET' ? route.fulfill({ json: [] }) : route.fallback()),
+  )
+  await page.route(
+    url => url.pathname === '/api/health',
+    async route => {
+      const response = await route.fetch()
+      await route.fulfill({
+        response,
+        json: {
+          ...(await response.json()),
+          provider_name: 'Local',
+          model_reachable: false,
+          error: 'model server unreachable: refused',
+        },
+      })
+    },
+  )
   await page.goto(LINK)
   const items = steps(page).getByRole('listitem')
   await expect(items).toHaveCount(3)
@@ -79,10 +99,16 @@ test('on an empty install the first steps are one path - a provider, a folder, a
   await expect(page.getByRole('dialog', { name: 'Add a provider' })).toBeVisible()
 })
 
-test('the first steps go once a message is written, and come back from Help, all three done, until hidden', async ({ page, request }) => {
+test('the first steps go once a message is written, and come back from Help, all three done, until hidden', async ({
+  page,
+  request,
+}) => {
   await openFreshConversation(page)
   const health = await (await request.get('/api/health')).json()
-  test.skip(!health.model_reachable || health.not_listed, 'the default provider does not answer here: no message can be written')
+  test.skip(
+    !health.model_reachable || health.not_listed,
+    'the default provider does not answer here: no message can be written',
+  )
   const box = page.getByRole('region', { name: 'Chat' }).getByLabel('Message')
   await say(page, 'hello', 'Hello! Ask me to read or change a file.')
   await expect(steps(page)).toHaveCount(0)
@@ -96,7 +122,9 @@ test('the first steps go once a message is written, and come back from Help, all
   await page.getByRole('dialog', { name: 'Help' }).getByRole('button', { name: 'Show the first steps' }).click()
   await expect(steps(page).getByText(/^Done:/)).toHaveCount(3)
   // under the canvas's line that says how a turn starts, both in the middle of what the chat's column leaves (0.1.4)
-  const [card, line] = await Promise.all([steps(page), page.locator('.canvas-empty')].map(async one => (await one.boundingBox())!))
+  const [card, line] = await Promise.all(
+    [steps(page), page.locator('.canvas-empty')].map(async one => (await one.boundingBox())!),
+  )
   expect(Math.abs(card.x + card.width / 2 - (line.x + line.width / 2))).toBeLessThanOrEqual(1)
   await steps(page).getByRole('button', { name: 'Hide the first steps' }).click()
   await expect(steps(page)).toHaveCount(0)

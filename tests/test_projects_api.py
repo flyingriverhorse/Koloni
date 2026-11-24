@@ -27,8 +27,11 @@ def test_same_folder_returns_existing(client, project_dir):
 
 
 def test_foreign_origin_is_rejected(client, project_dir):
-    r = client.post("/api/projects", json={"root_path": str(project_dir)},
-                    headers={"Origin": "http://evil.example"})
+    r = client.post(
+        "/api/projects",
+        json={"root_path": str(project_dir)},
+        headers={"Origin": "http://evil.example"},
+    )
     assert r.status_code == 403
 
 
@@ -46,7 +49,11 @@ def test_health_reports_unreachable_model(client):
 
 def test_health_shows_no_password_or_key_of_the_address(client):
     local = client.get("/api/providers").json()[0]
-    r = client.patch(f"/api/providers/{local['id']}", json={"base_url": "http://user:s3cret@127.0.0.1:9/v1?key=k2#f"}, headers=OWN)
+    r = client.patch(
+        f"/api/providers/{local['id']}",
+        json={"base_url": "http://user:s3cret@127.0.0.1:9/v1?key=k2#f"},
+        headers=OWN,
+    )
     assert r.status_code == 200
     body = client.get("/api/health").json()
     assert body["model_reachable"] is False
@@ -58,15 +65,25 @@ def test_project_execution_settings(client, project_dir):
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     created = client.get("/api/projects").json()[0]
     assert (created["exec_location"], created["docker_image"], created["docker_network"]) == (
-        "host", None, False)
+        "host",
+        None,
+        False,
+    )
 
     no_image = client.patch(f"/api/projects/{pid}", json={"exec_location": "docker"})
-    assert no_image.status_code == 422 and "choose a Docker image first" in no_image.json()["detail"]
+    assert (
+        no_image.status_code == 422 and "choose a Docker image first" in no_image.json()["detail"]
+    )
 
-    docker = client.patch(f"/api/projects/{pid}", json={
-        "exec_location": "docker", "docker_image": " python:3.12 ", "docker_network": True})
+    docker = client.patch(
+        f"/api/projects/{pid}",
+        json={"exec_location": "docker", "docker_image": " python:3.12 ", "docker_network": True},
+    )
     assert docker.status_code == 200
-    assert (docker.json()["exec_location"], docker.json()["docker_image"]) == ("docker", "python:3.12")
+    assert (docker.json()["exec_location"], docker.json()["docker_image"]) == (
+        "docker",
+        "python:3.12",
+    )
     assert docker.json()["docker_network"] is True
 
     assert client.patch(f"/api/projects/{pid}", json={"exec_location": "moon"}).status_code == 422
@@ -92,7 +109,8 @@ def test_permission_levels(client, project_dir):
     for raised in ("auto_edit", "full_auto"):
         for said in ({}, {"Origin": ""}, {"Origin": "http://evil.example"}):
             refused = client.patch(
-                at, json={"permission_mode": raised, "title": "raised"}, headers=said)
+                at, json={"permission_mode": raised, "title": "raised"}, headers=said
+            )
             assert refused.status_code == 403 and now() == (before, conv["title"]), (raised, said)
         patched = client.patch(at, json={"permission_mode": raised}, headers=OWN)
         assert patched.status_code == 200 and patched.json()["permission_mode"] == raised
@@ -101,6 +119,7 @@ def test_permission_levels(client, project_dir):
         before = raised
     # ...and lowering it needs nothing more than any other setting
     for lowered in ("auto_edit", "ask"):
-        assert client.patch(at, json={"permission_mode": lowered}).json()[
-            "permission_mode"] == lowered
+        assert (
+            client.patch(at, json={"permission_mode": lowered}).json()["permission_mode"] == lowered
+        )
     assert client.patch(at, json={"permission_mode": "yolo"}).status_code == 422

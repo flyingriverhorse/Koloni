@@ -14,10 +14,24 @@ from pathlib import Path
 from app.workspace import PTH_GLOBS, _name, is_kept_code, standing_names
 
 # Folders that are not looked into: other people's code and build output.
-UNREAD_FOLDERS = frozenset({
-    ".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build", "target",
-    ".mypy_cache", ".pytest_cache", ".ruff_cache", ".next", ".tox", "htmlcov",
-})
+UNREAD_FOLDERS = frozenset(
+    {
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "dist",
+        "build",
+        "target",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".next",
+        ".tox",
+        "htmlcov",
+    }
+)
 MAX_FILE_BYTES = 256 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 # How a link or a junction at a standing path is held in `standing`, before where it leads.
@@ -55,8 +69,10 @@ def hooks_folder(root: Path, config: bytes | None) -> str | None:
     if not hooks:
         return None
     try:
-        rel = os.path.relpath(os.path.normcase(os.path.normpath(root / hooks)),
-                              os.path.normcase(os.path.normpath(root)))
+        rel = os.path.relpath(
+            os.path.normcase(os.path.normpath(root / hooks)),
+            os.path.normcase(os.path.normpath(root)),
+        )
     except ValueError:  # (another drive)
         return None
     return None if rel == "." or rel.split(os.sep)[0] == ".." else Path(rel).as_posix()
@@ -67,8 +83,13 @@ def _standing_path(parts: tuple[str, ...]) -> bool:
     if parts and _name(parts[0]) == ".git":
         # (Of git's folder its hooks - not the samples, which it never runs - and its config;
         # and `.git` itself where it is a file or a link.)
-        return len(parts) == 1 or _name(parts[1]) == "hooks" and not parts[-1].endswith(
-            ".sample") or len(parts) == 2 and _name(parts[1]) == "config"
+        return (
+            len(parts) == 1
+            or _name(parts[1]) == "hooks"
+            and not parts[-1].endswith(".sample")
+            or len(parts) == 2
+            and _name(parts[1]) == "config"
+        )
     return bool(standing_names(parts))
 
 
@@ -106,8 +127,10 @@ def _take(root: Path, found: dict[str, bytes], path: Path) -> None:
             found[rel] = data = path.read_bytes()
             # (the first mode seen wins: an agent's chmod +x of the same bytes is not "as
             # it was")
-            MODES.setdefault((os.path.abspath(path), hashlib.sha256(data).hexdigest()),
-                             path.stat().st_mode & 0o777)
+            MODES.setdefault(
+                (os.path.abspath(path), hashlib.sha256(data).hexdigest()),
+                path.stat().st_mode & 0o777,
+            )
 
 
 def _take_hooks(root: Path, found: dict[str, bytes]) -> None:
@@ -116,8 +139,7 @@ def _take_hooks(root: Path, found: dict[str, bytes]) -> None:
     with contextlib.suppress(OSError):
         parts = Path(hooks).parts if hooks else ()
         # (In the project only - `hooks_folder` -, and not through a link.)
-        if parts and not any(
-                _is_link(root.joinpath(*parts[:n])) for n in range(1, len(parts) + 1)):
+        if parts and not any(_is_link(root.joinpath(*parts[:n])) for n in range(1, len(parts) + 1)):
             for path in root.joinpath(*parts).iterdir():
                 if (path.is_file() or _is_link(path)) and not path.name.endswith(".sample"):
                     _take(root, found, path)
@@ -151,12 +173,21 @@ def standing(root: str | Path) -> dict[str, bytes]:
         # others the day a CLI keeps big folders there.)
         in_git = bool(parts) and _name(parts[0]) == ".git"
         in_claude = bool(parts) and _name(parts[-1]) == ".claude"
-        folders[:] = [name for name in folders if (
-            (len(parts) > 1 or _name(name) == "hooks") if in_git
-            else not parts and _name(name) == ".git"
-            or name not in UNREAD_FOLDERS and not (in_claude and _name(name) == "worktrees"))
-            and tuple(map(_name, (*parts, name))) != own and not _scratch(parts, name)
-            and not is_kept_code((*parts, name))]
+        folders[:] = [
+            name
+            for name in folders
+            if (
+                (len(parts) > 1 or _name(name) == "hooks")
+                if in_git
+                else not parts
+                and _name(name) == ".git"
+                or name not in UNREAD_FOLDERS
+                and not (in_claude and _name(name) == "worktrees")
+            )
+            and tuple(map(_name, (*parts, name))) != own
+            and not _scratch(parts, name)
+            and not is_kept_code((*parts, name))
+        ]
         for name in [name for name in folders if _is_link(here / name)]:
             if _standing_path((*parts, name)):
                 _take(root, found, here / name)
@@ -214,9 +245,12 @@ class ProjectView:
             # Never through a link or junction: what is behind it is not the project.
             parts = here.relative_to(self.root).parts
             folders[:] = [
-                name for name in folders
-                if name not in UNREAD_FOLDERS and not _is_link(here / name)
-                and not _scratch(parts, name) and not is_kept_code((*parts, name))
+                name
+                for name in folders
+                if name not in UNREAD_FOLDERS
+                and not _is_link(here / name)
+                and not _scratch(parts, name)
+                and not is_kept_code((*parts, name))
             ]
             for name in files:
                 path = here / name

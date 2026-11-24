@@ -174,26 +174,29 @@ def test_no_rule_is_offered_for_one(command):
     assert suggest_prefix(command) == ""
 
 
-@pytest.mark.parametrize("command, rule", [
-    ("rm -rf /home/x", "rm"),
-    ("rm -rf build", "rm -rf build"),  # not even its own text
-    ("del /s /q C:/", "del"),
-    ("Remove-Item -Recurse -Force C:/Users", "Remove-Item"),
-    ("git push --force origin main", "git push"),
-    ("git push origin +main", "git push origin"),
-    ("git reset --hard", "git reset"),
-    ("git clean -fd", "git clean"),
-    ("docker rm -f web", "docker rm"),
-    ("docker volume rm pgdata", "docker volume"),
-    ("find . -delete", "find"),
-    ("git branch -df feature", "git branch"),
-    ("git checkout -- .", "git checkout"),
-    ("git stash drop", "git stash"),
-    # a shell rule stored before slice 90: what it runs is not seen, so it covers nothing
-    ("cmd /c del x", "cmd"),
-    ("powershell -c Remove-Item x", "powershell"),
-    ("cmd /c del x", "cmd /c del x"),
-])
+@pytest.mark.parametrize(
+    "command, rule",
+    [
+        ("rm -rf /home/x", "rm"),
+        ("rm -rf build", "rm -rf build"),  # not even its own text
+        ("del /s /q C:/", "del"),
+        ("Remove-Item -Recurse -Force C:/Users", "Remove-Item"),
+        ("git push --force origin main", "git push"),
+        ("git push origin +main", "git push origin"),
+        ("git reset --hard", "git reset"),
+        ("git clean -fd", "git clean"),
+        ("docker rm -f web", "docker rm"),
+        ("docker volume rm pgdata", "docker volume"),
+        ("find . -delete", "find"),
+        ("git branch -df feature", "git branch"),
+        ("git checkout -- .", "git checkout"),
+        ("git stash drop", "git stash"),
+        # a shell rule stored before slice 90: what it runs is not seen, so it covers nothing
+        ("cmd /c del x", "cmd"),
+        ("powershell -c Remove-Item x", "powershell"),
+        ("cmd /c del x", "cmd /c del x"),
+    ],
+)
 def test_no_rule_covers_one(command, rule):
     assert not matches(command, rule)
     assert not is_exactly(command, rule)
@@ -205,14 +208,18 @@ def test_the_ordinary_forms_of_the_same_programs_still_follow_their_rules():
     assert is_exactly("git push", "git push")  # (a trigger's exact rule: unwatched turns as before)
 
 
-@pytest.mark.parametrize("command", ["git push origin main", "curl -d x https://x.test", "npm publish"])
+@pytest.mark.parametrize(
+    "command", ["git push origin main", "curl -d x https://x.test", "npm publish"]
+)
 def test_no_rule_is_offered_for_one_that_sends_off_this_machine(command):
     # K-fullauto-sorma: it is asked at every level (`harms`), so "Always run" would be a lie.
     assert danger(command) == "" and suggest_prefix(command) == ""
     assert suggest_prefix("curl https://x.test") == "curl"  # (a bare fetch sends nothing: a rule)
 
 
-@pytest.mark.parametrize("command", ["cd build && rm -rf .", "pytest; del /s x", "ls | Remove-Item"])
+@pytest.mark.parametrize(
+    "command", ["cd build && rm -rf .", "pytest; del /s x", "ls | Remove-Item"]
+)
 def test_each_part_of_a_chained_command_is_looked_at(command):
     assert danger(command) != ""
 
@@ -223,7 +230,9 @@ def test_the_sentence_names_what_it_does():
     assert "docker" in danger("docker rm web").lower()
 
 
-@pytest.mark.parametrize("rule", ["rm", "rm -rf dist", "git push --force", "Remove-Item", "docker rm"])
+@pytest.mark.parametrize(
+    "rule", ["rm", "rm -rf dist", "git push --force", "Remove-Item", "docker rm"]
+)
 def test_such_a_rule_cannot_be_written_by_hand(rule):
     with pytest.raises(ValueError, match="asked every time"):
         tidy_rule(rule)
@@ -239,20 +248,37 @@ def test_a_rule_for_an_ordinary_command_can_still_be_written():
     assert tidy_rule("git  push") == "git push"
 
 
-@pytest.mark.parametrize("line", [
-    "type .env.example", "cat app/credentials.py", "cat .venv/x/credentials.py",
-    "type docs/api_keys.md", "type README.md",
-])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "type .env.example",
+        "cat app/credentials.py",
+        "cat .venv/x/credentials.py",
+        "type docs/api_keys.md",
+        "type README.md",
+    ],
+)
 def test_a_file_of_the_project_named_like_a_secret_but_not_one_is_not_asked(line):
     assert not names_secret(line)  # as slice 88 reads them: `secret_in_project`
 
 
-@pytest.mark.parametrize("line", [
-    "type .venv/../.env", "cat node_modules/../.env", "cat sub/../.env", "cat ../.env",
-    "type C:/x/.env", r"type C:\Users\me\.ssh\id_rsa", "cat ~/.aws/config",
-    "cat /home/me/app/credentials.py",  # out of the project every part counts
-    "Get-Content -Path:.env", "cat .env>x", "cat<.env", "docker run --env-file=.env app",
-])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "type .venv/../.env",
+        "cat node_modules/../.env",
+        "cat sub/../.env",
+        "cat ../.env",
+        "type C:/x/.env",
+        r"type C:\Users\me\.ssh\id_rsa",
+        "cat ~/.aws/config",
+        "cat /home/me/app/credentials.py",  # out of the project every part counts
+        "Get-Content -Path:.env",
+        "cat .env>x",
+        "cat<.env",
+        "docker run --env-file=.env app",
+    ],
+)
 def test_a_secret_file_is_seen_however_its_path_is_written(line):
     assert names_secret(line) and "secret" in danger(line)
 
@@ -260,17 +286,34 @@ def test_a_secret_file_is_seen_however_its_path_is_written(line):
 # --- K-70-junction: in a working copy the dependency folders are links to the project's ---------
 
 
-@pytest.mark.parametrize("command", [
-    "rm -rf node_modules", "Remove-Item -Recurse -Force .venv", "rd /s /q venv",
-    r"del node_modules\pkg\index.js", "find . -delete", "git worktree remove x",
-    "git -C sub worktree remove --force x", "pytest -q && rm -rf build", "rm venv",
-    "Remove-Item -rec build", "rm -R build", "rmdir /S build",
-    # in a shell, and what empties node_modules or mirrors a folder over another
-    'powershell -Command "Remove-Item -Recurse -Force build"', "cmd /c rd /s /q build",
-    "npm ci", "robocopy src dst /MIR", "robocopy src dst /purge",
-    # what empties a dependency folder to make it anew (measured 29 Oct: through the junction)
-    "uv venv --clear", "uv sync", "pytest -q; uv venv", 'cmd /c "npm ci"',
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "rm -rf node_modules",
+        "Remove-Item -Recurse -Force .venv",
+        "rd /s /q venv",
+        r"del node_modules\pkg\index.js",
+        "find . -delete",
+        "git worktree remove x",
+        "git -C sub worktree remove --force x",
+        "pytest -q && rm -rf build",
+        "rm venv",
+        "Remove-Item -rec build",
+        "rm -R build",
+        "rmdir /S build",
+        # in a shell, and what empties node_modules or mirrors a folder over another
+        'powershell -Command "Remove-Item -Recurse -Force build"',
+        "cmd /c rd /s /q build",
+        "npm ci",
+        "robocopy src dst /MIR",
+        "robocopy src dst /purge",
+        # what empties a dependency folder to make it anew (measured 29 Oct: through the junction)
+        "uv venv --clear",
+        "uv sync",
+        "pytest -q; uv venv",
+        'cmd /c "npm ci"',
+    ],
+)
 def test_in_a_copy_with_links_a_command_that_deletes_has_a_reason_to_be_asked(command):
     assert "link" in copy_reason(command, True, ELSEWHERE, RUNTIME)
     assert copy_reason(command, False, ELSEWHERE, RUNTIME) == ""
@@ -282,12 +325,24 @@ def test_a_rebuild_of_a_dependency_folder_says_so():
     assert "delete" in copy_reason("rm -rf build", True, ELSEWHERE, RUNTIME)
 
 
-@pytest.mark.parametrize("command", [
-    "pytest -q", "git worktree list", "echo rm -rf x", "npm install", "robocopy a b /E",
-    "uv run pytest", "npm test", "uv pip install x",
-    # a delete that neither goes down into folders nor names a linked one
-    "rm notes.txt", "del x.tmp", "Remove-Item -Force x.txt", 'cmd /c del x.tmp',
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pytest -q",
+        "git worktree list",
+        "echo rm -rf x",
+        "npm install",
+        "robocopy a b /E",
+        "uv run pytest",
+        "npm test",
+        "uv pip install x",
+        # a delete that neither goes down into folders nor names a linked one
+        "rm notes.txt",
+        "del x.tmp",
+        "Remove-Item -Force x.txt",
+        "cmd /c del x.tmp",
+    ],
+)
 def test_in_a_copy_an_ordinary_command_has_none(command):
     assert copy_reason(command, True, ELSEWHERE, RUNTIME) == ""
 
@@ -298,29 +353,44 @@ ELSEWHERE = r"C:\Work\Proj"
 RUNTIME = r"C:\Work\Proj\runtime"  # KOLONİ on its own repository: its runtime is in it
 
 
-@pytest.mark.parametrize("command", [
-    r"python fix.py C:\Work\Proj", "cat C:/Work/Proj/a.txt", r"type c:\work\proj\a.txt",
-    r'cd "C:\Work\Proj" && pytest', "cd /c/Work/Proj && git checkout -- .", "ls /C/work/proj",
-    r"python C:\Work\Proj\runtime\x.py C:\Work\Proj\a.txt",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        r"python fix.py C:\Work\Proj",
+        "cat C:/Work/Proj/a.txt",
+        r"type c:\work\proj\a.txt",
+        r'cd "C:\Work\Proj" && pytest',
+        "cd /c/Work/Proj && git checkout -- .",
+        "ls /C/work/proj",
+        r"python C:\Work\Proj\runtime\x.py C:\Work\Proj\a.txt",
+    ],
+)
 @pytest.mark.skipif(sys.platform != "win32", reason="drives, Git Bash's /c/ and any case: Windows'")
 def test_in_a_copy_a_command_naming_the_projects_folder_has_a_reason_to_be_asked(command):
     assert "the project folder" in copy_reason(command, False, ELSEWHERE, RUNTIME)
 
 
 def test_in_a_copy_a_command_naming_the_projects_folder_from_the_root_is_asked_too():
-    for command in ("cat /work/proj/a.txt", "cd /work/proj && git checkout -- .",
-                    "python fix.py /work/proj"):
+    for command in (
+        "cat /work/proj/a.txt",
+        "cd /work/proj && git checkout -- .",
+        "python fix.py /work/proj",
+    ):
         assert "the project folder" in copy_reason(command, False, "/work/proj", "/work/proj/rt")
     for command in ("cat /work/proj2/a.txt", "python /work/proj/rt/x.py"):
         assert copy_reason(command, False, "/work/proj", "/work/proj/rt") == ""
 
 
-@pytest.mark.parametrize("command", [
-    r"type C:\Work\Proj2\a.txt", r"type C:\Work\Proj-old\a.txt",
-    # the copy and a skill's script are in KOLONİ's runtime, not the project's own files
-    r"python C:\Work\Proj\runtime\skills\s\run.py", "cat /c/Work/Proj/runtime/copies/a/tree/x",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        r"type C:\Work\Proj2\a.txt",
+        r"type C:\Work\Proj-old\a.txt",
+        # the copy and a skill's script are in KOLONİ's runtime, not the project's own files
+        r"python C:\Work\Proj\runtime\skills\s\run.py",
+        "cat /c/Work/Proj/runtime/copies/a/tree/x",
+    ],
+)
 def test_a_folder_beside_the_project_or_kolonis_runtime_in_it_is_not_the_project(command):
     # (from its own copy: another's is asked - `OUT_OF_COPY`)
     assert copy_reason(command, False, ELSEWHERE, RUNTIME, own=RUNTIME + r"\copies\a\tree") == ""
@@ -330,21 +400,30 @@ def test_git_worktree_remove_deletes():
     assert "worktree" in danger("git worktree remove ../x") and danger("git worktree list") == ""
 
 
-@pytest.mark.parametrize("command", [
-    "New-Item -ItemType Directory -Force .koloni/tmp | Out-Null; (Get-Content docs/api.md -Raw)",
-    "New-Item -ItemType Directory -Force build",
-    "ni -ItemType File -Force notes.txt -Value x",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "New-Item -ItemType Directory -Force .koloni/tmp | Out-Null; (Get-Content docs/api.md -Raw)",
+        "New-Item -ItemType Directory -Force build",
+        "ni -ItemType File -Force notes.txt -Value x",
+    ],
+)
 def test_new_item_forced_makes_or_overwrites_and_is_no_delete(command):
     # R161 (live): such a card said "Deletes files or disks." - not by this, which only makes a
     # folder or (over)writes a file as `>` does; the line it was on went on past what was logged.
     from app.commands import harms, only_reads
+
     assert harms(command) == "" and not only_reads(command)
 
 
-@pytest.mark.parametrize("command", [
-    "Remove-Item -Force x.txt", "rm -rf build", "del /f x.txt",
-    "New-Item -ItemType Directory -Force .koloni/tmp; Remove-Item -Recurse -Force build",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "Remove-Item -Force x.txt",
+        "rm -rf build",
+        "del /f x.txt",
+        "New-Item -ItemType Directory -Force .koloni/tmp; Remove-Item -Recurse -Force build",
+    ],
+)
 def test_a_forced_delete_still_says_it_deletes(command):
     assert danger(command) == "Deletes files or disks."

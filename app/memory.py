@@ -109,8 +109,9 @@ SOURCE_SAYS = {
     "elsewhere": "not checked here: the file is in another project",
 }
 # 22c: how a record of a linked project is tagged, with that project's name.
-ELSEWHERE = ("from the project {name} - its files are not in this project: it could not be "
-             "checked here")
+ELSEWHERE = (
+    "from the project {name} - its files are not in this project: it could not be checked here"
+)
 BY_MEANING = "found by meaning, not by its words"
 CHANGED_SINCE = "source changed since it was noted: check again"
 MOVED_SINCE = (
@@ -159,7 +160,7 @@ FOUND_HEAD = (
 )
 NOT_AN_INSTRUCTION = (
     "this reads as an instruction, not as something found out. The memory keeps plain "
-    "statements of what is the case in the project (\"the tests run with pytest -q\"); "
+    'statements of what is the case in the project ("the tests run with pytest -q"); '
     "what agents should do is the user's to say."
 )
 
@@ -187,9 +188,7 @@ def check_text(text: object) -> str:
         raise Refused("missing required argument: text")
     text = one_line(text)
     if len(text) > MAX_TEXT:
-        raise Refused(
-            f"a memory record has at most {MAX_TEXT} characters: one plain statement"
-        )
+        raise Refused(f"a memory record has at most {MAX_TEXT} characters: one plain statement")
     return text
 
 
@@ -242,8 +241,10 @@ def preferences(session: Session) -> str | None:
 ANSWER_IN = "answer_in"
 ANSWER_IN_MOST = 40
 LANGUAGE_NAME = re.compile(r"[^\W\d_]+(?:[ -][^\W\d_]+)*")  # letters, one space or hyphen between
-WRITE_IN = ("Write everything you say to the user, your reports, notes and findings in {language}. "
-            "Keep code, file names, commands and quoted text as they are")
+WRITE_IN = (
+    "Write everything you say to the user, your reports, notes and findings in {language}. "
+    "Keep code, file names, commands and quoted text as they are"
+)
 KEEP_ENGLISH = ", but keep these English headings and markers exactly: {kept}"
 
 
@@ -346,47 +347,60 @@ _TR_VERBS = (
 # remembered reaches an agent only in quotes, as data, and only the user lets a note into
 # the core. So the scan is narrow on purpose: a memory that refuses ordinary notes about
 # a project ("the build tool: vite", "tool_calls rows carry parent_call_id") is no use.
-_ORDERS = [re.compile(pattern) for pattern in (
-    # setting earlier instructions aside
-    r"\b(ignore|disregard|forget|override|bypass)\b.{0,60}\b(instruction|prompt|rule|"
-    r"message|guideline|direction|restriction|polic)",
-    r"\b(new|updated|real|actual) (instructions?|system prompt)\b",
-    r"\b(new|updated|real|actual) (rules?|task)\s*:",
-    # standing orders
-    r"\bfrom (now|here) on\b", r"\bhenceforth\b", r"\bfrom this point\b",
-    r"\byou (must|should|shall|have to|need to|are to|will|may now|can now|are now|are "
-    r"allowed|are required|ought)\b",
-    rf"\b(always|never)\s+({_VERBS})\b",
-    rf"(^|[.;:!?]\s+)(do not|don't|never|always|please|make sure|be sure|remember to|"
-    rf"ensure|{_OPENING_VERBS}) ",
-    r"\bwithout (asking|approval|permission|confirmation|confirming|review|the user)",
-    r"\bno need to (ask|confirm|check)", r"\bdo not (ask|tell|mention|check|verify)\b",
-    r"\bthe user (has |had |already )*(approved|allowed|authori[sz]ed|agreed|consented|"
-    r"said yes|permitted)",
-    r"\b(approved|allowed|permitted) everything\b",
-    # words dressed up as somebody else's: a role marker where the text begins, a tag, a
-    # tool call - the name with what it is called with, not the name in a sentence or in
-    # a signature ("`read_file(path)` returns...")
-    r"^(system|assistant|developer)\s*:",
-    r"[<\[{]\s*/?\s*(system|assistant|instruction|tool_call|tool_use|function|im_start|"
-    r"im_end|inst)\b",
-    r"#+\s*(system|instruction)", r"\bmcp__", r"\"tool_calls?\"\s*:",
-    rf"\b({_TOOL_NAMES})\(\s*([\"'{{\[]|\w+\s*=)",
-    rf"\"(name|tool)\"\s*:\s*\"({_TOOL_NAMES})\"",
-    # the same in Turkish
-    r"\bbundan (sonra|böyle)\b", r"\b[sş]u andan itibaren\b", r"\bbu noktadan sonra\b",
-    r"(talimat|yönerge|kural|komut|istem|mesaj)\w*.{0,60}(yok say|görmezden gel|unut|"
-    r"dikkate alma|boş ?ver|geçersiz|[cç]iğne)",
-    r"(yok say|görmezden gel|unut|dikkate alma).{0,60}(talimat|yönerge|kural|istem)",
-    r"\byeni talimat\w*\b", r"\byeni (kural|görev)\w*\s*:",
-    r"\b(sor|onayla|bekle|kontrol et|doğrula)m[ae]dan\b",
-    r"\b(onay|izin)(sız| almadan| beklemeden| istemeden| gerekmeden| gerekmez)",
-    r"\bkullanıcı\w* .{0,40}(onayladı|izin verdi|kabul etti|evet dedi)",
-    r"\b\w+m[ae]l[ıi]s[ıi]n(ız)?\b", r"\bzorundas[ıi]n", r"\bmecbursun",
-    rf"\b(her zaman|asla|daima|hi[cç]bir zaman|kesinlikle|mutlaka|sak[ıi]n)\b[^.!?]*"
-    rf"\b({_TR_VERBS})\s*([.!?]|$)",
-    r"^(sistem|asistan|geliştirici)\s*:",
-)]
+_ORDERS = [
+    re.compile(pattern)
+    for pattern in (
+        # setting earlier instructions aside
+        r"\b(ignore|disregard|forget|override|bypass)\b.{0,60}\b(instruction|prompt|rule|"
+        r"message|guideline|direction|restriction|polic)",
+        r"\b(new|updated|real|actual) (instructions?|system prompt)\b",
+        r"\b(new|updated|real|actual) (rules?|task)\s*:",
+        # standing orders
+        r"\bfrom (now|here) on\b",
+        r"\bhenceforth\b",
+        r"\bfrom this point\b",
+        r"\byou (must|should|shall|have to|need to|are to|will|may now|can now|are now|are "
+        r"allowed|are required|ought)\b",
+        rf"\b(always|never)\s+({_VERBS})\b",
+        rf"(^|[.;:!?]\s+)(do not|don't|never|always|please|make sure|be sure|remember to|"
+        rf"ensure|{_OPENING_VERBS}) ",
+        r"\bwithout (asking|approval|permission|confirmation|confirming|review|the user)",
+        r"\bno need to (ask|confirm|check)",
+        r"\bdo not (ask|tell|mention|check|verify)\b",
+        r"\bthe user (has |had |already )*(approved|allowed|authori[sz]ed|agreed|consented|"
+        r"said yes|permitted)",
+        r"\b(approved|allowed|permitted) everything\b",
+        # words dressed up as somebody else's: a role marker where the text begins, a tag, a
+        # tool call - the name with what it is called with, not the name in a sentence or in
+        # a signature ("`read_file(path)` returns...")
+        r"^(system|assistant|developer)\s*:",
+        r"[<\[{]\s*/?\s*(system|assistant|instruction|tool_call|tool_use|function|im_start|"
+        r"im_end|inst)\b",
+        r"#+\s*(system|instruction)",
+        r"\bmcp__",
+        r"\"tool_calls?\"\s*:",
+        rf"\b({_TOOL_NAMES})\(\s*([\"'{{\[]|\w+\s*=)",
+        rf"\"(name|tool)\"\s*:\s*\"({_TOOL_NAMES})\"",
+        # the same in Turkish
+        r"\bbundan (sonra|böyle)\b",
+        r"\b[sş]u andan itibaren\b",
+        r"\bbu noktadan sonra\b",
+        r"(talimat|yönerge|kural|komut|istem|mesaj)\w*.{0,60}(yok say|görmezden gel|unut|"
+        r"dikkate alma|boş ?ver|geçersiz|[cç]iğne)",
+        r"(yok say|görmezden gel|unut|dikkate alma).{0,60}(talimat|yönerge|kural|istem)",
+        r"\byeni talimat\w*\b",
+        r"\byeni (kural|görev)\w*\s*:",
+        r"\b(sor|onayla|bekle|kontrol et|doğrula)m[ae]dan\b",
+        r"\b(onay|izin)(sız| almadan| beklemeden| istemeden| gerekmeden| gerekmez)",
+        r"\bkullanıcı\w* .{0,40}(onayladı|izin verdi|kabul etti|evet dedi)",
+        r"\b\w+m[ae]l[ıi]s[ıi]n(ız)?\b",
+        r"\bzorundas[ıi]n",
+        r"\bmecbursun",
+        rf"\b(her zaman|asla|daima|hi[cç]bir zaman|kesinlikle|mutlaka|sak[ıi]n)\b[^.!?]*"
+        rf"\b({_TR_VERBS})\s*([.!?]|$)",
+        r"^(sistem|asistan|geliştirici)\s*:",
+    )
+]
 
 
 def looks_like_instruction(text: str) -> bool:
@@ -451,16 +465,13 @@ def plan_remember(args: dict) -> Asked:
     if file is None and (start is not None or end is not None):
         raise Refused("start_line and end_line need file: the file the lines are in")
     if file is not None and start is None:
-        raise Refused(
-            "file needs start_line (and end_line): the lines that show what you noted"
-        )
+        raise Refused("file needs start_line (and end_line): the lines that show what you noted")
     propose = args.get("propose")
     if propose is None:
         propose = False
     if not isinstance(propose, bool):
         raise Refused("argument propose must be true or false")
-    return Asked(text, about, about_key, file, start, end if end is not None else start,
-                 propose)
+    return Asked(text, about, about_key, file, start, end if end is not None else start, propose)
 
 
 def plan_recall(args: dict) -> str:
@@ -540,7 +551,7 @@ def read_source(root: str | Path, path: str, start: int, end: int) -> Source:
         raise Refused(f"{rel} has {len(lines)} lines: there are no lines {start}-{end}")
     if end - start + 1 > MAX_SOURCE_LINES:
         raise Refused(f"a source is at most {MAX_SOURCE_LINES} lines: name the ones that count")
-    block = lines[start - 1:end]
+    block = lines[start - 1 : end]
     if not any(line.strip() for line in block):
         raise Refused(f"lines {start}-{end} of {rel} are empty: they show nothing")
     return Source(rel, start, end, digest(block))
@@ -570,15 +581,13 @@ def _state(record, lines: list[str] | None) -> State:
     changed = State("changed", start, end)
     if lines is None or not start or not end or not wanted or start > end:
         return changed
-    if end <= len(lines) and digest(lines[start - 1:end]) == wanted:
+    if end <= len(lines) and digest(lines[start - 1 : end]) == wanted:
         return State("unchanged", start, end)
     size = end - start + 1
     if len(lines) > MOVE_MAX_FILE_LINES:
         return changed
-    found = [
-        at for at in range(len(lines) - size + 1) if digest(lines[at:at + size]) == wanted
-    ]
-    if len(found) != 1 or not _has_size(lines[found[0]:found[0] + size]):
+    found = [at for at in range(len(lines) - size + 1) if digest(lines[at : at + size]) == wanted]
+    if len(found) != 1 or not _has_size(lines[found[0] : found[0] + size]):
         return changed
     return State("moved", start, end, (found[0] + 1, found[0] + size))
 
@@ -602,16 +611,25 @@ def source_state(root: str | Path, record) -> State:
 # --- as an agent reads it -------------------------------------------------------------------
 
 
-def shown(record, who: str | None, state: State, elsewhere: str | None = None,
-          by_meaning: bool = False) -> str:
+def shown(
+    record, who: str | None, state: State, elsewhere: str | None = None, by_meaning: bool = False
+) -> str:
     """One record as an agent reads it: the words in quotes on one line, then who wrote
     them, when, and what they rest on. Whatever a model or a file system chose - the
     words, the agent's name, the path - is in quotes; the rest is KOLONİ's. 22c:
     `elsewhere` is the name of the linked project it is from; `by_meaning`, that the
     search by meaning found it and not its words."""
-    by = _by_user(record) if record.origin == "user" else (
-        AUTO_BY.format(model=quoted(summariser(record.noted_by))) if record.origin == "auto"
-        else f"noted by the agent {quoted(shown_name(who))}" if who else "noted by an agent")
+    by = (
+        _by_user(record)
+        if record.origin == "user"
+        else (
+            AUTO_BY.format(model=quoted(summariser(record.noted_by)))
+            if record.origin == "auto"
+            else f"noted by the agent {quoted(shown_name(who))}"
+            if who
+            else "noted by an agent"
+        )
+    )
     if record.source_kind == "file":
         where = f"{one_line(record.source_path or '')}:{state.start}-{state.end}"
         rests = f"source {quoted(where)}; {SOURCE_SAYS[state.state]}"
@@ -687,10 +705,31 @@ def words(text: str) -> set[str]:
 
 
 # What a file name ends in: shared by too many names to say what a question is about.
-_ENDINGS = frozenset({
-    "py", "js", "ts", "tsx", "jsx", "md", "txt", "json", "yml", "yaml", "toml", "ini", "cfg",
-    "css", "html", "sql", "sh", "ps1", "cmd", "bat", "db",
-})
+_ENDINGS = frozenset(
+    {
+        "py",
+        "js",
+        "ts",
+        "tsx",
+        "jsx",
+        "md",
+        "txt",
+        "json",
+        "yml",
+        "yaml",
+        "toml",
+        "ini",
+        "cfg",
+        "css",
+        "html",
+        "sql",
+        "sh",
+        "ps1",
+        "cmd",
+        "bat",
+        "db",
+    }
+)
 
 
 def _like(word: str, own: str) -> bool:
@@ -778,10 +817,14 @@ def is_pending(record: Memory) -> bool:
 def _active(session: Session, project_id: str, tier: str, key: str | None) -> Memory | None:
     if key is None:
         return None
-    return session.scalar(select(Memory).where(
-        Memory.project_id == project_id, Memory.tier == tier, Memory.about_key == key,
-        Memory.status == "active",
-    ))
+    return session.scalar(
+        select(Memory).where(
+            Memory.project_id == project_id,
+            Memory.tier == tier,
+            Memory.about_key == key,
+            Memory.status == "active",
+        )
+    )
 
 
 def _said_already(
@@ -789,10 +832,13 @@ def _said_already(
 ) -> bool:
     """Whether the same words (case and spacing aside) are in effect or waiting."""
     key = text_key(text)
-    rows = session.execute(select(Memory.id, Memory.text).where(
-        Memory.project_id == project_id, Memory.tier.in_(tiers),
-        Memory.status.in_(("active", "proposed")),
-    )).all()
+    rows = session.execute(
+        select(Memory.id, Memory.text).where(
+            Memory.project_id == project_id,
+            Memory.tier.in_(tiers),
+            Memory.status.in_(("active", "proposed")),
+        )
+    ).all()
     return any(text_key(other) == key for row_id, other in rows if row_id != but)
 
 
@@ -800,9 +846,15 @@ def _fits(session: Session, project_id: str, text: str, instead_of: Memory | Non
     """The core has a size: a fact goes in only if it fits, counting out the one it
     takes the place of."""
     held = sum(
-        len(other) for row_id, other in session.execute(select(Memory.id, Memory.text).where(
-            Memory.project_id == project_id, Memory.tier == "fact", Memory.status == "active",
-        )) if instead_of is None or row_id != instead_of.id
+        len(other)
+        for row_id, other in session.execute(
+            select(Memory.id, Memory.text).where(
+                Memory.project_id == project_id,
+                Memory.tier == "fact",
+                Memory.status == "active",
+            )
+        )
+        if instead_of is None or row_id != instead_of.id
     )
     if held + len(text) > MAX_CORE:
         raise Refused(
@@ -820,9 +872,17 @@ def _retire(record: Memory, status: str, by: str, how: str = "replaced") -> None
 
 
 def keep_note(
-    session: Session, project_id: str, asked: Asked, *, agent_id: str | None, run_id: str,
-    conversation_id: str, source: Source | None, checked_how: str | None,
-    unattended: bool = False, noted_by: dict | None = None,
+    session: Session,
+    project_id: str,
+    asked: Asked,
+    *,
+    agent_id: str | None,
+    run_id: str,
+    conversation_id: str,
+    source: Source | None,
+    checked_how: str | None,
+    unattended: bool = False,
+    noted_by: dict | None = None,
 ) -> Memory:
     """Write an agent's note into the journal.
 
@@ -847,10 +907,18 @@ def keep_note(
             )
         fact = _active(session, project_id, "fact", asked.about_key)
         # The notes on the subject, in effect or waiting: an agent's own earlier word.
-        older = [] if asked.about_key is None else session.scalars(select(Memory).where(
-            Memory.project_id == project_id, Memory.tier == "note",
-            Memory.about_key == asked.about_key, Memory.status.in_(("active", "proposed")),
-        )).all()
+        older = (
+            []
+            if asked.about_key is None
+            else session.scalars(
+                select(Memory).where(
+                    Memory.project_id == project_id,
+                    Memory.tier == "note",
+                    Memory.about_key == asked.about_key,
+                    Memory.status.in_(("active", "proposed")),
+                )
+            ).all()
+        )
         if noted_by is not None and (fact or any(note.origin != "auto" for note in older)):
             raise Refused(ALREADY_NOTED)
         if unattended and (fact or asked.propose):
@@ -858,15 +926,23 @@ def keep_note(
                 "the project's core has a fact on this subject, and a note against it "
                 "waits for the user: nobody is here to ask, so nothing was written. Note "
                 "it under a subject of its own, and say in your report what you found."
-                if fact else
-                "nothing is put forward for the core in a turn nobody is watching: nobody "
+                if fact
+                else "nothing is put forward for the core in a turn nobody is watching: nobody "
                 "is here to ask. Leave propose out to keep it as a note."
             )
         note = Memory(
-            project_id=project_id, tier="note", text=asked.text, about=asked.about,
-            about_key=asked.about_key, origin="auto" if noted_by else "agent",
-            noted_by=noted_by, agent_id=agent_id, run_id=run_id,
-            conversation_id=conversation_id, wants_core=asked.propose, unattended=unattended,
+            project_id=project_id,
+            tier="note",
+            text=asked.text,
+            about=asked.about,
+            about_key=asked.about_key,
+            origin="auto" if noted_by else "agent",
+            noted_by=noted_by,
+            agent_id=agent_id,
+            run_id=run_id,
+            conversation_id=conversation_id,
+            wants_core=asked.propose,
+            unattended=unattended,
             source_kind="file" if source else None,
             source_path=source.path if source else None,
             source_start=source.start if source else None,
@@ -891,7 +967,9 @@ def keep_note(
             if attempt == 2:
                 raise Refused(
                     "another note on this subject was written at the same moment; "
-                    "nothing was written", 409) from None
+                    "nothing was written",
+                    409,
+                ) from None
             continue
         return note
     raise AssertionError("unreachable")
@@ -919,8 +997,14 @@ def _fenced(text: str) -> str | None:
 
 
 def note_by_itself(
-    session: Session, project: Project, answer: str, *, run_id: str, conversation_id: str,
-    noted_by: dict, unattended: bool,
+    session: Session,
+    project: Project,
+    answer: str,
+    *,
+    run_id: str,
+    conversation_id: str,
+    noted_by: dict,
+    unattended: bool,
 ) -> dict:
     """Keep what a fast model noted of a turn (`AgentRunner._note_what_it_found`): how
     many notes went into the journal, how many of its were not kept, and - when none was
@@ -944,9 +1028,15 @@ def note_by_itself(
                 raise Refused("not a note")
             if "preference" in said:
                 # 22b: a line for the user's preferences, waiting; never added by itself.
-                suggest_preference(session, project.id, said["preference"], run_id=run_id,
-                                   conversation_id=conversation_id, noted_by=noted_by,
-                                   about=said.get("about"))
+                suggest_preference(
+                    session,
+                    project.id,
+                    said["preference"],
+                    run_id=run_id,
+                    conversation_id=conversation_id,
+                    noted_by=noted_by,
+                    about=said.get("about"),
+                )
                 noted += 1
                 continue
             words_ = {key: said.get(key) for key in ("text", "about")}
@@ -960,16 +1050,30 @@ def note_by_itself(
                 )
                 if where.file is not None:
                     source = read_source(
-                        project.root_path, where.file, where.start or 1, where.end or 1)
+                        project.root_path, where.file, where.start or 1, where.end or 1
+                    )
             except Refused:
                 pass
-            checked = None if source is None else (
-                CHANGED_HERE if changed_in_turn(session, project.root_path, run_id, source.path)
-                else NAMED_UNREAD)
+            checked = (
+                None
+                if source is None
+                else (
+                    CHANGED_HERE
+                    if changed_in_turn(session, project.root_path, run_id, source.path)
+                    else NAMED_UNREAD
+                )
+            )
             keep_note(
-                session, project.id, asked, agent_id=None, run_id=run_id,
-                conversation_id=conversation_id, source=source, checked_how=checked,
-                unattended=unattended, noted_by=noted_by,
+                session,
+                project.id,
+                asked,
+                agent_id=None,
+                run_id=run_id,
+                conversation_id=conversation_id,
+                source=source,
+                checked_how=checked,
+                unattended=unattended,
+                noted_by=noted_by,
             )
             noted += 1
             if asked.about_key is not None:
@@ -981,8 +1085,14 @@ def note_by_itself(
 
 
 def suggest_preference(
-    session: Session, project_id: str, text: object, *, run_id: str, conversation_id: str,
-    noted_by: dict, about: object = None,
+    session: Session,
+    project_id: str,
+    text: object,
+    *,
+    run_id: str,
+    conversation_id: str,
+    noted_by: dict,
+    about: object = None,
 ) -> Memory:
     """Keep what the summariser suggested for the user's preferences (22b) as a record
     that waits ("proposed", tier "preference"): the user adds it or says not now. Refused
@@ -994,17 +1104,34 @@ def suggest_preference(
     key = text_key(said)
     about, about_key = check_about(about)
     if _said_already(session, project_id, said, ("preference",)) or any(
-            text_key(line) == key for line in (preferences(session) or "").splitlines()):
+        text_key(line) == key for line in (preferences(session) or "").splitlines()
+    ):
         raise Refused("this is on record already, in the same words: nothing was written")
     # shortcut: two that contradict are told apart only by the subject the summariser gives; one
     # with none waits beside the other - ask a model which contradicts which if that is seen.
-    for older in [] if about_key is None else session.scalars(select(Memory).where(
-            Memory.project_id == project_id, Memory.tier == "preference",
-            Memory.about_key == about_key, Memory.status == "proposed")):
+    for older in (
+        []
+        if about_key is None
+        else session.scalars(
+            select(Memory).where(
+                Memory.project_id == project_id,
+                Memory.tier == "preference",
+                Memory.about_key == about_key,
+                Memory.status == "proposed",
+            )
+        )
+    ):
         _retire(older, "superseded", "auto")
     record = Memory(
-        project_id=project_id, tier="preference", text=said, origin="auto", noted_by=noted_by,
-        run_id=run_id, conversation_id=conversation_id, status="proposed", about=about,
+        project_id=project_id,
+        tier="preference",
+        text=said,
+        origin="auto",
+        noted_by=noted_by,
+        run_id=run_id,
+        conversation_id=conversation_id,
+        status="proposed",
+        about=about,
         about_key=about_key,
     )
     session.add(record)
@@ -1028,7 +1155,12 @@ def add_preference(session: Session, record: Memory) -> Memory:
 
 
 def propose_lasting(
-    session: Session, project_id: str, facts: list[str], *, agent_id: str, run_id: str,
+    session: Session,
+    project_id: str,
+    facts: list[str],
+    *,
+    agent_id: str,
+    run_id: str,
     conversation_id: str,
 ) -> int:
     """Put forward for the core what an agent's working state calls lasting facts: each a
@@ -1036,8 +1168,10 @@ def propose_lasting(
     until they approve it. Only the first MAX_LASTING are looked at; one that reads as an
     instruction, or whose words are on record in any state - the user may have rejected
     them, and a later summary says them again - is passed over. How many were put forward."""
-    known = {text_key(said) for said in session.scalars(
-        select(Memory.text).where(Memory.project_id == project_id))}
+    known = {
+        text_key(said)
+        for said in session.scalars(select(Memory.text).where(Memory.project_id == project_id))
+    }
     put = 0
     for said in facts[:MAX_LASTING]:
         try:
@@ -1047,11 +1181,20 @@ def propose_lasting(
         if text_key(asked.text) in known:
             continue
         known.add(text_key(asked.text))
-        session.add(Memory(
-            project_id=project_id, tier="note", text=asked.text, origin="agent",
-            agent_id=agent_id, run_id=run_id, conversation_id=conversation_id,
-            wants_core=True, status="proposed", checked_how=FROM_WORKING_STATE,
-        ))
+        session.add(
+            Memory(
+                project_id=project_id,
+                tier="note",
+                text=asked.text,
+                origin="agent",
+                agent_id=agent_id,
+                run_id=run_id,
+                conversation_id=conversation_id,
+                wants_core=True,
+                status="proposed",
+                checked_how=FROM_WORKING_STATE,
+            )
+        )
         put += 1
     session.commit()
     return put
@@ -1072,8 +1215,12 @@ def user_source(root: str | Path, file: object, start: object, end: object) -> S
 
 
 def keep_fact(
-    session: Session, project_id: str, text: object, about: object,
-    source: Source | None = None, how: str = "written",
+    session: Session,
+    project_id: str,
+    text: object,
+    about: object,
+    source: Source | None = None,
+    how: str = "written",
 ) -> Memory:
     """The user writes a fact into the core. It takes the place of the fact that is there
     on the same subject. The user's own words are tidied, never refused for what they say.
@@ -1091,13 +1238,21 @@ def keep_fact(
         _retire(older, "superseded", "user")
         session.flush()
     fact = Memory(
-        project_id=project_id, tier="fact", text=text, about=about, about_key=key,
-        origin="user", source_kind="file" if source else "user", status="active",
+        project_id=project_id,
+        tier="fact",
+        text=text,
+        about=about,
+        about_key=key,
+        origin="user",
+        source_kind="file" if source else "user",
+        status="active",
         source_path=source.path if source else None,
         source_start=source.start if source else None,
         source_end=source.end if source else None,
         source_hash=source.digest if source else None,
-        supersedes_id=older.id if older else None, decided_by="user", decided_at=now(),
+        supersedes_id=older.id if older else None,
+        decided_by="user",
+        decided_at=now(),
         decided_how=how,
     )
     session.add(fact)
@@ -1120,10 +1275,14 @@ def _copy_source(record: Memory, words: str) -> dict:
     digest - a digest is never taken anew for words that were noted before. New words
     are from now, not from when the old ones were noted."""
     return {
-        "source_kind": record.source_kind, "source_path": record.source_path,
-        "source_start": record.source_start, "source_end": record.source_end,
-        "source_hash": record.source_hash, "checked_how": record.checked_how,
-        "agent_id": record.agent_id, "run_id": record.run_id,
+        "source_kind": record.source_kind,
+        "source_path": record.source_path,
+        "source_start": record.source_start,
+        "source_end": record.source_end,
+        "source_hash": record.source_hash,
+        "checked_how": record.checked_how,
+        "agent_id": record.agent_id,
+        "run_id": record.run_id,
         "conversation_id": record.conversation_id,
         "observed_at": record.observed_at if words == record.text else now(),
     }
@@ -1164,12 +1323,19 @@ def approve(session: Session, root: str, record: Memory, text: object = None) ->
     _retire(record, "superseded", "user")
     session.flush()
     fact = Memory(
-        project_id=record.project_id, tier="fact", text=words_, about=record.about,
+        project_id=record.project_id,
+        tier="fact",
+        text=words_,
+        about=record.about,
         about_key=record.about_key,
         # Corrected words are the user's; the lines they rest on are still the agent's find.
         origin=record.origin if words_ == record.text else "user",
-        status="active", supersedes_id=record.id, decided_by="user", decided_at=now(),
-        decided_how="approved", **_copy_source(record, words_),
+        status="active",
+        supersedes_id=record.id,
+        decided_by="user",
+        decided_at=now(),
+        decided_how="approved",
+        **_copy_source(record, words_),
     )
     session.add(fact)
     _commit(session)
@@ -1186,8 +1352,8 @@ def confirm(session: Session, root: str, record: Memory) -> Memory:
     state = source_state(root, record)
     if state.state != "moved" or state.found is None:
         raise Refused(
-            f"only a source that moved can be confirmed; this one: {SOURCE_SAYS[state.state]}",
-            409)
+            f"only a source that moved can be confirmed; this one: {SOURCE_SAYS[state.state]}", 409
+        )
     try:
         source = read_source(root, record.source_path or "", *state.found)
     except Refused:
@@ -1207,8 +1373,12 @@ def reject(session: Session, record: Memory) -> Memory:
     if record.status not in ("active", "proposed"):
         raise Refused("this record is not in effect and does not wait for a decision", 409)
     # A note that waited was turned down; anything else was in effect and is taken out.
-    _retire(record, "rejected", "user",
-            "rejected" if is_pending(record) or record.status == "proposed" else "removed")
+    _retire(
+        record,
+        "rejected",
+        "user",
+        "rejected" if is_pending(record) or record.status == "proposed" else "removed",
+    )
     session.commit()
     return record
 
@@ -1223,8 +1393,7 @@ def restore(session: Session, record: Memory) -> Memory:
     fact = _active(session, record.project_id, "fact", record.about_key)
     if record.tier == "fact":
         if fact is not None:
-            raise Refused(
-                "the core has another fact on this subject: remove that one first", 409)
+            raise Refused("the core has another fact on this subject: remove that one first", 409)
         _fits(session, record.project_id, record.text, None)
         record.status = "active"
     elif record.tier == "preference":
@@ -1249,8 +1418,7 @@ def correct(session: Session, root: str, record: Memory, changes: dict) -> Memor
         raise Refused("only a fact that is in the core can be corrected", 409)
     words_ = check_text(changes["text"]) if "text" in changes else record.text
     subject, key = (
-        check_about(changes["about"]) if "about" in changes
-        else (record.about, record.about_key)
+        check_about(changes["about"]) if "about" in changes else (record.about, record.about_key)
     )
     if words_ == record.text and subject == record.about:
         return record
@@ -1266,10 +1434,18 @@ def correct(session: Session, root: str, record: Memory, changes: dict) -> Memor
     _retire(record, "superseded", "user")
     session.flush()
     new = Memory(
-        project_id=record.project_id, tier="fact", text=words_, about=subject,
-        about_key=key, origin=record.origin if words_ == record.text else "user",
-        status="active", supersedes_id=record.id, decided_by="user", decided_at=now(),
-        decided_how="corrected", **_copy_source(record, words_),
+        project_id=record.project_id,
+        tier="fact",
+        text=words_,
+        about=subject,
+        about_key=key,
+        origin=record.origin if words_ == record.text else "user",
+        status="active",
+        supersedes_id=record.id,
+        decided_by="user",
+        decided_at=now(),
+        decided_how="corrected",
+        **_copy_source(record, words_),
     )
     session.add(new)
     _commit(session)
@@ -1284,8 +1460,8 @@ def _names(session: Session, records: list[Memory]) -> dict[str, str]:
     if not ids:
         return {}
     return {
-        agent_id: name for agent_id, name in session.execute(
-            select(Agent.id, Agent.name).where(Agent.id.in_(ids)))
+        agent_id: name
+        for agent_id, name in session.execute(select(Agent.id, Agent.name).where(Agent.id.in_(ids)))
     }
 
 
@@ -1319,7 +1495,10 @@ def look_up_line(count: int, more: bool = False) -> str:
 
 
 def briefing(
-    session: Session, project: Project, work: str, can_recall: bool = True,
+    session: Session,
+    project: Project,
+    work: str,
+    can_recall: bool = True,
 ) -> tuple[str, list[str]]:
     """What the project's memory adds to the instructions of an agent that starts work.
 
@@ -1331,12 +1510,15 @@ def briefing(
     nothing is given, at its end when some is. An agent that is not offered `recall`
     (`can_recall`) is not told so. Returns the text ("" when there is nothing) and the
     ids of the facts in it."""
-    facts = list(session.scalars(
-        select(Memory)
-        .where(Memory.project_id == project.id, Memory.tier == "fact",
-               Memory.status == "active")
-        .order_by(Memory.created_at, Memory.id)
-    ))
+    facts = list(
+        session.scalars(
+            select(Memory)
+            .where(
+                Memory.project_id == project.id, Memory.tier == "fact", Memory.status == "active"
+            )
+            .order_by(Memory.created_at, Memory.id)
+        )
+    )
     names = _names(session, facts)
     named = words(work)
     lines, given = [], []
@@ -1354,9 +1536,13 @@ def briefing(
     rules = rules_in_effect(project)
     mine = rules == project.rules
     # 22b: the user's preferences first - theirs in every project - then this project's rules.
-    parts = [rules_block(preferences(session), PREFERENCES_HEAD),
-             rules_block(rules if mine or not rules else quoted(rules),
-                         RULES_HEAD if mine else FOLDER_RULES_HEAD), core]
+    parts = [
+        rules_block(preferences(session), PREFERENCES_HEAD),
+        rules_block(
+            rules if mine or not rules else quoted(rules), RULES_HEAD if mine else FOLDER_RULES_HEAD
+        ),
+        core,
+    ]
     return "\n\n".join(part for part in parts if part), given
 
 
@@ -1368,15 +1554,21 @@ def _given_as(root: str | Path, fact: Memory) -> State | None:
     if fact.tier != "fact" or fact.status != "active":
         return None
     state = source_state(root, fact)
-    if state.state == "unchanged" or (fact.source_kind == "user" and fact.origin == "user") or (
-            fact.checked_how == FROM_WORKING_STATE):  # (only the user's yes let it in)
+    if (
+        state.state == "unchanged"
+        or (fact.source_kind == "user" and fact.origin == "user")
+        or (fact.checked_how == FROM_WORKING_STATE)
+    ):  # (only the user's yes let it in)
         return state
     return None
 
 
 def withdrawn(
-    session: Session, project: Project, given: list[str],
-    looked_up: dict[str, str] | None = None, root: str | Path | None = None,
+    session: Session,
+    project: Project,
+    given: list[str],
+    looked_up: dict[str, str] | None = None,
+    root: str | Path | None = None,
 ) -> dict[str, str]:
     """Of the facts an agent was given when it started, and of the records `recall`
     showed it since (`looked_up`: each with how its source stood then), the ones that no
@@ -1392,7 +1584,8 @@ def withdrawn(
     root = root or project.root_path
     told = {}
     for record in session.scalars(
-        select(Memory).where(Memory.id.in_([*given, *looked_up]))
+        select(Memory)
+        .where(Memory.id.in_([*given, *looked_up]))
         .order_by(Memory.created_at, Memory.id)
     ):
         if record.id in given:
@@ -1400,9 +1593,11 @@ def withdrawn(
             changed = not gone and _given_as(root, record) is None
         else:
             gone = record.status == "rejected" or (
-                record.tier == "fact" and record.status != "active")
+                record.tier == "fact" and record.status != "active"
+            )
             changed = (
-                record.status == "active" and looked_up[record.id] == "unchanged"
+                record.status == "active"
+                and looked_up[record.id] == "unchanged"
                 and source_state(root, record).state != "unchanged"
             )
         if gone or changed:
@@ -1433,8 +1628,10 @@ def linked(session: Session, project: Project) -> dict[str, str]:
     ids = [pid for pid in (project.memory_links or []) if pid != project.id]
     if not ids:
         return {}
-    return {other.id: other.name
-            for other in session.scalars(select(Project).where(Project.id.in_(ids)))}
+    return {
+        other.id: other.name
+        for other in session.scalars(select(Project).where(Project.id.in_(ids)))
+    }
 
 
 def also(session: Session, project: Project, query: str) -> Also:
@@ -1444,17 +1641,22 @@ def also(session: Session, project: Project, query: str) -> Also:
     return Also(links, meaning.search(session, project, [project.id, *links], query))
 
 
-def matching(session: Session, project: Project, query: str, intent: str = "",
-             also: Also | None = None) -> list[Memory]:
+def matching(
+    session: Session, project: Project, query: str, intent: str = "", also: Also | None = None
+) -> list[Memory]:
     """The notes and facts in effect that speak to a query (`search`): what `recall`
     shows an agent - the ones that share a word with its work (`intent`) first among
     equals - and what the Memory page's search shows the user. With `also` (22c): the
     linked projects' too, and after the word matches the ones the search by meaning
     found - never in their place."""
-    records = list(session.scalars(select(Memory).where(
-        Memory.project_id.in_([project.id, *(also.linked if also else ())]),
-        Memory.status == "active",
-    )))
+    records = list(
+        session.scalars(
+            select(Memory).where(
+                Memory.project_id.in_([project.id, *(also.linked if also else ())]),
+                Memory.status == "active",
+            )
+        )
+    )
     found = search(query, records, intent)
     if also and also.near:
         shown_ = {record.id for record in found}
@@ -1464,8 +1666,9 @@ def matching(session: Session, project: Project, query: str, intent: str = "",
     return found
 
 
-def looked_up(session: Session, project: Project, query: str,
-              intent: str = "", also: Also | None = None) -> tuple[str, dict[str, str]]:
+def looked_up(
+    session: Session, project: Project, query: str, intent: str = "", also: Also | None = None
+) -> tuple[str, dict[str, str]]:
     """What `recall` returns: the notes and facts in effect that match, each with its
     source and how that source stands now - or that nothing is on record. And, for
     whoever watches them from here on (`withdrawn`): each record shown, by its id, with
@@ -1475,14 +1678,28 @@ def looked_up(session: Session, project: Project, query: str,
     if not found:
         return NOTHING, {}
     names = _names(session, found)
-    states = {record.id: source_state(project.root_path, record)
-              if record.project_id == project.id else elsewhere_state(record) for record in found}
-    linked_ = also.linked if also else {}
-    return "\n".join([FOUND_HEAD, *(
-        shown(record, names.get(record.agent_id or ""), states[record.id],
-              linked_.get(record.project_id), record.id in (also.by_meaning if also else ()))
+    states = {
+        record.id: source_state(project.root_path, record)
+        if record.project_id == project.id
+        else elsewhere_state(record)
         for record in found
-    )]), {record_id: state.state for record_id, state in states.items()}
+    }
+    linked_ = also.linked if also else {}
+    return "\n".join(
+        [
+            FOUND_HEAD,
+            *(
+                shown(
+                    record,
+                    names.get(record.agent_id or ""),
+                    states[record.id],
+                    linked_.get(record.project_id),
+                    record.id in (also.by_meaning if also else ()),
+                )
+                for record in found
+            ),
+        ]
+    ), {record_id: state.state for record_id, state in states.items()}
 
 
 def elsewhere_state(record: Memory) -> State:
@@ -1505,9 +1722,11 @@ def looked_up_earlier(found: str, can_recall: bool = True) -> str:
     it. What it showed of earlier turns, which stands after an empty line
     (`app.earlier.told`), is counted, and never shown again."""
     blocks = found.split("\n\n")
-    count = sum(
-        1 for line in blocks[0].splitlines()[1:] if line.startswith("- ")
-    ) if found.startswith(FOUND_HEAD) else 0
+    count = (
+        sum(1 for line in blocks[0].splitlines()[1:] if line.startswith("- "))
+        if found.startswith(FOUND_HEAD)
+        else 0
+    )
     said = sum(1 for block in blocks[1:] for line in block.splitlines() if line.startswith("- "))
     records = "1 record" if count == 1 else f"{count} records"
     if said:
@@ -1560,7 +1779,7 @@ def _excerpt(lines: list[str] | None, start: int | None, end: int | None) -> str
     there is nothing at that place to show."""
     if lines is None or not start or not end or start > end:
         return None
-    block = lines[start - 1:end]
+    block = lines[start - 1 : end]
     if not block:
         return None
     shown_ = block[:EXCERPT_LINES]
@@ -1580,13 +1799,19 @@ def _modified(session: Session, root: str | Path, record: Memory) -> tuple:
         return None, None
     try:
         at = datetime.fromtimestamp(
-            Workspace(root).resolve(record.source_path).stat().st_mtime, UTC)
+            Workspace(root).resolve(record.source_path).stat().st_mtime, UTC
+        )
     except (WorkspaceError, OSError, OverflowError, ValueError):
         return None, None
     in_turn = session.scalar(
-        select(Run.id).join(Conversation, Conversation.id == Run.conversation_id)
-        .where(Conversation.project_id == record.project_id, Run.started_at.is_not(None),
-               Run.started_at <= at, or_(Run.ended_at.is_(None), Run.ended_at >= at))
+        select(Run.id)
+        .join(Conversation, Conversation.id == Run.conversation_id)
+        .where(
+            Conversation.project_id == record.project_id,
+            Run.started_at.is_not(None),
+            Run.started_at <= at,
+            or_(Run.ended_at.is_(None), Run.ended_at >= at),
+        )
         .limit(1)
     )
     return at, in_turn is not None
@@ -1611,14 +1836,20 @@ def out(session: Session, root: str, record: Memory, elsewhere: str | None = Non
             record.tier == "fact" and record.status == "active" and can_be_named(record.about)
         ),
         "source": {
-            "path": record.source_path, "start": record.source_start,
+            "path": record.source_path,
+            "start": record.source_start,
             "end": record.source_end,
-        } if record.source_kind == "file" else None,
+        }
+        if record.source_kind == "file"
+        else None,
         "source_state": state.state,
         "found_at": {
-            "start": state.found[0], "end": state.found[1],
+            "start": state.found[0],
+            "end": state.found[1],
             "excerpt": _excerpt(lines, *state.found),
-        } if state.found else None,
+        }
+        if state.found
+        else None,
         "excerpt": _excerpt(lines, record.source_start, record.source_end),
         "source_modified": modified,
         "modified_in_turn": in_turn,
@@ -1644,12 +1875,15 @@ def exported(session: Session, project: Project) -> str:
     """The core as a Markdown file for a person to read: each fact in effect on one line,
     without quotes, with who wrote it and when, its source, and how that source stands at
     this moment. A copy: nothing reads it back."""
-    facts = list(session.scalars(
-        select(Memory)
-        .where(Memory.project_id == project.id, Memory.tier == "fact",
-               Memory.status == "active")
-        .order_by(Memory.created_at, Memory.id)
-    ))
+    facts = list(
+        session.scalars(
+            select(Memory)
+            .where(
+                Memory.project_id == project.id, Memory.tier == "fact", Memory.status == "active"
+            )
+            .order_by(Memory.created_at, Memory.id)
+        )
+    )
     names = _names(session, facts)
     count = f"{len(facts)} {'fact' if len(facts) == 1 else 'facts'} in the core"
     parts = [
@@ -1659,13 +1893,22 @@ def exported(session: Session, project: Project) -> str:
     ]
     for fact in facts:
         name = names.get(fact.agent_id or "")
-        by = ("said by the user at a card" if fact.decided_how == "feedback"
-              else "written by the user") if fact.origin == "user" else (
+        by = (
+            (
+                "said by the user at a card"
+                if fact.decided_how == "feedback"
+                else "written by the user"
+            )
+            if fact.origin == "user"
             # (One the user took back and then approved: nothing else of it is in the core.)
-            AUTO_BY.format(model=plain_markdown(summariser(fact.noted_by)))
-            if fact.origin == "auto"
-            else f"noted by the agent {plain_markdown(shown_name(name))}" if name
-            else "noted by an agent")
+            else (
+                AUTO_BY.format(model=plain_markdown(summariser(fact.noted_by)))
+                if fact.origin == "auto"
+                else f"noted by the agent {plain_markdown(shown_name(name))}"
+                if name
+                else "noted by an agent"
+            )
+        )
         lines = [f"- {plain_markdown(fact.text)}"]
         if fact.about:
             lines.append(f"  - subject: {plain_markdown(fact.about)}")
@@ -1673,8 +1916,10 @@ def exported(session: Session, project: Project) -> str:
         if fact.source_kind == "file":
             state = source_state(project.root_path, fact)
             where = f"{fact.source_path or ''}:{state.start}-{state.end}"
-            lines += [f"  - source: {plain_markdown(where)}",
-                      f"  - now: {SOURCE_SAYS[state.state]}"]
+            lines += [
+                f"  - source: {plain_markdown(where)}",
+                f"  - now: {SOURCE_SAYS[state.state]}",
+            ]
         elif fact.source_kind == "user":
             lines.append("  - source: the user's own words, no file behind them")
         elif fact.checked_how == FROM_WORKING_STATE:
@@ -1689,8 +1934,17 @@ def exported(session: Session, project: Project) -> str:
 
 # What the user decided on a record, as `decided_how` has it. "replaced" is not one: it is
 # the other side of an approval, a correction or a newer note.
-DECISIONS = ("written", "feedback", "approved", "corrected", "confirmed", "restored", "rejected",
-             "removed", "added")
+DECISIONS = (
+    "written",
+    "feedback",
+    "approved",
+    "corrected",
+    "confirmed",
+    "restored",
+    "rejected",
+    "removed",
+    "added",
+)
 MAX_DECISIONS = 10
 
 
@@ -1706,20 +1960,35 @@ def decisions(session: Session, project: Project) -> list[dict]:
     decision on each record (a later one takes the place of an earlier one on the same
     record) and the last change to the rules. A decision from before its kind was kept
     is not listed: what it was is not on record."""
-    rows = list(session.scalars(
-        select(Memory)
-        .where(Memory.project_id == project.id, Memory.decided_by == "user",
-               Memory.decided_how.in_(DECISIONS), Memory.decided_at.is_not(None))
-        .order_by(Memory.decided_at.desc(), Memory.created_at.desc(), Memory.id)
-        .limit(MAX_DECISIONS)
-    ))
-    found: list[dict] = [{"kind": row.decided_how, "at": row.decided_at, "memory_id": row.id,
-                          "text": row.text, "about": row.about} for row in rows]
+    rows = list(
+        session.scalars(
+            select(Memory)
+            .where(
+                Memory.project_id == project.id,
+                Memory.decided_by == "user",
+                Memory.decided_how.in_(DECISIONS),
+                Memory.decided_at.is_not(None),
+            )
+            .order_by(Memory.decided_at.desc(), Memory.created_at.desc(), Memory.id)
+            .limit(MAX_DECISIONS)
+        )
+    )
+    found: list[dict] = [
+        {
+            "kind": row.decided_how,
+            "at": row.decided_at,
+            "memory_id": row.id,
+            "text": row.text,
+            "about": row.about,
+        }
+        for row in rows
+    ]
     changed = project.rules_changed_at
     if changed is not None:
         newer = sum(1 for row in rows if row.decided_at is not None and row.decided_at > changed)
-        found.insert(newer, {"kind": "rules", "at": changed, "memory_id": None,
-                             "text": None, "about": None})
+        found.insert(
+            newer, {"kind": "rules", "at": changed, "memory_id": None, "text": None, "about": None}
+        )
     return found[:MAX_DECISIONS]
 
 
@@ -1727,14 +1996,16 @@ def overview(session: Session, project: Project) -> dict:
     """The project's memory for its page: the core, what waits for the user, the journal,
     what is no longer in effect (the newest hundred), and the user's rules."""
     records = session.scalars(
-        select(Memory).where(Memory.project_id == project.id)
-        .order_by(Memory.created_at, Memory.id)
+        select(Memory).where(Memory.project_id == project.id).order_by(Memory.created_at, Memory.id)
     ).all()
     core = [r for r in records if r.tier == "fact" and r.status == "active"]
     # Cut before any file is read: every record shown costs a look at its source. (A decided
     # suggestion for the preferences is done with: not listed, not taken back.)
-    past = [r for r in reversed(records) if r.status in ("superseded", "rejected")
-            and r.tier != "preference"][:MAX_PAST]
+    past = [
+        r
+        for r in reversed(records)
+        if r.status in ("superseded", "rejected") and r.tier != "preference"
+    ][:MAX_PAST]
     seen: dict[str, dict] = {}
     folder = rules_file(project.root_path)[0]
 
@@ -1750,7 +2021,8 @@ def overview(session: Session, project: Project) -> dict:
         "journal": shown_([r for r in records if r.tier == "note" and r.status == "active"]),
         "past": shown_(past),
         "suggestions": shown_(
-            [r for r in records if r.tier == "preference" and r.status == "proposed"]),
+            [r for r in records if r.tier == "preference" and r.status == "proposed"]
+        ),
         "preferences": preferences(session),
         "rules": rules_in_effect(project),
         "rules_kept": folder is not None,

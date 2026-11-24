@@ -32,23 +32,32 @@ from tests.test_knowledge_page import expert
 
 
 def test_a_sitemap_robots_txt_names_on_another_site_is_never_asked(monkeypatch, project_dir):
-    site = Site(monkeypatch, {
-        f"{SITE}/robots.txt": (200, "text/plain", "Sitemap: https://evil.test/s.xml?x=1\n"),
-        f"{SITE}/sitemap.xml": (200, "application/xml", f"<loc>{SITE}/pay/a</loc>"),
-        f"{SITE}/pay/a": (200, MD, "pay()"),
-    })
+    site = Site(
+        monkeypatch,
+        {
+            f"{SITE}/robots.txt": (200, "text/plain", "Sitemap: https://evil.test/s.xml?x=1\n"),
+            f"{SITE}/sitemap.xml": (200, "application/xml", f"<loc>{SITE}/pay/a</loc>"),
+            f"{SITE}/pay/a": (200, MD, "pay()"),
+        },
+    )
     record, _asked = learn(project_dir, known())
     assert read(record) == [f"{SITE}/pay/a"]
     assert not any("evil.test" in one for one in site.asked)
 
 
 def test_a_link_that_climbs_out_of_the_path_is_not_asked(monkeypatch, project_dir):
-    site = Site(monkeypatch, {
-        f"{SITE}/robots.txt": OPEN,
-        f"{SITE}/pay/llms.txt": (200, "text/plain", (
-            f"- [a]({SITE}/pay/../admin/secret)\n- [b](/pay/%2e%2e/admin2)\n- [c](/pay/c)\n")),
-        f"{SITE}/pay/c": (200, MD, "pay()"),
-    })
+    site = Site(
+        monkeypatch,
+        {
+            f"{SITE}/robots.txt": OPEN,
+            f"{SITE}/pay/llms.txt": (
+                200,
+                "text/plain",
+                (f"- [a]({SITE}/pay/../admin/secret)\n- [b](/pay/%2e%2e/admin2)\n- [c](/pay/c)\n"),
+            ),
+            f"{SITE}/pay/c": (200, MD, "pay()"),
+        },
+    )
     record, _asked = learn(project_dir, known())
     assert read(record) == [f"{SITE}/pay/c"]
     assert set(skipped(record).values()) == {"outside /pay"}
@@ -59,12 +68,22 @@ def test_a_learning_tries_three_times_its_page_limit_at_most_and_says_only_its_s
     monkeypatch, project_dir
 ):
     links = "".join(f"- [p](/pay/{n})\n" for n in range(1000))
-    site = Site(monkeypatch, {f"{SITE}/robots.txt": OPEN,
-                              f"{SITE}/pay/llms.txt": (200, "text/plain", links)})
+    site = Site(
+        monkeypatch,
+        {f"{SITE}/robots.txt": OPEN, f"{SITE}/pay/llms.txt": (200, "text/plain", links)},
+    )
     with pytest.raises(knowledge.LearnError) as said:
         learn(project_dir, known(max_pages=5))
-    assert len([one for one in site.asked if one.startswith(f"{SITE}/pay/") and
-                not one.endswith(".txt")]) == 15
+    assert (
+        len(
+            [
+                one
+                for one in site.asked
+                if one.startswith(f"{SITE}/pay/") and not one.endswith(".txt")
+            ]
+        )
+        == 15
+    )
     # (Nothing a server chose is said outside the frame: the user's own source, and a count.)
     assert str(said.value) == f"nothing could be read of {SITE}/pay (15 tried)"
 
@@ -82,19 +101,28 @@ def test_a_learning_reads_for_ten_minutes_at_most(monkeypatch, project_dir):
 
 
 def test_the_whole_sites_llms_full_txt_is_not_read_for_a_path_of_it(monkeypatch, project_dir):
-    site = Site(monkeypatch, {
-        f"{SITE}/robots.txt": OPEN,
-        f"{SITE}/llms-full.txt": (200, "text/plain", "everything of the site"),
-        f"{SITE}/sitemap.xml": (200, "application/xml", f"<loc>{SITE}/pay/a</loc>"),
-        f"{SITE}/pay/a": (200, MD, "pay()"),
-    })
+    site = Site(
+        monkeypatch,
+        {
+            f"{SITE}/robots.txt": OPEN,
+            f"{SITE}/llms-full.txt": (200, "text/plain", "everything of the site"),
+            f"{SITE}/sitemap.xml": (200, "application/xml", f"<loc>{SITE}/pay/a</loc>"),
+            f"{SITE}/pay/a": (200, MD, "pay()"),
+        },
+    )
     record, _asked = learn(project_dir, known())
     assert read(record) == [f"{SITE}/pay/a"] and f"{SITE}/llms-full.txt" not in site.asked
 
 
-@pytest.mark.parametrize(("url", "path"), [
-    ("https://github.com/some.user", "/some.user"), ("https://docs.test/docs/v1.2", "/docs/v1.2"),
-    ("https://docs.test/docs/index.html", "/docs"), ("https://docs.test/pay/", "/pay")])
+@pytest.mark.parametrize(
+    ("url", "path"),
+    [
+        ("https://github.com/some.user", "/some.user"),
+        ("https://docs.test/docs/v1.2", "/docs/v1.2"),
+        ("https://docs.test/docs/index.html", "/docs"),
+        ("https://docs.test/pay/", "/pay"),
+    ],
+)
 def test_only_a_pages_own_name_is_left_off_the_path(url, path):
     assert knowledge._scope(url)[1] == path
 
@@ -131,7 +159,7 @@ def test_the_guide_is_asked_once_capped_and_only_once_the_money_limit_pays(
 
 
 def test_a_folder_read_whole_is_old_once_a_file_comes_or_goes_and_its_pages_stay_out_of_git(
-    project_dir
+    project_dir,
 ):
     (project_dir / "docs").mkdir()
     (project_dir / "docs" / "a.md").write_text("a()", encoding="utf-8")
@@ -150,11 +178,18 @@ def test_a_folder_read_whole_is_old_once_a_file_comes_or_goes_and_its_pages_stay
 def test_an_expert_holds_reading_and_talking_only(client, project_dir):
     kid = expert(client, project_dir, EXPERT)["knowledge_id"]
     for more in ("http_request", "spawn_agent", "create_role", "notify"):
-        role = client.post("/api/roles", headers=OWN, json={
-            **{k: v for k, v in EXPERT.items() if k != "knowledge"}, "name": f"With {more}",
-            "tools": [*READS, more]}).json()
-        refused = client.put(f"/api/knowledge/{kid}/roles/{role['id']}", json={"mode": "full"},
-                             headers=OWN)
+        role = client.post(
+            "/api/roles",
+            headers=OWN,
+            json={
+                **{k: v for k, v in EXPERT.items() if k != "knowledge"},
+                "name": f"With {more}",
+                "tools": [*READS, more],
+            },
+        ).json()
+        refused = client.put(
+            f"/api/knowledge/{kid}/roles/{role['id']}", json={"mode": "full"}, headers=OWN
+        )
         assert refused.status_code == 422 and more in refused.text, more
 
 
@@ -169,12 +204,14 @@ def test_a_file_is_old_by_its_own_time_as_it_was_read_not_by_the_learnings_start
     os.utime(project_dir / "api.md", ns=(stamp, stamp))
     record["learned_at"] = datetime.fromtimestamp(later - 2, UTC).isoformat()
     (project_dir / ".koloni" / "knowledge" / "pay" / "learned.json").write_text(
-        json.dumps(record), encoding="utf-8")
+        json.dumps(record), encoding="utf-8"
+    )
     assert knowledge.stale(str(project_dir), kept) is None
     os.utime(project_dir / "api.md", ns=(stamp + 10**9, stamp + 10**9))
     assert knowledge.stale(str(project_dir), kept) == "api.md changed since"
     # A record from before the times were kept: by the learning's start, as it was.
     del record["pages"][0]["mtime_ns"]
     (project_dir / ".koloni" / "knowledge" / "pay" / "learned.json").write_text(
-        json.dumps(record), encoding="utf-8")
+        json.dumps(record), encoding="utf-8"
+    )
     assert knowledge.stale(str(project_dir), kept) == "api.md changed since"

@@ -4,6 +4,7 @@ conversation, with a note of one line, and the working copy it was shown from (s
 Revision ID: 0043
 Revises: 0042
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -29,7 +30,8 @@ def upgrade() -> None:
     )
     with op.batch_alter_table("shown_files") as batch:
         batch.create_index(
-            batch.f("ix_shown_files_conversation_id"), ["conversation_id"], unique=False)
+            batch.f("ix_shown_files_conversation_id"), ["conversation_id"], unique=False
+        )
 
 
 def downgrade() -> None:

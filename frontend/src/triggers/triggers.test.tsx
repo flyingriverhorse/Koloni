@@ -9,11 +9,21 @@ import { TriggersPage } from './TriggersPage'
 import { TriggersStatus } from './TriggersStatus'
 
 const second: Conversation = { ...conversation, id: 'c2', title: 'Nightly work' }
-const rule = (id: string, prefix: string, conversationId = 'c'): AllowedCommand => ({ id, prefix, conversation_id: conversationId, danger: '', created_at: 't' })
+const rule = (id: string, prefix: string, conversationId = 'c'): AllowedCommand => ({
+  id,
+  prefix,
+  conversation_id: conversationId,
+  danger: '',
+  created_at: 't',
+})
 
 function handlers(rules: Record<string, AllowedCommand[]> = {}) {
   return {
-    onCreate: vi.fn(async (values: object) => ({ ...trigger(values as Partial<Trigger>), id: 'new', key: null as string | null })),
+    onCreate: vi.fn(async (values: object) => ({
+      ...trigger(values as Partial<Trigger>),
+      id: 'new',
+      key: null as string | null,
+    })),
     onSave: vi.fn().mockResolvedValue(undefined),
     onDelete: vi.fn().mockResolvedValue(undefined),
     onRun: vi.fn().mockResolvedValue('run-9'),
@@ -25,7 +35,16 @@ function handlers(rules: Record<string, AllowedCommand[]> = {}) {
 }
 
 function page(triggers: Trigger[] | null, h = handlers(), over: object = {}) {
-  render(<TriggersPage triggers={triggers} conversations={[conversation, second]} draft={null} origin="http://127.0.0.1:8790" {...h} {...over} />)
+  render(
+    <TriggersPage
+      triggers={triggers}
+      conversations={[conversation, second]}
+      draft={null}
+      origin="http://127.0.0.1:8790"
+      {...h}
+      {...over}
+    />,
+  )
   return h
 }
 const form = () => screen.getByRole('form', { name: /trigger/i })
@@ -35,8 +54,13 @@ test('each trigger is a card: when it starts, where, what it may do, its budget,
   page([
     trigger({ runs: [triggerRun('1', 'completed')] }),
     trigger({
-      id: 't2', name: 'On push', kind: 'webhook', config: {}, conversation_id: 'c2',
-      permissions: { write: true, commands: ['r1'], agents: 1 }, command_lines: ['python -m pytest -q'],
+      id: 't2',
+      name: 'On push',
+      kind: 'webhook',
+      config: {},
+      conversation_id: 'c2',
+      permissions: { write: true, commands: ['r1'], agents: 1 },
+      command_lines: ['python -m pytest -q'],
     } as Partial<Trigger>),
   ])
   const first = card('Nightly look')
@@ -59,14 +83,19 @@ test('a trigger KOLONİ switched off says why, where it cannot be missed; one yo
     trigger({ enabled: false, failures: 3, off_because: 'budget: 15 model steps used' }),
     trigger({ id: 't2', name: 'Paused by me', enabled: false }),
   ])
-  expect(within(card('Nightly look')).getByRole('alert')).toHaveTextContent('switched off after 3 failures: budget: 15 model steps used')
+  expect(within(card('Nightly look')).getByRole('alert')).toHaveTextContent(
+    'switched off after 3 failures: budget: 15 model steps used',
+  )
   expect(within(card('Nightly look')).getByRole('switch')).not.toBeChecked()
   expect(within(card('Paused by me')).queryByRole('alert')).not.toBeInTheDocument()
   expect(card('Paused by me')).toHaveTextContent('off')
 })
 
 test('93-B2: a schedule slowed down for finding nothing says so and when it runs next; "Back to every 60 minutes" sends only the touch', async () => {
-  const h = page([trigger({ slowed: 4, next_at: '2026-10-05T13:00:00Z' }), trigger({ id: 't2', name: 'Asleep', slowed: 3, enabled: false })])
+  const h = page([
+    trigger({ slowed: 4, next_at: '2026-10-05T13:00:00Z' }),
+    trigger({ id: 't2', name: 'Asleep', slowed: 3, enabled: false }),
+  ])
   const slowed = within(card('Nightly look')).getByRole('status')
   expect(slowed).toHaveTextContent(/^Slowed down: the last 4 runs found nothing — next at .*\d\d:\d\d/)
   await userEvent.click(within(slowed).getByRole('button', { name: 'Back to every 60 minutes' }))
@@ -85,7 +114,9 @@ test('the switch turns a trigger on and off; "Run now" starts its turn and says 
   await waitFor(() => expect(h.onShowTurn).toHaveBeenCalledWith('c', 'run-9'))
   h.onRun.mockRejectedValueOnce(new ApiError(409, 'the conversation is at work: nothing was started'))
   await userEvent.click(screen.getByRole('button', { name: 'Run now' }))
-  expect(await within(card('Nightly look')).findByRole('alert')).toHaveTextContent('the conversation is at work: nothing was started')
+  expect(await within(card('Nightly look')).findByRole('alert')).toHaveTextContent(
+    'the conversation is at work: nothing was started',
+  )
 })
 
 test('the last times it came due open under the card: when, how each ended, late or not; one that started a turn leads to it', async () => {
@@ -102,7 +133,12 @@ test('the last times it came due open under the card: when, how each ended, late
   expect(screen.queryByRole('list', { name: 'Recent runs of Nightly look' })).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Recent runs (4)' }))
   const runs = within(screen.getByRole('list', { name: 'Recent runs of Nightly look' })).getAllByRole('listitem')
-  expect(runs.map(r => r.textContent!.replace(/^.*?· /, ''))).toEqual(['running', 'skipped: conversation was busy', 'stopped: over its budget · late', 'completed'])
+  expect(runs.map(r => r.textContent!.replace(/^.*?· /, ''))).toEqual([
+    'running',
+    'skipped: conversation was busy',
+    'stopped: over its budget · late',
+    'completed',
+  ])
   // a time that started no turn has nothing to lead to
   expect(within(runs[1]).queryByRole('button')).not.toBeInTheDocument()
   await userEvent.click(within(runs[3]).getByRole('button'))
@@ -117,11 +153,17 @@ test('a new trigger starts with nothing allowed, each permission said in a sente
   expect(f.getByLabelText('May change files')).not.toBeChecked()
   expect(f.getByText('Its work writes and edits files in the project without asking you.')).toBeInTheDocument()
   // what a sub-agent's allowed command does without it is said too
-  expect(f.getByText('Without it, nothing a sub-agent or its commands write in its own working copy reaches the project.')).toBeInTheDocument()
-  expect(f.getByText('With nobody watching, a ticked command runs exactly as written - no extra arguments.')).toBeInTheDocument()
+  expect(
+    f.getByText('Without it, nothing a sub-agent or its commands write in its own working copy reaches the project.'),
+  ).toBeInTheDocument()
+  expect(
+    f.getByText('With nobody watching, a ticked command runs exactly as written - no extra arguments.'),
+  ).toBeInTheDocument()
   expect(f.getByLabelText('May open sub-agents')).toHaveValue(0)
   // the rest of its note behind ⓘ, and the field described by both
-  expect(f.getByLabelText('May open sub-agents')).toHaveAccessibleDescription('How many sub-agents a run may open in all: 0 to 4. Each may do only what this trigger allows.')
+  expect(f.getByLabelText('May open sub-agents')).toHaveAccessibleDescription(
+    'How many sub-agents a run may open in all: 0 to 4. Each may do only what this trigger allows.',
+  )
   expect(f.getByLabelText('Model steps a run')).toHaveValue(15)
   expect(f.getByLabelText('Minutes a run')).toHaveValue(10)
   expect(f.getByLabelText('Runs a day')).toHaveValue(24)
@@ -138,7 +180,9 @@ test('a new trigger starts with nothing allowed, each permission said in a sente
   await userEvent.clear(f.getByLabelText('Every so many minutes'))
   await userEvent.type(f.getByLabelText('Every so many minutes'), '3')
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
-  expect(f.getByLabelText('Every so many minutes')).toHaveAccessibleDescription('At least 5 minutes, at most 10080 (a week).')
+  expect(f.getByLabelText('Every so many minutes')).toHaveAccessibleDescription(
+    'At least 5 minutes, at most 10080 (a week).',
+  )
 
   await userEvent.type(f.getByLabelText('Name'), 'Hourly look')
   await userEvent.type(f.getByLabelText('Message'), 'Look the project over.')
@@ -146,9 +190,18 @@ test('a new trigger starts with nothing allowed, each permission said in a sente
   await userEvent.type(f.getByLabelText('Every so many minutes'), '30')
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
   expect(h.onCreate).toHaveBeenCalledWith({
-    name: 'Hourly look', kind: 'schedule', conversation_id: 'c', message: 'Look the project over.', config: { every_minutes: 30 },
-    permissions: { write: false, commands: [], agents: 0 }, budget: { steps: 15, minutes: 10, per_day: 24 }, catch_up: true, enabled: true,
-    ends: null, run_unchanged: false, proposal_id: null,
+    name: 'Hourly look',
+    kind: 'schedule',
+    conversation_id: 'c',
+    message: 'Look the project over.',
+    config: { every_minutes: 30 },
+    permissions: { write: false, commands: [], agents: 0 },
+    budget: { steps: 15, minutes: 10, per_day: 24 },
+    catch_up: true,
+    enabled: true,
+    ends: null,
+    run_unchanged: false,
+    proposal_id: null,
   })
   await waitFor(() => expect(screen.queryByRole('form')).not.toBeInTheDocument())
 })
@@ -183,7 +236,11 @@ test('what the server refuses is said beside the field it is about, and the form
   await userEvent.selectOptions(f.getByLabelText('Starts'), 'files')
   await userEvent.type(f.getByLabelText('Path pattern'), '**/*')
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
-  await waitFor(() => expect(f.getByLabelText('Path pattern')).toHaveAccessibleDescription(/^more than 5000 files match this pattern; name fewer/))
+  await waitFor(() =>
+    expect(f.getByLabelText('Path pattern')).toHaveAccessibleDescription(
+      /^more than 5000 files match this pattern; name fewer/,
+    ),
+  )
   // a refusal that names no field is said at the foot of the form
   h.onCreate.mockRejectedValueOnce(new ApiError(403, 'origin not allowed'))
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
@@ -192,7 +249,10 @@ test('what the server refuses is said beside the field it is about, and the form
 
 test('a webhook’s key and address are shown once, with a way to copy them and what they open', async () => {
   const h = handlers()
-  h.onCreate.mockImplementationOnce(async (values: object) => ({ ...trigger({ ...(values as Partial<Trigger>), id: 't9' }), key: 'k'.repeat(43) }))
+  h.onCreate.mockImplementationOnce(async (values: object) => ({
+    ...trigger({ ...(values as Partial<Trigger>), id: 't9' }),
+    key: 'k'.repeat(43),
+  }))
   const copy = vi.fn().mockResolvedValue(undefined)
   vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: copy } })
   page([], h)
@@ -219,8 +279,13 @@ test('a webhook’s key and address are shown once, with a way to copy them and 
 })
 
 test('a webhook’s key is made anew only after a second word, and the new address is shown once', async () => {
-  const onNewKey = vi.fn(async () => ({ ...trigger({ id: 'w', name: 'On push', kind: 'webhook' }), key: 'n'.repeat(43) }))
-  page([trigger({ id: 'w', name: 'On push', kind: 'webhook' }), trigger({ id: 's', name: 'Nightly' })], handlers(), { onNewKey })
+  const onNewKey = vi.fn(async () => ({
+    ...trigger({ id: 'w', name: 'On push', kind: 'webhook' }),
+    key: 'n'.repeat(43),
+  }))
+  page([trigger({ id: 'w', name: 'On push', kind: 'webhook' }), trigger({ id: 's', name: 'Nightly' })], handlers(), {
+    onNewKey,
+  })
   // its row says where its address begins, never the key
   expect(card('On push')).toHaveTextContent('/api/hooks/… · the key is shown once · New key in ⋯')
   await userEvent.click(screen.getByRole('button', { name: 'More for Nightly' }))
@@ -255,7 +320,9 @@ test('the page says, of “Keep an agent on this project” and under the form�
   page([])
   // what the ready-made trigger is, said behind the page's ⓘ - before the form is open
   const about = screen.getByRole('button', { name: 'About this' })
-  expect(about).toHaveAccessibleDescription(/“Keep an agent on this project” fills in a trigger that looks the project over every hour/)
+  expect(about).toHaveAccessibleDescription(
+    /“Keep an agent on this project” fills in a trigger that looks the project over every hour/,
+  )
   expect(about).toHaveAccessibleDescription(new RegExp(OWN_TOPIC))
   await newTrigger()
   // in the form: with the conversation field, whatever else is said of it
@@ -281,7 +348,11 @@ test('"New trigger" lists the ready-made triggers and a blank one; one fills the
   const h = page([])
   await userEvent.click(screen.getByRole('button', { name: 'New trigger' }))
   const menu = screen.getByRole('menu', { name: 'New trigger' })
-  expect(within(menu).getAllByRole('menuitem').map(item => item.querySelector('strong')!.textContent)).toEqual([
+  expect(
+    within(menu)
+      .getAllByRole('menuitem')
+      .map(item => item.querySelector('strong')!.textContent),
+  ).toEqual([
     'Keep an agent on this project',
     'Every morning: summarise the work since the last working day',
     'When source files change: run the tests',
@@ -289,7 +360,9 @@ test('"New trigger" lists the ready-made triggers and a blank one; one fills the
     'Start from blank',
   ])
   // what starts it, how often at most, and when it never does
-  expect(within(menu).getByRole('menuitem', { name: /^When source files change/ })).toHaveTextContent('Each change under src/ runs it (at most 6 a day); with no src/ folder it never starts')
+  expect(within(menu).getByRole('menuitem', { name: /^When source files change/ })).toHaveTextContent(
+    'Each change under src/ runs it (at most 6 a day); with no src/ folder it never starts',
+  )
   // from the keyboard: the arrows go down the list, Enter picks
   await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}')
   expect(within(menu).getByRole('menuitem', { name: /^When source files change/ })).toHaveFocus()
@@ -305,7 +378,13 @@ test('"New trigger" lists the ready-made triggers and a blank one; one fills the
   expect(f.getByLabelText('Runs a day')).toHaveValue(6)
   expect(h.onCreate).not.toHaveBeenCalled()
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
-  expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ kind: 'files', config: { glob: 'src/**/*' }, permissions: expect.objectContaining({ write: false, agents: 0 }) }))
+  expect(h.onCreate).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: 'files',
+      config: { glob: 'src/**/*' },
+      permissions: expect.objectContaining({ write: false, agents: 0 }),
+    }),
+  )
 })
 
 test('the Friday card is Fridays at 17:00, the first on the next Friday; the days are chosen in seven boxes (the server puts them in week order)', async () => {
@@ -337,7 +416,11 @@ test('a trigger on chosen days says them in words and opens to edit with them ti
   expect(card('Nightly look')).toHaveTextContent('Mondays and Thursdays at 09:00')
   await moreOf('Nightly look', 'Edit')
   const week = within(form()).getByRole('group', { name: 'On these days' })
-  expect(within(week).getAllByRole('checkbox', { checked: true }).map(box => box.getAttribute('aria-label'))).toEqual(['Monday', 'Thursday'])
+  expect(
+    within(week)
+      .getAllByRole('checkbox', { checked: true })
+      .map(box => box.getAttribute('aria-label')),
+  ).toEqual(['Monday', 'Thursday'])
 })
 
 test('the morning one is weekdays at 09:00; with triggers there, "New trigger" is at the top of the page', async () => {
@@ -358,7 +441,10 @@ test('editing a trigger starts from what it has; its kind cannot be changed', as
   expect(f.getByLabelText('May open sub-agents')).toHaveValue(2)
   await userEvent.click(f.getByLabelText('May change files'))
   await userEvent.click(f.getByRole('button', { name: 'Save' }))
-  expect(h.onSave).toHaveBeenCalledWith('t1', expect.objectContaining({ permissions: { write: false, commands: [], agents: 2 } }))
+  expect(h.onSave).toHaveBeenCalledWith(
+    't1',
+    expect.objectContaining({ permissions: { write: false, commands: [], agents: 2 } }),
+  )
   expect(h.onSave.mock.calls[0][1]).not.toHaveProperty('kind')
 })
 
@@ -373,7 +459,10 @@ test('the commands a trigger may run are ticked from its conversation’s allow 
   const list = await f.findByRole('group', { name: 'May run these commands' })
   expect(h.onRules).toHaveBeenCalledWith('c')
   const boxes = within(list).getAllByRole('checkbox')
-  expect(boxes.map(b => b.getAttribute('aria-label') ?? b.closest('label')?.textContent)).toEqual(['python -m pytest -q', 'make lint'])
+  expect(boxes.map(b => b.getAttribute('aria-label') ?? b.closest('label')?.textContent)).toEqual([
+    'python -m pytest -q',
+    'make lint',
+  ])
   expect(boxes.every(b => !(b as HTMLInputElement).checked)).toBe(true)
   await userEvent.click(within(list).getByLabelText('make lint'))
   await userEvent.type(f.getByLabelText('Name'), 'T')
@@ -419,7 +508,10 @@ test('a conversation with no allowed commands says so and offers only to add one
 })
 
 test('editing: the rules it has ticked are ticked; one since taken off the list is simply not there', async () => {
-  const kept = trigger({ permissions: { write: false, commands: ['r2'], agents: 0 }, command_lines: ['make lint'] } as Partial<Trigger>)
+  const kept = trigger({
+    permissions: { write: false, commands: ['r2'], agents: 0 },
+    command_lines: ['make lint'],
+  } as Partial<Trigger>)
   const h = page([kept], handlers(rules))
   await moreOf('Nightly look', 'Edit')
   const f = within(form())
@@ -438,17 +530,28 @@ test('a request allowed from the chat opens that trigger’s form with it filled
   const f = within(form())
   expect(f.getByLabelText('Name')).toHaveValue('Nightly look')
   expect(f.getByLabelText('May change files')).toBeChecked()
-  expect(f.getByRole('status')).toHaveTextContent('Not saved yet: “May change files” was switched on from the chat. Look it over and save.')
+  expect(f.getByRole('status')).toHaveTextContent(
+    'Not saved yet: “May change files” was switched on from the chat. Look it over and save.',
+  )
   expect(h.onDraftTaken).toHaveBeenCalled()
   expect(h.onSave).not.toHaveBeenCalled()
   await userEvent.click(f.getByRole('button', { name: 'Save' }))
-  expect(h.onSave).toHaveBeenCalledWith('t1', expect.objectContaining({ permissions: { write: true, commands: [], agents: 0 } }))
+  expect(h.onSave).toHaveBeenCalledWith(
+    't1',
+    expect.objectContaining({ permissions: { write: true, commands: [], agents: 0 } }),
+  )
 })
 
 test('a command allowed from the chat ticks its rule when the conversation’s list has that very line; otherwise it is put in the add field for you to add', async () => {
   const first = handlers(rules)
   const { unmount } = render(
-    <TriggersPage triggers={[trigger()]} conversations={[conversation]} draft={{ triggerId: 't1', allow: { command: 'make lint' } }} origin="" {...first} />,
+    <TriggersPage
+      triggers={[trigger()]}
+      conversations={[conversation]}
+      draft={{ triggerId: 't1', allow: { command: 'make lint' } }}
+      origin=""
+      {...first}
+    />,
   )
   expect(await within(form()).findByLabelText('make lint')).toBeChecked()
   expect(within(form()).getByRole('status')).toHaveTextContent('“make lint” was ticked from the chat')
@@ -456,7 +559,15 @@ test('a command allowed from the chat ticks its rule when the conversation’s l
   unmount()
 
   const other = handlers(rules)
-  render(<TriggersPage triggers={[trigger()]} conversations={[conversation]} draft={{ triggerId: 't1', allow: { command: 'python check.py' } }} origin="" {...other} />)
+  render(
+    <TriggersPage
+      triggers={[trigger()]}
+      conversations={[conversation]}
+      draft={{ triggerId: 't1', allow: { command: 'python check.py' } }}
+      origin=""
+      {...other}
+    />,
+  )
   const f = within(form())
   await f.findByLabelText('make lint')
   expect(f.getByLabelText("Add a command to this conversation's list")).toHaveValue('python check.py')
@@ -466,18 +577,32 @@ test('a command allowed from the chat ticks its rule when the conversation’s l
 })
 
 test('one more sub-agent allowed from the chat raises the number by one', () => {
-  page([trigger({ permissions: { write: false, commands: [], agents: 1 } })], handlers(), { draft: { triggerId: 't1', allow: { agents: 1 } } })
+  page([trigger({ permissions: { write: false, commands: [], agents: 1 } })], handlers(), {
+    draft: { triggerId: 't1', allow: { agents: 1 } },
+  })
   expect(within(form()).getByLabelText('May open sub-agents')).toHaveValue(2)
-  expect(within(form()).getByRole('status')).toHaveTextContent('Not saved yet: “May open sub-agents” was raised by one from the chat. Look it over and save.')
+  expect(within(form()).getByRole('status')).toHaveTextContent(
+    'Not saved yet: “May open sub-agents” was raised by one from the chat. Look it over and save.',
+  )
 })
 
 test('a command from the chat is said once the list is read, and is put in the add field only in its own conversation', async () => {
   const h = handlers(rules)
-  render(<TriggersPage triggers={[trigger()]} conversations={[conversation, second]} draft={{ triggerId: 't1', allow: { command: 'python check.py' } }} origin="" {...h} />)
+  render(
+    <TriggersPage
+      triggers={[trigger()]}
+      conversations={[conversation, second]}
+      draft={{ triggerId: 't1', allow: { command: 'python check.py' } }}
+      origin=""
+      {...h}
+    />,
+  )
   const f = within(form())
   expect(f.queryByText(/Not saved yet/)).toBeNull()
   await f.findByLabelText('make lint')
-  expect(f.getByRole('status')).toHaveTextContent('“python check.py” is not on this conversation’s list yet: add it below, then tick it.')
+  expect(f.getByRole('status')).toHaveTextContent(
+    '“python check.py” is not on this conversation’s list yet: add it below, then tick it.',
+  )
   await userEvent.selectOptions(f.getByLabelText('Conversation'), 'c2')
   await f.findByLabelText('npm test')
   expect(f.getByLabelText("Add a command to this conversation's list")).toHaveValue('')
@@ -487,8 +612,12 @@ test('a project with no conversation says to start one; the field asks for one a
   const h = page([], handlers(), { conversations: [] })
   await newTrigger()
   const f = within(form())
-  expect(f.getByLabelText('Conversation')).toHaveAccessibleDescription(/^This project has no conversation yet: start one first\./)
-  expect(within(f.getByLabelText('Conversation')).getByRole('option', { name: 'Choose a conversation' })).toBeInTheDocument()
+  expect(f.getByLabelText('Conversation')).toHaveAccessibleDescription(
+    /^This project has no conversation yet: start one first\./,
+  )
+  expect(
+    within(f.getByLabelText('Conversation')).getByRole('option', { name: 'Choose a conversation' }),
+  ).toBeInTheDocument()
   expect(h.onRules).not.toHaveBeenCalled()
 })
 
@@ -524,20 +653,36 @@ test('the top bar says how many triggers are on, and pauses them all; paused, it
 })
 
 test('with no trigger, or before they are read, the top bar says nothing about them', () => {
-  const { container, rerender } = render(<TriggersStatus triggers={null} paused={false} onPause={vi.fn()} onOpen={vi.fn()} />)
+  const { container, rerender } = render(
+    <TriggersStatus triggers={null} paused={false} onPause={vi.fn()} onOpen={vi.fn()} />,
+  )
   expect(container).toBeEmptyDOMElement()
   rerender(<TriggersStatus triggers={[]} paused={false} onPause={vi.fn()} onOpen={vi.fn()} />)
   expect(container).toBeEmptyDOMElement()
   // triggers that are all off: none is on, and there is nothing to pause
-  rerender(<TriggersStatus triggers={[trigger({ enabled: false })]} paused={false} onPause={vi.fn()} onOpen={vi.fn()} />)
+  rerender(
+    <TriggersStatus triggers={[trigger({ enabled: false })]} paused={false} onPause={vi.fn()} onOpen={vi.fn()} />,
+  )
   expect(screen.getByRole('button', { name: '0 triggers on' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Pause all' })).not.toBeInTheDocument()
 })
 
 // --- what was made and changed (the record) ----------------------------------------------------
 
-const entry = (id: string, what: TriggerLogEntry['what'], detail: string | null, over: Partial<TriggerLogEntry> = {}): TriggerLogEntry => ({
-  id, project_id: 'p', trigger_id: 't1', name: 'Nightly look', at: '2026-10-08T09:00:00Z', what, detail, ...over,
+const entry = (
+  id: string,
+  what: TriggerLogEntry['what'],
+  detail: string | null,
+  over: Partial<TriggerLogEntry> = {},
+): TriggerLogEntry => ({
+  id,
+  project_id: 'p',
+  trigger_id: 't1',
+  name: 'Nightly look',
+  at: '2026-10-08T09:00:00Z',
+  what,
+  detail,
+  ...over,
 })
 
 test('a card lists what was done to its trigger, newest first: when, what, and how it stood afterwards', async () => {
@@ -566,8 +711,20 @@ test('a card lists what was done to its trigger, newest first: when, what, and h
 
 test("a card's line: off, a conversation gone, what it may do marked, its end, when next; its runs fold; why it is off and what to do", async () => {
   page([
-    trigger({ enabled: false, conversation_id: 'gone', ends: { runs: 10 }, ran: 3, off_because: 'ended: 10 runs done', runs: [triggerRun('1', 'completed')] }),
-    trigger({ id: 't2', name: 'Writer', permissions: { write: true, commands: [], agents: 0 }, next_at: '2026-10-05T13:00:00Z' }),
+    trigger({
+      enabled: false,
+      conversation_id: 'gone',
+      ends: { runs: 10 },
+      ran: 3,
+      off_because: 'ended: 10 runs done',
+      runs: [triggerRun('1', 'completed')],
+    }),
+    trigger({
+      id: 't2',
+      name: 'Writer',
+      permissions: { write: true, commands: [], agents: 0 },
+      next_at: '2026-10-05T13:00:00Z',
+    }),
     trigger({ id: 't3', name: 'Broken', enabled: false, failures: 3, off_because: 'budget: 15 model steps used' }),
     trigger({ id: 't4', name: 'Slow', next_at: '2026-10-05T13:00:00Z', slowed: 4 }),
   ])
@@ -576,17 +733,23 @@ test("a card's line: off, a conversation gone, what it may do marked, its end, w
     /^off · Nightly look · in a conversation that is gone · reads only · 15 model steps and 10 minutes a run · 24 runs a day · ends after 10 runs · 3 done · last run .+ · completed Recent runs \(1\)$/,
   )
   expect(within(off).getByText('reads only')).not.toHaveAttribute('class')
-  expect(within(off).getByRole('alert')).toHaveTextContent('ended: 10 runs done Switch it on again for more: its runs are counted anew.')
+  expect(within(off).getByRole('alert')).toHaveTextContent(
+    'ended: 10 runs done Switch it on again for more: its runs are counted anew.',
+  )
   const runs = within(off).getByRole('button', { name: 'Recent runs (1)' })
   expect(runs).toHaveAttribute('aria-expanded', 'false')
   await userEvent.click(runs)
   expect(runs).toHaveAttribute('aria-expanded', 'true')
   const writer = card('Writer')
   expect(within(writer).getByText('may change files')).toHaveClass('trigger-may')
-  expect(writer.querySelector('.trigger-sub')).toHaveTextContent(/^Writer · in Fix greeting · may change files · .+ · has not run yet · next .+$/)
+  expect(writer.querySelector('.trigger-sub')).toHaveTextContent(
+    /^Writer · in Fix greeting · may change files · .+ · has not run yet · next .+$/,
+  )
   expect(within(writer).queryByRole('button', { name: /Recent runs/ })).toBeNull()
   expect(within(writer).queryByRole('alert')).toBeNull()
-  expect(within(card('Broken')).getByRole('alert')).toHaveTextContent('switched off after 3 failures: budget: 15 model steps used Switch it on again when that is seen to.')
+  expect(within(card('Broken')).getByRole('alert')).toHaveTextContent(
+    'switched off after 3 failures: budget: 15 model steps used Switch it on again when that is seen to.',
+  )
   expect(card('Slow').querySelector('.trigger-sub')).not.toHaveTextContent('· next')
 })
 
@@ -630,12 +793,16 @@ test('a trigger on files says what holds two of them from starting each other fo
   page([])
   await newTrigger()
   const f = within(form())
-  expect(f.getByLabelText('Conversation')).toHaveAccessibleDescription(/a run that falls due is skipped\. A trigger’s messages have a topic of their own/)
+  expect(f.getByLabelText('Conversation')).toHaveAccessibleDescription(
+    /a run that falls due is skipped\. A trigger’s messages have a topic of their own/,
+  )
   await userEvent.selectOptions(f.getByLabelText('Starts'), 'files')
   expect(f.getByLabelText('Path pattern')).toHaveAccessibleDescription(
     /Two triggers that change each other’s files can keep starting each other; only “Runs a day” stops that\./,
   )
-  expect(f.getByLabelText('Conversation')).toHaveAccessibleDescription(/a change to its files waits until the conversation is free/)
+  expect(f.getByLabelText('Conversation')).toHaveAccessibleDescription(
+    /a change to its files waits until the conversation is free/,
+  )
 })
 
 test('a command from the chat that is on no rule is added to the conversation’s list and ticked only by you, each in the form; nothing is saved until Save', async () => {
@@ -657,7 +824,10 @@ test('a command from the chat that is on no rule is added to the conversation’
   await userEvent.click(added)
   expect(h.onSave).not.toHaveBeenCalled()
   await userEvent.click(f.getByRole('button', { name: 'Save' }))
-  expect(h.onSave).toHaveBeenCalledWith('t1', expect.objectContaining({ permissions: { write: false, commands: ['new-python check.py'], agents: 0 } }))
+  expect(h.onSave).toHaveBeenCalledWith(
+    't1',
+    expect.objectContaining({ permissions: { write: false, commands: ['new-python check.py'], agents: 0 } }),
+  )
 })
 
 test('the page says in one line what it is for and that no agent makes a trigger; how triggers work is behind its one ⓘ', () => {
@@ -667,13 +837,24 @@ test('the page says in one line what it is for and that no agent makes a trigger
   expect(line.closest('.hint')).toBeNull()
   expect(screen.queryByText('How this works')).not.toBeInTheDocument()
   expect(screen.getAllByRole('button', { name: 'About this' })).toHaveLength(1)
-  expect(screen.getByRole('button', { name: 'About this' })).toHaveAccessibleDescription(/A trigger sends its message by the clock, when files change, or on a request from outside\./)
+  expect(screen.getByRole('button', { name: 'About this' })).toHaveAccessibleDescription(
+    /A trigger sends its message by the clock, when files change, or on a request from outside\./,
+  )
 })
 
 test('each row reads as a sentence: when → its message’s first sentence, the whole message in its title', () => {
   page([
-    trigger({ message: 'Run the tests and say which fail. Change nothing.', config: { at: '09:00', days: 'weekdays' } }),
-    trigger({ id: 't2', name: 'Docs', kind: 'files', config: { glob: 'docs/**' }, message: 'Is it still right?\nSay so.' }),
+    trigger({
+      message: 'Run the tests and say which fail. Change nothing.',
+      config: { at: '09:00', days: 'weekdays' },
+    }),
+    trigger({
+      id: 't2',
+      name: 'Docs',
+      kind: 'files',
+      config: { glob: 'docs/**' },
+      message: 'Is it still right?\nSay so.',
+    }),
   ])
   const sentence = card('Nightly look').querySelector('.trigger-sentence')!
   expect(sentence).toHaveTextContent('weekdays at 09:00 → Run the tests and say which fail.')
@@ -713,11 +894,28 @@ test('the form opened takes the focus on its first field; Cancel gives it back t
 })
 
 test('before the triggers are read the page says it is reading them - or why it could not', () => {
-  const { container, rerender } = render(<TriggersPage triggers={null} conversations={[conversation]} draft={null} origin="http://127.0.0.1:8790" {...handlers()} />)
+  const { container, rerender } = render(
+    <TriggersPage
+      triggers={null}
+      conversations={[conversation]}
+      draft={null}
+      origin="http://127.0.0.1:8790"
+      {...handlers()}
+    />,
+  )
   expect(container.querySelector('.triggers-page')?.children).toHaveLength(1)
   expect(screen.getByText('Reading the project’s triggers…')).toHaveClass('muted')
   expect(screen.queryByRole('heading', { name: 'Triggers' })).toBeNull()
-  rerender(<TriggersPage triggers={null} error="the server is not answering" conversations={[conversation]} draft={null} origin="http://127.0.0.1:8790" {...handlers()} />)
+  rerender(
+    <TriggersPage
+      triggers={null}
+      error="the server is not answering"
+      conversations={[conversation]}
+      draft={null}
+      origin="http://127.0.0.1:8790"
+      {...handlers()}
+    />,
+  )
   expect(container.querySelector('.triggers-page')?.children).toHaveLength(1)
   expect(screen.getByRole('alert')).toHaveTextContent(/^the server is not answering$/)
   expect(screen.queryByText('Reading the project’s triggers…')).toBeNull()

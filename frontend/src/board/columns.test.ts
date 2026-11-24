@@ -6,12 +6,35 @@ import { columnOf, lastAt, since } from './columns'
 type BoardConversation = Board['conversations'][number]
 type BoardAgent = BoardConversation['agents'][number]
 
-const agent = (status: BoardAgent['status'], last_event_at: string | null = null, over: Partial<BoardAgent> = {}): BoardAgent => ({
-  id: status, name: 'Lead', status, role: 'Lead', provider_name: null, model_id: null, holds: [], copy: null,
-  waiting_for: null, sign: null, last_event_at, in_tool: false, changes_to_approve: 0, questions: 0, own_questions: 0, ...over,
+const agent = (
+  status: BoardAgent['status'],
+  last_event_at: string | null = null,
+  over: Partial<BoardAgent> = {},
+): BoardAgent => ({
+  id: status,
+  name: 'Lead',
+  status,
+  role: 'Lead',
+  provider_name: null,
+  model_id: null,
+  holds: [],
+  copy: null,
+  waiting_for: null,
+  sign: null,
+  last_event_at,
+  in_tool: false,
+  changes_to_approve: 0,
+  questions: 0,
+  own_questions: 0,
+  ...over,
 })
 const talk = (over: Partial<BoardConversation> = {}): BoardConversation => ({
-  conversation_id: 'a', title: 'A', agents: [], merges_pending: 0, turn: null, ...over,
+  conversation_id: 'a',
+  title: 'A',
+  agents: [],
+  merges_pending: 0,
+  turn: null,
+  ...over,
 })
 // Noon, local time: "today" is the browser's own day.
 const NOW = new Date(2026, 9, 21, 12, 0)
@@ -38,7 +61,19 @@ test('a turn that ended today is done today; one of yesterday, and one that neve
 })
 
 test('when anything last happened, and how long ago', () => {
-  expect(lastAt(talk({ agents: [agent('running', at(21, 10)), agent('running', at(21, 11))], turn: boardTurn('r', 'running', null) }))).toBe(at(21, 11))
+  expect(
+    lastAt(
+      talk({
+        agents: [agent('running', at(21, 10)), agent('running', at(21, 11))],
+        turn: boardTurn('r', 'running', null),
+      }),
+    ),
+  ).toBe(at(21, 11))
   expect(lastAt(talk())).toBeNull()
-  expect([at(21, 12), at(21, 11), at(21, 7), at(19, 12)].map(iso => since(iso, NOW.getTime()))).toEqual(['<1 min', '1 h', '5 h', '2 d'])
+  expect([at(21, 12), at(21, 11), at(21, 7), at(19, 12)].map(iso => since(iso, NOW.getTime()))).toEqual([
+    '<1 min',
+    '1 h',
+    '5 h',
+    '2 d',
+  ])
 })

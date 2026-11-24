@@ -21,7 +21,10 @@ export function totalCost(rows: Usage['by_model'], prices: Price[]) {
   const sums = new Map<string, { amount: number | null; at_least: boolean }>()
   const add = (currency: string, amount: number | null, short: boolean) => {
     const sum = sums.get(currency) ?? { amount: null, at_least: false }
-    sums.set(currency, { amount: amount === null ? sum.amount : (sum.amount ?? 0) + amount, at_least: sum.at_least || short })
+    sums.set(currency, {
+      amount: amount === null ? sum.amount : (sum.amount ?? 0) + amount,
+      at_least: sum.at_least || short,
+    })
   }
   for (const row of rows) {
     const price = prices.find(p => p.model_id === row.model_id)
@@ -30,7 +33,9 @@ export function totalCost(rows: Usage['by_model'], prices: Price[]) {
   }
   // shortcut: a currency with no known amount at all is left out of the line, not said as "–"; say it if prices in several currencies become common.
   const known = [...sums].filter(([, sum]) => sum.amount !== null)
-  return known.length === 0 ? '–' : known.map(([currency, sum]) => money({ ...sum, amount: sum.amount!, currency })).join(' + ')
+  return known.length === 0
+    ? '–'
+    : known.map(([currency, sum]) => money({ ...sum, amount: sum.amount!, currency })).join(' + ')
 }
 
 /**
@@ -39,7 +44,9 @@ export function totalCost(rows: Usage['by_model'], prices: Price[]) {
  */
 export function limitUnkept(prices: Price[]): string | null {
   const own = [...new Set(prices.map(price => price.currency.toUpperCase()))].sort()
-  return own.some(currency => currency !== 'USD') ? `This limit can't be kept: your prices are in ${own.join(' and ')}` : null
+  return own.some(currency => currency !== 'USD')
+    ? `This limit can't be kept: your prices are in ${own.join(' and ')}`
+    : null
 }
 
 /** The day a copy of the catalogue was read, as the pages say it: "21 Oct". */

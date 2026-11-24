@@ -4,6 +4,7 @@ can be "preference" - a line the summariser suggests for them, waiting for the u
 Revision ID: 0118
 Revises: 0117
 """
+
 import sqlalchemy as sa
 from alembic import op
 

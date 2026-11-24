@@ -4,6 +4,7 @@ whether it was heard out and what it spent, how many it proposed, and why each o
 Revision ID: 0151
 Revises: 0150
 """
+
 import sqlalchemy as sa
 from alembic import op
 

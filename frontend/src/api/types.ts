@@ -39,13 +39,21 @@ export type KnowledgeState = Schemas['KnowledgeStateOut']
 export type KnowledgeItem = Schemas['KnowledgeOut']
 export type KnowsMode = Schemas['KnowsOut']['mode']
 /** A knowledge as it is sent: what is left out takes the server's default. */
-export type KnowledgeIn = Omit<Knowledge, 'max_pages' | 'max_code_files' | 'search_answering' | 'weekly'> & Partial<Knowledge>
+export type KnowledgeIn = Omit<Knowledge, 'max_pages' | 'max_code_files' | 'search_answering' | 'weekly'> &
+  Partial<Knowledge>
 /** How strong the user says a model is, weakest first; a role can ask for one instead of a model. */
 export type Tier = NonNullable<Role['tier_min']>
 export const TIERS: Tier[] = ['fast', 'balanced', 'strongest']
 /** How hard a model is asked to think, lowest first; null is the model's own (Default). */
 export type Effort = NonNullable<Role['effort']>
-export const EFFORTS: Record<Effort, string> = { off: 'Off', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'XHigh', max: 'Max' }
+export const EFFORTS: Record<Effort, string> = {
+  off: 'Off',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'XHigh',
+  max: 'Max',
+}
 /** What an agent of a role would run on now, where that comes from, and which providers may be picked for it. */
 export type RoleModel = Schemas['RoleModelOut']
 /** A group of roles (slice 62): a chat working with some opens only their roles (84b). */
@@ -232,6 +240,8 @@ export type NewTrigger = Required<Schemas['TriggerIn']> & { permissions: Require
 export type TriggerChange = Schemas['TriggerPatch']
 /** What the agents' models reported, added up three ways. A sum is null when nothing is known. */
 export type Usage = Schemas['UsageOut']
+/** Cards measured (0.1.7): the command cards of a period, answered how, by reason; the rules they suggest. */
+export type Cards = Schemas['CardsOut']
 export type Budget = Schemas['BudgetOut']
 /** What is left of the plan a CLI is signed in to, as the CLI says - or why that is not known (`unknown`). */
 export type Limits = Schemas['LimitsOut']

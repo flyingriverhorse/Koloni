@@ -32,24 +32,35 @@ VOICE = "AIzaVoiceKey0123456789abcdefghij"
 def _fill(app_) -> None:
     """One of every secret KOLONİ keeps, a skill, an attachment and the local server's file."""
     with app_.state.session_factory() as session:
-        session.add(Provider(name="Keyed", kind="openai_compat", base_url="http://x/v1", api_key=KEY))
+        session.add(
+            Provider(name="Keyed", kind="openai_compat", base_url="http://x/v1", api_key=KEY)
+        )
         session.add(Project(name="Proj", root_path="C:/nowhere/proj", notify_url=HOOK))
-        session.add(McpServer(name="gh", command=["gh-mcp", "--token", MCP_KEY],
-                              env={"GITHUB_TOKEN": MCP_KEY}))
+        session.add(
+            McpServer(
+                name="gh", command=["gh-mcp", "--token", MCP_KEY], env={"GITHUB_TOKEN": MCP_KEY}
+            )
+        )
         session.add(Flag(name="gemini_key", value=VOICE))
         session.add(Flag(name="claude_session_key", value="c" * 64))
         session.add(Conversation(id="c1"))
         session.flush()
-        session.add(Attachment(id="a1", conversation_id="c1", name="a.png", kind="image",
-                               mime="image/png", size=12))
+        session.add(
+            Attachment(
+                id="a1", conversation_id="c1", name="a.png", kind="image", mime="image/png", size=12
+            )
+        )
         session.commit()
     root = app_.state.settings.runtime_root
     (root / "skills" / "s1").mkdir(parents=True)
     (root / "skills" / "s1" / "SKILL.md").write_text("# a skill\n", "utf-8")
     (root / "attachments" / "c1").mkdir(parents=True)
     (root / "attachments" / "c1" / "a1").write_bytes(b"\x89PNG picture")
-    (root / "local-server.json").write_text(json.dumps(
-        {"executable": "C:/llama/llama-server.exe", "args": ["-m", "x.gguf", "--api-key", KEY]}))
+    (root / "local-server.json").write_text(
+        json.dumps(
+            {"executable": "C:/llama/llama-server.exe", "args": ["-m", "x.gguf", "--api-key", KEY]}
+        )
+    )
     (root / "agy-home").mkdir()
     (root / "agy-home" / "auth.json").write_text("{}")
     (root / "cli-homes" / "p1").mkdir(parents=True)  # (a provider's own login, K-claude-hesap)
@@ -74,28 +85,45 @@ def _snapshot(archive: zipfile.ZipFile, tmp_path: Path) -> Path:
 def _secrets_in(db: Path, settings) -> list:
     engine = make_engine(db)
     try:
-        return [one for one in known_secrets(make_session_factory(engine),
-                                             replace(settings, model_api_key=None)) if one]
+        return [
+            one
+            for one in known_secrets(
+                make_session_factory(engine), replace(settings, model_api_key=None)
+            )
+            if one
+        ]
     finally:
         engine.dispose()
 
 
 def test_export_holds_the_database_the_stores_and_a_manifest_and_no_secret(
-        client, tmp_path, settings):
+    client, tmp_path, settings
+):
     _fill(client.app)
     archive = _export(client)
     names = set(archive.namelist())
-    assert {backup.MANIFEST, backup.DB, "skills/s1/SKILL.md", "attachments/c1/a1",
-            "local-server.json"} <= names
-    assert not any(name.startswith(("agy-home", "cli-homes", "copies", "data/backups"))
-                   for name in names)
+    assert {
+        backup.MANIFEST,
+        backup.DB,
+        "skills/s1/SKILL.md",
+        "attachments/c1/a1",
+        "local-server.json",
+    } <= names
+    assert not any(
+        name.startswith(("agy-home", "cli-homes", "copies", "data/backups")) for name in names
+    )
     manifest = json.loads(archive.read(backup.MANIFEST))
     assert manifest["secrets"] is False
     assert manifest["revision"] and manifest["koloni"] and manifest["made_at"]
     assert set(manifest["parts"]) >= {backup.DB, "skills", "attachments", "local-server.json"}
-    assert {"provider Keyed", "project Proj's notification address", "MCP server gh",
-            "Gemini voice", "Claude Code's status line (set it up again)",
-            "the local model server's key"} == set(manifest["need_keys"])
+    assert {
+        "provider Keyed",
+        "project Proj's notification address",
+        "MCP server gh",
+        "Gemini voice",
+        "Claude Code's status line (set it up again)",
+        "the local model server's key",
+    } == set(manifest["need_keys"])
     db = _snapshot(archive, tmp_path)
     with closing(sqlite3.connect(db)) as conn:  # a consistent copy: its rows read
         assert conn.execute("SELECT name FROM providers WHERE name = 'Keyed'").fetchone()
@@ -126,9 +154,14 @@ def test_an_attached_secret_file_is_left_out_without_the_secrets(client):
         session.add(conversation)
         session.commit()
         cid = conversation.id
+
     def attach(name: str, data: bytes) -> dict:
-        return client.post(f"/api/conversations/{cid}/attachments", params={"name": name},
-                           content=data, headers=OWN).json()
+        return client.post(
+            f"/api/conversations/{cid}/attachments",
+            params={"name": name},
+            content=data,
+            headers=OWN,
+        ).json()
 
     env = attach(".env", f"OPENAI_API_KEY={KEY}\n".encode())
     again = attach(".env", f"OPENAI_API_KEY={KEY}\n".encode())  # kept as ".env (2)"
@@ -141,11 +174,17 @@ def test_an_attached_secret_file_is_left_out_without_the_secrets(client):
     archive = _export(client)
     names = set(archive.namelist())
     assert {f"attachments/{cid}/{note['id']}", f"attachments/{cid}/{note['id']}.txt"} <= names
-    assert not [name for name in names if name.startswith("attachments/") and not
-                name.startswith(f"attachments/{cid}/{note['id']}")]
+    assert not [
+        name
+        for name in names
+        if name.startswith("attachments/")
+        and not name.startswith(f"attachments/{cid}/{note['id']}")
+    ]
     assert not any(KEY.encode() in archive.read(name) for name in names)
-    assert {"the secret file .env attached to a chat", "the secret file .env (2) attached to a "
-            "chat"} <= set(json.loads(archive.read(backup.MANIFEST))["need_keys"])
+    assert {
+        "the secret file .env attached to a chat",
+        "the secret file .env (2) attached to a chat",
+    } <= set(json.loads(archive.read(backup.MANIFEST))["need_keys"])
     assert f"attachments/{cid}/{env['id']}" in _export(client, secrets=True).namelist()
 
 
@@ -154,8 +193,9 @@ def test_export_and_restore_only_from_the_apps_own_page(client, origin):
     assert client.post("/api/backup/export", headers=origin).status_code == 403
     assert client.post("/api/backup/restore", content=b"x", headers=origin).status_code == 403
     assert client.delete("/api/backup/staged", headers=origin).status_code == 403
-    with TestClient(client.app, base_url="http://127.0.0.1:8790",
-                    headers={"X-KOLONI-Key": "wrong"}) as other:
+    with TestClient(
+        client.app, base_url="http://127.0.0.1:8790", headers={"X-KOLONI-Key": "wrong"}
+    ) as other:
         assert other.post("/api/backup/export", headers=OWN).status_code == 401
 
 
@@ -179,15 +219,21 @@ def _manifest(revision: str) -> bytes:
     return json.dumps({"revision": revision, "secrets": False, "need_keys": []}).encode()
 
 
-@pytest.mark.parametrize("members, why", [
-    ({"manifest.json": b"{}", "data/koloni.db": b"", "../x": b"out"}, "'../x'"),
-    ({"manifest.json": b"{}", "data/koloni.db": b"", "skills/../../x": b"out"}, "skills/../../x"),
-    ({"manifest.json": b"{}", "data/koloni.db": b"", "C:/x": b"out"}, "C:/x"),
-    ({"manifest.json": b"{}", "data/koloni.db": b"", "agy-home/auth.json": b"{}"}, "agy-home"),
-    # (inside a part, and a name no file of Windows may have: refused by the name itself)
-    ({"manifest.json": b"{}", "data/koloni.db": b"", "skills/s1/CON.txt": b""}, "CON.txt"),
-    ({"data/koloni.db": b""}, "no manifest.json"),
-])
+@pytest.mark.parametrize(
+    "members, why",
+    [
+        ({"manifest.json": b"{}", "data/koloni.db": b"", "../x": b"out"}, "'../x'"),
+        (
+            {"manifest.json": b"{}", "data/koloni.db": b"", "skills/../../x": b"out"},
+            "skills/../../x",
+        ),
+        ({"manifest.json": b"{}", "data/koloni.db": b"", "C:/x": b"out"}, "C:/x"),
+        ({"manifest.json": b"{}", "data/koloni.db": b"", "agy-home/auth.json": b"{}"}, "agy-home"),
+        # (inside a part, and a name no file of Windows may have: refused by the name itself)
+        ({"manifest.json": b"{}", "data/koloni.db": b"", "skills/s1/CON.txt": b""}, "CON.txt"),
+        ({"data/koloni.db": b""}, "no manifest.json"),
+    ],
+)
 def test_a_zip_that_is_not_an_export_is_refused(client, members, why):
     answer = client.post("/api/backup/restore", content=_zip(members), headers=OWN)
     assert answer.status_code == 422 and why in answer.json()["detail"]
@@ -197,16 +243,21 @@ def test_a_zip_that_is_not_an_export_is_refused(client, members, why):
 
 
 def test_a_manifest_koloni_never_wrote_is_refused_before_anything_is_staged(client, tmp_path):
-    zipped = _zip({"manifest.json": json.dumps({"revision": "0093", "secrets": "yes"}).encode(),
-                   "data/koloni.db": _db_at(tmp_path / "x.db", "0093")})
+    zipped = _zip(
+        {
+            "manifest.json": json.dumps({"revision": "0093", "secrets": "yes"}).encode(),
+            "data/koloni.db": _db_at(tmp_path / "x.db", "0093"),
+        }
+    )
     answer = client.post("/api/backup/restore", content=zipped, headers=OWN)
     assert answer.status_code == 422 and "manifest.json" in answer.json()["detail"]
     assert not (client.app.state.settings.runtime_root / backup.STAGED).exists()
 
 
 def test_a_newer_revision_is_refused(client, tmp_path):
-    zipped = _zip({"manifest.json": _manifest("9999"),
-                   "data/koloni.db": _db_at(tmp_path / "new.db", "9999")})
+    zipped = _zip(
+        {"manifest.json": _manifest("9999"), "data/koloni.db": _db_at(tmp_path / "new.db", "9999")}
+    )
     answer = client.post("/api/backup/restore", content=zipped, headers=OWN)
     assert answer.status_code == 422 and "newer KOLONİ" in answer.json()["detail"]
 
@@ -233,8 +284,18 @@ def test_a_staged_restore_replaces_the_data_at_the_next_start_and_keeps_the_old(
     with TestClient(first, base_url="http://127.0.0.1:8790") as client:
         _fill(first)
         with first.state.session_factory() as session:
-            session.add(Skill(name="s1", source="x", text="# a skill", files=[], size=0,
-                              scripts=[], hashes={}, folder=r"D:\elsewhere\runtime\skills\s1"))
+            session.add(
+                Skill(
+                    name="s1",
+                    source="x",
+                    text="# a skill",
+                    files=[],
+                    size=0,
+                    scripts=[],
+                    hashes={},
+                    folder=r"D:\elsewhere\runtime\skills\s1",
+                )
+            )
             session.commit()
         zipped = _export(client).fp.getvalue()
         # What changes after the export is what the restore undoes; it is kept aside.
@@ -264,7 +325,9 @@ def test_a_staged_restore_replaces_the_data_at_the_next_start_and_keeps_the_old(
         assert held is not None and restarted.get("/api/hold").json()["held"] is True
     _close(restarted.app)
     assert not (root / backup.STAGED).exists() and not list(root.glob("restore.*"))
-    assert (root / "skills" / "s1" / "SKILL.md").is_file() and not (root / "skills" / "later").exists()
+    assert (root / "skills" / "s1" / "SKILL.md").is_file() and not (
+        root / "skills" / "later"
+    ).exists()
     (kept,) = (root / backup.KEPT).iterdir()
     assert (kept / "data" / "koloni.db").is_file() and (kept / "skills" / "later").is_dir()
     # Applied once: the start after it finds nothing staged.
@@ -279,7 +342,9 @@ def test_an_older_revision_is_upgraded_to_head(tmp_path):
     command.upgrade(cfg, "0090")
     root = tmp_path / "runtime"
     upload = tmp_path / "up.zip"
-    upload.write_bytes(_zip({"manifest.json": _manifest("0090"), "data/koloni.db": old.read_bytes()}))
+    upload.write_bytes(
+        _zip({"manifest.json": _manifest("0090"), "data/koloni.db": old.read_bytes()})
+    )
     backup.stage(root, upload)
     db = root / backup.DB
     assert backup.apply_staged(root, lambda: app.db.session.upgrade_db(db)) is True
@@ -354,7 +419,9 @@ def test_a_stage_whose_database_is_missing_or_newer_is_not_applied(tmp_path, dat
         _db_at(staged / backup.DB, database)
     (staged / backup.MANIFEST).write_bytes(_manifest(database or "0093"))
     assert backup.apply_staged(root, lambda: None) is False
-    assert (root / backup.DB).read_bytes() == b"the old data" and list(root.glob("restore.failed-*"))
+    assert (root / backup.DB).read_bytes() == b"the old data" and list(
+        root.glob("restore.failed-*")
+    )
 
 
 def test_a_restore_a_crash_cut_off_stops_the_start_and_says_where_the_data_is(tmp_path):
@@ -373,16 +440,29 @@ def test_a_restore_a_crash_cut_off_stops_the_start_and_says_where_the_data_is(tm
 def test_the_staged_restore_is_shown_and_can_be_cancelled(client, tmp_path):
     root = client.app.state.settings.runtime_root
     assert client.get("/api/backup/staged").json() == {"staged": None, "failed": None}
-    zipped = _zip({"manifest.json": json.dumps({
-        "revision": "0093", "secrets": False, "need_keys": ["provider P"],
-        "made_at": "2026-10-28T10:00:00+00:00"}).encode(),
-        "data/koloni.db": _db_at(tmp_path / "x.db", "0093")})
+    zipped = _zip(
+        {
+            "manifest.json": json.dumps(
+                {
+                    "revision": "0093",
+                    "secrets": False,
+                    "need_keys": ["provider P"],
+                    "made_at": "2026-10-28T10:00:00+00:00",
+                }
+            ).encode(),
+            "data/koloni.db": _db_at(tmp_path / "x.db", "0093"),
+        }
+    )
     assert client.post("/api/backup/restore", content=zipped, headers=OWN).status_code == 200
     assert client.get("/api/backup/staged").json()["staged"] == {
-        "made_at": "2026-10-28T10:00:00+00:00", "secrets": False, "need_keys": ["provider P"]}
+        "made_at": "2026-10-28T10:00:00+00:00",
+        "secrets": False,
+        "need_keys": ["provider P"],
+    }
     assert client.delete("/api/backup/staged", headers=OWN).status_code == 204
     assert client.get("/api/backup/staged").json()["staged"] is None
     assert not (root / backup.STAGED).exists()
     (root / "restore.failed-20261028T100000000000").mkdir()
     assert client.get("/api/backup/staged").json()["failed"] == str(
-        root / "restore.failed-20261028T100000000000")
+        root / "restore.failed-20261028T100000000000"
+    )

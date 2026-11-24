@@ -7,12 +7,23 @@ import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
 import type { SharedData, SharedRow } from './sharedColumn'
 
 /** K-belge-ciktilari: the kinds of view that read as something an agent made - not a note (.md), written all the time. */
-const MADE: ReadonlySet<View['kind']> = new Set(['html', 'svg', 'image', 'pdf', 'docx', 'xlsx', 'pptx', 'model', 'drawio'])
+const MADE: ReadonlySet<View['kind']> = new Set([
+  'html',
+  'svg',
+  'image',
+  'pdf',
+  'docx',
+  'xlsx',
+  'pptx',
+  'model',
+  'drawio',
+])
 /** An output card shows so many, folded; the rest behind "+N more". */
 export const FOLDED = 3
 
 /** What the agents made: the conversation's views (`app.views`) of a made kind - not the agent's own browser's screenshots, its looks. */
-export const isOutput = (view: View) => view.agent_id !== null && MADE.has(view.kind) && !view.path.startsWith('.koloni/tmp/browser/')
+export const isOutput = (view: View) =>
+  view.agent_id !== null && MADE.has(view.kind) && !view.path.startsWith('.koloni/tmp/browser/')
 
 /**
  * The conversation's outputs, read again as the Workspace's list is (`useViews`): when a change is made or decided, or a file shown.
@@ -44,20 +55,37 @@ const NONE: View[] = []
  * Each agent of the turn that made something: one card, joined to its box, with its count and its first outputs (newest first),
  * the rest behind "+N more" - unfolded in place (`foldGraph`). A row opens the Workspace on its preview.
  */
-export function outputCards(state: ConvState, run: Run, nodes: GraphNode[], outputs: View[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
+export function outputCards(
+  state: ConvState,
+  run: Run,
+  nodes: GraphNode[],
+  outputs: View[],
+): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const added: GraphNode[] = []
   const lines: GraphEdge[] = []
   for (const node of nodes.filter(n => n.runId === run.id && n.kind === 'agent')) {
     const made = outputs.filter(v => v.agent_id === node.agentId)
     if (!made.length) continue
-    const rows: SharedRow[] = made.map(v => ({ kind: 'output', text: fileName(v.path), path: v.path, what: v.kind, title: v.note ? `${v.path} · ${v.note}` : v.path }))
+    const rows: SharedRow[] = made.map(v => ({
+      kind: 'output',
+      text: fileName(v.path),
+      path: v.path,
+      what: v.kind,
+      title: v.note ? `${v.path} · ${v.note}` : v.path,
+    }))
     const id = `output:${run.id}:${node.agentId}`
     const data: SharedData = {
       who: `${(node.data as AgentData).name} · ${made.length} output${made.length === 1 ? '' : 's'}`,
       colour: 'var(--accent)',
       projectId: state.conversation.project_id,
       runId: run.id,
-      rows: rows.length > FOLDED ? [...rows.slice(0, FOLDED), { kind: 'more', text: `+${rows.length - FOLDED} more output${rows.length - FOLDED === 1 ? '' : 's'}` }] : rows,
+      rows:
+        rows.length > FOLDED
+          ? [
+              ...rows.slice(0, FOLDED),
+              { kind: 'more', text: `+${rows.length - FOLDED} more output${rows.length - FOLDED === 1 ? '' : 's'}` },
+            ]
+          : rows,
       ...(rows.length > FOLDED && { all: [...rows, { kind: 'more' as const, text: 'Fewer' }] }),
     }
     added.push({ id, kind: 'shared', runId: run.id, refId: run.id, data })

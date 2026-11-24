@@ -29,8 +29,11 @@ MOST_LISTED = 200
 
 def _plain(words: str) -> str:
     """Words as a plain name: "Ünite / İstanbul" is `unite-istanbul` (letters without marks)."""
-    bare = "".join(c for c in unicodedata.normalize("NFKD", words.replace("ı", "i"))
-                   if not unicodedata.combining(c))
+    bare = "".join(
+        c
+        for c in unicodedata.normalize("NFKD", words.replace("ı", "i"))
+        if not unicodedata.combining(c)
+    )
     return re.sub(r"[^a-z0-9]+", "-", bare.casefold()).strip("-")[:60].strip("-")
 
 
@@ -60,7 +63,7 @@ def body_of(text: str) -> str:
     if text.startswith("---\n"):
         end = text.find("\n---\n", 4)
         if end != -1:
-            return text[end + 5:]
+            return text[end + 5 :]
     return text
 
 
@@ -82,20 +85,24 @@ def checked(path: str) -> tuple[str, str]:
     """A path in the shared folder as an agent writes it - "contracts/items-api.md" - as its
     folder and name; ValueError with why for any other."""
     parts = path.strip().replace("\\", "/").removeprefix(f"{PLACE}/").split("/")
-    if len(parts) != 2 or not NAME.fullmatch(parts[1]) or not re.fullmatch(r"[a-z0-9-]+",
-                                                                            parts[0]):
-        raise ValueError(f"{path!r} is not a file of the shared folder: write it as "
-                         "<folder>/<name>, a folder and a plain file name")
+    if len(parts) != 2 or not NAME.fullmatch(parts[1]) or not re.fullmatch(r"[a-z0-9-]+", parts[0]):
+        raise ValueError(
+            f"{path!r} is not a file of the shared folder: write it as "
+            "<folder>/<name>, a folder and a plain file name"
+        )
     # M1: nothing that steers later agents (AGENTS.md, CLAUDE.md...) - taken in, it would be the
     # project's without a card.
-    if steers := next((NOT_WRITTEN_UNATTENDED[_name(p)] for p in parts
-                       if _name(p) in NOT_WRITTEN_UNATTENDED), None):
+    if steers := next(
+        (NOT_WRITTEN_UNATTENDED[_name(p)] for p in parts if _name(p) in NOT_WRITTEN_UNATTENDED),
+        None,
+    ):
         raise ValueError(f"{parts[1]} is not a name for the shared folder: it is {steers}")
     return parts[0], parts[1]
 
 
-def may(folder: str, team: tuple[str, str] | None, lead: bool,
-        others: Iterable[tuple[str, str]] = ()) -> str | None:
+def may(
+    folder: str, team: tuple[str, str] | None, lead: bool, others: Iterable[tuple[str, str]] = ()
+) -> str | None:
     """Why this writer may not write in `folder` (None: it may). `team`: the writer's team, (id,
     name) (None: an agent of no team); `lead`: it is a team's lead; `others`: the chat's other
     teams - one whose folder would be the same ("Web app", "web-app") makes it nobody's."""
@@ -106,19 +113,34 @@ def may(folder: str, team: tuple[str, str] | None, lead: bool,
     if folder == CONTRACTS:
         # B-378 (live): the Docs writer was refused, and its coordinator - looking for a role to
         # hand it to - never wrote it: the same finding three rounds.
-        return None if lead else (
-            "contracts/ is written by a team's coordinator (or with request_work's contract): "
-            "put it in your team's folder, or tell your coordinator what to change - it writes "
-            "the contract itself with write_shared, at any step of its recipe")
+        return (
+            None
+            if lead
+            else (
+                "contracts/ is written by a team's coordinator (or with request_work's contract): "
+                "put it in your team's folder, or tell your coordinator what to change - it writes "
+                "the contract itself with write_shared, at any step of its recipe"
+            )
+        )
     if folder != slug(team):
         return f"{folder}/ is not your team's folder: your team writes in {slug(team)}/"
     same = [other[1] for other in others if other[0] != team[0] and slug(other) == folder]
-    return f"{folder}/ would be {same[0]}'s folder too: the user renames one of the two" if (
-        same) else None
+    return (
+        f"{folder}/ would be {same[0]}'s folder too: the user renames one of the two"
+        if (same)
+        else None
+    )
 
 
-def write(root: str, folder: str, name: str, text: str, top: str, own: str | None = None,
-          unique: bool = False) -> str:
+def write(
+    root: str,
+    folder: str,
+    name: str,
+    text: str,
+    top: str,
+    own: str | None = None,
+    unique: bool = False,
+) -> str:
     """Write a file of the shared folder with its header `top`, and the folder's `.gitignore` the
     first time; returns its path in the folder. `own`: who writes it (a team, KOLONİ) - a file
     another one wrote is not written over, but a contract that is for it (B-378: the asked
@@ -128,20 +150,33 @@ def write(root: str, folder: str, name: str, text: str, top: str, own: str | Non
         raise Refused(422, f"at most {MAX_CHARS} characters")
     base = Path(root) / koloni.FOLDER / FOLDER
     if not (base / ".gitignore").exists():
-        koloni.write(root, f"{FOLDER}/.gitignore", "# KOLONİ's shared folder: out of git; "
-                     "take a file in from the canvas to keep it\n*")
+        koloni.write(
+            root,
+            f"{FOLDER}/.gitignore",
+            "# KOLONİ's shared folder: out of git; take a file in from the canvas to keep it\n*",
+        )
     stem, dot, ext = name.rpartition(".") if "." in name else (name, "", "")
     for n in range(1, 100):
         rel = f"{folder}/{name if n == 1 else f'{stem}-{n}{dot}{ext}'}"
         there = read(root, rel) if (base / rel).is_file() else None
         # shortcut: written over by the team it was for, it is that team's alone (its header
         # names no `for` then); keep the asker on it too if a contract is seen to bounce.
-        if there is None or not unique and (own is None or written_by(there) == own or (
-                folder == CONTRACTS and own == written_for(there))):
+        if (
+            there is None
+            or not unique
+            and (
+                own is None
+                or written_by(there) == own
+                or (folder == CONTRACTS and own == written_for(there))
+            )
+        ):
             break
         if not unique:
-            raise Refused(422, f"{rel} was written by {written_by(there) or 'someone else'}: "
-                               "write yours under another name")
+            raise Refused(
+                422,
+                f"{rel} was written by {written_by(there) or 'someone else'}: "
+                "write yours under another name",
+            )
     else:
         raise Refused(422, f"{folder}/ has 99 files named {name} already: nothing was written")
     koloni.write(root, f"{FOLDER}/{rel}", top + text.strip())
@@ -168,8 +203,11 @@ def listing(root: str) -> list[dict]:
         if not folder.is_dir(follow_symlinks=False) or project_files._is_link(Path(folder.path)):
             continue
         for entry in sorted(os.scandir(folder.path), key=lambda e: e.name):
-            if entry.is_file(follow_symlinks=False) and len(found) < MOST_LISTED and not (
-                    project_files._is_link(Path(entry.path))):
+            if (
+                entry.is_file(follow_symlinks=False)
+                and len(found) < MOST_LISTED
+                and not (project_files._is_link(Path(entry.path)))
+            ):
                 at = datetime.fromtimestamp(entry.stat().st_mtime).astimezone()
                 found.append({"path": f"{folder.name}/{entry.name}", "at": at})
     return found

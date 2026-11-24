@@ -36,8 +36,10 @@ from tests.test_spawn import call, role_id, spawn, step
 def said(role, content, *calls):
     message = {"role": role, "content": content}
     if calls:
-        message["tool_calls"] = [{"id": c, "type": "function", "function": {
-            "name": "read_file", "arguments": "{}"}} for c in calls]
+        message["tool_calls"] = [
+            {"id": c, "type": "function", "function": {"name": "read_file", "arguments": "{}"}}
+            for c in calls
+        ]
     return message
 
 
@@ -61,7 +63,10 @@ def test_the_users_words_stay_in_order_and_the_last_exchange_whole():
     assert out[0] == HISTORY[0] and out[-3:] == HISTORY[-3:]
     # Their messages, and their answer as a message of theirs (its call is not sent).
     assert [m["content"] for m in out[1:4]] == [
-        "first ask", "second ask", ANSWER_PREFIX + "yes, go on"]
+        "first ask",
+        "second ask",
+        ANSWER_PREFIX + "yes, go on",
+    ]
     assert all(m["role"] == "user" for m in out[1:5]) and "S" in out[4]["content"]
     assert "old output" not in str(out)
     # Found again as the third answer, wherever a note handed over late puts it.
@@ -76,10 +81,14 @@ def test_without_a_summary_the_older_tool_outputs_are_left_out_but_the_users_ans
 
 
 def test_a_failed_summary_does_not_fail_the_turn(windowed, wait_run, project_dir):  # noqa: F811
-    client, model = windowed([
-        *WORK, ModelUnavailable("model server unreachable"),
-        step(call("read_file", {"path": "hello.py"}, "r2"), i=900), text("done"),
-    ])
+    client, model = windowed(
+        [
+            *WORK,
+            ModelUnavailable("model server unreachable"),
+            step(call("read_file", {"path": "hello.py"}, "r2"), i=900),
+            text("done"),
+        ]
+    )
     _cid, snap = ran(client, wait_run, project_dir)
     assert snap["runs"][0]["status"] == "completed"
     assert len(model.calls) == 5  # asked once: the step after the next is not summarised
@@ -104,7 +113,9 @@ def test_the_agents_page_is_told_the_window_a_server_says_without_a_cost(windowe
 
 
 def test_the_summariser_reads_the_users_words_in_their_place_and_spends_the_agents_tokens(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, model = windowed([*WORK, text("SUMMARY: hello.py prints hi"), text("done")])
     _cid, snap = ran(client, wait_run, project_dir)
@@ -137,8 +148,9 @@ class Told(httpx2.MockTransport):
 
 @pytest.mark.anyio
 async def test_a_window_is_kept_only_once_said():
-    loading = OpenAICompatClient("http://model/v1", transport=Told([
-        httpx2.ConnectError("down"), 503, 200]))
+    loading = OpenAICompatClient(
+        "http://model/v1", transport=Told([httpx2.ConnectError("down"), 503, 200])
+    )
     assert await loading.found_window() is None  # not answering: asked again
     assert await loading.found_window() is None  # still loading: asked again
     assert await loading.found_window() == 80128
@@ -163,15 +175,22 @@ class Capped(Windowed):
 def test_what_the_summariser_reads_fits_half_the_window_and_a_cut_summary_is_none(
     settings_env, wait_run, project_dir
 ):
-    (project_dir / "big.txt").write_text("".join(f"line {n:04} of a long file\n" for n in range(600)))
-    model = Capped([
-        step(call("read_file", {"path": "big.txt"}, "r1"), i=10),
-        step(call("read_file", {"path": "hello.py"}, "r2"), i=10),
-        step(call("list_dir", {}, "l1"), i=900),
-        StepResult("SUMMARY: half of it", [], 5, 3, cut=True),
-        text("done"),
-    ], window=1000)
-    with TestClient(create_app(load_settings(settings_env), model=model), base_url=ORIGIN) as client:
+    (project_dir / "big.txt").write_text(
+        "".join(f"line {n:04} of a long file\n" for n in range(600))
+    )
+    model = Capped(
+        [
+            step(call("read_file", {"path": "big.txt"}, "r1"), i=10),
+            step(call("read_file", {"path": "hello.py"}, "r2"), i=10),
+            step(call("list_dir", {}, "l1"), i=900),
+            StepResult("SUMMARY: half of it", [], 5, 3, cut=True),
+            text("done"),
+        ],
+        window=1000,
+    )
+    with TestClient(
+        create_app(load_settings(settings_env), model=model), base_url=ORIGIN
+    ) as client:
         _cid, snap = ran(client, wait_run, project_dir)
     asked = sent(model.calls[3])
     assert TRIMMED in asked and "line 0599" not in asked and len(asked) < 1000 * 3
@@ -182,18 +201,25 @@ def test_what_the_summariser_reads_fits_half_the_window_and_a_cut_summary_is_non
 
 
 def test_a_step_refused_for_its_size_is_summarised_and_asked_once_more(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     refused = ModelUnavailable(
         "model server returned 400: the request exceeds the available context size, "
-        "try increasing it")
+        "try increasing it"
+    )
     # (Asked again only with less: the summary has to stand for more than it says.)
     (project_dir / "hello.py").write_text("print('hi')\n" + "# a line of a long file\n" * 40)
-    client, model = windowed([
-        step(call("read_file", {"path": "hello.py"}, "r1"), i=100),
-        step(call("list_dir", {}, "l1"), i=100),
-        refused, text("SUMMARY: read hello.py"), text("done"),
-    ])
+    client, model = windowed(
+        [
+            step(call("read_file", {"path": "hello.py"}, "r1"), i=100),
+            step(call("list_dir", {}, "l1"), i=100),
+            refused,
+            text("SUMMARY: read hello.py"),
+            text("done"),
+        ]
+    )
     _cid, snap = ran(client, wait_run, project_dir)
     assert snap["runs"][0]["status"] == "completed" and len(model.calls) == 5
     assert SUMMARISED in sent(model.calls[4]) and "print('hi')" not in sent(model.calls[4])
@@ -201,12 +227,18 @@ def test_a_step_refused_for_its_size_is_summarised_and_asked_once_more(
 
 
 def test_a_later_turns_lead_is_summarised_before_its_first_step(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, model = windowed([
-        step(call("read_file", {"path": "hello.py"}, "r1"), i=100), text("It prints hi.", i=800),
-        text("SUMMARY: hello.py prints hi"), text("done again"),
-    ])
+    client, model = windowed(
+        [
+            step(call("read_file", {"path": "hello.py"}, "r1"), i=100),
+            text("It prints hi.", i=800),
+            text("SUMMARY: hello.py prints hi"),
+            text("done again"),
+        ]
+    )
     cid, _snap = ran(client, wait_run, project_dir)
     # (Summarised after its turn, while the user reads: slice 59d's `_compact_idle`.)
     until(client, cid, lambda snap: snap["agents"][0]["summarised"] == 2)
@@ -223,16 +255,20 @@ def test_a_later_turns_lead_is_summarised_before_its_first_step(
 
 
 def test_a_second_summary_folds_in_the_first(windowed, wait_run, project_dir):  # noqa: F811
-    (project_dir / "big.txt").write_text("".join(f"line {n:04} of a long file\n" for n in range(600)))
-    client, model = windowed([
-        step(call("read_file", {"path": "hello.py"}, "r1"), i=100),
-        step(call("list_dir", {}, "l1"), i=800),
-        text("SUMMARY ONE"),
-        step(call("read_file", {"path": "big.txt"}, "r2"), i=500),
-        step(call("list_dir", {}, "l2"), i=800),
-        text("SUMMARY TWO"),
-        text("done"),
-    ])
+    (project_dir / "big.txt").write_text(
+        "".join(f"line {n:04} of a long file\n" for n in range(600))
+    )
+    client, model = windowed(
+        [
+            step(call("read_file", {"path": "hello.py"}, "r1"), i=100),
+            step(call("list_dir", {}, "l1"), i=800),
+            text("SUMMARY ONE"),
+            step(call("read_file", {"path": "big.txt"}, "r2"), i=500),
+            step(call("list_dir", {}, "l2"), i=800),
+            text("SUMMARY TWO"),
+            text("done"),
+        ]
+    )
     _cid, snap = ran(client, wait_run, project_dir)
     assert len(model.calls) == 7
     assert "The summary so far:\nSUMMARY ONE" in sent(model.calls[5])
@@ -244,14 +280,19 @@ def test_a_second_summary_folds_in_the_first(windowed, wait_run, project_dir):  
 
 
 def test_a_summary_that_cannot_bring_the_size_down_is_not_tried_again(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, model = windowed([
-        *WORK, text("SUMMARY: hello.py prints hi"),
-        step(call("read_file", {"path": "hello.py"}, "r2"), i=900),
-        step(call("list_dir", {}, "l2"), i=900),
-        text("done"),
-    ])
+    client, model = windowed(
+        [
+            *WORK,
+            text("SUMMARY: hello.py prints hi"),
+            step(call("read_file", {"path": "hello.py"}, "r2"), i=900),
+            step(call("list_dir", {}, "l2"), i=900),
+            text("done"),
+        ]
+    )
     _cid, snap = ran(client, wait_run, project_dir)
     assert len(model.calls) == 6  # one summary only
     (lead,) = snap["agents"]
@@ -260,11 +301,16 @@ def test_a_summary_that_cannot_bring_the_size_down_is_not_tried_again(
 
 def test_a_sub_agent_is_summarised_as_any_agent(windowed, wait_run, project_dir):  # noqa: F811
     # The summary request is no agent's: the scripted model takes it from the Lead's steps.
-    client, model = windowed({
-        "Lead": [spawn("Coder", "look at hello.py"), text("SUMMARY: coder read hello.py"),
-                 text("all done")],
-        "Coder": [*WORK, text("It prints hi.")],
-    })
+    client, model = windowed(
+        {
+            "Lead": [
+                spawn("Coder", "look at hello.py"),
+                text("SUMMARY: coder read hello.py"),
+                text("all done"),
+            ],
+            "Coder": [*WORK, text("It prints hi.")],
+        }
+    )
     _cid, snap = ran(client, wait_run, project_dir)
     coder = next(a for a in snap["agents"] if a["role_name"] == "Coder")
     assert coder["summarised"] == 2 and coder["context_window"] == 1000
@@ -273,7 +319,9 @@ def test_a_sub_agent_is_summarised_as_any_agent(windowed, wait_run, project_dir)
 
 
 def test_a_cli_that_says_no_window_is_measured_against_none(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, model = windowed([*WORK, text("done")], window=None)
     model.compacts_itself = True
@@ -289,8 +337,12 @@ async def test_a_call_with_no_id_is_given_one_no_other_has_and_a_cut_step_says_s
         if request.url.path == "/props":
             return httpx2.Response(404)
         made = {"index": 0, "function": {"name": "list_dir", "arguments": "{}"}}
-        return httpx2.Response(200, content=sse_body(
-            {"choices": [{"delta": {"tool_calls": [made]}, "finish_reason": "length"}]}))
+        return httpx2.Response(
+            200,
+            content=sse_body(
+                {"choices": [{"delta": {"tool_calls": [made]}, "finish_reason": "length"}]}
+            ),
+        )
 
     client = OpenAICompatClient("http://model/v1", transport=httpx2.MockTransport(handler))
 

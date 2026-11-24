@@ -154,8 +154,9 @@ def _keep(stream: str, text: str, passed: int, also: tuple[str, ...]) -> None:
         # Hidden first, cut after: a secret across the cut would be left half in sight.
         # (All the lines at once: no secret and no hook's key has a line end in it.)
         new = [
-            (line if len(line) <= LINE_CHARS else line[:LINE_CHARS] + CUT)
-            .encode("utf-8", errors="replace")
+            (line if len(line) <= LINE_CHARS else line[:LINE_CHARS] + CUT).encode(
+                "utf-8", errors="replace"
+            )
             for line in hide(text, [*also, *secrets]).split("\n")
         ]
         with _lock:
@@ -195,8 +196,10 @@ def read(agent_id: str, after: int = 0) -> dict | None:
         more = first + len(lines) < len(kept.lines)
     secrets = _known(fresh=True)
     return {
-        "lines": [{"n": n, "stream": stream, "text": hide(text.decode("utf-8"), secrets)}
-                  for n, stream, text in lines],
+        "lines": [
+            {"n": n, "stream": stream, "text": hide(text.decode("utf-8"), secrets)}
+            for n, stream, text in lines
+        ],
         "dropped": dropped,
         "more": more,
     }

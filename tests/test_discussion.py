@@ -37,8 +37,10 @@ TWO = step(spawn("Coder", "s1"), spawn("Reviewer", "s2"))
 
 def said(snap):
     by = {a["id"]: a["name"] for a in snap["agents"]}
-    return [(p["round"], by.get(p["agent_id"], "You"), p["content"], p["passed"])
-            for p in snap["discussion_posts"]]
+    return [
+        (p["round"], by.get(p["agent_id"], "You"), p["content"], p["passed"])
+        for p in snap["discussion_posts"]
+    ]
 
 
 def prompt_of(calls):
@@ -55,19 +57,25 @@ def test_migration_0010_and_back(tmp_path):
     command.upgrade(cfg, "0009")
     at = "2026-10-05 10:00:00"
     with sqlite3.connect(db) as conn:
-        for id, name, tools, builtin in (("b1", "Lead", ["read_file"], 1),
-                                         ("b2", "Coder", ["read_file"], 1),
-                                         ("u1", "Mine", ["read_file"], 0)):
+        for id, name, tools, builtin in (
+            ("b1", "Lead", ["read_file"], 1),
+            ("b2", "Coder", ["read_file"], 1),
+            ("u1", "Mine", ["read_file"], 0),
+        ):
             conn.execute(
                 "INSERT INTO roles (id, name, description, instructions, tools, builtin, "
                 "created_by_agent, created_at, updated_at) VALUES (?, ?, '', '', ?, ?, 0, ?, ?)",
-                (id, name, json.dumps(tools), builtin, at, at))
+                (id, name, json.dumps(tools), builtin, at, at),
+            )
     command.upgrade(cfg, "0010")
     with sqlite3.connect(db) as conn:
         tools = {n: json.loads(t) for n, t in conn.execute("SELECT name, tools FROM roles")}
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master")}
-    assert tools == {"Lead": ["read_file", "discuss"], "Coder": ["read_file"],
-                     "Mine": ["read_file"]}
+    assert tools == {
+        "Lead": ["read_file", "discuss"],
+        "Coder": ["read_file"],
+        "Mine": ["read_file"],
+    }
     assert {"discussions", "discussion_members", "discussion_posts"} <= tables
     command.downgrade(cfg, "0009")
     with sqlite3.connect(db) as conn:
@@ -84,14 +92,19 @@ def test_migration_0010_and_back(tmp_path):
 def test_three_agents_talk_in_rounds_and_each_sees_what_was_said(
     make_client, wait_run, project_dir
 ):
-    client, model = make_client({
-        "Lead": [TWO, discuss("How should we fix the greeting?", ["Coder", "Reviewer"]),
-                 text("I say: keep it short."),          # round 1, the Lead speaks last
-                 text("PASS"),                           # round 2
-                 text("We agreed. Done.")],              # after the discussion
-        "Coder": [text("coder ready"), text("Change the string."), text("PASS")],
-        "Reviewer": [text("reviewer ready"), text("Add a test too."), text("pass.")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                TWO,
+                discuss("How should we fix the greeting?", ["Coder", "Reviewer"]),
+                text("I say: keep it short."),  # round 1, the Lead speaks last
+                text("PASS"),  # round 2
+                text("We agreed. Done."),
+            ],  # after the discussion
+            "Coder": [text("coder ready"), text("Change the string."), text("PASS")],
+            "Reviewer": [text("reviewer ready"), text("Add a test too."), text("pass.")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
 
@@ -116,10 +129,17 @@ def test_three_agents_talk_in_rounds_and_each_sees_what_was_said(
     assert "Coder: Change the string." in second and "It is your turn" in second
     third = prompt_of(model.calls_of["Lead"][2])
     assert "Coder: Change the string.\n\nReviewer: Add a test too." in third
-    speaking = [t for t in model.tool_args if t is not None and "discuss" not in names(t)
-                and "spawn_agent" not in names(t) and "ask_user" not in names(t)]
+    speaking = [
+        t
+        for t in model.tool_args
+        if t is not None
+        and "discuss" not in names(t)
+        and "spawn_agent" not in names(t)
+        and "ask_user" not in names(t)
+    ]
     assert speaking and all(
-        names(t) == ["list_dir", "read_file", "search", "recall"] for t in speaking)
+        names(t) == ["list_dir", "read_file", "search", "recall"] for t in speaking
+    )
 
     # the one who opened it gets the whole of it back, and goes on with its work
     back = [m for m in model.calls_of["Lead"][-1] if m["role"] == "tool"][-1]["content"]
@@ -132,14 +152,19 @@ def test_three_agents_talk_in_rounds_and_each_sees_what_was_said(
 def test_what_was_said_stays_out_of_the_chat_and_in_each_members_memory(
     make_client, wait_run, project_dir
 ):
-    client, model = make_client({
-        "Lead": [TWO, discuss("Tabs or spaces?", ["Coder", "Reviewer"], rounds=1),
-                 text("Spaces."),
-                 step(call("message_agent", {"to": "Coder", "message": "Go on then."}, "m1")),
-                 text("done")],
-        "Coder": [text("coder ready"), text("Tabs."), text("On it.")],
-        "Reviewer": [text("reviewer ready"), text("Spaces.")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                TWO,
+                discuss("Tabs or spaces?", ["Coder", "Reviewer"], rounds=1),
+                text("Spaces."),
+                step(call("message_agent", {"to": "Coder", "message": "Go on then."}, "m1")),
+                text("done"),
+            ],
+            "Coder": [text("coder ready"), text("Tabs."), text("On it.")],
+            "Reviewer": [text("reviewer ready"), text("Spaces.")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     assert snap["discussions"][0]["outcome"] == "round_limit"
@@ -149,8 +174,9 @@ def test_what_was_said_stays_out_of_the_chat_and_in_each_members_memory(
     later = model.calls_of["Coder"][2]
     roles = [m["role"] for m in later]
     assert roles == ["system", "user", "assistant", "user", "user"]
-    assert later[3]["content"].startswith("Message from Lead (the agent you work for):\n\n"
-                                          "The discussion \"Tabs or spaces?\" ended")
+    assert later[3]["content"].startswith(
+        'Message from Lead (the agent you work for):\n\nThe discussion "Tabs or spaces?" ended'
+    )
     assert "Coder: Tabs.\n\nReviewer: Spaces.\n\nLead: Spaces." in later[3]["content"]
     assert later[4]["content"].endswith("Go on then.")
     # the Lead's own speech is not replayed to it as something it said in the chat
@@ -159,43 +185,59 @@ def test_what_was_said_stays_out_of_the_chat_and_in_each_members_memory(
 
 
 def test_a_role_name_opens_a_new_agent_for_the_discussion(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [discuss("Is hello.py fine?", ["reviewer", "Researcher"], rounds=1),
-                 text("Fine by me."), text("done")],
-        "Reviewer": [text("Looks fine.")],
-        "Researcher": [text("It prints hi.")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                discuss("Is hello.py fine?", ["reviewer", "Researcher"], rounds=1),
+                text("Fine by me."),
+                text("done"),
+            ],
+            "Reviewer": [text("Looks fine.")],
+            "Researcher": [text("It prints hi.")],
+        }
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert [(a["name"], a["status"], a["depth"]) for a in snap["agents"]] == [
-        ("Lead", "completed", 0), ("Reviewer", "completed", 1), ("Researcher", "completed", 1)]
+        ("Lead", "completed", 0),
+        ("Reviewer", "completed", 1),
+        ("Researcher", "completed", 1),
+    ]
     assert snap["agents"][1]["task"] == "Is hello.py fine?"
     assert snap["agents"][1]["report"] == "Looks fine."
     assert [m["opened_here"] for m in snap["discussions"][0]["members"]] == [True, True, False]
     assert [p[1:3] for p in said(snap)] == [
-        ("Reviewer", "Looks fine."), ("Researcher", "It prints hi."), ("Lead", "Fine by me.")]
+        ("Reviewer", "Looks fine."),
+        ("Researcher", "It prints hi."),
+        ("Lead", "Fine by me."),
+    ]
 
 
 # --- nobody changes anything while talking ------------------------------------------
 
 
 def test_a_speaker_cannot_change_anything(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [TWO, discuss("What now?", ["Coder"], rounds=1), text("ok"), text("done")],
-        "Coder": [text("coder ready"),
-                  step(call("write_file", {"path": "hello.py", "content": "broken"}, "a"),
-                       call("run_command", {"command": "pytest"}, "b"),
-                       call("spawn_agent", {"role": "Tester", "task": "t"}, "c"),
-                       call("message_agent", {"to": "Reviewer", "message": "psst"}, "d"),
-                       call("discuss", {"topic": "another", "with": ["Reviewer"]}, "e"),
-                       call("read_file", {"path": "hello.py"}, "f")),
-                  text("I read it: it prints hi.")],
-        "Reviewer": [text("reviewer ready")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [TWO, discuss("What now?", ["Coder"], rounds=1), text("ok"), text("done")],
+            "Coder": [
+                text("coder ready"),
+                step(
+                    call("write_file", {"path": "hello.py", "content": "broken"}, "a"),
+                    call("run_command", {"command": "pytest"}, "b"),
+                    call("spawn_agent", {"role": "Tester", "task": "t"}, "c"),
+                    call("message_agent", {"to": "Reviewer", "message": "psst"}, "d"),
+                    call("discuss", {"topic": "another", "with": ["Reviewer"]}, "e"),
+                    call("read_file", {"path": "hello.py"}, "f"),
+                ),
+                text("I read it: it prints hi."),
+            ],
+            "Reviewer": [text("reviewer ready")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
-    tried = {t["name"]: t for t in snap["tool_calls"]
-             if t["agent_id"] == snap["agents"][1]["id"]}
+    tried = {t["name"]: t for t in snap["tool_calls"] if t["agent_id"] == snap["agents"][1]["id"]}
     for name in ("write_file", "run_command", "spawn_agent", "message_agent", "discuss"):
         assert tried[name]["status"] == "failed", name
         assert "while you are in a discussion" in tried[name]["result"], name
@@ -209,16 +251,21 @@ def test_a_speaker_cannot_change_anything(make_client, wait_run, project_dir):
 
 
 def test_bad_invitations_are_tool_errors(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [step(
-            call("discuss", {"topic": "x", "with": ["Nobody"]}, "a"),
-            call("discuss", {"topic": "x", "with": []}, "b"),
-            call("discuss", {"topic": " ", "with": ["Reviewer"]}, "c"),
-            call("discuss", {"topic": "x", "with": ["Lead"]}, "d"),
-            call("discuss", {"topic": "x", "with": ["Reviewer"], "rounds": 21}, "e"),
-            call("discuss", {"topic": "x", "with": ["Coder"]}, "f"),
-        ), text("done")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                step(
+                    call("discuss", {"topic": "x", "with": ["Nobody"]}, "a"),
+                    call("discuss", {"topic": "x", "with": []}, "b"),
+                    call("discuss", {"topic": " ", "with": ["Reviewer"]}, "c"),
+                    call("discuss", {"topic": "x", "with": ["Lead"]}, "d"),
+                    call("discuss", {"topic": "x", "with": ["Reviewer"], "rounds": 21}, "e"),
+                    call("discuss", {"topic": "x", "with": ["Coder"]}, "f"),
+                ),
+                text("done"),
+            ],
+        }
+    )
     cid, run_id = begin(client, project_dir)  # ask mode: a Coder would need approval
     snap = wait_run(client, cid, run_id)
     results = [t["result"] for t in snap["tool_calls"]]
@@ -231,15 +278,20 @@ def test_bad_invitations_are_tool_errors(make_client, wait_run, project_dir):
     assert snap["discussions"] == [] and len(snap["agents"]) == 1
 
 
-def test_a_member_whose_model_fails_leaves_and_the_rest_go_on(
-    make_client, wait_run, project_dir
-):
-    client, model = make_client({
-        "Lead": [TWO, discuss("Go?", ["Coder", "Reviewer"], rounds=2),
-                 text("Go."), text("PASS"), text("done")],
-        "Coder": [text("coder ready"), ModelUnavailable("model server unreachable: refused")],
-        "Reviewer": [text("reviewer ready"), text("Go."), text("PASS")],
-    })
+def test_a_member_whose_model_fails_leaves_and_the_rest_go_on(make_client, wait_run, project_dir):
+    client, model = make_client(
+        {
+            "Lead": [
+                TWO,
+                discuss("Go?", ["Coder", "Reviewer"], rounds=2),
+                text("Go."),
+                text("PASS"),
+                text("done"),
+            ],
+            "Coder": [text("coder ready"), ModelUnavailable("model server unreachable: refused")],
+            "Reviewer": [text("reviewer ready"), text("Go."), text("PASS")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     talk = snap["discussions"][0]
@@ -253,11 +305,13 @@ def test_a_member_whose_model_fails_leaves_and_the_rest_go_on(
 
 
 def test_with_too_few_left_the_discussion_ends(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [TWO, discuss("Go?", ["Coder"], rounds=3), text("done")],
-        "Coder": [text("coder ready"), ModelUnavailable("down")],
-        "Reviewer": [text("reviewer ready")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [TWO, discuss("Go?", ["Coder"], rounds=3), text("done")],
+            "Coder": [text("coder ready"), ModelUnavailable("down")],
+            "Reviewer": [text("reviewer ready")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     assert snap["discussions"][0]["outcome"] == "too_few"
@@ -267,11 +321,13 @@ def test_with_too_few_left_the_discussion_ends(make_client, wait_run, project_di
 
 def test_stop_during_a_discussion(make_client, wait_run, project_dir):
     g = Gate()
-    client, model = make_client({
-        "Lead": [TWO, discuss("Go?", ["Coder", "Reviewer"])],
-        "Coder": [text("coder ready"), text("Yes.")],
-        "Reviewer": [text("reviewer ready"), g.step(text("never"))],
-    })
+    client, model = make_client(
+        {
+            "Lead": [TWO, discuss("Go?", ["Coder", "Reviewer"])],
+            "Coder": [text("coder ready"), text("Yes.")],
+            "Reviewer": [text("reviewer ready"), g.step(text("never"))],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     g.wait_partial()
     snap = now_snap(client, cid)
@@ -303,15 +359,19 @@ class GivesUp(ScriptedModel):
         self.release.wait(scaled(60))
         return "nothing kept"
 
-    async def run_session(self, model_id, messages, tools, call_tool, on_text, on_message=None,
-                          **_more):
+    async def run_session(
+        self, model_id, messages, tools, call_tool, on_text, on_message=None, **_more
+    ):
         self.loop = asyncio.get_running_loop()
         if "You are in a discussion" in str(messages):
             # (cut off with the discuss call while its own call runs)
             await call_tool("recall", json.dumps({"query": "go"}))
         else:
-            asked = asyncio.ensure_future(call_tool("discuss", json.dumps(
-                {"topic": "Go?", "with": ["Reviewer"], "rounds": 2})))
+            asked = asyncio.ensure_future(
+                call_tool(
+                    "discuss", json.dumps({"topic": "Go?", "with": ["Reviewer"], "rounds": 2})
+                )
+            )
             speaking = asyncio.ensure_future(self.speaking.wait())
             await asyncio.wait({asked, speaking}, return_when=asyncio.FIRST_COMPLETED)
             speaking.cancel()
@@ -327,8 +387,9 @@ def test_a_discussion_whose_call_its_cli_gave_up_on_is_not_left_running(
     # (Measured 20 Nov, Codex as the Lead: its discuss call given up on in round 1, the turn
     # completed - and the discussion and its call stayed "running" for good.)
     model = GivesUp()
-    with TestClient(create_app(load_settings(settings_env), model=model),
-                    base_url="http://127.0.0.1:8790") as client:
+    with TestClient(
+        create_app(load_settings(settings_env), model=model), base_url="http://127.0.0.1:8790"
+    ) as client:
         told, emit = [], client.app.state.bus.emit
 
         def watched(conversation_id, run_id, kind, payload):
@@ -358,19 +419,28 @@ def test_a_discussion_whose_call_its_cli_gave_up_on_is_not_left_running(
 
 def test_the_user_speaks_and_the_next_speaker_hears_it(make_client, wait_run, project_dir):
     g = Gate()
-    client, model = make_client({
-        "Lead": [TWO, discuss("Go?", ["Coder", "Reviewer"], rounds=2),
-                 text("PASS"), text("PASS"), text("done")],
-        "Coder": [text("coder ready"), g.step(text("PASS")), text("Tests first then.")],
-        "Reviewer": [text("reviewer ready"), text("PASS"), text("PASS")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                TWO,
+                discuss("Go?", ["Coder", "Reviewer"], rounds=2),
+                text("PASS"),
+                text("PASS"),
+                text("done"),
+            ],
+            "Coder": [text("coder ready"), g.step(text("PASS")), text("Tests first then.")],
+            "Reviewer": [text("reviewer ready"), text("PASS"), text("PASS")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     g.wait_partial()
     talk = now_snap(client, cid)["discussions"][0]
     posted = client.post(f"/api/discussions/{talk['id']}/posts", json={"content": "Tests first!"})
     assert posted.status_code == 201, posted.text
-    assert client.post(f"/api/discussions/{talk['id']}/posts",
-                       json={"content": "  "}).status_code == 422
+    assert (
+        client.post(f"/api/discussions/{talk['id']}/posts", json={"content": "  "}).status_code
+        == 422
+    )
     g.release()
     snap = wait_run(client, cid, run_id)
     assert "You: Tests first!" in prompt_of(model.calls_of["Reviewer"][1])
@@ -378,30 +448,35 @@ def test_the_user_speaks_and_the_next_speaker_hears_it(make_client, wait_run, pr
     assert snap["discussions"][0]["round"] == 2
     assert (1, "You", "Tests first!", False) in said(snap)
     assert (2, "Coder", "Tests first then.", False) in said(snap)
-    assert client.post(f"/api/discussions/{talk['id']}/posts",
-                       json={"content": "late"}).status_code == 409
+    assert (
+        client.post(f"/api/discussions/{talk['id']}/posts", json={"content": "late"}).status_code
+        == 409
+    )
 
 
 def test_the_user_ends_a_discussion_and_the_caller_goes_on(make_client, wait_run, project_dir):
     g = Gate()
-    client, model = make_client({
-        "Lead": [TWO, discuss("Go?", ["Coder", "Reviewer"]), text("Carrying on.")],
-        "Coder": [text("coder ready"), text("Yes.")],
-        "Reviewer": [text("reviewer ready"), g.step(text("never said"))],
-    })
+    client, model = make_client(
+        {
+            "Lead": [TWO, discuss("Go?", ["Coder", "Reviewer"]), text("Carrying on.")],
+            "Coder": [text("coder ready"), text("Yes.")],
+            "Reviewer": [text("reviewer ready"), g.step(text("never said"))],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     g.wait_partial()
     talk = now_snap(client, cid)["discussions"][0]
     assert client.post(f"/api/discussions/{talk['id']}/end").status_code == 200
     snap = wait_run(client, cid, run_id)
     assert (snap["discussions"][0]["status"], snap["discussions"][0]["outcome"]) == (
-        "ended", "ended_by_user")
+        "ended",
+        "ended_by_user",
+    )
     assert [p[1:3] for p in said(snap)] == [("Coder", "Yes.")]
     back = [m for m in model.calls_of["Lead"][-1] if m["role"] == "tool"][-1]["content"]
     assert back.startswith("The discussion ended: the user ended it.")
     assert set(statuses(snap).values()) == {"completed"}
     assert client.post(f"/api/discussions/{talk['id']}/end").status_code == 409
-
 
 
 # --- review fixes -------------------------------------------------------------------
@@ -411,22 +486,31 @@ def test_an_agent_carrying_on_can_open_a_discussion_and_the_user_can_end_it(
     make_client, wait_run, project_dir
 ):
     g = Gate()
-    client, model = make_client({
-        "Lead": [step(spawn("Planner", "s1"), spawn("Reviewer", "s2")),
-                 step(call("message_agent", {"to": "Planner", "message": "Discuss it."}, "m1")),
-                 text("done")],
-        "Planner": [text("planner ready"),
-                    discuss("Go?", ["Reviewer"], rounds=2),
-                    text("I think yes."),        # its own speech, in the turn it was given
-                    g.step(text("never said")),  # round 2: cut off by the user
-                    text("Discussed.")],
-        "Reviewer": [text("reviewer ready"), text("Yes."), text("PASS")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                step(spawn("Planner", "s1"), spawn("Reviewer", "s2")),
+                step(call("message_agent", {"to": "Planner", "message": "Discuss it."}, "m1")),
+                text("done"),
+            ],
+            "Planner": [
+                text("planner ready"),
+                discuss("Go?", ["Reviewer"], rounds=2),
+                text("I think yes."),  # its own speech, in the turn it was given
+                g.step(text("never said")),  # round 2: cut off by the user
+                text("Discussed."),
+            ],
+            "Reviewer": [text("reviewer ready"), text("Yes."), text("PASS")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     g.wait_partial()  # it used to hang before the Planner's first speech
     snap = now_snap(client, cid)
     assert [p[1:3] for p in said(snap)] == [
-        ("Reviewer", "Yes."), ("Planner", "I think yes."), ("Reviewer", "PASS")]
+        ("Reviewer", "Yes."),
+        ("Planner", "I think yes."),
+        ("Reviewer", "PASS"),
+    ]
     talk = snap["discussions"][0]
     assert client.post(f"/api/discussions/{talk['id']}/end").status_code == 200
     snap = wait_run(client, cid, run_id)
@@ -439,22 +523,28 @@ def test_a_member_that_went_back_to_its_work_leaves_the_discussion(
     make_client, wait_run, project_dir
 ):
     opening, speaking, working, r = Gate(), Gate(), Gate(), Gate()
-    client, model = make_client({
-        "Lead": [step(spawn("Planner", "s1"), spawn("Coder", "s2")), text("done")],
-        # The Coder is invited while it waits for its own Reviewer.
-        "Coder": [step(call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s3")),
-                  text("I am in."),               # round 1
-                  working.step(text("coded"))],    # its own work, taken up again
-        "Reviewer": [r.step(text("looked"))],
-        "Planner": [opening.step(discuss("Go?", ["Coder"], rounds=2)),
-                    speaking.step(text("Fine.")),  # round 1, held while the Coder resumes
-                    text("Planned.")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [step(spawn("Planner", "s1"), spawn("Coder", "s2")), text("done")],
+            # The Coder is invited while it waits for its own Reviewer.
+            "Coder": [
+                step(call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s3")),
+                text("I am in."),  # round 1
+                working.step(text("coded")),
+            ],  # its own work, taken up again
+            "Reviewer": [r.step(text("looked"))],
+            "Planner": [
+                opening.step(discuss("Go?", ["Coder"], rounds=2)),
+                speaking.step(text("Fine.")),  # round 1, held while the Coder resumes
+                text("Planned."),
+            ],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_max_parallel=4)
-    r.wait_partial()         # the Coder waits for its Reviewer
+    r.wait_partial()  # the Coder waits for its Reviewer
     opening.release()
     speaking.wait_partial()  # the Coder has spoken in round 1
-    r.release()              # its Reviewer is back: the Coder goes on with its own work
+    r.release()  # its Reviewer is back: the Coder goes on with its own work
     working.wait_partial()
     speaking.release()
     snap = until(client, cid, lambda s: s["discussions"][0]["status"] == "ended")
@@ -471,11 +561,13 @@ def test_a_member_that_went_back_to_its_work_leaves_the_discussion(
 
 
 def test_a_long_speech_is_cut_to_fit_the_shared_place(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [TWO, discuss("Go?", ["Coder"], rounds=1), text("ok"), text("done")],
-        "Coder": [text("coder ready"), text("x" * 5000)],
-        "Reviewer": [text("reviewer ready")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [TWO, discuss("Go?", ["Coder"], rounds=1), text("ok"), text("done")],
+            "Coder": [text("coder ready"), text("x" * 5000)],
+            "Reviewer": [text("reviewer ready")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     post = snap["discussion_posts"][0]
@@ -484,18 +576,28 @@ def test_a_long_speech_is_cut_to_fit_the_shared_place(make_client, wait_run, pro
     told = prompt_of(model.calls_of["Coder"][1])
     assert "at most 1500 characters" in told and "cut" in told
     talk = snap["discussions"][0]
-    assert client.post(f"/api/discussions/{talk['id']}/posts",
-                       json={"content": "y" * 1501}).status_code == 422
+    assert (
+        client.post(
+            f"/api/discussions/{talk['id']}/posts", json={"content": "y" * 1501}
+        ).status_code
+        == 422
+    )
 
 
 def test_a_new_member_that_never_got_to_speak_is_not_called_done(
     make_client, wait_run, project_dir
 ):
-    client, model = make_client({
-        "Lead": [discuss("Go?", ["Reviewer", "Researcher"], rounds=1), text("ok"), text("done")],
-        "Reviewer": [ModelUnavailable("model server unreachable: refused")],
-        "Researcher": [text("Yes.")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                discuss("Go?", ["Reviewer", "Researcher"], rounds=1),
+                text("ok"),
+                text("done"),
+            ],
+            "Reviewer": [ModelUnavailable("model server unreachable: refused")],
+            "Researcher": [text("Yes.")],
+        }
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     reviewer = snap["agents"][1]
@@ -507,12 +609,17 @@ def test_a_new_member_that_never_got_to_speak_is_not_called_done(
 def test_what_a_failed_agent_said_in_a_discussion_is_not_its_report(
     make_client, wait_run, project_dir
 ):
-    client, model = make_client({
-        "Lead": [step(spawn("Planner", "s1")), text("done")],
-        "Planner": [discuss("Go?", ["Reviewer"], rounds=1), text("My view."),
-                    ModelUnavailable("model server unreachable: refused")],
-        "Reviewer": [text("Yes.")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [step(spawn("Planner", "s1")), text("done")],
+            "Planner": [
+                discuss("Go?", ["Reviewer"], rounds=1),
+                text("My view."),
+                ModelUnavailable("model server unreachable: refused"),
+            ],
+            "Reviewer": [text("Yes.")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     planner = snap["agents"][1]
@@ -540,31 +647,67 @@ def test_restart_closes_a_discussion_and_keeps_finished_members_finished(tmp_pat
         s.flush()
         s.add(Run(id="r", conversation_id="c", status="running"))
         s.flush()
-        s.add_all([
-            Agent(id="lead", run_id="r", role_name="Lead", name="Lead", tools=[], status="waiting"),
-            # had finished its own work, and was speaking when the server died
-            Agent(id="old", run_id="r", parent_agent_id="lead", role_name="Coder", name="Coder",
-                  tools=[], depth=1, status="running", report="coded", ended_at=done),
-            # opened for the discussion, waiting for its turn
-            Agent(id="new", run_id="r", parent_agent_id="lead", role_name="Reviewer",
-                  name="Reviewer", tools=[], depth=1, status="waiting"),
-        ])
+        s.add_all(
+            [
+                Agent(
+                    id="lead", run_id="r", role_name="Lead", name="Lead", tools=[], status="waiting"
+                ),
+                # had finished its own work, and was speaking when the server died
+                Agent(
+                    id="old",
+                    run_id="r",
+                    parent_agent_id="lead",
+                    role_name="Coder",
+                    name="Coder",
+                    tools=[],
+                    depth=1,
+                    status="running",
+                    report="coded",
+                    ended_at=done,
+                ),
+                # opened for the discussion, waiting for its turn
+                Agent(
+                    id="new",
+                    run_id="r",
+                    parent_agent_id="lead",
+                    role_name="Reviewer",
+                    name="Reviewer",
+                    tools=[],
+                    depth=1,
+                    status="waiting",
+                ),
+            ]
+        )
         s.flush()
-        s.add(Discussion(id="d", run_id="r", agent_id="lead", tool_call_id="t", topic="x",
-                         max_rounds=3, round=1))
+        s.add(
+            Discussion(
+                id="d",
+                run_id="r",
+                agent_id="lead",
+                tool_call_id="t",
+                topic="x",
+                max_rounds=3,
+                round=1,
+            )
+        )
         s.flush()
-        s.add_all([
-            DiscussionMember(discussion_id="d", agent_id="old", position=0),
-            DiscussionMember(discussion_id="d", agent_id="new", position=1, opened_here=True),
-            DiscussionMember(discussion_id="d", agent_id="lead", position=2),
-        ])
+        s.add_all(
+            [
+                DiscussionMember(discussion_id="d", agent_id="old", position=0),
+                DiscussionMember(discussion_id="d", agent_id="new", position=1, opened_here=True),
+                DiscussionMember(discussion_id="d", agent_id="lead", position=2),
+            ]
+        )
         s.commit()
     recover_interrupted(factory)
     with factory() as s:
         talk = s.get(Discussion, "d")
         assert (talk.status, talk.outcome) == ("interrupted", None) and talk.ended_at is not None
         assert {a.id: a.status for a in s.query(Agent)} == {
-            "lead": "interrupted", "old": "completed", "new": "interrupted"}
+            "lead": "interrupted",
+            "old": "completed",
+            "new": "interrupted",
+        }
         assert s.get(Agent, "old").report == "coded"
 
 
@@ -585,17 +728,39 @@ def test_restart_closes_the_call_of_a_discussion_its_finished_turn_left_running(
         s.flush()
         s.add(Run(id="r", conversation_id="c", status="completed"))
         s.flush()
-        s.add(Agent(id="lead", run_id="r", role_name="Lead", name="Lead", tools=[],
-                    status="completed"))
+        s.add(
+            Agent(
+                id="lead", run_id="r", role_name="Lead", name="Lead", tools=[], status="completed"
+            )
+        )
         s.flush()
         s.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
         s.flush()
-        s.add(ToolCall(id="t", run_id="r", agent_id="lead", message_id="m", seq=1,
-                       provider_call_id="cli_1", name="discuss", arguments="{}",
-                       status="running"))
+        s.add(
+            ToolCall(
+                id="t",
+                run_id="r",
+                agent_id="lead",
+                message_id="m",
+                seq=1,
+                provider_call_id="cli_1",
+                name="discuss",
+                arguments="{}",
+                status="running",
+            )
+        )
         s.flush()
-        s.add(Discussion(id="d", run_id="r", agent_id="lead", tool_call_id="t", topic="x",
-                         max_rounds=3, round=1))
+        s.add(
+            Discussion(
+                id="d",
+                run_id="r",
+                agent_id="lead",
+                tool_call_id="t",
+                topic="x",
+                max_rounds=3,
+                round=1,
+            )
+        )
         s.commit()
     assert recover_interrupted(factory) == 0  # (no turn of it was open)
     with factory() as s:
@@ -608,9 +773,14 @@ def test_restart_closes_the_call_of_a_discussion_its_finished_turn_left_running(
 
 def test_a_discussion_that_breaks_leaves_none_it_opened_waiting(make_client, wait_run, project_dir):
     # (Review of B-376: a member left "waiting" would hold the Lead's answer for good.)
-    client, _model = make_client({
-        "Lead": [discuss("Is hello.py fine?", ["reviewer", "Researcher"], rounds=1), text("done")],
-    })
+    client, _model = make_client(
+        {
+            "Lead": [
+                discuss("Is hello.py fine?", ["reviewer", "Researcher"], rounds=1),
+                text("done"),
+            ],
+        }
+    )
     runner = client.app.state.runner
 
     async def breaks(member, discussion_id, ending):
@@ -620,7 +790,9 @@ def test_a_discussion_that_breaks_leaves_none_it_opened_waiting(make_client, wai
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert [(a["name"], a["status"]) for a in snap["agents"][1:]] == [
-        ("Reviewer", "failed"), ("Researcher", "failed")]
+        ("Reviewer", "failed"),
+        ("Researcher", "failed"),
+    ]
     # nor the discussion "running": it is over - "failed", as its call, not "cancelled" (which the
     # discussion window shows as "Stopped": nobody stopped it)
     (talk,) = snap["discussions"]

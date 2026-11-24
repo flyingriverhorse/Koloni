@@ -50,15 +50,23 @@ test('a note made by itself is signed as the summariser’s, with the model that
 
 test('the journal says how noting by itself went after the last turn, of which turn, and why nothing was noted', async () => {
   expect(lastAutoText(null, 'x')).toBeNull()
-  expect(lastAutoText({ run_id: 'r', noted: 2, skipped: 1, note: null }, 'T')).toBe('After the last work noted by itself (T): 2 noted, 1 skipped.')
-  expect(lastAutoText({ run_id: 'r', noted: 1, skipped: 0, note: null }, 'T')).toBe('After the last work noted by itself (T): 1 noted.')
+  expect(lastAutoText({ run_id: 'r', noted: 2, skipped: 1, note: null }, 'T')).toBe(
+    'After the last work noted by itself (T): 2 noted, 1 skipped.',
+  )
+  expect(lastAutoText({ run_id: 'r', noted: 1, skipped: 0, note: null }, 'T')).toBe(
+    'After the last work noted by itself (T): 1 noted.',
+  )
   const why = 'the request to the summariser failed: nothing was noted'
   const memory = projectMemory({ last_auto: { run_id: 'r2', noted: 0, skipped: 0, note: why } })
   const { unmount } = render(<MemoryPage memory={memory} {...handlers()} />)
-  expect(await notes()).toHaveTextContent(`After the last work noted by itself (a message of a conversation not open here) nothing was noted: ${why}.`)
+  expect(await notes()).toHaveTextContent(
+    `After the last work noted by itself (a message of a conversation not open here) nothing was noted: ${why}.`,
+  )
   unmount()
   // a turn of the open conversation is named by when it was and the conversation's title
-  useApp.setState({ conv: convState({ runs: [run('r1', 'completed'), run('r2', 'completed', { created_at: '2026-10-13T10:00:00Z' })] }) })
+  useApp.setState({
+    conv: convState({ runs: [run('r1', 'completed'), run('r2', 'completed', { created_at: '2026-10-13T10:00:00Z' })] }),
+  })
   render(<MemoryPage memory={memory} {...handlers()} />)
   const said = (await notes()).textContent ?? ''
   expect(said).toContain(`(the work on the ${moment('2026-10-13T10:00:00Z')} message in “${conversation.title}”)`)
@@ -82,7 +90,10 @@ test('a newer search is never overwritten by an older one’s answer, and the an
   first({ memory: [auto], turns: [] })
   await new Promise(resolve => setTimeout(resolve, 20))
   expect(within(search()).queryByText('hello.py prints the greeting at start.')).toBeNull()
-  expect(within(search()).getByText('Nothing on record speaks to “newer”.').closest('[aria-live]')).toHaveAttribute('aria-live', 'polite')
+  expect(within(search()).getByText('Nothing on record speaks to “newer”.').closest('[aria-live]')).toHaveAttribute(
+    'aria-live',
+    'polite',
+  )
 })
 
 test('Enter searches deeper, as an agent’s recall does: the memory, and what earlier messages said, each in its own group', async () => {
@@ -99,7 +110,16 @@ test('Enter searches deeper, as an agent’s recall does: the memory, and what e
         kind: 'turn',
         trigger: false,
       },
-      { who: 'Coder', conversation_id: 'c1', conversation_title: 'The greeting', run_id: 'r1', at: '2026-10-13T10:01:00Z', excerpt: 'It is in notes.md.', kind: 'turn', trigger: false },
+      {
+        who: 'Coder',
+        conversation_id: 'c1',
+        conversation_title: 'The greeting',
+        run_id: 'r1',
+        at: '2026-10-13T10:01:00Z',
+        excerpt: 'It is in notes.md.',
+        kind: 'turn',
+        trigger: false,
+      },
     ],
   })
   render(<MemoryPage memory={projectMemory()} {...handlers()} onSearch={onSearch} />)
@@ -133,13 +153,33 @@ test('a closed backlog task and a trigger’s turn are said as what they are, wi
   const onSearch = vi.fn().mockResolvedValue({
     memory: [],
     turns: [
-      { who: 'You', conversation_id: null, conversation_title: '', run_id: 'task:t1', at: null, excerpt: 'Fix the ledger — it closed at midnight', kind: 'task', trigger: false },
-      { who: 'Lead', conversation_id: 'c2', conversation_title: 'spin', run_id: 'r2', at: '2026-10-13T10:01:00Z', excerpt: 'The nightly build is green.', kind: 'turn', trigger: true },
+      {
+        who: 'You',
+        conversation_id: null,
+        conversation_title: '',
+        run_id: 'task:t1',
+        at: null,
+        excerpt: 'Fix the ledger — it closed at midnight',
+        kind: 'task',
+        trigger: false,
+      },
+      {
+        who: 'Lead',
+        conversation_id: 'c2',
+        conversation_title: 'spin',
+        run_id: 'r2',
+        at: '2026-10-13T10:01:00Z',
+        excerpt: 'The nightly build is green.',
+        kind: 'turn',
+        trigger: true,
+      },
     ],
   })
   render(<MemoryPage memory={projectMemory()} {...handlers()} onSearch={onSearch} />)
   await userEvent.type(screen.getByLabelText(BOX), 'ledger{Enter}')
-  const said = within(await within(search()).findByRole('list', { name: 'In earlier messages' })).getAllByRole('listitem')
+  const said = within(await within(search()).findByRole('list', { name: 'In earlier messages' })).getAllByRole(
+    'listitem',
+  )
   expect(said[0]).toHaveTextContent('a backlog task closed by you · a day not on record')
   expect(said[0]).not.toHaveTextContent('· ·')
   expect(said[1]).toHaveTextContent(`Lead · spin · ${moment('2026-10-13T10:01:00Z')} · in a trigger’s turn`)
@@ -172,7 +212,9 @@ test('come from Ctrl+K, the search box is scrolled into sight, has the focus and
   const { unmount } = render(<MemoryPage memory={projectMemory()} {...handlers()} onSearch={onSearch} />)
   expect(scrolled).not.toHaveBeenCalled()
   unmount()
-  render(<MemoryPage memory={projectMemory()} {...handlers()} onSearch={onSearch} searchFor={{ words: 'greeting', n: 1 }} />)
+  render(
+    <MemoryPage memory={projectMemory()} {...handlers()} onSearch={onSearch} searchFor={{ words: 'greeting', n: 1 }} />,
+  )
   expect(scrolled).toHaveBeenCalledExactlyOnceWith({ block: 'start' })
   expect(scrolled.mock.contexts[0]).toBe(screen.getByRole('search'))
   expect(screen.getByLabelText(BOX)).toHaveFocus()
@@ -187,16 +229,34 @@ test('what a linked project holds is its own group, tagged with the project and 
   const onSearch = vi.fn().mockResolvedValue({
     memory: [
       memoryRecord('w', { text: 'retry payment on 502' }),
-      memoryRecord('m', { text: 'Payments are retried thrice', by_meaning: true, from_project: 'Other one', source_state: 'elsewhere', source: { path: 'notes.md', start: 3, end: 4 }, project_id: 'b' }),
+      memoryRecord('m', {
+        text: 'Payments are retried thrice',
+        by_meaning: true,
+        from_project: 'Other one',
+        source_state: 'elsewhere',
+        source: { path: 'notes.md', start: 3, end: 4 },
+        project_id: 'b',
+      }),
     ],
     turns: [
-      { who: 'You', conversation_id: 'c2', conversation_title: 'Retries', run_id: 'r9', at: '2026-10-13T10:00:00Z', excerpt: 'payments were retried thrice', project: 'Other one', by_meaning: true },
+      {
+        who: 'You',
+        conversation_id: 'c2',
+        conversation_title: 'Retries',
+        run_id: 'r9',
+        at: '2026-10-13T10:00:00Z',
+        excerpt: 'payments were retried thrice',
+        project: 'Other one',
+        by_meaning: true,
+      },
     ],
     meaning_off: 'search by meaning is off: model server unreachable: connection refused',
   })
   render(<MemoryPage memory={projectMemory()} {...handlers()} onSearch={onSearch} />)
   await userEvent.type(screen.getByLabelText(BOX), 'retry payment{Enter}')
-  const own = within(await within(search()).findByRole('list', { name: 'What an agent would find in the memory' })).getAllByRole('listitem')
+  const own = within(
+    await within(search()).findByRole('list', { name: 'What an agent would find in the memory' }),
+  ).getAllByRole('listitem')
   expect(own).toHaveLength(1)
   expect(own[0]).toHaveTextContent('retry payment on 502')
   expect(own[0]).not.toHaveTextContent('by meaning')
@@ -216,13 +276,27 @@ test('what a linked project holds is its own group, tagged with the project and 
 test('the status line is empty until words are typed, then says what the page has and that Enter searches deeper; what only another project said is its own group', async () => {
   const onSearch = vi.fn().mockResolvedValue({
     memory: [],
-    turns: [{ who: 'You', conversation_id: 'c2', conversation_title: 'Retries', run_id: 'r9', at: '2026-10-13T10:00:00Z', excerpt: 'payments were retried thrice', project: 'Other one' }],
+    turns: [
+      {
+        who: 'You',
+        conversation_id: 'c2',
+        conversation_title: 'Retries',
+        run_id: 'r9',
+        at: '2026-10-13T10:00:00Z',
+        excerpt: 'payments were retried thrice',
+        project: 'Other one',
+      },
+    ],
   })
   render(<MemoryPage memory={projectMemory()} {...handlers()} onSearch={onSearch} />)
   expect(within(search()).getByRole('status')).toBeEmptyDOMElement()
   await userEvent.type(screen.getByLabelText(BOX), 'thrice{Enter}')
-  expect(within(search()).getByRole('status')).toHaveTextContent(/^Nothing on this page has “thrice”\. Enter searches deeper\.$/)
-  const linked = within(await within(search()).findByRole('list', { name: 'In linked projects' })).getAllByRole('listitem')
+  expect(within(search()).getByRole('status')).toHaveTextContent(
+    /^Nothing on this page has “thrice”\. Enter searches deeper\.$/,
+  )
+  const linked = within(await within(search()).findByRole('list', { name: 'In linked projects' })).getAllByRole(
+    'listitem',
+  )
   expect(linked).toHaveLength(1)
   expect(linked[0]).toHaveTextContent('“payments were retried thrice”')
   expect(within(search()).getByRole('heading', { name: 'Searched deeper for “thrice”' })).toBeInTheDocument()
@@ -233,7 +307,9 @@ test('the status line is empty until words are typed, then says what the page ha
 test('by words / by meaning ▾ is the project’s setting, in a small window: a provider with a server address, what it costs in sight, and only what changed is sent', async () => {
   useApp.setState({
     projectId: 'p',
-    projects: [{ id: 'p', name: 'demo', embedding_provider_id: null, embedding_model: 'text-embedding-3-small' }] as Project[],
+    projects: [
+      { id: 'p', name: 'demo', embedding_provider_id: null, embedding_model: 'text-embedding-3-small' },
+    ] as Project[],
     providers: [
       { id: 'srv', name: 'llama', kind: 'openai_compat', base_url: 'http://127.0.0.1:8080/v1' },
       { id: 'cc', name: 'Claude Code', kind: 'claude_cli', base_url: null },
@@ -246,11 +322,21 @@ test('by words / by meaning ▾ is the project’s setting, in a small window: a
   expect(open).toHaveAttribute('aria-expanded', 'false')
   expect(screen.queryByRole('dialog')).toBeNull()
   await userEvent.click(open)
-  const picker = within(screen.getByRole('dialog', { name: 'How the memory is searched' })).getByRole('form', { name: 'Search by meaning' })
+  const picker = within(screen.getByRole('dialog', { name: 'How the memory is searched' })).getByRole('form', {
+    name: 'Search by meaning',
+  })
   // what it spends, in sight beside the choice: not behind a "?"
-  expect(within(picker).getByText(/^One embeddings request to that provider for each search \(it also reads up to 50 notes, facts or earlier messages/)).toBeVisible()
+  expect(
+    within(picker).getByText(
+      /^One embeddings request to that provider for each search \(it also reads up to 50 notes, facts or earlier messages/,
+    ),
+  ).toBeVisible()
   const choice = within(picker).getByLabelText('Search by meaning with')
-  expect(within(choice).getAllByRole('option').map(o => o.textContent)).toEqual(['off: by words alone', 'llama'])
+  expect(
+    within(choice)
+      .getAllByRole('option')
+      .map(o => o.textContent),
+  ).toEqual(['off: by words alone', 'llama'])
   expect(within(picker).getByLabelText('Embedding model')).toBeDisabled()
   expect(within(picker).getByRole('button', { name: 'Save' })).toBeDisabled()
   // off, the page says nothing of a cost
@@ -269,9 +355,15 @@ test('by words / by meaning ▾ is the project’s setting, in a small window: a
   await userEvent.click(within(picker).getByRole('button', { name: 'Save' }))
   expect(onMeaning).toHaveBeenLastCalledWith({ embedding_provider_id: 'srv', embedding_model: 'nomic-embed' })
   // saved on the project, the button says so, and what each search spends is in sight under the box, the window closed
-  useApp.setState({ projects: [{ id: 'p', name: 'demo', embedding_provider_id: 'srv', embedding_model: 'nomic-embed' }] as Project[] })
+  useApp.setState({
+    projects: [{ id: 'p', name: 'demo', embedding_provider_id: 'srv', embedding_model: 'nomic-embed' }] as Project[],
+  })
   const button = await screen.findByRole('button', { name: 'by meaning ▾' })
   await userEvent.click(button)
   expect(screen.queryByRole('dialog')).toBeNull()
-  expect(within(screen.getByRole('region', { name: 'Search' })).getByText(/^By meaning: One embeddings request to that provider for each search \(/)).toBeVisible()
+  expect(
+    within(screen.getByRole('region', { name: 'Search' })).getByText(
+      /^By meaning: One embeddings request to that provider for each search \(/,
+    ),
+  ).toBeVisible()
 })

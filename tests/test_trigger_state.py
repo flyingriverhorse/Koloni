@@ -93,10 +93,13 @@ def test_state_runs_no_filter_inside_a_submodule_and_counts_its_commit(repo, tmp
 @pytest.mark.parametrize("missing", ["ref", "tree"])
 def test_state_fetches_nothing_for_a_partial_clone(repo, tmp_path, missing):
     mark, line = marker(tmp_path, "fetch", passes=False)
-    for key, value in (("core.repositoryformatversion", "1"),
-                       ("extensions.partialClone", "origin"), ("remote.origin.promisor", "true"),
-                       ("remote.origin.url", (tmp_path / "origin").as_uri()),
-                       ("remote.origin.uploadpack", line)):
+    for key, value in (
+        ("core.repositoryformatversion", "1"),
+        ("extensions.partialClone", "origin"),
+        ("remote.origin.promisor", "true"),
+        ("remote.origin.url", (tmp_path / "origin").as_uri()),
+        ("remote.origin.uploadpack", line),
+    ):
         run(repo, "config", key, value)
     if missing == "ref":  # a branch whose commit is not here
         (repo / ".git" / "refs" / "heads" / "ghost").write_text("1234567890" * 4 + "\n")

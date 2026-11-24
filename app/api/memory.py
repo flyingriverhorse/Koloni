@@ -6,7 +6,7 @@ that changes something takes only a request that says it comes from the app's ow
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from app import earlier, koloni
+from app import cards, earlier, koloni
 from app import memory as kept
 from app.agent import announce_memory
 from app.api.deps import get_session, require_own_origin
@@ -62,20 +62,26 @@ def search_memory(project_id: str, q: str = "", session: Session = Depends(get_s
     user sees what an agent would be shown. Words that say nothing find nothing. (Not
     async: a search by meaning asks a server, 22c.)"""
     project = _project(session, project_id)
-    query = kept.one_line(q)[:kept.MAX_QUERY]
+    query = kept.one_line(q)[: kept.MAX_QUERY]
     also = kept.also(session, project, query)
     return {
-        "memory": [{**kept.out(session, project.root_path, record,
-                               also.linked.get(record.project_id)),
-                    "by_meaning": record.id in also.by_meaning}
-                   for record in kept.matching(session, project, query, also=also)],
+        "memory": [
+            {
+                **kept.out(session, project.root_path, record, also.linked.get(record.project_id)),
+                "by_meaning": record.id in also.by_meaning,
+            }
+            for record in kept.matching(session, project, query, also=also)
+        ],
         "turns": earlier.found(session, project.id, query, also),
         "meaning_off": also.off,
     }
 
 
-@router.get("/projects/{project_id}/memory/export", response_class=Response, responses={
-    200: {"content": {"text/markdown": {}}, "description": "The core, as MEMORY.md"}})
+@router.get(
+    "/projects/{project_id}/memory/export",
+    response_class=Response,
+    responses={200: {"content": {"text/markdown": {}}, "description": "The core, as MEMORY.md"}},
+)
 def export_memory(project_id: str, session: Session = Depends(get_session)):
     """The core as a Markdown file to read or keep. A copy: it is never read back."""
     return Response(
@@ -86,7 +92,9 @@ def export_memory(project_id: str, session: Session = Depends(get_session)):
 
 
 @router.post(
-    "/projects/{project_id}/memory", response_model=MemoryOut, status_code=201,
+    "/projects/{project_id}/memory",
+    response_model=MemoryOut,
+    status_code=201,
     dependencies=[Depends(require_own_origin)],
 )
 async def write_fact(
@@ -104,7 +112,8 @@ async def write_fact(
 
 
 @router.put(
-    "/projects/{project_id}/rules", response_model=RulesOut,
+    "/projects/{project_id}/rules",
+    response_model=RulesOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def set_rules(
@@ -124,6 +133,44 @@ async def set_rules(
     return {"rules": kept.rules_in_effect(project)}
 
 
+@router.post(
+    "/projects/{project_id}/card-suggestions/{key}",
+    response_model=RulesOut,
+    dependencies=[Depends(require_own_origin)],
+)
+async def add_suggested_rule(
+    project_id: str, key: str, request: Request, session: Session = Depends(get_session)
+):
+    """Cards measured (0.1.7): the user's click on a rule the Usage page suggests - by its key
+    alone, never text: its line, KOLONİ's, found again among what this project's approvals
+    suggest (`cards.suggestions`), at the end of the project's rules, saved as `set_rules` saves
+    them. Once there, the same click changes nothing."""
+    project = _project(session, project_id)
+    rules = kept.rules_in_effect(project)
+    found = next(
+        (
+            one
+            for one in cards.suggestions(session, project, rules or "", True)
+            if one["key"] == key
+        ),
+        None,
+    )
+    if found is None:
+        raise HTTPException(404, "no such suggestion: the approvals no longer suggest it")
+    if line := found.get("mentioned"):  # (S: never beside the user's own line on that path)
+        raise HTTPException(409, f"not added: your own words name that path - “{line[:200]}”")
+    text = cards.with_rule(rules, found["rule"])
+    try:
+        if (tidy := kept.check_rules(text)) != rules:
+            koloni.save_rules(project.root_path, tidy)
+        kept.change_rules(project, text)
+    except (kept.Refused, koloni.Refused) as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+    session.commit()
+    announce_memory(request.app.state.session_factory, request.app.state.bus, project.id)
+    return {"rules": kept.rules_in_effect(project)}
+
+
 @router.get("/preferences", response_model=PreferencesOut)
 async def read_preferences(session: Session = Depends(get_session)):
     """The user's own preferences (22b): one text, given to every agent in every project."""
@@ -131,7 +178,9 @@ async def read_preferences(session: Session = Depends(get_session)):
 
 
 @router.put(
-    "/preferences", response_model=PreferencesOut, dependencies=[Depends(require_own_origin)],
+    "/preferences",
+    response_model=PreferencesOut,
+    dependencies=[Depends(require_own_origin)],
 )
 async def set_preferences(body: PreferencesIn, session: Session = Depends(get_session)):
     """Set them; an empty text clears them. shortcut: no project's page is told (they are
@@ -145,7 +194,8 @@ async def set_preferences(body: PreferencesIn, session: Session = Depends(get_se
 
 
 @router.post(
-    "/memory/{memory_id}/add-to-preferences", response_model=MemoryOut,
+    "/memory/{memory_id}/add-to-preferences",
+    response_model=MemoryOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def add_to_preferences(
@@ -157,22 +207,27 @@ async def add_to_preferences(
 
 
 @router.post(
-    "/memory/{memory_id}/approve", response_model=MemoryOut,
+    "/memory/{memory_id}/approve",
+    response_model=MemoryOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def approve(
-    memory_id: str, request: Request, body: MemoryApproveIn | None = None,
+    memory_id: str,
+    request: Request,
+    body: MemoryApproveIn | None = None,
     session: Session = Depends(get_session),
 ):
     """Let a waiting note into the core, as it is or with its words corrected."""
     record, project = _record(session, memory_id)
     text = body.text if body else None
-    return _done(request, session, project,
-                 lambda: kept.approve(session, project.root_path, record, text))
+    return _done(
+        request, session, project, lambda: kept.approve(session, project.root_path, record, text)
+    )
 
 
 @router.post(
-    "/memory/{memory_id}/reject", response_model=MemoryOut,
+    "/memory/{memory_id}/reject",
+    response_model=MemoryOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def reject(memory_id: str, request: Request, session: Session = Depends(get_session)):
@@ -182,7 +237,8 @@ async def reject(memory_id: str, request: Request, session: Session = Depends(ge
 
 
 @router.post(
-    "/memory/{memory_id}/restore", response_model=MemoryOut,
+    "/memory/{memory_id}/restore",
+    response_model=MemoryOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def restore(memory_id: str, request: Request, session: Session = Depends(get_session)):
@@ -192,23 +248,28 @@ async def restore(memory_id: str, request: Request, session: Session = Depends(g
 
 
 @router.post(
-    "/memory/{memory_id}/confirm", response_model=MemoryOut,
+    "/memory/{memory_id}/confirm",
+    response_model=MemoryOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def confirm(memory_id: str, request: Request, session: Session = Depends(get_session)):
     """Say of a block that moved: these are the same lines. The record is pinned to
     where they stand now. Anything but a source that moved is a 409."""
     record, project = _record(session, memory_id)
-    return _done(request, session, project,
-                 lambda: kept.confirm(session, project.root_path, record))
+    return _done(
+        request, session, project, lambda: kept.confirm(session, project.root_path, record)
+    )
 
 
 @router.patch(
-    "/memory/{memory_id}", response_model=MemoryOut,
+    "/memory/{memory_id}",
+    response_model=MemoryOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def correct(
-    memory_id: str, body: MemoryPatch, request: Request,
+    memory_id: str,
+    body: MemoryPatch,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     """Correct a fact of the core: a new record in its place, the old one superseded."""
@@ -216,5 +277,6 @@ async def correct(
     changes = body.model_dump(exclude_unset=True)
     if changes.get("text") is None:
         changes.pop("text", None)
-    return _done(request, session, project,
-                 lambda: kept.correct(session, project.root_path, record, changes))
+    return _done(
+        request, session, project, lambda: kept.correct(session, project.root_path, record, changes)
+    )

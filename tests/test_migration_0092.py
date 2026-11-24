@@ -15,12 +15,20 @@ def test_rooms_and_conversations_from_before_are_not_paused_and_ask(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0091")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO conversations (id, title, created_at, updated_at) "
-                     "VALUES ('c', 'c', ?, ?)", (AT, AT))
-        conn.execute("INSERT INTO runs (id, conversation_id, status, created_at) "
-                     "VALUES ('r', 'c', 'completed', ?)", (AT,))
-        conn.execute("INSERT INTO rooms (id, run_id, goal, status, seconds, created_at) "
-                     "VALUES ('o', 'r', 'g', 'ended', 0, ?)", (AT,))
+        conn.execute(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c', 'c', ?, ?)",
+            (AT, AT),
+        )
+        conn.execute(
+            "INSERT INTO runs (id, conversation_id, status, created_at) "
+            "VALUES ('r', 'c', 'completed', ?)",
+            (AT,),
+        )
+        conn.execute(
+            "INSERT INTO rooms (id, run_id, goal, status, seconds, created_at) "
+            "VALUES ('o', 'r', 'g', 'ended', 0, ?)",
+            (AT,),
+        )
 
     command.upgrade(cfg, "0092")
 
@@ -33,5 +41,6 @@ def test_rooms_and_conversations_from_before_are_not_paused_and_ask(tmp_path):
     with sqlite3.connect(db) as conn:
         assert "paused" not in {row[1] for row in conn.execute("PRAGMA table_info(rooms)")}
         assert "page_scripts" not in {
-            row[1] for row in conn.execute("PRAGMA table_info(conversations)")}
+            row[1] for row in conn.execute("PRAGMA table_info(conversations)")
+        }
     command.upgrade(cfg, "0092")

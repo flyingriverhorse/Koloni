@@ -15,23 +15,40 @@ def test_the_board_of_every_chat_has_another_folders_and_a_plain_chats_waiting_c
     b = client.post("/api/projects", json={"root_path": str(tmp_path / "other")}).json()["id"]
     in_a, in_b, plain = (
         client.post("/api/conversations", json=body).json()["id"]
-        for body in ({"project_id": a}, {"project_id": b}, {}))
+        for body in ({"project_id": a}, {"project_id": b}, {})
+    )
     with client.app.state.session_factory() as session:
         for cid in (in_b, plain):  # an agent of each asks the user
             run = Run(conversation_id=cid, status="waiting_approval")
             session.add(run)
             session.flush()
-            session.add(Agent(run_id=run.id, role_name="Lead", name="Lead", tools=[],
-                              status="waiting_approval"))
-        session.add(BacklogTask(project_id=b, title="Add a farewell", status="proposed",
-                                position=1, created_by="agent"))
+            session.add(
+                Agent(
+                    run_id=run.id,
+                    role_name="Lead",
+                    name="Lead",
+                    tools=[],
+                    status="waiting_approval",
+                )
+            )
+        session.add(
+            BacklogTask(
+                project_id=b,
+                title="Add a farewell",
+                status="proposed",
+                position=1,
+                created_by="agent",
+            )
+        )
         session.commit()
 
     everywhere = client.get("/api/board")
     assert everywhere.status_code == 200, everywhere.text
     told = everywhere.json()
-    asking = {row["conversation_id"]: [x["status"] for x in row["agents"]]
-              for row in told["conversations"]}
+    asking = {
+        row["conversation_id"]: [x["status"] for x in row["agents"]]
+        for row in told["conversations"]
+    }
     assert asking == {in_a: [], in_b: ["waiting_approval"], plain: ["waiting_approval"]}
     assert (told["limit"], told["backlog_waiting"], told["conflicts"]) == (None, 1, [])
     # A folder's own board keeps to its chats.

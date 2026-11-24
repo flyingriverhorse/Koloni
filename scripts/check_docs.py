@@ -38,8 +38,10 @@ GUIDE_SETTINGS = ("docs/settings.md", "docs/reference/all-settings.md")
 APP_SETTINGS = (
     "frontend/src/shell/Settings.tsx",
     "frontend/src/shell/ProjectSettings.tsx",
-    *sorted(str(p.relative_to(ROOT).as_posix())
-            for p in (ROOT / "frontend/src/shell/sections").glob("*.tsx")),
+    *sorted(
+        str(p.relative_to(ROOT).as_posix())
+        for p in (ROOT / "frontend/src/shell/sections").glob("*.tsx")
+    ),
     "frontend/src/chat/ChatSheet.tsx",
     "frontend/src/voice/VoiceControls.tsx",
     "frontend/src/shell/Backup.tsx",
@@ -146,7 +148,8 @@ REPOSITORY = "https://github.com/flyingriverhorse/Koloni/blob/main/"
 # with or without a leading slash, and its title if it has one - not a URL of any scheme, nor
 # an anchor of the page.
 _LOCAL_LINK = re.compile(
-    r'(`+).*?\1|\]\((?![a-z][a-z0-9+.-]*:|#)/?([^)\s]+)(\s+"[^"]*")?\)', re.I | re.S)
+    r'(`+).*?\1|\]\((?![a-z][a-z0-9+.-]*:|#)/?([^)\s]+)(\s+"[^"]*")?\)', re.I | re.S
+)
 
 
 def _linked(found: re.Match) -> str:
@@ -166,8 +169,10 @@ def changelog_page(changelog: str) -> str:
 
 def stale_changelog(root: Path) -> list[str]:
     """Writes the Changelog page anew where it is not CHANGELOG.md's: a problem until committed."""
-    page, made = root / CHANGELOG_PAGE, changelog_page(
-        (root / "CHANGELOG.md").read_text(encoding="utf-8"))
+    page, made = (
+        root / CHANGELOG_PAGE,
+        changelog_page((root / "CHANGELOG.md").read_text(encoding="utf-8")),
+    )
     if page.is_file() and page.read_text(encoding="utf-8") == made:
         return []
     page.write_text(made, encoding="utf-8", newline="\n")
@@ -255,8 +260,11 @@ def guide_labels(markdown: str) -> list[str]:
 
 
 def label_problems(root: Path) -> tuple[list[str], list[str]]:
-    app = {norm(label): label for name in APP_SETTINGS
-           for label in app_labels((root / name).read_text(encoding="utf-8"))}
+    app = {
+        norm(label): label
+        for name in APP_SETTINGS
+        for label in app_labels((root / name).read_text(encoding="utf-8"))
+    }
     guide = {}
     for name in GUIDE_SETTINGS:
         for label in guide_labels((root / name).read_text(encoding="utf-8")):

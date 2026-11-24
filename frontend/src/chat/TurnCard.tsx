@@ -34,7 +34,14 @@ interface Props {
  * not a night's closing line, which KOLONİ puts on the last turn there was, hours later.
  */
 function lastAt(state: ConvState, run: Run, lead: Agent | undefined) {
-  return state.messages.filter(m => m.run_id === run.id && m.role !== 'away' && m.role !== 'checked' && (!m.agent_id || m.agent_id === lead?.id)).at(-1)?.created_at ?? run.created_at
+  return (
+    state.messages
+      .filter(
+        m =>
+          m.run_id === run.id && m.role !== 'away' && m.role !== 'checked' && (!m.agent_id || m.agent_id === lead?.id),
+      )
+      .at(-1)?.created_at ?? run.created_at
+  )
 }
 
 /** Its Lead's model as the head says it ("fusion → gpt-6-luna" where Copilot's routing picked it), and Copilot's reason for that pick. */
@@ -48,21 +55,38 @@ function modelOf(lead: Agent | undefined) {
 function TurnName({ lead, name }: { lead: Agent | undefined; name: string }) {
   if (!lead) return <span className="turn-name">{name}</span>
   return (
-    <button type="button" className="turn-name" title="Open its window" onClick={() => useApp.getState().openAgentWindow(lead.id)}>
+    <button
+      type="button"
+      className="turn-name"
+      title="Open its window"
+      onClick={() => useApp.getState().openAgentWindow(lead.id)}
+    >
       {name}
     </button>
   )
 }
 
 /** The turn's message read aloud now, if one is. */
-const saidOf = (state: ConvState, run: Run, speaking: string | null) => state.messages.find(m => m.id === speaking && m.run_id === run.id)
+const saidOf = (state: ConvState, run: Run, speaking: string | null) =>
+  state.messages.find(m => m.id === speaking && m.run_id === run.id)
 
 /**
  * One Lead turn in the chat (0.1.5: no frame): who answered, with what model and when; the turn's groups as the chat draws
  * them; and once it is over a quiet foot - Copy and Read aloud, what it did at their right. A turn at work has none - only
  * the ■ of what of it Auto-read reads.
  */
-export function TurnCard({ state, run, lead, answer, children, summary, waits, latest = false, wordsEnd = false, checked }: Props) {
+export function TurnCard({
+  state,
+  run,
+  lead,
+  answer,
+  children,
+  summary,
+  waits,
+  latest = false,
+  wordsEnd = false,
+  checked,
+}: Props) {
   const teams = useApp(s => s.teams)
   // (Whole answer reads a step's words while the next step is written: the ■ stays with the step still heard.)
   const said = useVoice(s => saidOf(state, run, s.speaking))
@@ -71,7 +95,11 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits, l
   const at = lastAt(state, run, lead)
   const over = summary !== null
   return (
-    <article className={['turn', latest && 'turn-latest', wordsEnd && !checked && 'turn-words-end'].filter(Boolean).join(' ')} data-run={run.id} aria-label={`${name}, ${waits ? WAITS : when(at)}`}>
+    <article
+      className={['turn', latest && 'turn-latest', wordsEnd && !checked && 'turn-words-end'].filter(Boolean).join(' ')}
+      data-run={run.id}
+      aria-label={`${name}, ${waits ? WAITS : when(at)}`}
+    >
       <div className="turn-head">
         <span className="turn-avatar" aria-hidden>
           {name.charAt(0)}
@@ -114,7 +142,12 @@ export function AnswerActions({ message, said = message, over }: { message: Mess
             className="icon-btn"
             aria-label={copied ? 'Copied' : 'Copy'}
             title={copied ? 'Copied' : 'Copy'}
-            onClick={() => void navigator.clipboard?.writeText(message.content).then(() => setCopied(true), () => {})}
+            onClick={() =>
+              void navigator.clipboard?.writeText(message.content).then(
+                () => setCopied(true),
+                () => {},
+              )
+            }
             onBlur={() => setCopied(false)}
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}

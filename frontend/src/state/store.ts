@@ -14,6 +14,7 @@ import type {
   BacklogTask,
   BacklogTaskChange,
   Board,
+  Cards,
   Day,
   DayWords,
   CatalogueDraft,
@@ -244,11 +245,11 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   changeTask(taskId: string, change: BacklogTaskChange): Promise<void>
   deleteTask(taskId: string): Promise<void>
   decideTask(taskId: string, decision: 'approve' | 'reject'): Promise<void>
-  /** OK to the Orchestrator's word on a proposal of the Assistant PO's at Full auto: it leaves "Decided for you". Throws ApiError. */
+  /** OK to the Orchestrator's word on a proposal of the Scout's at Full auto: it leaves "Decided for you". Throws ApiError. */
   seenTask(taskId: string): Promise<void>
   /** Run the backlog: every todo task is queued, and they start as there is room, each in a new conversation. Throws ApiError. */
   runBacklog(): Promise<void>
-  /** What the user typed, written as tasks by a model asked once ("Write it with the Product owner"); nothing is saved. Throws ApiError. */
+  /** What the user typed, written as tasks by a model asked once ("Write it with the Hive keeper"); nothing is saved. Throws ApiError. */
   draftTasks(text: string): Promise<BacklogDraft>
   /** The open project's ☾ Away (slice 106): the one that runs, else its last; null: none, or not read yet. */
   away: Away | null
@@ -365,6 +366,10 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   removePrice(modelId: string): Promise<void>
   /** What the agents' models reported, in one project or (null) in all, from a moment on (null: all of it). Throws ApiError. */
   usage(projectId: string | null, since: string | null, runId?: string): Promise<Usage>
+  /** The command cards asked in one project or (null) in all, from a moment on (null: all of it); a project's suggested rules too. Throws ApiError. */
+  cards(projectId: string | null, since: string | null): Promise<Cards>
+  /** The user's click on a suggested rule: KOLONİ adds its line to the project's rules (it takes the key, never text). Throws ApiError. */
+  addCardRule(projectId: string, key: string): Promise<void>
   /** The open project's day from a moment on, counted from the record. Throws ApiError. */
   day(since: string): Promise<Day>
   /** The day's numbers in words, by a conversation's model: asked once; `overBudget`: the user's word to ask it over the month's budget. Throws ApiError. */
@@ -489,14 +494,25 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
    */
   send(
     content: string,
-    where?: { topic_id?: string; new_topic?: boolean; spoken?: { language: string; style?: string }; over_budget?: boolean; attachments?: string[]; save_to_project?: boolean },
+    where?: {
+      topic_id?: string
+      new_topic?: boolean
+      spoken?: { language: string; style?: string }
+      over_budget?: boolean
+      attachments?: string[]
+      save_to_project?: boolean
+    },
   ): Promise<void>
   /** A file added to the next message (slice 85b), shown at once: its event may come a moment later. */
   attached(attachment: Attachment): void
   /** The ×: a file taken off the next message, with its frames. Throws ApiError. */
   detach(attachmentId: string): Promise<void>
   /** Send the message to the conversation's model and to `second`, side by side, each in a working copy of its own (slice 54); `where`: its topic and the word to go over the month's budget, as `send`'s. Throws ApiError. */
-  compare(content: string, second: { provider_id: string; model_id: string | null }, where?: { topic_id?: string; new_topic?: boolean; over_budget?: boolean }): Promise<void>
+  compare(
+    content: string,
+    second: { provider_id: string; model_id: string | null },
+    where?: { topic_id?: string; new_topic?: boolean; over_budget?: boolean },
+  ): Promise<void>
   loadCompare(compareId: string): Promise<Compare>
   /** Take one side's changes into the project (`runId`), or throw both away (null). Throws ApiError. */
   decideCompare(compareId: string, runId: string | null): Promise<Compare>
@@ -535,7 +551,13 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
    * Take an agent's changes into the project - with whose side is taken of each file that clashes, and what its card
    * showed of each file (nothing is taken where one moved since: a 409) - or discard them. Throws ApiError.
    */
-  decideMerge(mergeId: string, decision: 'approve' | 'reject', choices?: Record<string, 'agent' | 'project'>, shown?: Record<string, (string | null)[]>, said?: BranchSaid): Promise<void>
+  decideMerge(
+    mergeId: string,
+    decision: 'approve' | 'reject',
+    choices?: Record<string, 'agent' | 'project'>,
+    shown?: Record<string, (string | null)[]>,
+    said?: BranchSaid,
+  ): Promise<void>
   /** K-dal-takim D2: an agent puts a branch's conflicts together in its worktree; the card asks again. Throws ApiError. */
   resolveMerge(mergeId: string): Promise<void>
   /** K-devam-butce: Continue on a stopped agent's kept card - more steps, and it goes on in its copy. Throws ApiError. */
@@ -545,7 +567,11 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** Commit the files that were taken from an agent, they alone, with this message. Throws ApiError. */
   commitMerge(mergeId: string, message: string, hooks?: 'with' | 'without'): Promise<void>
   /** Create or decline a role an agent asked for; or let a path outside the project be opened once, for its folder, or not. Throws ApiError. */
-  decideRole(toolCallId: string, decision: 'approve' | 'reject', scope?: 'once' | 'folder' | 'ask_scripts'): Promise<void>
+  decideRole(
+    toolCallId: string,
+    decision: 'approve' | 'reject',
+    scope?: 'once' | 'folder' | 'ask_scripts',
+  ): Promise<void>
   /** The open chat's extra folders, as they are to be (slice 86b). Throws ApiError with why not. */
   setChatFolders(lists: { also_in: string[]; read_in: string[] }): Promise<void>
   /** The part of the folder's map the open chat's agents work in (K-buyuk-proje); null: all of it. Throws ApiError with why not. */
@@ -639,7 +665,8 @@ export function resetStoreForTests(): void {
   useApp.setState(useApp.getInitialState(), true)
 }
 
-const readHealth = (id: string | null) => api.get<Health>(id ? `/health?provider_id=${encodeURIComponent(id)}` : '/health')
+const readHealth = (id: string | null) =>
+  api.get<Health>(id ? `/health?provider_id=${encodeURIComponent(id)}` : '/health')
 // The latest loadHealth: an older one, answered late, does not put its readings over a newer one's.
 let healthRuns = 0
 
@@ -650,7 +677,12 @@ async function inUseNow(get: () => AppStore, health: Health | null): Promise<{ r
     // (Read with the page's first reading, they may not be here yet.)
     if (get().roles.length === 0) await get().loadRoles()
     if (get().providers.length === 0) await get().loadProviders()
-    const [rows, tiers] = await Promise.all([get().roleModels(chat?.id ?? null), get().tiers().catch(() => null)])
+    const [rows, tiers] = await Promise.all([
+      get().roleModels(chat?.id ?? null),
+      get()
+        .tiers()
+        .catch(() => null),
+    ])
     const observes = get().projects.some(one => one.id === chat?.project_id && one.observe_reports)
     const { ids, cannot } = inUseBy(chat, rows, { ...get(), tiers, observes })
     // A reading that fails keeps the last one: one glitch neither quiets the bar nor shows it again after a dismissal.
@@ -667,7 +699,8 @@ async function inUseNow(get: () => AppStore, health: Health | null): Promise<{ r
 /** k-tarif-model: the chat the page is open on - a draft asks its Orchestrator's model too (its model picker); null: none. */
 const openChatId = (state: AppStore) => state.conv?.conversation.id ?? null
 /** ...as a query: "?conversation_id=…", or "" with no chat open. */
-const inChat = (state: AppStore) => (openChatId(state) ? `?conversation_id=${encodeURIComponent(openChatId(state) ?? '')}` : '')
+const inChat = (state: AppStore) =>
+  openChatId(state) ? `?conversation_id=${encodeURIComponent(openChatId(state) ?? '')}` : ''
 
 export const useApp = create<AppStore>()((set, get) => {
   async function refreshConversations(): Promise<ListedConversation[]> {
@@ -726,10 +759,16 @@ export const useApp = create<AppStore>()((set, get) => {
       knowledgeError: null,
     })
     // A folder made a project since the list was read.
-    if (projectId && !get().projects.some(p => p.id === projectId)) void api.get<Project[]>('/projects').then(projects => set({ projects }), () => {})
+    if (projectId && !get().projects.some(p => p.id === projectId))
+      void api.get<Project[]>('/projects').then(
+        projects => set({ projects }),
+        () => {},
+      )
     // The top bar says how many triggers are on, on every page; the `/` menu offers the folder's own commands.
     void get().loadTriggers()
-    void get().loadOwnCommands().catch(() => {})
+    void get()
+      .loadOwnCommands()
+      .catch(() => {})
   }
 
   /** Take a fresh snapshot and resubscribe, backing off while the server is away. */
@@ -752,7 +791,10 @@ export const useApp = create<AppStore>()((set, get) => {
   /** What an event of the open conversation says changed elsewhere: read again. */
   function readAgainOn(type: string) {
     // An agent added a role: the Agents page and the next spawn should know it.
-    if (type === 'role.created') void get().loadRoles().catch(() => {})
+    if (type === 'role.created')
+      void get()
+        .loadRoles()
+        .catch(() => {})
     // A skill was added on your card, and given to roles.
     if (type === 'skill.created') void Promise.all([get().loadRoles(), get().loadSkills()]).catch(() => {})
     // The project's memory changed, here or in another conversation: if it is on
@@ -764,7 +806,9 @@ export const useApp = create<AppStore>()((set, get) => {
       void get().loadBoard()
       // ...and so does a night while you're away (slice 106): its card here, the top bar.
       void readCards().catch(() => {})
-      void get().loadAway().catch(() => {})
+      void get()
+        .loadAway()
+        .catch(() => {})
       // The next task may have started by itself, in a conversation of its own.
       void refreshConversations().catch(() => {})
     }
@@ -795,8 +839,11 @@ export const useApp = create<AppStore>()((set, get) => {
     // The board is read again when a file changes hands, a turn stops to ask or goes
     // on, or an agent starts, ends or begins to wait - not for each thing an agent says.
     const was = type === 'agent.updated' && get().conv?.agents.find(a => a.id === (payload as Agent).id)
-    const moved = was && (was.status !== (payload as Agent).status || was.waiting_for?.path !== (payload as Agent).waiting_for?.path)
-    if (moved || ['claims.changed', 'agent.created', 'run.updated', 'run.finished'].includes(type)) void get().loadBoard()
+    const moved =
+      was &&
+      (was.status !== (payload as Agent).status || was.waiting_for?.path !== (payload as Agent).waiting_for?.path)
+    if (moved || ['claims.changed', 'agent.created', 'run.updated', 'run.finished'].includes(type))
+      void get().loadBoard()
   }
 
   /** The window an event of the open conversation opens: a room's, a discussion's. */
@@ -807,7 +854,11 @@ export const useApp = create<AppStore>()((set, get) => {
     // (Another's window open - the user may be writing in it: the new one comes as a tab beside it.)
     if (type === 'room.created') {
       const roomId = (payload as { id: string }).id
-      set(s => ({ roomWindows: Object.values(s.roomWindows).includes('open') ? { ...s.roomWindows, [roomId]: 'small' } : withOpen(s.roomWindows, roomId) }))
+      set(s => ({
+        roomWindows: Object.values(s.roomWindows).includes('open')
+          ? { ...s.roomWindows, [roomId]: 'small' }
+          : withOpen(s.roomWindows, roomId),
+      }))
     }
     // A discussion is something to watch: its shared place opens as it starts.
     if (type === 'discussion.created') {
@@ -876,7 +927,10 @@ export const useApp = create<AppStore>()((set, get) => {
       set(s => ({ roomWindows: Object.fromEntries(Object.entries(s.roomWindows).filter(([id]) => id !== roomId)) }))
       // Back where it can be opened again: its tab, if it keeps one (something still waits), else its line in the chat.
       requestAnimationFrame(() =>
-        (document.getElementById(`room-tab-${roomId}`) ?? document.querySelector<HTMLElement>(`[data-room-line="${roomId}"]`))?.focus(),
+        (
+          document.getElementById(`room-tab-${roomId}`) ??
+          document.querySelector<HTMLElement>(`[data-room-line="${roomId}"]`)
+        )?.focus(),
       )
     },
 
@@ -909,24 +963,38 @@ export const useApp = create<AppStore>()((set, get) => {
       // come from it) - not each step its other agents take meanwhile.
       // shortcut: a chat whose only waiting cards are ones the Board does not count (a proposed trigger, a Project
       // notes offer, a night to start) is not read; they show in their own chat. Count them on the Board if missed.
-      const rows = new Map((get().everywhere?.conversations ?? []).filter(c => c.conversation_id !== open && waitCount(c) > 0).map(c => [c.conversation_id, JSON.stringify([c.merges_pending, c.turn?.plan_waits, c.agents.map(a => [a.id, a.status, a.changes_to_approve, a.questions])])]))
+      const rows = new Map(
+        (get().everywhere?.conversations ?? [])
+          .filter(c => c.conversation_id !== open && waitCount(c) > 0)
+          .map(c => [
+            c.conversation_id,
+            JSON.stringify([
+              c.merges_pending,
+              c.turn?.plan_waits,
+              c.agents.map(a => [a.id, a.status, a.changes_to_approve, a.questions]),
+            ]),
+          ]),
+      )
       for (const id of readyRows.keys()) if (!rows.has(id)) readyRows.delete(id)
       // (Read every few seconds: a new object only when one went, so nothing is drawn again for nothing.)
-      if (Object.keys(get().readyChats).some(id => !rows.has(id))) set(s => ({ readyChats: Object.fromEntries(Object.entries(s.readyChats).filter(([id]) => rows.has(id))) }))
+      if (Object.keys(get().readyChats).some(id => !rows.has(id)))
+        set(s => ({ readyChats: Object.fromEntries(Object.entries(s.readyChats).filter(([id]) => rows.has(id))) }))
       await Promise.all(
-        [...rows].filter(([id, row]) => readyRows.get(id) !== row).map(async ([id, row]) => {
-          const mark = fresh.has(id) ? `read ${++readyReads}` : row
-          readyRows.set(id, mark)
-          try {
-            const read = fromSnapshot(await api.get<Snapshot>(`/conversations/${id}`))
-            // (Not over a later read's answer.)
-            set(s => (readyRows.get(id) === mark ? { readyChats: { ...s.readyChats, [id]: read } } : s))
-          } catch {
-            // (Not read again at every reading of the Board: when its row changes, or after a decision on it.)
-          } finally {
-            if (fresh.has(id) && readyRows.get(id) === mark) readyRows.delete(id)
-          }
-        }),
+        [...rows]
+          .filter(([id, row]) => readyRows.get(id) !== row)
+          .map(async ([id, row]) => {
+            const mark = fresh.has(id) ? `read ${++readyReads}` : row
+            readyRows.set(id, mark)
+            try {
+              const read = fromSnapshot(await api.get<Snapshot>(`/conversations/${id}`))
+              // (Not over a later read's answer.)
+              set(s => (readyRows.get(id) === mark ? { readyChats: { ...s.readyChats, [id]: read } } : s))
+            } catch {
+              // (Not read again at every reading of the Board: when its row changes, or after a decision on it.)
+            } finally {
+              if (fresh.has(id) && readyRows.get(id) === mark) readyRows.delete(id)
+            }
+          }),
       )
     },
 
@@ -992,7 +1060,8 @@ export const useApp = create<AppStore>()((set, get) => {
         if (mine === triggerReads) set({ triggers, triggersPaused: paused, triggerChanges, triggersError: null })
         // B-353: a chat made since the list was read (by the API, another window) is not "gone": the list is read again.
         const known = get().conversations
-        if (triggers.some(t => t.conversation_id && !known.some(c => c.id === t.conversation_id))) void refreshConversations().catch(() => {})
+        if (triggers.some(t => t.conversation_id && !known.some(c => c.id === t.conversation_id)))
+          void refreshConversations().catch(() => {})
       } catch (err) {
         if (mine === triggerReads) set({ triggersError: errorText(err) })
       }
@@ -1042,7 +1111,10 @@ export const useApp = create<AppStore>()((set, get) => {
 
     async allowedHostsOf(conversationId) {
       const open = get().conv
-      const rules = open?.conversation.id === conversationId ? open.allowedWeb : ((await api.get<Snapshot>(`/conversations/${conversationId}`)).allowed_web ?? [])
+      const rules =
+        open?.conversation.id === conversationId
+          ? open.allowedWeb
+          : ((await api.get<Snapshot>(`/conversations/${conversationId}`)).allowed_web ?? [])
       return rules.filter(rule => rule.kind === 'host').map(rule => rule.host)
     },
 
@@ -1150,7 +1222,11 @@ export const useApp = create<AppStore>()((set, get) => {
       await get().loadBacklog()
     },
 
-    draftTasks: text => api.post<BacklogDraft>('/projects/' + get().projectId + '/backlog/draft', { text, conversation_id: openChatId(get()) }),
+    draftTasks: text =>
+      api.post<BacklogDraft>('/projects/' + get().projectId + '/backlog/draft', {
+        text,
+        conversation_id: openChatId(get()),
+      }),
 
     async runBacklog() {
       await backlogChoice
@@ -1191,7 +1267,10 @@ export const useApp = create<AppStore>()((set, get) => {
     },
 
     async answerAsk(ask, yes) {
-      await api.post(`/${ask.kind}/${ask.id}/${yes ? 'approve' : 'reject'}`, ask.kind === 'commands' || ask.kind === 'web-requests' ? { remember: false } : undefined)
+      await api.post(
+        `/${ask.kind}/${ask.id}/${yes ? 'approve' : 'reject'}`,
+        ask.kind === 'commands' || ask.kind === 'web-requests' ? { remember: false } : undefined,
+      )
       // (Its chat is another as a rule: Ready for you reads the chats again.)
       await Promise.all([get().loadAway(), readCards(), get().loadReadyChats(true)])
     },
@@ -1265,7 +1344,10 @@ export const useApp = create<AppStore>()((set, get) => {
       let conversations: ListedConversation[]
       const asked = ++conversationsAsked
       try {
-        ;[projects, conversations] = await Promise.all([api.get<Project[]>('/projects'), api.get<ListedConversation[]>('/conversations')])
+        ;[projects, conversations] = await Promise.all([
+          api.get<Project[]>('/projects'),
+          api.get<ListedConversation[]>('/conversations'),
+        ])
       } catch (err) {
         set({ loadError: errorText(err) })
         return
@@ -1314,7 +1396,11 @@ export const useApp = create<AppStore>()((set, get) => {
     browseFolders: path => api.post<FolderBrowse>('/folders/browse', path ? { path } : {}),
 
     async loadRoles() {
-      const [roles, teams, categories] = await Promise.all([api.get<Role[]>('/roles'), api.get<Team[]>('/teams'), api.get<Category[]>('/categories')])
+      const [roles, teams, categories] = await Promise.all([
+        api.get<Role[]>('/roles'),
+        api.get<Team[]>('/teams'),
+        api.get<Category[]>('/categories'),
+      ])
       set({ roles, teams, categories })
     },
 
@@ -1433,7 +1519,10 @@ export const useApp = create<AppStore>()((set, get) => {
     cataloguePrices: [],
 
     async loadPrices() {
-      const [prices, cataloguePrices] = await Promise.all([api.get<Price[]>('/prices'), api.get<CataloguePrice[]>('/prices/catalogue')])
+      const [prices, cataloguePrices] = await Promise.all([
+        api.get<Price[]>('/prices'),
+        api.get<CataloguePrice[]>('/prices/catalogue'),
+      ])
       set({ prices, cataloguePrices })
     },
 
@@ -1454,9 +1543,24 @@ export const useApp = create<AppStore>()((set, get) => {
       return api.get<Usage>(`/usage?${asked}`)
     },
 
+    async cards(projectId, since) {
+      const asked = new URLSearchParams()
+      if (projectId) asked.set('project_id', projectId)
+      if (since) asked.set('since', since)
+      return api.get<Cards>(`/cards?${asked}`)
+    },
+
+    async addCardRule(projectId, key) {
+      await api.post(`/projects/${projectId}/card-suggestions/${encodeURIComponent(key)}`, {})
+    },
+
     day: since => api.get<Day>(`/projects/${get().projectId}/day?since=${encodeURIComponent(since)}`),
     dayWords: (since, conversationId, overBudget) =>
-      api.post<DayWords>(`/projects/${get().projectId}/day/words`, { since, conversation_id: conversationId, over_budget: overBudget }),
+      api.post<DayWords>(`/projects/${get().projectId}/day/words`, {
+        since,
+        conversation_id: conversationId,
+        over_budget: overBudget,
+      }),
 
     budget: null,
     async loadBudget() {
@@ -1503,10 +1607,18 @@ export const useApp = create<AppStore>()((set, get) => {
       }
     },
 
-    limits: (providerId, afresh) => (afresh ? api.post<Limits>(`/providers/${providerId}/limits/check`) : api.get<Limits>(`/providers/${providerId}/limits`)),
+    limits: (providerId, afresh) =>
+      afresh
+        ? api.post<Limits>(`/providers/${providerId}/limits/check`)
+        : api.get<Limits>(`/providers/${providerId}/limits`),
     claudeSetup: () => api.post<ClaudeSessionSetup>('/limits/claude-session/setup'),
     roleModels: (conversationId, levels) => {
-      const query = String(new URLSearchParams({ ...(conversationId ? { conversation_id: conversationId } : {}), ...(levels ? { levels: '1' } : {}) }))
+      const query = String(
+        new URLSearchParams({
+          ...(conversationId ? { conversation_id: conversationId } : {}),
+          ...(levels ? { levels: '1' } : {}),
+        }),
+      )
       return api.get<RoleModel[]>(`/roles/models${query ? `?${query}` : ''}`)
     },
     record: () => api.get<{ rows: RecordRow[] }>('/record').then(read => read.rows),
@@ -1588,16 +1700,28 @@ export const useApp = create<AppStore>()((set, get) => {
       await get().loadRoles()
     },
 
-    recipes: projectId => api.get<Recipes>(projectId ? `/recipes?project_id=${projectId}${inChat(get()).replace('?', '&')}` : `/recipes${inChat(get())}`),
+    recipes: projectId =>
+      api.get<Recipes>(
+        projectId ? `/recipes?project_id=${projectId}${inChat(get()).replace('?', '&')}` : `/recipes${inChat(get())}`,
+      ),
 
     saveRecipe: (recipe, body, projectId) =>
       recipe === null
         ? api.post<Recipe>(projectId ? `/projects/${projectId}/recipes` : '/recipes', body)
-        : api.put<Recipe>(recipe.project_id ? `/projects/${recipe.project_id}/recipes/${encodeURIComponent(recipe.file ?? '')}` : `/recipes/${recipe.id}`, body),
+        : api.put<Recipe>(
+            recipe.project_id
+              ? `/projects/${recipe.project_id}/recipes/${encodeURIComponent(recipe.file ?? '')}`
+              : `/recipes/${recipe.id}`,
+            body,
+          ),
 
     // (A team whose default it was has none now: the teams are read again.)
     async deleteRecipe(recipe) {
-      await api.delete(recipe.project_id ? `/projects/${recipe.project_id}/recipes/${encodeURIComponent(recipe.file ?? '')}` : `/recipes/${recipe.id}`)
+      await api.delete(
+        recipe.project_id
+          ? `/projects/${recipe.project_id}/recipes/${encodeURIComponent(recipe.file ?? '')}`
+          : `/recipes/${recipe.id}`,
+      )
       await get().loadRoles()
     },
 
@@ -1638,11 +1762,16 @@ export const useApp = create<AppStore>()((set, get) => {
       await get().loadKnowledge()
     },
     async copyKnowledge(knowledgeId, toProjectId, replace = false) {
-      await api.post(`/knowledge/${knowledgeId}/copy`, { project_id: get().projectId, to_project_id: toProjectId, replace })
+      await api.post(`/knowledge/${knowledgeId}/copy`, {
+        project_id: get().projectId,
+        to_project_id: toProjectId,
+        replace,
+      })
     },
     knowledgeFile: path => api.get<ProjectFile>(`/projects/${get().projectId}/file?path=${encodeURIComponent(path)}`),
     tryKnowledge: async (knowledgeId, question) =>
-      (await api.post<{ answer: string }>(`/knowledge/${knowledgeId}/try`, { project_id: get().projectId, question })).answer,
+      (await api.post<{ answer: string }>(`/knowledge/${knowledgeId}/try`, { project_id: get().projectId, question }))
+        .answer,
     async createExpert(role, knowledge) {
       const made = await api.post<Role>('/roles/experts', { project_id: get().projectId, role, knowledge })
       await Promise.all([get().loadKnowledge(), get().loadRoles()])
@@ -1659,7 +1788,9 @@ export const useApp = create<AppStore>()((set, get) => {
     async loadOwnCommands() {
       // The folder's own and every folder's; in a plain chat every folder's. Not a folder's that was left meanwhile.
       const { projectId } = get()
-      const commands = await api.get<OwnCommand[]>(projectId ? `/own-commands?project_id=${projectId}` : '/own-commands')
+      const commands = await api.get<OwnCommand[]>(
+        projectId ? `/own-commands?project_id=${projectId}` : '/own-commands',
+      )
       if (get().projectId === projectId) set({ ownCommands: commands })
     },
 
@@ -1682,7 +1813,12 @@ export const useApp = create<AppStore>()((set, get) => {
     previewSkill: source => api.post<SkillPreview>('/skills/preview', source),
 
     async addSkill(source, scriptsRunUnasked, sha256, replace = false) {
-      const added = await api.post<Skill>('/skills', { ...source, scripts_run_unasked: scriptsRunUnasked, sha256, replace })
+      const added = await api.post<Skill>('/skills', {
+        ...source,
+        scripts_run_unasked: scriptsRunUnasked,
+        sha256,
+        replace,
+      })
       // (A replaced one's roles have it by its new name.)
       await Promise.all([get().loadSkills(), replace ? get().loadRoles() : null])
       return added
@@ -1832,7 +1968,13 @@ export const useApp = create<AppStore>()((set, get) => {
             // a turn a trigger starts never takes the canvas from what the user is looking at.
             if ((type === 'run.started' || type === 'run.updated') && conv !== s.conv && s.turnId !== null) {
               const run = payload as Run
-              if (startsNewTurn(s.conv.runs.find(r => r.id === run.id), run)) return { conv, turnId: null }
+              if (
+                startsNewTurn(
+                  s.conv.runs.find(r => r.id === run.id),
+                  run,
+                )
+              )
+                return { conv, turnId: null }
             }
             // When a run stops to ask about a file change, that change is the thing to
             // look at: bring it up. Edits the agent may write directly never pause the
@@ -1842,7 +1984,13 @@ export const useApp = create<AppStore>()((set, get) => {
               const waiting =
                 run.status === 'waiting_approval' &&
                 conv.fileChanges.findLast(f => f.run_id === run.id && f.status === 'proposed')
-              if (waiting) return { conv, filesOpen: true, filesRef: null, filesAt: { key: keyOf(waiting.path), n: s.filesAt.n + 1 } }
+              if (waiting)
+                return {
+                  conv,
+                  filesOpen: true,
+                  filesRef: null,
+                  filesAt: { key: keyOf(waiting.path), n: s.filesAt.n + 1 },
+                }
             }
             return { conv }
           })
@@ -1869,7 +2017,11 @@ export const useApp = create<AppStore>()((set, get) => {
 
     async closeTab(tab) {
       const conv = get().conv
-      const { tabs, next } = closing(kept(get().tabs, get().conversations, get().projects), tab, conv ? tabOf(conv.conversation.project_id) : null)
+      const { tabs, next } = closing(
+        kept(get().tabs, get().conversations, get().projects),
+        tab,
+        conv ? tabOf(conv.conversation.project_id) : null,
+      )
       set({ tabs })
       remember(tabs)
       // shortcut: the last tab closed leaves its chat on the canvas (the store has no "no chat open"); add one if that is missed.
@@ -1942,7 +2094,10 @@ export const useApp = create<AppStore>()((set, get) => {
       if (!conv) return
       // The first side is what a message would run on now: the conversation's model, else the first provider.
       const first = conv.conversation.provider_id ?? get().providers[0]?.id
-      const sides = [{ provider_id: first, model_id: conv.conversation.provider_id ? conv.conversation.model_id : null }, second]
+      const sides = [
+        { provider_id: first, model_id: conv.conversation.provider_id ? conv.conversation.model_id : null },
+        second,
+      ]
       await api.post(`/conversations/${conv.conversation.id}/compare`, { content, sides, ...where })
       void refreshConversations()
     },
@@ -1952,11 +2107,17 @@ export const useApp = create<AppStore>()((set, get) => {
     },
 
     decideCompare(compareId, runId) {
-      return runId ? api.post<Compare>(`/compares/${compareId}/choose`, { run_id: runId }) : api.post<Compare>(`/compares/${compareId}/discard`)
+      return runId
+        ? api.post<Compare>(`/compares/${compareId}/choose`, { run_id: runId })
+        : api.post<Compare>(`/compares/${compareId}/discard`)
     },
 
     attached(attachment) {
-      set(s => (s.conv?.conversation.id === attachment.conversation_id ? { conv: applyEvent(s.conv, null, 'attachment.updated', attachment) } : s))
+      set(s =>
+        s.conv?.conversation.id === attachment.conversation_id
+          ? { conv: applyEvent(s.conv, null, 'attachment.updated', attachment) }
+          : s,
+      )
     },
 
     async detach(attachmentId) {
@@ -1982,7 +2143,9 @@ export const useApp = create<AppStore>()((set, get) => {
     },
 
     async sendAgain(runId, overBudget = false) {
-      const sent = await api.post<{ message: ConvState['messages'][number]; run: Run }>(`/runs/${runId}/send`, { over_budget: overBudget })
+      const sent = await api.post<{ message: ConvState['messages'][number]; run: Run }>(`/runs/${runId}/send`, {
+        over_budget: overBudget,
+      })
       // Its turn is the newest now: under the others, as the chat is read again (unless its events came first).
       set(s => {
         if (s.conv?.conversation.id !== sent.run.conversation_id) return s
@@ -2022,7 +2185,10 @@ export const useApp = create<AppStore>()((set, get) => {
     },
 
     async decidePlan(runId, decision, text, overBudget) {
-      await api.post(`/runs/${runId}/plan/${decision}`, decision === 'approve' ? { text, over_budget: overBudget } : { why: text })
+      await api.post(
+        `/runs/${runId}/plan/${decision}`,
+        decision === 'approve' ? { text, over_budget: overBudget } : { why: text },
+      )
     },
 
     async falseAlarm(warningId) {
@@ -2030,15 +2196,33 @@ export const useApp = create<AppStore>()((set, get) => {
       if (!id) return
       const now = await api.post<InjectionWarning>(`/conversations/${id}/warnings/${warningId}/false-alarm`)
       // Its rule's count is every warning's of that rule.
-      set(s => s.conv?.conversation.id !== id ? s : { conv: { ...s.conv, warnings: s.conv.warnings.map(w =>
-        w.id === now.id ? now : w.rule === now.rule ? { ...w, false_alarms: now.false_alarms } : w) } })
+      set(s =>
+        s.conv?.conversation.id !== id
+          ? s
+          : {
+              conv: {
+                ...s.conv,
+                warnings: s.conv.warnings.map(w =>
+                  w.id === now.id ? now : w.rule === now.rule ? { ...w, false_alarms: now.false_alarms } : w,
+                ),
+              },
+            },
+      )
     },
 
     async decideCommand(commandId, decision) {
       if (decision === 'reject') await api.post(`/commands/${commandId}/reject`)
-      else await api.post(`/commands/${commandId}/approve`, { remember: decision === 'always', disposable: decision === 'disposable' })
+      else
+        await api.post(`/commands/${commandId}/approve`, {
+          remember: decision === 'always',
+          disposable: decision === 'disposable',
+        })
       // (Its project allows such deletes now: no later card offers it again.)
-      if (decision === 'disposable') void api.get<Project[]>('/projects').then(projects => set({ projects }), () => {})
+      if (decision === 'disposable')
+        void api.get<Project[]>('/projects').then(
+          projects => set({ projects }),
+          () => {},
+        )
     },
 
     async removeRule(ruleId) {
@@ -2074,7 +2258,10 @@ export const useApp = create<AppStore>()((set, get) => {
     },
 
     async decideMerge(mergeId, decision, choices, shown, said) {
-      await api.post(`/merges/${mergeId}/${decision}`, decision === 'approve' ? { choices: choices ?? {}, shown, ...said } : undefined)
+      await api.post(
+        `/merges/${mergeId}/${decision}`,
+        decision === 'approve' ? { choices: choices ?? {}, shown, ...said } : undefined,
+      )
       // (What comes of it - the files taken, the commit offered - arrives as events.)
     },
 
@@ -2163,12 +2350,16 @@ export const useApp = create<AppStore>()((set, get) => {
         ...('docker_image' in values && { docker_image: values.docker_image ?? '' }),
       })
       set(s => ({ projects: s.projects.map(p => (p.id === saved.id ? saved : p)) }))
-      if ('monthly_budget' in values) void get().loadBudget().catch(() => {})
+      if ('monthly_budget' in values)
+        void get()
+          .loadBudget()
+          .catch(() => {})
     },
 
     async takeKoloniSettings(asks) {
       const at = `/projects/${get().projectId}`
-      const put = (project: Project) => set(s => ({ projects: s.projects.map(p => (p.id === project.id ? project : p)) }))
+      const put = (project: Project) =>
+        set(s => ({ projects: s.projects.map(p => (p.id === project.id ? project : p)) }))
       try {
         const used = await api.post<Project>(`${at}/koloni/use`, { asks })
         put(used)
@@ -2229,7 +2420,11 @@ export const useApp = create<AppStore>()((set, get) => {
     async decide(changeId, action) {
       const change = await api.post<FileChange>(`/file-changes/${changeId}/${action}`)
       // The same record also arrives as an event; applying it twice is harmless. (Not into the open chat one of another's, from Ready for you.)
-      set(s => (s.conv?.fileChanges.some(f => f.id === change.id) ? { conv: applyEvent(s.conv, null, 'file_change.updated', change) } : s))
+      set(s =>
+        s.conv?.fileChanges.some(f => f.id === change.id)
+          ? { conv: applyEvent(s.conv, null, 'file_change.updated', change) }
+          : s,
+      )
     },
   }
 })

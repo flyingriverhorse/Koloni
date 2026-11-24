@@ -37,6 +37,8 @@ def test_old_rows_keep_their_away_setting_new_ones_decide_after_5_minutes_and_ba
         conn.execute(PROJECT, ("c", "back", "C:/c", AT))
         assert conn.execute(AWAY.format("projects")).fetchall()[-1] == ("waits", 10)
         assert "proposed_in" not in [
-            row[1] for row in conn.execute("PRAGMA table_info(backlog_tasks)")]
+            row[1] for row in conn.execute("PRAGMA table_info(backlog_tasks)")
+        ]
         assert "spent_before" not in [
-            row[1] for row in conn.execute("PRAGMA table_info(away_runs)")]
+            row[1] for row in conn.execute("PRAGMA table_info(away_runs)")
+        ]

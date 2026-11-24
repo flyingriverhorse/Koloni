@@ -23,7 +23,11 @@ const provider = (over: Partial<Provider>): Provider => ({
   note: null,
   models: [],
   only_listed: false,
-  max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
   has_key: false,
   position: 0,
   created_at: 't',
@@ -32,7 +36,14 @@ const provider = (over: Partial<Provider>): Provider => ({
 })
 const NOTES = { strongest: 'Among its strongest', balanced: 'Strength and speed balanced', fast: 'Fast and cheap' }
 const proposal: FilledProvider[] = [
-  { id: 'p1', name: 'Local', kind: 'openai_compat', catalogued: false, for_agents: false, models: [{ name: 'qwen', note: null, tier: null, agents: true }] },
+  {
+    id: 'p1',
+    name: 'Local',
+    kind: 'openai_compat',
+    catalogued: false,
+    for_agents: false,
+    models: [{ name: 'qwen', note: null, tier: null, agents: true }],
+  },
   {
     id: 'p2',
     name: 'Claude Code',
@@ -50,7 +61,9 @@ const proposal: FilledProvider[] = [
 test('the box opens a preview; Save sends what is shown, as it was changed; Cancel sends nothing', async () => {
   const onFillAll = vi.fn().mockResolvedValue({ providers: proposal, notes: NOTES })
   const onSaveFillAll = vi.fn().mockResolvedValue(undefined)
-  const { rerender } = render(<FillTiers providers={[provider({})]} onFillAll={onFillAll} onSaveFillAll={onSaveFillAll} />)
+  const { rerender } = render(
+    <FillTiers providers={[provider({})]} onFillAll={onFillAll} onSaveFillAll={onSaveFillAll} />,
+  )
   expect(screen.getByRole('region', { name: 'No model has a tier' })).toHaveTextContent(
     'No model has a tier yet, so the Orchestrator cannot pick one: every role runs on the conversation’s model. Fill the tiers',
   )
@@ -85,7 +98,13 @@ test('the box opens a preview; Save sends what is shown, as it was changed; Canc
     },
   ])
   // Once a model has a tier the box is gone, and what Save did is said where it was.
-  rerender(<FillTiers providers={[provider({ models: [{ name: 'qwen', note: null, tier: 'fast', agents: true }] })]} onFillAll={onFillAll} onSaveFillAll={onSaveFillAll} />)
+  rerender(
+    <FillTiers
+      providers={[provider({ models: [{ name: 'qwen', note: null, tier: 'fast', agents: true }] })]}
+      onFillAll={onFillAll}
+      onSaveFillAll={onSaveFillAll}
+    />,
+  )
   expect(screen.queryByRole('region', { name: 'No model has a tier' })).not.toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Tiers from the catalogue' })).not.toBeInTheDocument()
   expect(screen.getByRole('status')).toHaveTextContent(/^The tiers are saved/)
@@ -99,17 +118,29 @@ test('a provider’s dot says its state in words too', () => {
   expect(stateOf(cli, avail({ installed: true, signed_in: true }))).toEqual(['ok', 'signed in'])
   expect(stateOf(cli, avail({ installed: true, signed_in: true, plan: 'max' }))).toEqual(['ok', 'signed in · max'])
   expect(stateOf(cli, avail({ installed: false }))).toEqual(['bad', 'not installed'])
-  expect(stateOf(provider({}), avail({ models: [{ name: 'qwen', state: 'usable', why: null, retired: false }] }))).toEqual(['ok', 'running'])
+  expect(
+    stateOf(provider({}), avail({ models: [{ name: 'qwen', state: 'usable', why: null, retired: false }] })),
+  ).toEqual(['ok', 'running'])
   const refused = avail({ models: [{ name: 'm', state: 'unknown', why: 'HTTP 401 Unauthorized', retired: false }] })
   expect(stateOf(provider({ kind: 'anthropic', has_key: true }), refused)).toEqual(['bad', 'key refused · check it'])
-  const down = avail({ models: [{ name: 'qwen', state: 'unknown', why: 'model server unreachable: refused', retired: false }] })
+  const down = avail({
+    models: [{ name: 'qwen', state: 'unknown', why: 'model server unreachable: refused', retired: false }],
+  })
   expect(stateOf(provider({}), down)).toEqual(['bad', 'not answering'])
   expect(stateOf(provider({}), avail({ models: [] }))).toEqual(['off', 'not known'])
 })
 
 test('a server that does not answer is said once, not by each lookup that failed', async () => {
   const onFacts = vi.fn().mockResolvedValue({
-    efforts: null, context_window: null, max_output: null, price: null, tier: null, deprecated: null, sources: {}, catalogue_date: null, failed: true,
+    efforts: null,
+    context_window: null,
+    max_output: null,
+    price: null,
+    tier: null,
+    deprecated: null,
+    sources: {},
+    catalogue_date: null,
+    failed: true,
   })
   const onModels = vi.fn().mockResolvedValue({ models: [], note: 'model server unreachable: connection refused' })
   render(
@@ -132,9 +163,23 @@ test('a server that does not answer is said once, not by each lookup that failed
 test('only the open provider and a server on this machine are read in full; the others’ dots from what costs nothing', async () => {
   const onAvailability = vi.fn().mockResolvedValue({ installed: true, models: [] })
   const claude = provider({ id: 'p2', name: 'Claude Code', kind: 'claude_cli', base_url: null })
-  render(<ModelsPage providers={[provider({}), claude]} onCreate={vi.fn()} onSave={vi.fn()} onDelete={vi.fn()} onTest={vi.fn()} onAvailability={onAvailability} />)
+  render(
+    <ModelsPage
+      providers={[provider({}), claude]}
+      onCreate={vi.fn()}
+      onSave={vi.fn()}
+      onDelete={vi.fn()}
+      onTest={vi.fn()}
+      onAvailability={onAvailability}
+    />,
+  )
   await waitFor(() => expect(onAvailability).toHaveBeenCalledTimes(2))
-  expect(onAvailability.mock.calls).toEqual(expect.arrayContaining([['p1', false], ['p2', true]]))
+  expect(onAvailability.mock.calls).toEqual(
+    expect.arrayContaining([
+      ['p1', false],
+      ['p2', true],
+    ]),
+  )
   const card = screen.getByRole('button', { name: /^Claude Code/ })
   await waitFor(() => expect(card.querySelector('.state-dot')).toHaveClass('state-ok'))
   // opened, it is read in full
@@ -148,10 +193,15 @@ test('a catalogue read on a day is that day, wherever this machine is', () => {
 })
 
 test('as a button: always there, its preview a window; what Save said is read out, and why a fill failed is said beside it', async () => {
-  const onFillAll = vi.fn().mockRejectedValueOnce(new ApiError(502, 'the catalogue is not answering')).mockResolvedValue({ providers: proposal, notes: NOTES })
+  const onFillAll = vi
+    .fn()
+    .mockRejectedValueOnce(new ApiError(502, 'the catalogue is not answering'))
+    .mockResolvedValue({ providers: proposal, notes: NOTES })
   const onSaveFillAll = vi.fn().mockResolvedValue(undefined)
   const tiered = provider({ models: [{ name: 'qwen', note: null, tier: 'fast', agents: true }] })
-  const { container, rerender } = render(<FillTiers providers={[tiered]} onFillAll={onFillAll} onSaveFillAll={onSaveFillAll} button />)
+  const { container, rerender } = render(
+    <FillTiers providers={[tiered]} onFillAll={onFillAll} onSaveFillAll={onSaveFillAll} button />,
+  )
   const shownAs = () => Array.from(container.children, one => `${one.tagName}.${one.className}`)
   expect(shownAs()).toEqual(['BUTTON.btn btn-small'])
   await userEvent.click(screen.getByRole('button', { name: 'Fill tiers' }))
@@ -163,7 +213,9 @@ test('as a button: always there, its preview a window; what Save said is read ou
   expect(preview.querySelector('section')).toHaveClass('fill-tiers', 'fill-tiers-open', 'fill-tiers-window')
   await userEvent.click(within(preview).getByRole('button', { name: 'Save these tiers' }))
   await waitFor(() => expect(shownAs()).toEqual(['BUTTON.btn btn-small', 'SPAN.visually-hidden']))
-  expect(screen.getByRole('status')).toHaveTextContent(/^The tiers are saved: each role now runs on the first model of its tier that may be picked for it\.$/)
+  expect(screen.getByRole('status')).toHaveTextContent(
+    /^The tiers are saved: each role now runs on the first model of its tier that may be picked for it\.$/,
+  )
   // (the focus goes there in an effect, after the button is drawn)
   await waitFor(() => expect(screen.getByRole('button', { name: 'Fill tiers' })).toHaveFocus())
   // not as a button, with a tier there already and nothing saved here: nothing at all; with no way to fill, nothing either
@@ -176,16 +228,24 @@ test('as a button: always there, its preview a window; what Save said is read ou
 test('in the box, the preview stands in the page - no window - and the line its Save leaves is a paragraph', async () => {
   const onFillAll = vi.fn().mockResolvedValue({ providers: proposal, notes: NOTES })
   const tiered = provider({ models: [{ name: 'qwen', note: null, tier: 'fast', agents: true }] })
-  const { container, rerender } = render(<FillTiers providers={[provider({})]} onFillAll={onFillAll} onSaveFillAll={vi.fn().mockResolvedValue(undefined)} />)
-  expect(Array.from(container.children, one => `${one.tagName}.${one.className}`)).toEqual(['SECTION.muted provider-note fill-tiers'])
+  const { container, rerender } = render(
+    <FillTiers providers={[provider({})]} onFillAll={onFillAll} onSaveFillAll={vi.fn().mockResolvedValue(undefined)} />,
+  )
+  expect(Array.from(container.children, one => `${one.tagName}.${one.className}`)).toEqual([
+    'SECTION.muted provider-note fill-tiers',
+  ])
   expect(screen.getByRole('button', { name: 'Fill the tiers' })).toHaveClass('link-btn')
   await userEvent.click(screen.getByRole('button', { name: 'Fill the tiers' }))
   await screen.findByRole('region', { name: 'Tiers from the catalogue' })
-  expect(Array.from(container.children, one => `${one.tagName}.${one.className}`)).toEqual(['SECTION.fill-tiers fill-tiers-open'])
+  expect(Array.from(container.children, one => `${one.tagName}.${one.className}`)).toEqual([
+    'SECTION.fill-tiers fill-tiers-open',
+  ])
   expect(screen.queryByRole('dialog')).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Save these tiers' }))
   // (as the page does once they are saved: a model has a tier now)
   await waitFor(() => expect(screen.queryByRole('region', { name: 'Tiers from the catalogue' })).toBeNull())
   rerender(<FillTiers providers={[tiered]} onFillAll={onFillAll} onSaveFillAll={vi.fn()} />)
-  expect(Array.from(container.children, one => `${one.tagName}.${one.className}`)).toEqual(['P.muted provider-note fill-tiers'])
+  expect(Array.from(container.children, one => `${one.tagName}.${one.className}`)).toEqual([
+    'P.muted provider-note fill-tiers',
+  ])
 })

@@ -5,7 +5,8 @@ import type { Merge } from '../api/types'
 const files = (count: number) => `${count} file${count === 1 ? '' : 's'}`
 /** A folder git may run programs from at a commit, where the project keeps its hooks in it - or a
  * hook tool's config, which names the commands it runs (`NOT_WRITTEN_UNATTENDED`). */
-const HOOKS = /(^|\/)(\.(husky|githooks)\/|\.pre-commit-config\.yaml$|\.?lefthook(-local)?\.ya?ml$|\.lintstagedrc(\.[a-z]+)?$|lint-staged\.config\.[a-z]+$|\.?simple-git-hooks\.[a-z]+$)/i
+const HOOKS =
+  /(^|\/)(\.(husky|githooks)\/|\.pre-commit-config\.yaml$|\.?lefthook(-local)?\.ya?ml$|\.lintstagedrc(\.[a-z]+)?$|lint-staged\.config\.[a-z]+$|\.?simple-git-hooks\.[a-z]+$)/i
 
 interface Props {
   merge: Merge
@@ -20,8 +21,8 @@ type Offer = NonNullable<Merge['commit']>
 // K-dal-takim D2: the branch went to GitHub as a pull request - what was pushed, and where it is.
 const pullRequest = (offer: Offer, name: string) => (
   <div className="muted cmd-approval-note" role="group" aria-label={`Pull request of ${name}'s changes`}>
-    Pushed to <span className="mono">{offer.pushed}</span> as one commit (<span className="mono">{offer.sha?.slice(0, 10)}</span>)
-    and opened a pull request:{' '}
+    Pushed to <span className="mono">{offer.pushed}</span> as one commit (
+    <span className="mono">{offer.sha?.slice(0, 10)}</span>) and opened a pull request:{' '}
     <a href={offer.url ?? undefined} target="_blank" rel="noreferrer">
       {offer.url}
     </a>
@@ -95,15 +96,30 @@ export function CommitStep({ merge, name, onCommit }: Props) {
   const commits = (asks: Offer['asks']) =>
     asks ? (
       <>
-        <button type="button" className="btn btn-small" disabled={busy || message.trim() === ''} onClick={() => commit('with')}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy || message.trim() === ''}
+          onClick={() => commit('with')}
+        >
           Commit with them
         </button>
-        <button type="button" className="btn btn-small" disabled={busy || message.trim() === ''} onClick={() => commit('without')}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy || message.trim() === ''}
+          onClick={() => commit('without')}
+        >
           Commit without them
         </button>
       </>
     ) : (
-      <button type="button" className="btn btn-small btn-primary" disabled={busy || message.trim() === ''} onClick={() => commit()}>
+      <button
+        type="button"
+        className="btn btn-small btn-primary"
+        disabled={busy || message.trim() === ''}
+        onClick={() => commit()}
+      >
         Commit
       </button>
     )

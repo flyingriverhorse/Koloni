@@ -7,8 +7,14 @@ import { usePanel } from './usePanel'
 const many = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 const OWN = 'Your own messages still run: only what starts by itself is held.'
 /** The answer as the server gives it, or null: anything else is taken for not held, and nothing is shown. */
-const shaped = (found: unknown) => (found && typeof found === 'object' && ['stopped', 'backlogs', 'nights'].every(key => Array.isArray((found as Record<string, unknown>)[key])) ? (found as Hold) : null)
-const MISSED = 'After Resume a trigger waits for its next time: times missed while held are skipped, also for triggers that catch up, and files changed meanwhile start nothing.'
+const shaped = (found: unknown) =>
+  found &&
+  typeof found === 'object' &&
+  ['stopped', 'backlogs', 'nights'].every(key => Array.isArray((found as Record<string, unknown>)[key]))
+    ? (found as Hold)
+    : null
+const MISSED =
+  'After Resume a trigger waits for its next time: times missed while held are skipped, also for triggers that catch up, and files changed meanwhile start nothing.'
 
 /** What Stop everything would hold: the triggers that are on, the backlogs that work themselves, the nights. */
 function heldNow(hold: Hold): string {
@@ -38,7 +44,15 @@ function chatsOf(stopped: Hold['stopped']) {
  * In the top bar, on every page: one Stop for every turn of every chat. It asks first, saying what runs and what will
  * be held; then lists what it stopped and what it holds, with Resume. While held, the bar says so.
  */
-export function HoldStatus({ every, onOpen, onHeld }: { every: number; onOpen: (conversationId: string) => void; onHeld?: (held: boolean) => void }) {
+export function HoldStatus({
+  every,
+  onOpen,
+  onHeld,
+}: {
+  every: number
+  onOpen: (conversationId: string) => void
+  onHeld?: (held: boolean) => void
+}) {
   const [hold, setHold] = useState<Hold | null>(null)
   const held = Boolean(hold?.held)
   useEffect(() => onHeld?.(held), [held, onHeld])
@@ -48,7 +62,11 @@ export function HoldStatus({ every, onOpen, onHeld }: { every: number; onOpen: (
   // Read as often as the Board, and again as the panel opens: what it asks about is how things stand now.
   useEffect(() => {
     let live = true
-    const read = () => void api.get<Hold>('/hold').then(found => live && setHold(shaped(found)), () => {})
+    const read = () =>
+      void api.get<Hold>('/hold').then(
+        found => live && setHold(shaped(found)),
+        () => {},
+      )
     read()
     const timer = setInterval(() => document.hidden || read(), every)
     return () => {
@@ -73,7 +91,8 @@ export function HoldStatus({ every, onOpen, onHeld }: { every: number; onOpen: (
 
   if (!hold) return null
   const chats = chatsOf(hold.stopped)
-  const time = (at: string, second = false) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...(second && { second: '2-digit' }) })
+  const time = (at: string, second = false) =>
+    new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...(second && { second: '2-digit' }) })
   // B-175: chats of one title are told apart by their projects where those differ, else by when the turn was sent -
   // to the second where two were sent in one minute (B-180).
   // shortcut: two sent in one second still read alike; number them if that is seen.
@@ -135,7 +154,12 @@ export function HoldStatus({ every, onOpen, onHeld }: { every: number; onOpen: (
         {/* R147: Resume lets go of what starts by itself only - in the server's words. */}
         {hold.stays_stopped && <p>Resume: {hold.stays_stopped}</p>}
         <div className="change-actions">
-          <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void ask('/hold/resume')}>
+          <button
+            type="button"
+            className="btn btn-small btn-primary"
+            disabled={busy}
+            onClick={() => void ask('/hold/resume')}
+          >
             <Play size={13} />
             Resume
           </button>
@@ -149,7 +173,10 @@ export function HoldStatus({ every, onOpen, onHeld }: { every: number; onOpen: (
     <>
       <div className="kicker">Stop everything?</div>
       <p>
-        {hold.running === 0 ? 'No turn is running now.' : `${many(hold.running, 'turn')} running in your chats will stop.`} {heldNow(hold)}
+        {hold.running === 0
+          ? 'No turn is running now.'
+          : `${many(hold.running, 'turn')} running in your chats will stop.`}{' '}
+        {heldNow(hold)}
       </p>
       <p className="muted">{MISSED}</p>
       <p className="muted">{OWN} Previews left serving keep running.</p>
@@ -174,7 +201,11 @@ export function HoldStatus({ every, onOpen, onHeld }: { every: number; onOpen: (
         // (Named here: in a narrow window its words are not shown, theme/triggers.css.)
         aria-label={hold.held ? 'Held · Resume' : 'Stop everything'}
         aria-expanded={open}
-        title={hold.held ? 'Held: what was stopped and what is held, and Resume' : 'Stop every turn in every chat, and hold triggers and backlogs'}
+        title={
+          hold.held
+            ? 'Held: what was stopped and what is held, and Resume'
+            : 'Stop every turn in every chat, and hold triggers and backlogs'
+        }
         onClick={() => (open ? close() : setOpen(true))}
       >
         {hold.held ? <Play size={13} /> : <Stop size={13} weight="fill" />}
@@ -189,7 +220,13 @@ export function HoldStatus({ every, onOpen, onHeld }: { every: number; onOpen: (
         </span>
       </button>
       {open && (
-        <div ref={panel} tabIndex={-1} className="allow-list-panel hold-panel" role="dialog" aria-label={hold.held ? 'Everything is held' : 'Stop everything'}>
+        <div
+          ref={panel}
+          tabIndex={-1}
+          className="allow-list-panel hold-panel"
+          role="dialog"
+          aria-label={hold.held ? 'Everything is held' : 'Stop everything'}
+        >
           {hold.held ? heldPanel() : stopPanel()}
           {error && (
             <div role="alert" className="alert">

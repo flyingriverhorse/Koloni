@@ -13,7 +13,15 @@ export interface KnowledgeActions {
 }
 
 /** Agents → New role → Expert: only what it knows and where it reads it. */
-export function ExpertForm({ providers, onCreate, onCancel }: { providers: Provider[]; onCreate: (name: string, knowledge: Knowledge) => Promise<void>; onCancel: () => void }) {
+export function ExpertForm({
+  providers,
+  onCreate,
+  onCancel,
+}: {
+  providers: Provider[]
+  onCreate: (name: string, knowledge: Knowledge) => Promise<void>
+  onCancel: () => void
+}) {
   const [topic, setTopic] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -28,9 +36,18 @@ export function ExpertForm({ providers, onCreate, onCancel }: { providers: Provi
     <div className="role-tab">
       <div className="field role-editor">
         <label htmlFor="expert-topic">Knows</label>
-        <input id="expert-topic" className="input" value={topic} maxLength={40} placeholder="Stripe" aria-describedby="expert-topic-note" onChange={e => setTopic(e.target.value)} />
+        <input
+          id="expert-topic"
+          className="input"
+          value={topic}
+          maxLength={40}
+          placeholder="Stripe"
+          aria-describedby="expert-topic-note"
+          onChange={e => setTopic(e.target.value)}
+        />
         <span id="expert-topic-note" className="muted">
-          It reads its sources once, writes a short guide in the project, and answers from it: it advises and reads only.
+          It reads its sources once, writes a short guide in the project, and answers from it: it advises and reads
+          only.
         </span>
       </div>
       {error && (
@@ -38,7 +55,13 @@ export function ExpertForm({ providers, onCreate, onCancel }: { providers: Provi
           {error}
         </div>
       )}
-      <Sources knowledge={null} providers={providers} busy={busy || !topic.trim()} button="Create expert" onSave={save} />
+      <Sources
+        knowledge={null}
+        providers={providers}
+        busy={busy || !topic.trim()}
+        button="Create expert"
+        onSave={save}
+      />
       <button type="button" className="btn btn-small" onClick={onCancel}>
         Cancel
       </button>
@@ -56,7 +79,21 @@ function cannotFull(role: Role, teamLead: boolean) {
 }
 
 /** K-bilgi (sample E): a role's Knowledge tab - the project's knowledge, each on or off and, when on, Full or Map, as the Tools tab's tiles. What a knowledge is and how it learns is the Knowledge page's. */
-export function KnowledgeTab({ role, teamLead, projectId, items, onUse, onOpenKnowledge }: { role: Role; teamLead: boolean; projectId: string | null; items?: KnowledgeItem[]; onUse?: KnowledgeActions['useKnowledge']; onOpenKnowledge?: () => void }) {
+export function KnowledgeTab({
+  role,
+  teamLead,
+  projectId,
+  items,
+  onUse,
+  onOpenKnowledge,
+}: {
+  role: Role
+  teamLead: boolean
+  projectId: string | null
+  items?: KnowledgeItem[]
+  onUse?: KnowledgeActions['useKnowledge']
+  onOpenKnowledge?: () => void
+}) {
   const [busy, setBusy] = useState(false)
   const [said, setSaid] = useState<{ text: string; error: boolean } | null>(null)
   const modeOf = (item: KnowledgeItem) => (role.knows ?? []).find(one => one.knowledge_id === item.id)?.mode ?? null
@@ -68,7 +105,11 @@ export function KnowledgeTab({ role, teamLead, projectId, items, onUse, onOpenKn
     setSaid(null)
     onUse(item.id, role.id, mode)
       .then(
-        () => setSaid({ text: `${item.knowledge.topic}: ${mode === 'full' ? 'Full' : mode === 'map' ? 'Map' : 'off'}, saved.`, error: false }),
+        () =>
+          setSaid({
+            text: `${item.knowledge.topic}: ${mode === 'full' ? 'Full' : mode === 'map' ? 'Map' : 'off'}, saved.`,
+            error: false,
+          }),
         err => setSaid({ text: errorText(err), error: true }),
       )
       .finally(() => setBusy(false))
@@ -100,19 +141,49 @@ export function KnowledgeTab({ role, teamLead, projectId, items, onUse, onOpenKn
                 <div key={item.id} className={`tool-tile skill-tile${mode ? ' tool-tile-on' : ''}`}>
                   <span className="tool-tile-name">
                     {topic}
-                    <input type="checkbox" role="switch" className="switch" aria-label={`Knowledge ${topic}`} aria-describedby={`knows-${item.id}-line`} checked={!!mode} disabled={busy} onChange={e => use(item, e.target.checked ? 'map' : null)} />
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      className="switch"
+                      aria-label={`Knowledge ${topic}`}
+                      aria-describedby={`knows-${item.id}-line`}
+                      checked={!!mode}
+                      disabled={busy}
+                      onChange={e => use(item, e.target.checked ? 'map' : null)}
+                    />
                   </span>
                   <span id={`knows-${item.id}-line`} className="tool-tile-line">
                     {learned ? `${learned.pages.filter(one => one.read).length} pages read` : 'not learned'}
                     {item.project_id === null && ' · every project'}
-                    {mode && <> · {mode === 'full' ? 'Full: its whole guide at each step' : 'Map: its guide, read when its work touches it'}</>}
+                    {mode && (
+                      <>
+                        {' '}
+                        ·{' '}
+                        {mode === 'full'
+                          ? 'Full: its whole guide at each step'
+                          : 'Map: its guide, read when its work touches it'}
+                      </>
+                    )}
                   </span>
                   {mode && (
                     <div className="files-modes" role="group" aria-label={`${topic}: how`}>
-                      <button type="button" className="view-run" aria-pressed={mode === 'full'} disabled={busy || (!!cannot && mode !== 'full')} title={cannot ?? 'An expert in it: it advises and reads only'} onClick={() => mode !== 'full' && use(item, 'full')}>
+                      <button
+                        type="button"
+                        className="view-run"
+                        aria-pressed={mode === 'full'}
+                        disabled={busy || (!!cannot && mode !== 'full')}
+                        title={cannot ?? 'An expert in it: it advises and reads only'}
+                        onClick={() => mode !== 'full' && use(item, 'full')}
+                      >
                         Full
                       </button>
-                      <button type="button" className="view-run" aria-pressed={mode === 'map'} disabled={busy} onClick={() => mode !== 'map' && use(item, 'map')}>
+                      <button
+                        type="button"
+                        className="view-run"
+                        aria-pressed={mode === 'map'}
+                        disabled={busy}
+                        onClick={() => mode !== 'map' && use(item, 'map')}
+                      >
                         Map
                       </button>
                     </div>

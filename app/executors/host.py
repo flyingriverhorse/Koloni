@@ -59,8 +59,12 @@ _PS_PROLOGUE = (
 )
 # What the agent is told of it with where its commands run (`AgentRunner`'s shell_note),
 # in 5.1 alone (`shell_writes`).
-SHELL_WRITES = (" In this shell Set-Content, Out-File and > write UTF-8 with a BOM: write JSON, "
-                "TOML and scripts with write_file instead." if sys.platform == "win32" else "")
+SHELL_WRITES = (
+    " In this shell Set-Content, Out-File and > write UTF-8 with a BOM: write JSON, "
+    "TOML and scripts with write_file instead."
+    if sys.platform == "win32"
+    else ""
+)
 # PowerShell itself exits 0 or 1 whatever happened inside. Report the last statement:
 # success is 0; a failed program passes its own exit code on; a failed cmdlet is 1.
 _PS_EPILOGUE = (
@@ -79,10 +83,16 @@ def _pwsh_found() -> tuple[str, ...]:
     if sys.platform != "win32":
         return ()
     installed = Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "PowerShell"
-    on_path = (shutil.which("pwsh", path=entry)
-               for entry in os.environ.get("PATH", "").split(os.pathsep) if entry)
-    return tuple(dict.fromkeys(
-        str(p) for p in (*sorted(installed.glob("7*/pwsh.exe")), *filter(None, on_path))))
+    on_path = (
+        shutil.which("pwsh", path=entry)
+        for entry in os.environ.get("PATH", "").split(os.pathsep)
+        if entry
+    )
+    return tuple(
+        dict.fromkeys(
+            str(p) for p in (*sorted(installed.glob("7*/pwsh.exe")), *filter(None, on_path))
+        )
+    )
 
 
 def _pwsh() -> str | None:
@@ -97,7 +107,8 @@ def _pwsh() -> str | None:
 STORE_PWSH_NOTE = (
     "PowerShell 7 from the Store cannot be used (its commands' child processes escape KOLONİ's "
     "kill): install it with winget install --id Microsoft.PowerShell -e --source winget; until "
-    "then commands run in Windows PowerShell 5.1 (Set-Content writes a UTF-8 BOM)")
+    "then commands run in Windows PowerShell 5.1 (Set-Content writes a UTF-8 BOM)"
+)
 
 
 def store_pwsh_note() -> str | None:
@@ -173,8 +184,13 @@ class ProcessCommand:
         elif sys.platform == "win32":
             # No job (Windows refused one): /T reaches the children while the shell lives.
             killer = await asyncio.create_subprocess_exec(
-                "taskkill", "/F", "/T", "/PID", str(pid),
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                "taskkill",
+                "/F",
+                "/T",
+                "/PID",
+                str(pid),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             await killer.wait()
         else:
@@ -182,13 +198,29 @@ class ProcessCommand:
                 os.killpg(pid, signal.SIGKILL)
 
 
+def no_cwd_search(env: dict[str, str]) -> dict[str, str]:
+    """W1: `env` where cmd.exe finds a bare program name (an npm `.cmd` shim's `node`) on PATH
+    alone, never first in the folder it runs in - where an agent may have written a `node.cmd`
+    (as `app/git.py` has it) - over any spelling of it the user's own holds (Windows' names
+    ignore case: two would both go to the process)."""
+    return {
+        **{k: v for k, v in env.items() if k.upper() != "NODEFAULTCURRENTDIRECTORYINEXEPATH"},
+        "NoDefaultCurrentDirectoryInExePath": "1",
+    }
+
+
 def command_env(passed: str | None = None) -> dict[str, str]:
     """This machine's environment as a program KOLONİ starts gets it: KOLONİ's own settings (a
     model server's key among them) are not its to see, nor a secret variable the user did not
-    pass (slice 103) - what it prints is kept."""
+    pass (slice 103) - what it prints is kept. No search of its folder for a bare name (W1)."""
     held = set(held_back(os.environ, passed))
-    return {k: v for k, v in os.environ.items()
-            if not k.upper().startswith("KOLONI_") and k not in held}
+    return no_cwd_search(
+        {
+            k: v
+            for k, v in os.environ.items()
+            if not k.upper().startswith("KOLONI_") and k not in held
+        }
+    )
 
 
 class HostExecutor:
@@ -198,16 +230,26 @@ class HostExecutor:
         self._pass_env = pass_env  # the secret variables it is given all the same
 
     async def start(
-        self, command_id: str, command: str, cwd: Path, copy: Path | None = None,
-        links: dict[str, Path] | None = None, secrets: Mapping[str, str] | None = None,
+        self,
+        command_id: str,
+        command: str,
+        cwd: Path,
+        copy: Path | None = None,
+        links: dict[str, Path] | None = None,
+        secrets: Mapping[str, str] | None = None,
         env: Mapping[str, str] | None = None,
     ) -> ProcessCommand:
         if not cwd.is_dir():
             raise StartError(f"{cwd} is not a folder")
         # Python programs would otherwise print in the ANSI code page - and leave __pycache__/
         # in the project (live). (What the user gave on a card goes in over what was held back.)
-        env = {**command_env(self._pass_env), **(secrets or {}), **(env or {}),
-               "PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+        env = {
+            **command_env(self._pass_env),
+            **(secrets or {}),
+            **(env or {}),
+            "PYTHONUTF8": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
         # Its output is read as UTF-8: the user's own setting is kept only where it is UTF-8 too
         # (utf-8:surrogateescape, say).
         if not env.get("PYTHONIOENCODING", "").lower().startswith(("utf-8", "utf8")):

@@ -16,8 +16,10 @@ def test_check_kinds_default_empty_and_back(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0166")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
-                     "VALUES ('p', 'p', 'C:/p', ?)", (AT,))
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) VALUES ('p', 'p', 'C:/p', ?)",
+            (AT,),
+        )
     command.upgrade(cfg, "0167")
     with sqlite3.connect(db) as conn:
         (kinds,) = conn.execute("SELECT check_kinds FROM projects").fetchone()

@@ -45,9 +45,14 @@ def server(client, tmp_path, name="fake", trusted=True, free=False, **plan):
     client.headers["Origin"] = ORIGIN
     record, plan_file = tmp_path / f"{name}-record.jsonl", tmp_path / f"{name}-plan.json"
     plan_file.write_text(json.dumps({"record": str(record), **plan}), encoding="utf-8")
-    made = client.post("/api/mcp-servers", json={
-        "name": name, "command": FAKE,
-        "env": {"FAKE_MCP_PLAN": str(plan_file), "THE_SECRET": SECRET}})
+    made = client.post(
+        "/api/mcp-servers",
+        json={
+            "name": name,
+            "command": FAKE,
+            "env": {"FAKE_MCP_PLAN": str(plan_file), "THE_SECRET": SECRET},
+        },
+    )
     assert made.status_code == 201, made.text
     read = client.post(f"/api/mcp-servers/{made.json()['id']}/read")
     assert read.status_code == 200, read.text
@@ -55,8 +60,9 @@ def server(client, tmp_path, name="fake", trusted=True, free=False, **plan):
     record.write_text("", encoding="utf-8")
     if trusted:
         marks = {tool["name"]: "free" for tool in read.json()["server"]["tools"]} if free else {}
-        answer = client.patch(f"/api/mcp-servers/{made.json()['id']}",
-                              json={"trusted": True, "marks": marks})
+        answer = client.patch(
+            f"/api/mcp-servers/{made.json()['id']}", json={"trusted": True, "marks": marks}
+        )
         assert answer.status_code == 200, answer.text
         return answer.json(), record, plan_file
     return read.json()["server"], record, plan_file
@@ -106,11 +112,23 @@ def test_a_server_is_added_and_its_tools_are_read_and_its_secret_goes_nowhere(
     body = {"name": "fake", "command": FAKE, "env": {"THE_SECRET": SECRET}}
     # adding one is starting a program as the user: only from the app's own page
     assert client.post("/api/mcp-servers", json=body).status_code == 403
-    assert client.post("/api/mcp-servers", json=body,
-                       headers={"Origin": "http://evil.example"}).status_code == 403
+    assert (
+        client.post(
+            "/api/mcp-servers", json=body, headers={"Origin": "http://evil.example"}
+        ).status_code
+        == 403
+    )
     made, record, _ = server(client, tmp_path, page=3)
     assert [tool["name"] for tool in made["tools"]] == [
-        "echo", "where", "boom", "picture", "big", "hang", "die", "sample"]  # every page of it
+        "echo",
+        "where",
+        "boom",
+        "picture",
+        "big",
+        "hang",
+        "die",
+        "sample",
+    ]  # every page of it
     echo = made["tools"][0]
     assert echo["description"] == "Says back what it is given." and echo["mark"] == "ask"
     assert echo["input_schema"]["required"] == ["text"] and echo["unusable"] is None
@@ -131,8 +149,9 @@ def test_a_server_is_added_and_its_tools_are_read_and_its_secret_goes_nowhere(
 def test_a_server_that_cannot_be_started_says_so_and_offers_nothing(make_client):
     client, _ = make_client([text("x")])
     client.headers["Origin"] = ORIGIN
-    made = client.post("/api/mcp-servers", json={
-        "name": "nope", "command": ["no-such-program-of-kolonis-tests"]})
+    made = client.post(
+        "/api/mcp-servers", json={"name": "nope", "command": ["no-such-program-of-kolonis-tests"]}
+    )
     assert made.status_code == 201, made.text
     read = client.post(f"/api/mcp-servers/{made.json()['id']}/read")
     assert read.status_code == 200, read.text
@@ -143,9 +162,14 @@ def test_a_tool_whose_name_cannot_be_offered_is_listed_with_the_reason(
     make_client, wait_run, project_dir, tmp_path
 ):
     client, model = make_client([text("x")])
-    made, _, _ = server(client, tmp_path, more=[
-        {"name": "bad name!", "description": "x", "inputSchema": NOTHING},
-        {"name": "y" * 60, "description": "x", "inputSchema": NOTHING}])
+    made, _, _ = server(
+        client,
+        tmp_path,
+        more=[
+            {"name": "bad name!", "description": "x", "inputSchema": NOTHING},
+            {"name": "y" * 60, "description": "x", "inputSchema": NOTHING},
+        ],
+    )
     why = {tool["name"]: tool["unusable"] for tool in made["tools"]}
     assert why["bad name!"] and why["y" * 60] and why["echo"] is None
     give(client, "Lead", "fake")
@@ -155,22 +179,30 @@ def test_a_tool_whose_name_cannot_be_offered_is_listed_with_the_reason(
     assert "fake__echo" in offered and not [n for n in offered if "bad" in n or "yyy" in n]
 
 
-def test_reading_again_takes_the_users_word_back_from_a_tool_that_changed(
-    make_client, tmp_path
-):
+def test_reading_again_takes_the_users_word_back_from_a_tool_that_changed(make_client, tmp_path):
     client, _ = make_client([text("x")])
     made, record, plan_file = server(client, tmp_path)
     mark(client, made, echo="free", where="free", boom="off")
-    plan_file.write_text(json.dumps({
-        "record": str(record), "describe": {"echo": "Now it also deletes things."},
-        "without": ["big"],
-        "more": [{"name": "fresh", "description": "New.", "inputSchema": NOTHING}],
-    }), encoding="utf-8")
+    plan_file.write_text(
+        json.dumps(
+            {
+                "record": str(record),
+                "describe": {"echo": "Now it also deletes things."},
+                "without": ["big"],
+                "more": [{"name": "fresh", "description": "New.", "inputSchema": NOTHING}],
+            }
+        ),
+        encoding="utf-8",
+    )
     again = client.post(f"/api/mcp-servers/{made['id']}/read").json()
     assert (again["new"], again["changed"], again["gone"]) == (["fresh"], ["echo"], ["big"])
     marks = {tool["name"]: tool["mark"] for tool in again["server"]["tools"]}
     assert (marks["echo"], marks["where"], marks["boom"], marks["fresh"]) == (
-        "ask", "free", "off", "ask")
+        "ask",
+        "free",
+        "off",
+        "ask",
+    )
     assert "big" not in marks
 
 
@@ -180,8 +212,9 @@ def test_reading_again_takes_the_users_word_back_from_a_tool_that_changed(
 def test_only_a_role_given_the_server_is_offered_its_tools(
     make_client, wait_run, project_dir, tmp_path
 ):
-    client, model = make_client([
-        step(call("fake__echo", {"text": "hi"})), text("could not"), text("now I can")])
+    client, model = make_client(
+        [step(call("fake__echo", {"text": "hi"})), text("could not"), text("now I can")]
+    )
     _made, record, _ = server(client, tmp_path)
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -195,8 +228,12 @@ def test_only_a_role_given_the_server_is_offered_its_tools(
     del client.headers["Origin"]
     assert client.patch(lead_role, json={"mcp": ["fake"]}).status_code == 403
     client.headers["Origin"] = ORIGIN
-    assert client.patch(lead_role, json={"mcp": ["fake"]},
-                        headers={"Origin": "http://evil.example"}).status_code == 403
+    assert (
+        client.patch(
+            lead_role, json={"mcp": ["fake"]}, headers={"Origin": "http://evil.example"}
+        ).status_code
+        == 403
+    )
     give(client, "Lead", "fake")
     lead = next(r for r in client.get("/api/roles").json() if r["name"] == "Lead")
     assert lead["mcp"] == ["fake"]
@@ -210,15 +247,18 @@ def test_only_a_role_given_the_server_is_offered_its_tools(
     assert offered["fake__echo"]["parameters"]["required"] == ["text"]
 
 
-def test_a_sub_agent_has_no_server_its_opener_has_not(
-    make_client, wait_run, project_dir, tmp_path
-):
-    client, model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s1")),
-                 text("done")],
-        "Coder": [text("looked")]})
+def test_a_sub_agent_has_no_server_its_opener_has_not(make_client, wait_run, project_dir, tmp_path):
+    client, model = make_client(
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s1")),
+                text("done"),
+            ],
+            "Coder": [text("looked")],
+        }
+    )
     server(client, tmp_path)
-    give(client, "Coder", "fake")                       # the Coder may, the Lead may not
+    give(client, "Coder", "fake")  # the Coder may, the Lead may not
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     wait_run(client, cid, run_id, timeout=LONG)
     assert len(model.tool_args) == 3
@@ -243,8 +283,12 @@ def test_deleting_a_server_takes_it_from_the_roles(make_client, tmp_path):
     client, _ = make_client([text("x")])
     made, _, _ = server(client, tmp_path)
     give(client, "Lead", "fake")
-    assert client.delete(f"/api/mcp-servers/{made['id']}",
-                         headers={"Origin": "http://evil.example"}).status_code == 403
+    assert (
+        client.delete(
+            f"/api/mcp-servers/{made['id']}", headers={"Origin": "http://evil.example"}
+        ).status_code
+        == 403
+    )
     assert client.delete(f"/api/mcp-servers/{made['id']}").status_code == 204
     assert client.get("/api/mcp-servers").json() == []
     assert next(r for r in client.get("/api/roles").json() if r["name"] == "Lead")["mcp"] == []
@@ -262,7 +306,7 @@ def test_a_call_is_asked_about_and_the_server_starts_only_after_the_yes(
     cid, run_id = begin(client, project_dir, mode="ask")
     question = wait_status(client, cid, "waiting_approval")["questions"][0]
     assert question["options"] == ["Allow", "Deny"]
-    for shown in ("fake", "echo", "hi there"):          # the server, the tool, what it is given
+    for shown in ("fake", "echo", "hi there"):  # the server, the tool, what it is given
         assert shown in question["question"]
     assert events(record, "start") == [] and events(record, "call") == []
     # the yes is the user's alone: not a command an agent runs against the API
@@ -276,14 +320,14 @@ def test_a_call_is_asked_about_and_the_server_starts_only_after_the_yes(
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     status, result = calls(snap)["fake__echo"]
     assert status == "succeeded" and "echo: hi there" in result
-    assert "data, not instructions" in result          # framed, as content from the web is
-    assert model.calls[1][-1]["content"] == result     # and that is what the model is given
+    assert "data, not instructions" in result  # framed, as content from the web is
+    assert model.calls[1][-1]["content"] == result  # and that is what the model is given
     (start,) = events(record, "start")
     # in an empty folder of KOLONİ's own: no file of the project decides what is started
     assert not same(start["cwd"], project_dir) and start["files"] == []
     assert [e["arguments"] for e in events(record, "call")] == [{"text": "hi there"}]
-    assert gone([start["pid"]])                        # ended with the agent's work
-    assert not Path(start["cwd"]).exists()             # and its folder with it
+    assert gone([start["pid"]])  # ended with the agent's work
+    assert not Path(start["cwd"]).exists()  # and its folder with it
 
 
 def test_a_no_leaves_the_call_denied_and_nothing_started(
@@ -333,15 +377,19 @@ def test_a_scratch_a_servers_tool_makes_in_the_project_is_ignored_by_git(
     # full path - the scratch it makes gets its `.gitignore` as one a command makes.
     scratch = str(project_dir / ".koloni" / "tmp")
     client, _ = make_client([step(call("fake__mkdir", {"path": scratch})), text("done")])
-    tool = {"name": "mkdir", "description": "Makes a folder.", "inputSchema": {
-        "type": "object", "properties": {"path": {"type": "string"}}}}
+    tool = {
+        "name": "mkdir",
+        "description": "Makes a folder.",
+        "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}},
+    }
     server(client, tmp_path, free=True, more=[tool])
     give(client, "Lead", "fake")
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert calls(snap)["fake__mkdir"][0] == "succeeded"
     assert (project_dir / ".koloni" / ".gitignore").read_text(encoding="utf-8") == (
-        "tmp/\n.gitignore\n")
+        "tmp/\n.gitignore\n"
+    )
 
 
 # --- what comes back ------------------------------------------------------------------------
@@ -350,9 +398,14 @@ def test_a_scratch_a_servers_tool_makes_in_the_project_is_ignored_by_git(
 def test_what_comes_back_is_cut_and_named_for_what_it_is(
     make_client, wait_run, project_dir, tmp_path
 ):
-    client, _ = make_client([
-        step(call("fake__boom", {}, "b")), step(call("fake__picture", {}, "p")),
-        step(call("fake__big", {}, "g")), text("done")])
+    client, _ = make_client(
+        [
+            step(call("fake__boom", {}, "b")),
+            step(call("fake__picture", {}, "p")),
+            step(call("fake__big", {}, "g")),
+            text("done"),
+        ]
+    )
     server(client, tmp_path, free=True)
     give(client, "Lead", "fake")
     cid, run_id = begin(client, project_dir, mode="full_auto")
@@ -374,7 +427,7 @@ def test_what_the_server_asks_of_koloni_is_refused_and_the_call_still_ends(
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert calls(snap)["fake__sample"][0] == "succeeded"
-    assert "sampled: error" in calls(snap)["fake__sample"][1]   # nobody's model was asked
+    assert "sampled: error" in calls(snap)["fake__sample"][1]  # nobody's model was asked
     (answer,) = events(record, "answer")
     assert answer["message"]["error"]["code"] == -32601
 
@@ -386,11 +439,16 @@ def test_the_server_runs_in_a_folder_of_kolonis_own_without_kolonis_settings(
     make_client, wait_run, project_dir, tmp_path, monkeypatch
 ):
     monkeypatch.setenv("KOLONI_MODEL_API_KEY", "sk-koloni-secret")
-    client, model = make_client({
-        "Lead": [step(call("fake__where", {}, "w1")),
-                 step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s1")),
-                 text("done")],
-        "Coder": [step(call("fake__where", {}, "w2")), text("looked")]})
+    client, model = make_client(
+        {
+            "Lead": [
+                step(call("fake__where", {}, "w1")),
+                step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s1")),
+                text("done"),
+            ],
+            "Coder": [step(call("fake__where", {}, "w2")), text("looked")],
+        }
+    )
     _made, record, _ = server(client, tmp_path, free=True)
     give(client, "Lead", "fake")
     give(client, "Coder", "fake")
@@ -399,7 +457,7 @@ def test_the_server_runs_in_a_folder_of_kolonis_own_without_kolonis_settings(
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     # a call to a server is no reason for a working copy: the server does not run in one
     assert next(a for a in snap["agents"] if a["name"] == "Coder")["copy"] is None
-    of_lead, of_coder = events(record, "start")           # a process of each agent's own
+    of_lead, of_coder = events(record, "start")  # a process of each agent's own
     assert of_lead["pid"] != of_coder["pid"] and not same(of_lead["cwd"], of_coder["cwd"])
     for start in (of_lead, of_coder):
         # an empty folder, and not the project: no file of a project decides what is started
@@ -407,7 +465,7 @@ def test_the_server_runs_in_a_folder_of_kolonis_own_without_kolonis_settings(
         assert project_dir.resolve() not in Path(start["cwd"]).resolve().parents
         assert [name for name in start["env"] if name.upper().startswith("KOLONI_")] == []
         assert start["env"]["THE_SECRET"] == SECRET
-        assert not Path(start["cwd"]).exists()            # gone with the agent's work
+        assert not Path(start["cwd"]).exists()  # gone with the agent's work
     assert gone([of_lead["pid"], of_coder["pid"]])
     # an agent with a server is told where the project is, in full: a server needs full paths
     assert str(project_dir) in model.calls_of["Lead"][0][0]["content"]
@@ -419,9 +477,13 @@ def test_the_server_runs_in_a_folder_of_kolonis_own_without_kolonis_settings(
 def test_a_server_that_gives_up_fails_the_call_and_is_started_again_for_the_next(
     make_client, wait_run, project_dir, tmp_path
 ):
-    client, _ = make_client([
-        step(call("fake__die", {}, "d")), step(call("fake__echo", {"text": "hi"}, "e")),
-        text("done")])
+    client, _ = make_client(
+        [
+            step(call("fake__die", {}, "d")),
+            step(call("fake__echo", {"text": "hi"}, "e")),
+            text("done"),
+        ]
+    )
     _made, record, _ = server(client, tmp_path, free=True)
     give(client, "Lead", "fake")
     cid, run_id = begin(client, project_dir, mode="full_auto")
@@ -455,11 +517,13 @@ def test_stop_ends_a_call_that_does_not_come_back_and_leaves_nothing_running(
 
 def test_no_servers_tool_in_a_turn_nobody_watches(make_client, wait_run, project_dir, tmp_path):
     client, model, pid, cid = unattended.setup(
-        make_client, project_dir,
+        make_client,
+        project_dir,
         [step(call("fake__echo", {"text": "hi"})), text("I could not.")],
-        permission_mode="full_auto")
+        permission_mode="full_auto",
+    )
     made, record, _ = server(client, tmp_path)
-    mark(client, made, echo="free")                     # not even one that is never asked about
+    mark(client, made, echo="free")  # not even one that is never asked about
     give(client, "Lead", "fake")
     watch = unattended.trigger(client, pid, cid)
     run_id = unattended.run_now(client, watch["id"])
@@ -476,13 +540,20 @@ def test_no_servers_tool_in_a_project_that_runs_its_commands_in_docker(
     _made, record, _ = server(client, tmp_path)
     give(client, "Lead", "fake")
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={
-        "exec_location": "docker", "docker_image": "alpine"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/projects/{pid}", json={"exec_location": "docker", "docker_image": "alpine"}
+        ).status_code
+        == 200
+    )
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}",
-                        json={"permission_mode": "full_auto"}).status_code == 200
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go"}).json()["run"]["id"]
+    assert (
+        client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}).status_code
+        == 200
+    )
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
+        "run"
+    ]["id"]
     snap = wait_run(client, cid, run_id, timeout=LONG)
     # the server would run on this machine, outside the container the user chose
     assert not [n for n in names(model.tool_args[0]) if n.startswith("fake__")]

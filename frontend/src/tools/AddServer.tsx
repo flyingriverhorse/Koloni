@@ -114,7 +114,9 @@ function Cards({ onPick }: { onPick: (card: Card) => void }) {
             <button type="button" className="tools-card" onClick={() => onPick(card)}>
               <span className="tools-card-title">{card.title}</span>
               <span className="muted tools-card-what">{card.what}</span>
-              {card.downloads && <span className="muted mono tools-card-note">May download {card.downloads} when it starts</span>}
+              {card.downloads && (
+                <span className="muted mono tools-card-note">May download {card.downloads} when it starts</span>
+              )}
               {card.licence && <span className="tag mono">{card.licence}</span>}
             </button>
             {card.source && (
@@ -166,7 +168,9 @@ export function AddMenu({ onServer, onSkill }: { onServer: (way: Way) => void; o
     }
     const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'))
     const at = items.indexOf(document.activeElement as HTMLElement)
-    const to = ({ ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: items.length - 1 } as Record<string, number>)[event.key]
+    const to = ({ ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: items.length - 1 } as Record<string, number>)[
+      event.key
+    ]
     if (to === undefined) return
     event.preventDefault()
     items[(to + items.length) % items.length].focus()
@@ -197,7 +201,14 @@ export function AddMenu({ onServer, onSkill }: { onServer: (way: Way) => void; o
       {open && (
         <div id="tools-add-menu" role="menu" aria-label="Add" className="att-menu tools-add-menu" onKeyDown={onKeyDown}>
           {WAYS.map(([way, label, note], at) => (
-            <button key={way} type="button" role="menuitem" tabIndex={-1} autoFocus={at === 0} onClick={() => pick(() => onServer(way))}>
+            <button
+              key={way}
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              autoFocus={at === 0}
+              onClick={() => pick(() => onServer(way))}
+            >
               <span>
                 {label}
                 {note && <span className="muted"> · {note}</span>}
@@ -205,7 +216,13 @@ export function AddMenu({ onServer, onSkill }: { onServer: (way: Way) => void; o
             </button>
           ))}
           {onSkill && (
-            <button type="button" role="menuitem" tabIndex={-1} className="tools-add-skill" onClick={() => pick(onSkill)}>
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              className="tools-add-skill"
+              onClick={() => pick(onSkill)}
+            >
               <span>
                 A skill<span className="muted"> · from a folder or GitHub</span>
               </span>

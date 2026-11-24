@@ -79,10 +79,21 @@ function Page({ command }: { command: Command }) {
   if (framed === false || own) {
     return (
       <div className="view-empty muted">
-        <p>{own ? 'It serves on KOLONİ’s own port: it is not shown here.' : 'This server does not allow being shown here.'}</p>
+        <p>
+          {own
+            ? 'It serves on KOLONİ’s own port: it is not shown here.'
+            : 'This server does not allow being shown here.'}
+        </p>
         <OpenInBrowser url={url} />
       </div>
     )
   }
-  return <iframe className="view-frame" title={`Preview of ${url}`} src={url} sandbox="allow-scripts allow-same-origin allow-forms" />
+  return (
+    <iframe
+      className="view-frame"
+      title={`Preview of ${url}`}
+      src={url}
+      sandbox="allow-scripts allow-same-origin allow-forms"
+    />
+  )
 }

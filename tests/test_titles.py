@@ -13,49 +13,69 @@ ZWSP, BOM, LRM, ZWJ, ZWNJ = "​", "﻿", "‎", "‍", "‌"
 LINK = "https://example.com/" + "a" * 60
 
 
-@pytest.mark.parametrize("said,title", [
-    # the first line that says anything, whatever comes before it
-    ("\n\n  \nfix the login", "fix the login"),
-    ("fix the login\r\nthe button does nothing", "fix the login"),
-    # pasted code (slice 85a): its fence's line says nothing, the code does
-    ("```python\ndef greet():\n```", "def greet():"),
-    ("``` python\ndef greet():\n```", "def greet():"),
-    ("```{.py}\ndef greet():\n```", "def greet():"),
-    ("~~~ js\nlet a = 1\n~~~", "let a = 1"),
-    ("```x``` is inline\nnext", "```x``` is inline"),
-    (f"{ZWSP}{BOM}{LRM}{ZWJ}\nfix the login", "fix the login"),
-    (f"{ZWSP}{BOM}{LRM}{ZWJ}", ""),
-    # next to nothing before one long word: cut inside it
-    (f"fix {LINK}", f"fix {LINK}"[:59] + "…"),
-    # what a cut does not end on, before its "…"
-    ("a" * 40 + " b, (" + "c" * 30, "a" * 40 + " b…"),
-    ("a" * 40 + " b — " + "c" * 30, "a" * 40 + " b…"),
-])
+@pytest.mark.parametrize(
+    "said,title",
+    [
+        # the first line that says anything, whatever comes before it
+        ("\n\n  \nfix the login", "fix the login"),
+        ("fix the login\r\nthe button does nothing", "fix the login"),
+        # pasted code (slice 85a): its fence's line says nothing, the code does
+        ("```python\ndef greet():\n```", "def greet():"),
+        ("``` python\ndef greet():\n```", "def greet():"),
+        ("```{.py}\ndef greet():\n```", "def greet():"),
+        ("~~~ js\nlet a = 1\n~~~", "let a = 1"),
+        ("```x``` is inline\nnext", "```x``` is inline"),
+        (f"{ZWSP}{BOM}{LRM}{ZWJ}\nfix the login", "fix the login"),
+        (f"{ZWSP}{BOM}{LRM}{ZWJ}", ""),
+        # next to nothing before one long word: cut inside it
+        (f"fix {LINK}", f"fix {LINK}"[:59] + "…"),
+        # what a cut does not end on, before its "…"
+        ("a" * 40 + " b, (" + "c" * 30, "a" * 40 + " b…"),
+        ("a" * 40 + " b — " + "c" * 30, "a" * 40 + " b…"),
+    ],
+)
 def test_a_title_from_a_message(said, title):
     assert title_from(said) == title
 
 
-@pytest.mark.parametrize("said,title", [
-    # B-57's commit message: at a word, not on the quote that opens the next
-    ('Coder: In the file lines.txt in the project folder, change line 2 from "two" to "TWO"',
-     "Coder: In the file lines.txt in the project folder, change line 2 from…"),
-    # nor on a word that opens a quote, or a bracket, and does not close it
-    ('Coder: in the file hello.py set the greeting that it prints to "Hello there, all"',
-     "Coder: in the file hello.py set the greeting that it prints to…"),
-    ('Coder: in hello.py, keep the greeting and add a farewell line (print("bye"))',
-     "Coder: in hello.py, keep the greeting and add a farewell line…"),
-    ('Coder: in the file hello.py set the greeting that it prints to "Hello" now and then',
-     'Coder: in the file hello.py set the greeting that it prints to "Hello"…'),
-    # a quote opened words back: cut before it, where half the line is still left
-    ('Coder: in the greeting file of the site set the text to "Hello there all my good friends"',
-     "Coder: in the greeting file of the site set the text to…"),
-    # (where it is not, the quote stays open: next to nothing would be left)
-    ('Set it to "Hello there all my good friends and neighbours who came by today and stayed"',
-     'Set it to "Hello there all my good friends and neighbours who came by…'),
-    # an apostrophe opens nothing
-    ("Coder: don't change the greeting of hello.py, only the farewell line at its very end",
-     "Coder: don't change the greeting of hello.py, only the farewell line at…"),
-])
+@pytest.mark.parametrize(
+    "said,title",
+    [
+        # B-57's commit message: at a word, not on the quote that opens the next
+        (
+            'Coder: In the file lines.txt in the project folder, change line 2 from "two" to "TWO"',
+            "Coder: In the file lines.txt in the project folder, change line 2 from…",
+        ),
+        # nor on a word that opens a quote, or a bracket, and does not close it
+        (
+            'Coder: in the file hello.py set the greeting that it prints to "Hello there, all"',
+            "Coder: in the file hello.py set the greeting that it prints to…",
+        ),
+        (
+            'Coder: in hello.py, keep the greeting and add a farewell line (print("bye"))',
+            "Coder: in hello.py, keep the greeting and add a farewell line…",
+        ),
+        (
+            'Coder: in the file hello.py set the greeting that it prints to "Hello" now and then',
+            'Coder: in the file hello.py set the greeting that it prints to "Hello"…',
+        ),
+        # a quote opened words back: cut before it, where half the line is still left
+        (
+            'Coder: in the greeting file of the site set the text to "Hello there all my good friends"',
+            "Coder: in the greeting file of the site set the text to…",
+        ),
+        # (where it is not, the quote stays open: next to nothing would be left)
+        (
+            'Set it to "Hello there all my good friends and neighbours who came by today and stayed"',
+            'Set it to "Hello there all my good friends and neighbours who came by…',
+        ),
+        # an apostrophe opens nothing
+        (
+            "Coder: don't change the greeting of hello.py, only the farewell line at its very end",
+            "Coder: don't change the greeting of hello.py, only the farewell line at…",
+        ),
+    ],
+)
 def test_a_line_cut_to_a_commits_length_closes_what_it_opened(said, title):
     assert title_from(said, 72) == title
 
@@ -76,19 +96,28 @@ def test_the_joiners_inside_a_word_stay_and_those_around_it_go():
 
 def test_a_message_of_nothing_printable_keeps_the_conversations_name(client, project_dir):
     origin = {"Origin": "http://127.0.0.1:8790"}
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}, headers=origin).json()["id"]
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}, headers=origin).json()[
+        "id"
+    ]
     cid = client.post(f"/api/projects/{pid}/conversations", headers=origin).json()["id"]
-    sent = client.post(f"/api/conversations/{cid}/messages", headers=origin, json={"content": f"{ZWSP}{BOM}"})
+    sent = client.post(
+        f"/api/conversations/{cid}/messages", headers=origin, json={"content": f"{ZWSP}{BOM}"}
+    )
     assert sent.status_code < 300, sent.text
-    assert client.get(f"/api/conversations/{cid}").json()["conversation"]["title"] == "New conversation"
+    assert (
+        client.get(f"/api/conversations/{cid}").json()["conversation"]["title"]
+        == "New conversation"
+    )
 
 
 def test_a_rooms_goal_names_its_conversation_cut_at_a_words_end(make_client, wait_run, project_dir):
     goal = "make the calculator page together (HTML+CSS+JS in one file, no libraries)"
     client, _model, cid, run_id, _room = start(
-        make_client, project_dir, {"Coder": [text("Done.")], "Reviewer": [text("Done.")]}, goal=goal)
+        make_client, project_dir, {"Coder": [text("Done.")], "Reviewer": [text("Done.")]}, goal=goal
+    )
     assert client.get(f"/api/conversations/{cid}").json()["conversation"]["title"] == (
-        "make the calculator page together…")  # (not inside the bracket it opened)
+        "make the calculator page together…"
+    )  # (not inside the bracket it opened)
     wait_run(client, cid, run_id)
 
 

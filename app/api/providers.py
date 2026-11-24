@@ -130,9 +130,18 @@ SERVED = (*HTTP_KINDS, "copilot_cli")
 
 # This machine and the local network, and nothing else (no 0.0.0.0, no 169.254.x: a cloud's
 # metadata address, no reserved range).
-NEARBY = [ip_network(net) for net in (
-    "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
-    "::1/128", "fc00::/7", "fe80::/10")]
+NEARBY = [
+    ip_network(net)
+    for net in (
+        "127.0.0.0/8",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "::1/128",
+        "fc00::/7",
+        "fe80::/10",
+    )
+]
 
 
 def _nearby(url: str) -> bool:
@@ -170,9 +179,12 @@ def _address(kind: str, base_url: str | None) -> str | None:
     # (Not Copilot's: a model server of its own may be remote; who may point it is the
     # page's alone - `ROUTED`.)
     if kind in SERVER_CLIS and not _nearby(url):
-        raise HTTPException(422, "the model server has to be on this machine or your local "
-                                 "network, by its IP address, and end in /v1 "
-                                 "(http://127.0.0.1:8080/v1)")
+        raise HTTPException(
+            422,
+            "the model server has to be on this machine or your local "
+            "network, by its IP address, and end in /v1 "
+            "(http://127.0.0.1:8080/v1)",
+        )
     return url
 
 
@@ -187,8 +199,7 @@ async def _copilot_signed_in(provider: Provider) -> bool | None:
     if provider.base_url:
         return None
     try:
-        told = await limits.copilot_signed_in(
-            provider.executable, provider.api_key, limits.SECONDS)
+        told = await limits.copilot_signed_in(provider.executable, provider.api_key, limits.SECONDS)
     except (ModelUnavailable, TimeoutError):
         return None
     return told["isAuthenticated"]
@@ -198,6 +209,7 @@ def _login(kind: str, executable: str | None, home: Path) -> dict:
     """The CLI's own sign-in command (catalog.json's) for the user's PowerShell and for
     cmd.exe (for sh off Windows), with the provider's sign-in folder set first: its login lands
     there, and KOLONİ never sees it."""
+
     def quoted(text: str) -> str:
         # PowerShell takes the curly single quotes for one too (U+2018-U+201B).
         return "'" + re.sub(r"(['\u2018-\u201b])", r"\1\1", text) + "'"
@@ -228,11 +240,14 @@ def _options(kind: str, options: dict | None, base_url: str | None) -> dict | No
 
 def _guide(provider: Provider, note: str | None, models: list | None) -> None:
     """Set what agents are told about a provider; a 422 says what is wrong with it."""
-    told = [model if isinstance(model, dict) else model.model_dump(exclude_unset=True)
-            for model in models or []]
+    told = [
+        model if isinstance(model, dict) else model.model_dump(exclude_unset=True)
+        for model in models or []
+    ]
     try:
         provider.note, listed = check_guide(
-            note, told, tiered=provider.kind == "copilot_cli" and not provider.base_url)
+            note, told, tiered=provider.kind == "copilot_cli" and not provider.base_url
+        )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
     # A model keeps its place in its tier's order (app.api.tiers) while it keeps its tier;
@@ -279,11 +294,9 @@ def _agents_follow(provider: Provider, body: ProviderIn | ProviderPatch) -> None
 
 
 def _listed(provider: Provider) -> None:
-    """"Only these models" means something only while there is a list."""
+    """ "Only these models" means something only while there is a list."""
     if provider.only_listed and not provider.models:
-        raise HTTPException(
-            422, f'"{ONLY}" needs at least one model in the list'
-        )
+        raise HTTPException(422, f'"{ONLY}" needs at least one model in the list')
 
 
 async def served_models(base_url: str, key: str | None) -> list[str]:
@@ -338,9 +351,7 @@ def get_providers(session: Session = Depends(get_session)):
 
 
 @router.get("/{provider_id}/limits", response_model=LimitsOut)
-async def get_limits(
-    provider_id: str, request: Request, session: Session = Depends(get_session)
-):
+async def get_limits(provider_id: str, request: Request, session: Session = Depends(get_session)):
     """What is known of what is left of the provider's plan: what was last read, by Codex,
     Claude Code, the user's own Claude Code session, agy or Copilot. Only agy and Copilot,
     which say it without a model turn, are asked for it - in the background, at most once
@@ -352,12 +363,11 @@ async def get_limits(
 
 
 @router.post(
-    "/{provider_id}/limits/check", response_model=LimitsOut,
+    "/{provider_id}/limits/check",
+    response_model=LimitsOut,
     dependencies=[Depends(require_own_origin)],
 )
-async def check_limits(
-    provider_id: str, request: Request, session: Session = Depends(get_session)
-):
+async def check_limits(provider_id: str, request: Request, session: Session = Depends(get_session)):
     """The same, read afresh: Codex is asked (no model is called), Claude Code runs one
     short turn. The user's, from the app's own page: a command an agent runs cannot have
     it started. Not one switched off: Claude Code's would be a model turn."""
@@ -419,7 +429,8 @@ async def claude_session(request: Request) -> Response:
 
 
 @session_router.post(
-    "/claude-session/setup", response_model=ClaudeSessionSetupOut,
+    "/claude-session/setup",
+    response_model=ClaudeSessionSetupOut,
     dependencies=[Depends(require_own_origin)],  # it carries the key, made the first time
 )
 def claude_session_setup(request: Request):
@@ -429,16 +440,16 @@ def claude_session_setup(request: Request):
     port = request.app.state.settings.port
     key = session_key(request.app.state.session_factory, make=True)
     python, script = Path(sys.executable).as_posix(), STATUS_LINE.as_posix()
-    return {"command": f'"{python}" "{script}" --koloni http://127.0.0.1:{port} --key {key}',
-            "script": str(STATUS_LINE)}
+    return {
+        "command": f'"{python}" "{script}" --koloni http://127.0.0.1:{port} --key {key}',
+        "script": str(STATUS_LINE),
+    }
 
 
 @router.post(
     "", response_model=ProviderOut, status_code=201, dependencies=[Depends(require_origin)]
 )
-def create_provider(
-    body: ProviderIn, request: Request, session: Session = Depends(get_session)
-):
+def create_provider(body: ProviderIn, request: Request, session: Session = Depends(get_session)):
     if body.kind not in KINDS:
         raise HTTPException(422, f"unknown kind: {body.kind}")
     if body.max_running is not None or body.kind in ROUTED and body.base_url:
@@ -473,8 +484,11 @@ def _rename(session: Session, provider: Provider, body: ProviderPatch) -> None:
             # The record goes by the name: its rows follow, or a renamed provider's would drop
             # out of its usage, its day's limit (`over_limit`) and its room (`has_room`).
             for table in (Agent, OwnRequest):
-                session.execute(update(table).where(table.provider_name == provider.name)
-                                .values(provider_name=name))
+                session.execute(
+                    update(table)
+                    .where(table.provider_name == provider.name)
+                    .values(provider_name=name)
+                )
         provider.name = name
 
 
@@ -487,14 +501,20 @@ def _change_server(provider: Provider, body: ProviderPatch) -> None:
         if provider.base_url and provider.models:
             # A context tier is GitHub's (K-copilot-baglam), as a routing is: on a model server
             # of the user's own they mean nothing, and a stale one would refuse every later save.
-            provider.models = [{k: v for k, v in m.items() if k not in ("context", "routing")}
-                               for m in provider.models]
+            provider.models = [
+                {k: v for k, v in m.items() if k not in ("context", "routing")}
+                for m in provider.models
+            ]
     if "api_key" in sent and provider.kind in SERVED:
         provider.api_key = _key(body.api_key)  # an empty key removes it
     if "options" in sent or "base_url" in sent:
         told = body.options if "options" in sent else provider.options
-        if (provider.kind == "copilot_cli" and told is not None and "offline" not in told
-                and provider.options):
+        if (
+            provider.kind == "copilot_cli"
+            and told is not None
+            and "offline" not in told
+            and provider.options
+        ):
             # Not said this time: it stays as it was set.
             told = {**told, "offline": provider.options.get("offline")}
         provider.options = _options(provider.kind, told, provider.base_url)
@@ -503,17 +523,23 @@ def _change_server(provider: Provider, body: ProviderPatch) -> None:
 # On the event loop, as everything that reaches the runner is.
 @router.patch("/{provider_id}", response_model=ProviderOut, dependencies=[Depends(require_origin)])
 async def patch_provider(
-    provider_id: str, body: ProviderPatch, request: Request,
+    provider_id: str,
+    body: ProviderPatch,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     provider = _provider(session, provider_id)
     sent = body.model_fields_set
     # (Where a CLI sends its work, too: not an agent's to point elsewhere.)
-    if sent & {"max_running", "models", "for_agents", "enabled", *LIMITS} or (
-            "base_url" in sent and provider.kind in ROUTED) or (
+    if (
+        sent & {"max_running", "models", "for_agents", "enabled", *LIMITS}
+        or ("base_url" in sent and provider.kind in ROUTED)
+        or (
             # Copilot's token goes to its model server (COPILOT_PROVIDER_API_KEY): both are
             # the page's to set.
-            "api_key" in sent and provider.kind == "copilot_cli"):
+            "api_key" in sent and provider.kind == "copilot_cli"
+        )
+    ):
         # As a project's limit: the user's to say from the app's own page, not a
         # command's that an agent runs against the app's address - nor what agents may pick.
         require_own_origin(request)
@@ -566,8 +592,11 @@ def delete_provider(provider_id: str, request: Request, session: Session = Depen
             .where(table.provider_id == provider.id)
             .values(provider_id=None, model_id=None)
         )
-    session.execute(update(Project).where(Project.backlog_provider_id == provider.id).values(
-        backlog_provider_id=None, backlog_model_id=None))
+    session.execute(
+        update(Project)
+        .where(Project.backlog_provider_id == provider.id)
+        .values(backlog_provider_id=None, backlog_model_id=None)
+    )
     # And it is no longer one that may be picked for a role (a list of one becomes none).
     for role in session.scalars(select(Role)):
         picks = role.pick_from or []
@@ -585,7 +614,8 @@ def delete_provider(provider_id: str, request: Request, session: Session = Depen
 
 
 @router.post(
-    "/{provider_id}/default", response_model=ProviderOut,
+    "/{provider_id}/default",
+    response_model=ProviderOut,
     dependencies=[Depends(require_own_origin)],
 )
 def make_default(provider_id: str, session: Session = Depends(get_session)):
@@ -608,8 +638,12 @@ async def provider_models(
     provider = _provider(session, provider_id)
     own = [model["name"] for model in provider.models or []]
     copy = _copy(request)
-    known = [row["name"] for row in catalog.models_for(
-        catalog.catalogue_of(provider.kind, provider.base_url, copy), copy, provider.name)]
+    known = [
+        row["name"]
+        for row in catalog.models_for(
+            catalog.catalogue_of(provider.kind, provider.base_url, copy), copy, provider.name
+        )
+    ]
     listed, note, advice = await _own_list(provider, request.app.state.providers)
     # (Not one the user switched off: nobody may pick it.)
     off = {m["name"] for m in provider.models or [] if m.get("enabled") is False}
@@ -622,7 +656,8 @@ async def provider_models(
 
 
 @router.post(
-    "/fill-from-catalogue", response_model=CatalogueFillOut,
+    "/fill-from-catalogue",
+    response_model=CatalogueFillOut,
     dependencies=[Depends(require_own_origin)],
 )
 def fill_new_from_catalogue(body: CatalogueFillIn, request: Request):
@@ -633,12 +668,16 @@ def fill_new_from_catalogue(body: CatalogueFillIn, request: Request):
     copy = _copy(request)
     models, left_out = catalog.fill(
         catalog.catalogue_of(body.kind, _address(body.kind, body.base_url), copy),
-        [model.model_dump() for model in body.models], [], copy)
+        [model.model_dump() for model in body.models],
+        [],
+        copy,
+    )
     return CatalogueFillOut(models=models, left_out=left_out)
 
 
 @router.post(
-    "/{provider_id}/fill-from-catalogue", response_model=CatalogueFillOut,
+    "/{provider_id}/fill-from-catalogue",
+    response_model=CatalogueFillOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def fill_from_catalogue(
@@ -654,8 +693,12 @@ async def _fill(provider: Provider, request: Request) -> tuple[list[dict], int]:
     listed, _ = await _listed_by(provider, request.app.state.providers)
     copy = _copy(request)
     return catalog.fill(
-        catalog.catalogue_of(provider.kind, provider.base_url, copy), provider.models or [],
-        listed or [], copy, provider.name)
+        catalog.catalogue_of(provider.kind, provider.base_url, copy),
+        provider.models or [],
+        listed or [],
+        copy,
+        provider.name,
+    )
 
 
 # Paid by the plan, not the token: ticked for agents when the tiers are filled (design §3b),
@@ -664,8 +707,7 @@ async def _fill(provider: Provider, request: Request) -> tuple[list[dict], int]:
 SUBSCRIPTIONS = ("claude_cli", "codex_cli", "agy_cli", "qoder_cli")
 
 
-@router.post(
-    "/fill-all", response_model=FillAllOut, dependencies=[Depends(require_own_origin)])
+@router.post("/fill-all", response_model=FillAllOut, dependencies=[Depends(require_own_origin)])
 async def fill_all(request: Request, session: Session = Depends(get_session)):
     """Every provider's team guide proposed from the catalogue at once; nothing is saved.
     A provider with no catalogue (a server of one's own) keeps its rows and tick as they
@@ -678,30 +720,47 @@ async def fill_all(request: Request, session: Session = Depends(get_session)):
         if not catalog.models_for(key, copy, p.name):
             return None
         if p.only_listed:
-            return catalog.fill(key, p.models or [], [], copy, p.name)[0][:len(p.models or [])]
+            return catalog.fill(key, p.models or [], [], copy, p.name)[0][: len(p.models or [])]
         return (await _fill(p, request))[0]
 
     async def on_plan(p: Provider) -> bool:  # (asked only where it can change the tick)
-        return (not p.for_agents and p.kind in SUBSCRIPTIONS
-                and bool(catalog.models_for(catalog.catalogue_of(p.kind, p.base_url, copy), copy,
-                                            p.name))
-                and catalog.installed(p.kind, p.executable)
-                and await catalog.signed_in(p.kind, p.executable, cli_home(
-                    request.app.state.settings.runtime_root, p)) is not False)
+        return (
+            not p.for_agents
+            and p.kind in SUBSCRIPTIONS
+            and bool(
+                catalog.models_for(catalog.catalogue_of(p.kind, p.base_url, copy), copy, p.name)
+            )
+            and catalog.installed(p.kind, p.executable)
+            and await catalog.signed_in(
+                p.kind, p.executable, cli_home(request.app.state.settings.runtime_root, p)
+            )
+            is not False
+        )
 
     providers = list_providers(session)
-    found, ready = await asyncio.gather(asyncio.gather(*(proposed(p) for p in providers)),
-                                        asyncio.gather(*(on_plan(p) for p in providers)))
-    return FillAllOut(providers=[FillAllProvider(
-        id=p.id, name=p.name, kind=p.kind, catalogued=models is not None,
-        for_agents=p.for_agents or (models is not None and plan),
-        models=p.models or [] if models is None else models,
-    ) for p, models, plan in zip(providers, found, ready, strict=True)], notes=catalog.NOTES)
+    found, ready = await asyncio.gather(
+        asyncio.gather(*(proposed(p) for p in providers)),
+        asyncio.gather(*(on_plan(p) for p in providers)),
+    )
+    return FillAllOut(
+        providers=[
+            FillAllProvider(
+                id=p.id,
+                name=p.name,
+                kind=p.kind,
+                catalogued=models is not None,
+                for_agents=p.for_agents or (models is not None and plan),
+                models=p.models or [] if models is None else models,
+            )
+            for p, models, plan in zip(providers, found, ready, strict=True)
+        ],
+        notes=catalog.NOTES,
+    )
 
 
 @router.post(
-    "/fill-all/save", response_model=list[ProviderOut],
-    dependencies=[Depends(require_own_origin)])
+    "/fill-all/save", response_model=list[ProviderOut], dependencies=[Depends(require_own_origin)]
+)
 def save_fill_all(body: FillAllIn, session: Session = Depends(get_session)):
     """The proposal as the user left it, saved in one go: all of it, or (a 422 or 404 says
     why) none of it. A provider it leaves as it was is not touched (its form stays open)."""
@@ -713,10 +772,16 @@ def save_fill_all(body: FillAllIn, session: Session = Depends(get_session)):
             # Ticked with every model switched off: the tick would do nothing, so they are on.
             models = [{**m, "agents": True} for m in models]
         # (Without a model's place in its tier's order, which is not set here.)
-        kept = [{**{key: m.get(key) for key in ("name", "note", "tier")},
-                 "agents": m.get("agents", True), "inputs": m.get("inputs"),
-                 "context": m.get("context"), "routing": m.get("routing")}
-                for m in provider.models or []]
+        kept = [
+            {
+                **{key: m.get(key) for key in ("name", "note", "tier")},
+                "agents": m.get("agents", True),
+                "inputs": m.get("inputs"),
+                "context": m.get("context"),
+                "routing": m.get("routing"),
+            }
+            for m in provider.models or []
+        ]
         if told.for_agents == provider.for_agents and models == kept:
             continue
         provider.for_agents = told.for_agents
@@ -743,8 +808,7 @@ async def _cli_ready(request: Request, provider: Provider, told: dict) -> str | 
         elif kind == "copilot_cli":
             told["signed_in"] = await _copilot_signed_in(provider)
         else:
-            told["signed_in"], told["plan"] = await catalog.status(
-                kind, provider.executable, home)
+            told["signed_in"], told["plan"] = await catalog.status(kind, provider.executable, home)
         if home is not None:
             # K-claude-hesap: its own folder's login, in the user's own terminal.
             told["login"] = _login(kind, provider.executable, home)
@@ -755,11 +819,14 @@ async def _cli_ready(request: Request, provider: Provider, told: dict) -> str | 
 
 
 @router.get(
-    "/{provider_id}/availability", response_model=AvailabilityOut,
+    "/{provider_id}/availability",
+    response_model=AvailabilityOut,
     dependencies=[Depends(require_origin)],
 )
 async def availability(
-    provider_id: str, request: Request, free: bool = False,
+    provider_id: str,
+    request: Request,
+    free: bool = False,
     session: Session = Depends(get_session),
 ):
     """Whether each model of the guide, the catalogue and the provider's own list can be used
@@ -769,8 +836,11 @@ async def availability(
     provider = _provider(session, provider_id)
     down = looked_down(session)
     if free:
-        installed = catalog.installed(provider.kind, provider.executable) if (
-            provider.kind in CLI_NAMES) else None
+        installed = (
+            catalog.installed(provider.kind, provider.executable)
+            if (provider.kind in CLI_NAMES)
+            else None
+        )
         if installed is False:
             down[provider.id] = ("not installed", None)
         elif installed and down.get(provider.id, ("",))[0] == "not installed":
@@ -778,18 +848,24 @@ async def availability(
         return {"installed": installed, "models": []}
     kind = provider.kind
     copy = _copy(request)
-    names = dict.fromkeys([m["name"] for m in provider.models or []]
-                          + [e["name"] for e in catalog.models_for(
-                              catalog.catalogue_of(kind, provider.base_url, copy), copy,
-                              provider.name)])
+    names = dict.fromkeys(
+        [m["name"] for m in provider.models or []]
+        + [
+            e["name"]
+            for e in catalog.models_for(
+                catalog.catalogue_of(kind, provider.base_url, copy), copy, provider.name
+            )
+        ]
+    )
     told: dict = {"installed": None}
     why = None  # why none of them can be used
     if kind in CLI_NAMES:
         why = await _cli_ready(request, provider, told)
     elif kind == "anthropic" and not provider.api_key:
         why = "needs an API key"
-    listed, failed = (None, None) if why else await _listed_by(
-        provider, request.app.state.providers)
+    listed, failed = (
+        (None, None) if why else await _listed_by(provider, request.app.state.providers)
+    )
     # As the page says it. A list nothing answered for: its server is not answering - for a
     # while, as one started later answers; a status or an answer that is no list says
     # nothing of its chat, which may work without /models.
@@ -803,15 +879,19 @@ async def availability(
     # What it listed is marked too: a fill can put any of it in the guide.
     names = dict.fromkeys([*names, *(listed or [])])
     told["models"] = [
-        {"name": name, "state": "unusable", "why": why} if why
-        else {"name": name, "state": "unknown", "why": unknown} if listed is None
-        else {"name": name, "state": "usable", "why": None} if name in listed
+        {"name": name, "state": "unusable", "why": why}
+        if why
+        else {"name": name, "state": "unknown", "why": unknown}
+        if listed is None
+        else {"name": name, "state": "usable", "why": None}
+        if name in listed
         else {"name": name, "state": "unusable", "why": "not offered by the provider now"}
         for name in names
     ]
     for row in told["models"]:
-        row["retired"] = catalog.facts(kind, provider.base_url, row["name"], copy)[0][
-            "deprecated"] is True
+        row["retired"] = (
+            catalog.facts(kind, provider.base_url, row["name"], copy)[0]["deprecated"] is True
+        )
     return told
 
 
@@ -831,10 +911,14 @@ async def _anthropic_list(provider: Provider, providers) -> tuple[list[str], str
     """`_own_list` of Anthropic's API."""
     if not provider.api_key:
         # Nobody is asked without a key: there is nothing it could list.
-        return [], (
-            "Set an API key to see the models it can use, or type the model's name "
-            "as Anthropic knows it."
-        ), True
+        return (
+            [],
+            (
+                "Set an API key to see the models it can use, or type the model's name "
+                "as Anthropic knows it."
+            ),
+            True,
+        )
     try:
         lister = getattr(providers.lister(provider), "models", None)
         return (await lister() if lister else []), None, False
@@ -864,10 +948,16 @@ async def _own_list(provider: Provider, providers) -> tuple[list[str], str | Non
             lister = getattr(providers.lister(provider), "models", None)
             listed = await lister() if lister else []
             # It ran and named none (none KOLONİ could read as one): said, not left blank.
-            return listed, None if listed else (
-                "agy listed no models. Type the name you would give its --model option, "
-                "or leave it empty for its own choice."
-            ), False
+            return (
+                listed,
+                None
+                if listed
+                else (
+                    "agy listed no models. Type the name you would give its --model option, "
+                    "or leave it empty for its own choice."
+                ),
+                False,
+            )
         except ModelUnavailable as exc:
             return [], str(exc), False
     if provider.kind == "anthropic":
@@ -886,15 +976,23 @@ async def _own_list(provider: Provider, providers) -> tuple[list[str], str | Non
         if listed:
             return listed, None, False
     if provider.kind == "copilot_cli":
-        return [], (
-            "On a GitHub account the models are GitHub's: type the name you would give "
-            "Copilot's --model option, or leave it empty for its own choice."
-        ), True
+        return (
+            [],
+            (
+                "On a GitHub account the models are GitHub's: type the name you would give "
+                "Copilot's --model option, or leave it empty for its own choice."
+            ),
+            True,
+        )
     if provider.kind in CLI_NAMES:
-        return [], (
-            f"{CLI_NAMES[provider.kind]} does not list its models: type the name you "
-            "would give its --model option, or leave it empty for its own default."
-        ), True
+        return (
+            [],
+            (
+                f"{CLI_NAMES[provider.kind]} does not list its models: type the name you "
+                "would give its --model option, or leave it empty for its own default."
+            ),
+            True,
+        )
     return [], "Type the model's name as the provider knows it.", True
 
 
@@ -902,7 +1000,9 @@ async def _own_list(provider: Provider, providers) -> tuple[list[str], str | Non
     "/{provider_id}/test", response_model=ProviderTestOut, dependencies=[Depends(require_origin)]
 )
 async def test_provider(
-    provider_id: str, request: Request, run: bool = False,
+    provider_id: str,
+    request: Request,
+    run: bool = False,
     session: Session = Depends(get_session),
 ):
     """Ask the provider what it is: reachable or not, which model, tools or no tools.
@@ -921,8 +1021,12 @@ async def test_provider(
             # Run once on a one-word question: what it answered and the model it named.
             # (On Usage as "KOLONİ itself": K-56.)
             reply, answer = await ask_own(
-                request.app.state.session_factory, (provider.name, mode_of(provider)), client,
-                info.model_id, TRY_OUT)
+                request.app.state.session_factory,
+                (provider.name, mode_of(provider)),
+                client,
+                info.model_id,
+                TRY_OUT,
+            )
             if answer.model:
                 model_id, model_from = answer.model, None  # the CLI said it itself
         elif provider.kind == "copilot_cli" and await _copilot_signed_in(provider) is False:
@@ -934,8 +1038,10 @@ async def test_provider(
         if said and said[0] and said[1] != "tried" and hasattr(client, "takes_image"):
             took = await client.takes_image(info.model_id)
             if took is not None:
-                provider.tried_inputs = {**(provider.tried_inputs or {}), name: {
-                    **(provider.tried_inputs or {}).get(name, {}), "image": took}}
+                provider.tried_inputs = {
+                    **(provider.tried_inputs or {}),
+                    name: {**(provider.tried_inputs or {}).get(name, {}), "image": took},
+                }
                 session.commit()
     except ModelUnavailable as exc:
         reason = str(exc)
@@ -945,8 +1051,12 @@ async def test_provider(
         return ProviderTestOut(ok=False, model_id=None, tools_supported=None, error=reason)
     looked_down(session).pop(provider.id, None)
     return ProviderTestOut(
-        ok=True, model_id=model_id, tools_supported=info.tools_supported, error=None,
-        reply=reply, model_from=model_from,
+        ok=True,
+        model_id=model_id,
+        tools_supported=info.tools_supported,
+        error=None,
+        reply=reply,
+        model_from=model_from,
     )
 
 
@@ -970,30 +1080,35 @@ async def _anthropic_says(look_up, name, told: dict, said: dict, failed: bool) -
     """What Anthropic says of a model, put where nothing else said it; whether asking failed."""
     # Anthropic's Models API costs nothing; what it said of a model is kept by the client.
     try:
-        info = (await asyncio.wait_for(
-            look_up(name, FACTS_SECONDS), FACTS_SECONDS))[0]
+        info = (await asyncio.wait_for(look_up(name, FACTS_SECONDS), FACTS_SECONDS))[0]
     except ModelUnavailable as exc:
         cause = exc.__cause__
         # A model it does not know is unknown, not a failed lookup.
-        failed = not (isinstance(cause, httpx2.HTTPStatusError)
-                      and cause.response.status_code == 404)
+        failed = not (
+            isinstance(cause, httpx2.HTTPStatusError) and cause.response.status_code == 404
+        )
     except TimeoutError:
         failed = True
     else:
-        for fact, value in (("efforts", list(info.efforts or ())),
-                            ("context_window", info.context_window)):
+        for fact, value in (
+            ("efforts", list(info.efforts or ())),
+            ("context_window", info.context_window),
+        ):
             if value is not None and told[fact] is None:
                 told[fact], said[fact] = value, "anthropic"
     return failed
 
 
 @router.get(
-    "/{provider_id}/model-facts", response_model=ModelFactsOut,
+    "/{provider_id}/model-facts",
+    response_model=ModelFactsOut,
     dependencies=[Depends(require_origin)],  # it may ask the provider: not for another site
 )
 async def model_facts(
-    provider_id: str, request: Request,
-    model: str = Query("", max_length=MAX_MODEL_NAME), session: Session = Depends(get_session),
+    provider_id: str,
+    request: Request,
+    model: str = Query("", max_length=MAX_MODEL_NAME),
+    session: Session = Depends(get_session),
 ):
     """What is known of a model on this provider - the one being picked, saved or not -
     each fact with where it came from: the user's own (a tier in the team guide, a price),
@@ -1012,9 +1127,16 @@ async def model_facts(
         told["tier"], said["tier"] = mine["tier"], "you"
     price = session.get(Price, name) if name else None
     if price is not None:
-        told["price"], said["price"] = {
-            "input": price.input, "output": price.output, "cache_read": price.cache_read,
-            "cache_write": price.cache_write, "currency": price.currency}, "you"
+        told["price"], said["price"] = (
+            {
+                "input": price.input,
+                "output": price.output,
+                "cache_read": price.cache_read,
+                "cache_write": price.cache_write,
+                "currency": price.currency,
+            },
+            "you",
+        )
     # Asked of the client its runs use (its default model's): never one more per name typed.
     try:
         client = request.app.state.providers.client(provider, provider.default_model)
@@ -1022,8 +1144,11 @@ async def model_facts(
         client = None
     failed = False
     found = getattr(client, "found_window", None)
-    if provider.kind == "openai_compat" and found and (
-            said.get("efforts") != "you" or told["context_window"] is None):
+    if (
+        provider.kind == "openai_compat"
+        and found
+        and (said.get("efforts") != "you" or told["context_window"] is None)
+    ):
         # Its `/props` (llama-server's window and levels: the whole server's, on this machine
         # or the LAN) is a free GET; never its chat, which would start a generation.
         try:
@@ -1034,28 +1159,41 @@ async def model_facts(
             failed = not getattr(client, "reached", True)
         # (Its levels as the server said them: not a catalogue's for another model. Over the
         # catalogue's, as its client sends them; never over the user's, catalog.local.json.)
-        for fact, value in (("efforts", getattr(client, "props_efforts", None)),
-                            ("context_window", window)):
-            if ((fact == "efforts" and value and said.get(fact) != "you")
-                    or (value is not None and told[fact] is None)):
+        for fact, value in (
+            ("efforts", getattr(client, "props_efforts", None)),
+            ("context_window", window),
+        ):
+            if (fact == "efforts" and value and said.get(fact) != "you") or (
+                value is not None and told[fact] is None
+            ):
                 told[fact], said[fact] = list(value) if fact == "efforts" else value, "server"
     look_up = getattr(client, "_look_up", None)
     if provider.kind == "anthropic" and look_up is None:
         # No model its runs could use (`allowed`): a name being picked is looked up all the same.
         look_up = getattr(request.app.state.providers.lister(provider), "_look_up", None)
-    if (provider.kind == "anthropic" and provider.api_key and look_up and "efforts" not in said
-            and (name or provider.default_model)):
-        failed = await _anthropic_says(look_up, name or provider.default_model, told, said,
-                                       failed)
+    if (
+        provider.kind == "anthropic"
+        and provider.api_key
+        and look_up
+        and "efforts" not in said
+        and (name or provider.default_model)
+    ):
+        failed = await _anthropic_says(look_up, name or provider.default_model, told, said, failed)
     takes = catalog.inputs(provider, catalog.model_key(provider, name), copy)
-    return ModelFactsOut(**told, sources=said, catalogue_date=models_dev.read_on(copy),
-                         failed=failed, inputs=[
-                             {"kind": kind, "takes": yes, "source": source}
-                             for kind, (yes, source) in takes.items()])
+    return ModelFactsOut(
+        **told,
+        sources=said,
+        catalogue_date=models_dev.read_on(copy),
+        failed=failed,
+        inputs=[
+            {"kind": kind, "takes": yes, "source": source} for kind, (yes, source) in takes.items()
+        ],
+    )
 
 
-@router.post("/{provider_id}/find-again", status_code=204,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/{provider_id}/find-again", status_code=204, dependencies=[Depends(require_own_origin)]
+)
 def find_again(provider_id: str, request: Request, session: Session = Depends(get_session)):
     """The user's Find again on the Models page: what this provider's server or Anthropic's
     Models API said of its models (a window, levels) is asked again at the next look - a
@@ -1066,16 +1204,21 @@ def find_again(provider_id: str, request: Request, session: Session = Depends(ge
     return Response(status_code=204)
 
 
-@router.delete("/{provider_id}/tried-inputs", status_code=204,
-               dependencies=[Depends(require_own_origin)])
-def forget_tried(provider_id: str, model: str = Query("", max_length=MAX_MODEL_NAME),
-                 session: Session = Depends(get_session)):
+@router.delete(
+    "/{provider_id}/tried-inputs", status_code=204, dependencies=[Depends(require_own_origin)]
+)
+def forget_tried(
+    provider_id: str,
+    model: str = Query("", max_length=MAX_MODEL_NAME),
+    session: Session = Depends(get_session),
+):
     """What KOLONİ learned sending a model files (slice 85b), taken away by the user: what
     models.dev or their own mark says counts again, and the next file is tried once more."""
     provider = _provider(session, provider_id)
     name = catalog.model_key(provider, _model(model))
-    provider.tried_inputs = {k: v for k, v in (provider.tried_inputs or {}).items()
-                             if k != name} or None
+    provider.tried_inputs = {
+        k: v for k, v in (provider.tried_inputs or {}).items() if k != name
+    } or None
     session.commit()
     return Response(status_code=204)
 
@@ -1105,17 +1248,20 @@ def _told(session: Session) -> dict:
 
 
 @catalogue_router.put(
-    "/fresh", response_model=CatalogueUpdateOut, dependencies=[Depends(require_own_origin)])
-def keep_catalogue_fresh(body: CatalogueFreshIn, request: Request,
-                         session: Session = Depends(get_session)):
-    """"Keep the catalogue fresh": the user's, from the app's own page; read at the start."""
+    "/fresh", response_model=CatalogueUpdateOut, dependencies=[Depends(require_own_origin)]
+)
+def keep_catalogue_fresh(
+    body: CatalogueFreshIn, request: Request, session: Session = Depends(get_session)
+):
+    """ "Keep the catalogue fresh": the user's, from the app's own page; read at the start."""
     session.merge(Flag(name=models_dev.FRESH, value="1" if body.keep_fresh else "0"))
     session.commit()
     return catalogue(request, session)
 
 
 @catalogue_router.post(
-    "/update", response_model=CatalogueUpdateOut, dependencies=[Depends(require_own_origin)])
+    "/update", response_model=CatalogueUpdateOut, dependencies=[Depends(require_own_origin)]
+)
 async def update_catalogue(request: Request, session: Session = Depends(get_session)):
     """Download models.dev's list, check it is that, trim it and keep it as the catalogue
     this app reads. Only ever the user's, from the app's own page; an answer that is not
@@ -1123,10 +1269,14 @@ async def update_catalogue(request: Request, session: Session = Depends(get_sess
     try:
         raw = await asyncio.wait_for(models_dev.download(), 2 * models_dev.SECONDS)
         kept = await asyncio.to_thread(
-            models_dev.update, request.app.state.settings.runtime_root, raw)
+            models_dev.update, request.app.state.settings.runtime_root, raw
+        )
         return {**kept, **_told(session)}
     except TimeoutError:
         raise HTTPException(504, "models.dev did not answer in time; nothing was changed") from None
     except Exception as exc:  # unreachable, refused, or not its list: the copy stays as it was
-        raise HTTPException(502, f"models.dev's list could not be used ({type(exc).__name__}: "
-                            f"{str(exc)[:200]}); nothing was changed") from None
+        raise HTTPException(
+            502,
+            f"models.dev's list could not be used ({type(exc).__name__}: "
+            f"{str(exc)[:200]}); nothing was changed",
+        ) from None

@@ -72,6 +72,7 @@ def everything(agent_id):
 
 async def work(client, root):
     """A run of a CLI that works with its own tools, with nobody listening."""
+
     async def nothing(*_):
         return None
 
@@ -91,10 +92,15 @@ def test_the_numbers_go_on_over_the_runs_of_a_cli_and_nobodys_lines_are_not_kept
             raw.feed("stdout", "a search's line\n")
     with raw.of(agent):  # the next run of its CLI
         raw.feed("stdout", "not json at all")
-    assert raw.read(agent) == {"dropped": 0, "more": False, "lines": [
-        {"n": 1, "stream": "stdout", "text": '{"type": "init"}'},
-        {"n": 2, "stream": "stderr", "text": "a warning"},
-        {"n": 3, "stream": "stdout", "text": "not json at all"}]}
+    assert raw.read(agent) == {
+        "dropped": 0,
+        "more": False,
+        "lines": [
+            {"n": 1, "stream": "stdout", "text": '{"type": "init"}'},
+            {"n": 2, "stream": "stderr", "text": "a warning"},
+            {"n": 3, "stream": "stdout", "text": "not json at all"},
+        ],
+    }
     assert texts(agent, after=2) == ["not json at all"] and texts(agent, after=3) == []
 
 
@@ -123,7 +129,10 @@ def test_one_answer_carries_only_so_many_lines_and_the_rest_is_had_by_asking_aga
         raw.feed_lines("stdout", [b"line %d" % n for n in range(1, 5001)])
     first = raw.read(agent)
     assert (len(first["lines"]), first["lines"][0]["n"], first["more"]) == (
-        raw.ANSWER_LINES, 1, True)
+        raw.ANSWER_LINES,
+        1,
+        True,
+    )
     lines, dropped = everything(agent)
     assert [line["n"] for line in lines] == list(range(1, 5001)) and dropped == 0
     assert lines[-1]["text"] == "line 5000"
@@ -148,21 +157,17 @@ async def test_a_flood_of_short_lines_is_taken_reading_by_reading_not_line_by_li
     assert took < limit, f"{took:.1f} s for five million short lines"
 
 
-def test_a_line_too_long_is_cut_where_it_shows_and_a_secret_across_the_cut_is_hidden(
-    agent, knows
-):
+def test_a_line_too_long_is_cut_where_it_shows_and_a_secret_across_the_cut_is_hidden(agent, knows):
     knows.append(KEY)
     start = "x" * (raw.LINE_CHARS - 10)
     with raw.of(agent):
         raw.feed("stdout", start + KEY + "y" * 5000)
     (line,) = texts(agent)
-    assert line == (start + "***" + "y" * 5000)[:raw.LINE_CHARS] + raw.CUT
+    assert line == (start + "***" + "y" * 5000)[: raw.LINE_CHARS] + raw.CUT
     assert KEY[:12] not in line
 
 
-def test_with_too_many_agents_the_one_silent_longest_goes_but_never_one_at_work(
-    monkeypatch, knows
-):
+def test_with_too_many_agents_the_one_silent_longest_goes_but_never_one_at_work(monkeypatch, knows):
     first, second, third = (uuid.uuid4().hex for _ in range(3))
     monkeypatch.setattr(raw, "_agents", type(raw._agents)())
     monkeypatch.setattr(raw, "MAX_AGENTS", 2)
@@ -212,9 +217,7 @@ def test_a_secret_is_hidden_as_it_is_and_as_json_writes_it_and_a_short_one_is_no
     ]
 
 
-def test_a_secret_that_became_known_later_is_hidden_from_then_on_and_in_what_was_kept(
-    agent, knows
-):
+def test_a_secret_that_became_known_later_is_hidden_from_then_on_and_in_what_was_kept(agent, knows):
     with raw.of(agent):
         raw.feed("stdout", f"before: {KEY}")
         knows.append(KEY)  # a provider added while the CLI runs
@@ -225,9 +228,7 @@ def test_a_secret_that_became_known_later_is_hidden_from_then_on_and_in_what_was
     assert raw._agents[agent].lines[-1][2] == b"after: ***"  # not kept at all any more
 
 
-def test_secrets_that_cannot_be_read_do_not_break_the_run_a_line_came_in(
-    agent, knows, monkeypatch
-):
+def test_secrets_that_cannot_be_read_do_not_break_the_run_a_line_came_in(agent, knows, monkeypatch):
     knows.append(KEY)
     with raw.of(agent):
         raw.feed("stdout", f"first: {KEY}")
@@ -268,19 +269,27 @@ async def test_a_line_with_no_end_is_not_waited_for_and_only_the_end_is_kept_to_
     endless = b"x" * 3_000_000
     with raw.of(agent):
         # of more than is kept: its end, as it came - also where that begins inside a line
-        assert await read_errors(
-            endless[:1_000_000], endless[1_000_000:], b"\nfatal: gave up\n"
-        ) == (endless + b"\nfatal: gave up\n")[-ERRORS_KEPT:]
+        assert (
+            await read_errors(endless[:1_000_000], endless[1_000_000:], b"\nfatal: gave up\n")
+            == (endless + b"\nfatal: gave up\n")[-ERRORS_KEPT:]
+        )
         # all one line: its end
         assert await read_errors(endless) == endless[-ERRORS_KEPT:]
     cut, last, again = texts(agent)
     assert cut == again == "x" * raw.LINE_CHARS + raw.CUT and last == "fatal: gave up"
 
 
-@pytest.mark.parametrize("said, its_end", [
-    ('starting\n{"error":"' + "q" * 200_000 + ' rate limit reached"}\n', 'rate limit reached"}'),
-    ("y" * 70_000 + "\nError: X", "yyy Error: X"),
-], ids=["a last line longer than is kept", "a line before the last that the cut falls in"])
+@pytest.mark.parametrize(
+    "said, its_end",
+    [
+        (
+            'starting\n{"error":"' + "q" * 200_000 + ' rate limit reached"}\n',
+            'rate limit reached"}',
+        ),
+        ("y" * 70_000 + "\nError: X", "yyy Error: X"),
+    ],
+    ids=["a last line longer than is kept", "a line before the last that the cut falls in"],
+)
 async def test_why_a_cli_failed_is_said_as_before_however_long_its_last_lines_are(
     said, its_end, agent, knows, tmp_path
 ):
@@ -289,7 +298,9 @@ async def test_why_a_cli_failed_is_said_as_before_however_long_its_last_lines_ar
         "import sys\n"
         "sys.stdin.readline()\n"  # (a line: Codex's app-server is never sent the end of it)
         f"sys.stderr.buffer.write({said.encode()!r})\n"
-        "sys.exit(3)\n", encoding="utf-8")
+        "sys.exit(3)\n",
+        encoding="utf-8",
+    )
     fails = {"timeout": 20.0, "launcher": [sys.executable, str(script)]}
     why = _brief(said)  # what was said when all of its error output was read in one piece
     assert why.endswith(its_end) and len(why) == model_cli.ERROR_CHARS
@@ -314,7 +325,9 @@ async def test_a_cli_that_floods_its_error_output_ends_and_why_it_failed_reads_a
         "for i in range(60000):\n"
         "    sys.stderr.write(f'warning {i}: ' + 'w' * 80 + '\\n')\n"
         "sys.stderr.write('fatal: the disk is full\\nfatal: giving up\\n')\n"
-        "sys.exit(3)\n", encoding="utf-8")
+        "sys.exit(3)\n",
+        encoding="utf-8",
+    )
     client = ClaudeCliClient(timeout=60.0, launcher=[sys.executable, str(script)])
     whole = "".join(f"warning {i}: " + "w" * 80 + "\n" for i in range(60000))
     whole += "fatal: the disk is full\nfatal: giving up\n"
@@ -322,8 +335,11 @@ async def test_a_cli_that_floods_its_error_output_ends_and_why_it_failed_reads_a
         await step(client)
     assert str(failed.value) == f"Claude Code exited with code 3: {_brief(whole)}"
     lines, dropped = everything(agent)
-    assert dropped > 50000 and lines[0]["n"] == dropped + 1 and lines[-1] == {
-        "n": 60002, "stream": "stderr", "text": "fatal: giving up"}
+    assert (
+        dropped > 50000
+        and lines[0]["n"] == dropped + 1
+        and lines[-1] == {"n": 60002, "stream": "stderr", "text": "fatal: giving up"}
+    )
 
 
 async def test_a_line_of_error_output_is_there_while_the_cli_that_wrote_it_still_runs(
@@ -338,10 +354,13 @@ async def test_a_line_of_error_output_is_there_while_the_cli_that_wrote_it_still
         "sys.stderr.flush()\n"
         f"while not pathlib.Path({str(go)!r}).exists():\n"
         "    time.sleep(0.02)\n"
-        "sys.exit(3)\n", encoding="utf-8")
+        "sys.exit(3)\n",
+        encoding="utf-8",
+    )
     with raw.of(agent):
         stepping = asyncio.ensure_future(
-            step(ClaudeCliClient(timeout=30.0, launcher=[sys.executable, str(script)])))
+            step(ClaudeCliClient(timeout=30.0, launcher=[sys.executable, str(script)]))
+        )
     deadline = time.monotonic() + 20
     while raw.read(agent) is None:
         assert time.monotonic() < deadline and not stepping.done()
@@ -380,7 +399,9 @@ async def test_a_line_without_an_end_is_there_after_a_moment_and_a_carriage_retu
 
 
 async def test_a_cli_run_step_by_step_feeds_every_run_and_says_why_it_failed_as_before(
-    agent, knows, cli  # noqa: F811
+    agent,
+    knows,
+    cli,  # noqa: F811
 ):
     make, _ = cli
     with raw.of(agent):
@@ -390,13 +411,16 @@ async def test_a_cli_run_step_by_step_feeds_every_run_and_says_why_it_failed_as_
         with pytest.raises(ModelUnavailable) as failed:
             await step(make(ClaudeCliClient, mode="exit"))
     assert str(failed.value) == (
-        "Claude Code exited with code 3: warming up not signed in: run the login command")
+        "Claude Code exited with code 3: warming up not signed in: run the login command"
+    )
     kept = raw.read(agent)["lines"]
     assert [line["n"] for line in kept] == list(range(1, 2 * first + 3))
-    assert first > 0 and {line["stream"] for line in kept[:2 * first]} == {"stdout"}
+    assert first > 0 and {line["stream"] for line in kept[: 2 * first]} == {"stdout"}
     assert json.loads(kept[first - 1]["text"])["type"] == "result"
-    assert [(line["stream"], line["text"]) for line in kept[2 * first:]] == [
-        ("stderr", "warming up"), ("stderr", "not signed in: run the login command")]
+    assert [(line["stream"], line["text"]) for line in kept[2 * first :]] == [
+        ("stderr", "warming up"),
+        ("stderr", "not signed in: run the login command"),
+    ]
 
 
 async def test_a_cli_run_as_a_session_feeds_what_it_wrote_with_what_nobody_reads(
@@ -404,10 +428,13 @@ async def test_a_cli_run_as_a_session_feeds_what_it_wrote_with_what_nobody_reads
 ):
     def make(script):
         plan = tmp_path / "plan.json"
-        plan.write_text(json.dumps({"record": str(tmp_path / "record.json"), "script": script}),
-                        encoding="utf-8")
-        return ClaudeSessionClient(timeout=20.0, launcher=FAKE_SESSION,
-                                   env={"FAKE_CLI_PLAN": str(plan)})
+        plan.write_text(
+            json.dumps({"record": str(tmp_path / "record.json"), "script": script}),
+            encoding="utf-8",
+        )
+        return ClaudeSessionClient(
+            timeout=20.0, launcher=FAKE_SESSION, env={"FAKE_CLI_PLAN": str(plan)}
+        )
 
     with raw.of(agent):
         await run(make([{"emit": {"type": "nobody_knows", "n": 1}}, {"say": "hello"}]))
@@ -417,16 +444,23 @@ async def test_a_cli_run_as_a_session_feeds_what_it_wrote_with_what_nobody_reads
     kept = raw.read(agent)["lines"]
     events = [json.loads(line["text"]).get("type") for line in kept if line["stream"] == "stdout"]
     assert events[0] == "system" and "nobody_knows" in events and "result" in events
-    assert [line["text"] for line in kept if line["stream"] == "stderr"] == [
-        "Error: not signed in"]
+    assert [line["text"] for line in kept if line["stream"] == "stderr"] == ["Error: not signed in"]
 
 
 async def test_a_cli_asked_to_search_the_web_is_in_no_agents_raw_stream(agent, knows, tmp_path):
     plan = tmp_path / "plan.json"
-    plan.write_text(json.dumps({
-        "record": str(tmp_path / "record.json"), "searched": "search",
-        "answer": {"results": [{"title": "T", "url": "https://example.org/", "snippet": "s"}]},
-    }), encoding="utf-8")
+    plan.write_text(
+        json.dumps(
+            {
+                "record": str(tmp_path / "record.json"),
+                "searched": "search",
+                "answer": {
+                    "results": [{"title": "T", "url": "https://example.org/", "snippet": "s"}]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     fake = [sys.executable, str(Path(__file__).with_name("fake_cli.py"))]
     searcher = CodexSearch(timeout=20.0, launcher=fake, env={"FAKE_CLI_PLAN": str(plan)})
     with raw.of(agent):  # asked for by a tool of the agent's
@@ -443,20 +477,38 @@ async def test_the_key_a_run_reaches_kolonis_tools_with_is_in_no_raw_stream(
 
     def plan(script):
         written = tmp_path / "plan.json"
-        written.write_text(json.dumps({"record": str(tmp_path / "record.json"), "script": script}),
-                           encoding="utf-8")
+        written.write_text(
+            json.dumps({"record": str(tmp_path / "record.json"), "script": script}),
+            encoding="utf-8",
+        )
         return {"timeout": 20.0, "env": {"FAKE_CLI_PLAN": str(written)}}
 
     gives_up = {"exit": 3, "stderr": f"the bridge refused {BRIDGE_KEY}"}
     with raw.of(agent):
         with pytest.raises(ModelUnavailable):
-            await run(ClaudeSessionClient(launcher=FAKE_SESSION, **plan([
-                {"emit": {"type": "debug", "env": f"KOLONI_MCP_KEY={BRIDGE_KEY}"}}, gives_up])))
+            await run(
+                ClaudeSessionClient(
+                    launcher=FAKE_SESSION,
+                    **plan(
+                        [
+                            {"emit": {"type": "debug", "env": f"KOLONI_MCP_KEY={BRIDGE_KEY}"}},
+                            gives_up,
+                        ]
+                    ),
+                )
+            )
         session = len(texts(agent))
         with pytest.raises(ModelUnavailable):
-            await work(CodexNativeClient(launcher=FAKE_NATIVE, **plan([
-                {"web": f"what is {BRIDGE_KEY}"}, gives_up])), tmp_path)
-    for said in (texts(agent)[:session], texts(agent)[session:]):  # of the session, of the native run
+            await work(
+                CodexNativeClient(
+                    launcher=FAKE_NATIVE, **plan([{"web": f"what is {BRIDGE_KEY}"}, gives_up])
+                ),
+                tmp_path,
+            )
+    for said in (
+        texts(agent)[:session],
+        texts(agent)[session:],
+    ):  # of the session, of the native run
         assert BRIDGE_KEY not in json.dumps(said)
         assert [line for line in said if "***" in line and "refused" not in line]  # its output
         assert "the bridge refused ***" in said  # its error output
@@ -472,22 +524,36 @@ def test_agents_at_work_at_once_and_a_sub_agent_under_its_opener_each_have_their
 
     def cli_of(name, script, **more):
         plan = tmp_path / f"{name}.plan.json"
-        plan.write_text(json.dumps({
-            "record": str(tmp_path / f"{name}.record.json"), "script": script, **more}), encoding="utf-8")
-        return ClaudeSessionClient(launcher=FAKE_SESSION, timeout=30,
-                                   env={"FAKE_CLI_PLAN": str(plan)})
+        plan.write_text(
+            json.dumps({"record": str(tmp_path / f"{name}.record.json"), "script": script, **more}),
+            encoding="utf-8",
+        )
+        return ClaudeSessionClient(
+            launcher=FAKE_SESSION, timeout=30, env={"FAKE_CLI_PLAN": str(plan)}
+        )
 
     def mark(who):
         return {"emit": {"type": "mark", "of": who}}
 
     # Three CLIs, each with a script of its own: the lead's opens the other two at once.
     clients = {
-        "Lead CLI": cli_of("lead", [mark("lead"), {"parallel": [
-            {"call": "spawn_agent", "args": {"role": "Coder", "task": "do A"}},
-            {"call": "spawn_agent", "args": {"role": "Tester", "task": "do B"}}]},
-            mark("lead again"), {"say": "Both started."}],
+        "Lead CLI": cli_of(
+            "lead",
+            [
+                mark("lead"),
+                {
+                    "parallel": [
+                        {"call": "spawn_agent", "args": {"role": "Coder", "task": "do A"}},
+                        {"call": "spawn_agent", "args": {"role": "Tester", "task": "do B"}},
+                    ]
+                },
+                mark("lead again"),
+                {"say": "Both started."},
+            ],
             # (Its calls come back at once, K-paralel-spawn: started again, it reads both reports.)
-            later_script=[mark("lead read"), {"say": "Both done."}], later_when="B done"),
+            later_script=[mark("lead read"), {"say": "Both done."}],
+            later_when="B done",
+        ),
         "Coder CLI": cli_of("coder", [mark("coder"), {"wait_for": str(go)}, {"say": "A done"}]),
         "Tester CLI": cli_of("tester", [mark("tester"), {"wait_for": str(go)}, {"say": "B done"}]),
     }
@@ -499,8 +565,10 @@ def test_agents_at_work_at_once_and_a_sub_agent_under_its_opener_each_have_their
             assert added.status_code == 201, added.text
             made[name] = added.json()
         for role in ("Coder", "Tester"):
-            client.patch(f"/api/roles/{role_id(client, role)}",
-                         json={"provider_id": made[f"{role} CLI"]["id"]})
+            client.patch(
+                f"/api/roles/{role_id(client, role)}",
+                json={"provider_id": made[f"{role} CLI"]["id"]},
+            )
 
         def events(agent_id):
             told = client.get(f"/api/agents/{agent_id}/raw").json()["lines"]
@@ -513,7 +581,9 @@ def test_agents_at_work_at_once_and_a_sub_agent_under_its_opener_each_have_their
         cid, run_id = start(client, project_dir, made["Lead CLI"])
         deadline = time.monotonic() + 30
         while True:  # until both sub-agents' CLIs have written, and wait to be told to go on
-            agents = {a["name"]: a for a in client.get(f"/api/conversations/{cid}").json()["agents"]}
+            agents = {
+                a["name"]: a for a in client.get(f"/api/conversations/{cid}").json()["agents"]
+            }
             if all(name in agents and marks(agents[name]["id"]) for name in ("Coder", "Tester")):
                 break
             assert time.monotonic() < deadline, agents
@@ -523,17 +593,28 @@ def test_agents_at_work_at_once_and_a_sub_agent_under_its_opener_each_have_their
         lead = marks(agents["Lead"]["id"])
         assert lead[0] == "lead" and set(lead) <= {"lead", "lead again"}
         assert {name: marks(agents[name]["id"]) for name in ("Coder", "Tester")} == {
-            "Coder": ["coder"], "Tester": ["tester"]}
+            "Coder": ["coder"],
+            "Tester": ["tester"],
+        }
         go.write_text("", encoding="utf-8")
         snap = wait_run(client, cid, run_id, timeout=30)
         assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
         assert {a["name"]: marks(a["id"]) for a in snap["agents"]} == {
-            "Lead": ["lead", "lead again", "lead read"], "Coder": ["coder"], "Tester": ["tester"]}
-        for one in snap["agents"]:  # one run of one CLI each - the Lead's two: its first line and its last
+            "Lead": ["lead", "lead again", "lead read"],
+            "Coder": ["coder"],
+            "Tester": ["tester"],
+        }
+        for one in snap[
+            "agents"
+        ]:  # one run of one CLI each - the Lead's two: its first line and its last
             kinds = [event["type"] for event in events(one["id"])]
             runs = 2 if one["name"] == "Lead" else 1
             assert (kinds[0], kinds[-1], kinds.count("system"), kinds.count("result")) == (
-                "system", "result", runs, runs)
+                "system",
+                "result",
+                runs,
+                runs,
+            )
 
 
 # --- the server's own log ----------------------------------------------------------------------
@@ -541,14 +622,23 @@ def test_agents_at_work_at_once_and_a_sub_agent_under_its_opener_each_have_their
 
 def test_an_answered_reading_of_a_raw_stream_is_not_in_the_access_log_and_any_other_is():
     def logged(method, address, status):
-        return NoRawStreamReads().filter(logging.LogRecord(
-            "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d',
-            ("127.0.0.1:50000", method, address, "1.1", status), None))
+        return NoRawStreamReads().filter(
+            logging.LogRecord(
+                "uvicorn.access",
+                logging.INFO,
+                "",
+                0,
+                '%s - "%s %s HTTP/%s" %d',
+                ("127.0.0.1:50000", method, address, "1.1", status),
+                None,
+            )
+        )
 
     assert not logged("GET", "/api/agents/0af3/raw?after=12", 200)
     assert not logged("GET", "/api/agents/0af3/raw", 200)
     assert logged("GET", "/api/agents/0af3/raw?after=12", 404)  # one that failed is
     assert logged("GET", "/api/agents/0af3/rawer", 200) and logged("GET", "/api/agents", 200)
     assert logged("POST", "/api/agents/0af3/approve", 200)
-    assert NoRawStreamReads().filter(logging.LogRecord(
-        "uvicorn.access", logging.INFO, "", 0, "started", None, None))
+    assert NoRawStreamReads().filter(
+        logging.LogRecord("uvicorn.access", logging.INFO, "", 0, "started", None, None)
+    )

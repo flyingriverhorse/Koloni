@@ -9,6 +9,7 @@ one small PNG. An expression it is asked to evaluate is told apart by its first 
 
 import asyncio
 import html
+import html.parser
 import json
 import re
 import sys
@@ -40,8 +41,9 @@ def fetch(url: str) -> str:
     if url == "about:blank":
         return ""
     if url.startswith("file:"):
-        return Path(urllib.request.url2pathname(url[5:].lstrip("/") if sys.platform == "win32"
-                                                else url[7:])).read_text(encoding="utf-8")
+        return Path(
+            urllib.request.url2pathname(url[5:].lstrip("/") if sys.platform == "win32" else url[7:])
+        ).read_text(encoding="utf-8")
     # K-tarayici-disari: a site of a test's (site.test) is a server on loopback, as
     # --host-resolver-rules "MAP site.test 127.0.0.1" has it in Chrome.
     parts = urllib.parse.urlsplit(url)
@@ -69,6 +71,247 @@ def told(name: str, page: str) -> str | None:
     return None
 
 
+# Pages accessibility (0.1.7): what `app.browser._A11Y` reads in a page, from a test page's own
+# inline styles alone - an image with no text for it, a control with no name, each text's colour
+# over the backgrounds of the elements it is in up to the first opaque one - none, with a
+# positioned layer drawn before it (an absolute or fixed one with a background, an absolute
+# image): something drawn under it, as Chrome's look over its box says; a style that hides
+# (display: none) or aria-hidden as Chrome would see it; a page hidden whole, a control one tabs
+# to inside aria-hidden, a colour scheme dark only, frames, a page with no body. Only what the
+# tests' pages use.
+_COLOURS = {"white": [255, 255, 255, 1.0], "black": [0, 0, 0, 1.0], "transparent": [0, 0, 0, 0.0]}
+_VOID = {"img", "input", "br", "hr", "meta", "link", "source", "wbr", "area", "col", "embed"}
+_UNREAD = {"script", "style", "title", "head", "noscript", "template", "option"}
+
+
+def colour(value: str) -> list | None:
+    value = value.strip().lower()
+    if value in _COLOURS:
+        return list(_COLOURS[value])
+    if re.fullmatch(r"#[0-9a-f]{3}|#[0-9a-f]{6}", value):
+        digits = value[1:] if len(value) == 7 else "".join(c * 2 for c in value[1:])
+        return [int(digits[i : i + 2], 16) for i in (0, 2, 4)] + [1.0]
+    if found := re.fullmatch(r"rgba?\(([^)]*)\)", value):
+        parts = [float(p) for p in re.split(r"[\s,/]+", found[1].strip())]
+        return parts[:3] + [parts[3] if len(parts) > 3 else 1.0]
+    return None
+
+
+class Read(html.parser.HTMLParser):
+    def __init__(self, bounds: dict):
+        super().__init__(convert_charrefs=True)
+        self.bounds, self.seen, self.styles = bounds, 0, {}
+        self.out = {
+            "cut": [],
+            "images": [],
+            "imagesN": 0,
+            "controls": [],
+            "controlsN": 0,
+            "texts": [],
+            "hidden": False,
+            "focus": [],
+            "focusN": 0,
+            "scheme": "",
+            "frames": 0,
+            "nobody": False,
+        }
+        # (each positioned layer drawn - the open elements it is in, by id: `handle_data`)
+        self.layers: list[set[int]] = []
+        self.open: list[dict] = []
+        self.fields: list[tuple[int, dict, bool]] = []
+        self.labelled: set[str] = set()
+        self.unnamed: list[tuple[int, str]] = []  # (in the page's order, as Chrome's walk)
+
+    def _listed(self, kind: str, what: str) -> None:
+        self.out[kind + "N"] += 1
+        if len(self.out[kind]) < self.bounds["listed"]:
+            self.out[kind].append(what[:80])
+
+    def _hidden(self) -> bool:
+        return any(
+            one["style"].get("display") == "none" or one["attrs"].get("aria-hidden") == "true"
+            for one in self.open
+        )
+
+    def handle_starttag(self, tag: str, pairs: list) -> None:
+        attrs = {k: v or "" for k, v in pairs}
+        # (Counted from the body on, as Chrome's walk is.)
+        self.seen += tag == "body" or any(one["tag"] == "body" for one in self.open)
+        if self.seen > self.bounds["most"] and "elements" not in self.out["cut"]:
+            self.out["cut"].append("elements")
+        style = {
+            k.strip().lower(): v.strip()
+            for k, _, v in (one.partition(":") for one in attrs.get("style", "").split(";"))
+            if v
+        }
+        up = self.open[-1] if self.open else {"colour": [0, 0, 0, 1.0], "px": 16.0, "weight": 400}
+        one = {
+            "tag": tag,
+            "attrs": attrs,
+            "style": style,
+            "colour": colour(style.get("-webkit-text-fill-color", ""))
+            or colour(style.get("color", ""))
+            or up["colour"],
+            "px": float(style["font-size"].removesuffix("px"))
+            if "font-size" in style
+            else up["px"],
+            "weight": 700
+            if tag in ("b", "strong") or style.get("font-weight") in ("bold", "700")
+            else up["weight"],
+            "words": [],
+            "at": self.seen,
+        }
+        if tag == "label" and attrs.get("for"):
+            self.labelled.add(attrs["for"])
+        self._more(tag, attrs, style)
+        if not self.out["cut"] and not self._hidden():
+            self._start(tag, attrs)
+        if tag not in _VOID:
+            self.open.append(one)
+
+    def _more(self, tag: str, attrs: dict, style: dict) -> None:
+        """What `_A11Y` reads besides the rules of `_start`: the page hidden whole, a control one
+        tabs to inside aria-hidden, a dark-only scheme, frames, a positioned layer drawn."""
+        if tag in ("html", "body") and attrs.get("aria-hidden") == "true":
+            self.out["hidden"] = True
+        if tag == "meta" and attrs.get("name") == "color-scheme":
+            schemes = attrs.get("content", "").lower().split()
+            self.out["scheme"] = "dark" if "dark" in schemes and "light" not in schemes else ""
+        self.out["frames"] += tag in ("iframe", "frame")
+        position = style.get("position", "")
+        back = style.get("background-color") or style.get("background", "")
+        drawn = (under := colour(back)) is not None and under[3] > 0 or "url(" in back
+        hidden = style.get("visibility") == "hidden" or style.get("opacity") in ("0", "0.0")
+        # (a fixed one only as a backdrop - the whole window, or behind the page: a header or a
+        # bar is where it is at the page's top, under no text of these pages)
+        backdrop = style.get("inset") == "0" or style.get("z-index", "").startswith("-")
+        if (
+            (position == "absolute" or position == "fixed" and backdrop)
+            and (drawn or tag == "img")
+            and not hidden
+        ):
+            self.layers.append({id(one) for one in self.open})
+        tabbed = tag in ("button", "select", "textarea") or tag == "a" and "href" in attrs
+        tabbed = tabbed or tag == "input" and attrs.get("type") != "hidden"
+        tabbed = tabbed or not attrs.get("tabindex", "-").startswith("-")
+        inside = attrs.get("aria-hidden") == "true" or any(
+            one["attrs"].get("aria-hidden") == "true" for one in self.open
+        )
+        inside = (
+            inside
+            and "inert" not in attrs
+            and not any("inert" in one["attrs"] for one in self.open)
+        )
+        if (
+            tabbed
+            and inside
+            and not self.out["hidden"]
+            and "disabled" not in attrs
+            and not attrs.get("tabindex", "").startswith("-")
+        ):
+            how = f"[href={attrs['href']}]" if tag == "a" else ""
+            self._listed("focus", tag + how + (f"#{attrs['id']}" if attrs.get("id") else ""))
+
+    def _start(self, tag: str, attrs: dict) -> None:
+        named = " ".join(attrs.get(k, "") for k in ("aria-label", "title", "aria-labelledby"))
+        if tag == "img":
+            for control in self.open:
+                control["words"].append(attrs.get("alt", ""))
+            told = attrs.get("aria-hidden") != "true" and attrs.get("role") not in (
+                "none",
+                "presentation",
+            )
+            if "alt" not in attrs and not named.strip() and told:
+                src = re.split(r"[?#]", attrs.get("src", ""))[0].rsplit("/", 1)[-1]
+                self._listed("images", src or "img")
+        if tag == "input" and attrs.get("type") != "hidden" and "disabled" not in attrs:
+            wrapped = any(one["tag"] == "label" for one in self.open)
+            self.fields.append((self.seen, attrs, wrapped))
+
+    def handle_endtag(self, tag: str) -> None:
+        while self.open:
+            one = self.open.pop()
+            control = one["tag"] == "button" or one["tag"] == "a" and "href" in one["attrs"]
+            if control and not self.out["cut"] and not self._hidden():
+                words = " ".join(
+                    [*one["words"], *(one["attrs"].get(k, "") for k in ("aria-label", "title"))]
+                )
+                if not words.strip() and "disabled" not in one["attrs"]:
+                    how = f"[href={one['attrs']['href']}]" if one["tag"] == "a" else ""
+                    ident = f"#{one['attrs']['id']}" if one["attrs"].get("id") else ""
+                    self.unnamed.append((one["at"], one["tag"] + how + ident))
+            if one["tag"] == tag:
+                return
+
+    def handle_data(self, data: str) -> None:
+        for one in self.open:
+            one["words"].append(data)
+        words = " ".join(data.split())
+        if not words or not self.open or self.out["cut"] or self._hidden():
+            return
+        if any(one["tag"] in _UNREAD or "disabled" in one["attrs"] for one in self.open):
+            return
+        top, layers, image, stop = self.open[-1], [], False, None
+        for one in reversed(self.open):
+            back = one["style"].get("background-color") or one["style"].get("background", "")
+            if "url(" in back or "gradient(" in back or one["style"].get("background-image"):
+                image = True
+                break
+            if (under := colour(back)) is not None and under[3] > 0:
+                layers.append(under)
+                if under[3] >= 1:
+                    stop = one
+                    break
+        # (a layer drawn inside the opaque background it is over - or anywhere, over none; a
+        # see-through fill: gradient text)
+        image = image or top["colour"][3] == 0
+        image = image or any(stop is None or id(stop) in layer for layer in self.layers)
+        if self.out["scheme"]:
+            return
+        key = json.dumps([top["colour"], layers, image, top["px"], top["weight"]])
+        if key not in self.styles:
+            if len(self.styles) >= self.bounds["styles"]:
+                self.out["cut"].append("styles")
+                return
+            self.styles[key] = {
+                "words": words[:80],
+                "color": top["colour"],
+                "under": None if image else layers,
+                "px": top["px"],
+                "weight": top["weight"],
+                "n": 0,
+            }
+            self.out["texts"].append(self.styles[key])
+        self.styles[key]["n"] += 1
+
+    def close(self) -> None:
+        super().close()
+        for at, attrs, wrapped in self.fields:
+            kind = attrs.get("type", "text")
+            said = " ".join(attrs.get(k, "") for k in ("aria-label", "title", "placeholder"))
+            said += attrs.get("value", "") if kind in ("submit", "reset", "button") else ""
+            said += attrs.get("alt", "") if kind == "image" else ""
+            if not (
+                wrapped
+                or attrs.get("id") in self.labelled
+                or said.strip()
+                or kind in ("submit", "reset")
+            ):
+                ident = f"#{attrs['id']}" if attrs.get("id") else ""
+                self.unnamed.append((at, f"input[type={kind}]{ident}"))
+        for _at, what in sorted(self.unnamed):
+            self._listed("controls", what)
+
+
+def accessed(page: str, bounds: dict) -> dict:
+    if "data-a11y-no-body" in page:  # (a test's page whose script takes its body away)
+        return {**Read(bounds).out, "nobody": True}
+    read = Read(bounds)
+    read.feed(page)
+    read.close()
+    return read.out
+
+
 def focus(arg: str | None) -> str | None:
     if arg is not None and _has(arg):
         state["focused"] = arg
@@ -78,15 +321,23 @@ def focus(arg: str | None) -> str | None:
 
 
 def what(arg: dict, page: str) -> str:
-    out = {"host": urllib.parse.urlsplit(state["url"]).hostname or "", "words": "",
-           "password": False, "posts": False, "frame": False,
-           "editable": False, "hidden": False}
+    out = {
+        "host": urllib.parse.urlsplit(state["url"]).hostname or "",
+        "words": "",
+        "password": False,
+        "posts": False,
+        "frame": False,
+        "editable": False,
+        "hidden": False,
+    }
     if "x" in arg:
         # (A mark's centre is its button's; any other point the last element found.)
         out["words"] = words = state.get("marks", {}).get(
-            (arg["x"], arg["y"]), state.get("found", ""))
-        out["posts"] = bool(words) and bool(re.search(
-            r'(?is)<form[^>]*method="post".*?<button[^>]*>\s*' + re.escape(words), page))
+            (arg["x"], arg["y"]), state.get("found", "")
+        )
+        out["posts"] = bool(words) and bool(
+            re.search(r'(?is)<form[^>]*method="post".*?<button[^>]*>\s*' + re.escape(words), page)
+        )
     elif selector := arg.get("selector") or state.get("focused"):
         tag = re.search(r'<input[^>]*id="' + re.escape(selector[1:]) + r'"[^>]*>', page)
         out["password"] = bool(tag) and 'type="password"' in tag[0]
@@ -109,25 +360,37 @@ def evaluate(expression: str) -> object:
         return json.dumps({"x": 10, "y": 60, "width": 200, "height": 30}) if _has(arg) else None
     if name == "focus":
         return focus(arg)
+    if name == "a11y":  # (a test's page that says it hangs: as a script that keeps Chrome busy)
+        return "hung" if "data-a11y-hangs" in page else accessed(page, arg)
     # K-tarayici-disari A2: what a click (at the last element found) or typing would reach.
     if name == "what":
         return what(arg, page)
     # K-gorsel-motor: each button and link marked, one under the other; where the page is.
     if name == "marks":
-        found = [text_of(words) for _tag, words in
-                 re.findall(r"(?s)<(button|a)[^>]*>(.*?)</\1>", page)][:arg]
+        found = [
+            text_of(words) for _tag, words in re.findall(r"(?s)<(button|a)[^>]*>(.*?)</\1>", page)
+        ][:arg]
         state["marks"] = {(100, 100 + 40 * n): words for n, words in enumerate(found)}
-        return json.dumps({"here": evaluate("/*koloni:here null*/"), "marks": [
-            {"kind": "button", "words": words, "x": x, "y": y}
-            for (x, y), words in state["marks"].items()]})
+        return json.dumps(
+            {
+                "here": evaluate("/*koloni:here null*/"),
+                "marks": [
+                    {"kind": "button", "words": words, "x": x, "y": y}
+                    for (x, y), words in state["marks"].items()
+                ],
+            }
+        )
     if name == "unmark":
         return None
     # K-drawio (`app.diagram.draw`): the viewer's scripts, then the picture it draws.
     if name == "script":
         return None
     if name == "drawio":
-        return ('<svg xmlns="http://www.w3.org/2000/svg"/>' if arg == "svg"
-                else "data:image/png;base64," + __import__("base64").b64encode(PNG).decode())
+        return (
+            '<svg xmlns="http://www.w3.org/2000/svg"/>'
+            if arg == "svg"
+            else "data:image/png;base64," + __import__("base64").b64encode(PNG).decode()
+        )
     raise AssertionError(name)
 
 
@@ -153,8 +416,12 @@ def answer(method: str, params: dict) -> dict:
     elif method == "Accessibility.getFullAXTree":
         nodes = [{"role": {"value": "RootWebArea"}, "name": {"value": title_of(state["html"])}}]
         for tag, words in re.findall(r"(?s)<(button|a)[^>]*>(.*?)</\1>", state["html"]):
-            nodes.append({"role": {"value": "button" if tag == "button" else "link"},
-                          "name": {"value": text_of(words)}})
+            nodes.append(
+                {
+                    "role": {"value": "button" if tag == "button" else "link"},
+                    "name": {"value": text_of(words)},
+                }
+            )
         result = {"nodes": nodes}
     elif method == "Emulation.setDeviceMetricsOverride":
         state["width"] = params["width"]
@@ -182,26 +449,43 @@ async def navigate(url: str, event, paused, dialogs: list[asyncio.Future]) -> No
             dialogs.append(asyncio.get_running_loop().create_future())
             await event("Page.javascriptDialogOpening", {"message": said, "type": "alert"})
             state["dialog"] = await dialogs[-1]
-        await event("Runtime.consoleAPICalled", {
-            "type": "log", "args": [{"type": "string",
-                                     "value": f"fake browser: loaded {state['url']}"}]})
+        await event(
+            "Runtime.consoleAPICalled",
+            {
+                "type": "log",
+                "args": [{"type": "string", "value": f"fake browser: loaded {state['url']}"}],
+            },
+        )
         # S5b: a page's console.error('...') is said as Chrome says it; a script it loads is
         # paused and judged as Chrome's are - one refused is a failed load in its log.
         for said in re.findall(r"console\.error\('([^']*)'\)", state["html"]):
-            await event("Runtime.consoleAPICalled", {
-                "type": "error", "args": [{"type": "string", "value": said}]})
+            await event(
+                "Runtime.consoleAPICalled",
+                {"type": "error", "args": [{"type": "string", "value": said}]},
+            )
         for src in re.findall(r'<script[^>]*src="([^"]+)"', state["html"]):
             if not await paused(urllib.parse.urljoin(url, src), "Script"):
-                await event("Log.entryAdded", {"entry": {
-                    "source": "network", "level": "error", "url": src,
-                    "text": "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT"}})
+                await event(
+                    "Log.entryAdded",
+                    {
+                        "entry": {
+                            "source": "network",
+                            "level": "error",
+                            "url": src,
+                            "text": "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT",
+                        }
+                    },
+                )
     await event("Page.loadEventFired", {"timestamp": 1.0})
 
 
 async def serve(ws) -> None:
     async def event(method: str, params: dict, session: str | None = "s1") -> None:
-        await ws.send(json.dumps({"method": method, "params": params,
-                                  **({"sessionId": session} if session else {})}))
+        await ws.send(
+            json.dumps(
+                {"method": method, "params": params, **({"sessionId": session} if session else {})}
+            )
+        )
 
     # Each load is paused for the driver's judge, as Chrome does at the browser's own Fetch.enable
     # (no sessionId): continueRequest or failRequest decides it.
@@ -212,8 +496,16 @@ async def serve(ws) -> None:
         request_id = f"r{len(verdicts)}"
         verdicts[request_id] = asyncio.get_running_loop().create_future()
         # (The page's own frame bears its target's id, as Chrome's does.)
-        await event("Fetch.requestPaused", {"requestId": request_id, "resourceType": kind,
-                                            "frameId": frame, "request": {"url": url}}, None)
+        await event(
+            "Fetch.requestPaused",
+            {
+                "requestId": request_id,
+                "resourceType": kind,
+                "frameId": frame,
+                "request": {"url": url},
+            },
+            None,
+        )
         return await verdicts[request_id]
 
     async for raw in ws:
@@ -231,8 +523,17 @@ async def serve(ws) -> None:
             await ws.send(json.dumps({"id": message["id"], "result": {}}))
             sys.exit(0)
         elif method == "Fake.huge":  # (a test's: one message over the limit, no close frame)
-            await ws.send(json.dumps({"method": "Runtime.consoleAPICalled", "params": {
-                "type": "log", "args": [{"type": "string", "value": "x" * params["size"]}]}}))
+            await ws.send(
+                json.dumps(
+                    {
+                        "method": "Runtime.consoleAPICalled",
+                        "params": {
+                            "type": "log",
+                            "args": [{"type": "string", "value": "x" * params["size"]}],
+                        },
+                    }
+                )
+            )
             continue
         elif method == "Fake.drop":  # (a test's: the connection drops, the browser runs on)
             await ws.close()

@@ -33,18 +33,26 @@ async function second(request: APIRequestContext) {
 
 test.afterAll(async ({ request }) => {
   const listed: { id: string; name: string }[] = await (await request.get('/api/providers')).json()
-  for (const provider of listed.filter(p => p.name === 'Rival')) await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
+  for (const provider of listed.filter(p => p.name === 'Rival'))
+    await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
   rmSync(FILE, { force: true })
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme: two models side by side, one kept and undone, or both thrown away`, async ({ page, request }) => {
+  test(`in the ${theme} theme: two models side by side, one kept and undone, or both thrown away`, async ({
+    page,
+    request,
+  }) => {
     rmSync(FILE, { force: true })
     await second(request)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     // (with the Lead handing code to sub-agents, as by default: a side's Lead does its work itself)
     const cid = await openFreshConversation(page, { leadWrites: false })
-    expect((await page.request.patch(`/api/conversations/${cid}`, { data: { permission_mode: 'full_auto' }, headers: OWN })).ok()).toBe(true)
+    expect(
+      (
+        await page.request.patch(`/api/conversations/${cid}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
+      ).ok(),
+    ).toBe(true)
     const chat = page.getByRole('region', { name: 'Chat' })
     await chat.getByRole('textbox', { name: 'Message' }).fill('compare the greeting')
     await more(page)
@@ -63,7 +71,9 @@ for (const theme of ['light', 'dark'] as const)
     await expect(first).toContainText('Wrote the greeting as', { timeout: 20_000 })
     await expect(other).toContainText('Wrote the greeting as fake-other', { timeout: 20_000 })
     // Side by side in this chat too (480 px), and one turn on the canvas: one "You", the two Leads under it.
-    const tops = await compared.locator('.compare-side').evaluateAll(all => all.map(side => side.getBoundingClientRect().top))
+    const tops = await compared
+      .locator('.compare-side')
+      .evaluateAll(all => all.map(side => side.getBoundingClientRect().top))
     expect(tops).toEqual([tops[0], tops[0]])
     await expect(page.locator('.react-flow__node-request')).toHaveCount(1)
     await expect(page.locator('.react-flow__node-agent')).toHaveCount(2)
@@ -113,7 +123,9 @@ for (const theme of ['light', 'dark'] as const)
       await form.getByLabel('Second model’s provider').selectOption({ label: 'Rival' })
       await form.getByRole('button', { name: 'Compare' }).click()
       const again = chat.getByRole('group', { name: 'Two models compared' }).last()
-      await expect(again.getByRole('region', { name: /^Rival/ })).toContainText('Wrote the greeting as fake-other', { timeout: 20_000 })
+      await expect(again.getByRole('region', { name: /^Rival/ })).toContainText('Wrote the greeting as fake-other', {
+        timeout: 20_000,
+      })
       await again.getByRole('button', { name: 'Discard both' }).click()
       await expect(again.getByRole('status')).toContainText('Both were thrown away')
       expect(existsSync(FILE)).toBe(false)

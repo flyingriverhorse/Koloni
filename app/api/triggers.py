@@ -68,7 +68,8 @@ async def list_triggers(project_id: str, session: Session = Depends(get_session)
     if session.get(Project, project_id) is None:
         raise HTTPException(404, "project not found")
     triggers = session.scalars(
-        select(Trigger).where(Trigger.project_id == project_id)
+        select(Trigger)
+        .where(Trigger.project_id == project_id)
         .order_by(Trigger.created_at, literal_column("triggers.rowid"))
     ).all()
     return [kept.out(session, trigger) for trigger in triggers]
@@ -98,7 +99,9 @@ def _proposal(session: Session, proposal_id: str) -> TriggerProposal:
 
 
 @router.post(
-    "/projects/{project_id}/triggers", response_model=TriggerCreatedOut, status_code=201,
+    "/projects/{project_id}/triggers",
+    response_model=TriggerCreatedOut,
+    status_code=201,
     dependencies=[Depends(require_own_origin)],
 )
 async def create_trigger(
@@ -114,20 +117,26 @@ def _create(project_id: str, body: TriggerIn, request: Request, session: Session
     proposal = _proposal(session, body.proposal_id) if body.proposal_id else None
     if proposal is not None and proposal.conversation_id != body.conversation_id:
         # (Its card is in that chat, of this project: a trigger made from it goes there.)
-        raise HTTPException(422, "a proposed trigger's turns go into the conversation it was "
-                                 "proposed in")
+        raise HTTPException(
+            422, "a proposed trigger's turns go into the conversation it was proposed in"
+        )
     key = None
     try:
         conversation_id = _own_conversation(session, project_id, body.conversation_id)
         kept.check_starts(session, conversation_id)
         trigger = Trigger(
-            project_id=project_id, conversation_id=conversation_id,
-            name=kept.check_name(body.name), kind=body.kind,
+            project_id=project_id,
+            conversation_id=conversation_id,
+            name=kept.check_name(body.name),
+            kind=body.kind,
             config=kept.check_config(body.kind, body.config),
             message=kept.check_message(body.message),
             permissions=kept.check_leave(session, conversation_id, body.permissions),
-            budget=body.budget.model_dump(), catch_up=body.catch_up, enabled=body.enabled,
-            ends=kept.check_ends(body.ends, _today(request)), run_unchanged=body.run_unchanged,
+            budget=body.budget.model_dump(),
+            catch_up=body.catch_up,
+            enabled=body.enabled,
+            ends=kept.check_ends(body.ends, _today(request)),
+            run_unchanged=body.run_unchanged,
         )
         if body.kind == "webhook":
             # Shown in this answer and never again: only its digest is kept.
@@ -159,7 +168,9 @@ async def read_proposals(cid: str, session: Session = Depends(get_session)):
 
 
 @router.post(
-    "/trigger-proposals/{proposal_id}/approve", response_model=TriggerOut, status_code=201,
+    "/trigger-proposals/{proposal_id}/approve",
+    response_model=TriggerOut,
+    status_code=201,
     dependencies=[Depends(require_own_origin)],
 )
 async def approve_proposal(
@@ -172,15 +183,27 @@ async def approve_proposal(
     if project_id is None:
         raise HTTPException(409, "this chat has no folder now: a trigger needs a project")
     # (Its permissions and budget left out: TriggerIn's own, the safest.)
-    return _create(project_id, TriggerIn.model_validate({
-        "name": proposal.name, "kind": proposal.kind, "conversation_id": proposal.conversation_id,
-        "message": proposal.message, "config": proposal.config, "ends": proposal.ends,
-        "proposal_id": proposal.id,
-    }), request, session)
+    return _create(
+        project_id,
+        TriggerIn.model_validate(
+            {
+                "name": proposal.name,
+                "kind": proposal.kind,
+                "conversation_id": proposal.conversation_id,
+                "message": proposal.message,
+                "config": proposal.config,
+                "ends": proposal.ends,
+                "proposal_id": proposal.id,
+            }
+        ),
+        request,
+        session,
+    )
 
 
 @router.post(
-    "/trigger-proposals/{proposal_id}/reject", response_model=TriggerProposalOut,
+    "/trigger-proposals/{proposal_id}/reject",
+    response_model=TriggerProposalOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def reject_proposal(
@@ -201,7 +224,8 @@ async def read_paused(request: Request):
 
 
 @router.put(
-    "/triggers/paused", response_model=TriggersPaused,
+    "/triggers/paused",
+    response_model=TriggersPaused,
     dependencies=[Depends(require_own_origin)],
 )
 async def set_paused(body: TriggersPaused, request: Request):
@@ -226,7 +250,8 @@ def _change_settings(session: Session, trigger: Trigger, body: TriggerPatch) -> 
         trigger.message = kept.check_message(body.message)
     if body.conversation_id is not None and body.conversation_id != trigger.conversation_id:
         trigger.conversation_id = _own_conversation(
-            session, trigger.project_id, body.conversation_id)
+            session, trigger.project_id, body.conversation_id
+        )
         kept.check_starts(session, trigger.conversation_id)
         # Another conversation has another allow list: no rule of the first one's
         # stays ticked, and no host picked from it. (What is ticked for the new one
@@ -240,8 +265,7 @@ def _change_settings(session: Session, trigger: Trigger, body: TriggerPatch) -> 
         again = again or config != trigger.config
         trigger.config = config
     if body.permissions is not None:
-        trigger.permissions = kept.check_leave(
-            session, trigger.conversation_id, body.permissions)
+        trigger.permissions = kept.check_leave(session, trigger.conversation_id, body.permissions)
     if body.budget is not None:
         trigger.budget = body.budget.model_dump()
     if body.catch_up is not None:
@@ -274,11 +298,14 @@ def _change_end_and_switch(request: Request, trigger: Trigger, body: TriggerPatc
 
 
 @router.patch(
-    "/triggers/{trigger_id}", response_model=TriggerOut,
+    "/triggers/{trigger_id}",
+    response_model=TriggerOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def change_trigger(
-    trigger_id: str, body: TriggerPatch, request: Request,
+    trigger_id: str,
+    body: TriggerPatch,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     trigger = _trigger(session, trigger_id)
@@ -309,7 +336,9 @@ async def change_trigger(
 
 
 @router.delete(
-    "/triggers/{trigger_id}", status_code=204, dependencies=[Depends(require_own_origin)],
+    "/triggers/{trigger_id}",
+    status_code=204,
+    dependencies=[Depends(require_own_origin)],
 )
 async def delete_trigger(
     trigger_id: str, request: Request, session: Session = Depends(get_session)
@@ -319,10 +348,15 @@ async def delete_trigger(
     project's record, and that it was deleted is added to it."""
     trigger = _trigger(session, trigger_id)
     project_id = trigger.project_id
-    running = list(session.scalars(select(TriggerRun.run_id).where(
-        TriggerRun.trigger_id == trigger_id, TriggerRun.outcome.is_(None),
-        TriggerRun.run_id.is_not(None),
-    )))
+    running = list(
+        session.scalars(
+            select(TriggerRun.run_id).where(
+                TriggerRun.trigger_id == trigger_id,
+                TriggerRun.outcome.is_(None),
+                TriggerRun.run_id.is_not(None),
+            )
+        )
+    )
     session.execute(delete(TriggerRun).where(TriggerRun.trigger_id == trigger_id))
     kept.record(session, trigger, "deleted")
     session.delete(trigger)
@@ -332,11 +366,13 @@ async def delete_trigger(
 
 
 @router.post(
-    "/triggers/{trigger_id}/run", response_model=TriggerStartedOut, status_code=202,
+    "/triggers/{trigger_id}/run",
+    response_model=TriggerStartedOut,
+    status_code=202,
     dependencies=[Depends(require_own_origin)],
 )
 async def run_trigger(trigger_id: str, request: Request):
-    """"Run now": the trigger's turn, with the trigger's permissions and nobody asked -
+    """ "Run now": the trigger's turn, with the trigger's permissions and nobody asked -
     what it would do by itself, for the user to see."""
     try:
         return {"run_id": request.app.state.triggers.run_now(trigger_id)}
@@ -345,7 +381,8 @@ async def run_trigger(trigger_id: str, request: Request):
 
 
 @router.post(
-    "/triggers/{trigger_id}/key", response_model=TriggerCreatedOut,
+    "/triggers/{trigger_id}/key",
+    response_model=TriggerCreatedOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def new_key(trigger_id: str, request: Request, session: Session = Depends(get_session)):
@@ -362,7 +399,9 @@ async def new_key(trigger_id: str, request: Request, session: Session = Depends(
 
 
 @router.post(
-    "/hooks/{key}", response_model=TriggerStartedOut, status_code=202,
+    "/hooks/{key}",
+    response_model=TriggerStartedOut,
+    status_code=202,
     dependencies=[Depends(require_origin)],
 )
 async def webhook(key: str, request: Request):

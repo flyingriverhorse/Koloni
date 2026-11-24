@@ -42,8 +42,9 @@ def proposed(client):
 
 
 def save(client, providers):
-    return client.post("/api/providers/fill-all/save", headers=ORIGIN,
-                       json={"providers": providers})
+    return client.post(
+        "/api/providers/fill-all/save", headers=ORIGIN, json={"providers": providers}
+    )
 
 
 def test_a_tick_the_user_gave_is_kept_and_a_save_is_all_or_nothing(client, quiet):
@@ -87,8 +88,14 @@ def test_a_cli_already_ticked_is_not_asked_whether_it_is_signed_in(client, quiet
 
 
 def test_only_these_models_stays_only_these(client, quiet):
-    add(client, name="Claude Code", kind="claude_cli", only_listed=True, default_model="haiku",
-        models=[{"name": "haiku", "note": "mine"}, {"name": "opus"}])
+    add(
+        client,
+        name="Claude Code",
+        kind="claude_cli",
+        only_listed=True,
+        default_model="haiku",
+        models=[{"name": "haiku", "note": "mine"}, {"name": "opus"}],
+    )
     rows = proposed(client)["Claude Code"]["models"]
     assert [(m["name"], m["tier"], m["note"]) for m in rows] == [
         ("haiku", "fast", "mine"),
@@ -109,11 +116,17 @@ def test_a_tiers_order_is_kept_by_a_save_that_changes_nothing(client, quiet):
     a = add(client, name="A", kind="claude_cli", models=[{"name": "x", "tier": "fast"}])
     b = add(client, name="B", kind="claude_cli", models=[{"name": "y", "tier": "fast"}])
     turned = [{"provider_id": b["id"], "model": "y"}, {"provider_id": a["id"], "model": "x"}]
-    assert client.put("/api/tiers", headers=ORIGIN, json={
-        "strongest": [], "balanced": [], "fast": turned}).status_code == 200
+    assert (
+        client.put(
+            "/api/tiers", headers=ORIGIN, json={"strongest": [], "balanced": [], "fast": turned}
+        ).status_code
+        == 200
+    )
     before = {p["name"]: p for p in client.get("/api/providers").json()}
-    same = [{"id": p["id"], "for_agents": p["for_agents"], "models": p["models"]}
-            for p in before.values()]
+    same = [
+        {"id": p["id"], "for_agents": p["for_agents"], "models": p["models"]}
+        for p in before.values()
+    ]
     assert save(client, same).status_code == 200
     after = {p["name"]: p for p in client.get("/api/providers").json()}
     assert after["A"]["updated_at"] == before["A"]["updated_at"]
@@ -133,18 +146,24 @@ def test_the_free_reading_starts_nothing(client, monkeypatch):
 
 
 def test_the_users_own_catalogue_is_read_after_koloni_s_and_a_broken_one_is_said(
-        client, quiet, monkeypatch, tmp_path):
+    client, quiet, monkeypatch, tmp_path
+):
     import json
 
     from app import catalog
 
     own = tmp_path / "catalog.local.json"
     monkeypatch.setattr(catalog, "LOCAL", own)
-    own.write_text(json.dumps({
-        # By the provider's name in KOLONİ first, then by its catalogue's.
-        "providers": {"Local": [{"name": "qwen-own", "tier": "balanced"}]},
-        "models": {"claude_cli": [{"name": "opus", "tier": "balanced", "note": "mine"}]},
-    }), encoding="utf-8")
+    own.write_text(
+        json.dumps(
+            {
+                # By the provider's name in KOLONİ first, then by its catalogue's.
+                "providers": {"Local": [{"name": "qwen-own", "tier": "balanced"}]},
+                "models": {"claude_cli": [{"name": "opus", "tier": "balanced", "note": "mine"}]},
+            }
+        ),
+        encoding="utf-8",
+    )
     add(client, name="Claude Code", kind="claude_cli")
     told = proposed(client)
     # A server with no catalogue has one now: the user's.
@@ -158,11 +177,14 @@ def test_the_users_own_catalogue_is_read_after_koloni_s_and_a_broken_one_is_said
     told = proposed(client)
     assert not told["Local"]["catalogued"]
     assert "catalog.local.json" in client.get("/api/catalog").json()["local"]
-    own.write_text(json.dumps({"models": {"claude_cli": [{"name": "opus", "tier": "best"}]}}),
-                   encoding="utf-8")
+    own.write_text(
+        json.dumps({"models": {"claude_cli": [{"name": "opus", "tier": "best"}]}}), encoding="utf-8"
+    )
     assert "tier" in client.get("/api/catalog").json()["local"]
-    own.write_text(json.dumps({"models": {"claude_cli": [{"name": "opus", "note": "x" * 121}]}}),
-                   encoding="utf-8")
+    own.write_text(
+        json.dumps({"models": {"claude_cli": [{"name": "opus", "note": "x" * 121}]}}),
+        encoding="utf-8",
+    )
     assert "characters" in client.get("/api/catalog").json()["local"]
     # One that cannot be read is named, never by where it is.
     monkeypatch.setattr(catalog, "LOCAL", tmp_path)
@@ -185,8 +207,16 @@ def test_the_catalogue_named_is_the_copy_read(client, monkeypatch):
 
 
 def row(**fields):
-    return Provider(**{"id": "p", "name": "Claude Code", "kind": "claude_cli",
-                       "for_agents": True, "only_listed": False, **fields})
+    return Provider(
+        **{
+            "id": "p",
+            "name": "Claude Code",
+            "kind": "claude_cli",
+            "for_agents": True,
+            "only_listed": False,
+            **fields,
+        }
+    )
 
 
 FAST = "Fast and cheap: for simple, high-volume work"
@@ -194,21 +224,37 @@ FAST = "Fast and cheap: for simple, high-volume work"
 
 def test_the_lead_is_told_the_catalogues_note_where_the_user_wrote_none():
     strongest = "Among its strongest: for the hardest and longest work"
-    said = describe(guide([row(models=[
-        {"name": "opus", "note": None, "tier": "strongest"},     # none of the user's
-        {"name": "sonnet", "note": "mine", "tier": "balanced"},  # the user's wins
-        {"name": "haiku", "note": FAST, "tier": "fast"},         # copied by a fill
-        {"name": "fable", "note": FAST, "tier": "balanced"},     # copied, then re-tiered
-        {"name": "not-catalogued", "note": None, "tier": None},
-    ])]))
+    said = describe(
+        guide(
+            [
+                row(
+                    models=[
+                        {"name": "opus", "note": None, "tier": "strongest"},  # none of the user's
+                        {"name": "sonnet", "note": "mine", "tier": "balanced"},  # the user's wins
+                        {"name": "haiku", "note": FAST, "tier": "fast"},  # copied by a fill
+                        {
+                            "name": "fable",
+                            "note": FAST,
+                            "tier": "balanced",
+                        },  # copied, then re-tiered
+                        {"name": "not-catalogued", "note": None, "tier": None},
+                    ]
+                )
+            ]
+        )
+    )
     head, line = said.splitlines()
     assert head.endswith("the notes are the user's, unless marked as the catalogue's):")
     # (the shipped catalogue says these take images, and Claude Code is given them: 85c)
-    assert (f'"opus" (strongest tier; sees images; the catalogue\'s note (2026-10-16): "{strongest}")'
-            in line)
+    assert (
+        f'"opus" (strongest tier; sees images; the catalogue\'s note (2026-10-16): "{strongest}")'
+        in line
+    )
     assert '"sonnet" (balanced tier; sees images; "mine")' in line
     assert f'"haiku" (fast tier; sees images; the catalogue\'s note (2026-10-16): "{FAST}")' in line
     # A re-tiered row is told the note of the tier it has now, never an old tier's.
-    assert ('"fable" (balanced tier; sees images; the catalogue\'s note (2026-10-16): "Strength and speed '
-            'balanced: for everyday work")') in line
+    assert (
+        '"fable" (balanced tier; sees images; the catalogue\'s note (2026-10-16): "Strength and speed '
+        'balanced: for everyday work")'
+    ) in line
     assert '"not-catalogued",' in line or '"not-catalogued".' in line

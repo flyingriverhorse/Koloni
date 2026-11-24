@@ -22,8 +22,11 @@ def test_runs_that_find_nothing_space_a_schedule_out_and_one_that_finds_somethin
     make_client, project_dir
 ):
     found = step(call("remember", {"text": "the build is red"}, "m"))
-    client, _model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        *[text(f"nothing {n}") for n in range(6)], found, text("noted")]})
+    client, _model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {"Lead": [*[text(f"nothing {n}") for n in range(6)], found, text("noted")]},
+    )
     tid = trigger(client, pid, cid)["id"]  # every 60 minutes, reads only
     moments, count = [T0, T0 + HOUR, T0 + 2 * HOUR], 0
     for moment in moments:
@@ -37,8 +40,11 @@ def test_runs_that_find_nothing_space_a_schedule_out_and_one_that_finds_somethin
     assert (snap["slowed"], at(snap)) == (3, T0 + 4 * HOUR)
     assert tick(client, T0 + 3 * HOUR) == []
     # x4, then x8 - and no further.
-    for moment, slowed, then in ((T0 + 4 * HOUR, 4, 8), (T0 + 8 * HOUR, 5, 16),
-                                 (T0 + 16 * HOUR, 6, 24)):
+    for moment, slowed, then in (
+        (T0 + 4 * HOUR, 4, 8),
+        (T0 + 8 * HOUR, 5, 16),
+        (T0 + 16 * HOUR, 6, 24),
+    ):
         assert len(tick(client, moment)) == 1
         count += 1
         finished(client, tid, count)
@@ -55,8 +61,9 @@ def test_runs_that_find_nothing_space_a_schedule_out_and_one_that_finds_somethin
 def test_the_user_s_touch_puts_a_slowed_schedule_back_on_its_own_times(
     make_client, project_dir, monkeypatch
 ):
-    client, _model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        text(f"nothing {n}") for n in range(4)]})
+    client, _model, pid, cid = setup(
+        make_client, project_dir, {"Lead": [text(f"nothing {n}") for n in range(4)]}
+    )
     tid = trigger(client, pid, cid)["id"]
     for count, moment in enumerate((T0, T0 + HOUR, T0 + 2 * HOUR), 1):
         tick(client, moment)
@@ -72,8 +79,9 @@ def test_the_user_s_touch_puts_a_slowed_schedule_back_on_its_own_times(
 
 
 def test_a_webhook_is_never_slowed_down(make_client, wait_run, project_dir):
-    client, _model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        text(f"nothing {n}") for n in range(4)]})
+    client, _model, pid, cid = setup(
+        make_client, project_dir, {"Lead": [text(f"nothing {n}") for n in range(4)]}
+    )
     made = trigger(client, pid, cid, kind="webhook", config={})
     here = TestClient(client.app, base_url=ORIGIN, client=("127.0.0.1", 50000))
     for count in range(1, 5):

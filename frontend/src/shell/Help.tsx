@@ -7,7 +7,10 @@ const SHORTCUTS: [keys: string, what: string][] = [
   ['Ctrl+K', 'Find a page, conversation, role, model, tool server or setting (⌘K on a Mac)'],
   ['?', 'These shortcuts'],
   ['/', 'Write a message: the focus goes to the message box'],
-  ['/ in the box', 'Commands, at the start of the message box: /new, /room, /stop, /model, /mode, a role and its task - /coder fix the tests, or one of your own (Settings › This project › Slash commands)'],
+  [
+    '/ in the box',
+    'Commands, at the start of the message box: /new, /room, /stop, /model, /mode, a role and its task - /coder fix the tests, or one of your own (Settings › This project › Slash commands)',
+  ],
   ['C', 'Open the chat, where it is closed'],
   ['Enter', 'Send the message; Shift+Enter starts a new line'],
   ['Esc', 'Close the panel, window or chat the focus is in; the focus goes back where it was'],
@@ -34,7 +37,8 @@ export function Help({ onFirstSteps }: { onFirstSteps: () => void }) {
       if (event.ctrlKey || event.metaKey || event.altKey || typing(event.target)) return
       if (event.key === '?') {
         event.preventDefault()
-        if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) opener.current = document.activeElement
+        if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body)
+          opener.current = document.activeElement
         setOpen(true)
       }
       // (Its closed line opens it, as a click on it does.)
@@ -50,7 +54,14 @@ export function Help({ onFirstSteps }: { onFirstSteps: () => void }) {
   }, [setOpen])
   return (
     <>
-      <button ref={button} type="button" className="icon-btn" aria-label="Help" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
+      <button
+        ref={button}
+        type="button"
+        className="icon-btn"
+        aria-label="Help"
+        aria-expanded={open}
+        onClick={() => (open ? close() : setOpen(true))}
+      >
         <Question size={16} />
       </button>
       {open && (

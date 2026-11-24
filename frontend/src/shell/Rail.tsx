@@ -1,8 +1,36 @@
-import { Books, Brain, ChatsCircle, CheckSquare, Clock, Cpu, GearSix, Graph, Kanban, ListChecks, Moon, Plugs, Robot, Sun, Table } from '@phosphor-icons/react'
+import {
+  Books,
+  Brain,
+  ChatsCircle,
+  CheckSquare,
+  Clock,
+  Cpu,
+  GearSix,
+  Graph,
+  Kanban,
+  ListChecks,
+  Moon,
+  Plugs,
+  Robot,
+  Sun,
+  Table,
+} from '@phosphor-icons/react'
 import type { Ref } from 'react'
 import type { Theme } from '../theme/theme'
 
-export type View = 'canvas' | 'conversations' | 'ready' | 'board' | 'backlog' | 'agents' | 'models' | 'tools' | 'memory' | 'knowledge' | 'triggers' | 'usage'
+export type View =
+  | 'canvas'
+  | 'conversations'
+  | 'ready'
+  | 'board'
+  | 'backlog'
+  | 'agents'
+  | 'models'
+  | 'tools'
+  | 'memory'
+  | 'knowledge'
+  | 'triggers'
+  | 'usage'
 
 interface Props {
   /** The page shown; null while none of these is (Settings is). */
@@ -33,7 +61,9 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         onClick={() => onView('canvas')}
       >
         <Graph size={19} />
-        <span className="rail-label" aria-hidden="true">Canvas</span>
+        <span className="rail-label" aria-hidden="true">
+          Canvas
+        </span>
       </button>
       <button
         className="icon-btn"
@@ -42,7 +72,9 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         onClick={() => onView('conversations')}
       >
         <ChatsCircle size={19} />
-        <span className="rail-label" aria-hidden="true">Chats</span>
+        <span className="rail-label" aria-hidden="true">
+          Chats
+        </span>
       </button>
       <button
         className="icon-btn"
@@ -52,7 +84,9 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         onClick={() => onView('ready')}
       >
         <CheckSquare size={19} />
-        <span className="rail-label" aria-hidden="true">Ready</span>
+        <span className="rail-label" aria-hidden="true">
+          Ready
+        </span>
         {/* What waits for your word, anywhere: the top bar's pill says the same number (tek-ev §1). */}
         {waiting > 0 && (
           <>
@@ -63,14 +97,11 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
           </>
         )}
       </button>
-      <button
-        className="icon-btn"
-        aria-pressed={view === 'board'}
-        aria-label="Board"
-        onClick={() => onView('board')}
-      >
+      <button className="icon-btn" aria-pressed={view === 'board'} aria-label="Board" onClick={() => onView('board')}>
         <Kanban size={19} />
-        <span className="rail-label" aria-hidden="true">Board</span>
+        <span className="rail-label" aria-hidden="true">
+          Board
+        </span>
       </button>
       <button
         className="icon-btn"
@@ -79,7 +110,9 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         onClick={() => onView('backlog')}
       >
         <ListChecks size={19} />
-        <span className="rail-label" aria-hidden="true">To-do</span>
+        <span className="rail-label" aria-hidden="true">
+          To-do
+        </span>
       </button>
       <button
         className="icon-btn"
@@ -88,7 +121,9 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         onClick={() => onView('agents')}
       >
         <Robot size={19} />
-        <span className="rail-label" aria-hidden="true">Agents</span>
+        <span className="rail-label" aria-hidden="true">
+          Agents
+        </span>
       </button>
       <button
         className="icon-btn"
@@ -97,16 +132,15 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         onClick={() => onView('models')}
       >
         <Cpu size={19} />
-        <span className="rail-label" aria-hidden="true">Models</span>
+        <span className="rail-label" aria-hidden="true">
+          Models
+        </span>
       </button>
-      <button
-        className="icon-btn"
-        aria-pressed={view === 'tools'}
-        aria-label="Tools"
-        onClick={() => onView('tools')}
-      >
+      <button className="icon-btn" aria-pressed={view === 'tools'} aria-label="Tools" onClick={() => onView('tools')}>
         <Plugs size={19} />
-        <span className="rail-label" aria-hidden="true">Tools</span>
+        <span className="rail-label" aria-hidden="true">
+          Tools
+        </span>
       </button>
       <button
         className="icon-btn"
@@ -115,7 +149,9 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         onClick={() => onView('memory')}
       >
         <Brain size={19} />
-        <span className="rail-label" aria-hidden="true">Memory</span>
+        <span className="rail-label" aria-hidden="true">
+          Memory
+        </span>
       </button>
       <button
         className="icon-btn"
@@ -124,7 +160,9 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         onClick={() => onView('knowledge')}
       >
         <Books size={19} />
-        <span className="rail-label" aria-hidden="true">Knowledge</span>
+        <span className="rail-label" aria-hidden="true">
+          Knowledge
+        </span>
       </button>
       <button
         className="icon-btn"
@@ -133,21 +171,22 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         onClick={() => onView('triggers')}
       >
         <Clock size={19} />
-        <span className="rail-label" aria-hidden="true">Triggers</span>
+        <span className="rail-label" aria-hidden="true">
+          Triggers
+        </span>
       </button>
-      <button
-        className="icon-btn"
-        aria-pressed={view === 'usage'}
-        aria-label="Usage"
-        onClick={() => onView('usage')}
-      >
+      <button className="icon-btn" aria-pressed={view === 'usage'} aria-label="Usage" onClick={() => onView('usage')}>
         <Table size={19} />
-        <span className="rail-label" aria-hidden="true">Usage</span>
+        <span className="rail-label" aria-hidden="true">
+          Usage
+        </span>
       </button>
       <div className="rail-spacer" />
       <button ref={gear} className="icon-btn" aria-pressed={settingsOpen} aria-label="Settings" onClick={onSettings}>
         <GearSix size={19} />
-        <span className="rail-label" aria-hidden="true">Settings</span>
+        <span className="rail-label" aria-hidden="true">
+          Settings
+        </span>
       </button>
       <button
         className="icon-btn"
@@ -155,7 +194,9 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         onClick={onToggleTheme}
       >
         {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
-        <span className="rail-label" aria-hidden="true">Theme</span>
+        <span className="rail-label" aria-hidden="true">
+          Theme
+        </span>
       </button>
     </nav>
   )

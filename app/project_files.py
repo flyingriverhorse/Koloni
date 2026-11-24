@@ -34,8 +34,11 @@ def _inside(root: Path) -> list:
     """The places KOLONİ never opens that lie in the project (`_hidden`'s), found once for many
     paths of it."""
     top = _cased(root)
-    return [place for place in (_cased(one) for one, _ in _never_places())
-            if place != top and place.is_relative_to(top)]
+    return [
+        place
+        for place in (_cased(one) for one, _ in _never_places())
+        if place != top and place.is_relative_to(top)
+    ]
 
 
 def _hidden(root: Path, path: Path, places: list | None = None) -> bool:
@@ -44,8 +47,13 @@ def _hidden(root: Path, path: Path, places: list | None = None) -> bool:
     `places`: `_inside(root)`, where the caller asks of many paths of it."""
     rel = path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
     cased = _cased(path)
-    return is_secret(rel) or _is_link(path) or any(
-        cased.is_relative_to(place) for place in (_inside(root) if places is None else places))
+    return (
+        is_secret(rel)
+        or _is_link(path)
+        or any(
+            cased.is_relative_to(place) for place in (_inside(root) if places is None else places)
+        )
+    )
 
 
 def _where(root: Path, rel: str) -> Path:
@@ -237,9 +245,19 @@ def raw(root_path: str, rel: str) -> tuple[bytes, str]:
 # What CLI agents load by themselves from the folders they work in (K-yabanci-talimat), and
 # Copilot's in `.github/`: below the project's root, another project's. (agy reads .agents/,
 # .agent/, _agents/, _agent/ - `model_agy`; Codex its skills from .agents/skills.)
-INSTRUCTIONS = frozenset(name.casefold() for name in (
-    *copies.MARKS[1:], "CLAUDE.local.md", ".codex", ".gemini", ".agents", ".agent", "_agents",
-    "_agent"))
+INSTRUCTIONS = frozenset(
+    name.casefold()
+    for name in (
+        *copies.MARKS[1:],
+        "CLAUDE.local.md",
+        ".codex",
+        ".gemini",
+        ".agents",
+        ".agent",
+        "_agents",
+        "_agent",
+    )
+)
 IN_GITHUB = frozenset({"copilot-instructions.md", "skills"})
 # shortcut: the first 10 found, 8 folders deep, 5000 folders or 2 s; deeper is not looked in.
 MOST_SHOWN, MOST_DEEP, MOST_FOLDERS, MOST_SECONDS = 10, 8, 5000, 2.0
@@ -270,8 +288,16 @@ def others_instructions(root_path: str) -> dict:
                     found.append(f"{path}/" if folder else path)
             elif depth > 1 and name in IN_GITHUB and rel.casefold().endswith(".github/"):
                 found.append(f"{path}/" if folder else path)
-            elif (folder and depth < MOST_DEEP and name not in skipped
-                  and not _hidden(root, Path(entry.path)) and not is_kept_code(path.split("/"))):
+            elif (
+                folder
+                and depth < MOST_DEEP
+                and name not in skipped
+                and not _hidden(root, Path(entry.path))
+                and not is_kept_code(path.split("/"))
+            ):
                 todo.append((f"{path}/", depth + 1))
-    return {"paths": found[:MOST_SHOWN], "more": max(len(found) - MOST_SHOWN, 0),
-            "partial": bool(todo)}
+    return {
+        "paths": found[:MOST_SHOWN],
+        "more": max(len(found) - MOST_SHOWN, 0),
+        "partial": bool(todo),
+    }

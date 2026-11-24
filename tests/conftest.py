@@ -31,6 +31,7 @@ def scaled(seconds: float) -> float:
     so a real failure still fails as itself, not as a part cancelled at its time limit."""
     return min(seconds * WAIT_SCALE, max(seconds, 180.0))
 
+
 # Every app a test makes would migrate a new database from nothing (about a second, 57
 # migrations); one migrated once per run is copied instead. A database that is already
 # there (a test of an older one) is still upgraded for real.
@@ -162,9 +163,9 @@ def lead_writes_before_slice_48(request):
         event.remove(made, "init", off)
 
 
-# The Assistant PO asks the fast tier after a turn that did something, on by default (6 Nov). A
+# The Scout asks the fast tier after a turn that did something, on by default (6 Nov). A
 # test marked `no_po` counts the model calls or the clients made for something else, where the
-# PO's own request - made where it may be - is one more: there a new project starts with it off.
+# Scout's own request - made where it may be - is one more: there a new project starts with it off.
 @pytest.fixture(autouse=True)
 def no_po_where_calls_are_counted(request):
     if request.node.get_closest_marker("no_po") is None:
@@ -195,19 +196,44 @@ NOTHING_AFTER = {"test_copy_part"}
 LOOK_ON = {"test_found_scenarios"}
 # S3: a big or security-touching change is looked over at a turn's end by a Reviewer agent - in a
 # test, a scripted agent more (and its row) in every turn that writes much. On only where tested.
-REVIEW_ON = {"test_proof_review_scenarios", "test_recipe_end_checks_scenarios",
-             "test_proof_until_scenarios", "test_recipe_review_once_scenarios"}
+REVIEW_ON = {
+    "test_proof_review_scenarios",
+    "test_recipe_end_checks_scenarios",
+    "test_recipe_cost_scenarios",
+    "test_small_work_scenarios",
+    "test_proof_until_scenarios",
+    "test_recipe_review_once_scenarios",
+    "test_look_where_scenarios",
+    "test_before_gates_scenarios",
+    "test_checks_passes_scenarios",
+}
 # S7: a failing run is run again alone and on the old code, and a pass is held to the last green
 # state - in a test, runs of the scripted executor more. On only where tested.
-BEFORE_ON = {"test_proof_before_scenarios"}
+BEFORE_ON = {
+    "test_proof_before_scenarios",
+    "test_before_gates_scenarios",
+    "test_proof_drop_scenarios",
+}
 # S2: a turn that changed code and no test is asked once for one at its end - in a test, a step of
 # the scripted Lead more in every such turn; its rows too. On only where tested.
-ASK_ON = {"test_proof_test_ask_scenarios", "test_proof_try_ask_scenarios"}
+ASK_ON = {
+    "test_proof_test_ask_scenarios",
+    "test_proof_try_ask_scenarios",
+    "test_recipe_cost_scenarios",
+    "test_small_work_scenarios",
+    "test_checks_passes_scenarios",
+}
 # S5a: a turn that wrote documents, diagrams, data or slides gets KOLONİ's file checks - in a test,
 # their rows in every such turn, and a step of the scripted Lead more where one fails. On only
 # where tested.
-KINDS_ON = {"test_proof_kinds_scenarios", "test_recipe_end_checks_scenarios",
-            "test_proof_pages"}
+KINDS_ON = {
+    "test_proof_kinds_scenarios",
+    "test_recipe_end_checks_scenarios",
+    "test_proof_pages",
+    "test_proof_config",
+    "test_proof_scripts",
+    "test_proof_style",
+}
 # S5b: a turn that wrote a page or a component is looked at in KOLONİ's own browser - in a test, a
 # browser started (a real one where no stand-in is named) and rows. On only where tested.
 PAGES_ON = {"test_proof_pages"}
@@ -231,28 +257,33 @@ async def _as_it_was(_self, _ctx, _held, failed):
 
 def _no_look(monkeypatch):
     from app.agent.found_mixin import FoundMixin
+
     monkeypatch.setattr(FoundMixin, "_look_for_tests", _empty)
 
 
 def _no_before(monkeypatch):
     from app.agent.before_mixin import BeforeMixin
+
     monkeypatch.setattr(BeforeMixin, "_proof_before", _as_it_was)
     monkeypatch.setattr(BeforeMixin, "_after_pass", _none)
 
 
 def _no_review(monkeypatch):
     from app.agent.review_mixin import ReviewMixin
+
     monkeypatch.setattr(ReviewMixin, "_proof_review", _none)
 
 
 def _no_ask(monkeypatch):
     from app.agent.test_ask_mixin import TestAskMixin
+
     monkeypatch.setattr(TestAskMixin, "_proof_test_ask", _none)
     monkeypatch.setattr(TestAskMixin, "_test_rows", lambda *_args, **_more: [])
 
 
 def _no_kinds(monkeypatch):
     from app.agent.kinds_mixin import KindsMixin
+
     monkeypatch.setattr(KindsMixin, "_proof_kinds", _none)
     monkeypatch.setattr(KindsMixin, "_kinds_left", lambda *_args, **_more: [])
 
@@ -262,24 +293,33 @@ def _no_pages(monkeypatch):
 
     async def no_pages(*_args, **_more):
         return []
+
     monkeypatch.setattr(KindsMixin, "_pages", no_pages)
 
 
 def _no_try(monkeypatch):
     from app.agent.try_mixin import TryMixin
+
     monkeypatch.setattr(TryMixin, "_proof_try", _none)
 
 
 def _no_gate(monkeypatch):
     from app.agent.proof_mixin import ProofMixin
+
     monkeypatch.setattr(ProofMixin, "_proof_left", _none)
     monkeypatch.setattr(ProofMixin, "_say_checked", lambda *_args, **_more: None)
 
 
 # Each switch of the end check: the modules it is on in, and what turns it off elsewhere.
-SWITCHES = ((LOOK_ON, _no_look), (BEFORE_ON, _no_before), (REVIEW_ON, _no_review),
-            (ASK_ON, _no_ask), (KINDS_ON, _no_kinds), (PAGES_ON, _no_pages),
-            (TRY_ON, _no_try))
+SWITCHES = (
+    (LOOK_ON, _no_look),
+    (BEFORE_ON, _no_before),
+    (REVIEW_ON, _no_review),
+    (ASK_ON, _no_ask),
+    (KINDS_ON, _no_kinds),
+    (PAGES_ON, _no_pages),
+    (TRY_ON, _no_try),
+)
 
 
 @pytest.fixture(autouse=True)

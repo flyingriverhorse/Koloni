@@ -23,18 +23,36 @@ def env(tmp_path):
     session.flush()
     session.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
     session.flush()
-    session.add(ToolCall(id="t", run_id="r", agent_id="a", message_id="m", seq=1, provider_call_id="t",
-                         name="write_file", arguments="{}"))
+    session.add(
+        ToolCall(
+            id="t",
+            run_id="r",
+            agent_id="a",
+            message_id="m",
+            seq=1,
+            provider_call_id="t",
+            name="write_file",
+            arguments="{}",
+        )
+    )
     session.commit()
     yield session, Workspace(root)
     session.close()
 
 
 def change(session, path, before, after, status="proposed"):
-    row = FileChange(run_id="r", agent_id="a", tool_call_id="t", path=path,
-                     kind="create" if before is None else "modify",
-                     before_content=before, after_content=after,
-                     before_sha=sha256_text(before), after_sha=sha256_text(after), status=status)
+    row = FileChange(
+        run_id="r",
+        agent_id="a",
+        tool_call_id="t",
+        path=path,
+        kind="create" if before is None else "modify",
+        before_content=before,
+        after_content=after,
+        before_sha=sha256_text(before),
+        after_sha=sha256_text(after),
+        status=status,
+    )
     session.add(row)
     session.commit()
     return row
@@ -101,7 +119,8 @@ def test_revert_refuses_when_the_file_is_gone_or_different(env):
 
 
 def test_an_attached_files_change_is_written_from_koloni_s_store_never_where_its_record_says(
-        env, tmp_path):
+    env, tmp_path
+):
     """K-belge-ciktilari review: a record restored from elsewhere could name any file (a drive's
     too, `D:secret`) - the bytes are found again by the attachment's id in KOLONİ's store."""
     session, ws = env

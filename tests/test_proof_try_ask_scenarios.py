@@ -16,12 +16,18 @@ pytestmark = pytest.mark.no_po
 CHECK = "python check.py"
 
 
-def test_a_tool_asked_for_a_test_answered_with_a_reason_is_still_tried(make_client, wait_run,
-                                                                        project_dir):
+def test_a_tool_asked_for_a_test_answered_with_a_reason_is_still_tried(
+    make_client, wait_run, project_dir
+):
     executor = ScriptedExecutor([PASS, Script(["usage: tool [-h]\n", "  -h  help\n"])])
-    client, model = make_client([write("bin/tool.py", TOOL), text("done"),
-                                 text("No test fits: it only parses its arguments.")],
-                                executor=executor)
+    client, model = make_client(
+        [
+            write("bin/tool.py", TOOL),
+            text("done"),
+            text("No test fits: it only parses its arguments."),
+        ],
+        executor=executor,
+    )
     cid, run_id = begin(client, project_dir, check_command=CHECK)
     rows = texts(wait_run(client, cid, run_id))
     assert [line for line, _cwd in executor.started] == [CHECK, HELP]

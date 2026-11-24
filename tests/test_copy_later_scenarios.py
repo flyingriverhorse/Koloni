@@ -28,17 +28,20 @@ ORIGIN = "http://127.0.0.1:8790"
 MAKES = "python -c \"open('made.txt','w').write('by a command')\""
 
 
-def test_a_command_run_before_any_write_runs_in_the_copy_too(
-    make_client, wait_run, project_dir
-):
+def test_a_command_run_before_any_write_runs_in_the_copy_too(make_client, wait_run, project_dir):
     first = Gate()
-    client, model, cid, run_id = one(make_client, project_dir, [
-        step(run(MAKES)), first.step(text("A done")),
-    ])
+    client, model, cid, run_id = one(
+        make_client,
+        project_dir,
+        [
+            step(run(MAKES)),
+            first.step(text("A done")),
+        ],
+    )
     first.wait_partial()
     snap = until(client, cid, lambda s: calls(s, "Coder", "run_command")[0][0] == "succeeded")
     assert agent(snap, "Coder")["copy"] == {"state": "own"}
-    assert not (project_dir / "made.txt").exists()          # not in the project while at work
+    assert not (project_dir / "made.txt").exists()  # not in the project while at work
     first.release()
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed"
@@ -46,10 +49,15 @@ def test_a_command_run_before_any_write_runs_in_the_copy_too(
 
 
 def test_an_agent_that_only_reads_gets_no_copy(make_client, wait_run, project_dir):
-    client, model, cid, run_id = one(make_client, project_dir, [
-        step(call("read_file", {"path": "hello.py"}, "r")),
-        step(call("list_dir", {}, "l")), text("A done"),
-    ])
+    client, model, cid, run_id = one(
+        make_client,
+        project_dir,
+        [
+            step(call("read_file", {"path": "hello.py"}, "r")),
+            step(call("list_dir", {}, "l")),
+            text("A done"),
+        ],
+    )
     snap = wait_run(client, cid, run_id)
     assert agent(snap, "Coder")["copy"] is None and snap["merges"] == []
 
@@ -57,25 +65,36 @@ def test_an_agent_that_only_reads_gets_no_copy(make_client, wait_run, project_di
 def interrupted(settings_env, project_dir):
     """A turn in ask mode whose Coder's card is waiting when the app is closed; returns the
     conversation's id."""
-    app_ = create_app(load_settings(settings_env), model=ScriptedModel({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                 text("done")],
-        "Coder": [step(write("a.txt", "A")), text("A done")],
-    }))
+    app_ = create_app(
+        load_settings(settings_env),
+        model=ScriptedModel(
+            {
+                "Lead": [
+                    step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
+                    text("done"),
+                ],
+                "Coder": [step(write("a.txt", "A")), text("A done")],
+            }
+        ),
+    )
     with TestClient(app_, base_url="http://127.0.0.1:8790") as client:
         client.headers["Origin"] = ORIGIN
         pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        assert client.patch(f"/api/conversations/{cid}", json={
-            "permission_mode": "ask", "spawn_approval": "never"}).status_code == 200
+        assert (
+            client.patch(
+                f"/api/conversations/{cid}",
+                json={"permission_mode": "ask", "spawn_approval": "never"},
+            ).status_code
+            == 200
+        )
         client.post(f"/api/conversations/{cid}/messages", json={"content": "go"})
         until(client, cid, lambda s: [m["status"] for m in s["merges"]] == ["pending"])
     return cid
 
 
 def again(settings_env):
-    client = TestClient(create_app(load_settings(settings_env)),
-                        base_url="http://127.0.0.1:8790")
+    client = TestClient(create_app(load_settings(settings_env)), base_url="http://127.0.0.1:8790")
     client.headers["Origin"] = ORIGIN
     return client
 

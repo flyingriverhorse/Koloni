@@ -21,7 +21,9 @@ test.each(Object.entries(GUIDE))('%s: the guide has %s', (_name, place) => {
   // (run from frontend/: docs/ is beside it)
   const text = readFileSync(`../docs/${page.replace(/\/$/, '')}.md`, 'utf8')
   if (!anchor) return
-  const headings = Array.from(text.replace(/```[\s\S]*?```/g, '').matchAll(/^#{2,6}\s+(.*?)\s*$/gm), match => slug(match[1]))
+  const headings = Array.from(text.replace(/```[\s\S]*?```/g, '').matchAll(/^#{2,6}\s+(.*?)\s*$/gm), match =>
+    slug(match[1]),
+  )
   expect(headings).toContain(anchor)
 })
 

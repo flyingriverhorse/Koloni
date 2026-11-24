@@ -49,8 +49,11 @@ def _text(root: str, rel: str) -> tuple[str | None, str | None]:
         return None, None if str(refused) == "no such file" else str(refused)
     if read["text"] is not None:
         return read["text"], None
-    return None, (f"it is larger than {project_files.MAX_READ_BYTES // 1024} KiB"
-                  if read["too_large"] else "it is not text")
+    return None, (
+        f"it is larger than {project_files.MAX_READ_BYTES // 1024} KiB"
+        if read["too_large"]
+        else "it is not text"
+    )
 
 
 def _kept(root: str) -> tuple[dict | None, str | None]:
@@ -73,8 +76,9 @@ def settings(root: str) -> tuple[dict | None, str | None]:
     found, why = _kept(root)
     if found is not None:
         try:
-            found = dict(_CHECKED.validate_python(
-                {k: found[k] for k in SETTINGS if k in found}, strict=True))  # ("yes": no bool)
+            found = dict(
+                _CHECKED.validate_python({k: found[k] for k in SETTINGS if k in found}, strict=True)
+            )  # ("yes": no bool)
         except ValidationError as exc:
             found, why = None, "; ".join(f"{e['loc'][0]}: {e['msg']}" for e in exc.errors())
     return found, why and f"{SETTINGS_FILE} is not read - {why}"
@@ -90,8 +94,14 @@ def state(project) -> dict:
         "settings_kept": values is not None,
         "rules_kept": rules is not None,
         "rules": rules or None,
-        "broken": [line for line in (why and memory.UNREAD.format(why=why, what="settings"),
-                                     memory.rules_unread(project.root_path)) if line],
+        "broken": [
+            line
+            for line in (
+                why and memory.UNREAD.format(why=why, what="settings"),
+                memory.rules_unread(project.root_path),
+            )
+            if line
+        ],
         "asks": {k: v for k, v in (values or {}).items() if getattr(project, k) != v},
     }
 
@@ -105,11 +115,13 @@ def write(root: str, name: str, text: str | None) -> None:
         if target.exists() and has_other_names(target):
             raise Refused(422, "it is another name of a file elsewhere")
         WROTE[(str(Path(root).resolve()), rel)] = (
-            None if text is None else f"{text}\n".encode(), time.monotonic())
+            None if text is None else f"{text}\n".encode(),
+            time.monotonic(),
+        )
         if text is None:
             target.unlink(missing_ok=True)
             # (An empty .koloni/, or an empty .koloni/recipes/ in it, is not left behind.)
-            for folder in target.parents[:name.count("/") + 1]:
+            for folder in target.parents[: name.count("/") + 1]:
                 with contextlib.suppress(OSError):
                     folder.rmdir()
         else:
@@ -127,8 +139,11 @@ def save_settings(root: str, changed: dict) -> None:
     that is not read is left as it is (a hand's edit, a merge's conflict): the page says so,
     and what is saved in KOLONİ changes all the same."""
     if settings(root)[1] is None:
-        write(root, "settings.json", json.dumps({**(_kept(root)[0] or {}), **changed},
-                                                indent=2, ensure_ascii=False))
+        write(
+            root,
+            "settings.json",
+            json.dumps({**(_kept(root)[0] or {}), **changed}, indent=2, ensure_ascii=False),
+        )
 
 
 def save_rules(root: str, rules: str | None) -> None:
@@ -172,9 +187,14 @@ def instructions(root: str, part: str = "") -> str:
     for name in INSTRUCTIONS:
         text = (_text(root, part + name)[0] or "").strip()
         if text:
-            cut = f" - only its first {memory.MAX_RULES} characters" if (
-                len(text) > memory.MAX_RULES) else ""
+            cut = (
+                f" - only its first {memory.MAX_RULES} characters"
+                if (len(text) > memory.MAX_RULES)
+                else ""
+            )
             whose = f"The folder {quoted(part)}'s" if part else "This folder's"
-            return (f"{whose} {name}, its instructions for agents working in it, the "
-                    f"file's text as one quoted string{cut}:\n{quoted(text[:memory.MAX_RULES])}")
+            return (
+                f"{whose} {name}, its instructions for agents working in it, the "
+                f"file's text as one quoted string{cut}:\n{quoted(text[: memory.MAX_RULES])}"
+            )
     return ""

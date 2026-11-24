@@ -52,14 +52,16 @@ def whole_diff(change_id: str, session: Session = Depends(get_session)):
     return {"diff": unified_diff(before, after, change.path, context=lines)[0]}
 
 
-@router.post("/{change_id}/approve", response_model=FileChangeOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/{change_id}/approve", response_model=FileChangeOut, dependencies=[Depends(require_own_origin)]
+)
 async def approve(change_id: str, request: Request, session: Session = Depends(get_session)):
     return await _decide(change_id, "approve", request, session)
 
 
-@router.post("/{change_id}/reject", response_model=FileChangeOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/{change_id}/reject", response_model=FileChangeOut, dependencies=[Depends(require_own_origin)]
+)
 async def reject(change_id: str, request: Request, session: Session = Depends(get_session)):
     return await _decide(change_id, "reject", request, session)
 
@@ -93,7 +95,8 @@ async def revert_one(request: Request, session: Session, change: FileChange) -> 
     return payload
 
 
-@router.post("/{change_id}/revert", response_model=FileChangeOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/{change_id}/revert", response_model=FileChangeOut, dependencies=[Depends(require_own_origin)]
+)
 async def revert(change_id: str, request: Request, session: Session = Depends(get_session)):
     return await revert_one(request, session, _change(session, change_id))

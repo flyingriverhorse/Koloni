@@ -64,8 +64,10 @@ class Refused(Exception):
     pass
 
 
-HELD_COPIES = ("a working copy holds changes that never reached the project: take them in "
-               "or discard them first")
+HELD_COPIES = (
+    "a working copy holds changes that never reached the project: take them in "
+    "or discard them first"
+)
 
 
 def version() -> str:
@@ -88,27 +90,41 @@ def _without_secrets(db: Path) -> list[str]:
     with closing(sqlite3.connect(db)) as conn:
         # Blanked bytes are zeroed, not left in a free page for whoever opens the file.
         conn.execute("PRAGMA secure_delete=ON")
-        need += [f"provider {name}" for (name,) in conn.execute(
-            "SELECT name FROM providers WHERE api_key IS NOT NULL AND api_key != ''")]
-        need += [f"project {name}'s notification address" for (name,) in conn.execute(
-            "SELECT name FROM projects WHERE notify_url IS NOT NULL AND notify_url != ''")]
+        need += [
+            f"provider {name}"
+            for (name,) in conn.execute(
+                "SELECT name FROM providers WHERE api_key IS NOT NULL AND api_key != ''"
+            )
+        ]
+        need += [
+            f"project {name}'s notification address"
+            for (name,) in conn.execute(
+                "SELECT name FROM projects WHERE notify_url IS NOT NULL AND notify_url != ''"
+            )
+        ]
         for server_id, name, command, env in conn.execute(
-                "SELECT id, name, command, env FROM mcp_servers").fetchall():
+            "SELECT id, name, command, env FROM mcp_servers"
+        ).fetchall():
             command, env = json.loads(command or "[]"), json.loads(env or "{}")
             if any(env.values()) or keys_in(command):
                 need.append(f"MCP server {name}")
             # Its variables keep their names, so the user sees which to give again.
-            conn.execute("UPDATE mcp_servers SET command = ?, env = ? WHERE id = ?", (
-                json.dumps(command_shown(command)), json.dumps(dict.fromkeys(env, "")),
-                server_id))
-        for flag, what in zip(SECRET_FLAGS, (
-                "Gemini voice", "Claude Code's status line (set it up again)"), strict=True):
+            conn.execute(
+                "UPDATE mcp_servers SET command = ?, env = ? WHERE id = ?",
+                (json.dumps(command_shown(command)), json.dumps(dict.fromkeys(env, "")), server_id),
+            )
+        for flag, what in zip(
+            SECRET_FLAGS,
+            ("Gemini voice", "Claude Code's status line (set it up again)"),
+            strict=True,
+        ):
             if conn.execute("SELECT 1 FROM flags WHERE name = ?", (flag,)).fetchone():
                 need.append(what)
         conn.execute("UPDATE providers SET api_key = NULL")
         conn.execute("UPDATE projects SET notify_url = NULL")
-        conn.execute(f"DELETE FROM flags WHERE name IN ({','.join('?' * len(SECRET_FLAGS))})",
-                     SECRET_FLAGS)
+        conn.execute(
+            f"DELETE FROM flags WHERE name IN ({','.join('?' * len(SECRET_FLAGS))})", SECRET_FLAGS
+        )
         conn.commit()
         conn.execute("VACUUM")
     return need
@@ -122,10 +138,19 @@ def _attachments_kept(db: Path) -> tuple[set[str], list[str]]:
     Their records stay: the chat still shows a file was there."""
     with closing(sqlite3.connect(db)) as conn:
         rows = conn.execute("SELECT conversation_id, id, name FROM attachments").fetchall()
-    kept = {f"attachments/{cid}/{aid}{end}" for cid, aid, name in rows
-            if not attachments.secret_name(name) for end in ("", ".txt")}
-    return kept, list(dict.fromkeys(f"the secret file {name} attached to a chat"
-                                    for *_, name in rows if attachments.secret_name(name)))
+    kept = {
+        f"attachments/{cid}/{aid}{end}"
+        for cid, aid, name in rows
+        if not attachments.secret_name(name)
+        for end in ("", ".txt")
+    }
+    return kept, list(
+        dict.fromkeys(
+            f"the secret file {name} attached to a chat"
+            for *_, name in rows
+            if attachments.secret_name(name)
+        )
+    )
 
 
 def export(runtime_root: Path, db_path: Path, out: Path, secrets: bool) -> dict:
@@ -145,8 +170,11 @@ def export(runtime_root: Path, db_path: Path, out: Path, secrets: bool) -> dict:
             archive.write(snapshot, DB)
             for name in FOLDERS:
                 folder = runtime_root / name
-                files = sorted(p for p in folder.rglob("*") if p.is_file() and not p.is_symlink()) \
-                    if folder.is_dir() else []
+                files = (
+                    sorted(p for p in folder.rglob("*") if p.is_file() and not p.is_symlink())
+                    if folder.is_dir()
+                    else []
+                )
                 for path in files:
                     member = f"{name}/{path.relative_to(folder).as_posix()}"
                     if name != "attachments" or kept is None or member in kept:
@@ -162,9 +190,12 @@ def export(runtime_root: Path, db_path: Path, out: Path, secrets: bool) -> dict:
                 archive.writestr(name, text)
                 parts.append(name)
             manifest = {
-                "koloni": version(), "revision": _revision(snapshot),
+                "koloni": version(),
+                "revision": _revision(snapshot),
                 "made_at": datetime.now(UTC).isoformat(timespec="seconds"),
-                "secrets": secrets, "need_keys": need, "parts": parts,
+                "secrets": secrets,
+                "need_keys": need,
+                "parts": parts,
             }
             archive.writestr(MANIFEST, json.dumps(manifest, indent=2, ensure_ascii=False))
     return manifest
@@ -221,8 +252,10 @@ def _check_db(db: Path, manifest: dict) -> None:
     try:
         ScriptDirectory(str(REPO_ROOT / "alembic")).get_revision(revision)
     except CommandError:
-        raise Refused(f"it was made by a newer KOLONİ (database version {revision} is "
-                      "not known to this one): update KOLONİ first") from None
+        raise Refused(
+            f"it was made by a newer KOLONİ (database version {revision} is "
+            "not known to this one): update KOLONİ first"
+        ) from None
     with closing(sqlite3.connect(db)) as conn:
         if conn.execute("PRAGMA quick_check").fetchone()[0] != "ok":
             raise Refused("its database is damaged")
@@ -289,10 +322,13 @@ def _unpacked(upload: Path, into: Path) -> dict:
         manifest = json.loads((into / MANIFEST).read_text("utf-8"))
     except ValueError:
         raise Refused("its manifest.json could not be read") from None
-    if not (isinstance(manifest, dict) and isinstance(manifest.get("made_at"), str | None)
-            and isinstance(manifest.get("secrets"), bool)
-            and isinstance(manifest.get("need_keys"), list)
-            and all(isinstance(one, str) for one in manifest["need_keys"])):
+    if not (
+        isinstance(manifest, dict)
+        and isinstance(manifest.get("made_at"), str | None)
+        and isinstance(manifest.get("secrets"), bool)
+        and isinstance(manifest.get("need_keys"), list)
+        and all(isinstance(one, str) for one in manifest["need_keys"])
+    ):
         raise Refused("its manifest.json is not one KOLONİ writes")
     return manifest
 
@@ -359,8 +395,9 @@ def _settle(runtime_root: Path) -> None:
             name = folder.replace("\\", "/").rstrip("/").rpartition("/")[2]
             here = runtime_root / "skills" / (name if safe_path(name) else skill_id)
             conn.execute("UPDATE skills SET folder = ? WHERE id = ?", (str(here), skill_id))
-        conn.execute("INSERT OR REPLACE INTO flags (name, value) VALUES (?, ?)",
-                     (HOLD, now().isoformat()))
+        conn.execute(
+            "INSERT OR REPLACE INTO flags (name, value) VALUES (?, ?)", (HOLD, now().isoformat())
+        )
         conn.commit()
 
 
@@ -368,11 +405,15 @@ def _cut_off(runtime_root: Path, applying: Path) -> str:
     """What to do where a crash cut a restore off: said by the error that stops the start."""
     kept = runtime_root / KEPT / applying.name.rpartition("-")[2]
     if not kept.is_dir():
-        return (f"a restore was cut off at an earlier start before it moved anything: delete "
-                f"{applying} and start KOLONİ again")
-    return (f"a restore was cut off midway at an earlier start: the data before it is in "
-            f"{kept}. Move what is in it back into {runtime_root} (replacing what is there), "
-            f"delete {applying}, and start KOLONİ again")
+        return (
+            f"a restore was cut off at an earlier start before it moved anything: delete "
+            f"{applying} and start KOLONİ again"
+        )
+    return (
+        f"a restore was cut off midway at an earlier start: the data before it is in "
+        f"{kept}. Move what is in it back into {runtime_root} (replacing what is there), "
+        f"delete {applying}, and start KOLONİ again"
+    )
 
 
 def _move(source: Path, target: Path) -> None:

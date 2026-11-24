@@ -76,8 +76,7 @@ from pathlib import Path
 plan = json.loads(Path(os.environ["FAKE_AGY_PLAN"]).read_text(encoding="utf-8"))
 argv = sys.argv[1:]
 cwd = Path.cwd()
-record = {"argv": argv, "cwd": str(cwd), "stdin": None, "pid": os.getpid(),
-          "env": dict(os.environ)}
+record = {"argv": argv, "cwd": str(cwd), "stdin": None, "pid": os.getpid(), "env": dict(os.environ)}
 
 
 def save() -> None:
@@ -104,8 +103,9 @@ def emit(name: str, fields: dict) -> None:
 def die(code: int) -> None:
     """It crashes, a child of its own still holding its output open (denetim-010 #3). (The
     child ends by itself in 30 s.)"""
-    subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"],
-                     stdout=sys.stdout, stderr=sys.stderr)
+    subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"], stdout=sys.stdout, stderr=sys.stderr
+    )
     sys.stdout.flush()
     os._exit(code)
 
@@ -142,11 +142,25 @@ if argv[:2] == ["-p", "/quota"]:
         sys.stderr.write(plan.get("stderr", "") + "\n")
         sys.exit(plan["quota_exit"])
     # (resets a day on: a window that has reset by the time the page reads it is "stale")
-    week = {"name": "Gemini Models", "buckets": [{"id": "gemini-weekly", "window": "weekly",
-            "remaining_fraction": 0.92,
-            "reset_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 86400))}]}
-    quota = plan.get("quota", {"status": "SUCCESS", "num_turns": 0, "command": {
-        "name": "usage", "data": {"groups": [week]}}})
+    week = {
+        "name": "Gemini Models",
+        "buckets": [
+            {
+                "id": "gemini-weekly",
+                "window": "weekly",
+                "remaining_fraction": 0.92,
+                "reset_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 86400)),
+            }
+        ],
+    }
+    quota = plan.get(
+        "quota",
+        {
+            "status": "SUCCESS",
+            "num_turns": 0,
+            "command": {"name": "usage", "data": {"groups": [week]}},
+        },
+    )
     sys.stdout.write(plan.get("quota_text") or json.dumps(quota) + "\n")
     sys.exit(0)
 
@@ -156,47 +170,67 @@ home = Path(os.environ.get("USERPROFILE") or os.environ["HOME"])
 # Only a home of KOLONİ's (agy-*) is looked in: a try-out runs in the user's own.
 ours = home.name.startswith("agy-")
 config = home / ".gemini" / "config"
-record["config"] = {one.name: one.read_text(encoding="utf-8", errors="replace")
-                    for one in config.glob("*") if one.is_file()} if ours and config.is_dir() else {}
+record["config"] = (
+    {
+        one.name: one.read_text(encoding="utf-8", errors="replace")
+        for one in config.glob("*")
+        if one.is_file()
+    }
+    if ours and config.is_dir()
+    else {}
+)
 if free:
     try:
         named = json.loads((config / "hooks.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         named = {}  # measured: a file that is not JSON is passed over, and nothing said
     named = named if isinstance(named, dict) else {}
-    groups = [group for one in named.values() if isinstance(one, dict)
-              and one.get("enabled", True) for group in one.get("PreToolUse") or []]
+    groups = [
+        group
+        for one in named.values()
+        if isinstance(one, dict) and one.get("enabled", True)
+        for group in one.get("PreToolUse") or []
+    ]
     loaded = plan.get("hooks_loaded", len(named))
     groups = groups if loaded else []
     log = home / ".gemini" / "antigravity-cli" / "cli.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     save()  # (KOLONİ ends one whose count is wrong as soon as it reads the log: on record first)
-    log.write_text(f"I1024 11:49:04.862095       1 hooks_manager.go:53] loaded {loaded} named "
-                   "hooks from 1 hooks.json file(s)\n", encoding="utf-8")
+    log.write_text(
+        f"I1024 11:49:04.862095       1 hooks_manager.go:53] loaded {loaded} named "
+        "hooks from 1 hooks.json file(s)\n",
+        encoding="utf-8",
+    )
 record["hooks"] = []
 allowed, spec, bridge = [], None, None
 with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
     if ours:
-        allowed = json.loads((home / ".gemini" / "antigravity-cli" / "settings.json").read_text(
-            encoding="utf-8"))["permissions"]["allow"]
+        allowed = json.loads(
+            (home / ".gemini" / "antigravity-cli" / "settings.json").read_text(encoding="utf-8")
+        )["permissions"]["allow"]
 with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
     if ours:
-        spec = json.loads((config / "mcp_config.json").read_text(encoding="utf-8"))[
-            "mcpServers"]["koloni"]
+        spec = json.loads((config / "mcp_config.json").read_text(encoding="utf-8"))["mcpServers"][
+            "koloni"
+        ]
 record["allowed"], record["results"] = allowed, []
 allowed = [] if plan.get("ignore_allowed") else allowed  # (a rule it does not take)
 save()  # (before its bridge: one stopped once its log is read is on record too)
 if spec and not plan.get("no_bridge"):
-    bridge = subprocess.Popen([spec["command"], *spec["args"]], stdin=subprocess.PIPE,
-                              stdout=subprocess.PIPE)
+    bridge = subprocess.Popen(
+        [spec["command"], *spec["args"]], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+    )
 next_id = 0
 
 
 def rpc(method: str, params: dict) -> dict:
     global next_id
     next_id += 1
-    bridge.stdin.write((json.dumps(
-        {"jsonrpc": "2.0", "id": next_id, "method": method, "params": params}) + "\n").encode())
+    bridge.stdin.write(
+        (
+            json.dumps({"jsonrpc": "2.0", "id": next_id, "method": method, "params": params}) + "\n"
+        ).encode()
+    )
     bridge.stdin.flush()
     line = bridge.stdout.readline()
     if not line:
@@ -214,8 +248,7 @@ if bridge:
         (defined / f"{one['name']}.json").write_text(json.dumps(one), encoding="utf-8")
     if plan.get("second_bridge"):  # (its key, as config held it, presented once more)
         door = json.loads(record["config"]["bridge.json"])
-        socket.create_connection(("127.0.0.1", door["port"])).sendall(
-            door["key"].encode() + b"\n")
+        socket.create_connection(("127.0.0.1", door["port"])).sendall(door["key"].encode() + b"\n")
         time.sleep(20)  # (KOLONİ ends it)
 save()  # (one ended before it was given its prompt is on record too)
 
@@ -236,23 +269,38 @@ def hooked(name: str, given: dict, at: int) -> tuple[str, str] | None:
         if matcher != "*" and not re.fullmatch(matcher, name):
             continue
         for hook in group.get("hooks") or []:
-            told = {"toolCall": {"name": name, "args": given}, "stepIdx": at,
-                    "conversationId": "fake-conversation", "workspacePaths": [str(cwd)],
-                    "transcriptPath": str(home / ".gemini" / "antigravity-cli" / "t.jsonl")}
-            shell = (["cmd", "/c", hook["command"]] if sys.platform == "win32"
-                     else ["sh", "-c", hook["command"]])
+            told = {
+                "toolCall": {"name": name, "args": given},
+                "stepIdx": at,
+                "conversationId": "fake-conversation",
+                "workspacePaths": [str(cwd)],
+                "transcriptPath": str(home / ".gemini" / "antigravity-cli" / "t.jsonl"),
+            }
+            shell = (
+                ["cmd", "/c", hook["command"]]
+                if sys.platform == "win32"
+                else ["sh", "-c", hook["command"]]
+            )
             ran = {"command": hook["command"], "timeout": hook.get("timeout"), "in": told}
             record["hooks"].append(ran)
             save()  # (a hook still at work is on record too)
             try:
-                done = subprocess.run(shell, cwd=config, input=json.dumps(told).encode("utf-8"),
-                                      capture_output=True, timeout=hook.get("timeout", 30))
+                done = subprocess.run(
+                    shell,
+                    cwd=config,
+                    input=json.dumps(told).encode("utf-8"),
+                    capture_output=True,
+                    timeout=hook.get("timeout", 30),
+                )
             except subprocess.TimeoutExpired:
                 ran["out"] = "timed out"
                 save()
                 return "failed", "the hook timed out"
-            ran.update(code=done.returncode, out=done.stdout.decode("utf-8", "replace"),
-                       err=done.stderr.decode("utf-8", "replace"))
+            ran.update(
+                code=done.returncode,
+                out=done.stdout.decode("utf-8", "replace"),
+                err=done.stderr.decode("utf-8", "replace"),
+            )
             save()
             try:
                 said = json.loads(done.stdout) if done.returncode == 0 else None
@@ -279,9 +327,15 @@ def step(kind: str, state: str, at: int | None = None, **fields) -> int:
     return at
 
 
-emit("init", {"model": model, "cwd": str(cwd),
-              "permission_mode": "bypass" if free else "request-review",
-              "tools": ["view_file", "list_dir", "grep_search", "run_command", "write_to_file"]})
+emit(
+    "init",
+    {
+        "model": model,
+        "cwd": str(cwd),
+        "permission_mode": "bypass" if free else "request-review",
+        "tools": ["view_file", "list_dir", "grep_search", "run_command", "write_to_file"],
+    },
+)
 step("user_input", "DONE")
 said: list[str] = []
 denied: list[dict] = []
@@ -289,14 +343,26 @@ denied: list[dict] = []
 for action in plan.get("script", []):
     if "koloni" in action:  # (KOLONİ's tool, as a tool step of its own: `kolonis`)
         inner = action.get("args", {})
-        action = {"mcp": action["koloni"], "args": inner, **({
-            "tool": "call_mcp_tool", "parameters": {
-                "ServerName": "koloni", "ToolName": action["koloni"], "Arguments": inner}}
-            if action.get("wrapped") else {
-            "tool": f"mcp__koloni__{action['koloni']}", "parameters": inner})}
+        action = {
+            "mcp": action["koloni"],
+            "args": inner,
+            **(
+                {
+                    "tool": "call_mcp_tool",
+                    "parameters": {
+                        "ServerName": "koloni",
+                        "ToolName": action["koloni"],
+                        "Arguments": inner,
+                    },
+                }
+                if action.get("wrapped")
+                else {"tool": f"mcp__koloni__{action['koloni']}", "parameters": inner}
+            ),
+        }
     if "parameters" in action:
-        action["parameters"] = json.loads(json.dumps(action["parameters"]).replace(
-            "{home}", json.dumps(str(home))[1:-1]))
+        action["parameters"] = json.loads(
+            json.dumps(action["parameters"]).replace("{home}", json.dumps(str(home))[1:-1])
+        )
     if "say" in action:
         text = action["say"]
         said.append(text + "\n")
@@ -319,12 +385,22 @@ for action in plan.get("script", []):
                 hooked(*action["hook_first"], at)
             blocked = hooked(action.get("hook_name", name), given, at)
             if blocked:
-                step("tool", "ERROR", at, tool_name=name, tool_info={
-                    "name": name, "parameters": given,
-                    "error": {"type": "TOOL_ERROR", "message": blocked[1]}})
+                step(
+                    "tool",
+                    "ERROR",
+                    at,
+                    tool_name=name,
+                    tool_info={
+                        "name": name,
+                        "parameters": given,
+                        "error": {"type": "TOOL_ERROR", "message": blocked[1]},
+                    },
+                )
                 if blocked[0] == "failed":  # measured: the tool does not run, the turn ends
-                    emit("result", {"status": "ERROR", "response": "", "error": blocked[1],
-                                    "usage": {}})
+                    emit(
+                        "result",
+                        {"status": "ERROR", "response": "", "error": blocked[1], "usage": {}},
+                    )
                     sys.exit(1)
                 continue
         time.sleep(action.get("hold", 0))
@@ -335,22 +411,44 @@ for action in plan.get("script", []):
         if "mcp" in action:
             # Reading only, a call its settings do not allow is refused (measured, R103).
             if plan.get("foreign_koloni"):  # (another server named koloni answered it)
-                step("tool", "DONE", at, tool_name=name, tool_info={
-                    "name": name, "parameters": given, "output": "done elsewhere"})
+                step(
+                    "tool",
+                    "DONE",
+                    at,
+                    tool_name=name,
+                    tool_info={"name": name, "parameters": given, "output": "done elsewhere"},
+                )
                 continue
             if bridge is None or (not free and f"mcp(koloni/{action['mcp']})" not in allowed):
-                step("tool", "ERROR", at, tool_name=name, tool_info={
-                    "name": name, "parameters": given, "error": {
-                        "type": "TOOL_ERROR", "message": "permission check failed for mcp "
-                        f"tool koloni/{action['mcp']}: user denied permission"}})
+                step(
+                    "tool",
+                    "ERROR",
+                    at,
+                    tool_name=name,
+                    tool_info={
+                        "name": name,
+                        "parameters": given,
+                        "error": {
+                            "type": "TOOL_ERROR",
+                            "message": "permission check failed for mcp "
+                            f"tool koloni/{action['mcp']}: user denied permission",
+                        },
+                    },
+                )
                 continue
             answer = rpc("tools/call", {"name": action["mcp"], "arguments": action["args"]})
             record["results"].append(answer.get("result", answer))
             save()
-            told = "".join(part.get("text", "") for part in
-                           answer.get("result", {}).get("content", []))
-            step("tool", "DONE", at, tool_name=name, tool_info={
-                "name": name, "parameters": given, "output": told})
+            told = "".join(
+                part.get("text", "") for part in answer.get("result", {}).get("content", [])
+            )
+            step(
+                "tool",
+                "DONE",
+                at,
+                tool_name=name,
+                tool_info={"name": name, "parameters": given, "output": told},
+            )
             continue
         if action.get("asks") and not free:
             # Nobody can be asked here: it refuses, and does nothing.
@@ -361,24 +459,49 @@ for action in plan.get("script", []):
                 f'permission check failed for command "{line}": user denied permission to '
                 f"run command:\n{line}\nDo not attempt to circumvent this denial by rephrasing "
                 "the command, using alternative tools/scripts (e.g. python, sh, curl), or "
-                "accessing the same target resource. Proceed without performing this action.")
-            step("tool", "DONE" if action.get("refused_done") else "ERROR", at, tool_name=name,
-                 tool_info={"name": name, "parameters": given, **(
-                     {"output": refusal} if action.get("refused_done") else
-                     {"error": {"type": "TOOL_ERROR", "message": refusal}})})
+                "accessing the same target resource. Proceed without performing this action."
+            )
+            step(
+                "tool",
+                "DONE" if action.get("refused_done") else "ERROR",
+                at,
+                tool_name=name,
+                tool_info={
+                    "name": name,
+                    "parameters": given,
+                    **(
+                        {"output": refusal}
+                        if action.get("refused_done")
+                        else {"error": {"type": "TOOL_ERROR", "message": refusal}}
+                    ),
+                },
+            )
         elif "error" in action:
             for touched, content in action.get("touches", {}).items():
                 (cwd / touched).write_bytes(content.encode("utf-8"))
-            step("tool", "ERROR", at, tool_name=name, tool_info={
-                "name": name, "parameters": given,
-                "error": {"type": "TOOL_ERROR", "message": action["error"]}})
+            step(
+                "tool",
+                "ERROR",
+                at,
+                tool_name=name,
+                tool_info={
+                    "name": name,
+                    "parameters": given,
+                    "error": {"type": "TOOL_ERROR", "message": action["error"]},
+                },
+            )
         else:
             for touched, content in action.get("touches", {}).items():
                 target = Path(touched) if Path(touched).is_absolute() else cwd / touched
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(content.encode("utf-8"))
-            step("tool", "DONE", at, tool_name=name, tool_info={
-                "name": name, "parameters": given, "output": action.get("output", "")})
+            step(
+                "tool",
+                "DONE",
+                at,
+                tool_name=name,
+                tool_info={"name": name, "parameters": given, "output": action.get("output", "")},
+            )
     elif action.get("other"):
         print(json.dumps({"event": "heartbeat", "heartbeat": {"n": 1}}), flush=True)
         step("planning", "ACTIVE", note="thinking")
@@ -392,12 +515,24 @@ for action in plan.get("script", []):
         sys.stderr.write(action.get("stderr", "") + "\n")
         sys.exit(action["exit"])
     elif "error" in action:
-        emit("result", {"status": "ERROR", "response": "", "error": action["error"],
-                        "usage": {}, "denied_actions": denied})
+        emit(
+            "result",
+            {
+                "status": "ERROR",
+                "response": "",
+                "error": action["error"],
+                "usage": {},
+                "denied_actions": denied,
+            },
+        )
         sys.exit(1)
 
-result = {"status": "SUCCESS", "response": said[-1] if said else "", "num_turns": 1,
-          "usage": plan.get("usage", {"input_tokens": 2100, "output_tokens": 45})}
+result = {
+    "status": "SUCCESS",
+    "response": said[-1] if said else "",
+    "num_turns": 1,
+    "usage": plan.get("usage", {"input_tokens": 2100, "output_tokens": 45}),
+}
 if denied:
     result["denied_actions"] = denied
 emit("result", result)

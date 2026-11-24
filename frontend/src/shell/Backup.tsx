@@ -75,8 +75,9 @@ export function Backup() {
     <section className="backup" aria-label="Your data">
       <div className="kicker">Export</div>
       <p className="muted">
-        Your KOLONİ data in one .zip: chats, agents, providers, memory, triggers, skills and attachments. Not in it: your project folders
-        (their .koloni/ knowledge too), working copies, logs, previews, the CLIs’ own folders and the database’s own backups (before an upgrade, and daily).
+        Your KOLONİ data in one .zip: chats, agents, providers, memory, triggers, skills and attachments. Not in it:
+        your project folders (their .koloni/ knowledge too), working copies, logs, previews, the CLIs’ own folders and
+        the database’s own backups (before an upgrade, and daily).
       </p>
       <form
         onSubmit={e => {
@@ -85,7 +86,12 @@ export function Backup() {
         }}
       >
         <label className="choice">
-          <input type="checkbox" checked={secrets} aria-describedby="backup-secrets-note" onChange={e => setSecrets(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={secrets}
+            aria-describedby="backup-secrets-note"
+            onChange={e => setSecrets(e.target.checked)}
+          />
           <span>Include API keys and secrets (keep this file safe)</span>
         </label>
         <p id="backup-secrets-note" className="muted">
@@ -101,7 +107,14 @@ export function Backup() {
         <button type="button" className="btn btn-small" disabled={busy} onClick={() => pick.current?.click()}>
           {busy ? 'Reading the file…' : 'Restore from a file…'}
         </button>
-        <input ref={pick} type="file" hidden accept=".zip,application/zip" aria-label="An export to restore" onChange={e => void restore(e.target.files?.[0])} />
+        <input
+          ref={pick}
+          type="file"
+          hidden
+          accept=".zip,application/zip"
+          aria-label="An export to restore"
+          onChange={e => void restore(e.target.files?.[0])}
+        />
       </div>
       {staged && (
         <div role="status">
@@ -118,7 +131,11 @@ export function Backup() {
           )}
         </div>
       )}
-      {failed && <p className="muted">A restore could not be applied at the last start: it is kept in {failed}, and KOLONİ’s log says why.</p>}
+      {failed && (
+        <p className="muted">
+          A restore could not be applied at the last start: it is kept in {failed}, and KOLONİ’s log says why.
+        </p>
+      )}
       {error && (
         <div role="alert" className="alert">
           {error}

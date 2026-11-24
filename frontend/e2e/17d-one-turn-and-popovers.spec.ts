@@ -1,5 +1,15 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from './fixtures'
-import { OWN, contrasts, freeOfChat, openAgentFold, openFreshConversation, openTurns, rail, shot, windowFromPanel } from './helpers'
+import {
+  OWN,
+  contrasts,
+  freeOfChat,
+  openAgentFold,
+  openFreshConversation,
+  openTurns,
+  rail,
+  shot,
+  windowFromPanel,
+} from './helpers'
 
 const FACT = 'The service listens on port 8123.'
 
@@ -10,7 +20,9 @@ async function clearMemory(request: APIRequestContext) {
   const projects: { id: string }[] = await (await request.get('/api/projects')).json()
   for (const project of projects) {
     const memory = await (await request.get(`/api/projects/${project.id}/memory`)).json()
-    const ids = new Set<string>([...memory.proposals, ...memory.core, ...memory.journal].map((r: { id: string }) => r.id))
+    const ids = new Set<string>(
+      [...memory.proposals, ...memory.core, ...memory.journal].map((r: { id: string }) => r.id),
+    )
     for (const id of ids) await request.post(`/api/memory/${id}/reject`, { headers: OWN })
   }
 }
@@ -18,7 +30,10 @@ async function clearMemory(request: APIRequestContext) {
 async function ask(page: Page, text: string, answers: number) {
   await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByRole('region', { name: 'Chat' }).getByText('The reviewer found no problems.')).toHaveCount(answers, { timeout: 15_000 })
+  await expect(page.getByRole('region', { name: 'Chat' }).getByText('The reviewer found no problems.')).toHaveCount(
+    answers,
+    { timeout: 15_000 },
+  )
 }
 
 /** Whether one node lies wholly inside another, as they are drawn (a pixel of slack: both are measured at the canvas's zoom). */
@@ -37,12 +52,17 @@ async function holds(outer: Locator, inner: Locator) {
 async function overlapping(page: Page) {
   return page.locator('.react-flow__node').evaluateAll(all => {
     const rects = all.map(n => ({ id: (n as HTMLElement).dataset.id ?? '', box: n.getBoundingClientRect() }))
-    const inside = (a: DOMRect, b: DOMRect) => a.left >= b.left - 1 && a.top >= b.top - 1 && a.right <= b.right + 1 && a.bottom <= b.bottom + 1
+    const inside = (a: DOMRect, b: DOMRect) =>
+      a.left >= b.left - 1 && a.top >= b.top - 1 && a.right <= b.right + 1 && a.bottom <= b.bottom + 1
     const found: string[] = []
     for (const a of rects) {
       for (const b of rects) {
         if (a.id >= b.id || inside(a.box, b.box) || inside(b.box, a.box)) continue
-        const apart = a.box.right <= b.box.left + 1 || b.box.right <= a.box.left + 1 || a.box.bottom <= b.box.top + 1 || b.box.bottom <= a.box.top + 1
+        const apart =
+          a.box.right <= b.box.left + 1 ||
+          b.box.right <= a.box.left + 1 ||
+          a.box.bottom <= b.box.top + 1 ||
+          b.box.bottom <= a.box.top + 1
         if (!apart) found.push(`${a.id} on ${b.id}`)
       }
     }
@@ -51,7 +71,8 @@ async function overlapping(page: Page) {
 }
 
 /** How big a node is in the canvas's own measure, whatever the zoom. */
-const size = (node: Locator) => node.evaluate(element => [(element as HTMLElement).offsetWidth, (element as HTMLElement).offsetHeight])
+const size = (node: Locator) =>
+  node.evaluate(element => [(element as HTMLElement).offsetWidth, (element as HTMLElement).offsetHeight])
 
 test.beforeEach(async ({ request }) => {
   await clearMemory(request)
@@ -61,7 +82,9 @@ test.afterEach(async ({ request }) => {
   await clearMemory(request)
 })
 
-test('the canvas draws one turn, picked in Recent or from the chat; what a node did is counted on it, the side panel shows it, and every node is as big as the others', async ({ page }) => {
+test('the canvas draws one turn, picked in Recent or from the chat; what a node did is counted on it, the side panel shows it, and every node is as big as the others', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const agents = page.locator('.react-flow__node-agent')
   const requests = page.locator('.react-flow__node-request .node-text')
@@ -139,7 +162,10 @@ test('the canvas draws one turn, picked in Recent or from the chat; what a node 
 
   // Selected from the chat, the first turn's Reviewer is in another turn: the canvas goes to
   // that turn, and to the node, which shows as the selected one - in the middle of the canvas.
-  await chat.getByRole('button', { name: /Reviewer Review hello\.py/ }).first().click()
+  await chat
+    .getByRole('button', { name: /Reviewer Review hello\.py/ })
+    .first()
+    .click()
   await openTurns(page)
   await expect(turns.last()).toHaveAttribute('aria-current', 'true')
   await expect(requests).toHaveText(['review the greeting'])
@@ -149,7 +175,12 @@ test('the canvas draws one turn, picked in Recent or from the chat; what a node 
     .poll(async () => {
       // (the middle of what the chat leaves free)
       const [around, node] = [await freeOfChat(page), (await agents.locator('.node-selected').boundingBox())!]
-      return Math.round(Math.hypot(node.x + node.width / 2 - (around.x + around.width / 2), node.y + node.height / 2 - (around.y + around.height / 2)))
+      return Math.round(
+        Math.hypot(
+          node.x + node.width / 2 - (around.x + around.width / 2),
+          node.y + node.height / 2 - (around.y + around.height / 2),
+        ),
+      )
     })
     .toBeLessThan(30)
   await expect.poll(() => overlapping(page)).toEqual([])
@@ -166,7 +197,9 @@ test('the canvas draws one turn, picked in Recent or from the chat; what a node 
   await expect(page.getByRole('button', { name: /^(Expand|Collapse) / })).toHaveCount(0)
   const nodeSize = await size(reviewer)
   await reviewer.getByText('Reviewer', { exact: true }).click()
-  await expect(inspector.getByText('Did', { exact: true }).locator('xpath=following-sibling::dd[1]')).toContainText('1 tool')
+  await expect(inspector.getByText('Did', { exact: true }).locator('xpath=following-sibling::dd[1]')).toContainText(
+    '1 tool',
+  )
   await shot(page, '18a-canvas-turn-list-light')
   const own = await windowFromPanel(page)
   await expect(own.locator('.agent-story h4').first()).toHaveText('Looked around')
@@ -182,7 +215,10 @@ test('the canvas draws one turn, picked in Recent or from the chat; what a node 
   await openTurns(page)
   await expect(turns).toHaveCount(3)
   await expect(requests).toHaveText(['review the port of hello.py'])
-  await chat.locator('.msg-user', { hasText: 'search fourteen times' }).getByRole('button', { name: /^Copy, restore, show its work/ }).click()
+  await chat
+    .locator('.msg-user', { hasText: 'search fourteen times' })
+    .getByRole('button', { name: /^Copy, restore, show its work/ })
+    .click()
   await page.getByRole('menuitem', { name: 'Show its work on the canvas' }).click()
   await expect(requests).toHaveText(['search fourteen times'])
   await expect(agents).toHaveCount(1)
@@ -191,7 +227,9 @@ test('the canvas draws one turn, picked in Recent or from the chat; what a node 
   await expect.poll(() => overlapping(page)).toEqual([])
 })
 
-test('in the dark theme Recent and an agent’s node stand out from what they are on (contrast 4.5 or more)', async ({ page }) => {
+test('in the dark theme Recent and an agent’s node stand out from what they are on (contrast 4.5 or more)', async ({
+  page,
+}) => {
   await page.addInitScript(() => localStorage.setItem('koloni-theme', 'dark'))
   await openFreshConversation(page)
   await expect(page.locator('html')).toHaveClass(/\bdark\b/)
@@ -215,7 +253,9 @@ test('in the dark theme Recent and an agent’s node stand out from what they ar
   const inList = await (await openTurns(page)).evaluate(contrasts)
   await page.keyboard.press('Escape')
   await expect(list).toHaveCount(0)
-  const panel = page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Reviewer$/ }) })
+  const panel = page
+    .locator('.react-flow__node-agent')
+    .filter({ has: page.locator('.node-title', { hasText: /^Reviewer$/ }) })
   await expect(panel).toBeVisible()
   await expect(page.locator('html')).not.toHaveClass(/theme-switching/)
   await shot(page, '18a-canvas-turn-list-dark')
@@ -232,5 +272,7 @@ test('in the dark theme Recent and an agent’s node stand out from what they ar
   await openTurns(page)
   await list.locator('.turn-row').filter({ hasText: 'edit the greeting' }).click()
   await page.getByRole('region', { name: 'Chat' }).getByRole('button', { name: 'Reject' }).click()
-  await expect(page.getByRole('region', { name: 'Chat' }).getByText('Okay, I left hello.py unchanged.')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('region', { name: 'Chat' }).getByText('Okay, I left hello.py unchanged.')).toBeVisible({
+    timeout: 15_000,
+  })
 })

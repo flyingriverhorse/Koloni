@@ -35,7 +35,7 @@ SEARCHES = [
     "ack KEY",
     "git grep KEY",
     "powershell -Command 'Select-String -Path * -Pattern x'",
-    '"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command \'rg KEY\'',
+    "\"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -Command 'rg KEY'",
     "Select-String -Pattern KEY",
     "sls KEY *",
     "Get-ChildItem -Recurse | Get-Content",
@@ -69,10 +69,16 @@ SEARCHES = [
     "grep -drecurse KEY .",
     "gci -Depth 9 -File | gc",
     # a lister of one level handed to Get-Content opens each file it names (29 Oct)
-    "gci | gc", "ls | cat", "dir -File | Get-Content", "gci tests | gc", "gci | gc | sls KEY",
+    "gci | gc",
+    "ls | cat",
+    "dir -File | Get-Content",
+    "gci tests | gc",
+    "gci | gc | sls KEY",
     # (review, 29 Oct) opened in a block, or past a stage that only shapes the names
-    "gci | % { gc $_ }", "Get-ChildItem | foreach-object { Get-Content $_ }",
-    "gci | select -first 3 | gc", "gci | sort | gc",
+    "gci | % { gc $_ }",
+    "Get-ChildItem | foreach-object { Get-Content $_ }",
+    "gci | select -first 3 | gc",
+    "gci | sort | gc",
 ]
 
 ORDINARY = [
@@ -94,7 +100,11 @@ ORDINARY = [
     # (seen live, 24 Oct: B-46) names only; what came down a pipe from the web
     "rg --files -g AGENTS.md",
     "curl.exe -s https://example.com | Select-String -Pattern '<title>'",
-    "gci", "gc a.py", "gci | measure-object", "gci | select name", "ls | head",
+    "gci",
+    "gc a.py",
+    "gci | measure-object",
+    "gci | select name",
+    "ls | head",
 ]
 
 
@@ -109,7 +119,8 @@ def test_an_ordinary_command_is_no_search(command):
 
 
 def test_in_full_auto_a_search_is_asked_where_the_project_holds_a_secret(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     (project_dir / ".env").write_text("KEY=FAKE\n", encoding="utf-8")
     executor = ScriptedExecutor([])
     client, _ = make_client([cmd("rg KEY"), text("Understood.")], executor=executor)
@@ -122,7 +133,8 @@ def test_in_full_auto_a_search_is_asked_where_the_project_holds_a_secret(
 
 
 def test_in_full_auto_a_search_runs_unasked_where_the_project_holds_none(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     executor = ScriptedExecutor([Script(["hello.py:1:x\n"])])
     client, _ = make_client([cmd("rg KEY"), text("done")], executor=executor)
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
@@ -131,7 +143,8 @@ def test_in_full_auto_a_search_runs_unasked_where_the_project_holds_none(
 
 
 def test_where_the_project_holds_no_secret_a_searchs_card_says_nothing_of_one(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     # (B-44: the line once showed on every search card at Ask)
     client, _ = make_client([cmd("rg TODO"), text("done")], executor=ScriptedExecutor([]))
     cid, run_id = start(client, project_dir)
@@ -143,7 +156,8 @@ def test_where_the_project_holds_no_secret_a_searchs_card_says_nothing_of_one(
 
 
 def test_where_the_project_holds_no_secret_a_clis_search_card_says_nothing_of_one(
-        claude_app, wait_run, project_dir):  # noqa: F811
+    claude_app, wait_run, project_dir
+):  # noqa: F811
     bash = {"tool": "Bash", "ask": True, "input": {"command": "rg TODO"}, "result": "x"}
     client, provider, _ = claude_app([bash, {"say": "done"}])
     cid, run_id = start_claude(client, project_dir, provider, "ask")
@@ -154,11 +168,13 @@ def test_where_the_project_holds_no_secret_a_clis_search_card_says_nothing_of_on
 
 
 def test_an_always_run_rule_does_not_cover_a_search_while_the_project_holds_a_secret(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     (project_dir / ".env").write_text("KEY=FAKE\n", encoding="utf-8")
     executor = ScriptedExecutor([Script(["x\n"]), Script(["y\n"])])
-    client, _ = make_client([cmd("rg TODO", "k1"), cmd("rg KEY", "k2"), text("done")],
-                            executor=executor)
+    client, _ = make_client(
+        [cmd("rg TODO", "k1"), cmd("rg KEY", "k2"), text("done")], executor=executor
+    )
     cid, run_id = start(client, project_dir)
     first = waiting(client, cid, 1)[0]
     assert first["suggested_prefix"] == "rg"
@@ -170,7 +186,8 @@ def test_an_always_run_rule_does_not_cover_a_search_while_the_project_holds_a_se
 
 
 def test_a_native_clis_search_is_asked_in_full_auto_where_the_project_holds_a_secret(
-        claude_app, wait_run, project_dir):  # noqa: F811
+    claude_app, wait_run, project_dir
+):  # noqa: F811
     (project_dir / ".env").write_text("KEY=FAKE\n", encoding="utf-8")
     bash = {"tool": "Bash", "ask": True, "input": {"command": AGY}, "result": "x"}
     client, provider, _ = claude_app([bash, {"say": "done"}])
@@ -185,10 +202,14 @@ def test_a_native_clis_search_is_asked_in_full_auto_where_the_project_holds_a_se
 
 
 def test_with_nobody_watching_a_search_is_refused_though_its_rule_is_ticked(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     (project_dir / ".env").write_text("KEY=FAKE\n", encoding="utf-8")
-    client, _, pid, cid = setup(make_client, project_dir, {"Lead": [
-        step(call("run_command", {"command": "rg KEY"}, "c")), text("done")]})
+    client, _, pid, cid = setup(
+        make_client,
+        project_dir,
+        {"Lead": [step(call("run_command", {"command": "rg KEY"}, "c")), text("done")]},
+    )
     rule = allow(client, cid, "rg KEY")
     made = trigger(client, pid, cid, permissions={"write": False, "commands": [rule], "agents": 0})
     run_id = run_now(client, made["id"])

@@ -23,9 +23,7 @@ READ_CHUNK = 64 * 1024
 MAX_WRITE_BYTES = 1024 * 1024
 MAX_MATCHES = 200
 SEARCH_SECONDS = 20.0  # what Settings.search_seconds is unless KOLONI_SEARCH_SECONDS says
-TOO_LONG = (
-    "the search took too long - more than {:g} s; search a smaller path or a simpler pattern"
-)
+TOO_LONG = "the search took too long - more than {:g} s; search a smaller path or a simpler pattern"
 STOPPED = "the search was stopped"
 SKIP_DIRS = frozenset({".git", "node_modules", ".venv", "__pycache__"})
 
@@ -53,13 +51,24 @@ NOT_WRITTEN_UNATTENDED = {
     ".vscode": "the editor's tasks and settings: they can run when the folder is opened",
     ".husky": "git hooks kept in the project: they run by themselves at the next commit",
     **dict.fromkeys(
-        (".pre-commit-config.yaml", "lefthook.yml", "lefthook.yaml", ".lefthook.yml",
-         ".lefthook.yaml", "lefthook-local.yml", ".lintstagedrc",
-         *(f".lintstagedrc.{ext}" for ext in ("json", "yaml", "yml", "js", "cjs", "mjs")),
-         *(f"lint-staged.config.{ext}" for ext in ("js", "cjs", "mjs", "ts", "mts", "cts")),
-         *(f"{dot}simple-git-hooks.{ext}" for dot in ("", ".")
-           for ext in ("json", "js", "cjs", "mjs"))),
-        "the commands a commit hook runs: they run by themselves at the next commit"),
+        (
+            ".pre-commit-config.yaml",
+            "lefthook.yml",
+            "lefthook.yaml",
+            ".lefthook.yml",
+            ".lefthook.yaml",
+            "lefthook-local.yml",
+            ".lintstagedrc",
+            *(f".lintstagedrc.{ext}" for ext in ("json", "yaml", "yml", "js", "cjs", "mjs")),
+            *(f"lint-staged.config.{ext}" for ext in ("js", "cjs", "mjs", "ts", "mts", "cts")),
+            *(
+                f"{dot}simple-git-hooks.{ext}"
+                for dot in ("", ".")
+                for ext in ("json", "js", "cjs", "mjs")
+            ),
+        ),
+        "the commands a commit hook runs: they run by themselves at the next commit",
+    ),
     ".mcp.json": "the tool servers a CLI starts in this project, and then trusts",
     ".claude.json": "Claude Code's own state: the tools and servers it holds to be allowed",
     "agents.md": "instructions every later agent reads as the user's own",
@@ -68,7 +77,7 @@ NOT_WRITTEN_UNATTENDED = {
     ".gemini": "Gemini's and agy's settings, hooks and MCP servers: what they may do unasked",
     ".copilot": "GitHub Copilot's settings and MCP servers: what it may do without asking",
     ".koloni": "KOLONİ's rules and settings for the folder: what later agents are told, and "
-               "where their commands run",
+    "where their commands run",
 }
 # A Python environment's `.pth` files run at every start of its Python (user, 29 Oct). Bounded:
 # one environment folder deep in the project, never a walk of it. (Not node_modules/.bin: every
@@ -102,7 +111,8 @@ class CliHome(WorkspaceError):
     def __init__(self, rel: str, real: Path, cli: str):
         super().__init__(
             f"{rel!r} is in {CLI_HOMES[cli]}'s own folder: read_file, write_file and edit_file "
-            "open one file there, on the user's word each time")
+            "open one file there, on the user's word each time"
+        )
         self.real = real
         self.card = CLI_HOME_CARD.format(cli=CLI_HOMES[cli])
 
@@ -111,8 +121,12 @@ class CliHome(WorkspaceError):
 # folder or a CLI's own --add-dir (`_places`), but a file in one is opened on a card (`CliHome`).
 # shortcut: by these names under the home folder only - CODEX_HOME, CLAUDE_CONFIG_DIR or
 # COPILOT_HOME pointing elsewhere is not followed; add them the day a user sets one.
-CLI_HOMES = {".claude": "Claude Code", ".codex": "Codex", ".copilot": "GitHub Copilot",
-             ".gemini": "Gemini and agy"}
+CLI_HOMES = {
+    ".claude": "Claude Code",
+    ".codex": "Codex",
+    ".copilot": "GitHub Copilot",
+    ".gemini": "Gemini and agy",
+}
 CLI_HOME_CARD = (
     "This folder is {cli}'s settings for this whole computer: changing it affects every "
     "project. It may hold API keys: those KOLONİ knows by their shape are hidden from the "
@@ -127,16 +141,37 @@ CLI_PLACES = {CLI_PLACE.format(cli=cli): name for name, cli in CLI_HOMES.items()
 # shortcut: the other names are from memory of each CLI's layout, not checked against its
 # docs here; check them (and new ones a CLI adds) against each CLI's documentation.
 CLI_NEVER = {
-    ".claude": {".credentials.json", "projects",  # (projects: the note's transcript_path)
-                "history.jsonl", "todos", "shell-snapshots", "file-history", "session-env",
-                "paste-cache", "debug",
-                "backups", "ide"},  # (copies of ~/.claude.json; an IDE's lock holds its token)
+    ".claude": {
+        ".credentials.json",
+        "projects",  # (projects: the note's transcript_path)
+        "history.jsonl",
+        "todos",
+        "shell-snapshots",
+        "file-history",
+        "session-env",
+        "paste-cache",
+        "debug",
+        "backups",
+        "ide",
+    },  # (copies of ~/.claude.json; an IDE's lock holds its token)
     ".codex": {"auth.json", "sessions", "archived_sessions", "history.jsonl", "log"},
     # config.json: Copilot keeps its logged-in users there, and the token where no keychain is
-    ".copilot": {"config.json", "session-state",  # (session-state: the note's workspacePath)
-                 "history-session-state", "command-history-state.json", "logs"},
-    ".gemini": {"oauth_creds.json", "google_accounts.json", "tmp", "history",
-                "brain", "cli.log", "conversations"},  # (brain, cli.log: the note, agy's)
+    ".copilot": {
+        "config.json",
+        "session-state",  # (session-state: the note's workspacePath)
+        "history-session-state",
+        "command-history-state.json",
+        "logs",
+    },
+    ".gemini": {
+        "oauth_creds.json",
+        "google_accounts.json",
+        "tmp",
+        "history",
+        "brain",
+        "cli.log",
+        "conversations",
+    },  # (brain, cli.log: the note, agy's)
 }
 # Any other login, token or account file, or a session's or history's record, by its name.
 CLI_LOGIN = re.compile(r".*(auth|cred|token|account|login|cookie|session|histor).*")
@@ -182,13 +217,20 @@ def _on_drive(path: PurePath) -> bool:
     """Whether a path is on one of WSL's mounts of Windows' drives (/mnt/c/...)."""
     parts = PurePosixPath(path.as_posix()).parts
     at = len(WSL_DRIVES.parts)
-    return (len(parts) > at and PurePosixPath(*parts[:at]) == PurePosixPath(WSL_DRIVES.as_posix())
-            and len(parts[at]) == 1 and parts[at].isalpha())
+    return (
+        len(parts) > at
+        and PurePosixPath(*parts[:at]) == PurePosixPath(WSL_DRIVES.as_posix())
+        and len(parts[at]) == 1
+        and parts[at].isalpha()
+    )
 
 
 def _drive_root(path: Path) -> bool:
-    return path == Path(path.anchor) or _wsl() and (
-        path.parent == WSL_DRIVES and len(path.name) == 1 and path.name.isalpha())
+    return (
+        path == Path(path.anchor)
+        or _wsl()
+        and (path.parent == WSL_DRIVES and len(path.name) == 1 and path.name.isalpha())
+    )
 
 
 def _home() -> Path:
@@ -208,8 +250,15 @@ def home_of(named: str) -> str:
 
 
 def _never_places() -> tuple[tuple[Path, str], ...]:
-    names = ("APPDATA", "LOCALAPPDATA", "KOLONI_RUNTIME_ROOT", "SYSTEMROOT", "ProgramFiles",
-             "ProgramFiles(x86)", "ProgramW6432")
+    names = (
+        "APPDATA",
+        "LOCALAPPDATA",
+        "KOLONI_RUNTIME_ROOT",
+        "SYSTEMROOT",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
+        "ProgramW6432",
+    )
     environ = ("wsl" if _wsl() else "", *(os.environ.get(name, "") for name in names))
     # And Path.home()'s, where something made it another: more places, never fewer.
     homes = dict.fromkeys((str(_home()), str(Path.home())))
@@ -219,12 +268,30 @@ def _never_places() -> tuple[tuple[Path, str], ...]:
 # What a home folder holds that is never opened - the user's on Linux, macOS and Windows, and
 # under WSL each Windows home on its drives too.
 HOME_SECRETS = (
-    ".ssh", ".agents", ".aws", ".config/gh", ".config/gcloud", ".config/github-copilot",
-    ".config/rclone", ".qoder", ".kaggle", ".docker", ".azure",
+    ".ssh",
+    ".agents",
+    ".aws",
+    ".config/gh",
+    ".config/gcloud",
+    ".config/github-copilot",
+    ".config/rclone",
+    ".qoder",
+    ".kaggle",
+    ".docker",
+    ".azure",
     # (B-65: Databricks' token cache, Cline's and Continue's API keys, LM Studio's)
-    ".databricks", ".cline", ".continue", ".lmstudio",
+    ".databricks",
+    ".cline",
+    ".continue",
+    ".lmstudio",
     # (B-94: Ollama's private key; other agents' and tools' homes, never looked into)
-    ".ollama", ".qoder-cli", ".qodersec", ".lingma", ".cagent", ".claude-server-commander")
+    ".ollama",
+    ".qoder-cli",
+    ".qodersec",
+    ".lingma",
+    ".cagent",
+    ".claude-server-commander",
+)
 # KOLONİ's own places: the only ones a listed folder may hold (`_kept_out`).
 OWN_RECORD = "it is KOLONİ's own record"
 OWN_CODE = "it is KOLONİ's own code and settings"
@@ -245,18 +312,39 @@ def _places(home_name: str, environ: tuple[str, ...]) -> tuple[tuple[Path, str],
     # Browsers' profiles (passwords, cookies) and Windows' own keys and saved logins. Not all
     # of AppData\Local: its Temp and KOLONİ's own copies are there.
     local = Path(localdata or home / "AppData/Local")
-    places += [(place, secret) for place in (
-        local / "Google/Chrome/User Data", local / "Microsoft/Edge/User Data",
-        local / "BraveSoftware", local / "Vivaldi/User Data", roaming / "Mozilla/Firefox",
-        roaming / "Opera Software", local / "Microsoft/Credentials",
-        roaming / "Microsoft/Credentials", roaming / "Microsoft/Protect")]
+    places += [
+        (place, secret)
+        for place in (
+            local / "Google/Chrome/User Data",
+            local / "Microsoft/Edge/User Data",
+            local / "BraveSoftware",
+            local / "Vivaldi/User Data",
+            roaming / "Mozilla/Firefox",
+            roaming / "Opera Software",
+            local / "Microsoft/Credentials",
+            roaming / "Microsoft/Credentials",
+            roaming / "Microsoft/Protect",
+        )
+    ]
     # The same on macOS and Linux: browsers' profiles, keychains and keyrings.
     mac = home / "Library/Application Support"
-    places += [(place, secret) for place in (
-        mac / "Google/Chrome", mac / "Microsoft Edge", mac / "BraveSoftware", mac / "Firefox",
-        home / ".mozilla/firefox", home / ".config/google-chrome", home / ".config/chromium",
-        home / ".config/microsoft-edge", home / ".config/BraveSoftware",
-        home / "Library/Keychains", home / ".gnupg", home / ".local/share/keyrings")]
+    places += [
+        (place, secret)
+        for place in (
+            mac / "Google/Chrome",
+            mac / "Microsoft Edge",
+            mac / "BraveSoftware",
+            mac / "Firefox",
+            home / ".mozilla/firefox",
+            home / ".config/google-chrome",
+            home / ".config/chromium",
+            home / ".config/microsoft-edge",
+            home / ".config/BraveSoftware",
+            home / "Library/Keychains",
+            home / ".gnupg",
+            home / ".local/share/keyrings",
+        )
+    ]
     places += [(REPO_ROOT / "runtime", OWN_RECORD), (load_settings().runtime_root, OWN_RECORD)]
     places.append((mcp_base().parent, OWN_RECORD))  # where MCP servers start (97)
     # KOLONİ's own checkout: its code, the instructions its agents read, its settings and
@@ -270,16 +358,35 @@ def _places(home_name: str, environ: tuple[str, ...]) -> tuple[tuple[Path, str],
         # /usr's own folders, not /usr: /usr/local is where the user's own may lie.
         # (/proc, /sys, /dev, /run: the running system's - /proc/self/environ holds KOLONİ's
         # own keys, /run the user's sockets; /var holds /var/run, so it is not listed either)
-        places += [(Path(name), system) for name in (
-            "/etc", "/System", "/usr/bin", "/usr/sbin", "/usr/lib", "/usr/lib64", "/usr/share",
-            "/usr/libexec", "/bin", "/sbin", "/Library", "/proc", "/sys", "/dev", "/run",
-            "/var/run", "/boot")]
+        places += [
+            (Path(name), system)
+            for name in (
+                "/etc",
+                "/System",
+                "/usr/bin",
+                "/usr/sbin",
+                "/usr/lib",
+                "/usr/lib64",
+                "/usr/share",
+                "/usr/libexec",
+                "/bin",
+                "/sbin",
+                "/Library",
+                "/proc",
+                "/sys",
+                "/dev",
+                "/run",
+                "/var/run",
+                "/boot",
+            )
+        ]
         if not home.is_relative_to("/root"):  # (KOLONİ run as root works in its home)
             places.append((Path("/root"), system))
     if wsl:  # WSL: Windows' own homes, under its drives, as the home's places on Windows
         for windows in sorted(WSL_DRIVES.glob("?/Users/*")):
-            places += [(windows / name, CLI_PLACE.format(cli=cli))
-                       for name, cli in CLI_HOMES.items()]
+            places += [
+                (windows / name, CLI_PLACE.format(cli=cli)) for name, cli in CLI_HOMES.items()
+            ]
             places += [(windows / name, secret) for name in (*HOME_SECRETS, "AppData")]
     both = ((found, why) for place, why in places for found in (place, place.resolve()))
     return tuple(dict.fromkeys(both))
@@ -325,7 +432,7 @@ def not_written_as_named(rel: str) -> str | None:
     if sys.platform != "win32":
         return None
     path = PureWindowsPath(rel)
-    for part in path.parts[1 if path.anchor else 0:]:
+    for part in path.parts[1 if path.anchor else 0 :]:
         if ":" in part:
             return "it names a stream of a file (a colon after the drive)"
         if DEVICES.fullmatch(_name(part)):
@@ -392,7 +499,8 @@ def not_a_project(path: Path) -> str | None:
 
     why = _kept_out(path)
     if why in (OWN_RECORD, OWN_CODE) and _cased(path) == _cased(
-            REPO_ROOT / "runtime" / "e2e" / "project"):
+        REPO_ROOT / "runtime" / "e2e" / "project"
+    ):
         return None
     return why
 
@@ -434,8 +542,9 @@ def outside_folder(raw: str) -> Path:
 # part of a relative one (a/b, ./x, ../x, ~/x).
 NAMED = re.compile(
     r"""["'`]([A-Za-z]:[\\/][^"'`\n]*)["'`]|(?<![\w/\\])([A-Za-z]:[\\/][^\s"'`<>|*?]*)"""
-    if os.name == "nt" else
-    r"""["'`](/[^"'`\n]*)["'`]|(?<![\w/\\:.~])(/(?![/\s])[^\s"'`<>|*?]*)""")
+    if os.name == "nt"
+    else r"""["'`](/[^"'`\n]*)["'`]|(?<![\w/\\:.~])(/(?![/\s])[^\s"'`<>|*?]*)"""
+)
 
 
 def named_folders(text: str) -> list[Path]:
@@ -472,14 +581,17 @@ def _as_written(rel: str) -> None:
     windows = PureWindowsPath(rel)
     absolute = windows.is_absolute() if sys.platform == "win32" else rel.startswith("/")
     if not absolute and (windows.drive or windows.root or PurePosixPath(rel).is_absolute()):
-        raise WorkspaceError(
-            f"{rel!r} is outside the project folder; use a path relative to it"
-        )
+        raise WorkspaceError(f"{rel!r} is outside the project folder; use a path relative to it")
 
 
 class Workspace:
-    def __init__(self, root: str | Path, links: dict[str, Path] | None = None,
-                 also: Iterable[str | Path] = (), granted: Path | None = None):
+    def __init__(
+        self,
+        root: str | Path,
+        links: dict[str, Path] | None = None,
+        also: Iterable[str | Path] = (),
+        granted: Path | None = None,
+    ):
         self.root = Path(root).resolve()
         # For a working copy (`app.copies`): the folders in it that are links to the
         # project's own - where each stands, and where it leads. What they lead to may
@@ -530,7 +642,8 @@ class Workspace:
         if is_secret(rel) or is_secret(str(candidate)):
             raise WorkspaceError(f"{rel!r} is never opened: it is a secret")
         if candidate == self.granted or any(
-                candidate == folder or candidate.is_relative_to(folder) for folder in self.also):
+            candidate == folder or candidate.is_relative_to(folder) for folder in self.also
+        ):
             return candidate
         raise Outside(rel, candidate if candidate.is_dir() else candidate.parent)
 
@@ -538,6 +651,7 @@ class Workspace:
         """Where a path outside the project really leads, where that is in a folder it also
         works in and neither the path nor its own folder is `_kept_out` - by its name, and
         then where it leads; else None."""
+
         def kept_out(path: Path) -> bool:
             return bool(_kept_out(path) or _kept_out(path if path.is_dir() else path.parent))
 
@@ -589,23 +703,28 @@ class Workspace:
         runtime root), not always the disk's; read the name off the disk if one is seen
         started from a path in another case."""
         at = _cased(self.root)
-        return [(_cased(place), why, PurePosixPath(*place.parts[len(at.parts):]).as_posix())
-                for place, why in _never_places()
-                if why in (OWN_RECORD, OWN_CODE) and _cased(place) != at
-                and _cased(place).is_relative_to(at)]
+        return [
+            (_cased(place), why, PurePosixPath(*place.parts[len(at.parts) :]).as_posix())
+            for place, why in _never_places()
+            if why in (OWN_RECORD, OWN_CODE)
+            and _cased(place) != at
+            and _cased(place).is_relative_to(at)
+        ]
 
     def koloni_s(self, path: Path) -> str | None:
         """Why a resolved path in the project is never opened all the same: it is in
         KOLONİ's own code or record (`_koloni_inside`) - or None."""
         cased = _cased(path)
-        return next((why for place, why, _rel in self._koloni_inside
-                     if cased.is_relative_to(place)), None)
+        return next(
+            (why for place, why, _rel in self._koloni_inside if cased.is_relative_to(place)), None
+        )
 
     def koloni_under(self, folder: Path) -> str | None:
         """The first of `koloni_places` a resolved folder holds, or is - or None."""
         cased = _cased(folder)
-        return next((rel for place, _why, rel in self._koloni_inside
-                     if place.is_relative_to(cased)), None)
+        return next(
+            (rel for place, _why, rel in self._koloni_inside if place.is_relative_to(cased)), None
+        )
 
     def koloni_places(self) -> list[str]:
         """`_koloni_inside`, by their paths in the project."""
@@ -627,8 +746,11 @@ class Workspace:
         for child in target.iterdir():
             # (Out of the project, a place KOLONİ never opens is not shown either; in it,
             # KOLONİ's own.)
-            if child.name in SKIP_DIRS or self.koloni_s(child) or not self.is_own(child) and (
-                _kept_out(child) or is_secret(str(child))
+            if (
+                child.name in SKIP_DIRS
+                or self.koloni_s(child)
+                or not self.is_own(child)
+                and (_kept_out(child) or is_secret(str(child)))
             ):
                 continue
             if child.is_dir():
@@ -713,8 +835,12 @@ class Workspace:
         return self.read_text(rel) if self.resolve(rel).exists() else None
 
     def search(
-        self, pattern: str, rel: str = ".", glob: str | None = None,
-        seconds: float = SEARCH_SECONDS, stop: threading.Event | None = None,
+        self,
+        pattern: str,
+        rel: str = ".",
+        glob: str | None = None,
+        seconds: float = SEARCH_SECONDS,
+        stop: threading.Event | None = None,
     ) -> tuple[list[tuple[str, int, str]], bool, int, list[str]]:
         """Regex search; returns (path, line number, line) matches, whether it hit the cap,
         how many secret files (`secret_in_project`; `is_secret` out of it) it did not
@@ -724,16 +850,24 @@ class Workspace:
         interpreter while it matches, and a pattern that backtracks would hold the app -
         Stop too - for as long as it runs. That process is ended once it has run for
         `seconds` (TOO_LONG), or as soon as `stop` is set."""
-        asked: bytes | None = json.dumps({
-            "root": str(self.root), "links": {at: str(to) for at, to in self.links.items()},
-            "also": [str(folder) for folder in self.also],
-            "pattern": pattern, "rel": rel, "glob": glob,
-        }).encode()
+        asked: bytes | None = json.dumps(
+            {
+                "root": str(self.root),
+                "links": {at: str(to) for at, to in self.links.items()},
+                "also": [str(folder) for folder in self.also],
+                "pattern": pattern,
+                "rel": rel,
+                "glob": glob,
+            }
+        ).encode()
         try:
             # Started from KOLONİ's own folder: nothing of the project's can be imported.
             process = subprocess.Popen(
-                [sys.executable, "-m", "app.workspace"], cwd=Path(__file__).parent.parent,
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                [sys.executable, "-m", "app.workspace"],
+                cwd=Path(__file__).parent.parent,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
             )
         except OSError as exc:
             why = exc.strerror or exc
@@ -760,7 +894,8 @@ class Workspace:
                         process.kill()
                         process.communicate()
                         raise WorkspaceError(
-                            TOO_LONG.format(seconds) if late else STOPPED) from None
+                            TOO_LONG.format(seconds) if late else STOPPED
+                        ) from None
         finally:
             if job is not None:
                 job.terminate()  # nothing of it is left; the job is released
@@ -813,10 +948,15 @@ class Workspace:
         for child in sorted(folder.iterdir(), key=lambda p: p.name.lower()):
             # Links and junctions are not followed: they may lead out of the project. Out
             # of it, a place KOLONİ never opens is not walked into either.
-            if child.name in SKIP_DIRS or child.is_symlink() or child.is_junction() or (
-                not self.is_own(child) and (_kept_out(child) or is_secret(str(child)))
-            ) or self.koloni_s(child) or self.is_own(child) and is_kept_code(
-                    child.relative_to(self.root).parts):
+            if (
+                child.name in SKIP_DIRS
+                or child.is_symlink()
+                or child.is_junction()
+                or (not self.is_own(child) and (_kept_out(child) or is_secret(str(child))))
+                or self.koloni_s(child)
+                or self.is_own(child)
+                and is_kept_code(child.relative_to(self.root).parts)
+            ):
                 continue
             if child.is_dir():
                 yield from self._walk(child)
@@ -860,8 +1000,9 @@ class Workspace:
             back = False
         if back:
             raise WorkspaceError(f"{why}; the file is as it was")
-        raise WorkspaceError(f"{why}; it may be partly written - what it held before is on "
-                             "this change's record")
+        raise WorkspaceError(
+            f"{why}; it may be partly written - what it held before is on this change's record"
+        )
 
     def _write_bytes(self, target: Path, data: bytes) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -889,8 +1030,7 @@ class Workspace:
 
 
 LINKED_ELSEWHERE = (
-    "it is a hard link: the same file has another name, perhaps in a folder KOLONİ "
-    "never opens"
+    "it is a hard link: the same file has another name, perhaps in a folder KOLONİ never opens"
 )
 HARD_LINK = (
     "it is a hard link: the same file has another name, perhaps outside the project, "
@@ -989,7 +1129,8 @@ def secret_in_project(rel: str) -> bool:
     if parts[-2:] in SECRET_PAIRS or SECRET_FOLDERS.intersection(parts[:-1]):
         return True
     return not NOT_SECRET_IN_PROJECT.fullmatch(parts[-1]) and bool(
-        SECRET_NAMES.fullmatch(parts[-1]))
+        SECRET_NAMES.fullmatch(parts[-1])
+    )
 
 
 def secret_named(given: str, rel: str) -> bool:
@@ -1015,8 +1156,12 @@ def is_kept_code(parts: Sequence[str]) -> bool:
     keeps as text (`knowledge.KEPT`: `.koloni/knowledge/<topic>/code`) - another project's files,
     thousands of them: no look of this project's goes in (its changes, its standing files, a
     working copy, its git status, a search of it, its map or its triggers)."""
-    return len(parts) == 4 and _name(parts[0]) == ".koloni" and _name(
-        parts[1]) == "knowledge" and _name(parts[3]) == "code"
+    return (
+        len(parts) == 4
+        and _name(parts[0]) == ".koloni"
+        and _name(parts[1]) == "knowledge"
+        and _name(parts[3]) == "code"
+    )
 
 
 # KOLONİ's own in `.koloni/`, kept in git with the folder: its rules and settings (86c), recipes,
@@ -1034,18 +1179,22 @@ def stray_in_koloni(rel: str) -> bool:
         return False
     if is_kept_code(path.split("/")[:4]):
         return True
-    rest = path[len(".koloni/"):].casefold()  # (`Rules.md` is the rules file on Windows)
-    return not any(rest == kept or kept.endswith("/") and rest.startswith(kept)
-                   for kept in KOLONI_KEPT)
+    rest = path[len(".koloni/") :].casefold()  # (`Rules.md` is the rules file on Windows)
+    return not any(
+        rest == kept or kept.endswith("/") and rest.startswith(kept) for kept in KOLONI_KEPT
+    )
 
 
 def standing_names(parts: Sequence[str]) -> list[str]:
     """The names of `NOT_WRITTEN_UNATTENDED` among a path's parts (as `_name` gives them), in
     order - but not `.koloni` where `tmp` follows it: `.koloni/tmp/` is the agents' scratch in
     the project (K-koloni-klasor), no standing name; what is under it is judged as any path."""
-    return [_name(part) for at, part in enumerate(parts) if _name(part) in NOT_WRITTEN_UNATTENDED
-            and not (_name(part) == ".koloni" and at + 1 < len(parts)
-                     and _name(parts[at + 1]) == "tmp")]
+    return [
+        _name(part)
+        for at, part in enumerate(parts)
+        if _name(part) in NOT_WRITTEN_UNATTENDED
+        and not (_name(part) == ".koloni" and at + 1 < len(parts) and _name(parts[at + 1]) == "tmp")
+    ]
 
 
 def stands_over_later_turns(ws: Workspace, rel: object) -> str | None:
@@ -1061,8 +1210,11 @@ def stands_over_later_turns(ws: Workspace, rel: object) -> str | None:
         # (Outside the project, in a folder it also works in: the whole of where it is.)
         chains.append(list(real.relative_to(ws.root).parts if ws.is_own(real) else real.parts))
     found = [name for chain in chains for name in standing_names(chain)]
-    if not found and any(fnmatch.fnmatchcase("/".join(map(_name, chain)), glob.casefold())
-                         for chain in chains for glob in PTH_GLOBS):
+    if not found and any(
+        fnmatch.fnmatchcase("/".join(map(_name, chain)), glob.casefold())
+        for chain in chains
+        for glob in PTH_GLOBS
+    ):
         return "*.pth"
     # An instruction file only where nothing else stands in either chain: the path
     # `AGENTS.md/../.claude/settings.json` is `.claude`'s (review of K-fullauto-sorma 2).
@@ -1087,8 +1239,12 @@ def unified_diff(
     """Unified diff of a text change plus its added and removed line counts."""
     lines = list(
         difflib.unified_diff(
-            (before or "").splitlines(), after.splitlines(), f"a/{path}", f"b/{path}",
-            n=context, lineterm=""
+            (before or "").splitlines(),
+            after.splitlines(),
+            f"a/{path}",
+            f"b/{path}",
+            n=context,
+            lineterm="",
         )
     )
     body = lines[2:]  # skip the ---/+++ header so content like "+++ x" is not miscounted
@@ -1101,11 +1257,15 @@ def _search_apart() -> None:
     """The process a search is made in (`Workspace.search`): what to look for comes in,
     as JSON, and what was found - or why nothing could be - goes out."""
     asked = json.loads(sys.stdin.buffer.read())
-    ws = Workspace(asked["root"], {at: Path(to) for at, to in asked["links"].items()},
-                   [Path(folder) for folder in asked["also"]])
+    ws = Workspace(
+        asked["root"],
+        {at: Path(to) for at, to in asked["links"].items()},
+        [Path(folder) for folder in asked["also"]],
+    )
     try:
         matches, truncated, secrets, big = ws._search_here(
-            asked["pattern"], asked["rel"], asked["glob"])
+            asked["pattern"], asked["rel"], asked["glob"]
+        )
         said: dict = {"matches": matches, "truncated": truncated, "secrets": secrets, "big": big}
     except WorkspaceError as exc:
         said = {"error": str(exc)}

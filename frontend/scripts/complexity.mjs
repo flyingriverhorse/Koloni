@@ -36,8 +36,14 @@ export function measure(fileName, text) {
     const count = n => {
       if (isFn(n)) return visit(n, name)
       switch (n.kind) {
-        case K.IfStatement: case K.ForStatement: case K.ForInStatement: case K.ForOfStatement:
-        case K.WhileStatement: case K.DoStatement: case K.CaseClause: case K.CatchClause:
+        case K.IfStatement:
+        case K.ForStatement:
+        case K.ForInStatement:
+        case K.ForOfStatement:
+        case K.WhileStatement:
+        case K.DoStatement:
+        case K.CaseClause:
+        case K.CatchClause:
         case K.ConditionalExpression:
           row.value++
           break
@@ -103,7 +109,9 @@ function main() {
     writeFileSync(baselineFile, JSON.stringify(sorted, null, 2) + '\n')
     console.log(`complexity: baseline rewritten, ${Object.keys(sorted).length} entries`)
   } else if (shrinkable) {
-    console.log(`complexity: you can lower or remove ${shrinkable} baseline entries (npm run check:complexity -- --update)`)
+    console.log(
+      `complexity: you can lower or remove ${shrinkable} baseline entries (npm run check:complexity -- --update)`,
+    )
   }
   for (const f of failures) console.error(f)
   if (failures.length) process.exit(1)

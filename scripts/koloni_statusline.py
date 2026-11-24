@@ -36,7 +36,8 @@ def numbers(given: object) -> dict:
         return {}
     return {
         name: {key: part[key] for key in KEPT}
-        for name in WINDOWS if isinstance(part := limits.get(name), dict)
+        for name in WINDOWS
+        if isinstance(part := limits.get(name), dict)
         and all(part.get(key) is not None for key in KEPT)
     }
 
@@ -48,8 +49,11 @@ def send(koloni: str, key: str, limits: dict) -> None:
         if address.scheme != "http" or address.hostname not in HERE:
             return
         request = urllib.request.Request(
-            koloni.rstrip("/") + "/api/limits/claude-session", data=json.dumps(limits).encode(),
-            headers={"Content-Type": "application/json", "X-Koloni-Key": key}, method="POST")
+            koloni.rstrip("/") + "/api/limits/claude-session",
+            data=json.dumps(limits).encode(),
+            headers={"Content-Type": "application/json", "X-Koloni-Key": key},
+            method="POST",
+        )
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         opener.open(request, timeout=SECONDS).close()
     except Exception:

@@ -17,25 +17,39 @@ test('summaries name the target and survive bad arguments', () => {
 
 test('agent tools name the role they are about', () => {
   expect(toolSummary({ name: 'spawn_agent', arguments: '{"role":"Reviewer","task":"x"}' })).toBe('spawn_agent Reviewer')
-  expect(toolSummary({ name: 'create_role', arguments: '{"name":"Documenter","tools":[]}' })).toBe('create_role Documenter')
+  expect(toolSummary({ name: 'create_role', arguments: '{"name":"Documenter","tools":[]}' })).toBe(
+    'create_role Documenter',
+  )
 })
 
 test('the Lead’s pick of teams says each team and why, on one line (slice 84b)', () => {
-  const picks = { teams: [{ team: 'Web app', recipe: 'Feature', why: 'new page' }, { team: 'Docs' }, { why: 'no team' }] }
-  expect(toolSummary({ name: 'pick_teams', arguments: JSON.stringify(picks) })).toBe('pick_teams Web app: new page; Docs')
+  const picks = {
+    teams: [{ team: 'Web app', recipe: 'Feature', why: 'new page' }, { team: 'Docs' }, { why: 'no team' }],
+  }
+  expect(toolSummary({ name: 'pick_teams', arguments: JSON.stringify(picks) })).toBe(
+    'pick_teams Web app: new page; Docs',
+  )
 })
 
 test('a question never put to you reads as what it wanted to ask, and that it was not asked', () => {
-  const asked = (status: ToolCall['status'], args: unknown, name = 'ask_user') => toolSummary(toolCall('1', 'r', name, status, JSON.stringify(args)))
+  const asked = (status: ToolCall['status'], args: unknown, name = 'ask_user') =>
+    toolSummary(toolCall('1', 'r', name, status, JSON.stringify(args)))
   // refused (your message waits, Take in's options, a team's lead in its recipe, nobody watching), or failed ("Ready for you", asked a third time)
-  expect(asked('denied', { question: '  Which greeting?\nhello or hey', options: ['hello', 'hey'] })).toBe('Wanted to ask: Which greeting? · not asked')
-  expect(asked('failed', { question: 'Ready for you: the work' })).toBe('Wanted to ask: Ready for you: the work · not asked')
+  expect(asked('denied', { question: '  Which greeting?\nhello or hey', options: ['hello', 'hey'] })).toBe(
+    'Wanted to ask: Which greeting? · not asked',
+  )
+  expect(asked('failed', { question: 'Ready for you: the work' })).toBe(
+    'Wanted to ask: Ready for you: the work · not asked',
+  )
   expect(asked('denied', { question: 5 })).toBe('Wanted to ask you · not asked')
   // one that was asked, waits or was stopped has its card or its row: named as before
-  for (const status of ['running', 'succeeded', 'interrupted'] as const) expect(asked(status, { question: 'Which?' })).toBe('ask_user')
+  for (const status of ['running', 'succeeded', 'interrupted'] as const)
+    expect(asked(status, { question: 'Which?' })).toBe('ask_user')
   expect(toolSummary({ name: 'ask_user', arguments: '{"question":"Which?"}' })).toBe('ask_user')
   // Codex's own way to ask, declined natively (what its request holds is not measured: not read)
-  expect(asked('denied', { questions: [{ question: 'Strict?' }] }, 'codex__item_tool_requestUserInput')).toBe('Wanted to ask you with its own tool · not asked')
+  expect(asked('denied', { questions: [{ question: 'Strict?' }] }, 'codex__item_tool_requestUserInput')).toBe(
+    'Wanted to ask you with its own tool · not asked',
+  )
 })
 
 test('a deletion names the file', () => {
@@ -90,7 +104,16 @@ test('the rest of the tools by their target, and a tool whose target is not as e
   expect(said('browser_scroll', { dy: 0 })).toBe('scrolled up 0')
   expect(said('browser_read', { path: 'x' })).toBe('read the page')
   // Its target not a string: by its path where it has one, else by its name alone.
-  for (const [name, args] of [['search', { pattern: 1 }], ['spawn_agent', { role: 1 }], ['message_agent', {}], ['create_role', {}], ['recall', {}], ['web_search', {}], ['http_request', { method: 'GET' }], ['notify', {}]] as const) {
+  for (const [name, args] of [
+    ['search', { pattern: 1 }],
+    ['spawn_agent', { role: 1 }],
+    ['message_agent', {}],
+    ['create_role', {}],
+    ['recall', {}],
+    ['web_search', {}],
+    ['http_request', { method: 'GET' }],
+    ['notify', {}],
+  ] as const) {
     expect(said(name, args)).toBe(name)
     expect(said(name, { ...args, path: 'p.txt' })).toBe(`${name} p.txt`)
   }
@@ -101,7 +124,12 @@ test('the rest of the tools by their target, and a tool whose target is not as e
 })
 
 test('k-canli-016: a look KOLONİ opened at a turn’s end reads as its own, not as the Orchestrator’s spawn', () => {
-  const look = { name: 'spawn_agent', arguments: JSON.stringify({ role: 'Security reviewer', task: 'KOLONİ’s own test run:\n\n✓ …' }) }
-  expect(toolSummary({ ...look, provider_call_id: 'koloni_proof_review_1a2b' })).toBe('KOLONİ’s look: Security reviewer')
+  const look = {
+    name: 'spawn_agent',
+    arguments: JSON.stringify({ role: 'Security reviewer', task: 'KOLONİ’s own test run:\n\n✓ …' }),
+  }
+  expect(toolSummary({ ...look, provider_call_id: 'koloni_proof_review_1a2b' })).toBe(
+    'KOLONİ’s look: Security reviewer',
+  )
   expect(toolSummary({ ...look, provider_call_id: 'call_7' })).toBe('spawn_agent Security reviewer')
 })

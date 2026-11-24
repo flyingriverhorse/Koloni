@@ -14,7 +14,8 @@ from app.roles import find_agent_role
 from app.schemas import OwnCommandIn, OwnCommandOut, OwnCommandPatch
 
 router = APIRouter(
-    prefix="/api/own-commands", tags=["own commands"], dependencies=[Depends(require_origin)])
+    prefix="/api/own-commands", tags=["own commands"], dependencies=[Depends(require_origin)]
+)
 OWN = [Depends(require_own_origin)]
 
 # The box's own commands (slice 46, 49's `/plan`, 54's `/compare`): a saved one would
@@ -27,13 +28,16 @@ def fold(name: str) -> str:
     """Exactly as the box's menu looks a name up (frontend `fold`): lower case, NFD, every
     mark (category M) dropped, ı as i. Not casefold(): the page keeps ß, and drops U+FE0F."""
     plain = unicodedata.normalize("NFD", name.lower())
-    return "".join(
-        c for c in plain if not unicodedata.category(c).startswith("M")).replace("ı", "i")
+    return "".join(c for c in plain if not unicodedata.category(c).startswith("M")).replace(
+        "ı", "i"
+    )
 
 
 def out(command: OwnCommand) -> dict:
-    return {key: getattr(command, key)
-            for key in ("id", "name", "description", "template", "role", "project_id")}
+    return {
+        key: getattr(command, key)
+        for key in ("id", "name", "description", "template", "role", "project_id")
+    }
 
 
 def _command(session: Session, command_id: str) -> OwnCommand:
@@ -63,14 +67,17 @@ def _check(session: Session, command: OwnCommand) -> None:
         command.role = role.name
     # The box makes "/coder " the role's chip: a command of that name would never be offered.
     # (Not the Lead's: it has no chip.)
-    if any(role.name != "Lead" and fold(role.name) == fold(command.name)
-           for role in session.scalars(select(Role))):
+    if any(
+        role.name != "Lead" and fold(role.name) == fold(command.name)
+        for role in session.scalars(select(Role))
+    ):
         raise HTTPException(409, f"/{command.name} is a role's name: the role's chip is meant")
     # Seen together: a global one with every other, a project's with its project's.
     seen = select(OwnCommand).where(OwnCommand.id != command.id)
     if command.project_id is not None:
-        seen = seen.where(or_(
-            OwnCommand.project_id.is_(None), OwnCommand.project_id == command.project_id))
+        seen = seen.where(
+            or_(OwnCommand.project_id.is_(None), OwnCommand.project_id == command.project_id)
+        )
     # (Compared here, not in SQL: SQLite's lower() knows only ASCII.)
     if any(fold(other.name) == fold(command.name) for other in session.scalars(seen)):
         raise HTTPException(409, f"there is already a command named /{command.name} there")
@@ -82,7 +89,8 @@ def list_commands(project_id: str | None = None, session: Session = Depends(get_
     commands = session.scalars(
         select(OwnCommand)
         .where(or_(OwnCommand.project_id.is_(None), OwnCommand.project_id == project_id))
-        .order_by(OwnCommand.created_at))
+        .order_by(OwnCommand.created_at)
+    )
     return [out(command) for command in commands]
 
 

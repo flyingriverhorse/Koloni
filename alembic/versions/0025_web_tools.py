@@ -3,6 +3,7 @@
 Revision ID: 0025
 Revises: 0024
 """
+
 import json
 
 import sqlalchemy as sa
@@ -41,8 +42,9 @@ def _retool(change) -> None:
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
         batch.add_column(sa.Column("search_url", sa.Text(), nullable=True))
-        batch.add_column(sa.Column(
-            "search_order", sa.String(length=8), server_default="builtin", nullable=False))
+        batch.add_column(
+            sa.Column("search_order", sa.String(length=8), server_default="builtin", nullable=False)
+        )
         batch.add_column(sa.Column("notify_url", sa.Text(), nullable=True))
     op.create_table(
         "web_requests",
@@ -79,7 +81,9 @@ def upgrade() -> None:
     )
     with op.batch_alter_table("allowed_web") as batch:
         batch.create_index(
-            batch.f("ix_allowed_web_conversation_id"), ["conversation_id"], unique=False)
+            batch.f("ix_allowed_web_conversation_id"), ["conversation_id"], unique=False
+        )
+
     def add(name, tools):
         added = [tool for tool in TOOLS.get(name, ()) if tool not in tools]
         if not added:

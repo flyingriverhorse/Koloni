@@ -18,13 +18,17 @@ EXE = b"MZ\x90\x00" + b"\x00" * 60
 def pdf(*pages: str) -> bytes:
     """A PDF of these pages, each with its words in Helvetica ("" for a page with none)."""
     kids = " ".join(f"{4 + 2 * at} 0 R" for at in range(len(pages)))
-    objects = [b"<< /Type /Catalog /Pages 2 0 R >>",
-               f"<< /Type /Pages /Kids [{kids}] /Count {len(pages)} >>".encode(),
-               b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        f"<< /Type /Pages /Kids [{kids}] /Count {len(pages)} >>".encode(),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
     for at, words in enumerate(pages):
         stream = f"BT /F1 12 Tf 72 720 Td ({words}) Tj ET".encode() if words else b""
-        objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources "
-                       f"<< /Font << /F1 3 0 R >> >> /Contents {5 + 2 * at} 0 R >>".encode())
+        objects.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources "
+            f"<< /Font << /F1 3 0 R >> >> /Contents {5 + 2 * at} 0 R >>".encode()
+        )
         objects.append(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
     out, offsets = bytearray(b"%PDF-1.4\n"), []
     for number, body in enumerate(objects, 1):
@@ -34,7 +38,9 @@ def pdf(*pages: str) -> bytes:
     out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
     out += b"".join(b"%010d 00000 n \n" % offset for offset in offsets)
     out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
-        len(objects) + 1, xref)
+        len(objects) + 1,
+        xref,
+    )
     return bytes(out)
 
 
@@ -47,8 +53,9 @@ def docx(xml: str) -> bytes:
 
 
 def attach(client, cid, name, data, **more):
-    return client.post(f"/api/conversations/{cid}/attachments", params={"name": name, **more},
-                       content=data)
+    return client.post(
+        f"/api/conversations/{cid}/attachments", params={"name": name, **more}, content=data
+    )
 
 
 @pytest.fixture
@@ -57,23 +64,26 @@ def chat(make_client, project_dir):
     return client, cid
 
 
-@pytest.mark.parametrize(("data", "name", "kind"), [
-    (PNG, "shot.png", "image"),
-    (EXE, "cat.png", "executable"),  # a .png that is really a program
-    (b"MZ is how it starts", "notes.txt", "executable"),
-    (b"#!/bin/sh\necho hi\n", "run", "executable"),
-    (b"echo hi\n", "go.bat", "executable"),  # named as one runs: kept as one
-    (b"\xff\xd8\xff\xe0", "photo.bin", "image"),
-    (b"RIFF\x00\x00\x00\x00WEBPVP8 ", "a", "image"),
-    (b"%PDF-1.4\n", "spec", "pdf"),
-    (b"\x00\x00\x00\x18ftypmp42", "repro.mp4", "video"),
-    (b"\x00\x00\x00\x18ftypheic", "IMG_1.HEIC", "file"),  # a photo no model or page shows
-    (b"\x00\x00\x00\x18ftypavif", "a.avif", "file"),
-    (b"\x1a\x45\xdf\xa3", "clip", "video"),
-    (b"const x = 1\n", "cart.ts", "text"),
-    (b"\x00\x01\x02", "blob.txt", "file"),
-    (b"PK\x03\x04\x00 not a zip", "notes.docx", "file"),
-])
+@pytest.mark.parametrize(
+    ("data", "name", "kind"),
+    [
+        (PNG, "shot.png", "image"),
+        (EXE, "cat.png", "executable"),  # a .png that is really a program
+        (b"MZ is how it starts", "notes.txt", "executable"),
+        (b"#!/bin/sh\necho hi\n", "run", "executable"),
+        (b"echo hi\n", "go.bat", "executable"),  # named as one runs: kept as one
+        (b"\xff\xd8\xff\xe0", "photo.bin", "image"),
+        (b"RIFF\x00\x00\x00\x00WEBPVP8 ", "a", "image"),
+        (b"%PDF-1.4\n", "spec", "pdf"),
+        (b"\x00\x00\x00\x18ftypmp42", "repro.mp4", "video"),
+        (b"\x00\x00\x00\x18ftypheic", "IMG_1.HEIC", "file"),  # a photo no model or page shows
+        (b"\x00\x00\x00\x18ftypavif", "a.avif", "file"),
+        (b"\x1a\x45\xdf\xa3", "clip", "video"),
+        (b"const x = 1\n", "cart.ts", "text"),
+        (b"\x00\x01\x02", "blob.txt", "file"),
+        (b"PK\x03\x04\x00 not a zip", "notes.docx", "file"),
+    ],
+)
 def test_what_a_file_is_comes_from_its_bytes(data, name, kind):
     assert attachments.kind_of(data, name)[0] == kind
 
@@ -111,30 +121,36 @@ def test_a_name_is_a_name_never_a_path(chat, tmp_path):
     assert attach(client, cid, "../..", b"hi").status_code == 422
     # Two of one name: each has its own, as agents name them.
     assert [attach(client, cid, "a.png", PNG).json()["name"] for _ in range(3)] == [
-        "a.png", "a (2).png", "a (3).png"]
+        "a.png",
+        "a (2).png",
+        "a (3).png",
+    ]
 
 
 def test_a_pdfs_text_is_taken_out_page_by_page(chat):
     client, cid = chat
     told = attach(client, cid, "spec.pdf", pdf("Hello PDF", "")).json()
     assert told["kind"] == "pdf" and told["summary"] == (
-        "2 pages, text taken out; no text on page 2")
+        "2 pages, text taken out; no text on page 2"
+    )
     text = client.get(f"/api/attachments/{told['id']}/text").json()["text"]
     assert "Hello PDF" in text and "no text on page 2" in text
     broken = attach(client, cid, "broken.pdf", b"%PDF-1.4\nnothing more").json()
     assert broken["kind"] == "pdf" and "could not be read" in broken["summary"]
 
 
-def test_a_word_files_text_is_read_without_an_xml_parser_and_a_bomb_is_refused(
-        chat, monkeypatch):
+def test_a_word_files_text_is_read_without_an_xml_parser_and_a_bomb_is_refused(chat, monkeypatch):
     client, cid = chat
-    body = ('<w:document><w:body><w:p><w:r><w:t xml:space="preserve">Most buyers </w:t></w:r>'
-            "<w:r><w:t>are on phones &amp; tablets</w:t></w:r></w:p><w:p/><w:p><w:r><w:t>"
-            "Second</w:t></w:r></w:p></w:body></w:document>")
+    body = (
+        '<w:document><w:body><w:p><w:r><w:t xml:space="preserve">Most buyers </w:t></w:r>'
+        "<w:r><w:t>are on phones &amp; tablets</w:t></w:r></w:p><w:p/><w:p><w:r><w:t>"
+        "Second</w:t></w:r></w:p></w:body></w:document>"
+    )
     told = attach(client, cid, "notes.docx", docx(body)).json()
     assert told["kind"] == "docx" and told["summary"] == "Word, 8 words, text taken out"
     assert client.get(f"/api/attachments/{told['id']}/text").json()["text"] == (
-        "Most buyers are on phones & tablets\nSecond")
+        "Most buyers are on phones & tablets\nSecond"
+    )
     entities = attach(client, cid, "lol.docx", docx('<!DOCTYPE x [<!ENTITY a "a">]><w:t>&a;</w:t>'))
     assert "declares its own entities" in entities.json()["summary"]
     monkeypatch.setattr(attachments, "MAX_DOCUMENT", 10)
@@ -162,10 +178,13 @@ def test_a_zip_of_too_many_entries_is_no_word_file():
 def many_streams(count: int) -> bytes:
     """A PDF of one page whose content is `count` streams: each decoded on its own."""
     refs = " ".join(f"{5 + at} 0 R" for at in range(count))
-    objects = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [4 0 R] /Count 1 >>",
-               b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-               f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << "
-               f"/F1 3 0 R >> >> /Contents [{refs}] >>".encode()]
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [4 0 R] /Count 1 >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << "
+        f"/F1 3 0 R >> >> /Contents [{refs}] >>".encode(),
+    ]
     stream = b"BT /F1 12 Tf 72 720 Td (word) Tj ET"
     objects += [b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream"] * count
     out, offsets = bytearray(b"%PDF-1.4\n"), []
@@ -176,7 +195,9 @@ def many_streams(count: int) -> bytes:
     out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
     out += b"".join(b"%010d 00000 n \n" % offset for offset in offsets)
     out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
-        len(objects) + 1, xref)
+        len(objects) + 1,
+        xref,
+    )
     return bytes(out)
 
 
@@ -203,12 +224,24 @@ def test_a_secret_is_never_given_and_one_of_a_secrets_shape_is_masked(chat):
     assert "abcdefghijklmnop1234" not in text and "Bearer ***" in text
 
 
-@pytest.mark.parametrize(("name", "secret"), [
-    (".env", True), (".env (2)", True), ("id_rsa (3)", True), (".npmrc (2)", True),
-    ("credentials (2)", True), ("secrets (2).yaml", True), ("kubeconfig (2)", True),
-    (".env (2).local", True), (".env (2) (2)", True), (".env (1) (2)", True),
-    ("notes (2).txt", False), ("a (2).png", False), (".env (2).example", False),
-])
+@pytest.mark.parametrize(
+    ("name", "secret"),
+    [
+        (".env", True),
+        (".env (2)", True),
+        ("id_rsa (3)", True),
+        (".npmrc (2)", True),
+        ("credentials (2)", True),
+        ("secrets (2).yaml", True),
+        ("kubeconfig (2)", True),
+        (".env (2).local", True),
+        (".env (2) (2)", True),
+        (".env (1) (2)", True),
+        ("notes (2).txt", False),
+        ("a (2).png", False),
+        (".env (2).example", False),
+    ],
+)
 def test_a_chats_second_secret_file_is_one_too(name, secret):
     assert attachments.secret_name(name) is secret
 
@@ -277,17 +310,21 @@ def test_sent_with_a_message_it_stays_and_goes_with_its_conversation(chat, tmp_p
     assert not (tmp_path / "runtime" / "attachments" / cid / gone["id"]).exists()
     other = client.post("/api/conversations", json={}).json()["id"]
     elsewhere = attach(client, other, "c.txt", b"x").json()
-    wrong = client.post(f"/api/conversations/{cid}/messages",
-                        json={"content": "look", "attachments": [elsewhere["id"]]})
+    wrong = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "look", "attachments": [elsewhere["id"]]},
+    )
     assert wrong.status_code == 422
-    sent = client.post(f"/api/conversations/{cid}/messages",
-                       json={"content": "", "attachments": [first["id"]]})
+    sent = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "", "attachments": [first["id"]]}
+    )
     assert sent.status_code == 201, sent.text
     snap = client.get(f"/api/conversations/{cid}").json()
     assert [a["message_id"] for a in snap["attachments"]] == [sent.json()["message"]["id"]]
     assert client.delete(f"/api/attachments/{first['id']}").status_code == 409
-    again = client.post(f"/api/conversations/{cid}/messages",
-                        json={"content": "x", "attachments": [first["id"]]})
+    again = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "x", "attachments": [first["id"]]}
+    )
     assert again.status_code == 422  # sent once already
     wait_run(client, cid, sent.json()["run"]["id"])
     assert client.patch(f"/api/conversations/{cid}", json={"archived": True}).status_code == 200

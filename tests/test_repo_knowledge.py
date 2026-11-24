@@ -43,8 +43,16 @@ FILES = {
 
 
 def kept(**more):
-    return knowledge.checked({"topic": "Payments", "sources": [f"repo: {URL}"], "max_pages": 50,
-                              "max_usd": 0.5, "learn_with": None, **more})
+    return knowledge.checked(
+        {
+            "topic": "Payments",
+            "sources": [f"repo: {URL}"],
+            "max_pages": 50,
+            "max_usd": 0.5,
+            "learn_with": None,
+            **more,
+        }
+    )
 
 
 def fake_clone(monkeypatch, files=FILES):
@@ -61,15 +69,15 @@ def fake_clone(monkeypatch, files=FILES):
     return made
 
 
-def learn(root, known, extend=True, said="## What it offers\n- pay() takes a payment",
-          tree=None):
+def learn(root, known, extend=True, said="## What it offers\n- pay() takes a payment", tree=None):
     ask, asked = asker(said)
 
     async def run():
         knowledge.begin(str(root), known)
         try:
-            return await knowledge.learn(str(root), known, ask, None, "Fake · fake-model",
-                                         extend=extend, tree=tree)
+            return await knowledge.learn(
+                str(root), known, ask, None, "Fake · fake-model", extend=extend, tree=tree
+            )
         finally:
             knowledge.end(str(root), known)
 
@@ -95,8 +103,11 @@ def local(monkeypatch):
     real = git.run
 
     def lifted(argv, *rest, **env):
-        return real([one.replace("protocol.allow=never", "protocol.allow=always") for one in argv],
-                    *rest, **env)
+        return real(
+            [one.replace("protocol.allow=never", "protocol.allow=always") for one in argv],
+            *rest,
+            **env,
+        )
 
     monkeypatch.setattr(git, "run", lifted)
 
@@ -110,26 +121,34 @@ def local(monkeypatch):
 
 
 def test_a_repository_is_a_github_address_made_plain():
-    for given in (URL, f"{URL}.git", f"{URL}/", f"{URL}/tree/main/docs",
-                  "https://GitHub.com/acme/payments"):
+    for given in (
+        URL,
+        f"{URL}.git",
+        f"{URL}/",
+        f"{URL}/tree/main/docs",
+        "https://GitHub.com/acme/payments",
+    ):
         assert kept(sources=[f"repo: {given}"])["sources"] == [f"repo: {URL}"]
     assert kept(sources=[f"REPO:{URL}"])["sources"] == [f"repo: {URL}"]
 
 
-@pytest.mark.parametrize("given", [
-    "http://github.com/acme/payments",  # (not https)
-    "git@github.com:acme/payments.git",  # (ssh)
-    "ssh://git@github.com/acme/payments",
-    "file:///C:/repos/payments",
-    "https://127.0.0.1/acme/payments",  # (no public host - and no host named)
-    "https://localhost/acme/payments",
-    "https://gitlab.com/acme/payments",
-    "https://github.com.evil.test/acme/payments",
-    "https://user:token@github.com/acme/payments",
-    "https://github.com:8443/acme/payments",
-    "https://github.com/acme",
-    "https://github.com/../payments",
-])
+@pytest.mark.parametrize(
+    "given",
+    [
+        "http://github.com/acme/payments",  # (not https)
+        "git@github.com:acme/payments.git",  # (ssh)
+        "ssh://git@github.com/acme/payments",
+        "file:///C:/repos/payments",
+        "https://127.0.0.1/acme/payments",  # (no public host - and no host named)
+        "https://localhost/acme/payments",
+        "https://gitlab.com/acme/payments",
+        "https://github.com.evil.test/acme/payments",
+        "https://user:token@github.com/acme/payments",
+        "https://github.com:8443/acme/payments",
+        "https://github.com/acme",
+        "https://github.com/../payments",
+    ],
+)
 def test_an_address_that_is_not_a_public_github_repository_is_refused(given):
     with pytest.raises(ValueError, match="github.com/<owner>/<name>"):
         kept(sources=[f"repo: {given}"])
@@ -147,7 +166,8 @@ def test_a_repository_is_a_knowledge_of_its_own_and_learning_it_goes_to_the_web(
 
 
 def test_every_git_command_runs_hardened_and_the_tree_is_counted_before_it_is_written(
-        monkeypatch, tmp_path):
+    monkeypatch, tmp_path
+):
     calls = []
 
     seconds_given = []
@@ -171,9 +191,15 @@ def test_every_git_command_runs_hardened_and_the_tree_is_counted_before_it_is_wr
     # (100 + a hair: on Windows the deadline less a coarse monotonic() came out 100.00000000000006)
     assert len(seconds_given) == 3 and all(0 < one <= 100 + 1e-6 for one in seconds_given)
     (clone, clone_at, _env), (listing, listing_at, _e), (reset, reset_at, _v) = calls
-    assert clone[clone.index("--") + 1:] == [f"{URL}.git", str(into)]
-    for flag in ("--no-checkout", "--depth", "--single-branch", "--no-tags",
-                 "--no-recurse-submodules", "--template="):
+    assert clone[clone.index("--") + 1 :] == [f"{URL}.git", str(into)]
+    for flag in (
+        "--no-checkout",
+        "--depth",
+        "--single-branch",
+        "--no-tags",
+        "--no-recurse-submodules",
+        "--template=",
+    ):
         assert flag in clone
     assert not [one for one in clone if one.startswith("--filter")]  # (blobs whole: nothing lazy)
     assert listing[-5:] == ["ls-tree", "-r", "-l", "-z", "HEAD"] and listing_at == into
@@ -183,14 +209,17 @@ def test_every_git_command_runs_hardened_and_the_tree_is_counted_before_it_is_wr
         for flag in knowledge.CLONE_SETTINGS:
             assert flag in argv
         assert [one for one in argv if one.startswith("core.hooksPath=")] == [
-            f"core.hooksPath={clone_at}"]
+            f"core.hooksPath={clone_at}"
+        ]
         # ...and no setting of the machine's or the user's, no LFS, no lazy fetch, no prompt.
         assert env == knowledge.CLONE_ENV and env["GIT_CONFIG_GLOBAL"] == os.devnull
     assert not Path(clone_at).exists()  # (an empty folder for hooks, outside every project)
 
 
 def test_a_clone_that_fails_keeps_nothing(monkeypatch, project_dir):
-    monkeypatch.setattr(git, "run", lambda argv, *a, **k: (128, b"", b"fatal: repository not found\n"))
+    monkeypatch.setattr(
+        git, "run", lambda argv, *a, **k: (128, b"", b"fatal: repository not found\n")
+    )
     with pytest.raises(knowledge.LearnError, match="is it public.*repository not found"):
         learn(project_dir, kept())
     assert not (project_dir / KEPT).exists()
@@ -205,8 +234,9 @@ def test_the_real_git_clones_with_these_flags(local, tmp_path):
 
 
 @pytest.mark.parametrize("bomb", ["bytes", "files"])
-def test_a_tree_over_its_caps_is_refused_before_a_file_is_written(local, monkeypatch, tmp_path,
-                                                                  bomb):
+def test_a_tree_over_its_caps_is_refused_before_a_file_is_written(
+    local, monkeypatch, tmp_path, bomb
+):
     """One blob at many paths: small to download, big written out; or many small files."""
     if bomb == "bytes":
         files = {f"same/{n}.bin": b"x" * 4096 for n in range(40)}  # (one blob, 160 KB written)
@@ -225,8 +255,13 @@ def test_no_time_no_room_or_a_path_too_long_clones_nothing(monkeypatch, tmp_path
     with pytest.raises(knowledge.LearnError, match="took more than"):
         knowledge._cloned(tmp_path / "repo", URL, time.monotonic() - 1)
     monkeypatch.setattr(git, "run", lambda *a, **k: (0, b"", b""))
-    monkeypatch.setattr(git, "fed_to", lambda argv, cwd, s, take, **k: None if not take(
-        b"x" * (knowledge.MAX_PATH_BYTES + 1)) else 0)
+    monkeypatch.setattr(
+        git,
+        "fed_to",
+        lambda argv, cwd, s, take, **k: (
+            None if not take(b"x" * (knowledge.MAX_PATH_BYTES + 1)) else 0
+        ),
+    )
     with pytest.raises(knowledge.LearnError, match="path over 64 KB"):
         knowledge._cloned(tmp_path / "repo", URL, time.monotonic() + 60)
     monkeypatch.setattr(knowledge.shutil, "disk_usage", lambda at: type("U", (), {"free": 10})())
@@ -238,8 +273,12 @@ def test_a_listing_cut_short_ends_git(tmp_path):
     """`git.fed_to` stops a command once what it writes is enough."""
     source = upstream(tmp_path, {f"{n}.txt": b"" for n in range(300)})
     seen = []
-    ended = git.fed_to([git.find() or "git", "ls-tree", "-r", "-z", "HEAD"], source, 30,
-                       lambda chunk: seen.append(chunk) or False)
+    ended = git.fed_to(
+        [git.find() or "git", "ls-tree", "-r", "-z", "HEAD"],
+        source,
+        30,
+        lambda chunk: seen.append(chunk) or False,
+    )
     assert ended is None and len(seen) == 1
 
 
@@ -253,14 +292,20 @@ def test_removing_it_deletes_what_it_kept_and_never_goes_through_a_junction(proj
     (project_dir / FOLDER / "pages").mkdir()
     (project_dir / FOLDER / "pages" / "0001.md").write_text("x", encoding="utf-8")
     (project_dir / FOLDER / "guide.md").write_text("# guide", encoding="utf-8")
-    subprocess.run(["cmd", "/c", "mklink", "/J", str(project_dir / KEPT / "linked"), str(outside)],
-                   check=True, capture_output=True)
+    subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(project_dir / KEPT / "linked"), str(outside)],
+        check=True,
+        capture_output=True,
+    )
     knowledge.forget(str(project_dir), kept())
     assert not (project_dir / KEPT).exists() and not (project_dir / FOLDER / "pages").exists()
     assert (project_dir / FOLDER / "guide.md").is_file() and (outside / "keep.txt").is_file()
     # Its folder itself a junction: not followed, nothing behind it deleted.
-    subprocess.run(["cmd", "/c", "mklink", "/J", str(project_dir / KEPT), str(outside)], check=True,
-                   capture_output=True)
+    subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(project_dir / KEPT), str(outside)],
+        check=True,
+        capture_output=True,
+    )
     (project_dir / FOLDER / "pages").mkdir()
     knowledge.forget(str(project_dir), kept())
     # (Its pages go all the same: each is deleted on its own.)
@@ -271,7 +316,8 @@ def test_removing_it_deletes_what_it_kept_and_never_goes_through_a_junction(proj
 
 
 def test_learning_keeps_its_code_as_text_and_writes_the_docs_guide_then_the_codes(
-        monkeypatch, project_dir):
+    monkeypatch, project_dir
+):
     made = fake_clone(monkeypatch)
     record, asked = learn(project_dir, kept())
     read = [one["source"] for one in record["pages"] if one["read"]]
@@ -289,7 +335,8 @@ def test_learning_keeps_its_code_as_text_and_writes_the_docs_guide_then_the_code
     # Two requests: the docs' guide, then the code's - asked how the code works, of its files.
     assert [one[0]["content"][:60] for one in asked] == [
         knowledge.GUIDE_ASKED.format(topic="Payments")[:60],
-        knowledge.CODE_ASKED.format(topic="Payments")[:60]]
+        knowledge.CODE_ASKED.format(topic="Payments")[:60],
+    ]
     assert "Take a payment" in asked[0][1]["content"] and "def pay" not in asked[0][1]["content"]
     assert "def pay(amount)" in asked[1][1]["content"]
     guide = knowledge.guide(str(project_dir), kept()) or ""
@@ -301,8 +348,11 @@ def test_learning_keeps_its_code_as_text_and_writes_the_docs_guide_then_the_code
     files = project_dir / KEPT / "files"
     assert (files / "core.py.md").read_text(encoding="utf-8") == FILES["core.py"]
     assert (files / "web" / "pay.test.ts.md").is_file() and not (files / ".claude").exists()
-    everything = [one.relative_to(project_dir / FOLDER).as_posix()
-                  for one in (project_dir / FOLDER).rglob("*") if one.is_file()]
+    everything = [
+        one.relative_to(project_dir / FOLDER).as_posix()
+        for one in (project_dir / FOLDER).rglob("*")
+        if one.is_file()
+    ]
     assert all(one.endswith((".md", ".json", ".gitignore")) for one in everything), everything
     assert "code/graph.json" in everything
     # The scan answers where a name is defined and who calls it, by the file kept to read.
@@ -316,11 +366,14 @@ def test_learning_keeps_its_code_as_text_and_writes_the_docs_guide_then_the_code
     assert "pages/" in ignored and "code/" in ignored
 
 
-def test_each_learn_goes_on_with_the_next_code_files_and_then_asks_nothing(monkeypatch,
-                                                                           project_dir):
+def test_each_learn_goes_on_with_the_next_code_files_and_then_asks_nothing(
+    monkeypatch, project_dir
+):
     """The code-file cap holds where no price does (a CLI): 2 of 5 ranked files a learning."""
-    files = {"README.md": "# Five",
-             **{f"m{n}.py": f"def f{n}():\n    return {n}\n" for n in range(1, 6)}}
+    files = {
+        "README.md": "# Five",
+        **{f"m{n}.py": f"def f{n}():\n    return {n}\n" for n in range(1, 6)},
+    }
     made = fake_clone(monkeypatch, files)
     known = kept(max_code_files=2)
     learned = []
@@ -331,10 +384,15 @@ def test_each_learn_goes_on_with_the_next_code_files_and_then_asks_nothing(monke
         assert asked  # (a model was asked each time)
         # Code files left: the next Learn may spend its whole money limit on them.
         assert knowledge.estimate(known, record, price) == (
-            known["max_usd"] if len(learned[-1]) < 5 else pytest.approx(
-                knowledge._call(knowledge.MAX_GUIDE_INPUT, price)))
-    assert learned == [["m1.py", "m2.py"], ["m1.py", "m2.py", "m3.py", "m4.py"],
-                       [f"m{n}.py" for n in range(1, 6)]]
+            known["max_usd"]
+            if len(learned[-1]) < 5
+            else pytest.approx(knowledge._call(knowledge.MAX_GUIDE_INPUT, price))
+        )
+    assert learned == [
+        ["m1.py", "m2.py"],
+        ["m1.py", "m2.py", "m3.py", "m4.py"],
+        [f"m{n}.py" for n in range(1, 6)],
+    ]
     assert record["code"]["stopped"] is None
     # A fourth: nothing new to read, nothing changed - no model is asked; the guide stands.
     guide = knowledge.guide(str(project_dir), known)
@@ -360,8 +418,10 @@ def test_the_cap_and_the_page_cap_say_what_stopped_the_code(monkeypatch, project
 
 
 def test_on_a_price_the_money_limit_leaves_code_for_the_next_learn(monkeypatch, project_dir):
-    big = {"README.md": "# Big",
-           **{f"m{n}.py": f"# {n}\n" + "x = 1\n" * 12_000 for n in range(1, 4)}}
+    big = {
+        "README.md": "# Big",
+        **{f"m{n}.py": f"# {n}\n" + "x = 1\n" * 12_000 for n in range(1, 4)},
+    }
     fake_clone(monkeypatch, big)
     price = type("Price", (), {"input": 10.0, "output": 1.0})()
     ask, _asked = asker("## What it offers\n- it adds")
@@ -380,8 +440,9 @@ def test_on_a_price_the_money_limit_leaves_code_for_the_next_learn(monkeypatch, 
     assert len(code["left"]) == 3 and record["left"] > 0
 
 
-def test_a_learning_stopped_or_failing_after_the_clone_keeps_nothing(monkeypatch, project_dir,
-                                                                     tmp_path):
+def test_a_learning_stopped_or_failing_after_the_clone_keeps_nothing(
+    monkeypatch, project_dir, tmp_path
+):
     clone = tmp_path / "clone"
     clone.mkdir()
     (clone / "a.py").write_text("def a():\n    pass\n", encoding="utf-8")
@@ -412,11 +473,18 @@ def test_a_learning_stopped_or_failing_after_the_clone_keeps_nothing(monkeypatch
 
 def test_a_file_that_cannot_be_kept_is_left_out_and_said(monkeypatch, project_dir):
     """A name both a file's and a folder's once kept (x.py and x.py.md/): one is left out."""
-    fake_clone(monkeypatch, {"README.md": "# Two", "x.py": "def x():\n    pass\n",
-                             "x.py.md/y.py": "def y():\n    pass\n"})
+    fake_clone(
+        monkeypatch,
+        {
+            "README.md": "# Two",
+            "x.py": "def x():\n    pass\n",
+            "x.py.md/y.py": "def y():\n    pass\n",
+        },
+    )
     record, _asked = learn(project_dir, kept())
-    unkept = [one for one in record["pages"]
-              if (one["why"] or "").startswith("it could not be kept")]
+    unkept = [
+        one for one in record["pages"] if (one["why"] or "").startswith("it could not be kept")
+    ]
     assert len(unkept) == 1 and unkept[0]["source"] in ("x.py", "x.py.md/y.py")
 
 
@@ -456,14 +524,19 @@ def test_no_copy_look_search_trigger_or_git_status_goes_into_its_kept_code(proje
     subprocess.run(["git", "init", "-q"], cwd=project_dir, check=True, capture_output=True)
     listed = [one["path"] for one in git.changes(project_dir) or []]
     assert "hello.py" in listed and not [one for one in listed if one.startswith(at)]
-    assert stray_in_koloni(f"{at}/files/a.py.md") and not stray_in_koloni(f"{FOLDER.as_posix()}/guide.md")
+    assert stray_in_koloni(f"{at}/files/a.py.md") and not stray_in_koloni(
+        f"{FOLDER.as_posix()}/guide.md"
+    )
     assert files.is_dir()
 
 
 def test_the_page_adds_it_removes_what_it_kept_and_will_not_copy_it(client, project_dir, tmp_path):
     pid = _pid(client, project_dir)
-    added = client.post(f"/api/projects/{pid}/knowledge", headers=OWN, json={
-        "topic": "Payments", "sources": [f"repo: {URL}/tree/main"]})
+    added = client.post(
+        f"/api/projects/{pid}/knowledge",
+        headers=OWN,
+        json={"topic": "Payments", "sources": [f"repo: {URL}/tree/main"]},
+    )
     assert added.status_code == 201, added.text
     body = added.json()
     assert body["knowledge"]["sources"] == [f"repo: {URL}"]
@@ -473,8 +546,11 @@ def test_the_page_adds_it_removes_what_it_kept_and_will_not_copy_it(client, proj
     to = _pid(client, other)
     _with_kept_code(project_dir)
     (project_dir / FOLDER / "guide.md").write_text("# guide", encoding="utf-8")
-    copied = client.post(f"/api/knowledge/{body['id']}/copy", headers=OWN,
-                         json={"project_id": pid, "to_project_id": to})
+    copied = client.post(
+        f"/api/knowledge/{body['id']}/copy",
+        headers=OWN,
+        json={"project_id": pid, "to_project_id": to},
+    )
     assert copied.status_code == 422 and "own project" in copied.text
     gone = client.delete(f"/api/knowledge/{body['id']}", params={"project_id": pid}, headers=OWN)
     assert gone.status_code == 204
@@ -482,26 +558,36 @@ def test_the_page_adds_it_removes_what_it_kept_and_will_not_copy_it(client, proj
     assert (project_dir / FOLDER / "guide.md").is_file()
 
 
-def test_a_repository_is_not_changed_while_it_learns_and_made_a_site_loses_its_code(client,
-                                                                                    project_dir):
+def test_a_repository_is_not_changed_while_it_learns_and_made_a_site_loses_its_code(
+    client, project_dir
+):
     pid = _pid(client, project_dir)
-    body = client.post(f"/api/projects/{pid}/knowledge", headers=OWN, json={
-        "topic": "Payments", "sources": [f"repo: {URL}"]}).json()
+    body = client.post(
+        f"/api/projects/{pid}/knowledge",
+        headers=OWN,
+        json={"topic": "Payments", "sources": [f"repo: {URL}"]},
+    ).json()
     _with_kept_code(project_dir)
     put = {"topic": "Payments", "sources": [f"repo: {URL}"], "max_code_files": 5}
     knowledge.begin(str(project_dir), kept())
     try:
-        busy = client.put(f"/api/knowledge/{body['id']}", params={"project_id": pid},
-                          headers=OWN, json=put)
+        busy = client.put(
+            f"/api/knowledge/{body['id']}", params={"project_id": pid}, headers=OWN, json=put
+        )
         assert busy.status_code == 409 and "learning" in busy.text
     finally:
         knowledge.end(str(project_dir), kept())
-    kept_still = client.put(f"/api/knowledge/{body['id']}", params={"project_id": pid},
-                            headers=OWN, json=put)
+    kept_still = client.put(
+        f"/api/knowledge/{body['id']}", params={"project_id": pid}, headers=OWN, json=put
+    )
     assert kept_still.status_code == 200 and (project_dir / KEPT).is_dir()
     assert kept_still.json()["knowledge"]["max_code_files"] == 5
-    changed = client.put(f"/api/knowledge/{body['id']}", params={"project_id": pid}, headers=OWN,
-                         json={"topic": "Payments", "sources": ["https://docs.test/pay"]})
+    changed = client.put(
+        f"/api/knowledge/{body['id']}",
+        params={"project_id": pid},
+        headers=OWN,
+        json={"topic": "Payments", "sources": ["https://docs.test/pay"]},
+    )
     assert changed.status_code == 200, changed.text
     assert not (project_dir / KEPT).exists()
 

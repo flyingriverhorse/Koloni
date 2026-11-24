@@ -28,7 +28,9 @@ def test_a_long_message_is_cut_at_a_words_end_with_an_ellipsis():
 
 
 def test_only_the_first_line_and_plain_spaces():
-    assert title_from("fix the login\n\nthe button does nothing   when   clicked") == "fix the login"
+    assert (
+        title_from("fix the login\n\nthe button does nothing   when   clicked") == "fix the login"
+    )
     assert title_from("  many    spaces  here ") == "many spaces here"
 
 
@@ -39,20 +41,34 @@ def test_a_single_long_word_is_cut_rather_than_left_empty():
 
 def test_the_first_message_names_the_conversation(client, project_dir):
     origin = {"Origin": "http://127.0.0.1:8790"}
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}, headers=origin).json()["id"]
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}, headers=origin).json()[
+        "id"
+    ]
     cid = client.post(f"/api/projects/{pid}/conversations", headers=origin).json()["id"]
-    client.post(f"/api/conversations/{cid}/messages", headers=origin, json={
-        "content": "calc.html adinda basit bir hesap makinesi sayfasi yaz (HTML+CSS+JS tek dosya)"})
+    client.post(
+        f"/api/conversations/{cid}/messages",
+        headers=origin,
+        json={
+            "content": "calc.html adinda basit bir hesap makinesi sayfasi yaz (HTML+CSS+JS tek dosya)"
+        },
+    )
     assert client.get(f"/api/conversations/{cid}").json()["conversation"]["title"] == (
-        "calc.html adinda basit bir hesap makinesi sayfasi yaz…")
+        "calc.html adinda basit bir hesap makinesi sayfasi yaz…"
+    )
 
 
 def test_a_title_set_before_the_first_message_stays(client, project_dir):
     # R194 (live): a title given by PATCH was overwritten by the first message's.
     origin = {"Origin": "http://127.0.0.1:8790"}
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}, headers=origin).json()["id"]
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}, headers=origin).json()[
+        "id"
+    ]
     cid = client.post(f"/api/projects/{pid}/conversations", headers=origin).json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", headers=origin,
-                        json={"title": "Calculator"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}", headers=origin, json={"title": "Calculator"}
+        ).status_code
+        == 200
+    )
     client.post(f"/api/conversations/{cid}/messages", headers=origin, json={"content": "make it"})
     assert client.get(f"/api/conversations/{cid}").json()["conversation"]["title"] == "Calculator"

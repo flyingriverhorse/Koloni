@@ -55,8 +55,11 @@ def agents_of(snap, run_id):
 
 
 def calls_of(snap, run_id, name):
-    return [(t["status"], t["result"] or "") for t in snap["tool_calls"]
-            if t["run_id"] == run_id and t["name"] == name]
+    return [
+        (t["status"], t["result"] or "")
+        for t in snap["tool_calls"]
+        if t["run_id"] == run_id and t["name"] == name
+    ]
 
 
 def sent_to(model, *having, lacking=()):
@@ -74,8 +77,11 @@ def offered(model, having):
     found = []
     for request, tools in zip(model.calls, model.tool_args, strict=True):
         if having in json.dumps(request, ensure_ascii=False) and tools:
-            found += [t["function"]["description"] for t in tools
-                      if t["function"]["name"] == "message_agent"]
+            found += [
+                t["function"]["description"]
+                for t in tools
+                if t["function"]["name"] == "message_agent"
+            ]
     return found
 
 
@@ -91,8 +97,9 @@ TWO_TURNS = {
 def test_a_message_goes_on_with_the_latest_topic_until_the_user_starts_a_new_one(
     make_client, wait_run, project_dir
 ):
-    client, model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [text("one"), text("two"), text("three"), text("four")]})
+    client, model, pid, cid = setup(
+        make_client, project_dir, {"Lead": [text("one"), text("two"), text("three"), text("four")]}
+    )
     snap, first = turn(client, wait_run, cid, "make a greeting\nwith more detail below")
     snap, second = turn(client, wait_run, cid, "and now in Turkish")
     snap, third = turn(client, wait_run, cid, "something else entirely", new_topic=True)
@@ -108,8 +115,13 @@ def test_a_message_goes_on_with_the_latest_topic_until_the_user_starts_a_new_one
     renamed = client.patch(f"/api/topics/{first['topic_id']}", json={"title": "  Greeting\nwork "})
     assert renamed.status_code == 200 and renamed.json()["title"] == "Greeting work"
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.post(f"/api/conversations/{other}/messages", json={
-        "content": "x", "topic_id": first["topic_id"]}).status_code == 422
+    assert (
+        client.post(
+            f"/api/conversations/{other}/messages",
+            json={"content": "x", "topic_id": first["topic_id"]},
+        ).status_code
+        == 422
+    )
 
 
 # --- an agent carries on in the topic's next turn ----------------------------------------------
@@ -128,12 +140,15 @@ def test_the_lead_goes_on_with_the_coder_of_the_turn_before_and_it_knows_what_it
     assert "Coder" in told and "earlier turn" in told and "counts as opening an agent" in told
     lead, coder = agents_of(snap, second["id"])
     assert (coder["name"], coder["continues_id"], coder["status"]) == (
-        "Coder", old["id"], "completed")
-    assert lead["continues_id"] is not None        # the lead goes on from the lead before
+        "Coder",
+        old["id"],
+        "completed",
+    )
+    assert lead["continues_id"] is not None  # the lead goes on from the lead before
     # the Coder's request: what it was first asked, what it said then, and the new work
     (request,) = sent_to(model, MORE, lacking=[SECOND])
     assert OLD_TASK in request and OLD_WORDS in request
-    assert request.count(OLD_TASK) == 1            # its past is there once, not twice
+    assert request.count(OLD_TASK) == 1  # its past is there once, not twice
     ((status, said),) = calls_of(snap, second["id"], "message_agent")
     assert status == "succeeded" and "NEW-WORDS docstring added" in said
     # and its record of the first turn is as it was
@@ -143,9 +158,14 @@ def test_the_lead_goes_on_with_the_coder_of_the_turn_before_and_it_knows_what_it
 
 def test_three_turns_are_one_chain(make_client, wait_run, project_dir):
     scripts = {
-        "Lead": [SPAWN_CODER, text("made"), GO_ON, text("done"),
-                 step(call("message_agent", {"to": "Coder", "message": "LAST-WORK tidy up"}, "m2")),
-                 text("done again")],
+        "Lead": [
+            SPAWN_CODER,
+            text("made"),
+            GO_ON,
+            text("done"),
+            step(call("message_agent", {"to": "Coder", "message": "LAST-WORK tidy up"}, "m2")),
+            text("done again"),
+        ],
         "Coder": [WRITE, text(OLD_WORDS), text("MID-WORDS docstring added"), text("tidied")],
     }
     client, model, pid, cid = setup(make_client, project_dir, scripts)
@@ -154,7 +174,7 @@ def test_three_turns_are_one_chain(make_client, wait_run, project_dir):
     snap, third = turn(client, wait_run, cid, THIRD)
     middle = next(a for a in agents_of(snap, second["id"]) if a["name"] == "Coder")
     last = next(a for a in agents_of(snap, third["id"]) if a["name"] == "Coder")
-    assert last["continues_id"] == middle["id"]    # the newest link, not the first
+    assert last["continues_id"] == middle["id"]  # the newest link, not the first
     (request,) = sent_to(model, "LAST-WORK tidy up", lacking=[THIRD])
     for part in (OLD_TASK, OLD_WORDS, MORE, "MID-WORDS docstring added"):
         assert request.count(part) == 1, part
@@ -168,14 +188,15 @@ def test_an_agent_of_another_topic_cannot_be_gone_on_with(make_client, wait_run,
     ((status, said),) = calls_of(snap, second["id"], "message_agent")
     assert status == "failed"
     assert [a["name"] for a in agents_of(snap, second["id"])] == ["Lead"]
-    assert sent_to(model, MORE, lacking=[SECOND]) == []      # the Coder was asked nothing
+    assert sent_to(model, MORE, lacking=[SECOND]) == []  # the Coder was asked nothing
 
 
-def test_a_new_topic_starts_clean_and_a_continued_one_does_not(
-    make_client, wait_run, project_dir
-):
-    client, model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [text("REPLY-ALPHA it is done"), text("two"), text("three")]})
+def test_a_new_topic_starts_clean_and_a_continued_one_does_not(make_client, wait_run, project_dir):
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {"Lead": [text("REPLY-ALPHA it is done"), text("two"), text("three")]},
+    )
     turn(client, wait_run, cid, "fix the greeting\nSECRET-ALPHA the detail of it")
     turn(client, wait_run, cid, SECOND)
     (going_on,) = sent_to(model, SECOND)
@@ -190,9 +211,7 @@ def test_a_new_topic_starts_clean_and_a_continued_one_does_not(
 # --- going on with an agent is opening an agent ------------------------------------------------
 
 
-def test_going_on_with_an_agent_is_asked_about_like_opening_one(
-    make_client, wait_run, project_dir
-):
+def test_going_on_with_an_agent_is_asked_about_like_opening_one(make_client, wait_run, project_dir):
     client, model, pid, cid = setup(make_client, project_dir, TWO_TURNS)
     snap, first = turn(client, wait_run, cid, FIRST)
     (old,) = [a for a in agents_of(snap, first["id"]) if a["name"] == "Coder"]
@@ -210,16 +229,18 @@ def test_going_on_with_an_agent_is_asked_about_like_opening_one(
     snap = wait_run(client, cid, run["id"])
     ((status, _said),) = calls_of(snap, run["id"], "message_agent")
     assert status == "denied"
-    assert sent_to(model, MORE, lacking=[SECOND]) == []      # it never took the turn
+    assert sent_to(model, MORE, lacking=[SECOND]) == []  # it never took the turn
 
 
-def test_going_on_with_an_agent_counts_against_the_turns_agents(
-    make_client, wait_run, project_dir
-):
+def test_going_on_with_an_agent_counts_against_the_turns_agents(make_client, wait_run, project_dir):
     scripts = {
-        "Lead": [SPAWN_CODER, text("made"),
-                 step(call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s2")),
-                 GO_ON, text("done")],
+        "Lead": [
+            SPAWN_CODER,
+            text("made"),
+            step(call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s2")),
+            GO_ON,
+            text("done"),
+        ],
         "Coder": [WRITE, text(OLD_WORDS), text("must not be asked")],
         "Reviewer": [text("looked")],
     }
@@ -238,15 +259,19 @@ def test_a_continued_agent_has_what_its_role_may_do_today(make_client, wait_run,
     go_on = step(call("message_agent", {"to": "Refactorer", "message": MORE}, "m1"))
     scripts = {
         "Lead": [spawn_one, text("made"), go_on, text("done")],
-        "Refactorer": [WRITE, text(OLD_WORDS),
-                  step(call("write_file", {"path": "more.py", "content": "x"}, "w2")),
-                  text("could not write")],
+        "Refactorer": [
+            WRITE,
+            text(OLD_WORDS),
+            step(call("write_file", {"path": "more.py", "content": "x"}, "w2")),
+            text("could not write"),
+        ],
     }
     client, model, pid, cid = setup(make_client, project_dir, scripts)
     turn(client, wait_run, cid, FIRST)
     refactorer = next(r for r in client.get("/api/roles").json() if r["name"] == "Refactorer")
-    narrowed = client.patch(f"/api/roles/{refactorer['id']}", json={
-        "tools": ["list_dir", "read_file", "search"]})
+    narrowed = client.patch(
+        f"/api/roles/{refactorer['id']}", json={"tools": ["list_dir", "read_file", "search"]}
+    )
     assert narrowed.status_code == 200, narrowed.text
     snap, second = turn(client, wait_run, cid, SECOND)
     refactoring = next(a for a in agents_of(snap, second["id"]) if a["name"] == "Refactorer")
@@ -258,15 +283,19 @@ def test_a_continued_agent_has_what_its_role_may_do_today(make_client, wait_run,
 
 def test_an_agent_whose_role_is_gone_cannot_be_gone_on_with(make_client, wait_run, project_dir):
     scripts = {
-        "Lead": [step(call("spawn_agent", {"role": "Helper", "task": OLD_TASK}, "s1")),
-                 text("made"),
-                 step(call("message_agent", {"to": "Helper", "message": MORE}, "m1")),
-                 text("done")],
+        "Lead": [
+            step(call("spawn_agent", {"role": "Helper", "task": OLD_TASK}, "s1")),
+            text("made"),
+            step(call("message_agent", {"to": "Helper", "message": MORE}, "m1")),
+            text("done"),
+        ],
         "Helper": [text(OLD_WORDS), text("must not be asked")],
     }
     client, model, pid, cid = setup(make_client, project_dir, scripts)
-    made = client.post("/api/roles", json={
-        "name": "Helper", "description": "helps", "instructions": "", "tools": ["read_file"]})
+    made = client.post(
+        "/api/roles",
+        json={"name": "Helper", "description": "helps", "instructions": "", "tools": ["read_file"]},
+    )
     assert made.status_code == 201, made.text
     turn(client, wait_run, cid, FIRST)
     assert client.delete(f"/api/roles/{made.json()['id']}").status_code in (200, 204)
@@ -277,8 +306,7 @@ def test_an_agent_whose_role_is_gone_cannot_be_gone_on_with(make_client, wait_ru
 
 
 def test_an_agent_that_never_worked_cannot_be_gone_on_with(make_client, wait_run, project_dir):
-    client, model, pid, cid = setup(make_client, project_dir, TWO_TURNS,
-                                    spawn_approval="always")
+    client, model, pid, cid = setup(make_client, project_dir, TWO_TURNS, spawn_approval="always")
     run = say(client, cid, FIRST)
     for _ in range(400):
         snap = client.get(f"/api/conversations/{cid}").json()
@@ -296,13 +324,15 @@ def test_an_agent_that_never_worked_cannot_be_gone_on_with(make_client, wait_run
     assert status == "failed"
 
 
-def test_a_name_taken_in_this_turn_means_the_agent_of_this_turn(
-    make_client, wait_run, project_dir
-):
+def test_a_name_taken_in_this_turn_means_the_agent_of_this_turn(make_client, wait_run, project_dir):
     scripts = {
-        "Lead": [SPAWN_CODER, text("made"),
-                 step(call("spawn_agent", {"role": "Coder", "task": "NEW-TASK other work"}, "s2")),
-                 GO_ON, text("done")],
+        "Lead": [
+            SPAWN_CODER,
+            text("made"),
+            step(call("spawn_agent", {"role": "Coder", "task": "NEW-TASK other work"}, "s2")),
+            GO_ON,
+            text("done"),
+        ],
         "Coder": [WRITE, text(OLD_WORDS), text("new coder done"), text("new coder again")],
     }
     client, model, pid, cid = setup(make_client, project_dir, scripts)
@@ -321,28 +351,40 @@ def test_a_triggers_turns_are_a_topic_of_their_own_and_hold_to_its_agents(
     make_client, wait_run, project_dir
 ):
     scripts = {
-        "Lead": [text("mine"),
-                 step(call("spawn_agent", {"role": "Reviewer", "task": OLD_TASK}, "s1")),
-                 text("looked"),
-                 step(call("message_agent", {"to": "Reviewer", "message": MORE}, "m1")),
-                 text("could not"),
-                 step(call("message_agent", {"to": "Reviewer", "message": MORE}, "m2")),
-                 text("went on"), text("mine again")],
+        "Lead": [
+            text("mine"),
+            step(call("spawn_agent", {"role": "Reviewer", "task": OLD_TASK}, "s1")),
+            text("looked"),
+            step(call("message_agent", {"to": "Reviewer", "message": MORE}, "m1")),
+            text("could not"),
+            step(call("message_agent", {"to": "Reviewer", "message": MORE}, "m2")),
+            text("went on"),
+            text("mine again"),
+        ],
         "Reviewer": [text(OLD_WORDS), text("looked again")],
     }
     client, model, pid, cid = setup(make_client, project_dir, scripts)
     snap, mine = turn(client, wait_run, cid, FIRST)
 
     def trigger_turn(agents):
-        patched = client.patch(f"/api/triggers/{made['id']}", json={
-            "permissions": {"write": False, "commands": [], "agents": agents}})
+        patched = client.patch(
+            f"/api/triggers/{made['id']}",
+            json={"permissions": {"write": False, "commands": [], "agents": agents}},
+        )
         assert patched.status_code == 200, patched.text
         run_id = client.post(f"/api/triggers/{made['id']}/run").json()["run_id"]
         return wait_run(client, cid, run_id), run_id
 
-    made = client.post(f"/api/projects/{pid}/triggers", json={
-        "name": "watch", "kind": "webhook", "config": {}, "conversation_id": cid,
-        "message": "TRIGGER-MESSAGE look it over"}).json()
+    made = client.post(
+        f"/api/projects/{pid}/triggers",
+        json={
+            "name": "watch",
+            "kind": "webhook",
+            "config": {},
+            "conversation_id": cid,
+            "message": "TRIGGER-MESSAGE look it over",
+        },
+    ).json()
     snap, one = trigger_turn(1)
     snap, two = trigger_turn(0)
     snap, three = trigger_turn(1)

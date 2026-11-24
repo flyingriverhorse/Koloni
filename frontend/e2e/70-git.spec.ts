@@ -16,11 +16,15 @@ const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'g70-shots')
 // (Nothing of the user's own git settings - a signing key, a hook - in these commits.)
 const empty = `${REPO}.gitconfig`
 const git = (...args: string[]) =>
-  execFileSync('git', ['-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e', '-c', 'commit.gpgsign=false', ...args], {
-    cwd: REPO,
-    env: { ...process.env, GIT_CONFIG_GLOBAL: empty, GIT_CONFIG_NOSYSTEM: '1' },
-    stdio: 'pipe',
-  }).toString()
+  execFileSync(
+    'git',
+    ['-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e', '-c', 'commit.gpgsign=false', ...args],
+    {
+      cwd: REPO,
+      env: { ...process.env, GIT_CONFIG_GLOBAL: empty, GIT_CONFIG_NOSYSTEM: '1' },
+      stdio: 'pipe',
+    },
+  ).toString()
 
 test.beforeAll(() => {
   rmSync(REPO, { recursive: true, force: true })
@@ -49,7 +53,9 @@ async function both(page: Page, target: Locator | Page, name: string) {
   await page.evaluate(() => document.documentElement.classList.remove('dark'))
 }
 
-test('the project’s git in the top bar, its map, a copy’s way back to main, and a branch switched in a turn', async ({ page }) => {
+test('the project’s git in the top bar, its map, a copy’s way back to main, and a branch switched in a turn', async ({
+  page,
+}) => {
   test.setTimeout(120_000)
   const made = await page.request.post('/api/projects', { data: { root_path: REPO }, headers: OWN })
   expect(made.ok()).toBe(true)
@@ -57,8 +63,12 @@ test('the project’s git in the top bar, its map, a copy’s way back to main, 
   const conversation = await page.request.post('/api/conversations', { data: { project_id: pid }, headers: OWN })
   const cid = (await conversation.json()).id
   // (The Lead writes itself: the project's, every chat's - tek-ev. A touch makes this chat the one opened.)
-  expect((await page.request.patch(`/api/projects/${pid}`, { data: { lead_work: 'itself' }, headers: OWN })).ok()).toBe(true)
-  expect((await page.request.patch(`/api/conversations/${cid}`, { data: { plan_first: false }, headers: OWN })).ok()).toBe(true)
+  expect((await page.request.patch(`/api/projects/${pid}`, { data: { lead_work: 'itself' }, headers: OWN })).ok()).toBe(
+    true,
+  )
+  expect(
+    (await page.request.patch(`/api/conversations/${cid}`, { data: { plan_first: false }, headers: OWN })).ok(),
+  ).toBe(true)
   await page.goto('about:blank')
   await page.goto(LINK)
   await page.getByLabel('Message').waitFor()
@@ -110,10 +120,16 @@ test('the project’s git in the top bar, its map, a copy’s way back to main, 
   await expect(status).toBeFocused()
 
   // The agent window: its working copy so far, its diff in the Workspace.
-  await page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Coder$/ }) }).locator('.node-head').click()
+  await page
+    .locator('.react-flow__node-agent')
+    .filter({ has: page.locator('.node-title', { hasText: /^Coder$/ }) })
+    .locator('.node-head')
+    .click()
   // (each Coder's file, in its own copy - its window says)
   for (const name of [/^Coder$/, /^Coder 2$/])
-    await expect(page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: name }) })).toContainText('1 file')
+    await expect(
+      page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: name }) }),
+    ).toContainText('1 file')
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   await inspector.getByRole('button', { name: 'Open window' }).click()
   const own = page.getByRole('region', { name: 'Agent window' })
@@ -134,7 +150,10 @@ test('the project’s git in the top bar, its map, a copy’s way back to main, 
   await expect(chat.getByText('made on main, the project is now on fix-login')).toBeVisible()
   await chat.getByRole('button', { name: 'Discard' }).click()
   const said = chat.locator('.git-said')
-  await expect(said).toContainText('The project was switched to branch fix-login during this turn (it was on main). Not reported.', { timeout: 15_000 })
+  await expect(said).toContainText(
+    'The project was switched to branch fix-login during this turn (it was on main). Not reported.',
+    { timeout: 15_000 },
+  )
   await both(page, said, 'chat-warning')
   await said.getByRole('button', { name: 'Show git' }).click()
   await expect(map).toBeVisible()

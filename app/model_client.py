@@ -73,15 +73,20 @@ class Transient(dict):
 # shortcut: from what servers are known to say, not measured against each; widen it when a
 # refusal is seen to fail the step instead.
 REFUSES_FILES = re.compile(
-    r"image|vision|multi-?modal|mmproj|video|content.{0,40}\b(string|str|text)\b", re.IGNORECASE)
+    r"image|vision|multi-?modal|mmproj|video|content.{0,40}\b(string|str|text)\b", re.IGNORECASE
+)
 # ...or refuses the request for its size, which files make bigger: sent again without them,
 # but no word of the model's taking none ("image exceeds 5 MB maximum" is no such word).
 TOO_BIG = re.compile(
     r"too (large|big|long)|exceed|maximum|payload|\b413\b|entity|dimension|resolution|pixels"
-    r"|\bsize\b", re.IGNORECASE)
+    r"|\bsize\b",
+    re.IGNORECASE,
+)
 # A PNG of one pixel: what the Check sends a model said to take images.
-PIXEL = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
-         "YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+PIXEL = (
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+    "YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+)
 
 
 def files_of(message: dict) -> list[tuple[str, str, str]]:
@@ -91,8 +96,13 @@ def files_of(message: dict) -> list[tuple[str, str, str]]:
     sent = []
     for one in message.get("files") or ():
         try:
-            sent.append((one["kind"], one["mime"],
-                         base64.b64encode(Path(one["path"]).read_bytes()).decode("ascii")))
+            sent.append(
+                (
+                    one["kind"],
+                    one["mime"],
+                    base64.b64encode(Path(one["path"]).read_bytes()).decode("ascii"),
+                )
+            )
         except OSError:
             continue
     return sent
@@ -112,8 +122,7 @@ def with_files(messages: list[dict]) -> list[dict]:
         for kind, mime, data in files_of(message):
             way = "video_url" if kind == "video" else "image_url"
             parts.append({"type": way, way: {"url": f"data:{mime};base64,{data}"}})
-        out.append(type(message)({k: v for k, v in message.items() if k != "files"},
-                                 content=parts))
+        out.append(type(message)({k: v for k, v in message.items() if k != "files"}, content=parts))
     return out
 
 
@@ -415,8 +424,12 @@ class OpenAICompatClient:
                     r.raise_for_status()
                     message = r.json()["choices"][0]["message"]
                     self._tools_cache[model_id] = bool(message.get("tool_calls"))
-                return ModelInfo(model_id, self._tools_cache[model_id], efforts=self.efforts,
-                                 context_window=window or self.catalogued_window)
+                return ModelInfo(
+                    model_id,
+                    self._tools_cache[model_id],
+                    efforts=self.efforts,
+                    context_window=window or self.catalogued_window,
+                )
         except httpx2.HTTPError as exc:
             raise ModelUnavailable(_describe(exc)) from exc
         except (ValueError, KeyError, IndexError, TypeError) as exc:
@@ -427,11 +440,23 @@ class OpenAICompatClient:
         and one word asked back. A refusal that names it is a no; anything else, unknown."""
         try:
             async with self._client(60.0) as http:
-                r = await http.post(f"{self._base}/chat/completions", json={
-                    "model": model_id, "stream": False, "max_tokens": 8,
-                    "messages": [{"role": "user", "content": [
-                        {"type": "text", "text": "Reply with the single word: ok"},
-                        {"type": "image_url", "image_url": {"url": PIXEL}}]}]})
+                r = await http.post(
+                    f"{self._base}/chat/completions",
+                    json={
+                        "model": model_id,
+                        "stream": False,
+                        "max_tokens": 8,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": "Reply with the single word: ok"},
+                                    {"type": "image_url", "image_url": {"url": PIXEL}},
+                                ],
+                            }
+                        ],
+                    },
+                )
         except httpx2.HTTPError:
             return None
         if r.is_success:
@@ -439,8 +464,15 @@ class OpenAICompatClient:
         return False if REFUSES_FILES.search(r.text) and not TOO_BIG.search(r.text) else None
 
     async def stream_step(  # noqa: C901
-        self, model_id, messages, tools, on_delta, on_thinking=None,
-        max_tokens: int | None = None, effort: str | None = None, asked_again: bool = False,
+        self,
+        model_id,
+        messages,
+        tools,
+        on_delta,
+        on_thinking=None,
+        max_tokens: int | None = None,
+        effort: str | None = None,
+        asked_again: bool = False,
     ) -> StepResult:
         """`max_tokens`: the most it may write (a summary of KOLONİ's own); None: the
         server's own. `effort`: a level of `efforts`. A model that says which levels it
@@ -525,13 +557,22 @@ class OpenAICompatClient:
             if effort and takes is not None:
                 below = [level for level in takes if EFFORTS.index(level) <= EFFORTS.index(effort)]
                 sent = self.effort_instead[effort] = below[-1] if below else None
-                again = await self.stream_step(model_id, messages, tools, on_delta, on_thinking,
-                                               max_tokens, sent, asked_again=True)
+                again = await self.stream_step(
+                    model_id,
+                    messages,
+                    tools,
+                    on_delta,
+                    on_thinking,
+                    max_tokens,
+                    sent,
+                    asked_again=True,
+                )
                 return replace(again, effort_instead=(effort, sent))
             if effort and effort != "off" and _refuses_effort(exc):
                 self.efforts, self.refused_effort = None, True
                 again = await self.stream_step(
-                    model_id, messages, tools, on_delta, on_thinking, max_tokens)
+                    model_id, messages, tools, on_delta, on_thinking, max_tokens
+                )
                 return replace(again, effort_refused=True)
             raise unavailable(_describe(exc), exc) from exc
         except ValueError as exc:
@@ -558,8 +599,11 @@ def _props_levels(props: dict) -> tuple[str, ...] | None:
     where the template reads `enable_thinking`; None where it says neither."""
     caps = props.get("chat_template_caps")
     template = props.get("chat_template")
-    takes = ("low", "medium", "high") if isinstance(caps, dict) and caps.get(
-        "supports_reasoning_effort") is True else ()
+    takes = (
+        ("low", "medium", "high")
+        if isinstance(caps, dict) and caps.get("supports_reasoning_effort") is True
+        else ()
+    )
     off = ("off",) if isinstance(template, str) and "enable_thinking" in template else ()
     return (*off, *takes) or None
 
@@ -567,8 +611,9 @@ def _props_levels(props: dict) -> tuple[str, ...] | None:
 # How a service says it does not take the field: OpenAI "Unrecognized request argument
 # supplied: reasoning_effort", "Unsupported parameter: 'reasoning_effort'", and the like
 # (a Qwen service's word for its budget, or for thinking at all, too).
-_NO_EFFORT = re.compile(r"reasoning[ _.]effort|thinking[ _.]budget|enable[ _.]thinking",
-                        re.IGNORECASE)
+_NO_EFFORT = re.compile(
+    r"reasoning[ _.]effort|thinking[ _.]budget|enable[ _.]thinking", re.IGNORECASE
+)
 
 # The most a hosted Qwen may think at each level, in tokens: x4 a step from a short think;
 # max is its own most. A budget its service refuses (a 400 naming it) goes as a level does.
@@ -577,8 +622,11 @@ QWEN_BUDGETS = {"low": 1024, "medium": 4096, "high": 16384, "xhigh": 32768, "max
 
 def _refuses_effort(exc: httpx2.HTTPError) -> bool:
     """A request refused for its level (a 400 whose words name the field)."""
-    return (isinstance(exc, httpx2.HTTPStatusError) and exc.response.status_code == 400
-            and bool(_NO_EFFORT.search(exc.response.text)))
+    return (
+        isinstance(exc, httpx2.HTTPStatusError)
+        and exc.response.status_code == 400
+        and bool(_NO_EFFORT.search(exc.response.text))
+    )
 
 
 def _levels_taken(exc: httpx2.HTTPError) -> tuple[str, ...] | None:
@@ -591,8 +639,11 @@ def _levels_taken(exc: httpx2.HTTPError) -> tuple[str, ...] | None:
         error = exc.response.json().get("error")
     except (ValueError, AttributeError):
         return None
-    if not isinstance(error, dict) or error.get("code") != "unsupported_value" or not (
-            _NO_EFFORT.search(str(error.get("param")))):
+    if (
+        not isinstance(error, dict)
+        or error.get("code") != "unsupported_value"
+        or not (_NO_EFFORT.search(str(error.get("param"))))
+    ):
         return None
     told = re.split(r"supported values are:", str(error.get("message")), flags=re.IGNORECASE)
     if len(told) < 2:
@@ -601,16 +652,20 @@ def _levels_taken(exc: httpx2.HTTPError) -> tuple[str, ...] | None:
     return tuple(level for level in EFFORTS if level in said or level == "off" and "none" in said)
 
 
-def _leveled(effort: str | None, model_id: str = "", base_url: str = "",
-             off_as: str | None = None) -> dict:
+def _leveled(
+    effort: str | None, model_id: str = "", base_url: str = "", off_as: str | None = None
+) -> dict:
     """What a level adds to the request: off is the chat template's switch, and then no
     level goes - or `off_as` where it is given (OpenAI's "none"); another is
     `reasoning_effort` at the top, as llama-server, OpenAI and DeepSeek read it. A hosted
     Qwen takes that and ignores it (measured on Alibaba's, 27 Oct 2026): its level is a
     budget of thinking."""
     if effort == "off":
-        return {"reasoning_effort": off_as} if off_as else {
-            "chat_template_kwargs": {"enable_thinking": False}}
+        return (
+            {"reasoning_effort": off_as}
+            if off_as
+            else {"chat_template_kwargs": {"enable_thinking": False}}
+        )
     # shortcut: measured on Alibaba's only - a Qwen on another service that reads
     # reasoning_effort (OpenRouter, say) loses its level, and a llama-server on another
     # machine counts as hosted; narrow this to Alibaba's hosts (or tell a llama-server by

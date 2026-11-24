@@ -40,7 +40,9 @@ def run(command, id="k", **more):
 
 
 def job_chat(client, pid, at=0):
-    return client.get(f"/api/conversations/{night(client, pid)['jobs'][at]['conversation_id']}").json()
+    return client.get(
+        f"/api/conversations/{night(client, pid)['jobs'][at]['conversation_id']}"
+    ).json()
 
 
 def start(client, cid, **given):
@@ -53,8 +55,9 @@ def start(client, cid, **given):
 
 
 def test_no_mcp_tool_of_koloni_s_is_offered_at_night(make_client, wait_run, project_dir, tmp_path):
-    client, model, pid, cid, run_id = evening(make_client, project_dir, [
-        text("one done"), text("two done"), text("morning")])
+    client, model, pid, cid, run_id = evening(
+        make_client, project_dir, [text("one done"), text("two done"), text("morning")]
+    )
     wait_run(client, cid, run_id)
     server(client, tmp_path)
     give(client, "Lead", "fake")
@@ -70,15 +73,23 @@ def test_no_mcp_tool_of_koloni_s_is_offered_at_night(make_client, wait_run, proj
 
 def test_a_cli_s_own_mcp_tool_waits_for_the_user_at_night(claude_app, wait_run, project_dir):  # noqa: F811
     client, provider, _default = claude_app(
-        [{"tool": "mcp__files__write_file", "input": {"path": "x.txt"}, "result": "ok"},
-         {"say": "done"}],
-        default_steps=[to_do({"jobs": [{"title": "one"}]}), text("on your To-do")])
+        [
+            {"tool": "mcp__files__write_file", "input": {"path": "x.txt"}, "result": "ok"},
+            {"say": "done"},
+        ],
+        default_steps=[to_do({"jobs": [{"title": "one"}]}), text("on your To-do")],
+    )
     client.headers.update(ORIGIN)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
-    wait_run(client, cid, client.post(f"/api/conversations/{cid}/messages",
-                                      json={"content": "sleep"}).json()["run"]["id"])
+    wait_run(
+        client,
+        cid,
+        client.post(f"/api/conversations/{cid}/messages", json={"content": "sleep"}).json()["run"][
+            "id"
+        ],
+    )
     # the jobs run on the chat's own model: Claude Code, at Full auto
     client.patch(f"/api/conversations/{cid}", json={"provider_id": provider["id"]})
     start(client, cid)
@@ -88,12 +99,16 @@ def test_a_cli_s_own_mcp_tool_waits_for_the_user_at_night(claude_app, wait_run, 
     assert "mcp__files__write_file" in snap["questions"][0]["question"]
 
 
-def test_a_command_in_another_of_the_chat_s_folders_waits_at_night(make_client, wait_run,
-                                                                    project_dir, tmp_path):
+def test_a_command_in_another_of_the_chat_s_folders_waits_at_night(
+    make_client, wait_run, project_dir, tmp_path
+):
     shelf = tmp_path / "shelf"
     shelf.mkdir()
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        run("echo hi", cwd=str(shelf)), text("one done"), text("two done")])
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [run("echo hi", cwd=str(shelf)), text("one done"), text("two done")],
+    )
     assert client.patch(f"/api/projects/{pid}", json={"also_in": [str(shelf)]}).status_code == 200
     wait_run(client, cid, run_id)
     # (the card's chat was made before the folder: its jobs' chats start with the folder's)
@@ -104,20 +119,35 @@ def test_a_command_in_another_of_the_chat_s_folders_waits_at_night(make_client, 
 
 
 def test_at_full_auto_a_job_runs_its_tests_but_a_push_a_delete_and_a_post_wait(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     # (a job that waits gives its place to the next: the steps go one job after the other)
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        run("echo tests pass"), run("git push origin main", "k2"), run("rm -rf build", "k3"),
-        step(call("http_request", {"method": "POST", "url": "https://example.com/x",
-                                   "body": "a"}, "h"))],
-        plan={"jobs": [{"title": "one"}, {"title": "two"}, {"title": "three"}]})
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [
+            run("echo tests pass"),
+            run("git push origin main", "k2"),
+            run("rm -rf build", "k3"),
+            step(
+                call(
+                    "http_request",
+                    {"method": "POST", "url": "https://example.com/x", "body": "a"},
+                    "h",
+                )
+            ),
+        ],
+        plan={"jobs": [{"title": "one"}, {"title": "two"}, {"title": "three"}]},
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     done = ended(client, pid)
     assert [job["state"] for job in done["jobs"]] == ["waits", "waits", "waits"]
     one = job_chat(client, pid)
     assert [(c["command"], c["status"]) for c in one["commands"]] == [
-        ("echo tests pass", "exited"), ("git push origin main", "proposed")]
+        ("echo tests pass", "exited"),
+        ("git push origin main", "proposed"),
+    ]
     assert done["jobs"][0]["asks"][0]["text"] == 'Lead asks to run "git push origin main"'
     assert [c["status"] for c in job_chat(client, pid, 1)["commands"]] == ["proposed"]
     assert [r["status"] for r in job_chat(client, pid, 2)["web_requests"]] == ["proposed"]
@@ -126,10 +156,14 @@ def test_at_full_auto_a_job_runs_its_tests_but_a_push_a_delete_and_a_post_wait(
 # --- 3: the chat the card was in is deleted ---------------------------------------------------
 
 
-def test_a_deleted_card_chat_leaves_a_job_chat_s_later_turn_working(make_client, wait_run,
-                                                                    project_dir, gate):
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        gate.step(text("one done")), text("two done"), text("later in the job chat")])
+def test_a_deleted_card_chat_leaves_a_job_chat_s_later_turn_working(
+    make_client, wait_run, project_dir, gate
+):
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [gate.step(text("one done")), text("two done"), text("later in the job chat")],
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     gate.wait_partial()
@@ -139,8 +173,9 @@ def test_a_deleted_card_chat_leaves_a_job_chat_s_later_turn_working(make_client,
     gate.release()
     one = ended(client, pid)["jobs"][0]
     assert client.post("/api/conversations/delete", json={"ids": [cid]}).json()["deleted"] == [cid]
-    later = client.post(f"/api/conversations/{one['conversation_id']}/messages",
-                        json={"content": "go on"}).json()
+    later = client.post(
+        f"/api/conversations/{one['conversation_id']}/messages", json={"content": "go on"}
+    ).json()
     snap = wait_run(client, one["conversation_id"], later["run"]["id"])
     assert snap["runs"][-1]["status"] == "completed", snap["runs"][-1]
 
@@ -148,10 +183,12 @@ def test_a_deleted_card_chat_leaves_a_job_chat_s_later_turn_working(make_client,
 # --- 4, 13: after the night nothing of it starts by itself; Try again is the user's ------------
 
 
-def test_after_a_stop_the_list_working_itself_starts_no_job_of_the_night(make_client, wait_run,
-                                                                         project_dir, gate):
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        gate.step(text("never"))], plan={**PLAN, "until": "07:00"})
+def test_after_a_stop_the_list_working_itself_starts_no_job_of_the_night(
+    make_client, wait_run, project_dir, gate
+):
+    client, _model, pid, cid, run_id = evening(
+        make_client, project_dir, [gate.step(text("never"))], plan={**PLAN, "until": "07:00"}
+    )
     wait_run(client, cid, run_id)
     assert client.put(f"/api/projects/{pid}/backlog/auto", json={"on": True}).status_code == 200
     start(client, cid)
@@ -174,12 +211,20 @@ def test_after_a_stop_the_list_working_itself_starts_no_job_of_the_night(make_cl
 
 
 def test_try_again_is_a_turn_of_the_user_s_and_not_while_one_is_at_work(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     from app.model_client import ModelUnavailable
 
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        ModelUnavailable("down"), ModelUnavailable("down again"), text("two done"),
-        gate.step(text("again done"))])
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [
+            ModelUnavailable("down"),
+            ModelUnavailable("down again"),
+            text("two done"),
+            gate.step(text("again done")),
+        ],
+    )
     wait_run(client, cid, run_id)
     away_id = start(client, cid)["id"]
     one = ended(client, pid)["jobs"][0]
@@ -222,23 +267,26 @@ def test_a_place_kept_out_is_matched_as_a_path():
 
 
 def test_a_kept_out_pattern_or_a_place_outside_is_refused_and_a_full_path_made_relative(
-        make_client, wait_run, project_dir, tmp_path):
+    make_client, wait_run, project_dir, tmp_path
+):
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [])
     wait_run(client, cid, run_id)
     for wrong in ("src/payments/*", str(tmp_path / "elsewhere"), "../up"):
         answer = go_away(client, cid, task_ids=[], kept_out=[wrong])
         assert answer.status_code == 409, wrong
     assert night(client, pid) is None  # (refused: nothing of it is kept)
-    made = start(client, cid, task_ids=[],
-                 kept_out=[str(project_dir / "src" / "payments"), "db/one/"])
+    made = start(
+        client, cid, task_ids=[], kept_out=[str(project_dir / "src" / "payments"), "db/one/"]
+    )
     assert made["kept_out"] == ["src/payments", "db/one"]
 
 
 def test_a_command_run_in_a_place_kept_out_is_refused(make_client, wait_run, project_dir):
     (project_dir / "secret").mkdir()
     (project_dir / "secret" / "pay.py").write_bytes(b"pay = 1\n")
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        run("echo hi", cwd="secret"), text("one done"), text("two done")])
+    client, _model, pid, cid, run_id = evening(
+        make_client, project_dir, [run("echo hi", cwd="secret"), text("one done"), text("two done")]
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     done = ended(client, pid)
@@ -250,12 +298,24 @@ def test_a_command_run_in_a_place_kept_out_is_refused(make_client, wait_run, pro
 
 
 def test_the_night_stops_at_its_money_as_usage_counts_it(make_client, wait_run, project_dir):
-    big = StepResult("", [ToolCallRequest("w1", "edit_file", json.dumps(
-        {"path": "hello.py", "old_string": "hi", "new_string": "hello"}))], 1_000_000, 500_000)
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [big, text("never")],
-                                               plan={**PLAN, "money": 5})
-    client.put("/api/prices", json={"model_id": "fake-model", "input": 3, "output": 15,
-                                    "currency": "USD"})
+    big = StepResult(
+        "",
+        [
+            ToolCallRequest(
+                "w1",
+                "edit_file",
+                json.dumps({"path": "hello.py", "old_string": "hi", "new_string": "hello"}),
+            )
+        ],
+        1_000_000,
+        500_000,
+    )
+    client, _model, pid, cid, run_id = evening(
+        make_client, project_dir, [big, text("never")], plan={**PLAN, "money": 5}
+    )
+    client.put(
+        "/api/prices", json={"model_id": "fake-model", "input": 3, "output": 15, "currency": "USD"}
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     done = ended(client, pid)
@@ -263,12 +323,17 @@ def test_the_night_stops_at_its_money_as_usage_counts_it(make_client, wait_run, 
     assert done["spent"] == 10.5 and done["jobs"][1]["state"] == "next"
 
 
-def test_a_job_that_works_its_ceiling_is_cut_and_the_next_goes_on(make_client, wait_run, project_dir,
-                                                              gate, monkeypatch):
+def test_a_job_that_works_its_ceiling_is_cut_and_the_next_goes_on(
+    make_client, wait_run, project_dir, gate, monkeypatch
+):
     # The night ends nearly a day on: the ceiling's hours later are past the job's, not the night's end.
     until = (datetime.now() - timedelta(minutes=1)).strftime("%H:%M")
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        gate.step(edit()), text("never"), text("two done")], plan={**PLAN, "until": until})
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [gate.step(edit()), text("never"), text("two done")],
+        plan={**PLAN, "until": until},
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     gate.wait_partial()
@@ -284,11 +349,13 @@ def test_a_job_that_works_its_ceiling_is_cut_and_the_next_goes_on(make_client, w
 
 
 def test_a_card_with_no_time_has_no_stop_time_and_the_clock_never_ends_it(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     # The user, 6 Nov: no default stop time - the jobs run until done, the money spent or a
     # job's hour, never stopped by the clock.
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        gate.step(text("one done")), text("two done")])
+    client, _model, pid, cid, run_id = evening(
+        make_client, project_dir, [gate.step(text("one done")), text("two done")]
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     gate.wait_partial()
@@ -301,42 +368,49 @@ def test_a_card_with_no_time_has_no_stop_time_and_the_clock_never_ends_it(
     assert done["why"] is None and done["until"] is None and done["counts"]["done"] == 2
 
 
-def test_a_card_with_no_money_has_no_spend_limit(make_client, wait_run, project_dir,
-                                                 monkeypatch):
+def test_a_card_with_no_money_has_no_spend_limit(make_client, wait_run, project_dir, monkeypatch):
     # The user, 6 Nov: no default spend limit - a plan counts no dollars; only a figure the user
     # gave, or what the month's budget has left, stops the jobs for money.
     client, _model, _pid, cid, run_id = evening(make_client, project_dir, [])
     wait_run(client, cid, run_id)
     assert start(client, cid, task_ids=[])["money"] is None
-    monkeypatch.setattr(away, "spent", lambda session, night: {
-        "spent": 1000.0, "currency": "USD", "at_least": False})
+    monkeypatch.setattr(
+        away,
+        "spent",
+        lambda session, night: {"spent": 1000.0, "currency": "USD", "at_least": False},
+    )
     with client.app.state.session_factory() as session:
         (found,) = session.scalars(select(AwayRun)).all()
         assert away.over(session, found) is None
 
 
 @pytest.mark.parametrize(("asked", "most"), [(None, 3), (1, 1), (7, 3)])
-def test_the_months_budget_still_caps_the_cards_money(make_client, wait_run, project_dir,
-                                                       asked, most):
-    client, _model, _pid, cid, run_id = evening(make_client, project_dir, [], monthly_budget=3,
-                                               plan={**PLAN, "money": asked})
+def test_the_months_budget_still_caps_the_cards_money(
+    make_client, wait_run, project_dir, asked, most
+):
+    client, _model, _pid, cid, run_id = evening(
+        make_client, project_dir, [], monthly_budget=3, plan={**PLAN, "money": asked}
+    )
     wait_run(client, cid, run_id)
     assert start(client, cid, task_ids=[])["money"] == most
 
 
 def test_a_budget_set_before_start_caps_the_jobs_and_stops_them_once_spent(
-        make_client, wait_run, project_dir, gate, monkeypatch):
+    make_client, wait_run, project_dir, gate, monkeypatch
+):
     # Review of the no-default-money change: a budget set after the card was planned, or the
     # card's field emptied, still holds the jobs - at what is left of it when Start is pressed.
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        gate.step(text("one done")), text("never")])
+    client, _model, pid, cid, run_id = evening(
+        make_client, project_dir, [gate.step(text("one done")), text("never")]
+    )
     wait_run(client, cid, run_id)
     assert client.patch(f"/api/projects/{pid}", json={"monthly_budget": 3}).status_code == 200
     start(client, cid)
     gate.wait_partial()
     assert night(client, pid)["money"] == 3
-    monkeypatch.setattr(away, "spent", lambda session, night: {
-        "spent": 3.0, "currency": "USD", "at_least": False})
+    monkeypatch.setattr(
+        away, "spent", lambda session, night: {"spent": 3.0, "currency": "USD", "at_least": False}
+    )
     with client.app.state.session_factory() as session:
         (found,) = session.scalars(select(AwayRun)).all()
         assert away.over(session, found) == "Stopped at 3.00 of 3.00 USD, the spend limit."
@@ -358,9 +432,11 @@ def test_the_card_says_when_its_jobs_run_on_a_plan(make_client, wait_run, projec
 
 
 def test_a_restart_ends_the_night_with_its_line_and_its_one_notification(
-        make_client, wait_run, project_dir, gate):
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [gate.step(text("x"))],
-                                               notify_desktop=True)
+    make_client, wait_run, project_dir, gate
+):
+    client, _model, pid, cid, run_id = evening(
+        make_client, project_dir, [gate.step(text("x"))], notify_desktop=True
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     gate.wait_partial()
@@ -369,32 +445,38 @@ def test_a_restart_ends_the_night_with_its_line_and_its_one_notification(
     recover_interrupted(factory, notes)
     with factory() as session:
         (found,) = session.scalars(select(AwayRun)).all()
-        said = session.scalars(select(Message.content).where(
-            Message.conversation_id == cid, Message.role == "away")).all()
+        said = session.scalars(
+            select(Message.content).where(Message.conversation_id == cid, Message.role == "away")
+        ).all()
     assert (found.status, found.why) == ("ended", away.CLOSED)
     assert lines(client, cid) == ["0 of 2 To-do done · 1 could not be done · 1 not started"]
     assert [note[-1] for note in notes] == [f"{away.CLOSED} {said[0]}."]
     gate.release()
 
 
-def test_a_message_of_yours_ends_away_an_agents_does_not(make_client, wait_run, project_dir,
-                                                          gate):
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        gate.step(text("one done")), text("an agent's reply"), text("evening reply")])
+def test_a_message_of_yours_ends_away_an_agents_does_not(make_client, wait_run, project_dir, gate):
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [gate.step(text("one done")), text("an agent's reply"), text("evening reply")],
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     gate.wait_partial()
     # a message that says nothing of where it is from (an agent's command): still away
-    other = client.post(f"/api/conversations/{cid}/messages", json={"content": "x"},
-                        headers={"Origin": ""}).json()
+    other = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "x"}, headers={"Origin": ""}
+    ).json()
     wait_run(client, cid, other["run"]["id"])
     assert night(client, pid)["status"] == "running"
     # the user's own: Away ends, its summary above their message; the job at work finishes
     later = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}).json()
     done = night(client, pid)
     assert done["status"] == "ended" and done["why"] is None
-    said = [(m["role"], m["content"]) for m in client.get(
-        f"/api/conversations/{cid}").json()["messages"]]
+    said = [
+        (m["role"], m["content"])
+        for m in client.get(f"/api/conversations/{cid}").json()["messages"]
+    ]
     assert [role for role, _ in said].index("away") == said.index(("user", "hi")) - 1
     wait_run(client, cid, later["run"]["id"])
     gate.release()
@@ -403,10 +485,12 @@ def test_a_message_of_yours_ends_away_an_agents_does_not(make_client, wait_run, 
     assert lines(client, cid) == ["1 of 2 To-do done · 1 not started"]
 
 
-def test_go_away_waits_for_a_task_at_work_and_puts_away_the_offers(make_client, wait_run,
-                                                                    project_dir, gate):
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        gate.step(text("task done")), text("hi there")])
+def test_go_away_waits_for_a_task_at_work_and_puts_away_the_offers(
+    make_client, wait_run, project_dir, gate
+):
+    client, _model, pid, cid, run_id = evening(
+        make_client, project_dir, [gate.step(text("task done")), text("hi there")]
+    )
     wait_run(client, cid, run_id)
     client.post(f"/api/projects/{pid}/backlog", json={"title": "by hand"})
     assert client.post(f"/api/projects/{pid}/backlog/next").status_code == 200
@@ -419,11 +503,17 @@ def test_go_away_waits_for_a_task_at_work_and_puts_away_the_offers(make_client, 
         session.add(AwayRun(project_id=pid, conversation_id=cid, run_id=run_id))
         session.commit()
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    wait_run(client, other, client.post(f"/api/conversations/{other}/messages",
-                                        json={"content": "sleep too"}).json()["run"]["id"])
+    wait_run(
+        client,
+        other,
+        client.post(f"/api/conversations/{other}/messages", json={"content": "sleep too"}).json()[
+            "run"
+        ]["id"],
+    )
     assert go_away(client, other).status_code == 200
     assert [c["status"] for c in client.get(f"/api/conversations/{cid}/away").json()] == [
-        "dismissed"]
+        "dismissed"
+    ]
 
 
 @pytest.fixture(autouse=True)
@@ -435,13 +525,28 @@ def no_desktop(monkeypatch):
 def test_what_sends_work_off_the_machine_is_told_apart_from_what_does_not():
     from app.commands import sends_off
 
-    for sends in ("git push origin main", "git -C web push", "npm publish", "twine upload dist/*",
-                  "curl -X POST https://x", "curl --data a=1 https://x", "npx vercel deploy",
-                  "scp a.zip host:", "pytest -q && git push",
-                  "curl https://x.test/a.json", "gh pr list"):  # (a night job asks about a fetch)
+    for sends in (
+        "git push origin main",
+        "git -C web push",
+        "npm publish",
+        "twine upload dist/*",
+        "curl -X POST https://x",
+        "curl --data a=1 https://x",
+        "npx vercel deploy",
+        "scp a.zip host:",
+        "pytest -q && git push",
+        "curl https://x.test/a.json",
+        "gh pr list",
+    ):  # (a night job asks about a fetch)
         assert sends_off(sends), sends
-    for stays in ("pytest -q", "npm run test", "npm run dbg-tool", "git status",
-                  "python -m build", "cargo build --release"):
+    for stays in (
+        "pytest -q",
+        "npm run test",
+        "npm run dbg-tool",
+        "git status",
+        "python -m build",
+        "cargo build --release",
+    ):
         assert not sends_off(stays), stays
 
 
@@ -451,31 +556,65 @@ def test_what_sends_work_off_the_machine_is_told_apart_from_what_does_not():
 def test_a_wrapper_or_a_shell_and_any_request_from_the_command_line_count_as_leaving():
     from app.commands import installs, runs_another, sends_off
 
-    for wrapped in ('cmd /c git push', 'bash -c "git push"', 'powershell -c "git push"',
-                    "env git push", "sudo git push", "timeout 60 git push", "GIT_X=1 git push",
-                    "pytest -q && cmd /c del x", "ssh host ls"):
+    for wrapped in (
+        "cmd /c git push",
+        'bash -c "git push"',
+        'powershell -c "git push"',
+        "env git push",
+        "sudo git push",
+        "timeout 60 git push",
+        "GIT_X=1 git push",
+        "pytest -q && cmd /c del x",
+        "ssh host ls",
+    ):
         assert runs_another(wrapped), wrapped
     assert not runs_another("pytest -q && npm test")
-    for sends in ("curl -XPOST https://h", "curl -sd x https://h", "curl -dfoo https://h",
-                  "curl -Ff=@a https://h", "curl -sSfT a https://h", "curl.exe -d x https://h",
-                  "Invoke-WebRequest https://x -Method:Post", 'curl "https://h/?k=$(cat a.py)"',
-                  "wget https://h/x", "aws s3 cp a s3://b", "az storage blob upload -f a",
-                  "gsutil cp a gs://b", "rclone copy . r:b", "nc h 80", "kubectl apply -f a",
-                  "terraform apply", "vercel --prod", "docker buildx build --push .",
-                  "helm push c oci://r", "gradle publish", "mvn deploy", "git send-email a"):
+    for sends in (
+        "curl -XPOST https://h",
+        "curl -sd x https://h",
+        "curl -dfoo https://h",
+        "curl -Ff=@a https://h",
+        "curl -sSfT a https://h",
+        "curl.exe -d x https://h",
+        "Invoke-WebRequest https://x -Method:Post",
+        'curl "https://h/?k=$(cat a.py)"',
+        "wget https://h/x",
+        "aws s3 cp a s3://b",
+        "az storage blob upload -f a",
+        "gsutil cp a gs://b",
+        "rclone copy . r:b",
+        "nc h 80",
+        "kubectl apply -f a",
+        "terraform apply",
+        "vercel --prod",
+        "docker buildx build --push .",
+        "helm push c oci://r",
+        "gradle publish",
+        "mvn deploy",
+        "git send-email a",
+    ):
         assert sends_off(sends), sends
-    for one in ("pip install x", "python -m pip install -r r.txt", "uv sync", "npm i", "pnpm add x",
-                "yarn install", "poetry add x"):
+    for one in (
+        "pip install x",
+        "python -m pip install -r r.txt",
+        "uv sync",
+        "npm i",
+        "pnpm add x",
+        "yarn install",
+        "poetry add x",
+    ):
         assert installs(one), one
     assert not installs("npm run build") and not installs("pip list")
 
 
 def test_at_night_a_wrapped_command_waits_and_an_install_waits_where_the_copy_links_in(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     (project_dir / "node_modules").mkdir()
     (project_dir / "node_modules" / "x.js").write_bytes(b"1\n")
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        run("cmd /c echo hi"), run("npm install left-pad", "k2")])
+    client, _model, pid, cid, run_id = evening(
+        make_client, project_dir, [run("cmd /c echo hi"), run("npm install left-pad", "k2")]
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     done = ended(client, pid)
@@ -485,45 +624,89 @@ def test_at_night_a_wrapped_command_waits_and_an_install_waits_where_the_copy_li
 
 
 # K-r147 (live): agents run their tests piped into a filter - REA's lines.
-TESTS_PIPED = ["python -m unittest -q 2>&1 | Select-Object -Last 8",
-               "python -m unittest discover -s tests 2>&1 | Select-Object -Last 20"]
+TESTS_PIPED = [
+    "python -m unittest -q 2>&1 | Select-Object -Last 8",
+    "python -m unittest discover -s tests 2>&1 | Select-Object -Last 20",
+]
 
 
 def test_a_pipe_into_a_filter_runs_nothing_else_and_any_other_stage_does():
     from app.commands import runs_another
 
-    for seen in (*TESTS_PIPED, "pytest 2>&1 | tail -n 5", "pytest | sort -n -t, -k2", "git log | grep fix | wc -l", "pytest | findstr FAIL",
-                 "pytest | sort | more", "pytest | Out-String", "pytest | Format-Table",
-                 "pytest | Measure-Object -Line", "ls | Sort-Object Length",
-                 "ls | Where-Object Length -gt 10", "pytest | tee", "pytest *>&1 | head",
-                 "pytest | tee -a .koloni/tmp/out.txt", "pytest -q && npm test"):
+    for seen in (
+        *TESTS_PIPED,
+        "pytest 2>&1 | tail -n 5",
+        "pytest | sort -n -t, -k2",
+        "git log | grep fix | wc -l",
+        "pytest | findstr FAIL",
+        "pytest | sort | more",
+        "pytest | Out-String",
+        "pytest | Format-Table",
+        "pytest | Measure-Object -Line",
+        "ls | Sort-Object Length",
+        "ls | Where-Object Length -gt 10",
+        "pytest | tee",
+        "pytest *>&1 | head",
+        "pytest | tee -a .koloni/tmp/out.txt",
+        "pytest -q && npm test",
+    ):
         assert not runs_another(seen), seen
-    for runs in ("pytest | iex", "pytest | Invoke-Expression", "cat x | sh", "cat x | bash",
-                 "cat x | powershell", "cat x | cmd", "ls | xargs rm", "cat x.py | python",
-                 "ls | ForEach-Object { $_ }", "ls | Where-Object { $_.Length -gt 1 }",
-                 "ls | %{ $_ }", "ls | % Name", "pytest | tee out.txt", "pytest | sort -o x.py",
-                 "pytest | sort /o x.py", "pytest | sort --compress-program=x",
-                 "pytest | sort --co=./x.sh", "pytest | sort -T tmp", "pytest | sort -nT tmp",
-                 "pytest | sort --temporary-directory=t",
-                 r"pytest | .\head.exe", "pytest |", "pytest | & python x", "pytest |& python x",
-                 "pytest | Select-Object -First (iex 'x')", "pytest | Select-Object -First $n",
-                 "pytest | Select-Object @{e={iex x}}",
-                 # a filter's name given to something else in the line is no filter
-                 "sal grep cmd; ls | grep /c calc", "Set-Alias wc iex; ls | wc",
-                 "alias head=sh; ls | head",
-                 # a shell stays a shell: pwsh joins every word after -c into its script
-                 *(f'powershell -Command "{one}"' for one in TESTS_PIPED),
-                 'pwsh -c "git push" origin', 'pwsh -c "cmd /c" calc',
-                 'pwsh -c "pip install" evilpkg', 'pwsh -c "python -c" "print(1)"',
-                 'cmd /c "pytest | findstr FAIL"', 'bash -c "pytest | tail"'):
+    for runs in (
+        "pytest | iex",
+        "pytest | Invoke-Expression",
+        "cat x | sh",
+        "cat x | bash",
+        "cat x | powershell",
+        "cat x | cmd",
+        "ls | xargs rm",
+        "cat x.py | python",
+        "ls | ForEach-Object { $_ }",
+        "ls | Where-Object { $_.Length -gt 1 }",
+        "ls | %{ $_ }",
+        "ls | % Name",
+        "pytest | tee out.txt",
+        "pytest | sort -o x.py",
+        "pytest | sort /o x.py",
+        "pytest | sort --compress-program=x",
+        "pytest | sort --co=./x.sh",
+        "pytest | sort -T tmp",
+        "pytest | sort -nT tmp",
+        "pytest | sort --temporary-directory=t",
+        r"pytest | .\head.exe",
+        "pytest |",
+        "pytest | & python x",
+        "pytest |& python x",
+        "pytest | Select-Object -First (iex 'x')",
+        "pytest | Select-Object -First $n",
+        "pytest | Select-Object @{e={iex x}}",
+        # a filter's name given to something else in the line is no filter
+        "sal grep cmd; ls | grep /c calc",
+        "Set-Alias wc iex; ls | wc",
+        "alias head=sh; ls | head",
+        # a shell stays a shell: pwsh joins every word after -c into its script
+        *(f'powershell -Command "{one}"' for one in TESTS_PIPED),
+        'pwsh -c "git push" origin',
+        'pwsh -c "cmd /c" calc',
+        'pwsh -c "pip install" evilpkg',
+        'pwsh -c "python -c" "print(1)"',
+        'cmd /c "pytest | findstr FAIL"',
+        'bash -c "pytest | tail"',
+    ):
         assert runs_another(runs), runs
 
 
 def test_at_night_a_test_piped_into_a_filter_runs_and_one_piped_into_python_waits(
-        make_client, wait_run, project_dir):
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        run("echo tests pass 2>&1 | Select-Object -Last 8"),
-        text("one done"), run("echo print(1) | python", "k2")])
+    make_client, wait_run, project_dir
+):
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [
+            run("echo tests pass 2>&1 | Select-Object -Last 8"),
+            text("one done"),
+            run("echo print(1) | python", "k2"),
+        ],
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     done = ended(client, pid)
@@ -536,15 +719,21 @@ def test_kept_out_words_from_the_cwd_the_copy_s_full_paths_redirects_and_pattern
     night_ = AwayRun(kept_out=["secret", "src/payments", "db.sqlite"], jobs=[], tried=[])
     root, copy = "C:/Users/me/proj", "C:/Users/me/AppData/Local/KOLONI/copies/abc/x"
     found = lambda command, cwd=None: away.kept_out(  # noqa: E731
-        night_, command=command, root=(root, copy), cwd=cwd)
+        night_, command=command, root=(root, copy), cwd=cwd
+    )
     assert found("rm payments/x.py", cwd="src") == "src/payments"
     assert found(r"del ..\secret\k.txt", cwd="src") == "secret"
     assert found(copy.replace("/", "\\").join(("rm ", r"\secret\a"))) == "secret"
     assert found(f"Remove-Item {copy}/src/payments -Recurse") == "src/payments"
     # (`secret.` is `secret` on Windows only, which drops a name's last dot)
     dotted = [r"copy a secret.\b"] if os.name == "nt" else []
-    for redirect in (r"echo x>secret\a.txt", "type nul>db.sqlite", "rm secret|x",
-                     r"echo x >> secret\a", *dotted):
+    for redirect in (
+        r"echo x>secret\a.txt",
+        "type nul>db.sqlite",
+        "rm secret|x",
+        r"echo x >> secret\a",
+        *dotted,
+    ):
         assert found(redirect), redirect
     assert found("rm s*") == "secret" and found("rm -r src/*/x") == "src/payments"
     assert found("rm *.py") is None and found("npm run dbg-tool") is None
@@ -555,15 +744,21 @@ def test_a_place_outside_the_project_is_refused_at_go_away(make_client, wait_run
     wait_run(client, cid, run_id)
     for outside in ("/etc", "~/.ssh", r"\\server\share"):
         answer = go_away(client, cid, task_ids=[], kept_out=[outside])
-        assert answer.status_code == 409 and "outside the project" in answer.json()["detail"], outside
+        assert answer.status_code == 409 and "outside the project" in answer.json()["detail"], (
+            outside
+        )
 
 
-def test_at_night_a_command_naming_another_folder_of_the_chat_waits(make_client, wait_run,
-                                                                   project_dir, tmp_path):
+def test_at_night_a_command_naming_another_folder_of_the_chat_waits(
+    make_client, wait_run, project_dir, tmp_path
+):
     shelf = tmp_path / "shelf"
     shelf.mkdir()
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        run(f"echo x > {shelf / 'y.txt'}"), text("one done"), text("two done")])
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [run(f"echo x > {shelf / 'y.txt'}"), text("one done"), text("two done")],
+    )
     assert client.patch(f"/api/projects/{pid}", json={"also_in": [str(shelf)]}).status_code == 200
     wait_run(client, cid, run_id)
     start(client, cid)
@@ -571,12 +766,14 @@ def test_at_night_a_command_naming_another_folder_of_the_chat_waits(make_client,
     assert not (shelf / "y.txt").exists()
 
 
-def test_a_job_is_cut_by_the_loop_s_clock_while_no_step_of_it_comes(make_client, wait_run,
-                                                                    project_dir, gate):
+def test_a_job_is_cut_by_the_loop_s_clock_while_no_step_of_it_comes(
+    make_client, wait_run, project_dir, gate
+):
     from tests.test_triggers import HeldClock
 
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        edit(), gate.step(text("never")), text("two done")])
+    client, _model, pid, cid, run_id = evening(
+        make_client, project_dir, [edit(), gate.step(text("never")), text("two done")]
+    )
     wait_run(client, cid, run_id)
     clock = client.app.state.runner.call_later = HeldClock()
     start(client, cid)
@@ -587,16 +784,30 @@ def test_a_job_is_cut_by_the_loop_s_clock_while_no_step_of_it_comes(make_client,
     client.portal.call(timer.fire)
     one = until(lambda: (n := night(client, pid))["jobs"][0]["kept"] and n["jobs"][0])
     assert (one["state"], one["why"], one["files"]) == (
-        "failed", away.too_long(away.CEILING_HOURS), ["hello.py"])
+        "failed",
+        away.too_long(away.CEILING_HOURS),
+        ["hello.py"],
+    )
     assert ended(client, pid)["jobs"][1]["state"] == "done"
     gate.release()
 
 
 def test_remember_in_a_job_rests_on_its_copy_s_lines(make_client, wait_run, project_dir):
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        edit(), step(call("read_file", {"path": "hello.py"}, "r")),
-        step(call("remember", {"text": "it says hello", "file": "hello.py", "start_line": 1},
-                  "m")), text("one done"), text("two done")])
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [
+            edit(),
+            step(call("read_file", {"path": "hello.py"}, "r")),
+            step(
+                call(
+                    "remember", {"text": "it says hello", "file": "hello.py", "start_line": 1}, "m"
+                )
+            ),
+            text("one done"),
+            text("two done"),
+        ],
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     ended(client, pid)
@@ -604,8 +815,11 @@ def test_remember_in_a_job_rests_on_its_copy_s_lines(make_client, wait_run, proj
     assert said["status"] == "succeeded", said["result"]
 
     def stands():
-        (note,) = [r for r in client.get(f"/api/projects/{pid}/memory").json()["journal"]
-                   if r["text"] == "it says hello"]
+        (note,) = [
+            r
+            for r in client.get(f"/api/projects/{pid}/memory").json()["journal"]
+            if r["text"] == "it says hello"
+        ]
         return note["source_state"]
 
     # the lines it rests on are the copy's: in the project once the job is taken in
@@ -615,13 +829,21 @@ def test_remember_in_a_job_rests_on_its_copy_s_lines(make_client, wait_run, proj
     assert stands() == "unchanged"
 
 
-def test_a_job_that_waited_keeps_its_places_kept_out_after_the_night(make_client, wait_run,
-                                                                    project_dir):
+def test_a_job_that_waited_keeps_its_places_kept_out_after_the_night(
+    make_client, wait_run, project_dir
+):
     (project_dir / "secret").mkdir()
     (project_dir / "secret" / "pay.py").write_bytes(b"pay = 1\n")
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
-        run("git push origin main"), text("two done"), edit("secret/pay.py", "1", "2", "w9"),
-        text("one done")])
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        project_dir,
+        [
+            run("git push origin main"),
+            text("two done"),
+            edit("secret/pay.py", "1", "2", "w9"),
+            text("one done"),
+        ],
+    )
     wait_run(client, cid, run_id)
     start(client, cid)
     one = ended(client, pid)["jobs"][0]

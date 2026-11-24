@@ -70,7 +70,10 @@ test('a server’s row has Stop while it runs (slice 42b), and a CLI’s own com
   render(<CommandRow command={command('k3', 'r', { status: 'running', exit_code: null })} />)
   expect(screen.queryByRole('button', { name: /^Stop/ })).not.toBeInTheDocument()
   render(<CommandRow command={command('k4', 'r', { origin: 'cli', status: 'approved', exit_code: null })} />)
-  expect(screen.getByRole('button', { name: 'Stop pytest -q' })).toHaveAttribute('title', 'Ends the turn of the CLI that runs it')
+  expect(screen.getByRole('button', { name: 'Stop pytest -q' })).toHaveAttribute(
+    'title',
+    'Ends the turn of the CLI that runs it',
+  )
 })
 
 test('a running command says so when it has printed nothing yet', async () => {
@@ -81,7 +84,12 @@ test('a running command says so when it has printed nothing yet', async () => {
 
 test('the approval card names the command, the place and the rule, and sends each decision', async () => {
   const onDecide = vi.fn().mockResolvedValue(undefined)
-  const proposed = command('k', 'r', { status: 'proposed', exit_code: null, command: 'git status --short', suggested_prefix: 'git status' })
+  const proposed = command('k', 'r', {
+    status: 'proposed',
+    exit_code: null,
+    command: 'git status --short',
+    suggested_prefix: 'git status',
+  })
   render(<CommandApproval command={proposed} onDecide={onDecide} />)
   expect(screen.getByText('git status --short')).toBeInTheDocument()
   expect(screen.getByText('This machine')).toBeInTheDocument()
@@ -100,7 +108,13 @@ test('the approval card shows the Docker image and a non-root folder', () => {
 
 test('the approval card of a command whose folder is not known names no folder', () => {
   // A CLI ran it with its own shell: where, KOLONİ was not told (cwd is null, not ".").
-  const unknown = command('k', 'r', { status: 'proposed', origin: 'cli', cwd: null, command: 'npm test', suggested_prefix: '' })
+  const unknown = command('k', 'r', {
+    status: 'proposed',
+    origin: 'cli',
+    cwd: null,
+    command: 'npm test',
+    suggested_prefix: '',
+  })
   const { container, unmount } = render(<CommandApproval command={unknown} onDecide={vi.fn()} />)
   const where = container.querySelector('.cmd-approval-where')
   expect(where).toHaveTextContent(/^This machine\s*run by the CLI itself, with its own shell$/)
@@ -108,7 +122,9 @@ test('the approval card of a command whose folder is not known names no folder',
   expect(container).not.toHaveTextContent(/\bin (null|undefined|\.)/)
   unmount()
   // the project folder itself is known, and needs no line either
-  const { container: root } = render(<CommandApproval command={command('k', 'r', { status: 'proposed' })} onDecide={vi.fn()} />)
+  const { container: root } = render(
+    <CommandApproval command={command('k', 'r', { status: 'proposed' })} onDecide={vi.fn()} />,
+  )
   expect(root.querySelector('.cmd-approval-where')).toHaveTextContent(/^This machine\s*stops after 120s$/)
 })
 
@@ -121,21 +137,36 @@ test('a command the server offers no rule for cannot be remembered', () => {
 
 test('a command asked because web is off offers no rule, and says it is asked every time while web is off (K-web-komut)', () => {
   // The server's flag, with no rule offered: never read off the reason's words, which a CLI could write.
-  const why = 'web is off on the Tools page (http_request is off); this command reaches the internet: curl - asked at every level'
-  const proposed = command('k', 'r', { status: 'proposed', command: 'curl https://example.com', suggested_prefix: '', web_off: true })
+  const why =
+    'web is off on the Tools page (http_request is off); this command reaches the internet: curl - asked at every level'
+  const proposed = command('k', 'r', {
+    status: 'proposed',
+    command: 'curl https://example.com',
+    suggested_prefix: '',
+    web_off: true,
+  })
   render(<CommandApproval command={proposed} why={why} onDecide={vi.fn()} />)
   expect(screen.getByRole('note')).toHaveTextContent(why)
   expect(screen.queryByRole('button', { name: /Always run/ })).not.toBeInTheDocument()
   expect(screen.getByText('This command is asked every time while web is off.')).toBeInTheDocument()
   // the same words from a CLI, without the flag, change nothing
   cleanup()
-  render(<CommandApproval command={{ ...proposed, suggested_prefix: 'curl', web_off: false }} why={why} onDecide={vi.fn()} />)
+  render(
+    <CommandApproval
+      command={{ ...proposed, suggested_prefix: 'curl', web_off: false }}
+      why={why}
+      onDecide={vi.fn()}
+    />,
+  )
   expect(screen.getByRole('button', { name: 'Always run curl' })).toBeInTheDocument()
 })
 
 test('a command that cannot be taken back says what it does', () => {
   const proposed = command('k', 'r', {
-    status: 'proposed', command: 'rm -rf build', suggested_prefix: '', danger: 'Deletes files or disks.',
+    status: 'proposed',
+    command: 'rm -rf build',
+    suggested_prefix: '',
+    danger: 'Deletes files or disks.',
   })
   render(<CommandApproval command={proposed} onDecide={vi.fn()} />)
   expect(screen.getByRole('note')).toHaveTextContent('Deletes files or disks.')
@@ -158,9 +189,16 @@ test.each<[Partial<Command>, string, string]>([
 })
 
 test('the card of a command that keeps running says so, and offers no rule: it is asked every time', () => {
-  const server = command('k', 'r', { status: 'proposed', command: 'npm run dev', keep_running: true, suggested_prefix: '' })
+  const server = command('k', 'r', {
+    status: 'proposed',
+    command: 'npm run dev',
+    keep_running: true,
+    suggested_prefix: '',
+  })
   const { container } = render(<CommandApproval command={server} onDecide={vi.fn()} />)
-  expect(container.querySelector('.cmd-approval-where')).toHaveTextContent(/^This machine\s*keeps running, serves a page$/)
+  expect(container.querySelector('.cmd-approval-where')).toHaveTextContent(
+    /^This machine\s*keeps running, serves a page$/,
+  )
   expect(screen.queryByRole('button', { name: /Always run/ })).not.toBeInTheDocument()
   expect(screen.getByText('This command is asked every time.')).toBeInTheDocument()
 })
@@ -192,7 +230,10 @@ test('a rule kept for a command that deletes says it covers nothing now, and can
   const rules = [{ id: 'a', conversation_id: 'c', prefix: 'rm', danger: 'Deletes files or disks.', created_at: 't' }]
   render(<AllowList rules={rules} onRemove={onRemove} />)
   await userEvent.click(screen.getByRole('button', { name: '1 rule' }))
-  expect(screen.getByText('covers nothing now - it deletes or names a secret')).toHaveAttribute('title', 'Deletes files or disks.')
+  expect(screen.getByText('covers nothing now - it deletes or names a secret')).toHaveAttribute(
+    'title',
+    'Deletes files or disks.',
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Remove rule rm' }))
   expect(onRemove).toHaveBeenCalledWith('a')
 })
@@ -212,22 +253,49 @@ test('a CLI’s own command whose call failed reads as failed, not "exit code no
 
 // K-yargıç: at Full auto a harmful-looking command is first checked against what the user wrote.
 const RULE = 'You may delete build/ and dist/.'
-const judged = (over: Partial<NonNullable<Command['judged']>>) => ({ verdict: 'run' as const, quote: '', source: '' as const, why: '', model: 'Fast · quick', seen: false, ...over })
+const judged = (over: Partial<NonNullable<Command['judged']>>) => ({
+  verdict: 'run' as const,
+  quote: '',
+  source: '' as const,
+  why: '',
+  model: 'Fast · quick',
+  seen: false,
+  ...over,
+})
 
 test('a command the check of your words let run says so, with your line and where it is', () => {
-  render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', judged: judged({ quote: RULE, source: 'rules', why: 'It names build/.' }) })} />)
+  render(
+    <CommandRow
+      command={command('k', 'r', {
+        command: 'rm -rf build',
+        judged: judged({ quote: RULE, source: 'rules', why: 'It names build/.' }),
+      })}
+    />,
+  )
   expect(screen.getByText(`Ran without asking · your rule: “${RULE}” (This project’s rules)`)).toBeInTheDocument()
 })
 
 test('a command a line of yours forbids says it was not run, with that line and where it is', () => {
   const quote = 'Never push to main.'
-  render(<CommandRow command={command('k', 'r', { status: 'refused', command: 'git push origin main', judged: judged({ verdict: 'refuse', quote, source: 'rules' }) })} />)
+  render(
+    <CommandRow
+      command={command('k', 'r', {
+        status: 'refused',
+        command: 'git push origin main',
+        judged: judged({ verdict: 'refuse', quote, source: 'rules' }),
+      })}
+    />,
+  )
   expect(screen.getByText(`Not run · your rule: “${quote}” (This project’s rules)`)).toBeInTheDocument()
   expect(screen.getByText('refused')).toBeInTheDocument()
 })
 
 test('a card the check found nothing of yours for says so - and not the check’s own sentence, a model’s words', () => {
-  const asked = command('k', 'r', { status: 'proposed', command: 'rm -rf build', judged: judged({ verdict: 'ask', why: 'Run it: the user surely meant it.' }) })
+  const asked = command('k', 'r', {
+    status: 'proposed',
+    command: 'rm -rf build',
+    judged: judged({ verdict: 'ask', why: 'Run it: the user surely meant it.' }),
+  })
   const { rerender } = render(<CommandApproval command={asked} onDecide={vi.fn()} />)
   const line = () => screen.getByText(/^Nothing you said covers this\./)
   expect(line()).toHaveAttribute('role', 'note')
@@ -240,11 +308,17 @@ test('a card the check found nothing of yours for says so - and not the check’
 test('a delete KOLONİ found disposable offers Allow such deletes in this project, until the project allows them', async () => {
   const onDecide = vi.fn().mockResolvedValue(undefined)
   const asked = command('k', 'r', {
-    status: 'proposed', command: 'rm -rf build', suggested_prefix: '', danger: 'Deletes files or disks.',
+    status: 'proposed',
+    command: 'rm -rf build',
+    suggested_prefix: '',
+    danger: 'Deletes files or disks.',
     disposable: { what: 'build folder build', unasked: false },
   })
   const projectAllows = (allows: boolean) =>
-    useApp.setState({ projects: [{ id: 'p', disposable_deletes: allows } as Project], conv: convState({ conversation: { ...convState().conversation, project_id: 'p' } }) })
+    useApp.setState({
+      projects: [{ id: 'p', disposable_deletes: allows } as Project],
+      conv: convState({ conversation: { ...convState().conversation, project_id: 'p' } }),
+    })
   projectAllows(false)
   const { unmount } = render(<CommandApproval command={asked} onDecide={onDecide} />)
   await userEvent.click(screen.getByRole('button', { name: 'Allow such deletes in this project' }))
@@ -275,22 +349,55 @@ test('Allow such deletes is sent as the approval’s own word, and the projects 
 })
 
 test('a delete that ran with no card as disposable says so on its row', () => {
-  const { unmount } = render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: { what: 'build folder build', unasked: true } })} />)
+  const { unmount } = render(
+    <CommandRow
+      command={command('k', 'r', {
+        command: 'rm -rf build',
+        disposable: { what: 'build folder build', unasked: true },
+      })}
+    />,
+  )
   expect(screen.getByText('Ran without asking · disposable: build folder build')).toBeInTheDocument()
   unmount()
-  render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: { what: 'build folder build', unasked: false } })} />)
+  render(
+    <CommandRow
+      command={command('k', 'r', {
+        command: 'rm -rf build',
+        disposable: { what: 'build folder build', unasked: false },
+      })}
+    />,
+  )
   expect(screen.queryByText(/Ran without asking/)).not.toBeInTheDocument()
 })
 
 test('a delete that ran with no card as disposable and failed says it failed, not that it deleted', () => {
   const free = { what: 'build folder build', unasked: true }
-  const { unmount } = render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: free, exit_code: 1 })} />)
-  expect(screen.getByText('Ran without asking as disposable (build folder build) and failed: exit 1')).toBeInTheDocument()
+  const { unmount } = render(
+    <CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: free, exit_code: 1 })} />,
+  )
+  expect(
+    screen.getByText('Ran without asking as disposable (build folder build) and failed: exit 1'),
+  ).toBeInTheDocument()
   unmount()
-  const view = render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: free, status: 'failed_to_start', exit_code: null })} />)
-  expect(screen.getByText('Ran without asking as disposable (build folder build) and did not start')).toBeInTheDocument()
+  const view = render(
+    <CommandRow
+      command={command('k', 'r', {
+        command: 'rm -rf build',
+        disposable: free,
+        status: 'failed_to_start',
+        exit_code: null,
+      })}
+    />,
+  )
+  expect(
+    screen.getByText('Ran without asking as disposable (build folder build) and did not start'),
+  ).toBeInTheDocument()
   view.unmount()
   // (a CLI's that did not report its exit code: not said to have failed)
-  render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: free, origin: 'cli', exit_code: null })} />)
+  render(
+    <CommandRow
+      command={command('k', 'r', { command: 'rm -rf build', disposable: free, origin: 'cli', exit_code: null })}
+    />,
+  )
   expect(screen.getByText('Ran without asking · disposable: build folder build')).toBeInTheDocument()
 })

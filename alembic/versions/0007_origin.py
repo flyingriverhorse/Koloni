@@ -3,6 +3,7 @@
 Revision ID: 0007
 Revises: 0006
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -17,8 +18,9 @@ TABLES = ("tool_calls", "commands", "file_changes")
 def upgrade() -> None:
     for table in TABLES:
         with op.batch_alter_table(table) as batch:
-            batch.add_column(sa.Column(
-                "origin", sa.String(length=8), nullable=False, server_default="koloni"))
+            batch.add_column(
+                sa.Column("origin", sa.String(length=8), nullable=False, server_default="koloni")
+            )
 
 
 def downgrade() -> None:

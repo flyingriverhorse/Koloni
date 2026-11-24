@@ -51,15 +51,17 @@ def add_category(body: CategoryIn, request: Request, session: Session = Depends(
     if (session.scalar(select(func.count()).select_from(Category)) or 0) >= MOST:
         raise HTTPException(409, f"there are {MOST} categories already: delete an empty one first")
     last = session.scalar(select(func.max(Category.position)))
-    session.add(Category(name=body.name, colour=body.colour,
-                         position=0 if last is None else last + 1))
+    session.add(
+        Category(name=body.name, colour=body.colour, position=0 if last is None else last + 1)
+    )
     session.commit()
     return _all(session)
 
 
 @router.patch("/{key}", response_model=list[CategoryOut])
-def change_category(key: str, body: CategoryPatch, request: Request,
-                    session: Session = Depends(get_session)):
+def change_category(
+    key: str, body: CategoryPatch, request: Request, session: Session = Depends(get_session)
+):
     require_own_origin(request)
     category = _category(session, key)
     if body.name is not None:
@@ -72,8 +74,9 @@ def change_category(key: str, body: CategoryPatch, request: Request,
 
 
 @router.put("", response_model=list[CategoryOut])
-def order_categories(body: CategoryOrder, request: Request,
-                     session: Session = Depends(get_session)):
+def order_categories(
+    body: CategoryOrder, request: Request, session: Session = Depends(get_session)
+):
     require_own_origin(request)
     every = _all(session)
     if sorted(body.order) != sorted(one.key for one in every):
@@ -92,16 +95,23 @@ def delete_category(key: str, request: Request, session: Session = Depends(get_s
     # The four built-in ones stay: "check" says who reports findings (app.agent), and the
     # built-in roles land in theirs (`landing_kind`).
     if key in BUILT_IN:
-        raise HTTPException(409, f"{category.name} is one of KOLONİ's four categories: it can be "
-                                 "renamed and recoloured, not deleted")
+        raise HTTPException(
+            409,
+            f"{category.name} is one of KOLONİ's four categories: it can be "
+            "renamed and recoloured, not deleted",
+        )
     # (A team's lead is in none, whatever its kind reads.)
     # shortcut: a role moved in between this count and the delete is left in no category (the
     # library shows it under its key); count again in one statement if that is ever seen.
-    held = session.scalar(select(func.count()).select_from(Role).where(
-        Role.kind == key, Role.id.not_in(LEADS)))
+    held = session.scalar(
+        select(func.count()).select_from(Role).where(Role.kind == key, Role.id.not_in(LEADS))
+    )
     if held:
-        raise HTTPException(409, f"{category.name} holds {held} role{'s' if held != 1 else ''}: "
-                                 "move them to another category first")
+        raise HTTPException(
+            409,
+            f"{category.name} holds {held} role{'s' if held != 1 else ''}: "
+            "move them to another category first",
+        )
     session.delete(category)
     session.commit()
     return Response(status_code=204)

@@ -4,9 +4,13 @@ import { ALIBABA_CONSOLE, nextStep, planConsole } from './failure'
 const failed = { failure: null, failure_resets_at: null, error: null }
 
 test('a failure says the one step to take, where one is known', () => {
-  expect(nextStep({ ...failed, failure: 'rate_limited', failure_resets_at: '2026-10-20T14:00:00Z' })).toBe('Wait until it resets, or pick another model.')
+  expect(nextStep({ ...failed, failure: 'rate_limited', failure_resets_at: '2026-10-20T14:00:00Z' })).toBe(
+    'Wait until it resets, or pick another model.',
+  )
   expect(nextStep({ ...failed, failure: 'rate_limited' })).toBe('Wait a while, or pick another model.')
-  expect(nextStep({ ...failed, failure: 'credits_exhausted' })).toBe('Add credits to that account, or pick another model.')
+  expect(nextStep({ ...failed, failure: 'credits_exhausted' })).toBe(
+    'Add credits to that account, or pick another model.',
+  )
   expect(nextStep({ ...failed, failure: 'signed_out' })).toBe('Sign in to it again, or pick another model.')
   expect(nextStep({ ...failed, failure: 'cli_crashed' })).toBe('Send the message again.')
   expect(nextStep({ ...failed, failure: 'empty_output' })).toBe('Send the message again.')
@@ -22,7 +26,11 @@ test('a failure says the one step to take, where one is known', () => {
 test("a plan key's quota used up says when it comes back, and Alibaba's where to see what is left", () => {
   const alibaba = { plan: true, base_url: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/v1' }
   const other = { plan: true, base_url: 'https://api.example.com/v1' }
-  const usedUp = { ...failed, failure: 'rate_limited' as const, error: 'model server returned 429: Your token-plan quota has been exhausted.' }
+  const usedUp = {
+    ...failed,
+    failure: 'rate_limited' as const,
+    error: 'model server returned 429: Your token-plan quota has been exhausted.',
+  }
   const byCode = { ...usedUp, error: 'model server returned 429: {"error": {"code": "insufficient_quota"}}' }
   const throttle = { ...usedUp, error: 'model server returned 429: Requests rate limit exceeded' }
   const back = 'Plan quota used up – it comes back at the start of its next subscription month, or with a usage bundle.'

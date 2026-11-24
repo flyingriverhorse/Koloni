@@ -8,12 +8,27 @@ import { ProjectMap } from './ProjectMap'
 
 const project = { id: 'p', name: 'Skyulf' } as Project
 const part = (path: string, more: Partial<MapOf['parts'][number]> = {}): MapOf['parts'][number] => ({
-  path, language: 'Python', files: 412, more: false, agents_md: false, guess: null, test: null, edited: false, ...more,
+  path,
+  language: 'Python',
+  files: 412,
+  more: false,
+  agents_md: false,
+  guess: null,
+  test: null,
+  edited: false,
+  ...more,
 })
 const map: MapOf = {
-  git: true, big: true, partial: false, not_copied: ['data/', 'mlruns/'],
+  git: true,
+  big: true,
+  partial: false,
+  not_copied: ['data/', 'mlruns/'],
   parts: [
-    part('skyulf-core/', { agents_md: true, guess: '..\\.venv\\Scripts\\python.exe -m pytest', test: '..\\.venv\\Scripts\\python.exe -m pytest' }),
+    part('skyulf-core/', {
+      agents_md: true,
+      guess: '..\\.venv\\Scripts\\python.exe -m pytest',
+      test: '..\\.venv\\Scripts\\python.exe -m pytest',
+    }),
     part('frontend/', { language: 'TypeScript', files: 1000, more: true }),
   ],
 }
@@ -25,10 +40,15 @@ test('the map lists each part with its language, files, AGENTS.md and test, and 
   render(<ProjectMap project={project} />)
   const table = await screen.findByRole('table', { name: 'Parts of this folder' })
   expect(screen.getByText('Skyulf (git, 2 parts)')).toBeInTheDocument()
-  const [core, front] = within(table).getAllByRole('row').slice(1)
+  // (0.1.7: the whole project's row first, where no part is at its root - its test command may be set)
+  const [whole, core, front] = within(table).getAllByRole('row').slice(1)
+  expect(whole).toHaveTextContent(/^\.\/the whole project0✗/)
+  expect(within(whole).getByLabelText('Test command for ./')).toHaveValue('')
   expect(within(core).getByRole('rowheader')).toHaveTextContent('skyulf-core/')
   expect(core).toHaveTextContent(/^skyulf-core\/Python412✓guess$/)
-  expect(within(core).getByLabelText('Test command for skyulf-core/')).toHaveValue('..\\.venv\\Scripts\\python.exe -m pytest')
+  expect(within(core).getByLabelText('Test command for skyulf-core/')).toHaveValue(
+    '..\\.venv\\Scripts\\python.exe -m pytest',
+  )
   expect(front).toHaveTextContent('TypeScript1000+✗')
   expect(within(front).getByLabelText('Test command for frontend/')).toHaveAttribute('placeholder', 'no test')
   expect(screen.getByText('Not copied (git ignores, the project is big): data/, mlruns/')).toBeInTheDocument()
@@ -76,7 +96,9 @@ test('a guess saved empty is no test; Use guess brings the guess back', async ()
   await userEvent.click(await screen.findByRole('button', { name: 'Use guess for skyulf-core/' }))
   expect(del).toHaveBeenCalledWith('/projects/p/map/test?path=skyulf-core%2F')
   expect(get.mock.calls.filter(([path]) => path === '/projects/p/map')).toHaveLength(2)
-  expect(await screen.findByLabelText('Test command for skyulf-core/')).toHaveValue('..\\.venv\\Scripts\\python.exe -m pytest')
+  expect(await screen.findByLabelText('Test command for skyulf-core/')).toHaveValue(
+    '..\\.venv\\Scripts\\python.exe -m pytest',
+  )
 })
 
 test('a saved test command reads the project again: Settings › After a change names it', async () => {
@@ -108,16 +130,22 @@ test('the map’s line: one part, no git, and that not every folder was looked i
   expect(screen.getByRole('status')).toHaveTextContent(/^Looking…$/)
   expect(screen.queryByText(/^Skyulf \(/)).toBeNull()
   told({ ...map, git: false, big: false, partial: true, not_copied: [], parts: [part('app/')] })
-  expect(await screen.findByText(/^Skyulf \(1 part\)/)).toHaveTextContent(/^Skyulf \(1 part\) · not every folder was looked in$/)
+  expect(await screen.findByText(/^Skyulf \(1 part\)/)).toHaveTextContent(
+    /^Skyulf \(1 part\) · not every folder was looked in$/,
+  )
   expect(screen.getByText('· not every folder was looked in')).toHaveClass('muted')
   expect(screen.getByRole('status')).toHaveTextContent(/^$/)
   expect(screen.queryByText(/Not copied|Too big to copy|No part found/)).toBeNull()
   rerender(<ProjectMap project={{ ...project, id: 'q' }} />)
   told({ ...map, git: false, parts: [] })
   expect(await screen.findByText('Skyulf (0 parts)')).toBeInTheDocument()
-  expect(screen.getByText('No part found: no folder has a project file.')).toHaveClass('muted')
+  expect(
+    screen.getByText(
+      'No part found: no folder has a project file. A test command for the whole project still runs from its root.',
+    ),
+  ).toHaveClass('muted')
   expect(screen.getByText('Too big to copy: agents work in the folder itself.')).toHaveClass('choice-note')
-  expect(screen.queryByRole('table')).toBeNull()
+  expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2) // (the whole project's row alone)
 })
 
 test('a map that cannot be read says why, and no longer says it is looking', async () => {

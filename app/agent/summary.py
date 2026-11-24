@@ -3,6 +3,7 @@
 checked (`_findings`, `_checked`, `_hand_on`).
 `_lines_written_out` gives a model's text its line breaks back.
 """
+
 import itertools
 import json
 import os
@@ -26,8 +27,11 @@ FAILING_BEFORE = "already failing before"
 # B-387 (live): a finding a reviewer marks so in its own line - starting "Pre-existing:" or
 # "Already failing before", or with "(pre-existing)" / "(already failing before)" in it - is no
 # finding either, unless it is about security or says a failure of its own (`_marked_before`).
-BEFORE = re.compile(r"^\**pre-?existing\**\s*:|^\**already failing before\b"
-                    r"|\((?:already failing before|pre-?existing)\)", re.IGNORECASE)
+BEFORE = re.compile(
+    r"^\**pre-?existing\**\s*:|^\**already failing before\b"
+    r"|\((?:already failing before|pre-?existing)\)",
+    re.IGNORECASE,
+)
 KIND = re.compile(r"\|\s*kind\s*:\s*[*`]*(\w+)", re.IGNORECASE)
 BULLET = re.compile(r"^(?:[-*•]|\d+[.)])\s+")
 
@@ -37,14 +41,28 @@ BULLET = re.compile(r"^(?:[-*•]|\d+[.)])\s+")
 # shortcut: by its words ("fails", "error", "exit code 1", "hata"), not a command's exit code
 # on record: which command is "the tests" is not known, and a grep with no match exits 1 (as
 # `recipe_run._if_found` says); "could fail on x" is blocking too - the safe way round.
-FAILS = re.compile(r"\b(?:fail(?:s|ed|ing|ures?)?|errors?|exit(?:s|ed)? [1-9]|exit code [1-9]"
-                   r"|raises|traceback|başarısız\w*|hata\w*)", re.IGNORECASE)
+FAILS = re.compile(
+    r"\b(?:fail(?:s|ed|ing|ures?)?|errors?|exit(?:s|ed)? [1-9]|exit code [1-9]"
+    r"|raises|traceback|başarısız\w*|hata\w*)",
+    re.IGNORECASE,
+)
+# FINDINGS_PROMPT's own row echoed back, its placeholders unfilled: no finding.
+ECHOED = re.compile(r"\s*<what>\s*\|", re.IGNORECASE)
 # What a Findings section says when nothing was found, after its bullet and before a full stop.
-NO_FINDINGS = frozenset({"none", "none found", "no findings", "no issues", "no issues found",
-                         "no problems", "no problems found"})
+NO_FINDINGS = frozenset(
+    {
+        "none",
+        "none found",
+        "no findings",
+        "no issues",
+        "no issues found",
+        "no problems",
+        "no problems found",
+    }
+)
 
 
-TRIMMED ="[older tool output removed to save context]"
+TRIMMED = "[older tool output removed to save context]"
 TRIMMED_TAIL = "\n[the rest of this tool output was cut to fit the context]"
 
 
@@ -73,9 +91,12 @@ def _size(message: dict) -> int:
     # pixels if a step is seen to pass its window for them.
     calls = message.get("tool_calls") or []
     # (An answer sent back as it came is sent with its thinking too: counted over its words.)
-    return (len(message.get("content") or "") + sum(len(c["function"]["arguments"]) for c in calls)
-            + FILE_CHARS * len(message.get("files") or ())
-            + (len(json.dumps(message["blocks"])) if message.get("blocks") else 0))
+    return (
+        len(message.get("content") or "")
+        + sum(len(c["function"]["arguments"]) for c in calls)
+        + FILE_CHARS * len(message.get("files") or ())
+        + (len(json.dumps(message["blocks"])) if message.get("blocks") else 0)
+    )
 
 
 @dataclass
@@ -135,9 +156,9 @@ def _compacted(messages: list[dict], at: int, summary: str, files: str = "") -> 
     every message of the user's in that part as it was (an answer of theirs as a message:
     its call is not sent), the summary and the files read after it, then the rest as it is."""
     theirs = [
-        {"role": "user", "content": message["content"]} if message["role"] == "tool"
-        else message
-        for message in messages[1:at] if _theirs(message)
+        {"role": "user", "content": message["content"]} if message["role"] == "tool" else message
+        for message in messages[1:at]
+        if _theirs(message)
     ]
     summarised = _Summarised(role="user", content=SUMMARISED.format(summary=summary) + files)
     return [messages[0], *theirs, summarised, *messages[at:]]
@@ -153,8 +174,7 @@ def _summarised(messages: list[dict], summary: _Summary) -> list[dict]:
         return messages
     last = _last_exchange(messages) or 0
     return [
-        {**m, "content": TRIMMED} if i < last and m["role"] == "tool" and not _theirs(m)
-        else m
+        {**m, "content": TRIMMED} if i < last and m["role"] == "tool" and not _theirs(m) else m
         for i, m in enumerate(messages)
     ]
 
@@ -178,73 +198,122 @@ def _sections(state: str) -> dict[str, list[str]]:
     return found
 
 
-def _handed_findings(given: dict, roles: list[str], agents: dict[str, str] | None = None
-                     ) -> tuple[list[dict], bool, list[str]]:
+def _handed_findings(
+    given: dict, roles: list[str], agents: dict[str, str] | None = None
+) -> tuple[list[dict], bool, list[str]]:
     """89p: what a report handed back in REPORT_SCHEMA says - its findings (as `_findings`
     gives them, held to B-192's rules), whether it says what it checked, what was failing
     before - read from its fields, not its words. Findings it wrote in its words all the same,
     with none in `findings`, are read from there as from any report: fail closed."""
-    found = [{"what": " ".join(f["what"].split())[:MAX_WHAT], "kind": f["kind"],
-              "role": _role_named(f["role"], roles, agents or {}),
-              "blocking": f["blocking"] or f["kind"] == "security" or bool(FAILS.search(f["what"]))}
-             for f in given["findings"] if f["what"].strip()][:MAX_FINDINGS]
+    found = [
+        {
+            "what": " ".join(f["what"].split())[:MAX_WHAT],
+            "kind": f["kind"],
+            "role": _role_named(f["role"], roles, agents or {}),
+            "blocking": f["blocking"] or f["kind"] == "security" or bool(FAILS.search(f["what"])),
+        }
+        for f in given["findings"]
+        if f["what"].strip()
+    ][:MAX_FINDINGS]
     if not found:
         found = _findings(given["report"], roles, agents) or []
     checked = given.get("checked", "").strip(" *`.").casefold() not in NOTHING_CHECKED
-    failing = [" ".join(what.split())[:MAX_WHAT] for what in given.get("failing_before", [])
-               if what.strip()][:MAX_FINDINGS]
+    failing = [
+        " ".join(what.split())[:MAX_WHAT]
+        for what in given.get("failing_before", [])
+        if what.strip()
+    ][:MAX_FINDINGS]
     return found, checked, failing
 
 
-def _findings(report: str, roles: list[str], agents: dict[str, str] | None = None
-              ) -> list[dict] | None:
-    """What a check role's report says in its Findings section (`FINDINGS_PROMPT`), each
-    finding as {"what", "kind", "role", "blocking"}: [] where it says nothing was found
-    (NO_FINDINGS), None where it has no such section or no line of it is in the format. The
-    section is the last one outside a fenced block; it ends at the next heading or fence, and a line
-    on the heading itself is read like the rest. It is a model's text: each line is cut
-    before it is read, a kind not of FINDING_KINDS is "other", and a role is one of
-    `roles` (those that may be opened here), as spelled there, else None (`_role_named`: an
-    agent of `agents` names its role)."""
+def _findings(
+    report: str, roles: list[str], agents: dict[str, str] | None = None
+) -> list[dict] | None:
+    """What a check role's report says in its Findings sections (`FINDINGS_PROMPT`), each
+    finding as {"what", "kind", "role", "blocking"}: the rows in the format of all of them
+    (`_findings_section`); with none anywhere, [] where it says nothing was found (NO_FINDINGS
+    on a line of its own, or only what was failing before), else None - no such section, or no
+    line of it in the format. A "Findings: <summary>" line never takes a row away ("Findings: 1
+    blocking" above its rows, "Findings: see above" closing the report), nor does the prompt's
+    own row echoed (`<what>`). It is a model's text: each line is cut before it is read, a kind
+    not of FINDING_KINDS is "other", and a role is one of `roles` (those that may be opened
+    here), as spelled there, else None (`_role_named`: an agent of `agents` names its role)."""
     lines, failing = _findings_section(report)
     if lines is None:
         return None
-    said = [BULLET.sub("", line) for line in lines if line]
+    said = [
+        one for one in (BULLET.sub("", line) for line in lines if line) if not ECHOED.match(one)
+    ]
     kept = [line for line in said if _marked_before(line) is None]
     said, failing = kept, failing or len(kept) < len(said)
+    if (found := _findings_read(said, roles, agents)) is not None:
+        return found
     if not said and failing:
         return []  # (only what was failing before: nothing found)
-    if len(said) == 1 and said[0].rstrip(".!").casefold() in NO_FINDINGS:
-        return []
-    return _findings_read(said, roles, agents)
+    return [] if any(one.rstrip(".!").casefold() in NO_FINDINGS for one in said) else None
+
+
+# A markdown heading: one to six `#` at a line's very start, then a space or its end - `#main` and
+# an indented `# comment` (quoted code) are no heading, and close no section.
+HEADING = re.compile(r"#{1,6}(?=[ \t]|$)")
+# A Findings section's heading by another name: "## Findings (1)", "## Review findings" - never
+# an earlier look's ("## Previous findings", as `review_mixin._EARLIER` reads a verdict).
+FINDINGS_NAMED = re.compile(
+    r"(?!(?:previous|earlier|last|old|resolved)\b)(?:\w+\s+)?findings\b.*", re.IGNORECASE
+)
+
+
+def fence(line: str) -> bool:
+    """Whether a line opens or closes a fenced block: ``` (three or more) with no backtick after
+    them on the line - "```eval(x)``` is called" is a code span at its start, no fence - or ~~~."""
+    bare = line.strip()
+    return bare.startswith("~~~") or (bare.startswith("```") and "`" not in bare.lstrip("`"))
 
 
 def _findings_section(report: str) -> tuple[list[str] | None, bool]:
-    """`_findings`: the lines of a report's last Findings section outside a fenced block
-    (None: there is none), and whether it says what was failing before."""
+    """`_findings`: the lines of all of a report's Findings sections - each a `#… Findings`
+    heading or a "Findings:" line (what follows it on its line its first), to the next heading
+    of its level or above (a `### Blocking` under `## Findings` is its own; after a "Findings:"
+    line, any heading) - outside a fenced block: a fence's lines are not read, and the section
+    open before it goes on after it. A label line in it (`Checked: …`) ends nothing. None: there
+    is none. One indented (four spaces, a tab) or after `>` opens none, as `verdict_of` reads them
+    (an earlier look quoted), and ends none: under an open one its rows are read with the rest -
+    rows indented under an open one are its own (a nested list); failing towards holding. And
+    whether it says what was failing before."""
     lines: list[str] | None = None
-    under = fenced = failing = False
+    under = fenced = failing = was = False
+    level = 0  # (the open one's heading level; 0: a "Findings:" line)
     for line in report.splitlines():
-        bare = line.strip()[:2 * MAX_WHAT]
-        if bare.startswith(("```", "~~~")):
-            fenced, under = not fenced, False
+        bare = line.strip()[: 2 * MAX_WHAT]
+        if fence(bare):
+            # (into a fence: nothing read; out of it: the section open before it goes on)
+            was, under = (under, False) if not fenced else (was, was)
+            fenced = not fenced
             continue
         if fenced:
             continue
-        name, _, rest = bare.lstrip("#").strip(" *").partition(":")
+        quoted = line.startswith(("    ", "\t")) or bare.startswith(">")
+        name, _, rest = bare.lstrip("> ").lstrip("#").strip(" *").partition(":")
+        depth = len(head[0]) if (head := HEADING.match(line)) else 0
+        named = name.strip(" *").casefold() == "findings" or bool(
+            depth and FINDINGS_NAMED.fullmatch(name.strip(" *"))
+        )
         if name.strip(" *-•").casefold() == FAILING_BEFORE:
             failing = True  # (no finding, wherever it is: B-117)
-        elif name.strip(" *").casefold() == "findings":
-            lines, under = [rest.strip(" *")], True
-        elif bare.startswith("#") or name.strip(" *-•").casefold() == "checked":
+        elif named and quoted:
+            continue  # (an earlier look's, quoted: opens none, ends none)
+        elif named:
+            lines, under, level = [*(lines or []), rest.strip(" *")], True, depth
+        elif depth and not (under and level and depth > level):
             under = False
         elif under and lines is not None:
             lines.append(bare)
     return lines, failing
 
 
-def _findings_read(said: list[str], roles: list[str], agents: dict[str, str] | None
-                   ) -> list[dict] | None:
+def _findings_read(
+    said: list[str], roles: list[str], agents: dict[str, str] | None
+) -> list[dict] | None:
     """`_findings`: each line in the format as a finding (MAX_FINDINGS at most); None for none."""
     found = []
     for line in said:
@@ -257,16 +326,19 @@ def _findings_read(said: list[str], roles: list[str], agents: dict[str, str] | N
             given.setdefault(key.strip(" *`").casefold(), value.strip(" *`"))
         kind = given.get("kind", "").casefold()
         if what.strip():
-            found.append({
-                "what": what.strip()[:MAX_WHAT],
-                "kind": kind if kind in FINDING_KINDS else "other",
-                "role": _role_named(given.get("role", ""), roles, agents or {}),
-                # (Unmarked is blocking: a report of before B-192 loops as it did. A suggestion
-                # is said in the last field only; `blocking` anywhere in the line wins.)
-                "blocking": line.rsplit("|", 1)[-1].strip(" *`.").casefold() != "suggestion"
-                or kind == "security" or bool(re.search(r"\bblocking\b", line, re.IGNORECASE))
-                or bool(FAILS.search(what)),
-            })
+            found.append(
+                {
+                    "what": what.strip()[:MAX_WHAT],
+                    "kind": kind if kind in FINDING_KINDS else "other",
+                    "role": _role_named(given.get("role", ""), roles, agents or {}),
+                    # (Unmarked is blocking: a report of before B-192 loops as it did. A suggestion
+                    # is said in the last field only; `blocking` anywhere in the line wins.)
+                    "blocking": line.rsplit("|", 1)[-1].strip(" *`.").casefold() != "suggestion"
+                    or kind == "security"
+                    or bool(re.search(r"\bblocking\b", line, re.IGNORECASE))
+                    or bool(FAILS.search(what)),
+                }
+            )
         if len(found) == MAX_FINDINGS:
             break
     return found or None
@@ -277,8 +349,8 @@ def _failing_before(report: str) -> list[str]:
     a fenced block."""
     fenced, said = False, []
     for line in report.splitlines():
-        bare = line.strip()[:2 * MAX_WHAT]
-        if bare.startswith(("```", "~~~")):
+        bare = line.strip()[: 2 * MAX_WHAT]
+        if fence(bare):
             fenced = not fenced
             continue
         if fenced:
@@ -297,8 +369,12 @@ def _marked_before(line: str) -> str | None:
     not one about security, nor one that says a failure besides its mark; None for any other."""
     what = line.split("|", 1)[0].strip(" `")
     kind = KIND.search(line)
-    if not kind or not BEFORE.search(what) or kind.group(1).casefold() == "security" or (
-            FAILS.search(BEFORE.sub("", what))):
+    if (
+        not kind
+        or not BEFORE.search(what)
+        or kind.group(1).casefold() == "security"
+        or (FAILS.search(BEFORE.sub("", what)))
+    ):
         return None
     return what[:MAX_WHAT]
 
@@ -308,7 +384,7 @@ def _checked(report: str) -> bool:
     fenced block, saying something ("nothing" is not)."""
     fenced = False
     for line in report.splitlines():
-        if line.strip().startswith(("```", "~~~")):
+        if fence(line):
             fenced = not fenced
             continue
         name, _, rest = line.strip().lstrip("#-*• ").partition(":")
@@ -322,8 +398,14 @@ def _agent_named(session, run_id: str, name: str) -> Agent | None:
     """The agent of a turn by the name other agents call it (`Agent.name`), spaces and case
     aside."""
     said = " ".join(name.split()).casefold()
-    return next((agent for agent in session.scalars(select(Agent).where(Agent.run_id == run_id))
-                 if agent.name.casefold() == said), None)
+    return next(
+        (
+            agent
+            for agent in session.scalars(select(Agent).where(Agent.run_id == run_id))
+            if agent.name.casefold() == said
+        ),
+        None,
+    )
 
 
 def _role_named(said: str, roles: list[str], agents: dict[str, str]) -> str | None:
@@ -336,8 +418,11 @@ def _role_named(said: str, roles: list[str], agents: dict[str, str]) -> str | No
     at it."""
     named = {role.casefold(): role for role in roles}
     said = " ".join(said.split()).casefold()
-    return named.get(said) or named.get(agents.get(said, "").casefold()) or named.get(
-        re.sub(r"\s+\d+$", "", said))
+    return (
+        named.get(said)
+        or named.get(agents.get(said, "").casefold())
+        or named.get(re.sub(r"\s+\d+$", "", said))
+    )
 
 
 def _blocking(findings: list[dict] | None) -> list[dict]:
@@ -351,26 +436,41 @@ def _hand_on(findings: list[dict] | None) -> str:
     are for, and how many suggestions are the user's."""
     blocking = _blocking(findings)
     ideas = len(findings or ()) - len(blocking)
-    said = [f"{role} ({count})" for role, count in
-            Counter(f["role"] for f in blocking if f["role"]).items()]
+    said = [
+        f"{role} ({count})"
+        for role, count in Counter(f["role"] for f in blocking if f["role"]).items()
+    ]
     nobody = sum(1 for f in blocking if not f["role"])
     if nobody:
         said.append(f"no role named ({nobody})")
     return ("\n\nFindings to hand on: " + ", ".join(said) if said else "") + (
-        f"\n\nSuggestions for the user, not to hand on: {ideas}" if ideas else "")
+        f"\n\nSuggestions for the user, not to hand on: {ideas}" if ideas else ""
+    )
 
 
-def _carried(findings: list[dict], role: str, step: list[str] | None = None) -> str:
+def _carried(
+    findings: list[dict], role: str, step: list[str] | None = None, every: bool = False
+) -> str:
     """The blocking findings an agent of `role` is handed (`findings_from`), one line each,
     word for word: those for its role - and, the first role of a recipe's step (`step`, its
     roles casefolded in order), those for no role of it - or all of them where none is.
-    Suggestions stay the user's (B-192)."""
-    findings = _blocking(findings)
-    named = set(step) if step and step[0] == role.casefold() else None
-    mine = [f for f in findings if (f["role"] or "").casefold() == role.casefold() or (
-        named is not None and (f["role"] or "").casefold() not in named)] or findings
+    Suggestions stay the user's (B-192) - but `every`: a step of the turn's recipe handing on
+    to the step its arrow goes to (CL-345), its findings for `role` or for no role, suggestions
+    too, and no others (none: "")."""
+    if every:
+        mine = [f for f in findings if (f["role"] or "").casefold() in ("", role.casefold())]
+    else:
+        findings = _blocking(findings)
+        named = set(step) if step and step[0] == role.casefold() else None
+        mine = [
+            f
+            for f in findings
+            if (f["role"] or "").casefold() == role.casefold()
+            or (named is not None and (f["role"] or "").casefold() not in named)
+        ] or findings
     return "\n".join(
-        f"- {f['what']} | kind: {f['kind']} | role: {f['role'] or 'none'}" for f in mine)
+        f"- {f['what']} | kind: {f['kind']} | role: {f['role'] or 'none'}" for f in mine
+    )
 
 
 def _in_words(message: dict) -> str:
@@ -387,15 +487,18 @@ def _in_words(message: dict) -> str:
     return f"{message['role']}: {message.get('content') or ''}{calls}"
 
 
-def _trim_to_budget(messages: list[dict], budget: int,
-                    calls: Sequence[tuple[dict, ToolCall, bool]] = ()) -> int:
+def _trim_to_budget(
+    messages: list[dict], budget: int, calls: Sequence[tuple[dict, ToolCall, bool]] = ()
+) -> int:
     """Blank out the oldest tool results until the history fits, then cut the newest.
     Returns how many results were blanked out. `calls`: each result's message, its call and
     whether recall_output gives it back - a blanked one is said in a line made from its call
     (`ledger.gist`), and, where it is given back, with the id that gives it whole."""
+
     def of(message: dict) -> tuple[ToolCall | None, bool]:
-        return next(((call, hinted) for made, call, hinted in calls if made is message),
-                    (None, False))
+        return next(
+            ((call, hinted) for made, call, hinted in calls if made is message), (None, False)
+        )
 
     def hint(message: dict) -> str:
         call, hinted = of(message)
@@ -441,14 +544,22 @@ def _without(history: list[dict], kind: str, why: str = "") -> list[dict]:
         if not any(one["kind"] == kind for one in files):
             out.append(message)
             continue
-        kept = [kept for one in files for kept in (
-            (one["frames"] if kind == "video" else []) if one["kind"] == kind else [one])]
+        kept = [
+            kept
+            for one in files
+            for kept in (
+                (one["frames"] if kind == "video" else []) if one["kind"] == kind else [one]
+            )
+        ]
         instead = "as its frames" if kind == "video" and kept else "as its name and summary"
         what = "video" if kind == "video" else "image"
         note = (attachments.TOO_LARGE if why else attachments.REFUSED).format(
-            what=what, instead=instead)
-        again = type(message)({k: v for k, v in message.items() if k != "files"},
-                              content=f"{message['content']}\n\n({note}.)")
+            what=what, instead=instead
+        )
+        again = type(message)(
+            {k: v for k, v in message.items() if k != "files"},
+            content=f"{message['content']}\n\n({note}.)",
+        )
         if kept:
             again["files"] = kept
         out.append(again)
@@ -495,5 +606,10 @@ def _path_in_text(folder: str, after: str = "") -> re.Pattern:
     """A folder's path as an agent writes it in a text, then `after`: where a path starts (the
     text's start, a space, a quote or a bracket - not inside /mnt/home/u/proj), and whole
     (not proj.bak, nor proj-2). Its group 1: the slash that follows it, if one does."""
-    return re.compile(r"(?<![^\s'\"`(\[{<])" + _SLASH.join(map(re.escape, re.split(_SLASH, folder)))
-                      + after + r"(?![\w-]|\.\w)([\\/]+)?", re.IGNORECASE if os.name == "nt" else 0)
+    return re.compile(
+        r"(?<![^\s'\"`(\[{<])"
+        + _SLASH.join(map(re.escape, re.split(_SLASH, folder)))
+        + after
+        + r"(?![\w-]|\.\w)([\\/]+)?",
+        re.IGNORECASE if os.name == "nt" else 0,
+    )

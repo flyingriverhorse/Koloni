@@ -12,23 +12,37 @@ const LEVELS = { ask: 'Ask before changes', auto_edit: 'Auto-edit files', full_a
 /** A panel of the chat's own, opened as its own button opens it (the Teams button over the canvas, the folder button). */
 const press = (id: string) => document.getElementById(id)?.click()
 
-const nameOf = <T extends string>(list: readonly (readonly [T, string, ...unknown[]])[], value: T) => list.find(([key]) => key === value)?.[1] ?? value
+const nameOf = <T extends string>(list: readonly (readonly [T, string, ...unknown[]])[], value: T) =>
+  list.find(([key]) => key === value)?.[1] ?? value
 
 /** What a chat of the project takes from it, in short: one line each. */
 function fromProject(project: Project): [string, string][] {
-  const away = project.when_away === 'lead' ? `${nameOf(WHEN_AWAY, project.when_away)}, after ${project.away_minutes} min` : nameOf(WHEN_AWAY, project.when_away)
+  const away =
+    project.when_away === 'lead'
+      ? `${nameOf(WHEN_AWAY, project.when_away)}, after ${project.away_minutes} min`
+      : nameOf(WHEN_AWAY, project.when_away)
   return [
     ['Who changes the files', nameOf(LEAD_WORK, project.lead_work)],
     ['Opening a sub-agent', nameOf(OPENING, project.spawn_approval)],
     ['When you’re away', away],
-    ['Agents', `${project.max_agents ? `at most ${project.max_agents} in the project` : 'no limit in the project'} · ${project.spawn_max_parallel} at once · ${project.spawn_max_depth} levels · ${project.spawn_max_agents} per request`],
+    [
+      'Agents',
+      `${project.max_agents ? `at most ${project.max_agents} in the project` : 'no limit in the project'} · ${project.spawn_max_parallel} at once · ${project.spawn_max_depth} levels · ${project.spawn_max_agents} per request`,
+    ],
     ['Money', money(project)],
-    ['Commands run on', project.exec_location === 'docker' ? `a Docker container (${project.docker_image ?? 'no image'})` : 'this machine'],
+    [
+      'Commands run on',
+      project.exec_location === 'docker'
+        ? `a Docker container (${project.docker_image ?? 'no image'})`
+        : 'this machine',
+    ],
   ]
 }
 
 function money(project: Project): string {
-  const turn = project.turn_token_limit ? `a message stops over ${project.turn_token_limit} tokens` : 'no token limit per message'
+  const turn = project.turn_token_limit
+    ? `a message stops over ${project.turn_token_limit} tokens`
+    : 'no token limit per message'
   return `${turn} · ${project.monthly_budget == null ? 'no monthly budget' : `${project.monthly_budget} a month`}`
 }
 
@@ -67,12 +81,29 @@ export function ChatSheet({ sheet = false }: { sheet?: boolean }) {
           </span>
         </div>
       )}
-      <Elsewhere label="Teams" value={teamsSaid(chat, teams)} button="Change teams…" where="Set with the Teams button over the canvas." open={opens('chat-teams-button')} />
-      <Elsewhere label="Folders" value={foldersSaid(chat, project)} button="Change folders…" where="Set with the folder button." open={opens('folder-button')} />
+      <Elsewhere
+        label="Teams"
+        value={teamsSaid(chat, teams)}
+        button="Change teams…"
+        where="Set with the Teams button over the canvas."
+        open={opens('chat-teams-button')}
+      />
+      <Elsewhere
+        label="Folders"
+        value={foldersSaid(chat, project)}
+        button="Change folders…"
+        where="Set with the folder button."
+        open={opens('folder-button')}
+      />
       <PageScripts on={chat.page_scripts} />
       <Runs inProject={chat.project_id !== null} onRules={() => ask('rules')} />
       {project && <FromProject project={project} onOpen={() => ask('agents')} />}
-      {chat.project_id === null && <p className="choice-note">No folder: sub-agents use KOLONİ’s defaults - ask when it matters, 2 at the same time, 2 levels, 6 per request. Nothing changes them yet.</p>}
+      {chat.project_id === null && (
+        <p className="choice-note">
+          No folder: sub-agents use KOLONİ’s defaults - ask when it matters, 2 at the same time, 2 levels, 6 per
+          request. Nothing changes them yet.
+        </p>
+      )}
       <p className="choice-note">
         The language agents answer in, the steps an agent may take and when a long context is summarised are the app’s.{' '}
         <button type="button" className="link-btn" onClick={() => ask('app-agents')}>
@@ -103,7 +134,19 @@ function foldersSaid(chat: Chat, project: Project | null): string {
 }
 
 /** A row set in a panel of the chat's own: in the sheet a button opens that panel; on the page, where it is is said. */
-function Elsewhere({ label, value, button, where, open }: { label: string; value: string; button: string; where: string; open?: () => void }) {
+function Elsewhere({
+  label,
+  value,
+  button,
+  where,
+  open,
+}: {
+  label: string
+  value: string
+  button: string
+  where: string
+  open?: () => void
+}) {
   return (
     <div className="set-row">
       <span className="set-name">{label}</span>
@@ -126,7 +169,10 @@ function PageScripts({ on }: { on: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const choose = (always: boolean) => {
     setError(null)
-    useApp.getState().setPageScripts(always).catch(err => setError(errorText(err)))
+    useApp
+      .getState()
+      .setPageScripts(always)
+      .catch(err => setError(errorText(err)))
   }
   return (
     <div className="set-row">
@@ -134,11 +180,18 @@ function PageScripts({ on }: { on: boolean }) {
         Page scripts
       </label>
       <span className="set-value">
-        <select id="page-scripts" className="input" value={on ? 'always' : 'ask'} onChange={e => choose(e.target.value === 'always')}>
+        <select
+          id="page-scripts"
+          className="input"
+          value={on ? 'always' : 'ask'}
+          onChange={e => choose(e.target.value === 'always')}
+        >
           <option value="ask">Ask each time</option>
           <option value="always">Always run in this chat</option>
         </select>
-        <span className="choice-note">A page an agent shows in the Workspace. A page’s script can reach outside KOLONİ.</span>
+        <span className="choice-note">
+          A page an agent shows in the Workspace. A page’s script can reach outside KOLONİ.
+        </span>
         {error && (
           <span role="alert" className="alert">
             {error}

@@ -15,9 +15,7 @@ from app.serialize import web_request_out
 
 # What goes out of this machine unasked is the user's to say, from the app's own page: a
 # request that does not say where it is from - a command an agent runs - is not the user.
-router = APIRouter(
-    prefix="/api", tags=["web requests"], dependencies=[Depends(require_own_origin)]
-)
+router = APIRouter(prefix="/api", tags=["web requests"], dependencies=[Depends(require_own_origin)])
 
 
 async def _decide(request_id: str, decision: str, request: Request, session: Session) -> dict:
@@ -65,8 +63,13 @@ def _site_named(written: str) -> str:
     return host
 
 
-def _keep(request: Request, session: Session, found: AllowedWeb | None,
-          make: Callable[[], AllowedWeb], mark: bool) -> AllowedWeb:
+def _keep(
+    request: Request,
+    session: Session,
+    found: AllowedWeb | None,
+    make: Callable[[], AllowedWeb],
+    mark: bool,
+) -> AllowedWeb:
     """The rule asked for: `found` as it is - marked Ask first if that is asked - or `make()`."""
     rule = found or make()
     if found is None or mark and not found.ask_first:
@@ -79,7 +82,9 @@ def _keep(request: Request, session: Session, found: AllowedWeb | None,
 
 @router.post("/conversations/{conversation_id}/allowed-web", response_model=AllowedWebOut)
 async def allow_host(
-    conversation_id: str, body: AllowedHostIn, request: Request,
+    conversation_id: str,
+    body: AllowedHostIn,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     """Let GET requests to a host go without asking in this conversation, as a yes to
@@ -100,29 +105,47 @@ async def allow_host(
             host = web.host_name(web.rule_of(address))
         except (web.NotReachable, ValueError) as exc:
             raise HTTPException(422, str(exc)) from None
-    found = session.scalar(web_rules_here(conversation).where(
-        AllowedWeb.kind == body.kind, AllowedWeb.host == host))
-    return _keep(request, session, found, lambda: new_web_rule(conversation, body.kind, host),
-                 body.kind == "page" and body.ask_first)
+    found = session.scalar(
+        web_rules_here(conversation).where(AllowedWeb.kind == body.kind, AllowedWeb.host == host)
+    )
+    return _keep(
+        request,
+        session,
+        found,
+        lambda: new_web_rule(conversation, body.kind, host),
+        body.kind == "page" and body.ask_first,
+    )
 
 
 @router.post("/projects/{project_id}/sites", response_model=AllowedWebOut)
-async def add_site(project_id: str, body: AllowedHostIn, request: Request,
-                   session: Session = Depends(get_session)):
+async def add_site(
+    project_id: str, body: AllowedHostIn, request: Request, session: Session = Depends(get_session)
+):
     """A site the project's agents' browsers open, added on Settings › This project as "Allow this
     site" on a card adds it; `kind` is not read (a site)."""
     if session.get(Project, project_id) is None:
         raise HTTPException(404, "project not found")
     host = _site_named(body.host.strip())
-    found = session.scalar(select(AllowedWeb).where(
-        AllowedWeb.project_id == project_id, AllowedWeb.kind == "page", AllowedWeb.host == host))
-    return _keep(request, session, found,
-                 lambda: AllowedWeb(project_id=project_id, kind="page", host=host), body.ask_first)
+    found = session.scalar(
+        select(AllowedWeb).where(
+            AllowedWeb.project_id == project_id, AllowedWeb.kind == "page", AllowedWeb.host == host
+        )
+    )
+    return _keep(
+        request,
+        session,
+        found,
+        lambda: AllowedWeb(project_id=project_id, kind="page", host=host),
+        body.ask_first,
+    )
 
 
 @router.patch("/allowed-web/{rule_id}", response_model=AllowedWebOut)
 async def ask_first(
-    rule_id: str, body: AskFirstIn, request: Request, session: Session = Depends(get_session),
+    rule_id: str,
+    body: AskFirstIn,
+    request: Request,
+    session: Session = Depends(get_session),
 ):
     """Mark a site Ask first, or take the mark off: a marked site is asked about every time
     an agent opens it, at every level (K-tarayici-disari)."""

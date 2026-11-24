@@ -61,6 +61,7 @@ def test_a_cancel_of_the_awaiting_task_is_never_swallowed(kind):
         with pytest.raises(asyncio.CancelledError):
             await task
         assert runner.stopped == []  # (no "stopped" look said)
+
     asyncio.run(main())
 
 
@@ -73,5 +74,6 @@ def test_stop_this_check_still_says_the_look_stopped(kind):
         for going in runner._looks["r"]:
             going.cancel()  # (Stop this check: the look alone)
         return await task
+
     said = asyncio.run(main())
     assert said.not_run == STOPPED_LOOK if kind == "review" else said[:2] == ("failed", "stopped")

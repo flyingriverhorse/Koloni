@@ -65,12 +65,20 @@ def test_reading_the_projects_env_waits_on_a_card_at_every_level(make_client, wi
 
 
 def test_approved_once_it_is_read_once_and_asked_again(make_client, wait_run, with_secret):
-    client, model = make_client([tool("read_file", {"path": ".env"}, "r1"),
-                                 tool("read_file", {"path": ".env"}, "r2"), text("ok")])
+    client, model = make_client(
+        [
+            tool("read_file", {"path": ".env"}, "r1"),
+            tool("read_file", {"path": ".env"}, "r2"),
+            text("ok"),
+        ]
+    )
     cid, run_id = converse(client, project(client, with_secret), mode="full_auto")
     first = wait_status(client, cid, "waiting_approval")["tool_calls"][0]
-    once = client.post(f"/api/tool-calls/{first['id']}/approve", json={"scope": "folder"},
-                       headers={"Origin": ORIGIN})
+    once = client.post(
+        f"/api/tool-calls/{first['id']}/approve",
+        json={"scope": "folder"},
+        headers={"Origin": ORIGIN},
+    )
     assert once.status_code == 200, once.text
     snap = wait_status(client, cid, "waiting_approval")  # a folder scope is taken as once
     assert [t["status"] for t in snap["tool_calls"]] == ["succeeded", "pending"]
@@ -90,7 +98,9 @@ def test_rejected_none_of_it_reaches_the_model(make_client, wait_run, with_secre
     assert "sk-koloni-test" not in sent(model)
 
 
-def test_search_never_looks_inside_a_secret_and_says_it_left_it_out(make_client, wait_run, with_secret):
+def test_search_never_looks_inside_a_secret_and_says_it_left_it_out(
+    make_client, wait_run, with_secret
+):
     client, model = make_client([tool("search", {"pattern": "koloni-test"}), text("ok")])
     cid, run_id = converse(client, project(client, with_secret), mode="full_auto")
     snap = wait_run(client, cid, run_id)

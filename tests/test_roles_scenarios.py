@@ -24,16 +24,29 @@ from app.db.session import make_engine, make_session_factory, upgrade_db  # noqa
 TIERS = {
     # The lead runs on the conversation's model: the one picked, else the default (or the
     # automatic lead's choice). A tier would take the chat's picker away from the user.
-    "Lead": None, "Planner": "strongest", "Coder": "strongest", "Tester": "balanced",
-    "Reviewer": "strongest", "Researcher": "balanced", "Debugger": "strongest",
-    "Architect": "strongest", "Security reviewer": "strongest", "Docs writer": "fast",
+    "Lead": None,
+    "Planner": "strongest",
+    "Coder": "strongest",
+    "Tester": "balanced",
+    "Reviewer": "strongest",
+    "Researcher": "balanced",
+    "Debugger": "strongest",
+    "Architect": "strongest",
+    "Security reviewer": "strongest",
+    "Docs writer": "fast",
     "Refactorer": "balanced",
-    "UI designer": "balanced", "Data analyst": "balanced", "DevOps": "balanced",
-    "Spec writer": "strongest", "Performance engineer": "balanced",
-    "Database engineer": "balanced", "Dependency keeper": "balanced", "Translator": "fast",
+    "UI designer": "balanced",
+    "Data analyst": "balanced",
+    "DevOps": "balanced",
+    "Spec writer": "strongest",
+    "Performance engineer": "balanced",
+    "Database engineer": "balanced",
+    "Dependency keeper": "balanced",
+    "Translator": "fast",
     "Summarizer": "fast",
     # Slice 52: they keep the backlog.
-    "Product owner": "strongest", "Assistant product owner": "balanced",
+    "Hive keeper": "strongest",
+    "Scout": "balanced",
     # Slice 33b: asked once, without tools, over a sub-agent's report.
     "Observer": "balanced",
 }
@@ -79,7 +92,7 @@ def test_a_built_in_role_the_user_changed_is_left_as_it_is(tmp_path):
     with factory() as session:
         roles.seed_builtin_roles(session)
         coder = session.scalar(select(Role).where(Role.name == "Coder"))
-        coder.tier = None                         # the user chose the conversation's model
+        coder.tier = None  # the user chose the conversation's model
         coder.updated_at = coder.created_at + timedelta(minutes=5)
         session.commit()
     with factory() as session:
@@ -90,13 +103,21 @@ def test_a_built_in_role_the_user_changed_is_left_as_it_is(tmp_path):
 def test_a_role_of_the_users_own_with_a_new_built_in_name_is_left_as_it_is(tmp_path):
     factory = seeded(tmp_path)
     with factory() as session:
-        session.add(Role(name="translator", description="mine", instructions="mine",
-                         tools=["read_file"], builtin=False))
+        session.add(
+            Role(
+                name="translator",
+                description="mine",
+                instructions="mine",
+                tools=["read_file"],
+                builtin=False,
+            )
+        )
         session.commit()
         roles.seed_builtin_roles(session)
         mine = session.scalars(select(Role).where(Role.name.ilike("translator"))).all()
         assert [(r.name, r.builtin, r.description, r.tier) for r in mine] == [
-            ("translator", False, "mine", None)]
+            ("translator", False, "mine", None)
+        ]
 
 
 # --- K-site-roller: three roles a database made before is given as the app starts -------------
@@ -108,8 +129,15 @@ def test_the_site_roles_join_the_ready_web_app_team_in_their_stages(tmp_path):
     factory = seeded(tmp_path)  # (migrated only: as an install was before they were added)
     with factory() as session:
         assert not session.scalars(select(Role).where(Role.name.in_(SITE))).all()
-        session.add(Role(name="copywriter", description="mine", instructions="mine",
-                         tools=["read_file"], builtin=False))
+        session.add(
+            Role(
+                name="copywriter",
+                description="mine",
+                instructions="mine",
+                tools=["read_file"],
+                builtin=False,
+            )
+        )
         session.commit()
         roles.seed_builtin_roles(session)
         web = session.scalar(select(Team).where(Team.name == "Web app"))
@@ -130,8 +158,9 @@ def test_the_site_roles_join_no_web_app_team_the_user_renamed(tmp_path):
         made = session.scalars(select(Role).where(Role.name.in_(SITE))).all()
         assert sorted(r.name for r in made) == sorted(SITE)
         assert all(r.builtin and r.teams == [] for r in made)
-        stages = dict(roles.stage_roles(session, session.scalar(select(Team).where(
-            Team.name == "Shop"))))
+        stages = dict(
+            roles.stage_roles(session, session.scalar(select(Team).where(Team.name == "Shop")))
+        )
         assert not {"SEO specialist", "Copywriter"} & set(stages["Build"])
 
 

@@ -13,7 +13,11 @@ const COMPACT = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFra
  */
 export function liveFactList(now: number, since: string | null, wrote: number | null, kind: string | null): string[] {
   // (This browser's clock a little behind the server's: no time has passed, not an unknown one.)
-  const pieces = [since && took(Math.max(0, now - Date.parse(since))), wrote !== null && `↓ ${COMPACT.format(wrote).toLowerCase()} tokens`, kind]
+  const pieces = [
+    since && took(Math.max(0, now - Date.parse(since))),
+    wrote !== null && `↓ ${COMPACT.format(wrote).toLowerCase()} tokens`,
+    kind,
+  ]
   return pieces.filter((piece): piece is string => Boolean(piece))
 }
 

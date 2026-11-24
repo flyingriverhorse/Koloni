@@ -21,15 +21,21 @@ from tests.test_migration_0002 import _config
 from tests.test_spawn import begin, new_role, role_id
 from tests.test_team_stages_scenarios import OWN, STAGES, new_team, teams
 
-FOUR = [{"key": "plan", "name": "Plan", "colour": "violet"},
-        {"key": "build", "name": "Build", "colour": "amber"},
-        {"key": "check", "name": "Check", "colour": "green"},
-        {"key": "write", "name": "Write & keep up", "colour": "blue"}]
+FOUR = [
+    {"key": "plan", "name": "Plan", "colour": "violet"},
+    {"key": "build", "name": "Build", "colour": "amber"},
+    {"key": "check", "name": "Check", "colour": "green"},
+    {"key": "write", "name": "Write & keep up", "colour": "blue"},
+]
 # KOLONİ's four, and after Build the three of migration 0103 (K-takim-duzen) - deleted as the user's
 # are, once empty.
-BUILT_IN = [*FOUR[:2], {"key": "data", "name": "Data", "colour": "teal"},
-            {"key": "ml", "name": "ML", "colour": "rose"}, {"key": "ops", "name": "Ops", "colour": "olive"},
-            *FOUR[2:]]
+BUILT_IN = [
+    *FOUR[:2],
+    {"key": "data", "name": "Data", "colour": "teal"},
+    {"key": "ml", "name": "ML", "colour": "rose"},
+    {"key": "ops", "name": "Ops", "colour": "olive"},
+    *FOUR[2:],
+]
 URL = "/api/categories"
 
 
@@ -53,11 +59,18 @@ def test_a_category_is_added_renamed_recoloured_and_put_in_order_from_the_own_pa
     assert client.post(URL, json={"name": "Research", "colour": "rose"}).status_code == 403
     research = add(client, "Research")
     assert [one["name"] for one in listed(client)][-1] == "Research"
-    for body in ({"name": "", "colour": "rose"}, {"name": "x" * 41, "colour": "rose"},
-                 {"name": "bell\x07", "colour": "rose"}, {"name": "Ops", "colour": "pink"}):
+    for body in (
+        {"name": "", "colour": "rose"},
+        {"name": "x" * 41, "colour": "rose"},
+        {"name": "bell\x07", "colour": "rose"},
+        {"name": "Ops", "colour": "pink"},
+    ):
         assert client.post(URL, json=body, headers=OWN).status_code == 422, body
     # Unique whatever its case, a built-in one's too.
-    assert client.post(URL, json={"name": "research", "colour": "teal"}, headers=OWN).status_code == 409
+    assert (
+        client.post(URL, json={"name": "research", "colour": "teal"}, headers=OWN).status_code
+        == 409
+    )
     assert client.post(URL, json={"name": "PLAN", "colour": "teal"}, headers=OWN).status_code == 409
 
     write = f"{URL}/write"
@@ -100,8 +113,11 @@ def test_the_four_built_in_categories_are_renamed_but_never_deleted(make_client)
     for one in FOUR:
         for role in client.get("/api/roles").json():
             if role["kind"] == one["key"] and not role["name"].endswith(" lead"):
-                client.patch(f"/api/roles/{role['id']}", json={"kind": "plan" if one["key"] != "plan" else "build"},
-                             headers=OWN)
+                client.patch(
+                    f"/api/roles/{role['id']}",
+                    json={"kind": "plan" if one["key"] != "plan" else "build"},
+                    headers=OWN,
+                )
         refused = client.delete(f"{URL}/{one['key']}", headers=OWN)
         assert refused.status_code == 409, one
         assert "it can be renamed and recoloured, not deleted" in refused.json()["detail"]
@@ -112,21 +128,29 @@ def test_there_are_200_categories_at_most(make_client):
     client, _ = make_client([])
     for n in range(200 - len(BUILT_IN)):
         add(client, f"C{n}")
-    assert client.post(URL, json={"name": "One more", "colour": "rose"}, headers=OWN).status_code == 409
+    assert (
+        client.post(URL, json={"name": "One more", "colour": "rose"}, headers=OWN).status_code
+        == 409
+    )
 
 
-def test_a_role_an_agent_makes_lands_in_a_category_whatever_kind_it_says(make_client, wait_run, project_dir):
-    client, _ = make_client([new_role("Scout", ["read_file"], kind="Ship it"), text("done")])
+def test_a_role_an_agent_makes_lands_in_a_category_whatever_kind_it_says(
+    make_client, wait_run, project_dir
+):
+    client, _ = make_client([new_role("Forager", ["read_file"], kind="Ship it"), text("done")])
     cid, run_id = begin(client, project_dir, mode="full_auto")
     wait_run(client, cid, run_id)
-    scout = next(r for r in client.get("/api/roles").json() if r["name"] == "Scout")
+    scout = next(r for r in client.get("/api/roles").json() if r["name"] == "Forager")
     assert scout["created_by_agent"] and scout["kind"] == "build"
 
 
 def test_a_category_changes_no_teams_stages_nor_a_roles_kind(make_client):
     client, _ = make_client([])
     for key in ("plan", "build", "check", "write"):
-        assert client.patch(f"{URL}/{key}", json={"name": f"Mine {key}"}, headers=OWN).status_code == 200
+        assert (
+            client.patch(f"{URL}/{key}", json={"name": f"Mine {key}"}, headers=OWN).status_code
+            == 200
+        )
     # The roles keep their keys (a check role is still told the findings' format), and the
     # teams their stages; a new team's stages are named as before.
     roles = {r["name"]: r for r in client.get("/api/roles").json()}
@@ -141,15 +165,27 @@ def test_migration_0079_makes_a_category_of_every_kind_a_role_has(tmp_path):
     command.upgrade(cfg, "0078")
     kinds = {"c": "build", "s": "C#", "q": "QA/Test", "p": "Plan", "k": "lead", "l": "lead"}
     with sqlite3.connect(db) as conn:
-        for at, (rid, name) in enumerate((("c", "Coder"), ("s", "Sharp"), ("q", "Checker"),
-                                          ("p", "Boss"), ("k", "Captain"), ("l", "Art lead"))):
+        for at, (rid, name) in enumerate(
+            (
+                ("c", "Coder"),
+                ("s", "Sharp"),
+                ("q", "Checker"),
+                ("p", "Boss"),
+                ("k", "Captain"),
+                ("l", "Art lead"),
+            )
+        ):
             made = f"2026-10-25 10:00:0{at}"
             conn.execute(
                 "INSERT INTO roles (id, name, description, instructions, tools, builtin, "
                 "created_by_agent, kind, mcp, skills, created_at, updated_at) "
-                "VALUES (?, ?, '', '', '[]', 0, 0, ?, '[]', '[]', ?, ?)", (rid, name, kinds[rid], made, made))
-        conn.execute("INSERT INTO teams (id, name, created_at, lead_role_id) "
-                     "VALUES ('g', 'Art', '2026-10-25 10:00:00', 'l')")
+                "VALUES (?, ?, '', '', '[]', 0, 0, ?, '[]', '[]', ?, ?)",
+                (rid, name, kinds[rid], made, made),
+            )
+        conn.execute(
+            "INSERT INTO teams (id, name, created_at, lead_role_id) "
+            "VALUES ('g', 'Art', '2026-10-25 10:00:00', 'l')"
+        )
 
     command.upgrade(cfg, "head")
     with sqlite3.connect(db) as conn:
@@ -162,13 +198,20 @@ def test_migration_0079_makes_a_category_of_every_kind_a_role_has(tmp_path):
     own = {name: key for key, name, _colour in made[7:]}
     assert list(own) == ["C#", "QA/Test", "Plan 2", "lead"]
     assert all(re.fullmatch(r"[0-9a-f]{32}", key) for key in own.values())
-    assert [now[rid] for rid in "csqpkl"] == ["build", own["C#"], own["QA/Test"], own["Plan 2"],
-                                               own["lead"], "lead"]
+    assert [now[rid] for rid in "csqpkl"] == [
+        "build",
+        own["C#"],
+        own["QA/Test"],
+        own["Plan 2"],
+        own["lead"],
+        "lead",
+    ]
 
     command.downgrade(cfg, "0078")
     with sqlite3.connect(db) as conn:
         assert not conn.execute(
-            "SELECT name FROM sqlite_master WHERE name = 'categories'").fetchall()
+            "SELECT name FROM sqlite_master WHERE name = 'categories'"
+        ).fetchall()
         # Going back, a role has its words again (a taken name's number with them).
         back = dict(conn.execute("SELECT id, kind FROM roles"))
     assert {rid: back[rid] for rid in kinds} == {**kinds, "p": "Plan 2"}
