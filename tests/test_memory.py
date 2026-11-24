@@ -35,7 +35,7 @@ from app.main import create_app
 from app.model_native import CodexNativeClient
 from app.model_session import ClaudeSessionClient
 from app.roles import BUILTIN_ROLES, RAN, WHO_SPLITS
-from app.tools import OPENED_TOGETHER
+from app.tools import OPENED_TOGETHER, SERVING_TOOLS
 from app.workspace import Workspace, WorkspaceError
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
@@ -179,7 +179,7 @@ def without_memory(tools):
     before the web tools, which came later still (slice 18c), show (slice 39),
     open_room (slice 29b-2), add_skill (slice 45), the backlog's tools (slice 52),
     ask_folder (slice 75), ask_secret (slice 91), offer_away (slice 106), propose_trigger
-    (slice 69) and recall_output (K-gecmis-zengin)."""
+    (slice 69), recall_output (K-gecmis-zengin) and command_output / stop_command (0.1.8)."""
     later = (
         *NEW_TOOLS,
         "web_search",
@@ -197,6 +197,8 @@ def without_memory(tools):
         "offer_away",
         "propose_trigger",
         "recall_output",
+        "command_output",
+        "stop_command",
     )
     if tools and isinstance(tools[0], str):
         return [name for name in tools if name not in later]
@@ -2049,7 +2051,11 @@ def cli_memory(cli_app, kind, script, project_dir, wait_run, **plan):
     assert "standing rules for this project" in document["instructions"]
     assert "Sign every commit." in document["instructions"]
     assert '- "the port is 8790" (written by the user on ' in document["instructions"]
-    assert seen["tools"][-3:] == [*NEW_TOOLS, "recall_output"]  # (every agent's: K-gecmis-zengin)
+    # (every agent's: K-gecmis-zengin - and after them a session's command_output / stop_command)
+    assert [t for t in seen["tools"] if t not in SERVING_TOOLS][-3:] == [
+        *NEW_TOOLS,
+        "recall_output",
+    ]
     return snap, seen, client.get(f"/api/projects/{pid}/memory").json(), client
 
 

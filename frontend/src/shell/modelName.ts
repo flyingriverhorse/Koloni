@@ -7,7 +7,8 @@ import { EFFORTS, type Effort, type Provider, type Tier } from '../api/types'
  */
 export function modelName(id: string | null): string {
   if (!id) return 'model unknown'
-  // A CLI run without a model name uses its own default and does not always say which.
+  // A CLI run without a model name uses its own default and does not always say which. (qodercli: a chat of
+  // before 0.1.8's.)
   if (/^(claude|codex|qodercli|copilot) default$/.test(id)) return 'CLI default (model not reported)'
   if (!/\.gguf$/i.test(id)) return id
   const file = id.split(/[\\/]/).pop() ?? id

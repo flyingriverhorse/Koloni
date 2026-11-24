@@ -108,6 +108,7 @@ test('the monthly budget is set and taken away in Limits and money, an amount ab
       turn_token_limit: null,
       max_agents: null,
       continue_steps: 25,
+      longest_command: 10,
       monthly_budget: null,
       measure_command: null,
       after_change: 'check',

@@ -1,0 +1,50 @@
+# Source files over scripts/check_file_size.py's 1,500-line limit when the check came in (24 Nov
+# 2026), each with its line count then: `<lines> <path>`. A file here may shrink, never grow past its
+# count; once at 1,500 lines or under, take its line off. Lower a count when its file shrinks. The
+# list only gets shorter: never add a file to it - split the file.
+
+# app/, frontend/src/, scripts/
+10627 app/agent/__init__.py
+2301 app/agent/context_mixin.py
+1670 app/agent/loop_mixin.py
+1611 app/agent/merge.py
+2620 app/agent/rooms_mixin.py
+3553 app/agent/spawn_mixin.py
+1696 app/browser.py
+6772 app/commands.py
+1977 app/db/models.py
+4305 app/git.py
+2950 app/knowledge.py
+2038 app/memory.py
+5736 app/model_native.py
+1984 app/proof_kinds.py
+5275 app/schemas.py
+1875 app/tools.py
+1827 app/triggers.py
+1564 frontend/src/agents/RecipesTab.tsx
+1582 frontend/src/canvas/deriveGraph.ts
+1509 frontend/src/canvas/lines.test.ts
+2652 frontend/src/chat/MessageList.test.tsx
+1764 frontend/src/chat/MessageList.tsx
+2502 frontend/src/state/store.ts
+
+# tests/
+2392 tests/test_agy_agent.py
+1814 tests/test_claims.py
+2077 tests/test_claude_native.py
+2005 tests/test_coordination.py
+1525 tests/test_copilot_headless_scenarios.py
+1860 tests/test_copy_runner.py
+2822 tests/test_dal_takim.py
+1737 tests/test_lead_decides.py
+1733 tests/test_live.py
+2737 tests/test_memory.py
+1693 tests/test_native_agent.py
+1687 tests/test_places.py
+1602 tests/test_proof_pages.py
+2138 tests/test_proof_style.py
+2763 tests/test_recipe_checks_scenarios.py
+2078 tests/test_recipe_run_scenarios.py
+1942 tests/test_rooms.py
+1630 tests/test_take_in.py
+3221 tests/test_triggers.py

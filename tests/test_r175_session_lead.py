@@ -11,7 +11,7 @@ from app.main import create_app
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_model_choice import ORIGIN
-from tests.test_spawn import begin, role_id
+from tests.test_spawn import begin, reported, role_id
 
 
 class Session(ScriptedModel):
@@ -94,7 +94,7 @@ def test_a_lead_cut_at_its_limit_before_it_read_its_coders_answer_keeps_it_on_re
     # The Coder's answer came; it stays its note and report - not "not delivered" to the Lead.
     assert not [m for m in snap["messages"] if "was not delivered" in m["content"]]
     (note,) = [m for m in snap["messages"] if m["from_agent_id"] == coder["id"]]
-    assert note["content"].startswith("Coder finished.\n\nCoder: done, tests pass.")
+    assert reported(note["content"]).startswith("Coder finished.\n\nCoder: done, tests pass.")
     assert [c["kind"] for c in snap["channel_messages"] if c["from_agent_id"] == coder["id"]] == [
         "report"
     ]

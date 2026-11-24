@@ -190,7 +190,11 @@ Click an agent to open the **Inspector**, a short report card. From the top:
   chat, and answering in one place answers it everywhere;
 - who asked it what, on one line;
 - its **Report**, or while it works "No report yet" and what it is on now. A long report is cut at six
-  lines, with **Show all**;
+  lines, with **Show all**. A sub-agent whose role writes (a Coder, a Debugger) that finished with no file
+  changed on KOLONİ's record has **No file changed** over its report, and on its row in the chat; the
+  Orchestrator gets the same fact, "KOLONİ: this agent changed no file", before the report's own words,
+  so a report that claims a change it never made is not passed on to you. A role that only reads (a
+  Reviewer, a Tester) is never marked so;
 - **Changes**: the files it changed, each with **View diff**, which opens the file in the Workspace;
 - what it did, counted, and its tokens. A number its provider did not report is "–".
 
@@ -218,5 +222,15 @@ and, in the chat, the Orchestrator's name over its turn. No agent's window opens
 An agent can start a dev server that keeps running, on this machine only, and show its page. At most
 three run in a chat. They are listed under **Previews** in the Workspace; a preview has **Reload**,
 **Open in browser** and **Stop**.
+
+While one runs, an agent that may run commands can read what it printed since ("the server gives a
+500: read its log"), in a later turn of the same topic too, and the last output of one that has ended.
+It can stop only a server it started itself, and waits until it has ended (to start it again, say); one
+another agent or an earlier turn started is yours to stop here. Neither works in a turn nobody watches
+or a job while you're away, nor for a CLI run **Native**, which runs its commands with its own tools.
+What it reads is hidden as any command's output is (secrets), and text in it that tries to give orders
+shows the **Text tried to give orders** card: a server's log holds what any request to it carried.
+What a server whose line names a secret file prints (`node --env-file=.env server.js`, asked about on
+its card at every level) is not read again later, as with any output read on your word for that once.
 
 See [Working copies and Take in](workspace.md).

@@ -1,6 +1,6 @@
 """Agents talking to each other: message_agent and its delivery (into a CLI's turn too), what
 an agent may reach and who its team is, offers and hand-ons of notes and files, report_git,
-and the shared notebook (post_note / read_notes) - `TalkMixin`.
+command_output / stop_command, and the shared notebook (post_note / read_notes) - `TalkMixin`.
 """
 
 import asyncio
@@ -30,6 +30,7 @@ from app.agent.ctx import Ctx, announce
 from app.agent.summary import _lines_written_out
 from app.agent.words import CANT_UNDO, FROM, HANDED, LEADS_LATER, NOT_HEARD
 from app.api.recipes import agents_of
+from app.command_runner import longest_seconds
 from app.db.models import (
     Agent,
     BoardPost,
@@ -51,6 +52,7 @@ from app.tools import (
     ATTACHMENTS_PROPERTY,
     ATTACHMENTS_UNREAD,
     CAN,
+    COMMAND_OUTPUT_SCHEMA,
     FOLDER_PROPERTY,
     FOLLOW_SCHEMAS,
     MAX_MESSAGE_CHARS,
@@ -59,7 +61,9 @@ from app.tools import (
     RECALL_OUTPUT_SCHEMA,
     REPORT_GIT_SCHEMA,
     ROOM_SCHEMAS,
+    STOP_COMMAND_SCHEMA,
     ToolError,
+    capped,
     earlier_line,
     offer_schema,
     pick_schema,
@@ -158,6 +162,52 @@ class TalkMixin:
             "with git at the end of the turn."
         )
 
+    def _serving_not(self: "AgentRunner", ctx: Ctx) -> str | None:
+        """Why command_output and stop_command are not this agent's (None: they are): only one
+        that may run commands, at its own work, in a turn the user watches - where keep_running
+        itself runs (a To-do task's turn too: its server's card was the user's). By its role's
+        tools: a CLI with tools of its own runs its commands with them, not with KOLONİ's."""
+        if "run_command" not in ctx.tools or ctx.agent_id in self._read_only_agents:
+            return f"not to the {ctx.role} role"
+        if ctx.answering:
+            return "not while answering a message"
+        if not self._watched(ctx.run_id) or ctx.run_id in self._away_jobs:
+            return "not in a turn nobody watches"
+        return None
+
+    def _serving_offered(self: "AgentRunner", ctx: Ctx, tools) -> list[dict]:
+        """0.1.8: command_output and stop_command beside KOLONİ's run_command (`_serving_not`) -
+        whether or not anything keeps running now: the tools are the prompt cache's first part,
+        and a CLI session is given its tools once, before it starts any. A call while nothing runs
+        is refused."""
+        if "run_command" not in tools or self._serving_not(ctx) is not None:
+            return []
+        return [COMMAND_OUTPUT_SCHEMA, STOP_COMMAND_SCHEMA]
+
+    async def _serving_call(self: "AgentRunner", ctx: Ctx, name: str, args: dict) -> str:
+        """command_output or stop_command, held to what `_serving_offered` offers - a CLI keeps
+        the tools it was given at its start, and a model may name one it was not given."""
+        if (why := self._serving_not(ctx)) is not None:
+            raise ToolError(f"{name} is not available: {why}")
+        command_id = args.get("id")
+        if not isinstance(command_id, str) or not command_id.strip():
+            raise ToolError("missing required argument: id")
+        command = self.commands.server(ctx.cid, command_id.strip())
+        if name == "stop_command":
+            return await self.commands.stop_own(command, ctx.agent_id)
+        since = args.get("since")
+        if since is not None and (
+            isinstance(since, bool) or not isinstance(since, int) or since < 0
+        ):
+            raise ToolError("argument since must be a whole number, 0 or more")
+        # Read again only where recall_output would give its command's output again: not one
+        # read on the user's word for that once (a line that names a secret file), nor another
+        # topic's, nor - below the lead - another line's.
+        if command.tool_call_id is None:
+            raise ToolError("no earlier output of this conversation has that id")
+        self._recallable_call(ctx, command.tool_call_id)
+        return self.commands.output_of(command, since)
+
     def _offered(
         self: "AgentRunner", ctx: Ctx, tools, always: bool = False, show: bool = False
     ) -> list[dict]:
@@ -223,6 +273,8 @@ class TalkMixin:
                 else []
             )
             files = self._files_of(session, ctx)
+            # (0.1.8: what run_command's schema says is its most - the project's longest command)
+            cap = longest_seconds(self._project(session, ctx.cid))
             # (No team's tools for KOLONİ's Reviewer: it reads, `_review_refuses`.)
             between = (
                 []
@@ -284,6 +336,7 @@ class TalkMixin:
             earlier,
             show and ctx.agent_id not in self._read_only_agents,
         )
+        schemas = [capped(s, cap) if s["function"]["name"] == "run_command" else s for s in schemas]
         # (with the To-do list's tools: the jobs go onto it)
         at = next(
             (i + 1 for i, s in enumerate(schemas) if s["function"]["name"] == "assess_task"),
@@ -313,6 +366,7 @@ class TalkMixin:
             # At its own work, as show is; always, not only once something was cut: the tools
             # are the cache's first part.
             schemas = [*schemas, RECALL_OUTPUT_SCHEMA]
+        schemas += self._serving_offered(ctx, tools)
         return (
             schemas
             + between

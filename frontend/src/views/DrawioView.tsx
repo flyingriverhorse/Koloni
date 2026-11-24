@@ -45,21 +45,20 @@ export function DrawioView({ src, path, projectId }: { src: string; path: string
     }
   }, [src])
 
-  // (To '*': a frame of no origin cannot be named as postMessage's target; a frame gone elsewhere is taken off at its second load.)
+  // The frame's own line (k-sonar review A): a port handed to it at its first load - the one post to '*', with nothing of
+  // the file in it: a frame of no origin cannot be named as postMessage's target. The file and the asks go by the port
+  // alone, and only what comes back by it is heard: a frame gone elsewhere (a link in the diagram) holds no end of it.
+  const port = useRef<MessagePort | null>(null)
+
   useEffect(() => {
-    if (loaded && text !== null) frame.current?.contentWindow?.postMessage({ xml: text }, '*')
+    if (loaded && text !== null) port.current?.postMessage({ xml: text })
   }, [loaded, text])
 
   useEffect(() => {
-    // Only its own frame is heard: no other page, no other frame. (Sandboxed, it is of no origin: 'null' - one of an origin is not it.)
-    function heard(event: MessageEvent) {
-      if (
-        event.source !== frame.current?.contentWindow ||
-        event.origin !== 'null' ||
-        !event.data ||
-        typeof event.data !== 'object'
-      )
-        return
+    const line = port.current
+    if (!loaded || !line) return
+    line.onmessage = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== 'object') return
       const said = event.data as Said
       if ('failed' in said) setLine(String(said.failed))
       else if ('shown' in said) setDrawn(true)
@@ -72,14 +71,18 @@ export function DrawioView({ src, path, projectId }: { src: string; path: string
         )
       }
     }
-    window.addEventListener('message', heard)
-    return () => window.removeEventListener('message', heard)
-  }, [path, projectId])
+    return () => {
+      line.onmessage = null
+    }
+  }, [loaded, path, projectId])
+
+  // (Closed as the view goes: a frame left with its end hears nothing more.)
+  useEffect(() => () => port.current?.close(), [])
 
   const save = (format: Format) => {
     setLine(null)
     asked.current = format
-    frame.current?.contentWindow?.postMessage({ save: format }, '*')
+    port.current?.postMessage({ save: format })
   }
   // (A frame that loads a second time went elsewhere by itself - a link in the diagram: taken off, as a page's is.)
   if (stopped) return <p className="view-empty muted">The diagram tried to go elsewhere; it was stopped.</p>
@@ -104,8 +107,15 @@ export function DrawioView({ src, path, projectId }: { src: string; path: string
         src="/drawio/viewer.html"
         onLoad={() => {
           loads.current += 1
-          if (loads.current > 1) setStopped(true)
-          else setLoaded(true)
+          if (loads.current > 1) {
+            port.current?.close()
+            setStopped(true)
+            return
+          }
+          const channel = new MessageChannel()
+          frame.current?.contentWindow?.postMessage('koloni', '*', [channel.port2])
+          port.current = channel.port1
+          setLoaded(true)
         }}
       />
     </div>

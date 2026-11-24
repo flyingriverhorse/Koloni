@@ -17,7 +17,6 @@ import { AT_WORK, titleOf } from './agentStatus'
 import { stepsOf } from './AgentSteps'
 import { WentOn } from './EarlierWork'
 import { failureText, nextStep, planConsole } from './failure'
-import { queueLine } from './livePlan'
 import { homeOf, LET_THROUGH, letThrough, NOT_WATCHED, notWatched } from './ownWork'
 import { phaseLine, phasesOf } from './phases'
 
@@ -173,18 +172,6 @@ export function AsksNow({ state, agent, asks }: { state: ConvState; agent: Agent
         .map(q => asks.renderQuestion?.(q))}
       {waitingCommands(state, agent.id).map(c => asks.renderCommandApproval?.(c))}
     </>
-  )
-}
-
-/** Its CLI's model is queued (K-qoder-kuyruk): one line, as it stands now. */
-export function QueueLine({ state, agent }: { state: ConvState; agent: Agent }) {
-  const queue = state.live[agent.id]?.queue
-  if (!queue) return null
-  return (
-    <dl className="facts agent-sum">
-      <dt>Queue</dt>
-      <dd>{queueLine(queue)}</dd>
-    </dl>
   )
 }
 
@@ -368,10 +355,18 @@ export function HowItRuns({ state, agent }: { state: ConvState; agent: Agent }) 
  * a few lines (`short`), whole in its window. While it works, what it is on now.
  */
 export function Report({ state, agent, short = false }: { state: ConvState; agent: Agent; short?: boolean }) {
-  if (agent.report === null) return <NoReport state={state} agent={agent} />
+  const unchanged = agent.changed_nothing && <NoChange />
+  if (agent.report === null)
+    return (
+      <>
+        {unchanged}
+        <NoReport state={state} agent={agent} />
+      </>
+    )
   const found = findingsLine(agent.findings)
   return (
     <div className="agent-report">
+      {unchanged}
       {found && <p className="mono agent-found">{found.line}</p>}
       {agent.findings && agent.findings.length > 0 && (
         <ul className="agent-findings">
@@ -389,6 +384,17 @@ export function Report({ state, agent, short = false }: { state: ConvState; agen
       )}
       <Clamped short={short} text={agent.findings?.length ? withoutFindings(agent.report) : agent.report} />
     </div>
+  )
+}
+
+/** L1: a role that writes, done with no file changed on KOLONİ's record (app/ledger.py `changed_nothing`) - said over its report. */
+function NoChange() {
+  return (
+    <p>
+      <span className="tag tag-warn" title="From KOLONİ's record, not the agent's words">
+        No file changed
+      </span>
+    </p>
   )
 }
 

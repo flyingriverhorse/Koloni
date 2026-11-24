@@ -29,19 +29,20 @@ from app.model_client import (
     with_files,
 )
 from app.model_native import ClaudeNativeClient, CodexNativeClient
-from app.model_session import ClaudeSessionClient, QoderSessionClient
+from app.model_session import ClaudeSessionClient, CopilotSessionClient
 from tests.test_attachments import EXE, MP4, PNG, attach
 from tests.test_chat_flow import text
 from tests.test_usage_scenarios import began
 
 HERE = Path(__file__).parent
-FAKE_STEP, FAKE_SESSION, FAKE_CLAUDE, FAKE_CODEX = (
+FAKE_STEP, FAKE_SESSION, FAKE_CLAUDE, FAKE_CODEX, FAKE_COPILOT = (
     [sys.executable, str(HERE / name)]
     for name in (
         "fake_cli.py",
         "fake_session_cli.py",
         "fake_claude_native_cli.py",
         "fake_codex_app_server.py",
+        "fake_copilot_cli.py",
     )
 )
 KEPT_AS = "5e1f0c9a7b2d"  # a file in KOLONİ's store: by its id, with no extension
@@ -422,7 +423,7 @@ def test_a_cli_lead_is_shown_the_picture_and_its_card_says_whose_model_saw_it(
     settings_env, project_dir, wait_run, tmp_path
 ):
     """Slice 85c: a Claude Code Lead's model is sent the picture (given its CLI's way: below),
-    and its prompt names no file of KOLONİ's store. A CLI with no way to take one (Qoder) is
+    and its prompt names no file of KOLONİ's store. A CLI with no way to take one (Copilot) is
     told so, never "your model is not known to see". Each card says what became of it."""
     from app.config import load_settings
     from app.main import create_app
@@ -431,11 +432,13 @@ def test_a_cli_lead_is_shown_the_picture_and_its_card_says_whose_model_saw_it(
     from tests.keyed import TestClient
 
     cli = ScriptedModel([text("seen")])
-    qoder = QoderSessionClient(launcher=FAKE_SESSION, **plan(tmp_path, [{"say": "cannot"}]))
+    copilot = CopilotSessionClient(
+        None, "q", launcher=FAKE_COPILOT, options={}, **plan(tmp_path, [{"say": "cannot"}])
+    )
     app = create_app(
         load_settings(settings_env),
         model=ScriptedModel([]),
-        clients={"Claude": cli, "Qoder": qoder},
+        clients={"Claude": cli, "Copilot": copilot},
     )
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
         client.headers["Origin"] = "http://127.0.0.1:8790"
@@ -451,8 +454,8 @@ def test_a_cli_lead_is_shown_the_picture_and_its_card_says_whose_model_saw_it(
         other = client.post(
             "/api/providers",
             json={
-                "name": "Qoder",
-                "kind": "qoder_cli",
+                "name": "Copilot",
+                "kind": "copilot_cli",
                 "models": [{"name": "q", "inputs": ["image"]}],
             },
         )
@@ -478,10 +481,11 @@ def test_a_cli_lead_is_shown_the_picture_and_its_card_says_whose_model_saw_it(
     cards = {one["id"]: one["shown_to"] for one in later["attachments"]}
     assert cards[shot["id"]] == {lead: "shown to sonnet on Claude"}
     told = record(tmp_path)["stdin"]
-    assert "Qoder has no way KOLONİ can give it images" in told and again["id"] not in told
+    assert "GitHub Copilot CLI has no way KOLONİ can give it images" in told
+    assert again["id"] not in told
     other_lead = next(a["id"] for a in later["agents"] if a["depth"] == 0 and a["id"] != lead)
     assert cards[again["id"]] == {
-        other_lead: "not shown to q on Qoder: Qoder is given no images by KOLONİ"
+        other_lead: "not shown to q on Copilot: GitHub Copilot CLI is given no images by KOLONİ"
     }
 
 
@@ -590,9 +594,9 @@ async def test_codex_is_given_a_copy_of_a_picture_by_its_path_in_each_mode(tmp_p
 
 @pytest.mark.anyio
 async def test_a_cli_with_no_way_to_take_a_picture_is_given_none_nor_its_path(tmp_path):
-    await QoderSessionClient(launcher=FAKE_SESSION, **plan(tmp_path, [{"say": "ok"}])).run_session(
-        "m", with_picture(tmp_path), [], answered, nothing
-    )
+    await CopilotSessionClient(
+        None, "m", launcher=FAKE_COPILOT, options={}, **plan(tmp_path, [{"say": "ok"}])
+    ).run_session("m", with_picture(tmp_path), [], answered, nothing)
     seen = record(tmp_path)
     assert "--input-format" not in seen["argv"]
     kept_out(seen["stdin"])

@@ -95,9 +95,8 @@ def _tells_own_sub_agents(ctx: Ctx) -> bool:
     """☾ Away: whether KOLONİ tells the Orchestrator's own calls of its tools from those of a
     sub-agent of its CLI's own - always on a model KOLONİ steps (none such), and on Claude Code,
     whose hook names them (`USED_INSIDE`).
-    shortcut: Qoder keeps Agent/Task on Claude's hook path, but whether its hook names the
-    sub-agent (`agent_type`) is not measured - nor the other CLIs' own sub-agents: their Go away
-    line takes no task; measure Qoder's hook (and Copilot's, Codex's) and add each here."""
+    shortcut: the other CLIs' own sub-agents are not measured: their Go away line takes no
+    task; measure Copilot's and Codex's hooks and add each here."""
     model = ctx.model
     if not isinstance(model, CliStepClient):
         return True

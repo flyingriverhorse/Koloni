@@ -116,24 +116,6 @@ def test_a_cli_has_its_own_levels_and_no_price():
     told, said = catalog.facts("codex_cli", None, "gpt-6-astra")
     assert told["efforts"] == ["low", "medium", "high", "xhigh", "max"]
     assert said["efforts"] == "catalog" and told["price"] is None and told["context_window"]
-    assert catalog.facts("qoder_cli", None, "Qwen3.8-Flash")[0]["efforts"][0] == "off"
-
-
-def test_qoders_listed_models_have_their_tiers():
-    # (Its old levels - performance, auto, efficient - are no model names of qodercli 1.1.51.)
-    tiers = {
-        name: catalog.facts("qoder_cli", None, name)[0]["tier"]
-        for name in catalog._CATALOGUE["cli"]["qoder_cli"]["models"]
-    }
-    assert tiers == {
-        "Qwen3.8-Flash": "fast",
-        "DeepSeek-v4-Pro": "strongest",
-        "Qwen-3.8-Max": "strongest",
-        "DeepSeek-v4-Flash": "fast",
-        "Qwen-3.7-Max": "strongest",
-        "GLM-5.2": "strongest",
-        "Qwen-3.6-Flash": "fast",
-    }
 
 
 def test_what_is_kept_of_models_dev_is_what_is_read_in_the_shape_it_should_have():
@@ -311,12 +293,6 @@ async def test_a_template_without_the_switch_has_no_off():
     client = OpenAICompatClient("http://model/v1", transport=httpx2.MockTransport(handler))
     await client.found_window()
     assert client.efforts == ("low", "medium", "high")
-
-
-def test_qoder_says_off_its_own_way():
-    from app.model_session import QoderSessionClient
-
-    assert QoderSessionClient()._leveled(["-p"], "off") == ["--reasoning-effort", "none", "-p"]
 
 
 def test_a_model_without_the_users_price_costs_the_catalogues_and_says_so(

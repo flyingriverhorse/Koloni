@@ -48,7 +48,6 @@ from app.db.models import (
     now,
 )
 from app.model_client import ModelClient, OwnStop
-from app.model_session import QUEUE_WAIT_SECONDS
 from app.providers import works_with_own_tools
 from app.roles import find_role, shown_name
 from app.serialize import question_out
@@ -101,14 +100,11 @@ NO_PROGRESS = (
     "agent finished its work, no failing command passed"
 )
 # K-yavas (the user, 20 Nov 2026): in a turn the user watches, the Orchestrator's model silent this
-# long is asked about on a card (`_slow`) - measured: Qoder's free queue held one 5.5 and 7 min,
-# Codex at its 5-hour limit answered every 7-10 min; a CLI's own silence limit
-# (`model_first_token_seconds`, 15 min) is longer, so the card comes first. Qoder's queue line
-# past QUEUE_WAIT_SECONDS asks sooner. shortcut: a constant, not a setting; make it a setting if
-# the user asks.
+# long is asked about on a card (`_slow`) - measured: Codex at its 5-hour limit answered every
+# 7-10 min; a CLI's own silence limit (`model_first_token_seconds`, 15 min) is longer, so the card
+# comes first. shortcut: a constant, not a setting; make it a setting if the user asks.
 WATCHED_SLOW_MINUTES = 5
 SLOW_SILENT = "{who} has not answered for {minutes} min."
-SLOW_QUEUED = "{provider} has kept {model} queued for {minutes} min."
 SLOW_ASKED = "{said} Keep waiting, or stop this turn and pick another model?"
 SLOW_WAIT = "Keep waiting"
 SLOW_STOP = "Stop and pick another model"
@@ -773,26 +769,12 @@ class LimitsMixin:
         if slow is not None and slow.card is not None:
             await asyncio.shield(asyncio.gather(slow.card, return_exceptions=True))
 
-    def _slow_queued(self: "AgentRunner", ctx: Ctx, queue: dict | None) -> None:
-        """`_show_live`: Qoder has kept the Orchestrator's model queued past QUEUE_WAIT_SECONDS -
-        asked now, and once until its model is heard from (the line comes every ~30 s)."""
-        slow = self._slow_turns.get(ctx.run_id)
-        if (
-            queue
-            and (queue.get("elapsed_s") or 0) >= QUEUE_WAIT_SECONDS
-            and slow is not None
-            and slow.agent_id == ctx.agent_id
-            and not slow.waited
-        ):
-            self._slow_due(ctx.run_id, queue)
-
-    def _slow_due(self: "AgentRunner", run_id: str, queue: dict | None = None) -> None:
-        """`_slow`'s minutes are up - or, `queue`, Qoder's line said so (`_slow_queued`): the user
-        is asked on one card, unless the wait is not the model's - a card or anything else of the
-        turn waits for the user (they are slow, not the model), a call of the Orchestrator's is at
-        work (KOLONİ's time: a sub-agent, a command), or it is not at work itself (in line for a
-        place): then its clock starts again. The card says its model and how long: Qoder's own
-        count where its last line said queued, else the limits gone by with no word.
+    def _slow_due(self: "AgentRunner", run_id: str) -> None:
+        """`_slow`'s minutes are up: the user is asked on one card, unless the wait is not the
+        model's - a card or anything else of the turn waits for the user (they are slow, not the
+        model), a call of the Orchestrator's is at work (KOLONİ's time: a sub-agent, a command), or
+        it is not at work itself (in line for a place): then its clock starts again. The card says
+        its model and how long: the limits gone by with no word.
         shortcut: a CLI's spawn_agent answered at once stays at work on record till its sub-agent
         is back - no card meanwhile; tell the two apart if a CLI is seen silent then."""
         slow = self._slow_turns.get(run_id)
@@ -823,22 +805,12 @@ class LimitsMixin:
             )
             provider, model = shown_name(lead.provider_name or "Its CLI"), lead.model_id
         if busy:
-            if queue is None:
-                self._slow_timer(run_id)
+            self._slow_timer(run_id)
             return
         slow.waited += 1
-        queue = queue or self._cli_live.get(ctx.agent_id, ("", {}))[1].get("queue")
-        said = (
-            SLOW_QUEUED.format(
-                provider=provider,
-                model=model or "its model",
-                minutes=round(queue["elapsed_s"] / 60),
-            )
-            if queue and queue.get("elapsed_s")
-            else SLOW_SILENT.format(
-                who=f"{provider} · {model}" if model else provider,
-                minutes=slow.waited * WATCHED_SLOW_MINUTES,
-            )
+        said = SLOW_SILENT.format(
+            who=f"{provider} · {model}" if model else provider,
+            minutes=slow.waited * WATCHED_SLOW_MINUTES,
         )
         slow.card = asyncio.ensure_future(self._slow_asked(ctx, said))
 

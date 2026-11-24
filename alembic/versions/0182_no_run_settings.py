@@ -1,12 +1,14 @@
 """Run the backlog, Runs by itself and Run settings go (0.1.8, To-do in a chat): a task runs in a
 chat's queue, at that chat's level and on its model. The project's six columns of them go - a
 backlog that ran by itself stops, its choices are not kept anywhere - and what a task's `flow`
-held for Run the backlog ("queued") and for its own branch ("branch") is cleared.
+held for Run the backlog ("queued"), its own branch ("branch"), a fix round due ("fix") and a
+place in a queue ("place") is cleared. A task left "doing" is todo again: no turn of before says
+which task it was (`Run.task_id` is new), so none would ever end it - nor start an unasked fix.
 
 Going back, the columns come back with their defaults: off, Ask, no model chosen.
 
-Revision ID: 0178
-Revises: 0177
+Revision ID: 0182
+Revises: 0181
 """
 
 import json
@@ -14,17 +16,18 @@ import json
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0178"
+revision = "0182"
 # (Written on the k-todo-sohbet branch: re-chained after main's newest at its merge.)
-down_revision = "0177"
+down_revision = "0181"
 branch_labels = None
 depends_on = None
 
-GONE = ("queued", "branch")
+GONE = ("queued", "branch", "fix", "place")
 
 
 def upgrade() -> None:
     conn = op.get_bind()
+    conn.execute(sa.text("UPDATE backlog_tasks SET status = 'todo' WHERE status = 'doing'"))
     for task_id, flow in conn.execute(
         sa.text("SELECT id, flow FROM backlog_tasks WHERE flow IS NOT NULL")
     ).fetchall():

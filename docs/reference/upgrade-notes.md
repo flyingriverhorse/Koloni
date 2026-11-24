@@ -18,6 +18,17 @@ put one back in place of `runtime/data/koloni.db`.
 
 Only what needs your attention after an update; everything else is in the [Changelog](../changelog.md).
 
+### 0.1.8
+
+- **Qoder** is no longer run. A Qoder provider is kept, switched off for good, with its settings; its card
+  says "no longer supported". If Qoder was your default provider (the first on the Models page), make
+  another provider the default or delete Qoder: until then the chats, triggers and To-do turns that run on
+  the default fail with that reason. A chat or a role set to Qoder fails the same way until you pick
+  another model. See [Qoder is no longer supported](../models/setup-cli.md#qoder-is-no-longer-supported).
+- **agy**, and Codex run **One run per model step**, are offered only with **Show experimental CLIs** on
+  (Settings › The app › Agents). A provider already set up so keeps working, tagged Experimental. See
+  [Experimental CLIs](../models/setup-cli.md#experimental-clis).
+
 ### 0.1.5
 
 - **When you're away**: a new project lets the Orchestrator decide a waiting card after 5 minutes. A

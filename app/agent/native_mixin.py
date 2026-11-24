@@ -63,8 +63,9 @@ if TYPE_CHECKING:
 # opened would write straight into the project.
 # shortcut: not add_skill - a native CLI's Lead proposes no skill; add it here (and to its
 # rules' words) when one should.
-# shortcut: nor propose_trigger (slice 69) - a native CLI's Lead proposes no trigger; add it
-# here and to its rules' words when one should.
+# notify and propose_trigger (0.1.8) as an API model's Lead has them, over the same call
+# (`_run_call`): notify only where the project has somewhere to send it (`_lead_tools`), at its
+# limits; propose_trigger only a card, never in a turn nobody watches (`_propose_trigger`).
 COLLABORATION_TOOLS = (
     "spawn_agent",
     "create_role",
@@ -76,6 +77,8 @@ COLLABORATION_TOOLS = (
     "add_task",
     "change_task",
     "assess_task",
+    "notify",
+    "propose_trigger",
     LEARN,
     LOOKUP,
     "post_note",
@@ -307,7 +310,6 @@ class NativeMixin:
         # shortcut: Codex - thread/start's cwd is its sandbox's writable root, and
         # `_not_as_asked` judges against it; move both once measured.
         # shortcut: Copilot - its sandbox's paths are laid out from `root`; same.
-        # shortcut: Qoder - as Claude Code's protocol, unmeasured (B-306); same.
         # shortcut: agy - its KOLONİ home and hooks are laid out from `root`; same.
         root = str(copy.root) if copy is not None else ctx.root
         denied = await self._native_work_denied(ctx, root, hide)
@@ -344,7 +346,6 @@ class NativeMixin:
             # (`_sent_with_files`): a refusal fails the run; add one if that is seen.
             model = cast(CodexNativeClient, self._model_of(ctx))
             # B-151: Claude Code's skills go in its instructions as `run_native` gives them.
-            # (Not Qoder on its protocol, B-306: none of Claude Code's extras is measured there.)
             claude = isinstance(model, ClaudeNativeClient) and model.command == "claude"
             inside = self._inside_roles(ctx, offered, withheld, watch) if claude else {}
             # 27 / 93-C3: the session it may go on in, and keeps the one it leaves (not in a
@@ -628,10 +629,13 @@ class NativeMixin:
         if copy is not None:
             # What changes in the project while it works is on record, as by a maker not known
             # (B4-04: a hand change beside a CLI that keeps to its copy was on none). Looked
-            # at while it works only for one whose commands write there too (native agy: a
-            # CLI that asks first is refused a write outside its copy - `_approve`).
+            # at while it works - after each command, one look over the project - for one whose
+            # commands can write there too: native agy, and Claude Code, whose commands no
+            # sandbox holds (C2; a file tool of its own is refused a write outside - `_approve`).
             watch.project = await asyncio.to_thread(ProjectView, ctx.root)
-            watch.unheld = not _sandboxed(ctx.model)
+            watch.unheld = not _sandboxed(ctx.model) or not getattr(
+                ctx.model, "commands_held", True
+            )
         return view, watch
 
     async def _native_work_call(

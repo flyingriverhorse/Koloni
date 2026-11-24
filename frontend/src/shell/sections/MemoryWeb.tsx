@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Project } from '../../api/types'
 import { MEANING_COSTS } from '../../memory/Find'
+import { useExperimentalClis } from '../../models/experimental'
 import { ProviderOptions } from '../../models/ModelNameInput'
 import { useApp } from '../../state/store'
 import { GUIDE } from '../guide'
@@ -140,6 +141,8 @@ function useWeb(project: Project) {
   const [searchUrl, setSearchUrl] = useState(project.search_url ?? '')
   const [searchOrder, setSearchOrder] = useState(project.search_order)
   const [searchAgy, setSearchAgy] = useState(project.search_agy)
+  // agy is experimental (0.1.8): offered with experimental CLIs shown, or where it is already let search.
+  const agyShown = useExperimentalClis() || project.search_agy
   const patch = {
     ...(searchUrl.trim() !== (project.search_url ?? '') && { search_url: searchUrl.trim() }),
     ...(searchOrder !== project.search_order && { search_order: searchOrder }),
@@ -192,16 +195,18 @@ function useWeb(project: Project) {
             <option value="cli">A CLI first, then the built-in search</option>
           </select>
         </Row>
-        <label className="choice">
-          <input type="checkbox" checked={searchAgy} onChange={e => setSearchAgy(e.target.checked)} />
-          <span>
-            Let agy search too
-            <span className="choice-note">
-              While it searches, agy is not held to its search tool: it may read files on this machine or open pages
-              unasked. Codex and Claude Code are held to it.
+        {agyShown && (
+          <label className="choice">
+            <input type="checkbox" checked={searchAgy} onChange={e => setSearchAgy(e.target.checked)} />
+            <span>
+              Let agy search too
+              <span className="choice-note">
+                While it searches, agy is not held to its search tool: it may read files on this machine or open pages
+                unasked. Codex and Claude Code are held to it.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        )}
       </>
     ),
   }

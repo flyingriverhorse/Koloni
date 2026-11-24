@@ -167,36 +167,44 @@ window.koloniDraw = function (xml, format) {
   return koloniPicture(format)
 }
 
-// In the Workspace: the app posts the file's text ({xml}), then asks for a picture of it ({save: 'png' | 'svg'}).
-// Only the frame's own parent is heard, and answered - at the origin this page is served from (its address's,
-// `new URL(location.href).origin`: the page itself is of no origin).
+// In the Workspace: the app hands this page a port of its own at the frame's first load ('koloni', with the port), then
+// posts the file's text ({xml}) and asks for a picture of it ({save: 'png' | 'svg'}) by that port alone, where it is
+// answered. Only the frame's own parent is heard, at the origin this page is served from (its address's,
+// `new URL(location.href).origin`: the page itself is of no origin), and only its first port taken.
+var koloniPort = null
 window.addEventListener('message', function (event) {
-  var said = event.data
   if (
+    koloniPort ||
     event.source !== window.parent ||
     event.origin !== new URL(location.href).origin ||
-    !said ||
-    typeof said !== 'object'
+    event.data !== 'koloni' ||
+    !event.ports ||
+    !event.ports[0]
   )
     return
-  var answer = function (message) {
-    window.parent.postMessage(message, new URL(location.href).origin)
-  }
-  if (typeof said.xml === 'string') {
-    try {
-      koloniShow(said.xml)
-      answer({ shown: true })
-    } catch (error) {
-      answer({ failed: String((error && error.message) || error) })
+  koloniPort = event.ports[0]
+  koloniPort.onmessage = function (message) {
+    var said = message.data
+    if (!said || typeof said !== 'object') return
+    var answer = function (reply) {
+      koloniPort.postMessage(reply)
     }
-  } else if ((said.save === 'png' || said.save === 'svg') && koloniViewer) {
-    koloniPicture(said.save).then(
-      function (data) {
-        answer({ saved: said.save, data: data })
-      },
-      function (error) {
+    if (typeof said.xml === 'string') {
+      try {
+        koloniShow(said.xml)
+        answer({ shown: true })
+      } catch (error) {
         answer({ failed: String((error && error.message) || error) })
-      },
-    )
+      }
+    } else if ((said.save === 'png' || said.save === 'svg') && koloniViewer) {
+      koloniPicture(said.save).then(
+        function (data) {
+          answer({ saved: said.save, data: data })
+        },
+        function (error) {
+          answer({ failed: String((error && error.message) || error) })
+        },
+      )
+    }
   }
 })

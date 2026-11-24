@@ -264,7 +264,8 @@ class RecordMixin:
         role was opened this turn gets one line of KOLONİ's own under it - a "koloni" message,
         which no agent is given - so the user is not told of a check that was not made. Role
         names as whole words, whatever their case; not Lead. A bare mention, a list of roles,
-        a could / would / can / will, or a line ending with "?" is no claim.
+        a could / would / can / will, or a line ending with "?" is no claim - nor what stands in
+        a table row, a quote (">") or code (fenced, or inline), which is not the Lead's own word.
         shortcut: English only - the name then a past-tense verb in the same sentence, or
         "I asked / had / opened / let / got" before it; a claim worded otherwise is missed
         (better than noise) - add its words where a line is seen to mislead."""
@@ -284,11 +285,13 @@ class RecordMixin:
                     select(Agent.role_name).where(Agent.run_id == run_id, Agent.id != ctx.agent_id)
                 )
             }
+            # (A fence left open: the rest of the answer is its code.)
+            said = re.sub(r"(```|~~~).*?(?:\1|\Z)", "", message.content, flags=re.S)
             claims = [
                 one
-                for line in message.content.splitlines()
-                if not line.rstrip().endswith("?")
-                for one in re.split(r"[.!;]", line)
+                for line in said.splitlines()
+                if not line.rstrip().endswith("?") and not line.lstrip().startswith((">", "|"))
+                for one in re.split(r"[.!;]", re.sub(r"`[^`]*`", "", line))
                 if not re.search(modal, one, re.I)
             ]
             named = [

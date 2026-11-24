@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import type { Effort, ModelFacts, Provider } from '../api/types'
+import { showExperimental } from '../test-fixtures'
 import { ModelPicker } from './ModelPicker'
 import { ModelsPage } from './ModelsPage'
 
@@ -416,28 +417,57 @@ test('each way of running says what it does: Copilot in a home of its own, a sig
   expect(screen.getByRole('note')).toHaveTextContent(/^Native: Codex works with its own shell and patch tool/)
 })
 
-test('Qoder and Codex each run the ways they safely can', async () => {
+test('a Qoder provider from before says why it stays off and can only be deleted; none is offered', async () => {
   const h = handlers()
-  const qoder = provider({ id: 'p4', name: 'Qoder', kind: 'qoder_cli', base_url: null, mode: 'session' })
-  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: null })
-  render(<ModelsPage providers={[qoder, codex]} {...h} />)
-  await open('Qoder', 'Connection')
-  expect(screen.getByLabelText('How it runs')).toHaveValue('session') // natively too since B-306, not by default
-  expect(screen.getByText(/keeps its own loop/)).toBeInTheDocument()
-  expect(screen.getByText(/a model name has to be set/i)).toBeInTheDocument()
+  const why = 'Qoder is no longer supported (0.1.8): KOLONİ does not run it any more.'
+  const qoder = provider({ id: 'p4', name: 'Qoder', kind: 'qoder_cli', base_url: null, enabled: false, off_why: why })
+  render(<ModelsPage providers={[qoder, provider({})]} {...h} />)
+  expect(screen.getByRole('switch', { name: 'Qoder on' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: /^Qoder/ })).toHaveTextContent('no longer supported')
+  await open('Qoder')
+  expect(screen.getByRole('note')).toHaveTextContent(why)
+  expect(screen.queryByLabelText('Path to the command')).not.toBeInTheDocument()
+  expect(screen.getAllByRole('switch', { name: 'Qoder on' }).every(one => (one as HTMLInputElement).disabled)).toBe(
+    true,
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Delete provider' }))
+  expect(h.onDelete).toHaveBeenCalledWith('p4')
   await close()
+  await userEvent.click(screen.getByRole('button', { name: /Add a provider/ }))
+  expect(screen.queryByRole('option', { name: /Qoder/ })).not.toBeInTheDocument()
+})
+
+test('Codex runs the ways it safely can; one run per model step only under Experimental, or in use', async () => {
+  const h = handlers()
+  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: null })
+  render(<ModelsPage providers={[codex, provider({})]} {...h} />)
   await open('Codex', 'Connection')
   // A session since 7 Nov 2026 and its default since its live test, said plainly: its patch tool stays, and is refused.
   expect(screen.getByLabelText('How it runs')).toHaveValue('session')
   const session = screen.getByRole('option', { name: "One session per agent, with KOLONİ's tools (recommended)" })
   expect(session).toHaveValue('session')
   expect(screen.getByText(/KOLONİ refuses every patch it asks to make/)).toBeInTheDocument()
+  expect(screen.queryByRole('option', { name: /One run per model step/ })).not.toBeInTheDocument()
+  await close()
+  showExperimental()
+  await open('Codex', 'Connection')
+  const step = await screen.findByRole('option', { name: /One run per model step/ })
+  expect(step.closest('optgroup')).toHaveAttribute('label', 'Experimental')
   await userEvent.selectOptions(screen.getByLabelText('How it runs'), 'step')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(h.onSave).toHaveBeenCalledWith('p5', expect.objectContaining({ mode: 'step' }))
-  await close()
-  await userEvent.click(screen.getByRole('button', { name: /Add a provider/ }))
-  expect(screen.getByRole('option', { name: 'Qoder (CLI)' })).toBeInTheDocument()
+})
+
+test('agy and Codex run step by step, already set up, keep their card tagged Experimental', () => {
+  const agy = provider({ id: 'p6', name: 'agy', kind: 'agy_cli', base_url: null, mode: 'reads' })
+  const step = provider({ id: 'p7', name: 'Codex steps', kind: 'codex_cli', base_url: null, mode: 'step' })
+  const codex = provider({ id: 'p8', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'session' })
+  render(<ModelsPage providers={[provider({}), agy, step, codex]} {...handlers()} />)
+  const card = (name: RegExp) => screen.getByRole('button', { name })
+  expect(card(/^agy/)).toHaveTextContent('Experimental')
+  expect(card(/^Codex steps/)).toHaveTextContent('Experimental')
+  expect(card(/^Codex(?! steps)/)).not.toHaveTextContent('Experimental')
+  expect(card(/^Local/)).not.toHaveTextContent('Experimental')
 })
 
 test('Codex can run natively, and the page says plainly how it is asked first', async () => {

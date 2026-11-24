@@ -216,11 +216,17 @@ Full auto KOLONİ's judge looks at what no rule names. What the rules above do n
   on record as an agent's writes, so they do not stop a rule; nor does a CLI's write of a `.env`
   or `.npmrc` into the project from its working copy, nor an agent's delete of a setting that protected the project.
 - tsc's `-p` naming any other file (`-p tsconfig.build`), and a tsconfig that extends a
-  package's config (`@scope/cfg`); ts-patch's tsconfig plugins; `vue-tsc`.
-- pdm's `.pdm.toml`, `pylock.<name>.toml`, `.python-versions`, `hatch_build.py`, a file named on
-  the line (`-r deps.txt`, `--config-file x`), node-gyp's `*.gypi`; pip named with its version
-  (`pip3.12`).
-- make's `SHELL:=`, `SHELL+=` and `.SHELLFLAGS` past a make rule.
+  package's config (`@scope/cfg`); ts-patch's tsconfig plugins; `vue-tsc`. Past a tsc rule,
+  `--init`, `--outDir out` (they write in the folder) and `-w` (it never ends).
+- mypy's `--timing-stats F`, `--line-checking-stats F` and `--cache-map …`, which write where they
+  name; `ruff format .` and `ruff clean` under a `uv run ruff` or `python -m ruff` rule (they write
+  in the folder); eslint's `--mcp`, `--cache` and `--fix-dry-run`.
+- pdm's `.pdm.toml`, `pdm_build.py` (pdm-backend loads it), poetry's `build.py` that its
+  manifest names, `pylock.<name>.toml`, `.python-versions`, `hatch_build.py`, a file named on
+  the line (`-r deps.txt`, `--config-file x`), node-gyp's `*.gypi`, bun's `.env.test`; pip named
+  with its version (`pip3.12`).
+- make's `SHELL:=`, `SHELL+=` and `.SHELLFLAGS`, and its `--makefile=x`, `-C ../x` /
+  `--directory=x` and `--eval=…`, past a make rule.
 - On macOS, a name its file system folds into a settings file's (`uv.lock` written with the
   Kelvin sign, U+212A, for its `k`).
 
@@ -323,7 +329,7 @@ Only such a delete alone on its line counts, written the way the shell it runs i
   Bash on Windows): `rm` with `-r`, `-R` or `-rf`, `-f` / `--force` if you like: `rm -rf build dist`.
 - **git**, in every shell: `git worktree remove ../wt/x`, `git branch -d old`.
 
-Codex, agy and Qoder do not say which shell their command runs in, so their delete of a folder keeps
+Codex and agy do not say which shell their command runs in, so their delete of a folder keeps
 its card. A disposable delete that ran and then failed says so on its row: "Ran without asking as
 disposable (…) and failed: exit 1". Anything else on the line, a forced worktree
 remove, a path above the folder or with a link in it, a line the shell continues, a command of a CLI

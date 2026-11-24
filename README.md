@@ -21,7 +21,7 @@
        alt="A real run, sped up: one message asks three teams for a small command-line tool; the Orchestrator opens the Backend, Web app and Docs teams on the canvas; the Web app team designs in a room; the work comes back on one card and Take in brings four files into the project. Every role on Claude Code with haiku.">
 </p>
 
-KOLONİ runs Claude Code, Codex, GitHub Copilot CLI, agy and Qoder, plus a local llama.cpp server or
+KOLONİ runs Claude Code, Codex, GitHub Copilot CLI and agy, plus a local llama.cpp server or
 any OpenAI-compatible API, side by side in one chat with a canvas. A lead hands parts of the job to
 roles; each sub-agent works in its own copy of your project; what it changed comes back on a card
 with the diff and your tests, and you take it in or discard it. Stop never loses half-done work.
@@ -105,10 +105,9 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 | Provider | How it runs | Sign in |
 |---|---|---|
 | Claude Code | session (KOLONİ's tools over MCP) or native | `claude auth login` |
-| Codex | session (KOLONİ's tools over MCP), step, or native | `codex login` |
+| Codex | session (KOLONİ's tools over MCP), native, or step (experimental) | `codex login` |
 | GitHub Copilot CLI | session or native (asks before its tools; from 1.0.114 on through KOLONİ's own hook); `auto` and `fusion` pick the model, with a routing | `gh auth login` |
-| agy | reads (its default) or native | agy's own sign-in |
-| Qoder | session | Qoder's own sign-in |
+| agy (experimental) | reads (its default) or native | agy's own sign-in |
 | llama.cpp `llama-server` | OpenAI-compatible, started with `--jinja`; the Server tab starts and stops it | — |
 | Anthropic API, any OpenAI-compatible API | per token | your key |
 

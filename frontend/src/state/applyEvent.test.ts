@@ -167,17 +167,15 @@ test('89j: agent.live keeps the latest its CLI said, whole, and nothing once it 
     agent_id: 'a',
     context: { used: 1, window: 100000 },
     plan: null,
-    queue: null,
   })
   s = applyEvent(s, null, 'agent.live', {
     agent_id: 'a',
     context,
     plan: [{ step: 'Fix', status: 'inProgress' }],
-    queue: null,
   })
-  expect(s.live).toEqual({ a: { context, plan: [{ step: 'Fix', status: 'inProgress' }], queue: null } })
+  expect(s.live).toEqual({ a: { context, plan: [{ step: 'Fix', status: 'inProgress' }] } })
   expect(s.lastEventId).toBe(base().lastEventId) // (on no record)
-  s = applyEvent(s, null, 'agent.live', { agent_id: 'a', context: null, plan: null, queue: null })
+  s = applyEvent(s, null, 'agent.live', { agent_id: 'a', context: null, plan: null })
   expect(s.live).toEqual({})
 })
 
@@ -642,21 +640,14 @@ test('conversation.updated: a turn keeps its teams’ rows as last seen; a turn 
     agent_id: 'a',
     context: { used: 1, window: 2 },
     plan: null,
-    queue: null,
   })
-  expect([changed(s, live), live.live]).toEqual([
-    ['live'],
-    { a: { context: { used: 1, window: 2 }, plan: null, queue: null } },
-  ])
-  expect(applyEvent(live, null, 'agent.live', { agent_id: 'a', context: null, plan: null, queue: null }).live).toEqual(
-    {},
-  )
+  expect([changed(s, live), live.live]).toEqual([['live'], { a: { context: { used: 1, window: 2 }, plan: null } }])
+  expect(applyEvent(live, null, 'agent.live', { agent_id: 'a', context: null, plan: null }).live).toEqual({})
   expect(
     applyEvent(live, null, 'agent.live', {
       agent_id: 'b',
       context: null,
-      plan: null,
-      queue: { elapsed_s: 1, max_s: null, available: null },
+      plan: [{ step: 'Read', status: 'pending' }],
     }).live,
   ).toMatchObject({ a: {}, b: {} })
 })

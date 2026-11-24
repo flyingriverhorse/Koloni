@@ -40,7 +40,7 @@ export interface Phase {
 }
 
 /** [verb, one, more] of each tool that only looks: KOLONİ's and Claude Code's as KOLONİ records them (`app/handoff.py`). */
-// shortcut: Codex reads with shell commands and Copilot's, agy's and Qoder's own read tools are not measured by name: they
+// shortcut: Codex reads with shell commands and Copilot's and agy's own read tools are not measured by name: they
 // are "Used <tool>"; add their names here once a live run shows what KOLONİ records them as.
 const [READ, SEARCH, LIST]: [string, string, string][] = [
   ['read', 'file', 'files'],

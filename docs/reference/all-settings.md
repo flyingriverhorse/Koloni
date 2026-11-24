@@ -16,7 +16,7 @@ message box. See [Settings](../settings.md#this-chat).
 | **Asking and away** | Opening a sub-agent · When you're away · A harmful-looking command at Full auto · Agents may delete what is disposable without asking |
 | **New chats start with** | New chats' teams · Other folders · Posts, at most · Minutes, at most · Tokens, at most · Tokens, at least |
 | **Limits and money** | At most this many agents at work in this project · Agents at the same time · Sub-agent levels · Sub-agents per request · Continue gives this many more steps · Stop the work on a message over this many tokens · A discussion's tokens, at most · Monthly budget |
-| **Commands and secrets** | This machine / Docker container · Image · Allow network access · Hide secret files from commands · Secret variables commands may see · Planted test key (canary) |
+| **Commands and secrets** | This machine / Docker container · Image · Allow network access · Longest command (minutes) · Hide secret files from commands · Secret variables commands may see · Planted test key (canary) |
 | **Runs without asking** | Sites agents open · Commands and requests, by chat |
 | **Checks and git** | After a change · Fix rounds · Then a stronger model · Check by kind of work · Found by KOLONİ · Measure command · Save each sub-agent's work as a git commit · How a team's finished branch reaches yours |
 | **Memory and web** | Note what the work found, by itself · Search by meaning with · Also look in the memory of · Search address (SearXNG) · Otherwise search with · Let agy search too |
@@ -30,7 +30,8 @@ See [Settings](../settings.md).
 
 **Answer in**, **Steps an agent may take**, **Stuck after this many minutes with no progress**,
 **An unattended turn runs at most (hours)**, **Summarise a long context at (%)**, **Knowledge
-reads at most**, **KOLONİ's test runs at once** and **Test processes per run** (Agents),
+reads at most**, **KOLONİ's test runs at once**, **Test processes per run** and **Show experimental
+CLIs** (Agents),
 **Voice** (this browser's), and **Your data** (Export, Restore, Always blocked). See
 [Settings](../settings.md#the-app).
 

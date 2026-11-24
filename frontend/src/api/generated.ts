@@ -1436,6 +1436,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/experimental-clis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Experimental Clis */
+        get: operations["experimental_clis_api_experimental_clis_get"];
+        /**
+         * Set Experimental Clis
+         * @description 0.1.8: Show experimental CLIs (Settings › The app › Agents) - the user's, from the app's
+         *     own page.
+         */
+        put: operations["set_experimental_clis_api_experimental_clis_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/file-changes/{change_id}/approve": {
         parameters: {
             query?: never;
@@ -4468,7 +4490,8 @@ export interface paths {
         };
         /**
          * Storage
-         * @description What KOLONİ's data takes, counted when asked (0.1.0-hijyen).
+         * @description What KOLONİ's data takes, counted when asked (0.1.0-hijyen) - and the copies kept for the
+         *     user's word, which only their Discard deletes (a trigger over its budget keeps one a firing).
          */
         get: operations["storage_api_storage_get"];
         put?: never;
@@ -4971,6 +4994,8 @@ export interface components {
             cache_read_tokens: number | null;
             /** Cache Write Tokens */
             cache_write_tokens: number | null;
+            /** Changed Nothing */
+            changed_nothing?: boolean | null;
             /** Chosen */
             chosen: boolean;
             /** Chosen Why */
@@ -6983,6 +7008,15 @@ export interface components {
             title: string;
         };
         /**
+         * ExperimentalClis
+         * @description 0.1.8: whether the Models page offers what is experimental - agy, and Codex run one step
+         *     at a time (`providers.EXPERIMENTAL_FLAG`). Off by default; a provider already set so runs.
+         */
+        ExperimentalClis: {
+            /** Show */
+            show: boolean;
+        };
+        /**
          * ExpertIn
          * @description K-bilgi: a new expert - its role, and its knowledge in this project.
          */
@@ -7579,6 +7613,27 @@ export interface components {
              * @default
              */
             why: string;
+        };
+        /**
+         * KeptCopyOut
+         * @description A working copy kept on disk for the user's word: its card (Discard there is
+         *     `POST /api/merges/{merge_id}/reject`), its chat, the agent whose work it holds and when it
+         *     was kept - two of one chat told apart.
+         */
+        KeptCopyOut: {
+            /** Agent */
+            agent: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Kept At
+             * Format: date-time
+             */
+            kept_at: string;
+            /** Merge Id */
+            merge_id: string;
+            /** Title */
+            title: string;
         };
         /**
          * Knowledge
@@ -9362,6 +9417,8 @@ export interface components {
              * @enum {string}
              */
             lead_work: "delegates" | "decides" | "itself";
+            /** Longest Command */
+            longest_command: number;
             /** Max Agents */
             max_agents: number | null;
             /** Measure Command */
@@ -9533,6 +9590,8 @@ export interface components {
             hide_secrets?: boolean | null;
             /** Lead Work */
             lead_work?: ("delegates" | "decides" | "itself") | null;
+            /** Longest Command */
+            longest_command?: number | null;
             /** Max Agents */
             max_agents?: number | null;
             /** Measure Command */
@@ -9696,7 +9755,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "openai_compat" | "anthropic" | "claude_cli" | "qoder_cli" | "codex_cli" | "copilot_cli" | "agy_cli";
+            kind: "openai_compat" | "anthropic" | "claude_cli" | "codex_cli" | "copilot_cli" | "agy_cli" | "qoder_cli";
             /** Max Running */
             max_running: number | null;
             /** Mode */
@@ -9719,6 +9778,8 @@ export interface components {
             } | null;
             /** Note */
             note: string | null;
+            /** Off Why */
+            off_why?: string | null;
             offers?: components["schemas"]["CopilotOffers"] | null;
             /** Only Listed */
             only_listed: boolean;
@@ -11298,7 +11359,9 @@ export interface components {
          * StorageOut
          * @description What KOLONİ's own data takes on this machine, in MB: the database (its WAL too), its
          *     backups (each migration's and update's, and the daily ones: apart, R125 - they were most of
-         *     "db"), the working copies, the log. None: not counted in time.
+         *     "db"), the working copies, the log. None: not counted in time. `kept`: the copies kept for
+         *     the user's word - never deleted unasked, so they pile up only by their cards - oldest first,
+         *     and `kept_mb` what they take (of `copies_mb`).
          */
         StorageOut: {
             /** Backups Mb */
@@ -11307,6 +11370,13 @@ export interface components {
             copies_mb: number | null;
             /** Db Mb */
             db_mb: number | null;
+            /**
+             * Kept
+             * @default []
+             */
+            kept: components["schemas"]["KeptCopyOut"][];
+            /** Kept Mb */
+            kept_mb?: number | null;
             /** Logs Mb */
             logs_mb: number | null;
         };
@@ -14774,6 +14844,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscussionPostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    experimental_clis_api_experimental_clis_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentalClis"];
+                };
+            };
+        };
+    };
+    set_experimental_clis_api_experimental_clis_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentalClis"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentalClis"];
                 };
             };
             /** @description Validation Error */

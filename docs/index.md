@@ -3,7 +3,7 @@
 KOLONİ is an agent workspace that runs on your own machine.
 You chat with an agent, the Orchestrator, in a folder of yours. It reads, searches, edits and runs commands there.
 It hands parts of the job to other agents (Coder, Reviewer, Tester and more) when that helps.
-The agents run on models you add: an API key, a model server of your own, or a CLI you are signed in to (Claude Code, Codex, GitHub Copilot CLI, Qoder, agy).
+The agents run on models you add: an API key, a model server of your own, or a CLI you are signed in to (Claude Code, Codex, GitHub Copilot CLI, agy).
 A canvas beside the chat draws each turn from what really happened. Before anything risky, an agent asks you on a card.
 
 KOLONİ listens only on `127.0.0.1`, on your own machine. It sends no telemetry.

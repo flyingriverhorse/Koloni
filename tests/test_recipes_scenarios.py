@@ -737,6 +737,35 @@ def test_a_projects_draft_asks_only_its_own_chats_newest_model(team, project_dir
         assert _newest_chats(session, "another") is None
 
 
+def test_or_write_it_never_asks_a_model_that_may_not_run(team, project_dir):  # noqa: F811
+    """Review of k-qoder-sil: the newest chat's Orchestrator ran on a provider that may not run
+    now - a Qoder one of before 0.1.8, switched off for good - so it is asked nothing."""
+    client, _default, _fast = team([], [])
+    _pid, cid = chat_on(client, project_dir, team.providers["Fast"]["id"], "deep")
+    with client.app.state.session_factory() as session:
+        session.add(models.Provider(id="q", name="Qoder", kind="qoder_cli", enabled=False))
+        session.add(models.Run(id="r1", conversation_id=cid, status="completed"))
+        session.flush()
+        session.add(
+            models.Agent(
+                id="a1",
+                run_id="r1",
+                role_name="Orchestrator",
+                tools=[],
+                provider_name="Qoder",
+                model_id="Qwen3.8-Flash",
+            )
+        )
+        session.commit()
+        from app.api.recipes import _newest_chats, askers
+
+        assert _newest_chats(session)[0].name == "Qoder"  # (it is the newest chat's)
+        asked = askers(session, client.app.state.providers, "balanced")
+        assert isinstance(asked, list) and asked, asked
+        assert "Qoder" not in [provider.name for provider, _model, _label in asked]
+    assert "Qoder" not in (listed(client)["writer"]["asks"] or "")
+
+
 def test_or_write_it_may_draw_a_role_step_of_more_than_one(make_client):
     """K-rol-cogul: "at most N" of a role (`most`) is told, and a draft with it is read."""
     two = {

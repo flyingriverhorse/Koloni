@@ -1,5 +1,5 @@
 {
- "about": "What models.dev (app/models_dev.json) does not say: tiers by family, the CLIs' own names and levels, and hosts it has no address for (addresses: plans' own, offered beside models.dev's). Each CLI's levels as its --help says them (measured 20 Oct 2026; Codex's measured 3 Nov 2026, codex-cli 0.164.0, gpt-6-astra: xhigh and max taken, minimal refused - the server says the set per model). not_chat: words of a model's name (letters only) that say it cannot chat - a fill never proposes such a model, and no rule gives it a tier. Qoder's names as `qodercli --list-models` listed them (4 Nov 2026): -m takes a default or new model's name, a custom one's modelID; its image model (wan2.7-image-pro) is left out; on the account read only Qwen3.8-Flash was free. Only Qwen3.8-Flash is measured with -m; whether the bailian-intl ones take their name or their modelID is not measured.",
+ "about": "What models.dev (app/models_dev.json) does not say: tiers by family, the CLIs' own names and levels, and hosts it has no address for (addresses: plans' own, offered beside models.dev's). Each CLI's levels as its --help says them (measured 20 Oct 2026; Codex's measured 3 Nov 2026, codex-cli 0.164.0, gpt-6-astra: xhigh and max taken, minimal refused - the server says the set per model). not_chat: words of a model's name (letters only) that say it cannot chat - a fill never proposes such a model, and no rule gives it a tier.",
  "not_chat": ["image", "audio", "video", "speech", "tts", "asr", "realtime", "transcribe", "whisper", "embedding", "embed", "rerank", "moderation", "dall", "wan", "happyhorse"],
  "notes": {
   "strongest": "Among its strongest: for the hardest and longest work",
@@ -60,12 +60,6 @@
   "agy_cli": {
    "argon": "strongest",
    "flash": "balanced"
-  },
-  "qoder_cli": {
-   "flash": "fast",
-   "max": "strongest",
-   "pro": "strongest",
-   "glm": "strongest"
   }
  },
  "hosts": {
@@ -202,33 +196,6 @@
     "windows": "powershell -c \"irm https://antigravity.google/cli/install.ps1 | iex\"",
     "unix": "curl -fsSL https://antigravity.google/cli/install.sh | bash",
     "docs": "https://antigravity.google/docs/getting-started/"
-   }
-  },
-  "qoder_cli": {
-   "models": {
-    "Qwen3.8-Flash": null,
-    "DeepSeek-v4-Pro": null,
-    "Qwen-3.8-Max": null,
-    "DeepSeek-v4-Flash": null,
-    "Qwen-3.7-Max": null,
-    "GLM-5.2": null,
-    "Qwen-3.6-Flash": null
-   },
-   "source": {
-    "url": "qodercli --list-models",
-    "read_on": "2026-11-04"
-   },
-   "efforts": [
-    "off",
-    "low",
-    "medium",
-    "high",
-    "xhigh"
-   ],
-   "install": {
-    "windows": "npm install -g @qoder-ai/qodercli",
-    "unix": "npm install -g @qoder-ai/qodercli",
-    "docs": "https://docs.qoder.com/cli/installation"
    }
   }
  }

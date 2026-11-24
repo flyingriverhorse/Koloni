@@ -12,11 +12,9 @@ import pytest
 from app import model_session
 from app.model_client import ModelUnavailable, OwnStop
 from app.model_session import (
-    QUEUE_WAIT_SECONDS,
     SECOND_BRIDGE,
     ClaudeSessionClient,
     CopilotSessionClient,
-    QoderSessionClient,
     SessionStop,
     ToolServer,
     bridge_file,
@@ -112,91 +110,6 @@ async def test_text_and_tool_calls_flow_through_koloni_in_order(cli):
     assert not Path(seen["cwd"]).exists()
     assert int(seen["env_tool_wait"]) >= 3_600_000  # an approval may take a while
     assert json.loads(seen["stdin"][seen["stdin"].index("\n\n{") + 2 :])["conversation"]
-
-
-async def test_qoder_gets_the_same_isolation_with_its_own_flags(cli):
-    make, record = cli
-    result, said, calls = await run(
-        make(
-            QoderSessionClient,
-            [{"call": "list_dir"}, {"say": "One file."}],
-            model="Qwen3.8-Flash",
-            usage={"input_tokens": 0, "output_tokens": 0},
-        )
-    )
-    assert said == ["One file."] and [c[0] for c in calls] == ["list_dir"]
-    # a CLI that reports zeros has not counted: the numbers stay unknown
-    assert (result.input_tokens, result.output_tokens) == (None, None)
-    argv = record()["argv"]
-    assert argv[argv.index("--tools") + 1] == "" and "--strict-mcp-config" in argv
-    assert argv[argv.index("-o") + 1] == "stream-json"
-    allowed = [argv[i + 1] for i, a in enumerate(argv) if a == "--allowed-tools"]
-    assert allowed == ["mcp__koloni__list_dir", "mcp__koloni__read_file"]
-    assert argv[argv.index("-m") + 1] == "Qwen3.8-Flash"
-
-
-QUEUED = [
-    json.loads(line)
-    for line in Path(__file__)
-    .with_name("qoder_streams")
-    .joinpath("queue-status.jsonl")
-    .read_text(encoding="utf-8")
-    .splitlines()
-]  # (measured, qodercli 1.1.51)
-
-
-async def test_qoder_says_how_long_its_free_model_has_been_queued_and_no_more_once_it_answers(cli):
-    """K-qoder-kuyruk: each queue line is shown live as it comes (the page shows the latest);
-    a line with another status, or its model's first move (a tool call straight from the
-    queue, say, or its words), clears it - once, not at every move after."""
-    make, _record = cli
-    shown: list[dict] = []
-    # (The measured lines still under QUEUE_WAIT_SECONDS: six of the queue's, 65 s in at most.)
-    under = [
-        line for line in QUEUED if line.get("queue_wait_elapsed_ms", 0) < QUEUE_WAIT_SECONDS * 1000
-    ]
-    # shortcut: the status word that ends a queue was not measured; one that is not
-    # "queued" stands for it here.
-    client = make(
-        QoderSessionClient,
-        [
-            *({"emit": line} for line in under),
-            {"emit": {**under[-1], "status": "done"}},
-            {"emit": under[-1]},
-            {"call": "list_dir"},
-            {"say": "ok"},
-        ],
-    )
-
-    async def on_text(_text):
-        pass
-
-    async def a_tool(_name, _arguments):
-        return True, "one file"
-
-    await client.run_session("m", MESSAGES, TOOLS, a_tool, on_text, on_live=shown.append)
-    last = {"queue": {"elapsed_s": 65, "max_s": 3600, "available": False}}
-    assert shown[0] == {"queue": {"elapsed_s": 0, "max_s": 3600, "available": False}}
-    assert shown[5] == last
-    assert shown[6:] == [{"queue": None}, last, {"queue": None}]  # (the last: its tool call)
-
-
-async def test_a_model_queued_past_the_limit_ends_the_session_as_unavailable(cli):
-    """K-altajan-saglayici: queued QUEUE_WAIT_SECONDS (R115: 5.5 min, then "Queuing failed"),
-    the session is given up before a first word, so its opener can move the agent on. R130:
-    with no limit (an agent nowhere to move) it waits for as long as Qoder queues it."""
-    make, _record = cli
-    client = make(QoderSessionClient, [*({"emit": line} for line in QUEUED), {"say": "ok"}])
-    with pytest.raises(ModelUnavailable, match="Qoder kept its model queued for 2 min"):
-        await run(client)
-
-    said: list[str] = []
-
-    async def on_text(text):
-        said.append(text)
-
-    await client.run_session("m", MESSAGES, TOOLS, None, on_text, queue_wait=None)
-    assert said == ["ok"]
 
 
 async def test_a_failed_or_declined_tool_is_returned_as_an_error_result(cli):
@@ -350,9 +263,9 @@ async def test_a_second_program_with_the_key_stops_the_run_and_says_why(cli, mon
 
 
 def test_no_clis_config_holds_the_key(tmp_path):
-    # B-304: the key is in the bridge file alone (Claude Code's and Qoder's mcp.json had it).
+    # B-304: the key is in the bridge file alone (Claude Code's mcp.json had it).
     server = ToolServer(TOOLS, None)
-    for client in (ClaudeSessionClient(), QoderSessionClient(), CopilotSessionClient()):
+    for client in (ClaudeSessionClient(), CopilotSessionClient()):
         config = client._mcp_config(server, tmp_path)
         assert server.key not in json.dumps(config)
         assert config["mcpServers"]["koloni"]["args"][1] == str(tmp_path / "bridge.json")
@@ -419,10 +332,10 @@ async def test_a_session_client_does_not_run_step_by_step(cli):
     make, _ = cli
     with pytest.raises(ModelUnavailable, match="runs as a session"):
         await make(ClaudeSessionClient, []).stream_step("m", MESSAGES, TOOLS, None)
-    info = await QoderSessionClient(which=lambda name: "C:/q/qodercli.exe").info()
+    info = await ClaudeSessionClient(which=lambda name: "C:/c/claude.exe").info()
     assert info.tools_supported is True
-    with pytest.raises(ModelUnavailable, match="the qodercli command was not found"):
-        await QoderSessionClient(which=lambda name: None).info()
+    with pytest.raises(ModelUnavailable, match="the claude command was not found"):
+        await ClaudeSessionClient(which=lambda name: None).info()
 
 
 # --- review fixes -----------------------------------------------------------------
@@ -574,23 +487,6 @@ async def test_a_tool_that_was_not_offered_is_not_run_under_any_name(cli):
     assert called == []
     result = record()["results"][0]
     assert result["isError"] is True and "not one of the tools" in result["content"][0]["text"]
-
-
-async def test_qoder_is_given_its_level_flag_only_when_a_level_is_asked(cli):
-    make, record = cli
-
-    async def quiet(_text):
-        pass
-
-    async def no_tool(_name, _arguments):
-        return True, ""
-
-    client = make(QoderSessionClient, [{"say": "ok"}])
-    assert (await client.info()).efforts == ("off", "low", "medium", "high", "xhigh")
-    await client.run_session("m", MESSAGES, TOOLS, no_tool, quiet)
-    assert "--reasoning-effort" not in record()["argv"]
-    await client.run_session("m", MESSAGES, TOOLS, no_tool, quiet, effort="medium")
-    assert record()["argv"][:2] == ["--reasoning-effort", "medium"]
 
 
 def test_only_copilots_own_tool_search_goes_on_another_servers_tool_so_named_stops_it():

@@ -101,6 +101,9 @@ class Project(Base):
     # K-devam-butce: the steps a stopped agent gets on top when it is told to go on with none
     # left - by the user's Continue on its card, or the Lead's call at Full auto.
     continue_steps: Mapped[int] = mapped_column(Integer, default=25, server_default="25")
+    # 0.1.8: the longest an agent's command, or one of KOLONİ's own test runs, may take here, in
+    # minutes (10 to 60): their time limit's ceiling (`command_runner.longest_seconds`).
+    longest_command: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
     # What this calendar month's turns may cost at the user's prices, in their currency
     # (`app.api.usage.month_spend`). None: no budget.
     monthly_budget: Mapped[float | None] = mapped_column(Float, default=None)
@@ -563,7 +566,7 @@ class ToolCall(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), index=True)
     agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"))
-    message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"))
+    message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
     seq: Mapped[int] = mapped_column(Integer)
     # The model's own id for this call; echoed back as tool_call_id on the next step.
     provider_call_id: Mapped[str] = mapped_column(String(100))
@@ -857,6 +860,9 @@ class Agent(Base):
     # search / recall and a CLI's own reads as KOLONİ recorded them. None: not counted -
     # a lead, or a CLI whose reads are not seen (`app.handoff.rediscovery`).
     rediscovery: Mapped[int | None] = mapped_column(Integer, default=None)
+    # L1: a sub-agent whose role writes finished with no file change on record
+    # (`app.ledger.changed_nothing`). None: not judged so - every other agent.
+    changed_nothing: Mapped[bool | None] = mapped_column(Boolean, default=None)
     # K-devir-1: the ended agents of the project whose work its briefing carried ("Earlier
     # on this", `app.handoff.earlier_on`): their ids. None: nothing was carried.
     handed_from: Mapped[list | None] = mapped_column(JSON, default=None)
@@ -864,7 +870,7 @@ class Agent(Base):
     # "left_out": {name: why}} (`app.skills.split`). None: its role had none, or from before.
     skills: Mapped[dict | None] = mapped_column(JSON, default=None)
     # 27 / 93-C3: the CLI session its last native turn left ({"id", "under"}: what it was
-    # started under, `ClaudeNativeClient._under`; Claude Code's or Qoder's - or Copilot's, with
+    # started under, `ClaudeNativeClient._under`; Claude Code's - or Copilot's, with
     # its "home" and what it has "spent" in all, 0.1.8), for its next turn - or a later turn's
     # lead going on from it - to resume with only what is new. None: none.
     cli_session: Mapped[dict | None] = mapped_column(JSON, default=None)

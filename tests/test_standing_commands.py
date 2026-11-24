@@ -548,7 +548,7 @@ def test_in_the_scratch_an_ordinary_line_with_a_variable_or_brackets_is_no_card(
 
 
 def test_where_a_clis_shell_stands_is_not_known_a_cd_into_the_scratch_is_a_card_as_it_was():
-    # (review: Claude Code and Qoder name no cwd and may keep the shell's folder - after a free
+    # (review: a CLI that names no cwd may keep the shell's folder - after a free
     # `cd .koloni/tmp; ls` the next line, `echo x > ../rules.md`, would be judged at the root)
     for line in ("cd .koloni/tmp; ls", "cd .koloni/tmp/work && pytest -q"):
         unknown = commands.with_cwd(line, None)

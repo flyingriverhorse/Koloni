@@ -13,12 +13,11 @@ messages.
 - A command that names a secret file, or searches the whole folder when the folder holds one (`grep -r`,
   `rg`, `gci | gc`), is asked about at every level, Full auto too. A script that opens a secret file
   without naming it (it builds the name, say) is not caught. Only Docker and Copilot's sandbox hide secret
-  files from commands; KOLONİ's own commands on this machine, Claude Code, Codex, Qoder and agy do not.
+  files from commands; KOLONİ's own commands on this machine, Claude Code, Codex and agy do not.
 - When it runs **Native**, Codex runs the commands its own rules count as safe (a read of `.env`, or of a
   file outside the project) without asking KOLONİ, at every level; KOLONİ records them after they ran, so
   no card stands in their way. agy reading with its own tools has no hook: its reads, of a secret file
-  too, are not asked about at any level. Qoder run **Native** stops before it acts on the versions
-  measured so far (they do not apply KOLONİ's hook); how one that applies it asks is not measured.
+  too, are not asked about at any level.
 - A command you approve can still print, encode or send a secret it was given.
 - An agent's request for a key on a hidden card is not available to CLIs working with their own tools.
 - A branch deleted because it held a secret you gave still has its commits in git's reflog until git
@@ -39,8 +38,8 @@ messages.
 - When a CLI runs **Native**, it runs its commands itself, so its model reads their raw output; KOLONİ
   masks keys only in what it records and shows. Measured once on Copilot (Native) with a made-up GitHub
   token (`ghp_…`) in a command's output: it was `***` in the model's answer and absent from Copilot's raw
-  stream, so Copilot hid that kind of key itself; other kinds of key were not tried. Claude Code, Codex,
-  Qoder and agy run Native were not measured. With KOLONİ's tools (as a session, or one run per step),
+  stream, so Copilot hid that kind of key itself; other kinds of key were not tried. Claude Code, Codex
+  and agy run Native were not measured. With KOLONİ's tools (as a session, or one run per step),
   the keys KOLONİ knows and values shaped or named like keys are masked before the model reads the
   output.
 - Copilot does not report which paths its PowerShell commands touch, so at Full auto a command that
@@ -48,7 +47,7 @@ messages.
   goes for KOLONİ's own commands at Full auto: one that names the file (`echo … > .claude/settings.json`)
   is asked about, but a script that writes `~/.claude/settings.json` is not. Such a file in the project
   is put back, and you are asked whether to keep it; one outside the project is not.
-- Claude Code, Qoder and agy run **Native** (and Copilot where it cannot sandbox its commands) have no
+- Claude Code and agy run **Native** (and Copilot where it cannot sandbox its commands) have no
   sandbox of KOLONİ's: it can stop what they do only at their hook. A write with their own file tools
   outside the project and the folders it also works in (or that you allowed) is asked about on a card at
   every level, Full auto too, and refused in a turn nobody watches (in a working copy, refused: it may
@@ -58,15 +57,15 @@ messages.
   Startup folder or a PowerShell profile, runs without a card at Full auto, and at any level where an
   allow rule covers it, unless it names a CLI's settings folder such as `.claude` or `.gemini`, or a
   secret file, or it deletes or sends data off the machine.
-- Claude Code and Qoder run **Native** do not say where their commands run, so KOLONİ judges each one as
+- Claude Code run **Native** does not say where its commands run, so KOLONİ judges each one as
   run in the project folder. If the CLI keeps a `cd` from an earlier command, later relative paths are
   judged at the wrong place: after you approve `cd ..`, reading a file there by its name is taken for a
   read in the project and is not asked about below Full auto. Claude Code's Bash tool was
   measured not to keep one (2.1.325, Windows, run without its screen and as KOLONİ runs it: each
   Bash command starts in the project folder again, and KOLONİ starts it with the setting that asks for
   that); its PowerShell tool is said by the CLI to keep its folder, and other versions, Linux and macOS
-  are not measured, nor is Qoder - so a `cd` into
-  `.koloni/tmp/` by Claude Code's PowerShell tool or by Qoder is still asked. A command of theirs that
+  are not measured - so a `cd` into
+  `.koloni/tmp/` by Claude Code's PowerShell tool is still asked. A command of its that
   itself names a folder to run in is asked at every level: KOLONİ cannot check it.
 - GitHub Copilot CLI run **Native** does not say where its commands run either. On its newer protocol
   (Copilot 1.0.114 on) KOLONİ puts each PowerShell command in the project folder itself
@@ -81,10 +80,11 @@ messages.
   agent), and its Models card says so. Copilot
   updates itself when you run it yourself, and that update reaches KOLONİ too: what KOLONİ judges is
   the version it runs. Only Windows was measured.
-- A sub-agent on Claude Code or Qoder run **Native** works in a working copy, but its commands are not
+- A sub-agent on Claude Code run **Native** works in a working copy, but its commands are not
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
-  script) changes the project directly. KOLONİ finds such a change at the end of the turn and records it
-  as made in the project by an unknown maker.
+  script) changes the project directly. KOLONİ looks at the project after each of its commands and
+  records such a change as made in the project by an unknown maker - one look over the project's files
+  each time (some 0.1 s for 3,000 files, 0.4 s for 10,000, measured on Windows).
 - With Codex run **Native**, a command of Codex's own still at work after 11 minutes is ended as
   failed, and so is Codex's turn; one you allowed that Codex never says it started is ended as "never
   started" at the same 11 minutes.
