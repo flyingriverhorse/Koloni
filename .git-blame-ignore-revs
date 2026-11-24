@@ -1,3 +1,5 @@
 # Commits that only reformat code: git blame skips them (git config blame.ignoreRevsFile .git-blame-ignore-revs).
 # ruff format of the Python code (0.1.7)
 af0f5fa02da26fbabf96bd17a6580c95b99de41e
+# Prettier over the whole frontend (0.1.7)
+f6a112c568cc9456e11d37e1d5f333a7e211ffed

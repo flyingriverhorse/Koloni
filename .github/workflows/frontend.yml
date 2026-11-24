@@ -1,6 +1,7 @@
 # The frontend's steps of scripts/verify.ps1, the same commands: lint, typecheck, complexity,
-# vitest, build. (check:api runs in backend.yml, which has the Python environment it needs; e2e
-# runs in heavy.yml.) Called by PR Check; also by hand.
+# vitest, build - and here, as ruff's in backend.yml, Prettier's check of the format
+# (frontend/.prettierrc.json). (check:api runs in backend.yml, which has the Python environment
+# it needs; e2e runs in heavy.yml.) Called by PR Check; also by hand.
 name: Frontend
 
 on:
@@ -40,6 +41,8 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: lint
         run: npm run lint
+      - name: format
+        run: npm run format:check
       - name: typecheck
         run: npm run typecheck
       - name: complexity

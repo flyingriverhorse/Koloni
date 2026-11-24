@@ -128,6 +128,7 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run lint
+          npm run format:check
           npm run build
       - name: Source archive with frontend/dist
         env:
