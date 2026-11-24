@@ -198,9 +198,12 @@ def test_a_command_in_the_project_that_takes_a_test_away_is_the_turns(
     git(project_dir, "commit", "-qm", "turn 1")
     posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
     wait_run(client, cid, posted["run"]["id"])
-    rows = said(settled(client, cid, posted["run"]["id"]))
+    full = settled(client, cid, posted["run"]["id"])
+    rows = said(full)
     assert (DROP, "failed") in rows and (NOT_OURS, "note") not in rows, rows
     assert green(client) == [48], rows
+    # (its code for Fix it: fewer tests ran - never "the tests failed")
+    assert [one["reason"] for one in full if one["text"] == DROP] == ["removed"], full
 
 
 def test_a_turns_own_removal_whose_suite_ends_after_its_answer_is_held_to_green(

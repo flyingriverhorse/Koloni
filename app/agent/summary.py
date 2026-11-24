@@ -253,6 +253,20 @@ def _findings(
     return [] if any(one.rstrip(".!").casefold() in NO_FINDINGS for one in said) else None
 
 
+# A markdown heading: one to six `#` at a line's very start, then a space or its end - `#main` and
+# an indented `# comment` (quoted code) are no heading, and close no section.
+HEADING = re.compile(r"#{1,6}(?=[ \t]|$)")
+# A Findings section's heading by another name: "## Findings (1)", "## Review findings".
+FINDINGS_NAMED = re.compile(r"(?:\w+\s+)?findings\b.*", re.IGNORECASE)
+
+
+def fence(line: str) -> bool:
+    """Whether a line opens or closes a fenced block: ``` (three or more) with no backtick after
+    them on the line - "```eval(x)``` is called" is a code span at its start, no fence - or ~~~."""
+    bare = line.strip()
+    return bare.startswith("~~~") or (bare.startswith("```") and "`" not in bare.lstrip("`"))
+
+
 def _findings_section(report: str) -> tuple[list[str] | None, bool]:
     """`_findings`: the lines of all of a report's Findings sections - each a `#… Findings`
     heading or a "Findings:" line (what follows it on its line its first), to the next heading
@@ -268,7 +282,7 @@ def _findings_section(report: str) -> tuple[list[str] | None, bool]:
     level = 0  # (the open one's heading level; 0: a "Findings:" line)
     for line in report.splitlines():
         bare = line.strip()[: 2 * MAX_WHAT]
-        if bare.startswith(("```", "~~~")):
+        if fence(bare):
             # (into a fence: nothing read; out of it: the section open before it goes on)
             was, under = (under, False) if not fenced else (was, was)
             fenced = not fenced
@@ -277,12 +291,15 @@ def _findings_section(report: str) -> tuple[list[str] | None, bool]:
             continue
         quoted = line.startswith(("    ", "\t")) or bare.startswith(">")
         name, _, rest = bare.lstrip("> ").lstrip("#").strip(" *").partition(":")
-        depth = len(bare) - len(bare.lstrip("#"))
+        depth = len(head[0]) if (head := HEADING.match(line)) else 0
+        named = name.strip(" *").casefold() == "findings" or bool(
+            depth and FINDINGS_NAMED.fullmatch(name.strip(" *"))
+        )
         if name.strip(" *-•").casefold() == FAILING_BEFORE:
             failing = True  # (no finding, wherever it is: B-117)
-        elif name.strip(" *").casefold() == "findings" and quoted:
+        elif named and quoted:
             continue  # (an earlier look's, quoted: opens none, ends none)
-        elif name.strip(" *").casefold() == "findings":
+        elif named:
             lines, under, level = [*(lines or []), rest.strip(" *")], True, depth
         elif depth and not (under and level and depth > level):
             under = False
@@ -330,7 +347,7 @@ def _failing_before(report: str) -> list[str]:
     fenced, said = False, []
     for line in report.splitlines():
         bare = line.strip()[: 2 * MAX_WHAT]
-        if bare.startswith(("```", "~~~")):
+        if fence(bare):
             fenced = not fenced
             continue
         if fenced:
@@ -364,7 +381,7 @@ def _checked(report: str) -> bool:
     fenced block, saying something ("nothing" is not)."""
     fenced = False
     for line in report.splitlines():
-        if line.strip().startswith(("```", "~~~")):
+        if fence(line):
             fenced = not fenced
             continue
         name, _, rest = line.strip().lstrip("#-*• ").partition(":")

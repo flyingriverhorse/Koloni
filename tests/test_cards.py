@@ -402,6 +402,51 @@ def test_a_line_on_another_path_leaves_the_delete_suggested(db, rules):
     assert [one["rule"] for one in suggested(db, 5, rules=rules)] == ["You may delete ./build."]
 
 
+@pytest.mark.parametrize(
+    ("rule", "command", "cwd"),
+    [
+        # (the second session's probes on 06fe8f3: a folder it is in, a pattern, a full path)
+        ("Never delete anything under out.", "rm -rf out/build", "."),
+        ("Never delete anything in `out/`.", "rm -rf out/build", "."),
+        ("Never delete out/*", "rm -rf out/build", "."),
+        ("Never delete **/build", "rm -rf out/build", "."),
+        ("Never delete **/build", "rm -rf build", "."),
+        ("Never delete any build folder.", "rm -rf out/build", "."),
+        ("Never delete C:/proj/out/build", "rm -rf out/build", "."),
+        ("Never delete /home/me/proj/out/build", "rm -rf out/build", "."),
+        ("Never delete anything under out.", "rm -rf build", "out"),
+        ("Never delete *.db", "rm -rf a.db", "data"),
+    ],
+)
+def test_a_folder_it_is_in_a_pattern_or_a_full_path_names_it_too(rule, command, cwd):
+    assert cards.mentioned([rule], command, cwd) == rule
+
+
+@pytest.mark.parametrize(
+    "rule", ["Never delete src/out/build", "Never delete *.py", "Never delete builds/*"]
+)
+def test_a_pattern_or_path_that_does_not_take_it_in_names_nothing(rule):
+    assert cards.mentioned([rule], "rm -rf out/build", ".") is None
+
+
+def test_a_long_line_of_patterns_is_read_in_time():
+    # (≤ 16 KB, in a child process with a limit: a pattern too long for a path is not matched)
+    import subprocess
+    import sys
+
+    from tests.conftest import scaled
+
+    code = (
+        "import time; from app import cards; t = time.monotonic(); "
+        "cards.mentioned(['*a' * 8000, ('a' * 79 + '* ') * 200], 'rm -rf out/build', '.'); "
+        "print(time.monotonic() - t)"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=scaled(60)
+    )
+    assert done.returncode == 0 and float(done.stdout) < 2, (done.stdout, done.stderr)
+
+
 def test_add_to_rules_refuses_a_delete_whose_path_the_users_preferences_name(
     make_client, project_dir
 ):

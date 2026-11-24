@@ -7,6 +7,7 @@ the card opens - never an agent's words); a suggested rule is built from KOLONİ
 targets of a command the user approved unchanged, each a plain relative path, and is saved only by
 the user's click on the app's own page (`app.api.cards`)."""
 
+import fnmatch
 import hashlib
 import json
 import re
@@ -253,23 +254,46 @@ def _stands(rules: str, line: str) -> bool:
 def mentioned(texts: list[str | None], command: str, cwd: str | None) -> str | None:
     """S: the first line of the user's words - their preferences, the project's rules - that
     names a target of this delete at all, however spelled (`./build`, `.\\build`, `build/`,
-    `build`, a path under it: `build/keep.txt`), a nested list item and a code block's line too;
-    None: none does. Such a delete is never suggested, nor added: where a line allows it a "You
-    may" is one too many, where one forbids it the two are set against each other - and no list
-    of words tells the two apart."""
+    `build`, a path under it: `build/keep.txt`), or a folder it is in ("anything under out"), its
+    own name ("any build folder"), a full path ending in it, or a pattern that takes it in
+    (`out/*`, `**/build`, `*.db`) - a nested list item and a code block's line too; None: none
+    does. Such a delete is never suggested, nor added: where a line allows it a "You may" is one
+    too many, where one forbids it the two are set against each other - and no list of words
+    tells the two apart. (Named too widely - "out" in "find out" - it is only not suggested.)"""
     targets = _targets(command, cwd) or []
     if not targets:
         return None
+    names: set[str] = set()
+    for one in targets:
+        parts = one.split("/")
+        names.update("/".join(parts[:n]) for n in range(1, len(parts) + 1))
+        names.add(parts[-1])
     named = re.compile(
         # (a path of its own or one under it - never part of a longer name: `src/build`,
-        # `build-cache`, `build.old`; a sentence's full stop after it is none)
-        r"(?<![\w./\\-])(?:\.[/\\])?(?:"
-        + "|".join(re.escape(one).replace("/", r"[/\\]") for one in targets)
+        # `build-cache`, `build.old`; a sentence's full stop after it is none - or the end of a
+        # full path: `C:/proj/out/build`, `/home/me/proj/build`)
+        r"(?<![\w./\\-])(?:\.[/\\]|(?:[A-Za-z]:)?[/\\](?:[^\s/\\]+[/\\])*)?(?:"
+        + "|".join(re.escape(one).replace("/", r"[/\\]") for one in sorted(names, key=len)[::-1])
         + r")(?![\w-]|\.[\w-])",
         re.IGNORECASE,
     )
     lines = (line.strip() for text in texts for line in (text or "").splitlines())
-    return next((line for line in lines if named.search(line)), None)
+    return next((line for line in lines if named.search(line) or _globbed(line, targets)), None)
+
+
+def _globbed(line: str, targets: list[str]) -> bool:
+    """Whether a word of `line` is a pattern (`*`, `?`) that takes a target in, as a shell's glob
+    would from the project's root or any folder (`**/build`); whatever its case."""
+    for word in line.split():
+        if ("*" in word or "?" in word) and len(word) <= MOST_PATH:
+            glob = word.strip(".,;:`'\"()").removeprefix("./").replace("\\", "/").casefold()
+            for one in targets:
+                path = one.casefold()
+                if fnmatch.fnmatchcase(path, glob) or fnmatch.fnmatchcase(
+                    path, glob.removeprefix("**/")
+                ):
+                    return True
+    return False
 
 
 def _has(rules: str, line: str) -> bool:

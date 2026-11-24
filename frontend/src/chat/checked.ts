@@ -5,6 +5,9 @@ import { isFrame } from './AgentSaid'
 /** What Fix it sends: a new message of the user's, by their click - nothing starts by itself. */
 export const FIX_IT = (command: string) =>
   `The tests KOLONİ ran at the end of the last turn failed: \`${command}\`. Fix what fails.`
+/** R: what Fix it sends where no test failed but fewer ran, or more were skipped, than at the last green run (the row's code "removed"). */
+export const FIX_FEWER = (command: string) =>
+  `The tests KOLONİ ran at the end of the last turn (\`${command}\`): fewer of its tests run, or more are skipped, than at its last green run. Put back what was taken away, or say why.`
 /** S3: what Fix it sends where the Reviewer still held the change after the Fix rounds: words of the user's own - the findings reach the Orchestrator as data (`review_held`), never as theirs. */
 export const FIX_REVIEW =
   'The Reviewer KOLONİ opened at the end of the last turn still held its change. Fix its blocking findings.'
@@ -38,8 +41,11 @@ export const FIX_NOT_DONE = (command: string, reason: Row['reason']) =>
 
 /** What Fix it asks for under a turn's Checked section: a failing test run first, else a stronger model's rounds that were no pass, else a Reviewer's hold; null: nothing to fix. */
 export function fixOf(rows: Row[]): string | null {
-  const failed = rows.find(row => row.kind === 'tests' && row.state === 'failed' && row.command)
+  // (a test that fails first; where only fewer ran, or more were skipped - its code "removed" - that is what is said)
+  const failing = rows.filter(row => row.kind === 'tests' && row.state === 'failed' && row.command)
+  const failed = failing.find(row => row.reason !== 'removed')
   if (failed?.command) return FIX_IT(failed.command)
+  if (failing[0]?.command) return FIX_FEWER(failing[0].command)
   const notDone = rows.find(
     row => (row.kind === 'stronger' || row.kind === 'rounds') && row.state === 'failed' && row.command,
   )

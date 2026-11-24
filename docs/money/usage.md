@@ -49,8 +49,10 @@ build`), never a glob, a variable, `.`, `..`, a dot file or a command chained to
 whose folder or command reads as anything else. It spares the card only at Full auto with Check what
 I said first on. A delete whose path a line of your preferences or of the project's rules names
 already - however it says it ("Never delete ./build.", an item `./build` under "Never delete
-these:", "Keep build/", "You may delete ./build, not ./src.") - is never suggested: a rule beside
-that line would repeat it or set itself against it. **Add to rules** refuses it, naming that line.
+these:", "Keep build/", "You may delete ./build, not ./src."), or by a folder it is in ("anything
+under out"), by its own name ("any build folder"), by a full path ending in it or by a pattern that
+takes it in (`out/*`, `**/build`, `*.db`) - is never suggested: a rule beside that line would repeat
+it or set itself against it. **Add to rules** refuses it, naming that line.
 
 ## Where the money comes from
 

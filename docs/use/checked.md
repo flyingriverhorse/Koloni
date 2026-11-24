@@ -701,9 +701,11 @@ also what does not fit in the diff the Reviewer is shown.
   lists the findings and says "Still on hold after 2 fix rounds: you decide (Fix it)"; **Fix it**
   sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
   as data, never as your words. The findings are the rows of all its **Findings** sections - a
-  `## Findings` heading or a "Findings:" line, each to the next heading of its level or above (a
-  `### Blocking` or `### Suggestions` under `## Findings` is part of it; after a "Findings:" line,
-  any heading ends it). A fenced code block in it is not read, and the section goes on after it; a
+  `## Findings` heading (or "## Findings (2)", "## Review findings") or a "Findings:" line, each
+  to the next heading of its level or above (a `### Blocking` or `### Suggestions` under
+  `## Findings` is part of it; after a "Findings:" line, any heading ends it). A line that starts
+  with `#` and no space, or an indented `# comment`, is no heading. A fenced code block in it is
+  not read, and the section goes on after it - a code span at a line's start is no fence; a
   label line in it (`Checked: ran pytest`) ends nothing. A "Findings:" line that
   sums up - "Findings: 1 blocking" above the rows, "Findings: see above, nothing blocking."
   closing the report - takes no row away; "Findings: none" says it found nothing where no

@@ -390,8 +390,9 @@ test('the panel: its tests, round by round with each agent’s window a click aw
   useApp.setState({ send })
   render(<Inspector state={sketched()} selectedId="checks:r" onClose={() => {}} onOpenAgent={opened} />)
   const panel = screen.getByRole('complementary', { name: 'Inspector' })
-  // (Its head says it as the Orchestrator's strip does.)
-  expect(within(panel).getByText('✗ on hold · 2 rounds')).toBeInTheDocument()
+  // (Its head says it as the Orchestrator's strip does - its rounds counted as the panel lists them: Round 1, 2 and 3.)
+  expect(within(panel).getByText('✗ on hold · 3 rounds')).toBeInTheDocument()
+  expect(within(panel).getAllByRole('region', { name: /^Round \d$/ })).toHaveLength(3)
   const tests = within(panel).getByRole('region', { name: 'Tests' })
   expect(tests).toHaveTextContent(
     '✓ Related tests passed: python -m pytest a_test.py - 19 passed✓ Tests passed: python -m pytest -q - 36 passed',
