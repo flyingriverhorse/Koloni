@@ -37,7 +37,7 @@ Models page is left as it is.
 | CLI | Choices (the first is the default) |
 |---|---|
 | Claude Code | One session per agent · One run per model step · Native |
-| Codex | One session per agent · Native · One run per model step ([experimental](#experimental-clis)). As a session its own patch tool cannot be switched off: KOLONİ refuses every patch it asks to make, and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. The default since 7 Nov 2026; a Codex provider added before keeps the way it was saved with. One added with a model server of your own starts as One run per model step, since its session there is not yet measured. |
+| Codex | One session per agent · Native · One run per model step ([experimental](#experimental-clis)). As a session its own patch tool cannot be switched off: KOLONİ refuses every patch it asks to make, and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, While you're away, recipe steps and comparisons. The default since 7 Nov 2026; a Codex provider added before keeps the way it was saved with. One added with a model server of your own starts as One run per model step, since its session there is not yet measured. |
 | Copilot | One session per agent · Native |
 | agy ([experimental](#experimental-clis)) | Reads with its own tools · Native |
 

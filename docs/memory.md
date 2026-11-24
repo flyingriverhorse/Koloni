@@ -200,7 +200,8 @@ What each agent is given:
   past **Summarise a long context at (%)** of the window (75 by default; see
   [Going on from the last turn](models/setup-cli.md#going-on-from-the-last-turn)).
 - **A To-do story** goes on in a topic of its own, so in one session; its next task starts a new topic of
-  the story after a task of it ended badly, or a day later - told the story so far and its notebook ([A story's session](automation/todo.md#a-storys-session)).
+  the story after a task of it ended badly, or a day later - told the story so far - never for a session's size.
+  Every turn of the story is given its [notebook](automation/todo.md#the-storys-notebook), as data ([A story's session](automation/todo.md#a-storys-session)).
   The other topics' names come with how a story's or a To-do task's stands: (done), (done?) or (stuck).
 
 [![Who remembers what: one chat's two topics with the line New topic draws between them, and where the turns before are kept - an API model sent the topic's history by KOLONİ, which compacts it; every other CLI started anew and sent it again; Claude Code, Native on its own sign-in, and Copilot, Native, resuming their session from the topic's last turn; Codex, Native on its own sign-in, does too; and a To-do story's tasks going on in a topic of its own, a new topic of the story after a task that ended badly or a day later, its notebook given at every turn](diagrams/topics.svg)](diagrams/topics.svg)

@@ -244,11 +244,11 @@ KOLONİ's test run is asked about as the Orchestrator's own command would be:
   while you're away. An **Always run** rule you gave another command's card (`python -m pytest`)
   lets it run without a card in that chat only. **Forget it** forgets that too. At **Full auto**
   it runs by itself.
-- While you're away (a job of **Away**, or a To-do task's turn while Away runs) a guessed
+- While you're away (a job of **Away**) a guessed
   command is not run: the section says "Tests not run: a guessed command, you were away", and the
   job finishes. Nor is a saved command you have not said **Always** to: "Tests not run: a saved
-  command no Always rule covers, you were away". Your own command still runs. A To-do task you
-  run from the screen asks as any turn does.
+  command no Always rule covers, you were away". Your own command still runs. A To-do task's turn in a
+  chat asks as any turn of that chat does (a chat's To-do queue waits while you're away).
 - In a trigger's turn it runs only where the trigger allows that very command. Otherwise the
   section says "Tests not run" with the trigger's words.
 
@@ -846,8 +846,8 @@ a user would:
   runs in the project itself only: where the work waits in a working copy, "Not tried: the work
   waits in a working copy…".
 - Not tried, and said: while the turn's tests still fail (not those failing before it), in a turn
-  nobody watches (Away, a trigger, a
-  To-do task), or where the Tester's role has no browser tools.
+  nobody watches (Away, a trigger), or where the Tester's role has no browser tools. A To-do task's
+  turn is tried as the chat's other turns are.
 
 On the canvas the Tester is drawn in the Checks box ([On the canvas](#on-the-canvas)); KOLONİ's own
 runs of the try (the `--help`, the dev server) are not counted as test runs there.

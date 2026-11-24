@@ -31,6 +31,8 @@ SQLite, and runs agents as asyncio tasks.
 - **`commands.py`**, **`command_runner.py`**, **`executors/`**: which commands ask, and running them on
   this machine or in Docker. **`judge.py`**: Full auto's check of your words (Check what I said first);
   **`disposable.py`**: whether a delete is disposable.
+- **`backlog.py`**: To-do's tasks and a chat's queue of them (Do in chat), their fix rounds and the
+  Scout's follow-up tasks. **`stories.py`**: goals and stories, a story's topic and its notebook.
 - **`away.py`**: ☾ Away, the To-do tasks worked through while you are away.
 - **`cli_surface.py`**: the version and protocol of each CLI KOLONİ runs, and whether it was measured.
 - **`triggers.py`**: clock, file-change and webhook turns.

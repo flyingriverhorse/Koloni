@@ -8,7 +8,7 @@ A canvas beside the chat draws each turn from what really happened. Before anyth
 
 KOLONİ listens only on `127.0.0.1`, on your own machine. It sends no telemetry.
 
-[![Concept map: project, chat, turn, Orchestrator, sub-agent, role, team, recipe, room, discussion, memory, knowledge, To-do task, trigger and card](diagrams/concept-map.svg)](diagrams/concept-map.svg)
+[![Concept map: project, chat, turn, Orchestrator, sub-agent, role, team, recipe, room, discussion, memory, knowledge, To-do (goal, story, task or bug: ticked tasks run in a chat's queue), trigger and card](diagrams/concept-map.svg)](diagrams/concept-map.svg)
 
 *KOLONİ's words and how they hang together. Each is explained in the [Glossary](reference/glossary.md).*
 

@@ -26,8 +26,7 @@ Only:
 - an agent's question to you;
 - a recipe's "Ask me";
 - opening a sub-agent on its role's own model, while that provider has room;
-- going on or stopping at a sub-agent's [step limit](../agents/step-limits.md), where that card comes
-  (not in a To-do task's turn).
+- going on or stopping at a sub-agent's [step limit](../agents/step-limits.md), where that card comes.
 
 ## What always waits for you
 
