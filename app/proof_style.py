@@ -63,6 +63,7 @@ NEEDS_LEAVE = "{tool}: not checked - it needs your leave once ({why})"
 NO_FILES = "tsc: not checked - its tsconfig names no files (references)"
 COMPOSITE = "tsc: not checked - its tsconfig is composite: tsc would write its build info"
 NO_TSCONFIG = "tsc: not checked - its tsconfig.json could not be read"
+NO_BASE = "tsc: not checked - what its tsconfig.json extends is not read in the project"
 PAST = "past the {seconds} s of Code style and types"
 NO_ANSWER = "Code style not checked: the Orchestrator's answer is not on record"
 NOT_JUDGED = "{tool}: {n} problems not judged - too large to compare in time: {paths}"
@@ -227,7 +228,7 @@ def _node_runs(root: Path, paths: list[str], how: tuple, runs: list[Run], notes:
         if program is None:
             notes.append(NOT_INSTALLED.format(tool=tool))
             continue
-        if tool == "tsc" and (why := _tsconfig_says(root / home)):
+        if tool == "tsc" and (why := _tsconfig_says(root / home, root)):
             notes.append(why)
             continue
         files, more = _capped(tool, ours)
@@ -237,27 +238,70 @@ def _node_runs(root: Path, paths: list[str], how: tuple, runs: list[Run], notes:
         notes += more
 
 
-def _tsconfig_says(folder: Path) -> str | None:
+def _tsconfig_says(folder: Path, root: Path) -> str | None:
     """Why tsc is not run on this folder's tsconfig.json - None: it checks files and writes
     nothing. One that names no files (a solution's `files: []` with its `references`, as
-    create-vite writes it) checks nothing: never a pass for that. A composite one makes tsc write
-    its build info whatever it is told (tsc 5.9, measured: `--incremental false` is refused there,
-    exit 2, and the file is written all the same). One that cannot be read is said too.
-    shortcut: this file alone, not what it `extends` - a base that is composite is not seen; read
-    the chain if a project is met with one."""
+    create-vite writes it) checks nothing: never a pass for that. A composite one - itself or one
+    it `extends`, up to MOST_EXTENDS of them - makes tsc write its build info whatever it is told
+    (tsc 5.9, measured: `--incremental false` is refused there, exit 2, and the file is written
+    all the same, where `tsBuildInfoFile` says: outside the project too; `incremental` or
+    `tsBuildInfoFile` alone write nothing under `--incremental false`). One that cannot be read
+    is said too, and so is one whose `extends` leads out of the project (`root`) or to a file
+    not there."""
     # Here, not at the top: proof_kinds imports browser → command_runner → this module.
     from app.proof_kinds import _json
 
-    try:
-        found, said = _json(_read(folder / "tsconfig.json"), "tsconfig.json")
-    except WorkspaceError:
-        return NO_TSCONFIG
-    if said is not None or not isinstance(found, dict):
-        return NO_TSCONFIG
-    options = found.get("compilerOptions")
-    if isinstance(options, dict) and options.get("composite") is True:
-        return COMPOSITE
-    return NO_FILES if found.get("files") == [] and "include" not in found else None
+    todo, read, top = [folder / "tsconfig.json"], 0, {}
+    while todo:
+        if read > MOST_EXTENDS:  # (more than MOST_EXTENDS, or a loop)
+            return NO_BASE
+        path = todo.pop()
+        try:
+            found, said = _json(_read(path), "tsconfig.json")  # (each is read with comments)
+        except WorkspaceError:
+            found, said = None, "too deep"
+        if said is not None or not isinstance(found, dict):
+            return NO_BASE if read else NO_TSCONFIG
+        top, read = top if read else found, read + 1
+        options = found.get("compilerOptions")
+        if isinstance(options, dict) and options.get("composite") is True:
+            return COMPOSITE
+        bases = found.get("extends", [])
+        for base in bases if isinstance(bases, list) else [bases]:
+            if (at := _extended(path.parent, base, root)) is None:
+                return NO_BASE
+            todo.append(at)
+    return NO_FILES if top.get("files") == [] and "include" not in top else None
+
+
+MOST_EXTENDS = 8
+
+
+def _extended(folder: Path, name: object, root: Path) -> Path | None:
+    """The file a tsconfig in `folder` names in its `extends` as tsc finds it: a path from that
+    folder (`./base`: `base.json` where `base` is no file), else a package's in the node_modules
+    of that folder or one above it in the project - the name, with `.json`, or its
+    `tsconfig.json`. None: not a name, or no such file in the project (`root`, by its path).
+    shortcut: a package's own `tsconfig` / `exports` field is not read - where it names another
+    file and the package also has a `tsconfig.json`, that one is read; read package.json if a
+    project is met with one."""
+    if not isinstance(name, str) or not name:
+        return None
+    plain = name.replace("\\", "/")
+    if plain.startswith(("./", "../", "/")) or plain in (".", "..") or Path(name).is_absolute():
+        found = [folder / name, folder / f"{name}.json"]
+    else:
+        found = [
+            home / "node_modules" / one
+            for home in (folder, *folder.parents)
+            if _inside(home, root)
+            for one in (name, f"{name}.json", f"{name}/tsconfig.json")
+        ]
+    return next((one for one in found if _inside(one, root) and one.is_file()), None)
+
+
+def _inside(path: Path, root: Path) -> bool:
+    return _within(*(os.path.normcase(os.path.normpath(one)) for one in (path, root)))
 
 
 def _real(path: Path) -> str:
@@ -272,7 +316,8 @@ def planted(work: Path, project: Path, run: Run, written: Iterable[str]) -> str 
     """B1: why `run`'s program is not run - None: it may be. Its real place is in neither the
     work's folder nor the project (a link leading out: a copy's `node_modules` and `.venv` are
     links into the project, so both are its places); or a file the turn wrote (`written`, from the
-    root) is that program, or in the folder it is installed in (`wrote_program`): a program
+    root) is that program, or in the folder it is installed in or a `node_modules` above it
+    (`wrote_program`): a program
     planted by the turn, whatever case its folder was written in (Windows' and macOS's file
     systems ignore it) and through any link; or (W1) a `node.cmd`, a `python.exe` - a name a shim
     runs bare - in the folder it runs in. By real paths, casefolded on every system. A program on
@@ -310,21 +355,28 @@ def wrote_program(work: Path, cwd: str, program: str, written: Iterable[str]) ->
     """B1, W2: where a file of `written` (from the work's root) plants `program`, named by its path
     and run in `cwd` - said from the root: the install folder it is in (the first of its folders
     named in INSTALLS: what its `.cmd` shim runs is there too), else the program itself, written
-    as it is named or as a file Windows runs by that name (`check.cmd` for `check`). None: no
+    as it is named or as a file Windows runs by that name (`check.cmd` for `check`) - and, for a
+    program in a `node_modules`, each `node_modules` above that one up to the root: Node loads
+    what the program needs from them too (a subfolder's eslint, the root's `espree`). None: no
     such write. By real paths, casefolded, through any link."""
     parts = PurePosixPath(program.replace("\\", "/")).parts
     at = next((n for n, part in enumerate(parts) if part.casefold() in INSTALLS), None)
     named = PurePosixPath(*(parts if at is None else parts[: at + 1]))
-    real, place = _real(work / cwd / str(named)), PurePosixPath(cwd, named)
+    places = [PurePosixPath(cwd, named)]
+    if at is not None and parts[at].casefold() == "node_modules":
+        home = PurePosixPath(os.path.normpath(places[0].parent).replace("\\", "/"))
+        places += [one / "node_modules" for one in home.parents]
+    reals = [(_real(work / str(place)), place) for place in places]
     for rel in written:
         mine = _real(work / rel)
         stem, ext = os.path.splitext(mine)
-        if (
-            _within(mine, real)
-            if at is not None
-            else mine == real or (stem == real and ext in RUNNABLE)
-        ):
-            return place.as_posix()
+        for real, place in reals:
+            if (
+                _within(mine, real)
+                if at is not None
+                else mine == real or (stem == real and ext in RUNNABLE)
+            ):
+                return place.as_posix()
     return None
 
 
@@ -536,7 +588,12 @@ class Changed:
         if path not in self.texts:
             return default
         if path not in self._lines:
-            said = proof.changed_lines(*self.texts[path]) if time.monotonic() < self.until else None
+            script = path.casefold().endswith(JS)  # (eslint's and tsc's line ends)
+            said = (
+                proof.changed_lines(*self.texts[path], script)
+                if time.monotonic() < self.until
+                else None
+            )
             self._lines[path] = None if said is None else frozenset(said)
         return self._lines[path]
 

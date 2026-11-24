@@ -707,6 +707,13 @@ def test_the_turns_lines_are_counted_as_the_tools_count_them():
     assert proof.changed_lines("\x0c\nimport os\n", "\x0c\ny = 1\nimport os\n") == [2]
     assert proof.changed_lines("a\r\nb\r\n", "a\r\nB\r\n") == [2]
     assert proof.changed_lines("a\rb", "a\rb\rc") == [3]
+    # (a line separator ends a line to eslint and tsc - measured, tsc 5.9 - never to ruff or mypy)
+    before, after = "a\u2028b\nc\n", "a\u2028B\nc\n"
+    assert proof.changed_lines(before, after) == [1]
+    assert proof.changed_lines(before, after, script=True) == [2]
+    texts = {"x.ts": (before, after), "x.py": (before, after)}
+    changed = proof_style.Changed(texts, time.monotonic() + 60)
+    assert (changed.get("x.ts"), changed.get("x.py")) == ({2}, {1})
 
 
 def test_warnings_on_the_turns_lines_are_not_counted_as_elsewhere(tmp_path):
@@ -745,6 +752,88 @@ def test_tsc_runs_only_on_a_tsconfig_that_checks_files_and_writes_nothing(tmp_pa
     assert cwd == "web" and notes == []
 
 
+COMPOSITE = '{"compilerOptions": {"composite": true}}'
+
+
+@pytest.mark.parametrize(
+    "files, said",
+    [
+        # (the review's probe: composite in what it extends - tsc 5.9 wrote its build info
+        # where tsBuildInfoFile said, outside the project)
+        (
+            {
+                "base.json": COMPOSITE,
+                "tsconfig.json": '{"extends": "./base.json", "compilerOptions": '
+                '{"tsBuildInfoFile": "../../outside/x.json"}}',
+            },
+            proof_style.COMPOSITE,
+        ),
+        ({"base.json": COMPOSITE, "tsconfig.json": '{"extends": "./base"}'}, proof_style.COMPOSITE),
+        (  # (a list, two links deep, each read with its comments)
+            {
+                "a.json": '{"extends": "./b.json", // b\n}',
+                "b.json": COMPOSITE,
+                "tsconfig.json": '{"extends": ["./a.json"], "include": ["src"]}',
+            },
+            proof_style.COMPOSITE,
+        ),
+        (  # (a package's: in the folder's node_modules, or the root's - its tsconfig.json)
+            {"node_modules/@t/x.json": COMPOSITE, "tsconfig.json": '{"extends": "@t/x.json"}'},
+            proof_style.COMPOSITE,
+        ),
+        (
+            {
+                "../node_modules/@t/x/tsconfig.json": '{"compilerOptions": {"strict": true}}',
+                "tsconfig.json": '{"extends": "@t/x", "include": ["src"]}',
+            },
+            None,
+        ),
+        (  # (measured: neither writes anything under `--incremental false`)
+            {
+                "base.json": '{"compilerOptions": {"incremental": true, "tsBuildInfoFile": "x"}}',
+                "tsconfig.json": '{"extends": "./base.json", "include": ["src"]}',
+            },
+            None,
+        ),
+        ({"tsconfig.json": '{"extends": "../../outside.json"}'}, proof_style.NO_BASE),
+        ({"tsconfig.json": '{"extends": "./missing.json"}'}, proof_style.NO_BASE),
+        ({"tsconfig.json": '{"extends": "@t/none"}'}, proof_style.NO_BASE),
+        ({"tsconfig.json": '{"extends": "./tsconfig.json"}'}, proof_style.NO_BASE),  # (a loop)
+        ({"tsconfig.json": '{"extends": 1}'}, proof_style.NO_BASE),
+        ({"base.json": '{"compilerOptions": {', "tsconfig.json": '{"extends": "./base.json"}'}, (
+            proof_style.NO_BASE
+        )),
+    ],
+)  # fmt: skip
+def test_tsc_reads_what_its_tsconfig_extends_in_the_project(tmp_path, files, said):
+    root = tmp_path / "p"
+    (root / "web" / "node_modules" / ".bin").mkdir(parents=True)
+    tsc = "node_modules/.bin/tsc.cmd" if sys.platform == "win32" else "node_modules/.bin/tsc"
+    (root / "web" / tsc).write_text("")
+    (tmp_path / "outside.json").write_text('{"include": ["src"]}')
+    for name, content in files.items():
+        (root / "web" / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / "web" / name).write_text(content, encoding="utf-8")
+    runs, notes = proof_style.planned(root, ["web/src/a.ts"])
+    assert (len(runs), notes) == ((1, []) if said is None else (0, [said]))
+
+
+def test_tsc_follows_at_most_eight_links_of_extends(tmp_path):
+    (tmp_path / "node_modules" / ".bin").mkdir(parents=True)
+    tsc = "node_modules/.bin/tsc.cmd" if sys.platform == "win32" else "node_modules/.bin/tsc"
+    (tmp_path / tsc).write_text("")
+    (tmp_path / "tsconfig.json").write_text('{"extends": "./c1.json", "include": ["src"]}')
+    for n in range(1, proof_style.MOST_EXTENDS + 2):
+        (tmp_path / f"c{n}.json").write_text(f'{{"extends": "./c{n + 1}.json"}}')
+    (tmp_path / f"c{proof_style.MOST_EXTENDS}.json").write_text("{}")
+    assert proof_style.planned(tmp_path, ["src/a.ts"])[1] == []
+    (tmp_path / f"c{proof_style.MOST_EXTENDS}.json").write_text(
+        f'{{"extends": "./c{proof_style.MOST_EXTENDS + 1}.json"}}'
+    )
+    (tmp_path / f"c{proof_style.MOST_EXTENDS + 1}.json").write_text("{}")
+    assert proof_style.planned(tmp_path, ["src/a.ts"]) == ([], [proof_style.NO_BASE])
+
+
 def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(tmp_path):
     from app.commands import matches, suggest_prefix
 
@@ -758,12 +847,18 @@ def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(
         "-p tsconfig.json",
     }
     escapes = {
-        "ruff": ["--config C:/x/evil.toml", "--output-file C:/x/out.txt", "-o C:/x/out.txt"],
+        "ruff": ["--config C:/x/evil.toml", "--output-file C:/x/out.txt", "-o C:/x/out.txt",
+                 "--fix", "--fix-only", "--unsafe-fixes", "--add-noqa"],
         "mypy": ["--python-executable C:/x/evil.exe", "--config-file C:/x/evil.ini",
                  "--cache-dir C:/x", "--junit-xml C:/x/out.xml"],
         "eslint": ["--resolve-plugins-relative-to C:/x", "-c C:/x/evil.js", "--rulesdir C:/x",
-                   "-o C:/x/out.txt", "--config C:/x/evil.js"],
-        "tsc": ["--outDir C:/x", "-p C:/x/tsconfig.json"],
+                   "-o C:/x/out.txt", "--config C:/x/evil.js", "--fix", "--plugin evil",
+                   "--parser C:/x/p.js", "--format ./evil.js", "-f C:/x/f.js", "--format=x",
+                   "--init", "--inspect-config"],
+        # (tsc reads its options in any case - measured, 5.9)
+        "tsc": ["--outDir C:/x", "-p C:/x/tsconfig.json", "--generateTrace C:/x",
+                "--generateCpuProfile C:/x/p.cpuprofile", "--OUTDIR C:/x", "--generatetrace C:/x",
+                "-P C:/x/tsconfig.json"],
     }  # fmt: skip
     assert suggest_prefix("./node_modules/.bin/eslint --format stylish ./a.js") == (
         "./node_modules/.bin/eslint --format stylish"
@@ -780,6 +875,14 @@ def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(
             assert not matches(f"{fixed} {escape} ./b.py", offered), (tool, escape)
             # (nor an older rule of the bare program's)
             assert not matches(f"{program} {escape} ./b.py", program), (tool, escape)
+        assert matches(line, program), tool  # (which covers KOLONİ's own line)
+    # (eslint's own formatter loads nothing; a rule that says `--fix` itself covers it; another
+    # program's option of the same letter is never eslint's or pytest's harmless one)
+    assert matches(f"{NODE} --format json ./a.js", NODE)
+    assert matches(f"{NODE} -f json ./a.js", NODE)
+    assert matches(f"{RUFF} check --fix ./a.py", f"{RUFF} check --fix")
+    assert not matches("make -f html", "make")
+    assert not matches("gradle build -p no:x", "gradle build")
 
 
 @pytest.mark.no_po
@@ -858,10 +961,18 @@ def test_a_program_named_by_its_path_is_planted_by_itself_or_its_install_folder(
     assert wrote(tmp_path, "web", tsc, ["web/node_modules/typescript/bin/tsc"]) == (
         "web/node_modules"
     )
-    assert wrote(tmp_path, "web", tsc, ["node_modules/.bin/tsc.cmd"]) is None
+    # (and in a node_modules above it, which Node loads from too: the root's `espree` a subfolder's
+    # eslint loads - the review's probe; never a sibling's, nor a .venv above)
+    assert wrote(tmp_path, "web", tsc, ["node_modules/espree/x.js"]) == "node_modules"
+    assert wrote(tmp_path, "web/a", tsc, ["web/NODE_MODULES/x.js"]) == "web/node_modules"
+    assert wrote(tmp_path, "web", tsc, ["admin/node_modules/x.js"]) is None
     assert wrote(tmp_path, ".", ".venv\\Scripts\\ruff.exe", [".venv/Lib/site-packages/x.py"]) == (
         ".venv"
     )
+    assert wrote(tmp_path, "web", ".venv/Scripts/ruff.exe", [".venv/x.py"]) is None
+    eslint_in(tmp_path, "web")
+    said = proof_style.planted(tmp_path, tmp_path, an_eslint("web"), ["node_modules/espree/x.js"])
+    assert said == "this turn wrote in node_modules: no install of the project's"
 
 
 def test_a_program_named_in_quotes_is_found_as_its_shell_reads_it(tmp_path):

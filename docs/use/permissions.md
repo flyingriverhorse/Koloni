@@ -96,7 +96,13 @@ You can see and remove the rules you made under Settings › This project › **
   `-toolexec` and `-C`; cargo's `--config` and `--manifest-path`; gradle's `-I`, `-p` and `-b`;
   npm's `--script-shell`, `--prefix`, `--package`, `--userconfig` and `--node-options`; make's
   `SHELL=` and `-f`; tox's `-c`; maven's `-Dmaven.ext…`; uv's and pipx's `--with`, `-w`, `--from`,
-  `--spec`; a shell handed a line (`bash -c`). A rule for `python -m pytest` still covers
+  `--spec`; ruff's `--config`, `--fix`, `--fix-only`, `--unsafe-fixes` and `--add-noqa`; mypy's
+  `--config-file` and `--python-executable`; eslint's `-c`, `--rulesdir`,
+  `--resolve-plugins-relative-to`, `--plugin`, `--parser`, `--fix`, `--init`, `--inspect-config`
+  and a `--format` other than its own (`stylish`, `json`, `json-with-metadata`, `html`); tsc's
+  `-p`, `--outDir`, `--outFile`, `--tsBuildInfoFile`, `--declarationDir`, `--generateTrace` and
+  `--generateCpuProfile` outside the folder, in any case (`--OUTDIR`); a shell handed a line
+  (`bash -c`). A rule for `python -m pytest` still covers
   `python -m pytest -q tests`, `-p no:cacheprovider` (a plugin turned off) and `-o log_cli=true`,
   but not `python -m pytest -p plugin`. Words after `--` are the script's own (`npm test --
   --prefix x` is covered), and past a rule that names a runner's package (`npx tsc`) the words are
