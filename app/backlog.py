@@ -941,8 +941,8 @@ PROPOSE = (
 def po_asked(session: Session, run: Run) -> bool:
     """Whether the Scout is asked about a turn that ended: not a room's or a
     discussion's, and one that did something - a file changed, a command, a step that failed,
-    or work handed to a sub-agent. (The caller rules out the rest: a task's own turn, a plan,
-    a side of a comparison.)"""
+    or work handed to a sub-agent. (The caller rules out the rest: a plan, a side of a
+    comparison.)"""
 
     def has(model, *where) -> bool:
         return (
@@ -962,12 +962,14 @@ def po_asked(session: Session, run: Run) -> bool:
 
 def po_record(
     session: Session, run_id: str, turn: str, pass_env: str | None = None
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """The turn as the Scout is given it - as the summariser is (`turn`), and the steps
-    that failed with the first line they said - and the words a proposal may come from: the
-    agents' own and the tools' (not the user's message nor KOLONİ's labels). Both masked."""
+    that failed with the first line they said - the words a proposal may come from: the
+    agents' own and the tools' (not the user's message nor KOLONİ's labels), and of those the
+    failed steps' lines - a proposal from them is a bug (`proposed`). All masked."""
     lines = [turn]
     sources = [words for agent, _at, words in earlier.said_in(session, run_id) if agent]
+    failed: list[str] = []
     for name, result in session.execute(
         select(ToolCall.name, ToolCall.result)
         .where(ToolCall.run_id == run_id, ToolCall.status == "failed")
@@ -978,8 +980,13 @@ def po_record(
         lines.append(
             f"A step that failed: {name}" + (f": {quoted(first[0][:MAX_WHY])}" if first else "")
         )
-        sources += [first[0][:MAX_WHY]] if first else []
-    return stories.masked("\n".join(lines), pass_env), stories.masked("\n".join(sources), pass_env)
+        failed += [first[0][:MAX_WHY]] if first else []
+    sources += failed
+    return (
+        stories.masked("\n".join(lines), pass_env),
+        stories.masked("\n".join(sources), pass_env),
+        stories.masked("\n".join(failed), pass_env),
+    )
 
 
 def propose_question(record: str, titles: list[str], turned_down: list[str]) -> str:
@@ -1022,9 +1029,11 @@ def proposed(
     turned_down: list[str] | None = None,
     run_id: str = "",
     po: dict | None = None,
+    failed: str = "",
 ) -> list[dict]:
-    """The tasks of the Scout's answer to add, each with `why`, the words it came from:
-    at most PROPOSE_MOST. One whose words are not an agent's or a tool's in the turn
+    """The tasks of the Scout's answer to add, each with `why`, the words it came from - a
+    bug where those are words of a step that failed (`failed`), else a task, whatever the
+    answer says: at most PROPOSE_MOST. One whose words are not an agent's or a tool's in the turn
     (`sources`, markdown's marks aside), or that looks like a task of `titles` (open), of
     `turned_down` or one before it (`alike`), is dropped, and why said in the log
     (`dropped`) - and on `po`, with why an answer proposed nothing. An answer that is no list
@@ -1044,7 +1053,7 @@ def proposed(
     if not listed:
         log.info("run %s: the Scout's answer lists no task", run_id)
         po["note"] = "its answer listed no task"
-    seen = _plain(sources)
+    seen, broke = _plain(sources), _plain(failed)
     found: list[dict] = []
     drops = 0
 
@@ -1080,7 +1089,9 @@ def proposed(
         if like:
             drop(task["title"], f"{like[0]} {like[1][:80]!r}")
             continue
-        found.append({**task, "why": why})
+        found.append(
+            {**task, "kind": "bug" if broke and _plain(why) in broke else "task", "why": why}
+        )
         if len(found) == PROPOSE_MOST:
             break
     if drops > PROPOSE_MOST * 3:

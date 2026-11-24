@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app import agent, backlog
 from app.agent import po_mixin
-from app.db.models import Agent, BacklogTask, Discussion, Project, Room, Run
+from app.db.models import Agent, BacklogTask, Discussion, Project, Room, Run, Topic
 from app.team import Entry
 from tests.test_away_scenarios import ended as night_over
 from tests.test_away_scenarios import go_away, to_do
@@ -386,16 +386,19 @@ def test_the_request_waits_for_nothing_of_the_turn(team, project_dir, ended, gat
     assert [one["title"] for one in tasks(client, pid)] == ["Add CLI help"]
 
 
-def test_a_task_turn_is_assessed_and_gets_no_proposals(team, project_dir, ended):  # noqa: F811
+def test_the_scout_looks_after_a_todo_tasks_turn_too(team, project_dir, ended):  # noqa: F811
+    # (0.1.8: a To-do task's turn is a chat's turn: what it leaves undone is proposed too)
     client, _default, fast = team(
-        [FAILED, text(ANSWER)], [text("Met."), po(task("x", "the CLI help text"))]
+        [FAILED, text(ANSWER)], [text("Met."), po(task("Add CLI help", "the CLI help text"))]
     )
     tiered(team, client)
     pid, _ = setup(client, project_dir, "notes")
     cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
     ended(client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"])
-    (asked,) = fast.calls  # the view of the task only
-    assert asked[0]["content"] == backlog.ASSESS
+    assess, propose = fast.calls  # the view of the task, then the Scout's request
+    assert (assess[0]["content"], propose[0]["content"]) == (backlog.ASSESS, backlog.PROPOSE)
+    added = [one for one in tasks(client, pid) if one["status"] == "proposed"]
+    assert [(one["title"], one["story_id"]) for one in added] == [("Add CLI help", None)]
 
 
 def test_at_full_auto_the_lead_decides_each_and_the_user_can_undo_it(team, project_dir, ended):  # noqa: F811
@@ -759,3 +762,80 @@ def test_nothing_starts_as_the_app_closes(team):  # noqa: F811
         assert not runner._noting
     finally:
         runner._closing = False
+
+
+# (read_file's word on a file that is not there: the failed step's first line)
+NOT_THERE = "'notes.txt' does not exist"
+
+
+def in_story(client, pid, cid, closed=False):
+    """The chat's topic made a story's, as a To-do story's turns make it (0.1.8); the story's id."""
+    sid = client.post(f"/api/projects/{pid}/stories", json={"title": "Notes"}).json()["id"]
+    if closed:
+        client.patch(f"/api/stories/{sid}", json={"closed": True})
+    (first,) = client.get(f"/api/conversations/{cid}").json()["runs"]
+    with client.app.state.session_factory() as session:
+        session.get_one(Topic, first["topic_id"]).story_id = sid
+        session.commit()
+    return sid
+
+
+def test_a_follow_up_goes_into_the_turns_story_a_bug_where_it_came_from_a_failed_step(
+    team, project_dir, ended
+):  # noqa: F811
+    client, _default, fast = team(
+        [text("hello"), FAILED, text(ANSWER)],
+        [
+            po(
+                task("Read the notes", f"  {NOT_THERE}  ", kind="task"),
+                task("Write the parser tests", "the parser tests", kind="bug"),
+            )
+        ],
+    )
+    tiered(team, client)
+    pid, cid, first = start(client, project_dir, content="hello")
+    ended(first)  # (it did nothing: nothing was asked)
+    sid = in_story(client, pid, cid)
+    second = say(client, cid)
+    ended(second)
+    assert len(fast.calls) == 1
+    added = {one["title"]: one for one in tasks(client, pid) if one["status"] == "proposed"}
+    # in the turn's story; the kind is KOLONİ's, not the answer's: a failed step's is a bug
+    assert {title: (one["story_id"], one["kind"]) for title, one in added.items()} == {
+        "Read the notes": (sid, "bug"),
+        "Write the parser tests": (sid, "task"),
+    }, added
+
+
+@pytest.mark.parametrize("closed", [False, True])
+def test_a_follow_up_of_a_turn_without_an_open_story_stands_alone(team, project_dir, ended, closed):  # noqa: F811
+    client, _default, _fast = team(
+        [text("hello"), FAILED, text(ANSWER)], [po(task("Add CLI help", "the CLI help text"))]
+    )
+    tiered(team, client)
+    pid, cid, first = start(client, project_dir, content="hello")
+    ended(first)
+    if closed:  # (a story closed since: its tasks are done, the user said)
+        in_story(client, pid, cid, closed=True)
+    ended(say(client, cid))
+    (added,) = [one for one in tasks(client, pid) if one["status"] == "proposed"]
+    assert (added["title"], added["story_id"], added["kind"]) == ("Add CLI help", None, "task")
+
+
+def test_a_proposal_is_a_bug_only_where_its_words_are_a_failed_steps():
+    said = json.dumps(
+        {
+            "tasks": [
+                task("Fix the import", "No module named 'jwt'", kind="task"),
+                task("Docs", "the docs page is left", kind="bug"),
+            ]
+        }
+    )
+    failed = "ModuleNotFoundError: No module named 'jwt'"
+    sources = f"the docs page is left\n{failed}"
+    kinds = [
+        (one["title"], one["kind"]) for one in backlog.proposed(said, sources, [], failed=failed)
+    ]
+    assert kinds == [("Fix the import", "bug"), ("Docs", "task")]
+    # no failed step: every one a task
+    assert {one["kind"] for one in backlog.proposed(said, sources, [])} == {"task"}

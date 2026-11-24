@@ -2246,9 +2246,8 @@ class AgentRunner(
             # choice: `note_chosen`.)
             if not t.run_compare:
                 await self._note_what_it_found(ctx)
-            # The Scout, once the turn has let go of everything (`_po_later`): not of a
-            # task's own turn; a night's job's and a trigger's wait for the user, undecided.
-            if not (t.run_compare or t.backlog_turn):
+                # The Scout, once the turn has let go of everything (`_po_later`) - a To-do task's
+                # too (0.1.8); a night's job's and a trigger's wait for the user, undecided.
                 t.po = self._po_turn(ctx, decides=not (t.unattended or t.job))
         await self._tell_budget(cid)  # after the notes: what they cost counts too
 

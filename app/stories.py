@@ -264,6 +264,13 @@ def goal_named(session: Session, project_id: str, title: str) -> Goal | None:
     )
 
 
+def open_story(session: Session, story_id: str | None, project_id: str) -> Story | None:
+    """The story of this id where it is one of the project's, and not closed; None else (a
+    story's id on a topic or a task is no key: it may be gone)."""
+    story = session.get(Story, story_id) if story_id else None
+    return story if story and story.project_id == project_id and story.closed_at is None else None
+
+
 def adopt(session: Session, story_id: str | None) -> None:
     """A proposal's story added by the user's word: it, and its goal where an agent opened it,
     are the user's from then on - kept though its tasks go, as one the user made."""
