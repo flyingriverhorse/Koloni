@@ -49,6 +49,17 @@ def said(rows):
     return [(one["kind"], one["state"], one["text"]) for one in rows]
 
 
+# (V1: a page is read SETTLE s after it loads and again AGAIN s later - 0.8 s a width; here both
+# are none but where a test of the real Chrome sets them back)
+SETTLE, AGAIN = proof_kinds.SETTLE, proof_kinds.AGAIN
+
+
+@pytest.fixture(autouse=True)
+def no_settle(monkeypatch):
+    monkeypatch.setattr(proof_kinds, "SETTLE", 0.0)
+    monkeypatch.setattr(proof_kinds, "AGAIN", 0.0)
+
+
 @pytest.mark.anyio
 async def test_a_page_with_a_console_error_is_failed_at_each_width(tmp_path):
     ws, shots = Workspace(str(tmp_path)), tmp_path / ".koloni" / "tmp" / "checked" / "r1"
@@ -494,6 +505,45 @@ async def test_the_read_is_bounded_and_one_not_answered_is_said(tmp_path, monkey
         ),
         ("ui", "passed", f"hung.html: no console errors at {ALL} px"),
         ("ui", "note", f"hung.html: accessibility not read at {ALL} px"),
+    ]
+
+
+@pytest.mark.anyio
+async def test_a_page_still_changing_is_not_judged_and_one_with_no_root_is_said(tmp_path):
+    # (V1: two reads a width - one more image with no alt at each: neither failed nor passed, said;
+    # a page whose script took its root away was a silent pass)
+    rows = await looked(
+        tmp_path,
+        grows="<p data-a11y-grows>Drawn as its data comes</p>",
+        rootless="<p data-a11y-no-root>Hi</p>",
+    )
+    assert rows == [
+        ("ui", "passed", f"grows.html: no console errors at {ALL} px"),
+        (
+            "ui",
+            "note",
+            f"grows.html: accessibility not judged at {ALL} px - the page changed after it loaded",
+        ),
+        ("ui", "passed", f"rootless.html: no console errors at {ALL} px"),
+        ("ui", "note", f"rootless.html: accessibility not read at {ALL} px - the page has no root"),
+    ]
+
+
+@pytest.mark.anyio
+async def test_a_page_that_crashes_its_tab_is_said_and_the_next_is_read(tmp_path):
+    # (a page nested some 1,700 deep crashed Chrome's tab: every later call waited its 30 s - the
+    # turn's later pages "not checked" too, 70 s; now said at once, the next read in a new browser)
+    ws = Workspace(str(tmp_path))
+    names = pages(
+        tmp_path, **{"deep-crashes": a11y("<p>Deep</p>"), "after": a11y("<img src='x.png'>")}
+    )
+    rows = said(
+        await proof_kinds.check_pages(starter(tmp_path / "b", ws), ws, names, None, tmp_path / "s")
+    )
+    assert rows == [
+        ("ui", "note", "deep-crashes.html: not checked: the page crashed the browser's tab"),
+        ("ui", "passed", f"after.html: no console errors at {ALL} px"),
+        ("ui", "failed", f"after.html: 1 images without alt text at {ALL} px - x.png"),
     ]
 
 
@@ -1112,6 +1162,175 @@ def test_the_real_chromes_overlap_look_is_bounded(tmp_path):
     limit = 2000 if os.environ.get("CI") else 500  # (before: 568 ms, 4 times that at 32 KB)
     assert all(ms < limit for ms, _cut in took.values()), took
     assert took["many"][1] == [] and took["gaps"][1] == ["compare"], took
+
+
+# The second session's pages of 0.1.7 (CL-365, small): a name of CSS's generated content (an icon
+# font's glyph is none), a label of an image's alt, an empty link - a tab stop whatever its size -
+# and the tab stops that are none.
+FIFTH = {
+    "css_name": (
+        "",
+        "<style>.m::before{content:'Menu'}.n::after{content:attr(data-label)}</style>"
+        "<button class='m'></button><button class='n' data-label='Next'></button>",
+    ),
+    "icon_font": ("", "<style>.i::before{content:'\\f101'}</style><button class='i'></button>"),
+    "label_img": (
+        "",
+        "<label><img src='dot.png' alt='Email' width='20' height='20'><input type='email'></label>",
+    ),
+    "empty_link": ("", "<p>Hello</p><a href='/x'></a>"),
+    "not_tabbed": (
+        "",
+        "<a href='/a' style='display:none'></a><a href='/b' hidden></a><template><a href='/c'>"
+        "</a></template><dialog><a href='/d'></a></dialog><div inert><a href='/e'></a></div>"
+        "<a href='/f' tabindex='-1'></a><a href='/g' aria-hidden='true'></a><a href='/h' "
+        "style='visibility:hidden'></a><a href='/i' style='opacity:0'></a><a name='top'></a>"
+        "<a href='/k' aria-hidden='false'>K</a><button disabled style='width:0;padding:0;"
+        "border:0'></button>",
+    ),
+}
+FIFTH_KINDS = {
+    "css_name": [],
+    "icon_font": ["name"],
+    "label_img": [],
+    "empty_link": ["name"],
+    "not_tabbed": [],
+}
+PX = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+
+
+@pytest.mark.skipif(
+    browser.find_browser() is None or "KOLONI_BROWSER_FAKE" in os.environ,
+    reason="no Chrome or Edge on this machine",
+)
+@pytest.mark.anyio
+async def test_the_real_chrome_reads_the_second_sessions_pages(tmp_path, monkeypatch):
+    monkeypatch.setattr(browser, "START_WAIT", 120.0)
+    monkeypatch.setattr(browser, "LOAD_WAIT", 40.0)
+    monkeypatch.setattr(proof_kinds, "PAGES_SECONDS", 600)
+    command = browser.find_browser()
+    assert await kinds_read(tmp_path, command, FIFTH) == FIFTH_KINDS
+    # (an image of a data: address by its id, class or place - its address was "gif;base64,R0lG…",
+    # in the fix round's words too)
+    ws = Workspace(str(tmp_path))
+    names = pages(
+        tmp_path,
+        inline=a11y(
+            "".join(
+                f"<img src='{PX}' width='20' height='20'{more}>"
+                for more in (" id='hero'", " class='logo big'", "")
+            )
+        ),
+    )
+    rows = said(
+        await proof_kinds.check_pages(
+            starter(tmp_path / "b2", ws, command), ws, names, None, tmp_path / "shots"
+        )
+    )
+    assert rows[1:] == [
+        (
+            "ui",
+            "failed",
+            f"inline.html: 3 images without alt text at {ALL} px - an inline image (#hero), an "
+            "inline image (.logo), an inline image (image 3)",
+        )
+    ], rows
+
+
+# V1 (CL-365): what a page does after it loads, read by the real Chrome as a turn's check reads it
+# - SETTLE and AGAIN as they are - and a page nested so deep Chrome's tab crashes on it (measured:
+# some 1,700 deep here; the page builds it with a loop of its own: a few hundred bytes). In a
+# child process with a time limit.
+LATE = """
+import asyncio, json, sys, time
+from pathlib import Path
+from app import browser, proof_kinds
+from app.workspace import Workspace
+browser.START_WAIT = 120.0
+proof_kinds.PAGES_SECONDS = 600
+root = Path(sys.argv[1])
+async def main():
+    ws = Workspace(str(root))
+    async def start():
+        one = browser.Browser(root / "b", "pages")
+        await one.start(browser.find_browser(), ws, set())
+        return one
+    said = {}
+    for names in (["late", "grows", "rootless"], ["deep", "after"]):
+        began = time.perf_counter()
+        rows = await proof_kinds.check_pages(start, ws, [n + ".html" for n in names], None, root)
+        said[" ".join(names)] = [time.perf_counter() - began, [r["text"] for r in rows]]
+    print(json.dumps(said))
+asyncio.run(main())
+"""
+
+
+@pytest.mark.skipif(
+    browser.find_browser() is None or "KOLONI_BROWSER_FAKE" in os.environ,
+    reason="no Chrome or Edge on this machine",
+)
+def test_the_real_chrome_reads_a_page_once_it_settles_and_goes_on_after_a_crash(tmp_path):
+    import json
+    import subprocess
+
+    from tests.conftest import scaled
+
+    (tmp_path / "dot.png").write_bytes(PNG)
+    img = "<img src='dot.png' width='20' height='20'>"
+    pages(
+        tmp_path,
+        # (its alt and its button's name put 100 ms after it loads: was sent back to fix)
+        late=a11y(
+            f"{img}<button></button><script>addEventListener('load',()=>setTimeout(()=>{{"
+            "document.querySelector('img').alt='Dot';"
+            "document.querySelector('button').textContent='Go'},100))</script>"
+        ),
+        # (an image with no alt more every 20 ms: neither failed nor passed)
+        grows=a11y(
+            "<p>Hello</p><script>setInterval(()=>{const m=document.createElement('img');"
+            "m.src='dot.png';m.width=m.height=10;document.body.append(m)},20)</script>"
+        ),
+        # (its root taken away as it loads: was a silent pass)
+        rootless=a11y(
+            f"{img}<script>addEventListener('load',()=>document.documentElement.remove())</script>"
+        ),
+        deep=a11y(
+            "<p>Hello</p><script>let at=document.body;for(let i=0;i<20000;i++){const d="
+            "document.createElement('div');at.append(d);at=d}at.innerHTML=\"<button></button>\""
+            "</script>"
+        ),
+        after=a11y(img),
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", LATE, str(tmp_path)],
+        cwd=Path(__file__).resolve().parent.parent,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=scaled(240),
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    said = json.loads(done.stdout.strip().splitlines()[-1])
+    _took, rows = said["late grows rootless"]
+    assert rows == [
+        f"late.html: no console errors at {ALL} px",
+        f"grows.html: no console errors at {ALL} px",
+        f"grows.html: accessibility not judged at {ALL} px - the page changed after it loaded",
+        f"rootless.html: no console errors at {ALL} px",
+        f"rootless.html: accessibility not read at {ALL} px - the page has no root",
+    ], said
+    # (the tab crashed: said at once, the next page read in a new browser - each later call
+    # waited its 30 s before, 70 s in all; where the tab holds, the read stops 1,000 deep)
+    took, rows = said["deep after"]
+    assert rows[0] in (
+        "deep.html: not checked: the page crashed the browser's tab",
+        f"deep.html: no console errors at {ALL} px",
+    ), said
+    assert rows[0].endswith("tab") or (
+        f"deep.html: accessibility checked only in part at {ALL} px - nested over 1000 deep" in rows
+    ), said
+    assert f"after.html: 1 images without alt text at {ALL} px - dot.png" in rows, said
+    assert took < (60 if os.environ.get("CI") else 20), said
 
 
 # --- the end check: a page the turn wrote ------------------------------------------------------

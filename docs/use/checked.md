@@ -565,15 +565,26 @@ kept for you in the project's `.koloni/tmp/checked/<turn>/` - never shown to a m
 the Orchestrator of a page is only these lines, as data. **Pages** is switched off with the other
 kinds.
 
-At each width the page, as it loaded, is also read for accessibility - by KOLONİ, in the page, with
-no model and nothing installed:
+At each width the page is also read for accessibility - by KOLONİ, in the page, with no model and
+nothing installed - half a second after it loaded, and again 0.3 s later (some 0.8 s a width). Where
+the two reads differ, the page is still changing (one drawn as its data comes): that width is not
+judged - "accessibility not judged at 375 px - the page changed after it loaded" - neither sent back
+for what it had not drawn yet nor passed for what it drew late. A change after the second read is
+not seen. What the read finds:
 
 - an image with no text for it: "index.html: 2 images without alt text at 375, 768, 1280 px -
   logo.png, hero.jpg". `alt=""` marks a picture as decoration, and one hidden from screen readers
-  (`aria-hidden`, `role="presentation"`) is not counted;
+  (`aria-hidden`, `role="presentation"`) is not counted. An image of the page's own bytes (a
+  `data:` address) is named by its id, class or place: "an inline image (#hero)", "an inline image
+  (image 3)";
 - a button, link or field with no name - no words of its own, `aria-label`, `aria-labelledby`,
-  `title`, label, placeholder, a button's value or an image's `alt` in it: "1 buttons, links or
-  fields with no name at 375, 768, 1280 px - input[type=email]#email";
+  `title`, label (its words, or the `alt` of an image in it), placeholder, a button's value or an
+  image's `alt` in it, and else the words of its own CSS `::before` or `::after` (`content: 'Menu'`;
+  an icon font's glyph is no name): "1 buttons, links or fields with no name at 375, 768, 1280 px -
+  input[type=email]#email". A control one can tab to counts whatever its size - an empty
+  `<a href>` is a tab stop with no name; any other (`tabindex="-1"`, inside `inert`) only where it
+  is drawn more than 1 px each way, as an image and a text are. A hidden or disabled one never
+  counts;
 - a page hidden whole from screen readers (`aria-hidden` on `html` or `body`), and a control one
   can tab to inside `aria-hidden` (a button, a link, a field, `tabindex` 0 or more, not disabled,
   not inside `inert`): "2 controls one can tab to inside aria-hidden at 375, 768, 1280 px -
@@ -602,12 +613,19 @@ guessed:
   page's colour scheme is dark only" - its canvas is dark, not the white the rule reads under it;
 - frames and shadow roots: counted, not read ("accessibility not read inside 1 frames or shadow
   roots"); a closed shadow root is not seen at all;
-- a page whose script took its body away: "accessibility not read … the page has no body". One
-  that moved its content out of the body is read all the same: the read starts at the page's root;
-- a page's first 2,000 elements are read (an inline `<svg>` counts as one, not its shapes), for 3
-  seconds at most a width, and a text's words are compared with the 200 drawn elements over its
-  box at most; past that: "accessibility checked only in part", with which limit it met ("only its
-  first 2000 elements are read", "a text has more than 200 drawn elements over it" …).
+- a page whose script took its body or its root away: "accessibility not read … the page has no
+  body" ("… no root"). One that moved its content out of the body is read all the same: the read
+  starts at the page's root;
+- a page's first 2,000 elements are read (an inline `<svg>` counts as one, not its shapes), none
+  nested over 1,000 deep, for 3 seconds at most a width, and a text's words are compared with the
+  200 drawn elements over its box at most; past that: "accessibility checked only in part", with
+  which limit it met ("only its first 2000 elements are read", "nested over 1000 deep", "a text has
+  more than 200 drawn elements over it" …). A read cut at its 3 seconds is not read again: that
+  width stands on its first read.
+
+A page nested deeper still (some 1,700 elements, measured) crashes the browser's tab as it is
+drawn, before any read: "index.html: not checked: the page crashed the browser's tab", said at
+once, and the turn's next page is read in a new browser.
 
 The read goes through the browser's own getters, so a field named after one of the page's
 properties (`<input name="parentElement">`) cannot steer it. Hidden and disabled elements are left
@@ -1018,7 +1036,8 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ `page`: 2 images without alt text · 1 buttons, links or fields with no name … | The page is hard to use with a screen reader: sent back as a fix round. |
 | – `page`: 3 texts below the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1) | A warning: hard to read, said with its ratio - never sent back. |
 | ✗ `page`: the whole page is hidden from screen readers (aria-hidden) · 2 controls one can tab to inside aria-hidden … | A screen reader is told nothing of the page, or a control one tabs to is not there for it: sent back as a fix round. |
-| – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body) | What the accessibility read could not judge: said, not sent back. |
+| – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body · … no root) · accessibility not judged at 375 px - the page changed after it loaded | What the accessibility read could not judge: said, not sent back. |
+| – `page`: not checked: the page crashed the browser's tab | The browser could not draw the page (one nested some 1,700 deep crashes Chrome's tab): said at once; the turn's next page is read in a new browser. |
 | – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |
 | ✓ Tried `python 'bin/tool.py' --help`: exit 0, 12 lines | A command-line tool the turn changed answered its `--help`. |
 | ✗ Tried `line`: exit 2 · Tried `line`: it did not end in 30 s | Its `--help` failed or ran on: sent back as a fix round. |

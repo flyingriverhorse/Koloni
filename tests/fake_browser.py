@@ -306,6 +306,11 @@ class Read(html.parser.HTMLParser):
 def accessed(page: str, bounds: dict) -> dict:
     if "data-a11y-no-body" in page:  # (a test's page whose script takes its body away)
         return {**Read(bounds).out, "nobody": True}
+    if "data-a11y-no-root" in page:  # (...its root)
+        return {**Read(bounds).out, "noroot": True}
+    if "data-a11y-grows" in page:  # (...one more image with no alt at each read: still drawing)
+        state["reads"] = state.get("reads", 0) + 1
+        return {**Read(bounds).out, "images": ["late.png"], "imagesN": state["reads"]}
     read = Read(bounds)
     read.feed(page)
     read.close()
@@ -434,6 +439,9 @@ def answer(method: str, params: dict) -> dict:
 
 async def navigate(url: str, event, paused, dialogs: list[asyncio.Future]) -> None:
     await event("Page.frameStartedLoading", {"frameId": "f1"})
+    if url.endswith("-crashes.html"):  # (a test's page that crashes the tab, as Chrome's does)
+        await event("Inspector.targetCrashed", {})
+        return
     if not await paused(url, "Document"):
         state["html"], state["url"] = "", "chrome-error://chromewebdata/"
     else:
