@@ -249,6 +249,7 @@ test('a follow-up task the Orchestrator decided at Full auto: OK keeps its word,
     queued: false,
     stuck: null,
     waiting: false,
+    kind: 'task',
     created_at: '2026-10-05T10:00:00Z',
     po: po(lead),
   })

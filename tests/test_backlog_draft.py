@@ -55,12 +55,16 @@ def test_the_note_is_drafted_as_tasks_and_nothing_is_saved(make_client, project_
             "detail": "It breaks under 400 px.",
             "criteria": "The form fits a 360 px screen.",
             "priority": "high",
+            "story_id": None,
+            "kind": "task",
         },
         {
             "title": "Add a password reset",
             "detail": None,
             "criteria": "A mail link sets a new one.",
             "priority": "normal",
+            "story_id": None,
+            "kind": "task",
         },
     ]
     assert drawn.json()["by"].endswith("(fake-model)")

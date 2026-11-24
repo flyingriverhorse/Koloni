@@ -697,6 +697,8 @@ class RunOut(Out):
     trigger_name: str | None
     # The piece of work this turn goes on with; None for a turn on record without one.
     topic_id: str | None
+    # 0.1.8: the To-do task this turn works on; None for any other turn.
+    task_id: str | None = None
     # A plan turn: it only reads, and its answer is a plan put before the user (slice 49).
     plan_turn: bool
     # What it planned; None until a plan turn has written one.
@@ -773,6 +775,8 @@ class TopicOut(Out):
     # The trigger whose turns these are (it may be gone since); None for the user's own.
     trigger_id: str | None
     created_at: datetime
+    # 0.1.8: the To-do story whose tasks go on in it; None for any other.
+    story_id: str | None = None
 
 
 class TopicPatch(BaseModel):
@@ -4805,6 +4809,7 @@ class ClaudeSessionSetupOut(BaseModel):
 
 
 Priority = Literal["high", "normal", "low"]
+TaskKind = Literal["task", "bug"]
 
 
 class BacklogTaskOut(Out):
@@ -4839,6 +4844,11 @@ class BacklogTaskOut(Out):
     # ☾ Away: the chat an agent proposed it in (None: the user's), and when it was made.
     proposed_in: str | None = None
     created_at: datetime
+    # 0.1.8: its story (None: of no story), whether it is a task or a bug, and its place in a
+    # chat's queue (None: not queued there).
+    story_id: str | None = None
+    kind: TaskKind = "task"
+    place: int | None = None
 
 
 class BacklogPoOut(BaseModel):
@@ -4858,6 +4868,9 @@ class BacklogTaskIn(BaseModel):
     detail: str | None = Field(default=None, max_length=4000)
     criteria: str | None = Field(default=None, max_length=4000)
     priority: Priority = "normal"
+    # 0.1.8: a story of its project, or None; a task or a bug.
+    story_id: str | None = Field(default=None, max_length=32)
+    kind: TaskKind = "task"
 
 
 class BacklogTaskPatch(BaseModel):
@@ -4871,6 +4884,9 @@ class BacklogTaskPatch(BaseModel):
     position: int | None = Field(default=None, ge=0)
     # The tasks of its project it waits for (K-symphony): [] waits for none.
     after: list[str] | None = Field(default=None, max_length=50)
+    # 0.1.8: a story of its project; null takes it out of its story.
+    story_id: str | None = Field(default=None, max_length=32)
+    kind: TaskKind | None = None
 
 
 class BacklogDecideIn(BaseModel):
@@ -4936,6 +4952,68 @@ class BacklogDraftOut(BaseModel):
 
     tasks: list[BacklogTaskIn]
     by: str
+
+
+class GoalOut(Out):
+    """0.1.8: a goal of a project's To-do, and how many of its stories are done (closed)."""
+
+    id: str
+    title: str
+    position: int
+    created_by: Literal["user", "agent"]
+    stories_done: int
+    stories_all: int
+
+
+class GoalIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
+class GoalPatch(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    position: int | None = Field(default=None, ge=0)
+
+
+class StoryNoteOut(BaseModel):
+    kind: str
+    text: str
+    by: str
+    at: datetime
+
+
+class StoryOut(Out):
+    """0.1.8: a story of a project's To-do: its goal, its state from its tasks
+    (`stories.story_state`) and its notebook."""
+
+    id: str
+    goal_id: str | None
+    title: str
+    position: int
+    state: Literal["todo", "running", "stuck", "done?", "done"]
+    notes: list[StoryNoteOut]
+    created_by: Literal["user", "agent"]
+    closed_at: datetime | None
+
+
+class StoryIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    goal_id: str | None = Field(default=None, max_length=32)
+
+
+class StoryPatch(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    # Null takes it out of its goal.
+    goal_id: str | None = Field(default=None, max_length=32)
+    position: int | None = Field(default=None, ge=0)
+    # The user's Close the story (done), or opened again.
+    closed: bool | None = None
+
+
+class TodoTreeOut(BaseModel):
+    """A project's goals and stories in their order; its tasks are the backlog's."""
+
+    goals: list[GoalOut]
+    stories: list[StoryOut]
 
 
 class AwayGoIn(BaseModel):

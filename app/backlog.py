@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from sqlalchemy import and_, case, or_, select
 from sqlalchemy.orm import Session
 
-from app import copies, earlier, observer, raw, topics
+from app import copies, earlier, observer, raw, stories, topics
 from app.api.usage import over_budget
 from app.commands import OutputMask, secret_values
 from app.db.models import (
@@ -44,7 +44,7 @@ from app.serialize import conversation_out, message_out, run_out, topic_out
 from app.team import quoted, would_run
 
 log = logging.getLogger(__name__)
-PRIORITIES = ("high", "normal", "low")
+PRIORITIES = stories.PRIORITIES
 STATUSES = ("proposed", "todo", "doing", "review", "done", "blocked")
 # What an agent may write on a task, and how long each may be.
 SIZES = {"title": 200, "detail": 4000, "criteria": 4000}

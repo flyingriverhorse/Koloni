@@ -140,7 +140,7 @@ function TaskFields({ id, task, onTask }: FieldsProps) {
   )
 }
 
-const EMPTY: NewBacklogTask = { title: '', detail: '', criteria: '', priority: 'normal' }
+const EMPTY: NewBacklogTask = { title: '', detail: '', criteria: '', priority: 'normal', kind: 'task' }
 // An empty detail or criteria is none.
 const cleaned = (task: NewBacklogTask) => ({
   ...task,
@@ -793,7 +793,14 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
   const id = `task-${task.id}`
   const change = (c: BacklogTaskChange) => void ask(() => onChange(task.id, c))
   const edit = (waitsFirst: boolean) => {
-    setEditing({ title: task.title, detail: task.detail ?? '', criteria: task.criteria ?? '', priority: task.priority })
+    setEditing({
+      title: task.title,
+      detail: task.detail ?? '',
+      criteria: task.criteria ?? '',
+      priority: task.priority,
+      kind: task.kind,
+      story_id: task.story_id,
+    })
     setWaits(task.after)
     setToWaits(waitsFirst)
   }

@@ -135,6 +135,11 @@ export type BacklogAuto = Schemas['BacklogAutoOut']
 export type BacklogChoice = Schemas['BacklogChoiceIn']
 /** A model's tasks from the user's note, saved nowhere, and who wrote them. */
 export type BacklogDraft = Schemas['BacklogDraftOut']
+/** 0.1.8: a goal holds stories, a story holds tasks and bugs; a story's state comes from its tasks. */
+export type Goal = Schemas['GoalOut']
+export type Story = Schemas['StoryOut']
+export type StoryNote = Schemas['StoryNoteOut']
+export type TodoTree = Schemas['TodoTreeOut']
 /** ☾ Away: the Orchestrator's offer to go away ("planned"), or your Go away and its To-do tasks, places kept out, limits. */
 export type Away = Schemas['AwayOut']
 export type AwayJob = Schemas['AwayJobOut']

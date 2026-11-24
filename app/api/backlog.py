@@ -6,13 +6,13 @@ neither writes a task nor approves its own proposal. Reading is open."""
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from app import away, backlog, earlier
+from app import away, backlog, earlier, stories
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.api.providers import _model
 from app.api.recipes import Asked, ask_in_turn, askers, chat_of
 from app.api.usage import over_budget, over_month
-from app.db.models import BacklogTask, Project, Provider, now
+from app.db.models import BacklogTask, Project, Provider, Story, now
 from app.providers import works_with_own_tools
 from app.schemas import (
     BacklogAutoIn,
@@ -44,6 +44,15 @@ def _task(session: Session, task_id: str) -> BacklogTask:
     if task is None:
         raise HTTPException(404, "task not found")
     return task
+
+
+OTHER_STORY = "a task's story is one of its project"
+
+
+def _in_story(session: Session, project_id: str, story_id: str | None) -> None:
+    """A task's story is one of its project's (None: of no story); else 422."""
+    if story_id is not None and not stories.of_project(session, Story, project_id, story_id):
+        raise HTTPException(422, OTHER_STORY)
 
 
 def _told(request: Request, session: Session, project_id: str) -> None:
@@ -221,7 +230,9 @@ async def add_task(
     fields["title"] = fields["title"].strip()
     if not fields["title"]:
         raise HTTPException(422, "a task needs a title")
-    task = backlog.add(session, _project(session, project_id).id, fields, "user")
+    project = _project(session, project_id)
+    _in_story(session, project.id, fields["story_id"])
+    task = backlog.add(session, project.id, fields, "user")
     session.commit()
     _told(request, session, project_id)
     return task
@@ -233,8 +244,12 @@ async def change_task(
 ):
     task = _task(session, task_id)
     changes = body.model_dump(exclude_unset=True)
-    # Only detail and criteria can be emptied; the rest left as null is left as it is.
-    changes = {k: v for k, v in changes.items() if v is not None or k in ("detail", "criteria")}
+    # Only detail, criteria and its story can be emptied; the rest left as null is left as it is.
+    changes = {
+        k: v for k, v in changes.items() if v is not None or k in ("detail", "criteria", "story_id")
+    }
+    if "story_id" in changes:
+        _in_story(session, task.project_id, changes["story_id"])
     if "title" in changes:
         changes["title"] = changes["title"].strip()
         if not changes["title"]:

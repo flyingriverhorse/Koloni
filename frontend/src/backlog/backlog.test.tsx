@@ -23,6 +23,7 @@ const task = (over: Partial<BacklogTask>): BacklogTask => ({
   queued: false,
   stuck: null,
   waiting: false,
+  kind: 'task',
   created_at: '2026-10-05T10:00:00Z',
   ...over,
 })
@@ -233,9 +234,21 @@ test('adding starts from one line: the rest opens once a title is typed, Esc clo
   await userEvent.type(title, '!')
   expect(form.getByLabelText('Priority')).toHaveValue('high') // opened again as it was
   await userEvent.click(form.getByRole('button', { name: 'Add task' }))
-  expect(props.onAdd).toHaveBeenLastCalledWith({ title: 'new one!', detail: null, criteria: null, priority: 'high' })
+  expect(props.onAdd).toHaveBeenLastCalledWith({
+    title: 'new one!',
+    detail: null,
+    criteria: null,
+    priority: 'high',
+    kind: 'task',
+  })
   await userEvent.type(title, 'next{Enter}')
-  expect(props.onAdd).toHaveBeenLastCalledWith({ title: 'next', detail: null, criteria: null, priority: 'normal' })
+  expect(props.onAdd).toHaveBeenLastCalledWith({
+    title: 'next',
+    detail: null,
+    criteria: null,
+    priority: 'normal',
+    kind: 'task',
+  })
 })
 
 test("the rail's badge counts what waits on the backlog too", () => {
@@ -579,9 +592,10 @@ test('the note is written as tasks once there is text: each changed, added by yo
         detail: 'Breaks under 400 px',
         criteria: 'Fits 360 px',
         priority: 'high' as const,
+        kind: 'task' as const,
       },
-      { title: 'Password reset', detail: null, criteria: null, priority: 'normal' as const },
-      { title: 'Remember me', detail: null, criteria: null, priority: 'low' as const },
+      { title: 'Password reset', detail: null, criteria: null, priority: 'normal' as const, kind: 'task' as const },
+      { title: 'Remember me', detail: null, criteria: null, priority: 'low' as const, kind: 'task' as const },
     ],
   }))
   render(
@@ -616,6 +630,7 @@ test('the note is written as tasks once there is text: each changed, added by yo
     detail: 'Breaks under 400 px',
     criteria: 'Fits 360 px',
     priority: 'normal',
+    kind: 'task',
   })
   await userEvent.click(within(drafts).getByRole('button', { name: 'Remove draft 2' })) // (Remember me, now the second)
   expect(
@@ -629,6 +644,7 @@ test('the note is written as tasks once there is text: each changed, added by yo
     detail: null,
     criteria: null,
     priority: 'normal',
+    kind: 'task',
   })
   expect(props.onAdd).toHaveBeenCalledTimes(2)
   expect(screen.queryByRole('region', { name: 'Drafted tasks' })).toBeNull()
@@ -662,7 +678,7 @@ test('while Add all runs, the drafts are held: none is changed and added twice',
   const props = { ...page(), onAdd: vi.fn(() => new Promise<void>(resolve => (done = resolve))) }
   const onDraft = vi.fn(async () => ({
     by: 'Cloud (mini)',
-    tasks: [{ title: 'One', detail: null, criteria: null, priority: 'normal' as const }],
+    tasks: [{ title: 'One', detail: null, criteria: null, priority: 'normal' as const, kind: 'task' as const }],
   }))
   render(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onDraft={onDraft} />)
   await userEvent.type(screen.getByLabelText('Title'), 'a note')
