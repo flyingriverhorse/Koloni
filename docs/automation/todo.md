@@ -166,8 +166,10 @@ a new session - instead where:
 
 - a task of it got **stuck**, or went back to To-do (**Not yet**, Stop), so its wrong guess is not
   carried on;
-- Claude Code's session holds **half its window** or more, so that KOLONİ's own summary comes before
-  Claude Code's. Copilot and Codex are held to a size of their own already
+- Claude Code's last turn there sent **half its window** or more, so that KOLONİ's own summary comes
+  before Claude Code's. Claude Code says what all the calls of a turn sent, not how large its session
+  is, so a turn of many steps may start the next task anew early; the share is not yet measured.
+  Copilot and Codex are held to a size of their own already
   ([Going on from the last turn](../models/setup-cli.md#going-on-from-the-last-turn));
 - a **day** has passed since its last turn there.
 

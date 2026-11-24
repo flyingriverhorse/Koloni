@@ -200,7 +200,7 @@ What each agent is given:
   past **Summarise a long context at (%)** of the window (75 by default; see
   [Going on from the last turn](models/setup-cli.md#going-on-from-the-last-turn)).
 - **A To-do story** goes on in a topic of its own, so in one session; its next task starts a new topic of
-  the story after a task of it ended badly, once Claude Code's session holds half its window, or a day
+  the story after a task of it ended badly, once Claude Code's last turn there sent half its window, or a day
   later - told the story so far and its notebook ([A story's session](automation/todo.md#a-storys-session)).
   The other topics' names come with how a story's or a To-do task's stands: (done), (done?) or (stuck).
 

@@ -3,6 +3,7 @@ one topic of the chat - one CLI session - until a task of it ends badly (rule 6)
 kept session is full (3) or a day has passed (5); then its next task starts a new topic of it,
 told the story so far. The rows are set here as a story's tasks' turns leave them."""
 
+import time
 from datetime import timedelta
 
 import pytest
@@ -10,14 +11,36 @@ import pytest
 from app import backlog, stories, topics
 from app.db.models import Agent, BacklogTask, FileChange, Run, Story, Topic, now
 from app.team import quoted
+from tests.conftest import scaled
 from tests.test_backlog import setup
-from tests.test_backlog_auto import until
-from tests.test_backlog_symphony import run, said
 from tests.test_chat_flow import text
 
 CLAUDE = {"id": "a1b2", "under": "u"}  # (Claude Code's kept session: nothing spent kept)
 COPILOT = {"id": "c3d4", "under": "u", "home": "h", "spent": {}}
 CODEX = {"id": "e5f6", "under": "u", "home": "h", "spent": {}, "cli": "codex"}
+
+
+def run(client, pid):
+    """Run the backlog: its first task started in a chat of its own.
+    shortcut: until To-do in a chat (branch B) - start it by Do in chat there."""
+    return client.post(f"/api/projects/{pid}/backlog/next")
+
+
+def said(client, cid):
+    """The user-side messages of the chat: a task's brief, its fix round."""
+    return [
+        m["content"]
+        for m in client.get(f"/api/conversations/{cid}").json()["messages"]
+        if m["role"] == "user"
+    ]
+
+
+def until(check, seconds=20.0):
+    deadline = time.monotonic() + scaled(seconds)
+    while not (seen := check()):
+        assert time.monotonic() < deadline, "never came"
+        time.sleep(0.02)
+    return seen
 
 
 def db(client):
