@@ -307,6 +307,9 @@ def test_a_bare_name_cmd_did_not_find_in_the_folder_gets_its_hint(tmp_path):
     assert "%~dp0helper096." in _bare_name_hint(said.replace(".cmd'", "'"), tmp_path)
     assert _bare_name_hint(said.replace("helper096", "other"), tmp_path) == ""
     assert _bare_name_hint("exit code 0\n", tmp_path) == ""
+    # (its last 64 KB alone are read: where cmd.exe ended, whatever came before)
+    assert _bare_name_hint("x" * 100_000 + "\n" + said, tmp_path)
+    assert _bare_name_hint(said + "y\n" * 40_000, tmp_path) == ""
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="cmd.exe's own words")

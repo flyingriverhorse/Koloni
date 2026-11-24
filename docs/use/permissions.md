@@ -113,12 +113,18 @@ be asked in - a trigger's, whatever its leave - it is not run at any level. A ru
 words in any folder, so the same line in another folder, or after an agent's write over the
 project's own install, would otherwise run what the agent wrote. Once your own install writes
 over it, the rule covers it again. A package runner finds its program by itself, so its rule
-(`npx tsc`, `npm exec tsc`, `yarn tsc`, `uv run ruff`, `python -m mypy`) is read the same way:
-npx, npm, pnpm, yarn and bun look in the `node_modules` of the folder the command runs in or of
-one above it, and an agent's write there stops the rule; for uv, poetry, pipenv, pdm, hatch and
-`python -m`, whose environment KOLONİ cannot always place, an agent's write in any `.venv`,
-`venv` or `site-packages` of the project does - and `python -m x` also reads an `x.py` (or an `x`
-folder) in its folder first.
+(`npx tsc`, `npm exec tsc`, `yarn tsc`, `bun x tsc`, `corepack pnpm exec tsc`, `uv run ruff`,
+`python -m mypy`) is read the same way: npx, npm, pnpm, yarn and bun look in the `node_modules`
+of the folder the command runs in or of one above it - and read an `.npmrc` there, yarn its
+`.yarnrc.yml`, `.yarnrc`, `.yarn` folder and Plug'n'Play loader, bun its `bunfig.toml` - and an
+agent's write in any of them stops the rule; for uv, poetry, pipenv, pdm, hatch and `python -m`,
+whose environment KOLONİ cannot always place, an agent's write in any `.venv`, `venv` or
+`site-packages` of the project does. `python -m x` (any Python: `python3.12`, `pythonw`, one
+named by its path) also imports what its folder holds before the standard library and the tool's
+own - so an agent's `.py` file, or package `__init__.py`, there stops its rule too, unless it runs
+with `-I` or `-P` (or `PYTHONSAFEPATH`); `python -m pytest` is the exception, since its tests
+import the project's code anyway. `node <script>` with the script in an install folder
+(`node node_modules/typescript/bin/tsc`) is read as that program.
 
 On Windows, a command KOLONİ runs, a server it starts and an agent's CLI (started in the work's
 folder) find a program named bare - `node`, which an npm `.cmd` shim calls - on PATH only, never

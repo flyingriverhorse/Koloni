@@ -341,6 +341,23 @@ def planted_in(work: Path, places: Iterable[str], anywhere: Iterable[str], rel: 
     return None if at is None else PurePosixPath(*parts[: at + 1]).as_posix()
 
 
+# W6: what `python -m` imports from the folder it runs in before any installed module
+_MODULE_ENDINGS = (".py", ".pyc", ".pyd", ".so")
+
+
+def shadows(cwd: str, rel: str) -> str | None:
+    """W6: `rel` (from the root) as a module `python -m` run in `cwd` imports before the standard
+    one or the tool's own - a `subprocess.py` there, or a package folder's `__init__.py` - said
+    from the root; None: neither. (A file in a package of the project's own is not: a tool
+    imports no package of the project's by its name.)"""
+    here, mine = PurePosixPath(cwd.casefold()), PurePosixPath(rel.casefold())
+    if mine.parent == here and mine.suffix in _MODULE_ENDINGS:
+        return PurePosixPath(rel).as_posix()
+    if mine.parent.parent == here and mine.stem == "__init__" and mine.suffix in _MODULE_ENDINGS:
+        return PurePosixPath(rel).parent.as_posix()
+    return None
+
+
 def still_written(work: Path, records: Iterable[tuple[str, str]]) -> list[str]:
     """Of an earlier turn's writes under an install folder (`records`: path from the root, the
     digest of what the agent wrote), those whose file still holds it in the work's folder - a

@@ -1018,8 +1018,22 @@ def test_a_triggers_leave_does_not_run_a_program_an_agent_wrote(
         ("yarn tsc --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
         ("uv run ruff check .", RUFF, ".venv"),
         ("python -m mypy .", "mypy.py", "mypy.py"),  # (`-m` reads its folder's own first)
+        # (the last look's probe: any module the tool imports - the standard one shadowed)
+        ("python -m ruff check .", "subprocess.py", "subprocess.py"),
+        ("python3.12 -m ruff check .", "click/__init__.py", "click"),
+        (f"{RUFF.replace('ruff', 'python')} -m ruff check .", "subprocess.py", "subprocess.py"),
+        ("bun x tsc --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
+        ("yarn tsc --noEmit", ".yarnrc.yml", ".yarnrc.yml"),  # (its `yarnPath` runs)
+        ("corepack pnpm exec tsc --noEmit", TSC, "node_modules"),
+        (
+            "node node_modules/typescript/bin/tsc --noEmit",
+            "node_modules/typescript/lib/x.js",
+            "node_modules",
+        ),
         ("npx tsc --noEmit", "notes.md", None),  # (an install nobody wrote in: covered)
         ("uv run ruff check .", "src/venv_notes.py", None),
+        ("python -m ruff check .", "src/app.py", None),  # (no module of its folder's)
+        ("python -m pytest -q", "subprocess.py", None),  # (its tests run the project's code)
     ],
 )
 def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(
@@ -1064,20 +1078,84 @@ def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(
 def test_a_package_runner_finds_its_program_up_the_tree_or_anywhere_it_cannot_place(tmp_path):
     from app.command_runner import _runner_places
 
-    places, anywhere = _runner_places(["npx", "tsc"], "web/app")
-    assert places == ["web/app/node_modules", "web/node_modules", "node_modules"] and not anywhere
+    places, anywhere, shadow = _runner_places(["npx", "tsc"], "web/app")
+    assert "web/app/node_modules" in places and "node_modules" in places and "web/.npmrc" in places
+    assert not anywhere and not shadow
     found = proof_style.planted_in
     assert found(tmp_path, places, anywhere, "web/Node_Modules/x/y.js") == "web/node_modules"
     assert found(tmp_path, places, anywhere, "api/node_modules/x.js") is None  # (not its own)
     # (an environment KOLONİ cannot place: any install folder of the project's - fails closed)
-    places, anywhere = _runner_places(["poetry", "run", "ruff", "check"], ".")
+    places, anywhere, shadow = _runner_places(["poetry", "run", "ruff", "check"], ".")
     assert found(tmp_path, places, anywhere, "tools/env/Lib/site-packages/ruff/x.py") == (
         "tools/env/Lib/site-packages"
     )
-    places, anywhere = _runner_places(["python", "-m", "pytest.main"], "api")
-    assert found(tmp_path, places, anywhere, "api/pytest/__init__.py") == "api/pytest"
+    assert not shadow  # (poetry's `ruff`: its environment's)
+    places, anywhere, shadow = _runner_places(["corepack", "yarn", "tsc"], "web")
+    assert found(tmp_path, places, anywhere, ".yarn/releases/yarn-4.cjs") == ".yarn"
     assert _runner_places(["pytest", "-q"], ".") is None
     assert _runner_places(["python", "x.py"], ".") is None
+
+
+@pytest.mark.parametrize(
+    ("words", "said"),
+    [
+        (["python", "-m", "ruff"], ("ruff", True)),
+        (["python", "-mruff", "check"], ("ruff", True)),
+        (["python", "-X", "dev", "-m", "ruff"], ("ruff", True)),
+        (["py", "-3.12", "-m", "ruff"], ("ruff", True)),
+        (["python", "-I", "-m", "ruff"], ("ruff", False)),  # (isolated: no folder on sys.path)
+        (["python", "-Im", "ruff"], ("ruff", False)),
+        (["python3.12", "-P", "-m", "ruff"], ("ruff", False)),
+        (["python", "x.py", "-m", "ruff"], None),
+        (["python", "-c", "import ruff"], None),
+    ],
+)
+def test_python_m_reads_the_folder_it_runs_in_first_unless_told_not_to(words, said, monkeypatch):
+    # W6: `python -m ruff` imported a `subprocess.py` the agent wrote in its folder
+    from app.command_runner import _python_module, _runner_places
+
+    assert _python_module(words) == said
+    if said:
+        monkeypatch.delenv("PYTHONSAFEPATH", raising=False)
+        assert _runner_places(words, ".")[2] is said[1]
+        monkeypatch.setenv("PYTHONSAFEPATH", "1")
+        assert _runner_places(words, ".")[2] is False
+
+
+def test_python_m_imports_a_module_its_folder_holds_before_the_standard_one(tmp_path):
+    """The premise of `_python_module`, on this Python: a stand-in tool run by `-m` imports the
+    `colorsys.py` written in its folder, not the standard one - under -P, not."""
+    site, work = tmp_path / "site", tmp_path / "work"
+    (site / "standin").mkdir(parents=True)
+    (site / "standin" / "__init__.py").write_text("", encoding="utf-8")
+    (site / "standin" / "__main__.py").write_text("import colorsys\nprint('ran')\n")
+    work.mkdir()
+    (work / "colorsys.py").write_text("print('PLANTED')\n", encoding="utf-8")
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONSAFEPATH"}
+    env["PYTHONPATH"] = str(site)
+    for flags, planted in (([], True), (["-P"], False)):
+        done = subprocess.run(
+            [sys.executable, *flags, "-m", "standin"],
+            cwd=work,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=scaled(30),
+        )
+        assert ("PLANTED" in done.stdout) is planted and "ran" in done.stdout, (
+            flags,
+            done.stdout + done.stderr,
+        )
+
+
+def test_what_python_m_imports_from_its_folder_before_the_tools_own():
+    shadows = proof_style.shadows
+    assert shadows(".", "subprocess.py") == "subprocess.py"
+    assert shadows(".", "Click/__init__.py") == "Click"
+    assert shadows("api", "api/json.py") == "api/json.py"
+    assert shadows("api", "json.py") is None  # (another folder's)
+    assert shadows(".", "app/core.py") is None  # (in a package of the project's own)
+    assert shadows(".", "notes.md") is None
 
 
 def proof_style_planted(place: str) -> str:

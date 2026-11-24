@@ -14,8 +14,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app import ledger, project_map, proof, proof_style
 from app.cards import card_reason
-from app.commands import ANSI as _ANSI
 from app.commands import (
+    _INTERPRETER,
     MAX_STORED_OUTPUT,
     OutputMask,
     _program,
@@ -34,6 +34,7 @@ from app.commands import (
     standing_asked,
     with_cwd,
 )
+from app.commands import ANSI as _ANSI
 from app.db.models import (
     Agent,
     AllowedCommand,
@@ -185,29 +186,81 @@ PLANTED_REFUSED = "KOLONİ did not run this: {why}, and nobody is here to ask. "
 
 
 # W6: a package runner finds the program it runs by itself - npx, npm exec, yarn, pnpm and bun
-# in the node_modules of the folder it runs in or of one above it; uv, poetry, pipenv, pdm, hatch
-# and `python -m` in an environment: the .venv there or above, or one KOLONİ cannot place - any
-# install folder of the project's counts (fails closed); and `python -m x` reads its folder's
-# x.py first.
+# (`corepack` before one: the same) in the node_modules of the folder it runs in or of one above
+# it, beside the files that make it run code of their own there: `.npmrc` (`node-options`,
+# `script-shell`), yarn's (`yarnPath` names the JS it runs, `.yarn/releases`, Plug'n'Play's
+# loader), bun's preloads; uv, poetry, pipenv, pdm, hatch and `python -m` in an environment: the
+# .venv there or above, or one KOLONİ cannot place - any install folder of the project's counts
+# (fails closed).
 _NODE_RUNNERS = frozenset({"npx", "pnpx", "bunx", "npm", "pnpm", "yarn", "bun"})
+_NODE_SETTINGS = {
+    "yarn": (".yarnrc.yml", ".yarnrc", ".yarn", ".pnp.cjs", ".pnp.loader.mjs", ".npmrc"),
+    "bun": ("bunfig.toml",),
+    "bunx": ("bunfig.toml",),
+}
 _PY_RUNNERS = frozenset({"uv", "uvx", "poetry", "pipenv", "pdm", "hatch"})
 _PY_INSTALLS = (".venv", "venv", "site-packages")
+_PYTHON = re.compile(r"python[\d.]*w?|pyw?")
+# (`python -m pytest` imports the project's own modules by design - its tests are its code)
+_RUNS_THE_PROJECT = frozenset({"pytest", "unittest"})
 
 
-def _runner_places(words: list[str], cwd: str) -> tuple[list[str], tuple[str, ...]] | None:
+def _python_module(words: list[str]) -> tuple[str, bool] | None:
+    """`python [its options] -m x` (`-mx`, `-Im x` too): x, and whether the folder it runs in
+    comes first on sys.path - not under -I or -P (W6: a `subprocess.py` there is imported before
+    the standard one); None: no `-m` before a script or `-c`."""
+    safe, at = False, 1
+    while at < len(words):
+        word = words[at]
+        if not word.startswith("-") or word in ("-", "--"):
+            return None
+        head, m, tail = word[1:].partition("m")
+        safe = safe or (not word.startswith("--") and bool({"I", "P"} & set(head)))
+        if m and not word.startswith("--"):
+            module = tail or (words[at + 1] if at + 1 < len(words) else "")
+            return (module, not safe) if module else None
+        if "c" in head and not word.startswith("--"):
+            return None
+        at += 2 if word in ("-X", "-W") else 1
+    return None
+
+
+def _runner_places(words: list[str], cwd: str) -> tuple[list[str], tuple[str, ...], bool] | None:
     """W6: where a package runner's line (`words`) finds its program - folders and files from the
-    root - and the install folders it may take it from anywhere in the project; None: no
-    runner's line."""
+    root -, the install folders it may take it from anywhere in the project, and whether it reads
+    the folder's own modules first (`python -m`: `proof_style.shadows`); None: no runner's
+    line."""
+    words = words[1:] if words and _program(words[0]) == "corepack" else words
     name = _program(words[0]) if words else ""
     above = [PurePosixPath(cwd), *PurePosixPath(cwd).parents]
     if name in _NODE_RUNNERS:
-        return [str(folder / "node_modules") for folder in above], ()
-    module = words[words.index("-m") + 1].split(".")[0] if "-m" in words[1:-1] else ""
-    if name not in _PY_RUNNERS and not (name in ("python", "python3", "py") and module):
+        names = ("node_modules", *_NODE_SETTINGS.get(name, (".npmrc",)))
+        return [str(folder / one) for folder in above for one in names], (), False
+    python = next((at for at, word in enumerate(words) if _PYTHON.fullmatch(_program(word))), None)
+    module = _python_module(words[python:]) if python is not None else None
+    if name not in _PY_RUNNERS and module is None:
         return None
+    shadow = (
+        module is not None
+        and module[1]
+        and module[0].split(".")[0] not in _RUNS_THE_PROJECT
+        and not os.environ.get("PYTHONSAFEPATH")
+    )
     envs = [str(folder / env) for folder in above for env in (".venv", "venv")]
-    own = [str(PurePosixPath(cwd, f"{module}.py")), str(PurePosixPath(cwd, module))]
-    return [*envs, *(own if module else [])], _PY_INSTALLS
+    return envs, _PY_INSTALLS, shadow
+
+
+def _program_word(words: list[str]) -> str:
+    """The word naming what a line runs: its program, or the script an interpreter is handed
+    from an install folder (`node node_modules/typescript/bin/tsc`, W6)."""
+    program = words[0] if words else ""
+    script = next((word for word in words[1:] if not word.startswith("-")), "")
+    parts = PurePosixPath(script.replace("\\", "/")).parts
+    if _INTERPRETER.fullmatch(_program(program)) and any(
+        part.casefold() in proof_style.INSTALLS for part in parts
+    ):
+        return script
+    return program
 
 
 def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | None:
@@ -222,19 +275,21 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
     so; judge it too if a rule of one is seen to run one an agent wrote."""
     words = [word.strip("'\"") for word in _words(command)]
     words = words[1:] if words[:1] in (["&"], ["."]) else words  # (PowerShell's call)
-    program = words[0] if words else ""
+    program = _program_word(words)
     parts = PurePosixPath(program.replace("\\", "/")).parts
-    if parts and ("/" in program or "\\" in program):
-        places, anywhere = None, ()
+    # (a runner first: `.venv/Scripts/python.exe -m x` is named by its path, and reads its folder)
+    if runner := _runner_places(words, cwd):
+        places, anywhere, shadow = runner
+        named = [*{PurePosixPath(place).name for place in places}, *anywhere]
+        named += [".py", ".pyc", ".pyd", ".so", "__init__"] if shadow else []
+    elif parts and ("/" in program or "\\" in program):
+        places, anywhere, shadow = None, (), False
         named = [
             next(
                 (part for part in parts if part.casefold() in proof_style.INSTALLS),
                 parts[-1].split(".")[0],
             )
         ]
-    elif runner := _runner_places(words, cwd):
-        places, anywhere = runner
-        named = [*{PurePosixPath(place).name for place in places}, *anywhere]
     else:
         return None
     looked = [name.lower() for name in named]
@@ -259,7 +314,9 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
     def plants(rel: str) -> str | None:
         if places is None:
             return proof_style.wrote_program(root, cwd, program, [rel])
-        return proof_style.planted_in(root, places, anywhere, rel)
+        return proof_style.planted_in(root, places, anywhere, rel) or (
+            proof_style.shadows(cwd, rel) if shadow else None
+        )
 
     held = proof_style.still_written(root, [one for one in newest.items() if plants(one[0])])
     place = next((place for rel in held if (place := plants(rel))), None)
@@ -278,6 +335,7 @@ BARE_NAME = (
 def _bare_name_hint(output: str, folder: Path) -> str:
     """Y1: the hint for a bare name cmd.exe did not find (`NOT_RECOGNIZED`) that the run's
     folder has, as it is or with a program's ending; "" for none."""
+    output = output[-64 * 1024 :]  # (its last words: the line cmd.exe ended on is there)
     if NOT_RECOGNIZED not in output:
         return ""
     for line in output.splitlines():
