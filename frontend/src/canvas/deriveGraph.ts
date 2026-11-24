@@ -510,8 +510,6 @@ function liveOf(agent: Agent, run: Run, status: AgentData['status']): Pick<Agent
 
 /** What an agent at work does now. */
 function workingOn(agent: Agent, state: ConvState): string {
-  // R130: its model is in Qoder's queue (K-qoder-kuyruk) - waiting there, not working.
-  if (state.live[agent.id]?.queue) return 'Queued at Qoder'
   const working = toolNow(agent, state)
   if (working) return working
   const writing = state.messages.some(m => m.agent_id === agent.id && m.status === 'streaming' && m.content)

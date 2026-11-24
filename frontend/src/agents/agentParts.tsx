@@ -17,7 +17,6 @@ import { AT_WORK, titleOf } from './agentStatus'
 import { stepsOf } from './AgentSteps'
 import { WentOn } from './EarlierWork'
 import { failureText, nextStep, planConsole } from './failure'
-import { queueLine } from './livePlan'
 import { homeOf, LET_THROUGH, letThrough, NOT_WATCHED, notWatched } from './ownWork'
 import { phaseLine, phasesOf } from './phases'
 
@@ -173,18 +172,6 @@ export function AsksNow({ state, agent, asks }: { state: ConvState; agent: Agent
         .map(q => asks.renderQuestion?.(q))}
       {waitingCommands(state, agent.id).map(c => asks.renderCommandApproval?.(c))}
     </>
-  )
-}
-
-/** Its CLI's model is queued (K-qoder-kuyruk): one line, as it stands now. */
-export function QueueLine({ state, agent }: { state: ConvState; agent: Agent }) {
-  const queue = state.live[agent.id]?.queue
-  if (!queue) return null
-  return (
-    <dl className="facts agent-sum">
-      <dt>Queue</dt>
-      <dd>{queueLine(queue)}</dd>
-    </dl>
   )
 }
 

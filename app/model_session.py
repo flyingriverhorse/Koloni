@@ -54,20 +54,6 @@ SECOND_BRIDGE = (
     "had it, or the CLI started KOLONİ's bridge again), so the run is stopped"
 )
 INIT_WAIT_SECONDS = 10.0
-# K-altajan-saglayici: how long a model may stay queued (Qoder's free models, `queued`) before
-# the session is given up as unavailable - its opener then moves a sub-agent to the next of
-# its tier (`AgentRunner._moved_on`). An agent that could not be moved waits for as long as
-# Qoder queues it (`run_session`'s `queue_wait` None, R130).
-# shortcut: a guess, not measured against how long Qoder's queue usually takes (R114: 5.5 min
-# ended in "Queuing failed"); set it from a measurement.
-# shortcut: one constant, not a setting of the provider's (`check_options` has none for Qoder,
-# nor its form a field); make it one if the user asks to tune it.
-# shortcut: raised wherever the queue line comes - a session queued again mid-work (after a
-# tool call) fails then too, with no move; limit it to before the first word if Qoder is seen
-# queuing mid-work.
-# shortcut: Qoder natively (`QoderNativeClient`) does not read its queue line at all: neither
-# shown nor given up on; read it there once Qoder native is measured.
-QUEUE_WAIT_SECONDS = 90
 # How long a CLI is asked to wait for one tool: an approval can take a while.
 TOOL_WAIT_MS = str(24 * 60 * 60 * 1000)
 
@@ -422,24 +408,6 @@ def _tool_text(text: str, failed: bool) -> dict:
     return {"content": [{"type": "text", "text": text}], "isError": failed}
 
 
-def queued(event: dict) -> dict | None:
-    """Qoder's `model_queue_status` line as what is shown live of its queue (K-qoder-kuyruk).
-    Measured 29 Oct 2026 (qodercli 1.1.51, `tests/qoder_streams/queue-status.jsonl`): while a
-    free model is queued, one every ~30 s with `status` "queued", how long it has waited and
-    how long it would at most. None with any other status: it is queued no longer.
-    shortcut: how the queue ends ("Queuing failed", REA R114) was not measured - it goes as
-    any CLI error does; read its line once seen."""
-    if event.get("status") != "queued":
-        return None
-    elapsed, most = event.get("queue_wait_elapsed_ms"), event.get("queue_max_wait_ms")
-    available = event.get("service_available")
-    return {
-        "elapsed_s": round(elapsed / 1000) if isinstance(elapsed, (int, float)) else None,
-        "max_s": round(most / 1000) if isinstance(most, (int, float)) else None,
-        "available": available if isinstance(available, bool) else None,
-    }
-
-
 def bridge_file(server: ToolServer, workdir: Path) -> Path:
     """The session's port and key in its folder's bridge.json, which only its bridge
     (`mcp_bridge`) is pointed at: never on a command line, nor in a CLI's own config."""
@@ -503,14 +471,11 @@ class CliSessionClient(CliStepClient):
         on_message: Callable[[object], None] | None = None,
         effort: str | None = None,
         on_live: Callable[[dict], None] | None = None,
-        queue_wait: float | None = QUEUE_WAIT_SECONDS,
     ) -> SessionResult:
         """`on_message`: told, before anything of it is passed on, which message of
         the model a piece of the stream belongs to - a message with several tool calls
-        comes in several pieces, and is one step. `on_live`: what the CLI says of its
-        queue while it waits for its model (`queued`), shown and never on record.
-        `queue_wait`: the seconds after which a model still queued is given up as
-        unavailable; None: never by KOLONİ (an agent that could not be moved on)."""
+        comes in several pieces, and is one step. `on_live`: what the CLI says live of its
+        session, shown and never on record."""
         server = ToolServer(tools or [], call_tool)
         allowed = [PREFIX + tool["name"] for tool in server.describe()]
         workdir: Path | None = None
@@ -537,7 +502,6 @@ class CliSessionClient(CliStepClient):
                 on_text,
                 on_message,
                 on_live,
-                queue_wait,
             )
         finally:
             await server.close()
@@ -555,7 +519,6 @@ class CliSessionClient(CliStepClient):
         on_text,
         on_message=None,
         on_live=None,
-        queue_wait: float | None = QUEUE_WAIT_SECONDS,
     ) -> SessionResult:
         try:
             process, job = await self._start(argv, shim, workdir, self._session_env(workdir))
@@ -571,7 +534,6 @@ class CliSessionClient(CliStepClient):
         picked_why: str | None = None  # why Copilot's auto picked it, where it said so
         limited = None  # what it said of its plan's limit, if it turned this run away
         own_word: tuple | None = None  # what its own word says a failure is (`own_error`)
-        in_queue: dict | None = None  # what it last said of its model's queue (`queued`)
         heard = time.monotonic()  # when the CLI last said anything
         # The CLI says which tools it starts with before anything else. Until it has,
         # and they are all KOLONİ's, nothing it writes is taken and no tool is run.
@@ -610,7 +572,7 @@ class CliSessionClient(CliStepClient):
 
         async def talk() -> None:  # noqa: C901
             nonlocal result, counted, announced, heard, text_open, reported, limited, own_word
-            nonlocal in_queue, picked_why
+            nonlocal picked_why
             with contextlib.suppress(BrokenPipeError, ConnectionResetError):
                 stdin.write(prompt.encode("utf-8"))
                 await stdin.drain()
@@ -621,10 +583,6 @@ class CliSessionClient(CliStepClient):
                 feed("stdout", written, (server.key,))
                 for event in (told for line in _events(written) for told in self._translate(line)):
                     kind = event.get("type")
-                    if in_queue and kind != "system" and on_live:
-                        # Its model is at work (words, a tool call, its result): queued no more.
-                        in_queue = None
-                        on_live({"queue": None})
                     if isinstance(event.get("model"), str) and kind in ("system", "model"):
                         picked_why = why_picked(event, reported, picked_why)
                         reported = event["model"] or reported
@@ -648,19 +606,6 @@ class CliSessionClient(CliStepClient):
                                 f"({', '.join(map(str, own[:5]))}); the session was stopped"
                             )
                         vetted.set()
-                    elif kind == "system" and event.get("subtype") == "model_queue_status":
-                        in_queue = queued(event)
-                        if on_live:
-                            on_live({"queue": in_queue})
-                        if (
-                            in_queue
-                            and queue_wait is not None
-                            and (in_queue["elapsed_s"] or 0) >= queue_wait
-                        ):
-                            raise ModelUnavailable(
-                                f"{self.label} kept its model queued for "
-                                f"{round(in_queue['elapsed_s'] / 60)} min"
-                            )
                     elif kind in ("assistant", "result") and not vetted.is_set():
                         raise OwnStop(
                             f"{self.label} did not say which tools it started with; "
@@ -1083,7 +1028,6 @@ class CopilotSessionClient(CliSessionClient):
         on_message=None,
         effort=None,
         on_live=None,
-        queue_wait=QUEUE_WAIT_SECONDS,
     ) -> SessionResult:
         try:
             return await super().run_session(
@@ -1095,7 +1039,6 @@ class CopilotSessionClient(CliSessionClient):
                 on_message,
                 effort,
                 on_live,
-                queue_wait,
             )
         except ModelUnavailable as exc:
             # Whatever the CLI or the server said, the key is not repeated.

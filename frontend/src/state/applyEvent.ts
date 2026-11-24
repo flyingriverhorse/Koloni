@@ -102,8 +102,6 @@ export interface ConvState {
 export interface AgentLive {
   context: { used: number; window: number } | null
   plan: { step: string; status: 'pending' | 'inProgress' | 'completed' }[] | null
-  /** Qoder's free model queued (K-qoder-kuyruk): how long so far and at most, and whether it says the service is up. */
-  queue: { elapsed_s: number | null; max_s: number | null; available: boolean | null } | null
 }
 
 export const TERMINAL: ReadonlySet<Run['status']> = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
@@ -444,7 +442,7 @@ function keptEvent(state: ConvState, type: string, payload: unknown): ConvState 
       // The latest, whole; nothing in it: its CLI has ended.
       const { agent_id, ...shown } = payload as AgentLive & { agent_id: string }
       const { [agent_id]: _was, ...others } = state.live
-      return { ...state, live: shown.context || shown.plan || shown.queue ? { ...others, [agent_id]: shown } : others }
+      return { ...state, live: shown.context || shown.plan ? { ...others, [agent_id]: shown } : others }
     }
     case 'view.shown':
       return { ...state, shown: state.shown + 1 }

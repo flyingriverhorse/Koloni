@@ -12,7 +12,6 @@ import pytest
 from app import model_session
 from app.model_client import ModelUnavailable, OwnStop
 from app.model_session import (
-    QUEUE_WAIT_SECONDS,
     SECOND_BRIDGE,
     ClaudeSessionClient,
     CopilotSessionClient,
@@ -111,70 +110,6 @@ async def test_text_and_tool_calls_flow_through_koloni_in_order(cli):
     assert not Path(seen["cwd"]).exists()
     assert int(seen["env_tool_wait"]) >= 3_600_000  # an approval may take a while
     assert json.loads(seen["stdin"][seen["stdin"].index("\n\n{") + 2 :])["conversation"]
-
-
-QUEUED = [
-    json.loads(line)
-    for line in Path(__file__)
-    .with_name("qoder_streams")
-    .joinpath("queue-status.jsonl")
-    .read_text(encoding="utf-8")
-    .splitlines()
-]  # (measured, qodercli 1.1.51)
-
-
-async def test_qoder_says_how_long_its_free_model_has_been_queued_and_no_more_once_it_answers(cli):
-    """K-qoder-kuyruk: each queue line is shown live as it comes (the page shows the latest);
-    a line with another status, or its model's first move (a tool call straight from the
-    queue, say, or its words), clears it - once, not at every move after."""
-    make, _record = cli
-    shown: list[dict] = []
-    # (The measured lines still under QUEUE_WAIT_SECONDS: six of the queue's, 65 s in at most.)
-    under = [
-        line for line in QUEUED if line.get("queue_wait_elapsed_ms", 0) < QUEUE_WAIT_SECONDS * 1000
-    ]
-    # shortcut: the status word that ends a queue was not measured; one that is not
-    # "queued" stands for it here.
-    client = make(
-        ClaudeSessionClient,
-        [
-            *({"emit": line} for line in under),
-            {"emit": {**under[-1], "status": "done"}},
-            {"emit": under[-1]},
-            {"call": "list_dir"},
-            {"say": "ok"},
-        ],
-    )
-
-    async def on_text(_text):
-        pass
-
-    async def a_tool(_name, _arguments):
-        return True, "one file"
-
-    await client.run_session("m", MESSAGES, TOOLS, a_tool, on_text, on_live=shown.append)
-    last = {"queue": {"elapsed_s": 65, "max_s": 3600, "available": False}}
-    assert shown[0] == {"queue": {"elapsed_s": 0, "max_s": 3600, "available": False}}
-    assert shown[5] == last
-    assert shown[6:] == [{"queue": None}, last, {"queue": None}]  # (the last: its tool call)
-
-
-async def test_a_model_queued_past_the_limit_ends_the_session_as_unavailable(cli):
-    """K-altajan-saglayici: queued QUEUE_WAIT_SECONDS (R115: 5.5 min, then "Queuing failed"),
-    the session is given up before a first word, so its opener can move the agent on. R130:
-    with no limit (an agent nowhere to move) it waits for as long as Qoder queues it."""
-    make, _record = cli
-    client = make(ClaudeSessionClient, [*({"emit": line} for line in QUEUED), {"say": "ok"}])
-    with pytest.raises(ModelUnavailable, match="Claude Code kept its model queued for 2 min"):
-        await run(client)
-
-    said: list[str] = []
-
-    async def on_text(text):
-        said.append(text)
-
-    await client.run_session("m", MESSAGES, TOOLS, None, on_text, queue_wait=None)
-    assert said == ["ok"]
 
 
 async def test_a_failed_or_declined_tool_is_returned_as_an_error_result(cli):

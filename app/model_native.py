@@ -2110,10 +2110,9 @@ class CodexSessionClient(CodexNativeClient):
         on_message: Callable[[object], None] | None = None,
         effort: str | None = None,
         on_live: Callable[[dict], None] | None = None,
-        queue_wait: float | None = None,
     ) -> SessionResult:
         """As `CliSessionClient.run_session`. Each tool call is a step of its own (it names no
-        message: `on_message` is not told); nothing of a queue (`queue_wait`)."""
+        message: `on_message` is not told)."""
         server = ToolServer(tools or [], call_tool)
         workdir: Path | None = None
 

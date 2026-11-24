@@ -64,7 +64,7 @@ from app.model_client import (
     provider_call_id,
 )
 from app.model_session import CliSessionClient, SessionStop
-from app.providers import list_providers, mode_of
+from app.providers import mode_of
 from app.roles import LEARN, LOOKUP, find_role, shown_name
 from app.serialize import agent_out, message_out, run_out
 from app.team import ClosedToAgents, quoted, tier_of
@@ -1164,24 +1164,6 @@ class LoopMixin:
         # Its level, as a step's (`_model_step`); given only where there is one.
         effort = self._effort_sent(ctx, info)
         self._set_agent(ctx.cid, ctx.agent_id, effort=effort)
-        # R130: a model queued past QUEUE_WAIT_SECONDS is given up only where its sub-agent could
-        # move on (`_moved_on`); where `_moved_on` would say no at once it waits as long as
-        # Qoder queues it: a lead, an opener's pick, a role held to its own provider, no other
-        # provider. Not in a turn nobody watches (a trigger's, the night's): nobody would see it
-        # sit queued, so the limit holds there.
-        # shortcut: not `_moved_on`'s whole ladder - one with nowhere on it to go still fails
-        # at QUEUE_WAIT_SECONDS; ask the ladder first if that is seen.
-        waits = False
-        if isinstance(ctx.model, CliSessionClient) and self._watched(ctx.run_id):
-            with self._factory() as session:
-                role = find_role(session, ctx.role)
-                waits = (
-                    not ctx.depth
-                    or role is None
-                    or bool(role.provider_id and not role.models)
-                    or session.get_one(Agent, ctx.agent_id).chosen
-                    or len(list_providers(session)) < 2
-                )
         ended, before = False, transcript.opened
         try:
             # shortcut: its pictures go once, with no retry without them as a step's
@@ -1196,7 +1178,6 @@ class LoopMixin:
                 transcript.of,
                 **({"effort": effort} if effort else {}),
                 on_live=lambda item: self._show_live(ctx, item),
-                **({"queue_wait": None} if waits else {}),
             )
             self._slow_off(ctx)
             ended = True
