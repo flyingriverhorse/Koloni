@@ -53,7 +53,7 @@ from app.db.models import (
 )
 from app.executors.base import Executor, StartError
 from app.serialize import allowed_command_out, command_event, command_out
-from app.tools import ToolError, plan_command
+from app.tools import MAX_TIMEOUT, ToolError, plan_command
 from app.workspace import Workspace
 
 FLUSH_SECONDS = 0.5
@@ -578,6 +578,12 @@ def preview_url(output: str, closed: set[int]) -> str | None:
     return None
 
 
+def longest_seconds(project: Project | None) -> int:
+    """The longest a command may take in `project` (0.1.8: its `longest_command`), in seconds -
+    an agent's, and KOLONİ's own test runs'; MAX_TIMEOUT where there is no project."""
+    return project.longest_command * 60 if project is not None else MAX_TIMEOUT
+
+
 def port_of(url: str | None) -> int | None:
     try:
         parts = urlsplit(url or "")
@@ -633,6 +639,13 @@ class CommandRunner:
         future.set_result(decision)
         return True
 
+    def longest(self, cid: str) -> int:
+        """The longest a command may take in conversation `cid`'s project, in seconds."""
+        with self._factory() as session:
+            conversation = session.get(Conversation, cid)
+            project_id = conversation.project_id if conversation is not None else None
+            return longest_seconds(session.get(Project, project_id) if project_id else None)
+
     def live_outputs(self, conversation_id: str) -> dict[str, str]:
         return {k: text for k, (cid, text) in self._live.items() if cid == conversation_id}
 
@@ -670,7 +683,8 @@ class CommandRunner:
         `allowed` lifts the level's own ask only (`_free`), and its card offers "Allow such
         deletes in this project" where it is asked. `env`: what its environment gets besides
         (KOLONİ's own test runs: their processes, S6) - never an agent's command."""
-        planned = plan_command(ws, args)
+        cap = self.longest(cid)
+        planned = plan_command(ws, args, cap)
         searched = await asyncio.to_thread(search_reason, planned.command, ws.root, planned.cwd_rel)
         planted = await asyncio.to_thread(
             _planted, self._factory, cid, ws.root, planned.command, planned.cwd_rel
@@ -802,7 +816,7 @@ class CommandRunner:
         try:
             if where is not None:
                 ws = await where()
-                planned = plan_command(ws, args)
+                planned = plan_command(ws, args, cap)
         except ToolError as exc:  # its folder is not in the copy (one that is left out)
             self._set(
                 cid, command_id, status="failed_to_start", output=f"error: {exc}", ended_at=now()

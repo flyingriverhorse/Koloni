@@ -63,7 +63,7 @@ PROOF_CALL = proof.PROOF_CALL
 # S1, until a run can go on in the background (S6): a turn the user watches waits at most this
 # long for the tests at its end - all its test commands, and another turn's run before them; past
 # it they are stopped and said not waited for. An Away job, a To-do task's and a trigger's turn
-# wait to the commands' own limit (MAX_TIMEOUT), each command.
+# wait to the commands' own limit (the project's longest command), each command.
 END_WAIT_SECONDS = 120
 # CL-329: how long Put back's kept folder of a run stays, unclicked (or its chat deleted).
 KEPT_DAYS = 3
@@ -393,7 +393,8 @@ class ProofMixin:
     ) -> None:
         """A run's window in its copy (`_copy_lock`): the copy as it is, for `_window_close`.
         Taken once the run has the machine - a run waiting for it holds up no look's command -
-        waiting `wait` seconds at most (MAX_TIMEOUT where the run has no wait of its own: never
+        waiting `wait` seconds at most (its caller's: the project's longest command, where the run
+        has no wait of its own - MAX_TIMEOUT where none is given: never
         for ever while it holds the app-wide slot), then SLOT_BUSY (`taken` says so: the run's row
         is not run). The lock it took is kept in `look`: the one `_window_close` lets go, whatever
         the copy's path reads as by then."""
@@ -938,7 +939,10 @@ class ProofMixin:
                 raise ToolError(SLOT_BUSY) from None
             taken.append(True)
             check.going.set_result(now())
-            await self._window_open(copy, look, left(), taken)  # (once it has the machine)
+            wait = left()  # (once it has the machine; with no wait of its own, its own limit's)
+            await self._window_open(
+                copy, look, self.commands.longest(ctx.cid) if wait is None else wait, taken
+            )
             look["at"] = await self._sources_now(ctx, held, copy)
             if (now_left := left()) is not None:
                 if now_left < 1:
@@ -1002,8 +1006,9 @@ class ProofMixin:
                 run.command,
                 run.guessed,
             ), ""
+        longest = self.commands.longest(ctx.cid)
         return proof.tests_row(
-            run, code, output, ended, said, given["seconds"] or MAX_TIMEOUT
+            run, code, output, ended, said, given["seconds"] or longest, longest
         ), output
 
     @staticmethod

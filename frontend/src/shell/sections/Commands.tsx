@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Project } from '../../api/types'
 import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
-import { part, Row } from './part'
+import { part, Row, sent, within } from './part'
 
 /** Where commands run, as this machine says it: which shell, and what 5.1 costs (K-pwsh; B-324: its Set-Content writes a BOM). */
 function shellSaid(shell: string | null | undefined, shellNote: string | null | undefined) {
@@ -19,20 +19,61 @@ interface Where {
   shellNote?: string | null
 }
 
-/** This project › Commands and secrets: where its commands run, and what of your secrets they may see. */
+/** This project › Commands and secrets: where its commands run, how long one may, and what of your secrets they may see. */
 export function useCommands(project: Project, where: Where) {
   const runOn = useRunOn(project, where)
+  const longest = useLongest(project)
   const secrets = useSecrets(project)
+  const sentIfChanged = { ...longest.patch, ...secrets.patch }
   // The three of where they run are sent together, always; the rest only when changed.
   return {
-    ...part({ ...runOn.patch, ...secrets.patch }, runOn.valid, null),
-    changed: !runOn.valid || runOn.moved || Object.keys(secrets.patch).length > 0,
+    ...part({ ...runOn.patch, ...sentIfChanged }, runOn.valid && longest.valid, null),
+    changed: !runOn.valid || !longest.valid || runOn.moved || Object.keys(sentIfChanged).length > 0,
     take: runOn.take,
     view: (
       <>
         {runOn.view}
+        {longest.view}
         {secrets.view}
       </>
+    ),
+  }
+}
+
+/** 0.1.8: the longest an agent's command, or one of KOLONİ's own test runs, may take here - 10 to 60 minutes. */
+function useLongest(project: Project) {
+  // (A server older than the page has no such field yet: its default, 10.)
+  const kept = project.longest_command ?? 10
+  const [text, setText] = useState(String(kept))
+  const value = within(text, 10, 60)
+  return {
+    patch: sent('longest_command', value, kept),
+    valid: value !== undefined,
+    view: (
+      <Row
+        label="Longest command (minutes)"
+        htmlFor="longest-command"
+        whyId="longest-command-more"
+        doc={GUIDE.settingsCommands}
+        why="An agent’s command, and KOLONİ’s own test runs, are stopped after this long. Raise it for a test suite or build that takes longer than 10 minutes."
+        warn={
+          value === undefined && (
+            <span id="longest-command-note" className="choice-note">
+              A whole number from 10 to 60.
+            </span>
+          )
+        }
+      >
+        <input
+          id="longest-command"
+          className="input mono"
+          inputMode="numeric"
+          value={text}
+          aria-invalid={value === undefined || undefined}
+          aria-describedby="longest-command-note longest-command-more"
+          onChange={e => setText(e.target.value)}
+        />
+      </Row>
     ),
   }
 }

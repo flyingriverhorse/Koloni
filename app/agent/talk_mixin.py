@@ -30,6 +30,7 @@ from app.agent.ctx import Ctx, announce
 from app.agent.summary import _lines_written_out
 from app.agent.words import CANT_UNDO, FROM, HANDED, LEADS_LATER, NOT_HEARD
 from app.api.recipes import agents_of
+from app.command_runner import longest_seconds
 from app.db.models import (
     Agent,
     BoardPost,
@@ -62,6 +63,7 @@ from app.tools import (
     ROOM_SCHEMAS,
     STOP_COMMAND_SCHEMA,
     ToolError,
+    capped,
     earlier_line,
     offer_schema,
     pick_schema,
@@ -268,6 +270,8 @@ class TalkMixin:
                 else []
             )
             files = self._files_of(session, ctx)
+            # (0.1.8: what run_command's schema says is its most - the project's longest command)
+            cap = longest_seconds(self._project(session, ctx.cid))
             # (No team's tools for KOLONİ's Reviewer: it reads, `_review_refuses`.)
             between = (
                 []
@@ -329,6 +333,7 @@ class TalkMixin:
             earlier,
             show and ctx.agent_id not in self._read_only_agents,
         )
+        schemas = [capped(s, cap) if s["function"]["name"] == "run_command" else s for s in schemas]
         # (with the To-do list's tools: the jobs go onto it)
         at = next(
             (i + 1 for i, s in enumerate(schemas) if s["function"]["name"] == "assess_task"),

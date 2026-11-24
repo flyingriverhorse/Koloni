@@ -423,7 +423,6 @@ from app.team import Entry, closed_to_agents, only_in_project, quoted, would_run
 from app.tools import (
     BACKLOG_TOOLS,
     BROWSER_TOOLS,
-    MAX_TIMEOUT,
     MAX_WHY_CHARS,
     READ_TOOLS,
     SERVING_TOOLS,
@@ -937,8 +936,8 @@ THEIRS_KEPT = (
     "are not {name}'s doing."
 )
 # The project's check command, run in the copy on what is about to be taken: as long as
-# any command may run, and this much of the end of what it wrote goes on the card.
-CHECK_SECONDS = MAX_TIMEOUT
+# any command may run (`CommandRunner.longest`), and this much of the end of what it wrote goes
+# on the card.
 CHECK_TAIL = 4000
 CHECK_LEFT = "what it changed in the copy itself could not be put back: {files}"
 CHECK_NOT_ALLOWED = "the trigger of this turn does not let this command run: not checked"
@@ -5129,7 +5128,7 @@ class AgentRunner(
         it writes of the project's standing files unnamed is put back (`_own_command_looked`).
         `once`: as `commands.run`'s (the measure's yes, for its run). `cwd`: the folder it runs
         in, from the root (a part's tests, `ProofMixin`); `seconds`: its time limit (None: the
-        check's, CHECK_SECONDS); `where`: as `commands.run`'s, given the run's arguments, which it
+        project's longest); `where`: as `commands.run`'s, given the run's arguments, which it
         may change (its time limit) - awaited once it may start; `env`: what its environment gets
         besides (S6: KOLONİ's test runs, their processes). `over` (S6, KOLONİ's test runs):
         whether its turn is over for it by its end (it went on after the answer) - what it wrote
@@ -5167,7 +5166,7 @@ class AgentRunner(
         ran = False
         args = {
             "command": command,
-            "timeout_seconds": seconds or CHECK_SECONDS,
+            "timeout_seconds": seconds or self.commands.longest(ctx.cid),
             "cwd": cwd,
             **({"keep_running": True} if keep_running else {}),
         }  # (S5b: a dev server)
@@ -6188,7 +6187,7 @@ class AgentRunner(
         owner = None if review else self._works_in(ctx)
         made = self._copies.get(owner) if owner else None
         linked = self._copy_linked(ctx, owner)
-        planned = plan_command(ws, args)
+        planned = plan_command(ws, args, self.commands.longest(cid))
         at = "" if planned.cwd_rel == "." else f" in {planned.cwd_rel}"
         if kept := self._keeps_out(
             ctx, command=planned.command, cwd=planned.cwd_rel, what=f"run {planned.command}{at}"
