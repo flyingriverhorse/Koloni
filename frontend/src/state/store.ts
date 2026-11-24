@@ -94,6 +94,7 @@ import type {
   Story,
   TodoTree,
   TodoTreeAdded,
+  BacklogDone,
   TodoTreeIn,
 } from '../api/types'
 import type { RoleValues } from '../agents/AgentsPage'
@@ -269,6 +270,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   seenTask(taskId: string): Promise<void>
   /** Run the backlog: every todo task is queued, and they start as there is room, each in a new conversation. Throws ApiError. */
   runBacklog(): Promise<void>
+  /** Do in chat: the ticked tasks wait in this chat's queue (null: a new chat's), which opens. Its id. Throws ApiError. */
+  doInChat(taskIds: string[], conversationId: string | null): Promise<string>
   /** What the user typed, written as tasks by a model asked once ("Write it with the Hive keeper"); nothing is saved. Throws ApiError. */
   draftTasks(text: string): Promise<BacklogDraft>
   /** The open project's ☾ Away (slice 106): the one that runs, else its last; null: none, or not read yet. */
@@ -1294,6 +1297,16 @@ export const useApp = create<AppStore>()((set, get) => {
         text,
         conversation_id: openChatId(get()),
       }),
+
+    async doInChat(taskIds, conversationId) {
+      const done = await api.post<BacklogDone>('/projects/' + get().projectId + '/backlog/do-in-chat', {
+        task_ids: taskIds,
+        conversation_id: conversationId,
+      })
+      await Promise.all([get().loadBacklog(), refreshConversations()])
+      await get().openConversation(done.conversation_id)
+      return done.conversation_id
+    },
 
     async runBacklog() {
       await backlogChoice

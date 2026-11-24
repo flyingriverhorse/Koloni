@@ -164,6 +164,14 @@ async def resume(request: Request, session: Session = Depends(get_session)):
         ).all():
             if backlog.chain(session, project_id, state.bus, state.runner.start):
                 _told(request, project_id)
+        # (The chats' queues of To-do tasks: their next task, or a fix round due.)
+        for project_id in session.scalars(
+            select(BacklogTask.project_id)
+            .where(BacklogTask.conversation_id.is_not(None), BacklogTask.away_run_id.is_(None))
+            .distinct()
+        ).all():
+            if backlog.go_on(session, project_id, state.bus, state.runner.start):
+                _told(request, project_id)
         for project_id in session.scalars(
             select(AwayRun.project_id).where(AwayRun.status == "running")
         ).all():

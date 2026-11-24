@@ -261,7 +261,7 @@ def test_a_restart_stops_the_chain_and_says_so(client, project_dir):
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     factory = client.app.state.session_factory
     with factory() as session:
-        session.add(Run(conversation_id=cid, status="running"))
+        session.add(Run(conversation_id=cid, status="running", task_id=task_id))
         task = session.get_one(BacklogTask, task_id)
         task.status, task.conversation_id = "doing", cid
         session.get_one(Project, pid).backlog_auto = True

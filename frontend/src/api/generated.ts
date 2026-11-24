@@ -2509,6 +2509,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/backlog/do-in-chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Do In Chat
+         * @description Do in chat: the ticked tasks wait in a chat's queue - this one, or a new chat of the
+         *     project named by the first of them - and run there one by one, each story in a topic of its
+         *     own (`backlog.queue_in_chat`, `backlog.go_on`). Checked here as they stand now, not as the
+         *     page saw them: all of them or none (422 with why); an unknown chat is 404. Not over the
+         *     month's budget (409), as a message is not.
+         */
+        post: operations["do_in_chat_api_projects__project_id__backlog_do_in_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/backlog/draft": {
         parameters: {
             query?: never;
@@ -5479,6 +5503,26 @@ export interface components {
              * @enum {string}
              */
             decision: "approve" | "reject";
+        };
+        /**
+         * BacklogDoIn
+         * @description Do in chat: the ticked tasks, for the queue of this chat - or of a new one (None).
+         */
+        BacklogDoIn: {
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Task Ids */
+            task_ids: string[];
+        };
+        /**
+         * BacklogDoOut
+         * @description The chat the tasks wait in, and the ids queued there, in their order.
+         */
+        BacklogDoOut: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** Queued */
+            queued: string[];
         };
         /** BacklogDraftIn */
         BacklogDraftIn: {
@@ -16927,6 +16971,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BacklogAutoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    do_in_chat_api_projects__project_id__backlog_do_in_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BacklogDoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BacklogDoOut"];
                 };
             };
             /** @description Validation Error */

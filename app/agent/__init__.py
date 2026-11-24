@@ -1997,16 +1997,9 @@ class AgentRunner(
             )
             # (Only while its night runs: a turn of its chat in the morning is the user's.)
             t.job = not t.run_compare and away.night_job(session, cid) is not None
-            t.backlog_turn = (
-                not t.run_compare
-                and not t.job
-                and session.scalar(
-                    select(BacklogTask.id)
-                    .where(BacklogTask.conversation_id == cid, BacklogTask.status == "doing")
-                    .limit(1)
-                )
-                is not None
-            )
+            # (0.1.8: a To-do task's own turn - its brief, its fix round - not the user's
+            # message in its chat.)
+            t.backlog_turn = not t.run_compare and not t.job and run.task_id is not None
             # As the table of who uses what says it for the Lead: its tier too. (A backlog
             # task's as nobody watches: a CLI with its own tools is passed over.)
             would = would_run(

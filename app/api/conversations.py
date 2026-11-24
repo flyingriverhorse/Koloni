@@ -136,6 +136,11 @@ def _listed(session: Session, *where) -> list[dict]:
         )
     )
     waits = backlog.waiting(session, tasks) | backlog.not_in(session, tasks)
+    # (A chat holds many since 0.1.8: its mark is the one at work, else the first queued, else
+    # the latest it worked on - the last of each chat's in this order wins.)
+    tasks.sort(
+        key=lambda task: (task.status == "doing", task.place is not None, -(task.place or 0))
+    )
     of = {
         task.conversation_id: {"id": task.id, "status": task.status, "waiting": task.id in waits}
         for task in tasks
@@ -917,18 +922,28 @@ def queue_or_start(session: Session, run: Run) -> None:
         run.status, run.started_at = "running", now()
 
 
-def _back(request: Request, session: Session, project: Project | None) -> None:
+def _back(request: Request, session: Session, project: Project | None) -> bool:
     """☾ Away: a message of the user's own (from the app's own page, not an agent's command)
-    ends the project's Away, its summary in the chat they went away from."""
+    ends the project's Away, its summary in the chat they went away from. Whether it did."""
     if project is None or request.headers.get("origin") not in (
         request.app.state.settings.allowed_origins
     ):
-        return
-    if (said := away.back(session, project.id)) is not None:
-        request.app.state.bus.emit(said.conversation_id, None, "message.created", message_out(said))
-        announce(
-            request.app.state.session_factory, request.app.state.bus, project.id, "backlog.changed"
-        )
+        return False
+    if (said := away.back(session, project.id)) is None:
+        return False
+    request.app.state.bus.emit(said.conversation_id, None, "message.created", message_out(said))
+    announce(
+        request.app.state.session_factory, request.app.state.bus, project.id, "backlog.changed"
+    )
+    return True
+
+
+def _queues_go_on(request: Request, session: Session, project_id: str | None, back: bool) -> None:
+    """Back from Away (`_back`): the chats' To-do queues, which waited while the user was away,
+    go on - after the user's message has its turn, which goes first in its chat."""
+    if back and project_id is not None:
+        state = request.app.state
+        backlog.go_on(session, project_id, state.bus, state.runner.start)
 
 
 def _users_own_message(
@@ -1023,7 +1038,7 @@ async def post_message(
         )
     except topics.Refused as exc:
         raise HTTPException(422, str(exc)) from None
-    _back(request, session, project)  # (a message refused above ends nothing)
+    back = _back(request, session, project)  # (a message refused above ends nothing)
     run, message = new_turn(
         session,
         conversation_id,
@@ -1062,6 +1077,7 @@ async def post_message(
     bus.emit(conversation_id, None, "conversation.updated", conversation_out(conversation))
     if run.status == "running":
         request.app.state.runner.start(run.id)
+    _queues_go_on(request, session, conversation.project_id, back)
     return {"message": message_payload, "run": run_payload}
 
 

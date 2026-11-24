@@ -143,6 +143,7 @@ export type TodoTree = Schemas['TodoTreeOut']
 /** The Hive keeper's draft as it is added (a story by its id or a new one), and what was added. */
 export type TodoTreeIn = Schemas['TodoTreeIn']
 export type TodoTreeAdded = Schemas['TodoTreeAdded']
+export type BacklogDone = Schemas['BacklogDoOut']
 export type DraftStory = Schemas['DraftStory']
 /** ☾ Away: the Orchestrator's offer to go away ("planned"), or your Go away and its To-do tasks, places kept out, limits. */
 export type Away = Schemas['AwayOut']

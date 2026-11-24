@@ -4925,6 +4925,20 @@ class BacklogDecideIn(BaseModel):
     decision: Literal["approve", "reject"]
 
 
+class BacklogDoIn(BaseModel):
+    """Do in chat: the ticked tasks, for the queue of this chat - or of a new one (None)."""
+
+    task_ids: list[str] = Field(min_length=1, max_length=100)
+    conversation_id: str | None = None
+
+
+class BacklogDoOut(BaseModel):
+    """The chat the tasks wait in, and the ids queued there, in their order."""
+
+    conversation_id: str
+    queued: list[str]
+
+
 class BacklogNextOut(BaseModel):
     """The first task Run the backlog started, and its conversation; None when none started
     at once (as many are at work as may be: the rest start as they end)."""

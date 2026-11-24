@@ -531,6 +531,7 @@ def go_on(session: Session, project_id: str, runner, at: datetime | None = None)
                 RETRY.format(why=ENDED.get(error, error) or "no reason given"),
                 runner.bus,
                 runner.start,
+                task_id=task.id,
             )
         return True
     except Exception:
@@ -1024,6 +1025,8 @@ def end(session: Session, away: AwayRun, why: str | None, runner) -> None:
     runner.bus.emit(away.conversation_id, None, "message.created", message_out(message))
     if note:
         send(note)
+    # (The chats' queues of To-do tasks waited while the user was away: they go on now.)
+    backlog.go_on(session, away.project_id, runner.bus, runner.start)
 
 
 def send(note: tuple) -> None:

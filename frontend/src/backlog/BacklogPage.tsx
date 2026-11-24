@@ -26,6 +26,7 @@ import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { usePanel } from '../shell/usePanel'
 import { AwayNight } from './Away'
+import { TodoDock } from './Dock'
 import { DraftTree } from './DraftTree'
 import { StoryPicker } from './StoryPicker'
 import { TaskMarks, TodoBar, TodoTree, type TreeActions } from './TodoTree'
@@ -89,6 +90,8 @@ interface Props {
   onDecide: (taskId: string, decision: SpawnDecision) => Promise<void>
   /** Run the backlog: every todo task is queued, and they start as there is room. Throws ApiError. */
   onRun: () => Promise<void>
+  /** Do in chat: the ticked tasks wait in this chat's queue (null: a new chat's), which opens. Throws ApiError. */
+  onDoInChat?: (taskIds: string[], conversationId: string | null) => Promise<void>
   onOpen: (conversationId: string) => void
   /** 0.1.8: the project's stories and goals (null until read), its chats' titles by id, and its id (☾ Away's chat is of it). */
   stories?: Story[] | null
@@ -1289,6 +1292,7 @@ export function BacklogPage({
   onDelete,
   onDecide,
   onRun,
+  onDoInChat,
   onOpen,
   stories,
   goals,
@@ -1448,6 +1452,13 @@ export function BacklogPage({
       {waits.length > 0 && <Waiting waits={waits} onDecide={onDecide} onChange={onChange} onOpen={onOpen} />}
       <Declined backlog={backlog} onDecide={onDecide} />
       {tasks()}
+      <TodoDock
+        listed={listed}
+        selected={view.selected}
+        onSelect={view.select}
+        projectId={projectId}
+        onDo={onDoInChat}
+      />
     </div>
   )
 }

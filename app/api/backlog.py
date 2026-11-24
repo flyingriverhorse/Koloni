@@ -6,19 +6,21 @@ neither writes a task nor approves its own proposal. Reading is open."""
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from app import away, backlog, earlier, stories
+from app import away, backlog, earlier, stories, topics
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.api.providers import _model
 from app.api.recipes import Asked, ask_in_turn, askers, chat_of
 from app.api.usage import over_budget, over_month
-from app.db.models import BacklogTask, Project, Provider, Story, now
+from app.db.models import BacklogTask, Conversation, Project, Provider, Story, new_chat, now
 from app.providers import works_with_own_tools
 from app.schemas import (
     BacklogAutoIn,
     BacklogAutoOut,
     BacklogChoiceIn,
     BacklogDecideIn,
+    BacklogDoIn,
+    BacklogDoOut,
     BacklogDraftIn,
     BacklogDraftOut,
     BacklogNextOut,
@@ -28,7 +30,7 @@ from app.schemas import (
     TodoTreeAdded,
     TodoTreeIn,
 )
-from app.serialize import tell_chats
+from app.serialize import conversation_out, tell_chats
 
 router = APIRouter(prefix="/api", tags=["backlog"])
 OWN = [Depends(require_own_origin)]
@@ -59,9 +61,11 @@ def _in_story(session: Session, project_id: str, story_id: str | None) -> None:
 
 def _told(request: Request, session: Session, project_id: str) -> None:
     """After the user's change, committed: where the backlog works itself, the next task
-    may start now (`backlog.chain`, which never raises); whoever is watching is told the
-    backlog changed - once, after that."""
-    backlog.chain(session, project_id, request.app.state.bus, request.app.state.runner.start)
+    may start now (`backlog.chain`), and so may a chat's queue go on (`backlog.go_on`: neither
+    raises); whoever is watching is told the backlog changed - once, after that."""
+    state = request.app.state
+    backlog.chain(session, project_id, state.bus, state.runner.start)
+    backlog.go_on(session, project_id, state.bus, state.runner.start)
     announce(
         request.app.state.session_factory, request.app.state.bus, project_id, "backlog.changed"
     )
@@ -226,6 +230,48 @@ async def set_auto(
     _told(request, session, project_id)
     session.refresh(project)
     return _auto(session, project, request)
+
+
+@router.post(
+    "/projects/{project_id}/backlog/do-in-chat", response_model=BacklogDoOut, dependencies=OWN
+)  # (turns the user pays for start from here: their click on the app's own page)
+async def do_in_chat(
+    project_id: str, body: BacklogDoIn, request: Request, session: Session = Depends(get_session)
+):
+    """Do in chat: the ticked tasks wait in a chat's queue - this one, or a new chat of the
+    project named by the first of them - and run there one by one, each story in a topic of its
+    own (`backlog.queue_in_chat`, `backlog.go_on`). Checked here as they stand now, not as the
+    page saw them: all of them or none (422 with why); an unknown chat is 404. Not over the
+    month's budget (409), as a message is not."""
+    project = _project(session, project_id)
+    ids = list(dict.fromkeys(body.task_ids))
+    tasks = [session.get(BacklogTask, task_id) for task_id in ids]
+    if any(task is None for task in tasks):
+        raise HTTPException(422, "a task you ticked is not on the To-do list any more")
+    found = [task for task in tasks if task is not None]
+    if over := over_budget(session, project):
+        raise HTTPException(409, f"this project is {over}")
+    if body.conversation_id is not None:
+        chat = session.get(Conversation, body.conversation_id)
+        if chat is None:
+            raise HTTPException(404, "conversation not found")
+    else:
+        chat = new_chat(session, project)
+        session.flush()
+    try:
+        backlog.queue_in_chat(session, chat, found)
+    except backlog.Refused as exc:
+        session.rollback()
+        raise HTTPException(422, str(exc)) from None
+    queued = backlog.chat_queue(session, chat.id)
+    if body.conversation_id is None:
+        first = queued[0]
+        story = session.get(Story, first.story_id) if first.story_id else None
+        chat.title = topics.title_from(story.title if story else first.title) or chat.title
+    session.commit()
+    request.app.state.bus.emit(chat.id, None, "conversation.updated", conversation_out(chat))
+    _told(request, session, project_id)
+    return {"conversation_id": chat.id, "queued": [task.id for task in queued if task.id in ids]}
 
 
 @router.get("/projects/{project_id}/backlog", response_model=list[BacklogTaskOut])

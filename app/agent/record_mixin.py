@@ -249,12 +249,12 @@ class RecordMixin:
             session.commit()
             payload = run_out(run)
         self.bus.emit(cid, run_id, "run.updated", payload)
-        if "status" in fields:  # (K-symphony: a task's card says when its turn waits for you)
+        if "status" in fields:  # (K-symphony: a task's row says when its turn waits for you)
             with contextlib.suppress(Exception), self._factory() as session:
                 project_id = session.scalar(
                     select(BacklogTask.project_id)
-                    .where(BacklogTask.conversation_id == cid, BacklogTask.status == "doing")
-                    .limit(1)
+                    .join(Run, Run.task_id == BacklogTask.id)
+                    .where(Run.id == run_id)
                 )
                 announce(self._factory, self.bus, project_id, "backlog.changed")
 
@@ -408,6 +408,7 @@ class RecordMixin:
             job = away.turn_ended(session, run, status)
             later = away.after_the_night(session, run) if job else None
             session.commit()
+            backlog.tell(session, self.bus)  # (where its turn stopped the chat's To-do queue)
             payload, conversation_payload = run_out(run), conversation_out(conversation)
             if later is not None:
                 self.bus.emit(later.conversation_id, None, "message.completed", message_out(later))
@@ -426,10 +427,11 @@ class RecordMixin:
         self._unattended_over(run_id, status, error)
         self.bus.emit(cid, None, "conversation.updated", conversation_payload)
         self.bus.emit(cid, run_id, "run.finished", payload)
+        # The user's own message queued behind the turn goes first (`start_next`); then the
+        # backlog's next task where it works itself, a night's next job, and the chats' queues
+        # of To-do tasks (`backlog.go_on`: one waits while its chat is at work). None raises.
+        # Not after a side of a comparison: only the conversation's own turns move them.
         self.start_next(cid)
-        # Where the backlog works itself, the next task starts now - after any turn: one
-        # whose task was moved on by hand held it back (`backlog.busy`). It never raises.
-        # Not after a side of a comparison: only the conversation's own turns move it.
         if project_id is None:  # (a plain chat has none - and None would name every plain chat)
             return moved
         changed = job
@@ -438,6 +440,8 @@ class RecordMixin:
                 changed = backlog.chain(session, project_id, self.bus, self.start) or changed
             with contextlib.suppress(Exception), self._factory() as session:
                 changed = away.go_on(session, project_id, self) or changed
+            with contextlib.suppress(Exception), self._factory() as session:
+                changed = backlog.go_on(session, project_id, self.bus, self.start) or changed
         if moved or changed:  # (once, after the chain: a halt it set is seen too)
             announce(self._factory, self.bus, project_id, "backlog.changed")
         return moved

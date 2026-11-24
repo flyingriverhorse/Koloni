@@ -146,10 +146,12 @@ def test_a_turn_that_did_not_complete_puts_its_task_back(client, project_dir):
             task = session.get_one(BacklogTask, task_id)
             task.status, task.conversation_id = status, "c1" if task_id != other else "c2"
         # A side of a comparison is not c1's own turn: it moves nothing.
-        assert not backlog.turn_ended(session, Run(conversation_id="c1", compare_id="x"), "failed")
-        assert backlog.turn_ended(session, Run(conversation_id="c1"), "interrupted")
+        side = Run(conversation_id="c1", compare_id="x", task_id=failed)
+        assert not backlog.turn_ended(session, side, "failed")
+        assert backlog.turn_ended(session, Run(conversation_id="c1", task_id=failed), "interrupted")
         session.commit()
-        assert not backlog.turn_ended(session, Run(conversation_id="c3"), "completed")
+        # (a turn of no task - the user's own in its chat - moves none)
+        assert not backlog.turn_ended(session, Run(conversation_id="c1"), "completed")
     seen = {t["title"]: t for t in client.get(f"/api/projects/{pid}/backlog").json()}
     assert (seen["failed"]["status"], seen["failed"]["conversation_id"]) == ("todo", "c1")
     assert seen["done"]["status"] == "done" and seen["other"]["status"] == "doing"
@@ -221,7 +223,7 @@ def test_a_turn_the_restart_cut_short_puts_its_task_back(client, project_dir):
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     factory = client.app.state.session_factory
     with factory() as session:
-        session.add(Run(conversation_id=cid, status="running"))
+        session.add(Run(conversation_id=cid, status="running", task_id=task_id))
         task = session.get_one(BacklogTask, task_id)
         task.status, task.conversation_id = "doing", cid
         session.commit()
@@ -269,6 +271,7 @@ def test_a_task_whose_turn_waits_for_the_user_is_at_work_while_another_agent_of_
     with client.app.state.runner._factory() as session:
         session.add(
             BacklogTask(
+                id="t",
                 project_id=pid,
                 title="night job",
                 status="doing",
@@ -277,7 +280,7 @@ def test_a_task_whose_turn_waits_for_the_user_is_at_work_while_another_agent_of_
                 created_by="user",
             )
         )
-        session.add(Run(id="r", conversation_id=cid, status="waiting_approval"))
+        session.add(Run(id="r", conversation_id=cid, status="waiting_approval", task_id="t"))
         session.flush()
         session.add_all(
             [

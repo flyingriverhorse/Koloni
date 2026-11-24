@@ -162,7 +162,9 @@ def test_a_turn_stopped_by_the_token_limit_pauses_the_run_until_the_users_word(
         task = session.get_one(BacklogTask, one)
         task.status, task.conversation_id = "doing", "c1"
         session.get_one(Project, pid).backlog_auto = True
-        assert backlog.turn_ended(session, Run(conversation_id="c1", error=error), "failed")
+        assert backlog.turn_ended(
+            session, Run(conversation_id="c1", error=error, task_id=one), "failed"
+        )
         session.commit()
     assert tasks(client, pid)["one"]["status"] == "todo"  # no fix round: it would spend more
     assert (

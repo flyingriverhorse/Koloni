@@ -816,6 +816,10 @@ export function App() {
         onDelete={useApp.getState().deleteTask}
         onDecide={useApp.getState().decideTask}
         onRun={useApp.getState().runBacklog}
+        onDoInChat={async (ids, cid) => {
+          await useApp.getState().doInChat(ids, cid)
+          setView('canvas')
+        }}
         onOpen={id => {
           void useApp.getState().openConversation(id)
           setView('canvas')

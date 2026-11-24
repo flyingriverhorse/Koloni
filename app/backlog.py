@@ -9,7 +9,7 @@ import re
 from collections.abc import Callable
 from types import SimpleNamespace
 
-from sqlalchemy import and_, case, or_, select
+from sqlalchemy import and_, case, literal_column, or_, select
 from sqlalchemy.orm import Session
 
 from app import copies, earlier, observer, raw, stories, topics
@@ -34,6 +34,7 @@ from app.db.models import (
     Run,
     Story,
     ToolCall,
+    Topic,
     WebRequest,
     new_chat,
     now,
@@ -129,44 +130,42 @@ def ordered(session: Session, project_id: str) -> list[BacklogTask]:
 
 
 def waiting(session: Session, tasks: list[BacklogTask]) -> set[str]:
-    """The tasks doing whose turn waits for the user's word now (a change, a command, a
-    question): "waiting for you" on the page (K-symphony)."""
-    chats = {task.conversation_id for task in tasks if task.status == "doing"}
-    held = (
-        set(
-            session.scalars(
-                select(Run.conversation_id).where(
-                    Run.conversation_id.in_(chats), Run.status == "waiting_approval"
-                )
-            )
+    """The tasks doing whose own turn (`Run.task_id`) waits for the user's word now (a change, a
+    command, a question): "waiting for you" on the page (K-symphony)."""
+    doing = [task.id for task in tasks if task.status == "doing"]
+    if not doing:
+        return set()
+    return {
+        one
+        for one in session.scalars(
+            select(Run.task_id).where(Run.task_id.in_(doing), Run.status == "waiting_approval")
         )
-        if chats
-        else set()
-    )
-    return {task.id for task in tasks if task.status == "doing" and task.conversation_id in held}
+        if one
+    }
 
 
 def not_in(session: Session, tasks: list[BacklogTask]) -> set[str]:
     """The tasks waiting for review whose chat holds work not in the project yet: changes
     waiting for Take in, or a working copy kept for the user's word (B-78: "done?" was asked
     of a task whose recipe stopped before Take in)."""
-    chats = {task.conversation_id for task in tasks if task.status == "review"}
-    if not chats:
+    review = [task.id for task in tasks if task.status == "review"]
+    if not review:
         return set()
-    held = set(
-        session.scalars(
-            select(Run.conversation_id)
+    return {
+        one
+        for one in session.scalars(
+            select(Run.task_id)
             .join(Merge, Merge.run_id == Run.id)
             .where(
-                Run.conversation_id.in_(chats),
+                Run.task_id.in_(review),
                 or_(
                     Merge.status == "pending",
                     and_(Merge.status == "interrupted", Merge.kept_in.is_not(None)),
                 ),
             )
         )
-    )
-    return {task.id for task in tasks if task.status == "review" and task.conversation_id in held}
+        if one
+    }
 
 
 def renumber(
@@ -256,10 +255,16 @@ def turned_down(session: Session, task: BacklogTask) -> None:
         project.po_rejected = [*(project.po_rejected or [])[-(TURNED_DOWN - 1) :], task.title]
 
 
-def first_message(task: BacklogTask, night: bool = False) -> str:
-    """What the conversation "Work the backlog" opens is told: the task as it stands on the
-    To-do list, its title first (the conversation is named by it), and who wrote it - and,
-    for a job a night while the user is away starts (`night`, slice 106), that they are."""
+def first_message(
+    task: BacklogTask,
+    night: bool = False,
+    story: Story | None = None,
+    place: tuple[int, int] | None = None,
+) -> str:
+    """What a task's first turn is told: the task as it stands on the To-do list, its title
+    first (a new chat is named by it), who wrote it, and - of a story - which story and which of
+    its tasks this is (`place`: i of n); for a job a night while the user is away starts
+    (`night`, slice 106), that they are."""
     po = task.po or {}
     by = (
         (
@@ -275,6 +280,10 @@ def first_message(task: BacklogTask, night: bool = False) -> str:
         task.title,
         f"(A task of the project's To-do list to work on, {by}; its id: {task.id}.)",
     ]
+    if story is not None:
+        parts[0] += f"\nStory: {quoted(story.title)}" + (
+            f" — task {place[0]} of {place[1]}." if place else "."
+        )
     if task.detail:
         parts.append(f"Detail:\n{task.detail}")
     if task.criteria:
@@ -398,7 +407,7 @@ def start(
     task.status, task.conversation_id = "doing", conversation.id
     # (A new conversation is a new start: its fix round is still to have.)
     set_flow(task, queued=None, fix=None, fixed=None, stuck=None, branch=branch or None)
-    say(session, conversation, content, bus, start_run)
+    say(session, conversation, content, bus, start_run, task_id=task.id)
     bus.emit(conversation.id, None, "conversation.updated", conversation_out(conversation))
     return conversation.id
 
@@ -409,12 +418,22 @@ def say(
     content: str,
     bus,
     start_run: Callable[[str], object],
+    topic_id: str | None = None,
+    task_id: str | None = None,
 ) -> str:
     """A turn of `conversation` on `content`, as if the user had written it there - with
-    what else the session holds. Committed, and started; the run's id."""
-    topic, _ = topics.for_message(session, conversation.id, content)
+    what else the session holds: in the topic `topic_id` (the user's last, as their message's,
+    where none is named), the turn of the To-do task `task_id` where one is named. Committed,
+    and started; the run's id."""
+    topic = session.get(Topic, topic_id) if topic_id else None
+    if topic is None:
+        topic, _ = topics.for_message(session, conversation.id, content)
     run = Run(
-        conversation_id=conversation.id, topic_id=topic.id, status="running", started_at=now()
+        conversation_id=conversation.id,
+        topic_id=topic.id,
+        status="running",
+        started_at=now(),
+        task_id=task_id,
     )
     session.add(run)
     session.flush()
@@ -447,9 +466,9 @@ def away(session: Session, project_id: str) -> bool:
 
 
 def busy(session: Session, project_id: str, waiting: bool = False) -> str | None:
-    """Why no task of the backlog starts now - one is doing, or a task's conversation is
-    still at work (its task moved on by hand while its turn runs), or the project works
-    while the user is away (`away`, `app.away`) - or None: what a night waits for.
+    """Why no task of the backlog starts now - one is doing, or a task's own turn is still at
+    work (its task moved on by hand while its turn runs), or the project works while the user
+    is away (`away`, `app.away`) - or None: what a night waits for.
     `waiting`: a task whose turn waits for the user's word (a yes, an answer) is not at work
     (B-147: an earlier night's job waiting for an approval held a new night off for good)."""
     if away(session, project_id):
@@ -457,7 +476,7 @@ def busy(session: Session, project_id: str, waiting: bool = False) -> str | None
     ended = (*ENDED, "waiting_approval") if waiting else ENDED
     at_work = session.scalar(
         select(BacklogTask.title)
-        .join(Run, Run.conversation_id == BacklogTask.conversation_id)
+        .join(Run, Run.task_id == BacklogTask.id)
         .where(BacklogTask.project_id == project_id, Run.status.not_in(ended))
         .limit(1)
     )
@@ -468,7 +487,7 @@ def busy(session: Session, project_id: str, waiting: bool = False) -> str | None
         # a role asked for is not counted; add those if a wait on them is seen held as work.
         for title, run_id in session.execute(
             select(BacklogTask.title, Run.id)
-            .join(Run, Run.conversation_id == BacklogTask.conversation_id)
+            .join(Run, Run.task_id == BacklogTask.id)
             .where(BacklogTask.project_id == project_id, Run.status == "waiting_approval")
         ):
             asking = {
@@ -501,13 +520,11 @@ def busy(session: Session, project_id: str, waiting: bool = False) -> str | None
                 at_work = title
                 break
     task = doing(session, project_id)
-    waits = waiting and task is not None and at_work is None and task.conversation_id is not None
+    waits = waiting and task is not None and at_work is None
     if task is not None and not (
         waits
         and session.scalar(
-            select(Run.id)
-            .where(Run.conversation_id == task.conversation_id, Run.status == "waiting_approval")
-            .limit(1)
+            select(Run.id).where(Run.task_id == task.id, Run.status == "waiting_approval").limit(1)
         )
     ):
         return f"{task.title!r} is being worked on"
@@ -558,13 +575,13 @@ def held_lead(session: Session, chat: Conversation) -> tuple[str, str] | None:
 
 
 def chain(session: Session, project_id: str, bus, start_run: Callable[[str], object]) -> bool:
-    """A run of the backlog goes on (K-symphony, on slice 52's switch): a task whose fix round
-    is due has it (`turn_ended`), then the next tasks start while fewer than MAX_PARALLEL are
-    at work - those Run the backlog queued, and, where the backlog runs by itself
-    (`Project.backlog_auto`) and no turn of the user's is at work in the project, todo tasks
-    never worked on - each once the tasks it waits for are done. Nothing while everything is
-    held, the project works while the user is away, or the run is paused or stopped
-    (`backlog_halt`, which the user's Run the backlog or switch clears). Over the month's
+    """A run of the backlog goes on (K-symphony, on slice 52's switch): the next tasks start
+    while fewer than MAX_PARALLEL are at work (a fix round is `go_on`'s) - those Run the
+    backlog queued, and, where the backlog runs by itself (`Project.backlog_auto`) and no
+    turn of the user's is at work in the project, todo tasks never worked on - each once the
+    tasks it waits for are done. Nothing while everything is held, the project works while
+    the user is away, or the run is paused or stopped (`backlog_halt`, which the user's Run
+    the backlog or switch clears). Over the month's
     budget it pauses instead, with why. Whether anything changed. Never raises: where
     starting fails, the switch goes off with why.
     shortcut: a task put back to todo after its turn (Not yet, Stop) is left for Run the
@@ -574,7 +591,6 @@ def chain(session: Session, project_id: str, bus, start_run: Callable[[str], obj
         if held(session) or away(session, project_id):
             return False
         tasks = ordered(session, project_id)
-        due = [task for task in tasks if task.status == "doing" and (task.flow or {}).get("fix")]
         working = at_work(session, project_id)
         # (Not a job of a night while the user was away: one it never started is left for
         # the user - started here it would work in the project, with nobody asked.)
@@ -588,7 +604,7 @@ def chain(session: Session, project_id: str, bus, start_run: Callable[[str], obj
             and (task.queued or (project.backlog_auto and task.conversation_id is None))
             and not waits_for(task, tasks)
         ]
-        if not due and not ready:
+        if not ready:
             return False
         over = over_budget(session, project) if project.backlog_halt is None else None
         # (A provider made one with its own tools, or put first, since the run began.)
@@ -596,21 +612,8 @@ def chain(session: Session, project_id: str, bus, start_run: Callable[[str], obj
         if over or why:
             project.backlog_halt = f"Paused: the project is {over}." if over else f"Paused: {why}"
         if project.backlog_halt is not None:
-            for task in due:  # (back to todo: Run the backlog starts it again)
-                task.status = "todo"
-                set_flow(task, fix=None)
             session.commit()
-            return bool(over or why or due)
-        for task in due:
-            why = (task.flow or {})["fix"]
-            set_flow(task, fix=None, fixed=True)
-            say(
-                session,
-                session.get_one(Conversation, task.conversation_id),
-                FIX.format(why=why.rstrip(".")),
-                bus,
-                start_run,
-            )  # (FIX puts its own dot)
+            return bool(over or why)
         if any(not task.queued for task in ready) and users_turn(session, project_id):
             ready = [task for task in ready if task.queued]
         batch = ready[: max(0, MAX_PARALLEL - len(working))]
@@ -636,6 +639,276 @@ def chain(session: Session, project_id: str, bus, start_run: Callable[[str], obj
 
 
 HOW = {"failed": "failed", "cancelled": "was stopped", "interrupted": "was cut short by a restart"}
+
+# --- the chat's queue of To-do tasks (0.1.8, To-do in a chat) ---------------------------------
+# The line KOLONİ writes in a chat whose queue stopped (`stop_queue`).
+QUEUE_STOPPED = "The To-do queue stopped: {why}. {n} {tasks} went back to To-do."
+NOT_STARTED_WHY = "the next task did not start"
+
+
+def chat_queue(session: Session, cid: str) -> list[BacklogTask]:
+    """The To-do tasks waiting in the chat's queue, in their place order."""
+    tasks = session.scalars(select(BacklogTask).where(BacklogTask.conversation_id == cid))
+    return sorted(
+        (task for task in tasks if task.place is not None), key=lambda one: one.place or 0
+    )
+
+
+def _story_elsewhere(
+    session: Session, story_id: str, cid: str, asked: set[str]
+) -> BacklogTask | None:
+    """A task of the story, not one of `asked`, that waits or works in another chat than `cid`."""
+    return next(
+        (
+            one
+            for one in session.scalars(
+                select(BacklogTask).where(
+                    BacklogTask.story_id == story_id,
+                    BacklogTask.conversation_id.is_not(None),
+                    BacklogTask.conversation_id != cid,
+                )
+            )
+            if one.id not in asked and (one.place is not None or one.status == "doing")
+        ),
+        None,
+    )
+
+
+def queue_in_chat(session: Session, conversation: Conversation, tasks: list[BacklogTask]) -> None:
+    """Do in chat: `tasks` wait in the chat's queue, after what waits there already, in the
+    To-do tree's order - by their story's place, then the list's; those of no story last. The
+    chat is one of their project's, with a folder, not archived; each task is todo or stuck,
+    neither a proposal, nor one the Orchestrator added the user has not OK'd (`unseen`), nor a
+    night's job, nor queued in a chat or by Run the backlog already - and a story's task does
+    not go into a second chat while another of the story waits or works in one (two chats on one
+    story's branch). All of them or none: Refused, with why. Not committed."""
+    if conversation.project_id is None:
+        raise Refused("a chat with no folder has no To-do list")
+    if conversation.archived_at is not None:
+        raise Refused("the chat is archived: open another")
+    project_id = conversation.project_id
+    for task in tasks:
+        if task.project_id != project_id:
+            raise Refused(f"{quoted(task.title)} is a task of another folder")
+        if task.status not in ("todo", "blocked") or task.away_run_id is not None:
+            raise Refused(f"{quoted(task.title)} is not to do now: it is {task.status}")
+        if unseen(task):
+            raise Refused(f"{quoted(task.title)} waits for your OK on the To-do page")
+        if task.place is not None or task.queued:
+            raise Refused(f"{quoted(task.title)} waits in a chat's queue already")
+    asked = {task.id for task in tasks}
+    for story_id in sorted({task.story_id for task in tasks if task.story_id}):
+        if (other := _story_elsewhere(session, story_id, conversation.id, asked)) is not None:
+            raise Refused(
+                f"a task of its story ({quoted(other.title)}) is in another chat: "
+                "do the story there"
+            )
+    rank = {task.id: i for i, task in enumerate(ordered(session, project_id))}
+    places = {
+        story_id: position
+        for story_id, position in session.execute(
+            select(Story.id, Story.position).where(Story.project_id == project_id)
+        )
+    }
+    last = max((task.place or 0 for task in chat_queue(session, conversation.id)), default=0)
+    in_order = sorted(
+        tasks,
+        key=lambda one: (
+            one.story_id not in places,
+            places.get(one.story_id or "", 0),
+            rank[one.id],
+        ),
+    )
+    for at, task in enumerate(in_order, last + 1):
+        task.conversation_id = conversation.id
+        set_flow(task, place=at, stuck=None)
+
+
+def next_in_chat(session: Session, cid: str) -> BacklogTask | None:
+    """The chat's next To-do turn: a task whose fix round is due (`turn_ended`) first, else the
+    first queued one none of whose tasks it waits for is still not done."""
+    mine = list(session.scalars(select(BacklogTask).where(BacklogTask.conversation_id == cid)))
+    fix = next((t for t in mine if t.status == "doing" and (t.flow or {}).get("fix")), None)
+    if fix is not None:
+        return fix
+    queued = chat_queue(session, cid)
+    if not queued:
+        return None
+    tasks = ordered(session, queued[0].project_id)
+    return next((task for task in queued if not waits_for(task, tasks)), None)
+
+
+def story_place(session: Session, task: BacklogTask) -> tuple[Story | None, tuple[int, int] | None]:
+    """The task's story (None: of none, or deleted since) and which of its tasks it is, i of n
+    in the list's order - its proposals left out."""
+    story = session.get(Story, task.story_id) if task.story_id else None
+    if story is None:
+        return None, None
+    ids = [one.id for one in stories.tasks_of(session, story.id) if one.status != "proposed"]
+    return story, ((ids.index(task.id) + 1, len(ids)) if task.id in ids else None)
+
+
+def _start_in_chat(
+    session: Session, chat: Conversation, task: BacklogTask, bus, start_run: Callable[[str], object]
+) -> None:
+    """`task`'s turn in `chat`: its fix round where one is due, else its brief - in the topic
+    `stories.topic_for` gives it. Committed and started (`say`)."""
+    topic, _made = stories.topic_for(session, chat.id, task)  # (`say` tells of it)
+    why = (task.flow or {}).get("fix")
+    if why:
+        content = FIX.format(why=why.rstrip("."))  # (FIX puts its own dot)
+        set_flow(task, fix=None, fixed=True)
+    else:
+        story, place = story_place(session, task)
+        content = first_message(task, story=story, place=place)
+        task.status = "doing"
+        set_flow(task, place=None, fixed=None)
+    say(session, chat, content, bus, start_run, topic_id=topic.id, task_id=task.id)
+
+
+def _queued_chats(session: Session, project_id: str) -> list[str]:
+    """The project's chats with a To-do task queued, or a fix round due."""
+    return sorted(
+        {
+            task.conversation_id
+            for task in session.scalars(
+                select(BacklogTask).where(
+                    BacklogTask.project_id == project_id,
+                    BacklogTask.conversation_id.is_not(None),
+                    BacklogTask.away_run_id.is_(None),
+                )
+            )
+            if task.conversation_id
+            and (task.place is not None or task.status == "doing" and (task.flow or {}).get("fix"))
+        }
+    )
+
+
+def go_on(session: Session, project_id: str, bus, start_run: Callable[[str], object]) -> bool:
+    """The chats' queues of To-do tasks go on: in each chat of the project with a task queued or
+    a fix round due and no turn not over (the user's own message, queued behind a turn, went
+    first: `start_next`), the next one starts (`next_in_chat`) - one at a time in a chat. Nothing
+    while everything is held (Stop everything) or the project works while the user is away:
+    the queues wait, Resume or the end of Away goes on. Over the month's budget a chat's queue
+    stops (`stop_queue`). Whether anything changed. Never raises: where starting fails, that
+    chat's queue stops with why."""
+    try:
+        if held(session) or away(session, project_id):
+            return False
+        project = session.get(Project, project_id)
+        if project is None:
+            return False
+        chats = _queued_chats(session, project_id)
+    except Exception:
+        log.exception("project %s: the To-do queues were not read", project_id)
+        return False
+    changed = False
+    for cid in chats:
+        changed = _go_on_in(session, project, cid, bus, start_run) or changed
+    return changed
+
+
+def _go_on_in(
+    session: Session, project: Project, cid: str, bus, start_run: Callable[[str], object]
+) -> bool:
+    """`go_on` in one chat. Never raises."""
+    try:
+        chat = session.get(Conversation, cid)
+        at_work_now = session.scalar(
+            select(Run.id).where(Run.conversation_id == cid, Run.status.not_in(ENDED)).limit(1)
+        )
+        if chat is None or at_work_now is not None:
+            return False
+        task = next_in_chat(session, cid)
+        if task is None:
+            return False
+        if over := over_budget(session, project, chat):
+            stop_queue(session, cid, f"the project is {over}")
+            session.commit()
+            tell(session, bus)
+            return True
+        _start_in_chat(session, chat, task, bus, start_run)
+        return True
+    except Exception:
+        log.exception("chat %s: the next To-do task did not start", cid)
+        with contextlib.suppress(Exception):
+            session.rollback()
+            stop_queue(session, cid, NOT_STARTED_WHY)
+            session.commit()
+            tell(session, bus)
+        return True
+
+
+def tell(session: Session, bus) -> None:
+    """The lines `stop_queue` wrote, committed since, shown in their chats."""
+    for message in session.info.pop(SAID, []):
+        bus.emit(message.conversation_id, None, "message.created", message_out(message))
+
+
+SAID = "backlog.queue_stopped"  # (`session.info`: the lines `tell` shows once committed)
+
+
+def stop_queue(
+    session: Session, cid: str, why: str, also: BacklogTask | None = None
+) -> Message | None:
+    """The chat's queue of To-do tasks stops, with why: what waited there - and a fix round due -
+    goes back to To-do (`unqueue`), and KOLONİ says so in the chat in one line (`QUEUE_STOPPED`,
+    under its last turn), counting `also` - the task whose turn stopped it, put back already. The
+    line, or None where nothing went back. Not committed."""
+    back = []
+    for task in session.scalars(select(BacklogTask).where(BacklogTask.conversation_id == cid)):
+        if task.place is not None:
+            unqueue(session, task)
+            back.append(task)
+        elif task.status == "doing" and (task.flow or {}).get("fix"):
+            task.status = "todo"
+            set_flow(task, fix=None)
+            back.append(task)
+    count = len(back) + int(also is not None and also not in back)
+    last = session.scalar(
+        select(Run.id)
+        .where(Run.conversation_id == cid)
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+        .limit(1)
+    )
+    if not count or last is None:
+        return None
+    message = Message(
+        conversation_id=cid,
+        run_id=last,
+        role="koloni",
+        content=QUEUE_STOPPED.format(
+            why=why.rstrip("."), n=count, tasks="task" if count == 1 else "tasks"
+        ),
+    )
+    session.add(message)
+    session.flush()
+    session.info.setdefault(SAID, []).append(message)
+    return message
+
+
+RESTARTED = "KOLONİ restarted"
+
+
+def restarted(session: Session) -> None:
+    """At start (`recover_interrupted`): what waited in a chat's queue of To-do tasks goes back
+    to To-do, said there - nothing starts by itself after a restart, as a queued message does
+    not. Not committed."""
+    for cid in session.scalars(
+        select(BacklogTask.conversation_id)
+        .where(BacklogTask.conversation_id.is_not(None), BacklogTask.away_run_id.is_(None))
+        .distinct()
+    ).all():
+        if cid and chat_queue(session, cid):
+            stop_queue(session, cid, RESTARTED)
+
+
+def unqueue(session: Session, task: BacklogTask) -> None:
+    """Out of its chat's queue, back on the To-do list: still linked to the chat where it had a
+    turn there, else to none."""
+    set_flow(task, place=None)
+    if session.scalar(select(Run.id).where(Run.task_id == task.id).limit(1)) is None:
+        task.conversation_id = None
 
 
 def marked(said: str, marker: str) -> str | None:
@@ -687,59 +960,83 @@ def not_finished(session: Session, run: Run, status: str) -> str | None:
     return marked(last_word(session, run), NOT_FINISHED)
 
 
+def _limited(session: Session, run: Run, status: str) -> bool:
+    """Whether the turn was stopped by the project's limit on tokens, or its Orchestrator's
+    provider's limit was reached: a fix round would only meet the same limit."""
+    return status == "failed" and (
+        (run.error or "").startswith(OVER_LIMIT)
+        or session.scalar(
+            select(Agent.id)
+            .where(Agent.run_id == run.id, Agent.depth == 0, Agent.failure.in_(USED_UP))
+            .limit(1)
+        )
+        is not None
+    )
+
+
+def _halt_the_run(
+    session: Session, run: Run, task: BacklogTask, status: str, limited: bool
+) -> None:
+    """Run the backlog's switch (`chain`), as before To-do in a chat: a limit pauses it; a stop
+    (not Stop everything's) stops it, with why."""
+    project = session.get_one(Project, task.project_id)
+    if limited:
+        project.backlog_halt = f"Paused: {run.error}."
+    elif (
+        status in ("cancelled", "interrupted")
+        and not held(session)
+        and (project.backlog_auto or any(one.queued for one in ordered(session, project.id)))
+    ):
+        project.backlog_auto = False
+        project.backlog_halt = (
+            f"Stopped: the turn of {quoted(task.title)} {HOW.get(status, 'was stopped')}."
+        )
+
+
 def turn_ended(session: Session, run: Run, status: str) -> list[str]:
-    """A turn of a conversation ended: the task being worked on there waits for the user's
-    review when it completed. Where it is not finished (`not_finished`) its one fix round is
-    due (`chain` gives it), and after that it is stuck: blocked, with why - the run goes on
-    with the next task. A turn stopped by the project's limit on tokens pauses the run, and
-    its task is todo again, as one stopped is (its conversation stays linked). Only a task
-    still "doing": one the user has moved on is left as it is; a job of a night has its own
-    tries (`app.away`). A turn of a task's conversation that was stopped - whatever its task's
-    status now - stops the run, with why. The tasks that moved or stopped it; not committed.
-    A side of a comparison (slice 54) is not the conversation's own turn: it moves nothing."""
-    if run.compare_id:
+    """A task's turn ended (`Run.task_id`; a turn of the user's own in the chat moves no task):
+    its task waits for the user's review where it completed. Where it is not finished
+    (`not_finished`) its one fix round is due (`go_on` gives it, in its topic), and after that
+    it is stuck: blocked, with why - the chat's queue goes on with the next task. Stopped (by the
+    user, or a restart) or held by a limit, the task is todo again and the chat's queue stops
+    (`stop_queue`, its line in the chat) - but while everything is held (Stop everything) the
+    task goes back to the head of the queue, for Resume. Only a task still "doing": one the user
+    has moved on is left as it is (its queue still stops where its turn was stopped); a job of a
+    night has its own tries (`app.away`). A task or a run deleted since moves nothing. The tasks
+    moved; not committed. A side of a comparison (slice 54) is not the chat's own turn."""
+    task = session.get(BacklogTask, run.task_id) if run.task_id and not run.compare_id else None
+    if task is None:
         return []
-    tasks = session.scalars(
-        select(BacklogTask).where(BacklogTask.conversation_id == run.conversation_id)
-    ).all()
-    changed = []
-    for task in tasks:
-        project = session.get_one(Project, task.project_id)
-        if task.status == "doing":
-            changed.append(task.id)
-            limited = status == "failed" and (
-                (run.error or "").startswith(OVER_LIMIT)
-                or (
-                    session.scalar(
-                        select(Agent.id)
-                        .where(Agent.run_id == run.id, Agent.depth == 0, Agent.failure.in_(USED_UP))
-                        .limit(1)
-                    )
-                    is not None
-                )
-            )
-            why = None if task.away_run_id or limited else not_finished(session, run, status)
-            if limited:
-                task.status = "todo"
-                project.backlog_halt = f"Paused: {run.error}."
-            elif why and (task.flow or {}).get("fixed"):
-                task.status = "blocked"
-                set_flow(task, stuck=why)
-            elif why:  # (an empty why is none: a fix due for it would never come)
-                set_flow(task, fix=why)  # (still doing: its fix round comes at once)
-            else:
-                task.status = "review" if status == "completed" else "todo"
-        # (Stopped while everything is held, it stays on: it goes on at Resume.)
-        stopped = status in ("cancelled", "interrupted") and not held(session)
-        if stopped and (
-            project.backlog_auto or any(one.queued for one in ordered(session, task.project_id))
-        ):
-            project.backlog_auto = False
-            project.backlog_halt = (
-                f"Stopped: the turn of {quoted(task.title)} {HOW.get(status, 'was stopped')}."
-            )
-            changed.append(task.id)
-    return list(dict.fromkeys(changed))
+    stopped = status in ("cancelled", "interrupted")
+    limited = _limited(session, run, status)
+    if task.status == "doing":
+        why = None if task.away_run_id or limited else not_finished(session, run, status)
+        if limited:
+            task.status = "todo"
+        elif why and (task.flow or {}).get("fixed"):
+            task.status = "blocked"
+            set_flow(task, stuck=why)
+        elif why:  # (an empty why is none: a fix due for it would never come)
+            set_flow(task, fix=why)  # (still doing: its fix round comes next)
+        else:
+            task.status = "review" if status == "completed" else "todo"
+    _halt_the_run(session, run, task, status, limited)
+    if task.away_run_id is not None or not (stopped or limited):
+        return [task.id]
+    if stopped and held(session):  # (Stop everything: it starts again first, at Resume)
+        # (Not one Run the backlog's switch started: that one starts its next by itself.)
+        if task.status == "todo" and not session.get_one(Project, task.project_id).backlog_auto:
+            waiting = [one for one in chat_queue(session, run.conversation_id) if one is not task]
+            for at, one in enumerate([task, *waiting], 1):
+                set_flow(one, place=at)
+        return [task.id]
+    why = (
+        f"the turn of {quoted(task.title)} {HOW.get(status, 'was stopped')}"
+        if stopped
+        else (run.error or "a limit was reached").rstrip(".")
+    )
+    stop_queue(session, run.conversation_id, why, also=task if task.status == "todo" else None)
+    return [task.id]
 
 
 # What the Scout is asked when a task's turn ends (`AgentRunner._assess`).

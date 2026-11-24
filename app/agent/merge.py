@@ -1320,6 +1320,7 @@ def recover_interrupted(session_factory, notes: list | None = None) -> int:
         for run in runs:
             run.status, run.ended_at = "interrupted", now()
             backlog.turn_ended(session, run, "interrupted")
+        backlog.restarted(session)
         away.settle(session, notes)  # (nor is a night started again: `notes`, its notification)
         cut_short = []
         # Every open call, whatever its run says (CL-228, 20 Nov: a CLI's discuss call, given up
