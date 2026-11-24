@@ -6042,13 +6042,16 @@ export interface components {
         };
         /**
          * CheckedLook
-         * @description One look of a pass: KOLONİ's agent, its role and its verdict (None: none said).
+         * @description One look of a pass: KOLONİ's agent, its role and the verdict KOLONİ acted on (None: none
+         *     said) - and its report's own word where that differs (a MERGE with a blocking finding).
          */
         CheckedLook: {
             /** Agent Id */
             agent_id: string;
             /** Role */
             role: string;
+            /** Said */
+            said?: string | null;
             /** Verdict */
             verdict: string | null;
         };

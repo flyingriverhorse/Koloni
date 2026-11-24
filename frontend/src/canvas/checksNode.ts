@@ -1,4 +1,5 @@
 import type { Message, Run } from '../api/types'
+import { CHECK_KINDS } from '../shell/sections/CheckKinds'
 import type { ConvState } from '../state/applyEvent'
 import type { Loop } from './checksLoop'
 import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
@@ -100,16 +101,13 @@ export function lineOf(row: Row): Line {
   return { state: row.state, text: `${toolOf(row.command)} · ${counts.passed}${unit} ✓${failed}` }
 }
 
-/** S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`), each one line on the node. */
-const KINDS: Record<string, string> = {
-  docs: 'documents',
-  slides: 'slides',
-  diagram: 'diagrams',
-  data: 'data',
-  config: 'config files',
-  scripts: 'scripts',
-  style: 'code style and types',
-}
+/**
+ * S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`, and S5b's Pages), each one line on the
+ * node - by the one list Settings names them by (`CHECK_KINDS`).
+ */
+export const KINDS: Record<string, string> = Object.fromEntries(
+  CHECK_KINDS.map(([kind, label]) => [kind, label.toLowerCase()]),
+)
 
 /** A kind's rows as one line, as a test run's: "documents · 2 ✓ · 1 ✗" - its files that passed and failed; "documents · not checked" where it was switched off. */
 function kindLine(kind: string, rows: Row[]): Line {

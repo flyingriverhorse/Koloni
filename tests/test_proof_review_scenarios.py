@@ -144,12 +144,18 @@ def test_a_merge_that_marks_a_finding_blocking_is_said_as_the_hold_it_is(
         executor=ScriptedExecutor([PASS, PASS]),
     )
     cid, run_id = begin(client, project_dir, check_command=CHECK, fix_rounds=1)
-    said = [(r["kind"], r["state"], r["text"]) for r in checked(wait_run(client, cid, run_id))]
+    snap = wait_run(client, cid, run_id)
+    said = [(r["kind"], r["state"], r["text"]) for r in checked(snap)]
     assert (
         "review",
         "failed",
         f"Review: Reviewer ({SIGN}) - 1 blocking finding, though its verdict said MERGE",
     ) in said, said
+    # (Codex's review of PR #25, F2: its passes said MERGE - the canvas drew a green card for a
+    # look that held the work. Each records the verdict KOLONİ acted on, its own word beside it.)
+    (note,) = [m for m in snap["messages"] if m["role"] == "checked"]
+    looks = [(one["verdict"], one["said"]) for each in note["passes"] for one in each["looks"]]
+    assert looks == [("HOLD", "MERGE"), ("HOLD", "MERGE")], note["passes"]
 
 
 def test_the_cap_leaves_the_findings_and_fix_it_to_the_user(make_client, wait_run, project_dir):

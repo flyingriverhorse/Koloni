@@ -2,7 +2,7 @@ import { AGENT_STATUS, WAITS } from '../agents/agentStatus'
 import { turnTeams } from '../agents/teamRun'
 import type { Agent, Message, Run, ToolCall } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
-import { type ChecksData, type Line, lineOf, linesOf, PROOF_CALL, stripOf, toolOf } from './checksNode'
+import { type ChecksData, KINDS, type Line, lineOf, linesOf, PROOF_CALL, stripOf, toolOf } from './checksNode'
 import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
 
 type Row = NonNullable<Message['checked']>[number]
@@ -61,12 +61,12 @@ export interface Loop {
   stop: string | null
 }
 
-/** The Checked rows that are test runs - a runner's, the coverage, a kind of work's (S5a) -: the footer and the panel's Tests. */
-const TEST_KINDS = new Set(['tests', 'coverage', 'docs', 'slides', 'diagram', 'data'])
-export const testRows = (rows: Row[]) => rows.filter(row => TEST_KINDS.has(row.kind))
+/** The kinds of work KOLONİ checks by their files (S5a, S5b's Pages, 0.1.7's Config, Scripts and Code style): one line each, as on the plain node. */
+const KIND_ROWS = new Set(Object.keys(KINDS))
 
-/** The kinds of work KOLONİ checks by their files (S5a): one line each, as on the plain node. */
-const KIND_ROWS = new Set(['docs', 'slides', 'diagram', 'data'])
+/** The Checked rows that are test runs - a runner's, the coverage, every kind of work's -: the footer and the panel's Tests. */
+const TEST_KINDS = new Set(['tests', 'coverage', ...KIND_ROWS])
+export const testRows = (rows: Row[]) => rows.filter(row => TEST_KINDS.has(row.kind))
 
 /** The foot's test runs, short (the sketch's "✓ related 19 · ✓ pytest 36"): a runner by its tool and count; a kind of work as the plain node says it. */
 function footOf(rows: Row[]): Line[] {
@@ -162,10 +162,14 @@ function underOf(agents: Agent[], fixes: Agent[]): string[] {
   return [...inside].filter(id => !fixes.some(a => a.id === id))
 }
 
-/** A look's verdict as its pass recorded it - "HOLD · 3 blocking" where its findings block. */
-function saidVerdict(verdict: string | null, agent: Agent | undefined): string | null {
+/**
+ * A look's verdict as its pass recorded it - the one KOLONİ acted on: "HOLD · 3 blocking" where its findings block; with `said`,
+ * its report's own word where that was another ("HOLD · 1 blocking - its report said MERGE", as the Checked row says it).
+ */
+function saidVerdict(verdict: string | null, agent: Agent | undefined, said?: string | null): string | null {
   const blocking = agent?.findings?.filter(one => one.blocking !== false).length ?? 0
-  return verdict === 'HOLD' && blocking ? `HOLD · ${blocking} blocking` : verdict
+  const shown = verdict === 'HOLD' && blocking ? `HOLD · ${blocking} blocking` : verdict
+  return shown && said && said !== verdict ? `${shown} - its report said ${said}` : shown
 }
 
 /** The rounds of the panel: a pass each, as written. */
@@ -180,7 +184,7 @@ function roundsOf(box: Box, state: ConvState): LoopRound[] {
     looks: pass.looks.map(look => ({
       agentId: look.agent_id,
       name: name(look.agent_id, look.role),
-      verdict: saidVerdict(look.verdict, byId.get(look.agent_id)),
+      verdict: saidVerdict(look.verdict, byId.get(look.agent_id), look.said),
     })),
     diagnosis: pass.diagnosis ? { agentId: pass.diagnosis, name: name(pass.diagnosis, 'Diagnosis') } : null,
     finding:
