@@ -332,13 +332,15 @@ any of these happen:
 - it changed what decides which tests run (a `conftest.py`, `pytest.ini`, `pyproject.toml`,
   `setup.cfg`, `tox.ini`, `package.json`, a Makefile, a Vitest, Jest or Cypress config or setup, a
   Python file in a tests folder not named as a test, the script the test command runs);
-- it made a test file (a new spec's `.only` switches the others off, wherever they are);
+- it touched a test file at all - changed, made, deleted or renamed one, or anything in a tests
+  folder (a new spec's `.only` switches the others off, wherever they are; a test added to a file
+  is the turn's too, with tests deleted by hand elsewhere);
 - a change on KOLONİ's record since that green run took lines out of a test file.
 
 Then it is said and not sent back, "Tests went from 48 to 45 (3 removed) - not this turn's
 change", and the new counts are the green state: tests deleted by hand, a pull, another branch
 checked out. Anything less sure is the turn's, as a turn's own removal always is: a test file it
-changed in any way, a runner that lists no names, names that do not add up to the drop; more
+touched in any way, a runner that lists no names, names that do not add up to the drop; more
 skipped tests are the turn's too (no runner here lists what it skipped by name). Not seen: a test
 generated from data the turn changed elsewhere - a parametrize list built from the app's data, a
 flag a `skipif` reads - lives in a file it did not touch, and its drop reads as outside. A whole

@@ -288,8 +288,7 @@ def test_a_test_gone_from_a_file_the_turn_touched_is_the_turns(
 
 
 def test_a_runner_that_lists_no_ids_leaves_a_drop_the_turns(make_client, wait_run, project_dir):
-    # (with no ids listed, nothing shows where the tests went: the turn's, as before R - the
-    # same drop listed by id is outside: test_proof_before_scenarios' live case)
+    # (with no ids listed, nothing shows where the tests went: the turn's, as before R)
     rows, _taken, _model = second_turn(
         make_client,
         wait_run,
@@ -416,12 +415,43 @@ def test_a_test_files_path_in_another_case_is_the_same_file(make_client, wait_ru
     assert (DROP, "failed") in rows and not taken, rows
 
 
-def test_a_test_another_module_deletes_is_a_known_limit(make_client, wait_run, project_dir):
-    # (shortcut, `_could_drop`: a touched module that deletes another's test on import - the
-    # missing id lives in the untouched one, and reads as outside. Kept as it is, said.)
+def test_a_test_another_module_deletes_is_the_turns(make_client, wait_run, project_dir):
+    # (a touched test module that deletes another's test on import - the missing id lives in the
+    # untouched one: it touched a test file, the drop is its own)
     from tests.test_proof_before_scenarios import GREEN
 
     edited = CALC_TESTS + "\nimport tests.test_more as _m\ndel _m.test_7\n"
     now = [one for one in GREEN if one != "tests/test_more.py::test_7"]
-    rows, _taken, _m = second_turn(make_client, wait_run, project_dir, edited, (47,), ids=now)
-    assert (NOT_OURS, "note") in rows, rows
+    rows, taken, _m = second_turn(make_client, wait_run, project_dir, edited, (47,), ids=now)
+    assert (DROP, "failed") in rows and not taken, rows
+
+
+def test_tests_moved_by_hand_into_a_file_the_turn_then_cuts_are_the_turns(
+    make_client, wait_run, project_dir
+):
+    # (fourth look: by hand, test_old.py's test_a/b/c move INTO test_calc.py and test_old.py goes;
+    # the turn then takes test_a out of test_calc.py: 48 -> 47. The missing ids are test_old.py's,
+    # untouched, and test_calc.py had ids at the green run - by ids alone, outside. It touched a
+    # test file: the turn's.)
+    from tests.test_proof_before_scenarios import GREEN
+
+    moved = CALC_TESTS + "".join(f"\n\ndef test_{n}():\n    pass\n" for n in "abc")
+
+    def move():
+        (project_dir / "tests" / "test_calc.py").write_text(moved, encoding="utf-8")
+        (project_dir / "tests" / "test_old.py").unlink()
+
+    now = [one for one in GREEN if "test_old" not in one] + [
+        "tests/test_calc.py::test_b",
+        "tests/test_calc.py::test_c",
+    ]
+    rows, taken, _m = second_turn(
+        make_client,
+        wait_run,
+        project_dir,
+        moved.replace("def test_a():\n    pass\n", ""),
+        (47,),
+        by_hand=move,
+        ids=now,
+    )
+    assert (DROP, "failed") in rows and not taken, rows

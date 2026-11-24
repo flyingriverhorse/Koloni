@@ -307,23 +307,25 @@ class BeforeMixin:
     def _could_drop(
         self: "AgentRunner", session, ctx: Ctx, held: "Proof", run: TestRun, was: dict, ran: int
     ) -> tuple[bool, bool]:
-        """R (CL-345; its third round, the main session's rule: by test id): whether a drop against
-        the last green run `was` - fewer tests run, more skipped - may be the turn's. Fewer is
-        outside it only where it is shown: each test the green run listed as passed and this run
-        does not (`missing`) lives in a file the turn did not touch in any way - and none of: a
+        """R (CL-345; its fourth round, the main session's rule: conservative): whether a drop
+        against the last green run `was` - fewer tests run, more skipped - may be the turn's. Fewer
+        is outside it only where the turn touched no test file at all - none changed, made, deleted
+        or renamed, nothing in a tests folder (`steers_tests`) - and each test the green run listed
+        as passed and this run does not (`missing`) lives in a file it did not touch, and none of: a
         command of the turn's that may write ran, wherever it ran (`_wrote_by_command`); what says
-        which tests run changed (`steers_tests`, a file the test command names); a test file the
-        turn made (a new spec's `.only` switches others off); a change on KOLONİ's record since
-        that green run took lines out of a test file (`_tests_cut_since`: another turn's, whose
-        suite ended after its answer). A runner that lists no ids (either run), or ids that do not
-        add up to the tests each run counted (`ran`: file ids - vitest's, jest's - never do; a
-        list cut at MOST_IDS): the turn's, as before R - a turn's own removal never rides on one
-        made outside. More skipped: the turn's - no runner here
-        lists what it skipped by id.
+        which tests run changed (`steers_tests`, a file the test command names); a change on
+        KOLONİ's record since that green run took lines out of a test file (`_tests_cut_since`:
+        another turn's, whose suite ended after its answer). A runner that lists no ids (either
+        run), or ids that do not add up to the tests each run counted (`ran`: file ids - vitest's,
+        jest's - never do; a list cut at MOST_IDS): the turn's, as before R. More skipped: the
+        turn's - no runner here lists what it skipped by id.
+        shortcut: any test file the turn touched makes the drop its own - a test added to a file,
+        with tests deleted by hand elsewhere, is sent back. 0.1.8: the ids collected at the turn's
+        start (`pytest --collect-only -q`, `vitest list`) tell green -> start (outside) from start
+        -> end (the turn's), whatever it touched.
         shortcut: a test generated from data the turn changed elsewhere - a parametrize list built
         from the app's data, a flag a skipif reads - lives in a file it did not touch, and its
-        drop reads as outside; so does one a test module it touched takes from another module
-        (`import tests.test_more as m; del m.test_7`); read the tests' imports if that is seen."""
+        drop reads as outside; read the tests' imports if that is seen."""
         turns = (True, True)
         if held.unrecorded or held.gone_tests or self._wrote_by_command(session, ctx):
             return turns
@@ -336,7 +338,7 @@ class BeforeMixin:
         if any(
             steers_tests(one.path)
             or one.path.rsplit("/", 1)[-1] in named
-            or (proof.is_test(one.path) and not one.existed and not one.deleted)
+            or proof.is_test(one.path)
             for one in mine
         ):
             return turns
@@ -348,15 +350,7 @@ class BeforeMixin:
             return turns
         missing = set(green) - set(now)
         touched = {one.path for one in mine}
-        # (a test file it touched that has tests now and had none at the green run - renamed or made
-        # by hand since - cannot be held to it: its drop may ride on that)
-        unknown = any(
-            any(_touched(one, run.cwd, {path}) for one in now)
-            and not any(_touched(one, run.cwd, {path}) for one in green)
-            for path in touched
-            if proof.is_test(path)
-        )
-        fewer = unknown or not missing or any(_touched(one, run.cwd, touched) for one in missing)
+        fewer = not missing or any(_touched(one, run.cwd, touched) for one in missing)
         return fewer, True
 
     def _wrote_by_command(self: "AgentRunner", session, ctx: Ctx) -> bool:

@@ -766,12 +766,13 @@ def second_turn(
     return rows, taken.exists() and taken.read_text(encoding="utf-8") == "x = 2\n", model
 
 
-def test_a_turn_that_adds_a_test_to_a_file_does_not_take_on_tests_deleted_by_hand(
+def test_a_turn_that_adds_a_test_to_a_file_takes_on_tests_deleted_by_hand_in_0_1_7(
     make_client, wait_run, project_dir
 ):
     # (R, the live shape: 48 green, test_old.py's 3 tests deleted by hand, the turn adds a test to
     # test_calc.py and fixes the code - 46 run. Every test missing lives in a file it did not
-    # touch: a note, nothing sent back, the work taken in)
+    # touch - but it touched a test file: conservative in 0.1.7, the drop is its own (the ids
+    # collected at the turn's start tell the two apart in 0.1.8))
     rows, taken, _model = second_turn(
         make_client,
         wait_run,
@@ -781,9 +782,10 @@ def test_a_turn_that_adds_a_test_to_a_file_does_not_take_on_tests_deleted_by_han
         by_hand=lambda: (project_dir / "tests" / "test_old.py").unlink(),
         ids=[one for one in GREEN if "test_old" not in one] + ["tests/test_calc.py::test_three"],
     )
-    said = before_mixin.NOT_OURS.format(said="Tests went from 48 to 46 (2 removed)")
-    assert (said, "note") in rows and not any(state == "failed" for _t, state in rows), rows
-    assert taken, rows
+    assert ("Tests went from 48 to 46 (2 removed)", "failed") in rows and not taken, rows
+    assert before_mixin.NOT_OURS.format(said="Tests went from 48 to 46 (2 removed)") not in [
+        text for text, _state in rows
+    ], rows
 
 
 @pytest.mark.parametrize(
