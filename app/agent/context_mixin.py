@@ -30,6 +30,7 @@ from app import (
     models_dev,
     proof,
     record,
+    stories,
     topics,
 )
 from app import memory as kept
@@ -137,9 +138,9 @@ KEPT_ENGLISH = (
     "`Already failing before:`, `Pre-existing:`, `(pre-existing)`, `(already failing before)`, "
     "`| fixed:`, `| disputed:`, "
     + ", ".join(f"`## {heading}`" for heading in handoff.HEADINGS)
-    + f", `{backlog.NOT_FINISHED}`, `{backlog.NEEDS_PROJECT}`, `Say:`, and the keys of JSON and "
-    "StructuredOutput; for nothing found or nothing checked write exactly `Findings: none` or "
-    "`Checked: none`"
+    + f", `{backlog.NOT_FINISHED}`, `{backlog.NEEDS_PROJECT}`, `{stories.STORY_NOTE}`, `Say:`, "
+    "and the keys of JSON and StructuredOutput; for nothing found or nothing checked write "
+    "exactly `Findings: none` or `Checked: none`"
 )
 # Told to the lead only, while its conversation has it hand code to sub-agents (slice 48):
 # it is not given the tools that write files, and "Do small jobs yourself" is not for those.
@@ -1383,11 +1384,7 @@ class ContextMixin:
                 if links
                 else (Message.agent_id == ctx.agent_id)
             )
-            others = (
-                topics.titles_line(topics.earlier_titles(session, turn), quoted)
-                if ctx.depth == 0 and turn
-                else ""
-            )
+            others = stories.for_lead(session, turn) if ctx.depth == 0 and turn else ""
             system, write_in = self._history_system(session, ctx, has, turn)
             # Who sent what to whom, for the messages agents sent each other.
             family = {

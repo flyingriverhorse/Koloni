@@ -4,7 +4,6 @@ and what the user decides. The API and the agents' tools both go through here.""
 import contextlib
 import json
 import logging
-import os
 import re
 from collections.abc import Callable
 from types import SimpleNamespace
@@ -12,9 +11,8 @@ from types import SimpleNamespace
 from sqlalchemy import and_, case, or_, select
 from sqlalchemy.orm import Session
 
-from app import copies, earlier, observer, raw, stories, topics
+from app import copies, earlier, observer, stories, topics
 from app.api.usage import over_budget
-from app.commands import OutputMask, secret_values
 from app.db.models import (
     Agent,
     AwayRun,
@@ -256,10 +254,11 @@ def turned_down(session: Session, task: BacklogTask) -> None:
         project.po_rejected = [*(project.po_rejected or [])[-(TURNED_DOWN - 1) :], task.title]
 
 
-def first_message(task: BacklogTask, night: bool = False) -> str:
+def first_message(task: BacklogTask, night: bool = False, notes: str = "") -> str:
     """What the conversation "Work the backlog" opens is told: the task as it stands on the
     To-do list, its title first (the conversation is named by it), and who wrote it - and,
-    for a job a night while the user is away starts (`night`, slice 106), that they are."""
+    for a job a night while the user is away starts (`night`, slice 106), that they are.
+    `notes`: what it carries of its story (`stories.brief`)."""
     po = task.po or {}
     by = (
         (
@@ -279,6 +278,7 @@ def first_message(task: BacklogTask, night: bool = False) -> str:
         parts.append(f"Detail:\n{task.detail}")
     if task.criteria:
         parts.append(f"Done when:\n{task.criteria}")
+    parts += [notes] if notes else []
     parts.append(AWAY_JOB if night else SAY_NOT_FINISHED)
     return "\n\n".join(parts)
 
@@ -392,7 +392,7 @@ def start(
     if shape is not None:
         shape(conversation)
     session.flush()
-    content = first_message(task, night)
+    content = first_message(task, night, stories.brief(session, task, project.pass_env))
     # Named by the task, whole (K-backlog-sohbet): the chat list marks it as the To-do list's.
     conversation.title = topics.one_line(task.title) or conversation.title
     task.status, task.conversation_id = "doing", conversation.id
@@ -607,10 +607,10 @@ def chain(session: Session, project_id: str, bus, start_run: Callable[[str], obj
             say(
                 session,
                 session.get_one(Conversation, task.conversation_id),
-                FIX.format(why=why.rstrip(".")),
+                fix_message(session, task, why),
                 bus,
                 start_run,
-            )  # (FIX puts its own dot)
+            )
         if any(not task.queued for task in ready) and users_turn(session, project_id):
             ready = [task for task in ready if task.queued]
         batch = ready[: max(0, MAX_PARALLEL - len(working))]
@@ -633,6 +633,13 @@ def chain(session: Session, project_id: str, bus, start_run: Callable[[str], obj
             project.backlog_auto, project.backlog_halt = False, NOT_STARTED
             session.commit()
         return True
+
+
+def fix_message(session: Session, task: BacklogTask, why: str) -> str:
+    """What a task's one fix round is told: why it is not finished (FIX puts its own dot) - and,
+    for a task of a story, its notebook as it stands now (`stories.brief`)."""
+    notes = stories.brief(session, task, session.get_one(Project, task.project_id).pass_env)
+    return FIX.format(why=why.rstrip(".")) + (f"\n\n{notes}" if notes else "")
 
 
 HOW = {"failed": "failed", "cancelled": "was stopped", "interrupted": "was cut short by a restart"}
@@ -729,6 +736,8 @@ def turn_ended(session: Session, run: Run, status: str) -> list[str]:
                 set_flow(task, fix=why)  # (still doing: its fix round comes at once)
             else:
                 task.status = "review" if status == "completed" else "todo"
+            if task.story_id:
+                stories.turn_notes(session, run, task, last_word(session, run))
         # (Stopped while everything is held, it stays on: it goes on at Resume.)
         stopped = status in ("cancelled", "interrupted") and not held(session)
         if stopped and (
@@ -895,7 +904,10 @@ def add_tree(session: Session, project_id: str, tree: dict, created_by: str) -> 
             else stories.add_story(session, project_id, one["title"].strip(), goal_id, created_by)
         )
         if one.get("notes"):
-            stories.add_notes(story, one["notes"], HIVE_KEEPER)
+            notes = [("decision", note) for note in one["notes"]]
+            stories.add_notes(
+                story, notes, HIVE_KEEPER, session.get_one(Project, project_id).pass_env
+            )
         story_ids.append(story.id)
         for fields in one["tasks"]:
             put(fields, story.id)
@@ -948,17 +960,6 @@ def po_asked(session: Session, run: Run) -> bool:
     )
 
 
-def _masked(text: str, pass_env: str | None) -> str:
-    """With the secrets KOLONİ knows hidden, and what the project passes its commands
-    (`Project.pass_env`) too, whatever their names."""
-    passed = [
-        os.environ[name.strip()]
-        for name in (pass_env or "").split(",")
-        if len(os.environ.get(name.strip(), "")) >= raw.MIN_SECRET
-    ]
-    return raw.hidden(OutputMask([*secret_values(os.environ), *passed]).hide(text))
-
-
 def po_record(
     session: Session, run_id: str, turn: str, pass_env: str | None = None
 ) -> tuple[str, str]:
@@ -978,7 +979,7 @@ def po_record(
             f"A step that failed: {name}" + (f": {quoted(first[0][:MAX_WHY])}" if first else "")
         )
         sources += [first[0][:MAX_WHY]] if first else []
-    return _masked("\n".join(lines), pass_env), _masked("\n".join(sources), pass_env)
+    return stories.masked("\n".join(lines), pass_env), stories.masked("\n".join(sources), pass_env)
 
 
 def propose_question(record: str, titles: list[str], turned_down: list[str]) -> str:
