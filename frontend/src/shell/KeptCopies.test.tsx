@@ -1,5 +1,5 @@
-// Kept copies have no cap and KOLONİ deletes none unasked: Settings › Your data says how many there are and what they
-// take, warns above KEPT_WARN_MB, and offers each one's Discard - its card's own, asked first.
+// Kept copies have no cap and KOLONİ deletes none unasked: Settings › The app › Your data says how many there are and
+// what they take, warns above KEPT_WARN_MB, and offers each one's Discard - its card's own, asked first.
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
