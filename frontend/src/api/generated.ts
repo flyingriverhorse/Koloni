@@ -6041,6 +6041,46 @@ export interface components {
             unit: string;
         };
         /**
+         * CheckedLook
+         * @description One look of a pass: KOLONİ's agent, its role and its verdict (None: none said).
+         */
+        CheckedLook: {
+            /** Agent Id */
+            agent_id: string;
+            /** Role */
+            role: string;
+            /** Verdict */
+            verdict: string | null;
+        };
+        /**
+         * CheckedPass
+         * @description One pass of KOLONİ's checks of a turn (`app.proof.new_pass`), as it happened:
+         *     the canvas draws its loop from these, never from the order agents were opened in.
+         */
+        CheckedPass: {
+            /** Diagnosis */
+            diagnosis?: string | null;
+            /** Fixers */
+            fixers: string[];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "check" | "stronger";
+            /** Looks */
+            looks: components["schemas"]["CheckedLook"][];
+            /** N */
+            n: number;
+            /** Sent */
+            sent: ("fix" | "ask") | null;
+            /** Tests */
+            tests: ("passed" | "failed") | null;
+            /** Tier */
+            tier?: string | null;
+            /** Why */
+            why: string | null;
+        };
+        /**
          * CheckedRow
          * @description One line of a turn's Checked section (`app.proof.Row`).
          */
@@ -8373,6 +8413,8 @@ export interface components {
             from_agent_id: string | null;
             /** Id */
             id: string;
+            /** Passes */
+            passes?: components["schemas"]["CheckedPass"][] | null;
             /**
              * Role
              * @enum {string}

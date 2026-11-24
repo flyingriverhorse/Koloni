@@ -93,6 +93,8 @@ class Proof:
 
     rows: list[Row] = field(default_factory=list)
     rounds: int = 0
+    # The passes, as they happened (`proof.new_pass`), written with the Checked section (`passes`).
+    passes: list[dict] = field(default_factory=list)
     # S3 (decisions 14a, 19): the project's Fix rounds, read once a turn - tests and the
     # Reviewer's findings, one count; and why each round went back ("tests fail", "2 blocking
     # findings").
@@ -277,6 +279,10 @@ class ProofMixin:
         held.unrecorded, held.gone_tests = unrecorded, gone
         held.recipe_spent = held.recipe_spent or self._recipe_spent(ctx)
         held.style_set_up = await self._style_seen(ctx, found)
+        opened = self._lead_opened(ctx.run_id, ctx.agent_id)
+        self._fixed_by(held, opened)  # (the last pass's send-back: what it opened, now known)
+        rounds = held.rounds
+        proof.new_pass(held.passes, "check")
         for name in self.PROOF_STEPS:
             try:
                 said = await getattr(self, name)(ctx, held)
@@ -291,13 +297,71 @@ class ProofMixin:
                 )
                 said = None
             if said is not None:
+                self._pass_ended(held, rounds, opened)
                 return said
+        self._pass_ended(held, rounds, None)
         try:  # (S11: the rounds spent, a stronger model next - nothing sent to the Orchestrator)
             await self._stronger(ctx, held)
         except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
             log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
         await self._on_hold(ctx, held)  # (P: a hold that stands keeps the work out)
         return None
+
+    def _lead_opened(self: "AgentRunner", run_id: str, lead_id: str) -> list[str]:
+        """The agents the turn's Lead opened by a spawn of its own, oldest first: never one of
+        KOLONİ's (`PROOF_CALL`), nor a member of a room or a discussion (opened by those calls)."""
+        with self._factory() as session:
+            return list(
+                session.scalars(
+                    select(Agent.id)
+                    .join(ToolCall, ToolCall.id == Agent.tool_call_id)
+                    .where(
+                        Agent.run_id == run_id,
+                        Agent.parent_agent_id == lead_id,
+                        ToolCall.name == "spawn_agent",
+                        ToolCall.provider_call_id.not_like(f"{proof.PROOF_CALL}%"),
+                    )
+                    .order_by(Agent.created_at, literal_column("agents.rowid"))
+                )
+            )
+
+    @staticmethod
+    def _pass_ended(held: "Proof", rounds: int, opened: list[str] | None) -> None:
+        """A pass's end: its tests, and - sent back (`opened`: the Lead's agents then) - how: a fix
+        round counted (`_round_left`), or the ask for a test, which spends none."""
+        one = held.passes[-1]
+        one["tests"] = proof.tests_state(held.rows)
+        if opened is not None:
+            fixed = held.rounds > rounds
+            one["sent"], one["why"] = ("fix", held.sent[-1]) if fixed else ("ask", None)
+            one["had"] = opened
+
+    @staticmethod
+    def _fixed_by(held: "Proof", opened: list[str]) -> None:
+        """The fixers of the last pass sent back for a fix: the agents the Lead opened since -
+        its answer to KOLONİ's fix message, up to KOLONİ's next run. (After the ask for a test,
+        what it opened writes the test: no fixer.)"""
+        last = held.passes[-1] if held.passes else None
+        if last is None or "had" not in last:
+            return
+        had = set(last.pop("had"))
+        if last["sent"] == "fix":
+            last["fixers"] = [one for one in opened if one not in had]
+
+    def _passes_out(self: "AgentRunner", run_id: str, lead_id: str | None) -> list[dict]:
+        """The passes as the Checked section keeps them: a last send-back's fixers as the turn
+        ended (it never came to KOLONİ's next run)."""
+        held = self._proofs.get(run_id)
+        if held is None:
+            return []
+        out = [dict(one) for one in held.passes]
+        if out and "had" in out[-1]:
+            had = set(out[-1].pop("had"))
+            if out[-1]["sent"] == "fix" and lead_id is not None:
+                out[-1]["fixers"] = [
+                    one for one in self._lead_opened(run_id, lead_id) if one not in had
+                ]
+        return out
 
     def _copy_lock(self: "AgentRunner", copy: "copies.Copy") -> asyncio.Lock:
         """One window of snapshot, run and put back at a time in a copy - the end gate's own run
@@ -1122,7 +1186,13 @@ class ProofMixin:
                 note = session.scalar(
                     select(Message).where(Message.run_id == run_id, Message.role == "checked")
                 ) or Message(conversation_id=cid, run_id=run_id, role="checked")
-                note.content, note.blocks = proof.checked_text(rows), {"rows": rows}
+                lead = next(
+                    (one for one in self._ctxs.values() if one.run_id == run_id and not one.depth),
+                    None,
+                )
+                passes = self._passes_out(run_id, lead.agent_id if lead else None)
+                note.content = proof.checked_text(rows)
+                note.blocks = {"rows": rows, **({"passes": passes} if passes else {})}
                 session.add(note)
                 session.commit()
                 payload = message_out(note)

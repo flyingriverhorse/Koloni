@@ -487,7 +487,8 @@ class ProofLaterMixin:
                     return
                 at = rows.index(was)
                 rows[at : at + 1] = [dict(new), *map(dict, after)]
-                note.blocks, note.content = {"rows": rows}, proof.checked_text(rows)
+                note.blocks = {**(note.blocks or {}), "rows": rows}  # (its passes kept)
+                note.content = proof.checked_text(rows)
                 session.commit()
                 payload = message_out(note)
         except Exception as exc:  # (a row of KOLONİ's fails nothing)

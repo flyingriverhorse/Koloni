@@ -907,6 +907,35 @@ class CheckedRow(BaseModel):
     ) = None
 
 
+class CheckedLook(BaseModel):
+    """One look of a pass: KOLONİ's agent, its role and its verdict (None: none said)."""
+
+    agent_id: str
+    role: str
+    verdict: str | None
+
+
+class CheckedPass(BaseModel):
+    """One pass of KOLONİ's checks of a turn (`app.proof.new_pass`), as it happened:
+    the canvas draws its loop from these, never from the order agents were opened in."""
+
+    n: int
+    # "check": the gate's steps; "stronger": a stronger tier's round.
+    kind: Literal["check", "stronger"]
+    # How its tests came out; None: none ran.
+    tests: Literal["passed", "failed"] | None
+    looks: list[CheckedLook]
+    # Why it went back ("tests fail", "1 blocking finding"); None: it did not, or for a test.
+    why: str | None
+    # "fix": a fix round; "ask": the ask for a test, which spends none; None: not sent back.
+    sent: Literal["fix", "ask"] | None
+    # The agents that fixed it: those its send-back had the Lead open, or a stronger tier's.
+    fixers: list[str]
+    # A stronger tier's diagnosis - its own kind, no look - and the tier.
+    diagnosis: str | None = None
+    tier: str | None = None
+
+
 class MessageOut(Out):
     id: str
     conversation_id: str
@@ -947,6 +976,8 @@ class MessageOut(Out):
     created_at: datetime
     # A "checked" message's rows; None for every other message.
     checked: list[CheckedRow] | None = None
+    # ...and the passes of KOLONİ's checks; None for every other message, and an older one.
+    passes: list[CheckedPass] | None = None
 
 
 class ToolCallOut(Out):
