@@ -1017,9 +1017,13 @@ NOT_RUN = "Tests not run: {why}"
 NOT_AGAIN = "Tests not run on the last change: {why}"
 NOT_STARTED = "Tests could not start: {first}"
 STOPPED = "Tests not finished: stopped"
-NO_COMMAND = (
-    "No test command: nothing was run (set one in Settings › This project › Checks and git)"
+# Where the user sets a test command (0.1.7: Test before adding is gone from Checks and git): the
+# project map, its whole project's row ("./") or a part's - as the guide says it.
+SET_ONE = (
+    "set one on the project map, Settings › This project › This folder: the whole project's row "
+    "or a part's"
 )
+NO_COMMAND = f"No test command: nothing was run ({SET_ONE})"
 NO_TESTS_ROW = "No tests: only documents, slides, diagrams or data changed"
 SENT_BACK = "Sent back to fix: {n} of {most} rounds"
 # k-canli-016: Until it passes - how far it came, and why the rounds stopped short of a pass.

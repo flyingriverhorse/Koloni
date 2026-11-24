@@ -924,7 +924,7 @@ test('S5c: the Checks step is joined to the last step(s) - each an arrow to an e
   ;[graph, second] = addStep(graph, first)
   expect(lastParts(graph)).toEqual([second])
   expect(checksLine(undefined)).toBe('follows the project')
-  expect(checksLine({ ...ownChecks(), tests: false, docs: true, fix_rounds: 0 })).toBe('Review · Docs · Config · Scripts · Style and types · check only')
+  expect(checksLine({ ...ownChecks(), tests: false, docs: true, fix_rounds: 0 })).toBe('Review · Docs · Config · Scripts · Code style and types · check only')
 })
 
 test('S5c: the Checks step is drawn after the last step, never dragged nor removed; its panel sets it for the recipe, saved with it', async () => {
@@ -951,11 +951,11 @@ test('S5c: the Checks step is drawn after the last step, never dragged nor remov
   // (0.1.7: Config too - JSON, YAML and TOML files parse - ticked as it starts, as the server reads a recipe without it; unticked here)
   expect(within(panel()).getByRole('checkbox', { name: /^Config/ })).toBeChecked()
   fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Config/ }))
-  // (0.1.7: Scripts - shell scripts parse, never run - and Style and types - the project's own linters and type checkers - ticked as it starts, and kept)
+  // (0.1.7: Scripts - shell scripts parse, never run - and Code style and types - the project's own linters and type checkers - ticked as it starts, and kept)
   expect(within(panel()).getByRole('checkbox', { name: /^Scripts/ })).toBeChecked()
-  expect(within(panel()).getByRole('checkbox', { name: /^Style and types/ })).toBeChecked()
+  expect(within(panel()).getByRole('checkbox', { name: /^Code style and types/ })).toBeChecked()
   fireEvent.change(within(panel()).getByRole('combobox', { name: 'Fix rounds' }), { target: { value: '0' } })
-  expect(part(/^Checks 🔒/)).toHaveTextContent('Review · Docs · Pages · Scripts · Style and types · check only')
+  expect(part(/^Checks 🔒/)).toHaveTextContent('Review · Docs · Pages · Scripts · Code style and types · check only')
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
   await waitFor(() => expect(given.saveRecipe).toHaveBeenCalled())
   const [, body] = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls[0]
@@ -963,7 +963,7 @@ test('S5c: the Checks step is drawn after the last step, never dragged nor remov
 })
 
 test('k-canli-016: a recipe’s Checks step may go on until it passes', async () => {
-  expect(checksLine({ ...ownChecks(), fix_rounds: 'until' })).toBe('Tests · Review · Config · Scripts · Style and types · until it passes')
+  expect(checksLine({ ...ownChecks(), fix_rounds: 'until' })).toBe('Tests · Review · Config · Scripts · Code style and types · until it passes')
   expect(roundsChosen('until')).toBe('until')
   expect(roundsChosen('')).toBeNull()
   expect(roundsChosen('7')).toBe(7)
@@ -974,7 +974,7 @@ test('S5c: a ready recipe’s Checks step is shown, not changed', () => {
   fireEvent.click(part(/^Checks 🔒/))
   expect(within(panel()).getByRole('radio', { name: 'Set for this recipe' })).toBeChecked()
   expect(within(panel()).getByRole('checkbox', { name: /^Tests/ })).toBeDisabled()
-  expect(part(/^Checks 🔒/)).toHaveTextContent('Tests · Review · Config · Scripts · Style and types · the project’s rounds')
+  expect(part(/^Checks 🔒/)).toHaveTextContent('Tests · Review · Config · Scripts · Code style and types · the project’s rounds')
 })
 
 // --- k-sira-016: KOLONİ's checks before Ready for you - the Checks step between the last step(s) and the end(s) ----------------------

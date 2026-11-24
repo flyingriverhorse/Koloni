@@ -456,7 +456,7 @@ export const CHECK_PARTS: [part: Exclude<keyof Checks, 'fix_rounds'>, name: stri
   ['ui', 'Pages', 'a changed page at phone, tablet and desktop widths, in KOLONİ’s browser'],
   ['config', 'Config', 'JSON, YAML and TOML parse; package.json, pyproject.toml, workflows, Compose'],
   ['scripts', 'Scripts', 'shell and PowerShell scripts parse - read, never run'],
-  ['style', 'Style and types', 'the project’s own ruff, eslint, tsc, mypy - asked before one runs unasked'],
+  ['style', 'Code style and types', 'the project’s own ruff, eslint, tsc, mypy - asked before one runs unasked'],
 ]
 /** "Set for this recipe" as it starts: the project's usual Test and review for code. */
 export const ownChecks = (): Checks => ({ tests: true, review: true, docs: false, diagram: false, data: false, slides: false, ui: false, config: true, scripts: true, style: true, fix_rounds: null })
