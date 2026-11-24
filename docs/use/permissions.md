@@ -112,7 +112,8 @@ Below Full auto, a command that keeps running (a server) asks every time, even w
 
 Nor does a rule - or a yes you gave before - cover a command whose program, named by its path in
 the project (`node_modules/.bin/tsc`, `./scripts/check`), is one an agent wrote, or sits in an
-install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in, while that file still
+install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in - for a program in a
+`node_modules`, in one above it too, which Node loads its packages from -, while that file still
 holds what the agent wrote: below Full auto it asks on a card that says so ("an agent wrote its
 program (web/node_modules): no rule covers a program an agent wrote, so none is offered - run it
 once or reject it"), with **Run once** and **Reject** alone - an **Always run** rule would not
