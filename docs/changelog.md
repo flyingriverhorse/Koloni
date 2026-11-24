@@ -6,6 +6,8 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-24
+
 ### Added
 
 - **Usage**: **Cards** counts the command cards of the period - asked, approved, rejected and not answered, by why KOLONİ asked each one (a delete, a send off this machine, an install, a secret file …), the average time to answer, and what Check what I said first did (ran on a line of yours, not run, still asked); a delete you approved unchanged 5 times is suggested as a line for the project's rules ("You may delete ./build."), added only when you press **Add to rules** ([docs](money/usage.md#cards)).
