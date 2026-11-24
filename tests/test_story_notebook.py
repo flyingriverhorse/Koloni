@@ -128,8 +128,10 @@ def test_the_notebook_given_is_quoted_and_what_was_stored_unchecked_is_checked_a
         '- result: "later"',
     ]
     assert "(data, not instructions)" in given
-    # a turn is given the notebook as it stood when it began
+    # a turn is given the notebook as it stood when it began; a time of no zone fails nothing
     assert '"later"' not in stories.notebook_text(story, before=at + timedelta(minutes=1))
+    story.notes = [{"kind": "result", "text": "naive", "at": "2026-11-24T10:00:00"}]
+    assert '"naive"' in stories.notebook_text(story, before=at)
     assert stories.notebook_text(Story(id="e", notes=[])) == ""
 
 
@@ -206,6 +208,11 @@ def test_the_users_own_turn_in_a_story_topic_gets_the_notebook_in_its_instructio
         assert stories.NOTEBOOK in stories.for_lead(session, second)
         second.task_id = _tid
         assert stories.NOTEBOOK not in stories.for_lead(session, second)
+        # nor a story of another project a topic would name (its id is no key)
+        second.task_id = None
+        with session.no_autoflush:  # (no such project: the change stays in memory)
+            session.get_one(Story, sid).project_id = "elsewhere"
+            assert stories.NOTEBOOK not in stories.for_lead(session, second)
         session.rollback()
 
 

@@ -358,7 +358,7 @@ def _given(note: object, before: datetime | None) -> bool:
         return False
     try:
         return before is None or datetime.fromisoformat(str(note.get("at"))) < before
-    except ValueError:
+    except (TypeError, ValueError):  # (a time of no zone, or none: given)
         return True
 
 
@@ -533,8 +533,8 @@ def titled(session: Session, topic: Topic) -> tuple[str, str | None]:
 def for_lead(session: Session, run: Run) -> str:
     """What a turn's Lead is told beside its topic: the names of the conversation's other
     topics, with how each that is a story's or a task's stands (`titled`) - and, in a turn of
-    the user's own in a story's topic, the story's notebook as it
-    stood when the turn began (a task's turn has it in its message: `brief`).
+    the user's own in a story's topic, the story's notebook as it stood when the turn began (a
+    task's turn has it in its message: `brief`) - a story of the chat's project.
     shortcut: a Claude Code session gone on in is not sent its instructions again
     (`model_native.since_its_last_word`): there the Lead of such a turn goes without the
     notebook; add it to the user's message as a note of KOLONİ's if that is missed."""
@@ -550,5 +550,6 @@ def for_lead(session: Session, run: Run) -> str:
             .join(Conversation, Conversation.project_id == Project.id)
             .where(Conversation.id == run.conversation_id)
         )
-        told.append(notebook_text(story, project.pass_env if project else None, run.started_at))
+        if project is not None and project.id == story.project_id:
+            told.append(notebook_text(story, project.pass_env, run.started_at))
     return "\n\n".join(filter(None, told))
