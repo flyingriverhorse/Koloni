@@ -17,7 +17,6 @@ from app.agent.cards import _goes_on, _steps_of_chain
 from app.agent.ctx import Ctx, _NobodyToAsk, _Slow, _Unwatched
 from app.agent.words import (
     ANSWER_PREFIX,
-    BACKLOG_NOT_THIS,
     CONTINUE_WORDS,
     GIVEN_UNDONE,
     LEFT_UNDONE,
@@ -885,10 +884,8 @@ class LimitsMixin:
 
     def _attended(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether the user can be asked on a card in this turn: one they started - not a
-        trigger's, a night's job or a backlog task."""
-        return self._watched(ctx.run_id) and (
-            ctx.run_id not in self._away_jobs and ctx.run_id not in self._backlog_turns
-        )
+        trigger's, nor a night's job (a To-do task's turn is its chat's, 0.1.8)."""
+        return self._watched(ctx.run_id) and ctx.run_id not in self._away_jobs
 
     async def _more_steps(self: "AgentRunner", ctx: Ctx) -> bool:
         """B-397: a sub-agent - a team's coordinator too - that came to its step limit in a turn
@@ -953,7 +950,6 @@ class LimitsMixin:
             or ctx.agent_id in self._halted
             or not self._watched(ctx.run_id)
             or ctx.run_id in self._away_jobs
-            or ctx.run_id in self._backlog_turns
             or self._member_of(ctx) is not None
             or await self._kept_card_comes(ctx)
         ):
@@ -1000,24 +996,19 @@ class LimitsMixin:
         away): by their rule nothing asks there but harm - the Lead decides the rest.
         shortcut: a session per call, at every command look too; cache it per run once a
         turn is seen to feel it (the level may change mid-turn: read it then)."""
-        if (
-            not self._watched(ctx.run_id)
-            or ctx.run_id in self._away_jobs
-            or ctx.run_id in self._backlog_turns
-        ):
+        if not self._watched(ctx.run_id) or ctx.run_id in self._away_jobs:
             return False
         with self._factory() as session:
             return session.get_one(Conversation, ctx.cid).permission_mode == "full_auto"
 
     def _unwatched_like(self: "AgentRunner", run_id: str) -> bool:
-        """Whether a provider is picked as for a turn nobody watches - a trigger's, or a
-        backlog task's (K-r135) - a CLI with its own tools passed over rather than refused."""
-        return not self._watched(run_id) or run_id in self._backlog_turns
+        """Whether a provider is picked as for a turn nobody watches - a trigger's - a CLI with
+        its own tools passed over rather than refused."""
+        return not self._watched(run_id)
 
     def _standing_asks(self: "AgentRunner", run_id: str, standing: str | None, level: str) -> bool:
-        """`standing_asks` - but in a backlog task's turn every such file is asked, an
-        instruction file at Full auto too (K-r135: a night's rules)."""
-        return standing_asks(standing, "ask" if run_id in self._backlog_turns else level)
+        """`standing_asks` at the turn's level (a To-do task's turn too, since 0.1.8)."""
+        return standing_asks(standing, level)
 
     def _nobody_to_ask(
         self: "AgentRunner",
@@ -1113,19 +1104,15 @@ class LimitsMixin:
         )
 
     def _not_unattended(self: "AgentRunner", ctx: Ctx) -> str | None:
-        """Why this agent's turn is not started: nobody is watching - a trigger's turn, or a
-        backlog task's (K-r135) - and it would work with tools of its own. None when it may
-        start."""
-        backlog_turn = ctx.run_id in self._backlog_turns
-        if self._watched(ctx.run_id) and not backlog_turn:
+        """Why this agent's turn is not started: nobody is watching - a trigger's turn - and it
+        would work with tools of its own. None when it may start."""
+        if self._watched(ctx.run_id):
             return None
         with self._factory() as session:
             provider = session.get(Provider, ctx.provider_id) if ctx.provider_id else None
             if not self._cannot_be_held(ctx.model, provider):
                 return None
-        return (BACKLOG_NOT_THIS if backlog_turn else UNATTENDED_NOT_THIS).format(
-            provider=ctx.provider or "This CLI"
-        )
+        return UNATTENDED_NOT_THIS.format(provider=ctx.provider or "This CLI")
 
     def _leave(self: "AgentRunner", run_id: str) -> dict:
         """What the trigger of an unattended turn allows, as it stands right now; nothing

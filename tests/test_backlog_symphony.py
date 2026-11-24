@@ -5,19 +5,14 @@ pauses the run; the switch waits for the user's own turn."""
 
 from types import SimpleNamespace
 
-from sqlalchemy import select
-
 from app import agent, backlog
-from app.db.models import Agent, BacklogTask, Conversation, Merge, Project, Role, Run
+from app.db.models import Agent, BacklogTask, Conversation, Merge, Project, Run
 from app.model_client import ModelUnavailable
-from tests.test_agent_writes import write
 from tests.test_backlog import setup
 from tests.test_backlog_auto import auto, tasks, until, worked
 from tests.test_chat_flow import text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
-from tests.test_lead_decides import ask, held, lead_timers
-from tests.test_mcp_scenarios import give, server
-from tests.test_spawn import call, role_id, spawn, step
+from tests.test_spawn import role_id
 
 
 def run(client, pid):
@@ -309,51 +304,6 @@ def full_auto(client, pid, **more):
     assert put.status_code == 200, put.text
 
 
-def test_at_full_auto_a_task_runs_its_tests_but_a_command_that_runs_another_waits(
-    make_client, project_dir
-):
-    client, _model = make_client(
-        [
-            step(call("run_command", {"command": "echo tests pass"}, "k1")),
-            step(call("run_command", {"command": "cmd /c echo hi"}, "k2")),
-            text("done"),
-        ]
-    )
-    pid, _ = setup(client, project_dir, "one")
-    full_auto(client, pid)
-    cid = run(client, pid).json()["conversation_id"]
-    until(lambda: tasks(client, pid)["one"]["waiting"])
-    commands = client.get(f"/api/conversations/{cid}").json()["commands"]
-    assert [(c["command"], c["status"]) for c in commands] == [
-        ("echo tests pass", "exited"),
-        ("cmd /c echo hi", "proposed"),
-    ]
-    runner = client.app.state.runner
-    run_id = client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"]
-    assert run_id in runner._backlog_turns
-    # ☾ Away: KOLONİ's own cards ("card": kept work, a guide line) are the Lead's only at a
-    # watched Full auto - not a task's: stood down at once, no timer, nothing for Go away
-    assert (
-        runner._lead_may_answer(
-            SimpleNamespace(run_id=run_id, cid=cid, agent_id=None), "card", "", [], None, None
-        )()
-        is None
-    )
-    assert runner._decidable == {}
-
-
-def test_at_full_auto_a_task_s_instruction_file_waits_for_the_user(make_client, project_dir):
-    client, _model = make_client([write("AGENTS.md", "# Rules\n"), text("done")])
-    pid, _ = setup(client, project_dir, "one")
-    client.patch(f"/api/projects/{pid}", json={"lead_work": "itself"})  # (a scripted Lead writes)
-    full_auto(client, pid)
-    cid = run(client, pid).json()["conversation_id"]
-    until(lambda: tasks(client, pid)["one"]["waiting"])
-    change = client.get(f"/api/conversations/{cid}").json()["file_changes"][0]
-    assert (change["path"], change["status"]) == ("AGENTS.md", "proposed")
-    assert not (project_dir / "AGENTS.md").exists()
-
-
 def test_a_cli_with_its_own_tools_is_refused_for_the_backlog(claude_app, project_dir):  # noqa: F811
     client, provider, _default = claude_app([{"say": "done"}])
     pid, _ = setup(client, project_dir, "one")
@@ -415,40 +365,6 @@ def test_what_the_orchestrator_role_runs_on_is_what_is_checked(claude_app, proje
     assert client.get(f"/api/projects/{pid}/backlog/auto").json()["cannot_run"] is None
 
 
-def test_the_orchestrator_s_list_passes_over_a_cli_with_its_own_tools(
-    claude_app, wait_run, project_dir
-):  # noqa: F811
-    client, provider, _default = claude_app([{"say": "done"}], default_steps=[text("done")])
-    pid, _ = setup(client, project_dir, "one")
-    with client.app.state.session_factory() as session:
-        lead = session.scalar(select(Role).where(Role.name == "Lead"))
-        lead.models = [{"provider_id": provider["id"], "model_id": None}]
-        session.commit()
-    assert client.get(f"/api/projects/{pid}/backlog/auto").json()["cannot_run"] is None
-    run(client, pid)
-    assert worked(client, wait_run, pid, "one")["status"] == "review"
-    assert not claude_app.ran()
-
-
-def test_a_sub_agent_on_a_cli_with_its_own_tools_is_refused_in_a_backlog_turn(
-    claude_app, wait_run, project_dir
-):  # noqa: F811
-    client, provider, _default = claude_app(
-        [{"say": "done"}], default_steps=[spawn("Coder"), text("done")]
-    )
-    pid, _ = setup(client, project_dir, "one")
-    client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
-    cid = run(client, pid).json()["conversation_id"]
-    worked(client, wait_run, pid, "one")
-    (opened,) = [
-        c
-        for c in client.get(f"/api/conversations/{cid}").json()["tool_calls"]
-        if c["name"] == "spawn_agent"
-    ]
-    assert "Claude cannot work on a backlog task" in opened["result"]
-    assert not claude_app.ran()
-
-
 def test_a_provider_with_no_model_to_run_is_refused_for_the_backlog(client, project_dir):
     pid, _ = setup(client, project_dir, "one")
     api = client.post(
@@ -473,59 +389,3 @@ def test_a_marker_with_nothing_after_it_is_no_reason():
     task = SimpleNamespace(flow=None)
     backlog.set_flow(task, fix="")  # (a fix due for nothing would never come)
     assert task.flow is None
-
-
-def test_at_full_auto_a_task_s_inline_code_waits_but_its_own_test_command_runs(
-    make_client, project_dir
-):
-    client, _model = make_client(
-        [
-            step(call("run_command", {"command": 'python -c "import sys"'}, "k1")),
-            step(call("run_command", {"command": 'node -e "1"'}, "k2")),
-            text("done"),
-        ]
-    )
-    pid, _ = setup(client, project_dir, "one")
-    with client.app.state.session_factory() as session:  # (the user's test command for the root)
-        session.get_one(Project, pid).test_commands = {"./": 'python -c "import sys"'}
-        session.commit()
-    full_auto(client, pid)
-    cid = run(client, pid).json()["conversation_id"]
-    until(lambda: tasks(client, pid)["one"]["waiting"])
-    commands = client.get(f"/api/conversations/{cid}").json()["commands"]
-    assert [(c["command"], c["status"]) for c in commands] == [
-        ('python -c "import sys"', "exited"),
-        ('node -e "1"', "proposed"),
-    ]
-
-
-def test_a_backlog_task_s_turn_is_offered_no_mcp_tool(make_client, wait_run, project_dir, tmp_path):
-    client, model = make_client([text("done"), text("hi")])
-    pid, _ = setup(client, project_dir, "one")
-    server(client, tmp_path)
-    give(client, "Lead", "fake")
-    full_auto(client, pid)
-    run(client, pid)
-    worked(client, wait_run, pid, "one")
-    # the user's own chat in the project is offered them
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    said = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}).json()
-    wait_run(client, cid, said["run"]["id"])
-    names = [[t["function"]["name"] for t in tools or []] for tools in model.tool_args]
-    assert not any(name.startswith("fake__") for name in names[0])
-    assert any(name.startswith("fake__") for name in names[1])
-
-
-def test_at_full_auto_a_sub_agent_s_question_waits_for_the_user_in_a_backlog_turn(
-    make_client, project_dir
-):
-    client, model = make_client([spawn("Coder", "sort the list"), ask(), text("never")])
-    clock = held(client)
-    pid, _ = setup(client, project_dir, "one")
-    full_auto(client, pid)
-    cid = run(client, pid).json()["conversation_id"]
-    until(lambda: tasks(client, pid)["one"]["waiting"])
-    (question,) = client.get(f"/api/conversations/{cid}").json()["questions"]
-    assert question["status"] == "pending"
-    assert lead_timers(clock, 0.0) == [] and lead_timers(clock, 600.0) == []  # nobody answers
-    assert len(model.calls) == 2  # (the Lead was never asked to)

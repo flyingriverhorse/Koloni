@@ -1089,7 +1089,7 @@ class _LeadTurn:
     lead_tools: list[str] = field(init=False)
     planning: bool = field(init=False)
     job: bool = field(init=False)
-    backlog_turn: bool = field(init=False)
+    todo_turn: bool = field(init=False)
     provider: Provider = field(init=False)
     strongest: tuple[Entry, str] | None = field(init=False)
     model: ModelClient = field(init=False)
@@ -1105,7 +1105,7 @@ def _sends_again(t: _LeadTurn) -> bool:
     on their message - not a plan, a trigger's turn, a side of a comparison, a To-do task's
     turn or a night's job. Only such a turn is started again by itself after a refusal for
     its size (`_loop_again`), or summarised for the next after one."""
-    return not (t.planning or t.unattended or t.run_compare or t.job or t.backlog_turn)
+    return not (t.planning or t.unattended or t.run_compare or t.job or t.todo_turn)
 
 
 def _summary_after(t: _LeadTurn, status: str, refused: bool) -> bool | None:
@@ -1535,13 +1535,10 @@ class AgentRunner(
         # agent of it changes files in the lead's one copy, kept for the user's Take in; and
         # why such a turn was cut (a limit of the night, Stop all).
         self._away_jobs: dict[str, str] = {}
-        # K-r135: a backlog task's turns, which hold to a night's rules at any level (the
-        # user's word, B-350): nobody is there - a command that runs another program and an
-        # instruction file are asked, a CLI with its own tools does not run, the Lead answers
-        # no card. Unlike a job's they work in the project itself.
-        # shortcut: a message the user writes in such a chat while its task is doing holds to
-        # them too; tell the two apart if that is felt.
-        self._backlog_turns: set[str] = set()
+        # 0.1.8: a To-do task's turns (`Run.task_id`) - its chat's in all but two things: it
+        # ends where nothing moves (B-413, `_arm_todo_deadline`), and it waits for its checks
+        # before its end (`_answer_waits`: a fix round is due where one failed).
+        self._todo_turns: set[str] = set()
         # A job's turns whose Lead is being asked to answer for the user (K-vekil-karar): until
         # it has, the job does not wait - the next one does not start beside it.
         self._lead_asked: dict[str, int] = {}
@@ -1916,10 +1913,10 @@ class AgentRunner(
             if t.job:
                 self._away_jobs[run_id] = ctx.agent_id
                 self._arm_deadline(run_id, cid)
-            if t.backlog_turn:
-                self._backlog_turns.add(run_id)
+            if t.todo_turn:  # (B-413: it ends where nothing moves - its chat's rules else)
+                self._todo_turns.add(run_id)
                 self._arm_todo_deadline(run_id)
-            if t.planning or t.run_compare or t.root is None or t.job or t.backlog_turn:
+            if t.planning or t.run_compare or t.root is None or t.job:
                 # No MCP server's tool either: such a tool may change anything (`_mcp`), and
                 # reads any file.
                 ctx = self._ctxs[ctx.agent_id] = replace(ctx, mcp=())
@@ -1999,15 +1996,11 @@ class AgentRunner(
             t.job = not t.run_compare and away.night_job(session, cid) is not None
             # (0.1.8: a To-do task's own turn - its brief, its fix round - not the user's
             # message in its chat.)
-            t.backlog_turn = not t.run_compare and not t.job and run.task_id is not None
-            # As the table of who uses what says it for the Lead: its tier too. (A backlog
-            # task's as nobody watches: a CLI with its own tools is passed over.)
+            t.todo_turn = not t.run_compare and not t.job and run.task_id is not None
+            # As the table of who uses what says it for the Lead: its tier too - in a To-do
+            # task's turn too, which is its chat's (0.1.8).
             would = would_run(
-                session,
-                lead,
-                conversation,
-                unattended=run.unattended or t.backlog_turn,
-                tools=t.lead_tools,
+                session, lead, conversation, unattended=run.unattended, tools=t.lead_tools
             )
             t.provider, wanted = would.provider, would.model_id
             # Why its tier's model is not the first (81c): said on its row from the start.
@@ -2231,7 +2224,7 @@ class AgentRunner(
                 await self._note_what_it_found(ctx)
             # The Scout, once the turn has let go of everything (`_po_later`): not of a
             # task's own turn; a night's job's and a trigger's wait for the user, undecided.
-            if not (t.run_compare or t.backlog_turn):
+            if not (t.run_compare or t.todo_turn):
                 t.po = self._po_turn(ctx, decides=not (t.unattended or t.job))
         await self._tell_budget(cid)  # after the notes: what they cost counts too
 
@@ -2350,7 +2343,7 @@ class AgentRunner(
         self._branch_runs.pop(run_id, None)
         self._saving.pop(run_id, None)
         self._away_jobs.pop(run_id, None)
-        self._backlog_turns.discard(run_id)
+        self._todo_turns.discard(run_id)
         self._lead_asked.pop(run_id, None)
         self._lead_slots.pop(run_id, None)
         self._lead_spent.pop(run_id, None)
@@ -3824,14 +3817,7 @@ class AgentRunner(
                 # its agents' work alone (`git.agents_share`; None where it clashes), never its
                 # tip, which holds the user's uncommitted work too.
                 merged = look.get("share") if copy.snapshot_sha else look["tip"]
-                # (K-r135: in a backlog task's turn every standing file asks, as at night.)
-                files = await asyncio.to_thread(
-                    _branch_files,
-                    copy,
-                    look,
-                    "ask" if (ctx.run_id in self._backlog_turns) else mode,
-                    held,
-                )
+                files = await asyncio.to_thread(_branch_files, copy, look, mode, held)
                 # A secret given this turn in what the merge would bring in - however it got on
                 # the branch (an agent's own commit): never merged, at any level; taking it off
                 # the branch is the only way on. (Not how it got there: the merge is a squash.)
@@ -6114,7 +6100,7 @@ class AgentRunner(
             and project.disposable_deletes
             and mode in ("auto_edit", "full_auto")
             and self._watched(ctx.run_id)
-            and not {ctx.run_id} & ({*self._sides} | self._backlog_turns | {*self._away_jobs})
+            and not {ctx.run_id} & ({*self._sides} | {*self._away_jobs})
         )
         return {"what": what, "allowed": allowed}
 
@@ -8852,7 +8838,6 @@ class AgentRunner(
             or cwd not in (".", ctx.part or ".")
             or (not self._watched(ctx.run_id))
             or ctx.run_id in self._away_jobs
-            or (ctx.run_id in self._backlog_turns)
         ):
             return None
         with self._factory() as session:

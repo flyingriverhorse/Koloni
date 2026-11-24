@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app import away, project_map
+from app import away
 from app.agent.ctx import TERMINAL, Ctx, announce
 from app.agent.words import AGENT_TERMINAL
 from app.commands import (
@@ -18,7 +18,6 @@ from app.commands import (
     installs,
     reaches_shared_git,
     runs_another,
-    runs_inline,
     scratch_delete_only,
     switches_branch,
     with_cwd,
@@ -223,19 +222,6 @@ class AwayMixin:
             # `runs_another` would catch only by asking about every one; look inside if seen.
             copy = self._copies.get(self._sides[ctx.run_id])
             return harms(command) or (installs(command) if copy is not None and copy.links else "")
-        if ctx.run_id in self._backlog_turns:  # (a night's rules, in the project: no copy)
-            if why := harms(command) or runs_another(command):
-                return why
-            if not (inline := runs_inline(command)):
-                return ""
-            with self._factory() as session:
-                project = self._project(session, ctx.cid)
-                tests = project.test_commands if project is not None else None
-            return (
-                ""
-                if project_map.own_test(tests, plain, cwd if isinstance(cwd, str) else None)
-                else inline
-            )
         if ctx.run_id not in self._away_jobs:
             # (K-fullauto-sorma: at Full auto an instruction file alone is no harm.)
             if not self._watched(ctx.run_id) or scratch_delete_only(command, scratch_of):

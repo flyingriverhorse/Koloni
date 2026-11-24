@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from sqlalchemy import literal_column, or_, select
 
-from app import away, injection, ledger, proof, proof_before, proof_related, recipe_run
+from app import injection, ledger, proof, proof_before, proof_related, recipe_run
 from app.agent import merge
 from app.agent.before_mixin import NOT_YOURS
 from app.agent.ctx import Ctx, _GateRefused
@@ -800,26 +800,20 @@ class ProofMixin:
 
     def _answer_waits(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether somebody is there waiting for the answer: a turn the user watches - not an Away
-        job, nor a To-do task's turn."""
+        job, nor a To-do task's turn: its end needs what its checks found (a fix round is due
+        where one failed, `backlog.not_finished`), so it waits for them."""
         return (
             self._watched(ctx.run_id)
             and ctx.run_id not in self._away_jobs
-            and (ctx.run_id not in self._backlog_turns)
+            and ctx.run_id not in self._todo_turns
         )
 
     def _away_now(self: "AgentRunner", ctx: Ctx) -> bool:
-        """Whether the user is away from this turn: an Away job, or a To-do turn while an Away
-        runs for the project (`away.running`). A To-do turn they run from the screen is not.
-        shortcut: Away is the one sign of absence KOLONİ has - a To-do list left running by
-        itself while the user only walked off counts as watched; keep a presence beat if that
-        is met."""
-        if ctx.run_id in self._away_jobs:
-            return True
-        if ctx.run_id not in self._backlog_turns:
-            return False
-        with self._factory() as session:
-            project = self._project(session, ctx.cid)
-            return project is not None and away.running(session, project.id) is not None
+        """Whether the user is away from this turn: an Away job. (A chat's queue of To-do tasks
+        waits while Away runs: `backlog.go_on`.)
+        shortcut: Away is the one sign of absence KOLONİ has - a chat's queue going on while the
+        user only walked off counts as watched; keep a presence beat if that is met."""
+        return ctx.run_id in self._away_jobs
 
     def _may_run_tests(self: "AgentRunner", ctx: Ctx, run: TestRun) -> Literal["run", "ask"] | str:
         """As the Lead's own run_command would be: in a watched turn "ask" - the user's own

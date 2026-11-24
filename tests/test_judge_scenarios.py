@@ -287,10 +287,8 @@ def test_at_auto_edit_or_with_the_setting_off_the_judge_is_never_asked(
     assert asked["status"] == "proposed" and asked["judged"] is None and judge.calls == []
 
 
-@pytest.mark.parametrize("where", ["side", "night", "todo", "trigger"])
-def test_the_gate_stands_aside_in_a_side_a_night_job_a_todo_turn_and_a_trigger(
-    judging, monkeypatch, where
-):
+@pytest.mark.parametrize("where", ["side", "night", "trigger"])
+def test_the_gate_stands_aside_in_a_side_a_night_job_and_a_trigger(judging, monkeypatch, where):
     client, *_ = judging([], [], [])
     runner = client.app.state.runner
 
@@ -302,8 +300,6 @@ def test_the_gate_stands_aside_in_a_side_a_night_job_a_todo_turn_and_a_trigger(
         runner._sides["r"] = "a"
     elif where == "night":
         runner._away_jobs["r"] = "a"
-    elif where == "todo":
-        runner._backlog_turns.add("r")
     else:
         runner._unwatched["r"] = _Unwatched(None, "a trigger", 10, 10)
     ctx = Ctx(run_id="r", cid="c", root=None, agent_id="a", role="Lead", tools=(), depth=0)
@@ -314,7 +310,6 @@ def test_the_gate_stands_aside_in_a_side_a_night_job_a_todo_turn_and_a_trigger(
     finally:
         for kept in (runner._sides, runner._away_jobs, runner._unwatched):
             kept.pop("r", None)
-        runner._backlog_turns.discard("r")
 
 
 @pytest.mark.no_po
