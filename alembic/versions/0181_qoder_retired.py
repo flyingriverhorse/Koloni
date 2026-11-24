@@ -8,15 +8,15 @@ deleted: the user deletes the row once what used it is moved elsewhere.
 Going back leaves the rows off: whether each was on before is not kept, and the user switches it
 on again in that version.
 
-Revision ID: 0177
-Revises: 0176
+Revision ID: 0181
+Revises: 0180
 """
 
 from alembic import op
 
-revision = "0177"
+revision = "0181"
 # (Written on the k-qoder-sil branch: re-chained after main's newest at its merge.)
-down_revision = "0176"
+down_revision = "0180"
 branch_labels = None
 depends_on = None
 

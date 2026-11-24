@@ -123,6 +123,7 @@ Heading: "Run commands on".
 |---|---|
 | **This machine** | Commands use the project's own tools as they are. They are not isolated. The page also says which shell commands run in. |
 | **Docker container** | A fresh container for each command, with this folder mounted. Only the folder is kept. Needs Docker running. Then: **Image** (for example `python:3.12`, never pulled for you) and **Allow network access**. On Linux and macOS a command runs as your user, not as root, so the files it makes are yours, except under rootless Docker. |
+| **Longest command (minutes)** | 10 by default, at most 60: the most an agent's command may ask for (one still stops after 2 minutes unless it asks for more), and how long KOLONİ's own test runs are given (the whole suite after a change, a job's tests while you're away). Raise it for a test suite or build that takes longer. A command that keeps running (a dev server) has no limit. A CLI working with its own tools (**Native**) runs its own commands under its own limits, and Codex run Native still ends its turn when one of its own commands runs past 11 minutes. |
 | **Hide secret files from commands** | On by default. Covers commands in Docker and in Copilot's sandbox. |
 | **Secret variables commands may see** | Environment variables with secret names are held back from commands and CLIs. Name the ones they may see, separated by commas, for example `OPENAI_API_KEY, NPM_TOKEN`. The page lists what is held back. Copilot's commands never get `GH_TOKEN`, `GITHUB_TOKEN` or `COPILOT_*`, whatever you name here: it signs in its own way. |
 | **Planted test key (canary)** | On by default. Each message's commands get a made-up key that no agent is told of. A command, web request, browser or MCP call that would send it out is refused and the work stops: something the agent read may have told it to. |
@@ -261,7 +262,11 @@ start."
 - After a restore, triggers and to-do work wait until you press **Resume**.
 - If the file had no keys, the page lists the providers that need theirs again.
 
-Under them: how much space KOLONİ's database, backups, working copies and logs take, and
+Under them: how much space KOLONİ's database, backups, working copies and logs take; the working
+copies kept for your word - how many, what they take, and each one's chat, agent and when it was
+kept, with **Discard**, which asks first and deletes that copy as its card's Discard does (KOLONİ
+never deletes one unasked; a trigger over its budget keeps one each time it fires, so over 1 GB a
+line warns you); and
 **Always blocked**, the places no agent ever opens, in every project; the list is KOLONİ's own and
 cannot be changed here.
 

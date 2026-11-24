@@ -7,7 +7,8 @@
       "turn/steer", "item/started", "item/completed", "item/commandExecution/requestApproval",
       "item/fileChange/requestApproval", "item/fileChange/patchUpdated",
       "mcpServer/elicitation/request", "thread/tokenUsage/updated", "account/rateLimits/read",
-      "account/rateLimits/updated", "approvalsReviewer", "writableRoots"
+      "account/rateLimits/updated", "approvalsReviewer", "writableRoots", "thread/resume",
+      "excludeTurns", "contextCompaction", "modelContextWindow"
     ]
   },
   "claude": {

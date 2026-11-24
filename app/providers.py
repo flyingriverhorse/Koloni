@@ -48,7 +48,7 @@ from app.roles import shown_name
 HTTP_KINDS = ("openai_compat", "anthropic")
 CLI_KINDS = ("claude_cli", "codex_cli", "copilot_cli", "agy_cli")
 # Kinds KOLONİ ran once and no longer does, with why: a row of one stays, switched off (migration
-# 0177), for the user to delete; it never runs (`allowed`) nor can be switched on again.
+# 0181), for the user to delete; it never runs (`allowed`) nor can be switched on again.
 RETIRED = {
     "qoder_cli": "Qoder is no longer supported (0.1.8): KOLONİ does not run it any more. Pick "
     "another provider for what used it, then delete this one.",

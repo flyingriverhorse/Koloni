@@ -6,6 +6,7 @@ import { Backup } from './Backup'
 import { DeleteProject } from './DeleteProject'
 import { FoldersSection } from './Folders'
 import { GUIDE } from './guide'
+import { KeptCopies } from './KeptCopies'
 import { LANGUAGES, ProjectSettings, Row, type Section } from './ProjectSettings'
 import { experimentalChanged } from '../models/experimental'
 import { VoiceSettings } from '../voice/VoiceControls'
@@ -538,9 +539,10 @@ function YourData({ shown }: { shown: boolean }) {
   const [storage, setStorage] = useState<Storage | null>(null)
   const [shared, setShared] = useState<Folders | null>(null)
   const [sharedError, setSharedError] = useState<string | null>(null)
+  const count = () => api.get<Storage>('/storage').then(setStorage, () => setStorage(null))
   useEffect(() => {
     if (!shown) return
-    api.get<Storage>('/storage').then(setStorage, () => setStorage(null))
+    count()
     api.get<Folders>('/folders').then(setShared, err => setSharedError(errorText(err)))
   }, [shown])
   return (
@@ -553,6 +555,7 @@ function YourData({ shown }: { shown: boolean }) {
           logs {mb(storage.logs_mb)}
         </p>
       )}
+      {storage && <KeptCopies storage={storage} onChanged={count} />}
       <FoldersSection shared={shared} sharedError={sharedError} />
     </>
   )

@@ -212,7 +212,9 @@ function SignInField({ kind, signIn, setSignIn, savedSignIn }: CliProps) {
       </select>
       <Hint doc={GUIDE.cliSignIn}>
         Its own: a sign-in folder for this provider alone, so several {COMMAND[kind]} accounts can run side by side,
-        each its own provider, without switching accounts. You log in to it once from your own terminal.
+        each its own provider, without switching accounts. You log in to it once from your own terminal. Run Native, a
+        provider on its own sign-in goes on in its {kind === 'claude_cli' ? 'session' : 'thread'} from a topic’s
+        previous turn; on yours, the default, each turn starts anew.
       </Hint>
       {signIn === 'koloni' && savedSignIn !== 'koloni' && (
         // (R125: said before it is saved - the command to log in comes once its folder is made)

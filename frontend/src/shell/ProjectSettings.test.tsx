@@ -24,6 +24,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null,
   continue_steps: 25,
+  longest_command: 10,
   monthly_budget: null,
   measure_command: null,
   after_change: 'check',
@@ -1377,4 +1378,25 @@ test('Check by kind of work: Code style and types is on, said, and unticking it 
   await userEvent.click(within(group).getByRole('checkbox', { name: 'Code style and types' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ check_kinds: { style: false } })
+})
+
+test('the longest command is a whole number of minutes from 10 to 60, sent only when changed (0.1.8)', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  const box = screen.getByLabelText('Longest command (minutes)')
+  expect(box).toHaveValue('10')
+  await userEvent.clear(box)
+  await userEvent.type(box, '61')
+  expect(screen.getByText('A whole number from 10 to 60.')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).not.toHaveBeenCalled()
+  await userEvent.clear(box)
+  await userEvent.type(box, '30')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenCalledWith({
+    exec_location: 'host',
+    docker_image: null,
+    docker_network: false,
+    longest_command: 30,
+  })
 })

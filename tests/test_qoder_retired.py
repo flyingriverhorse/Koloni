@@ -1,5 +1,5 @@
 """0.1.8: Qoder is no longer run (the user, 24 Nov: "qoder sil"). A Qoder provider from before
-stays - switched off by migration 0177, its settings kept - and cannot be switched on again; a
+stays - switched off by migration 0181, its settings kept - and cannot be switched on again; a
 chat on it fails as on any provider switched off, with why; the user deletes it."""
 
 import sqlite3
@@ -21,10 +21,10 @@ OWN = {"Origin": "http://127.0.0.1:8790"}
 WHY = RETIRED["qoder_cli"]
 
 
-def test_migration_0177_switches_qoder_off_and_nothing_else(tmp_path):
+def test_migration_0181_switches_qoder_off_and_nothing_else(tmp_path):
     db = tmp_path / "q.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0176")
+    command.upgrade(cfg, "0180")
     with sqlite3.connect(db) as conn:
         for at, (pid, kind) in enumerate([("q", "qoder_cli"), ("c", "claude_cli")]):
             conn.execute(
@@ -33,11 +33,11 @@ def test_migration_0177_switches_qoder_off_and_nothing_else(tmp_path):
                 "'2026-11-24')",
                 (pid, pid, kind, at),
             )
-    command.upgrade(cfg, "0177")
+    command.upgrade(cfg, "0181")
     with sqlite3.connect(db) as conn:
         rows = conn.execute("SELECT id, enabled, models FROM providers ORDER BY id").fetchall()
     assert rows == [("c", 1, '[{"name": "m"}]'), ("q", 0, '[{"name": "m"}]')]  # (kept whole)
-    command.downgrade(cfg, "0176")
+    command.downgrade(cfg, "0180")
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT enabled FROM providers WHERE id = 'q'").fetchone() == (0,)
 
@@ -62,7 +62,7 @@ def test_a_qoder_provider_from_before_is_shown_off_fails_a_chat_and_can_be_delet
     settings = load_settings(settings_env)
     settings.db_path.parent.mkdir(parents=True)
     cfg = _config(settings.db_path)
-    command.upgrade(cfg, "0176")
+    command.upgrade(cfg, "0180")
     with sqlite3.connect(settings.db_path) as conn:
         conn.execute(
             "INSERT INTO providers (id, name, kind, base_url, position, enabled, created_at, "

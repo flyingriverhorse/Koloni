@@ -355,10 +355,18 @@ export function HowItRuns({ state, agent }: { state: ConvState; agent: Agent }) 
  * a few lines (`short`), whole in its window. While it works, what it is on now.
  */
 export function Report({ state, agent, short = false }: { state: ConvState; agent: Agent; short?: boolean }) {
-  if (agent.report === null) return <NoReport state={state} agent={agent} />
+  const unchanged = agent.changed_nothing && <NoChange />
+  if (agent.report === null)
+    return (
+      <>
+        {unchanged}
+        <NoReport state={state} agent={agent} />
+      </>
+    )
   const found = findingsLine(agent.findings)
   return (
     <div className="agent-report">
+      {unchanged}
       {found && <p className="mono agent-found">{found.line}</p>}
       {agent.findings && agent.findings.length > 0 && (
         <ul className="agent-findings">
@@ -376,6 +384,17 @@ export function Report({ state, agent, short = false }: { state: ConvState; agen
       )}
       <Clamped short={short} text={agent.findings?.length ? withoutFindings(agent.report) : agent.report} />
     </div>
+  )
+}
+
+/** L1: a role that writes, done with no file changed on KOLONİ's record (app/ledger.py `changed_nothing`) - said over its report. */
+function NoChange() {
+  return (
+    <p>
+      <span className="tag tag-warn" title="From KOLONİ's record, not the agent's words">
+        No file changed
+      </span>
+    </p>
   )
 }
 

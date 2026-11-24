@@ -189,17 +189,24 @@ What each agent is given:
   Its session is kept in a folder of its own under KOLONİ's runtime, removed when you start a new
   topic or go back to another one, when a turn starts a new session, and when its chat is deleted ([Data and privacy](security/privacy.md#where-your-data-is)). Where Copilot cannot go on in
   it, it starts a new session sent the whole topic, and its record says so once.
+- **Codex** run **Native** with **Sign-in: Its own for KOLONİ** does the same with its own thread, kept
+  in its provider's sign-in folder (never your `~/.codex`). Past about 124,500 tokens by default (75%
+  of 166,000) it is not gone on in, so that KOLONİ's own summary comes before Codex's, which KOLONİ
+  cannot read; when Codex compacted its thread itself, a line on the agent's record says so and the
+  next turn starts anew too. On your own
+  sign-in, the default, each Codex turn starts anew, as before. Going on in its thread is not yet tried
+  with a real Codex ([Codex](models/setup-cli.md#codex)).
 - On any other model the Orchestrator is sent the topic's history each turn, and KOLONİ summarises its older part
   past **Summarise a long context at (%)** of the window (75 by default; see
   [Going on from the last turn](models/setup-cli.md#going-on-from-the-last-turn)).
 
-[![Who remembers what: one chat's two topics with the line New topic draws between them, and where the turns before are kept - an API model sent the topic's history by KOLONİ, which compacts it; every other CLI started anew and sent it again; Claude Code, Native on its own sign-in, and Copilot, Native, resuming their session from the topic's last turn](diagrams/topics.svg)](diagrams/topics.svg)
+[![Who remembers what: one chat's two topics with the line New topic draws between them, and where the turns before are kept - an API model sent the topic's history by KOLONİ, which compacts it; every other CLI started anew and sent it again; Claude Code, Native on its own sign-in, and Copilot, Native, resuming their session from the topic's last turn; Codex, Native on its own sign-in, does too](diagrams/topics.svg)](diagrams/topics.svg)
 
 *Who remembers what, by topic and by kind of model.*
 
 **When to press New topic**: when the next message is about other work. The Orchestrator then starts
-with a short history - cheaper, and nothing of the other work leads it astray - and Claude Code or
-Copilot with a new session. Keep going in the topic when the message builds on what was just done: the Orchestrator
+with a short history - cheaper, and nothing of the other work leads it astray - and Claude Code,
+Copilot or Codex with a new session. Keep going in the topic when the message builds on what was just done: the Orchestrator
 sees that work, and can go on with the agents that did it.
 
 ## Project notes and Knowledge are not memory

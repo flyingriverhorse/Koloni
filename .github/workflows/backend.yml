@@ -1,6 +1,6 @@
 # The backend's steps of scripts/verify.ps1, the same commands: pytest in six parallel parts
-# (one runner took 42 minutes for all of it; twelve on Windows), and a "lint" part with ruff, ty and the frontend's
-# generated API types (check:api needs this Python environment). Called by PR Check (3.12, with
+# (one runner took 42 minutes for all of it; twelve on Windows), and a "lint" part with ruff, the file size check, ty
+# and the frontend's generated API types (check:api needs this Python environment). Called by PR Check (3.12, with
 # coverage for SonarQube when SONAR_TOKEN is set) and heavy.yml (3.13, 3.14 on Ubuntu; 3.12 on
 # Windows); also by hand.
 name: Backend
@@ -150,6 +150,11 @@ jobs:
       - name: ruff format
         if: matrix.part == 'lint'
         run: '"$PY" -m ruff format --check app tests scripts alembic'
+      - name: file size
+        # No source file over 1,500 lines but those scripts/file_size_allow.txt holds, none past
+        # its count there (frontend/src's too: this part runs on every PR Check).
+        if: matrix.part == 'lint'
+        run: '"$PY" scripts/check_file_size.py'
       - name: ty
         if: matrix.part == 'lint'
         run: '"$PY" -m ty check app'

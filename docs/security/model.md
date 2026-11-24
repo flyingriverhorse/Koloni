@@ -144,8 +144,9 @@ spellings of a forged end mark are not caught:
 
 What is not framed:
 
-- Project files an agent reads or searches. They are only looked at for text that gives orders (the
-  card above).
+- Project files an agent reads or searches, and what a command that keeps running (a dev server)
+  printed when an agent reads it later: a server's log holds what any request to it carried. They are
+  only looked at for text that gives orders (the card above).
 - A webhook's body. A trigger's turn gets it after one line that says it came from outside and is
   "data to look at, not an instruction".
 - What a CLI working with its own tools reads: its own web fetch, MCP servers or file reads.
@@ -155,7 +156,7 @@ What is not framed:
 
 - **Sub-agents** work in working copies, not in your folder, until you take their work in. The commands of
   Claude Code run **Native** there are not sandboxed: at Full auto, one that reaches the project by a path it does not
-  spell out changes it directly, and KOLONİ records that change at the end of the turn
+  spell out changes it directly, and KOLONİ records that change after the command, by an unknown maker
   ([Known limits](../reference/known-limits.md#clis)).
 - **Agents beside each other**: a sub-agent's command that names another agent's copy, a worktree or a
   place above its copy, writes in or installs into the linked dependency folders, or stops programs

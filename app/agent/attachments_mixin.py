@@ -426,9 +426,34 @@ class AttachmentsMixin:
         if not isinstance(wanted, str) or not wanted.strip():
             raise ToolError("missing required argument: id")
         start = start if isinstance(start, int) and not isinstance(start, bool) else 1
+        call, command = self._recallable_call(ctx, wanted.strip())
+        if command is not None:
+            text = OutputMask(secret_values(os.environ)).hide(command.output) or "(no output)"
+            if command.output_truncated:
+                text = f"(KOLONİ kept only its first {MAX_STORED_OUTPUT // 2**20} MiB)\n{text}"
+        else:
+            text = call.result or "(no result)"
+        # (A line longer than a page is given in pieces: `page` takes a first line whole.)
+        text = "\n".join(
+            line[at : at + MAX_LINE_CHARS]
+            for line in text.splitlines()
+            for at in range(0, len(line) or 1, MAX_LINE_CHARS)
+        )
+        # Outside text that read like orders keeps its word on every page, not on the first only.
+        flagged = command is None and text.startswith(injection.NOTE)
+        return (f"{injection.NOTE}\n" if flagged and start > 1 else "") + attachments.page(
+            text, start
+        )
+
+    def _recallable_call(
+        self: "AgentRunner", ctx: Ctx, wanted: str
+    ) -> tuple[ToolCall, Command | None]:
+        """`_recall_output`'s call by its id, and its command: held to what this agent's history
+        could hold and to what `recallable` gives again - 0.1.8: command_output's too, by its
+        command's call. A ToolError where it is not to be given."""
         # (One answer for an id that is not there and one that is not its own: nothing to tell.)
         unknown = ToolError("no earlier output of this conversation has that id")
-        if not re.fullmatch(r"[0-9a-f]{32}", wanted.strip()):
+        if not re.fullmatch(r"[0-9a-f]{32}", wanted):
             raise unknown
         with self._factory() as session:
             turn = session.get(Run, ctx.run_id)
@@ -438,7 +463,7 @@ class AttachmentsMixin:
                 .join(Run, Run.id == ToolCall.run_id)
                 .join(Agent, Agent.id == ToolCall.agent_id)
                 .where(
-                    ToolCall.id == wanted.strip(),
+                    ToolCall.id == wanted,
                     Run.conversation_id == ctx.cid,
                     Run.topic_id == topic_id if topic_id else Run.topic_id.is_(None),
                     topics.in_history(ctx.run_id),
@@ -473,23 +498,7 @@ class AttachmentsMixin:
                 "that was read on the user's word, for that once: ask for it again "
                 "with the tool it was read with"
             )
-        if command is not None:
-            text = OutputMask(secret_values(os.environ)).hide(command.output) or "(no output)"
-            if command.output_truncated:
-                text = f"(KOLONİ kept only its first {MAX_STORED_OUTPUT // 2**20} MiB)\n{text}"
-        else:
-            text = call.result or "(no result)"
-        # (A line longer than a page is given in pieces: `page` takes a first line whole.)
-        text = "\n".join(
-            line[at : at + MAX_LINE_CHARS]
-            for line in text.splitlines()
-            for at in range(0, len(line) or 1, MAX_LINE_CHARS)
-        )
-        # Outside text that read like orders keeps its word on every page, not on the first only.
-        flagged = command is None and text.startswith(injection.NOTE)
-        return (f"{injection.NOTE}\n" if flagged and start > 1 else "") + attachments.page(
-            text, start
-        )
+        return call, command
 
     async def _save_attached(self: "AgentRunner", ctx: Ctx) -> None:
         """The user's "Save these to the project too" (slice 23), done by KOLONİ before the
