@@ -405,7 +405,8 @@ def create_app(
         kept = list(session.scalars(select(Agent.cli_session).where(Agent.cli_session.isnot(None))))
         codex = list(session.scalars(select(Provider.id).where(Provider.kind == "codex_cli")))
     sweep_copilot_homes(settings.runtime_root, kept)
-    sweep_codex_threads(settings.runtime_root, kept, codex)
+    with contextlib.suppress(OSError):  # (a folder it cannot read never stops KOLONİ starting)
+        sweep_codex_threads(settings.runtime_root, kept, codex)
     with factory() as session:
         seed_builtin_roles(session)
         seed_providers(session, settings, which)

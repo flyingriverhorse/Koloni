@@ -78,7 +78,8 @@ def native() -> None:  # noqa: C901
         {"compaction": true}                             it compacted its thread (an item)
         {"koloni": "ask_user", "args": {...}}            a call to KOLONİ's MCP server, for real
                                                          ("pending": its answer never waited
-                                                         for - it goes on, Codex L2)
+                                                         for - it goes on, Codex L2, once
+                                                         "after" names a file that is there)
         {"request": "item/tool/requestUserInput", "params": {...}}  another request of its own
         {"pause": s} / {"hang": true} / {"exit": 3, "stderr": ".."} / {"error": "message"}
         {"await_steer": true}                            it waits for a turn/steer ("steers")
@@ -525,6 +526,12 @@ def native() -> None:  # noqa: C901
                 wait=not action.get("pending"),
             )
             if action.get("pending"):  # (L2: its MCP item begun and never ended; it goes on)
+                # (once KOLONİ has the call at work - "after": a file the test makes then)
+                deadline = time.monotonic() + 60
+                while action.get("after") and not Path(action["after"]).exists():
+                    if time.monotonic() > deadline:
+                        sys.exit(6)
+                    time.sleep(0.02)
                 continue
             record["results"].append(answer.get("result", answer))
             save()

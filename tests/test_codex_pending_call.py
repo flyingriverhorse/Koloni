@@ -1,13 +1,14 @@
 """Codex L2 (live, 24 Nov 2026, Codex as a session): its turn completed while a call of KOLONİ's
 tools was still running - its MCP item begun and never ended, then its final answer ("It is still
 running") and turn/completed - and KOLONİ ended the call with the turn: the command killed, the
-call interrupted, the turn Done. The turn now waits for that call, which ends by its own bound;
-Stop still ends it. Only the stand-in (`fake_codex_app_server.py`) runs here, in that order."""
+call interrupted, the turn Done. The turn now waits for that call, which ends by its own bound,
+and says so with Codex's answer; Stop still ends it; a question is not waited for (nobody will
+read its card). Only the stand-in (`fake_codex_app_server.py`) runs here, in that order: it ends
+its turn only once KOLONİ has its call at work (`after`)."""
 
 import asyncio
 import json
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -23,74 +24,72 @@ from tests.test_native_agent import start
 from tests.test_parallel import until
 
 FAKE = [sys.executable, str(Path(__file__).with_name("fake_codex_app_server.py"))]
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "run_command",
-            "description": "Run a command.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    }
-]
-# As the live turn's lines had it: the call sent, never answered, and the turn over after it.
-SCRIPT = [
-    {"koloni": "run_command", "args": {"command": "python -u wait.py"}, "pending": True},
-    {"say": "Started it once. It is still running.", "phase": "final_answer"},
-]
+OUTLIVED = CALLS_OUTLIVED.format(label="Codex")
+ANSWER = "Started it once. It is still running."
+ARGS = {"run_command": {"command": "python -u wait.py"}, "ask_user": {"question": "Go on?"}}
 MESSAGES = [
     {"role": "system", "content": "You are the Orchestrator."},
     {"role": "user", "content": "Run python -u wait.py once."},
 ]
 
 
+def tools(*names: str) -> list[dict]:
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": name,
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+        for name in names
+    ]
+
+
 @pytest.fixture
 def codex(tmp_path):
-    """A Codex of either way, following SCRIPT; a home of its own (never the user's ~/.codex).
-    `make.over()`: whether it has said its turn is over (its last line before turn/completed)."""
-    plan, home, runs = tmp_path / "plan.json", tmp_path / "codex", tmp_path / "runs.log"
+    """A Codex of either way whose turn ends with its call of `tool` still at work - as the live
+    turn's lines had it: the call sent, never answered, its answer and turn/completed after it -
+    once `make.at_work` is there; a home of its own (never the user's ~/.codex)."""
+    plan, home, at_work = tmp_path / "plan.json", tmp_path / "codex", tmp_path / "at-work"
     home.mkdir()
-    told = {"record": str(tmp_path / "record.json"), "script": SCRIPT, "runs": str(runs)}
-    plan.write_text(json.dumps(told), encoding="utf-8")
 
-    def make(kind):
+    def make(kind, tool="run_command"):
+        script = [
+            {"koloni": tool, "args": ARGS[tool], "pending": True, "after": str(at_work)},
+            {"say": ANSWER, "phase": "final_answer"},
+        ]
+        told = {"record": str(tmp_path / "record.json"), "script": script}
+        plan.write_text(json.dumps(told), encoding="utf-8")
         return kind(
             launcher=FAKE, timeout=30, env={"FAKE_CLI_PLAN": str(plan), "CODEX_HOME": str(home)}
         )
 
-    make.over = lambda: (
-        runs.exists()
-        and any(line.startswith("end ") for line in runs.read_text(encoding="utf-8").splitlines())
-    )
+    make.at_work, make.root = at_work, tmp_path
     return make
 
 
-async def turn_over(codex) -> None:
-    """Until the stand-in has said its turn is over."""
-    deadline = time.monotonic() + scaled(30)
-    while not codex.over():
-        assert time.monotonic() < deadline, "its turn never ended"
-        await asyncio.sleep(0.02)
-
-
 class Held:
-    """KOLONİ's side of the call: it runs on past Codex's answer, and ends only after it (or
-    never, `forever`) - as wait.py's 120 seconds did."""
+    """KOLONİ's side of the call: at work past Codex's turn, until the turn says it waits for it
+    (or for good, `forever`) - as wait.py's 120 seconds were."""
 
-    def __init__(self, forever: bool = False) -> None:
-        self.forever, self.texts, self.ended, self.cancelled = forever, [], [], []
-        self.answered = asyncio.Event()
+    def __init__(self, codex, forever: bool = False) -> None:
+        self.codex, self.forever = codex, forever
+        self.texts, self.ended, self.cancelled = [], [], []
+        self.waits = asyncio.Event()
 
     async def on_text(self, text: str) -> None:
         self.texts.append(text)
-        if "still running" in text:
-            self.answered.set()
+        if OUTLIVED in text:
+            self.waits.set()
 
     async def call_tool(self, name: str, arguments: str) -> tuple[bool, str]:
         try:
-            await self.answered.wait()
-            # (On past its turn's end: before the fix it was cancelled within this.)
-            await asyncio.sleep(scaled(1) if not self.forever else 3600)
+            self.codex.at_work.touch()  # (it may end its turn now)
+            await self.waits.wait()  # (before the fix: cancelled with its turn instead)
+            if self.forever:
+                await asyncio.Event().wait()
         except asyncio.CancelledError:
             self.cancelled.append(name)
             raise
@@ -98,62 +97,68 @@ class Held:
         return True, "exit code 0"
 
 
+async def nothing(*_args) -> None:
+    return None
+
+
+def native(codex, held, tool="run_command", on_end=None):
+    return codex(CodexNativeClient, tool).run_native(
+        "gpt-fake",
+        MESSAGES,
+        tools("run_command", "ask_user"),
+        str(codex.root),
+        held.call_tool,
+        held.on_text,
+        nothing,
+        on_end=on_end,
+    )
+
+
 def test_a_session_turn_waits_for_kolonis_call_its_answer_outran(codex):
-    held = Held()
+    held = Held(codex)
     result = asyncio.run(
         codex(CodexSessionClient).run_session(
-            "gpt-fake", MESSAGES, TOOLS, held.call_tool, held.on_text
+            "gpt-fake", MESSAGES, tools("run_command"), held.call_tool, held.on_text
         )
     )
-    # The call ran to its own end, never cut off by the turn's; and that is said after its answer.
+    # The call ran to its own end, never cut off by the turn's; and that is said with its answer.
     assert (held.ended, held.cancelled) == (["run_command"], [])
-    assert held.texts[-1] == "\n\n" + CALLS_OUTLIVED.format(label="Codex")
+    assert held.texts == [ANSWER, "\n\n" + OUTLIVED]
     assert result.input_tokens == 4000
 
 
-def test_a_native_turn_waits_too_and_stop_still_ends_it(codex, tmp_path):
-    held = Held()
-
-    async def on_item(phase, item):
-        return None
-
-    asyncio.run(
-        codex(CodexNativeClient).run_native(
-            "gpt-fake", MESSAGES, TOOLS, str(tmp_path), held.call_tool, held.on_text, on_item
-        )
-    )
+def test_a_native_turn_waits_too_and_stop_still_ends_it(codex):
+    held = Held(codex)
+    asyncio.run(native(codex, held))
     assert (held.ended, held.cancelled) == (["run_command"], [])
-    assert CALLS_OUTLIVED.format(label="Codex") in held.texts[-1]
+    assert held.texts == [ANSWER, "\n\n" + OUTLIVED]
 
-    # A call that would run on for an hour: Stop ends the wait, the call with it, and the turn.
-    held, ends = Held(forever=True), []
-
-    async def stop_once_answered() -> None:
-        await held.answered.wait()
-        await turn_over(codex)  # (Stop while the turn waits, past Codex's turn/completed)
-        await asyncio.sleep(scaled(0.3))
-        ends[0](OwnStop("Stopped by the user"))
+    # A call that would run on for good: Stop ends the wait, the call with it, and the turn.
+    held, ends = Held(codex, forever=True), []
+    codex.at_work.unlink()
 
     async def turn():
-        stopper = asyncio.ensure_future(stop_once_answered())
+        async def stop_while_it_waits() -> None:
+            await held.waits.wait()
+            ends[0](OwnStop("Stopped by the user"))
+
+        stopper = asyncio.ensure_future(stop_while_it_waits())
         try:
-            return await codex(CodexNativeClient).run_native(
-                "gpt-fake",
-                MESSAGES,
-                TOOLS,
-                str(tmp_path),
-                held.call_tool,
-                held.on_text,
-                on_item,
-                on_end=ends.append,
-            )
+            return await native(codex, held, on_end=ends.append)
         finally:
             stopper.cancel()
 
     with pytest.raises(OwnStop, match="Stopped by the user"):
         asyncio.run(asyncio.wait_for(turn(), scaled(60)))
     assert (held.ended, held.cancelled) == ([], ["run_command"])
-    assert not any(CALLS_OUTLIVED.split("{")[0] in text for text in held.texts)
+
+
+def test_a_question_left_open_is_not_waited_for(codex):
+    # (Nobody reads its card once the turn is over: it is closed with it, as before.)
+    held = Held(codex, forever=True)
+    asyncio.run(asyncio.wait_for(native(codex, held, tool="ask_user"), scaled(60)))
+    assert (held.ended, held.cancelled) == ([], ["ask_user"])
+    assert held.texts == [ANSWER]
 
 
 @pytest.fixture
@@ -173,14 +178,20 @@ def test_in_the_app_its_command_ends_as_it_does_and_the_turn_after_it(
         clients={"Codex": codex(CodexSessionClient)},
         executors=executor.factory,
     )
+
+    def answers(snap) -> list[str]:
+        # (the call's own message holds no words: as live)
+        return [m["content"] for m in snap["messages"] if m["role"] == "assistant" and m["content"]]
+
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
         provider = client.post(
             "/api/providers", json={"name": "Codex", "kind": "codex_cli", "mode": "session"}
         ).json()
         cid, run_id = start(client, project_dir, provider)
-        snap = until(client, cid, lambda s: codex.over() and s["commands"], timeout=30)
-        time.sleep(scaled(0.5))  # (past its turn/completed: before the fix, cut off here)
-        snap = until(client, cid, lambda s: s["commands"], timeout=5)
+        until(client, cid, lambda s: s["commands"], timeout=30)
+        codex.at_work.touch()  # (its command at work: Codex may end its turn now)
+        # Its turn is over, said so, and the turn waits: its command is still at work.
+        snap = until(client, cid, lambda s: any(OUTLIVED in one for one in answers(s)), timeout=30)
         assert snap["runs"][0]["status"] == "running"
         assert [c["status"] for c in snap["commands"]] == ["running"]
         command.release()  # (its own time: wait.py's 120 seconds)
@@ -190,9 +201,5 @@ def test_in_the_app_its_command_ends_as_it_does_and_the_turn_after_it(
     assert (ran["status"], ran["exit_code"], executor.killed) == ("exited", 0, [])
     (call,) = snap["tool_calls"]
     assert (call["name"], call["status"]) == ("run_command", "succeeded")
-    # Said under Codex's answer: as a session, a message of its own (the call's end starts one).
-    answers = [m["content"] for m in snap["messages"] if m["role"] == "assistant"]
-    assert [one.strip() for one in answers] == [
-        "Started it once. It is still running.",
-        CALLS_OUTLIVED.format(label="Codex"),
-    ]
+    # Said with Codex's answer, in the same message: its last answer is still Codex's words.
+    assert answers(snap) == [f"{ANSWER}\n\n{OUTLIVED}"]

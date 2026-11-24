@@ -192,8 +192,10 @@ What each agent is given:
 - **Codex** run **Native** with **Sign-in: Its own for KOLONİ** does the same with its own thread, kept
   in its provider's sign-in folder (never your `~/.codex`). Past about 124,500 tokens by default (75%
   of 166,000) it is not gone on in, so that KOLONİ's own summary comes before Codex's, which KOLONİ
-  cannot read; a line on the agent's record says when Codex compacted its thread itself. On your own
-  sign-in each Codex turn starts anew, as before.
+  cannot read; when Codex compacted its thread itself, a line on the agent's record says so and the
+  next turn starts anew too. On your own
+  sign-in, the default, each Codex turn starts anew, as before. Going on in its thread is not yet tried
+  with a real Codex ([Codex](models/setup-cli.md#codex)).
 - On any other model the Orchestrator is sent the topic's history each turn, and KOLONİ summarises its older part
   past **Summarise a long context at (%)** of the window (75 by default; see
   [Going on from the last turn](models/setup-cli.md#going-on-from-the-last-turn)).

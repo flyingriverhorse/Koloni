@@ -7,6 +7,8 @@ runs here (measured: cli-surdurme-olcum.md)."""
 
 import asyncio
 import json
+import os
+import stat
 import sys
 from pathlib import Path
 
@@ -15,6 +17,7 @@ import pytest
 from app.config import load_settings
 from app.db.models import Agent
 from app.main import create_app
+from app.model_client import ModelUnavailable
 from app.model_native import (
     CODEX_COMPACTED,
     CODEX_ROLLOUTS,
@@ -76,6 +79,15 @@ def codex(tmp_path):
         else 0
     )
     make.rollouts = lambda: sorted(own.glob(CODEX_ROLLOUTS.format(id="*")))
+    make.started, make.record_file = (lambda: record.exists()), record
+
+    def turned() -> bool:
+        try:
+            return "turn" in make.record()
+        except (OSError, ValueError):  # (not there yet, or being written)
+            return False
+
+    make.turned = turned
     return make
 
 
@@ -108,6 +120,10 @@ def run(cli, root, messages, session=None, level="full_auto", withheld=(), tools
         )
     )
     return result, items
+
+
+async def quiet(*_args):
+    return True, "{}"
 
 
 def said(items: list[dict], tool: str) -> list[str]:
@@ -203,9 +219,39 @@ def test_a_thread_it_cannot_go_on_in_starts_anew_once_said_on_its_record(codex, 
     assert result.session["id"] == TID and result.input_tokens == 4000
 
 
-def test_its_own_compaction_is_said_on_its_record(codex, tmp_path):
-    _, items = run(codex([{"compaction": True}, {"say": "Done."}]), tmp_path, FIRST)
+def test_a_thread_it_compacted_is_said_on_its_record_and_not_gone_on_in(codex, tmp_path):
+    # (What it knows of the earlier turns is then its own summary, unread: KOLONİ's history next.)
+    result, items = run(codex([{"compaction": True}, {"say": "Done."}]), tmp_path, FIRST)
     assert said(items, "compaction") == [CODEX_COMPACTED]
+    assert result.session is None and codex.rollouts() == []
+
+
+def test_a_new_thread_whose_turn_failed_or_was_stopped_is_not_left_on_disk(codex, tmp_path):
+    # Its id never reaches its agent's record: nothing else would remove it, not even its chat's
+    # deletion. A turn that failed...
+    with pytest.raises(ModelUnavailable, match="boom"):
+        run(codex([{"error": "boom"}]), tmp_path, FIRST)
+    assert codex.started() and codex.rollouts() == []
+
+    # ... and one stopped while it works.
+    async def stopped() -> None:
+        codex.record_file.unlink()  # (the failed turn's)
+        cli = codex([{"hang": True}])
+        turn = asyncio.ensure_future(
+            cli.run_native("gpt-6-luna", FIRST, [], str(tmp_path), quiet, quiet, quiet, keep=True)
+        )
+        # (Once its turn is under way: KOLONİ knows its thread by then, as Codex writes it.)
+        for _ in range(int(scaled(30) / 0.02)):
+            if codex.turned():
+                break
+            await asyncio.sleep(0.02)
+        assert codex.rollouts(), "its thread was never kept"
+        turn.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await turn
+
+    asyncio.run(stopped())
+    assert codex.rollouts() == []
 
 
 def test_on_the_users_own_sign_in_no_thread_is_kept_nor_written(codex, tmp_path):
@@ -276,6 +322,55 @@ def test_threads_no_agent_names_are_swept_in_codex_providers_folders_alone(tmp_p
     kept = [{"id": TID, "home": str(homes / "p1"), "cli": "codex"}, None, {"id": "x"}]
     sweep_codex_threads(runtime, kept, ["p1", "..", "none"])
     assert named.exists() and not stray.exists() and claude.exists()
+
+
+def test_a_rollout_it_cannot_remove_never_stops_koloni_and_none_is_reached_through_a_link(
+    tmp_path,
+):
+    runtime = tmp_path / "runtime"
+    home = runtime / "cli-homes" / "p1"
+    day = Path("2026") / "11" / "24"
+    stuck = home / "sessions" / day / "rollout-x-01a20e24-0000-7000-8000-000000000004.jsonl"
+    stuck.parent.mkdir(parents=True)
+    stuck.write_text("{}\n", encoding="utf-8")
+    stuck.chmod(stat.S_IREAD)  # (on Windows it cannot be removed so)
+    try:
+        sweep_codex_threads(runtime, [], ["p1"])  # (never raises: KOLONİ starts all the same)
+    finally:
+        if stuck.exists():
+            stuck.chmod(stat.S_IREAD | stat.S_IWRITE)
+    # A link in a home's sessions to a folder outside it: nothing there is removed.
+    other = runtime / "cli-homes" / "p2"
+    other.mkdir()
+    outside = tmp_path / "outside"
+    victim = outside / day / f"rollout-x-{TID}.jsonl"
+    victim.parent.mkdir(parents=True)
+    victim.write_text("{}\n", encoding="utf-8")
+    link(other / "sessions", outside)
+    try:
+        sweep_codex_threads(runtime, [], ["p2"])
+        forget_session({"id": TID, "home": str(other), "cli": "codex"}, runtime)
+        assert victim.exists()
+    finally:
+        unlink(other / "sessions")
+
+
+def link(at: Path, target: Path) -> None:
+    """A link to a folder: a junction on Windows (no privilege needed), else a symlink."""
+    if sys.platform == "win32":
+        import _winapi  # (Windows alone)
+
+        _winapi.CreateJunction(str(target), str(at))
+    else:
+        at.symlink_to(target, target_is_directory=True)
+
+
+def unlink(at: Path) -> None:
+    """The link alone, never what it leads to."""
+    if sys.platform == "win32":
+        os.rmdir(at)
+    else:
+        at.unlink()
 
 
 # --- in the app: the topic's later turns -----------------------------------------------------
