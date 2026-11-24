@@ -987,6 +987,32 @@ test('a story’s tick ticks its open tasks; ⋯ Goal moves it to another goal o
   expect(tree.onStory).toHaveBeenCalledWith('s1', { goal_id: 'g2' })
 })
 
+test('a story whose tasks are all done is closed by your word, and opened again', async () => {
+  const props = page()
+  const onStory = vi.fn(async () => {})
+  const tree = {
+    onGoal: vi.fn(),
+    onDeleteGoal: vi.fn(),
+    onStory,
+    onDeleteStory: vi.fn(),
+    onNewGoal: vi.fn(),
+    onNewStory: vi.fn(),
+  }
+  const asked = { ...STORIES[0], state: 'done?' as const }
+  const backlog = [task({ id: 'd1', title: 'done one', story_id: 's1', status: 'done' })]
+  const { rerender } = render(<BacklogPage {...props} backlog={backlog} stories={[asked]} goals={GOALS} tree={tree} />)
+  expect(screen.getByRole('listitem', { name: 'Şifre sıfırlama' })).toHaveTextContent('done?')
+  await userEvent.click(screen.getByRole('button', { name: 'Şifre sıfırlama: more' }))
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Close the story' }))
+  expect(onStory).toHaveBeenLastCalledWith('s1', { closed: true })
+  rerender(
+    <BacklogPage {...props} backlog={backlog} stories={[{ ...asked, state: 'done' }]} goals={GOALS} tree={tree} />,
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Şifre sıfırlama: more' }))
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Open it again' }))
+  expect(onStory).toHaveBeenLastCalledWith('s1', { closed: false })
+})
+
 test('Edit gives a task its story and its type; a new story is made by its title', async () => {
   const props = page()
   const onNewStory = vi.fn(async (title: string) => ({ ...STORIES[0], id: 's9', title }))

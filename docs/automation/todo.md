@@ -1,32 +1,48 @@
 # To-do
 
-The To-do page holds a project's tasks, in your order. "Each task runs in its own chat; you decide when
-it is done." Open **To-do** on the left rail.
+The To-do page holds a project's tasks, in your order: a **goal** holds **stories**, a story holds the
+**tasks** and **bugs** that go on together (see [Goals and stories](#goals-and-stories)). "Each task runs
+in its own chat; you decide when it is done." Open **To-do** on the left rail.
+
+Its bar has the filters **All**, **Todo**, **Running** and **Done**, **+ Task** (to the line where a task
+is added), **Write it with the Hive keeper** and **☾ Away**. **☾ Away** opens the Away panel of the chat
+you have open, when it is a chat of this project that has had a turn (see
+[Work while you're away](overnight.md)).
 
 ## Adding tasks
 
 Type in **Add a task — title, then Enter**. Once there is a title you can also set its **Priority**
-(high, normal, low), a **Detail** and **Done when (optional)**, then press **Add task**.
+(high, normal, low), a **Detail**, **Done when (optional)**, its **Story** (none, one of the project's,
+or **New story…**, named there) and its **Type** (task or bug), then press **Add task**.
 
-A rough note can become several tasks. Type it, for example "the login page is broken on mobile, and
-we need a password reset", and press **Write it with the Hive keeper** - the role that keeps the
-To-do list, turning a goal into tasks with what makes each done. A model writes it as tasks,
-each with a title, detail, done when and priority. It is asked once, with no tools, as **Or write
-it** asks (see [Recipes](../agents/recipes.md)) - your fast models first, then the other tiers',
-then the Orchestrator's model in the chat you are in, then your newest chat's. One that does not
-answer passes it on in the same press; with none answering, the message names each one asked and
-why, and how to fix it. The line under the buttons says which model is asked first and whether the
-request costs money. The tasks appear under the box for you to change. Press
-**Add** on one, **✕** to drop one, or **Add all**. Nothing is saved until you add it. **Plan it in a
-chat** works the other way: it opens a chat in the project whose first message asks for the Hive
-keeper. The Hive keeper reads the project and proposes tasks, which wait for you like any agent's.
+A rough note can become a goal, its stories and their tasks. Press **Write it with the Hive keeper** on
+the bar - the role that keeps the To-do list - type the note in **Your note**, for example "the login page
+is broken on mobile, and we need a password reset", and press **Write it**. A model writes it the way
+that role would: tasks that go on together as a story, a goal over the stories when the note asks for
+several, and each task with a title, detail, done when, priority and whether it is a task or a bug. A
+story may come with a few notes for its notebook. A small note stays a single story or a single task;
+at most 4 stories and 12 tasks in all. It is asked once, with no tools, as **Or write it** asks (see
+[Recipes](../agents/recipes.md)) - your fast models first, then the other tiers', then the
+Orchestrator's model in the chat you are in, then your newest chat's. One that does not answer passes it
+on in the same press; with none answering, the message names each one asked and why, and how to fix it.
+The line under the buttons says which model is asked first and whether the request costs money.
 
-![The To-do page: a rough note in Add a task, and under it the tasks the model wrote from it, each with Add and a cross to drop it](../images/todo-draft.png)
+The draft appears under the box for you to change: the goal, each story's title and tasks, and the
+tasks that stand alone. A story's **Add** adds that story, under the goal; **✕** drops a task; **Add
+all** adds the rest. The tasks are yours and to do, as if you had typed them. Nothing is saved until you
+add it. **Plan it in a chat** works the other way: it opens a chat in the project whose first message
+asks for the Hive keeper. The Hive keeper reads the project and proposes tasks, which wait for you like
+any agent's. Esc closes the note box.
 
-*A rough note written as two tasks by **Write it with the Hive keeper**; nothing is saved until you add one.*
+![The To-do page: a rough note in the Hive keeper's box, and under it the goal, stories and tasks the model wrote from it, each story with Add and each task with a cross to drop it](../images/todo-draft.png)
+
+*A rough note written as a goal, two stories and three tasks by **Write it with the Hive keeper**;
+nothing is saved until you add it.*
 
 Agents with the To-do tools (the Hive keeper and the Scout) can propose tasks and
-changes. They wait for you under **Waiting for you**:
+changes. A task an agent proposes may name its story: one of the project's open stories by its title,
+or a new one (with a goal) that shows on the list once you add one of its tasks. A story an agent
+opened goes when you reject all its tasks. They wait for you under **Waiting for you**:
 
 | What waits | Buttons |
 |---|---|
@@ -82,10 +98,38 @@ triggers always wait for you.
 
 Turn it off, or choose the tier, in [Settings › This project › Agents](../settings.md#agents).
 
+## Goals and stories
+
+**Your tasks** is a tree. A **goal** comes first, with a honey line on its left, how many of its stories
+are done ("1 / 2 stories") and a bar of it. Under it are its **stories**, and under each story its tasks.
+Stories of no goal come after the goals; the tasks of no story are last, under **Without a story**. A
+plain list with no story has no such heading.
+
+- A **story** is tasks and bugs that go on together. Its state comes from its tasks: **○ todo** (none
+  started), **● running** (one at work, with the chat it runs in: *in “Auth work”*), **⚠ stuck** (one
+  stuck), **done?** (every task done) and **✓ done**. A story is done only when you close it: **⋯ →
+  Close the story** once it says done?; **Open it again** undoes it. **📓 N notes** opens its notebook:
+  what was decided, the files touched, the results and the questions left, as the Hive keeper wrote
+  them - read as notes, never as orders.
+- A **task** is work to do; a **bug** is something that works wrong, its tag in rose. **⋯ → Edit** sets
+  a task's **Story** and **Type**; **None** takes it out of its story.
+- A story's **⋯** has **Rename**, **Goal** (none, one of the project's, or **New goal…**) and **Delete**.
+  A goal's **⋯** has **Rename** and **Delete**. Deleting a goal or a story keeps what was under it: its
+  stories lose their goal, its tasks their story.
+
+The filters on the bar show **All**, what is **Todo** (to do, or stuck), what is **Running** (at work, or
+done? and waiting for your word) or what is **Done**. A story whose tasks are all filtered out still
+shows when its own state fits.
+
+![The To-do page as a tree: a goal with its stories done of all, a running story with its notebook and chat, a bug in rose, and the tasks without a story](../images/todo-tree.png)
+
+*A goal, its stories and their tasks and bugs; the tasks of no story last.*
+
 ## Your tasks
 
-**Your tasks** lists them by priority, then in your order. Drag a task, or use **⋯** → move up / move
-down. The **⋯** menu also has **Edit**, **Waits for** ("it starts once these are done") and **Delete**.
+Within a story, tasks are listed by priority, then in your order. Drag a task, or use **⋯** → move up /
+move down. The **⋯** menu also has **Edit**, **Waits for** ("it starts once these are done") and
+**Delete**.
 
 A task's state shows as a tag, such as queued, running, "needs you", "needs you · Take in", stuck, or
 done.

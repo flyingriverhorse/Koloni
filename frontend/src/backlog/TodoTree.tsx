@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import type { BacklogTask, Goal, Story } from '../api/types'
 import { AwayPanel } from '../chat/AwayPanel'
+import { GUIDE } from '../shell/guide'
+import { Hint } from '../shell/Hint'
 import { useAsk } from '../memory/useAsk'
 import { usePanel } from '../shell/usePanel'
 import { useApp } from '../state/store'
@@ -11,7 +13,7 @@ import { tickable, type Filter, type TreeRow } from './tree'
 export interface TreeActions {
   onGoal: (goalId: string, change: { title?: string }) => Promise<void>
   onDeleteGoal: (goalId: string) => Promise<void>
-  onStory: (storyId: string, change: { title?: string; goal_id?: string | null }) => Promise<void>
+  onStory: (storyId: string, change: { title?: string; goal_id?: string | null; closed?: boolean }) => Promise<void>
   onDeleteStory: (storyId: string) => Promise<void>
   onNewGoal: (title: string) => Promise<Goal>
 }
@@ -145,6 +147,16 @@ function Deleting({
 }
 
 type Doing = 'rename' | 'goal' | 'delete' | null
+type Item = [string, () => void]
+
+/** A story's ⋯: Rename, Goal, Delete - and, once all its tasks are done, Close the story (done is only ever yours), or Open it again. */
+const storyItems = (story: Story, set: (doing: Doing) => void, close: (closed: boolean) => void): Item[] => [
+  ['Rename', () => set('rename')],
+  ['Goal', () => set('goal')],
+  ...(story.state === 'done?' ? [['Close the story', () => close(true)] as Item] : []),
+  ...(story.state === 'done' ? [['Open it again', () => close(false)] as Item] : []),
+  ['Delete', () => set('delete')],
+]
 
 /** A goal: its title, how many of its stories are done, and a bar of it. */
 function GoalRow({ row, actions }: { row: Extract<TreeRow, { kind: 'goal' }>; actions: TreeActions }) {
@@ -326,11 +338,7 @@ function StoryRow({ row, tasks, goals, selected, onSelect, chats, actions }: Sto
         ) : (
           <RowMenu
             name={story.title}
-            items={[
-              ['Rename', () => setDoing('rename')],
-              ['Goal', () => setDoing('goal')],
-              ['Delete', () => setDoing('delete')],
-            ]}
+            items={storyItems(story, setDoing, closed => void ask(() => actions.onStory(story.id, { closed })))}
           />
         )}
       </div>
@@ -448,6 +456,10 @@ export function TodoBar({
           </button>
         ))}
       </div>
+      <Hint doc={GUIDE.todoStories}>
+        A goal holds stories; a story holds the tasks and bugs that go on together. A story is done only when you close
+        it.
+      </Hint>
       <button type="button" className="btn btn-small" onClick={focusAdd}>
         + Task
       </button>
