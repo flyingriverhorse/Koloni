@@ -47,7 +47,8 @@ step ([The Checks step](../agents/recipes.md#the-checks-step)).
   chat, a plan, and a side of a comparison get no Checked section - except a turn that changed
   nothing right after one whose checks still failed: it says "Still failing as last checked - this
   turn changed nothing" with those failing lines, and **Fix it** stays under the newest turn (not
-  after a turn you undid, nor once this chat's checks are off; the canvas draws no Checks node
+  once the turn they came from is undone - also after turns that said them again, and no Fix it
+  is offered for it then -, nor once this chat's checks are off; the canvas draws no Checks node
   for it, as no check ran). A
   change made only by a
   command (`python -c "open(…).write(…)"`, `sed -i`, a heredoc to a file, a redirection into one

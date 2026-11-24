@@ -88,6 +88,20 @@ export function newestTurn(state: ConvState): string | undefined {
 export const checkedOf = (state: ConvState, runId: string): Message | undefined =>
   state.messages.find(m => m.run_id === runId && m.role === 'checked')
 
+/** What of a turn still stands in the project, or in its copy. */
+const STANDS = new Set(['applied', 'in_copy', 'merged'])
+
+/**
+ * N10b: whether the turn a section's failing lines come from - its own, or back through the turns that said them again
+ * (N1, "unchanged") - was undone, nothing of it left: its Fix it would ask to fix what is gone. As `_still_failing` reads it.
+ */
+export function originUndone(state: ConvState, runId: string): boolean {
+  let at = state.runs.findIndex(r => r.id === runId)
+  while (at > 0 && checkedOf(state, state.runs[at].id)?.checked?.[0]?.kind === 'unchanged') at -= 1
+  const changes = state.fileChanges.filter(c => c.run_id === state.runs[at]?.id)
+  return changes.some(c => c.status === 'reverted') && !changes.some(c => STANDS.has(c.status))
+}
+
 /**
  * S6: when the whole suite of the chat's newest checked turn started running, gone on after its answer (its row is
  * "running" with a start); null where none runs. The status line reads it - and a canvas Checks node can.
