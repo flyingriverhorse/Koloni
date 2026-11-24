@@ -690,3 +690,48 @@ def test_a_node_runner_in_its_own_folder_is_still_covered(command, rule):
     # (npm exec's `-c` / `--call` before `--`: a shell line npm runs - past the rule)
     assert not matches("npm exec tsc -c x", "npm exec tsc")
     assert not matches("npm exec tsc --call x", "npm exec tsc")
+
+
+@pytest.mark.parametrize(
+    ("command", "rule"),
+    [
+        # (W7c, measured: the file's `node-options=--require x` loaded the agent's code)
+        ("npm exec tsc --globalconfig=./evil096.npmrc -- --noEmit", "npm exec tsc"),
+        ("npm exec tsc --globalconfig ./evil096.npmrc -- --noEmit", "npm exec tsc"),
+        ("npm test --globalconfig=./evil096.npmrc", "npm test"),
+        ("npm run build --globalconfig=./evil096.npmrc", "npm run build"),
+        *(
+            (f"npm install {option}=./evil096", "npm install")
+            for option in ("--shell", "--git", "--node-gyp", "--editor", "--browser")
+        ),
+        ("npm install --viewer=./evil096", "npm install"),
+        ("npm install --init-module=./evil096.js", "npm install"),
+        ("pnpm install --config.node-options=--require=./evil096.cjs", "pnpm install"),
+        ("bun test --preload ./evil096.ts", "bun test"),
+        ("yarn tsc --noEmit", "yarn tsc"),  # (a bin's words yarn may read first: closed)
+    ],
+)
+def test_a_node_runners_own_option_past_its_rule_is_covered_by_no_rule(command, rule):
+    # W7c: the rule closed - only `_HARMLESS_RUNNER_OPTIONS` past it
+    assert not matches(command, rule)
+    assert suggest_prefix(command) == ""
+
+
+@pytest.mark.parametrize(
+    ("command", "rule"),
+    [
+        ("npm exec tsc --silent -- --noEmit", "npm exec tsc"),
+        ("npm test -s", "npm test"),
+        ("npm run build --loglevel silent", "npm run build"),
+        ("npm run build --loglevel=warn --no-color", "npm run build"),
+        ("npm install --no-audit --no-fund --prefer-offline", "npm install"),
+        ("npm exec tsc --offline --no -- --noEmit", "npm exec tsc"),
+        ("pnpm install --frozen-lockfile --ignore-scripts", "pnpm install"),
+        ("pnpm exec tsc --noEmit", "pnpm exec tsc"),  # (past `exec`: tsc's own)
+        ("yarn run tsc --noEmit", "yarn run tsc"),
+        ("npx tsc --noEmit", "npx tsc"),  # (past the package: tsc's own)
+        ("npm exec tsc -- --globalconfig=x", "npm exec tsc"),  # (past `--`: tsc's own)
+    ],
+)
+def test_a_node_runners_harmless_options_are_still_covered(command, rule):
+    assert matches(command, rule) and suggest_prefix(command) == rule

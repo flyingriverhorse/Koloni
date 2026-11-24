@@ -119,11 +119,29 @@ over it, the rule covers it again. A package runner finds its program by itself,
 `python -m mypy`) is read the same way: npx, npm, pnpm, yarn and bun look in the `node_modules`
 of the folder the command runs in or of one above it - and read an `.npmrc` there, yarn its
 `.yarnrc.yml`, `.yarnrc`, `.yarn` folder and Plug'n'Play loader, pnpm its `.pnpmfile.cjs`, bun its
-`bunfig.toml` - and an agent's write in any of them stops the rule. So does one in a
-`package.json` there: npx and `npm exec` run a name the package's own `bin` gives before any
-installed one, yarn and pnpm a script of that name. A line that runs a script by its name (`npm
-run build`, `npm test`) runs the project's code by design - the script is the project's, as a
-test is - and its rule still covers it. For uv, poetry, pipenv, pdm, hatch and `python -m`, whose
+`bunfig.toml` - and an agent's write in any of them stops the rule.
+
+A rule for a node runner (npx, pnpx, bunx, npm, pnpm, yarn, bun; `corepack` before one) is
+closed on two sides. **What an agent wrote:** while an agent's write of any `package.json`, any
+`.npmrc` or `x.npmrc`, `.yarnrc*`, `.yarn/`, `.pnpmfile.cjs`, `pnpm-workspace.yaml` or
+`bunfig.toml` anywhere in the project still holds what it wrote, no node runner's rule covers a
+line - npx and `npm exec` run a name the package's own `bin` gives before any installed one, yarn
+and pnpm a script of that name, `npm install` every workspace's lifecycle scripts, and npm reads
+any settings file it is pointed at. The cost: after an agent edits a `package.json` (adding a
+dependency, say), node runner rules ask until that write is replaced - by your own edit or
+install. A line of npm's or pnpm's that runs a script by its name under its own rule (`npm run
+build`, `npm test`) is the exception: the script is the project's code by design, as a test is.
+yarn's and bun's `run` run a bin too, and npx's `test` is a package - those are not. **Its own
+options:** past the rule's words (up to `--` for npm; up to the verb that hands the rest on -
+`exec`, `dlx`, `x`, `run` - for pnpm, yarn and bun), a rule covers only options that change what
+the runner prints, where it fetches from or that it runs less: `--silent` / `-s`, `--quiet` /
+`-q`, `--loglevel`, `--color` / `--no-color`, `--offline`, `--prefer-offline`, `--no`,
+`--no-audit`, `--no-fund`, `--ignore-scripts`, `--frozen-lockfile`, `--immutable`. Any other
+(`--globalconfig=x` - a settings file whose `node-options` loads code -, `--shell=`, `--node-gyp=`)
+and no rule covers the line or is offered for it. So `yarn tsc --noEmit` is offered none: use
+`yarn run tsc --noEmit`, or for npm `npm exec tsc -- --noEmit` (past `--`, tsc's own).
+
+For uv, poetry, pipenv, pdm, hatch and `python -m`, whose
 environment KOLONİ cannot always place, an agent's write in any `.venv`, `venv` or
 `site-packages` of the project does, and for uv, poetry, pipenv, pdm and hatch one in a
 `pyproject.toml` or `setup.py` in the folder or above (they run its `[project.scripts]` and build
