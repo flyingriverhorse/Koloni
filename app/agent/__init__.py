@@ -151,6 +151,7 @@ from app.agent.ctx import (
     _NobodyToAsk,
     _Room,
     _Slow,
+    _through_stops,
     _Unwatched,
     _Watch,
     announce_memory,
@@ -3663,9 +3664,12 @@ class AgentRunner(
             # 6 Nov: Stop while its card waits (or its check, or a resolve) - a plain copy kept
             # for the user's Take in as half work is (`_stopped_in_copy`); a branch holding a
             # secret given this turn never kept, also as the app closes (`_secret_branch_gone`).
-            await self._through_any_stop(
-                owner.run_id,
-                self._said_gone(owner, copy) if (copy.branch) else self._stopped_in_copy(owner),
+            # Waited for to its end whatever Stops come: a Lead's own Take in comes after its
+            # turn's `_saved`, and a second Stop let the turn's end drop the copy under it.
+            await _through_stops(
+                asyncio.ensure_future(
+                    self._said_gone(owner, copy) if copy.branch else self._stopped_in_copy(owner)
+                )
             )
             self._drop_copy(owner.agent_id)  # (nothing of it is taken; one kept is gone already)
             raise
