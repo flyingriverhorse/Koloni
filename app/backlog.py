@@ -392,7 +392,7 @@ def start(
     if shape is not None:
         shape(conversation)
     session.flush()
-    content = first_message(task, night, stories.brief(session, task, project.pass_env))
+    content = first_message(task, night, stories.brief(session, task, project.pass_env, True))
     # Named by the task, whole (K-backlog-sohbet): the chat list marks it as the To-do list's.
     conversation.title = topics.one_line(task.title) or conversation.title
     task.status, task.conversation_id = "doing", conversation.id
