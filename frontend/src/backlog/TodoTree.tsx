@@ -382,7 +382,7 @@ const FILTERS: [Filter, string][] = [
   ['running', 'Running'],
   ['done', 'Done'],
 ]
-/** Where a new task is typed - and, until it has a box of its own, the Hive keeper's note. */
+/** Where a new task is typed. */
 const focusAdd = () => document.getElementById('new-task-title')?.focus()
 
 /** ☾ Away from To-do: the Away panel of the chat open now, when it is a chat of this folder that has had a turn. */
@@ -418,18 +418,20 @@ function AwayButton({ projectId }: { projectId?: string }) {
   )
 }
 
-/** The To-do page's bar (0.1.8): its filters, + Task, Write it with the Hive keeper, and ☾ Away. */
+/** The To-do page's bar (0.1.8): its filters, + Task, Write it with the Hive keeper (its note box), and ☾ Away. */
 export function TodoBar({
   filter,
   onFilter,
   projectId,
-  hive,
+  onHive,
+  noting,
 }: {
   filter: Filter
   onFilter: (filter: Filter) => void
   projectId?: string
-  /** Whether a note can be written as tasks here at all. */
-  hive: boolean
+  /** Opens or closes the Hive keeper's note box; none where a note can be neither written nor planned here. */
+  onHive?: () => void
+  noting: boolean
 }) {
   return (
     <div className="todo-bar" role="toolbar" aria-label="To-do">
@@ -449,8 +451,8 @@ export function TodoBar({
       <button type="button" className="btn btn-small" onClick={focusAdd}>
         + Task
       </button>
-      {hive && (
-        <button type="button" className="btn btn-small" onClick={focusAdd}>
+      {onHive && (
+        <button type="button" className="btn btn-small" aria-expanded={noting} onClick={onHive}>
           Write it with the Hive keeper
         </button>
       )}

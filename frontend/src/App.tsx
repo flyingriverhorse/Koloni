@@ -805,6 +805,7 @@ export function App() {
         onModels={useApp.getState().providerModels}
         onAdd={useApp.getState().addTask}
         onDraft={useApp.getState().draftTasks}
+        onAddTree={useApp.getState().addTree}
         onPlan={async message => {
           await useApp.getState().newConversation(project.id)
           await useApp.getState().send(message)

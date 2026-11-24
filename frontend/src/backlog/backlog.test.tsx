@@ -2,7 +2,18 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { Away, AwayJob, BacklogAuto, BacklogTask, Board, Goal, Provider, Story } from '../api/types'
+import type {
+  Away,
+  AwayJob,
+  BacklogAuto,
+  BacklogTask,
+  Board,
+  Goal,
+  NewBacklogTask,
+  Provider,
+  Story,
+  TodoTreeIn,
+} from '../api/types'
 import { waitingTotal } from '../board/waiting'
 import { BacklogPage, HIVE_KEEPER_DOES, PLAN_ASK, WaitRow } from './BacklogPage'
 
@@ -50,7 +61,7 @@ const page = () => ({
   onOpen: vi.fn(),
 })
 
-/** The form a task is added in (the bar's Hive keeper button opens it too). */
+/** The form a task is added in. */
 const addForm = () => within(screen.getByRole('form', { name: 'Add a task' }))
 
 /** A task's ⋯, opened: its menu. */
@@ -585,22 +596,38 @@ const drafter = (over: Partial<NonNullable<BacklogAuto['drafter']>> = {}) => ({
   drafter: { why: null, provider_id: 'p2', model_id: null, ...over },
 })
 
-test('the note is written as tasks once there is text: each changed, added by your word, or all at once', async () => {
+const one = (title: string, over: Partial<NewBacklogTask> = {}): NewBacklogTask => ({
+  title,
+  detail: null,
+  criteria: null,
+  priority: 'normal',
+  kind: 'task',
+  ...over,
+})
+const DRAFT = {
+  by: 'Cloud (mini)',
+  goal: 'Sign-in holds',
+  stories: [
+    {
+      title: 'Login on mobile',
+      notes: ['The form is shared with the desktop page.'],
+      tasks: [one('Fix login on mobile', { detail: 'Breaks under 400 px', criteria: 'Fits 360 px', kind: 'bug' })],
+    },
+    { title: 'Password reset', notes: [], tasks: [one('Password reset'), one('Remember me', { priority: 'low' })] },
+  ],
+  tasks: [one('Footer year')],
+}
+/** The bar's Write it with the Hive keeper, pressed: its note box. */
+async function noteBox() {
+  await userEvent.click(screen.getByRole('button', { name: 'Write it with the Hive keeper' }))
+  return within(screen.getByRole('form', { name: 'Write it with the Hive keeper' }))
+}
+const added = { goal_id: 'g1', story_ids: ['s1'], task_ids: ['t1'] }
+
+test('the note is written as a goal, stories and tasks: each changed, a story added by its Add, the rest by Add all', async () => {
   const props = page()
-  const onDraft = vi.fn(async (_text: string) => ({
-    by: 'Cloud (mini)',
-    tasks: [
-      {
-        title: 'Fix login on mobile',
-        detail: 'Breaks under 400 px',
-        criteria: 'Fits 360 px',
-        priority: 'high' as const,
-        kind: 'task' as const,
-      },
-      { title: 'Password reset', detail: null, criteria: null, priority: 'normal' as const, kind: 'task' as const },
-      { title: 'Remember me', detail: null, criteria: null, priority: 'low' as const, kind: 'task' as const },
-    ],
-  }))
+  const onDraft = vi.fn(async (_text: string) => DRAFT)
+  const onAddTree = vi.fn(async (_tree: TodoTreeIn) => added)
   render(
     <BacklogPage
       {...props}
@@ -608,12 +635,14 @@ test('the note is written as tasks once there is text: each changed, added by yo
       providers={[paid]}
       auto={drafter()}
       onDraft={onDraft}
+      onAddTree={onAddTree}
       onPlan={vi.fn(async () => {})}
     />,
   )
-  expect(addForm().queryByRole('button', { name: 'Write it with the Hive keeper' })).toBeNull()
-  await userEvent.type(screen.getByLabelText('Title'), 'login mobilde bozuk')
-  const write = addForm().getByRole('button', { name: 'Write it with the Hive keeper' })
+  const box = await noteBox()
+  const write = box.getByRole('button', { name: 'Write it' })
+  expect(write).toBeDisabled() // (nothing typed yet)
+  await userEvent.type(box.getByLabelText('Your note'), 'login mobilde bozuk')
   // Who writes them and what it costs, in sight - never behind a ⓘ.
   expect(write).toHaveAccessibleDescription(
     `${HIVE_KEEPER_DOES} Cloud (mini) writes them: one request you pay for. Nothing is saved until you add it.`,
@@ -622,34 +651,45 @@ test('the note is written as tasks once there is text: each changed, added by yo
   expect(onDraft).toHaveBeenCalledWith('login mobilde bozuk')
   const drafts = await screen.findByRole('region', { name: 'Drafted tasks' })
   expect(within(drafts).getByText(/Written by Cloud \(mini\)/)).toBeVisible()
-  expect(props.onAdd).not.toHaveBeenCalled()
-  const first = within(drafts).getByRole('group', { name: 'Draft 1' })
+  expect(within(drafts).getByLabelText('Goal')).toHaveValue('Sign-in holds')
+  const login = within(drafts).getByRole('group', { name: 'Story 1' })
+  expect(within(login).getByLabelText('Story')).toHaveValue('Login on mobile')
+  expect(login).toHaveTextContent('The form is shared with the desktop page.')
+  const first = within(login).getByRole('group', { name: 'Draft 1' })
   await userEvent.clear(within(first).getByLabelText('Title'))
   await userEvent.type(within(first).getByLabelText('Title'), 'Fix the login page')
   await userEvent.selectOptions(within(first).getByLabelText('Priority'), 'normal')
-  await userEvent.click(within(first).getByRole('button', { name: 'Add' }))
-  expect(props.onAdd).toHaveBeenCalledWith({
-    title: 'Fix the login page',
-    detail: 'Breaks under 400 px',
-    criteria: 'Fits 360 px',
-    priority: 'normal',
-    kind: 'task',
+  await userEvent.click(within(login).getByRole('button', { name: 'Add' }))
+  // Only this story, under the goal.
+  expect(onAddTree).toHaveBeenLastCalledWith({
+    goal: 'Sign-in holds',
+    goal_id: null,
+    stories: [
+      {
+        title: 'Login on mobile',
+        notes: ['The form is shared with the desktop page.'],
+        tasks: [one('Fix the login page', { detail: 'Breaks under 400 px', criteria: 'Fits 360 px', kind: 'bug' })],
+      },
+    ],
+    tasks: [],
   })
-  await userEvent.click(within(drafts).getByRole('button', { name: 'Remove draft 2' })) // (Remember me, now the second)
+  expect(within(drafts).queryByRole('group', { name: 'Story 2' })).toBeNull() // (the first went)
+  await userEvent.click(within(drafts).getByRole('button', { name: 'Remove draft 2' })) // (Remember me)
   expect(
     within(drafts)
       .getAllByRole('group', { name: /^Draft/ })
-      .map(one => within(one).getByLabelText<HTMLInputElement>('Title').value),
-  ).toEqual(['Password reset'])
+      .map(group => within(group).getByLabelText<HTMLInputElement>('Title').value),
+  ).toEqual(['Password reset', 'Footer year'])
   await userEvent.click(within(drafts).getByRole('button', { name: 'Add all' }))
-  expect(props.onAdd).toHaveBeenLastCalledWith({
-    title: 'Password reset',
-    detail: null,
-    criteria: null,
-    priority: 'normal',
-    kind: 'task',
+  // The rest, under the goal the first Add made.
+  expect(onAddTree).toHaveBeenLastCalledWith({
+    goal: null,
+    goal_id: 'g1',
+    stories: [{ title: 'Password reset', notes: [], tasks: [one('Password reset')] }],
+    tasks: [one('Footer year')],
   })
-  expect(props.onAdd).toHaveBeenCalledTimes(2)
+  expect(onAddTree).toHaveBeenCalledTimes(2)
+  expect(props.onAdd).not.toHaveBeenCalled()
   expect(screen.queryByRole('region', { name: 'Drafted tasks' })).toBeNull()
 })
 
@@ -667,33 +707,42 @@ test('with no model to ask the button says why; Plan it in a chat asks for the H
       onPlan={onPlan}
     />,
   )
-  await userEvent.type(screen.getByLabelText('Title'), 'şifre sıfırlama lazım')
-  const write = addForm().getByRole('button', { name: 'Write it with the Hive keeper' })
+  const box = await noteBox()
+  await userEvent.type(box.getByLabelText('Your note'), 'şifre sıfırlama lazım')
+  const write = box.getByRole('button', { name: 'Write it' })
   expect(write).toBeDisabled()
   expect(write).toHaveAccessibleDescription(`${HIVE_KEEPER_DOES} ${why}`)
-  await userEvent.click(screen.getByRole('button', { name: 'Plan it in a chat' }))
+  await userEvent.click(box.getByRole('button', { name: 'Plan it in a chat' }))
   expect(onPlan).toHaveBeenCalledWith(`${PLAN_ASK}şifre sıfırlama lazım`)
   expect(props.onAdd).not.toHaveBeenCalled()
+  // Esc closes the note box; the bar's button opens it again.
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('form', { name: 'Write it with the Hive keeper' })).toBeNull()
 })
 
 test('while Add all runs, the drafts are held: none is changed and added twice', async () => {
   let done = () => {}
-  const props = { ...page(), onAdd: vi.fn(() => new Promise<void>(resolve => (done = resolve))) }
-  const onDraft = vi.fn(async () => ({
-    by: 'Cloud (mini)',
-    tasks: [{ title: 'One', detail: null, criteria: null, priority: 'normal' as const, kind: 'task' as const }],
-  }))
-  render(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onDraft={onDraft} />)
-  await userEvent.type(screen.getByLabelText('Title'), 'a note')
-  await userEvent.click(addForm().getByRole('button', { name: 'Write it with the Hive keeper' }))
+  const props = page()
+  const onAddTree = vi.fn(
+    () =>
+      new Promise<typeof added>(resolve => (done = () => resolve({ goal_id: null, story_ids: [], task_ids: ['t'] }))),
+  )
+  const onDraft = vi.fn(async () => ({ by: 'Cloud (mini)', goal: null, stories: [], tasks: [one('One')] }))
+  render(
+    <BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onDraft={onDraft} onAddTree={onAddTree} />,
+  )
+  const box = await noteBox()
+  await userEvent.type(box.getByLabelText('Your note'), 'a note')
+  await userEvent.click(box.getByRole('button', { name: 'Write it' }))
   const drafts = await screen.findByRole('region', { name: 'Drafted tasks' })
+  expect(within(drafts).queryByLabelText('Goal')).toBeNull() // (tasks alone: no goal, no story)
   await userEvent.click(within(drafts).getByRole('button', { name: 'Add all' }))
   expect(within(drafts).getByLabelText('Title')).toBeDisabled()
   expect(within(drafts).getByLabelText('Priority')).toBeDisabled()
   expect(within(drafts).getByRole('button', { name: 'Add' })).toBeDisabled()
   await act(async () => done())
   expect(screen.queryByRole('region', { name: 'Drafted tasks' })).toBeNull()
-  expect(props.onAdd).toHaveBeenCalledTimes(1)
+  expect(onAddTree).toHaveBeenCalledTimes(1)
 })
 
 test('a proposal of the Scout says what it came from, and is added, edited first, or turned down; one the Orchestrator said no to waits for nobody', async () => {
@@ -778,17 +827,16 @@ test('who writes the drafts is said by what is known: a model named for it, the 
   const { rerender } = render(
     <BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter({ model_id: 'big' })} onDraft={vi.fn()} />,
   )
-  await userEvent.type(screen.getByLabelText('Title'), 'x')
-  const write = () => addForm().getByRole('button', { name: 'Write it with the Hive keeper' })
+  const box = await noteBox()
+  await userEvent.type(box.getByLabelText('Your note'), 'x')
+  const write = () => box.getByRole('button', { name: 'Write it' })
   expect(write()).toHaveAccessibleDescription(
     `${HIVE_KEEPER_DOES} Cloud (big) writes them: one request you pay for. Nothing is saved until you add it.`,
   )
   expect(write()).toBeEnabled()
   expect(document.getElementById('draft-who')).toHaveClass('muted')
-  // no chat to plan it in: no button for it; the opened task's buttons in their order
-  expect(
-    Array.from(document.querySelectorAll('.backlog-add .memory-actions > button'), button => button.textContent),
-  ).toEqual(['Add task', 'Write it with the Hive keeper'])
+  // no chat to plan it in: no button for it
+  expect(box.queryByRole('button', { name: 'Plan it in a chat' })).toBeNull()
   rerender(
     <BacklogPage
       {...props}
@@ -804,11 +852,14 @@ test('who writes the drafts is said by what is known: a model named for it, the 
   rerender(<BacklogPage {...props} backlog={[]} providers={[]} auto={drafter()} onDraft={vi.fn()} />)
   expect(write()).toHaveAccessibleDescription(`${HIVE_KEEPER_DOES} Who writes them is not read yet.`)
   expect(write()).toBeDisabled()
-  // with no way to draft, neither the button nor its line
+  // with no way to draft, neither the button nor its line - Plan it in a chat alone
   rerender(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onPlan={vi.fn(async () => {})} />)
-  expect(addForm().queryByRole('button', { name: 'Write it with the Hive keeper' })).toBeNull()
+  expect(box.queryByRole('button', { name: 'Write it' })).toBeNull()
   expect(document.getElementById('draft-who')).toBeNull()
-  expect(screen.getByRole('button', { name: 'Plan it in a chat' })).toBeEnabled()
+  expect(box.getByRole('button', { name: 'Plan it in a chat' })).toBeEnabled()
+  // with neither, no Hive keeper on the bar
+  rerender(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} />)
+  expect(screen.queryByRole('button', { name: 'Write it with the Hive keeper' })).toBeNull()
 })
 
 test('while the drafts are written the button says so, and neither it nor Plan it in a chat can be pressed', async () => {
@@ -824,12 +875,15 @@ test('while the drafts are written the button says so, and neither it nor Plan i
       onPlan={vi.fn(async () => {})}
     />,
   )
-  await userEvent.type(screen.getByLabelText('Title'), 'x')
-  await userEvent.click(addForm().getByRole('button', { name: 'Write it with the Hive keeper' }))
+  const box = await noteBox()
+  await userEvent.type(box.getByLabelText('Your note'), 'x')
+  await userEvent.click(box.getByRole('button', { name: 'Write it' }))
   expect(await screen.findByRole('button', { name: 'Writing…' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Writing…' })).toHaveAttribute('aria-describedby', 'draft-who')
   expect(screen.getByRole('button', { name: 'Plan it in a chat' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Add task' })).toBeEnabled()
+  // (A task is still added the usual way meanwhile.)
+  await userEvent.type(addForm().getByLabelText('Title'), 'other')
+  expect(addForm().getByRole('button', { name: 'Add task' })).toBeEnabled()
 })
 
 // 0.1.8: To-do as a tree - goals, their stories, tasks and bugs, the tasks of no story; the filters; a task's story and type.

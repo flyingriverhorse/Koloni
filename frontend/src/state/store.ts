@@ -93,6 +93,8 @@ import type {
   Goal,
   Story,
   TodoTree,
+  TodoTreeAdded,
+  TodoTreeIn,
 } from '../api/types'
 import type { RoleValues } from '../agents/AgentsPage'
 import type { RoleChange } from '../agents/RolePanel'
@@ -252,6 +254,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
     change: { title?: string; goal_id?: string | null; position?: number; closed?: boolean },
   ): Promise<void>
   deleteStory(storyId: string): Promise<void>
+  /** The Hive keeper's draft, or a part of it, added at once by your word: what was added. Throws ApiError. */
+  addTree(tree: TodoTreeIn): Promise<TodoTreeAdded>
   /** Turn on or off the backlog running by itself (off drops what Run the backlog queued). Throws ApiError. */
   setBacklogAuto(on: boolean): Promise<void>
   /** The level and model the chats the backlog opens from now start with (B-350). Throws ApiError. */
@@ -1249,6 +1253,12 @@ export const useApp = create<AppStore>()((set, get) => {
     async deleteStory(storyId) {
       await api.delete('/stories/' + storyId)
       await get().loadBacklog()
+    },
+
+    async addTree(tree) {
+      const added = await api.post<TodoTreeAdded>('/projects/' + get().projectId + '/backlog/tree', tree)
+      await Promise.all([get().loadBacklog(), get().loadBoard()])
+      return added
     },
 
     async addTask(task) {

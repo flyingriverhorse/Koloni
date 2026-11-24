@@ -12,6 +12,7 @@ from alembic import command
 
 from app import backlog
 from app.agent import recover_interrupted
+from app.db import models
 from app.db.models import BacklogTask, Run
 from tests.test_chat_flow import text
 from tests.test_migration_0002 import _config
@@ -289,3 +290,52 @@ def test_a_task_whose_turn_waits_for_the_user_is_at_work_while_another_agent_of_
         session.get_one(Agent, "b").status = "waiting_approval"
         session.commit()
         assert backlog.busy(session, pid, waiting=True) is None
+
+
+def test_add_task_puts_a_proposal_in_a_story_named_by_its_title(client, project_dir):
+    """0.1.8: an agent's add_task names a story by its title - an open one of the project, whatever
+    its case, or a new one of its own (with a goal, new or of that name); turned down, the story it
+    opened goes, and so does its goal once it holds no story."""
+    pid, _ = setup(client, project_dir)
+    said = agent(
+        client, pid, "add_task", title="Mobile button", story="Login", goal="Auth", kind="bug"
+    )
+    assert "story" in said and "Login" in said
+    tree = client.get(f"/api/projects/{pid}/stories").json()
+    assert tree == {
+        "goals": [],
+        "stories": [],
+    }  # (an agent's story holding only proposals: not shown)
+    with client.app.state.session_factory() as session:
+        (story,) = session.query(models.Story).all()
+        (goal,) = session.query(models.Goal).all()
+        assert (story.title, story.created_by, story.goal_id) == ("Login", "agent", goal.id)
+        assert (goal.title, goal.created_by) == ("Auth", "agent")
+    agent(client, pid, "add_task", title="Check the form", story="login")
+    tasks = client.get(f"/api/projects/{pid}/backlog").json()
+    assert {(t["title"], t["status"], t["kind"]) for t in tasks} == {
+        ("Mobile button", "proposed", "bug"),
+        ("Check the form", "proposed", "task"),
+    }
+    assert {t["story_id"] for t in tasks} == {story.id}
+    # The agents read it so too: each task's story, and a bug said.
+    listed = agent(client, pid, "read_backlog")
+    assert listed.count("; story: ") == 2 and "Login" in listed and ", bug, " in listed
+    bug = next(t for t in tasks if t["kind"] == "bug")
+    assert "a bug" in agent(client, pid, "read_backlog", task_id=bug["id"])
+    with pytest.raises(backlog.Refused):
+        agent(client, pid, "add_task", title="x", kind="epic")
+    for task in tasks:
+        client.post(f"/api/backlog/{task['id']}/decide", json={"decision": "reject"})
+    with client.app.state.session_factory() as session:
+        assert session.query(models.Story).count() == 0 and session.query(models.Goal).count() == 0
+    # A story of the user's stays though its tasks go; one closed is not added to.
+    mine = client.post(f"/api/projects/{pid}/stories", json={"title": "Mine"}).json()["id"]
+    agent(client, pid, "add_task", title="y", story="mine")
+    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert task["story_id"] == mine
+    assert client.delete(f"/api/backlog/{task['id']}").status_code == 204
+    client.patch(f"/api/stories/{mine}", json={"closed": True})
+    agent(client, pid, "add_task", title="z", story="Mine")
+    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert task["story_id"] != mine

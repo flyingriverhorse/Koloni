@@ -8,9 +8,12 @@ from collections.abc import Sequence
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import BacklogTask, Goal, Story
+from app.db.models import BacklogTask, Goal, Story, now
 
 PRIORITIES = ("high", "normal", "low")
+# A story's notebook: each note at most NOTE_MOST characters, at most NOTEBOOK_MOST of them (the
+# newest kept).
+NOTE_MOST, NOTEBOOK_MOST = 200, 20
 # What a story is: none of its tasks started; one at work or queued in a chat; one stuck; all of
 # them done (the user is asked); closed by the user.
 STORY_STATES = ("todo", "running", "stuck", "done?", "done")
@@ -132,7 +135,8 @@ def goal_row(goal: Goal, states: Sequence[str]) -> dict:
 
 
 def tree(session: Session, project_id: str) -> dict:
-    """The project's goals and stories in their order, as `TodoTreeOut`: its shown stories."""
+    """The project's goals and stories in their order, as `TodoTreeOut`: its shown stories
+    (`shown`), and the goals of the user's or over a shown story."""
     by_story: dict[str, list[BacklogTask]] = {}
     for task in session.scalars(
         select(BacklogTask).where(
@@ -148,10 +152,13 @@ def tree(session: Session, project_id: str) -> dict:
         if shown(story, by_story.get(story.id, []))
     ]
     goals = [
-        goal_row(goal, [one["state"] for one in stories if one["goal_id"] == goal.id])
+        goal_row(goal, states)
         for goal in session.scalars(
             select(Goal).where(Goal.project_id == project_id).order_by(Goal.position)
         )
+        # (nor a goal an agent opened over such stories alone)
+        if (states := [one["state"] for one in stories if one["goal_id"] == goal.id])
+        or goal.created_by != "agent"
     ]
     return {"goals": goals, "stories": stories}
 
@@ -163,3 +170,63 @@ def goal_states(session: Session, goal: Goal) -> list[str]:
         for story in session.scalars(select(Story).where(Story.goal_id == goal.id))
         if shown(story, tasks := tasks_of(session, story.id))
     ]
+
+
+def story_named(session: Session, project_id: str, title: str) -> Story | None:
+    """The project's open story of this title, whatever its case; None if it has none."""
+    folded = title.strip().casefold()
+    return next(
+        (
+            story
+            for story in session.scalars(
+                select(Story)
+                .where(Story.project_id == project_id, Story.closed_at.is_(None))
+                .order_by(Story.position)
+            )
+            if story.title.casefold() == folded
+        ),
+        None,
+    )
+
+
+def goal_named(session: Session, project_id: str, title: str) -> Goal | None:
+    """The project's goal of this title, whatever its case; None if it has none."""
+    folded = title.strip().casefold()
+    return next(
+        (
+            goal
+            for goal in session.scalars(select(Goal).where(Goal.project_id == project_id))
+            if goal.title.casefold() == folded
+        ),
+        None,
+    )
+
+
+def drop_if_empty(session: Session, story: Story) -> None:
+    """A story an agent opened goes once none of its tasks is left (its proposals turned down),
+    and its goal, where an agent's, once no story is left under it. The user's stay."""
+    if story.created_by != "agent" or session.scalar(
+        select(BacklogTask.id).where(BacklogTask.story_id == story.id).limit(1)
+    ):
+        return
+    goal = session.get(Goal, story.goal_id) if story.goal_id else None
+    session.delete(story)
+    session.flush()
+    renumber(session, Story, story.project_id)
+    if (
+        goal is not None
+        and goal.created_by == "agent"
+        and session.scalar(select(Story.id).where(Story.goal_id == goal.id).limit(1)) is None
+    ):
+        session.delete(goal)
+        session.flush()
+        renumber(session, Goal, goal.project_id)
+
+
+def add_notes(story: Story, texts: Sequence[str], by: str, kind: str = "decision") -> None:
+    """Notes put in a story's notebook, each cut to NOTE_MOST, the newest NOTEBOOK_MOST kept.
+    shortcut: not masked nor read for orders yet (the plan's Task 10 does); only the Hive
+    keeper's draft, added by the user's word, writes here until then."""
+    at = now().isoformat()
+    added = [{"kind": kind, "text": text[:NOTE_MOST], "by": by, "at": at} for text in texts]
+    story.notes = [*(story.notes or []), *added][-NOTEBOOK_MOST:]  # (replaced whole)

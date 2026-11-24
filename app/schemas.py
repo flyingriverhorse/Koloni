@@ -4947,11 +4947,51 @@ class BacklogDraftIn(BaseModel):
     conversation_id: str | None = Field(default=None, max_length=32)
 
 
-class BacklogDraftOut(BaseModel):
-    """A model's tasks from the user's note, saved nowhere: each is added by the user's word."""
+class DraftStory(BaseModel):
+    title: str
+    # Short lines the Hive keeper would have its notebook keep.
+    notes: list[str] = []
+    tasks: list[BacklogTaskIn]
 
+
+class BacklogDraftOut(BaseModel):
+    """A model's goal, stories and tasks from the user's note, saved nowhere: added by the user's
+    word (`POST .../backlog/tree`). An answer of tasks alone has no goal and no story."""
+
+    goal: str | None = None
+    stories: list[DraftStory] = []
     tasks: list[BacklogTaskIn]
     by: str
+
+
+# A note of a story's notebook as the user adds it (`stories.NOTE_MOST`).
+TreeNote = Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class TreeStoryIn(BaseModel):
+    """A story of a drafted tree: one of the project's by its `id` (its tasks go into it), or a
+    new one of this `title`."""
+
+    id: str | None = Field(default=None, max_length=32)
+    title: str | None = Field(default=None, max_length=200)
+    notes: list[TreeNote] = Field(default=[], max_length=20)
+    tasks: list[BacklogTaskIn] = Field(default=[], max_length=50)
+
+
+class TodoTreeIn(BaseModel):
+    """A drafted goal, its stories and their tasks, added at once by the user's word: the stories'
+    goal one of the project's (`goal_id`) or a new one of `goal`'s title."""
+
+    goal: str | None = Field(default=None, max_length=200)
+    goal_id: str | None = Field(default=None, max_length=32)
+    stories: list[TreeStoryIn] = Field(default=[], max_length=20)
+    tasks: list[BacklogTaskIn] = Field(default=[], max_length=50)
+
+
+class TodoTreeAdded(BaseModel):
+    goal_id: str | None
+    story_ids: list[str]
+    task_ids: list[str]
 
 
 class GoalOut(Out):

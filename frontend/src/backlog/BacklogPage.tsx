@@ -15,6 +15,8 @@ import type {
   PermissionMode,
   Provider,
   Story,
+  TodoTreeAdded,
+  TodoTreeIn,
 } from '../api/types'
 import { useAsk } from '../memory/useAsk'
 import { type LoadModels, ModelNameInput, ProviderOptions } from '../models/ModelNameInput'
@@ -24,6 +26,7 @@ import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { usePanel } from '../shell/usePanel'
 import { AwayNight } from './Away'
+import { DraftTree } from './DraftTree'
 import { StoryPicker } from './StoryPicker'
 import { TaskMarks, TodoBar, TodoTree, type TreeActions } from './TodoTree'
 import { useTreeView } from './tree'
@@ -64,8 +67,10 @@ interface Props {
   away?: Away | null
   /** Each throws ApiError; the backlog is read again after it. */
   onAdd: (task: NewBacklogTask) => Promise<void>
-  /** What is typed, written as tasks by a model asked once; nothing is saved. Throws ApiError. */
+  /** What is typed, written as a goal, stories and tasks by a model asked once; nothing is saved. Throws ApiError. */
   onDraft?: (text: string) => Promise<BacklogDraft>
+  /** A draft's goal, stories and tasks (or a part of them) added at once. Throws ApiError. */
+  onAddTree?: (tree: TodoTreeIn) => Promise<TodoTreeAdded>
   /** A new chat in the project, with this as its first message, opened. Throws ApiError. */
   onPlan?: (message: string) => Promise<void>
   onChange: (taskId: string, change: BacklogTaskChange) => Promise<void>
@@ -208,16 +213,14 @@ const cleaned = (task: NewBacklogTask) => ({
 export const PLAN_ASK = 'Have the Hive keeper break this into To-do tasks: '
 /** What the Hive keeper does, under its button: its name does not say it. */
 export const HIVE_KEEPER_DOES =
-  'The Hive keeper keeps the To-do list: it turns your note into tasks, each with what makes it done.'
+  'The Hive keeper keeps the To-do list: it turns your note into a goal, its stories and their tasks, each with what makes it done.'
 const COSTS: Record<Paid, string> = {
   subscription: 'one request on your plan',
   'API key': 'one request you pay for',
   'this machine': 'one request on this machine, free',
 }
 
-type AddProps = Pick<Props, 'onAdd' | 'onDraft' | 'onPlan' | 'providers'> & {
-  drafter: BacklogAuto['drafter']
-} & StoryChoice
+type AddProps = Pick<Props, 'onAdd'> & StoryChoice
 
 /** Who writes the drafts and what that costs - or why nobody can, or that it is not read yet. */
 const whoWrites = (drafter: BacklogAuto['drafter'], asked: Provider | undefined) =>
@@ -226,22 +229,11 @@ const whoWrites = (drafter: BacklogAuto['drafter'], asked: Provider | undefined)
     ? `${asked.name} (${drafter?.model_id ?? asked.default_model ?? 'its default model'}) writes them: ${COSTS[paidOf(asked)]}. Nothing is saved until you add it.`
     : 'Who writes them is not read yet.')
 
-/** One line: a title, then Enter. The rest of the task opens under it once a title is typed; Esc closes it. What is typed may
- *  instead be written as tasks by a model (6 Nov), shown under it to change: each is added only by your word. */
-function AddTask({ onAdd, onDraft, onPlan, providers, drafter, stories, onNewStory }: AddProps) {
+/** One line: a title, then Enter. The rest of the task opens under it once a title is typed; Esc closes it. */
+function AddTask({ onAdd, stories, onNewStory }: AddProps) {
   const { busy, error, ask } = useAsk()
-  const drafting = useAsk()
-  const adding = useAsk()
   const [task, setTask] = useState(EMPTY)
   const [folded, setFolded] = useState(false)
-  const [drafts, setDrafts] = useState<NewBacklogTask[]>([])
-  const [by, setBy] = useState('')
-  const note = [task.title, task.detail]
-    .map(part => part?.trim())
-    .filter(Boolean)
-    .join('\n')
-  const asked = providers.find(one => one.id === drafter?.provider_id)
-  const who = whoWrites(drafter, asked)
   function submit(event: FormEvent) {
     event.preventDefault()
     // Emptied only if nothing was typed since: the list shows the task before the add is through
@@ -252,146 +244,151 @@ function AddTask({ onAdd, onDraft, onPlan, providers, drafter, stories, onNewSto
     setFolded(false)
     setTask(next)
   }
-  const draft = (write: NonNullable<Props['onDraft']>) =>
-    void drafting.ask(async () => {
-      const drawn = await write(note)
-      setDrafts(drawn.tasks.map(one => ({ ...one, detail: one.detail ?? '', criteria: one.criteria ?? '' })))
-      setBy(drawn.by)
-    })
-  const addDrafts = (some: NewBacklogTask[]) =>
-    void adding.ask(async () => {
-      // One after the other: each goes at the end of the order as it is added.
-      for (const one of some) {
-        await onAdd(cleaned(one))
-        setDrafts(now => now.filter(kept => kept !== one))
-      }
-    })
-  const setDraft = (one: NewBacklogTask, next: NewBacklogTask) =>
-    setDrafts(now => now.map(kept => (kept === one ? next : kept)))
-  /** The rest of the task, opened under its title: its fields, Add task, and the ways to have it written or planned. */
-  const rest = () => (
-    <>
-      <MoreFields id="new-task" task={task} onTask={change} />
-      <StoryFields id="new-task" task={task} onTask={change} stories={stories} onNewStory={onNewStory} />
-      <div className="memory-actions">
-        <button type="submit" className="btn btn-small btn-primary" disabled={busy}>
-          Add task
-        </button>
-        {onDraft && (
-          <button
-            type="button"
-            className="btn btn-small"
-            aria-describedby="draft-who"
-            disabled={!asked || !!drafter?.why || drafting.busy}
-            onClick={() => draft(onDraft)}
-          >
-            {drafting.busy ? 'Writing…' : 'Write it with the Hive keeper'}
-          </button>
-        )}
-        {onPlan && (
-          <button
-            type="button"
-            className="btn btn-small"
-            disabled={drafting.busy}
-            onClick={() => void drafting.ask(() => onPlan(PLAN_ASK + note))}
-          >
-            Plan it in a chat
-          </button>
-        )}
+  return (
+    <form
+      className="backlog-add"
+      aria-label="Add a task"
+      onSubmit={submit}
+      onKeyDown={e => e.key === 'Escape' && setFolded(true)}
+    >
+      <div className="backlog-add-line">
+        <span aria-hidden="true">＋</span>
+        <label className="visually-hidden" htmlFor="new-task-title">
+          Title
+        </label>
+        <input
+          id="new-task-title"
+          className="backlog-add-input"
+          placeholder="Add a task — title, then Enter"
+          required
+          maxLength={200}
+          value={task.title}
+          onChange={e => change({ ...task, title: e.target.value })}
+        />
       </div>
-      {onDraft && (
-        <p id="draft-who" className="muted">
-          {HIVE_KEEPER_DOES} {who}
-        </p>
+      {task.title.trim() && !folded && (
+        <>
+          <MoreFields id="new-task" task={task} onTask={change} />
+          <StoryFields id="new-task" task={task} onTask={change} stories={stories} onNewStory={onNewStory} />
+          <div className="memory-actions">
+            <button type="submit" className="btn btn-small btn-primary" disabled={busy}>
+              Add task
+            </button>
+          </div>
+        </>
       )}
-    </>
+      {error && (
+        <div role="alert" className="alert">
+          {error}
+        </div>
+      )}
+    </form>
   )
+}
+
+type NoteProps = Pick<Props, 'onDraft' | 'onPlan' | 'onAddTree' | 'providers'> & {
+  drafter: BacklogAuto['drafter']
+  onClose: () => void
+}
+
+/**
+ * "Write it with the Hive keeper" (6 Nov; 0.1.8 as a tree): a rough note, written by a model asked once as a goal, its
+ * stories and their tasks - shown under it to change, each part added by your word; or planned in a chat.
+ */
+function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, onClose }: NoteProps) {
+  const drafting = useAsk()
+  const [note, setNote] = useState('')
+  const [draft, setDraft] = useState<BacklogDraft | null>(null)
+  const asked = providers.find(one => one.id === drafter?.provider_id)
+  const text = note.trim()
+  const write = (event: FormEvent) => {
+    event.preventDefault()
+    if (onDraft) void drafting.ask(async () => setDraft(await onDraft(text)))
+  }
   return (
     <>
       <form
         className="backlog-add"
-        aria-label="Add a task"
-        onSubmit={submit}
-        onKeyDown={e => e.key === 'Escape' && setFolded(true)}
+        aria-label="Write it with the Hive keeper"
+        onSubmit={write}
+        onKeyDown={e => e.key === 'Escape' && onClose()}
       >
-        <div className="backlog-add-line">
-          <span aria-hidden="true">＋</span>
-          <label className="visually-hidden" htmlFor="new-task-title">
-            Title
-          </label>
-          <input
-            id="new-task-title"
-            className="backlog-add-input"
-            placeholder="Add a task — title, then Enter"
-            required
-            maxLength={200}
-            value={task.title}
-            onChange={e => change({ ...task, title: e.target.value })}
+        <div className="field">
+          <label htmlFor="hive-note">Your note</label>
+          <textarea
+            id="hive-note"
+            className="input"
+            autoFocus
+            rows={3}
+            maxLength={4201}
+            value={note}
+            onChange={e => setNote(e.target.value)}
           />
         </div>
-        {task.title.trim() && !folded && rest()}
-        {(error || drafting.error) && (
+        <div className="memory-actions">
+          {onDraft && (
+            <button
+              type="submit"
+              className="btn btn-small btn-primary"
+              aria-describedby="draft-who"
+              disabled={!text || !asked || !!drafter?.why || drafting.busy}
+            >
+              {drafting.busy ? 'Writing…' : 'Write it'}
+            </button>
+          )}
+          {onPlan && (
+            <button
+              type="button"
+              className="btn btn-small"
+              disabled={!text || drafting.busy}
+              onClick={() => void drafting.ask(() => onPlan(PLAN_ASK + text))}
+            >
+              Plan it in a chat
+            </button>
+          )}
+        </div>
+        {onDraft && (
+          <p id="draft-who" className="muted">
+            {HIVE_KEEPER_DOES} {whoWrites(drafter, asked)}
+          </p>
+        )}
+        {drafting.error && (
           <div role="alert" className="alert">
-            {error ?? drafting.error}
+            {drafting.error}
           </div>
         )}
       </form>
-      {drafts.length > 0 && (
-        <section className="backlog-add" aria-label="Drafted tasks">
-          <p className="muted">Written by {by}: change them as you like. Nothing is saved until you add it.</p>
-          {/* Held while adding: a draft changed then would be another, and added twice. */}
-          <fieldset className="recipe-rows" disabled={adding.busy}>
-            {drafts.map((one, i) => (
-              <div key={i} role="group" aria-label={`Draft ${i + 1}`} className="field">
-                <div className="field">
-                  <label htmlFor={`draft-${i}-title`}>Title</label>
-                  <input
-                    id={`draft-${i}-title`}
-                    className="input"
-                    maxLength={200}
-                    value={one.title}
-                    onChange={e => setDraft(one, { ...one, title: e.target.value })}
-                  />
-                </div>
-                <MoreFields id={`draft-${i}`} task={one} onTask={next => setDraft(one, next)} />
-                <div className="memory-actions">
-                  <button
-                    type="button"
-                    className="btn btn-small btn-primary"
-                    disabled={!one.title.trim()}
-                    onClick={() => addDrafts([one])}
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-small"
-                    aria-label={`Remove draft ${i + 1}`}
-                    onClick={() => setDrafts(now => now.filter(kept => kept !== one))}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
-            <div className="memory-actions">
-              <button
-                type="button"
-                className="btn btn-small"
-                disabled={drafts.some(one => !one.title.trim())}
-                onClick={() => addDrafts(drafts)}
-              >
-                Add all
-              </button>
-            </div>
-          </fieldset>
-          {adding.error && (
-            <div role="alert" className="alert">
-              {adding.error}
-            </div>
-          )}
-        </section>
+      {draft && onAddTree && (
+        // (A new draft is a new tree: what was changed in the one before is not carried over.)
+        <DraftTree
+          key={JSON.stringify(draft)}
+          draft={draft}
+          onAdd={onAddTree}
+          onDrop={() => setDraft(null)}
+          taskFields={(id, task, onTask) => <MoreFields id={id} task={task} onTask={onTask} />}
+        />
       )}
+    </>
+  )
+}
+
+type HeadProps = Omit<NoteProps, 'onClose'> &
+  Pick<Props, 'onAdd' | 'projectId'> & { view: ReturnType<typeof useTreeView> }
+
+/** Over the list: its bar, the Hive keeper's note once its button is pressed, and where a task is added. */
+function TodoHead({ view, projectId, onAdd, ...note }: HeadProps) {
+  const [noting, setNoting] = useState(false)
+  return (
+    <>
+      <TodoBar
+        filter={view.filter}
+        onFilter={view.setFilter}
+        projectId={projectId}
+        onHive={note.onDraft || note.onPlan ? () => setNoting(!noting) : undefined}
+        noting={noting}
+      />
+      {noting && <HiveNote {...note} onClose={() => setNoting(false)} />}
+      <AddTask onAdd={onAdd} {...view.choice} />
     </>
   )
 }
@@ -1256,6 +1253,7 @@ export function BacklogPage({
   onAdd,
   onDraft,
   onPlan,
+  onAddTree,
   onChange,
   onDelete,
   onDecide,
@@ -1406,14 +1404,15 @@ export function BacklogPage({
           {error ? `The To-do list could not be read: ${error}` : workError}
         </div>
       )}
-      <TodoBar filter={view.filter} onFilter={view.setFilter} projectId={projectId} hive={!!onDraft} />
-      <AddTask
+      <TodoHead
+        view={view}
+        projectId={projectId}
         onAdd={onAdd}
         onDraft={onDraft}
         onPlan={onPlan}
+        onAddTree={onAddTree}
         providers={providers}
         drafter={auto?.drafter}
-        {...view.choice}
       />
       {waits.length > 0 && <Waiting waits={waits} onDecide={onDecide} onChange={onChange} onOpen={onOpen} />}
       <Declined backlog={backlog} onDecide={onDecide} />

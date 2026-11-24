@@ -25,6 +25,8 @@ from app.schemas import (
     BacklogTaskIn,
     BacklogTaskOut,
     BacklogTaskPatch,
+    TodoTreeAdded,
+    TodoTreeIn,
 )
 from app.serialize import tell_chats
 
@@ -137,10 +139,31 @@ async def draft_tasks(
         project_id=project.id,
     )
     try:
-        tasks = backlog.drafted(said)
+        drawn = backlog.drafted(said)
     except ValueError as exc:
         raise HTTPException(502, f"the model's answer is not a list of tasks: {exc}") from None
-    return BacklogDraftOut(tasks=tasks, by=f"{provider.name} ({model_id})")
+    return BacklogDraftOut.model_validate({**drawn, "by": f"{provider.name} ({model_id})"})
+
+
+@router.post(
+    "/projects/{project_id}/backlog/tree",
+    response_model=TodoTreeAdded,
+    status_code=201,
+    dependencies=OWN,
+)
+async def add_tree(
+    project_id: str, body: TodoTreeIn, request: Request, session: Session = Depends(get_session)
+):
+    """The Hive keeper's draft - a goal, its stories and their tasks, as the user changed it -
+    added at once by the user's word: the tasks todo, each the user's (`backlog.add_tree`)."""
+    project = _project(session, project_id)
+    try:
+        added = backlog.add_tree(session, project.id, body.model_dump(), "user")
+    except backlog.Refused as exc:
+        raise HTTPException(422, str(exc)) from None
+    session.commit()
+    _told(request, session, project_id)
+    return added
 
 
 @router.put(
@@ -282,6 +305,7 @@ async def delete_task(task_id: str, request: Request, session: Session = Depends
     session.delete(task)
     session.flush()
     backlog.renumber(session, task.project_id)
+    backlog.tidy_story(session, task.story_id)
     session.commit()
     _told(request, session, task.project_id)
     return Response(status_code=204)

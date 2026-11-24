@@ -2558,6 +2558,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/backlog/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Tree
+         * @description The Hive keeper's draft - a goal, its stories and their tasks, as the user changed it -
+         *     added at once by the user's word: the tasks todo, each the user's (`backlog.add_tree`).
+         */
+        post: operations["add_tree_api_projects__project_id__backlog_tree_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/board": {
         parameters: {
             query?: never;
@@ -5445,11 +5466,19 @@ export interface components {
         };
         /**
          * BacklogDraftOut
-         * @description A model's tasks from the user's note, saved nowhere: each is added by the user's word.
+         * @description A model's goal, stories and tasks from the user's note, saved nowhere: added by the user's
+         *     word (`POST .../backlog/tree`). An answer of tasks alone has no goal and no story.
          */
         BacklogDraftOut: {
             /** By */
             by: string;
+            /** Goal */
+            goal?: string | null;
+            /**
+             * Stories
+             * @default []
+             */
+            stories: components["schemas"]["DraftStory"][];
             /** Tasks */
             tasks: components["schemas"]["BacklogTaskIn"][];
         };
@@ -6926,6 +6955,18 @@ export interface components {
             unasked: boolean;
             /** What */
             what: string;
+        };
+        /** DraftStory */
+        DraftStory: {
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /** Tasks */
+            tasks: components["schemas"]["BacklogTaskIn"][];
+            /** Title */
+            title: string;
         };
         /**
          * ExpertIn
@@ -11428,6 +11469,36 @@ export interface components {
             /** Strongest */
             strongest: components["schemas"]["TierModelOut"][];
         };
+        /** TodoTreeAdded */
+        TodoTreeAdded: {
+            /** Goal Id */
+            goal_id: string | null;
+            /** Story Ids */
+            story_ids: string[];
+            /** Task Ids */
+            task_ids: string[];
+        };
+        /**
+         * TodoTreeIn
+         * @description A drafted goal, its stories and their tasks, added at once by the user's word: the stories'
+         *     goal one of the project's (`goal_id`) or a new one of `goal`'s title.
+         */
+        TodoTreeIn: {
+            /** Goal */
+            goal?: string | null;
+            /** Goal Id */
+            goal_id?: string | null;
+            /**
+             * Stories
+             * @default []
+             */
+            stories: components["schemas"]["TreeStoryIn"][];
+            /**
+             * Tasks
+             * @default []
+             */
+            tasks: components["schemas"]["BacklogTaskIn"][];
+        };
         /**
          * TodoTreeOut
          * @description A project's goals and stories in their order; its tasks are the backlog's.
@@ -11526,6 +11597,27 @@ export interface components {
             max_files?: number | null;
             /** Max Mb */
             max_mb?: number | null;
+        };
+        /**
+         * TreeStoryIn
+         * @description A story of a drafted tree: one of the project's by its `id` (its tasks go into it), or a
+         *     new one of this `title`.
+         */
+        TreeStoryIn: {
+            /** Id */
+            id?: string | null;
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /**
+             * Tasks
+             * @default []
+             */
+            tasks: components["schemas"]["BacklogTaskIn"][];
+            /** Title */
+            title?: string | null;
         };
         /**
          * TriggerBudget
@@ -16834,6 +16926,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BacklogNextOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_tree_api_projects__project_id__backlog_tree_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoTreeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoTreeAdded"];
                 };
             };
             /** @description Validation Error */
