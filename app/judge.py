@@ -39,9 +39,21 @@ NO = re.compile(
     r"|avoid|forbid\w*|prohibit\w*|nobody|nothing|none|neither|nor|refrain|off-limits"
     r"|asla|sakın|hiç|hiçbir|yasak\w*|değil|olmaz|istemiyorum|etme|yapma)\b"
 )
+# Turkish "if" is a verb's or a word's `-se` / `-sa` and its person (`-sem`, `-sen`, `-seniz`,
+# `-seler`): after a consonant, as the last vowel before it says ("yeşilse", "yoksa", "temizse",
+# "geçerse", "olursa", "istersen") - an English word that ends so is in NOT_CONDITIONAL.
+_CONSONANT = "[bcçdfgğhjklmnprsştvyz]"
 CONDITION = re.compile(
     r"\b(?:without|unless|except|only if|before|ask|if|when|once|after|until"
-    r"|eğer|ise|\w+(?:rs[ae]|ys[ae]|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n))\b"
+    r"|eğer|ise|\w+(?:rs[ae]|ys[ae]|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n)"
+    rf"|\w*[eiöü]{_CONSONANT}+se(?:m|n|k|n[iü]z|ler)?"
+    rf"|\w*[aıou]{_CONSONANT}+sa(?:m|n|k|n[ıu]z|lar)?)\b"
+)
+NOT_CONDITIONAL = frozenset(
+    {
+        *("else", "license", "sense", "nonsense", "dense", "tense", "intense", "immense"),
+        *("expense", "defense", "offense", "rinse", "eclipse", "kimse"),
+    }
 )
 # shortcut: Turkish says no by a verb's ending, and its endings after it ("itme", "silmeyiniz",
 # "silmiyoruz", "silemezsin", "silinmesin") - any word ending so counts, a noun such as
@@ -214,9 +226,14 @@ def _says_no(plain: str) -> bool:
     )
 
 
+def _conditional(plain: str) -> bool:
+    """Whether a `_plain` text sets a condition (`CONDITION`, but `NOT_CONDITIONAL`'s words)."""
+    return any(found[0] not in NOT_CONDITIONAL for found in CONDITION.finditer(plain))
+
+
 def _forbids(plain: str) -> bool:
-    """Whether a `_plain` text says no or sets a condition (`_says_no`, `CONDITION`)."""
-    return _says_no(plain) or bool(CONDITION.search(plain))
+    """Whether a `_plain` text says no or sets a condition (`_says_no`, `_conditional`)."""
+    return _says_no(plain) or _conditional(plain)
 
 
 def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
@@ -246,7 +263,7 @@ def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
             and "?" not in shown
             and not shown.endswith(":")
             and _says_no(unit)
-            and not CONDITION.search(unit)
+            and not _conditional(unit)
         )
     )
     if source and holds:

@@ -832,6 +832,9 @@ _HARMLESS_RUNNER_OPTIONS = frozenset(
         *("--frozen-lockfile", "--immutable"),  # (changes no lockfile)
     }
 )
+# ...these two with any value; the rest are switches, harmless only on: alone or `=true` - npm's
+# parser (nopt) reads `--ignore-scripts=false`, `=0`, `=null` and a `false` word after it as off.
+_VALUED_RUNNER_OPTIONS = frozenset({"--loglevel", "--color"})
 # ...npm reads its own up to `--`, anywhere; pnpm, yarn and bun theirs up to the verb that hands
 # the rest on (a bin's, a script's); npx, pnpx and bunx theirs before the package only.
 _HAND_ON = frozenset({"exec", "dlx", "x", "run", "run-script"})
@@ -840,7 +843,9 @@ _HAND_ON = frozenset({"exec", "dlx", "x", "run", "run-script"})
 def _runner_options_past(words: list[str], extra: list[str]) -> bool:
     """W7c: whether a node runner's line (`corepack` before one too) gives past its rule
     (`extra`, up to `--`) an option of the runner's own not in `_HARMLESS_RUNNER_OPTIONS` - its
-    value a word of its own (`--loglevel silent`) or after `=`."""
+    value a word of its own (`--loglevel silent`) or after `=`; a switch of those turned off
+    (`--ignore-scripts=false`, `--ignore-scripts false` - its `false` past a rule that ends in
+    the switch too)."""
     words = words[1:] if words and _program(words[0]) == "corepack" else words
     program = _program(words[0]) if words else ""
     if program not in ("npm", "pnpm", "yarn", "bun") or (
@@ -848,9 +853,24 @@ def _runner_options_past(words: list[str], extra: list[str]) -> bool:
     ):
         return False
     own = extra[: extra.index("--")] if "--" in extra else extra
+    last = words[-len(extra) - 1] if len(words) > len(extra) else ""  # (the rule's last word)
+    seen = [last, *own] if last in _HARMLESS_RUNNER_OPTIONS else own
     return any(
-        word.startswith("-") and word.split("=")[0] not in _HARMLESS_RUNNER_OPTIONS for word in own
+        not _harmless_runner_option(word, after)
+        for word, after in zip(seen, [*seen[1:], ""], strict=False)
     )
+
+
+def _harmless_runner_option(word: str, after: str) -> bool:
+    """Whether a word of a node runner's own past its rule changes only what it prints, where it
+    fetches from or that it runs less (`_HARMLESS_RUNNER_OPTIONS`): not an option, or one of
+    those - a switch on (`--offline`, `=true`), never followed by a `false` word."""
+    if not word.startswith("-"):
+        return True
+    name, sep, value = word.partition("=")
+    if name in _VALUED_RUNNER_OPTIONS:
+        return True
+    return name in _HARMLESS_RUNNER_OPTIONS and (value == "true" if sep else after != "false")
 
 
 def _past_the_rule(words: list[str], extra: list[str]) -> bool:
@@ -877,7 +897,17 @@ def _past_the_rule(words: list[str], extra: list[str]) -> bool:
         # judged with its option - as `after`, or glued as written)
         name, sep, glued = written.partition("=")
         if (bare := _one_piece(name)) is None:
-            if (given or out) and _PIECES.sub("", name).startswith("-"):
+            # (...and so is a word of its own the shell joins into one: `'SHELL=/x'`, `SH""ELL=`)
+            joined = _PIECES.sub("", written)
+            if (
+                (given or out)
+                and joined.startswith("-")
+                or any(
+                    _option_given(joined, after, option, takes) is not None
+                    for _program_name, option, takes in given
+                    if not option.startswith("-")
+                )
+            ):
                 return True
             continue
         word = f"{bare}{sep}{_one_piece(glued, path=True) or glued}"

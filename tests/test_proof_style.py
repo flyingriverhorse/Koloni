@@ -1358,6 +1358,16 @@ def test_a_rule_for_npm_exec_never_runs_it_in_another_package(
         # (a script by its name under its own rule: the project's code, by design)
         ("npm test", "npm test", "sub096/package.json", None),
         ("npx tsc --noEmit", "npx tsc", "other096/notes.md", None),
+        # (F395: a lock an install follows; a Python runner's lock anywhere - a pyproject.toml in a
+        # folder would make KOLONİ's own test run ask first; tsc's settings)
+        ("npm install", "npm install", "package-lock.json", "package-lock.json"),
+        (
+            "poetry run ruff check .",
+            "poetry run ruff",
+            "libs096/poetry.lock",
+            "libs096/poetry.lock",
+        ),
+        ("npx tsc --noEmit", "npx tsc", "web096/tsconfig.json", "web096/tsconfig.json"),
     ],
 )
 def test_a_node_runners_rule_stops_at_a_manifest_an_agent_wrote_anywhere(  # noqa: PLR0913
@@ -1373,6 +1383,8 @@ def test_a_node_runners_rule_stops_at_a_manifest_an_agent_wrote_anywhere(  # noq
     planted = (
         '{"name": "sub096", "scripts": {"postinstall": "node evil096.js"}}\n'
         if written.endswith(".json")
+        else MANIFESTS["pyproject.toml"]
+        if written.endswith(".toml")
         else "PLANTED\n"
     )
     client, _model = make_client(
@@ -1634,6 +1646,167 @@ def test_what_python_m_imports_from_its_folder_before_the_tools_own():
     assert shadows(".", "subprocess.py", startup_only=True) is None
 
 
+@pytest.mark.parametrize(
+    ("line", "cwd", "written", "asked"),
+    [
+        # (F395: a Python runner builds a workspace member or a path dependency with the project,
+        # and reads its settings, locks and requirements - any of them anywhere stops its rule)
+        (
+            "uv run ruff check .",
+            ".",
+            "packages/x096/pyproject.toml",
+            "packages/x096/pyproject.toml",
+        ),
+        ("uv run ruff check .", ".", "packages/x096/setup.py", "packages/x096/setup.py"),
+        ("uv run python -m ruff check .", "web", "api/pyproject.toml", "api/pyproject.toml"),
+        ("uvx ruff check .", ".", "uv.toml", "uv.toml"),
+        ("poetry run ruff check .", "web", "setup.cfg", "setup.cfg"),
+        ("poetry run ruff check .", ".", "libs/a/poetry.toml", "libs/a/poetry.toml"),
+        ("poetry run ruff check .", ".", "poetry.lock", "poetry.lock"),
+        ("pipenv run ruff check .", ".", "Pipfile", "Pipfile"),
+        ("pipenv run ruff check .", ".", "Pipfile.lock", "Pipfile.lock"),
+        ("pipenv run ruff check .", ".", ".env", ".env"),  # (pipenv loads it: PATH, PYTHONPATH)
+        ("pdm run ruff check .", ".", "pdm.toml", "pdm.toml"),
+        ("pdm run ruff check .", ".", "pdm.lock", "pdm.lock"),
+        ("pdm run ruff check .", ".", ".pdm-python", ".pdm-python"),
+        ("hatch run ruff check .", ".", "hatch.toml", "hatch.toml"),
+        ("uv run ruff check .", ".", "uv.lock", "uv.lock"),
+        ("uv run ruff check .", ".", ".python-version", ".python-version"),
+        ("uv run ruff check .", ".", "requirements-dev.txt", "requirements-dev.txt"),
+        ("uv run ruff check .", ".", "requirements/dev.txt", "requirements/dev.txt"),
+        # (what is covered still: a test run, a Python with no runner, another file, another's)
+        ("uv run pytest -q", ".", "packages/x096/pyproject.toml", None),
+        ("python -m mypy .", ".", "web/pyproject.toml", None),
+        ("pytest -q", ".", "setup.cfg", None),
+        ("python x.py", ".", "pyproject.toml", None),
+        ("uv run ruff check .", ".", "docs/notes.md", None),
+        ("uv run ruff check .", ".", ".env", None),  # (pipenv's alone)
+        ("uv run ruff check .", ".", "docs/requirements.md", None),
+    ],
+)
+def test_a_python_runners_rule_stops_at_a_manifest_or_setting_an_agent_wrote_anywhere(
+    tmp_path, line, cwd, written, asked
+):
+    from app.command_runner import PLANTED, _planted
+
+    factory = _copy_db(tmp_path, {written: "PLANTED = 1\n"})
+    root = (tmp_path / "copy").resolve()
+    (root / cwd).mkdir(parents=True, exist_ok=True)
+    assert _planted(factory, "c", root, line, cwd) == (
+        PLANTED.format(place=asked) if asked else None
+    )
+    # (written over since - the user's own again: covered)
+    (root / written).write_text("[tool.ruff]\n", encoding="utf-8")
+    assert _planted(factory, "c", root, line, cwd) is None
+
+
+@pytest.mark.parametrize(
+    ("line", "cwd", "written", "asked"),
+    [
+        # (a package in a node_modules below the folder: an install runs its scripts)
+        (
+            "npm install",
+            ".",
+            "sub096/node_modules/x/package.json",
+            "sub096/node_modules/x/package.json",
+        ),
+        (
+            "npx tsc --noEmit",
+            "web",
+            "web/app/node_modules/x/package.json",
+            "web/app/node_modules/x/package.json",
+        ),
+        # (a lock's `resolved` address, node-gyp's binding.gyp)
+        ("npm install", ".", "package-lock.json", "package-lock.json"),
+        ("npm ci", ".", "sub096/npm-shrinkwrap.json", "sub096/npm-shrinkwrap.json"),
+        ("pnpm install", ".", "pnpm-lock.yaml", "pnpm-lock.yaml"),
+        ("yarn install", ".", "yarn.lock", "yarn.lock"),
+        ("bun install", ".", "bun.lockb", "bun.lockb"),
+        ("bun install", ".", "bun.lock", "bun.lock"),
+        ("npm install", ".", "native/binding.gyp", "native/binding.gyp"),
+        ("npm test", ".", "package-lock.json", None),  # (a script by its name: the project's)
+        ("npm install", ".", "sub096/node_modules/x/index.md", None),
+    ],
+)
+def test_a_node_runners_rule_stops_at_a_lock_or_a_package_below_an_agent_wrote(
+    tmp_path, line, cwd, written, asked
+):
+    from app.command_runner import PLANTED, _planted
+
+    factory = _copy_db(tmp_path, {written: "PLANTED\n"})
+    root = (tmp_path / "copy").resolve()
+    (root / cwd).mkdir(parents=True, exist_ok=True)
+    assert _planted(factory, "c", root, line, cwd) == (
+        PLANTED.format(place=asked) if asked else None
+    )
+
+
+TSC_EXTENDS = '{"extends": "./configs/base", "include": ["src"]}\n'
+
+
+@pytest.mark.parametrize(
+    ("line", "cwd", "written", "asked"),
+    [
+        # (W7: a tsconfig or jsconfig anywhere - it can set `generateTrace`, or a composite build's
+        # `tsBuildInfoFile` outside: measured, tsc 5.9)
+        ("tsc --noEmit", ".", "tsconfig.json", "tsconfig.json"),
+        ("npx tsc --noEmit", ".", "tsconfig.json", "tsconfig.json"),
+        ("pnpm exec tsc --noEmit", ".", "web/tsconfig.app.json", "web/tsconfig.app.json"),
+        ("yarn tsc --noEmit", ".", "jsconfig.json", "jsconfig.json"),
+        ("npm exec tsc -- --noEmit", "web", "tsconfig.base.json", "tsconfig.base.json"),
+        ("corepack pnpm exec tsc --noEmit", ".", "lib/TSConfig.Lib.json", "lib/TSConfig.Lib.json"),
+        (TSC_LINE, ".", "tsconfig.json", "tsconfig.json"),  # (0.1.7's Code style rule)
+        # (a JSON the project's tsconfig extends - from the folder up, or `-p`'s)
+        ("npx tsc --noEmit", ".", "configs/base.json", "configs/base.json"),
+        ("npx tsc --noEmit", "src", "configs/base.json", "configs/base.json"),
+        ("npx tsc -p web", ".", "shared/strict.json", "shared/strict.json"),
+        ("npx tsc --project=web/tsconfig.json", ".", "shared/strict.json", "shared/strict.json"),
+        ("npx tsc -p web", ".", "configs/base.json", "configs/base.json"),  # (the nearest too)
+        # (covered still: a JSON nothing extends; another tool; a script by its name; Code style's
+        # own line, which writes nothing whatever its settings say)
+        ("npx tsc --noEmit", ".", "data/fixture.json", None),
+        ("npx eslint .", ".", "data/fixture.json", None),
+        ("npm run tsc", ".", "tsconfig.json", None),
+        (f"{TSC} {proof_style.TSC_WORDS}", ".", "tsconfig.json", None),
+    ],
+)
+def test_a_tsc_rule_stops_at_a_setting_an_agent_wrote(tmp_path, line, cwd, written, asked):
+    from app.command_runner import PLANTED, _planted
+
+    factory = _copy_db(tmp_path, {written: '{"compilerOptions": {"generateTrace": "../x"}}\n'})
+    root = (tmp_path / "copy").resolve()
+    # (the project's own: its tsconfig extends `./configs/base` - tsc reads `base.json` -, web's
+    # one a shared file)
+    for rel, said in {
+        "tsconfig.json": TSC_EXTENDS,
+        "web/tsconfig.json": '{"extends": "../shared/strict.json"}\n',
+    }.items():
+        if rel != written:
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(said, encoding="utf-8")
+    (root / cwd).mkdir(parents=True, exist_ok=True)
+    assert _planted(factory, "c", root, line, cwd) == (
+        PLANTED.format(place=asked) if asked else None
+    )
+
+
+def test_what_tsc_reads_follows_extends_and_references_once_each_and_not_for_ever(tmp_path):
+    reads = proof_style.tsc_reads
+    (tmp_path / "a.json").write_text('{"extends": "./b.json"}', encoding="utf-8")
+    (tmp_path / "b.json").write_text('{"extends": ["./a.json"], "references": [{"path": "p"}]}')
+    (tmp_path / "p").mkdir()
+    (tmp_path / "p" / "tsconfig.json").write_text('{"extends": "../../outside.json"}')
+    found = reads(tmp_path, ".", ["-p", "a.json"])
+    assert {os.path.basename(one) for one in found} == {"a.json", "b.json", "tsconfig.json"}
+    # (past MOST_TSC_READS of them: None - any JSON may be one)
+    for at in range(proof_style.MOST_TSC_READS + 1):
+        (tmp_path / f"c{at}.json").write_text(f'{{"extends": "./c{at + 1}.json"}}')
+    (tmp_path / f"c{proof_style.MOST_TSC_READS + 1}.json").write_text("{}")
+    assert reads(tmp_path, ".", ["--project", "c0.json"]) is None
+    assert proof_style.tsc_setting(tmp_path, "x/data.json", None) == "x/data.json"
+    assert proof_style.tsc_setting(tmp_path, "x/data.md", None) is None
+
+
 # W7: what an agent writes into a package's own manifest (the second session's E4) - each a file
 # Config reads as whole
 MANIFESTS = {
@@ -1646,6 +1819,41 @@ def proof_style_planted(place: str) -> str:
     from app.command_runner import PLANTED
 
     return PLANTED.format(place=place)
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize(
+    ("line", "written", "planted"),
+    [
+        ("uv run ruff check .", "packages/x096/pyproject.toml", MANIFESTS["pyproject.toml"]),
+        ("npx tsc --noEmit", "tsconfig.json", '{"compilerOptions": {"generateTrace": "../x"}}\n'),
+    ],
+)
+def test_a_triggers_leave_does_not_run_a_runner_whose_setting_an_agent_wrote(  # noqa: PLR0913
+    make_client, wait_run, project_dir, line, written, planted
+):
+    """F395, W7 where nobody watches: a trigger with write leave and a ticked rule of the very
+    line - the agent writes a workspace member's pyproject.toml, a tsconfig.json, and runs the
+    line: not run, its why in the result."""
+    from tests.test_agent_commands import cmd
+    from tests.test_triggers import allow, leave, run_now, setup, trigger
+
+    executor = ScriptedExecutor([PASS, PASS])
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        [write(written, planted, "w1"), cmd(line, "k1"), text("done")],
+        executor=executor,
+    )
+    rules = [allow(client, cid, line)]
+    made = trigger(client, pid, cid, permissions=leave(write=True, commands=rules))
+    wait_run(client, cid, run_now(client, made["id"]))
+    assert line not in [one for one, _cwd in executor.started], executor.started
+    said = [str(m["content"]) for m in model.calls[-1] if m["role"] == "tool"]
+    assert any(
+        f"an agent wrote its program ({written})" in one and "nobody is here to ask" in one
+        for one in said
+    ), said
 
 
 # --- the second session's round (W3-W5): what a tool said, how long its lines take ------------

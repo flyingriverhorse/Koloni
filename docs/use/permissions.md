@@ -107,7 +107,8 @@ You can see and remove the rules you made under Settings › This project › **
   and `--build` (but `false` and `null`, which write nothing: `--incremental false`), and its `-p`,
   `--outDir`, `--outFile`, `--tsBuildInfoFile`, `--declarationDir` and `--generateCpuProfile`
   outside the folder - in any case (`--OUTDIR`, `--p`); an option or its value written in pieces a
-  shell joins (`fal""se`, `".."/x`); a shell handed a line (`bash -c`). A rule for `python -m pytest` still covers
+  shell joins (`fal""se`, `".."/x`), and a word of its own so (`make 'SHELL=/x'`, `SH""ELL=/x`); a
+  shell handed a line (`bash -c`). A rule for `python -m pytest` still covers
   `python -m pytest -q tests`, `-p no:cacheprovider` (a plugin turned off) and `-o log_cli=true`,
   but not `python -m pytest -p plugin`. Words after `--` are the script's own (`npm test --
   --prefix x` is covered), and past a rule that names a runner's package (`npx tsc`) the words are
@@ -134,12 +135,15 @@ of the folder the command runs in or of one above it - and read an `.npmrc` ther
 `bunfig.toml` - and an agent's write in any of them stops the rule.
 
 A rule for a node runner (npx, pnpx, bunx, npm, pnpm, yarn, bun; `corepack` before one) is
-closed on two sides. **What an agent wrote:** while an agent's write of any `package.json`, any
-`.npmrc` or `x.npmrc`, `.yarnrc*`, `.yarn/`, `.pnpmfile.cjs`, `pnpm-workspace.yaml` or
-`bunfig.toml` anywhere in the project still holds what it wrote, no node runner's rule covers a
-line - npx and `npm exec` run a name the package's own `bin` gives before any installed one, yarn
-and pnpm a script of that name, `npm install` every workspace's lifecycle scripts, and npm reads
-any settings file it is pointed at. The cost: after an agent edits a `package.json` (adding a
+closed on two sides. **What an agent wrote:** while an agent's write of any `package.json` (a
+package's in a `node_modules` too), any `.npmrc` or `x.npmrc`, `.yarnrc*`, `.yarn/`,
+`.pnpmfile.cjs`, `pnpm-workspace.yaml`, `bunfig.toml`, lock (`package-lock.json`,
+`npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lockb`, `bun.lock`) or `binding.gyp`
+anywhere in the project still holds what it wrote, no node runner's rule covers a line - npx and
+`npm exec` run a name the package's own `bin` gives before any installed one, yarn and pnpm a
+script of that name, `npm install` every workspace's lifecycle scripts, fetches what a lock's
+`resolved` address says and runs node-gyp on a `binding.gyp`, and npm reads any settings file it
+is pointed at. The cost: after an agent edits a `package.json` (adding a
 dependency, say), node runner rules ask until that write is replaced - by your own edit or
 install. A line of npm's or pnpm's that runs a script by its name under its own rule (`npm run
 build`, `npm test`) is the exception: the script is the project's code by design, as a test is.
@@ -148,16 +152,33 @@ options:** past the rule's words (up to `--` for npm; up to the verb that hands 
 `exec`, `dlx`, `x`, `run` - for pnpm, yarn and bun), a rule covers only options that change what
 the runner prints, where it fetches from or that it runs less: `--silent` / `-s`, `--quiet` /
 `-q`, `--loglevel`, `--color` / `--no-color`, `--offline`, `--prefer-offline`, `--no`,
-`--no-audit`, `--no-fund`, `--ignore-scripts`, `--frozen-lockfile`, `--immutable`. Any other
-(`--globalconfig=x` - a settings file whose `node-options` loads code -, `--shell=`, `--node-gyp=`)
-and no rule covers the line or is offered for it. So `yarn tsc --noEmit` is offered none: use
+`--no-audit`, `--no-fund`, `--ignore-scripts`, `--frozen-lockfile`, `--immutable` - each but
+`--loglevel` and `--color` alone or `=true`: `--ignore-scripts=false`, or a `false` after it
+(`npm install --ignore-scripts false`, under an `npm install --ignore-scripts` rule too), runs the
+scripts again. Any other (`--globalconfig=x` - a settings file whose `node-options` loads code -,
+`--shell=`, `--node-gyp=`) and no rule covers the line or is offered for it. So `yarn tsc --noEmit` is offered none: use
 `yarn run tsc --noEmit`, or for npm `npm exec tsc -- --noEmit` (past `--`, tsc's own).
+
+A rule for tsc - `tsc`, `npx tsc`, `npm exec tsc`, `pnpm exec tsc`, `yarn tsc`, or tsc named by its
+path (`node_modules/.bin/tsc`, as the rule Code style and types offered in 0.1.7) - covers no line
+while an agent's write of a `tsconfig*.json` or `jsconfig*.json` anywhere in the project, or of a
+JSON file that a tsconfig the line reads (the nearest `tsconfig.json`, a folder or `.json` its
+words name - `-p`'s) `extends` or `references`, still holds what it wrote: a tsconfig can make tsc
+write a trace, or a composite build's info where `tsBuildInfoFile` says, outside the project too.
+Code style and types' own line - `--composite false --generateTrace null` last - writes nothing
+whatever the tsconfig says, so its rule still covers it.
 
 For uv, poetry, pipenv, pdm, hatch and `python -m`, whose
 environment KOLONİ cannot always place, an agent's write in any `.venv`, `venv` or
-`site-packages` of the project does, and for uv, poetry, pipenv, pdm and hatch one in a
-`pyproject.toml` or `setup.py` in the folder or above (they run its `[project.scripts]` and build
-the project first) - but not for a test run (`uv run pytest`). Their rule names what they run
+`site-packages` of the project does. For uv, uvx, poetry, pipenv, pdm and hatch so does its
+write of any `pyproject.toml`, `setup.py` or `setup.cfg` anywhere in the project (they run its
+`[project.scripts]` and build the project first - a workspace member or a path dependency with
+it), of their settings (`uv.toml`, `poetry.toml`, `pdm.toml`, `hatch.toml`, `Pipfile`,
+`.python-version`, `.pdm-python`, and pipenv's `.env`, which it loads), their locks (`uv.lock`,
+`poetry.lock`, `pdm.lock`, `Pipfile.lock`, `pylock.toml`) or requirements (`requirements*.txt`,
+`requirements/*.txt`) - but not for a test run (`uv run pytest`). As for node runners, the cost:
+after an agent edits a `pyproject.toml` (adding a dependency, say), these rules ask until that
+write is replaced. Their rule names what they run
 (`poetry run ruff`, `uv run python -m ruff`), never the tool alone; and npm's PowerShell shims are
 npm's own (`npx.ps1 tsc` is `npx tsc`). A runner's line sent to another package or folder of a
 monorepo - npm's and npx's `-w` / `--workspace` / `--workspaces` / `--ws` / `--prefix` / `-C`,
@@ -330,8 +351,9 @@ messages in the chat - never anything an agent wrote - and then:
   The agent is told that sentence (for a sentence in a message of yours, only that one of yours
   forbids it - the sentence stays with you), and not to run it or anything that does the same again,
   and goes on with the rest of its task. Its row says "Not run · your rule: …".
-- A sentence that sets a condition or asks to be asked ("unless", "ask me before"), or nothing of
-  yours that covers it: the card, as before. Its card then says "Nothing you said covers this."
+- A sentence that sets a condition or asks to be asked ("unless", "ask me before"; in Turkish "eğer",
+  "-madan", and any "-se" / "-sa": "Kontroller yeşilse …", "Hata yoksa …", "Testler geçerse …"), or
+  nothing of yours that covers it: the card, as before. Its card then says "Nothing you said covers this."
 
 A command that ran or was not run this way also waits under **Decided for you** until you press
 **OK**. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of

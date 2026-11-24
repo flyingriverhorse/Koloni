@@ -239,6 +239,16 @@ def test_a_run_stands_only_on_a_line_the_user_wrote():
             "Pushing branches other than main is fine.",
             "Pushing branches other than main is fine.",
         ),
+        # (English words that end in "se" or "sa" as no Turkish "if" does)
+        *(
+            (one, one, one)
+            for one in (
+                "Please push the release branch to origin.",
+                "Push the k-* branches or else the demo breaks.",
+                "Set CI to false and push the k-* branches.",
+                "You may update the license file and close the issue.",
+            )
+        ),
         # (an item of a list under a heading that forbids nothing; the list's mark is no part of it)
         (
             "Rules:\n- You may delete build/ and dist/.",
@@ -358,6 +368,21 @@ def test_a_run_never_stands_on_a_piece_a_condition_a_forbidding_line_or_code(wor
         ("Eğer testler geçtiyse main'e pushla.", "Eğer testler geçtiyse main'e pushla."),
         ("Testler bittikten sonra build'i sil.", "Testler bittikten sonra build'i sil."),
         ("Sormadan build'i silebilirsin.", "Sormadan build'i silebilirsin."),
+        # (Turkish "-se" / "-sa" after any consonant, its person too - the second session's find)
+        *(
+            (one, one)
+            for one in (
+                "Kontroller yeşilse k-* dallarını push edebilirsin.",
+                "Çalışma alanı temizse build'i silebilirsin.",
+                "Hata yoksa main'e pushla.",
+                "Testler geçerse k-* dallarını push edebilirsin.",
+                "CI yeşil olursa main'e pushla.",
+                "İstersen k-* dallarını push edebilirsin.",
+                "Testler geçtiyseniz main'e pushlayın.",
+                "Build boşsa dist'i silebilirsin.",
+                "Mümkünse k-* dallarını push et.",
+            )
+        ),
         # (more ways of saying no)
         ("main dalına itme.", "main dalına itme."),
         ("main'e itmeyin lütfen.", "main'e itmeyin lütfen."),
@@ -422,6 +447,12 @@ def test_a_refuse_keeps_the_users_sentence_and_where_it_stands():
         ),
         ("main'e asla itme.", "main'e asla itme.", "main'e asla itme."),
         ("build klasörünü silme.", "build klasörünü silme.", "build klasörünü silme."),
+        ("Kimse main'e push etmesin.", "Kimse main'e push etmesin.", "Kimse main'e push etmesin."),
+        (
+            "Never push the release branch.",
+            "Never push the release branch.",
+            "Never push the release branch.",
+        ),
         (f"{NO_MAIN} Ask me if you are unsure.", NO_MAIN, NO_MAIN),
     ],
 )
@@ -439,6 +470,9 @@ def test_a_refuse_stands_on_a_whole_sentence_of_the_users_that_says_no(words, qu
         ("Don't push to main without asking me.", "Don't push to main without asking me."),
         ("Never push to main unless I say so.", "Never push to main unless I say so."),
         ("Testler geçmeden main'e itme.", "Testler geçmeden main'e itme."),
+        ("Testler kırmızıysa main'e itme.", "Testler kırmızıysa main'e itme."),
+        ("Hata varsa k-* dallarını push etme.", "Hata varsa k-* dallarını push etme."),
+        ("Kontroller yeşil değilse push etme.", "Kontroller yeşil değilse push etme."),
         # (an item under a heading that forbids: the item itself says no "no"; and the heading
         # alone, which says nothing of what it forbids - the security review of slice 2)
         ("Never delete these:\n- the build/ output folder", "the build/ output folder"),

@@ -536,6 +536,13 @@ def test_a_git_rule_never_covers_a_merge_strategy_from_path(command, rule, cover
         ("npm test --userconfig x", "npm test", False),
         ("npm test --node-options=--require=x", "npm test", False),
         ("make build SHELL=/bin/evil", "make build", False),
+        # (a word whose name is in pieces a shell joins: judged as joined)
+        ("make 'SHELL=/tmp/x' build", "make", False),
+        ('make "SHELL=/tmp/x" build', "make", False),
+        ("make 'SHELL=/tmp/my sh' build", "make", False),
+        ('make SH""ELL=/tmp/x build', "make", False),
+        ("make SHEL\\L=/tmp/x build", "make", False),
+        ("make 'CFLAGS=-O2' build", "make", True),
         ("make build -f x.mk", "make build", False),
         ("go test ./... -C ../x", "go test", False),
         ("cargo build --manifest-path ../x/Cargo.toml", "cargo build", False),
@@ -709,6 +716,12 @@ def test_a_node_runner_in_its_own_folder_is_still_covered(command, rule):
         ("pnpm install --config.node-options=--require=./evil096.cjs", "pnpm install"),
         ("bun test --preload ./evil096.ts", "bun test"),
         ("yarn tsc --noEmit", "yarn tsc"),  # (a bin's words yarn may read first: closed)
+        # (F395: a harmless switch turned off - nopt reads `=false`, `=0` and a `false` after it)
+        ("npm install --ignore-scripts=false", "npm install"),
+        ("npm install --ignore-scripts=0", "npm install"),
+        ("pnpm install --ignore-scripts=false", "pnpm install"),
+        ("npm exec tsc --offline=false -- --noEmit", "npm exec tsc"),
+        ("npm install --frozen-lockfile=null", "npm install"),
     ],
 )
 def test_a_node_runners_own_option_past_its_rule_is_covered_by_no_rule(command, rule):
@@ -735,3 +748,26 @@ def test_a_node_runners_own_option_past_its_rule_is_covered_by_no_rule(command, 
 )
 def test_a_node_runners_harmless_options_are_still_covered(command, rule):
     assert matches(command, rule) and suggest_prefix(command) == rule
+
+
+@pytest.mark.parametrize(
+    ("command", "rule", "covered"),
+    [
+        # (F395: `--ignore-scripts` is harmless on - alone or `=true` -, never turned off by a value
+        # after it, in the rule's words or past them)
+        ("npm install --ignore-scripts=true", "npm install", True),
+        ("npm install --ignore-scripts true", "npm install", True),
+        ("npm install --ignore-scripts --no-audit", "npm install --ignore-scripts", True),
+        ("npm install --ignore-scripts", "npm install --ignore-scripts", True),
+        ("npm run build --color false", "npm run build", True),  # (a value of its own)
+        ("npm install --ignore-scripts=false", "npm install", False),
+        ("npm install --ignore-scripts=False", "npm install", False),
+        ("npm install --ignore-scripts=null", "npm install", False),
+        ("npm install --ignore-scripts false", "npm install", False),
+        ("npm install --ignore-scripts false", "npm install --ignore-scripts", False),
+        ("npm install --no-ignore-scripts", "npm install", False),
+        ("corepack pnpm install --ignore-scripts=false", "corepack pnpm install", False),
+    ],
+)
+def test_ignore_scripts_is_harmless_only_while_it_is_on(command, rule, covered):
+    assert matches(command, rule) is covered
