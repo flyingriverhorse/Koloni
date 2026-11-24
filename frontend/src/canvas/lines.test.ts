@@ -758,7 +758,9 @@ test('tuval-kontrol-dongusu: in a recipe’s turn the loop of KOLONİ’s looks 
     { kind: 'tests', state: 'passed' as const, text: 'Tests passed: pytest -q - 4 passed', command: 'pytest -q', guessed: false, started_at: null, counts: null },
     { kind: 'rounds', state: 'note' as const, text: 'Sent back to fix: 1 of 2 rounds (1 blocking finding)', command: null, guessed: false, started_at: null, counts: null },
   ]
-  const checked = { id: 'k', conversation_id: 'c', run_id: 'r', agent_id: null, role: 'checked' as const, content: '', created_at: at, checked: rows }
+  // (Its passes as KOLONİ wrote them: the Reviewer held, the recipe's own roles fixed it - none opened by the send-back -, then let it stand.)
+  const pass = (n: number, look: string, verdict: string, sent: 'fix' | null) => ({ n, kind: 'check' as const, tests: 'passed' as const, looks: [{ agent_id: look, role: 'Reviewer', verdict }], why: sent && '1 blocking finding', sent, fixers: [], diagnosis: null, tier: null })
+  const checked = { id: 'k', conversation_id: 'c', run_id: 'r', agent_id: null, role: 'checked' as const, content: '', created_at: at, checked: rows, passes: [pass(1, 'look1', 'HOLD', 'fix'), pass(2, 'look2', 'MERGE', null)] }
   // KOLONİ's Reviewer twice - its calls after the recipe's agents; the recipe's own roles fixed in between, in the frame.
   const looks = ['look1', 'look2'].map((id, n) => ({ ...sub(id, 'Reviewer'), name: n ? 'Reviewer 2' : 'Reviewer', tool_call_id: `s${id}` }))
   const calls = looks.map((one, n) => toolCall(`s${one.id}`, 'r', 'spawn_agent', 'succeeded', '{}', { seq: 50 + n, provider_call_id: `koloni_proof_review_${n}` }))

@@ -17,7 +17,11 @@ import { ChecksNode } from './nodes'
 type Row = NonNullable<Message['checked']>[number]
 type Finding = NonNullable<Agent['findings']>[number]
 const row = (state: Row['state'], text: string, more: Partial<Row> = {}): Row => ({ kind: 'tests', state, text, command: null, guessed: false, started_at: null, counts: null, ...more })
-const checked = (rows: Row[]): Message => ({ ...assistantMessage('k', 'r', 'x'), role: 'checked', agent_id: null, checked: rows })
+type Pass = NonNullable<Message['passes']>[number]
+const checked = (rows: Row[], passes: Pass[] = []): Message => ({ ...assistantMessage('k', 'r', 'x'), role: 'checked', agent_id: null, checked: rows, passes })
+/** A pass of KOLONİ's checks as the backend writes it (`app.proof.new_pass`). */
+export const pass = (n: number, more: Partial<Pass> = {}): Pass => ({ n, kind: 'check', tests: 'passed', looks: [], why: null, sent: null, fixers: [], diagnosis: null, tier: null, ...more })
+export const looked = (agent_id: string, role: string, verdict: string | null) => ({ agent_id, role, verdict })
 const blocking = (what: string): Finding => ({ what, kind: 'security', role: 'Orchestrator', blocking: true })
 
 /** A sub-agent of the turn, opened by the call `call` (its order: `seq`). */
@@ -62,9 +66,17 @@ function sketched(over: { running?: boolean } = {}) {
     agents: [agent('r', over.running ? 'running' : 'completed'), ...agents],
     toolCalls: [...opened.map(one => one.call), test_run('p1', 4), test_run('p2', 8), test_run('p3', 12)],
     fileChanges: files,
-    messages: over.running ? [] : [assistantMessage('a', 'r', 'Fixed the finding.'), checked(rows)],
+    messages: over.running ? [] : [assistantMessage('a', 'r', 'Fixed the finding.'), checked(rows, SKETCHED)],
   })
 }
+
+/** The sketched turn's passes, as KOLONİ wrote them: two looks a pass, the first two sent back, each fixed by a Coder. */
+const SKETCHED: Pass[] = [
+  pass(1, { looks: [looked('rv1', 'Reviewer', 'MERGE'), looked('sr1', 'Security reviewer', 'HOLD')], why: '3 blocking findings', sent: 'fix', fixers: ['f1'] }),
+  pass(2, { looks: [looked('rv2', 'Reviewer', 'MERGE'), looked('sr2', 'Security reviewer', 'HOLD')], why: '3 blocking findings', sent: 'fix', fixers: ['f2'] }),
+  pass(3, { looks: [looked('rv3', 'Reviewer', 'HOLD'), looked('sr3', 'Security reviewer', 'HOLD')] }),
+]
+const ROUND = { kind: 'check', tier: null, tests: 'passed', diagnosis: null }
 
 const dataIn = (graph: ReturnType<typeof deriveGraph>) => graph.nodes.find(n => n.kind === 'checks')!.data as ChecksData
 const loopIn = (graph: ReturnType<typeof deriveGraph>) => dataIn(graph).loop as Loop
@@ -93,6 +105,8 @@ test('round by round: who looked and what each said, the first blocking finding,
   const loop = loopIn(deriveGraph(sketched()))
   expect(loop.rounds).toEqual([
     {
+      ...ROUND,
+      sent: 'fix',
       n: 1,
       looks: [
         { agentId: 'rv1', name: 'Reviewer', verdict: 'MERGE' },
@@ -103,6 +117,8 @@ test('round by round: who looked and what each said, the first blocking finding,
       why: '3 blocking findings',
     },
     {
+      ...ROUND,
+      sent: 'fix',
       n: 2,
       looks: [
         { agentId: 'rv2', name: 'Reviewer 2', verdict: 'MERGE' },
@@ -113,6 +129,8 @@ test('round by round: who looked and what each said, the first blocking finding,
       why: '3 blocking findings',
     },
     {
+      ...ROUND,
+      sent: null,
       n: 3,
       looks: [
         { agentId: 'rv3', name: 'Reviewer 3', verdict: 'HOLD · 1 blocking' },
@@ -126,34 +144,25 @@ test('round by round: who looked and what each said, the first blocking finding,
   expect(loop.stop).toBe('Still on hold after 2 fix rounds: you decide (Fix it)')
 })
 
-test('at work: the round and what it does now, the looks reading, the last dot amber - and nothing said of how it ends', () => {
-  const loop = loopIn(deriveGraph(sketched({ running: true })))
-  expect(loop.status).toBe('● round 3 · looking…')
-  expect(loop.tone).toBe('run')
-  expect(loop.dots).toEqual(['held', 'held', 'running'])
+test('at work, before its Checked section: KOLONİ’s own looks reading in the box, one amber dot - its rounds not inferred', () => {
+  // (The passes come with the section, at the turn's end: until then the box holds only what KOLONİ's own calls opened, and
+  // the Orchestrator's fixers are its own nodes - never placed by the order they were opened in.)
+  const graph = deriveGraph(sketched({ running: true }))
+  const loop = loopIn(graph)
+  expect(loop).toMatchObject({ status: '● looking…', tone: 'run', dots: ['running'], fixes: [], rounds: [], stop: null })
   expect(loop.looks[0]).toMatchObject({ name: 'Reviewer', count: 3, said: '● reading', tone: 'run' })
-  expect(loop.stop).toBeNull()
+  expect(graph.nodes.filter(n => n.kind === 'agent').map(n => n.id)).toEqual(['agent:r', 'agent:c1', 'agent:c2', 'agent:c3', 'agent:f1', 'agent:f2'])
 })
 
-test('the first fix round at work is a loop already: its fixer at work, one amber dot - and one that waits for you says so, never “at work”', () => {
-  // Round 1's look held, and the Orchestrator's Coder fixes: KOLONİ has not run again yet, so no round is counted.
-  const look = sub('rv', 'Reviewer', 'Reviewer', 2, true, { findings: [blocking('a.py:1 is wrong')] })
+test('at work, a look that waits for you says so, never “at work”; one waiting for a slot in its own words', () => {
+  const look = sub('rv', 'Reviewer', 'Reviewer', 2, true, { status: 'running', findings: null, report: null })
   const fix = sub('fx', 'Coder', 'Coder 2', 3, false, { status: 'running' })
-  const turn = (fixer: Agent, more: Partial<Parameters<typeof convState>[0]> = {}) =>
-    convState({ runs: [run('r', 'running')], agents: [agent('r', 'running'), look.agent, fixer], toolCalls: [test_run('p1', 1), look.call, fix.call], ...more })
-  const loop = loopIn(deriveGraph(turn(fix.agent)))
-  expect(loop).toMatchObject({ loop: true, status: '● round 1 · fixing…', tone: 'run', dots: ['running'] })
-  expect(loop.fixes).toEqual([{ agentId: 'fx', name: 'Coder 2 · fix', count: 1, said: '● at work', tone: 'run' }])
-  // Asked to be let start, or its change waiting for your yes (its node's cue, which the box takes over).
-  const proposed = loopIn(deriveGraph(turn({ ...fix.agent, status: 'proposed' })))
-  expect(proposed).toMatchObject({ status: '● round 1 · waits for you', fixes: [{ said: 'waits for you', tone: 'note' }] })
-  const asked = loopIn(deriveGraph(turn(fix.agent, { fileChanges: [fileChange('w', 'r', { agent_id: 'fx', status: 'proposed' })] })))
-  expect(asked).toMatchObject({ status: '● round 1 · waits for you', fixes: [{ said: 'waits for you' }] })
-  // Its fix over, KOLONİ tests again: round 2 already, before a look of it is opened.
-  const again = turn({ ...fix.agent, status: 'completed' }, { toolCalls: [test_run('p1', 1), look.call, fix.call, { ...test_run('p2', 4), status: 'running' }] })
-  expect(loopIn(deriveGraph(again))).toMatchObject({ status: '● round 2 · testing…', dots: ['held', 'running'] })
-  // Waiting for a slot is the agent's own words.
-  expect(loopIn(deriveGraph(turn({ ...fix.agent, status: 'queued' }))).fixes[0]).toMatchObject({ said: 'waiting for a slot', tone: 'note' })
+  const turn = (one: Agent) => convState({ runs: [run('r', 'running')], agents: [agent('r', 'running'), one, fix.agent], toolCalls: [test_run('p1', 1), look.call, fix.call] })
+  expect(loopIn(deriveGraph(turn(look.agent)))).toMatchObject({ status: '● looking…', fixes: [], looks: [{ said: '● reading', tone: 'run' }] })
+  expect(loopIn(deriveGraph(turn({ ...look.agent, status: 'proposed' })))).toMatchObject({ status: '● waits for you', looks: [{ said: 'waits for you', tone: 'note' }] })
+  expect(loopIn(deriveGraph(turn({ ...look.agent, status: 'queued' }))).looks[0]).toMatchObject({ said: 'waiting for a slot', tone: 'note' })
+  // (Its look over, the Orchestrator's Coder fixing: KOLONİ checks the turn still - no round said before the section.)
+  expect(loopIn(deriveGraph(turn({ ...look.agent, status: 'completed', report: 'Verdict: HOLD' })))).toMatchObject({ status: '● checking…', dots: ['running'] })
 })
 
 test('an agent drawn in the box, selected in the chat, is shown as the box', () => {
@@ -165,7 +174,7 @@ test('an agent drawn in the box, selected in the chat, is shown as the box', () 
 test('one look and nothing sent back is the plain box: no loop, no ×N; with no agent of KOLONİ’s, the node of lines it was', () => {
   const look = sub('rv', 'Reviewer', 'Reviewer', 3, true, merge)
   const passed = row('passed', 'Tests passed: python check.py - 2 passed', { command: 'python check.py', counts: { passed: 2, failed: 0, skipped: 0, unit: 'tests' } })
-  const once = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed'), look.agent], toolCalls: [look.call, test_run('p1', 2)], messages: [checked([passed])] })
+  const once = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed'), look.agent], toolCalls: [look.call, test_run('p1', 2)], messages: [checked([passed], [pass(1, { looks: [looked('rv', 'Reviewer', 'MERGE')] })])] })
   const graph = deriveGraph(once)
   expect(loopIn(graph)).toMatchObject({ loop: false, looks: [{ name: 'Reviewer', count: 1, said: 'MERGE', tone: 'ok' }], fixes: [] })
   // (No agent of the Orchestrator's own: one column, right of the Orchestrator, level with it, its arrow from it.)
@@ -173,8 +182,11 @@ test('one look and nothing sent back is the plain box: no loop, no ×N; with no 
   expect(positions['checks:r']).toEqual({ x: positions['agent:r'].x + NODE_W + COL_GAP, y: positions['agent:r'].y })
   expect(sizes['checks:r'].width).toBe(2 * LOOP.pad + LOOP.card + LOOP.shadow)
   expect(graph.edges.filter(e => e.target === 'checks:r')).toEqual([{ id: 'agent:r>checks:r', source: 'agent:r', target: 'checks:r', active: false }])
-  const plain = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], toolCalls: [test_run('p1', 2)], messages: [checked([passed])] })
+  const plain = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], toolCalls: [test_run('p1', 2)], messages: [checked([passed], [pass(1)])] })
   expect(loopIn(deriveGraph(plain))).toBeNull()
+  // (A turn checked before the passes were written: its plain node, its rounds never guessed.)
+  const older = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed'), look.agent], toolCalls: [look.call, test_run('p1', 2)], messages: [{ ...checked([passed]), passes: null }] })
+  expect(loopIn(deriveGraph(older))).toBeNull()
 })
 
 test('layout: the box stands right of the Orchestrator’s Coders (the sketch’s state 1), level with their middle, as big as its loop - over nothing', () => {

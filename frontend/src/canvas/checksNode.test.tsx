@@ -262,7 +262,12 @@ test('S3: KOLONİ’s Reviewer is drawn in the Checks box, not as a node of its 
     runs: [run('r', 'completed')],
     agents: [agent('r', 'completed'), { ...agent('rv', 'completed', { role_name: 'Reviewer' }), run_id: 'r', depth: 1, parent_agent_id: 'r', tool_call_id: 'look' }],
     toolCalls: [proofCall('p1', 'succeeded'), toolCall('look', 'r', 'spawn_agent', 'succeeded', '{}', { provider_call_id: 'koloni_proof_review_1' })],
-    messages: [checked([row('passed', 'Tests passed'), row('note', 'Sent back to fix: 2 of 3 rounds (tests fail; 2 blocking findings)', { kind: 'rounds' })])],
+    messages: [
+      {
+        ...checked([row('passed', 'Tests passed'), row('note', 'Sent back to fix: 2 of 3 rounds (tests fail; 2 blocking findings)', { kind: 'rounds' })]),
+        passes: [{ n: 1, kind: 'check', tests: 'passed', looks: [{ agent_id: 'rv', role: 'Reviewer', verdict: 'MERGE' }], why: null, sent: null, fixers: [], diagnosis: null, tier: null }],
+      },
+    ],
   })
   const graph = deriveGraph(state)
   expect(graph.nodes.some(n => n.id === 'agent:rv')).toBe(false)

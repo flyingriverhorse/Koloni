@@ -14,7 +14,11 @@ import { COL_GAP, layoutGraph, NODE_H, NODE_W } from './layout'
 
 type Row = NonNullable<Message['checked']>[number]
 const row = (state: Row['state'], text: string, more: Partial<Row> = {}): Row => ({ kind: 'tests', state, text, command: null, guessed: false, started_at: null, counts: null, ...more })
-const checked = (rows: Row[]): Message => ({ ...assistantMessage('k', 'r', ''), role: 'checked', agent_id: null, checked: rows })
+type Pass = NonNullable<Message['passes']>[number]
+const checked = (rows: Row[], passes: Pass[]): Message => ({ ...assistantMessage('k', 'r', ''), role: 'checked', agent_id: null, checked: rows, passes })
+/** A pass of KOLONİ's checks as the backend writes it (`app.proof.new_pass`). */
+const pass = (n: number, more: Partial<Pass> = {}): Pass => ({ n, kind: 'check', tests: 'passed', looks: [], why: null, sent: null, fixers: [], diagnosis: null, tier: null, ...more })
+const looked = (agent_id: string, role: string, verdict: string | null) => ({ agent_id, role, verdict })
 const step = (id: string, name: string, state: 'done' | 'now' | 'next') => ({ id, name, state, round: 0, room: false, own_check: false, left_out: [], group: false })
 const STEPS = [step('reproduce', 'Reproduce it', 'done'), step('fix', 'Fix it', 'done'), step('end', 'You', 'next')]
 const team = (agents: string[], passes: ChatTeamState['passes'], steps = STEPS): ChatTeam => ({
@@ -35,14 +39,15 @@ function opened(id: string, role: string, name: string, seq: number, kolonis: bo
 }
 const testRun = (id: string, seq: number) => toolCall(id, 'r', 'run_command', 'succeeded', '{"command":"python -m pytest -q"}', { seq, provider_call_id: `koloni_proof_${id}` })
 
-function turn(parts: ReturnType<typeof opened>[], runs: number[], frame: ChatTeam, rows: Row[], said: ChannelMessage[] = []) {
+function turn(parts: ReturnType<typeof opened>[], runs: number[], frame: ChatTeam | ChatTeam[], rows: Row[], checks: Pass[], said: ChannelMessage[] = []) {
+  const frames = Array.isArray(frame) ? frame : [frame]
   return convState({
-    conversation: { ...conversation, teams_mode: 'manual', teams: [frame] },
-    runs: [{ ...run('r', 'completed'), teams: [frame] }],
+    conversation: { ...conversation, teams_mode: 'manual', teams: frames },
+    runs: [{ ...run('r', 'completed'), teams: frames }],
     agents: [agent('r', 'completed'), ...parts.map(one => one.agent)],
     toolCalls: [...parts.map(one => one.call), ...runs.map((seq, n) => testRun(`p${n}`, seq))],
     channelMessages: said,
-    messages: [checked(rows)],
+    messages: [checked(rows, checks)],
   })
 }
 
@@ -76,7 +81,12 @@ function looksAndFixes() {
     row('failed', 'Review: Security reviewer (x) - HOLD, 1 findings, 1 blocking', { kind: 'review' }),
     row('failed', 'Still on hold after 2 fix rounds: you decide (Fix it)', { kind: 'review' }),
   ]
-  return turn(parts, [3, 7, 11], team(['d1', 'c1', 'f1', 'f2'], passes), rows)
+  const checks = [
+    pass(1, { looks: [looked('rv1', 'Reviewer', 'MERGE'), looked('sr1', 'Security reviewer', 'HOLD')], why: '1 blocking finding', sent: 'fix', fixers: ['f1'] }),
+    pass(2, { looks: [looked('rv2', 'Reviewer', 'MERGE'), looked('sr2', 'Security reviewer', 'HOLD')], why: '1 blocking finding', sent: 'fix', fixers: ['f2'] }),
+    pass(3, { looks: [looked('rv3', 'Reviewer', 'MERGE'), looked('sr3', 'Security reviewer', 'HOLD')] }),
+  ]
+  return turn(parts, [3, 7, 11], team(['d1', 'c1', 'f1', 'f2'], passes), rows, checks)
 }
 
 /** Case 2 (the second): the recipe's own loop - Fix it ⇄ Test it, three rounds - and KOLONİ once, no look: its plain box. */
@@ -101,7 +111,7 @@ function ownLoop() {
     row('failed', 'Tests failed: python -m pytest -q - 1 failed, 77 passed', { command: 'python -m pytest -q', counts: { passed: 77, failed: 1, skipped: 0, unit: 'tests' } }),
     row('note', 'No review: the tests still fail', { kind: 'review' }),
   ]
-  return turn(parts, [6], team(['d1', 'c1', 't1', 'c2', 't2'], passes, steps), rows, said)
+  return turn(parts, [6], team(['d1', 'c1', 't1', 'c2', 't2'], passes, steps), rows, [pass(1, { tests: 'failed' })], said)
 }
 
 /** Case 3 (the third): KOLONİ sent the work back for the tests alone - fewer ran - twice; nothing looked. */
@@ -119,7 +129,9 @@ function testsOnly() {
     row('note', 'Sent back to fix: 2 of 2 rounds (tests removed or skipped; tests removed or skipped)', { kind: 'rounds' }),
     row('failed', 'Not taken in: fewer of its tests run, or more are skipped, after its fix rounds', { kind: 'not_taken' }),
   ]
-  return turn(parts, [3, 5, 7], team(['d1', 'c1', 'f1', 'f2'], passes), rows)
+  const why = 'tests removed or skipped'
+  const checks = [pass(1, { why, sent: 'fix', fixers: ['f1'] }), pass(2, { why, sent: 'fix', fixers: ['f2'] }), pass(3)]
+  return turn(parts, [3, 5, 7], team(['d1', 'c1', 'f1', 'f2'], passes), rows, checks)
 }
 
 const graphOf = (state: ReturnType<typeof convState>) => foldGraph(deriveGraph(state), {})
@@ -216,13 +228,36 @@ test('case 3, a Coder and a Tester each send-back: one round each, not one an ag
     row('note', 'Sent back to fix: 2 of 2 rounds (tests removed or skipped; tests removed or skipped)', { kind: 'rounds' }),
     row('failed', 'Not taken in: fewer of its tests run, or more are skipped, after its fix rounds', { kind: 'not_taken' }),
   ]
-  const loop = dataIn(graphOf(turn(parts, [3, 6, 9], team(['c1', 't1', 'f1', 'ft1', 'f2', 'ft2'], passes, steps), rows))).loop as Loop
+  const why = 'tests removed or skipped'
+  const checks = [pass(1, { why, sent: 'fix', fixers: ['f1', 'ft1'] }), pass(2, { why, sent: 'fix', fixers: ['f2', 'ft2'] }), pass(3)]
+  const loop = dataIn(graphOf(turn(parts, [3, 6, 9], team(['c1', 't1', 'f1', 'ft1', 'f2', 'ft2'], passes, steps), rows, checks))).loop as Loop
   expect(loop.rounds.map(one => [one.fixed.map(f => f.name), one.why])).toEqual([
     [['Coder 2', 'Tester 2'], 'tests removed or skipped'],
     [['Coder 3', 'Tester 3'], 'tests removed or skipped'],
     [[], null],
   ])
   expect(loop).toMatchObject({ dots: ['held', 'held', 'held'], status: '⟲ 2 fix rounds · not taken in' })
+})
+
+test('R1: two recipe frames - KOLONİ checks once at the end: one box, each frame lined to it; team 1’s send-back Coder in it', () => {
+  const parts = [
+    opened('a1', 'Coder', 'Coder', 1, false),
+    opened('w1', 'Coder', 'Coder 2', 2, false),
+    opened('rv1', 'Reviewer', 'Reviewer', 4, true, { findings: [blocking] }),
+    opened('af', 'Coder', 'Coder 3', 5, false),
+    opened('rv2', 'Reviewer', 'Reviewer 2', 7, true, { report: 'Verdict: MERGE', findings: [] }),
+  ]
+  const fix = [step('fix', 'Fix it', 'done'), step('end', 'You', 'next')]
+  const api = team(['a1', 'af'], [{ part: 'fix', agents: ['a1'] }, { part: 'fix', agents: ['af'] }], fix)
+  const web: ChatTeam = { ...team(['w1'], [{ part: 'fix', agents: ['w1'] }], fix), team_id: 'web' }
+  web.state = { ...web.state, team: 'Web app' }
+  const checks = [pass(1, { looks: [looked('rv1', 'Reviewer', 'HOLD')], why: '1 blocking finding', sent: 'fix', fixers: ['af'] }), pass(2, { looks: [looked('rv2', 'Reviewer', 'MERGE')] })]
+  const graph = graphOf(turn(parts, [3, 6], [api, web], [row('passed', 'Tests passed: pytest - 4 passed')], checks))
+  expect(graph.nodes.filter(n => n.kind === 'checks')).toHaveLength(1)
+  expect(dataIn(graph).loop).toMatchObject({ agents: ['rv1', 'rv2', 'af'], fixes: [{ name: 'Coder 3 · fix', count: 1 }] })
+  expect(graph.nodes.some(n => n.id === 'agent:af')).toBe(false)
+  // (The box in the turn's last frame, from its last step; the other frame lined to it from the frame itself.)
+  expect(graph.edges.filter(e => e.target === 'checks:r').map(e => e.source).sort()).toEqual(['agent:w1', 'team:r:api'])
 })
 
 test('layout: the box is the frame’s last part - right of its last step, inside it, clear of its edges and of every other node', () => {

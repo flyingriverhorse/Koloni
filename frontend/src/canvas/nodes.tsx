@@ -299,21 +299,22 @@ function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop
   return (
     <div className={['node-checks', 'node-checks-box', loop.loop && 'node-checks-loop', selected && 'node-checks-selected'].filter(Boolean).join(' ')}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
-      <div className="checks-tag">
+      {/* Its panel, by click or key - the box's own (Enter / Space), never the canvas's selection too. */}
+      <button type="button" className="checks-tag nodrag" title={loop.loop ? loop.status : undefined} aria-label={`Checks · KOLONİ${loop.loop ? `: ${loop.status}` : ''} - open its panel`} {...pickBox(data.runId)}>
         <span className="checks-tag-title">Checks · KOLONİ</span>
         {loop.loop && (
           <span className="checks-status" data-tone={loop.tone}>
             {loop.status}
           </span>
         )}
-      </div>
+      </button>
       <div className="checks-box-menu">
         <ChecksMenu runId={data.runId} leadId={data.leadId} stoppable={data.stoppable} />
       </div>
       <div className="checks-cards">
         <div className="checks-col">
           {loop.looks.map(card => (
-            <ChecksCard key={card.agentId} card={card} stacked={loop.loop} />
+            <ChecksCard key={card.agentId} card={card} stacked={loop.loop} runId={data.runId} />
           ))}
         </div>
         {loop.fixes.length > 0 && (
@@ -323,7 +324,7 @@ function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop
             </span>
             <div className="checks-col">
               {loop.fixes.map(card => (
-                <ChecksCard key={card.agentId} card={card} stacked={loop.loop} />
+                <ChecksCard key={card.agentId} card={card} stacked={loop.loop} runId={data.runId} />
               ))}
             </div>
           </>
@@ -352,17 +353,36 @@ function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop
   )
 }
 
-/** A role in the box: its latest agent's name and what it said, as an agent's card; ×N and two shadows behind it where there were more. */
-function ChecksCard({ card, stacked }: { card: LoopCard; stacked: boolean }) {
+/** What a button of the box does on its own - the click or key not passed on to the canvas's node (no second pick, no drag). */
+const own = (act: () => void) => ({
+  onClick: (event: { stopPropagation: () => void }) => {
+    event.stopPropagation()
+    act()
+  },
+  onDoubleClick: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+  onKeyDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+})
+
+/** The box picked: its panel in the inspector. */
+const pickBox = (runId: string) => own(() => useApp.getState().select(`checks:${runId}`))
+
+/**
+ * A role in the box: its latest agent's name and what it said, as an agent's card; ×N and two shadows behind it where there were
+ * more. A button: its agent's window, as the agent's node had it ("Open … window") - the Tests card, the box's panel.
+ */
+function ChecksCard({ card, stacked, runId }: { card: LoopCard; stacked: boolean; runId: string }) {
   const more = stacked && card.count > 1
+  const tests = card.agentId.startsWith('tests:')
+  const said = tests ? `${card.name}: ${card.said} - open the checks' panel` : `Open ${card.name}'s window: ${card.said}`
+  const act = tests ? pickBox(runId) : own(() => useApp.getState().openAgentWindow(card.agentId))
   return (
-    <div className={`checks-card-at${more ? ' checks-stack' : ''}`}>
+    <button type="button" className={`checks-card-at nodrag${more ? ' checks-stack' : ''}`} aria-label={said} title={said} {...act}>
       {more && <span className="checks-badge">×{card.count}</span>}
-      <div className="checks-card" data-tone={card.tone}>
+      <span className="checks-card" data-tone={card.tone}>
         <b>{card.name}</b>
         <small>{card.said}</small>
-      </div>
-    </div>
+      </span>
+    </button>
   )
 }
 

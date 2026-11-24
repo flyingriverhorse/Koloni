@@ -355,7 +355,12 @@ function useChatOpen(conv: ConvState | null, tab: ChatTab) {
   useEffect(() => {
     if (!at) return
     // (Drawn a frame from now, its tab's turn picked first.)
-    const frame = requestAnimationFrame(() => document.getElementById(at)?.scrollIntoView({ block: 'center' }))
+    // (A place made to take the focus - the Checked section - takes it too: a keyboard's user is there.)
+    const frame = requestAnimationFrame(() => {
+      const place = document.getElementById(at)
+      place?.scrollIntoView({ block: 'center' })
+      if (place?.getAttribute('tabindex') === '-1') place.focus({ preventScroll: true })
+    })
     return () => cancelAnimationFrame(frame)
   }, [at, openAsked, tab])
   const box = useRef<HTMLElement>(null)

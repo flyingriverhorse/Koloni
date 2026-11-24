@@ -888,15 +888,23 @@ agent, the earlier ones shadows behind it with a count (×3). Its title says the
 2 fix rounds · on hold", "✓ checked" -, or at work "● round 2 · looking…" ("· waits for you" where
 one of them asks you something: the card says it too); its foot a dot a round (red: it went back or
 held, green: passed, amber: at work). One look and nothing sent back is a plain box: no count, no
-shadows, no loop.
+shadows, no loop. Who is in it, and each round, is what KOLONİ wrote down as its checks went - each
+pass's tests, its looks and their verdicts, why it went back, and the agents its send-back had the
+Orchestrator open -, never guessed from the order agents were opened in: an agent of a room or a
+discussion, or one written for KOLONİ's ask for a test (which is no fix round), stays the
+Orchestrator's; what a fixer opened under it is in the box with it; a stronger model's diagnosis is
+a card of its own kind, not a look. That record comes with the Checked section at the turn's end:
+while the turn works, the box holds the agents KOLONİ's own checks opened, and the Orchestrator's
+fixers join it then. A turn checked by an older version has its plain box of lines. The box's title
+and each card are buttons: Enter or Space opens its panel, or that agent's window.
 
 **Click the box** for its panel on the right - the canvas stays as it is, the box's frame amber: **Tests**, the Checked
 section's test runs; then **Round 1, 2, …**: who looked (its name opens its window), what each said
 ("MERGE", "HOLD · 3 blocking"), the first blocking finding, and "→ fixed by Coder 4 · 3 files" - or,
 where the Orchestrator fixed it itself, what sent it back; under the last round why it was the last
 ("Still on hold after 2 fix rounds: you decide (Fix it)", "Stopped after round 3: no progress").
-**Fix it** is the one under the answer (on the chat's latest turn), and **Open the Checked section**
-brings that section into view in the chat.
+**Fix it** is the one under the answer (on the chat's latest turn), and **Open the Checked section** -
+once it is written - brings that section into view in the chat, the focus on it.
 
 The Orchestrator's own box gets one line: "● checking…" while a run goes on, "✓ checked · 1 round",
 "✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "✗ on hold" (the
