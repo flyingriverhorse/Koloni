@@ -6102,7 +6102,7 @@ export interface components {
             /** Question */
             question?: string | null;
             /** Reason */
-            reason?: ("touched" | "held" | "unread" | "no_verdict" | "still" | "on_hold" | "removed") | null;
+            reason?: ("touched" | "held" | "unread" | "no_verdict" | "still" | "on_hold" | "removed" | "kinds") | null;
             /** Started At */
             started_at: string | null;
             /**

@@ -532,9 +532,10 @@ class ProofMixin:
         ]
 
     @staticmethod
-    def _halt_row(held: "Proof") -> list[Row]:
+    def _halt_row(held: "Proof", kinds: bool = False) -> list[Row]:
         """Until it passes, stopped short of a pass: why (no progress, the ceiling, a limit) -
-        unless a hold already said it ("Still on hold after round …")."""
+        unless a hold already said it ("Still on hold after round …"). `kinds`: only a kind's
+        check fails (its code for Fix it)."""
         if (
             held.halted is None
             or not any(one["state"] == "failed" for one in held.rows)
@@ -543,7 +544,10 @@ class ProofMixin:
             return []
         return [
             proof.row(
-                "rounds", "failed", proof.STOPPED_AFTER.format(n=held.rounds, why=held.halted)
+                "rounds",
+                "failed",
+                proof.STOPPED_AFTER.format(n=held.rounds, why=held.halted),
+                reason="kinds" if kinds else None,
             )
         ]
 
@@ -1273,11 +1277,16 @@ class ProofMixin:
             ]
         rounds = self._rounds_said(held)
         failing = any(one["state"] == "failed" for one in held.rows if one["kind"] == "tests")
+        # (k-a11y-2: a kind's problem the rounds left ends as failing tests do - its code "kinds"
+        # for Fix it, `kinds_held`)
+        kinds = not failing and self._kinds_failing(held.rows)
         if held.handed and held.left_failing:  # (S11: still held - a pass that was none too)
             rounds += self._stronger_left(held)  # (S11: after the stronger models' rounds too)
         elif held.until_passes and not held.recipe_spent:
-            rounds += self._halt_row(held)
-        elif failing and (held.rounds >= held.most or held.recipe_spent or held.unchanged):
+            rounds += self._halt_row(held, kinds)
+        elif (failing or kinds) and (
+            held.rounds >= held.most or held.recipe_spent or held.unchanged
+        ):
             # (R: where only the count fell - fewer tests, more skipped - that is what is said)
             still = proof.STILL_FEWER if proof.counts_only(held.rows) else proof.STILL_FAILING
             rounds.append(
@@ -1289,6 +1298,7 @@ class ProofMixin:
                     else proof.CHECK_ONLY
                     if (not held.most)
                     else still.format(most=min(held.rounds, held.most) or held.most),
+                    reason="kinds" if kinds else None,
                 )
             )
         later = proof.last_change(session, run_id)

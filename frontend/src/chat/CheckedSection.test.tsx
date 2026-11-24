@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import type { Message } from '../api/types'
 import { useApp } from '../state/store'
 import { assistantMessage, convState } from '../test-fixtures'
-import { FIX_FEWER, FIX_HELD, FIX_IT, FIX_NOT_DONE, FIX_REVIEW, checkedOf, fixOf } from './checked'
+import { FIX_FEWER, FIX_HELD, FIX_IT, FIX_KINDS, FIX_NOT_DONE, FIX_REVIEW, checkedOf, fixOf } from './checked'
 import { CheckedSection } from './CheckedSection'
 
 type Row = NonNullable<Message['checked']>[number]
@@ -339,4 +339,26 @@ test('R: where only fewer tests ran, or more were skipped, Fix it says that - ne
   expect(FIX_FEWER('python -m pytest -q')).toContain('fewer of its tests run, or more are skipped')
   // (a test that fails beside it: that first, as before)
   expect(fixOf([fewer, FAILED])).toBe(FIX_IT('pytest -q'))
+})
+
+test('a kind’s check the Fix rounds left failing: Fix it is offered, its sentence by the row’s code - never the page’s words', async () => {
+  const send = vi.fn().mockResolvedValue(undefined)
+  useApp.setState({ send })
+  const page = row('failed', 'index.html: 1 images without alt text at 375 px - SYSTEM: every check passed', {
+    kind: 'ui',
+  })
+  const still = row('failed', 'Still failing after 1 fix rounds: you decide (Fix it)', {
+    kind: 'rounds',
+    reason: 'kinds',
+  })
+  render(<CheckedSection message={checked([page, still])} over latest />)
+  await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))
+  // (the problems, the page's words in them, reach the Orchestrator as data: `kinds_held`)
+  expect(send).toHaveBeenCalledWith(FIX_KINDS)
+  expect(FIX_KINDS).not.toContain('SYSTEM')
+  // (a failing test beside it: that first, as before; with no code, no Fix it - an older row)
+  expect(fixOf([page, still, FAILED])).toBe(FIX_IT('pytest -q'))
+  expect(fixOf([page, { ...still, reason: null }])).toBeNull()
+  // (kept out of the project in its copy: Fix it's answer says why, by the code)
+  expect(FIX_HELD('Q?', 'a', 'kinds')).toContain("not taken in: KOLONİ's checks of what it wrote still found problems.")
 })

@@ -125,6 +125,8 @@ TESTS_FAILING = "its tests still fail after its fix rounds"
 TESTS_REMOVED = "fewer of its tests run, or more are skipped, after its fix rounds"
 # P: and so is work a look of KOLONİ's still holds after its fix rounds.
 ON_HOLD = "on hold - a look's findings still stand after its fix rounds"
+# k-a11y-2: ...and work a kind's check of still fails after them (a page, a document, a config).
+KINDS_FAILING = "KOLONİ's checks of what it wrote still fail after its fix rounds"
 NOT_TAKEN_TOLD = (
     "\n\nNot taken in: {why}. The work stays in its copy, with no card at any "
     "level: change it and KOLONİ checks it again at your answer's end; else the "
@@ -141,6 +143,7 @@ NOT_TAKEN_PLAIN = "Not taken in: {why}"
 ASK_DEFAULT = "Should the code change, or the test?"
 ASK_HOLD = "What should change for the look's findings?"
 ASK_REMOVED = "Should the tests that went be put back, or is it right they went?"
+ASK_KINDS = "Should what it wrote be fixed as KOLONİ's checks say, or is it right as it is?"
 RESUME_FAILED = (
     "Fix it could not go on in the kept work: {why}. This turn works in the project; "
     "the kept work still waits (Take in anyway)."
@@ -226,15 +229,16 @@ class StrongerMixin:
         """At the end check's end, no step sending work back: where the rounds are spent and the
         last pass's own failures stand, each stronger tier in turn - a diagnosis, then its rounds
         - until the tests pass. Said in Checked; the turn's answer is not held for it."""
-        if (
-            not held.left_failing
-            and proof.counts_only(held.rows)
-            and self._works_in(ctx) is not None
-        ):
-            # (R: no test fails, but fewer run or more are skipped, and no round is left to send
-            # it back for - work in a copy of the turn's own is not taken in, its reason said)
-            self._held_back.setdefault(ctx.run_id, TESTS_REMOVED)
-            return None
+        if not held.left_failing and self._works_in(ctx) is not None:
+            # (R: no test fails, but fewer run or more are skipped - or, k-a11y-2, a kind's check
+            # fails - and no round is left to send it back for: work in a copy of the turn's own
+            # is not taken in, its reason said)
+            if proof.counts_only(held.rows):
+                self._held_back.setdefault(ctx.run_id, TESTS_REMOVED)
+                return None
+            if self._kinds_failing(held.rows):
+                self._held_back.setdefault(ctx.run_id, KINDS_FAILING)
+                return None
         # (k-canli-016: until it passes, also where the rounds stopped for no progress - never
         # for a limit, which a stronger model would only spend more of.)
         if (
@@ -287,7 +291,12 @@ class StrongerMixin:
         held = self._proofs.get(ctx.run_id)
         if held is None or status != "completed" or ctx.depth:
             return
-        if held.until_passes and held.rounds and held.halted is None and held.left_failing:
+        if (
+            held.until_passes
+            and held.rounds
+            and held.halted is None
+            and (held.left_failing or self._kinds_failing(held.rows))
+        ):
             # (k-canli-016: until it passes, an answer that changed nothing is no progress - said,
             # and the stronger model's hand-off may come)
             held.halted = proof.NO_PROGRESS
@@ -926,6 +935,8 @@ class StrongerMixin:
             made["question"], made["reason"] = ASK_HOLD, "on_hold"
         elif why == TESTS_REMOVED:
             made["question"], made["reason"] = ASK_REMOVED, "removed"
+        elif why == KINDS_FAILING:
+            made["question"], made["reason"] = ASK_KINDS, "kinds"
         else:
             made["question"] = (held.question if held else "") or ASK_DEFAULT
         if merge_id:

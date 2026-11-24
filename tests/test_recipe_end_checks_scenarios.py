@@ -6,12 +6,12 @@ A fake model and a scripted executor (none of its runs may start)."""
 import pytest
 
 from app import proof
-from app.agent import review_mixin
+from app.agent import review_mixin, stronger_mixin
 from tests.fakes import ScriptedExecutor
 from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import teams_of
 from tests.test_claim_scenarios import write
-from tests.test_proof_end_scenarios import texts
+from tests.test_proof_end_scenarios import checked, texts
 from tests.test_recipe_run_scenarios import made, recipe_named, row
 from tests.test_recipes_scenarios import graph
 from tests.test_recipes_scenarios import step as part
@@ -77,11 +77,19 @@ def test_a_recipe_with_tests_off_and_docs_on_runs_no_test_and_checks_its_docs(
     cid, run_id = run_it(client, project_dir, recipe)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert row(snap)["status"] == "in" and executor.started == []
+    assert executor.started == []
     rows = texts(snap)
     assert proof.TESTS_OFF in rows and BROKEN in rows, rows
     assert "Sent back to fix: 1 of 1 rounds (1 problem in what it wrote)" in rows, rows
     assert "gone.md" in str(model.calls[-1])  # (the fix round told the Orchestrator)
+    # (k-a11y-2: the link the round left broken - ended as failing tests are, and the work kept
+    # out, Take in anyway or Fix it: it was taken in by a plain Take in)
+    assert "Still failing after 1 fix rounds: you decide (Fix it)" in rows, rows
+    (kept,) = [one for one in checked(snap) if one["kind"] == "not_taken"]
+    assert kept["text"] == f"Not taken in: {stronger_mixin.KINDS_FAILING}", kept
+    assert kept["reason"] == "kinds" and kept["question"] == stronger_mixin.ASK_KINDS, kept
+    assert kept.get("merge_id") and row(snap)["status"] != "in", row(snap)
+    assert not (project_dir / "README.md").exists()
 
 
 def test_fix_rounds_0_checks_only_and_sends_nothing_back(make_client, wait_run, project_dir):

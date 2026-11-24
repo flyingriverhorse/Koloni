@@ -446,7 +446,9 @@ A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model
 decides (Fix it). Work in a copy - a recipe's, before Ready for you - that a look still holds is
 not taken in by itself either, at any level: no Ready for you card, not even at Auto-edit, and
 not at Full auto; the section says "Not taken in: on hold - a look's findings still stand after
-its fix rounds", with **Take in anyway** and **Fix it**. **Fix it** goes on in the kept work's
+its fix rounds", with **Take in anyway** and **Fix it**. So is work in a copy whose check by kind
+of work (a page, a document, a config file, a script) still fails after its fix rounds: "Not taken
+in: KOLONİ's checks of what it wrote still fail after its fix rounds". **Fix it** goes on in the kept work's
 copy, and that turn's end check covers the whole kept work as Take in would bring it - the held
 change and the fix, by the same rule (a big or security-touching change gets the look), never
 the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
@@ -511,7 +513,10 @@ A deck, Word file or other file a command made (a script that writes a `.pptx`) 
 when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix
 round, with the lines that failed (at most 20 named): one
 count with failing tests and the Reviewer's findings (**Fix rounds**), "(1 problem in what it
-wrote)" beside the round. A problem the file had before the turn is said, not sent back: the turn
+wrote)" beside the round. Where the rounds are spent with it still there - or the Orchestrator
+answered one without changing anything - the section ends as for failing tests, "Still failing
+after 1 fix rounds: you decide (Fix it)", and work in a copy is not taken in (see
+[A stronger model](#a-stronger-model)). A problem the file had before the turn is said, not sent back: the turn
 did not make it. A file KOLONİ cannot read (over 8 MB - or over 8 MB once its zip members or
 draw.io pages are inflated, all together, whatever size the file says they are; a deck of over
 1,000 slides - outside the project, an XML file that declares a DTD or entities in any encoding, a
@@ -1009,7 +1014,7 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Stopped after round 4: `why` - you decide (Fix it) | Until it passes, the rounds stopped short of a pass: no progress in two rounds, at most 20 rounds, the turn's token limit or the project's monthly budget. ("Still on hold after round 4: …" where a review's hold stood.) |
 | – `model`'s rounds stopped: no progress in two rounds | Until it passes, a stronger model's round left the same tests failing. |
 | – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn, of the project's Fix rounds; "(tests fail; 1 blocking finding)" after it where a review sent one back. |
-| ✗ Still failing after 1 fix rounds: you decide (Fix it) | The Fix rounds were spent with a test still failing - or the Orchestrator answered a round without changing anything, which ends its turn there. |
+| ✗ Still failing after 1 fix rounds: you decide (Fix it) | The Fix rounds were spent with a test still failing, or a problem KOLONİ's check by kind of work found (a page, a document, a config file …) - or the Orchestrator answered a round without changing anything, which ends its turn there. For a kind's problem, **Fix it** asks for it to be fixed, and the Orchestrator of that turn is told the problems as data. |
 | ✗ Still fewer tests, or more skipped, after 1 fix rounds: you decide (Fix it) | As above, where no test fails but fewer ran, or more were skipped, than at the last green run. |
 | – Tests went from 48 to 45 (3 removed) - not this turn's change | Fewer tests, or more skipped, than at the last green run, where nothing of the turn's could take them away (deleted by hand, a pull, a branch): said, the new counts the green state. |
 | ✓ Review: Reviewer (`provider · model`) - MERGE, no findings | The Reviewer looked over the whole change and let it stand ("after 1 round" where it held it first). |
@@ -1063,6 +1068,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Strongest skipped: over its limit | That tier's provider is past its limit of spend: it is not handed the fix. |
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Not taken in: on hold - a look's findings still stand after its fix rounds | Work in a copy (a recipe's) that the Reviewer or Security reviewer still holds stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
+| ✗ Not taken in: KOLONİ's checks of what it wrote still fail after its fix rounds | Work in a copy (a recipe's) whose page, document, config file or script still fails its check by kind of work stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
 | – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |
