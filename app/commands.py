@@ -48,6 +48,10 @@ _SUBCOMMAND_TOOLS = frozenset(
         "pnpm",
         "yarn",
         "uv",
+        "poetry",
+        "pipenv",
+        "pdm",
+        "hatch",
         "pip",
         "cargo",
         "dotnet",
@@ -57,6 +61,11 @@ _SUBCOMMAND_TOOLS = frozenset(
 )
 # ...and those where the task is one word further on: `npm run build`, `uv run pytest`.
 _RUNNERS = frozenset({("npm", "run"), ("pnpm", "run"), ("yarn", "run"), ("uv", "run")})
+# ...of them, those whose `run` runs any program of an environment (`poetry run python x.py`): a
+# rule must name the program, never the bare tool (W8).
+_ENV_RUNS = frozenset({("uv", "run"), ("poetry", "run"), ("pipenv", "run"), ("pdm", "run")})
+_ENV_RUNS |= {("hatch", "run")}
+_RUNNERS |= _ENV_RUNS
 _RUNNER_PROGRAMS = frozenset({"npx", "pnpx", "uvx", "bunx"})
 # 0.1.7's Code style and types: the linters and type checkers KOLONİ runs on a turn's files. A
 # rule for one is its line's fixed part - the program and its options, up to the first file it is
@@ -103,7 +112,8 @@ def _program(word: str) -> str:
     # (`npm.cmd ci` is npm's: a shim's name is the program's. A bare `cat.cmd a.py` reads as cat:
     # PowerShell and sh find a bare name on PATH only, and so does cmd.exe where KOLONİ runs it -
     # `host.command_env` sets NoDefaultCurrentDirectoryInExePath, W1)
-    return name.removesuffix(".exe").removesuffix(".cmd").removesuffix(".bat")
+    # (W8: `npx.ps1`, npm's PowerShell shim, is npx too)
+    return name.removesuffix(".exe").removesuffix(".cmd").removesuffix(".bat").removesuffix(".ps1")
 
 
 def suggest_prefix(command: str) -> str:
@@ -168,6 +178,9 @@ def _offer(command: str) -> str:  # noqa: C901
             return ""  # options before the subcommand can change what it runs
         if (program, rest[0]) in _RUNNERS:
             task_named = len(rest) >= 2 and not rest[1].startswith("-")
+            if task_named and _INTERPRETER.fullmatch(_program(rest[1])):  # (`uv run python -m x`)
+                inner = _offer(" ".join(rest[1:]))
+                return f"{words[0]} {rest[0]} {inner}" if inner else ""
             return " ".join(words[:3]) if task_named else ""
         return " ".join(words[:2])
     return words[0]
@@ -476,9 +489,10 @@ def _unwrapped(words: list[str]) -> list[list[str]]:  # noqa: C901
 
 def _hands_on(command: str) -> bool:
     """Whether a command's program runs what its arguments name: an interpreter, a
-    package runner (`npx`, `npm exec`; `corepack` before one). A rule for one covers a command
-    only where it names as much as "Always run" would offer now (`suggest_prefix`): one stored
-    before, or written by hand, for the program alone covers nothing."""
+    package runner (`npx`, `npm exec`; `corepack` before one; `poetry run`). A rule for one
+    covers a command only where it names as much as "Always run" would offer now
+    (`suggest_prefix`): one stored before, or written by hand, for the program alone covers
+    nothing."""
     words = _words(command.strip())
     if not words:
         return False
@@ -487,7 +501,7 @@ def _hands_on(command: str) -> bool:
         _INTERPRETER.fullmatch(program)
         or program in _RUNNER_PROGRAMS
         or program == "corepack"
-        or (len(words) > 1 and (program, words[1]) in _EXECUTORS)
+        or (len(words) > 1 and (program, words[1]) in {*_EXECUTORS, *_ENV_RUNS})
     )
 
 
@@ -5652,6 +5666,15 @@ class OutputMask:
         """What is left once the output ended, hidden."""
         held, self._held = self._held, ""
         return self.hide(held) if held else ""
+
+
+# W2, W6: why a command is asked although a rule matches it - an agent wrote what it runs. No
+# rule is offered on its card (Y2): none would cover it while that write stands.
+PLANTED = (
+    "an agent wrote its program ({place}): no rule covers a program an agent wrote, so none is "
+    "offered - run it once or reject it"
+)
+PLANTED_SAYS = PLANTED.partition("(")[0]
 
 
 def is_allowed(command: str, prefixes: Iterable[str]) -> bool:

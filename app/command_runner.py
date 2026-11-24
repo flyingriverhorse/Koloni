@@ -18,6 +18,7 @@ from app.cards import card_reason
 from app.commands import (
     _INTERPRETER,
     MAX_STORED_OUTPUT,
+    PLANTED,
     OutputMask,
     _program,
     _words,
@@ -181,7 +182,6 @@ def _noted(disposable: dict | None, unasked: bool) -> dict | None:
     return None if disposable is None else {"what": disposable["what"], "unasked": unasked}
 
 
-PLANTED = "an agent wrote its program ({place}): no rule covers a program an agent wrote"
 # (where nobody can be asked - a trigger's turn: its leave matches by the line's text too)
 PLANTED_REFUSED = "KOLONİ did not run this: {why}, and nobody is here to ask. " + CARRY_ON
 
@@ -203,7 +203,15 @@ _NODE_SETTINGS = {
     "bun": ("bunfig.toml",),
     "bunx": ("bunfig.toml",),
 }
+# W7: npx and `npm exec` run a name the local package's `bin` gives first (measured, npm 11.9:
+# installed into its cache and run from there, never node_modules/.bin), yarn and pnpm a script of
+# its own - so an agent's `package.json` in the folder or above stops the rule; a line that runs a
+# script by its name (`npm run x`, `npm test`) runs the project's code by design and is not so.
+_SCRIPT_VERBS = frozenset({"run", "run-script", "test", "t", "tst", "start", "stop", "restart"})
 _PY_RUNNERS = frozenset({"uv", "uvx", "poetry", "pipenv", "pdm", "hatch"})
+# ...and uv, poetry, pipenv, pdm, hatch resolve `[project.scripts]` and build the project to run
+# in it: an agent's `pyproject.toml` (or `setup.py`) there stops theirs - but a test run's.
+_PY_MANIFESTS = ("pyproject.toml", "setup.py")
 _PY_INSTALLS = (".venv", "venv", "site-packages")
 _PYTHON = re.compile(r"python[\d.]*w?|pyw?")
 # (`python -m pytest` imports the project's own modules by design - its tests are its code)
@@ -257,6 +265,7 @@ def _runner_places(words: list[str], cwd: str) -> _Reach | None:
     above = [PurePosixPath(cwd), *PurePosixPath(cwd).parents]
     if name in _NODE_RUNNERS:
         names = ("node_modules", *_NODE_SETTINGS.get(name, (".npmrc",)))
+        names += () if words[1:2] and words[1] in _SCRIPT_VERBS else ("package.json",)
         return _Reach([str(folder / one) for folder in above for one in names])
     python = next((at for at, word in enumerate(words) if _PYTHON.fullmatch(_program(word))), None)
     module = _python_module(words[python:]) if python is not None else None
@@ -265,12 +274,14 @@ def _runner_places(words: list[str], cwd: str) -> _Reach | None:
     flags = set(module[1]) if module else set()
     tool = module[0] if module else next((w for w in words[1:] if w[:1] != "-" and w != "run"), "")
     safe_path = bool(os.environ.get("PYTHONSAFEPATH")) and "E" not in flags
+    tests = _program(tool.split(".")[0]) in _RUNS_THE_PROJECT
+    own = _PY_MANIFESTS if name in _PY_RUNNERS and not tests else ()
     return _Reach(
-        [str(folder / env) for folder in above for env in (".venv", "venv")],
+        [str(folder / one) for folder in above for one in (".venv", "venv", *own)],
         _PY_INSTALLS,
         reads_cwd=module is not None and not flags & {"I", "P"} and not safe_path,
         reads_path=not flags & {"I", "E"},
-        startup_only=_program(tool.split(".")[0]) in _RUNS_THE_PROJECT,
+        startup_only=tests,
     )
 
 

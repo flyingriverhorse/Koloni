@@ -5,7 +5,7 @@ from pathlib import PurePath
 from sqlalchemy import select
 from sqlalchemy.orm import object_session
 
-from app.commands import SEARCHES_FOLDER, danger, harms, suggest_prefix, with_cwd
+from app.commands import PLANTED_SAYS, SEARCHES_FOLDER, danger, harms, suggest_prefix, with_cwd
 from app.db.models import (
     FOLLOWED,
     Agent,
@@ -139,8 +139,11 @@ def command_out(command: Command, live_output: str | None = None, held: bool = F
             "output": command.output if live_output is None else live_output,
             "output_truncated": command.output_truncated,
             "timeout_seconds": command.timeout_seconds,
+            # (Y2: none where an agent wrote its program - it would not cover it, and runs once)
             "suggested_prefix": ""
-            if command.keep_running or command.web_off
+            if command.keep_running
+            or command.web_off
+            or _why_asked(command).startswith(PLANTED_SAYS)
             else suggest_prefix(command.command),
             "web_off": command.web_off,
             # The card's reason, a send-off's too (R118: `danger` alone left a push's empty), and

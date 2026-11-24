@@ -108,8 +108,10 @@ Nor does a rule - or a yes you gave before - cover a command whose program, name
 the project (`node_modules/.bin/tsc`, `./scripts/check`), is one an agent wrote, or sits in an
 install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in, while that file still
 holds what the agent wrote: below Full auto it asks on a card that says so ("an agent wrote its
-program (web/node_modules): no rule covers a program an agent wrote"), and in a turn nobody can
-be asked in - a trigger's, whatever its leave - it is not run at any level. A rule matches by its
+program (web/node_modules): no rule covers a program an agent wrote, so none is offered - run it
+once or reject it"), with **Run once** and **Reject** alone - an **Always run** rule would not
+cover it either while that write stands -, and in a turn nobody can be asked in - a trigger's,
+whatever its leave - it is not run at any level. A rule matches by its
 words in any folder, so the same line in another folder, or after an agent's write over the
 project's own install, would otherwise run what the agent wrote. Once your own install writes
 over it, the rule covers it again. A package runner finds its program by itself, so its rule
@@ -117,10 +119,17 @@ over it, the rule covers it again. A package runner finds its program by itself,
 `python -m mypy`) is read the same way: npx, npm, pnpm, yarn and bun look in the `node_modules`
 of the folder the command runs in or of one above it - and read an `.npmrc` there, yarn its
 `.yarnrc.yml`, `.yarnrc`, `.yarn` folder and Plug'n'Play loader, pnpm its `.pnpmfile.cjs`, bun its
-`bunfig.toml` - and an
-agent's write in any of them stops the rule; for uv, poetry, pipenv, pdm, hatch and `python -m`,
-whose environment KOLONİ cannot always place, an agent's write in any `.venv`, `venv` or
-`site-packages` of the project does. `python -m x` (any Python: `python3.12`, `pythonw`, one
+`bunfig.toml` - and an agent's write in any of them stops the rule. So does one in a
+`package.json` there: npx and `npm exec` run a name the package's own `bin` gives before any
+installed one, yarn and pnpm a script of that name. A line that runs a script by its name (`npm
+run build`, `npm test`) runs the project's code by design - the script is the project's, as a
+test is - and its rule still covers it. For uv, poetry, pipenv, pdm, hatch and `python -m`, whose
+environment KOLONİ cannot always place, an agent's write in any `.venv`, `venv` or
+`site-packages` of the project does, and for uv, poetry, pipenv, pdm and hatch one in a
+`pyproject.toml` or `setup.py` in the folder or above (they run its `[project.scripts]` and build
+the project first) - but not for a test run (`uv run pytest`). Their rule names what they run
+(`poetry run ruff`, `uv run python -m ruff`), never the tool alone; and npm's PowerShell shims are
+npm's own (`npx.ps1 tsc` is `npx tsc`). `python -m x` (any Python: `python3.12`, `pythonw`, one
 named by its path) also imports what its folder holds before the standard library and the tool's
 own - so an agent's `.py` file, or package `__init__.py`, there stops its rule too, unless it runs
 with `-I` or `-P` (or `PYTHONSAFEPATH`); `python -m pytest` is the exception, since its tests
