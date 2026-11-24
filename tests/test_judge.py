@@ -247,6 +247,7 @@ def test_a_run_stands_only_on_a_line_the_user_wrote():
                 "Push the k-* branches or else the demo breaks.",
                 "Set CI to false and push the k-* branches.",
                 "You may update the license file and close the issue.",
+                "Use the response body and announce the release.",
             )
         ),
         # (an item of a list under a heading that forbids nothing; the list's mark is no part of it)
@@ -381,6 +382,16 @@ def test_a_run_never_stands_on_a_piece_a_condition_a_forbidding_line_or_code(wor
                 "Testler geçtiyseniz main'e pushlayın.",
                 "Build boşsa dist'i silebilirsin.",
                 "Mümkünse k-* dallarını push et.",
+                # (a loanword's, against vowel harmony; after an apostrophe)
+                "Testler kontrolse k-* dallarını push et.",
+                "Saatse build'i silebilirsin.",
+                "Testler OK'se k-* dallarını push et.",
+                "CI'ysa main'e pushla.",
+                "Exit code 0'sa main'e pushla.",
+                # ("when", "as long as")
+                "Testler bitince main'e pushla.",
+                "CI yeşil olduğunda main'e pushla.",
+                "Testler geçtiği sürece k-* dallarını push edebilirsin.",
             )
         ),
         # (more ways of saying no)

@@ -767,6 +767,15 @@ def test_a_node_runners_harmless_options_are_still_covered(command, rule):
         ("npm install --ignore-scripts false", "npm install --ignore-scripts", False),
         ("npm install --no-ignore-scripts", "npm install", False),
         ("corepack pnpm install --ignore-scripts=false", "corepack pnpm install", False),
+        # (in pieces a shell joins: as joined - an option so is never harmless)
+        ('npm install --ignore-scripts "false"', "npm install", False),
+        ("npm install --ignore-scripts 'false'", "npm install", False),
+        ('npm install --ignore-scripts fal""se', "npm install", False),
+        ("pnpm install '--ignore-scripts=false'", "pnpm install", False),
+        ("yarn install '--ignore-scripts=false'", "yarn install", False),
+        ("bun install '--ignore-scripts=false'", "bun install", False),
+        ("pnpm install '--config.node-options=--require=./evil096.cjs'", "pnpm install", False),
+        ("pnpm install --ignore-scripts 'lodash'", "pnpm install", True),
     ],
 )
 def test_ignore_scripts_is_harmless_only_while_it_is_on(command, rule, covered):

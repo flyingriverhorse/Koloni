@@ -864,13 +864,19 @@ def _runner_options_past(words: list[str], extra: list[str]) -> bool:
 def _harmless_runner_option(word: str, after: str) -> bool:
     """Whether a word of a node runner's own past its rule changes only what it prints, where it
     fetches from or that it runs less (`_HARMLESS_RUNNER_OPTIONS`): not an option, or one of
-    those - a switch on (`--offline`, `=true`), never followed by a `false` word."""
-    if not word.startswith("-"):
+    those - a switch on (`--offline`, `=true`), never followed by a `false` word (`"false"`,
+    `fal""se`: as a shell joins it). An option in pieces (`'--ignore-scripts=false'`) never is."""
+    plain = _PIECES.sub("", word)
+    if not plain.startswith("-"):
         return True
+    if plain != word:
+        return False
     name, sep, value = word.partition("=")
     if name in _VALUED_RUNNER_OPTIONS:
         return True
-    return name in _HARMLESS_RUNNER_OPTIONS and (value == "true" if sep else after != "false")
+    return name in _HARMLESS_RUNNER_OPTIONS and (
+        value == "true" if sep else _PIECES.sub("", after) != "false"
+    )
 
 
 def _past_the_rule(words: list[str], extra: list[str]) -> bool:

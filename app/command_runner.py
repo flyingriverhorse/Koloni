@@ -369,11 +369,12 @@ def _path_reach(parts: tuple[str, ...]) -> _Reach:
 def _reach_of(words: list[str], program: str, cwd: str) -> tuple[_Reach, list[str], bool] | None:
     """W2, W6: where a line's program comes from (`_Reach`), the names of what a write there is
     looked up by - and whether it runs tsc (W7: tsc's settings count too - but on Code style's own
-    line, `proof_style.TSC_WORDS`, which wins over them: it writes nothing); None: none of these."""
+    line, word for word `proof_style.TSC_WORDS`, whose `--composite false --generateTrace null`
+    win over them: measured, 5.9); None: none of these."""
     parts = PurePosixPath(program.replace("\\", "/")).parts
     # (a runner first: `.venv/Scripts/python.exe -m x` is named by its path, and reads its folder)
     reach = _runner_places(words, cwd)
-    tsc = " ".join(words[1:]) != proof_style.TSC_WORDS and (
+    tsc = words[1:] != proof_style.TSC_WORDS.split() and (
         _program(program) == "tsc"
         or reach is not None
         and reach.node_settings

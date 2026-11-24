@@ -155,7 +155,8 @@ the runner prints, where it fetches from or that it runs less: `--silent` / `-s`
 `--no-audit`, `--no-fund`, `--ignore-scripts`, `--frozen-lockfile`, `--immutable` - each but
 `--loglevel` and `--color` alone or `=true`: `--ignore-scripts=false`, or a `false` after it
 (`npm install --ignore-scripts false`, under an `npm install --ignore-scripts` rule too), runs the
-scripts again. Any other (`--globalconfig=x` - a settings file whose `node-options` loads code -,
+scripts again, and an option of the runner's written in pieces a shell joins
+(`'--ignore-scripts=false'`) is never harmless. Any other (`--globalconfig=x` - a settings file whose `node-options` loads code -,
 `--shell=`, `--node-gyp=`) and no rule covers the line or is offered for it. So `yarn tsc --noEmit` is offered none: use
 `yarn run tsc --noEmit`, or for npm `npm exec tsc -- --noEmit` (past `--`, tsc's own).
 
@@ -165,8 +166,9 @@ while an agent's write of a `tsconfig*.json` or `jsconfig*.json` anywhere in the
 JSON file that a tsconfig the line reads (the nearest `tsconfig.json`, a folder or `.json` its
 words name - `-p`'s) `extends` or `references`, still holds what it wrote: a tsconfig can make tsc
 write a trace, or a composite build's info where `tsBuildInfoFile` says, outside the project too.
-Code style and types' own line - `--composite false --generateTrace null` last - writes nothing
-whatever the tsconfig says, so its rule still covers it.
+Code style and types' own line, word for word, is the exception: its `--composite false
+--generateTrace null`, last, win over a tsconfig's composite or incremental build info and its
+trace, so its rule still covers it.
 
 For uv, poetry, pipenv, pdm, hatch and `python -m`, whose
 environment KOLONİ cannot always place, an agent's write in any `.venv`, `venv` or
@@ -352,7 +354,8 @@ messages in the chat - never anything an agent wrote - and then:
   forbids it - the sentence stays with you), and not to run it or anything that does the same again,
   and goes on with the rest of its task. Its row says "Not run · your rule: …".
 - A sentence that sets a condition or asks to be asked ("unless", "ask me before"; in Turkish "eğer",
-  "-madan", and any "-se" / "-sa": "Kontroller yeşilse …", "Hata yoksa …", "Testler geçerse …"), or
+  "-madan", any "-se" / "-sa" - "Kontroller yeşilse …", "Hata yoksa …", "Testler OK'se …" -, "-ınca",
+  "-dığında" and "sürece"), or
   nothing of yours that covers it: the card, as before. Its card then says "Nothing you said covers this."
 
 A command that ran or was not run this way also waits under **Decided for you** until you press

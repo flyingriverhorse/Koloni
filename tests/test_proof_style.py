@@ -14,7 +14,7 @@ import pytest
 
 from app import proof, proof_style
 from app.executors import host
-from tests.conftest import scaled
+from tests.conftest import migrated_copy, scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.keyed import OWN
 from tests.test_agent_writes import wait_status, write
@@ -1077,10 +1077,10 @@ def test_a_program_named_in_quotes_is_found_as_its_shell_reads_it(tmp_path):
     from app.command_runner import _planted
     from app.db.models import Agent, Conversation, FileChange, Project
     from app.db.models import Run as RunRow
-    from app.db.session import make_engine, make_session_factory, upgrade_db
+    from app.db.session import make_engine, make_session_factory
     from app.workspace import sha256_text
 
-    upgrade_db(tmp_path / "k.db")
+    migrated_copy(tmp_path / "k.db")  # (one migration a run: 30 s a test on Windows CI)
     factory = make_session_factory(make_engine(tmp_path / "k.db"))
     tool = tmp_path / "my tools" / "node_modules" / ".bin" / "tsc.cmd"
     tool.parent.mkdir(parents=True)
@@ -1502,10 +1502,10 @@ def _copy_db(tmp_path, writes: dict[str, str]):
     `tmp_path/copy` that holds them."""
     from app.db.models import Agent, Conversation, FileChange, Project
     from app.db.models import Run as RunRow
-    from app.db.session import make_engine, make_session_factory, upgrade_db
+    from app.db.session import make_engine, make_session_factory
     from app.workspace import sha256_text
 
-    upgrade_db(tmp_path / "k.db")
+    migrated_copy(tmp_path / "k.db")  # (one migration a run: 30 s a test on Windows CI)
     factory = make_session_factory(make_engine(tmp_path / "k.db"))
     (tmp_path / "p").mkdir()
     for rel, said in writes.items():
@@ -1768,6 +1768,14 @@ TSC_EXTENDS = '{"extends": "./configs/base", "include": ["src"]}\n'
         ("npx eslint .", ".", "data/fixture.json", None),
         ("npm run tsc", ".", "tsconfig.json", None),
         (f"{TSC} {proof_style.TSC_WORDS}", ".", "tsconfig.json", None),
+        # (...word for word: its words joined in one quoted word are not it)
+        (
+            f"{TSC} --noEmit --pretty false --incremental false"
+            " -p 'tsconfig.json --composite false --generateTrace null'",
+            ".",
+            "tsconfig.json",
+            "tsconfig.json",
+        ),
     ],
 )
 def test_a_tsc_rule_stops_at_a_setting_an_agent_wrote(tmp_path, line, cwd, written, asked):

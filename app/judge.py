@@ -39,20 +39,26 @@ NO = re.compile(
     r"|avoid|forbid\w*|prohibit\w*|nobody|nothing|none|neither|nor|refrain|off-limits"
     r"|asla|sakın|hiç|hiçbir|yasak\w*|değil|olmaz|istemiyorum|etme|yapma)\b"
 )
-# Turkish "if" is a verb's or a word's `-se` / `-sa` and its person (`-sem`, `-sen`, `-seniz`,
-# `-seler`): after a consonant, as the last vowel before it says ("yeşilse", "yoksa", "temizse",
-# "geçerse", "olursa", "istersen") - an English word that ends so is in NOT_CONDITIONAL.
+# Turkish "if" is a word's `-se` / `-sa` and its person (`-sem`, `-sen`, `-seniz`, `-seler`) after
+# a consonant - by vowel harmony or not ("yeşilse", "yoksa", "temizse", "kontrolse", "saatse") - or
+# an apostrophe ("OK'se", "CI'ysa"); its "when" and "as long as" are "-ınca", "-dığında", "sürece"
+# ("bitince", "olduğunda"). An English word that ends so is in NOT_CONDITIONAL.
 _CONSONANT = "[bcçdfgğhjklmnprsştvyz]"
+_PERSON = "(?:m|n|k|n[ıiuü]z|l[ae]r)?"
 CONDITION = re.compile(
     r"\b(?:without|unless|except|only if|before|ask|if|when|once|after|until"
-    r"|eğer|ise|\w+(?:rs[ae]|ys[ae]|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n)"
-    rf"|\w*[eiöü]{_CONSONANT}+se(?:m|n|k|n[iü]z|ler)?"
-    rf"|\w*[aıou]{_CONSONANT}+sa(?:m|n|k|n[ıu]z|lar)?)\b"
+    r"|eğer|ise|sürece|takdirde|halinde|şartıyla|koşuluyla"
+    r"|\w+(?:rs[ae]|ys[ae]|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n|[dt][ıiuü]ğ[ıiuü]nd[ae]|[ıiuü]nc[ae])"
+    rf"|\w*[aeıioöuü]{_CONSONANT}+s[ae]{_PERSON}|'y?s[ae]{_PERSON})\b"
 )
 NOT_CONDITIONAL = frozenset(
     {
-        *("else", "license", "sense", "nonsense", "dense", "tense", "intense", "immense"),
-        *("expense", "defense", "offense", "rinse", "eclipse", "kimse"),
+        *("else", "false", "pulse", "impulse", "response", "license", "sense", "nonsense"),
+        *("dense", "tense", "intense", "immense", "expense", "defense", "offense", "pretense"),
+        *("suspense", "dispense", "condense", "incense", "rinse", "cleanse", "expanse"),
+        *("lapse", "collapse", "relapse", "eclipse", "ellipse", "glimpse", "corpse", "salsa"),
+        *("worsen", "lessen", "announce", "pronounce", "province", "convince", "prince"),
+        *("bounce", "kimse"),
     }
 )
 # shortcut: Turkish says no by a verb's ending, and its endings after it ("itme", "silmeyiniz",
