@@ -93,7 +93,7 @@ test('a note with a hint loses nothing: its first sentence stands, the rest is b
   // every hint on this page, section by section: none of them open, each with something in it;
   // and what warns of what a setting runs, spends or does not hold is never behind one: it is read before the field is set
   const warnings = [
-    /It runs by itself where commands do/,
+    /they run by themselves in Full auto, or where the part’s test command is yours/,
     /the tests the sub-agent wrote or changed run in its working copy - only those/,
     /a search with it uses your plan/,
     /a CLI that reports no tokens is not limited by this/,

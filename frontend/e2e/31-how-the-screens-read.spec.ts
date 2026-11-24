@@ -622,5 +622,5 @@ test('as the browser itself reads it out: a box named by a note with a hint keep
   // adding is gone, with its field - what runs before a sub-agent's work is added is a note of its own, in sight.)
   await settings.getByRole('button', { name: /^Checks/ }).click()
   await expect(settings.getByText(/^Before its work is added, the tests the sub-agent wrote or changed run/)).toBeVisible()
-  await expect(settings.getByText(/^Before its work is added/)).toContainText(/It runs by itself where commands do: in Full auto/)
+  await expect(settings.getByText(/^Before its work is added/)).toContainText(/with KOLONİ’s guess the card waits for your Run the test/)
 })

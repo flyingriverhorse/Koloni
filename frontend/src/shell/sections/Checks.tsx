@@ -47,9 +47,10 @@ export function useChecks(project: Project, shown: boolean) {
       <p className="choice-note" id="own-tests-note">
         Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those, with
         each part’s test command from the project map narrowed to them; none written: no test before adding, and the
-        card says so. KOLONİ’s check at the turn’s end still runs every test. It runs by itself where commands do: in
-        Full auto, and in a trigger’s run that has its line ticked; in “Ask before changes” and “Auto-edit files” the
-        card shows the changes first and you start it there.
+        card says so. KOLONİ’s check at the turn’s end still runs every test. Those tests are the sub-agent’s own code:
+        they run by themselves in Full auto, or where the part’s test command is yours (set on the map, or a saved one
+        under an Always rule); with KOLONİ’s guess the card waits for your Run the test, and while you are away or in a
+        trigger’s run a guess never runs them.
       </p>
       <Row
         label="Measure command"

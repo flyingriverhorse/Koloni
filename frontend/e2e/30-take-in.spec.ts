@@ -36,7 +36,7 @@ test('the same line changed on both sides is asked about, the Coder’s own test
   const settings = page.getByRole('form', { name: 'Project settings' })
   await settings.getByRole('button', { name: /^Checks/ }).click()
   await expect(settings.getByText(/^Before its work is added, the tests the sub-agent wrote or changed run in its working copy/)).toBeVisible()
-  await expect(settings.getByText(/It runs by itself where commands do: in Full auto/)).toBeVisible()
+  await expect(settings.getByText(/with KOLONİ’s guess the card waits for your Run the test/)).toBeVisible()
   await expect(settings.getByLabel('Test before adding')).toHaveCount(0)
   await expect(settings.getByLabel(/^Save each sub-agent’s work as a git commit/)).not.toBeChecked()
   // The whole project's test command, on the project map: what the check narrows to the tests the Coder writes.

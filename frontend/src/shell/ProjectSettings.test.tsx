@@ -65,7 +65,7 @@ test('no test command to fill in for added work: what runs is said - the sub-age
   expect(screen.queryByLabelText('Test before adding')).toBeNull()
   const said = screen.getByText(/^Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those/)
   expect(said).toHaveTextContent(/none written: no test before adding, and the card says so\. KOLONİ’s check at the turn’s end still runs every test\./)
-  expect(said).toHaveTextContent(/in “Ask before changes” and “Auto-edit files” the card shows the changes first and you start it there\./)
+  expect(said).toHaveTextContent(/they run by themselves in Full auto, or where the part’s test command is yours .*; with KOLONİ’s guess the card waits for your Run the test, and while you are away or in a trigger’s run a guess never runs them./)
   const commit = screen.getByLabelText(/^Save each sub-agent’s work as a git commit/)
   expect(commit).not.toBeChecked()
   // (its first sentence stands under the box; the rest of the note is behind ⓘ beside it, closed)
