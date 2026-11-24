@@ -476,7 +476,7 @@ below). Under **Tests only**, **Nothing**, or where checks are off for the chat,
 
 | Kind | Checked | Said, not failed |
 |---|---|---|
-| Code style and types (`.py`, `.js`, `.ts`, `.tsx`, `.vue` …) | a problem the project's own ruff, eslint, tsc or mypy finds on a line the turn added or changed, in a file it changed ("app/x.py:12: ruff F401 - `os` imported but unused") - a file it cannot parse too ("ruff invalid-syntax - …") | the problems on lines the turn did not change, counted; eslint's and tsc's warnings on its lines, counted; a tool set up but not installed here; one the project's own check ran this turn (its CI lines, its test command - the tool as a command's program there, never `pip install ruff` or `pytest -k mypy`); a tsconfig that names no files (a solution's `references`), or is composite - itself or one it `extends`, up to 8 deep, a package's in the project's `node_modules` too - or extends one outside the project or not there: tsc is not run on it; a file too large to compare in time ("not judged"); the tool's settings the turn changed ("ruff's settings changed this turn (pyproject.toml)"); a run that found none of the turn's files to check (ruff's "No Python files found", eslint's ignored file) - never "no problems" |
+| Code style and types (`.py`, `.js`, `.ts`, `.tsx`, `.vue` …) | a problem the project's own ruff, eslint, tsc or mypy finds on a line the turn added or changed, in a file it changed ("app/x.py:12: ruff F401 - `os` imported but unused") - a file it cannot parse too ("ruff invalid-syntax - …") | the problems on lines the turn did not change, counted; eslint's and tsc's warnings on its lines, counted; a tool set up but not installed here; one the project's own check ran this turn (its CI lines, its test command - the tool as a command's program there, never `pip install ruff` or `pytest -k mypy`); a tsconfig that names no files - itself or by what it `extends` (a solution's `references`) - or that extends a file outside the project, not there or more than 8 deep: tsc is not run on it; a file too large to compare in time ("not judged"); the tool's settings the turn changed ("ruff's settings changed this turn (pyproject.toml)"); a run that found none of the turn's files to check (ruff's "No Python files found", eslint's ignored file) - never "no problems" |
 | Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file (a site's page name, `guide` for `guide.md`, counts as found; a link in code does not count); a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
 | Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without `@startuml` … `@enduml` (or `@startmindmap` … `@endmindmap` and the like) | labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid |
 | Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
@@ -493,8 +493,9 @@ folder up from a file that has them. Running one runs the project's code (an `es
 is JavaScript), so it goes as the project's test command goes: at Full auto it runs; at Ask and
 Auto-edit it waits on a card - your yes covers that very line in that folder for the rest of
 the turn, and **Always** keeps that line (the program and its options, never the bare program:
-a line that adds another config, a plugin, parser or formatter, a plugin folder, `--fix`, or a
-report or trace elsewhere asks again); while you are
+a line that adds another config, a plugin, parser or formatter, a plugin folder, `--fix`, a
+report or trace elsewhere, or tells tsc to build or write (`--incremental`, `--noEmit false`, `-b`)
+asks again); while you are
 away, or in a turn a trigger started without its leave for that line, it is not run and its line
 says "needs your leave once". A program the turn wrote itself - in the folder a tool is installed
 in (`node_modules`, `.venv`), in any case of its name, or through a link - is never run, nor one
@@ -504,8 +505,9 @@ tool where the turn wrote a `node.cmd` or
 `python.exe` (a name a tool's shim runs bare) in the folder it runs in. A file's lines are
 compared with what it was before the turn only where a tool says a problem in it, within the 2
 minutes: one too large to compare in that time is said "not judged", never passed. It waits for KOLONİ's test-run slot (Settings › The
-app), so a type check never runs beside the whole test suite. tsc is told not to build
-incrementally and mypy to keep its cache in the folder (`.mypy_cache`). In a
+app), so a type check never runs beside the whole test suite. tsc is told to write nothing
+(`--noEmit --incremental false --composite false --generateTrace null`: its command line wins
+over its tsconfig and what that extends) and mypy to keep its cache in the folder (`.mypy_cache`). In a
 recipe's copy it runs there - without the copy's own code first on its Python path, so a module
 an agent wrote there (`mypy/`) is never imported in place of the tool's own - and what it writes
 (a cache, a report) is put back - never taken in. At most 50 files a run, 2 minutes for them all, its wait for the slot too. Where the project

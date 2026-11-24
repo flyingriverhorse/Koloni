@@ -61,7 +61,6 @@ WROTE_BARE = "this turn wrote {name} in the folder it runs in"
 OUTSIDE = "its program is not in the project ({program})"
 NEEDS_LEAVE = "{tool}: not checked - it needs your leave once ({why})"
 NO_FILES = "tsc: not checked - its tsconfig names no files (references)"
-COMPOSITE = "tsc: not checked - its tsconfig is composite: tsc would write its build info"
 NO_TSCONFIG = "tsc: not checked - its tsconfig.json could not be read"
 NO_BASE = "tsc: not checked - what its tsconfig.json extends is not read in the project"
 PAST = "past the {seconds} s of Code style and types"
@@ -174,7 +173,7 @@ def planned(root: Path, paths: list[str]) -> tuple[list[Run], list[str]]:
     ruff and mypy run at the root with the root's `.venv` (ruff: else one on PATH; mypy: its
     settings at the root) - eslint and tsc in the nearest folder up from a file with their
     settings and their own `node_modules/.bin`. What they would write goes nowhere but the work's
-    folder: mypy's cache in its `.mypy_cache`, tsc not incremental (`_tsconfig_says`).
+    folder: mypy's cache in its `.mypy_cache`; tsc nothing at all (`TSC_WORDS`).
     shortcut: mypy's settings only at the root; a `.venv` only at the root, not `venv/`; eslint's
     settings in package.json are not looked for - add them if a project is met with them.
     shortcut: mypy's cache is put in the folder by `--cache-dir` - what `--no-incremental` alone
@@ -205,10 +204,20 @@ def planned(root: Path, paths: list[str]) -> tuple[list[Run], list[str]]:
         notes += more
     for tool, words, set_up, kinds in (
         ("eslint", "--format stylish --no-color", _eslint_set, JS),
-        ("tsc", "--noEmit --pretty false --incremental false -p tsconfig.json", _tsconfig, TS),
+        ("tsc", TSC_WORDS, _tsconfig, TS),
     ):
         _node_runs(root, paths, (tool, words, set_up, kinds), runs, notes)
     return runs, notes
+
+
+# tsc writes nothing: its command line wins over any tsconfig - or one it extends - that is
+# composite, incremental with a `tsBuildInfoFile`, or says `generateTrace` (measured, tsc 5.9: a
+# composite base reached by `extends` wrote its build info where `tsBuildInfoFile` said, outside
+# the project too, until `--composite false` came last; then it type-checks, exit 0).
+TSC_WORDS = (
+    "--noEmit --pretty false --incremental false -p tsconfig.json"
+    " --composite false --generateTrace null"
+)
 
 
 def _tsconfig(folder: Path) -> bool:
@@ -239,64 +248,75 @@ def _node_runs(root: Path, paths: list[str], how: tuple, runs: list[Run], notes:
 
 
 def _tsconfig_says(folder: Path, root: Path) -> str | None:
-    """Why tsc is not run on this folder's tsconfig.json - None: it checks files and writes
-    nothing. One that names no files (a solution's `files: []` with its `references`, as
-    create-vite writes it) checks nothing: never a pass for that. A composite one - itself or one
-    it `extends`, up to MOST_EXTENDS of them - makes tsc write its build info whatever it is told
-    (tsc 5.9, measured: `--incremental false` is refused there, exit 2, and the file is written
-    all the same, where `tsBuildInfoFile` says: outside the project too; `incremental` or
-    `tsBuildInfoFile` alone write nothing under `--incremental false`). One that cannot be read
-    is said too, and so is one whose `extends` leads out of the project (`root`) or to a file
-    not there."""
-    # Here, not at the top: proof_kinds imports browser → command_runner → this module.
-    from app.proof_kinds import _json
+    """Why tsc is not run on this folder's tsconfig.json - None: it checks files. One that names
+    no files - `files: []` and no `include`, its own or taken from what it `extends` (a
+    solution's `references`, as create-vite writes it) - checks nothing: never a pass for that.
+    One that cannot be read is said, and so is one whose `extends` leads out of the project
+    (`root`), to a file not there, or past MOST_EXTENDS of them. Whatever they say, tsc is told
+    to write nothing (`TSC_WORDS`).
+    shortcut: a package's config it extends (`@tsconfig/node20`) is not read - such a one names
+    no files of a project's; read it if one is met that does."""
+    read = 0
 
-    todo, read, top = [folder / "tsconfig.json"], 0, {}
-    while todo:
-        if read > MOST_EXTENDS:  # (more than MOST_EXTENDS, or a loop)
-            return NO_BASE
-        path = todo.pop()
-        try:
-            found, said = _json(_read(path), "tsconfig.json")  # (each is read with comments)
-        except WorkspaceError:
-            found, said = None, "too deep"
-        if said is not None or not isinstance(found, dict):
-            return NO_BASE if read else NO_TSCONFIG
-        top, read = top if read else found, read + 1
-        options = found.get("compilerOptions")
-        if isinstance(options, dict) and options.get("composite") is True:
-            return COMPOSITE
+    def taken(path: Path) -> dict | str:
+        # (`files` and `include` as tsc takes them: its own, else the last base's that has one)
+        nonlocal read
+        read += 1
+        found = _json_config(path) if read <= MOST_EXTENDS + 1 else None
+        if found is None:
+            return NO_TSCONFIG if read == 1 else NO_BASE
+        out = {key: found[key] for key in ("files", "include") if key in found}
         bases = found.get("extends", [])
-        for base in bases if isinstance(bases, list) else [bases]:
-            if (at := _extended(path.parent, base, root)) is None:
-                return NO_BASE
-            todo.append(at)
-    return NO_FILES if top.get("files") == [] and "include" not in top else None
+        for base in reversed(bases if isinstance(bases, list) else [bases]):
+            if _package(base):
+                continue
+            at = _extended(path.parent, base, root)
+            theirs = taken(at) if at is not None else NO_BASE
+            if isinstance(theirs, str):
+                return theirs
+            out = {**theirs, **out}
+        return out
+
+    found = taken(folder / "tsconfig.json")
+    if isinstance(found, str):
+        return found
+    return NO_FILES if found.get("files") == [] and "include" not in found else None
 
 
 MOST_EXTENDS = 8
 
 
+def _json_config(path: Path) -> dict | None:
+    """A tsconfig as tsc reads it - with comments, trailing commas and a BOM -, None: not one."""
+    # Here, not at the top: proof_kinds imports browser → command_runner → this module.
+    from app.proof_kinds import _json
+
+    try:
+        found, said = _json(_read(path).removeprefix("\ufeff"), "tsconfig.json")
+    except WorkspaceError:
+        return None
+    return found if said is None and isinstance(found, dict) else None
+
+
+def _package(name: object) -> bool:
+    """Whether a tsconfig's `extends` names a package (`@tsconfig/node20`), not a path."""
+    plain = str(name).replace("\\", "/")
+    return (
+        isinstance(name, str)
+        and bool(name)
+        and not plain.startswith(("./", "../", "/"))
+        and plain not in (".", "..")
+        and not Path(name).is_absolute()
+    )
+
+
 def _extended(folder: Path, name: object, root: Path) -> Path | None:
-    """The file a tsconfig in `folder` names in its `extends` as tsc finds it: a path from that
-    folder (`./base`: `base.json` where `base` is no file), else a package's in the node_modules
-    of that folder or one above it in the project - the name, with `.json`, or its
-    `tsconfig.json`. None: not a name, or no such file in the project (`root`, by its path).
-    shortcut: a package's own `tsconfig` / `exports` field is not read - where it names another
-    file and the package also has a `tsconfig.json`, that one is read; read package.json if a
-    project is met with one."""
+    """The file a tsconfig in `folder` names by its path in `extends`, as tsc finds it (`./base`:
+    `base.json` where `base` is no file). None: not a string, or no such file in the project
+    (`root`, by its path)."""
     if not isinstance(name, str) or not name:
         return None
-    plain = name.replace("\\", "/")
-    if plain.startswith(("./", "../", "/")) or plain in (".", "..") or Path(name).is_absolute():
-        found = [folder / name, folder / f"{name}.json"]
-    else:
-        found = [
-            home / "node_modules" / one
-            for home in (folder, *folder.parents)
-            if _inside(home, root)
-            for one in (name, f"{name}.json", f"{name}/tsconfig.json")
-        ]
+    found = [folder / name, *([] if name.endswith(".json") else [folder / f"{name}.json"])]
     return next((one for one in found if _inside(one, root) and one.is_file()), None)
 
 

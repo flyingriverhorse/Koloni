@@ -731,75 +731,48 @@ def test_warnings_on_the_turns_lines_are_not_counted_as_elsewhere(tmp_path):
     ]
 
 
-@pytest.mark.parametrize(
-    "config, said",
-    [
-        ('{"files": [], "references": [{"path": "./tsconfig.app.json"}]}', proof_style.NO_FILES),
-        ('{"compilerOptions": {"composite": true}}', proof_style.COMPOSITE),
-        ('{"compilerOptions": {', proof_style.NO_TSCONFIG),
-        ('{\n  // checked\n  "compilerOptions": {"strict": true,},\n}', None),
-    ],
-)
-def test_tsc_runs_only_on_a_tsconfig_that_checks_files_and_writes_nothing(tmp_path, config, said):
-    (tmp_path / "web" / "node_modules" / ".bin").mkdir(parents=True)
-    tsc = "node_modules/.bin/tsc.cmd" if sys.platform == "win32" else "node_modules/.bin/tsc"
-    (tmp_path / "web" / tsc).write_text("")
-    (tmp_path / "web" / "tsconfig.json").write_text(config, encoding="utf-8")
-    runs, notes = proof_style.planned(tmp_path, ["web/src/a.ts"])
-    if said is not None:  # (never a pass row for nothing checked)
-        assert (runs, notes) == ([], [said])
-        return
-    ((_tool, line, cwd, _files),) = runs
-    assert line == f"{tsc} --noEmit --pretty false --incremental false -p tsconfig.json"
-    assert cwd == "web" and notes == []
-
-
 COMPOSITE = '{"compilerOptions": {"composite": true}}'
 
 
 @pytest.mark.parametrize(
     "files, said",
     [
-        # (the review's probe: composite in what it extends - tsc 5.9 wrote its build info
-        # where tsBuildInfoFile said, outside the project)
+        ({"tsconfig.json": '{"files": [], "references": [{"path": "./tsconfig.app.json"}]}'}, (
+            proof_style.NO_FILES
+        )),
+        ({"tsconfig.json": '{"compilerOptions": {'}, proof_style.NO_TSCONFIG),
+        ({"tsconfig.json": '{\n  // checked\n  "compilerOptions": {"strict": true,},\n}'}, None),
+        ({"tsconfig.json": '\ufeff{"include": ["src"]}'}, None),  # (a BOM, as tsc reads it)
+        # (the review's probes: composite, an incremental build info or a trace - itself or in
+        # what it extends - made tsc write where they said, outside the project too: it runs,
+        # told on its line to write none of them)
         (
             {
                 "base.json": COMPOSITE,
                 "tsconfig.json": '{"extends": "./base.json", "compilerOptions": '
                 '{"tsBuildInfoFile": "../../outside/x.json"}}',
             },
-            proof_style.COMPOSITE,
+            None,
         ),
-        ({"base.json": COMPOSITE, "tsconfig.json": '{"extends": "./base"}'}, proof_style.COMPOSITE),
-        (  # (a list, two links deep, each read with its comments)
-            {
-                "a.json": '{"extends": "./b.json", // b\n}',
-                "b.json": COMPOSITE,
-                "tsconfig.json": '{"extends": ["./a.json"], "include": ["src"]}',
-            },
-            proof_style.COMPOSITE,
-        ),
-        (  # (a package's: in the folder's node_modules, or the root's - its tsconfig.json)
-            {"node_modules/@t/x.json": COMPOSITE, "tsconfig.json": '{"extends": "@t/x.json"}'},
-            proof_style.COMPOSITE,
-        ),
+        ({"tsconfig.json": '{"compilerOptions": {"generateTrace": "../../out"}}'}, None),
+        ({"node_modules/foo.json": COMPOSITE, "tsconfig.json": '{"extends": "foo"}'}, None),
+        # (files as tsc takes them: its own, else from what it extends - the last one first)
+        ({"b.json": '{"files": []}', "tsconfig.json": '{"extends": "./b.json"}'}, (
+            proof_style.NO_FILES
+        )),
+        ({"b.json": '{"include": ["src"]}', "tsconfig.json": '{"extends": "./b", "files": []}'}, (
+            None
+        )),
         (
             {
-                "../node_modules/@t/x/tsconfig.json": '{"compilerOptions": {"strict": true}}',
-                "tsconfig.json": '{"extends": "@t/x", "include": ["src"]}',
+                "a.json": '{"files": [], // a\n}',
+                "b.json": '{"files": ["src/a.ts"]}',
+                "tsconfig.json": '{"extends": ["./b.json", "./a.json"]}',
             },
-            None,
-        ),
-        (  # (measured: neither writes anything under `--incremental false`)
-            {
-                "base.json": '{"compilerOptions": {"incremental": true, "tsBuildInfoFile": "x"}}',
-                "tsconfig.json": '{"extends": "./base.json", "include": ["src"]}',
-            },
-            None,
+            proof_style.NO_FILES,
         ),
         ({"tsconfig.json": '{"extends": "../../outside.json"}'}, proof_style.NO_BASE),
         ({"tsconfig.json": '{"extends": "./missing.json"}'}, proof_style.NO_BASE),
-        ({"tsconfig.json": '{"extends": "@t/none"}'}, proof_style.NO_BASE),
         ({"tsconfig.json": '{"extends": "./tsconfig.json"}'}, proof_style.NO_BASE),  # (a loop)
         ({"tsconfig.json": '{"extends": 1}'}, proof_style.NO_BASE),
         ({"base.json": '{"compilerOptions": {', "tsconfig.json": '{"extends": "./base.json"}'}, (
@@ -807,7 +780,9 @@ COMPOSITE = '{"compilerOptions": {"composite": true}}'
         )),
     ],
 )  # fmt: skip
-def test_tsc_reads_what_its_tsconfig_extends_in_the_project(tmp_path, files, said):
+def test_tsc_runs_where_its_tsconfig_checks_files_and_is_told_to_write_nothing(
+    tmp_path, files, said
+):
     root = tmp_path / "p"
     (root / "web" / "node_modules" / ".bin").mkdir(parents=True)
     tsc = "node_modules/.bin/tsc.cmd" if sys.platform == "win32" else "node_modules/.bin/tsc"
@@ -817,7 +792,27 @@ def test_tsc_reads_what_its_tsconfig_extends_in_the_project(tmp_path, files, sai
         (root / "web" / name).parent.mkdir(parents=True, exist_ok=True)
         (root / "web" / name).write_text(content, encoding="utf-8")
     runs, notes = proof_style.planned(root, ["web/src/a.ts"])
-    assert (len(runs), notes) == ((1, []) if said is None else (0, [said]))
+    if said is not None:  # (never a pass row for nothing checked)
+        assert (runs, notes) == ([], [said])
+        return
+    ((_tool, line, cwd, _files),) = runs
+    # (its command line wins over any tsconfig: no build info, no trace, no output)
+    assert line == (
+        f"{tsc} --noEmit --pretty false --incremental false -p tsconfig.json"
+        " --composite false --generateTrace null"
+    )
+    assert cwd == "web" and notes == []
+
+
+@pytest.mark.parametrize("end", ["\r", "\u2028", "\u2029"])
+def test_a_line_comment_in_a_tsconfig_ends_where_tsc_ends_it(end):
+    # (the review's: a `//` comment ended by CR or a line separator hid what came after it)
+    from app.proof_kinds import _json
+
+    text = '{"o": { // x' + end + '"composite": true,' + "\n" + '"strict": true}}'
+    found, _said = _json(text, "tsconfig.json")
+    assert found is None or found["o"].get("composite") is True, found
+    assert end != "\r" or found is not None
 
 
 def test_tsc_follows_at_most_eight_links_of_extends(tmp_path):
@@ -845,22 +840,31 @@ def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(
         "mypy": f"{RUFF.replace('ruff', 'mypy')} --no-error-summary --no-pretty "
         f"--cache-dir=.mypy_cache ./{py}",
         "eslint": f"{NODE} --format stylish --no-color ./a.js",
-        "tsc": f"{NODE.replace('eslint', 'tsc')} --noEmit --pretty false --incremental false "
-        "-p tsconfig.json",
+        "tsc": f"{NODE.replace('eslint', 'tsc')} {proof_style.TSC_WORDS}",
     }
     escapes = {
         "ruff": ["--config C:/x/evil.toml", "--output-file C:/x/out.txt", "-o C:/x/out.txt",
                  "--fix", "--fix-only", "--unsafe-fixes", "--add-noqa"],
         "mypy": ["--python-executable C:/x/evil.exe", "--config-file C:/x/evil.ini",
-                 "--cache-dir C:/x", "--junit-xml C:/x/out.xml"],
+                 "--cache-dir C:/x", "--junit-xml C:/x/out.xml", "--html-report C:/x",
+                 "--txt-report ../x", "--install-types --non-interactive"],
         "eslint": ["--resolve-plugins-relative-to C:/x", "-c C:/x/evil.js", "--rulesdir C:/x",
                    "-o C:/x/out.txt", "--config C:/x/evil.js", "--fix", "--plugin evil",
                    "--parser C:/x/p.js", "--format ./evil.js", "-f C:/x/f.js", "--format=x",
-                   "--init", "--inspect-config"],
+                   "--init", "--inspect-config", "--suppress-all", "--suppress-rule no-x",
+                   "--prune-suppressions", "--suppressions-location C:/x/s.json",
+                   "--cache --cache-file C:/x/c",
+                   # (eslint's optionator refuses these spellings - covered by none all the same)
+                   "--Format ./x.js", "--outputFile C:/x/o.txt", "--inspectConfig", "--Fix",
+                   "--resolvePluginsRelativeTo C:/x", "--Plugin x", "--Config C:/x/c.js"],
         # (tsc reads its options in any case - measured, 5.9)
         "tsc": ["--outDir C:/x", "-p C:/x/tsconfig.json", "--generateTrace C:/x",
                 "--generateCpuProfile C:/x/p.cpuprofile", "--OUTDIR C:/x", "--generatetrace C:/x",
-                "-P C:/x/tsconfig.json"],
+                "-P C:/x/tsconfig.json", "--generateTrace .",
+                # (the review's: each wrote outside with a tsconfig that asks for it; `FALSE` is
+                # true to tsc)
+                "--incremental", "--incremental true", "--INCREMENTAL", "--incremental FALSE",
+                "--noEmit false", "--composite null", "--composite", "-b", "--build", "-B"],
     }  # fmt: skip
     assert suggest_prefix("./node_modules/.bin/eslint --format stylish ./a.js") == (
         "./node_modules/.bin/eslint --format stylish"
@@ -882,6 +886,9 @@ def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(
     # program's option of the same letter is never eslint's or pytest's harmless one)
     assert matches(f"{NODE} --format json ./a.js", NODE)
     assert matches(f"{NODE} -f json ./a.js", NODE)
+    assert matches(f'{NODE} --format "stylish" ./a.js', NODE)
+    tsc = NODE.replace("eslint", "tsc")  # (what writes nothing: as Code style's line says it)
+    assert matches(f"{tsc} --noEmit -p tsconfig.json --incremental false --composite false", tsc)
     assert matches(f"{RUFF} check --fix ./a.py", f"{RUFF} check --fix")
     assert not matches("make -f html", "make")
     assert not matches("gradle build -p no:x", "gradle build")

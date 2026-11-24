@@ -761,13 +761,18 @@ _PAST_A_RULE = {
     # 0.1.7's Code style and types: another config (a plugin it loads is code), a rules folder or
     # plugins found elsewhere, another Python run for it; a fix written into the files; a
     # formatter (but its own, `_ESLINT_FORMATS`), plugin or parser loaded by name or path; eslint's
-    # `--init` and `--inspect-config`, which fetch a package and run it (npm init, npx)
+    # `--init` and `--inspect-config`, which fetch a package and run it (npm init, npx), and its
+    # suppressions file written; mypy's stubs installed (pip); tsc made to write - its build info,
+    # a trace, its output, a build (but `--incremental false`, `--composite false`, `--noEmit`,
+    # `--generateTrace null`, which Code style's own line gives: `_harmless`)
     "ruff": ("--config", "--fix", "--fix-only", "--unsafe-fixes", "--add-noqa"),
-    "mypy": ("--config-file", "--python-executable"),
+    "mypy": ("--config-file", "--python-executable", "--install-types"),
     "eslint": (
         *("-c", "--config", "--resolve-plugins-relative-to", "--rulesdir"),
         *("-f", "--format", "--plugin", "--parser", "--fix", "--init", "--inspect-config"),
+        *("--suppress-all", "--suppress-rule", "--prune-suppressions"),
     ),
+    "tsc": ("--incremental", "--composite", "--noEmit", "--generateTrace", "-b", "--build"),
 }
 _ESLINT_FORMATS = frozenset({"stylish", "json", "json-with-metadata", "html"})
 # ...these only where their value leads out of the folder (a report written there)...
@@ -776,11 +781,19 @@ _PAST_A_RULE_OUT = {
     # (0.1.7: a report, a cache or a build put elsewhere; tsc on another folder's config, its
     # trace or profile - tsc reads its options in any case, `--OUTDIR` too: measured, 5.9)
     "ruff": ("--output-file", "-o", "--cache-dir"),
-    "mypy": ("--cache-dir", "--junit-xml"),
-    "eslint": ("--output-file", "-o", "--cache-location"),
+    "mypy": (
+        *("--cache-dir", "--junit-xml", "--html-report", "--txt-report", "--xml-report"),
+        *("--xslt-html-report", "--xslt-txt-report", "--cobertura-xml-report"),
+        *("--linecount-report", "--linecoverage-report", "--lineprecision-report"),
+        *("--any-exprs-report", "--memory-xml-report"),
+    ),
+    "eslint": (
+        *("--output-file", "-o", "--cache-location", "--cache-file"),
+        "--suppressions-location",
+    ),
     "tsc": (
         *("-p", "--project", "--outDir", "--outFile", "--tsBuildInfoFile", "--declarationDir"),
-        *("--generateTrace", "--generateCpuProfile"),
+        "--generateCpuProfile",
     ),
 }
 # ...the short options that take a value where a program bundles its short ones (`pytest -qo x`:
@@ -848,37 +861,55 @@ def _past_the_rule(words: list[str], extra: list[str]) -> bool:
     if _runner_options_past(words, extra):
         return True
     named = {_program(word) for word in words}
-    given = [
-        (program, option, _SHORT_VALUES.get(program))
-        for program in named
-        for option in _PAST_A_RULE.get(program, ())
-    ]
-    out = [
-        (option.casefold() if fold else option, _SHORT_VALUES.get(program), fold)
-        for program in named
-        for fold in [program == "tsc"]  # (tsc's options in any case)
-        for option in _PAST_A_RULE_OUT.get(program, ())
-    ]
+    given, out = (
+        [
+            (program, _option_spelling(program, option), _SHORT_VALUES.get(program))
+            for program in named
+            for option in rows.get(program, ())
+        ]
+        for rows in (_PAST_A_RULE, _PAST_A_RULE_OUT)
+    )
     own = extra[: extra.index("--")] if "--" in extra else extra
     for at, word in enumerate(own):
         after = own[at + 1] if at + 1 < len(own) else ""
         for program, option, takes in given:
-            value = _option_given(word, after, option, takes)
-            if value is not None and not _harmless(program, option, value):
+            value = _option_given(_option_spelling(program, word), after, option, takes)
+            if value is not None and not _harmless(program, option, value.strip("'\"")):
                 return True
         if any(
-            (value := _option_given(word.casefold() if fold else word, after, option, takes))
+            (value := _option_given(_option_spelling(program, word), after, option, takes))
             is not None
             and (_outside(value.strip("'\"")) or re.search(r"[$%~]", value))
-            for option, takes, fold in out
+            for program, option, takes in out
         ):
             return True
     return bool(_SHELL_LINE.search(" ".join(extra)))
 
 
+def _option_spelling(program: str, word: str) -> str:
+    """A word as `program` reads an option's name: tsc's in any case (`--OUTDIR`, `-P`: measured,
+    5.9); eslint's long ones in any case and with or without inner dashes (`--outputFile`) -
+    optionator 0.9.4, eslint's, looks a name up as written and refuses `--Fix` or `-F`: this
+    fails closed if a version does not. A value after `=` stays as written."""
+    if program == "tsc":
+        return word.casefold()
+    if program == "eslint" and word.startswith("--"):
+        name, sep, value = word[2:].partition("=")
+        return f"--{name.replace('-', '').casefold()}{sep}{value}"
+    return word
+
+
 def _harmless(program: str, option: str, value: str) -> bool:
     """What of an option `_PAST_A_RULE` lists changes nothing of what runs: pytest's plugin
-    turned off (`-p no:x`) or how it logs (`-o log_cli=true`), eslint's own formatter."""
+    turned off (`-p no:x`) or how it logs (`-o log_cli=true`), eslint's own formatter, tsc
+    told to write nothing (`--incremental false`, `--composite false`, `--noEmit`,
+    `--generateTrace null` - tsc reads `false` and `null` as written: `FALSE` is true)."""
+    if program == "tsc":
+        return (
+            (option in ("--incremental", "--composite") and value == "false")
+            or (option == "--noemit" and value != "false")
+            or (option == "--generatetrace" and value == "null")
+        )
     if program == "pytest":
         return (option == "-p" and value.startswith("no:")) or (
             option in ("-o", "--override-ini") and value.split("=", 1)[0] in _HARMLESS_INI
