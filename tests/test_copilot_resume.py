@@ -29,6 +29,7 @@ from app.model_session import SessionResult, copilot_since
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_copilot_agent import HEADLESS, PAGE, start
+from tests.test_spawn import role_id
 
 SID = "5f0c2a9e-7d41-4b8e-9c3a-1e2f3a4b5c6d"  # (a uuid, as Copilot names a session)
 SYSTEM = {"role": "system", "content": "You are the Lead."}
@@ -520,3 +521,13 @@ def test_where_it_says_no_size_its_last_calls_input_is_its_size_cache_and_all(co
     # Its usage_info, where it came, stands over that.
     result, _ = run(copilot(call_usage=call, usage_info=[info(9000)]), tmp_path, FIRST)
     assert result.context_used == 9000
+
+
+def test_a_larger_window_on_its_role_does_not_lift_its_sessions_bound(chat):
+    lead_role = role_id(chat.client, "Lead")
+    patched = chat.client.patch(
+        f"/api/roles/{lead_role}", headers=OWN, json={"context_window": 272_000}
+    )
+    assert patched.status_code == 200, patched.text
+    chat("now the tests", usage_info=[info(80_000)])  # (75 % of 100,000, far below 272,000's)
+    assert leads(chat)[-1].cli_session is None and homes_of(chat) == []

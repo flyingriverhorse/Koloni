@@ -459,15 +459,16 @@ class NativeMixin:
     ) -> dict:
         """27: what its session is kept with for the topic's next turn (`_session_mark`); {}: none
         is. 0.1.8: a CLI whose session costs more past a size (`session_cap`: Copilot's price step)
-        keeps none at Summarise a long context at (%) of its role's window, else of its own at
-        most that size, nor one whose size it did not say - said on its record; its next turn
-        starts anew, sent the history KOLONİ keeps and compacts (To-do design, "Oturum boyu
-        sınırı")."""
+        keeps none at Summarise a long context at (%) of its role's window, else of its own - at
+        most that size either way - nor one whose size it did not say - said on its record; its
+        next turn starts anew, sent the history KOLONİ keeps and compacts (To-do design, "Oturum
+        boyu sınırı")."""
         if not usage.session:
             return {}
         if cap := model.session_cap:
             used = usage.context_used
-            window = ctx.context_window or min(usage.context_window or cap, cap)
+            # (A role's window lowers the bound, never lifts it past the price step.)
+            window = min(ctx.context_window or usage.context_window or cap, cap)
             with self._factory() as session:
                 share = compact_at(session)
             if used is None or used >= window * share / 100:
