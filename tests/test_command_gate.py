@@ -59,7 +59,9 @@ def tokens(tmp_path: Path) -> dict[str, str]:
         for name, path in bases.items()
         for suffix, form in spellings(str(path)).items()
     }
-    local = os.environ["LOCALAPPDATA"]
+    # (the user's data folder as KOLONİ finds it - %LOCALAPPDATA% on Windows, XDG's elsewhere -:
+    # no LOCALAPPDATA off Windows)
+    local = str(copies._user_data())
     rel = str(users)[len(local) :]
     return {**found, "<la_rel>": rel, "<la_rel|fwd>": rel.replace("\\", "/"), "<la>": local}
 

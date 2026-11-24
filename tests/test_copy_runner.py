@@ -1840,3 +1840,21 @@ def test_a_script_made_runnable_in_the_copy_is_runnable_in_the_project(
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     assert (project_dir / "run.sh").stat().st_mode & 0o111 == 0o111
     assert (project_dir / "a.md").stat().st_mode & 0o111 == 0
+
+
+def test_own_tests_of_a_copy_that_cannot_be_read_are_not_run_and_say_why():
+    # (CI of 0.1.7: Take in's check of a sub-agent's own tests listed the copy outside the guarded
+    # look - an unreadable copy failed the turn instead of being kept for the user)
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.agent import OWN_UNREAD
+
+    def own_runs(*_args):
+        raise PermissionError(13, "Access is denied")
+
+    runner = SimpleNamespace(_own_runs=own_runs)
+    copy = SimpleNamespace(base={}, names={})
+    owns, check = asyncio.run(AgentRunner._own_check(runner, None, copy))
+    said = OWN_UNREAD.format(why="Access is denied")
+    assert (owns, check["state"], check["command"], check["note"]) == ([], "not_run", "", said)

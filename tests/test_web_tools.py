@@ -878,7 +878,7 @@ def test_a_role_can_be_given_the_web_tools(client):
     ]
     for name in ("Planner", "Coder", "Tester", "Reviewer"):
         assert not {"web_search", "http_request", "notify"} & set(roles[name]), name
-    made = client.post("/api/roles", json={"name": "Scout", "tools": ["notify", "web_search"]})
+    made = client.post("/api/roles", json={"name": "Forager", "tools": ["notify", "web_search"]})
     assert made.status_code == 201 and made.json()["tools"] == ["web_search", "notify"]
 
 

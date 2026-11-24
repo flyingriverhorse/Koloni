@@ -354,7 +354,8 @@ def test_a_steps_suggestions_reach_the_next_step_by_findings_from(
     ]
     client, model = make_client(
         {"Lead": lead, "Debugger": [*REPRODUCES[:2], text(said)], "Coder": fixed()},
-        executor=ScriptedExecutor([REPRO, PASSED]),
+        # (and Take in's check of the Debugger's own test, tests/test_repro.py - 0.1.7)
+        executor=ScriptedExecutor([REPRO, PASSED, PASSED]),
     )
     cid, run_id = bugfix_run(client, project_dir, ready=True)
     snap = wait_run(client, cid, run_id)
