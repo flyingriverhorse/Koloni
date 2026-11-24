@@ -93,6 +93,19 @@ def test_a_failing_turn_goes_up_the_tiers_until_it_passes(team, wait_run, projec
     ), rows
     assert ("tests", "passed") in [(k, st) for k, st, _t in rows], (rows, executor.started)
     assert not any(st == "failed" for _k, st, _t in rows), rows
+    # (tuval-kontrol-dongusu, round 2: the passes say each tier's diagnosis - its own kind, never a
+    # look - and its fixer, for the canvas to draw)
+    (note,) = [m for m in snap["messages"] if m["role"] == "checked"]
+    by = {a["name"]: a["id"] for a in snap["agents"]}
+    tiers = [
+        (one["tier"], one["diagnosis"], one["fixers"], one["looks"], one["tests"])
+        for one in note["passes"]
+        if one["kind"] == "stronger"
+    ]
+    assert tiers == [
+        ("balanced", by["Coder 2"], [by["Coder 3"]], [], "failed"),
+        ("strongest", by["Coder 4"], [by["Coder 5"]], [], "passed"),
+    ], note["passes"]
 
 
 ONE = [step(spawn("Coder", "balanced", WHY)), text("done"), text("done, as it is")]

@@ -1,3 +1,4 @@
+import type { ChecksData } from './checksNode'
 import type { GraphEdge, GraphNode, GroupData } from './deriveGraph'
 import type { SharedData } from './sharedColumn'
 
@@ -127,8 +128,12 @@ export function foldAll(graph: Graph, open: boolean): Folds {
 
 /** The node a selection stands for: the node of that id. (A call, a command or a file is its agent's: `agentOf`.) */
 export function nodeOf(graph: Graph, selected: string): GraphNode | undefined {
-  return graph.nodes.find(n => n.id === selected)
+  return graph.nodes.find(n => n.id === selected) ?? inChecks(graph, selected)
 }
+
+/** An agent drawn in its turn's Checks box (`settleChecks`) - selected in the chat, say - is shown as that box. */
+const inChecks = (graph: Graph, selected: string) =>
+  graph.nodes.find(n => n.kind === 'checks' && (n.data as ChecksData).loop?.agents.includes(selected.replace(/^agent:/, '')))
 
 type Owned = { id: string; agent_id: string }[]
 

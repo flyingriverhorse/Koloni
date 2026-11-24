@@ -217,6 +217,62 @@ sequenceDiagram
 \`\`\`
 `
 
+/**
+ * tuval-kontrol-dongusu, the guide's pictures - the approved sketch's turn: the Orchestrator opens three Coders at once; KOLONİ's
+ * Reviewer lets the change stand twice and holds it the third time, its Security reviewer (auth_check.py touches security) holds
+ * it every time; after each "Not the end yet" the Orchestrator opens a Coder to fix the findings - two Fix rounds, and the turn
+ * ends on hold. KOLONİ's ask for a test is answered with why none fits. (Each look counted, a role's own, from the turn's start.)
+ */
+const LOOPED = { looks: new Map(), fixes: 0 }
+const LOOPED_WORK = {
+  'the runner': ['runner.py', 'runner_cli.py', 'runner_log.py', 'runner_conf.py', 'runner_util.py'],
+  'the auth check': ['auth_check.py', 'auth_rules.py', 'auth_util.py'],
+  netcheck: ['netcheck.py', 'netcheck_cli.py', 'netcheck_util.py'],
+}
+const LOOPED_FIXES = [['runner.py', 'netcheck.py', 'auth_check.py'], ['runner.py', 'netcheck.py', 'auth_check.py', 'auth_rules.py']]
+const LOOPED_FOUND = {
+  Reviewer: [[], [], ['netcheck.py:9 retries forever on a refused connection']],
+  'Security reviewer': [
+    ['runner.py:17 uses Popen with shell=True', 'auth_check.py:4 compares the token with ==', 'netcheck.py:3 trusts any certificate'],
+    ['runner.py:21 passes the user’s path to the shell', 'auth_check.py:8 logs the token', 'netcheck.py:5 follows any redirect'],
+    ['netcheck.fetch allows any URL (SSRF)', 'auth_rules.py:2 lets an empty role in'],
+  ],
+}
+
+function loopedLook(messages) {
+  const role = /Look it over as the (Security reviewer|Reviewer)/.exec(messages.map(m => String(m.content)).join('\n'))?.[1] ?? 'Reviewer'
+  const n = LOOPED.looks.get(role) ?? 0
+  LOOPED.looks.set(role, n + 1)
+  const found = LOOPED_FOUND[role][Math.min(n, 2)]
+  if (!found.length) return say('Read it.\nVerdict: MERGE\n\nFindings: none')
+  const lines = found.map(what => `- ${what} | kind: ${role === 'Reviewer' ? 'code' : 'security'} | role: Orchestrator | blocking`)
+  return say(`Read it.\nVerdict: HOLD\n\n## Findings\n${lines.join('\n')}`)
+}
+
+function loopedStep(messages, last) {
+  if (messages.some(m => m.role === 'user' && String(m.content).startsWith('KOLONİ opened you at the end of a turn to look over'))) return loopedLook(messages)
+  if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content))) {
+    const task = String(messages[1]?.content)
+    const fix = /Fix the findings \((\d)\), k-dongu/.exec(task)
+    const files = fix ? LOOPED_FIXES[Number(fix[1]) - 1] : LOOPED_WORK[/Write (.+), k-dongu/.exec(task)?.[1]] ?? ['dongu.py']
+    if (last.role !== 'user') return say(`Wrote ${files.length} files.`)
+    return toolCalls(files.map((path, n) => [`cdg${messages.length}${n}`, 'write_file', { path, content: `x = ${Date.now()}\n` }]))
+  }
+  if (last.role === 'user') {
+    const said = String(last.content)
+    if (/looped change, k-dongu/.test(said)) {
+      Object.assign(LOOPED, { looks: new Map(), fixes: 0 })
+      return toolCalls(Object.keys(LOOPED_WORK).map((what, n) => [`cdg0${n}`, 'spawn_agent', { role: 'Coder', task: `Write ${what}, k-dongu` }]))
+    }
+    if (/Not the end yet: the .* looked over/.test(said)) {
+      LOOPED.fixes += 1
+      return toolCall(`cdgx${messages.length}`, 'spawn_agent', { role: 'Coder', task: `Fix the findings (${LOOPED.fixes}), k-dongu` })
+    }
+    if (/changed and no test did/.test(said)) return say('No test fits it: each file holds one constant.')
+  }
+  return say(LOOPED.fixes ? 'Fixed the findings.' : 'Wrote the three modules.')
+}
+
 function nextStep(all, tools = [], model = '') {
   // (A message with files sent as they are - slice 85b - is read by its text parts.)
   const read = all.map(m => (Array.isArray(m.content) ? { ...m, content: m.content.filter(p => p.type === 'text').map(p => p.text).join('\n') } : m))
@@ -226,6 +282,9 @@ function nextStep(all, tools = [], model = '') {
   // Asked to say a project's day in words (slice 56): its numbers, in a few sentences. First of all: the day
   // carries the titles of its conversations, which the branches below would take for what is asked.
   if (String(messages[0].content).startsWith("You are given a software project's day")) return say('A day of one change. Nothing failed.')
+  // tuval-kontrol-dongusu (the guide's pictures): a change KOLONİ's Reviewer holds every time (`loopedStep`).
+  // (Not a question asked of the side - how hard, a summary: those are answered below as for any turn.)
+  if (!String(messages[0].content).startsWith('You are asked one thing') && messages.some(m => m.role === 'user' && /\bk-dongu\b/.test(String(m.content)))) return loopedStep(messages, last)
   // S3: KOLONİ's Reviewer at a turn's end (a change that touches security, say): it lets it stand.
   if (messages.some(m => m.role === 'user' && String(m.content).startsWith('KOLONİ opened you at the end of a turn to look over'))) return say('Read it.\nVerdict: MERGE\n\nFindings: none')
   if (String(messages[0].content).includes('Coder sub-agent') && /Fix the cart handler, 85b/.test(String(messages[1]?.content))) {

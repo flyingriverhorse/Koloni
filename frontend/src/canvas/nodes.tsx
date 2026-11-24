@@ -14,6 +14,7 @@ import { doneSaid } from '../backlog/awayText'
 import { useApp } from '../state/store'
 import { type AgentData, type AttachmentData, type AwayData, type AwayJobData, type DiscussionData, type GroupData, type PlanData, type PoData, poSaid, poTokens, SCOUT_DOES, type ReadyData, type RequestData, type RoomData, type RoundData, type TeamData, statusWords } from './deriveGraph'
 import { runClock } from '../chat/checked'
+import { DOT_WORDS, type Loop, type LoopCard, saysRounds } from './checksLoop'
 import { type ChecksData, toolOf } from './checksNode'
 import { NodeActions, ToggleGroup } from './toggleGroup'
 
@@ -254,6 +255,7 @@ const MARK: Record<string, string> = { passed: '✓', failed: '✗', running: '�
 export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
   const now = useNow(1000)
   const running = data.running
+  if (data.loop) return <ChecksBox data={data} loop={data.loop} selected={selected} now={now} />
   return (
     <div className={`node node-checks${selected ? ' node-selected' : ''}`}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
@@ -281,6 +283,112 @@ export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
       <Handle type="source" position={Position.Right} isConnectable={false} />
       <Ends />
     </div>
+  )
+}
+
+/**
+ * The Checks node with the agents its checks opened (tuval-kontrol-dongusu D, the approved sketch): right of the Orchestrator's
+ * work, its title a tag on its frame's top edge; each role once - its latest agent, as big as an agent's card -, the looks in a
+ * column ⇄ the fixes; where work was sent back, a dashed loop with the earlier ones as shadows behind each (×N), the rounds by
+ * its title and a dot each at its foot, under its test runs. A click opens the inspector's panel of its rounds (F).
+ */
+function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop; selected: boolean; now: number }) {
+  const running = data.running
+  const tests = loop.tests.map(line => ({ state: line.state, text: `${MARK[line.state] ?? '–'} ${line.text}${line.since ? ` · ${runClock(line.since, now)} …` : ''}` }))
+  if (running) tests.unshift({ state: 'running', text: `● ${[toolOf(running.command), ...liveFactList(now, running.since, null, null)].join(' · ')}` })
+  return (
+    <div className={['node-checks', 'node-checks-box', loop.loop && 'node-checks-loop', selected && 'node-checks-selected'].filter(Boolean).join(' ')}>
+      <Handle type="target" position={Position.Left} isConnectable={false} />
+      {/* Its panel: a click - by mouse, or Enter / Space on it - is the node's own click (the canvas picks it, as a click on the
+          box); its keys go no further (the canvas's own key handling would pick it a second time). */}
+      <button
+        type="button"
+        className="checks-tag nodrag"
+        title={saysRounds(loop) ? loop.status : undefined}
+        aria-label={`Checks · KOLONİ${saysRounds(loop) ? `: ${loop.status}` : ''} - open its panel`}
+        onKeyDown={event => event.stopPropagation()}
+      >
+        <span className="checks-tag-title">Checks · KOLONİ</span>
+        {/* (Sent back, or at work - "● looking…" with its one amber dot - it says its rounds.) */}
+        {saysRounds(loop) && (
+          <span className="checks-status" data-tone={loop.tone}>
+            {loop.status}
+          </span>
+        )}
+      </button>
+      <div className="checks-box-menu">
+        <ChecksMenu runId={data.runId} leadId={data.leadId} stoppable={data.stoppable} />
+      </div>
+      <div className="checks-cards">
+        <div className="checks-col">
+          {loop.looks.map(card => (
+            <ChecksCard key={card.agentId} card={card} stacked={loop.loop} />
+          ))}
+        </div>
+        {loop.fixes.length > 0 && (
+          <>
+            <span className="checks-way" aria-hidden="true">
+              ⇄
+            </span>
+            <div className="checks-col">
+              {loop.fixes.map(card => (
+                <ChecksCard key={card.agentId} card={card} stacked={loop.loop} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <div className="checks-foot">
+        <span className="checks-tests" title={tests.map(one => one.text).join('\n')}>
+          {tests.map((one, n) => (
+            <span key={n} data-state={one.state}>
+              {n > 0 && ' · '}
+              {one.text}
+            </span>
+          ))}
+        </span>
+        {saysRounds(loop) && (
+          <span className="checks-dots" role="img" aria-label={`${loop.dots.length} rounds: ${loop.dots.map(dot => DOT_WORDS[dot]).join(', ')}`}>
+            {loop.dots.map((dot, n) => (
+              <i key={n} data-dot={dot} title={DOT_WORDS[dot]} />
+            ))}
+          </span>
+        )}
+      </div>
+      <Handle type="source" position={Position.Right} isConnectable={false} />
+      <Ends />
+    </div>
+  )
+}
+
+/** What a button of the box does on its own - the click or key not passed on to the canvas's node (no second pick, no drag). */
+const own = (act: () => void) => ({
+  onClick: (event: { stopPropagation: () => void }) => {
+    event.stopPropagation()
+    act()
+  },
+  onDoubleClick: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+  onKeyDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+})
+
+/**
+ * A role in the box: its latest agent's name and what it said, as an agent's card; ×N and two shadows behind it where there were
+ * more. A button: its agent's window, as the agent's node had it ("Open … window") - the Tests card, the box's panel.
+ */
+function ChecksCard({ card, stacked }: { card: LoopCard; stacked: boolean }) {
+  const more = stacked && card.count > 1
+  const tests = card.agentId.startsWith('tests:')
+  const said = tests ? `${card.name}: ${card.said} - open the checks' panel` : `Open ${card.name}'s window: ${card.said}`
+  // (The Tests card's click is the box's own - its panel -; an agent's, its window alone.)
+  const act = tests ? { onKeyDown: (event: { stopPropagation: () => void }) => event.stopPropagation() } : own(() => useApp.getState().openAgentWindow(card.agentId))
+  return (
+    <button type="button" className={`checks-card-at nodrag${more ? ' checks-stack' : ''}`} aria-label={said} title={said} {...act}>
+      {more && <span className="checks-badge">×{card.count}</span>}
+      <span className="checks-card" data-tone={card.tone}>
+        <b>{card.name}</b>
+        <small>{card.said}</small>
+      </span>
+    </button>
   )
 }
 

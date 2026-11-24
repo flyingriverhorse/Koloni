@@ -13,6 +13,8 @@ export type LineData = {
   who?: string
   /** Findings handed back: how many. */
   findings?: number
+  /** A recipe's own findings back, inside its frame: grey, KOLONİ's loop alone is in the warn colour. */
+  loopBack?: boolean
   /** A findings arc: the height it goes over or under the work line at, inside its frame, and which band out it is. */
   band?: number
   ring?: number
@@ -87,7 +89,7 @@ const arrowOf = (marker: string | undefined, data: LineData | undefined) => (dat
 function FindingsLabel({ data, x, y, back = false }: { data: LineData; x: number; y: number; back?: boolean }) {
   return (
     <EdgeLabelRenderer>
-      <div className={`edge-arc nodrag nopan${data.faded ? ' edge-faded' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${x}px, ${y}px)` }}>
+      <div className={`edge-arc nodrag nopan${data.faded ? ' edge-faded' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`, ...(data.loopBack && { color: 'var(--muted)' }) }}>
         {data.findings} finding{data.findings === 1 ? '' : 's'}
         {back && ' back'}
       </div>

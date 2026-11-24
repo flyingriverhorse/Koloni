@@ -205,6 +205,7 @@ REVIEW_ON = {
     "test_recipe_review_once_scenarios",
     "test_look_where_scenarios",
     "test_before_gates_scenarios",
+    "test_checks_passes_scenarios",
 }
 # S7: a failing run is run again alone and on the old code, and a pass is held to the last green
 # state - in a test, runs of the scripted executor more. On only where tested.
@@ -220,6 +221,7 @@ ASK_ON = {
     "test_proof_try_ask_scenarios",
     "test_recipe_cost_scenarios",
     "test_small_work_scenarios",
+    "test_checks_passes_scenarios",
 }
 # S5a: a turn that wrote documents, diagrams, data or slides gets KOLONİ's file checks - in a test,
 # their rows in every such turn, and a step of the scripted Lead more where one fails. On only

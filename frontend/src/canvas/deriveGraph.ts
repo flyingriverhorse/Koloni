@@ -18,6 +18,7 @@ import { shown } from '../chat/attachments'
 import { decidedOf, waitingOf, waitingSummary } from '../chat/waiting'
 import { firstLine } from '../chat/chatLine'
 import { outputCards } from './outputs'
+import { settleChecks } from './checksLoop'
 import { type ChecksData, checksNode } from './checksNode'
 import { liveKind } from '../agents/liveLine'
 import { type SharedData, sharedColumn } from './sharedColumn'
@@ -293,6 +294,8 @@ export interface GraphEdge {
   waits?: boolean
   /** From the agent whose report had findings to the one they were handed to: how many. */
   findings?: number
+  /** tuval-kontrol-dongusu (the recipe case): findings handed back inside a recipe's frame - its own loop, drawn grey (KOLONİ's, in its Checks box, red). */
+  loopBack?: boolean
   /** A request between teams (K-takimlar-arasi): one short line from frame to frame, its label; open while it is at work. */
   request?: { label: string; open: boolean; title: string; calls: string[] }
   /** K-shared-bagli: a team's (or an agent's) line to its card, in its colour; a contract's arm from its request's line. */
@@ -304,8 +307,6 @@ export interface GraphEdge {
   plan?: boolean
   /** With `plan`: from the Lead down to the Scout asked as its turn ended - the same line, dashed its own way. */
   po?: boolean
-  /** Kanıtlı bitiş: from the Checks node back to the Orchestrator, a fix round - its words ("round 1 of 2: tests fail"). */
-  round?: string
 }
 
 /**
@@ -734,6 +735,8 @@ export function deriveGraph(state: ConvState, teams: Team[] = [], shared: Shared
   const numbers = turnNumbers(state)
   // A comparison's later sides, by run: each with the turn it is drawn in.
   const laterSides = new Map<string, string>()
+  // The agents drawn in a turn's Checks box (`settleChecks`): no nodes, nor lines, of their own.
+  const inChecks = new Set<string>()
 
   for (const run of state.runs) {
     // A message removed from the queue never became work; it stays in the chat only.
@@ -758,7 +761,7 @@ export function deriveGraph(state: ConvState, teams: Team[] = [], shared: Shared
     // A turn still queued has no agent yet: only its request is shown.
     for (const agent of state.agents.filter(a => a.run_id === run.id))
       agentNodes(state, run, agent, nodes, link, { teams, opened, frameOf, request, requestId })
-    checksNode(state, run, nodes, edges)
+    checksBox(state, run, nodes, edges, inChecks)
 
     // K-canvas-dili (W): the agent that opens a team's agents - the Lead - reaches them at their frame's door, and in the
     // frame the work goes left to right in its recipe's order: one fork into each pass of a step, one join out of it,
@@ -792,7 +795,22 @@ export function deriveGraph(state: ConvState, teams: Team[] = [], shared: Shared
   agentLines(state, nodes, edges, unspawned)
   // (Drawn, laid out and picked as the turn they are: a comparison's sides as its first side's.)
   for (const node of nodes) node.runId = laterSides.get(node.runId) ?? node.runId
-  return { nodes, edges: framed(nodes, edges.filter(e => !(e.spawn && unspawned.has(e.target)))) }
+  const drawn = (e: GraphEdge) => !(e.spawn && unspawned.has(e.target)) && !inChecks.has(e.source) && !inChecks.has(e.target)
+  loopsBack(nodes, edges)
+  return { nodes, edges: framed(nodes, edges.filter(drawn)) }
+}
+
+/** Findings handed back inside one recipe's frame: its own loop (`GraphEdge.loopBack`). */
+function loopsBack(nodes: GraphNode[], edges: GraphEdge[]) {
+  const teamOf = new Map(nodes.map(n => [n.id, n.team]))
+  for (const e of edges) if (e.findings !== undefined && teamOf.get(e.source) && teamOf.get(e.source) === teamOf.get(e.target)) e.loopBack = true
+}
+
+/** KOLONİ's checks of a turn (`checksNode`), and the agents drawn in its box (`settleChecks`), put down in `inChecks`. */
+function checksBox(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphEdge[], inChecks: Set<string>) {
+  if (!checksNode(state, run, nodes, edges)) return
+  const box = nodes.find(node => node.id === `checks:${run.id}`)
+  if (box) for (const id of settleChecks(state, run, box, nodes, edges)) inChecks.add(id)
 }
 
 type Link = (source: string, target: string, active: boolean, spawn?: boolean) => void
@@ -978,7 +996,8 @@ function agentNodes(
 /** A team frame's door and work lines, and how its agents are laid out in it. */
 function workLines(state: ConvState, run: Run, row: RanRow, nodes: GraphNode[], edges: GraphEdge[], unspawned: Set<string>) {
   const frame = `team:${run.id}:${row.team_id}`
-  const mine = new Set(row.state.agents.filter(id => state.agents.some(a => a.id === id && a.run_id === run.id)))
+  // (Not those KOLONİ's Checks box took - its send-back rounds' agents: `settleChecks`.)
+  const mine = new Set(row.state.agents.filter(id => state.agents.some(a => a.id === id && a.run_id === run.id) && nodes.some(n => n.id === `agent:${id}`)))
   const parentOf = (id: string) => state.agents.find(a => a.id === id)?.parent_agent_id ?? ''
   const roots = [...mine].filter(id => !mine.has(parentOf(id)))
   if (roots.length === 0) return

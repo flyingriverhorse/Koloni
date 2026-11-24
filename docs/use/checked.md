@@ -793,8 +793,8 @@ a user would:
   nobody watches (Away, a trigger, a
   To-do task), or where the Tester's role has no browser tools.
 
-On the canvas the Tester is an agent node after the Checks node; KOLONİ's own runs of the try
-(the `--help`, the dev server) are not counted as test runs there.
+On the canvas the Tester is drawn in the Checks box ([On the canvas](#on-the-canvas)); KOLONİ's own
+runs of the try (the `--help`, the dev server) are not counted as test runs there.
 
 ## How long it waits
 
@@ -893,28 +893,65 @@ it, up to 16) is given to each of KOLONİ's runs where its runner reads it: pyte
 
 ## On the canvas
 
-![The canvas after a checked turn: the Orchestrator's box says checked, and a short line down from it the Checks node lists check.py · 2 passed, No review and No new test](../images/checks-node.png)
+![A turn sent back twice: right of the Orchestrator's three Coders, an arrow into the dashed Checks · KOLONİ loop, its tag on the frame's top edge saying 3 looks · 2 fix rounds · on hold; in it Reviewer ×3 and Security reviewer ×3 with their earlier rounds as shadows behind them, ⇄, Coder · fix ×2, check.py 2 passed and three red dots at its foot; the frame amber, and the inspector beside it lists the tests, then Round 1, 2 and 3: who looked, MERGE or HOLD · 3 blocking, the first finding, fixed by Coder 4 and Coder 5, Still on hold after 2 fix rounds, with Fix it and Open the Checked section](../images/checks-loop.png)
 
-A checked turn has a **Checks** node under its Orchestrator. While KOLONİ's test run works, it
-shows the tool and how long it has run; once the turn is over, each line of the Checked section,
-with the runner's counts ("pytest · 214 ✓ · 2 ✗"), the related step's ("related tests · 12
-passed"), and a whole suite running after the answer with its clock from its own start ("full
-tests · 2:14 …"), or "full tests · waiting for another test run to end", then its result or
-"full tests · stopped by you at 1:02 - not checked", and the coverage line where it was measured. Each fix round is a line back to the
-Orchestrator, "round 1 of 2: tests fail" - or, for the Reviewer's, "round 1 of 2: 1 blocking
-finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes after it. The
-Orchestrator's own box gets one line: "● checking…"
-while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
-not run), "✗ still failing", "✗ on hold" (the tests passed, a Reviewer or the Tester holds) or "not
-checked". In a recipe's turn the node is the recipe's last step,
-inside its frame, and says "end of the recipe". A turn KOLONİ did not check has no Checks node: off
-for this chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's
-Checks step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
+A checked turn has a **Checks** node. While KOLONİ's test run works, it shows the tool and how long it
+has run; once the turn is over, each line of the Checked section, with the runner's counts ("pytest ·
+214 ✓ · 2 ✗"), the related step's ("related tests · 12 passed"), and a whole suite running after the
+answer with its clock from its own start ("full tests · 2:14 …"), or "full tests · waiting for
+another test run to end", then its result or "full tests · stopped by you at 1:02 - not checked", and
+the coverage line where it was measured. It stands under the Orchestrator - or, where the
+Orchestrator opened agents of its own, under them, in their column.
+
+The agents KOLONİ's checks opened - the Reviewer and the Security reviewer, a look again, the live
+try's Tester, a stronger model's diagnosis and fixer - are drawn **in** it, not as agents of the
+Orchestrator's, each role once as a card of its own: then it is the **Checks · KOLONİ** box, right of
+the Orchestrator's work with an arrow from it, its title on its frame's top edge, the test runs short
+at its foot ("✓ related 19 · ✓ pytest 36"). Where KOLONİ sent the work back, the box is a loop,
+dashed as a recipe's "back, at most N rounds": the agents the Orchestrator opened to fix what was
+sent back are in it too ("Coder · fix"), the looks in a column ⇄ the fixes; each role is its latest
+agent, the earlier ones shadows behind it with a count (×3). Its title says the rounds - "⟲ 3 looks ·
+2 fix rounds · on hold", "✓ checked" -, or at work "● round 2 · looking…" ("· waits for you" where
+one of them asks you something: the card says it too); its foot a dot a round (red: it went back or
+held, green: passed, amber: at work, grey: it only asked for a test - no fix round). One look and nothing sent back is a plain box: no count, no
+shadows, no loop. Who is in it, and each round, is what KOLONİ wrote down as its checks went - each
+pass's tests, its looks and their verdicts, why it went back, and the agents its send-back had the
+Orchestrator open -, never guessed from the order agents were opened in: an agent of a room or a
+discussion, or one written for KOLONİ's ask for a test (which is no fix round), stays the
+Orchestrator's; what a fixer opened under it is in the box with it; a stronger model's diagnosis is
+a card of its own kind, not a look. That record comes with the Checked section at the turn's end:
+while the turn works, the box holds the agents KOLONİ's own checks opened, and the Orchestrator's
+fixers join it then. A turn checked by an older version has its plain box of lines. The box's title
+and each card are buttons: Enter or Space opens its panel, or that agent's window.
+
+**Click the box** for its panel on the right - the canvas stays as it is, the box's frame amber: **Tests**, the Checked
+section's test runs; then **Round 1, 2, …**: who looked (its name opens its window), what each said
+("MERGE", "HOLD · 3 blocking"), the first blocking finding, and "→ fixed by Coder 4 · 3 files" - or,
+where the Orchestrator fixed it itself, what sent it back; under the last round why it was the last
+("Still on hold after 2 fix rounds: you decide (Fix it)", "Stopped after round 3: no progress").
+**Fix it** is the one under the answer (on the chat's latest turn), and **Open the Checked section** -
+once it is written - brings that section into view in the chat, the focus on it.
+
+The Orchestrator's own box gets one line: "● checking…" while a run goes on, "✓ checked · 1 round",
+"✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "✗ on hold" (the
+tests passed, a Reviewer or the Tester holds) or "not checked". In a recipe's turn the box is the
+frame's last part - inside it, right of the recipe's steps; the Orchestrator's line reaches the
+frame at its door only. The frame keeps the recipe's own steps and its own loop (a Tester's
+findings back to the Coder, a grey dashed line - KOLONİ's loop is red); KOLONİ's looks and the
+Coders of its send-back rounds are in the box ("Coder · fix ×2"). Where KOLONİ sent the work back
+for the tests alone, nothing looking, the loop's left end is the tests - "48 → 45 (3 removed)" ⇄
+Coder · fix -, and "⟲ 2 fix rounds · not taken in" where the work stayed in its copy for it. With
+nothing opened the box is plain and says "end of the recipe". A turn KOLONİ did not check has no
+Checks box: off for this
+chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's Checks
+step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
 **Nothing**, it says nothing of it - the Checked section does.
+
+![A recipe's turn: the Orchestrator's line reaches the Web app frame at its door; in the frame the recipe's Coder, then, right of it with an arrow from it, the Checks · KOLONİ box - its Reviewer, MERGE, and check.py 2 passed at its foot - the frame's last part; the frame's line on to Ready for you](../images/checks-recipe.png)
 
 ![A check at work: the Orchestrator's box says checking…, and the Checks node's ⋯ menu offers Stop this check, Off for this chat and Open its log](../images/checks-running.png)
 
-![A reviewed turn on the canvas: the Checks node with the Reviewer's line, and the Reviewer KOLONİ opened as an agent node after it](../images/checks-reviewer.png)
+![A reviewed turn on the canvas: right of the Orchestrator, an arrow into the plain Checks · KOLONİ box with the Reviewer KOLONİ opened in it - MERGE - and check.py 2 passed at its foot](../images/checks-reviewer.png)
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
 answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this

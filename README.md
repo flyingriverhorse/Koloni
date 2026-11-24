@@ -44,7 +44,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/checked-review.png" alt="The Checked section under an answer: Tests passed: python check.py - 2 passed; Review: Reviewer - MERGE, no findings"><br><sub><b>Checked.</b> Under the answer, what KOLONİ itself ran and found - from its records, never the model's word.</sub></td>
-<td width="50%"><img src="docs/images/checks-node.png" alt="The canvas: the Orchestrator's box says checked, and the Checks node under it lists each line"><br><sub><b>The Checks node.</b> The same lines on the canvas; its ⋯ menu stops a check or turns it off for the chat.</sub></td>
+<td width="50%"><img src="docs/images/checks-loop.png" alt="The canvas: right of the Orchestrator's three Coders, the Checks · KOLONİ loop - Reviewer ×3, Security reviewer ×3 and Coder · fix ×2, 3 looks, 2 fix rounds, on hold - and its panel listing each round"><br><sub><b>The Checks loop.</b> KOLONİ's looks and the fixes it sent back, one box on the canvas; click it for each round.</sub></td>
 </tr>
 </table>
 

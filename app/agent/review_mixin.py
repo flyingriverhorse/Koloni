@@ -738,13 +738,24 @@ class ReviewMixin:
             report = agent.report if agent is not None else None
         if status != "succeeded" or not report:
             why = (said.removeprefix("error: ").strip().splitlines() or [status])[0][:300]
+            self._pass_looked(ctx, agent, role, None)
             return Look(role, sign, None, None, why)
         verdict, found = verdict_of(report), _findings(report, [FIXER])
         # (Blocking findings with no verdict line: a hold, as written.)
         verdict = verdict or ("HOLD" if _blocking(found) else None)
+        self._pass_looked(ctx, agent, role, verdict)
         return Look(
             role, sign, verdict, _held_in_words(report, found) if verdict == "HOLD" else found, None
         )
+
+    def _pass_looked(self: "AgentRunner", ctx: Ctx, agent, role: str, verdict: str | None) -> None:
+        """A look of this pass, on its record (`proof.new_pass`): its agent, role and verdict
+        (None: it said none, or did not look)."""
+        held = self._proofs.get(ctx.run_id)
+        if agent is not None and held is not None and held.passes:
+            held.passes[-1]["looks"].append(
+                {"agent_id": agent.id, "role": role, "verdict": verdict}
+            )
 
     @contextlib.asynccontextmanager
     async def _look_kept(self: "AgentRunner", ctx: Ctx, review: bool):

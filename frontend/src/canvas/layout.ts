@@ -1,3 +1,5 @@
+import { checksSize } from './checksLoop'
+import type { ChecksData } from './checksNode'
 import type { AgentData, GraphEdge, GraphNode, GroupData, TeamData } from './deriveGraph'
 import type { SharedData } from './sharedColumn'
 
@@ -257,7 +259,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
 
     let used = 0
     for (const root of roots) used += place(root, NODE_W + COL_GAP, top + used) + ROW_GAP
-    used += checksInFrame(own, edges, positions, sizes)
+    used += checksInFrame(own, positions, sizes)
     // An agent opened by one of a frame laid out by its work line, not in that frame (one the user declined): under the rest.
     for (const agent of agents.filter(a => !positions[a.id])) used += place(agent, NODE_W + COL_GAP, top + used) + ROW_GAP
     for (const node of own) {
@@ -288,7 +290,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     // shortcut: a line that would still cross a box is not drawn (the card stays); route it round if that is met.
     used = sharedCards({ own, edges, positions, sizes, lines, byId, top }, everyone, used)
     used = besideTurn(own, talks, lane, top, used, positions, sizes)
-    used += checksUnder(own, top + used, positions)
+    used += checksUnder(own, top + used, positions, sizes)
     used += poUnder(own, top + used, positions)
     const under = filesUnder(own, runId, top, positions, box)
     top += Math.max(under - top, used)
@@ -497,32 +499,65 @@ function poUnder(own: GraphNode[], top: number, positions: Record<string, Point>
 }
 
 /**
- * KOLONİ's Checks node (`checks:`), under the turn's Orchestrator in its column, its line straight down from it - before the
- * Scout; returns the room it takes. (In a recipe's turn it is in the frame: `checksInFrame`.)
- * shortcut: under the Orchestrator, not right of it as the sketch has it: placed as the Scout is; move it once the canvas's
- * columns make room.
+ * KOLONİ's Checks node (`checks:`), before the Scout; returns the room it adds under the turn. Its box of agents
+ * (`checksBeside`) right of the Orchestrator's work. Its node of lines alone under all of the turn: under the Orchestrator
+ * in its column, its line straight down from it; where the Orchestrator's own agents stand right of it, in their column under
+ * them, with no line. (In a recipe's turn it is in the frame: `checksInFrame`.)
  */
-function checksUnder(own: GraphNode[], top: number, positions: Record<string, Point>): number {
+function checksUnder(own: GraphNode[], bottom: number, positions: Record<string, Point>, sizes: Record<string, Size>): number {
   const checks = own.find(n => n.kind === 'checks')
   if (!checks || positions[checks.id]) return 0
-  positions[checks.id] = { x: NODE_W + COL_GAP, y: top }
-  return NODE_H + ROW_GAP
+  const { leadId, loop } = checks.data as ChecksData
+  const size = sized(checks, sizes)
+  const kids = own.filter(n => n.kind === 'agent' && (n.data as AgentData).parentId === leadId && positions[n.id])
+  if (loop) return checksBeside(checks, own, kids.length ? kids : own.filter(n => n.id === `agent:${leadId}` && positions[n.id]), bottom, positions, sizes)
+  positions[checks.id] = { x: (positions[`agent:${leadId}`]?.x ?? NODE_W + COL_GAP) + (kids.length ? NODE_W + COL_GAP : 0), y: bottom }
+  return size.height + ROW_GAP
 }
 
 /**
- * S5c: in a recipe's turn its Checks node is the recipe's last step - inside its frame, under all of its agents, in the column of
- * the agent its line comes from (the last pass's: straight down, crossing none), else the last column - before the frame is
- * drawn round them; returns the room it adds under them.
+ * tuval-kontrol-dongusu (the sketch's state 1): the box right of the Orchestrator's work - its own agents, else itself -, its
+ * middle level with theirs, its arrow from them (`settleChecks`); past anything else of the turn in its rows. Returns the room
+ * it adds under the turn.
  */
-function checksInFrame(own: GraphNode[], edges: GraphEdge[], positions: Record<string, Point>, sizes: Record<string, Size>): number {
+function checksBeside(checks: GraphNode, own: GraphNode[], work: GraphNode[], bottom: number, positions: Record<string, Point>, sizes: Record<string, Size>): number {
+  const size = sizes[checks.id]
+  const rect = (n: GraphNode) => ({ ...positions[n.id], ...(sizes[n.id] ?? { width: NODE_W, height: NODE_H }) })
+  if (!work.length) {
+    positions[checks.id] = { x: NODE_W + COL_GAP, y: bottom }
+    return size.height + ROW_GAP
+  }
+  const boxes = work.map(rect)
+  const [high, low] = [Math.min(...boxes.map(b => b.y)), Math.max(...boxes.map(b => b.y + b.height))]
+  const y = Math.max(high, high + (low - high - size.height) / 2)
+  const level = (b: Size & Point) => b.y < y + size.height && b.y + b.height > y
+  const placed = own.filter(n => n.id !== checks.id && !n.parent && positions[n.id]).map(rect).filter(level)
+  positions[checks.id] = { x: Math.max(...[...boxes, ...placed].map(b => b.x + b.width)) + COL_GAP, y }
+  return Math.max(0, y + size.height + ROW_GAP - bottom)
+}
+
+/** The Checks node's size, put down where its loop makes it bigger than a node. */
+function sized(checks: GraphNode, sizes: Record<string, Size>): Size {
+  const size = checksSize(checks.data as ChecksData)
+  if (size) sizes[checks.id] = size
+  return size ?? { width: NODE_W, height: NODE_H }
+}
+
+/**
+ * S5c, tuval-kontrol-dongusu (the recipe case): in a recipe's turn its Checks node - the box of KOLONİ's looks and fixes, or its
+ * lines - is the frame's last part: right of the recipe's own steps, inside the frame (drawn round it after), its middle level
+ * with theirs where it is not taller; returns the room it adds under them.
+ */
+function checksInFrame(own: GraphNode[], positions: Record<string, Point>, sizes: Record<string, Size>): number {
   const checks = own.find(n => n.kind === 'checks' && n.team)
   const members = checks ? own.filter(n => n.team === checks.team && n.id !== checks.id && positions[n.id]) : []
   if (!checks || !members.length) return 0
-  const from = edges.find(e => e.target === checks.id && members.some(n => n.id === e.source))?.source
-  const x = from ? positions[from].x : Math.max(...members.map(n => positions[n.id].x))
-  const y = Math.max(...members.map(n => positions[n.id].y + (sizes[n.id]?.height ?? NODE_H))) + ROW_GAP
-  positions[checks.id] = { x, y }
-  return NODE_H + ROW_GAP
+  const size = sized(checks, sizes)
+  const boxes = members.map(n => ({ ...positions[n.id], ...(sizes[n.id] ?? { width: NODE_W, height: NODE_H }) }))
+  const [high, low] = [Math.min(...boxes.map(b => b.y)), Math.max(...boxes.map(b => b.y + b.height))]
+  const y = Math.max(high, high + (low - high - size.height) / 2)
+  positions[checks.id] = { x: Math.max(...boxes.map(b => b.x + b.width)) + COL_GAP, y }
+  return Math.max(0, y + size.height - low)
 }
 
 /** A column's nodes in rows: an agent of a round or of steps at once beside the one before it of its round, so many to a row. */

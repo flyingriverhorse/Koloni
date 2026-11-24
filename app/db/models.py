@@ -532,6 +532,12 @@ class Message(Base):
         """A "checked" message's rows (`app.proof.Row`); None for every other message."""
         return (self.blocks or {}).get("rows") if self.role == "checked" else None
 
+    @property
+    def passes(self) -> list | None:
+        """A "checked" message's passes of KOLONİ's checks (`proof.new_pass`); None for every
+        other message, and for one written before they were kept."""
+        return (self.blocks or {}).get("passes") if self.role == "checked" else None
+
 
 class Attachment(Base):
     """A file the user added to a message (slice 85b): kept as

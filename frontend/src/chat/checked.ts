@@ -1,5 +1,6 @@
 import type { Message } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
+import { isFrame } from './AgentSaid'
 
 /** What Fix it sends: a new message of the user's, by their click - nothing starts by itself. */
 export const FIX_IT = (command: string) => `The tests KOLONİ ran at the end of the last turn failed: \`${command}\`. Fix what fails.`
@@ -40,6 +41,20 @@ export function fixOf(rows: Row[]): string | null {
   if (notDone?.command) return FIX_NOT_DONE(notDone.command, notDone.reason)
   const held = rows.some(row => row.kind === 'review' && row.text.startsWith('Still on hold'))
   return held && rows.some(row => row.kind === 'finding' && row.text.startsWith('Blocking: ')) ? FIX_REVIEW : null
+}
+
+/** What the chat lists of a conversation's messages: the Lead's - not a sub-agent's, a discussion's, a note's -, no frame of a report, not what KOLONİ checked (`CheckedSection`). */
+export function chatMessages(state: ConvState): Message[] {
+  const subAgents = new Set(state.agents.filter(a => a.depth > 0).map(a => a.id))
+  return state.messages.filter(m => !m.discussion_id && !m.board_post_id && (!m.agent_id || !subAgents.has(m.agent_id)) && !isFrame(m) && m.role !== 'checked')
+}
+
+/** The chat's newest turn, as the chat draws it: the turn of its last message that starts none - Fix it is offered under it alone (and in the Checks panel). */
+export function newestTurn(state: ConvState): string | undefined {
+  const turn = new Map(state.runs.map((r, index) => [r.id, index]))
+  const at = (m: Message) => turn.get(m.run_id ?? '') ?? Infinity
+  const said = chatMessages(state).filter(m => m.role !== 'user' && m.role !== 'trigger')
+  return said.reduce<Message | undefined>((last, m) => (!last || at(m) >= at(last) ? m : last), undefined)?.run_id ?? undefined
 }
 
 /** A turn's "checked" message: what KOLONİ checked at its end (kanıtlı bitiş), drawn by `CheckedSection`. */

@@ -485,10 +485,14 @@ class StrongerMixin:
             )
         )
         held.handed.append(model)
+        # (its first pass holds its diagnosis too - its own kind, never a look)
+        proof.new_pass(held.passes, "stronger", why="tests fail", sent="fix", tier=tier)
         kind, why = await self._diagnose(ctx, held, role, tier, model, by)
         if kind == APPROACH_WRONG:  # (started over: only the short note of what was tried)
             held.attempts = [f"Tried before, and why it failed: {why}"]
-        for _round in range(held.most):
+        for at in range(held.most):
+            if at:
+                proof.new_pass(held.passes, "stronger", why="tests fail", sent="fix", tier=tier)
             status, said, fixer = await self._koloni_agent(
                 ctx,
                 "fix",
@@ -508,6 +512,8 @@ class StrongerMixin:
                     ),
                 },
             )
+            if fixer is not None:
+                held.passes[-1]["fixers"].append(fixer)
             if status != "succeeded":
                 held.rows.append(
                     proof.row(
@@ -528,6 +534,7 @@ class StrongerMixin:
             wanted = list(held.left_failing)
             before = self._failing_tests(held, wanted)  # (its counts as they were)
             await self._recheck(ctx, held)
+            held.passes[-1]["tests"] = proof.tests_state(held.rows)
             if held.stopped or held.left_failing:
                 if halt := self._stronger_halt(ctx, held, before):
                     held.rows.append(
@@ -581,7 +588,7 @@ class StrongerMixin:
             )
         # (a tier, not a model named: KOLONİ's own hand-off within the user's rule - no card;
         # `_stronger_tiers` read the same pick)
-        status, report, _agent = await self._koloni_agent(
+        status, report, diagnosis = await self._koloni_agent(
             ctx,
             "diagnose",
             {
@@ -600,6 +607,8 @@ class StrongerMixin:
             read_only=True,
         )
         kind, why, question = diagnosis_of(report if status == "succeeded" else "")
+        if held.passes:
+            held.passes[-1]["diagnosis"] = diagnosis
         held.question = question or held.question
         if kind is None:
             held.rows.append(proof.row("stronger", "note", NO_DIAGNOSIS.format(model=model)))

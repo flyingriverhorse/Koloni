@@ -1,13 +1,12 @@
 import type { Message, Run } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
+import type { Loop } from './checksLoop'
 import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
 
 /** KOLONİ's own end-of-turn test run: its call on the Lead's answer (`ProofMixin.PROOF_CALL`). */
 export const PROOF_CALL = 'koloni_proof_'
 /** ...and S5b's live try's own runs (`try_mixin.TRY_CALL`): no test run. */
 export const TRY_CALL = `${PROOF_CALL}try_`
-/** How often the end check sends work back, at most, where its Checked section does not say yet (the project's Fix rounds' default). */
-export const MOST_ROUNDS = 2
 /**
  * S10: a turn of a chat whose Check after a change was off - no node, only the Orchestrator's strip says so (a choice made for this
  * chat). One of a project whose After a change is Nothing has neither: its standing choice, which the Checked section already says.
@@ -34,6 +33,8 @@ export interface ChecksData extends Record<string, unknown> {
   recipe: boolean
   /** k-canli-016: what failed is a look's hold (a Reviewer's, a Tester's), every check passed: "on hold", not "still failing". */
   held?: boolean
+  /** tuval-kontrol-dongusu: the agents its checks opened, and the rounds - drawn in the box (`checksLoop.settleChecks`); null: none. */
+  loop?: Loop | null
 }
 
 /** The Checked rows of a look - a review, its findings, the live try's Tester -: their failing is a hold. */
@@ -140,9 +141,9 @@ export function stripOf(data: ChecksData): string | null {
 }
 
 /**
- * A turn's Checks node, after its Orchestrator: from KOLONİ's own test calls (live) and its Checked section (at its end).
- * Each fix round is a line back to the Orchestrator, "round 1 of 2: tests fail" - "2 blocking findings" for a Reviewer's
- * (S3), whose agents KOLONİ opened come after the node. None where nothing was checked.
+ * A turn's Checks node, after its Orchestrator: from KOLONİ's own test calls (live) and its Checked section (at its end). Its
+ * rounds are in it, not lines back to the Orchestrator: the agents KOLONİ opened, and those it sent work back to, are drawn in
+ * it (`checksLoop`). None where nothing was checked.
  */
 export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphEdge[]): ChecksData | null {
   const lead = state.agents.find(a => a.run_id === run.id && a.depth === 0)
@@ -173,8 +174,6 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const { team, from } = recipeEnd(run, nodes, lead.id)
   nodes.push({ id, kind: 'checks', runId: run.id, refId: run.id, data, ...(team && { team }) })
   edges.push({ id: `${from}>${id}`, source: from, target: id, active: Boolean(at), plan: true, po: true })
-  edges.push(...roundsBack(id, `agent:${lead.id}`, rounds, said))
-  reviewersAfter(state, own, `agent:${lead.id}`, id, edges)
   // (The Orchestrator's strip says it too.)
   const leadNode = nodes.find(node => node.id === `agent:${lead.id}`)
   if (leadNode) (leadNode.data as AgentData).checked = stripOf(data)
@@ -208,39 +207,17 @@ function sinceOf(state: ConvState, callId: string): string | null {
 }
 
 /**
- * What the Checked section says of its fix rounds at its end: how many, of how many (the project's Fix rounds), and why each
- * went back where a Reviewer's findings did - "Sent back to fix: 2 of 3 rounds (tests fail; 2 blocking findings)". Before
- * its end, none (a pass after a round may run nothing: the Orchestrator's own run stood - counted here then).
+ * What the Checked section says of its fix rounds at its end: how many, and why each went back where a Reviewer's findings
+ * did - "Sent back to fix: 2 of 3 rounds (tests fail; 2 blocking findings)". Before its end, none (a pass after a round may
+ * run nothing: the Orchestrator's own run stood - counted here then).
  */
-function roundsSaid(checked: Message | undefined): Said {
+export function roundsSaid(checked: Message | undefined): { n: number; why: string[] } {
   const text = checked?.checked?.find(row => row.kind === 'rounds')?.text ?? ''
   // (k-canli-016: "Sent back to fix: round 3 (until it passes, 3 failing → 1)" - no count of rounds, no why each)
   const until = /round (\d+) \(until it passes/.exec(text)
-  if (until) return { n: Number(until[1]), most: null, why: [] }
-  const [, n, most, why] = /(\d+) of (\d+) rounds?(?: \((.*)\))?/.exec(text) ?? []
-  return { n: Number(n ?? 0), most: most ? Number(most) : MOST_ROUNDS, why: why ? why.split('; ') : [] }
-}
-
-/** Each fix round a line back from the node to the Orchestrator - no more than the Fix rounds (until it passes: as many as went back). */
-function roundsBack(id: string, lead: string, rounds: number, said: Said): GraphEdge[] {
-  const most = Math.min(rounds, said.most ?? rounds)
-  return Array.from({ length: most }, (_, n) => ({ id: `${id}>${lead}:${n + 1}`, source: id, target: lead, active: false, round: roundLine(n + 1, said) }))
-}
-
-/** What the Checked section says of its rounds: how many, of how many (null: until it passes), why each went back. */
-type Said = { n: number; most: number | null; why: string[] }
-
-/** A round's line back: "round 1 of 2: tests fail" once the Checked section says its rounds; before that only "round 1" - the Fix rounds and what sent it back are not known yet. */
-function roundLine(round: number, said: Said): string {
-  return said.n && said.most !== null ? `round ${round} of ${said.most}: ${said.why[round - 1] ?? 'tests fail'}` : `round ${round}`
-}
-
-/** S3: the Reviewers KOLONİ opened at the turn's end are drawn after its Checks node - their spawn line from it, not the Orchestrator. */
-function reviewersAfter(state: ConvState, own: { id: string; name: string }[], from: string, to: string, edges: GraphEdge[]) {
-  const looks = new Set(own.filter(c => c.name === 'spawn_agent').map(c => c.id))
-  const mine = new Set(state.agents.filter(a => looks.has(a.tool_call_id ?? '')).map(a => `agent:${a.id}`))
-  for (const edge of edges)
-    if (edge.source === from && mine.has(edge.target)) Object.assign(edge, { id: `${to}>${edge.target}`, source: to })
+  if (until) return { n: Number(until[1]), why: [] }
+  const [, n, why] = /(\d+) of \d+ rounds?(?: \((.*)\))?/.exec(text) ?? []
+  return { n: Number(n ?? 0), why: why ? why.split('; ') : [] }
 }
 
 function commandOf(argumentsJson: string): string {

@@ -2,7 +2,7 @@ import { ArrowCounterClockwise, ArrowDown, CaretRight, ChatsCircle, Clock, Copy,
 import { SUMMARISING, titleOf as agentTitle } from '../agents/agentStatus'
 import { Fragment, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Markdown, UserText } from './Markdown'
-import { AgentSaid, isFrame } from './AgentSaid'
+import { AgentSaid } from './AgentSaid'
 import { QuestionCard, QuestionRow } from '../agents/QuestionCard'
 import { RoleApproval } from '../agents/RoleApproval'
 import { SkillApproval } from '../agents/SkillApproval'
@@ -48,7 +48,7 @@ import { TalkRow, talkOf } from './TalkRow'
 import { requestsOf } from '../agents/teamRequests'
 import { ToolRow } from './ToolRow'
 import { ToolRun } from './ToolRun'
-import { checkedOf } from './checked'
+import { chatMessages, checkedOf, newestTurn } from './checked'
 import { TurnCard } from './TurnCard'
 import { TurnSummary } from './TurnSummary'
 import { callsByMessage, stepIcon, toolRuns } from './toolRuns'
@@ -872,9 +872,7 @@ export function MessageList({
   // What the lead said in a discussion is in the shared place, not in the chat; a note it
   // was handed from the notebook is in the Notes tab. KOLONİ's frame of a report is its model's (K-r152).
   // (What KOLONİ checked at a turn's end stands in its card's foot: `CheckedSection`.)
-  const shown = state.messages.filter(
-    m => !m.discussion_id && !m.board_post_id && (!m.agent_id || !subAgents.has(m.agent_id)) && !isFrame(m) && m.role !== 'checked',
-  )
+  const shown = chatMessages(state)
   // Turn by turn: a message queued during an earlier turn arrived before that turn's
   // later replies, but belongs after them. The sort is stable within a turn.
   const turn = new Map(state.runs.map((r, index) => [r.id, index]))
@@ -1147,7 +1145,7 @@ export function MessageList({
   // go by the questions the chat draws if that is ever missed.
   const inRooms = new Set(state.rooms.flatMap(room => [...inRoom(state, room).keys()]))
   // The chat's newest turn: a comparison or a turn with no Lead as the newest leaves no older card "latest".
-  const latestRun = ordered.findLast(m => !OPENERS.has(m.role))?.run_id
+  const latestRun = newestTurn(state)
   /**
    * A finished turn's groups (0.1.5): its steps before its answer folded into one line once there are two, what of them
    * stays in sight after it in its order (a group split in two keeps its key: kept, it stays mounted), the answer on.

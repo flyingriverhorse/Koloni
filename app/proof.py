@@ -1346,6 +1346,35 @@ def changed_since(
     )
 
 
+def new_pass(passes: list[dict], kind: str, **more) -> dict:
+    """tuval-kontrol-dongusu (round 2: the backend says the rounds, the canvas draws them): one
+    pass of KOLONİ's checks as it happens, added to `passes` - its number, kind ("check": the
+    gate's steps; "stronger": a stronger tier's round), how its tests came out (`tests_state`),
+    the looks it opened (each agent's id, role and verdict, recorded as the look ends:
+    `ReviewMixin._pass_looked`), why it went back and how ("fix": a fix round; "ask": the ask for a
+    test, no round), and the agents that fixed it - those its send-back had the Lead open
+    (`ProofMixin._fixed_by`), or a stronger tier's fixer; a tier's diagnosis is its own kind."""
+    one = {
+        "n": len(passes) + 1,
+        "kind": kind,
+        "tests": None,
+        "looks": [],
+        "why": None,
+        "sent": None,
+        "fixers": [],
+        **more,
+    }
+    passes.append(one)
+    return one
+
+
+def tests_state(rows: list[Row]) -> str | None:
+    """How a pass's test runs came out: "failed" where one failed, "passed" where one passed,
+    None where none ran (off, nothing to test, not reached)."""
+    states = {one["state"] for one in rows if one["kind"] == "tests"}
+    return "failed" if "failed" in states else "passed" if "passed" in states else None
+
+
 def settle_running(session: Session) -> None:
     """At start-up: a test run that went on after its turn ended with the process that ran it -
     its row says so, never "running" on (`recover_interrupted`)."""
@@ -1358,4 +1387,4 @@ def settle_running(session: Session) -> None:
             else one
             for one in (note.blocks or {}).get("rows", [])
         ]
-        note.blocks, note.content = {"rows": rows}, checked_text(rows)
+        note.blocks, note.content = {**(note.blocks or {}), "rows": rows}, checked_text(rows)
