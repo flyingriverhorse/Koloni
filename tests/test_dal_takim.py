@@ -565,14 +565,16 @@ def test_a_second_stop_while_the_leads_own_branch_is_saved_waits_for_the_save(
 
     monkeypatch.setattr(AgentRunner, "_secret_branch_gone", slow_save)
     monkeypatch.setattr(AgentRunner, "_release_run", release)
-    client, pid, _first, cid = beside(make_client, repo, gate)
-    merge = card(client, cid)
-    assert client.post(f"/api/runs/{merge['run_id']}/cancel").status_code == 202
-    assert saving.wait(LONG)
-    order.clear()  # (the first task's turn is held at its model: none of its)
-    assert client.post(f"/api/runs/{merge['run_id']}/cancel").status_code == 202  # (it lands)
-    released.wait(scaled(1))  # (before: the turn ended at once, under the save)
-    go.set()
+    try:  # (a failed assert never leaves the save spinning)
+        client, pid, _first, cid = beside(make_client, repo, gate)
+        merge = card(client, cid)
+        assert client.post(f"/api/runs/{merge['run_id']}/cancel").status_code == 202
+        assert saving.wait(LONG)
+        order.clear()  # (the first task's turn is held at its model: none of its)
+        assert client.post(f"/api/runs/{merge['run_id']}/cancel").status_code == 202  # (lands)
+        released.wait(scaled(1))  # (before: the turn ended at once, under the save)
+    finally:
+        go.set()
     snap = wait_run(client, cid, merge["run_id"], timeout=LONG)
     assert order[:2] == ["saved", "released"] and whole == [True]
     assert [m["status"] for m in snap["merges"]] == ["discarded"]

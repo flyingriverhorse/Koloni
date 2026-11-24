@@ -415,8 +415,16 @@ def test_kept_copies_are_listed_in_your_data_with_what_they_take_and_go_only_on_
     first.release()
     (kept,) = snap["merges"]
     said = client.get("/api/storage").json()
-    title = snap["conversation"]["title"]
-    assert said["kept"] == [{"merge_id": kept["id"], "conversation_id": cid, "title": title}]
+    title, coder = snap["conversation"]["title"], agent(snap, "Coder")
+    (listed,) = said["kept"]
+    assert listed | {"kept_at": None} == {
+        "merge_id": kept["id"],
+        "conversation_id": cid,
+        "title": title,
+        "agent": coder["name"] or "Coder",
+        "kept_at": None,
+    }
+    assert listed["kept_at"]  # (two of one chat told apart: by the agent, and when)
     assert said["kept_mb"] >= 0.3 and said["kept_mb"] <= said["copies_mb"]
     assert client.post(f"/api/merges/{kept['id']}/reject").status_code == 200
     said = client.get("/api/storage").json()

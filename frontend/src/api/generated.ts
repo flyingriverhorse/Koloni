@@ -7403,11 +7403,19 @@ export interface components {
         /**
          * KeptCopyOut
          * @description A working copy kept on disk for the user's word: its card (Discard there is
-         *     `POST /api/merges/{merge_id}/reject`) and its chat.
+         *     `POST /api/merges/{merge_id}/reject`), its chat, the agent whose work it holds and when it
+         *     was kept - two of one chat told apart.
          */
         KeptCopyOut: {
+            /** Agent */
+            agent: string;
             /** Conversation Id */
             conversation_id: string;
+            /**
+             * Kept At
+             * Format: date-time
+             */
+            kept_at: string;
             /** Merge Id */
             merge_id: string;
             /** Title */

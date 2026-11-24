@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api, errorText } from '../api/client'
 import type { Storage } from '../api/types'
+import { when } from '../canvas/turns'
 import { useConfirm } from './Confirm'
 
 /**
@@ -19,9 +20,9 @@ export function KeptCopies({ storage, onChanged }: { storage: Storage; onChanged
   const kept = storage.kept ?? []
   if (kept.length === 0) return null
   const size = storage.kept_mb ?? null
-  const discard = (mergeId: string, title: string) =>
+  const discard = (mergeId: string, title: string, agent: string) =>
     confirm.ask(
-      `Delete the copy kept from “${title}”? What it holds is not in the project, and goes with it.`,
+      `Delete ${agent}'s copy kept from “${title}”? What it holds is not in the project, and goes with it.`,
       'Discard',
       () => {
         setError(null)
@@ -43,8 +44,8 @@ export function KeptCopies({ storage, onChanged }: { storage: Storage; onChanged
       <ul>
         {kept.map(one => (
           <li key={one.merge_id}>
-            {one.title}{' '}
-            <button type="button" className="btn" onClick={() => discard(one.merge_id, one.title)}>
+            {one.title} - {one.agent}, kept {when(one.kept_at)}{' '}
+            <button type="button" className="btn" onClick={() => discard(one.merge_id, one.title, one.agent)}>
               Discard
             </button>
           </li>

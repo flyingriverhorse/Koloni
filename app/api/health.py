@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app import copies, web
 from app.api.deps import get_session
 from app.config import REPO_ROOT
-from app.db.models import Conversation, Merge, Run
+from app.db.models import Agent, Conversation, Merge, Run
 from app.executors.docker import docker_status
 from app.executors.host import shell_name, store_pwsh_note
 from app.model_client import ModelUnavailable, OpenAICompatClient, safe_url
@@ -128,9 +128,18 @@ def storage(request: Request, session: Session = Depends(get_session)):
     settings = request.app.state.settings
     db = settings.db_path
     kept = session.execute(
-        select(Merge.id, Merge.kept_in, Conversation.id, Conversation.title)
+        select(
+            Merge.id,
+            Merge.kept_in,
+            Conversation.id,
+            Conversation.title,
+            Agent.name,
+            Agent.role_name,
+            Merge.created_at,
+        )
         .join(Run, Run.id == Merge.run_id)
         .join(Conversation, Conversation.id == Run.conversation_id)
+        .join(Agent, Agent.id == Merge.agent_id)
         .where(Merge.status == "interrupted", Merge.kept_in.is_not(None))
         .order_by(Merge.created_at)
     ).all()
@@ -140,8 +149,14 @@ def storage(request: Request, session: Session = Depends(get_session)):
         copies_mb=_megabytes(copies.folders(settings.runtime_root)),
         logs_mb=_megabytes([settings.runtime_root / "logs"]),
         kept=[
-            KeptCopyOut(merge_id=merge, conversation_id=chat, title=title)
-            for merge, _in, chat, title in kept
+            KeptCopyOut(
+                merge_id=merge,
+                conversation_id=chat,
+                title=title,
+                agent=name or role,
+                kept_at=at,
+            )
+            for merge, _in, chat, title, name, role, at in kept
         ],
         kept_mb=_megabytes([Path(folder) for _merge, folder, *_ in kept]),
     )

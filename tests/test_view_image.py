@@ -15,6 +15,7 @@ from app.agent import COLLABORATION_TOOLS
 from app.attachments import image_size
 from app.model_client import ModelUnavailable
 from app.tools import READ_TOOLS
+from tests.conftest import scaled
 from tests.test_agy_agent import agy_app  # noqa: F401  (a fixture)
 from tests.test_agy_agent import start as agy_start
 from tests.test_attachment_agents import seeing
@@ -87,6 +88,9 @@ def test_an_image_reaches_an_image_model_and_the_user_and_what_is_not_one_is_ref
         f"next step (the user sees it under the step: {copy})"
     )
     assert (project_dir / copy).read_bytes() == PNG
+    until = time.monotonic() + scaled(5)  # (swept off the event loop, as the copy was made)
+    while old.exists() and time.monotonic() < until:
+        time.sleep(0.02)
     assert not old.exists()
     # The model: at its next step, the copy as a picture after the call's result.
     pictures = [m for m in model.calls[1] if m.get("files")]

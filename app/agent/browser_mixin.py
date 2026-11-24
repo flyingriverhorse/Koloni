@@ -3,6 +3,7 @@ open and what a page may do unwatched, its screenshots, and view_image's copies 
 (and a CLI's own look at one) - `BrowserMixin`.
 """
 
+import asyncio
 import os
 import re
 import time
@@ -392,8 +393,10 @@ class BrowserMixin:
         try:
             koloni.scratch(ctx.folder)
             images = self._scratch_folder(ctx, "images", "the image is not copied there")
-            # (Those over a week old go as a new one comes, as screenshots go as a browser starts.)
-            browser.sweep_images(images)
+            # (Those over a week old go as a new one comes, as screenshots go as a browser starts -
+            # off the event loop: the first sweep after an upgrade may take thousands. This call's
+            # folder, made now, is never old enough to go with them.)
+            asyncio.get_running_loop().run_in_executor(None, browser.sweep_images, images)
             target = images / folder
             target.mkdir(parents=True, exist_ok=True)
             (target / name).write_bytes(data)

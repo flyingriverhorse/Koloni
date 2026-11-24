@@ -438,11 +438,14 @@ class FolderBrowseOut(BaseModel):
 
 class KeptCopyOut(BaseModel):
     """A working copy kept on disk for the user's word: its card (Discard there is
-    `POST /api/merges/{merge_id}/reject`) and its chat."""
+    `POST /api/merges/{merge_id}/reject`), its chat, the agent whose work it holds and when it
+    was kept - two of one chat told apart."""
 
     merge_id: str
     conversation_id: str
     title: str
+    agent: str
+    kept_at: datetime
 
 
 class StorageOut(BaseModel):
