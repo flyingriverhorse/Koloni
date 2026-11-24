@@ -1394,6 +1394,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/experimental-clis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Experimental Clis */
+        get: operations["experimental_clis_api_experimental_clis_get"];
+        /**
+         * Set Experimental Clis
+         * @description 0.1.8: Show experimental CLIs (Settings › The app › Agents) - the user's, from the app's
+         *     own page.
+         */
+        put: operations["set_experimental_clis_api_experimental_clis_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/file-changes/{change_id}/approve": {
         parameters: {
             query?: never;
@@ -6869,6 +6891,15 @@ export interface components {
             unasked: boolean;
             /** What */
             what: string;
+        };
+        /**
+         * ExperimentalClis
+         * @description 0.1.8: whether the Models page offers what is experimental - agy, and Codex run one step
+         *     at a time (`providers.EXPERIMENTAL_FLAG`). Off by default; a provider already set so runs.
+         */
+        ExperimentalClis: {
+            /** Show */
+            show: boolean;
         };
         /**
          * ExpertIn
@@ -14444,6 +14475,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscussionPostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    experimental_clis_api_experimental_clis_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentalClis"];
+                };
+            };
+        };
+    };
+    set_experimental_clis_api_experimental_clis_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentalClis"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentalClis"];
                 };
             };
             /** @description Validation Error */

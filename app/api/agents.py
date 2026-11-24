@@ -21,10 +21,12 @@ from app.api.deps import get_session, require_origin, require_own_origin
 from app.changes import in_copy
 from app.db.models import Agent, Conversation, Flag, Run, ToolCall
 from app.model_client import ModelUnavailable
+from app.providers import EXPERIMENTAL_FLAG
 from app.schemas import (
     AgentOut,
     AnswerLanguage,
     Compaction,
+    ExperimentalClis,
     HandedOut,
     RawOut,
     SecretIn,
@@ -310,6 +312,26 @@ def set_test_load(body: TestLoad, session: Session = Depends(get_session)):
         session.merge(Flag(name=proof.TEST_WORKERS_FLAG, value=str(body.workers)))
     session.commit()
     return read_test_load(session)
+
+
+@router.get("/experimental-clis", response_model=ExperimentalClis)
+def experimental_clis(session: Session = Depends(get_session)):
+    return {"show": session.get(Flag, EXPERIMENTAL_FLAG) is not None}
+
+
+@router.put(
+    "/experimental-clis",
+    response_model=ExperimentalClis,
+    dependencies=[Depends(require_own_origin)],
+)
+def set_experimental_clis(body: ExperimentalClis, session: Session = Depends(get_session)):
+    """0.1.8: Show experimental CLIs (Settings › The app › Agents) - the user's, from the app's
+    own page."""
+    session.execute(delete(Flag).where(Flag.name == EXPERIMENTAL_FLAG))
+    if body.show:
+        session.add(Flag(name=EXPERIMENTAL_FLAG, value="1"))
+    session.commit()
+    return body
 
 
 @router.get("/answer-in", response_model=AnswerLanguage)

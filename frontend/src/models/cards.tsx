@@ -3,6 +3,7 @@ import { dayAndTime } from '../agents/failure'
 import { Hint } from '../shell/Hint'
 import { totalCost } from '../usage/cost'
 import { balance, NONE_ON_PLAN, readAgo, windowWords } from '../usage/limitsText'
+import { isExperimental } from './experimental'
 import { isCli, stateOf } from './ModelsPage'
 
 /** What switching a provider off does, on its switch (its card's and its window's). */
@@ -266,9 +267,11 @@ export function ProviderCard({
         <span className="provider-card-kind">
           {paid}
           {isDefault && ' · default'}
+          {/* 0.1.8: offered only with experimental CLIs shown; one in use runs as before, tagged. */}
+          {isExperimental(provider.kind, provider.mode) && <span className="tag">Experimental</span>}
         </span>
         <span className={look === 'bad' && !off ? 'provider-card-state' : 'provider-card-status'}>
-          {provider.off_why ? 'no longer supported' : off ? 'switched off' : said}
+          {statusOf(provider, said)}
         </span>
         <CardReading provider={provider} paid={paid} reading={reading} readAt={readAt} oldWay={oldWay} />
         <TierCounts provider={provider} />
@@ -297,6 +300,10 @@ export function ProviderCard({
     </div>
   )
 }
+
+/** A card's status: switched off - for good where its kind is no longer run (0.1.8: Qoder) -, else its state. */
+const statusOf = (provider: Provider, said: string) =>
+  provider.off_why ? 'no longer supported' : provider.enabled === false ? 'switched off' : said
 
 /** What a card's foot holds - its one action, what reading Claude Code's costs, what is behind ⓘ - and whether its
  *  version note is in sight instead. */

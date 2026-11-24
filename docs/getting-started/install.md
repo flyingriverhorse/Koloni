@@ -199,7 +199,7 @@ KOLONİ does not read a `.env` file. Set these in the shell before you start it.
 | `KOLONI_MODEL_BASE_URL` | `http://127.0.0.1:8080/v1` | First start only: the address of the "Local" provider. |
 | `KOLONI_MODEL_ID` | the first model the server lists | First start only: Local's default model. |
 | `KOLONI_MODEL_API_KEY` | none | First start only: Local's key. |
-| `KOLONI_DETECT_CLI` | `1` | First start only: add Claude Code, Codex and agy (switched off) if they are installed. `0` skips this. |
+| `KOLONI_DETECT_CLI` | `1` | First start only: add Claude Code and Codex if they are installed. `0` skips this. |
 
 After the first start, change providers on the Models page; the first-start variables no longer
 change them. The full list is in [Environment variables](../reference/environment.md).

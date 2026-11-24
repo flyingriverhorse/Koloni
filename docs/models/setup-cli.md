@@ -16,12 +16,12 @@ never signs in for you. Read [Subscription rules](subscription-rules.md) first.
 5. **Test** only checks that the command is found; it does not run it. **Try a real run** runs it once
    on a one-word question, on your plan.
 
-At the first start, KOLONİ adds Claude Code, Codex and agy by itself if they are installed. It
-never adds Copilot by itself. It adds agy switched off: Google's terms forbid using Antigravity through
-another app (see [Subscription rules](subscription-rules.md)). Its card on the Models page, switched on
-or off, says "Google's terms forbid using Antigravity through another app; your Google account may be
-suspended." KOLONİ adds providers only at the first start, so an agy already on the Models page is left
-as it is.
+At the first start, KOLONİ adds Claude Code and Codex by itself if they are installed. It never adds
+Copilot or agy by itself (agy is [experimental](#experimental-clis), and Google's terms forbid using
+Antigravity through another app: see [Subscription rules](subscription-rules.md)). An agy card on the
+Models page, switched on or off, says "Google's terms forbid using Antigravity through another app; your
+Google account may be suspended." KOLONİ adds providers only at the first start, so an agy already on the
+Models page is left as it is.
 
 ## The CLIs
 
@@ -37,9 +37,9 @@ as it is.
 | CLI | Choices (the first is the default) |
 |---|---|
 | Claude Code | One session per agent · One run per model step · Native |
-| Codex | One session per agent · One run per model step · Native. As a session its own patch tool cannot be switched off: KOLONİ refuses every patch it asks to make, and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. The default since 7 Nov 2026; a Codex provider added before keeps the way it was saved with. One added with a model server of your own starts as One run per model step, since its session there is not yet measured. |
+| Codex | One session per agent · Native · One run per model step ([experimental](#experimental-clis)). As a session its own patch tool cannot be switched off: KOLONİ refuses every patch it asks to make, and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. The default since 7 Nov 2026; a Codex provider added before keeps the way it was saved with. One added with a model server of your own starts as One run per model step, since its session there is not yet measured. |
 | Copilot | One session per agent · Native |
-| agy | Reads with its own tools · Native |
+| agy ([experimental](#experimental-clis)) | Reads with its own tools · Native |
 
 - **One session per agent** and **One run per model step** use KOLONİ's tools and cards, with the CLI's
   own tools off.
@@ -51,6 +51,19 @@ as it is.
 
 A trigger never starts a CLI that works with its own tools (Native, or agy's reads): with nobody watching,
 only an agent that works with KOLONİ's tools runs.
+
+## Experimental CLIs
+
+agy, and Codex run **One run per model step**, are experimental since 0.1.8: less measured and tested than
+the rest, so they are not offered unless you ask for them. Turn on **Show experimental CLIs** in
+Settings › The app › Agents (it is kept as you change it). Then **Add a provider**'s **Kind** lists
+**agy (CLI)**, and a Codex provider's **How it runs** lists **One run per model step**, each under
+**Experimental**; and This project › Memory and web offers **Let agy search too**.
+
+Nothing that already uses them is hidden or stopped: an agy provider, or a Codex provider run one step at a
+time, keeps working with the switch off, its card tagged **Experimental**, and its window still shows the
+way it runs. A Codex provider added with a model server of your own starts as One run per model step, as
+before, and shows it. A project that already lets agy search keeps its box.
 
 [![How CLIs are driven: one run per model step, one session per agent, native, and agy's reads; KOLONİ's tool bridge (MCP); how each native CLI asks before its tools act; sign-in folders, going on from the last turn, and compaction](../diagrams/cli-modes.svg)](../diagrams/cli-modes.svg)
 

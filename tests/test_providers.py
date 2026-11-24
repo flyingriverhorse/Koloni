@@ -852,3 +852,17 @@ def test_the_client_asked_for_the_list_is_built_from_the_provider_as_it_is_kept(
         "anthropic-version": "2023-06-01",
         "anthropic-workspace-id": WORKSPACE,
     }
+
+
+def test_show_experimental_clis_is_off_until_the_user_turns_it_on_from_the_apps_page(client):
+    # (0.1.8: agy and Codex run step by step are offered only then; the Models page reads it.)
+    assert client.get("/api/experimental-clis").json() == {"show": False}
+    asked = client.put("/api/experimental-clis", json={"show": True}, headers={"Origin": None})
+    assert asked.status_code == 403  # (an agent's command against the app's address: no)
+    on = {"Origin": "http://127.0.0.1:8790"}
+    assert client.put("/api/experimental-clis", json={"show": True}, headers=on).json() == {
+        "show": True
+    }
+    assert client.get("/api/experimental-clis").json() == {"show": True}
+    client.put("/api/experimental-clis", json={"show": False}, headers=on)
+    assert client.get("/api/experimental-clis").json() == {"show": False}

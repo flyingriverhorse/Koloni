@@ -2,6 +2,7 @@ import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useId, u
 import { errorText } from '../api/client'
 import type { Availability, Provider, ProviderTest, Suggestion, Usage } from '../api/types'
 import { paidOf } from './cards'
+import { Choices, kindsShown, useExperimentalClis } from './experimental'
 import { LimitsTab } from './LimitsTab'
 import { LocalServerTab } from './LocalServerTab'
 import { useModelFacts } from './levels'
@@ -177,6 +178,9 @@ export function ProviderEditor({
   const start = startOf(provider)
   const [name, setName] = useState(start.name)
   const [kind, setKind] = useState<ProviderKind>(start.kind)
+  // 0.1.8: agy and Codex run one step at a time are offered only with experimental CLIs shown (or where in use).
+  const experimental = useExperimentalClis()
+  const [usualKinds, experimentalKinds] = kindsShown(KINDS, kind, experimental)
   const [address, setAddress] = useState(start.address)
   const [key, setKey] = useState('')
   const [model, setModel] = useState(start.model)
@@ -527,11 +531,7 @@ export function ProviderEditor({
           disabled={provider !== null}
           onChange={e => setKind(e.target.value as ProviderKind)}
         >
-          {KINDS.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
+          <Choices usual={usualKinds} experimental={experimentalKinds} />
         </select>
       </div>
       {cli ? (
@@ -553,6 +553,7 @@ export function ProviderEditor({
           ownServer={ownServer}
           copilot={copilot}
           agy={agy}
+          experimental={experimental}
           apiKey={key}
           setKey={setKey}
           address={address}

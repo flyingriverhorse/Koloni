@@ -169,7 +169,7 @@ Before a sub-agent's work is added, the tests it wrote or changed run in its wor
 | **Also look in the memory of** | Tick other projects. Agents' look-ups and your deep search find their memory too. |
 | **Search address (SearXNG)** | Your own SearXNG server, for example `http://localhost:8888`. An agent's web search asks it first; turn on its JSON format. When it does not answer, the search goes on as below and says so. |
 | **Otherwise search with** | **The built-in search first, then a CLI** or **A CLI first, then the built-in search**. |
-| **Let agy search too** | Lets agy search the web. While it searches, agy is not held to its search tool: it may read files on this machine or open pages unasked. |
+| **Let agy search too** | Lets agy search the web. While it searches, agy is not held to its search tool: it may read files on this machine or open pages unasked. Shown with **Show experimental CLIs** on (The app › Agents), or where it is already ticked. |
 
 ### Notifications
 
@@ -229,6 +229,7 @@ jobs while you're away), while a command it started still runs (such as a dev se
 | **Knowledge reads at most (files)** | Knowledge from a repository or a folder on this machine stops before it reads more files than this: 50,000 unless you change it, a whole number from 100 to 1,000,000. A learning keeps what it started with. See [Knowledge](knowledge.md#a-repository). |
 | **Knowledge reads at most (MB)** | The same, in MB: 300 unless you change it, from 1 to 10,240. |
 | **KOLONİ's test runs at once** | How many of the test runs KOLONİ makes at a turn's end go at the same time; the rest wait their turn. 1 unless you change it, a whole number from 1 to 4. More finishes sooner and loads the machine more. The agents' own commands are not counted. See [Checked](use/checked.md#how-many-run-at-once). |
+| **Show experimental CLIs** | Off by default. Offers agy, and Codex's **One run per model step**, under **Experimental** on the Models page, and **Let agy search too** in This project › Memory and web. They are less measured than the rest. A provider already set up so keeps working either way, tagged Experimental. Kept as you change it, without **Save**. See [Experimental CLIs](models/setup-cli.md#experimental-clis). |
 | **Test processes per run** | How many processes one of KOLONİ's test runs may start, where its runner reads it (pytest-xdist's `-n auto`). 2 unless you change it, a whole number from 1 to 16. The agents' own commands are not limited. |
 
 ### Voice

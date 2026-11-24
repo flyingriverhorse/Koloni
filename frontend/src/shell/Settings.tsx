@@ -1,7 +1,7 @@
 import { X } from '@phosphor-icons/react'
 import { type ComponentProps, type FormEvent, Fragment, type ReactNode, useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
-import type { AnswerLanguage, Folders, Project, Storage } from '../api/types'
+import type { AnswerLanguage, ExperimentalClis, Folders, Project, Storage } from '../api/types'
 import { Backup } from './Backup'
 import { DeleteProject } from './DeleteProject'
 import { FoldersSection } from './Folders'
@@ -130,6 +130,7 @@ export function Settings({ project, onClose, picked, ...rest }: Props) {
           <div className="role-editor">
             <div hidden={appSection !== 'app-agents'}>
               <AppSettings toLimits={project ? () => go('limits') : undefined} />
+              <ExperimentalChoice />
             </div>
             {/* (Made when shown: it keeps nothing typed, each choice is kept as it is made.) */}
             {appSection === 'voice' && <VoiceSettings />}
@@ -479,6 +480,52 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
         </span>
       </div>
     </form>
+  )
+}
+
+/** Settings › The app › Agents, under its Save: whether the Models page offers what is experimental (0.1.8: agy, and
+ *  Codex run one step at a time) - kept as it is changed. */
+function ExperimentalChoice() {
+  const [show, setShow] = useState<boolean | undefined>(undefined)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    api.get<ExperimentalClis>('/experimental-clis').then(
+      read => setShow(read.show),
+      err => setError(errorText(err)),
+    )
+  }, [])
+  async function change(on: boolean) {
+    setError(null)
+    try {
+      setShow((await api.put<ExperimentalClis>('/experimental-clis', { show: on })).show)
+    } catch (err) {
+      setError(errorText(err))
+    }
+  }
+  return (
+    <div className="settings-app-form">
+      <label className="choice">
+        <input
+          type="checkbox"
+          checked={show ?? false}
+          disabled={show === undefined}
+          onChange={e => void change(e.target.checked)}
+        />
+        <span>
+          Show experimental CLIs
+          <span className="choice-note">
+            Kept as you change it. Offers agy, and Codex’s One run per model step, under Experimental on the Models
+            page: they are less measured than the rest. A provider already set up so works either way, tagged
+            Experimental.
+          </span>
+        </span>
+      </label>
+      {error && (
+        <p role="alert" className="alert">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }
 

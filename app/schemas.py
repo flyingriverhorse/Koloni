@@ -1909,6 +1909,14 @@ class TreeLimits(BaseModel):
     max_mb: int | None = Field(None, ge=1, le=10_240, strict=True)
 
 
+class ExperimentalClis(BaseModel):
+    """0.1.8: whether the Models page offers what is experimental - agy, and Codex run one step
+    at a time (`providers.EXPERIMENTAL_FLAG`). Off by default; a provider already set so runs."""
+
+    model_config = ConfigDict(extra="forbid")
+    show: bool
+
+
 class AnswerLanguage(BaseModel):
     """K-cevap-dili: the language every agent writes in, one setting of the whole app; null is
     Auto (`memory.answer_in`)."""

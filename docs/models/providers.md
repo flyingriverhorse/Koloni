@@ -15,7 +15,7 @@ its window.
 |---|---|
 | **OpenAI-compatible server** | A server that speaks the OpenAI API and supports tool calls, such as llama.cpp's `llama-server` or a hosted API. Other OpenAI-compatible servers (Ollama, …) should work but are not tested. |
 | **Anthropic API** | Anthropic's API, with your key. |
-| **Claude Code (CLI)**, **Codex (CLI)**, **GitHub Copilot CLI**, **agy (CLI)** | A CLI on this machine that you are signed in to. It runs on your plan with that vendor. |
+| **Claude Code (CLI)**, **Codex (CLI)**, **GitHub Copilot CLI**, **agy (CLI)** ([experimental](setup-cli.md#experimental-clis)) | A CLI on this machine that you are signed in to. It runs on your plan with that vendor. |
 
 ## Adding a provider
 

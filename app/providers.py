@@ -63,6 +63,10 @@ IMAGE_CLIS = ("claude_cli", "codex_cli")
 SERVER_CLIS = ("claude_cli", "codex_cli")
 # Agents at work at once on a provider the user set no number for (`Providers.most_at_once`).
 CLI_AT_ONCE, SERVICE_AT_ONCE = 3, 8
+# 0.1.8 (the user, 24 Nov): agy, and Codex run one step at a time, are offered only with Show
+# experimental CLIs on (Settings › The app › Agents; a Flag of this name, which the Models page
+# reads). A provider already set so runs as before, tagged Experimental; nothing here refuses it.
+EXPERIMENTAL_FLAG = "experimental_clis"
 # How each CLI can be run, the first being its default. A session needs the CLI's own
 # tools to be really off while KOLONİ's reach it over MCP: Codex's patch tool cannot be
 # switched off, so KOLONİ declines each patch it asks about (`CodexSessionClient`).
@@ -661,8 +665,8 @@ def seed_providers(
     session: Session, settings: Settings, which: Callable[[str], str | None] = shutil.which
 ) -> None:
     """On the very first start, offer what is at hand: the local server from the
-    environment, and the CLIs that are installed (all but Copilot). After that the
-    list is the user's and is left alone."""
+    environment, and the CLIs that are installed (all but Copilot, and agy: experimental since
+    0.1.8, `EXPERIMENTAL_FLAG`). After that the list is the user's and is left alone."""
     if session.scalar(select(func.count()).select_from(Provider)):
         return
     session.add(
@@ -678,8 +682,10 @@ def seed_providers(
         )
     )
     if settings.detect_cli:
-        # Copilot is not offered by itself: the user adds it on the Models page.
-        seeded = [kind for kind in CLI_KINDS if kind != "copilot_cli"]
+        # Copilot is not offered by itself: the user adds it on the Models page. Nor is agy:
+        # experimental, and Google's Antigravity terms (section 6) forbid using it through
+        # another app.
+        seeded = [kind for kind in CLI_KINDS if kind not in ("copilot_cli", "agy_cli")]
         for position, kind in enumerate(seeded, 1):
             if which(CLI_COMMANDS[kind]):
                 session.add(
@@ -688,9 +694,6 @@ def seed_providers(
                         kind=kind,
                         position=position,
                         mode=MODES[kind][0],
-                        # Google's Antigravity terms (section 6) forbid using it through another
-                        # app.
-                        enabled=kind != "agy_cli",
                     )
                 )
     session.commit()

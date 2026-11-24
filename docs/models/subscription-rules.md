@@ -24,7 +24,8 @@ own sign-in.
 
 !!! warning "agy: switched off"
     Whether KOLONİ starting `agy` counts as "third party software … to access the Service" is not
-    settled, but it is close to the example Google gives. So KOLONİ adds agy switched off, and its card on the Models page says why.
+    settled, but it is close to the example Google gives. So KOLONİ never adds agy by itself, offers it only
+    under [Experimental](setup-cli.md#experimental-clis), and an agy card on the Models page says why.
     Switching it on is your choice, and your risk with your Google account.
 
 - Codex: no rule either way was found.

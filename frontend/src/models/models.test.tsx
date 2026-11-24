@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import type { Effort, ModelFacts, Provider } from '../api/types'
+import { showExperimental } from '../test-fixtures'
 import { ModelPicker } from './ModelPicker'
 import { ModelsPage } from './ModelsPage'
 
@@ -436,7 +437,7 @@ test('a Qoder provider from before says why it stays off and can only be deleted
   expect(screen.queryByRole('option', { name: /Qoder/ })).not.toBeInTheDocument()
 })
 
-test('Codex runs the ways it safely can', async () => {
+test('Codex runs the ways it safely can; one run per model step only under Experimental, or in use', async () => {
   const h = handlers()
   const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: null })
   render(<ModelsPage providers={[codex, provider({})]} {...h} />)
@@ -446,9 +447,27 @@ test('Codex runs the ways it safely can', async () => {
   const session = screen.getByRole('option', { name: "One session per agent, with KOLONİ's tools (recommended)" })
   expect(session).toHaveValue('session')
   expect(screen.getByText(/KOLONİ refuses every patch it asks to make/)).toBeInTheDocument()
+  expect(screen.queryByRole('option', { name: /One run per model step/ })).not.toBeInTheDocument()
+  await close()
+  showExperimental()
+  await open('Codex', 'Connection')
+  const step = await screen.findByRole('option', { name: /One run per model step/ })
+  expect(step.closest('optgroup')).toHaveAttribute('label', 'Experimental')
   await userEvent.selectOptions(screen.getByLabelText('How it runs'), 'step')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(h.onSave).toHaveBeenCalledWith('p5', expect.objectContaining({ mode: 'step' }))
+})
+
+test('agy and Codex run step by step, already set up, keep their card tagged Experimental', () => {
+  const agy = provider({ id: 'p6', name: 'agy', kind: 'agy_cli', base_url: null, mode: 'reads' })
+  const step = provider({ id: 'p7', name: 'Codex steps', kind: 'codex_cli', base_url: null, mode: 'step' })
+  const codex = provider({ id: 'p8', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'session' })
+  render(<ModelsPage providers={[provider({}), agy, step, codex]} {...handlers()} />)
+  const card = (name: RegExp) => screen.getByRole('button', { name })
+  expect(card(/^agy/)).toHaveTextContent('Experimental')
+  expect(card(/^Codex steps/)).toHaveTextContent('Experimental')
+  expect(card(/^Codex(?! steps)/)).not.toHaveTextContent('Experimental')
+  expect(card(/^Local/)).not.toHaveTextContent('Experimental')
 })
 
 test('Codex can run natively, and the page says plainly how it is asked first', async () => {
