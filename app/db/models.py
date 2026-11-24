@@ -167,19 +167,6 @@ class Project(Base):
     # above, and the local day it last went (sent once a day; slice 56). None: never.
     day_note_at: Mapped[str | None] = mapped_column(String(5), default=None)
     day_note_sent: Mapped[date | None] = mapped_column(Date, default=None)
-    # Whether the backlog works itself (slice 52): with no task doing, the next todo starts
-    # (`app.backlog.chain`). Turned off, with why, when a task's turn fails or is stopped
-    # or the month's budget is spent (`backlog_halt`); turning it on clears that.
-    backlog_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    backlog_halt: Mapped[str | None] = mapped_column(Text, default=None)
-    # B-350: the level and the model the chats its backlog opens start with (`backlog.start`);
-    # no provider: the default one, as a new chat's.
-    backlog_mode: Mapped[str] = mapped_column(String(12), default="ask", server_default="ask")
-    backlog_provider_id: Mapped[str | None] = mapped_column(String(32), default=None)
-    backlog_model_id: Mapped[str | None] = mapped_column(String(200), default=None)
-    # K-r144: who changes the files in those chats (`Conversation.lead_work`); None: as the
-    # project's new chats (`lead_work`).
-    backlog_lead_work: Mapped[str | None] = mapped_column(String(9), default=None)
     # Whether its commands see its secret files (.env, keys) as denied or empty: in Copilot's
     # sandbox and in Docker (slices 104, 105). On until the user turns it off.
     hide_secrets: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
@@ -381,15 +368,10 @@ def settings_of(session, conversation: Conversation) -> Project | Conversation:
 
 
 def lead_work_of(session, conversation: Conversation) -> str:
-    """Who changes the files in a chat: its project's (`settings_of`) - in a chat its To-do
-    list opened, a night's job too, the To-do page's choice where there is one (K-r144)."""
+    """Who changes the files in a chat: its project's (`settings_of`) - a To-do task's turn
+    and a night's job too."""
     project = project_of(session, conversation)
-    if project is None:
-        return conversation.lead_work
-    todo = project.backlog_lead_work and session.scalar(
-        select(BacklogTask.id).where(BacklogTask.conversation_id == conversation.id).limit(1)
-    )
-    return project.backlog_lead_work if todo else project.lead_work
+    return conversation.lead_work if project is None else project.lead_work
 
 
 def new_chat(session, project: Project | None) -> Conversation:
@@ -888,7 +870,7 @@ class Agent(Base):
     # "left_out": {name: why}} (`app.skills.split`). None: its role had none, or from before.
     skills: Mapped[dict | None] = mapped_column(JSON, default=None)
     # 27 / 93-C3: the CLI session its last native turn left ({"id", "under"}: what it was
-    # started under, `ClaudeNativeClient._under`; Claude Code's or Qoder's - or Copilot's, with
+    # started under, `ClaudeNativeClient._under`; Claude Code's - or Copilot's, with
     # its "home" and what it has "spent" in all, 0.1.8), for its next turn - or a later turn's
     # lead going on from it - to resume with only what is new. None: none.
     cli_session: Mapped[dict | None] = mapped_column(JSON, default=None)
@@ -1851,7 +1833,8 @@ class BacklogTask(Base):
     status: Mapped[str] = mapped_column(String(10), default="todo")
     # The user's order within the project, 0 first; listed after priority.
     position: Mapped[int] = mapped_column(Integer)
-    # The conversation "Work the backlog" started it in; not a key, as on a memory record.
+    # The chat it waits or works in - or worked in last (0.1.8, Do in chat; a night's job's own
+    # chat); not a key, as on a memory record.
     conversation_id: Mapped[str | None] = mapped_column(String(32), default=None)
     created_by: Mapped[str] = mapped_column(String(8))  # user | agent
     pending: Mapped[dict | None] = mapped_column(JSON, default=None)
@@ -1865,10 +1848,10 @@ class BacklogTask(Base):
     away_why: Mapped[str | None] = mapped_column(Text, default=None)
     # ☾ Away: the chat an agent proposed it in - ticked there in the Away panel. None: the user's.
     proposed_in: Mapped[str | None] = mapped_column(String(32), default=None)
-    # K-symphony, how it stands in a run of the backlog (`app.backlog.chain`): {"after": the
-    # ids of the tasks it waits for (the user's), "queued": Run the backlog took it, "fix": why
-    # its fix round is due, "fixed": it had it, "stuck": why it is blocked}. Replaced whole
-    # (`backlog.set_flow`): a JSON field changed in place is not seen.
+    # How it stands in its chat's queue (`app.backlog.go_on`): {"after": the ids of the tasks
+    # it waits for (the user's), "place": its place in the queue, "fix": why its fix round is
+    # due, "fixed": it had it, "stuck": why it is blocked}. Replaced whole (`backlog.set_flow`):
+    # a JSON field changed in place is not seen.
     flow: Mapped[dict | None] = mapped_column(JSON, default=None)
     # Proposed by the Scout at a turn's end (`AgentRunner._propose_tasks`): {"chat": the
     # conversation, "why": the words of the turn's record it came from, "lead": "add" | "no" -
@@ -1888,10 +1871,6 @@ class BacklogTask(Base):
     @property
     def after(self) -> list[str]:
         return (self.flow or {}).get("after") or []
-
-    @property
-    def queued(self) -> bool:
-        return bool((self.flow or {}).get("queued"))
 
     @property
     def stuck(self) -> str | None:

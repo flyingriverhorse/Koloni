@@ -44,7 +44,13 @@ step ([The Checks step](../agents/recipes.md#the-checks-step)).
 ## When it runs
 
 - After a turn in a project folder that changed a file. A turn that changed nothing, a plain
-  chat, a plan, and a side of a comparison get no Checked section. A change made only by a
+  chat, a plan, and a side of a comparison get no Checked section - except a turn that changed
+  nothing right after one whose checks still failed: it says "Still failing as last checked - this
+  turn changed nothing" with those failing lines, and **Fix it** stays under the newest turn (not
+  once the turn they came from is undone - also after turns that said them again, and no Fix it
+  is offered for it then -, nor once this chat's checks are off; the canvas draws no Checks node
+  for it, as no check ran). A
+  change made only by a
   command (`python -c "open(…).write(…)"`, `sed -i`, a heredoc to a file, a redirection into one
   - `cat a > b`, `git show HEAD:f > f`, not `2>&1` or `> /dev/null` -, a formatter,
   `black . && pytest -q`, a test run that writes - `jest -u`, `pytest --snapshot-update`,
@@ -437,7 +443,10 @@ copy and the section says "Not taken in: 2 tests still fail after rounds by `A` 
 what the stronger model found as one question to you, and two buttons on that line: **Take in
 anyway** and **Fix it**: your answer to the question starts a turn that goes on in the kept
 work's copy - what was done there holds - and it goes into the project at that turn's end when
-its tests pass. Where the kept work was decided since, Fix it says so and Take in anyway is left.
+its tests pass. Once the kept work is taken in, Take in anyway goes, the line says "Taken in
+anyway." and **Fix it** asks for the fix as for work in the project; discarded, or gone on in a Fix
+it turn, both buttons go (after a reload as well). Taken in, discarded or gone on in a Fix it turn,
+the turn's line of where its work is ("Not in the project yet: …") is written anew.
 An Away job ends
 there, and its report lists it. Work that is already in the project (no copy) gets the stronger
 model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
@@ -504,9 +513,10 @@ a line that adds another config, a plugin, parser or formatter, a plugin folder,
 report or trace elsewhere, or tells tsc to build or write (`--incremental`, `--noEmit false`, `-b`)
 asks again); while you are
 away, or in a turn a trigger started without its leave for that line, it is not run and its line
-says "needs your leave once". A program the turn wrote itself - in the folder a tool is installed
-in (`node_modules`, `.venv`), in any case of its name, or through a link - is never run, nor one
-whose real place is outside the project, nor eslint or tsc where the turn wrote in a
+says "needs your leave once". A program an agent wrote - this turn, or an earlier turn in an install
+folder (`node_modules`, `.venv`, `site-packages`), in the project or in a working copy, taken in or
+not, while the file still holds what it wrote - in any case of its name, or through a link, is never run and
+offers no card, nor one whose real place is outside the project, nor eslint or tsc where the turn wrote in a
 `node_modules` above the folder they run in (Node loads their packages from there too), nor a
 tool where the turn wrote a `node.cmd` or
 `python.exe` (a name a tool's shim runs bare) in the folder it runs in. A file's lines are
@@ -930,7 +940,7 @@ them, the line says "Tests not run: you stopped the check".
 
 ### How many run at once
 
-![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits](../images/settings-app-test-runs.png)
+![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits; under Save, the Show experimental CLIs switch, off](../images/settings-app-test-runs.png)
 
 KOLONİ's own test runs queue: **Settings › The app › KOLONİ's test runs at once** (1 unless you
 change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says
@@ -1026,7 +1036,8 @@ the Orchestrator's window, whose record holds the runs.
 | – Full tests stopped by you at `m:ss` - not checked | You stopped it. Nothing it had run is counted. |
 | – Tests not finished: `why` | Stopped, a newer run took its place, or KOLONİ restarted while it ran. |
 | – `…` - the project changed while they ran | The project changed under the run. Its result stands for no state of the work, and a pass is not shown as passed. |
-| – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. |
+| – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. Kept work Fix it went on in, taken in at the turn's end, is no change after the run. |
+| – Still failing as last checked - this turn changed nothing | The turn changed no file, right after a turn whose checks still failed: the failing lines below are that turn's, said again, and **Fix it** is offered under them. |
 | – No test command | There was nothing to run; the line says where to set one: the project map's whole project's row or a part's (Settings › This project › This folder). |
 | – Were failing before this turn: `files` (from CI: `command`) | A lint, format or type check failed only on files the turn did not change, and each of its findings is there on the old code too. Not sent back. |
 | – Sent back to fix: round 3 (until it passes, 3 failing → 1) | Until it passes: the rounds sent back, and how many failed at the first and fail now. |
@@ -1088,6 +1099,7 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Not taken in: on hold - a look's findings still stand after its fix rounds | Work in a copy (a recipe's) that the Reviewer or Security reviewer still holds stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Not taken in: KOLONİ's checks of what it wrote still fail after its fix rounds | Work in a copy (a recipe's, an Away job's, a branch turn's) whose page, document, config file or script still fails its check by kind of work stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
+| Taken in anyway. | You took the held work in as it was: said under the lines, not as a line of its own. **Fix it** now asks for the fix as for work in the project, where a line still fails; a turn that changes nothing after it says the work still fails. |
 | ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
 | – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |

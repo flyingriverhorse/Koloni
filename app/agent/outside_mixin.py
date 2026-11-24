@@ -403,7 +403,6 @@ class OutsideMixin:
             or not self._watched(ctx.run_id)
             or ctx.run_id in self._sides
             or ctx.run_id in self._away_jobs
-            or ctx.run_id in self._backlog_turns
         ):
             return {}
         with self._factory() as session:

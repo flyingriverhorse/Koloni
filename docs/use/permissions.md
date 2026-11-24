@@ -329,7 +329,7 @@ Only such a delete alone on its line counts, written the way the shell it runs i
   Bash on Windows): `rm` with `-r`, `-R` or `-rf`, `-f` / `--force` if you like: `rm -rf build dist`.
 - **git**, in every shell: `git worktree remove ../wt/x`, `git branch -d old`.
 
-Codex, agy and Qoder do not say which shell their command runs in, so their delete of a folder keeps
+Codex and agy do not say which shell their command runs in, so their delete of a folder keeps
 its card. A disposable delete that ran and then failed says so on its row: "Ran without asking as
 disposable (…) and failed: exit 1". Anything else on the line, a forced worktree
 remove, a path above the folder or with a link in it, a line the shell continues, a command of a CLI
@@ -385,10 +385,12 @@ messages in the chat - never anything an agent wrote - and then:
   forbids it - the sentence stays with you), and not to run it or anything that does the same again,
   and goes on with the rest of its task. Its row says "Not run · your rule: …".
 - A sentence that sets a condition or asks to be asked ("unless", "ask me before", "else",
-  "while", "whenever", "as long as", "provided", "in case", "assuming"; in Turkish "eğer", "ise",
-  "-madan", any "-se" / "-sa" - "Kontroller yeşilse …", "Hata yoksa …", "Testler OK'se …" -, "-ınca",
-  "-dığında" / "-dığımda", "-ken", "-dikçe", "durumunda", "-dığı zaman", "sonra", "-ene kadar", "dek", "madem",
-  "yeter ki" and "sürece"), or nothing of yours that covers it: the card, as before. Its card then says "Nothing you said covers this."
+  "while", "whenever", "as long as", "so long as", "provided", "providing", "in case", "assuming"; in
+  Turkish "eğer", "ise" / "isen", "-madan", any "-se" / "-sa" - "Kontroller yeşilse …", "Hata yoksa …",
+  "Testler OK'se …" -, "-ınca", "-dığında" / "-dığımda" / "-diklerinde", "-ken", "-dikçe", "durumunda",
+  "-dığı zaman", "sonra", "-ene kadar", "dek", "madem", "yeter ki" and "sürece"; an apostrophe written as
+  ’, ‘, ´ or ʼ is read as one, so "OK’se" counts too), or nothing of yours that covers it: the card, as
+  before. Its card then says "Nothing you said covers this."
 
 A command that ran or was not run this way also waits under **Decided for you** until you press
 **OK**. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of
@@ -425,7 +427,8 @@ KOLONİ's own check of [code style and types](checked.md#documents-diagrams-data
 the project's ruff, eslint, tsc or mypy as it runs the test command: at Ask and Auto-edit it asks
 on a card - a yes is that line in that folder for the turn, and **Always** keeps that line, never
 the bare program; while you are away, or in a turn nobody watches without its trigger's leave for
-the line, it is not run, and says so. A program the turn wrote itself is never run.
+the line, it is not run, and says so. A program an agent wrote - this turn, or an earlier turn in an
+install folder, while the file still holds it - is never run.
 
 ## Choosing a level
 

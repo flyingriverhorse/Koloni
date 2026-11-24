@@ -13,7 +13,6 @@ from app import room as rooms
 from app.agent.ctx import Ctx, _NobodyToAsk
 from app.agent.words import (
     ANSWER_TOOLS,
-    BACKLOG_NOT_THIS,
     LEADS_LATER,
     PAID_NO,
     PAID_UNATTENDED,
@@ -214,19 +213,14 @@ class DiscussionsMixin:
                 refused = self._discuss_unasked(ctx, role, tools, new, mode, approval)
                 # shortcut: no `step` here (B-301's next provider): a recipe's discussion member
                 # on a provider it cannot be a step on is refused below; pass it if that is seen.
-                backlog_turn = ctx.run_id in self._backlog_turns
                 would = would_run(
-                    session,
-                    role,
-                    conversation,
-                    unattended=refused is not None or backlog_turn,
-                    tools=tools,
+                    session, role, conversation, unattended=refused is not None, tools=tools
                 )
                 provider, model_name = would.provider, would.model_id
                 self._discuss_paid(
                     session, ctx, role, conversation, provider, tools, refused, approval
                 )
-                self._discuss_on(session, ctx, role, would, tools, refused, backlog_turn, recipe)
+                self._discuss_on(session, ctx, role, would, tools, refused, recipe)
                 plans.append(
                     (
                         None,
@@ -468,15 +462,12 @@ class DiscussionsMixin:
         would: Would,
         tools: list[str],
         refused: str | None,
-        backlog_turn: bool,
         recipe: bool,
     ) -> None:
         """`_discuss`: a new member can be had on the provider and model it would run on."""
         provider, model_name = would.provider, would.model_id
         if refused is not None and self._cannot_be_held(None, provider):
             raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
-        if backlog_turn and self._cannot_be_held(None, provider):
-            raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
         try:
             allowed(provider, model_name)
         except NotListed as exc:

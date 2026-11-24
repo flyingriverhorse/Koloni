@@ -21,7 +21,7 @@ from sqlalchemy import func, literal_column, or_, select
 
 from app import browser, injection, koloni, ledger, proof, proof_kinds, proof_style
 from app.agent.ctx import Ctx, _GateRefused
-from app.agent.proof_mixin import SLOT_BUSY
+from app.agent.proof_mixin import NO_CHANGE_SEEN, SLOT_BUSY
 from app.agent.review_mixin import COPY_BUSY
 from app.db.models import (
     Agent,
@@ -63,7 +63,7 @@ KINDS_HELD = (
 def kinds_held(message: Message) -> str | None:
     """A turn's Checked section that ended on a kind's problem - its closing row, or its work kept
     out for it: its problems, noted, for the Orchestrator's later turns. None: no such end."""
-    rows = (message.blocks or {}).get("rows") or []
+    rows = proof.held_rows(message.blocks)
     if not any(
         one.get("kind") in ("rounds", "not_taken") and one.get("reason") == "kinds" for one in rows
     ):
@@ -154,7 +154,7 @@ class KindsMixin:
                 or ""
             )
             before = proof.before_of(session, ctx.run_id)
-            held.kinds_seen = proof.last_change(session, ctx.run_id)
+            held.kinds_seen = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
         ws = self._ws(ctx)
         written = _set_up(_written(held.changes, made), held.style_set_up)
         checks = held.checks

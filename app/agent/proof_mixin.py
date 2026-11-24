@@ -17,13 +17,13 @@ import shutil
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from sqlalchemy import literal_column, or_, select
 
-from app import away, injection, ledger, proof, proof_before, proof_related, recipe_run
+from app import injection, ledger, proof, proof_before, proof_related, recipe_run
 from app.agent import merge
 from app.agent.before_mixin import NOT_YOURS
 from app.agent.ctx import Ctx, _GateRefused
@@ -68,6 +68,9 @@ END_WAIT_SECONDS = 120
 # CL-329: how long Put back's kept folder of a run stays, unclicked (or its chat deleted).
 KEPT_DAYS = 3
 SLOT_BUSY = "another of KOLONİ's test runs held the machine past the wait"
+# A pass that saw no change of the turn on record (Fix it's kept work is the held turn's): any
+# made after it is later - never "no pass made" (None).
+NO_CHANGE_SEEN = datetime.min.replace(tzinfo=UTC)
 # Plan decision 8: while the user is away (an Away job, a To-do turn) nobody is there to say yes to
 # a guess - it is not run; the user's own saved command still is.
 AWAY_GUESS = "a guessed command, you were away"
@@ -462,10 +465,27 @@ class ProofMixin:
                 if was.ready_seen.get(one, (None,))[0] != status
             ):
                 return False
-            taken = proof.last_change(session, ctx.run_id)
+            taken = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
         was.seen = taken if was.seen is not None else None
         was.kinds_seen = taken if was.kinds_seen is not None else None
         return True
+
+    async def _take_in_checked(self: "AgentRunner", ctx: Ctx, status: str) -> str:
+        """N2: the Lead's own copy (Fix it's kept work, a branch turn's) goes in after its end
+        check, Take in putting records of its own on the turn (the kept turn's files): where none
+        was made since the check, the work is as checked (as `_checked_at_ready`). shortcut: a
+        command's change after it is on no record - hold `_calls_of` to the check's if seen."""
+        with self._factory() as session:
+            was = proof.last_change(session, ctx.run_id)
+        said = await self._take_in(ctx, status, lambda: None)
+        if (held := self._proofs.get(ctx.run_id)) is not None:
+            with self._factory() as session:  # (a copy kept again: no record - still checked)
+                taken = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
+            if held.seen is not None and (was is None or was <= held.seen):
+                held.seen = taken
+            if held.kinds_seen is not None and (was is None or was <= held.kinds_seen):
+                held.kinds_seen = taken
+        return said
 
     async def _what_it_touched(
         self: "AgentRunner", ctx: Ctx, ran: tuple[str, Any], found: list[Change]
@@ -614,7 +634,7 @@ class ProofMixin:
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             root = project.root_path if project is not None else None
-            held.seen = proof.last_change(session, ctx.run_id)
+            held.seen = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
         held.until = (
             time.monotonic() + END_WAIT_SECONDS
             if self._answer_waits(ctx) and (not held.judging)
@@ -801,26 +821,20 @@ class ProofMixin:
 
     def _answer_waits(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether somebody is there waiting for the answer: a turn the user watches - not an Away
-        job, nor a To-do task's turn."""
+        job, nor a To-do task's turn: its end needs what its checks found (a fix round is due
+        where one failed, `backlog.not_finished`), so it waits for them."""
         return (
             self._watched(ctx.run_id)
             and ctx.run_id not in self._away_jobs
-            and (ctx.run_id not in self._backlog_turns)
+            and ctx.run_id not in self._todo_turns
         )
 
     def _away_now(self: "AgentRunner", ctx: Ctx) -> bool:
-        """Whether the user is away from this turn: an Away job, or a To-do turn while an Away
-        runs for the project (`away.running`). A To-do turn they run from the screen is not.
-        shortcut: Away is the one sign of absence KOLONİ has - a To-do list left running by
-        itself while the user only walked off counts as watched; keep a presence beat if that
-        is met."""
-        if ctx.run_id in self._away_jobs:
-            return True
-        if ctx.run_id not in self._backlog_turns:
-            return False
-        with self._factory() as session:
-            project = self._project(session, ctx.cid)
-            return project is not None and away.running(session, project.id) is not None
+        """Whether the user is away from this turn: an Away job. (A chat's queue of To-do tasks
+        waits while Away runs: `backlog.go_on`.)
+        shortcut: Away is the one sign of absence KOLONİ has - a chat's queue going on while the
+        user only walked off counts as watched; keep a presence beat if that is met."""
+        return ctx.run_id in self._away_jobs
 
     def _may_run_tests(self: "AgentRunner", ctx: Ctx, run: TestRun) -> Literal["run", "ask"] | str:
         """As the Lead's own run_command would be: in a watched turn "ask" - the user's own
@@ -1208,7 +1222,8 @@ class ProofMixin:
     ) -> None:
         """What was checked at the turn's end, under its answer: a "checked" message (one a
         turn, written again where there is one), its rows in `blocks`, which no agent is given.
-        Nothing where not `due` or the turn changed nothing. Under Nothing: that it was not
+        Nothing where not `due` or the turn changed nothing (N1: unless the turn before still
+        failed - said again, `_still_failing`). Under Nothing: that it was not
         checked, and the last test run an agent made. A turn that never reached the gate: why."""
         if not due:
             return
@@ -1256,7 +1271,8 @@ class ProofMixin:
         if project is None or not (
             any(one.in_project for one in found) or (held is not None and held.unrecorded)
         ):
-            return []
+            # (N1: a turn that changed nothing at all - what still failed, said again)
+            return self._still_failing(session, run_id) if lead and project and not found else []
         waiting = self._waiting_rows(session, found)
         # (What the gate used where it ran: the recipe's row may have run again since.)
         checks = (

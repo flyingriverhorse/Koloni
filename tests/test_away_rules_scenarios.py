@@ -27,7 +27,7 @@ from tests.test_away_scenarios import (
     night,
     to_do,
 )
-from tests.test_backlog_auto import tasks, until
+from tests.test_backlog_auto import run_todo, tasks, until
 from tests.test_chat_flow import text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
 from tests.test_mcp_scenarios import give, server
@@ -181,33 +181,6 @@ def test_a_deleted_card_chat_leaves_a_job_chat_s_later_turn_working(
 
 
 # --- 4, 13: after the night nothing of it starts by itself; Try again is the user's ------------
-
-
-def test_after_a_stop_the_list_working_itself_starts_no_job_of_the_night(
-    make_client, wait_run, project_dir, gate
-):
-    client, _model, pid, cid, run_id = evening(
-        make_client, project_dir, [gate.step(text("never"))], plan={**PLAN, "until": "07:00"}
-    )
-    wait_run(client, cid, run_id)
-    assert client.put(f"/api/projects/{pid}/backlog/auto", json={"on": True}).status_code == 200
-    start(client, cid)
-    gate.wait_partial()
-    first = job_chat(client, pid)["messages"][0]["content"]
-    assert backlog.AWAY_JOB in first  # (a job of the night is told so)
-    client.app.state.triggers.tick(datetime.now(UTC) + timedelta(days=1))
-    ended(client, pid)
-    gate.release()
-    until(lambda: job_chat(client, pid)["runs"][0]["status"] != "running")
-    # the switch is on, the next task is todo: it stays the user's
-    assert tasks(client, pid)["two"]["conversation_id"] is None
-    # ...nor by Start the next: what became of it is the night's report's
-    assert client.post(f"/api/projects/{pid}/backlog/next").status_code == 409
-    client.post(f"/api/projects/{pid}/backlog", json={"title": "mine"})
-    started = client.post(f"/api/projects/{pid}/backlog/next")
-    assert started.json()["task_id"] == tasks(client, pid)["mine"]["id"]
-    said = client.get(f"/api/conversations/{started.json()['conversation_id']}").json()
-    assert backlog.AWAY_JOB not in said["messages"][0]["content"]
 
 
 def test_try_again_is_a_turn_of_the_user_s_and_not_while_one_is_at_work(
@@ -493,7 +466,7 @@ def test_go_away_waits_for_a_task_at_work_and_puts_away_the_offers(
     )
     wait_run(client, cid, run_id)
     client.post(f"/api/projects/{pid}/backlog", json={"title": "by hand"})
-    assert client.post(f"/api/projects/{pid}/backlog/next").status_code == 200
+    assert run_todo(client, pid)["task_id"] is not None
     gate.wait_partial()
     refused = go_away(client, cid)
     assert refused.status_code == 409 and "is being worked on" in refused.json()["detail"]

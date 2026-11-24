@@ -1,37 +1,69 @@
-"""Slice 52's backlog working itself (the user, 22 Oct: "if a task list is created, the product
-owner could start by itself"): the page's switch, the next task started when one's turn ends,
-what stops it and says why, two tasks at work at a time (K-symphony; one here where a test is
-about what holds a place), and the Scout's view written when a task's turn
-ends."""
+"""A To-do task's turn (0.1.8: in a chat's queue, `do-in-chat`): the Scout's view written when it
+ends - and what the other test files use to start tasks: `run_todo` gives each task to do a new
+chat of its own, as Run the backlog did before it went (0.1.8)."""
 
 import time
 
 from sqlalchemy import select
 
 from app import agent, backlog, earlier
-from app.agent import recover_interrupted
-from app.db.models import BacklogTask, OwnRequest, Project, Run
+from app.db.models import OwnRequest
 from tests.test_agent_writes import edit, wait_status
-from tests.test_backlog import setup
+from tests.test_backlog import run_todo, setup
 from tests.test_chat_flow import text
-from tests.test_spawn import call, spawn, step
+from tests.test_spawn import call, step
 from tests.test_team import team  # noqa: F401  (a fixture)
 from tests.test_tier_scenarios import tiered
+
+OWN = {"Origin": "http://127.0.0.1:8790"}
 
 
 def tasks(client, pid):
     return {t["title"]: t for t in client.get(f"/api/projects/{pid}/backlog").json()}
 
 
-def auto(client, pid, on, **headers):
-    return client.put(f"/api/projects/{pid}/backlog/auto", json={"on": on}, headers=headers)
+def auto(client, pid, on=True, **_headers):
+    """(Runs by itself went in 0.1.8.) The tasks to do go into one new chat, one after another,
+    at the level `full_auto` set; the chat's id."""
+    if not on:
+        return None
+    ids = [
+        one["id"]
+        for one in client.get(f"/api/projects/{pid}/backlog").json()
+        if one["status"] == "todo" and one["place"] is None
+    ]
+    cid = None
+    if mode := getattr(client, "todo_mode", None):
+        cid = client.post(f"/api/projects/{pid}/conversations", headers=OWN).json()["id"]
+        client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode}, headers=OWN)
+    answer = client.post(
+        f"/api/projects/{pid}/backlog/do-in-chat",
+        json={"task_ids": ids, "conversation_id": cid},
+        headers=OWN,
+    )
+    return answer.json().get("conversation_id")
+
+
+def full_auto(client, pid, **_more):
+    """The chats `run_todo` makes start at Full auto (the To-do page's level went in 0.1.8)."""
+    client.todo_mode = "full_auto"
 
 
 def worked(client, wait_run, pid, title):
-    """Wait for the turn of a task that was started, and return the task as it is then."""
-    cid = tasks(client, pid)[title]["conversation_id"]
-    snap = client.get(f"/api/conversations/{cid}").json()
-    wait_run(client, cid, snap["runs"][0]["id"])
+    """Wait for the first turn of a task that was started, and return the task as it is then."""
+    task = until(lambda: (t := tasks(client, pid)[title])["conversation_id"] and t)
+    cid = task["conversation_id"]
+    first = until(
+        lambda: next(
+            (
+                r
+                for r in client.get(f"/api/conversations/{cid}").json()["runs"]
+                if r["task_id"] == task["id"]
+            ),
+            None,
+        )
+    )
+    wait_run(client, cid, first["id"])
     return tasks(client, pid)[title]
 
 
@@ -45,96 +77,6 @@ def until(check, seconds=20.0):
     return seen
 
 
-def test_the_switch_starts_the_next_task_and_each_end_starts_the_one_after(
-    make_client, wait_run, project_dir
-):
-    client, _model = make_client([text("one done"), text("two done")])
-    pid, _ = setup(client, project_dir, "one", "two")
-    assert (
-        client.get(f"/api/projects/{pid}/backlog/auto").json().items()
-        >= {"on": False, "halt": None}.items()
-    )
-    # from the app's own page only
-    assert auto(client, pid, True, Origin="http://evil.example").status_code == 403
-    assert tasks(client, pid)["one"]["status"] == "todo"
-    assert auto(client, pid, True).json().items() >= {"on": True, "halt": None}.items()
-    assert tasks(client, pid)["one"]["conversation_id"]  # at once: none was doing
-    assert worked(client, wait_run, pid, "one")["status"] == "review"
-    # the turn ended: the next starts by itself, in a conversation of its own
-    until(lambda: tasks(client, pid)["two"]["conversation_id"])
-    two = worked(client, wait_run, pid, "two")
-    assert (
-        two["status"] == "review"
-        and two["conversation_id"] != tasks(client, pid)["one"]["conversation_id"]
-    )
-    # no fast model to ask: no view is made up
-    assert all(t["assessment"] is None for t in tasks(client, pid).values())
-    # none left: it stays on, for a task added later
-    assert (
-        client.get(f"/api/projects/{pid}/backlog/auto").json().items()
-        >= {"on": True, "halt": None}.items()
-    )
-
-
-def test_two_tasks_at_a_time_the_rest_queue_and_a_task_put_back_waits_for_the_button(
-    make_client, wait_run, project_dir, gate
-):
-    client, _model = make_client([gate.step(text("done")), gate.step(text("done")), text("done")])
-    pid, _ = setup(client, project_dir, "one", "two", "three")
-    auto(client, pid, True)
-    assert backlog.MAX_PARALLEL == 2
-    assert [tasks(client, pid)[t]["status"] for t in ("one", "two", "three")] == [
-        "doing",
-        "doing",
-        "todo",
-    ]
-    # the button with no room: the rest are queued, none started beside the two
-    answer = client.post(f"/api/projects/{pid}/backlog/next")
-    assert answer.json() == {"task_id": None, "conversation_id": None}
-    assert tasks(client, pid)["three"]["queued"] and tasks(client, pid)["three"]["status"] == "todo"
-    gate.release()
-    worked(client, wait_run, pid, "one")
-    worked(client, wait_run, pid, "two")
-    until(lambda: tasks(client, pid)["three"]["conversation_id"])
-    assert worked(client, wait_run, pid, "three")["queued"] is False
-    # Not yet: back to todo - not started again by itself; its conversation may be wanted
-    one = tasks(client, pid)["one"]
-    client.patch(f"/api/backlog/{one['id']}", json={"status": "todo"})
-    assert tasks(client, pid)["one"] == {**one, "status": "todo"}
-
-
-def test_a_stopped_turn_stops_the_chain(make_client, wait_run, project_dir, gate, monkeypatch):
-    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
-    client, _model = make_client([gate.step(text("never"))])
-    pid, _ = setup(client, project_dir, "one", "two")
-    auto(client, pid, True)
-    gate.wait_partial()
-    cid = tasks(client, pid)["one"]["conversation_id"]
-    run_id = client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"]
-    client.post(f"/api/runs/{run_id}/cancel")
-    wait_run(client, cid, run_id)
-    assert (
-        client.get(f"/api/projects/{pid}/backlog/auto").json().items()
-        >= {"on": False, "halt": 'Stopped: the turn of "one" was stopped.'}.items()
-    )
-    assert tasks(client, pid)["two"]["status"] == "todo"
-
-
-def test_over_the_months_budget_nothing_starts_and_the_page_says_why(
-    make_client, project_dir, monkeypatch
-):
-    client, model = make_client([])
-    pid, _ = setup(client, project_dir, "one")
-    over = "over this month's budget (2.00 of 1.00 USD)"
-    monkeypatch.setattr(backlog, "over_budget", lambda session, project: over)
-    # paused, not off: the switch is on, and says why nothing starts
-    assert (
-        auto(client, pid, True).json().items()
-        >= {"on": True, "halt": f"Paused: the project is {over}."}.items()
-    )
-    assert tasks(client, pid)["one"]["status"] == "todo" and not model.calls
-
-
 def test_the_scout_assesses_a_task_when_its_turn_ends(team, wait_run, project_dir):  # noqa: F811
     client, _default, fast = team(
         [text("LEAD-ANSWER the form shows errors.")],
@@ -145,7 +87,7 @@ def test_the_scout_assesses_a_task_when_its_turn_ends(team, wait_run, project_di
     client.post(
         f"/api/projects/{pid}/backlog", json={"title": "login form", "criteria": "shows errors"}
     )
-    client.post(f"/api/projects/{pid}/backlog/next")
+    run_todo(client, pid)
     task = until(lambda: (t := tasks(client, pid)["login form"])["assessment"] and t)
     assert (task["status"], task["assessment"]) == (
         "review",
@@ -169,7 +111,7 @@ def test_the_scout_is_given_the_turns_changes(team, wait_run, project_dir, monke
     client.post(
         f"/api/projects/{pid}/backlog", json={"title": "greeting", "criteria": "says hello"}
     )
-    cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     change = wait_status(client, cid, "waiting_approval")["file_changes"][0]
     client.post(f"/api/file-changes/{change['id']}/approve")
     until(lambda: tasks(client, pid)["greeting"]["assessment"])
@@ -201,7 +143,7 @@ def test_the_view_is_given_what_a_coder_did_in_its_copy_once_it_is_taken_in(
     client.post(
         f"/api/projects/{pid}/backlog", json={"title": "greeting", "criteria": "says hello"}
     )
-    cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
 
     def asked():
         snap = client.get(f"/api/conversations/{cid}").json()
@@ -218,68 +160,13 @@ def test_the_view_is_given_what_a_coder_did_in_its_copy_once_it_is_taken_in(
     assert "+print('hello')" in given and "-print('hi')" in given
 
 
-def test_a_doing_task_moved_on_by_hand_holds_the_next_until_its_turn_ends(
-    make_client, wait_run, project_dir, gate, monkeypatch
-):
-    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
-    client, _model = make_client([gate.step(text("one done")), text("two done")])
-    pid, _ = setup(client, project_dir, "one", "two")
-    auto(client, pid, True)
-    gate.wait_partial()
-    client.patch(f"/api/backlog/{tasks(client, pid)['one']['id']}", json={"status": "done"})
-    # nothing is doing, but its conversation is still at work: no second turn beside it
-    assert tasks(client, pid)["two"]["conversation_id"] is None
-    assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] is None  # queued
-    gate.release()
-    worked(client, wait_run, pid, "one")
-    until(lambda: tasks(client, pid)["two"]["conversation_id"])
-    assert worked(client, wait_run, pid, "two")["status"] == "review"
-    assert tasks(client, pid)["one"]["status"] == "done"
-
-
-def test_the_budget_spent_by_a_turn_stops_the_next_one(
-    make_client, wait_run, project_dir, gate, monkeypatch
-):
-    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
-    client, _model = make_client([gate.step(text("one done"))])
-    pid, _ = setup(client, project_dir, "one", "two")
-    spent = {"over": None}
-    monkeypatch.setattr(backlog, "over_budget", lambda session, project: spent["over"])
-    auto(client, pid, True)
-    gate.wait_partial()
-    spent["over"] = "over this month's budget (2.00 of 1.00 USD)"
-    gate.release()
-    worked(client, wait_run, pid, "one")
-    assert until(lambda: client.get(f"/api/projects/{pid}/backlog/auto").json()["halt"]) == (
-        "Paused: the project is over this month's budget (2.00 of 1.00 USD)."
-    )
-    assert tasks(client, pid)["two"]["conversation_id"] is None
-
-
-def test_a_restart_stops_the_chain_and_says_so(client, project_dir):
-    pid, (task_id,) = setup(client, project_dir, "work")
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    factory = client.app.state.session_factory
-    with factory() as session:
-        session.add(Run(conversation_id=cid, status="running"))
-        task = session.get_one(BacklogTask, task_id)
-        task.status, task.conversation_id = "doing", cid
-        session.get_one(Project, pid).backlog_auto = True
-        session.commit()
-    recover_interrupted(factory)
-    assert (
-        client.get(f"/api/projects/{pid}/backlog/auto").json().items()
-        >= {"on": False, "halt": 'Stopped: the turn of "work" was cut short by a restart.'}.items()
-    )
-
-
 def test_no_view_when_the_assessment_takes_too_long(team, wait_run, project_dir, gate, monkeypatch):  # noqa: F811
     monkeypatch.setattr(earlier, "SUMMARISER_SECONDS", 0.05)
     client, _default, _fast = team([text("done")], [gate.step(text("a late view"))])
     tiered(team, client)
     pid, _ = setup(client, project_dir)
     client.post(f"/api/projects/{pid}/backlog", json={"title": "login form"})
-    client.post(f"/api/projects/{pid}/backlog/next")
+    run_todo(client, pid)
     worked(client, wait_run, pid, "login form")
 
     def cut_short():
@@ -288,39 +175,6 @@ def test_no_view_when_the_assessment_takes_too_long(team, wait_run, project_dir,
 
     until(cut_short)  # sent, and not heard out: on record all the same
     assert tasks(client, pid)["login form"]["assessment"] is None
-
-
-def test_a_turn_waiting_for_the_users_word_holds_the_chain(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)  # (its place is held)
-    # (the Lead hands code on: its Coder's edit waits at the conversation's own level, ask)
-    client, _model = make_client(
-        {"Lead": [spawn("Coder"), text("changed it")], "Coder": [edit(), text("edited")]}
-    )
-    pid, _ = setup(client, project_dir, "one", "two")
-    auto(client, pid, True)
-    cid = tasks(client, pid)["one"]["conversation_id"]
-    snap = wait_status(client, cid, "waiting_approval")
-    time.sleep(0.2)
-    # what waits for the user's word is waited for: the next does not start beside it
-    assert (tasks(client, pid)["one"]["status"], tasks(client, pid)["one"]["waiting"]) == (
-        "doing",
-        True,
-    )
-    assert tasks(client, pid)["two"]["conversation_id"] is None
-    # the chat list says so too (K-backlog-sohbet)
-    listed = {c["id"]: c for c in client.get(f"/api/projects/{pid}/conversations").json()}
-    assert listed[cid]["backlog_task"] == {
-        "id": tasks(client, pid)["one"]["id"],
-        "status": "doing",
-        "waiting": True,
-    }
-    client.post(f"/api/runs/{snap['runs'][0]['id']}/cancel")
-    wait_run(client, cid, snap["runs"][0]["id"])
-    assert client.get(f"/api/projects/{pid}/backlog/auto").json()["halt"] == (
-        'Stopped: the turn of "one" was stopped.'
-    )
 
 
 def test_the_backlog_knows_when_a_turn_is_over_as_the_runner_does():

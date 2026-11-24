@@ -183,7 +183,8 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   // (Its test runs - not S5b's live try's (`TRY_CALL`): a tool's --help, a preview; its spawns are S3's Reviewers and S5b's Tester.)
   const calls = own.filter(c => c.name === 'run_command' && !c.provider_call_id.startsWith(TRY_CALL))
   const checked = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
-  if (!lead || (!own.length && !checked)) return null
+  // (N1: a turn that changed nothing, its turn before's failing lines said again - no check ran in it: no node.)
+  if (!lead || (!own.length && !checked) || checked?.checked?.[0]?.kind === 'unchanged') return null
   // (Off for this chat, or After a change at Nothing: KOLONİ checked nothing - no node, as no check ran.)
   const off = checked?.checked?.find(row => row.kind in OFF_STRIPS)
   if (off) return notChecked(nodes, lead.id, OFF_STRIPS[off.kind])

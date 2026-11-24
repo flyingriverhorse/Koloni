@@ -17,6 +17,8 @@ async function removeAgy(request: APIRequestContext) {
 test.describe('with the agy CLI as a provider that only reads', () => {
   test.beforeEach(async ({ page, request }) => {
     await removeAgy(request)
+    // agy is offered only with experimental CLIs shown (0.1.8): on for this spec, off after it.
+    await request.put('/api/experimental-clis', { data: { show: true }, headers: OWN })
     await openFreshConversation(page)
     await page.getByRole('button', { name: 'Models', exact: true }).click()
     await page.getByRole('button', { name: /Add a provider/ }).click()
@@ -32,6 +34,7 @@ test.describe('with the agy CLI as a provider that only reads', () => {
 
   test.afterEach(async ({ request }) => {
     await removeAgy(request)
+    await request.put('/api/experimental-clis', { data: { show: false }, headers: OWN })
   })
 
   test('a turn at the ask level: what it read is its own tool, and what it was refused is not done', async ({

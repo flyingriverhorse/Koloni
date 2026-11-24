@@ -269,7 +269,7 @@ def test_reads_are_counted_up_to_the_first_write_of_koloni_or_of_the_cli(make_cl
         )
         session.commit()
         assert handoff.rediscovery(session, agent.id) == 1
-    # whose reads are seen: an API model, Claude Code and Qoder; not Codex, Copilot or agy
+    # whose reads are seen: an API model and Claude Code; not Codex, Copilot or agy
     assert handoff.counted_on(SimpleNamespace()) and handoff.counted_on(
         SimpleNamespace(native=True, command="claude")
     )

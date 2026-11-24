@@ -1584,7 +1584,7 @@ def test_own_setup_is_a_setting_of_claude_code_only_and_reaches_its_native_clien
             check_options("claude_cli", {"own_setup": bad}, False)
     with pytest.raises(ValueError, match="unknown setting"):
         check_options("claude_cli", {"own_setup": True, "offline": True}, False)
-    for kind in ("openai_compat", "codex_cli", "qoder_cli", "agy_cli", "anthropic", "copilot_cli"):
+    for kind in ("openai_compat", "codex_cli", "agy_cli", "anthropic", "copilot_cli"):
         with pytest.raises(ValueError):
             check_options(kind, {"own_setup": True}, False)
 

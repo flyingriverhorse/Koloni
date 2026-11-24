@@ -32,7 +32,7 @@ from app.main import create_app
 from app.model_cli import ClaudeCliClient, CodexCliClient
 from app.model_client import ModelUnavailable, OwnStop, _describe
 from app.model_native import ClaudeNativeClient
-from app.model_session import ClaudeSessionClient, CopilotSessionClient, QoderSessionClient
+from app.model_session import ClaudeSessionClient, CopilotSessionClient
 from app.providers import Providers
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
@@ -416,7 +416,6 @@ def test_only_claude_codes_clients_keep_what_they_say(settings):
         ("claude_cli", "session", ClaudeSessionClient),
         ("claude_cli", "step", ClaudeCliClient),
         ("claude_cli", "native", ClaudeNativeClient),
-        ("qoder_cli", "session", QoderSessionClient),
         ("codex_cli", "step", CodexCliClient),
     ]:
         client = providers._build(Provider(id="p1", name="x", kind=kind, mode=mode), None)
@@ -834,7 +833,7 @@ async def test_what_a_cli_says_in_its_result_is_classed_only_where_it_is_its_own
         ),
         encoding="utf-8",
     )
-    for built, failure in [(ClaudeSessionClient, "other"), (QoderSessionClient, "other")]:
+    for built, failure in [(ClaudeSessionClient, "other")]:
         with pytest.raises(ModelUnavailable, match="5-hour limit reached") as failed:
             await run_session(
                 built(timeout=20, launcher=FAKE_SESSION, env={"FAKE_CLI_PLAN": str(plan)})

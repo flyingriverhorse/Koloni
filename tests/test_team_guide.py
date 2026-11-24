@@ -489,7 +489,6 @@ def test_the_guide_lists_only_what_the_user_ticked():
         ("claude_cli", "session", "as a session, KOLONİ's tools"),
         ("claude_cli", None, "as a session, KOLONİ's tools"),
         ("claude_cli", "native", "with its own tools, asks first"),
-        ("qoder_cli", "session", "as a session, KOLONİ's tools"),
         ("codex_cli", None, "as a session, KOLONİ's tools"),
         ("codex_cli", "step", "one step at a time"),
         ("codex_cli", "session", "as a session, KOLONİ's tools"),

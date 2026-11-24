@@ -293,11 +293,9 @@ test('the "How it runs" line itself says what each native CLI asks before', asyn
   unmount()
   // Since 89a/89c Codex and Copilot ask too (B-43), each before what it asks about
   const codex = provider({ id: 'cx', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'native' })
-  const qoder = provider({ id: 'qd', name: 'Qoder', kind: 'qoder_cli', base_url: null, mode: 'native' })
   for (const [other, said] of [
     [codex, 'asks before each command and patch, but not those its own rules count as safe'],
     [copilot, 'asks before each command, write and read'],
-    [qoder, "stops before it acts on the versions measured so far: they do not apply KOLONİ's hook"],
   ] as const) {
     const shown = render(
       <ModelsPage providers={[provider({ ...other, mode: 'native' }), provider({})]} picked={other.id} {...handlers} />,
@@ -305,17 +303,6 @@ test('the "How it runs" line itself says what each native CLI asks before', asyn
     expect(options().at(-1)).toBe(`Native: its own tools, in the project; ${said}`)
     shown.unmount()
   }
-})
-
-test('Qoder natively says the versions measured so far stop before they act, and what is not measured', () => {
-  const qoder = provider({ id: 'qd', name: 'Qoder', kind: 'qoder_cli', base_url: null, mode: 'native' })
-  render(<ModelsPage providers={[qoder, provider({})]} picked="qd" {...handlers} />)
-  const note = screen.getByText(/Native: the Qoder versions measured so far do not apply KOLONİ's hook/)
-  expect(note).toHaveTextContent('a native turn stops before Qoder does anything and says to run it as a session')
-  expect(note).toHaveTextContent('A Qoder that applies the hook passes that check')
-  expect(note).toHaveTextContent('is not measured')
-  expect(note).not.toHaveTextContent('after that one tool has run')
-  expect(note).not.toHaveTextContent('without your own Qoder settings')
 })
 
 test('a Copilot test on a GitHub account says its sign-in was asked, not that it was not checked', async () => {

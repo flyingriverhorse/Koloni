@@ -1,6 +1,6 @@
 """Stop everything (K-hepsini-durdur): one Stop for every turn of every chat, each as its own
 Stop does (`runs.stop`) - a night's job as its Stop all cuts it (`away.stop`); and what
-starts by itself - triggers, a backlog that works itself, a night's next job - waits until
+starts by itself - triggers, a chat's queue of To-do tasks, a night's next job - waits until
 Resume (`backlog.held`). The user's own messages are not held: what the user sends still starts.
 The hold is a row of `flags`, so it outlives a restart with no table of its own.
 shortcut: KOLONİ's own model calls after a turn that ended (a task's assessment, the note of
@@ -12,7 +12,7 @@ import contextlib
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import away, backlog
@@ -91,7 +91,18 @@ def _state(session: Session) -> dict:
         "triggers": session.scalar(
             select(func.count()).select_from(Trigger).where(Trigger.enabled)
         ),
-        "backlogs": list(session.scalars(select(Project.name).where(Project.backlog_auto))),
+        # (0.1.8: the projects with To-do tasks waiting in a chat's queue - they wait for Resume.)
+        "backlogs": sorted(
+            {
+                name
+                for name, flow in session.execute(
+                    select(Project.name, BacklogTask.flow)
+                    .join(BacklogTask, BacklogTask.project_id == Project.id)
+                    .where(BacklogTask.conversation_id.is_not(None))
+                )
+                if (flow or {}).get("place") is not None
+            }
+        ),
         "nights": list(
             session.scalars(
                 select(Project.name)
@@ -149,20 +160,13 @@ async def resume(request: Request, session: Session = Depends(get_session)):
         session.commit()
         state = request.app.state
         state.triggers.resumed(now())
-        # (A run of the backlog: by itself, or what Run the backlog queued, or a fix round due.)
+        # (The chats' queues of To-do tasks: their next task, or a fix round due.)
         for project_id in session.scalars(
-            select(Project.id).where(
-                or_(
-                    Project.backlog_auto,
-                    Project.id.in_(
-                        select(BacklogTask.project_id).where(
-                            BacklogTask.status.in_(("todo", "doing"))
-                        )
-                    ),
-                )
-            )
+            select(BacklogTask.project_id)
+            .where(BacklogTask.conversation_id.is_not(None), BacklogTask.away_run_id.is_(None))
+            .distinct()
         ).all():
-            if backlog.chain(session, project_id, state.bus, state.runner.start):
+            if backlog.go_on(session, project_id, state.bus, state.runner.start):
                 _told(request, project_id)
         for project_id in session.scalars(
             select(AwayRun.project_id).where(AwayRun.status == "running")

@@ -77,7 +77,7 @@ JOB_TOO_LONG = (
     "Stopped after {hours} hour{s}, the most one job works: what it did is kept in its copy."
 )
 CLOSED = "Stopped: KOLONİ was closed while you were away."
-# What starts no other work while the user is away (Run the backlog, Try again).
+# What starts no other work while the user is away (Try again; a chat's To-do queue waits).
 AWAY_NOW = "You're away from this project: press I'm back first"
 KEPT_OUT = (
     "{path} is kept out: the user asked that nothing touches it while they are away. "
@@ -238,7 +238,7 @@ def go(session: Session, conversation: Conversation, given: dict, runner) -> Awa
         raise Refused("you're away from this project already")
     if backlog.held(session):
         raise Refused("everything is held (Stop everything): Resume first")
-    if why := backlog.busy(session, project_id, waiting=True):
+    if why := busy(session, project_id, waiting=True):
         raise Refused(f"{why}: go away once nothing of the To-do list is at work")
     run_id = session.scalar(
         select(Run.id)
@@ -489,6 +489,72 @@ def _cut_over(session: Session, working: list[BacklogTask], runner, at: datetime
                 runner.cut(run_id, why)
 
 
+def busy(session: Session, project_id: str, waiting: bool = False) -> str | None:
+    """Why no task of the backlog starts now - one is doing, or a task's own turn is still at
+    work (its task moved on by hand while its turn runs), or the project works while the user
+    is away (`away`, `app.away`) - or None: what a night waits for.
+    `waiting`: a task whose turn waits for the user's word (a yes, an answer) is not at work
+    (B-147: an earlier night's job waiting for an approval held a new night off for good)."""
+    if backlog.away(session, project_id):
+        return "you're away from this project"
+    ended = (*backlog.ENDED, "waiting_approval") if waiting else backlog.ENDED
+    at_work = session.scalar(
+        select(BacklogTask.title)
+        .join(Run, Run.task_id == BacklogTask.id)
+        .where(BacklogTask.project_id == project_id, Run.status.not_in(ended))
+        .limit(1)
+    )
+    if waiting and at_work is None:
+        # (One agent waits for the user while another of the turn still works: at work. An agent
+        # that asks stays "running" on record: the one with nothing open before the user works.)
+        # shortcut: a question, a command, a change or a web request open - an agent to open or
+        # a role asked for is not counted; add those if a wait on them is seen held as work.
+        for title, run_id in session.execute(
+            select(BacklogTask.title, Run.id)
+            .join(Run, Run.task_id == BacklogTask.id)
+            .where(BacklogTask.project_id == project_id, Run.status == "waiting_approval")
+        ):
+            asking = {
+                *session.scalars(
+                    select(Question.agent_id).where(
+                        Question.run_id == run_id, Question.status == "pending"
+                    )
+                ),
+                *session.scalars(
+                    select(Command.agent_id).where(
+                        Command.run_id == run_id, Command.status == "proposed"
+                    )
+                ),
+                *session.scalars(
+                    select(FileChange.agent_id).where(
+                        FileChange.run_id == run_id, FileChange.status == "proposed"
+                    )
+                ),
+                *session.scalars(
+                    select(WebRequest.agent_id).where(
+                        WebRequest.run_id == run_id, WebRequest.status == "proposed"
+                    )
+                ),
+            }
+            if session.scalar(
+                select(Agent.id)
+                .where(Agent.run_id == run_id, Agent.status == "running", Agent.id.not_in(asking))
+                .limit(1)
+            ):
+                at_work = title
+                break
+    task = backlog.doing(session, project_id)
+    waits = waiting and task is not None and at_work is None
+    if task is not None and not (
+        waits
+        and session.scalar(
+            select(Run.id).where(Run.task_id == task.id, Run.status == "waiting_approval").limit(1)
+        )
+    ):
+        return f"{task.title!r} is being worked on"
+    return f"the conversation of {at_work!r} is at work" if at_work else None
+
+
 def go_on(session: Session, project_id: str, runner, at: datetime | None = None) -> bool:
     """Where the project is away and no job of it is at work: the next job starts - a new
     one, or one that failed once, again in its chat - or the night ends: every job looked
@@ -531,6 +597,7 @@ def go_on(session: Session, project_id: str, runner, at: datetime | None = None)
                 RETRY.format(why=ENDED.get(error, error) or "no reason given"),
                 runner.bus,
                 runner.start,
+                task_id=task.id,
             )
         return True
     except Exception:
@@ -581,9 +648,9 @@ _told_looked_at: set[str] = set()
 
 
 def _start(session: Session, away: AwayRun, task: BacklogTask, runner) -> None:
-    """A job in a new chat: as the chat gone from - its model, its level where the To-do page's
-    is not lower (the chat's rules hold tonight too; what nobody watching may do unasked is held
-    to, `AgentRunner._night_asks`) - with the teams the user picked there. Who changes the
+    """A job in a new chat: as the chat gone from - its model and its level (0.1.8: the chat's
+    rules hold tonight too; what nobody watching may do unasked is held to,
+    `AgentRunner._night_asks`) - with the teams the user picked there. Who changes the
     files and the rest of its sub-agent settings are the project's, as any chat's
     (`settings_of`, `lead_work_of`)."""
     job = next(job for job in away.jobs if job.get("task_id") == task.id)
@@ -596,8 +663,7 @@ def _start(session: Session, away: AwayRun, task: BacklogTask, runner) -> None:
     )
 
     def shape(chat: Conversation) -> None:
-        # (The lower of the chat gone from's level and the To-do page's, `backlog.start`'s.)
-        chat.permission_mode = min(chat.permission_mode, evening.permission_mode, key=LEVELS.index)
+        chat.permission_mode = evening.permission_mode
         chat.provider_id, chat.model_id = evening.provider_id, evening.model_id
         if team is not None:
             chat.teams_mode = "manual"
@@ -1024,6 +1090,8 @@ def end(session: Session, away: AwayRun, why: str | None, runner) -> None:
     runner.bus.emit(away.conversation_id, None, "message.created", message_out(message))
     if note:
         send(note)
+    # (The chats' queues of To-do tasks waited while the user was away: they go on now.)
+    backlog.go_on(session, away.project_id, runner.bus, runner.start)
 
 
 def send(note: tuple) -> None:

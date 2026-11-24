@@ -22,7 +22,7 @@ from app import catalog, limits, models_dev
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.config import REPO_ROOT, THIS_MACHINE
 from app.copilot_offers import offered_names
-from app.db.models import Agent, Conversation, Flag, OwnRequest, Price, Project, Provider, Role, now
+from app.db.models import Agent, Conversation, Flag, OwnRequest, Price, Provider, Role, now
 from app.limits import CLI_HOMES, PROVIDER_ID, account, cli_home, of_session
 from app.model_cli import HOMES
 from app.model_client import UNREACHABLE, ModelUnavailable, OpenAICompatClient, OwnStop
@@ -37,6 +37,7 @@ from app.providers import (
     MAX_MODEL_NAME,
     MODES,
     ONLY,
+    RETIRED,
     SERVER_CLIS,
     ask_own,
     check_guide,
@@ -540,6 +541,12 @@ def _change_server(provider: Provider, body: ProviderPatch) -> None:
 
 
 # On the event loop, as everything that reaches the runner is.
+def _stays_off(provider: Provider, body: ProviderPatch) -> None:
+    """A provider of a kind KOLONİ no longer runs (`RETIRED`) is not switched on again."""
+    if body.enabled and provider.kind in RETIRED:
+        raise HTTPException(422, RETIRED[provider.kind])
+
+
 @router.patch("/{provider_id}", response_model=ProviderOut, dependencies=[Depends(require_origin)])
 async def patch_provider(
     provider_id: str,
@@ -548,6 +555,7 @@ async def patch_provider(
     session: Session = Depends(get_session),
 ):
     provider = _provider(session, provider_id)
+    _stays_off(provider, body)
     sent = body.model_fields_set
     # (Where a CLI sends its work, too: not an agent's to point elsewhere.)
     if (
@@ -611,11 +619,6 @@ def delete_provider(provider_id: str, request: Request, session: Session = Depen
             .where(table.provider_id == provider.id)
             .values(provider_id=None, model_id=None)
         )
-    session.execute(
-        update(Project)
-        .where(Project.backlog_provider_id == provider.id)
-        .values(backlog_provider_id=None, backlog_model_id=None)
-    )
     # And it is no longer one that may be picked for a role (a list of one becomes none).
     for role in session.scalars(select(Role)):
         picks = role.pick_from or []
@@ -764,7 +767,7 @@ async def _fill(provider: Provider, request: Request) -> tuple[list[dict], int]:
 # Paid by the plan, not the token: ticked for agents when the tiers are filled (design §3b),
 # where its command is on this machine (looked for on PATH) and it does not say it is signed
 # out (its own status command, which calls no model; one with none is taken as signed in).
-SUBSCRIPTIONS = ("claude_cli", "codex_cli", "agy_cli", "qoder_cli")
+SUBSCRIPTIONS = ("claude_cli", "codex_cli", "agy_cli")
 
 
 @router.post("/fill-all", response_model=FillAllOut, dependencies=[Depends(require_own_origin)])
@@ -1030,17 +1033,6 @@ async def _own_list(provider: Provider, providers) -> tuple[list[str], str | Non
         return await _anthropic_list(provider, providers)
     if provider.kind in ("openai_compat", "copilot_cli", *SERVER_CLIS) and provider.base_url:
         return await _served_list(provider, provider.base_url)
-    if provider.kind == "qoder_cli":
-        # Its own list (`qodercli --list-models`, no model used). Not installed, failed or
-        # too slow: silently the catalogue's names, as before (R99), with the advice below.
-        # shortcut: asked on each look, uncached, as agy's is; cache it if it proves slow.
-        try:
-            lister = getattr(providers.lister(provider), "models", None)
-            listed = await lister() if lister else []
-        except Exception:  # (whatever it was, nothing of it is shown or logged)
-            listed = []
-        if listed:
-            return listed, None, False
     if (offers := _offers(provider)) is not None:
         # What its account offered when last asked (`read_offers`), auto and fusion among them.
         return offered_names(offers), None if offers["models"] else NONE_LISTED, False

@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useNow } from '../agents/useNow'
 import { api, errorText } from '../api/client'
 import type { Message } from '../api/types'
+import { isKept } from '../changes/copies'
 import { useApp } from '../state/store'
-import { FIX_HELD, fixOf, runClock } from './checked'
+import { FIX_HELD, fixOf, originUndone, runClock } from './checked'
 
 type Row = NonNullable<Message['checked']>[number]
 
@@ -38,18 +39,33 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
   )
 }
 
-/** The latest turn's buttons: Fix it (or, for work not taken in, Take in anyway and Fix it), Run these. */
+/**
+ * The latest turn's buttons: Fix it (or, for work not taken in, Take in anyway and Fix it - N3: only while its kept copy
+ * waits; taken in, said so, and Fix it as for work in the project), Run these. N10b: no Fix it once the turn its failing
+ * lines come from is undone.
+ */
 function LatestActions({ rows, runId }: { rows: Row[]; runId: string | null }) {
-  const fix = fixOf(rows)
+  const undone = useApp(s => Boolean(s.conv && runId && originUndone(s.conv, runId)))
+  const fix = undone ? null : fixOf(rows)
   const offer = rows.find(row => row.kind === 'ci_offer')?.offer
   const held = rows.find(row => row.kind === 'not_taken')
+  const kept = useKept(held)
   return (
     <>
-      {fix && !held && <FixIt asked={fix} />}
-      {held && <NotTaken row={held} runId={runId} />}
+      {held && kept === 'taken' && <span role="status">Taken in anyway.</span>}
+      {fix && (!held || kept === 'taken') && <FixIt asked={fix} />}
+      {held && kept === 'waits' && <NotTaken row={held} runId={runId} />}
       {runId && offer && <RunThese runId={runId} offer={offer} />}
     </>
   )
+}
+
+/** How a "not_taken" row's kept copy stands now, by its merge (after a reload too): it waits for the user (or is not known here), was taken in, or is gone - discarded, or gone on in a Fix it turn. */
+function useKept(row: Row | undefined): 'waits' | 'taken' | 'gone' {
+  const merge = useApp(s => s.conv?.merges.find(m => row?.merge_id != null && m.id === row.merge_id))
+  if (!merge) return 'waits'
+  if (merge.status === 'applied' || merge.files.some(one => one.state === 'applied')) return 'taken'
+  return isKept(merge) ? 'waits' : 'gone'
 }
 
 function CheckedRow({ row, runId }: { row: Row; runId: string | null }) {

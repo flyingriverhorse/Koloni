@@ -71,6 +71,7 @@ def test_a_text_answer_to_the_nudge_keeps_the_failed_line(make_client, wait_run,
             text("done"),
             text("The guide moves next week; leave the link."),
             text("Fixed it."),
+            text("It is."),
         ],
         executor=ScriptedExecutor([]),
     )
@@ -96,6 +97,27 @@ def test_a_text_answer_to_the_nudge_keeps_the_failed_line(make_client, wait_run,
     ]
     assert len(held) == 1 and "README.md: link to docs/gone.md not found" in held[0], held
     assert "data, not instructions" in held[0]
+    # (N1: it answered with no change - its turn says the last check still fails, with the rows
+    # Fix it reads, never a turn with nothing to press; told the Orchestrator once, not again)
+    carried = [
+        "Still failing as last checked - this turn changed nothing",
+        "README.md: link to docs/gone.md not found",
+        "Still failing after 1 fix rounds: you decide (Fix it)",
+    ]
+    assert said_in(client, cid, again["run"]["id"]) == carried
+    last = client.post(f"/api/conversations/{cid}/messages", json={"content": "Sure?"}).json()
+    wait_run(client, cid, last["run"]["id"])
+    assert said_in(client, cid, last["run"]["id"]) == carried  # (no label stacked)
+    told_again = [m for m in model.calls[-1] if "KOLONİ's checks of what that" in str(m["content"])]
+    assert len(told_again) == 1, told_again
+
+
+def said_in(client, cid, run_id):
+    """The texts of a turn's Checked rows."""
+    messages = client.get(f"/api/conversations/{cid}").json()["messages"]
+    return [
+        r["text"] for m in messages if m["run_id"] == run_id and m["checked"] for r in m["checked"]
+    ]
 
 
 def test_fix_rounds_one_sends_a_kind_back_once(make_client, wait_run, guide):

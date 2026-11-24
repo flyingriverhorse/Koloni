@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import { api } from '../api/client'
@@ -79,25 +79,27 @@ function server(rules: ChatRules[] = []) {
     async (path: string) =>
       (path === '/answer-in'
         ? { answer_in: null }
-        : path === '/folders'
-          ? { never: [] }
-          : path === '/storage'
-            ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null }
-            : path === '/compaction'
-              ? { compact_at: 75 }
-              : path === '/steps'
-                ? { max_steps: 25 }
-                : path === '/unattended'
-                  ? { stuck_minutes: 30, turn_hours: 8 }
-                  : path === '/knowledge-limits'
-                    ? { max_files: 50000, max_mb: 300 }
-                    : path === '/test-load'
-                      ? { runs_at_once: 1, workers: 2 }
-                      : path.endsWith('/allowed')
-                        ? rules
-                        : path.endsWith('/sites')
-                          ? []
-                          : { paths: [], more: 0, partial: false }) as never,
+        : path === '/experimental-clis'
+          ? { show: false }
+          : path === '/folders'
+            ? { never: [] }
+            : path === '/storage'
+              ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null }
+              : path === '/compaction'
+                ? { compact_at: 75 }
+                : path === '/steps'
+                  ? { max_steps: 25 }
+                  : path === '/unattended'
+                    ? { stuck_minutes: 30, turn_hours: 8 }
+                    : path === '/knowledge-limits'
+                      ? { max_files: 50000, max_mb: 300 }
+                      : path === '/test-load'
+                        ? { runs_at_once: 1, workers: 2 }
+                        : path.endsWith('/allowed')
+                          ? rules
+                          : path.endsWith('/sites')
+                            ? []
+                            : { paths: [], more: 0, partial: false }) as never,
   )
 }
 
@@ -128,6 +130,25 @@ test('Settings lists its levels in their order, This project › The app, each w
   expect(named('settings-level')).toEqual(['The app'])
   await userEvent.click(levels().getByRole('button', { name: 'Your data' }))
   expect(screen.getByRole('region', { name: 'Your data' })).toBeVisible()
+})
+
+test('Show experimental CLIs, ticked in The app › Agents, offers Let agy search too in This project at once', async () => {
+  server()
+  const put = vi.spyOn(api, 'put').mockImplementation(async (_path: string, body: unknown) => body as never)
+  render(<Settings {...base} project={project} onSave={vi.fn()} />)
+  await userEvent.click(levels().getByRole('button', { name: /^Memory and web/ }))
+  expect(screen.queryByLabelText(/^Let agy search too/)).toBeNull()
+  await userEvent.click(level('The app'))
+  const box = screen.getByRole('checkbox', { name: /^Show experimental CLIs/ })
+  await waitFor(() => expect(box).toBeEnabled())
+  expect(box).not.toBeChecked()
+  await userEvent.click(box)
+  expect(put).toHaveBeenCalledWith('/experimental-clis', { show: true })
+  expect(box).toBeChecked()
+  // (Settings keeps its levels mounted: the project's sections follow without opening it again.)
+  await userEvent.click(level('This project'))
+  await userEvent.click(levels().getByRole('button', { name: /^Memory and web/ }))
+  expect(await screen.findByLabelText(/^Let agy search too/)).toBeVisible()
 })
 
 test('a place asked for lands on its level and section, each time it is asked; the steps link goes between the two levels', async () => {

@@ -84,6 +84,8 @@ async def come_back(away_id: str, request: Request, session: Session = Depends(g
     said = away.back(session, card.project_id)
     if said is not None:
         request.app.state.bus.emit(card.conversation_id, None, "message.created", message_out(said))
+    state = request.app.state  # (the chats' To-do queues waited while the user was away)
+    backlog.go_on(session, card.project_id, state.bus, state.runner.start)
     _told(request, card.project_id)
     session.refresh(card)
     return away.report(session, card)
@@ -140,6 +142,7 @@ async def try_again(
         away.AGAIN,
         runner.bus,
         runner.start,
+        task_id=task.id,
     )
     _told(request, card.project_id)
     return away.report(session, card)

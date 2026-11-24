@@ -212,7 +212,9 @@ hit its [step limit](../agents/step-limits.md)), and on **Stop** or **Stop every
 its Take in card was already waiting for you. A card under
 **Ready to take in** offers **Take in** or **Discard**; nothing of it reaches your folder before that,
 at Full auto too. An agent told to go on gets that copy back. A copy with no changes is removed. A
-team's recipe and a job while you're away keep their copy on a Stop as well.
+team's recipe and a job while you're away keep their copy on a Stop as well. Every copy kept for your
+word, in any chat, is listed in Settings › The app › [Your data](../settings.md#your-data), with what it
+takes and **Discard**; KOLONİ deletes none unasked.
 
 The git button in the top bar ("⑂ main · 4 changed") opens **Where the work is**. It reads git and changes
 nothing but the branch you switch to. It has three parts, each saying in words how a piece of work stands:

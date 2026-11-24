@@ -44,7 +44,7 @@ def draft(client, pid, note=NOTE, **headers):
 def test_the_note_is_drafted_as_tasks_and_nothing_is_saved(make_client, project_dir):
     client, model = make_client([text(f"Here they are:\n```json\n{json.dumps(TASKS)}\n```")])
     pid, _ = setup(client, project_dir)
-    drafter = client.get(f"/api/projects/{pid}/backlog/auto").json()["drafter"]
+    drafter = client.get(f"/api/projects/{pid}/backlog/drafter").json()
     assert drafter["why"] is None and drafter["provider_id"]
     # A request the user pays for: from the app's own page only.
     assert draft(client, pid, Origin="http://evil.example").status_code == 403
@@ -110,7 +110,7 @@ def test_a_fast_model_writes_them_when_there_is_one(team, project_dir):  # noqa:
     client, default, fast = team([], [text(json.dumps(TASKS))])
     tiered(team, client)  # fast: Fast · quick
     pid, _ = setup(client, project_dir)
-    drafter = client.get(f"/api/projects/{pid}/backlog/auto").json()["drafter"]
+    drafter = client.get(f"/api/projects/{pid}/backlog/drafter").json()
     assert (drafter["provider_id"], drafter["model_id"]) == (team.providers["Fast"]["id"], "quick")
     drawn = draft(client, pid)
     assert drawn.status_code == 200, drawn.text
@@ -124,12 +124,12 @@ def test_with_no_model_or_over_the_budget_it_says_why(make_client, project_dir, 
     with client.app.state.session_factory() as session:
         session.execute(delete(models.Provider))
         session.commit()
-    why = client.get(f"/api/projects/{pid}/backlog/auto").json()["drafter"]["why"]
+    why = client.get(f"/api/projects/{pid}/backlog/drafter").json()["why"]
     assert why == "There is no model to ask: add a provider on the Models page."
     assert draft(client, pid).status_code == 409 and draft(client, pid).json()["detail"] == why
     over = "over this month's budget (2.00 of 1.00 USD)"
     monkeypatch.setattr(backlog_api, "over_month", lambda session, project: over)
-    assert client.get(f"/api/projects/{pid}/backlog/auto").json()["drafter"]["why"] == (
+    assert client.get(f"/api/projects/{pid}/backlog/drafter").json()["why"] == (
         f"This project is {over}."
     )
     assert draft(client, pid).json()["detail"] == f"This project is {over}."
@@ -181,8 +181,8 @@ def test_the_po_draft_asks_the_model_of_the_chat_it_is_opened_from(team, project
         local = session.query(models.Provider).filter_by(name="Local").one()
         looked_down(session)[local.id] = ("not answering", None)
     drafter = client.get(
-        f"/api/projects/{pid}/backlog/auto", params={"conversation_id": cid}
-    ).json()["drafter"]
+        f"/api/projects/{pid}/backlog/drafter", params={"conversation_id": cid}
+    ).json()
     assert (drafter["provider_id"], drafter["model_id"]) == (team.providers["Fast"]["id"], "deep")
     drawn = client.post(
         f"/api/projects/{pid}/backlog/draft", json={"text": NOTE, "conversation_id": cid}

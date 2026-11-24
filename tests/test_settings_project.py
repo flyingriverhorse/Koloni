@@ -3,7 +3,7 @@ and every chat of it follows them, one made before too; a chat with no project h
 a night's job follows the project, not the evening's chat; and what runs without asking in each
 chat is read in one list."""
 
-from app.db.models import AllowedCommand, AllowedWeb, Conversation, Project, lead_work_of
+from app.db.models import AllowedCommand, AllowedWeb, Conversation, lead_work_of
 from tests.test_away_scenarios import ended, evening, go_away
 from tests.test_chat_flow import text
 
@@ -108,11 +108,9 @@ def test_a_nights_job_follows_the_project_not_the_evenings_chat(make_client, wai
         client.get(f"/api/conversations/{jobs[0]}").json()["conversation"]["lead_work"]
         == "delegates"
     )
-    # The To-do page's own choice is its chats', a night's jobs too (K-r144).
+    # (0.1.8: no To-do page's choice any more - the project's, for a job's chat and any.)
     with client.app.state.session_factory() as session:
-        session.get_one(Project, pid).backlog_lead_work = "itself"
-        session.commit()
-        assert lead_work_of(session, session.get_one(Conversation, jobs[0])) == "itself"
+        assert lead_work_of(session, session.get_one(Conversation, jobs[0])) == "delegates"
         assert lead_work_of(session, session.get_one(Conversation, cid)) == "delegates"
 
 
@@ -198,24 +196,3 @@ def test_a_project_change_is_told_to_its_chats_open_pages(client, project_dir, m
     assert sorted((cid, kind, payload["spawn_max_parallel"]) for cid, kind, payload in told) == (
         sorted([(a, "conversation.updated", 5), (b, "conversation.updated", 5)])
     )
-
-
-def test_the_to_do_pages_lead_work_is_told_to_the_chats_too(client, project_dir, monkeypatch):
-    told = []
-    monkeypatch.setattr(
-        client.app.state.bus, "emit_transient", lambda cid, kind, payload: told.append((cid, kind))
-    )
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    chose = client.put(
-        f"/api/projects/{pid}/backlog/choice",
-        headers=OWN,
-        json={
-            "permission_mode": "ask",
-            "provider_id": None,
-            "model_id": None,
-            "lead_work": "itself",
-        },
-    )
-    assert chose.status_code == 200, chose.text
-    assert (cid, "conversation.updated") in told

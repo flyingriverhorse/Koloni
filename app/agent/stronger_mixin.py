@@ -445,9 +445,10 @@ class StrongerMixin:
             return
         self._copies[ctx.agent_id] = copy
         self._resumed[ctx.run_id] = ctx.agent_id
-        if held_run is not None:
-            self._resumed_from[ctx.run_id] = held_run
         self.bus.emit(ctx.cid, ctx.run_id, "merge.updated", payload)
+        if held_run is not None:  # (N3: its turn's line - its work waits in no Ready for you now)
+            self._resumed_from[ctx.run_id] = held_run
+            self._say_landed(ctx.cid, held_run, True, again=True)
 
     def _first_model(self: "AgentRunner", session, ctx: Ctx) -> tuple[str, str, str, str | None]:
         """The role whose work failed, the model it ran on and that model's tier: the newest

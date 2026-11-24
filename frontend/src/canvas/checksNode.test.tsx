@@ -421,6 +421,21 @@ test('a turn of a project whose After a change is Nothing: no node, and no strip
   expect(deriveGraph(state).nodes.some(node => node.kind === 'checks')).toBe(false)
 })
 
+test('N1: a turn that changed nothing, its turn before still failing said again - no check ran in it: no node', () => {
+  const nodes: GraphNode[] = [{ id: 'agent:r', kind: 'agent', runId: 'r', refId: 'r', data: {} as AgentData }]
+  const rows = [
+    row('note', 'Still failing as last checked - this turn changed nothing', { kind: 'unchanged' }),
+    row('failed', 'Tests failed: pytest -q - 1 failed', { command: 'pytest -q' }),
+  ]
+  const state = convState({
+    runs: [run('r', 'completed')],
+    agents: [agent('r', 'completed')],
+    messages: [checked(rows)],
+  })
+  expect(checksNode(state, run('r', 'completed'), nodes, [])).toBeNull()
+  expect((nodes[0].data as AgentData).checked).toBeUndefined()
+})
+
 test('the menu turns checks off for this chat - not where they are off already', async () => {
   const off = vi.fn().mockResolvedValue(undefined)
   const conv = convState({})

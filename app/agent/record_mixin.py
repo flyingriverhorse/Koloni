@@ -249,12 +249,12 @@ class RecordMixin:
             session.commit()
             payload = run_out(run)
         self.bus.emit(cid, run_id, "run.updated", payload)
-        if "status" in fields:  # (K-symphony: a task's card says when its turn waits for you)
+        if "status" in fields:  # (K-symphony: a task's row says when its turn waits for you)
             with contextlib.suppress(Exception), self._factory() as session:
                 project_id = session.scalar(
                     select(BacklogTask.project_id)
-                    .where(BacklogTask.conversation_id == cid, BacklogTask.status == "doing")
-                    .limit(1)
+                    .join(Run, Run.task_id == BacklogTask.id)
+                    .where(Run.id == run_id)
                 )
                 announce(self._factory, self.bus, project_id, "backlog.changed")
 
@@ -345,20 +345,26 @@ class RecordMixin:
             payload = message_out(note)
         self.bus.emit(cid, run_id, "message.completed", payload)
 
-    def _say_landed(self: "AgentRunner", cid: str, run_id: str, due: bool) -> None:
+    def _say_landed(
+        self: "AgentRunner", cid: str, run_id: str, due: bool, again: bool = False
+    ) -> None:
         """B-205: where the turn's work is, under the Lead's answer - a "landed" message of
         KOLONİ's own, from the records (`merge.landed`), which no agent is given. Nothing said
-        where not `due`, nor for a turn that changed no file.
-        shortcut: said as it stands at the turn's end; a kept copy taken in or discarded later
-        does not change it (its card says so) - rewrite it at `decide_kept` if that misleads."""
+        where not `due`, nor for a turn that changed no file. `again` (N3): its kept copy taken
+        in or discarded after the turn (`_decide_kept`) - the line it said, written anew; none
+        where it said none."""
         if not due:
             return
         try:
             with self._factory() as session:
-                said = landed(session, run_id)
-                if said is None:
+                said = self._landed_on_branch(session, run_id) or landed(session, run_id)
+                note = session.scalar(
+                    select(Message).where(Message.run_id == run_id, Message.role == "landed")
+                )
+                if said is None or (again and (note is None or note.content == said)):
                     return
-                note = Message(conversation_id=cid, run_id=run_id, role="landed", content=said)
+                note = note or Message(conversation_id=cid, run_id=run_id, role="landed")
+                note.content = said
                 session.add(note)
                 session.commit()
                 payload = message_out(note)
@@ -366,6 +372,13 @@ class RecordMixin:
             log.warning("run %s: where its work is not said: %r", run_id, exc)
             return
         self.bus.emit(cid, run_id, "message.completed", payload)
+
+    def _kept_said(self: "AgentRunner", ctx: Ctx, payloads: list[tuple[str, dict]]) -> None:
+        """A kept copy decided (`_decide_kept`): its events, and its turn's line of where its work
+        is, written anew (N3: never "Not in the project yet" beside work taken in)."""
+        for kind, payload in payloads:
+            self.bus.emit(ctx.cid, ctx.run_id, kind, payload)
+        self._say_landed(ctx.cid, ctx.run_id, True, again=True)
 
     async def _git_after(self: "AgentRunner", run_id: str, cid: str, root: Path | None) -> None:
         """What the turn did to the project's git, against how it began (slice 70), said in
@@ -411,6 +424,7 @@ class RecordMixin:
             job = away.turn_ended(session, run, status)
             later = away.after_the_night(session, run) if job else None
             session.commit()
+            backlog.tell(session, self.bus)  # (where its turn stopped the chat's To-do queue)
             payload, conversation_payload = run_out(run), conversation_out(conversation)
             if later is not None:
                 self.bus.emit(later.conversation_id, None, "message.completed", message_out(later))
@@ -429,18 +443,19 @@ class RecordMixin:
         self._unattended_over(run_id, status, error)
         self.bus.emit(cid, None, "conversation.updated", conversation_payload)
         self.bus.emit(cid, run_id, "run.finished", payload)
+        # The user's own message queued behind the turn goes first (`start_next`); then a
+        # night's next job, and the chats' queues of To-do tasks (`backlog.go_on`: one waits
+        # while its chat is at work). None raises.
+        # Not after a side of a comparison: only the conversation's own turns move them.
         self.start_next(cid)
-        # Where the backlog works itself, the next task starts now - after any turn: one
-        # whose task was moved on by hand held it back (`backlog.busy`). It never raises.
-        # Not after a side of a comparison: only the conversation's own turns move it.
         if project_id is None:  # (a plain chat has none - and None would name every plain chat)
             return moved
         changed = job
         if not self._closing and not side:
             with contextlib.suppress(Exception), self._factory() as session:
-                changed = backlog.chain(session, project_id, self.bus, self.start) or changed
-            with contextlib.suppress(Exception), self._factory() as session:
                 changed = away.go_on(session, project_id, self) or changed
+            with contextlib.suppress(Exception), self._factory() as session:
+                changed = backlog.go_on(session, project_id, self.bus, self.start) or changed
         if moved or changed:  # (once, after the chain: a halt it set is seen too)
             announce(self._factory, self.bus, project_id, "backlog.changed")
         return moved

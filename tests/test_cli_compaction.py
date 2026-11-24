@@ -19,7 +19,7 @@ from app.config import load_settings
 from app.main import create_app
 from app.model_cli import RESULT_TEXT, CliStepClient
 from app.model_client import ModelUnavailable
-from app.model_native import ClaudeNativeClient, QoderNativeClient
+from app.model_native import ClaudeNativeClient
 from app.providers import ask_once
 from tests.conftest import scaled
 from tests.fakes import ScriptedModel
@@ -37,19 +37,13 @@ SUMMARY = "SUMMARY: the greeting was fixed"
 def cli_chat(settings_env, project_dir, wait_run, fake):  # noqa: F811
     opened = []
 
-    def make(resumes: bool, window: int | None, qoder: bool = False, summary=None):
+    def make(resumes: bool, window: int | None, summary=None):
         planned = fake(script=[{"say": "OLDWORD fixed it."}])
-        cli = (
-            QoderNativeClient(
-                launcher=FAKE, model="Qwen3.8-Flash", timeout=30, env=dict(planned._env)
-            )
-            if qoder
-            else ClaudeNativeClient(
-                launcher=FAKE,
-                timeout=30,
-                env=dict(planned._env),
-                home=fake.home if resumes else None,
-            )
+        cli = ClaudeNativeClient(
+            launcher=FAKE,
+            timeout=30,
+            env=dict(planned._env),
+            home=fake.home if resumes else None,
         )
         # What it is asked with its own tools off (`ask_once`): a step that, as agy's and Codex's,
         # takes no `max_tokens`.
@@ -61,7 +55,7 @@ def cli_chat(settings_env, project_dir, wait_run, fake):  # noqa: F811
         opened.append(client)
         provider = client.post(
             "/api/providers",
-            json={"name": "CLI", "kind": "qoder_cli" if qoder else "claude_cli", "mode": "native"},
+            json={"name": "CLI", "kind": "claude_cli", "mode": "native"},
         ).json()
         if window:  # (None: its role sets none, as a new role's)
             assert (
@@ -110,9 +104,9 @@ def cli_chat(settings_env, project_dir, wait_run, fake):  # noqa: F811
         client.__exit__(None, None, None)
 
 
-@pytest.mark.parametrize("qoder", [False, True])  # (Claude Code on the user's own folder; Qoder)
-def test_a_cli_lead_that_starts_anew_is_compacted_past_the_threshold(cli_chat, fake, qoder):  # noqa: F811
-    turn = cli_chat(resumes=False, window=500, qoder=qoder)  # (its instructions alone fill that)
+def test_a_cli_lead_that_starts_anew_is_compacted_past_the_threshold(cli_chat, fake):  # noqa: F811
+    # (Claude Code on the user's own folder: it starts each turn anew.)
+    turn = cli_chat(resumes=False, window=500)  # (its instructions alone fill that)
     assert turn("now the tests", "Tested.")[-1]["compacts_itself"] is False
     # (Summarised after its turn: the next waits for that, and goes on from it.)
     leads = turn("and the docs", "Documented.")
@@ -376,7 +370,7 @@ def test_only_a_lead_working_alone_is_started_again(cli_chat):
 
 def a_turn(**kind):
     t = _LeadTurn()
-    for flag in ("planning", "unattended", "run_compare", "job", "backlog_turn"):
+    for flag in ("planning", "unattended", "run_compare", "job", "todo_turn"):
         setattr(t, flag, kind.get(flag, False))
     return t
 
@@ -387,19 +381,19 @@ def test_which_turns_are_summarised_after_a_refusal_for_their_size():
     assert _summary_after(a_turn(), "cancelled", True) is None
     # Nobody is there to send the message again: a To-do task's turn, a night's job, a
     # trigger's turn; nor a plan's, nor a side of a comparison.
-    for kind in ("job", "backlog_turn", "unattended", "planning", "run_compare"):
+    for kind in ("job", "todo_turn", "unattended", "planning", "run_compare"):
         assert _summary_after(a_turn(**{kind: True}), "failed", True) is None, kind
 
 
 def test_only_a_turn_the_user_watches_is_started_again():
     assert _sends_again(a_turn()) is True
-    for kind in ("job", "backlog_turn", "unattended", "planning", "run_compare"):
+    for kind in ("job", "todo_turn", "unattended", "planning", "run_compare"):
         assert _sends_again(a_turn(**{kind: True})) is False, kind
 
 
 def test_a_completed_turn_is_looked_at_past_the_threshold_as_before():
     assert _summary_after(a_turn(), "completed", False) is False
-    for kind in ("job", "backlog_turn"):
+    for kind in ("job", "todo_turn"):
         assert _summary_after(a_turn(**{kind: True}), "completed", False) is False, kind
     for kind in ("unattended", "planning", "run_compare"):
         assert _summary_after(a_turn(**{kind: True}), "completed", False) is None, kind
@@ -427,10 +421,9 @@ def test_a_clis_model_has_its_vendors_catalogued_window(kind, service):
     assert catalog.facts(kind, "http://127.0.0.1:8080/v1", "m-1", copy)[0]["context_window"] is None
 
 
-@pytest.mark.parametrize("kind", ["qoder_cli", "agy_cli"])
-def test_qoders_and_agys_models_have_none(kind):
+def test_agys_models_have_none():
     assert (
-        catalog.facts(kind, None, "Qwen3.8-Flash", models_dev.load(None))[0]["context_window"]
+        catalog.facts("agy_cli", None, "Qwen3.8-Flash", models_dev.load(None))[0]["context_window"]
         is None
     )
 

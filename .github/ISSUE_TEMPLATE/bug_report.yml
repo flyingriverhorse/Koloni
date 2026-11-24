@@ -48,7 +48,7 @@ body:
     attributes:
       label: Provider or CLI
       description: The model provider or CLI the agent ran on, and its model.
-      placeholder: llama.cpp (Qwen3), Anthropic API, Claude Code, Codex, Copilot, Qoder, agy
+      placeholder: llama.cpp (Qwen3), Anthropic API, Claude Code, Codex, Copilot, agy
   - type: textarea
     id: logs
     attributes:

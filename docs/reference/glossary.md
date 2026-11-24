@@ -145,7 +145,7 @@ KOLONİ's own words, as they appear on screen.
 
 **Provider**
 : Where a model runs: an OpenAI-compatible server, the Anthropic API, or a CLI you are signed in to
-  (Claude Code, Codex, GitHub Copilot CLI, Qoder, agy). You add providers on the Models page.
+  (Claude Code, Codex, GitHub Copilot CLI, agy). You add providers on the Models page.
 
 **Ready**
 : A page on the rail that lists everything waiting for your word, with a count.
@@ -223,8 +223,9 @@ KOLONİ's own words, as they appear on screen.
 **Topic**
 : The turns of a chat that go on with one piece of work. The Orchestrator is sent its own topic's
   turns, and the chat's other topics by name only; an agent of an earlier turn is gone on with only
-  inside its topic. **New topic**, under the message box, starts one with your next message. See
-  [Topics](../memory.md#topics).
+  inside its topic. **New topic**, under the message box, starts one with your next message. A To-do
+  story given to a chat goes on in a topic of its own, its tasks one after another. See
+  [Topics](../memory.md#topics) and [Doing tasks in a chat](../automation/todo.md#doing-tasks-in-a-chat).
 
 **Trigger**
 : Something that starts a turn by itself: the clock, a change to the project's files, or a request

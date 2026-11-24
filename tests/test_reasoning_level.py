@@ -276,7 +276,7 @@ def test_auto_thinking_caps(effort, max_effort, asked, given):
 @pytest.mark.parametrize(
     ("asked", "takes", "sent"),
     [
-        ("max", ("off", "low", "medium", "high", "xhigh"), "xhigh"),  # Qoder
+        ("max", ("off", "low", "medium", "high", "xhigh"), "xhigh"),  # one with no max
         ("low", ("medium", "high"), None),  # none at or below it
         ("medium", (), None),  # Copilot: no levels known
         ("medium", None, None),

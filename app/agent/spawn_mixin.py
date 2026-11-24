@@ -61,7 +61,6 @@ from app.agent.summary import (
 from app.agent.words import (
     AGENT_TERMINAL,
     ANSWER_PREFIX,
-    BACKLOG_NOT_THIS,
     BRANCH_NOT_IN_RECIPE,
     GIVEN_ONCE,
     HOW_RAISE,
@@ -2391,8 +2390,8 @@ class SpawnMixin:
         "Add to Project notes?" offer (`project_notes.offer`), on a card under this turn where
         somebody watches it - answered whenever the user likes, on the app's own page: it never
         holds the turn, at any level (it adds to the project's knowledge: the user's call, never
-        the Lead's). A turn nobody watches - a trigger's, a backlog task's - only adds to it."""
-        watched = self._watched(ctx.run_id) and ctx.run_id not in self._backlog_turns
+        the Lead's). A turn nobody watches - a trigger's - only adds to it."""
+        watched = self._watched(ctx.run_id)
         made = project_id = None
         for last in (False, True):  # (once more where another turn made the waiting one first)
             with self._factory() as session:
@@ -2828,8 +2827,6 @@ class SpawnMixin:
                 raise _NobodyToAsk(PAID_UNATTENDED.format(to=shown_name(provider.name)))
             if self._cannot_be_held(model, provider):
                 raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
-        elif ctx.run_id in self._backlog_turns and self._cannot_be_held(model, provider):
-            raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
 
     def _opened_this_turn(self: "AgentRunner", session, run_id: str) -> int:
         """The sub-agents a turn's allowance (`spawn_max_agents`) counts: not one the user
@@ -3273,9 +3270,9 @@ class SpawnMixin:
     async def _moved_on(
         self: "AgentRunner", ctx: Ctx, child: Ctx, went_on: bool
     ) -> tuple[Ctx, str] | None:
-        """K-altajan-saglayici (R115: three sub-agents queued on Qoder's free tier for 5.5 min,
-        then failed): a sub-agent whose provider failed before its first word - its model
-        queued past `QUEUE_WAIT_SECONDS`, the server down, a limit - is opened once more on
+        """K-altajan-saglayici (R115: three sub-agents queued on a free tier for 5.5 min, then
+        failed): a sub-agent whose provider failed before its first word - the server down, a
+        limit - is opened once more on
         the next model of its tier in the user's order (`Would.tried`), one not past its
         limit; its opener is told (`MOVED_ON`), and its record keeps both (`chosen_why`).
         Returns its context on the new model, and what the opener is told; None where it

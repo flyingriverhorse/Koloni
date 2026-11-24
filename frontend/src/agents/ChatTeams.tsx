@@ -381,7 +381,7 @@ export function ChatTeams({
   /** That these teams are the folder's default for new chats, or the button that makes them so. */
   const folderDefault = () => (
     <>
-      {/* Said where it is so: a chat Run the backlog opens starts from it too (B-78). */}
+      {/* Said where it is so: a new chat - one Do in chat opens too - starts from it (B-78). */}
       {project &&
         project.teams_mode !== 'none' &&
         project.teams_mode === mode &&

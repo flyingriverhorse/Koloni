@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app import injection, raw, topics
 from app.commands import OutputMask, secret_values
 from app.db.models import (
+    Agent,
     BacklogTask,
     Conversation,
     FileChange,
@@ -233,6 +234,26 @@ def goal_states(session: Session, goal: Goal) -> list[str]:
     ]
 
 
+def taken(session: Session, project_id: str, title: str, but: str | None = None) -> Story | None:
+    """The project's story - open or closed, any but `but` - of this title, whatever its case.
+    A story's name is one in its project: an agent names a story by it (`story_named`), so two
+    that differ only by case would leave which one it means to chance."""
+    folded = title.strip().casefold()
+    return next(
+        (
+            story
+            for story in session.scalars(select(Story).where(Story.project_id == project_id))
+            if story.id != but and story.title.casefold() == folded
+        ),
+        None,
+    )
+
+
+def not_closable(session: Session, story: Story) -> int:
+    """How many of a story's tasks (proposals left out) are not done: closed only at none."""
+    return sum(task.status not in ("done", "proposed") for task in tasks_of(session, story.id))
+
+
 def story_named(session: Session, project_id: str, title: str) -> Story | None:
     """The project's open story of this title, whatever its case; None if it has none."""
     folded = title.strip().casefold()
@@ -263,11 +284,25 @@ def goal_named(session: Session, project_id: str, title: str) -> Goal | None:
     )
 
 
+def story_of(session: Session, story_id: str | None, project_id: str | None) -> Story | None:
+    """The story of this id where it is one of the project's; None else (a story's id on a
+    task or a topic is no key: it may be gone, or another project's)."""
+    story = session.get(Story, story_id) if story_id else None
+    return story if story is not None and story.project_id == project_id else None
+
+
+def _project_of(session: Session, topic: Topic) -> str | None:
+    """The project of the topic's chat; None for a plain chat's."""
+    return session.scalar(
+        select(Conversation.project_id).where(Conversation.id == topic.conversation_id)
+    )
+
+
 def open_story(session: Session, story_id: str | None, project_id: str) -> Story | None:
     """The story of this id where it is one of the project's, and not closed; None else (a
     story's id on a topic or a task is no key: it may be gone)."""
-    story = session.get(Story, story_id) if story_id else None
-    return story if story and story.project_id == project_id and story.closed_at is None else None
+    story = story_of(session, story_id, project_id)
+    return story if story is not None and story.closed_at is None else None
 
 
 def adopt(session: Session, story_id: str | None) -> None:
@@ -326,6 +361,15 @@ def _said(text: object, pass_env: str | None) -> str | None:
     if not line or injection.scan(came) or injection.scan(line):
         return None
     return line
+
+
+def cut_note(text: object) -> str | None:
+    """A note of the Hive keeper's draft as the page shows it: masked, then cut to NOTE_MOST (a
+    secret cut first would no longer be seen); None for none. It is read for orders as it is
+    added (`add_notes`): the user may change it before then."""
+    if not isinstance(text, str):
+        return None
+    return masked(text[: NOTE_MOST * 20], None).strip()[:NOTE_MOST] or None
 
 
 def _notes(story: Story) -> list:
@@ -401,7 +445,7 @@ def turn_notes(session: Session, run: Run, task: BacklogTask, said: str) -> None
     """A story's task's turn ended, its task's state set (`backlog.turn_ended`): KOLONİ notes
     how - done?, stuck, not finished - and the files the turn changed in the project (five at
     most), and its Orchestrator's STORY_NOTE lines of `said`, its last answer, go in too."""
-    story = session.get(Story, task.story_id) if task.story_id else None
+    story = story_of(session, task.story_id, task.project_id)
     if story is None:
         return
     pass_env = session.get_one(Project, task.project_id).pass_env
@@ -432,7 +476,7 @@ def brief(session: Session, task: BacklogTask, pass_env: str | None, first: bool
     (`backlog.fix_message`) carries of its story: its notebook as data, and how to add to it;
     "" for a task of no story. `first`: its first turn in a topic of the story's that is new
     - it is told the story so far (`summary_lines`)."""
-    story = session.get(Story, task.story_id) if task.story_id else None
+    story = story_of(session, task.story_id, task.project_id)
     if story is None:
         return ""
     told = summary_lines(session, story, task.id, pass_env) if first else ""
@@ -441,16 +485,22 @@ def brief(session: Session, task: BacklogTask, pass_env: str | None, first: bool
 
 def _bad_end(session: Session, topic: Topic, story: Story) -> str | None:
     """Rule 6: a task of the story that had a turn in `topic` and is stuck now, or back on the
-    To-do list (Not yet, Stop) - its wrong guess is not carried on; why, or None."""
+    To-do list (Not yet, Stop) - its wrong guess is not carried on; why, or None. Not one Stop
+    everything cut (`flow["held"]`): held, not judged, it goes on in its topic."""
     ran = select(Run.task_id).where(Run.topic_id == topic.id, Run.task_id.is_not(None))
-    bad = session.scalar(
-        select(BacklogTask)
-        .where(
-            BacklogTask.id.in_(ran),
-            BacklogTask.story_id == story.id,
-            BacklogTask.status.in_(("blocked", "todo")),
-        )
-        .limit(1)
+    bad = next(
+        (
+            task
+            for task in session.scalars(
+                select(BacklogTask).where(
+                    BacklogTask.id.in_(ran),
+                    BacklogTask.story_id == story.id,
+                    BacklogTask.status.in_(("blocked", "todo")),
+                )
+            )
+            if not (task.flow or {}).get("held")
+        ),
+        None,
     )
     if bad is None:
         return None
@@ -513,7 +563,9 @@ def summary_lines(session: Session, story: Story, but: str, pass_env: str | None
 def titled(session: Session, topic: Topic) -> tuple[str, str | None]:
     """A topic's name, and how it stands where it is a story's or a To-do task's: done, done?
     (the user's word waits) or stuck; None for any other, or for one still to do or at work."""
-    story = session.get(Story, topic.story_id) if topic.story_id else None
+    story = (
+        story_of(session, topic.story_id, _project_of(session, topic)) if topic.story_id else None
+    )
     if story is not None:
         return topic.title, SHOWN_STATE.get(story_state(story, tasks_of(session, story.id)))
     task = session.scalar(
@@ -550,3 +602,92 @@ def for_lead(session: Session, run: Run) -> str:
         if project is not None and project.id == story.project_id:
             told.append(notebook_text(story, project.pass_env, run.started_at))
     return "\n\n".join(filter(None, told))
+
+
+# On an Orchestrator's record (`Agent.copy`): its branch went in, or was turned down, at Close the
+# story - no later turn goes on from it (`branch_lead`).
+BRANCH_GONE = "branch_gone"
+
+
+def branch_lead(
+    session: Session, story_id: str | None = None, task_id: str | None = None
+) -> str | None:
+    """The Orchestrator of the latest turn of the story's tasks (or of one task of no story) that
+    left its work on a git branch (its record's `on_branch`, or `left_on` where it could not open
+    it again) still there: the one the next turn goes on from (`AgentRunner._branch_again`).
+    None: no branch yet, or its last went in or was turned down at Close the story."""
+    runs = select(Run.id).join(BacklogTask, BacklogTask.id == Run.task_id)
+    runs = runs.where(
+        BacklogTask.story_id == story_id if story_id is not None else BacklogTask.id == task_id
+    )
+    for agent_id, copy in session.execute(
+        select(Agent.id, Agent.copy)
+        .where(Agent.run_id.in_(runs), Agent.depth == 0)
+        .order_by(Agent.created_at.desc(), literal_column("agents.rowid").desc())
+    ):
+        held = copy or {}
+        if held.get(BRANCH_GONE):
+            return None
+        if held.get("on_branch") or held.get("left_on"):
+            return agent_id
+    return None
+
+
+def last_task(session: Session, story_id: str) -> BacklogTask | None:
+    """The story's task whose turn ran last."""
+    return session.scalar(
+        select(BacklogTask)
+        .join(Run, Run.task_id == BacklogTask.id)
+        .where(BacklogTask.story_id == story_id)
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+        .limit(1)
+    )
+
+
+def _last_topic(session: Session, cid: str, *where) -> Topic | None:
+    """The topic of the chat's newest turn that matches `where`."""
+    return session.scalar(
+        select(Topic)
+        .join(Run, Run.topic_id == Topic.id)
+        .where(Run.conversation_id == cid, Topic.conversation_id == cid, *where)
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+        .limit(1)
+    )
+
+
+def topic_for(session: Session, cid: str, task: BacklogTask) -> tuple[Topic, bool]:
+    """The topic a To-do task's turn goes on in, in this chat, and whether it was made now
+    (added, not committed): the task's own where its fix round is due, or where Stop everything
+    cut its turn (it goes on with that turn); else its story's newest topic here - a story's
+    tasks go on in one session (`topics.previous_lead`) - unless `fresh_needed` says why not (a
+    task of it there ended badly, the spec's rule 6, or a day has passed, rule 5), when the story
+    gets a topic anew and its first task is told the story so far (`brief`); else, for a story
+    with none here or a task of no story, a new one. A task put back and queued again starts anew
+    too: its wrong guess is not carried on. A story deleted since, or another project's, counts
+    as none."""
+    flow = task.flow or {}
+    if task.status == "doing" and flow.get("fix") or flow.get("held"):
+        own = _last_topic(session, cid, Run.task_id == task.id)
+        if own is not None:
+            return own, False
+    story = story_of(session, task.story_id, task.project_id)
+    if story is not None:
+        found = session.scalar(
+            select(Topic)
+            .where(Topic.conversation_id == cid, Topic.story_id == story.id)
+            .order_by(Topic.created_at.desc(), literal_column("topics.rowid").desc())
+            .limit(1)
+        )
+        why = fresh_needed(session, found, story) if found is not None else None
+        if found is not None and why is None:
+            return found, False
+        if why:
+            log.info("story %s: its next task starts a topic anew: %s", story.id, why)
+    topic = Topic(
+        conversation_id=cid,
+        title=topics.title_of(story.title if story else task.title) or "Untitled",
+        story_id=story.id if story else None,
+    )
+    session.add(topic)
+    session.flush()
+    return topic, True

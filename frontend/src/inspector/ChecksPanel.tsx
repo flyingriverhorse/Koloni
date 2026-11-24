@@ -1,7 +1,7 @@
 import type { Message, Run } from '../api/types'
 import { type Loop, type LoopRound, testRows } from '../canvas/checksLoop'
 import { FixIt } from '../chat/CheckedSection'
-import { fixOf, newestTurn } from '../chat/checked'
+import { fixOf, newestTurn, originUndone } from '../chat/checked'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 
@@ -28,8 +28,10 @@ export function ChecksPanel({
 }) {
   const section = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
   const rows = section?.checked ?? []
-  // (Work not taken in is answered in the Checked section itself: its Fix it asks the stronger model's question.)
-  const fix = newestTurn(state) === run.id && !rows.some(row => row.kind === 'not_taken') ? fixOf(rows) : null
+  // (Work not taken in is answered in the Checked section itself: its Fix it asks the stronger model's question. N10b: an
+  // undone turn's, none.)
+  const fixable = newestTurn(state) === run.id && !rows.some(row => row.kind === 'not_taken')
+  const fix = fixable && !originUndone(state, run.id) ? fixOf(rows) : null
   const tests = testRows(rows)
   return (
     <div className="insp-body checks-panel">

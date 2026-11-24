@@ -331,7 +331,6 @@ class PoMixin:
                 not ids
                 or provider is None
                 or lead.model is None
-                or project.backlog_auto
                 or not self._has_room(session, provider, project)
             ):
                 return
@@ -364,9 +363,6 @@ class PoMixin:
         decided = backlog.lead_decided(heard[0] if heard else "", len(ids))
         added = 0
         with self._factory() as session:
-            # (Read again: the list may have been set to run by itself meanwhile.)
-            if session.get_one(Project, project_id).backlog_auto:
-                return
             for n, task_id in enumerate(ids, 1):
                 task = session.get(BacklogTask, task_id)
                 # (Not one the user decided meanwhile.)

@@ -237,6 +237,10 @@ test('the To-do tree', async ({ page }) => {
     const list = page.getByRole('list', { name: 'Tasks' })
     await expect(list.getByRole('listitem', { name: 'Password reset' })).toContainText('● running')
     await expect(list.getByRole('listitem', { name: tree.goal })).toContainText('1 / 2 stories')
+    // (0.1.8: two ticked - the dock under the tree says what Do in chat does.)
+    for (const name of ['Rate-limit the reset form', 'The footer shows last year'])
+      await list.getByRole('listitem', { name }).getByRole('checkbox').first().check()
+    await expect(page.getByRole('region', { name: 'Selected tasks' })).toContainText('2 selected')
     await list.scrollIntoViewIfNeeded()
     await picture(page, 'todo-tree')
   } finally {
@@ -244,6 +248,47 @@ test('the To-do tree', async ({ page }) => {
     for (const id of added.task_ids) await page.request.delete(`/api/backlog/${id}`, { headers: OWN })
     for (const id of [login, reset]) await page.request.delete(`/api/stories/${id}`, { headers: OWN })
     await page.request.delete(`/api/goals/${added.goal_id}`, { headers: OWN })
+  }
+})
+
+test('To-do in a chat', async ({ page }) => {
+  await openFreshConversation(page)
+  const pid = await e2eProject(page)
+  const tree = {
+    stories: [
+      {
+        title: 'Two-step sign-in',
+        notes: [],
+        tasks: [
+          { title: 'Send a code by mail', criteria: 'a six-digit code is mailed, valid for ten minutes' },
+          { title: 'Check the code on sign-in' },
+          { title: 'Turn it on in Settings' },
+        ],
+      },
+    ],
+    tasks: [],
+  }
+  const added = await (
+    await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })
+  ).json()
+  try {
+    await rail(page, 'To-do').click()
+    const list = page.getByRole('list', { name: 'Tasks' })
+    await list.getByRole('checkbox', { name: 'Tick the story Two-step sign-in' }).check()
+    await page
+      .getByRole('region', { name: 'Selected tasks' })
+      .getByRole('button', { name: /Do in chat/ })
+      .click()
+    await page.getByRole('menuitem', { name: 'A new chat' }).click()
+    const chat = page.getByRole('region', { name: 'Chat' })
+    await expect(chat.getByRole('group', { name: 'Done? — “Send a code by mail”' })).toBeVisible({ timeout: 20_000 })
+    await expect(chat.getByRole('group', { name: 'Done? — “Turn it on in Settings”' })).toBeVisible({
+      timeout: 20_000,
+    })
+    await picture(page, 'todo-in-chat')
+  } finally {
+    for (const id of added.task_ids) await page.request.delete(`/api/backlog/${id}`, { headers: OWN })
+    for (const id of added.story_ids) await page.request.delete(`/api/stories/${id}`, { headers: OWN })
   }
 })
 
@@ -503,9 +548,15 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(settings.getByLabel('Fix rounds')).toBeVisible()
     await picture(page, 'settings-checks')
     await page.getByRole('button', { name: 'Close settings' }).click()
-    // The app › Agents: KOLONİ's test runs at once, and the test processes each may use.
+    // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental CLIs under
+    // Save (read once shown).
     const app = await appSettings(page, 'Agents')
-    await app.getByText('KOLONİ’s test runs at once').scrollIntoViewIfNeeded()
+    const experimental = app.getByRole('checkbox', { name: /Show experimental CLIs/ })
+    await expect(experimental).toBeEnabled()
+    await experimental.scrollIntoViewIfNeeded()
+    await expect(app.getByText('KOLONİ’s test runs at once')).toBeInViewport()
+    await expect(app.getByText('Test processes per run')).toBeInViewport()
+    await expect(experimental).toBeInViewport()
     await picture(page, 'settings-app-test-runs')
   })
 
