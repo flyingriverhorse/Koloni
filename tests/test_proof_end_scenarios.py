@@ -1355,6 +1355,21 @@ def test_a_change_only_a_command_made_is_tested_and_said(make_client, wait_run, 
     ], texts(snap)
 
 
+def test_a_change_after_a_run_that_saw_none_on_record_is_said_untested(
+    make_client, wait_run, project_dir
+):
+    # (The run saw no change of the turn on record - a command's only - and the fix round's write
+    # came after it, then the model broke: that write was never tested. It was not said.)
+    executor = ScriptedExecutor([Script(["\n"]), failing()])
+    client, _model = make_client(
+        [run(WRITES), text("done"), write("a.py", "x = 3\n", "w2"), RuntimeError("broke")],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    rows = texts(wait_run(client, cid, run_id))
+    assert "Tests not run on the last change: the turn failed before its end" in rows, rows
+
+
 def test_a_turn_that_only_read_or_tested_opens_no_gate(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([Script(["clean\n"]), Script(["file\n"]), PASS])
     client, _model = make_client(

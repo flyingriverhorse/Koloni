@@ -441,8 +441,8 @@ what the stronger model found as one question to you, and two buttons on that li
 anyway** and **Fix it**: your answer to the question starts a turn that goes on in the kept
 work's copy - what was done there holds - and it goes into the project at that turn's end when
 its tests pass. Once the kept work is taken in, both buttons go and the line says "Taken in
-anyway."; discarded, or gone on in a Fix it turn, they go too (after a reload as well), and the
-turn's line of where its work is ("Not in the project yet: …") is written anew.
+anyway."; discarded, or gone on in a Fix it turn, they go too (after a reload as well). Taken in
+or discarded, the turn's line of where its work is ("Not in the project yet: …") is written anew.
 An Away job ends
 there, and its report lists it. Work that is already in the project (no copy) gets the stronger
 model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
@@ -1030,7 +1030,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Full tests stopped by you at `m:ss` - not checked | You stopped it. Nothing it had run is counted. |
 | – Tests not finished: `why` | Stopped, a newer run took its place, or KOLONİ restarted while it ran. |
 | – `…` - the project changed while they ran | The project changed under the run. Its result stands for no state of the work, and a pass is not shown as passed. |
-| – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. Work in a copy taken in at the turn's end (Fix it on kept work, a branch turn's) is no change after the run. |
+| – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. Kept work Fix it went on in, taken in at the turn's end, is no change after the run. |
 | – Still failing as last checked - this turn changed nothing | The turn changed no file, right after a turn whose checks still failed: the failing lines below are that turn's, said again, and **Fix it** is offered under them. |
 | – No test command | There was nothing to run; the line says where to set one: the project map's whole project's row or a part's (Settings › This project › This folder). |
 | – Were failing before this turn: `files` (from CI: `command`) | A lint, format or type check failed only on files the turn did not change, and each of its findings is there on the old code too. Not sent back. |
