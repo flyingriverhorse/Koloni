@@ -513,9 +513,10 @@ a line that adds another config, a plugin, parser or formatter, a plugin folder,
 report or trace elsewhere, or tells tsc to build or write (`--incremental`, `--noEmit false`, `-b`)
 asks again); while you are
 away, or in a turn a trigger started without its leave for that line, it is not run and its line
-says "needs your leave once". A program the turn wrote itself - in the folder a tool is installed
-in (`node_modules`, `.venv`), in any case of its name, or through a link - is never run, nor one
-whose real place is outside the project, nor eslint or tsc where the turn wrote in a
+says "needs your leave once". A program an agent wrote - this turn, or an earlier turn in an install
+folder (`node_modules`, `.venv`, `site-packages`), in the project or in a working copy, taken in or
+not, while the file still holds what it wrote - in any case of its name, or through a link, is never run and
+offers no card, nor one whose real place is outside the project, nor eslint or tsc where the turn wrote in a
 `node_modules` above the folder they run in (Node loads their packages from there too), nor a
 tool where the turn wrote a `node.cmd` or
 `python.exe` (a name a tool's shim runs bare) in the folder it runs in. A file's lines are
@@ -939,7 +940,7 @@ them, the line says "Tests not run: you stopped the check".
 
 ### How many run at once
 
-![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits](../images/settings-app-test-runs.png)
+![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits; under Save, the Show experimental CLIs switch, off](../images/settings-app-test-runs.png)
 
 KOLONİ's own test runs queue: **Settings › The app › KOLONİ's test runs at once** (1 unless you
 change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says
@@ -1098,6 +1099,7 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Not taken in: on hold - a look's findings still stand after its fix rounds | Work in a copy (a recipe's) that the Reviewer or Security reviewer still holds stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Not taken in: KOLONİ's checks of what it wrote still fail after its fix rounds | Work in a copy (a recipe's, an Away job's, a branch turn's) whose page, document, config file or script still fails its check by kind of work stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
+| Taken in anyway. | You took the held work in as it was: said under the lines, not as a line of its own. **Fix it** now asks for the fix as for work in the project, where a line still fails; a turn that changes nothing after it says the work still fails. |
 | ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
 | – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |

@@ -59,6 +59,8 @@ runs without being ticked, exactly as written, in that part's folder.
   that long; and it ends if the Orchestrator goes round in circles: see
   [Step limits](../agents/step-limits.md#when-the-orchestrator-goes-round-in-circles).
   "Three runs in a row that fail or go over switch the trigger off."
+  A run over its budget keeps its work in a copy for your word, one each time it fires: discard them in
+  Settings › The app › [Your data](../settings.md#your-data).
 - **Ends**: **No end**, **After so many runs**, or **After a day**.
 - **Run once when KOLONİ starts if a run was missed** (on by default).
 - **Run even if nothing changed** (clock only). Without it, in a git project, a run is skipped when
@@ -112,4 +114,8 @@ To keep triggers from starting by themselves at all, start KOLONİ with `KOLONI_
 
 An agent can propose a trigger on a **Make this trigger?** card. A proposal only reads, opens no
 sub-agents, and has the default budget. "Approve makes it as shown; to let it do more, or change
-anything, Edit." Agents can propose clock and file triggers only, never webhooks.
+anything, Edit." Agents can propose clock and file triggers only, never webhooks. An Orchestrator on Claude
+Code, Codex or Copilot run **Native** can propose one too, only in a turn you started, never in a turn
+nobody watches. Its **Approve** is refused, saying why, while the chat's Orchestrator would itself run
+on a CLI with its own tools, since a trigger's turn never starts one: change what it runs on first, as
+the message says.

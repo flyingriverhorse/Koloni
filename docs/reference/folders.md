@@ -12,7 +12,7 @@ In KOLONİ's folder, or wherever `KOLONI_RUNTIME_ROOT` says.
 | `attachments/` | Files attached to messages, per chat. |
 | `skills/` | KOLONİ's copies of skills. |
 | `copies/` | Sub-agents' working copies (see below). |
-| `cli-homes/` | Claude Code's and Codex's sign-in folders, one per provider, when you chose **Its own for KOLONİ**. Kept across restarts. |
+| `cli-homes/` | Claude Code's and Codex's sign-in folders, one per provider, when you chose **Its own for KOLONİ**. Kept across restarts. And `copilot-sessions/`, one home per GitHub Copilot session run **Native**, kept while its topic goes on. |
 | `server-homes/` | Empty settings folders for Claude Code and Codex when they run on a model server of your own, with none of your sign-in. |
 | `agy-home/` | A new folder for each agy run, cleared when KOLONİ starts. |
 | `models_dev.json` | The model catalogue, once updated. |
@@ -26,8 +26,9 @@ In KOLONİ's folder, or wherever `KOLONI_RUNTIME_ROOT` says.
 - **Working copies**: if `runtime/copies` would be inside a git repository (as it is in KOLONİ's own
   folder), copies go to `%LOCALAPPDATA%\KOLONI\copies` on Windows, or `~/.local/share/KOLONI/copies`
   elsewhere.
-- **GitHub Copilot CLI** gets an empty settings folder inside each run's temporary folder, removed
-  when the run ends. It signs in with the provider's token, or else with your own `gh` login.
+- **GitHub Copilot CLI** run as a session gets an empty settings folder inside each run's temporary
+  folder, removed when the run ends; run **Native**, its session's home is under
+  `runtime/cli-homes/copilot-sessions/`. It never uses your own `~/.copilot`. It signs in with the provider's token, or else with your own `gh` login.
 - **Claude Code and Codex** with **My own** sign-in use yours (`~/.claude`, `~/.codex`).
 - **MCP servers** start in `%LOCALAPPDATA%\KOLONI\mcp` on Windows, `~/Library/Caches/KOLONI/mcp` on
   macOS, or `~/.cache/KOLONI/mcp` on Linux.

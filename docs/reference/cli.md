@@ -5,9 +5,11 @@ What KOLONİ supports for each CLI. How to set one up is in [Set up a CLI](../mo
 | CLI | Command | How it runs (default first) | Native asks KOLONİ before | Plan read | Versions measured with KOLONİ |
 |---|---|---|---|---|---|
 | Claude Code | `claude` | session, step, native | every tool it uses | yes (one short request) | 2.1.310, 2.1.311, 2.1.312 |
-| Codex | `codex` | session, step, native (step first on a model server of your own) | each command and patch, but not those its own rules count as safe | yes | 0.163.0, 0.164.0 |
+| Codex | `codex` | session, step ([experimental](../models/setup-cli.md#experimental-clis)), native (step first on a model server of your own) | each command and patch, but not those its own rules count as safe | yes | 0.163.0, 0.164.0 |
 | GitHub Copilot CLI | `copilot` | session, native | every tool it uses, through KOLONİ's own hook (1.0.114 on); on the older protocol, each command, write and read | yes | 1.0.91, 1.0.103, 1.0.105, 1.0.114 |
-| agy | `agy` | reads, native | every tool it uses | yes | 1.3.3, 1.4.7, 1.4.8 |
+| agy ([experimental](../models/setup-cli.md#experimental-clis)) | `agy` | reads, native | every tool it uses | yes | 1.3.3, 1.4.7, 1.4.8 |
+
+Qoder is no longer run since 0.1.8: see [Qoder is no longer supported](../models/setup-cli.md#qoder-is-no-longer-supported).
 
 ## A version that was not measured
 

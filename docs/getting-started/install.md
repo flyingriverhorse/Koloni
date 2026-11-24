@@ -21,7 +21,7 @@ KOLONİ runs from its source folder. You install a few tools once, then build an
 | Claude Code | `claude` | `claude auth login` |
 | Codex | `codex` | `codex login` |
 | GitHub Copilot CLI | `copilot` | `gh auth login`, or a GitHub token, or a model server of your own |
-| agy | `agy` | agy's own sign-in |
+| agy ([experimental](../models/setup-cli.md#experimental-clis)) | `agy` | agy's own sign-in |
 
 Using a CLI through KOLONİ counts against your plan with that vendor.
 

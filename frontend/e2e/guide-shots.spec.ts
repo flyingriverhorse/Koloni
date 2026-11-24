@@ -548,9 +548,15 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(settings.getByLabel('Fix rounds')).toBeVisible()
     await picture(page, 'settings-checks')
     await page.getByRole('button', { name: 'Close settings' }).click()
-    // The app › Agents: KOLONİ's test runs at once, and the test processes each may use.
+    // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental CLIs under
+    // Save (read once shown).
     const app = await appSettings(page, 'Agents')
-    await app.getByText('KOLONİ’s test runs at once').scrollIntoViewIfNeeded()
+    const experimental = app.getByRole('checkbox', { name: /Show experimental CLIs/ })
+    await expect(experimental).toBeEnabled()
+    await experimental.scrollIntoViewIfNeeded()
+    await expect(app.getByText('KOLONİ’s test runs at once')).toBeInViewport()
+    await expect(app.getByText('Test processes per run')).toBeInViewport()
+    await expect(experimental).toBeInViewport()
     await picture(page, 'settings-app-test-runs')
   })
 

@@ -86,8 +86,15 @@ and where the backup is.
 **"Copilot can't use {model} on your account: pick another model"**
 : Or, when Copilot runs as a session: "GitHub Copilot CLI exited with code 1: Error: Model "{model}" from
   --model flag is not available." KOLONİ's list offers a model that your Copilot account or CLI does
-  not. Pick another model. So that agents do not pick it by its tier, switch the model's **On** off on the
-  Copilot provider's **Models** tab.
+  not. KOLONİ switches that model off on the Copilot provider's **Models** tab and asks your account
+  again; pick another model. See [Copilot on your GitHub account](models/copilot.md#models).
+
+**"not on your Copilot plan now: Copilot's own list does not offer it"**
+: Beside a model switched off on the Copilot provider's **Models** tab: your plan no longer lists that
+  model. With your premium requests used up it says "your Copilot plan has no premium requests now: its
+  named models are off until Copilot lists them again". KOLONİ switches it back on once your account
+  lists it again; a model you switched off yourself stays off. See
+  [Copilot on your GitHub account](models/copilot.md#models).
 
 **"{CLI} {version} could not be asked before it acts ({why}); run it as a session instead"**
 : KOLONİ runs a CLI with its own tools only when the CLI asks KOLONİ before each tool, and this one did
