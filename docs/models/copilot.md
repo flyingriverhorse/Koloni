@@ -32,11 +32,12 @@ A Copilot on a model server of your own is never asked: its models are the serve
 | It lists a model it did not list before | KOLONİ switches the model back on. |
 
 A model you switched off yourself stays off: KOLONİ switches back on only what it switched off. So does
-a model Copilot refused while your account listed it: switch it on yourself once you think it works.
+a model Copilot refused while your account listed it, whatever the list says later; its row says so.
+Switch it on yourself once you think it works.
 
 - **Fill from the catalogue** proposes only what your account offers. When it lists no model by name,
   the fill says so. A Copilot not added yet is not filled: add it first, and KOLONİ then asks your
-  account.
+  account. **Fill tiers** asks it too; a Copilot whose account does not answer is left as it is.
 - The model names the chat's model panel offers are your account's too.
 - An agent picked by tier never gets a model that is switched off. A model Copilot refuses at its first
   turn is switched off the same way, and your account is asked again at once.
@@ -51,20 +52,26 @@ a model Copilot refused while your account listed it: switch it on yourself once
 - A tier your account has off is dimmed, "not on your plan", with Copilot's own words in its tooltip.
   A routing a row already had that the account no longer lists stays on the row, dimmed, until you pick
   another.
-- `fusion` offers **Standard**, **High** and **Max** the same way. Where no Fusion tier is on, `fusion`
-  itself is switched off.
+- `fusion` offers its Fusion tiers the same way: on 24 Nov 2026 **High** and **Max**, both off. Where no
+  Fusion tier is on, `fusion` itself is switched off.
 - Before your account was asked (a new provider, or Copilot not answering), the routing offers every tier
   Copilot's package knows: Efficiency, Balance, Intelligence and Fast; Standard, High and Max.
 
 ## Plan limits
 
 The provider's card, the top bar and **Plan limits** on the Usage page show Copilot's **chat requests**
-and **premium requests** apart, for example "chat requests 200/200 left now · premium requests: none on
-your plan". A plan with no premium requests says "none", never "100% used".
+and **premium requests** apart, for example "0% of chat requests used (200 of 200 left) · premium
+requests: none on your plan". A plan with no premium requests says "none", never "100% used".
 
-Before a turn, KOLONİ checks whether the account has room. A named model is held back when premium
-requests are used up. `auto` is held back only when chat requests and premium requests are both used up:
-on 24 Nov 2026 `auto` ran with premium at 0 and chat requests left.
+Before a turn, KOLONİ checks whether the account has room:
+
+- A named model is held back when either counter is used up.
+- `auto` runs while chat requests are left, even with premium requests used up: on 24 Nov 2026 `auto`
+  ran with premium at 0 and chat requests left. It is held back when every counter is used up, and on a
+  plan with unlimited chat requests (no chat counter) once premium requests are used up - which counter
+  `auto` spends there is not measured.
+- A plan with no premium requests at all (0 of 0) holds nothing back by itself: the models your account
+  no longer lists are switched off instead (above).
 
 ## Not measured yet
 

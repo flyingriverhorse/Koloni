@@ -1443,9 +1443,9 @@ class Limits:
                 or (failed in by_id and another_account(by_id[failed], provider, failure))
             ):
                 continue
-            # (One that offers auto has room while either of Copilot's counters does.)
-            auto = "auto" if any(name == "auto" for name, _ in entry.models) else None
-            why = has_room(session, provider, self.last(provider), model=auto)
+            # (For the model an agent opened there would run - `spawn_mixin._elsewhere`'s.)
+            model = entry.selectable()[0] if entry.must_name else entry.default
+            why = has_room(session, provider, self.last(provider), model=model)
             if why is not None:
                 found.append((entry, why))
         return found

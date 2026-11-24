@@ -153,11 +153,11 @@ test('once its account was asked, a routing offers only its tiers, by its names;
   expect(within(auto).getByRole('option', { name: 'Efficiency — not on your plan' })).toBeDisabled()
   expect(auto).toHaveValue('efficiency')
   const fusion = within(dialog).getByLabelText('Routing of fusion')
-  expect(options(fusion)).toEqual(['Default', 'Standard', 'High — not on your plan', 'Max — not on your plan'])
+  // (Fusion's from its Fusion tiers alone, as the server reads them: balance's Standard is an auto tier's.)
+  expect(options(fusion)).toEqual(['Default', 'High — not on your plan', 'Max — not on your plan'])
   const high = within(fusion).getByRole('option', { name: 'High — not on your plan' })
   expect(high).toBeDisabled()
   expect(high).toHaveAttribute('title', NOT_ON_PLAN)
-  expect(within(fusion).getByRole('option', { name: 'Standard' })).toBeEnabled()
 })
 
 test('a window open on Copilot shows the rows its account switched once the provider is read again', async () => {

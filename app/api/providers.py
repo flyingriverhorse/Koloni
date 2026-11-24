@@ -269,6 +269,13 @@ def _guide(provider: Provider, note: str | None, models: list | None) -> None:
     untiered = {str(row.get("name", "")).strip() for row in told if "context" not in row}
     unrouted = {str(row.get("name", "")).strip() for row in told if "routing" not in row}
     unswitched = {str(row.get("name", "")).strip() for row in told if "enabled" not in row}
+    # Off as the page last saw KOLONİ switch it (its why sent back with it): one KOLONİ has
+    # switched on since stays on - a page from before does not make KOLONİ's off the user's.
+    seen_off = {
+        str(row.get("name", "")).strip()
+        for row in told
+        if row.get("enabled") is False and row.get("off_why")
+    }
     for m in listed:
         old = was.get(m["name"], {})
         if m["tier"] and old.get("tier") == m["tier"] and "order" in old:
@@ -286,6 +293,8 @@ def _guide(provider: Provider, note: str | None, models: list | None) -> None:
         # (Nor of being switched off: a fill, or a page from before, does not turn it on.)
         if m["name"] in unswitched and "enabled" in old:
             m["enabled"] = old["enabled"]
+        if m["name"] in seen_off and old and old.get("enabled") is not False:
+            m.pop("enabled", None)
         # (B-396: why KOLONİ switched it off stands while it is off; switched on, it goes.)
         if m.get("enabled") is False and old.get("off_why"):
             m["off_why"] = old["off_why"]
@@ -655,7 +664,9 @@ async def read_offers(request: Request, session: Session, provider: Provider) ->
 
 
 @router.post(
-    "/{provider_id}/offers", response_model=ProviderOut, dependencies=[Depends(require_origin)]
+    "/{provider_id}/offers",
+    response_model=ProviderOut,
+    dependencies=[Depends(require_own_origin)],  # (it may switch the provider's rows)
 )
 async def provider_offers(
     provider_id: str, request: Request, session: Session = Depends(get_session)
@@ -768,6 +779,10 @@ async def fill_all(request: Request, session: Session = Depends(get_session)):
         key = catalog.catalogue_of(p.kind, p.base_url, copy)
         if not catalog.models_for(key, copy, p.name):
             return None
+        if p.kind == "copilot_cli" and not p.base_url:
+            await read_offers(request, session, p)
+            if p.offers is None:  # its account did not say: GitHub's catalogue is not its own
+                return None
         if p.only_listed:
             return catalog.fill(key, p.models or [], [], copy, p.name)[0][: len(p.models or [])]
         return (await _fill(p, request))[0]

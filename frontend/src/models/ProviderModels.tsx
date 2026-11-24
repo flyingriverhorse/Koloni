@@ -175,7 +175,11 @@ export function ProviderModels({
                     void persist(setRow(index, { agents: on }), `Agents ${on ? 'may' : 'may not'} use ${row.name} now.`)
                   }
                   onEnabled={on =>
-                    void persist(setRow(index, { enabled: on }), `${row.name} is switched ${on ? 'on' : 'off'}.`)
+                    // (Your switch: KOLONİ's why for its own off goes with it.)
+                    void persist(
+                      setRow(index, { enabled: on, off_why: null }),
+                      `${row.name} is switched ${on ? 'on' : 'off'}.`,
+                    )
                   }
                   onInputs={inputs => void persist(setRow(index, { inputs }), `What ${row.name} takes is saved.`)}
                   onContext={context =>

@@ -65,17 +65,25 @@ const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hou
 /** What a counter of none says: Copilot's premium requests on a plan with none (0 of 0, 24 Nov 2026). */
 export const NONE_ON_PLAN = 'none on your plan'
 
-/**
- * An API's window as its last answer's headers said it (slice 73): "requests 48/50 left this minute, resets 12:03";
- * and Copilot's counters, as its getQuota said them: "chat requests 200/200 left now", "premium requests: none on
- * your plan".
- */
+/** An API's window as its last answer's headers said it (slice 73): "requests 48/50 left this minute, resets 12:03". */
 function apiWindow(w: Window, again: string): string {
-  if (w.limit === 0) return `${w.name}: ${NONE_ON_PLAN}`
   const minute = w.minutes === 1
   if (w.stale || typeof w.remaining !== 'number')
     return `${w.name}: ${typeof w.limit === 'number' ? `${w.limit}${minute ? ' a minute' : ''}` : 'how many are left was not said'}${w.stale ? `, stale — ${again}` : ''}`
   return `${w.name} ${w.remaining}${typeof w.limit === 'number' ? `/${w.limit}` : ''} left ${minute ? 'this minute' : 'now'}${w.resets_at ? `, resets ${clock(w.resets_at)}` : ''}`
+}
+
+/** A plan's window by the share of it used, with its reset and when it was read; with its counts where its CLI says
+ *  them ("0% of chat requests used (200 of 200 left)", Copilot's getQuota). */
+function planWindow(w: Window, again: string): string {
+  if (w.stale) return `${windowName(w)}: stale — ${again}`
+  const resets = w.resets_at ? `, resets ${dayAndTime(w.resets_at)}` : ''
+  if (w.used_percent === null)
+    return `${windowName(w)}: ${w.resets_at ? `resets ${dayAndTime(w.resets_at)}; ` : ''}how much is used was not said`
+  const counts =
+    typeof w.remaining === 'number' && typeof w.limit === 'number' ? ` (${w.remaining} of ${w.limit} left)` : ''
+  // (one the last reading did not name: when it was read itself, B-74)
+  return `${w.used_percent}% of ${windowName(w)} used${counts}${resets}${w.read_at ? `, ${readAgo(w.read_at)}` : ''}`
 }
 
 /** What is known of a plan, in one line. Nothing is made up: what is not known says so. */
@@ -85,17 +93,13 @@ export function limitsLine(limits: Limits): string {
   if (limits.unknown) return `not known — ${limits.unknown}`
   // A window that has reset since it was read is not shown as it was then - nor as a zero.
   const again = limits.source ? 'it says again in its next run' : 'check again'
+  // (An API's window says its counts and no share; a plan's its share - Copilot's its counts beside it.)
   const windows = limits.windows.map(w =>
-    typeof w.limit === 'number' || typeof w.remaining === 'number'
-      ? apiWindow(w, again)
-      : w.stale
-        ? `${windowName(w)}: stale — ${again}`
-        : w.used_percent === null
-          ? `${windowName(w)}: ${w.resets_at ? `resets ${dayAndTime(w.resets_at)}; ` : ''}how much is used was not said`
-          : `${w.used_percent}% of ${windowName(w)} used${w.resets_at ? `, resets ${dayAndTime(w.resets_at)}` : ''}${
-              // (one the last reading did not name: when it was read itself, B-74)
-              w.read_at ? `, ${readAgo(w.read_at)}` : ''
-            }`,
+    w.limit === 0
+      ? `${w.name}: ${NONE_ON_PLAN}`
+      : w.used_percent === null && (typeof w.limit === 'number' || typeof w.remaining === 'number')
+        ? apiWindow(w, again)
+        : planWindow(w, again),
   )
   const credits = limits.credits?.unlimited
     ? ['credits unlimited']

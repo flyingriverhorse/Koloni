@@ -12,8 +12,9 @@ account listed ~14 models: the list follows the plan, and is read again (`Limits
 
 A row of a Copilot provider that its account does not offer is switched off, with why, as a
 model Copilot refused is (`AgentRunner._refused`); one KOLONİ switched off is switched back on
-once the account lists it again - only then: one Copilot refused while it was listed stays off.
-One the user switched off stays off.
+once the account lists it again - only then, and never one Copilot refused while its account
+listed it (`LISTED_REFUSED`): the list is not its word on that model. One the user switched off
+stays off.
 """
 
 import re
@@ -32,6 +33,9 @@ NO_PREMIUM = (
     "your Copilot plan has no premium requests now: its named models are off until Copilot "
     "lists them again"
 )
+# Said after why Copilot refused a model its account listed then (`AgentRunner._refused`): such a
+# row is the user's to switch on again, whatever the list says later.
+LISTED_REFUSED = ", though your Copilot account listed it: switch it on to try it again"
 
 
 def _text(value: object, most: int = MAX_TEXT) -> str | None:
@@ -62,8 +66,9 @@ def offers_of(listed: object) -> dict | None:
     """models.list's answer as KOLONİ keeps it: the ids of the models it lists, and Auto's
     tiers with whether each is on and why not - each string one printable line, the counts
     bounded. None: no list in it (not asked, refused, or not read in time).
-    shortcut: of a model only its `id` is read - the shape of a listed model is from 23 Nov's
-    listing, not from an answer kept here; check it against the next account that lists models."""
+    shortcut: of a model only its `id` is read, taken to be the name `--model` takes - the shape
+    of a listed model is from 23 Nov's listing, not from an answer kept here (premium at 0 lists
+    none now); check both against the next account that lists models."""
     listed = _dict(listed)
     models = listed.get("models")
     if not isinstance(models, list):
@@ -116,14 +121,16 @@ def switched(
 ) -> list[dict]:
     """A Copilot provider's rows as its account offers them now: one it does not offer is
     switched off with why (`off_why`); one KOLONİ switched off (it has an `off_why`) is switched
-    back on where the account offers it now and did not when last asked (`before`) - a model
-    Copilot refused while it was listed stays off, or it would fail the next agent again. One
-    the user switched off has none: it stays off."""
+    back on where the account offers it now and was not known to when last asked (`before`: an
+    answer with no tiers says nothing of auto or fusion) - but never one Copilot refused while
+    it was listed (`LISTED_REFUSED`), or it would fail the next agent again. One the user
+    switched off has none: it stays off."""
     out = []
     for row in rows:
         on = offered(row["name"], offers)
-        again = on and before is not None and offered(row["name"], before) is False
-        if again and row.get("enabled") is False and row.get("off_why"):
+        again = on and before is not None and offered(row["name"], before) is not True
+        why = row.get("off_why") or ""
+        if again and row.get("enabled") is False and why and LISTED_REFUSED not in why:
             row = {k: v for k, v in row.items() if k not in ("enabled", "off_why")}
         elif on is False and row.get("enabled") is not False:
             row = {**row, "enabled": False, "off_why": why_not(row["name"], offers, no_premium)}

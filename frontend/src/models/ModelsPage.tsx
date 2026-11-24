@@ -76,6 +76,8 @@ export interface ListedModel {
   agents: boolean
   /** False: switched off - nobody uses it, you neither; left out, what it had is kept. */
   enabled?: boolean
+  /** Off as KOLONİ switched it, as the page saw it: never taken as why, only as whose off it was. */
+  off_why?: string | null
   /** What the user marked it to take besides text (slice 85b); left out, what it had is kept. */
   inputs?: ModelInput[] | null
   /** Copilot on your GitHub account: its context window tier; left out, what it had is kept. */

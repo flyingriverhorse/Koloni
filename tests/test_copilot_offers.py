@@ -15,6 +15,7 @@ import app.limits
 from app.agent.tiers_mixin import TiersMixin
 from app.api.providers import ADD_FIRST, NONE_LISTED
 from app.copilot_offers import (
+    LISTED_REFUSED,
     NO_PREMIUM,
     NOT_LISTED,
     offered,
@@ -27,6 +28,7 @@ from app.db.models import Provider
 from app.limits import CHAT, PREMIUM, Limits, account, at_limit, copilot_quota, of_copilot
 from app.model_client import ModelUnavailable
 from app.model_session import CopilotSessionClient
+from app.providers import list_providers
 
 ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 FAKE_COPILOT = [sys.executable, str(Path(__file__).with_name("fake_copilot_headless.py"))]
@@ -318,7 +320,7 @@ def test_the_account_is_asked_at_most_once_in_ten_minutes_and_its_rows_follow_it
     again = offers_of_api(client, made["id"])
     assert len(asked) == 2 and again["offers"]["models"] == ["gpt-6-luna"]
     assert again["models"][0] == {**shown["models"][0], "enabled": None, "off_why": None}
-    assert again["updated_at"] > shown["updated_at"]
+    assert again["updated_at"] >= shown["updated_at"]  # (Windows' clock: ~15 ms a tick)
 
 
 def test_a_model_refused_while_it_is_listed_stays_off_after_the_read_it_starts(client, monkeypatch):
@@ -344,6 +346,103 @@ def test_a_model_refused_while_it_is_listed_stays_off_after_the_read_it_starts(c
     assert len(asked) == 2
     (row,) = offers_of_api(client, made["id"])["models"]
     assert row["enabled"] is False and row["off_why"].startswith("Copilot refused it")
+    assert LISTED_REFUSED in row["off_why"]  # (its list is not its word on it: it stays off)
+
+
+def reads(rows: list[dict], *answers: dict | None) -> list[dict]:
+    """`rows` after each of `answers` in turn, as `Limits._offered` switches them."""
+    before = None
+    for answer in answers:
+        if answer is None:  # (a read that failed: nothing kept, nothing switched)
+            continue
+        rows, before = switched(rows, answer, False, before), answer
+    return rows
+
+
+def read(models: list[str], auto_on: bool | None = None) -> dict:
+    tiers = {"tiers": [{"id": "balance", "type": "auto", "status": {"enabled": auto_on}}]}
+    told = offers_of(
+        {"models": [{"id": m} for m in models], **({} if auto_on is None else {"auto": tiers})}
+    )
+    assert told is not None
+    return told
+
+
+def test_auto_switched_off_comes_back_on_after_an_answer_that_said_nothing_of_its_tiers():
+    # (The review's sequence: auto off, then a list with no "auto" in it, then auto on.)
+    rows = reads([{"name": "auto"}], read([], auto_on=False))
+    assert rows[0]["enabled"] is False
+    assert reads(rows, read([], auto_on=False), read([]), read([], auto_on=True)) == [
+        {"name": "auto"}
+    ]
+
+
+def test_a_model_refused_while_listed_stays_off_through_a_flap_one_the_list_switched_does_not():
+    refused = {"name": "x", "enabled": False, "off_why": "Copilot refused it" + LISTED_REFUSED}
+    unlisted = {"name": "y", "enabled": False, "off_why": NOT_LISTED}
+    rows = reads([refused, unlisted], read(["x"]), read([]), read(["x", "y"]))
+    assert rows == [refused, {"name": "y"}]
+
+
+def test_room_elsewhere_is_judged_for_the_model_an_agent_there_would_run(client):
+    # Premium used up, chat requests left: auto has room, a named model has not (`at_limit`).
+    told = json.loads(json.dumps(MEASURED_QUOTA))
+    told["quotaSnapshots"]["premium_interactions"] = counter(300, 300, 0)
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={
+            "name": "Copilot",
+            "kind": "copilot_cli",
+            "for_agents": True,
+            "models": [
+                {"name": "auto", "tier": "fast"},
+                {"name": "gpt-6-luna", "tier": "strongest"},
+            ],
+        },
+    ).json()
+    limits = client.app.state.providers.limits
+    limits._keep(account(Provider(kind="copilot_cli")), of_copilot(told, datetime.now(UTC)))
+
+    def room() -> list[str]:
+        with client.app.state.session_factory() as session:
+            found = limits.with_room(session, list_providers(session), None)
+        return [entry.name for entry, _why in found]
+
+    # (With no default an agent there runs Copilot's own: not known to be auto, so held back.)
+    assert "Copilot" not in room()
+    url = f"/api/providers/{made['id']}"
+    assert client.patch(url, headers=ORIGIN, json={"default_model": "auto"}).status_code == 200
+    assert "Copilot" in room()
+    assert (
+        client.patch(url, headers=ORIGIN, json={"default_model": "gpt-6-luna"}).status_code == 200
+    )
+    assert "Copilot" not in room()
+
+
+def test_a_page_from_before_does_not_make_koloni_s_off_the_user_s(client, monkeypatch):
+    stand_in(monkeypatch, [measured(models=[{"id": "gpt-6-luna"}])])
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={
+            "name": "Copilot",
+            "kind": "copilot_cli",
+            "models": [{"name": "gpt-6-luna"}, {"name": "gpt-x", "enabled": False}],
+        },
+    ).json()
+    assert offers_of_api(client, made["id"])["models"][0]["enabled"] is None
+    # A page that saw gpt-6-luna switched off by KOLONİ (its why beside it) saves its rows.
+    stale = [
+        {"name": "gpt-6-luna", "enabled": False, "off_why": NOT_LISTED},
+        {"name": "gpt-x", "enabled": False},
+    ]
+    saved = client.patch(f"/api/providers/{made['id']}", headers=ORIGIN, json={"models": stale})
+    assert [m["enabled"] for m in saved.json()["models"]] == [None, False]
+    # Switched off by you, with no why of KOLONİ's: off.
+    mine = [{"name": "gpt-6-luna", "enabled": False}, {"name": "gpt-x", "enabled": False}]
+    saved = client.patch(f"/api/providers/{made['id']}", headers=ORIGIN, json={"models": mine})
+    assert [m["enabled"] for m in saved.json()["models"]] == [False, False]
 
 
 @pytest.mark.anyio
@@ -395,6 +494,24 @@ def test_a_fill_and_a_models_list_offer_only_what_the_account_offers(client, mon
         json={"kind": "copilot_cli", "models": [{"name": "auto"}]},
     ).json()
     assert [m["name"] for m in new["models"]] == ["auto"] and new["note"] == ADD_FIRST
+
+
+@pytest.mark.parametrize("answer", [measured(), ModelUnavailable("Copilot is away")])
+def test_fill_tiers_holds_copilot_to_its_account_or_leaves_it_as_it_is(client, monkeypatch, answer):
+    stand_in(monkeypatch, [answer])
+    rows = [{"name": "gpt-6-luna", "tier": "strongest"}]
+    client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Copilot", "kind": "copilot_cli", "models": rows},
+    )
+    filled = client.post("/api/providers/fill-all", headers=ORIGIN).json()
+    (copilot,) = [p for p in filled["providers"] if p["name"] == "Copilot"]
+    names = [m["name"] for m in copilot["models"]]
+    if isinstance(answer, dict):  # (its own row kept, as a fill keeps it; auto is what it offers)
+        assert copilot["catalogued"] and names == ["gpt-6-luna", "auto"]
+    else:  # its account did not say: no GitHub catalogue in its stead
+        assert not copilot["catalogued"] and names == ["gpt-6-luna"]
 
 
 def test_an_account_that_offers_nothing_at_all_is_filled_with_nothing(client, monkeypatch):

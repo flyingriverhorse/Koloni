@@ -19,6 +19,7 @@ from app.agent.cards import _answer, _then, outside_a_copy
 from app.agent.ctx import Ctx
 from app.agent.words import MAX_WHY
 from app.api.usage import month_spend
+from app.copilot_offers import LISTED_REFUSED, offered
 from app.db.models import Agent, Conversation, Message, Provider, Room, Run
 from app.model_client import ModelClient, ModelUnavailable, OwnStop
 from app.providers import TIERS, NotListed, allowed, ask_once, list_providers, mode_of, own_request
@@ -489,7 +490,12 @@ class TiersMixin:
                 return False
             rows = provider.models or []
             if any(m["name"] == model and m.get("enabled", True) for m in rows):
+                # (Refused though its account listed it: the list does not switch it on again.)
+                listed = provider.offers is not None and offered(model, provider.offers)
                 why = REFUSED_OFF.format(provider=shown_name(provider.name)) + (
+                    LISTED_REFUSED if listed else ""
+                )
+                why += (
                     ""
                     if any(m["name"] != model and m.get("enabled", True) for m in rows)
                     else REFUSED_LAST
