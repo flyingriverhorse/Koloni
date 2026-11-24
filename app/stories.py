@@ -5,10 +5,11 @@ and bugs. A story's state comes from its tasks; it is done only by the user's wo
 
 from collections.abc import Sequence
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, literal_column, select
 from sqlalchemy.orm import Session
 
-from app.db.models import BacklogTask, Goal, Story, now
+from app import topics
+from app.db.models import Agent, BacklogTask, Goal, Run, Story, Topic, now
 
 PRIORITIES = ("high", "normal", "low")
 # A story's notebook: each note at most NOTE_MOST characters, at most NOTEBOOK_MOST of them (the
@@ -281,3 +282,96 @@ def add_notes(story: Story, texts: Sequence[str], by: str, kind: str = "decision
     at = now().isoformat()
     added = [{"kind": kind, "text": text[:NOTE_MOST], "by": by, "at": at} for text in texts]
     story.notes = [*(story.notes or []), *added][-NOTEBOOK_MOST:]  # (replaced whole)
+
+
+# On an Orchestrator's record (`Agent.copy`): its branch went in, or was turned down, at Close the
+# story - no later turn goes on from it (`branch_lead`).
+BRANCH_GONE = "branch_gone"
+
+
+def branch_lead(
+    session: Session, story_id: str | None = None, task_id: str | None = None
+) -> str | None:
+    """The Orchestrator of the latest turn of the story's tasks (or of one task of no story) that
+    left its work on a git branch (its record's `on_branch`, or `left_on` where it could not open
+    it again) still there: the one the next turn goes on from (`AgentRunner._branch_again`).
+    None: no branch yet, or its last went in or was turned down at Close the story."""
+    runs = select(Run.id).join(BacklogTask, BacklogTask.id == Run.task_id)
+    runs = runs.where(
+        BacklogTask.story_id == story_id if story_id is not None else BacklogTask.id == task_id
+    )
+    for agent_id, copy in session.execute(
+        select(Agent.id, Agent.copy)
+        .where(Agent.run_id.in_(runs), Agent.depth == 0)
+        .order_by(Agent.created_at.desc(), literal_column("agents.rowid").desc())
+    ):
+        held = copy or {}
+        if held.get(BRANCH_GONE):
+            return None
+        if held.get("on_branch") or held.get("left_on"):
+            return agent_id
+    return None
+
+
+def last_task(session: Session, story_id: str) -> BacklogTask | None:
+    """The story's task whose turn ran last."""
+    return session.scalar(
+        select(BacklogTask)
+        .join(Run, Run.task_id == BacklogTask.id)
+        .where(BacklogTask.story_id == story_id)
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+        .limit(1)
+    )
+
+
+def _last_topic(session: Session, cid: str, *where) -> Topic | None:
+    """The topic of the chat's newest turn that matches `where`."""
+    return session.scalar(
+        select(Topic)
+        .join(Run, Run.topic_id == Topic.id)
+        .where(Run.conversation_id == cid, Topic.conversation_id == cid, *where)
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+        .limit(1)
+    )
+
+
+def topic_for(session: Session, cid: str, task: BacklogTask) -> tuple[Topic, bool]:
+    """The topic a To-do task's turn goes on in, in this chat, and whether it was made now
+    (added, not committed): the task's own where it had a turn here (its fix round, a task
+    put back and queued again); else its story's newest topic here - a story's tasks go on
+    in one session (`topics.previous_lead`) - unless the story's task that last ran there ended
+    badly (stuck: the next does not carry its wrong guess on, the spec's rule 6), when the story
+    gets a topic anew; else, for a story with none here or a task of no story, a new one. A story
+    deleted since counts as none."""
+    own = _last_topic(session, cid, Run.task_id == task.id)
+    if own is not None:
+        return own, False
+    story = session.get(Story, task.story_id) if task.story_id else None
+    if story is not None:
+        found = session.scalar(
+            select(Topic)
+            .where(Topic.conversation_id == cid, Topic.story_id == story.id)
+            .order_by(Topic.created_at.desc(), literal_column("topics.rowid").desc())
+            .limit(1)
+        )
+        last = (
+            session.scalar(
+                select(BacklogTask)
+                .join(Run, Run.task_id == BacklogTask.id)
+                .where(Run.topic_id == found.id)
+                .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+                .limit(1)
+            )
+            if found is not None
+            else None
+        )
+        if found is not None and (last is None or last.status != "blocked"):
+            return found, False
+    topic = Topic(
+        conversation_id=cid,
+        title=topics.title_of(story.title if story else task.title) or "Untitled",
+        story_id=story.id if story else None,
+    )
+    session.add(topic)
+    session.flush()
+    return topic, True

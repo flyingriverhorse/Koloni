@@ -18,7 +18,7 @@ from app.db.models import Agent, BacklogTask
 from app.model_client import ModelUnavailable
 from tests.conftest import Gate, scaled
 from tests.test_backlog import setup
-from tests.test_backlog_auto import tasks, worked
+from tests.test_backlog_auto import run_todo, tasks, worked
 from tests.test_chat_flow import text
 from tests.test_claim_scenarios import calls, write
 from tests.test_git_view import run
@@ -482,10 +482,10 @@ def beside(make_client, folder, gate):
         }
     )
     pid, (first,) = setup(client, folder, "first")
-    assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] == first
+    assert run_todo(client, pid)["task_id"] == first
     gate.wait_partial()  # (the first is at work, in the project)
     second = client.post(f"/api/projects/{pid}/backlog", json={"title": "Second task"}).json()
-    assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] == second["id"]
+    assert run_todo(client, pid)["task_id"] == second["id"]
     cid = tasks(client, pid)["Second task"]["conversation_id"]
     coder = until(
         client, cid, lambda s: any(a["status"] == "proposed" for a in s["agents"]), timeout=LONG
@@ -592,14 +592,6 @@ def test_where_the_project_has_no_git_the_task_beside_works_as_today(
     assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 200
     worked(client, wait_run, pid, "Second task")
     assert (project_dir / "b.txt").read_text() == "b\n"
-    gate.release()
-
-
-def test_tasks_started_together_each_go_on_a_branch(make_client, repo, gate):
-    client, _model = make_client([gate.step(text("a")), gate.step(text("b"))])
-    pid, (one, two) = setup(client, repo, "one", "two")
-    client.post(f"/api/projects/{pid}/backlog/next")
-    assert flow(client, one).get("branch") and flow(client, two).get("branch")
     gate.release()
 
 

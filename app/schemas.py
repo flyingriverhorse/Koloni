@@ -579,7 +579,8 @@ class ConversationListed(ConversationOut):
     kept: bool
     # It has a turn the user started (not a trigger's).
     wrote: bool
-    # The To-do list's task it was started for ("Run the backlog"); None: an ordinary chat.
+    # The To-do task at work in it, else the first waiting in its queue, else the last it worked on
+    # (0.1.8, Do in chat); None: none.
     backlog_task: ListedBacklogTask | None
 
 
@@ -4897,10 +4898,9 @@ class BacklogTaskOut(Out):
     # Waiting for review, with work of its chat not in the project yet (`backlog.not_in`):
     # read by the backlog's list only, false elsewhere.
     not_in: bool = False
-    # K-symphony: the tasks it waits for (until each is done), whether Run the backlog took it,
-    # and why it is stuck (status blocked) - `BacklogTask.flow`.
+    # The tasks it waits for (until each is done), and why it is stuck (status blocked) -
+    # `BacklogTask.flow`.
     after: list[str] = []
-    queued: bool = False
     stuck: str | None = None
     # Doing, its turn waiting for the user's word now (`backlog.waiting`): the list's only.
     waiting: bool = False
@@ -4965,51 +4965,27 @@ class BacklogDecideIn(BaseModel):
     decision: Literal["approve", "reject"]
 
 
-class BacklogNextOut(BaseModel):
-    """The first task Run the backlog started, and its conversation; None when none started
-    at once (as many are at work as may be: the rest start as they end)."""
+class BacklogDoIn(BaseModel):
+    """Do in chat: the ticked tasks, for the queue of this chat - or of a new one (None)."""
 
-    task_id: str | None
-    conversation_id: str | None
-
-
-class BacklogAutoIn(BaseModel):
-    on: bool
+    task_ids: list[str] = Field(min_length=1, max_length=100)
+    conversation_id: str | None = None
 
 
-class BacklogChoiceIn(BaseModel):
-    """The level and the model the chats the backlog opens start with (B-350), whole: no
-    provider is the default one, no model its default model."""
+class BacklogDoOut(BaseModel):
+    """The chat the tasks wait in, and the ids queued there, in their order."""
 
-    permission_mode: PermissionMode
-    provider_id: str | None = Field(default=None, max_length=32)
-    model_id: str | None = Field(default=None, max_length=200)
-    # K-r144: who changes the files there; None: as the project's new chats.
-    lead_work: LeadWork | None = None
+    conversation_id: str
+    queued: list[str]
 
 
 class BacklogDrafter(BaseModel):
+    """Who "Write it with the Hive keeper" asks (`api.backlog._drafter`): its provider and
+    model (None: its default), or why nobody is asked now."""
+
     why: str | None
     provider_id: str | None = None
     model_id: str | None = None
-
-
-class BacklogAutoOut(BaseModel):
-    """Whether the backlog works itself, and why its run is paused or last stopped (or None);
-    and the level and the model the chats it opens start with (`BacklogChoiceIn`)."""
-
-    on: bool
-    halt: str | None
-    permission_mode: PermissionMode
-    provider_id: str | None
-    model_id: str | None
-    lead_work: LeadWork
-    # Why no backlog task can run on the provider its chats would use, or None: one with tools
-    # of its own (Run the backlog and by itself are refused while it holds).
-    cannot_run: str | None
-    # Who "Write it with the Hive keeper" asks (`api.backlog._drafter`): its provider and
-    # model (None: its default), or why nobody is asked now.
-    drafter: BacklogDrafter | None = None
 
 
 class BacklogDraftIn(BaseModel):

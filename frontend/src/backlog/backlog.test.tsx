@@ -5,7 +5,7 @@ import { expect, test, vi } from 'vitest'
 import type {
   Away,
   AwayJob,
-  BacklogAuto,
+  BacklogDrafter,
   BacklogTask,
   Board,
   Goal,
@@ -31,7 +31,6 @@ const task = (over: Partial<BacklogTask>): BacklogTask => ({
   assessment: null,
   not_in: false,
   after: [],
-  queued: false,
   stuck: null,
   waiting: false,
   kind: 'task',
@@ -39,25 +38,14 @@ const task = (over: Partial<BacklogTask>): BacklogTask => ({
   ...over,
 })
 
-const CHOICE = {
-  permission_mode: 'ask',
-  provider_id: null,
-  model_id: null,
-  lead_work: 'delegates',
-  cannot_run: null,
-} as const
-
 const page = () => ({
   error: null,
-  auto: null,
   providers: [] as Provider[],
-  onAuto: vi.fn(async () => {}),
-  onChoice: vi.fn(async () => {}),
   onAdd: vi.fn(async () => {}),
   onChange: vi.fn(async () => {}),
   onDelete: vi.fn(async (_id: string) => {}),
   onDecide: vi.fn(async (_id: string, _decision: 'approve' | 'reject') => {}),
-  onRun: vi.fn(async () => {}),
+  onDoInChat: vi.fn(async (_ids: string[], _cid: string | null) => {}),
   onOpen: vi.fn(),
 })
 
@@ -174,8 +162,6 @@ test('what waits for you is one row each - new tasks, then "done?", then changes
   await userEvent.click(within(tasks).getByRole('button', { name: 'form' }))
   expect(within(tasks).getByText(/an opinion, not a status/)).toBeInTheDocument()
   expect(screen.getByRole('combobox', { name: 'Status of form' })).toHaveValue('review')
-  expect(screen.getByRole('button', { name: 'Run the backlog' })).toBeDisabled() // no task is todo
-  expect(screen.getByRole('button', { name: 'Run the backlog' })).toHaveAccessibleDescription('Off')
 })
 
 test('Approve all adds the proposed tasks one after another; one refused stays on its row with why', async () => {
@@ -232,7 +218,7 @@ test('adding starts from one line: the rest opens once a title is typed, Esc clo
   // The empty list says what a task is, and points at what is already on the page.
   expect(
     screen.getByText(
-      'No task yet. A task is work for later: type its title in “Add a task” above, and Run the backlog starts it in a chat of its own.',
+      'No task yet. A task is work for later: type its title in “Add a task” above, tick it, and Do in chat gives it to a chat.',
     ),
   ).toBeInTheDocument()
   const form = within(screen.getByRole('form', { name: 'Add a task' }))
@@ -270,180 +256,28 @@ test("the rail's badge counts what waits on the backlog too", () => {
   expect(waitingTotal(board)).toBe(2)
 })
 
-test('Run the backlog and its switch: how the run stands, and where each task stands in it', async () => {
-  const props = page()
-  const backlog = [
-    task({ title: 'one', status: 'doing', conversation_id: 'c1' }),
-    task({ title: 'two', status: 'todo', queued: true, after: ['one'] }),
-    task({ title: 'three', status: 'todo', queued: true }),
-    task({ title: 'four', status: 'blocked', stuck: 'the check "pytest" did not pass' }),
-    task({ title: 'five', status: 'review', not_in: true }),
-    task({ title: 'six', status: 'doing', waiting: true }),
-  ]
-  const { rerender } = render(<BacklogPage {...props} backlog={backlog} auto={{ ...CHOICE, on: false, halt: null }} />)
-  const button = screen.getByRole('button', { name: 'Run the backlog' })
-  expect(button).toHaveAccessibleDescription('Running 2 of 4')
-  expect(screen.getByRole('region', { name: 'Your tasks' })).toHaveTextContent('Your tasks · 6')
-  const row = (title: string) => within(screen.getByRole('listitem', { name: title }))
-  expect(row('one').getByText('running')).toHaveClass('tag')
-  expect(row('two').getByText('waits for: one')).toHaveClass('backlog-sub')
-  expect(row('two').getByText('queued')).toHaveClass('tag')
-  expect(row('three').getByText('queued')).toHaveClass('tag')
-  expect(row('four').getByText('stuck: the check "pytest" did not pass')).toBeInTheDocument()
-  expect(row('four').getByText('stuck')).toHaveClass('tag')
-  expect(row('five').getByText('needs you · Take in')).toBeInTheDocument()
-  expect(row('six').getByText('waiting for you')).toBeInTheDocument() // its turn asks you mid-way
-  await userEvent.click(button)
-  expect(props.onRun).toHaveBeenCalled()
-  const toggle = screen.getByRole('switch', { name: 'Runs by itself' })
-  expect(toggle).toHaveAccessibleDescription(
-    /^Off: tasks start only from Run the backlog\. A task not finished gets one fix round/,
-  )
-  await userEvent.click(toggle)
-  expect(props.onAuto).toHaveBeenCalledWith(true)
-  // a limit reached: paused, and why
-  rerender(
-    <BacklogPage
-      {...props}
-      backlog={backlog}
-      auto={{ ...CHOICE, on: true, halt: 'Paused: the project is over this month’s budget.' }}
-    />,
-  )
-  expect(toggle).toBeChecked()
-  expect(button).toHaveAccessibleDescription('Paused: the project is over this month’s budget.')
-})
-
-test('the page before its list is read and when it could not be; the run on by itself with nothing todo; a refused Run said', async () => {
+test('the page before its list is read and when it could not be; no run settings, no Run the backlog (0.1.8)', () => {
   const props = page()
   const { rerender } = render(<BacklogPage {...props} backlog={null} />)
   expect(screen.getByText('Reading the To-do list…')).toHaveClass('muted')
-  expect(screen.queryByRole('button', { name: 'Run settings' })).toBeNull()
-  expect(screen.queryByRole('switch', { name: 'Runs by itself' })).toBeNull()
   expect(screen.queryByRole('region', { name: 'Your tasks' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'Run the backlog' })).toHaveAccessibleDescription('Off')
-  expect(screen.getByRole('button', { name: 'Run the backlog' })).not.toHaveAttribute('title')
   rerender(<BacklogPage {...props} backlog={null} error="the server is down" />)
   expect(screen.getByRole('alert')).toHaveTextContent('The To-do list could not be read: the server is down')
   expect(screen.queryByText('Reading the To-do list…')).toBeNull()
-  // On by itself: a todo task never worked on is in the run; with none todo, it waits.
-  rerender(
-    <BacklogPage
-      {...props}
-      backlog={[task({ title: 'one' }), task({ title: 'two', conversation_id: 'c1', position: 1 })]}
-      auto={{ ...CHOICE, on: true, halt: null }}
-    />,
-  )
-  expect(screen.getByRole('button', { name: 'Run the backlog' })).toHaveAccessibleDescription('Running 0 of 1')
-  rerender(
-    <BacklogPage
-      {...props}
-      backlog={[task({ title: 'one', status: 'done' })]}
-      auto={{ ...CHOICE, on: true, halt: null }}
-    />,
-  )
-  expect(screen.getByRole('button', { name: 'Run the backlog' })).toHaveAccessibleDescription(
-    'On, waiting: no new task is todo',
-  )
-  expect(screen.queryByRole('alert')).toBeNull()
-  props.onRun.mockRejectedValueOnce(new Error('no room to start'))
-  rerender(<BacklogPage {...props} backlog={[task({ title: 'one' })]} auto={{ ...CHOICE, on: false, halt: null }} />)
-  await userEvent.click(screen.getByRole('button', { name: 'Run the backlog' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('no room to start')
+  rerender(<BacklogPage {...props} backlog={[task({ title: 'one' })]} />)
+  for (const gone of ['Run settings', 'Runs by itself', 'Run the backlog', 'On, waiting'])
+    expect(document.body).not.toHaveTextContent(gone)
 })
 
-test('a task that waits for one at "done?" says why, and so does the run (B-349)', () => {
+test('a task that waits for one at "done?" says why (B-349)', () => {
   const backlog = [
     task({ title: 'one', status: 'review' }),
     task({ title: 'two', status: 'review', not_in: true }),
-    task({ title: 'three', queued: true, after: ['one', 'two'] }),
+    task({ title: 'three', after: ['one', 'two'] }),
   ]
-  render(<BacklogPage {...page()} backlog={backlog} auto={{ ...CHOICE, on: false, halt: null }} />)
+  render(<BacklogPage {...page()} backlog={backlog} />)
   const why = 'one (done? - press Done above to go on), two (waiting for you - Take in)'
   expect(within(screen.getByRole('listitem', { name: 'three' })).getByText(`waits for: ${why}`)).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Run the backlog' })).toHaveAccessibleDescription(
-    `Nothing running: waits for ${why}`,
-  )
-})
-
-test('a provider no backlog task can run on is said beside Run the backlog, and nothing starts the run until it is changed', () => {
-  const why = "Default (agy) works with its own tools, so backlog tasks can't run on it - choose a provider."
-  const backlog = [task({ title: 'one' })]
-  const { rerender } = render(
-    <BacklogPage {...page()} backlog={backlog} auto={{ ...CHOICE, on: false, halt: null, cannot_run: why }} />,
-  )
-  expect(screen.getByText(why)).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Run the backlog' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Run the backlog' })).toHaveAccessibleDescription(`Off · ${why}`)
-  expect(screen.getByRole('button', { name: 'Run the backlog' })).toHaveAttribute('title', why)
-  expect(screen.getByRole('switch', { name: 'Runs by itself' })).toBeDisabled()
-  // on already, it can still be turned off
-  rerender(<BacklogPage {...page()} backlog={backlog} auto={{ ...CHOICE, on: true, halt: null, cannot_run: why }} />)
-  expect(screen.getByRole('switch', { name: 'Runs by itself' })).toBeEnabled()
-})
-
-test('the level and the model of the chats the backlog opens are chosen under Run settings (B-350)', async () => {
-  const props = page()
-  const providers = [
-    { id: 'p1', name: 'Local', kind: 'openai_compat', default_model: 'qwen', models: [] },
-  ] as unknown as Provider[]
-  const { rerender } = render(
-    <BacklogPage {...props} providers={providers} backlog={[]} auto={{ ...CHOICE, on: false, halt: null }} />,
-  )
-  expect(screen.queryByLabelText('Its chats’ level')).toBeNull()
-  await userEvent.click(screen.getByRole('button', { name: 'Run settings' }))
-  expect(screen.getByRole('button', { name: 'Run settings' })).toHaveAttribute('aria-expanded', 'true')
-  await userEvent.selectOptions(screen.getByLabelText('Its chats’ level'), 'full_auto')
-  expect(props.onChoice).toHaveBeenCalledWith({
-    permission_mode: 'full_auto',
-    provider_id: null,
-    model_id: null,
-    lead_work: 'delegates',
-  })
-  expect(screen.queryByText('Full auto', { selector: '.tag' })).toBeNull()
-  rerender(
-    <BacklogPage
-      {...props}
-      providers={providers}
-      backlog={[]}
-      auto={{ ...CHOICE, on: false, halt: null, permission_mode: 'full_auto' }}
-    />,
-  )
-  // Its warning is outside the panel: a tag beside Run settings, the sentence behind its ⓘ.
-  expect(screen.getByText('Full auto', { selector: '.tag' })).toBeInTheDocument()
-  expect(screen.getByLabelText('Its chats’ level')).toHaveAccessibleDescription(
-    /^Full auto: its chats change files and run commands without asking\. .* it never answers for you\.$/,
-  )
-  await userEvent.selectOptions(screen.getByLabelText('Provider'), 'p1')
-  expect(props.onChoice).toHaveBeenLastCalledWith({
-    permission_mode: 'full_auto',
-    provider_id: 'p1',
-    model_id: null,
-    lead_work: 'delegates',
-  })
-  rerender(
-    <BacklogPage
-      {...props}
-      providers={providers}
-      backlog={[]}
-      auto={{ ...CHOICE, on: false, halt: null, permission_mode: 'full_auto', provider_id: 'p1' }}
-    />,
-  )
-  await userEvent.type(screen.getByLabelText('Model name'), 'small')
-  await userEvent.tab()
-  expect(props.onChoice).toHaveBeenLastCalledWith({
-    permission_mode: 'full_auto',
-    provider_id: 'p1',
-    model_id: 'small',
-    lead_work: 'delegates',
-  })
-  // K-r144: and who changes the files there, as a chat's own choice
-  await userEvent.selectOptions(screen.getByLabelText('Who changes the files'), 'itself')
-  expect(props.onChoice).toHaveBeenLastCalledWith({
-    permission_mode: 'full_auto',
-    provider_id: 'p1',
-    model_id: null,
-    lead_work: 'itself',
-  })
 })
 
 test('what a task waits for is chosen from its ⋯', async () => {
@@ -589,11 +423,11 @@ const paid = {
   default_model: 'mini',
   models: [],
 } as unknown as Provider
-const drafter = (over: Partial<NonNullable<BacklogAuto['drafter']>> = {}) => ({
-  ...CHOICE,
-  on: false,
-  halt: null,
-  drafter: { why: null, provider_id: 'p2', model_id: null, ...over },
+const drafter = (over: Partial<BacklogDrafter> = {}): BacklogDrafter => ({
+  why: null,
+  provider_id: 'p2',
+  model_id: null,
+  ...over,
 })
 
 const one = (title: string, over: Partial<NewBacklogTask> = {}): NewBacklogTask => ({
@@ -633,7 +467,7 @@ test('the note is written as a goal, stories and tasks: each changed, a story ad
       {...props}
       backlog={[]}
       providers={[paid]}
-      auto={drafter()}
+      drafter={drafter()}
       onDraft={onDraft}
       onAddTree={onAddTree}
       onPlan={vi.fn(async () => {})}
@@ -707,7 +541,7 @@ test('with no model to ask the button says why; Plan it in a chat asks for the H
       {...props}
       backlog={[]}
       providers={[]}
-      auto={drafter({ why, provider_id: null })}
+      drafter={drafter({ why, provider_id: null })}
       onDraft={vi.fn()}
       onPlan={onPlan}
     />,
@@ -734,7 +568,14 @@ test('while Add all runs, the drafts are held: none is changed and added twice',
   )
   const onDraft = vi.fn(async () => ({ by: 'Cloud (mini)', goal: null, stories: [], tasks: [one('One')] }))
   render(
-    <BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onDraft={onDraft} onAddTree={onAddTree} />,
+    <BacklogPage
+      {...props}
+      backlog={[]}
+      providers={[paid]}
+      drafter={drafter()}
+      onDraft={onDraft}
+      onAddTree={onAddTree}
+    />,
   )
   const box = await noteBox()
   await userEvent.type(box.getByLabelText('Your note'), 'a note')
@@ -830,7 +671,7 @@ test('a task the Orchestrator added waits for your OK here, and one it rejected 
 test('who writes the drafts is said by what is known: a model named for it, the provider’s default, or that it is not read yet', async () => {
   const props = page()
   const { rerender } = render(
-    <BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter({ model_id: 'big' })} onDraft={vi.fn()} />,
+    <BacklogPage {...props} backlog={[]} providers={[paid]} drafter={drafter({ model_id: 'big' })} onDraft={vi.fn()} />,
   )
   const box = await noteBox()
   await userEvent.type(box.getByLabelText('Your note'), 'x')
@@ -847,23 +688,25 @@ test('who writes the drafts is said by what is known: a model named for it, the 
       {...props}
       backlog={[]}
       providers={[{ ...paid, default_model: null }]}
-      auto={drafter()}
+      drafter={drafter()}
       onDraft={vi.fn()}
     />,
   )
   expect(write()).toHaveAccessibleDescription(
     `${HIVE_KEEPER_DOES} Cloud (its default model) writes them: one request you pay for. Nothing is saved until you add it.`,
   )
-  rerender(<BacklogPage {...props} backlog={[]} providers={[]} auto={drafter()} onDraft={vi.fn()} />)
+  rerender(<BacklogPage {...props} backlog={[]} providers={[]} drafter={drafter()} onDraft={vi.fn()} />)
   expect(write()).toHaveAccessibleDescription(`${HIVE_KEEPER_DOES} Who writes them is not read yet.`)
   expect(write()).toBeDisabled()
   // with no way to draft, neither the button nor its line - Plan it in a chat alone
-  rerender(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onPlan={vi.fn(async () => {})} />)
+  rerender(
+    <BacklogPage {...props} backlog={[]} providers={[paid]} drafter={drafter()} onPlan={vi.fn(async () => {})} />,
+  )
   expect(box.queryByRole('button', { name: 'Write it' })).toBeNull()
   expect(document.getElementById('draft-who')).toBeNull()
   expect(box.getByRole('button', { name: 'Plan it in a chat' })).toBeEnabled()
   // with neither, no Hive keeper on the bar
-  rerender(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} />)
+  rerender(<BacklogPage {...props} backlog={[]} providers={[paid]} drafter={drafter()} />)
   expect(screen.queryByRole('button', { name: 'Write it with the Hive keeper' })).toBeNull()
 })
 
@@ -875,7 +718,7 @@ test('while the drafts are written the button says so, and neither it nor Plan i
       {...props}
       backlog={[]}
       providers={[paid]}
-      auto={drafter()}
+      drafter={drafter()}
       onDraft={onDraft}
       onPlan={vi.fn(async () => {})}
     />,

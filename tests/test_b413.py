@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 import app.web
-from app import backlog, signs
+from app import signs
 from app.agent.limits_mixin import CIRCLING_WAIT
 from app.config import load_settings
 from app.main import create_app
@@ -284,24 +284,6 @@ def test_a_looping_triggers_turn_ends_with_why_and_asks_nothing(make_client, wai
 # --- a To-do run: the task is blocked with why, and the next one runs -----------------------------
 
 
-def test_a_looping_todo_task_is_blocked_with_why_and_the_next_task_runs(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
-    loop = signs.IDLE_STOP + 1
-    # (its turn, then its fix round, both going round; then the next task's long, honest turn)
-    client, _model = make_client(
-        [*circles(loop), *circles(loop, loop), *looks(40), text("two done")]
-    )
-    pid, _ = backlog_setup(client, project_dir, "one", "two")
-    auto(client, pid, True)
-    one = task_until(lambda: (t := tasks(client, pid)["one"])["status"] == "blocked" and t)
-    assert one["stuck"] == CIRCLES
-    task_until(lambda: tasks(client, pid)["two"]["conversation_id"])
-    assert worked(client, wait_run, pid, "two")["status"] == "review"
-    assert client.get(f"/api/projects/{pid}/backlog/auto").json()["on"] is True
-
-
 def test_stopped_after_a_copy_was_taken_in_the_turn_is_completed(
     make_client, wait_run, project_dir
 ):
@@ -396,27 +378,6 @@ def test_the_same_command_again_and_again_is_going_round(make_client, wait_run, 
     assert wait_run(client, cid, run_id, timeout=20)["runs"][0]["status"] == "failed"
 
 
-def test_a_todo_task_that_wrote_a_file_and_went_round_is_blocked_with_why(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    from tests.test_backlog_symphony import full_auto
-
-    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
-    wrote = step(call("write_file", {"path": "notes.txt", "content": "done"}, "w1"))
-    # (its turn and its fix round each write and go round; nobody watches: no landed "completed")
-    client, _model = make_client(
-        [wrote, *circles(LOOP), wrote, *circles(LOOP, LOOP), text("two done")]
-    )
-    pid, _ = backlog_setup(client, project_dir, "one", "two")
-    full_auto(client, pid)
-    assert client.patch(f"/api/projects/{pid}", json={"lead_work": "itself"}).status_code == 200
-    auto(client, pid, True)
-    one = task_until(lambda: (t := tasks(client, pid)["one"])["status"] == "blocked" and t)
-    assert one["stuck"] == CIRCLES
-    task_until(lambda: tasks(client, pid)["two"]["conversation_id"])
-    assert worked(client, wait_run, pid, "two")["status"] == "review"
-
-
 def test_the_unattended_limits_are_settings_of_the_app(client):
     client.headers.update(OWN)
     assert client.get("/api/unattended").json() == {"stuck_minutes": 30, "turn_hours": 8}
@@ -446,7 +407,6 @@ def test_the_unattended_limits_are_settings_of_the_app(client):
 
 def todo_held(make_client, project_dir, monkeypatch, *script):
     """A To-do run of two tasks, its clock held: (client, clock, pid)."""
-    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
     client, _model = make_client(list(script))
     clock = client.app.state.runner.call_later = HeldClock()
     pid, _ = backlog_setup(client, project_dir, "one", "two")
@@ -461,7 +421,7 @@ def first_run(client, pid):
 def test_a_todo_task_that_keeps_changing_files_has_no_hour_its_clock_starts_again(
     make_client, wait_run, project_dir, monkeypatch
 ):
-    from tests.test_backlog_symphony import full_auto
+    from tests.test_backlog_auto import full_auto
 
     writes = [
         step(call("write_file", {"path": f"part{i}.txt", "content": str(i)}, f"w{i}"))
@@ -514,7 +474,6 @@ class Silent(ScriptedModel):
 @pytest.fixture
 def silent_todo(settings_env, project_dir, monkeypatch):
     """A To-do run of two tasks on a Silent Lead, its clock held: (client, clock, pid)."""
-    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
     opened = []
 
     def make(hangs):
@@ -579,7 +538,6 @@ def test_nothing_moving_for_its_minutes_blocks_the_task_and_the_next_one_runs(
     assert one["stuck"] == NO_PROGRESS.format(minutes=30)
     task_until(lambda: tasks(client, pid)["two"]["conversation_id"])
     assert worked(client, wait_run, pid, "two")["status"] == "review"
-    assert client.get(f"/api/projects/{pid}/backlog/auto").json()["on"] is True
 
 
 @pytest.mark.parametrize("what", ["command", "file", "agent"])
@@ -647,13 +605,10 @@ def test_a_slow_model_step_keeps_its_clock_from_ending_it(
 def test_a_todo_task_that_waits_for_the_user_is_spared_by_its_ceiling_too(
     make_client, wait_run, project_dir, monkeypatch
 ):
-    from tests.test_backlog_symphony import full_auto
-
-    asks = step(call("run_command", {"command": "cmd /c echo hi"}, "k1"))  # (runs another)
+    asks = step(call("run_command", {"command": "cmd /c echo hi"}, "k1"))  # (asked at Ask)
     client, clock, pid = todo_held(
         make_client, project_dir, monkeypatch, asks, text("one done"), text("two done")
     )
-    full_auto(client, pid)
     auto(client, pid, True)
     cid = task_until(
         lambda: (
@@ -672,14 +627,11 @@ def test_a_todo_task_that_waits_for_the_user_is_spared_by_its_ceiling_too(
 def test_a_todo_task_that_waits_for_the_user_is_not_stuck(
     make_client, wait_run, project_dir, monkeypatch
 ):
-    # (K-r135: a To-do task's card waits for the user, at Full auto too)
-    from tests.test_backlog_symphony import full_auto
-
-    asks = step(call("run_command", {"command": "cmd /c echo hi"}, "k1"))  # (runs another)
+    # (a To-do task's card waits for the user, as its chat's level asks)
+    asks = step(call("run_command", {"command": "cmd /c echo hi"}, "k1"))  # (asked at Ask)
     client, clock, pid = todo_held(
         make_client, project_dir, monkeypatch, asks, text("one done"), text("two done")
     )
-    full_auto(client, pid)
     auto(client, pid, True)
     cid = task_until(
         lambda: (

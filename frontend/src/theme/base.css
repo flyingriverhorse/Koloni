@@ -3465,3 +3465,41 @@ button.turn-name:hover {
   align-items: center;
   gap: 6px 10px;
 }
+
+/* 0.1.8: a To-do task's message in the chat, its cards and the chat's queue over the box */
+.msg-todo {
+  border-left: 3px solid var(--cat-amber);
+  padding-left: 10px;
+  text-align: left;
+}
+.msg-todo-title {
+  font-weight: 600;
+}
+.msg-todo-done {
+  margin: 4px 0;
+}
+.todo-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.todo-card-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.todo-queue {
+  margin: 0 12px 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.todo-queue-list {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.todo-queue-note {
+  margin: 0;
+}

@@ -86,7 +86,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
   this machine (code kept as text, a free symbol map, answers with file:line); notes agents keep
   and you approve. [Knowledge](docs/knowledge.md) · [Memory](docs/memory.md)
 - **Work over time**: a To-do list of goals, stories and their tasks and bugs - a rough note written
-  as one by the Hive keeper - with suggested tasks, triggers (clock, files, webhook), and
+  as one by the Hive keeper - ticked tasks done in a chat one by one (each story in a topic of its own,
+  on a git branch of its own), with suggested tasks, triggers (clock, files, webhook), and
   **☾ Away**: your To-do tasks worked through one at a time, each in its own copy, until you are back,
   then one summary of what is done, decided and waiting.
   [To-do](docs/automation/todo.md) · [Triggers](docs/automation/triggers.md) · [☾ Away](docs/automation/overnight.md)

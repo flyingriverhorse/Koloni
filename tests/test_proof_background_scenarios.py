@@ -16,6 +16,7 @@ from app.db.models import Message
 from tests.conftest import scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import write
+from tests.test_backlog_auto import run_todo
 from tests.test_chat_flow import text
 from tests.test_proof_end_scenarios import (
     OWN,
@@ -802,16 +803,9 @@ def test_a_to_do_turn_never_goes_on_in_the_background(make_client, wait_run, pro
         ).status_code
         == 200
     )
-    assert (
-        client.put(
-            f"/api/projects/{pid}/backlog/choice",
-            json={"permission_mode": "full_auto"},
-            headers=OWN,
-        ).status_code
-        == 200
-    )
+    client.todo_mode = "full_auto"
     client.post(f"/api/projects/{pid}/backlog", json={"title": "greeting"}, headers=OWN)
-    cid = client.post(f"/api/projects/{pid}/backlog/next", headers=OWN).json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     run_id = client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"]
     until(lambda: client.get(f"/api/conversations/{cid}").json()["commands"])
     time.sleep(0.6)  # (three times the answer's wait: a watched turn would have gone on)

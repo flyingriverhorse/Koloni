@@ -344,18 +344,8 @@ def test_a_deleted_provider_falls_back_to_the_next_level(two_models, wait_run, p
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     client.patch(f"/api/conversations/{cid}", json={"provider_id": provider["id"]})
-    assert (
-        client.put(
-            f"/api/projects/{pid}/backlog/choice",
-            headers={"Origin": "http://127.0.0.1:8790"},
-            json={"permission_mode": "ask", "provider_id": provider["id"], "model_id": "m"},
-        ).json()["model_id"]
-        == "m"
-    )
     assert client.delete(f"/api/providers/{provider['id']}").status_code == 204
     assert client.get(f"/api/conversations/{cid}").json()["conversation"]["provider_id"] is None
-    choice = client.get(f"/api/projects/{pid}/backlog/auto").json()  # (the backlog's too)
-    assert (choice["provider_id"], choice["model_id"]) == (None, None)
     lead = next(r for r in client.get("/api/roles").json() if r["name"] == "Lead")
     assert lead["provider_id"] is None
     run = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}).json()["run"]

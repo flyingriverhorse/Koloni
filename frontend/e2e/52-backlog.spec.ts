@@ -1,8 +1,7 @@
 // Slice 52 in the browser: the project's To-do page in the rail (Backlog before slice 106). The user adds tasks and
 // orders them by keyboard; a task the Lead proposes waits on a card (and on the rail's badge)
-// until it is approved; Run the backlog starts the todo tasks, each in a new conversation, one that waits
-// for another once that is done (K-symphony); a task's end leaves it "done?" for the user to call done. The
-// page reads at 4.5 in both themes.
+// until it is approved; one waits for another (⋯, Waits for). Running tasks is Do in chat's since 0.1.8
+// (52-todo-in-chat). The page reads at 4.5 in both themes.
 import { expect, test, type Locator, type Page } from './fixtures'
 import { OWN, contrasts, e2eProject, openFreshConversation, rail, say, shot } from './helpers'
 
@@ -27,7 +26,7 @@ test.afterEach(async ({ page }) => {
 })
 
 /** 0.1.8: a goal over a stuck story with a note and a bug, made through the Hive keeper's way in - its rows read at 4.5
- *  too. The bug is blocked: Run the backlog takes todo tasks only. */
+ *  too. */
 async function storyRows(page: Page, theme: string) {
   const pid = await e2eProject(page)
   const tree = {
@@ -72,7 +71,7 @@ async function add(page: Page, title: string, priority: 'high' | 'normal' | 'low
 }
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme: add and order tasks, approve a proposed one, run the backlog, one task waiting for another`, async ({
+  test(`in the ${theme} theme: add and order tasks, approve a proposed one, one task waiting for another`, async ({
     page,
   }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
@@ -126,41 +125,4 @@ for (const theme of ['light', 'dark'] as const)
     await page.getByRole('button', { name: 'Save' }).click()
     const row = (title: string) => tasks.getByRole('listitem', { name: title })
     await expect(row(second)).toContainText(`waits for: ${first}`)
-
-    // Run the backlog: the first starts in a new conversation (the page stays); the second waits for it.
-    await page.getByRole('button', { name: 'Run the backlog' }).click()
-    // (A task's status is under its title, opened.)
-    const unfold = (title: string) => tasks.getByRole('button', { name: title, exact: true }).click()
-    await unfold(first)
-    const status = page.getByRole('combobox', { name: `Status of ${first}` })
-    await expect(status).toHaveValue('review', { timeout: 20_000 })
-    await expect(status.locator('option:checked')).toHaveText('done?')
-    await expect(row(second)).toContainText(`waits for: ${first}`)
-    await page.getByRole('button', { name: `Open chat · ${first}` }).click()
-    const chat = page.getByRole('region', { name: 'Chat' })
-    const asked = chat
-      .locator('.msg-bubble')
-      .filter({ hasText: "(A task of the project's To-do list to work on, written by you" })
-    await expect(asked.last()).toContainText(first)
-    await expect(asked.last()).toContainText('prints bonjour')
-    await expect(chat.getByText('Worked on the task.')).toBeVisible({ timeout: 20_000 })
-
-    // Its turn over, it waits for the user's review; done is the user's to say.
-    await rail(page, 'To-do').click()
-    // It waits on a row too, as the badge counts it.
-    await reads(page.getByRole('group', { name: `Done? ${first}` }), 3)
-    await page
-      .getByRole('group', { name: `Done? ${first}` })
-      .getByRole('button', { name: 'Done', exact: true })
-      .click()
-    await unfold(first)
-    await expect(status).toHaveValue('done')
-    // Done: the second starts by itself, in the run Run the backlog began; a delete asks again before it deletes.
-    await unfold(second)
-    await expect(page.getByRole('combobox', { name: `Status of ${second}` })).toHaveValue('review', { timeout: 20_000 })
-    await dots(second).click()
-    await page.getByRole('menuitem', { name: 'Delete' }).click()
-    await expect(page.getByRole('button', { name: `Delete “${second}”` })).toBeFocused()
-    await page.keyboard.press('Enter')
-    await expect(tasks.getByText(second, { exact: true })).toBeHidden()
   })

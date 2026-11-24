@@ -58,13 +58,8 @@ def evening(make_client, project_dir, steps, mode="full_auto", plan=None, **proj
     assert (
         client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode}).status_code == 200
     )
-    # (A job runs at the lower of the chat's level and the To-do page's: here both are `mode`.)
-    assert (
-        client.put(
-            f"/api/projects/{pid}/backlog/choice", json={"permission_mode": mode}
-        ).status_code
-        == 200
-    )
+    # (A job runs at the level of the chat gone from: `mode`.)
+    client.todo_mode = mode
     run_id = client.post(
         f"/api/conversations/{cid}/messages", json={"content": "I'm going to sleep: do one and two"}
     ).json()["run"]["id"]
@@ -158,8 +153,10 @@ def test_nothing_starts_before_go_away_and_go_away_works_the_to_do_in_copies(
     assert started["status"] == "running" and started["kept_out"] == ["secret"]
     assert [job["title"] for job in started["jobs"]] == ["one", "two"]
     assert started["money"] is None and started["until"] is None  # (no limits of their own)
-    # no task of the To-do list starts beside the night
-    assert client.post(f"/api/projects/{pid}/backlog/next").status_code == 409
+    # a job of the night is no task to give to a chat meanwhile
+    ids = [job["task_id"] for job in started["jobs"]]
+    given = client.post(f"/api/projects/{pid}/backlog/do-in-chat", json={"task_ids": ids[:1]})
+    assert given.status_code == 422
     done = ended(client, pid)
     assert done["why"] is None and done["counts"] == {
         "done": 2,
@@ -628,7 +625,7 @@ def test_a_job_with_a_team_and_its_recipe_works_by_it_and_is_done_at_ready_for_y
             "teams": [{"team_id": teams_of(client)["Web app"]["id"], "recipe_id": recipe["id"]}],
         },
     )
-    client.put(f"/api/projects/{pid}/backlog/choice", json={"permission_mode": "full_auto"})
+    client.todo_mode = "full_auto"
     run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "sleep"}).json()[
         "run"
     ]["id"]
@@ -892,7 +889,6 @@ def test_a_job_that_waits_for_a_question_after_a_refused_command_says_so_and_hol
     # B-147 (live, R68/R69): an earlier night's job waiting for the user held a new night off for good
     # ("... is being worked on: the jobs start once nothing else of the To-do list is at work"); its
     # command refused, the job asked a question in its chat - in neither the report nor anywhere else.
-    from app import backlog
 
     run = step(call("run_command", {"command": "echo hi"}))
     question = step(
@@ -914,7 +910,7 @@ def test_a_job_that_waits_for_a_question_after_a_refused_command_says_so_and_hol
     assert (one["state"], one["why"]) == ("waits", "Lead asks you something (ask_user)")
     # Waiting for the user's word, it is not at work: a new Away starts (its tasks, the next ones).
     with client.app.state.runner._factory() as session:
-        assert backlog.busy(session, pid) is not None  # (the To-do list's own start: as before)
+        assert away.busy(session, pid) is not None  # (the To-do list's own start: as before)
     three = client.post(f"/api/projects/{pid}/backlog", json={"title": "three"}).json()["id"]
     started = client.post(f"/api/conversations/{cid}/away", json={"task_ids": [three]})
     assert started.status_code == 200, started.text
@@ -972,7 +968,7 @@ def test_a_task_away_never_started_is_the_to_do_lists_again(make_client, wait_ru
     done = ended(client, pid)
     assert done["why"] and done["counts"]["not_started"] == 1
     assert [(job["task_id"], job["state"]) for job in done["jobs"]] == [(one, "next")]
-    started = client.post(f"/api/projects/{pid}/backlog/next")
+    started = client.post(f"/api/projects/{pid}/backlog/do-in-chat", json={"task_ids": [one]})
     assert started.status_code == 200, started.text
 
 
@@ -1009,11 +1005,8 @@ def test_go_away_takes_the_ticked_tasks_in_the_panels_order_and_leaves_the_rest(
         "one",
         "mine",
     ]
-    for doing in (
-        client.post(f"/api/projects/{pid}/backlog/next"),
-        client.post(f"/api/away/{started['id']}/jobs/{one}/again"),
-    ):
-        assert (doing.status_code, doing.json()["detail"]) == (409, away.AWAY_NOW)
+    doing = client.post(f"/api/away/{started['id']}/jobs/{one}/again")
+    assert (doing.status_code, doing.json()["detail"]) == (409, away.AWAY_NOW)
     done = ended(client, pid)
     assert [(job["title"], job["state"]) for job in done["jobs"]] == [
         ("two", "done"),

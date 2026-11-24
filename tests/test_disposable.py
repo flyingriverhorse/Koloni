@@ -773,15 +773,12 @@ def test_only_a_watched_turn_of_its_own_at_auto_edit_or_full_auto_gets_it_unaske
 
     assert allowed() is True and allowed("auto_edit") is True
     assert allowed("ask") is False
-    # Not a turn nobody watches, a side of a comparison, a job while the user is away, a To-do
-    # task's turn.
+    # Not a turn nobody watches, a side of a comparison, a job while the user is away (a To-do
+    # task's turn is its chat's, 0.1.8).
     for place in (runner._unwatched, runner._sides, runner._away_jobs):
         place["r"] = "a"
         assert allowed() is False
         del place["r"]
-    runner._backlog_turns.add("r")
-    assert allowed() is False
-    runner._backlog_turns.discard("r")
     assert (
         client.patch(
             f"/api/projects/{pid}", json={"disposable_deletes": False}, headers=OWN

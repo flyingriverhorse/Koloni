@@ -55,6 +55,7 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
                 mine_gate.step(text("busy")),
                 text("mine"),
                 text("two done"),
+                text("waits done"),  # (the task that waited in the queue, after Resume)
                 text("next time"),
             ]
         },
@@ -67,8 +68,9 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
         # a trigger's turn, a backlog task's turn, a turn of the user's and one queued behind it
         (unattended,) = tick(client, T0)
         gate.wait_partial()
-        client.post(f"/api/projects/{pid}/backlog", json={"title": "one"})
-        client.put(f"/api/projects/{pid}/backlog/auto", json={"on": True})
+        task = client.post(f"/api/projects/{pid}/backlog", json={"title": "one"}).json()["id"]
+        waits = client.post(f"/api/projects/{pid}/backlog", json={"title": "waits"}).json()["id"]
+        client.post(f"/api/projects/{pid}/backlog/do-in-chat", json={"task_ids": [task, waits]})
         task_gate.wait_partial()
         busy = client.post(
             f"/api/conversations/{other}/messages", json={"content": "a turn of my own"}
@@ -83,7 +85,7 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
             False,
             4,
             2,
-            [project_dir.name],
+            [project_dir.name],  # (0.1.8: a project with To-do tasks waiting in a chat's queue)
         )
 
         # from the app's own page only
@@ -107,12 +109,9 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
     assert all(s["created_at"] <= held["since"] for s in held["stopped"])
     snap = client.get(f"/api/conversations/{other}").json()
     assert {run_of(snap, busy)["status"], run_of(snap, queued["id"])["status"]} == {"cancelled"}
-    # the backlog that works itself is held, not switched off; the task stopped is todo again
-    assert (
-        client.get(f"/api/projects/{pid}/backlog/auto").json().items()
-        >= {"on": True, "halt": None}.items()
-    )
+    # the chat's queue is held, not stopped: the task stopped is todo again, first in it
     assert tasks(client, pid)["one"]["status"] == "todo"
+    assert tasks(client, pid)["one"]["place"] == 1 and tasks(client, pid)["waits"]["place"] == 2
 
     # while held nothing starts by itself: no next task, no trigger, whichever way
     client.post(f"/api/projects/{pid}/backlog", json={"title": "two"})
@@ -138,9 +137,13 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
     said = "4 stopped turns stay stopped - send a message to go on."
     assert held["stays_stopped"] == said and resumed["stays_stopped"] == said
     assert client.get("/api/hold").json()["stays_stopped"] is None
-    # the backlog goes on with its next task never worked on
-    two = until(lambda: tasks(client, pid)["two"]["conversation_id"])
-    wait_run(client, two, client.get(f"/api/conversations/{two}").json()["runs"][0]["id"])
+    # the chat's queue goes on: the task stopped first, in its chat
+    chat = tasks(client, pid)["one"]["conversation_id"]
+    again = until(
+        lambda: (runs := client.get(f"/api/conversations/{chat}").json()["runs"])[1:] and runs[1]
+    )
+    assert again["task_id"] == tasks(client, pid)["one"]["id"]
+    wait_run(client, chat, again["id"])
     # the hour missed while held is not made up for, though the trigger catches up: it waits
     assert tick(client, T0 + timedelta(hours=1, minutes=1)) == []
     next_at = datetime.fromisoformat(one(client, clock["id"])["next_at"])
@@ -268,21 +271,20 @@ def test_a_users_turn_that_fails_in_a_tasks_chat_while_held_leaves_the_run_on(
         project_dir,
         {"Lead": [text("one done"), ModelUnavailable("the model is down"), text("two done")]},
     )
-    client.post(f"/api/projects/{pid}/backlog", json={"title": "one"})
-    client.put(f"/api/projects/{pid}/backlog/auto", json={"on": True})
+    one = client.post(f"/api/projects/{pid}/backlog", json={"title": "one"}).json()["id"]
+    client.post(f"/api/projects/{pid}/backlog/do-in-chat", json={"task_ids": [one]})
     chat = until(lambda: tasks(client, pid)["one"]["conversation_id"])
     wait_run(client, chat, client.get(f"/api/conversations/{chat}").json()["runs"][0]["id"])
     client.post("/api/hold")
-    client.post(f"/api/projects/{pid}/backlog", json={"title": "two"})
+    two = client.post(f"/api/projects/{pid}/backlog", json={"title": "two"}).json()["id"]
+    given = {"task_ids": [two], "conversation_id": chat}
+    assert client.post(f"/api/projects/{pid}/backlog/do-in-chat", json=given).status_code == 200
     # the user's own message in the task's chat, while held: it runs - and fails
     mine = client.post(
         f"/api/conversations/{chat}/messages", json={"content": "one more thing"}
     ).json()["run"]["id"]
     assert run_of(wait_run(client, chat, mine), mine)["status"] == "failed"
-    assert (
-        client.get(f"/api/projects/{pid}/backlog/auto").json().items()
-        >= {"on": True, "halt": None}.items()
-    )
+    assert tasks(client, pid)["two"]["place"]  # (its queue stays: the turn was the user's)
     assert tasks(client, pid)["one"]["status"] == "review"
     client.post("/api/hold/resume")
     assert until(lambda: tasks(client, pid)["two"]["conversation_id"])

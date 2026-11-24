@@ -152,13 +152,6 @@ NO_MORE_GO_ON = (
 
 TEAM_STOPPED = "Stopped by you: the user stopped this team"
 
-# K-r135: as UNATTENDED_NOT_THIS, for a backlog task's turn.
-BACKLOG_NOT_THIS = (
-    "{provider} cannot work on a backlog task: it works with its own tools - KOLONİ sees of "
-    "them only what the CLI asks about - and nobody is here to ask. Choose another provider "
-    "for the backlog's chats (To-do page) or this role, or set this one to a way of working "
-    "that uses KOLONİ's tools (a session, or one step at a time)."
-)
 UNATTENDED_NOT_THIS = (
     "{provider} cannot work in a turn nobody is watching: it works with its own tools - "
     "KOLONİ sees of them only what the CLI asks about - so it cannot be "

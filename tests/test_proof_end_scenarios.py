@@ -19,6 +19,7 @@ from app.model_client import StepResult, ToolCallRequest
 from tests.conftest import scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import wait_status, write
+from tests.test_backlog_auto import run_todo
 from tests.test_chat_flow import text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
 from tests.test_dal_takim import repo  # noqa: F401  (a fixture)
@@ -693,16 +694,9 @@ def test_a_to_do_task_waits_for_its_tests_to_the_commands_limit(make_client, wai
         ).status_code
         == 200
     )
-    assert (
-        client.put(
-            f"/api/projects/{pid}/backlog/choice",
-            json={"permission_mode": "full_auto"},
-            headers=OWN,
-        ).status_code
-        == 200
-    )
+    client.todo_mode = "full_auto"
     client.post(f"/api/projects/{pid}/backlog", json={"title": "greeting"}, headers=OWN)
-    cid = client.post(f"/api/projects/{pid}/backlog/next", headers=OWN).json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     run_id = client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"]
     snap = wait_run(client, cid, run_id)
     (ran,) = snap["commands"]
@@ -1022,10 +1016,10 @@ def test_a_branch_turn_keeps_its_checked_after_the_merge(make_client, wait_run, 
         client.patch(f"/api/projects/{pid}", json={"check_command": "python check.py"}).status_code
         == 200
     )
-    assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] == first
+    assert run_todo(client, pid)["task_id"] == first
     gate.wait_partial()
     second = client.post(f"/api/projects/{pid}/backlog", json={"title": "Second task"}).json()
-    assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] == second["id"]
+    assert run_todo(client, pid)["task_id"] == second["id"]
     cid = tasks(client, pid)["Second task"]["conversation_id"]
     coder = until(
         client, cid, lambda s: any(a["status"] == "proposed" for a in s["agents"]), timeout=LONG
@@ -1181,16 +1175,9 @@ def test_a_to_do_turn_with_nobody_away_runs_a_guess_as_any_turn(
         client.patch(f"/api/projects/{pid}", json={"lead_work": "itself"}, headers=OWN).status_code
         == 200
     )
-    assert (
-        client.put(
-            f"/api/projects/{pid}/backlog/choice",
-            json={"permission_mode": "full_auto"},
-            headers=OWN,
-        ).status_code
-        == 200
-    )
+    client.todo_mode = "full_auto"
     client.post(f"/api/projects/{pid}/backlog", json={"title": "greeting"}, headers=OWN)
-    cid = client.post(f"/api/projects/{pid}/backlog/next", headers=OWN).json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     run_id = client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"]
     row = checked(wait_run(client, cid, run_id))[0]
     assert (row["state"], row["guessed"]) == ("passed", True), row
