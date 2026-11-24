@@ -434,8 +434,8 @@ def levels_of(kind: str) -> tuple[str, ...] | None:
 # does not support reasoning effort configuration').
 # shortcut: Copilot's --auto-tier (its Auto routing profile) is not measured, nor auto run
 # natively (headless) or on a model server of the user's own; measure each with one cheap call.
-# shortcut: agy's and Copilot's auto alone, the ones seen to refuse (Qoder's Qwen-3.8-Max ends in
-# a level's word too); add Codex's or Claude Code's kind once a model of theirs refuses so.
+# shortcut: agy's and Copilot's auto alone, the ones seen to refuse; add Codex's or Claude
+# Code's kind once a model of theirs refuses so.
 # shortcut: only -low was seen refused (gemini-3.8-flash-low); -medium, -high and the rest are
 # read so by their likeness, not measured - and agy's own default (no --model) still gets its
 # --effort, untried with a level. Measure one of each, and the default, at the next agy check.

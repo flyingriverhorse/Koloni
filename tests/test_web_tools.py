@@ -167,7 +167,6 @@ def test_the_clis_that_can_search_are_the_users_codex_claude_code_and_agy(client
         ("A local", "openai_compat"),
         ("My agy", "agy_cli"),
         ("My Codex", "codex_cli"),
-        ("Q", "qoder_cli"),
         ("My Claude", "claude_cli"),
     ):
         body = {"name": name, "kind": kind, "default_model": "m"}

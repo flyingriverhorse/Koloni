@@ -416,8 +416,8 @@ class QuestionsMixin:
         A CLI that keeps tools of its own when asked to talk (agy: its reading, search and browser
         run unasked) is not handed the question, as `team.asked_how_hard` and the Observer pass
         one over; and at most `LEAD_CLI_MOST` are asked in a turn.
-        Qoder's `--tools ""` (`QoderSessionClient`) and Codex exec's own web search
-        (`CodexCliClient`, its `talker` too) were measured off on 4 Nov 2026 (R185).
+        Codex exec's own web search (`CodexCliClient`, its `talker` too) was measured off on
+        4 Nov 2026 (R185).
         What it spent is on a record of its own, the Lead's (`_own_request`): in the turn's
         usage, and a night's money.
         shortcut: it takes no place among the agents at work - the Lead may be at work itself;

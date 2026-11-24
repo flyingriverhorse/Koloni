@@ -64,7 +64,7 @@ from app.model_client import (
     provider_call_id,
 )
 from app.model_session import CliSessionClient, SessionStop
-from app.providers import list_providers, mode_of
+from app.providers import mode_of
 from app.roles import LEARN, LOOKUP, find_role, shown_name
 from app.serialize import agent_out, message_out, run_out
 from app.team import ClosedToAgents, quoted, tier_of
@@ -109,7 +109,7 @@ OVERFLOW = re.compile(
     # shortcut: its wording as remembered, not confirmed in its docs nor a live refusal; check.
     # shortcut: none for Qwen / DashScope, whose wording is neither confirmed in its docs nor
     # seen: its refusal is not taken as one for size (nothing is summarised for a second try).
-    # shortcut: no other CLI's own wording is measured (Claude Code, Codex, Qoder, agy; as a
+    # shortcut: no other CLI's own wording is measured (Claude Code, Codex, agy; as a
     # session, natively or step by step): one that passes its service's words on is read, any
     # other refusal for size is not. Add each CLI's line once a live refusal is seen.
     r"exceeds the available context size|maximum context length|context_length_exceeded"
@@ -140,9 +140,9 @@ def refused_for_size(exc: ModelUnavailable) -> bool:
     """Whether a failure is a refusal for its size (`OVERFLOW`) - read only in words that are
     the provider's or the CLI's own: never where the failure has a class of its own (a limit,
     no credit), nor where all that says why is the text of a CLI's `result`, which can be the
-    model's words (`model_cli.RESULT_TEXT`: Claude Code's and Qoder's `is_error` result) - a
+    model's words (`model_cli.RESULT_TEXT`: Claude Code's `is_error` result) - a
     page it read could have it say them, and have its history summarised and its turn run twice.
-    shortcut: so no refusal of Claude Code's or Qoder's own is read at all - no recorded stream
+    shortcut: so no refusal of Claude Code's own is read at all - no recorded stream
     in tests/ has such a result, nor a field on it that says it is the CLI's own; read that
     field (a subtype, the assistant event's `error`) once a live refusal shows one."""
     return exc.failure is None and bool(OVERFLOW.search(str(exc)))
@@ -1164,24 +1164,6 @@ class LoopMixin:
         # Its level, as a step's (`_model_step`); given only where there is one.
         effort = self._effort_sent(ctx, info)
         self._set_agent(ctx.cid, ctx.agent_id, effort=effort)
-        # R130: a model queued past QUEUE_WAIT_SECONDS is given up only where its sub-agent could
-        # move on (`_moved_on`); where `_moved_on` would say no at once it waits as long as
-        # Qoder queues it: a lead, an opener's pick, a role held to its own provider, no other
-        # provider. Not in a turn nobody watches (a trigger's, the night's): nobody would see it
-        # sit queued, so the limit holds there.
-        # shortcut: not `_moved_on`'s whole ladder - one with nowhere on it to go still fails
-        # at QUEUE_WAIT_SECONDS; ask the ladder first if that is seen.
-        waits = False
-        if isinstance(ctx.model, CliSessionClient) and self._watched(ctx.run_id):
-            with self._factory() as session:
-                role = find_role(session, ctx.role)
-                waits = (
-                    not ctx.depth
-                    or role is None
-                    or bool(role.provider_id and not role.models)
-                    or session.get_one(Agent, ctx.agent_id).chosen
-                    or len(list_providers(session)) < 2
-                )
         ended, before = False, transcript.opened
         try:
             # shortcut: its pictures go once, with no retry without them as a step's
@@ -1196,7 +1178,6 @@ class LoopMixin:
                 transcript.of,
                 **({"effort": effort} if effort else {}),
                 on_live=lambda item: self._show_live(ctx, item),
-                **({"queue_wait": None} if waits else {}),
             )
             self._slow_off(ctx)
             ended = True

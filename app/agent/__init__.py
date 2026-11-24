@@ -1861,15 +1861,12 @@ class AgentRunner(
         return [dict(shown) for cid, shown in self._cli_live.values() if cid == conversation_id]
 
     def _show_live(self, ctx: "Ctx", item: dict) -> None:
-        """89j: what its CLI says of its context or plan (or of its model's queue, Qoder's:
-        `queued`), kept as the latest, and sent once LIVE_SECONDS after the first of it:
-        whatever more comes meanwhile goes in that one."""
+        """89j: what its CLI says of its context or plan, kept as the latest, and sent once
+        LIVE_SECONDS after the first of it: whatever more comes meanwhile goes in that one."""
         _cid, shown = self._cli_live.setdefault(
-            ctx.agent_id,
-            (ctx.cid, {"agent_id": ctx.agent_id, "context": None, "plan": None, "queue": None}),
+            ctx.agent_id, (ctx.cid, {"agent_id": ctx.agent_id, "context": None, "plan": None})
         )
-        shown.update({key: item[key] for key in ("context", "plan", "queue") if key in item})
-        self._slow_queued(ctx, item.get("queue"))
+        shown.update({key: item[key] for key in ("context", "plan") if key in item})
         if ctx.agent_id not in self._live_due:
             self._live_due[ctx.agent_id] = asyncio.get_running_loop().call_later(
                 LIVE_SECONDS, self._send_live, ctx.agent_id
@@ -1892,7 +1889,7 @@ class AgentRunner(
             self.bus.emit_transient(
                 ctx.cid,
                 "agent.live",
-                {"agent_id": ctx.agent_id, "context": None, "plan": None, "queue": None},
+                {"agent_id": ctx.agent_id, "context": None, "plan": None},
             )
 
     # --- one run -------------------------------------------------------------

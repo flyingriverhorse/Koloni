@@ -3588,7 +3588,7 @@ def with_cwd(command: str, cwd: object) -> str:
     <cwd>; <command>` - so that `cwd=.koloni/tmp` with `echo x > ../settings.json`, or
     `cwd=.claude`, names what it reaches (a `cwd` in the scratch alone is no climb: `_ENTERS`).
     What runs is the command alone. `cwd` None: where it runs is not known - a CLI that names
-    none and may keep its shell's folder (Qoder; Copilot's other commands - it sends none; Codex
+    none and may keep its shell's folder (Copilot's other commands - it sends none; Codex
     or agy without one), so its `cd .koloni/tmp; ls` would leave the next line, `echo x >
     ../rules.md`, in the scratch and judged at the root: such a line is judged as one more
     change of folder, a card as it was. "." is the root, known: KOLONİ's own run_command, a

@@ -1058,7 +1058,7 @@ class ContextMixin:
         """The catalogue's window for the model a CLI's lead ran on, where its role sets none:
         Claude Code's, Codex's and Copilot's are in models.dev under their vendors'. None: not
         known - nothing is made up, and it is compacted as before (`_idle_after`).
-        shortcut: none for Qoder, agy, a CLI on a model server of the user's, or a model the
+        shortcut: none for agy, a CLI on a model server of the user's, or a model the
         CLI names its own way ("claude default"); nor is what a CLI reports of its window
         live (Codex's `modelContextWindow`) kept. Keep that on its record once measured.
         shortcut: the catalogue's is the model's own, not measured against what each CLI gives

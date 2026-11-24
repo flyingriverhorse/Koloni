@@ -888,7 +888,7 @@ class Agent(Base):
     # "left_out": {name: why}} (`app.skills.split`). None: its role had none, or from before.
     skills: Mapped[dict | None] = mapped_column(JSON, default=None)
     # 27 / 93-C3: the CLI session its last native turn left ({"id", "under"}: what it was
-    # started under, `ClaudeNativeClient._under`; Claude Code's or Qoder's - or Copilot's, with
+    # started under, `ClaudeNativeClient._under`; Claude Code's - or Copilot's, with
     # its "home" and what it has "spent" in all, 0.1.8), for its next turn - or a later turn's
     # lead going on from it - to resume with only what is new. None: none.
     cli_session: Mapped[dict | None] = mapped_column(JSON, default=None)

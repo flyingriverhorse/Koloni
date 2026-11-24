@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Provider } from '../api/types'
+import { showExperimental } from '../test-fixtures'
 import { ModelsPage } from './ModelsPage'
 
 const local: Provider = {
@@ -44,12 +45,25 @@ const handlers = () => ({
   onTest: vi.fn().mockResolvedValue({ ok: true, model_id: 'agy default', tools_supported: true, error: null }),
 })
 
+test('agy is offered only under Experimental, with experimental CLIs shown', async () => {
+  const { unmount } = render(<ModelsPage providers={[local]} {...handlers()} />)
+  await userEvent.click(screen.getByRole('button', { name: /Add a provider/ }))
+  expect(screen.queryByRole('option', { name: 'agy (CLI)' })).not.toBeInTheDocument()
+  unmount()
+  showExperimental()
+  render(<ModelsPage providers={[local]} {...handlers()} />)
+  await userEvent.click(screen.getByRole('button', { name: /Add a provider/ }))
+  const offered = await screen.findByRole('option', { name: 'agy (CLI)' })
+  expect(offered.closest('optgroup')).toHaveAttribute('label', 'Experimental')
+})
+
 test('agy is added by its command’s name and runs reading unless native is chosen', async () => {
   const h = handlers()
+  showExperimental()
   render(<ModelsPage providers={[local]} {...h} />)
   await userEvent.click(screen.getByRole('button', { name: /Add a provider/ }))
   await userEvent.type(screen.getByLabelText('Name'), 'agy')
-  await userEvent.selectOptions(screen.getByLabelText('Kind'), screen.getByRole('option', { name: 'agy (CLI)' }))
+  await userEvent.selectOptions(screen.getByLabelText('Kind'), await screen.findByRole('option', { name: 'agy (CLI)' }))
   expect(screen.getByLabelText('Path to the command')).toHaveAttribute(
     'placeholder',
     'Leave empty to find "agy" on PATH',

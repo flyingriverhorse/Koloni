@@ -23,7 +23,7 @@ from app import catalog  # noqa: E402
 from app.providers import MAX_MODELS, TIERS, check_guide  # noqa: E402
 
 ORIGIN = "http://127.0.0.1:8790"
-CATALOGUED = ("claude_cli", "anthropic", "codex_cli", "copilot_cli", "agy_cli", "qoder_cli")
+CATALOGUED = ("claude_cli", "anthropic", "codex_cli", "copilot_cli", "agy_cli")
 
 
 def add(client, kind, **body):
@@ -60,8 +60,8 @@ def test_every_entry_has_a_name_a_tier_and_a_source(kind):
     for entry in entries:
         assert entry["name"].strip() == entry["name"] and entry["name"]
         assert entry["tier"] in (None, *TIERS)
-        # (a page read, or the command whose list was measured: `qodercli --list-models`; or
-        # the run that measured a CLI's own name: `copilot -p --model auto`)
+        # (a page read, or the command whose list was measured (`... --list-models`); or the
+        # run that measured a CLI's own name: `copilot -p --model auto`)
         assert entry["source"]["url"].startswith("https://") or entry["source"]["url"].endswith(
             (" --list-models", f" --model {entry['name']}")
         ), entry

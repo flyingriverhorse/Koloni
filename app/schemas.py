@@ -1939,6 +1939,14 @@ class TreeLimits(BaseModel):
     max_mb: int | None = Field(None, ge=1, le=10_240, strict=True)
 
 
+class ExperimentalClis(BaseModel):
+    """0.1.8: whether the Models page offers what is experimental - agy, and Codex run one step
+    at a time (`providers.EXPERIMENTAL_FLAG`). Off by default; a provider already set so runs."""
+
+    model_config = ConfigDict(extra="forbid")
+    show: bool
+
+
 class AnswerLanguage(BaseModel):
     """K-cevap-dili: the language every agent writes in, one setting of the whole app; null is
     Auto (`memory.answer_in`)."""
@@ -3656,10 +3664,11 @@ class ProviderOut(Out):
         "openai_compat",
         "anthropic",
         "claude_cli",
-        "qoder_cli",
         "codex_cli",
         "copilot_cli",
         "agy_cli",
+        # 0.1.8: no longer run (`providers.RETIRED`); a row of it stays, switched off.
+        "qoder_cli",
     ]
     base_url: str | None
     default_model: str | None
@@ -3675,6 +3684,9 @@ class ProviderOut(Out):
     # False: switched off - nobody uses it; its key and settings stay. (Always said; optional,
     # as `key_warning`, only so that what reads a provider from before needs no change.)
     enabled: bool | None = None
+    # Why it stays off whatever the user does: its kind is one KOLONİ no longer runs
+    # (`providers.RETIRED`). None: it can be switched on.
+    off_why: str | None = None
     # The most agents at work on it at once, in the whole app, as the user set it; None: by
     # its kind - `most_at_once`, what holds now (K-paralel-saglayici).
     max_running: int | None
@@ -3707,7 +3719,7 @@ class ProviderOut(Out):
         if isinstance(value, dict):
             return value
         from app import cli_surface  # (they import the clients: not at the top)
-        from app.providers import mode_of, most_at_once, not_watched
+        from app.providers import RETIRED, mode_of, most_at_once, not_watched
 
         fields = {
             name: getattr(value, name)
@@ -3716,6 +3728,7 @@ class ProviderOut(Out):
             not in (
                 "has_key",
                 "key_warning",
+                "off_why",
                 "most_at_once",
                 "version_note",
                 "not_watched",
@@ -3727,6 +3740,7 @@ class ProviderOut(Out):
             "models": value.models or [],
             "has_key": bool(value.api_key),
             "key_warning": _key_warning(value.kind, value.api_key),
+            "off_why": RETIRED.get(value.kind),
             "most_at_once": most_at_once(value),
             "not_watched": not_watched(value.kind, docker=False),
             "not_watched_in_docker": not_watched(value.kind, docker=True),

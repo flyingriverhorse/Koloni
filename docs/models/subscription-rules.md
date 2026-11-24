@@ -19,16 +19,15 @@ own sign-in.
 | OpenAI (Codex) | [Authentication](https://developers.openai.com/codex/auth) | The page could not be read in full. For apps, the official way is "Sign in with ChatGPT" ([preview](https://developers.openai.com/siwc)). No text was found that allows or forbids another program using Codex's own ChatGPT sign-in. |
 | GitHub (Copilot CLI) | [Use Copilot CLI](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-copilot-cli) | It documents running the CLI from scripts and with `-p`. It says nothing against another tool running it. Requests count as premium requests ([Copilot requests](https://docs.github.com/en/copilot/concepts/billing/copilot-requests)). Copilot's own terms were not read. |
 | Google (Antigravity, `agy`) | [Terms](https://antigravity.google/terms), section 6 | "Using third party software, tools, or services to access the Service (e.g. using OpenClaw with Antigravity OAuth) is a breach of this Agreement." It warns that Antigravity and Gemini CLI accounts can be suspended. |
-| Qoder | [Terms of Service](https://qoder.com/product-service) (29 April 2026), [Run in scripts](https://docs.qoder.com/cli/run-in-scripts) | The docs endorse headless use (`-p`) in "Shell scripts, automation workflows, and CI/CD Pipelines". The terms forbid sharing your account or letting a third party use it (2.3), and scraping outputs with scripts (3.2.10). Nothing forbids a local tool starting the CLI under your own sign-in. No page states limits for the free models. |
 
 ## Open questions
 
 !!! warning "agy: switched off"
     Whether KOLONİ starting `agy` counts as "third party software … to access the Service" is not
-    settled, but it is close to the example Google gives. So KOLONİ adds agy switched off, and its card on the Models page says why.
+    settled, but it is close to the example Google gives. So KOLONİ never adds agy by itself, offers it only
+    under [Experimental](setup-cli.md#experimental-clis), and an agy card on the Models page says why.
     Switching it on is your choice, and your risk with your Google account.
 
 - Codex: no rule either way was found.
-- Qoder: allowed for your own use as far as the pages say; your sign-in or access token is never given to anyone else.
 
 What a CLI's use costs you is set by your plan; see [Usage and budgets](../money/usage.md).

@@ -3273,9 +3273,9 @@ class SpawnMixin:
     async def _moved_on(
         self: "AgentRunner", ctx: Ctx, child: Ctx, went_on: bool
     ) -> tuple[Ctx, str] | None:
-        """K-altajan-saglayici (R115: three sub-agents queued on Qoder's free tier for 5.5 min,
-        then failed): a sub-agent whose provider failed before its first word - its model
-        queued past `QUEUE_WAIT_SECONDS`, the server down, a limit - is opened once more on
+        """K-altajan-saglayici (R115: three sub-agents queued on a free tier for 5.5 min, then
+        failed): a sub-agent whose provider failed before its first word - the server down, a
+        limit - is opened once more on
         the next model of its tier in the user's order (`Would.tried`), one not past its
         limit; its opener is told (`MOVED_ON`), and its record keeps both (`chosen_why`).
         Returns its context on the new model, and what the opener is told; None where it
