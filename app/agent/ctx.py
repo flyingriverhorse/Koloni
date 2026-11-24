@@ -12,7 +12,7 @@ import asyncio
 import contextlib
 import json
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -384,6 +384,12 @@ async def _through_stops(task: asyncio.Future) -> bool:
             if (me := asyncio.current_task()) is not None:
                 me.uncancel()
     return stopped
+
+
+async def _through_all_stops(tasks: Iterable[asyncio.Future]) -> None:
+    """`_through_stops` for each of `tasks`, one after another."""
+    for task in tasks:
+        await _through_stops(task)
 
 
 async def to_its_end[T](work: Awaitable[T]) -> T:

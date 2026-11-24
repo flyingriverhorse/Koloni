@@ -151,6 +151,7 @@ from app.agent.ctx import (
     _NobodyToAsk,
     _Room,
     _Slow,
+    _through_all_stops,
     _through_stops,
     _Unwatched,
     _Watch,
@@ -2176,7 +2177,9 @@ class AgentRunner(
                 said = await self._take_in(ctx, status, lambda: None)
             except asyncio.CancelledError:
                 # Stop while its card waits: the turn ends as Stopped, its copy gone and
-                # the branch kept where KOLONİ's commit is on it (`_into_project`).
+                # the branch kept where KOLONİ's commit is on it (`_into_project`). A Stop
+                # while its half work was being kept (`_take_in`): that waited for first.
+                await _through_all_stops(self._saving.pop(run_id, ()))
                 self._interrupt_open_calls(run_id, cid)
                 status, said = "interrupted" if self._closing else "cancelled", ""
             if said and status != "completed":  # (where the branch is left: said)
