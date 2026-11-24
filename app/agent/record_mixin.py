@@ -373,6 +373,13 @@ class RecordMixin:
             return
         self.bus.emit(cid, run_id, "message.completed", payload)
 
+    def _kept_said(self: "AgentRunner", ctx: Ctx, payloads: list[tuple[str, dict]]) -> None:
+        """A kept copy decided (`_decide_kept`): its events, and its turn's line of where its work
+        is, written anew (N3: never "Not in the project yet" beside work taken in)."""
+        for kind, payload in payloads:
+            self.bus.emit(ctx.cid, ctx.run_id, kind, payload)
+        self._say_landed(ctx.cid, ctx.run_id, True, again=True)
+
     async def _git_after(self: "AgentRunner", run_id: str, cid: str, root: Path | None) -> None:
         """What the turn did to the project's git, against how it began (slice 70), said in
         the chat as a line of KOLONİ's own - a "git" message, which no agent is given -

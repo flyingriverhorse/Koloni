@@ -2294,11 +2294,8 @@ class ContextMixin:
 
 def _still_held(row: Message) -> str | None:
     """`review_mixin.review_held` and `kinds_mixin.kinds_held`, one after the other (imported
-    here: they import from this module). N1: not a section said again by a turn that changed
-    nothing (`_still_failing`) - its turn before told the same."""
+    here: they import from this module)."""
     from app.agent.kinds_mixin import kinds_held
     from app.agent.review_mixin import review_held
 
-    if ((row.blocks or {}).get("rows") or [{}])[0].get("kind") == "unchanged":
-        return None
     return "\n\n".join(filter(None, (review_held(row), kinds_held(row)))) or None

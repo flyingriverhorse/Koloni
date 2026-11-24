@@ -132,6 +132,26 @@ def test_a_recipe_with_tests_off_and_docs_on_runs_no_test_and_checks_its_docs(
     ), asked
     # (N2: it changed nothing, and the kept work was checked - none of it "not checked")
     assert BROKEN in rows and not any(one.startswith("Not checked") for one in rows), rows
+    # (N3: the held turn's line of where its work is - it went on in this turn, never "Not in the
+    # project yet: … wait in Ready for you")
+    assert "Not in the project yet" not in landed_of(client, cid, run_id)["content"]
+
+
+def landed_of(client, cid, run_id):
+    snap = client.get(f"/api/conversations/{cid}").json()
+    (said,) = [m for m in snap["messages"] if m["role"] == "landed" and m["run_id"] == run_id]
+    return said
+
+
+def test_fix_it_on_kept_work_that_breaks_after_a_round_is_no_check_not_reached(
+    make_client, wait_run, project_dir
+):
+    # (review: no change, sent back a round, and the model breaks - the copy is kept again, with
+    # no record of this turn's: the kept work was checked all the same)
+    client, model, cid, run_id, kept = held_docs(make_client, wait_run, project_dir)
+    snap, second, rows = fix_held(client, wait_run, model, cid, run_id, kept, [RuntimeError("x")])
+    assert [r["status"] for r in snap["runs"] if r["id"] == second] == ["failed"], rows
+    assert BROKEN in rows and not any(one.startswith("Not checked") for one in rows), rows
 
 
 def test_fix_it_on_kept_work_that_passes_is_taken_in_as_checked(make_client, wait_run, project_dir):
@@ -162,23 +182,26 @@ def test_take_in_anyway_says_anew_where_the_work_is(make_client, wait_run, proje
     # in the project yet" beside work that is in)
     from tests.test_proof_end_scenarios import OWN
 
-    client, _model, cid, run_id, kept = held_docs(make_client, wait_run, project_dir)
-
-    def landed_line():
-        snap = client.get(f"/api/conversations/{cid}").json()
-        (said,) = [m for m in snap["messages"] if m["role"] == "landed" and m["run_id"] == run_id]
-        return said, snap["merges"]
-
-    before, _merges = landed_line()
+    client, model, cid, run_id, kept = held_docs(make_client, wait_run, project_dir)
+    before = landed_of(client, cid, run_id)
     assert before["content"].startswith("Not in the project yet: README.md"), before
     went = client.post(f"/api/merges/{kept['merge_id']}/approve", headers=OWN)
     assert went.status_code == 200, went.text
-    after, merges = landed_line()
+    after = landed_of(client, cid, run_id)
     assert after["id"] == before["id"] and after["content"].startswith(
         "In the project: README.md"
     ), after
     assert "Not in the project yet" not in after["content"], after
-    assert [m["status"] for m in merges if m["id"] == kept["merge_id"]] == ["applied"], merges
+    # (review: the failing work is in the project now - a turn that changes nothing says it
+    # still fails, Fix it with it; its kept copy's row is not said again)
+    model.by_agent["Lead"] += [text("a guide")]
+    asked = client.post(f"/api/conversations/{cid}/messages", json={"content": "what is it?"})
+    next_run = asked.json()["run"]["id"]
+    wait_run(client, cid, next_run)
+    snap = client.get(f"/api/conversations/{cid}").json()
+    (rows,) = [m["checked"] for m in snap["messages"] if m["checked"] and m["run_id"] == next_run]
+    assert [r["text"] for r in rows][:2] == [proof.UNCHANGED, BROKEN], rows
+    assert not any(r["kind"] == "not_taken" for r in rows), rows
 
 
 def test_fix_rounds_0_checks_only_and_sends_nothing_back(make_client, wait_run, project_dir):

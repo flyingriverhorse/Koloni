@@ -1172,6 +1172,13 @@ def row(
     return made
 
 
+def held_rows(blocks: dict | None) -> list[Row]:
+    """A Checked section's rows, to read what still held it - none of one a turn that changed
+    nothing said again (N1, its first row "unchanged"): its turn before told the same."""
+    rows = (blocks or {}).get("rows") or []
+    return [] if rows[:1] and rows[0]["kind"] == "unchanged" else rows
+
+
 def counts_only(rows: list[Row]) -> bool:
     """R: whether the failed "tests" rows are all a count against the last green run (fewer
     tests, more skipped) - no test fails."""

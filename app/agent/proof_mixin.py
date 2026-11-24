@@ -465,22 +465,22 @@ class ProofMixin:
                 if was.ready_seen.get(one, (None,))[0] != status
             ):
                 return False
-            taken = proof.last_change(session, ctx.run_id)
+            taken = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
         was.seen = taken if was.seen is not None else None
         was.kinds_seen = taken if was.kinds_seen is not None else None
         return True
 
     async def _take_in_checked(self: "AgentRunner", ctx: Ctx, status: str) -> str:
         """N2: the Lead's own copy (Fix it's kept work, a branch turn's) goes in after its end
-        check, and Take in puts records of its own on the turn then (the kept turn's files, on
-        this turn's record only now). Where nothing was made since that check, the work is as it
-        was checked (as `_checked_at_ready`): no "not checked on the last change" for it."""
+        check, Take in putting records of its own on the turn (the kept turn's files): where none
+        was made since the check, the work is as checked (as `_checked_at_ready`). shortcut: a
+        command's change after it is on no record - hold `_calls_of` to the check's if seen."""
         with self._factory() as session:
             was = proof.last_change(session, ctx.run_id)
         said = await self._take_in(ctx, status, lambda: None)
         if (held := self._proofs.get(ctx.run_id)) is not None:
-            with self._factory() as session:
-                taken = proof.last_change(session, ctx.run_id)
+            with self._factory() as session:  # (a copy kept again: no record - still checked)
+                taken = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
             if held.seen is not None and (was is None or was <= held.seen):
                 held.seen = taken
             if held.kinds_seen is not None and (was is None or was <= held.kinds_seen):
@@ -1369,10 +1369,10 @@ class ProofMixin:
 
     @staticmethod
     def _still_failing(session, run_id: str) -> list[Row]:
-        """N1: a turn that changed nothing, right after one whose checks ended failing: that it
-        still fails as last checked, with those rows - all Fix it reads (a failing run's command,
-        its reason, a hold and its blocking findings) - never a turn with nothing to press. Not
-        after work kept out ("not_taken"): its own buttons, and its card, stay its turn's."""
+        """N1: a turn that changed nothing, right after one whose checks ended failing: those rows
+        said again - all Fix it reads -, never a turn with nothing to press. Not while work kept
+        out ("not_taken") waits, nor after a turn undone, nor with this chat's checks off now.
+        shortcut: only the turn right before is read - an undone turn before it is not seen."""
         mine = session.get_one(Run, run_id)
         before = session.scalar(
             select(Run.id)
@@ -1388,13 +1388,27 @@ class ProofMixin:
             select(Message.blocks).where(Message.run_id == before, Message.role == "checked")
         )
         rows: list[Row] = (last or {}).get("rows") or []
-        if any(one["kind"] == "not_taken" for one in rows):
+        kept = [one.get("merge_id") for one in rows if one["kind"] == "not_taken"]
+        taken = set(session.scalars(select(Merge.status).where(Merge.id.in_(kept))))
+        undone = session.scalar(
+            select(FileChange.id)
+            .where(FileChange.run_id == before, FileChange.status == "reverted")
+            .limit(1)
+        )
+        if (
+            not proof.checks_of(session, session.get_one(Conversation, mine.conversation_id)).on
+            or (undone is not None and proof.last_change(session, before or "") is None)
+            or (kept and taken != {"applied"})
+        ):
             return []
         failing = [
             one
             for one in rows
-            if one["state"] == "failed"
-            or (one["kind"] == "finding" and one["text"].startswith("Blocking: "))
+            if one["kind"] != "not_taken"
+            and (
+                one["state"] == "failed"
+                or (one["kind"] == "finding" and one["text"].startswith("Blocking: "))
+            )
         ]
         return [proof.row("unchanged", "note", proof.UNCHANGED), *failing] if failing else []
 

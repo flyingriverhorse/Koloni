@@ -3282,9 +3282,7 @@ class AgentRunner(
                 copies.remove(runtime, name)
             self._kept_branch_gone(Path(root), copies.place(runtime, name), on_branch, decision)
         applied, payloads = self._kept_closed(ctx, merge_id, decision, files, asked, left)
-        for kind, payload in payloads:
-            self.bus.emit(ctx.cid, ctx.run_id, kind, payload)
-        self._say_landed(ctx.cid, ctx.run_id, True, again=True)  # (N3: no "Not in the project yet")
+        self._kept_said(ctx, payloads)  # (N3: its line of where its work is, too)
         if applied:
             if not ctx.depth:  # (the recipe's own copy is its turn's lead's)
                 self._kept_in(ctx)

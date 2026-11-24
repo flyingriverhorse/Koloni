@@ -39,18 +39,31 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
   )
 }
 
-/** The latest turn's buttons: Fix it (or, for work not taken in, Take in anyway and Fix it), Run these. */
+/**
+ * The latest turn's buttons: Fix it (or, for work not taken in, Take in anyway and Fix it - N3: only while its kept copy
+ * waits; taken in, said so, and Fix it as for work in the project), Run these.
+ */
 function LatestActions({ rows, runId }: { rows: Row[]; runId: string | null }) {
   const fix = fixOf(rows)
   const offer = rows.find(row => row.kind === 'ci_offer')?.offer
   const held = rows.find(row => row.kind === 'not_taken')
+  const kept = useKept(held)
   return (
     <>
-      {fix && !held && <FixIt asked={fix} />}
-      {held && <NotTaken row={held} runId={runId} />}
+      {held && kept === 'taken' && <span role="status">Taken in anyway.</span>}
+      {fix && (!held || kept === 'taken') && <FixIt asked={fix} />}
+      {held && kept === 'waits' && <NotTaken row={held} runId={runId} />}
       {runId && offer && <RunThese runId={runId} offer={offer} />}
     </>
   )
+}
+
+/** How a "not_taken" row's kept copy stands now, by its merge (after a reload too): it waits for the user (or is not known here), was taken in, or is gone - discarded, or gone on in a Fix it turn. */
+function useKept(row: Row | undefined): 'waits' | 'taken' | 'gone' {
+  const merge = useApp(s => s.conv?.merges.find(m => row?.merge_id != null && m.id === row.merge_id))
+  if (!merge) return 'waits'
+  if (merge.status === 'applied' || merge.files.some(one => one.state === 'applied')) return 'taken'
+  return isKept(merge) ? 'waits' : 'gone'
 }
 
 function CheckedRow({ row, runId }: { row: Row; runId: string | null }) {
@@ -125,18 +138,11 @@ export function FixIt({ asked }: { asked: string }) {
   )
 }
 
-/**
- * S11 (decision 18): failing work not taken in - Take in anyway takes its kept copy in, the user's word; Fix it sends their
- * answer to the stronger model's question. No pop-up card. N3: only while its kept copy waits for the user (as its merge
- * stands now, after a reload too) - taken in, said so; discarded, or gone on in a Fix it turn: nothing.
- */
+/** S11 (decision 18): failing work not taken in - Take in anyway takes its kept copy in, the user's word; Fix it sends their answer to the stronger model's question. No pop-up card. */
 function NotTaken({ row, runId }: { row: Row; runId: string | null }) {
   const [said, setSaid] = useState<string | null>(null)
   const [answering, setAnswering] = useState(false)
-  const merge = useApp(s => s.conv?.merges.find(m => m.id === row.merge_id))
   const question = row.question ?? ''
-  const taken = merge?.status === 'applied' || merge?.files.some(one => one.state === 'applied')
-  if (merge && (taken || !isKept(merge))) return taken ? <span role="status">Taken in anyway.</span> : null
   return (
     <span className="checked-fix">
       {row.merge_id && (

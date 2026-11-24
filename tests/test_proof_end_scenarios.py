@@ -174,46 +174,6 @@ def test_an_answer_to_a_round_that_changes_nothing_ends_as_a_spent_round(
     ], texts(snap)
 
 
-def test_a_fix_it_turn_that_changes_nothing_says_the_tests_still_fail(
-    make_client, wait_run, project_dir
-):
-    # (N1: Fix it's turn answered with no change - no Checked section, no Fix it left under the
-    # newest turn. Its turn says the last check still fails, with the failing run's row - its
-    # command, what Fix it sends - and only the turn right after a failing one.)
-    client, _model = make_client(
-        [write("a.py", "x = 1\n"), text("done"), text("right as it is"), text("it is")],
-        executor=ScriptedExecutor([failing()]),
-    )
-    cid, run_id = begin(client, project_dir, check_command="python check.py")
-    first = checked(wait_run(client, cid, run_id))
-    fix = "The tests KOLONİ ran at the end of the last turn failed: `python check.py`. Fix it."
-    again = client.post(f"/api/conversations/{cid}/messages", json={"content": fix}).json()
-    snap = wait_run(client, cid, again["run"]["id"])
-    (rows,) = [
-        m["checked"]
-        for m in snap["messages"]
-        if m["role"] == "checked" and m["run_id"] == again["run"]["id"]
-    ]
-    assert rows[1:] == [first[0], first[2]], rows
-    assert (rows[0]["kind"], rows[0]["state"], rows[0]["text"]) == (
-        "unchanged",
-        "note",
-        proof.UNCHANGED,
-    ), rows
-    assert rows[1]["command"] == "python check.py" and rows[2]["state"] == "failed", rows
-
-
-def test_a_turn_that_changes_nothing_after_a_pass_says_nothing(make_client, wait_run, project_dir):
-    client, _model = make_client(
-        [write("a.py", "x = 1\n"), text("done"), text("ok")], executor=ScriptedExecutor([PASS])
-    )
-    cid, run_id = begin(client, project_dir, check_command="python check.py")
-    wait_run(client, cid, run_id)
-    again = client.post(f"/api/conversations/{cid}/messages", json={"content": "and?"}).json()
-    snap = wait_run(client, cid, again["run"]["id"])
-    assert [m["run_id"] for m in snap["messages"] if m["role"] == "checked"] == [run_id]
-
-
 def test_a_fix_that_passes_ends_with_one_round_said(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([failing(), PASS])
     client, model = make_client(
@@ -1353,21 +1313,6 @@ def test_a_change_only_a_command_made_is_tested_and_said(make_client, wait_run, 
         proof.UNRECORDED.format(command=WRITES),
         "Tests passed: python check.py - 4 passed in 0.1s",
     ], texts(snap)
-
-
-def test_a_change_after_a_run_that_saw_none_on_record_is_said_untested(
-    make_client, wait_run, project_dir
-):
-    # (The run saw no change of the turn on record - a command's only - and the fix round's write
-    # came after it, then the model broke: that write was never tested. It was not said.)
-    executor = ScriptedExecutor([Script(["\n"]), failing()])
-    client, _model = make_client(
-        [run(WRITES), text("done"), write("a.py", "x = 3\n", "w2"), RuntimeError("broke")],
-        executor=executor,
-    )
-    cid, run_id = begin(client, project_dir, check_command="python check.py")
-    rows = texts(wait_run(client, cid, run_id))
-    assert "Tests not run on the last change: the turn failed before its end" in rows, rows
 
 
 def test_a_turn_that_only_read_or_tested_opens_no_gate(make_client, wait_run, project_dir):

@@ -229,7 +229,9 @@ test('S11: Not taken in - Take in anyway takes the kept copy in, Fix it sends th
   }
 })
 
-test('N3: once its kept copy is taken in, no Take in anyway nor Fix it - said; discarded, nothing', () => {
+test('N3: its kept copy taken in - said, no Take in anyway, Fix it as for work in the project; discarded, nothing', async () => {
+  const send = vi.fn().mockResolvedValue(undefined)
+  useApp.setState({ send } as never)
   const held = row('failed', 'Not taken in: 2 tests still fail', { kind: 'not_taken', merge_id: 'm1', question: 'Q?' })
   const merge = (status: Merge['status'], applied = false) =>
     ({
@@ -243,16 +245,18 @@ test('N3: once its kept copy is taken in, no Take in anyway nor Fix it - said; d
   const buttons = () => screen.queryAllByRole('button').map(one => one.textContent)
   for (const [now, shown, words] of [
     [merge('kept'), ['Take in anyway', 'Fix it'], null],
-    [merge('applied', true), [], 'Taken in anyway.'],
-    [merge('kept', true), [], 'Taken in anyway.'],
+    [merge('applied', true), ['Fix it'], 'Taken in anyway.'],
+    [merge('kept', true), ['Fix it'], 'Taken in anyway.'],
     [merge('discarded'), [], null],
   ] as const) {
     useApp.setState({ conv: convState({ merges: [now] }) })
     const { unmount } = render(<CheckedSection message={checked([FAILED, held])} over latest />)
     expect(buttons()).toEqual(shown)
     expect(screen.queryByRole('status')?.textContent ?? null).toBe(words)
+    if (words) await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))
     unmount()
   }
+  expect(send).toHaveBeenCalledWith(FIX_IT('pytest -q'))
 })
 
 test('N1: a turn that changed nothing, said still failing with the rows before - Fix it as under them', () => {

@@ -46,7 +46,9 @@ step ([The Checks step](../agents/recipes.md#the-checks-step)).
 - After a turn in a project folder that changed a file. A turn that changed nothing, a plain
   chat, a plan, and a side of a comparison get no Checked section - except a turn that changed
   nothing right after one whose checks still failed: it says "Still failing as last checked - this
-  turn changed nothing" with those failing lines, and **Fix it** stays under the newest turn. A
+  turn changed nothing" with those failing lines, and **Fix it** stays under the newest turn (not
+  after a turn you undid, nor once this chat's checks are off; the canvas draws no Checks node
+  for it, as no check ran). A
   change made only by a
   command (`python -c "open(…).write(…)"`, `sed -i`, a heredoc to a file, a redirection into one
   - `cat a > b`, `git show HEAD:f > f`, not `2>&1` or `> /dev/null` -, a formatter,
@@ -440,9 +442,10 @@ copy and the section says "Not taken in: 2 tests still fail after rounds by `A` 
 what the stronger model found as one question to you, and two buttons on that line: **Take in
 anyway** and **Fix it**: your answer to the question starts a turn that goes on in the kept
 work's copy - what was done there holds - and it goes into the project at that turn's end when
-its tests pass. Once the kept work is taken in, both buttons go and the line says "Taken in
-anyway."; discarded, or gone on in a Fix it turn, they go too (after a reload as well). Taken in
-or discarded, the turn's line of where its work is ("Not in the project yet: …") is written anew.
+its tests pass. Once the kept work is taken in, Take in anyway goes, the line says "Taken in
+anyway." and **Fix it** asks for the fix as for work in the project; discarded, or gone on in a Fix
+it turn, both buttons go (after a reload as well). Taken in, discarded or gone on in a Fix it turn,
+the turn's line of where its work is ("Not in the project yet: …") is written anew.
 An Away job ends
 there, and its report lists it. Work that is already in the project (no copy) gets the stronger
 model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
