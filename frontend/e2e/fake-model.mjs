@@ -67,16 +67,38 @@ const step84 = (id, name, role) => ({
   ask_me: false,
   group: null,
 })
+// (0.1.8: as a goal, its stories and their tasks.)
 const TASKS_PO = {
-  tasks: [
+  goal: 'Sign-in works everywhere',
+  stories: [
     {
-      title: 'Fix the login page on mobile',
-      detail: 'It breaks under 400 px.',
-      criteria: 'The form fits a 360 px screen.',
-      priority: 'high',
+      title: 'Login on mobile',
+      notes: ['The form is shared with the desktop page.'],
+      tasks: [
+        {
+          title: 'Fix the login page on mobile',
+          detail: 'It breaks under 400 px.',
+          criteria: 'The form fits a 360 px screen.',
+          priority: 'high',
+          kind: 'bug',
+        },
+      ],
     },
-    { title: 'Add a password reset', criteria: 'A mail link sets a new password.', priority: 'normal' },
+    {
+      title: 'Password reset',
+      notes: [],
+      tasks: [
+        {
+          title: 'Add a password reset',
+          criteria: 'A mail link sets a new password.',
+          priority: 'normal',
+          kind: 'task',
+        },
+        { title: 'Rate-limit the reset form', criteria: 'A sixth try in a minute is refused.', kind: 'task' },
+      ],
+    },
   ],
+  tasks: [],
 }
 const RECIPE84 = {
   name: 'Spec then code',
@@ -491,7 +513,7 @@ function nextStep(all, tools = [], model = '') {
   // Asked to draw the user's sentence as a recipe (slice 84a): its JSON, in a code block as models often answer.
   if (String(messages[0].content).startsWith('You are asked one thing: to draw a recipe'))
     return say(`Here it is:\n\`\`\`json\n${JSON.stringify(RECIPE84)}\n\`\`\``)
-  // The To-do page's "Write it with the Hive keeper" (6 Nov): the note as two tasks.
+  // The To-do page's "Write it with the Hive keeper" (6 Nov): the note as a goal, two stories and three tasks.
   if (String(messages[0].content).startsWith("You are asked one thing: to write the user's note as To-do tasks"))
     return say(JSON.stringify(TASKS_PO))
   // Asked to write an expert's guide from what it read (K-uzman): a short one, from its file.

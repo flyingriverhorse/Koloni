@@ -893,6 +893,23 @@ _TASK_FIELDS = {
         "enum": ["high", "normal", "low"],
         "description": "Optional: normal if left out.",
     },
+    "kind": {
+        "type": "string",
+        "enum": ["task", "bug"],
+        "description": "Optional: a bug is something that works wrong; task if left out.",
+    },
+}
+# What only add_task takes: the story it goes into, and that story's goal.
+_TASK_STORY = {
+    "story": {
+        "type": "string",
+        "description": "Optional: the title of the To-do story it goes on with - one there now, "
+        "whatever its case, or a new one; leave it out for a task that stands alone.",
+    },
+    "goal": {
+        "type": "string",
+        "description": "Optional, with a new story: the title of the goal that story is for.",
+    },
 }
 # The project's To-do list (`app.backlog`): what is added or changed waits for the user's word.
 BACKLOG_SCHEMAS = {
@@ -915,8 +932,9 @@ BACKLOG_SCHEMAS = {
     "add_task": _fn(
         "add_task",
         "Propose a task for the project's To-do list. It waits on a card for the user's "
-        "approval; until then it is not on the list. Returns its id.",
-        _TASK_FIELDS,
+        "approval; until then it is not on the list. Tasks that go on together - each building on "
+        "the one before - are one story: name it. Returns its id.",
+        {**_TASK_FIELDS, **_TASK_STORY},
         ["title"],
     ),
     "change_task": _fn(

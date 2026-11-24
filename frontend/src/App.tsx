@@ -179,6 +179,9 @@ export function App() {
   const backlog = useApp(s => s.backlog)
   const backlogError = useApp(s => s.backlogError)
   const backlogAuto = useApp(s => s.backlogAuto)
+  const stories = useApp(s => s.stories)
+  const goals = useApp(s => s.goals)
+  const chatList = useApp(s => s.conversations)
   const away = useApp(s => s.away)
   // What waits for your word anywhere (tek-ev §1): the pill, the rail's badge, the panel and the page.
   const waiting = useReady()
@@ -803,6 +806,7 @@ export function App() {
         onModels={useApp.getState().providerModels}
         onAdd={useApp.getState().addTask}
         onDraft={useApp.getState().draftTasks}
+        onAddTree={useApp.getState().addTree}
         onPlan={async message => {
           await useApp.getState().newConversation(project.id)
           await useApp.getState().send(message)
@@ -815,6 +819,18 @@ export function App() {
         onOpen={id => {
           void useApp.getState().openConversation(id)
           setView('canvas')
+        }}
+        stories={stories}
+        goals={goals}
+        chats={Object.fromEntries(chatList.map(chat => [chat.id, chat.title]))}
+        projectId={project.id}
+        tree={{
+          onGoal: useApp.getState().changeGoal,
+          onDeleteGoal: useApp.getState().deleteGoal,
+          onStory: useApp.getState().changeStory,
+          onDeleteStory: useApp.getState().deleteStory,
+          onNewGoal: useApp.getState().addGoal,
+          onNewStory: title => useApp.getState().addStory(title),
         }}
       />
     )

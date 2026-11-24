@@ -6,13 +6,13 @@ neither writes a task nor approves its own proposal. Reading is open."""
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from app import away, backlog, earlier
+from app import away, backlog, earlier, stories
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.api.providers import _model
 from app.api.recipes import Asked, ask_in_turn, askers, chat_of
 from app.api.usage import over_budget, over_month
-from app.db.models import BacklogTask, Project, Provider, now
+from app.db.models import BacklogTask, Project, Provider, Story, now
 from app.providers import works_with_own_tools
 from app.schemas import (
     BacklogAutoIn,
@@ -25,6 +25,8 @@ from app.schemas import (
     BacklogTaskIn,
     BacklogTaskOut,
     BacklogTaskPatch,
+    TodoTreeAdded,
+    TodoTreeIn,
 )
 from app.serialize import tell_chats
 
@@ -44,6 +46,15 @@ def _task(session: Session, task_id: str) -> BacklogTask:
     if task is None:
         raise HTTPException(404, "task not found")
     return task
+
+
+OTHER_STORY = "a task's story is one of its project"
+
+
+def _in_story(session: Session, project_id: str, story_id: str | None) -> None:
+    """A task's story is one of its project's (None: of no story); else 422."""
+    if story_id is not None and not stories.of_project(session, Story, project_id, story_id):
+        raise HTTPException(422, OTHER_STORY)
 
 
 def _told(request: Request, session: Session, project_id: str) -> None:
@@ -128,10 +139,31 @@ async def draft_tasks(
         project_id=project.id,
     )
     try:
-        tasks = backlog.drafted(said)
+        drawn = backlog.drafted(said)
     except ValueError as exc:
         raise HTTPException(502, f"the model's answer is not a list of tasks: {exc}") from None
-    return BacklogDraftOut(tasks=tasks, by=f"{provider.name} ({model_id})")
+    return BacklogDraftOut.model_validate({**drawn, "by": f"{provider.name} ({model_id})"})
+
+
+@router.post(
+    "/projects/{project_id}/backlog/tree",
+    response_model=TodoTreeAdded,
+    status_code=201,
+    dependencies=OWN,
+)
+async def add_tree(
+    project_id: str, body: TodoTreeIn, request: Request, session: Session = Depends(get_session)
+):
+    """The Hive keeper's draft - a goal, its stories and their tasks, as the user changed it -
+    added at once by the user's word: the tasks todo, each the user's (`backlog.add_tree`)."""
+    project = _project(session, project_id)
+    try:
+        added = backlog.add_tree(session, project.id, body.model_dump(), "user")
+    except backlog.Refused as exc:
+        raise HTTPException(422, str(exc)) from None
+    session.commit()
+    _told(request, session, project_id)
+    return added
 
 
 @router.put(
@@ -200,9 +232,14 @@ async def set_auto(
 async def read_backlog(project_id: str, session: Session = Depends(get_session)):
     tasks = backlog.ordered(session, _project(session, project_id).id)
     left, waits = backlog.not_in(session, tasks), backlog.waiting(session, tasks)
+    told = stories.told(session, project_id)
     return [
         BacklogTaskOut.model_validate(task).model_copy(
-            update={"not_in": task.id in left, "waiting": task.id in waits}
+            update={
+                "not_in": task.id in left,
+                "waiting": task.id in waits,
+                **told.get(task.story_id or "", {}),
+            }
         )
         for task in tasks
     ]
@@ -221,7 +258,9 @@ async def add_task(
     fields["title"] = fields["title"].strip()
     if not fields["title"]:
         raise HTTPException(422, "a task needs a title")
-    task = backlog.add(session, _project(session, project_id).id, fields, "user")
+    project = _project(session, project_id)
+    _in_story(session, project.id, fields["story_id"])
+    task = backlog.add(session, project.id, fields, "user")
     session.commit()
     _told(request, session, project_id)
     return task
@@ -233,8 +272,13 @@ async def change_task(
 ):
     task = _task(session, task_id)
     changes = body.model_dump(exclude_unset=True)
-    # Only detail and criteria can be emptied; the rest left as null is left as it is.
-    changes = {k: v for k, v in changes.items() if v is not None or k in ("detail", "criteria")}
+    # Only detail, criteria and its story can be emptied; the rest left as null is left as it is.
+    changes = {
+        k: v for k, v in changes.items() if v is not None or k in ("detail", "criteria", "story_id")
+    }
+    left = task.story_id
+    if "story_id" in changes:
+        _in_story(session, task.project_id, changes["story_id"])
     if "title" in changes:
         changes["title"] = changes["title"].strip()
         if not changes["title"]:
@@ -251,6 +295,9 @@ async def change_task(
         setattr(task, field, value)
     if position is not None:
         backlog.renumber(session, task.project_id, task, position)
+    if left != task.story_id:  # (an agent's story it was the last proposal of, now empty, goes)
+        session.flush()
+        backlog.tidy_story(session, left)
     # A done task is found by `recall` as the user's words of its closing (app.earlier).
     earlier.index_task(session, task, now())
     session.commit()
@@ -262,11 +309,14 @@ async def change_task(
 async def delete_task(task_id: str, request: Request, session: Session = Depends(get_session)):
     task = _task(session, task_id)
     earlier.unindex_task(session, task.id)
+    proposal = task.status == "proposed"
     if task.status in ("proposed", "todo"):  # (never worked on: a proposal turned down)
         backlog.turned_down(session, task)
     session.delete(task)
     session.flush()
     backlog.renumber(session, task.project_id)
+    if proposal:  # (the story an agent opened for it goes with its last proposal)
+        backlog.tidy_story(session, task.story_id)
     session.commit()
     _told(request, session, task.project_id)
     return Response(status_code=204)

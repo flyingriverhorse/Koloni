@@ -184,14 +184,67 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
 test('the To-do page with the Hive keeper’s draft', async ({ page }) => {
   await openFreshConversation(page)
   await rail(page, 'To-do').click()
-  const form = page.getByRole('form', { name: 'Add a task' })
-  await form.getByLabel('Title').fill('the login page breaks on mobile, and we need a password reset')
-  await form.getByRole('button', { name: 'Write it with the Hive keeper' }).click()
+  await page
+    .getByRole('toolbar', { name: 'To-do' })
+    .getByRole('button', { name: 'Write it with the Hive keeper' })
+    .click()
+  const box = page.getByRole('form', { name: 'Write it with the Hive keeper' })
+  await box.getByLabel('Your note').fill('the login page breaks on mobile, and we need a password reset')
+  await box.getByRole('button', { name: 'Write it', exact: true }).click()
   const drafts = page.getByRole('region', { name: 'Drafted tasks' })
   await expect(drafts.getByRole('group', { name: 'Draft 2' }).getByLabel('Title')).toHaveValue('Add a password reset')
-  await form.getByRole('button', { name: 'Write it with the Hive keeper' }).scrollIntoViewIfNeeded()
-  await page.mouse.wheel(0, 300)
+  await box.scrollIntoViewIfNeeded()
+  await page.mouse.wheel(0, 120)
   await picture(page, 'todo-draft')
+})
+
+test('the To-do tree', async ({ page }) => {
+  await openFreshConversation(page)
+  const pid = await e2eProject(page)
+  const tree = {
+    goal: 'Sign-in holds on every screen',
+    stories: [
+      {
+        title: 'Login works on mobile',
+        notes: ['The form is shared with the desktop page.'],
+        tasks: [
+          { title: 'Find the rule that breaks it', priority: 'high', kind: 'task' },
+          { title: 'The button slips under the keyboard', kind: 'bug' },
+        ],
+      },
+      {
+        title: 'Password reset',
+        notes: ['Mails go through the queue.', 'Links last one hour.'],
+        tasks: [
+          { title: 'Send the reset mail', kind: 'task' },
+          { title: 'Rate-limit the reset form', kind: 'task' },
+        ],
+      },
+    ],
+    tasks: [{ title: 'The footer shows last year', kind: 'bug' }],
+  }
+  const added = await (
+    await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })
+  ).json()
+  const [login, reset] = added.story_ids
+  try {
+    const [rule, button, mail] = added.task_ids
+    for (const id of [rule, button])
+      await page.request.patch(`/api/backlog/${id}`, { headers: OWN, data: { status: 'done' } })
+    await page.request.patch(`/api/stories/${login}`, { headers: OWN, data: { closed: true } })
+    await page.request.patch(`/api/backlog/${mail}`, { headers: OWN, data: { status: 'doing' } })
+    await rail(page, 'To-do').click()
+    const list = page.getByRole('list', { name: 'Tasks' })
+    await expect(list.getByRole('listitem', { name: 'Password reset' })).toContainText('● running')
+    await expect(list.getByRole('listitem', { name: tree.goal })).toContainText('1 / 2 stories')
+    await list.scrollIntoViewIfNeeded()
+    await picture(page, 'todo-tree')
+  } finally {
+    // (Gone again, whatever happened: the pictures after it show their own To-do.)
+    for (const id of added.task_ids) await page.request.delete(`/api/backlog/${id}`, { headers: OWN })
+    for (const id of [login, reset]) await page.request.delete(`/api/stories/${id}`, { headers: OWN })
+    await page.request.delete(`/api/goals/${added.goal_id}`, { headers: OWN })
+  }
 })
 
 test('Memory search, Triggers and Usage', async ({ page, request }) => {

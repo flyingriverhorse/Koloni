@@ -1506,6 +1506,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/goals/{goal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Goal */
+        delete: operations["delete_goal_api_goals__goal_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change Goal */
+        patch: operations["change_goal_api_goals__goal_id__patch"];
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -2540,6 +2558,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/backlog/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Tree
+         * @description The Hive keeper's draft - a goal, its stories and their tasks, as the user changed it -
+         *     added at once by the user's word: the tasks todo, each the user's (`backlog.add_tree`).
+         */
+        post: operations["add_tree_api_projects__project_id__backlog_tree_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/board": {
         parameters: {
             query?: never;
@@ -2835,6 +2874,23 @@ export interface paths {
          *     A POST from the app's own page only: it reads GitHub as the user.
          */
         post: operations["github_issues_api_projects__project_id__github_issues_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/goals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Goal */
+        post: operations["add_goal_api_projects__project_id__goals_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3163,6 +3219,24 @@ export interface paths {
          *     site" on a card adds it; `kind` is not read (a site).
          */
         post: operations["add_site_api_projects__project_id__sites_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/stories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Tree */
+        get: operations["read_tree_api_projects__project_id__stories_get"];
+        put?: never;
+        /** Add Story */
+        post: operations["add_story_api_projects__project_id__stories_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4392,6 +4466,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stories/{story_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Story */
+        delete: operations["delete_story_api_stories__story_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change Story */
+        patch: operations["change_story_api_stories__story_id__patch"];
+        trace?: never;
+    };
     "/api/teams": {
         parameters: {
             query?: never;
@@ -5397,11 +5489,19 @@ export interface components {
         };
         /**
          * BacklogDraftOut
-         * @description A model's tasks from the user's note, saved nowhere: each is added by the user's word.
+         * @description A model's goal, stories and tasks from the user's note, saved nowhere: added by the user's
+         *     word (`POST .../backlog/tree`). An answer of tasks alone has no goal and no story.
          */
         BacklogDraftOut: {
             /** By */
             by: string;
+            /** Goal */
+            goal?: string | null;
+            /**
+             * Stories
+             * @default []
+             */
+            stories: components["schemas"]["DraftStory"][];
             /** Tasks */
             tasks: components["schemas"]["BacklogTaskIn"][];
         };
@@ -5453,11 +5553,19 @@ export interface components {
             /** Detail */
             detail?: string | null;
             /**
+             * Kind
+             * @default task
+             * @enum {string}
+             */
+            kind: "task" | "bug";
+            /**
              * Priority
              * @default normal
              * @enum {string}
              */
             priority: "high" | "normal" | "low";
+            /** Story Id */
+            story_id?: string | null;
             /** Title */
             title: string;
         };
@@ -5489,8 +5597,18 @@ export interface components {
             criteria: string | null;
             /** Detail */
             detail: string | null;
+            /** Goal By */
+            goal_by?: ("user" | "agent") | null;
+            /** Goal Title */
+            goal_title?: string | null;
             /** Id */
             id: string;
+            /**
+             * Kind
+             * @default task
+             * @enum {string}
+             */
+            kind: "task" | "bug";
             /**
              * Not In
              * @default false
@@ -5500,6 +5618,8 @@ export interface components {
             pending: {
                 [key: string]: unknown;
             } | null;
+            /** Place */
+            place?: number | null;
             po?: components["schemas"]["BacklogPoOut"] | null;
             /** Position */
             position: number;
@@ -5520,6 +5640,12 @@ export interface components {
              * @enum {string}
              */
             status: "proposed" | "todo" | "doing" | "review" | "done" | "blocked";
+            /** Story By */
+            story_by?: ("user" | "agent") | null;
+            /** Story Id */
+            story_id?: string | null;
+            /** Story Title */
+            story_title?: string | null;
             /** Stuck */
             stuck?: string | null;
             /** Title */
@@ -5538,12 +5664,16 @@ export interface components {
             criteria?: string | null;
             /** Detail */
             detail?: string | null;
+            /** Kind */
+            kind?: ("task" | "bug") | null;
             /** Position */
             position?: number | null;
             /** Priority */
             priority?: ("high" | "normal" | "low") | null;
             /** Status */
             status?: ("todo" | "doing" | "review" | "done" | "blocked") | null;
+            /** Story Id */
+            story_id?: string | null;
             /** Title */
             title?: string | null;
         };
@@ -6870,6 +7000,18 @@ export interface components {
             /** What */
             what: string;
         };
+        /** DraftStory */
+        DraftStory: {
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /** Tasks */
+            tasks: components["schemas"]["BacklogTaskIn"][];
+            /** Title */
+            title: string;
+        };
         /**
          * ExpertIn
          * @description K-bilgi: a new expert - its role, and its knowledge in this project.
@@ -7233,6 +7375,39 @@ export interface components {
             here: boolean;
             /** Path */
             path: string;
+        };
+        /** GoalIn */
+        GoalIn: {
+            /** Title */
+            title: string;
+        };
+        /**
+         * GoalOut
+         * @description 0.1.8: a goal of a project's To-do, and how many of its stories are done (closed).
+         */
+        GoalOut: {
+            /**
+             * Created By
+             * @enum {string}
+             */
+            created_by: "user" | "agent";
+            /** Id */
+            id: string;
+            /** Position */
+            position: number;
+            /** Stories All */
+            stories_all: number;
+            /** Stories Done */
+            stories_done: number;
+            /** Title */
+            title: string;
+        };
+        /** GoalPatch */
+        GoalPatch: {
+            /** Position */
+            position?: number | null;
+            /** Title */
+            title?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -10686,6 +10861,8 @@ export interface components {
              * @enum {string}
              */
             status: "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled" | "interrupted";
+            /** Task Id */
+            task_id?: string | null;
             /** Teams */
             teams?: components["schemas"]["ChatTeamOut"][] | null;
             /** Topic Id */
@@ -11163,6 +11340,68 @@ export interface components {
             /** Logs Mb */
             logs_mb: number | null;
         };
+        /** StoryIn */
+        StoryIn: {
+            /** Goal Id */
+            goal_id?: string | null;
+            /** Title */
+            title: string;
+        };
+        /** StoryNoteOut */
+        StoryNoteOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** By */
+            by: string;
+            /** Kind */
+            kind: string;
+            /** Text */
+            text: string;
+        };
+        /**
+         * StoryOut
+         * @description 0.1.8: a story of a project's To-do: its goal, its state from its tasks
+         *     (`stories.story_state`: "done?" once each is done or waits at "done?"; "done" only once the
+         *     user closed it) and its notebook.
+         */
+        StoryOut: {
+            /** Closed At */
+            closed_at: string | null;
+            /**
+             * Created By
+             * @enum {string}
+             */
+            created_by: "user" | "agent";
+            /** Goal Id */
+            goal_id: string | null;
+            /** Id */
+            id: string;
+            /** Notes */
+            notes: components["schemas"]["StoryNoteOut"][];
+            /** Position */
+            position: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "todo" | "running" | "stuck" | "done?" | "done";
+            /** Title */
+            title: string;
+        };
+        /** StoryPatch */
+        StoryPatch: {
+            /** Closed */
+            closed?: boolean | null;
+            /** Goal Id */
+            goal_id?: string | null;
+            /** Position */
+            position?: number | null;
+            /** Title */
+            title?: string | null;
+        };
         /**
          * SuggestIn
          * @description A provider not added yet: its kind and the address typed so far.
@@ -11297,6 +11536,46 @@ export interface components {
             /** Strongest */
             strongest: components["schemas"]["TierModelOut"][];
         };
+        /** TodoTreeAdded */
+        TodoTreeAdded: {
+            /** Goal Id */
+            goal_id: string | null;
+            /** Story Ids */
+            story_ids: string[];
+            /** Task Ids */
+            task_ids: string[];
+        };
+        /**
+         * TodoTreeIn
+         * @description A drafted goal, its stories and their tasks, added at once by the user's word: the stories'
+         *     goal one of the project's (`goal_id`) or a new one of `goal`'s title.
+         */
+        TodoTreeIn: {
+            /** Goal */
+            goal?: string | null;
+            /** Goal Id */
+            goal_id?: string | null;
+            /**
+             * Stories
+             * @default []
+             */
+            stories: components["schemas"]["TreeStoryIn"][];
+            /**
+             * Tasks
+             * @default []
+             */
+            tasks: components["schemas"]["BacklogTaskIn"][];
+        };
+        /**
+         * TodoTreeOut
+         * @description A project's goals and stories in their order; its tasks are the backlog's.
+         */
+        TodoTreeOut: {
+            /** Goals */
+            goals: components["schemas"]["GoalOut"][];
+            /** Stories */
+            stories: components["schemas"]["StoryOut"][];
+        };
         /** ToolCallDecision */
         ToolCallDecision: {
             /**
@@ -11361,6 +11640,8 @@ export interface components {
             created_at: string;
             /** Id */
             id: string;
+            /** Story Id */
+            story_id?: string | null;
             /** Title */
             title: string;
             /** Trigger Id */
@@ -11383,6 +11664,27 @@ export interface components {
             max_files?: number | null;
             /** Max Mb */
             max_mb?: number | null;
+        };
+        /**
+         * TreeStoryIn
+         * @description A story of a drafted tree: one of the project's by its `id` (its tasks go into it), or a
+         *     new one of this `title`.
+         */
+        TreeStoryIn: {
+            /** Id */
+            id?: string | null;
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /**
+             * Tasks
+             * @default []
+             */
+            tasks: components["schemas"]["BacklogTaskIn"][];
+            /** Title */
+            title?: string | null;
         };
         /**
          * TriggerBudget
@@ -14632,6 +14934,70 @@ export interface operations {
             };
         };
     };
+    delete_goal_api_goals__goal_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_goal_api_goals__goal_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoalPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_health_get: {
         parameters: {
             query?: {
@@ -16640,6 +17006,41 @@ export interface operations {
             };
         };
     };
+    add_tree_api_projects__project_id__backlog_tree_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoTreeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoTreeAdded"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     board_api_projects__project_id__board_get: {
         parameters: {
             query?: never;
@@ -17184,6 +17585,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_goal_api_projects__project_id__goals_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoalIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalOut"];
                 };
             };
             /** @description Validation Error */
@@ -17877,6 +18313,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AllowedWebOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_tree_api_projects__project_id__stories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoTreeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_story_api_projects__project_id__stories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryOut"];
                 };
             };
             /** @description Validation Error */
@@ -20063,6 +20565,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StorageOut"];
+                };
+            };
+        };
+    };
+    delete_story_api_stories__story_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_story_api_stories__story_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoryPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
