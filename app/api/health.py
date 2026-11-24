@@ -4,16 +4,18 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import copies, web
 from app.api.deps import get_session
 from app.config import REPO_ROOT
+from app.db.models import Conversation, Merge, Run
 from app.executors.docker import docker_status
 from app.executors.host import shell_name, store_pwsh_note
 from app.model_client import ModelUnavailable, OpenAICompatClient, safe_url
 from app.providers import NotListed, allowed, list_providers
-from app.schemas import HealthOut, StorageOut
+from app.schemas import HealthOut, KeptCopyOut, StorageOut
 
 router = APIRouter(prefix="/api", tags=["health"])
 # How long one folder is counted before it is said as unknown: copies can be large.
@@ -120,13 +122,26 @@ def _megabytes(paths: list[Path]) -> float | None:
 
 
 @router.get("/storage", response_model=StorageOut)
-def storage(request: Request):
-    """What KOLONİ's data takes, counted when asked (0.1.0-hijyen)."""
+def storage(request: Request, session: Session = Depends(get_session)):
+    """What KOLONİ's data takes, counted when asked (0.1.0-hijyen) - and the copies kept for the
+    user's word, which only their Discard deletes (a trigger over its budget keeps one a firing)."""
     settings = request.app.state.settings
     db = settings.db_path
+    kept = session.execute(
+        select(Merge.id, Merge.kept_in, Conversation.id, Conversation.title)
+        .join(Run, Run.id == Merge.run_id)
+        .join(Conversation, Conversation.id == Run.conversation_id)
+        .where(Merge.status == "interrupted", Merge.kept_in.is_not(None))
+        .order_by(Merge.created_at)
+    ).all()
     return StorageOut(
         db_mb=_megabytes([db, db.with_name(db.name + "-wal")]),
         backups_mb=_megabytes([db.parent / "backups"]),
         copies_mb=_megabytes(copies.folders(settings.runtime_root)),
         logs_mb=_megabytes([settings.runtime_root / "logs"]),
+        kept=[
+            KeptCopyOut(merge_id=merge, conversation_id=chat, title=title)
+            for merge, _in, chat, title in kept
+        ],
+        kept_mb=_megabytes([Path(folder) for _merge, folder, *_ in kept]),
     )

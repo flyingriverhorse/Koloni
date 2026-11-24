@@ -4358,7 +4358,8 @@ export interface paths {
         };
         /**
          * Storage
-         * @description What KOLONİ's data takes, counted when asked (0.1.0-hijyen).
+         * @description What KOLONİ's data takes, counted when asked (0.1.0-hijyen) - and the copies kept for the
+         *     user's word, which only their Discard deletes (a trigger over its budget keeps one a firing).
          */
         get: operations["storage_api_storage_get"];
         put?: never;
@@ -7398,6 +7399,19 @@ export interface components {
              * @default
              */
             why: string;
+        };
+        /**
+         * KeptCopyOut
+         * @description A working copy kept on disk for the user's word: its card (Discard there is
+         *     `POST /api/merges/{merge_id}/reject`) and its chat.
+         */
+        KeptCopyOut: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** Merge Id */
+            merge_id: string;
+            /** Title */
+            title: string;
         };
         /**
          * Knowledge
@@ -11093,7 +11107,9 @@ export interface components {
          * StorageOut
          * @description What KOLONİ's own data takes on this machine, in MB: the database (its WAL too), its
          *     backups (each migration's and update's, and the daily ones: apart, R125 - they were most of
-         *     "db"), the working copies, the log. None: not counted in time.
+         *     "db"), the working copies, the log. None: not counted in time. `kept`: the copies kept for
+         *     the user's word - never deleted unasked, so they pile up only by their cards - oldest first,
+         *     and `kept_mb` what they take (of `copies_mb`).
          */
         StorageOut: {
             /** Backups Mb */
@@ -11102,6 +11118,13 @@ export interface components {
             copies_mb: number | null;
             /** Db Mb */
             db_mb: number | null;
+            /**
+             * Kept
+             * @default []
+             */
+            kept: components["schemas"]["KeptCopyOut"][];
+            /** Kept Mb */
+            kept_mb?: number | null;
             /** Logs Mb */
             logs_mb: number | null;
         };

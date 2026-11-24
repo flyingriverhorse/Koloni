@@ -253,6 +253,8 @@ def test_what_kolonis_data_takes_is_counted_following_no_link(
         "backups_mb": None,
         "copies_mb": None,
         "logs_mb": None,
+        "kept": [],
+        "kept_mb": 0.0,  # (none kept: nothing to count)
     }
 
 

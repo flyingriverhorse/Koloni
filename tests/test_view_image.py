@@ -4,9 +4,13 @@ the project, or one that is not an image by its bytes."""
 
 import base64
 import json
+import os
 import struct
+import sys
+import time
 from pathlib import Path
 
+from app import browser
 from app.agent import COLLABORATION_TOOLS
 from app.attachments import image_size
 from app.model_client import ModelUnavailable
@@ -52,6 +56,12 @@ def test_an_image_reaches_an_image_model_and_the_user_and_what_is_not_one_is_ref
     (project_dir / "fake.png").write_text("not a picture\n", encoding="utf-8")
     (tmp_path / "other").mkdir()
     (tmp_path / "other" / "out.png").write_bytes(PNG)
+    # A copy from over a week ago goes as a new one is made, as screenshots do.
+    old = project_dir / ".koloni" / "tmp" / "images" / "a1b2c3d4-e5f6a7b8"
+    old.mkdir(parents=True)
+    (old / "logo.png").write_bytes(PNG)
+    week = time.time() - browser.SHOTS_KEPT - 60
+    os.utime(old, (week, week))
     client, model, _pid, cid = began(
         make_client,
         project_dir,
@@ -77,6 +87,7 @@ def test_an_image_reaches_an_image_model_and_the_user_and_what_is_not_one_is_ref
         f"next step (the user sees it under the step: {copy})"
     )
     assert (project_dir / copy).read_bytes() == PNG
+    assert not old.exists()
     # The model: at its next step, the copy as a picture after the call's result.
     pictures = [m for m in model.calls[1] if m.get("files")]
     assert [p["files"][0]["path"] for p in pictures] == [str(project_dir / copy)]
@@ -412,3 +423,32 @@ def test_a_name_the_view_would_refuse_is_copied_as_image(make_client, wait_run, 
         copy = f".koloni/tmp/images/{shown['agent_id'][:8]}-{shown['id'][:8]}/image.png"
         assert shown["result"].endswith(f"(the user sees it under the step: {copy})")
         assert client.get(f"/api/conversations/{cid}/views/{shown['id']}/image.png").content == PNG
+
+
+def test_copies_of_images_over_a_week_old_are_swept_never_through_a_link(tmp_path, monkeypatch):
+    """`.koloni/tmp/images` was never swept: each call's folder goes after `SHOTS_KEPT`, as the
+    browser's screenshots do - but a link or a junction there is not gone into, nor taken."""
+    images = tmp_path / "images"
+    old, new = images / "a1-c1", images / "a2-c2"
+    for one in (old, new):
+        one.mkdir(parents=True)
+        (one / "logo.png").write_bytes(PNG)
+    week = time.time() - browser.SHOTS_KEPT - 60
+    os.utime(old, (week, week))
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.png").write_bytes(PNG)
+    if sys.platform == "win32":
+        import _winapi
+
+        _winapi.CreateJunction(str(outside), str(images / "a3-c3"))
+    else:
+        os.symlink(outside, images / "a3-c3")
+    browser.sweep_images(images)
+    assert not old.exists() and (new / "logo.png").exists()
+    # Everything old now: the folder of its own goes, the link and what it leads to stay.
+    monkeypatch.setattr(browser, "SHOTS_KEPT", -3600)
+    browser.sweep_images(images)
+    assert not new.exists() and (outside / "keep.png").exists()
+    assert [one.name for one in images.iterdir()] == ["a3-c3"]
+    browser.sweep_images(tmp_path / "none")  # (no folder yet: nothing to do)

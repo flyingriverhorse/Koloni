@@ -35,6 +35,8 @@ How to write an entry (every release looks the same):
 - **Chat**: a role named in the Orchestrator's answer inside a table row, a quote (`>`) or code - a fenced block, one left open, or inline `code` - is no claim of its own: "| Review | Reviewer checked the diff |" no longer put "Reviewer was not opened this turn." under the answer. A claim in its own words beside them still does.
 - **Agents**: each model step loads only the tool calls of the messages it sends, by an index - it loaded every tool call of the chat, its sub-agents' too, so a long-lived chat (a trigger's) got slower at every step. A migration adds the index.
 - **Chat**: Stop pressed again while the turn's own branch or copy was being saved after a first Stop (its Take in card waiting) no longer lets the turn end under the save: the turn waits for it, so its copy is not deleted while it is kept or looked at for a secret given this turn.
+- **Agents**: the copies of images an agent looked at, under the project's `.koloni/tmp/images/`, were never deleted; one over a week old now goes as a new one is made, as the browser's screenshots go as a browser starts - a model is shown one in its own turn only ([docs](docs/reference/formats.md)).
+- **Settings**: The app › Your data lists the working copies kept for your word - how many, what they take, and each one's chat with **Discard**, which asks first and deletes that copy as its card's Discard does; over 1 GB a line warns. They have no cap and KOLONİ deletes none unasked, so a trigger over its budget, which keeps one each time it fires, piled them up out of sight ([docs](docs/settings.md#your-data)).
 
 ### Security
 

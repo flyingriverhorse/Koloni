@@ -1649,6 +1649,23 @@ def sweep(folder: Path, keep: set[str]) -> None:
                 shot.unlink()
 
 
+def sweep_images(folder: Path) -> None:
+    """The copies of images agents looked at (`AgentRunner._image_copy`), in a folder each call's:
+    gone after SHOTS_KEPT, as screenshots are - a model is shown one in its own turn only, and the
+    step that showed it keeps it a week for a chat opened again. Only a folder of its own: never
+    one that is a link or a junction, nor what one inside leads to (`shutil.rmtree`)."""
+    old = time.time() - SHOTS_KEPT
+    with contextlib.suppress(OSError), os.scandir(folder) as found:
+        for entry in found:
+            with contextlib.suppress(OSError):
+                if (
+                    entry.is_dir(follow_symlinks=False)
+                    and not entry.is_junction()
+                    and entry.stat(follow_symlinks=False).st_mtime < old
+                ):
+                    shutil.rmtree(entry.path, ignore_errors=True)
+
+
 def _console_line(message: dict) -> str | None:
     """One line of what the page said or threw, as the agent is shown it; None for any
     other event."""

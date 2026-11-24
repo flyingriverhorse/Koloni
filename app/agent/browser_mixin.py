@@ -389,12 +389,12 @@ class BrowserMixin:
         if views.DEVICES.fullmatch(name) or is_secret(name):
             name = f"image.{IMAGE_EXT[mime]}"
         folder = f"{ctx.agent_id[:8]}-{call_id[:8]}"
-        # shortcut: the copies under .koloni/tmp/images are never swept (the browser's
-        # screenshots are, after 7 days: `browser.sweep`); sweep them too if a project's
-        # scratch is seen to grow.
         try:
             koloni.scratch(ctx.folder)
-            target = self._scratch_folder(ctx, "images", "the image is not copied there") / folder
+            images = self._scratch_folder(ctx, "images", "the image is not copied there")
+            # (Those over a week old go as a new one comes, as screenshots go as a browser starts.)
+            browser.sweep_images(images)
+            target = images / folder
             target.mkdir(parents=True, exist_ok=True)
             (target / name).write_bytes(data)
         except OSError as exc:
