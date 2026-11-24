@@ -341,21 +341,29 @@ def planted_in(work: Path, places: Iterable[str], anywhere: Iterable[str], rel: 
     return None if at is None else PurePosixPath(*parts[: at + 1]).as_posix()
 
 
-# W6: what `python -m` imports from the folder it runs in before any installed module
-_MODULE_ENDINGS = (".py", ".pyc", ".pyd", ".so")
+# W6: what a Python imports from a folder on its path before any installed module - and the two
+# its `site` imports before anything it runs (`sitecustomize`: measured through PYTHONPATH, under
+# `-P` too).
+MODULE_ENDINGS = (".py", ".pyc", ".pyd", ".so")
+_STARTUP = ("sitecustomize", "usercustomize")
 
 
-def shadows(cwd: str, rel: str) -> str | None:
-    """W6: `rel` (from the root) as a module `python -m` run in `cwd` imports before the standard
-    one or the tool's own - a `subprocess.py` there, or a package folder's `__init__.py` - said
-    from the root; None: neither. (A file in a package of the project's own is not: a tool
-    imports no package of the project's by its name.)"""
-    here, mine = PurePosixPath(cwd.casefold()), PurePosixPath(rel.casefold())
-    if mine.parent == here and mine.suffix in _MODULE_ENDINGS:
-        return PurePosixPath(rel).as_posix()
-    if mine.parent.parent == here and mine.stem == "__init__" and mine.suffix in _MODULE_ENDINGS:
-        return PurePosixPath(rel).parent.as_posix()
-    return None
+def shadows(folder: str, rel: str, startup_only: bool = False) -> str | None:
+    """W6: `rel` (from the root) as a module a Python with `folder` on its path imports before the
+    standard one or the tool's own - a `subprocess.py` there, or a package folder's
+    `__init__.py` - said from the root; `startup_only`: a `sitecustomize` / `usercustomize`
+    alone. None: neither. (A file in a package of the project's own is not: a tool imports no
+    package of the project's by its name.)"""
+    here, mine = PurePosixPath(folder.casefold()), PurePosixPath(rel.casefold())
+    if mine.suffix not in MODULE_ENDINGS:
+        return None
+    if mine.parent == here:
+        module, place = mine.stem, PurePosixPath(rel)
+    elif mine.parent.parent == here and mine.stem == "__init__":
+        module, place = mine.parent.name, PurePosixPath(rel).parent
+    else:
+        return None
+    return place.as_posix() if not startup_only or module in _STARTUP else None
 
 
 def still_written(work: Path, records: Iterable[tuple[str, str]]) -> list[str]:
