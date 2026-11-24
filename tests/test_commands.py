@@ -632,3 +632,61 @@ def test_a_rule_offered_too_wide_before_covers_nothing_now(command, rule):
     # (npm's PowerShell shim is npx: the package named, as `npx tsc`)
     assert suggest_prefix("npx.ps1 tsc --noEmit") == "npx.ps1 tsc"
     assert suggest_prefix("npx.ps1 -y cowsay hi") == ""
+
+
+@pytest.mark.parametrize(
+    ("command", "rule"),
+    [
+        ("npm exec tsc -w sub096 -- --noEmit", "npm exec tsc"),
+        ("npm exec tsc --workspace=sub096 -- --noEmit", "npm exec tsc"),
+        ("npm exec tsc --workspace sub096 -- --noEmit", "npm exec tsc"),
+        ("npm exec tsc --workspaces -- --noEmit", "npm exec tsc"),
+        ("npm exec tsc --ws -- --noEmit", "npm exec tsc"),
+        ("npm exec tsc -ws", "npm exec tsc"),
+        ("npx -w sub096 tsc", "npx"),
+        ("npm run build -w sub096", "npm run build"),
+        ("npm --prefix sub096 test", "npm"),
+        ("npm -C sub096 test", "npm"),
+        ("pnpm --filter sub096 exec tsc", "pnpm"),
+        ("pnpm -F sub096 exec tsc", "pnpm"),
+        ("pnpm -r exec tsc", "pnpm"),
+        ("pnpm exec tsc --recursive", "pnpm exec tsc"),
+        ("pnpm --dir sub096 exec tsc", "pnpm"),
+        ("pnpm -C sub096 exec tsc", "pnpm"),
+        ("yarn workspace sub096 tsc", "yarn workspace"),
+        ("yarn workspaces foreach run build", "yarn workspaces"),
+        ("yarn --cwd sub096 tsc", "yarn"),
+        ("bun --filter sub096 run build", "bun"),
+        ("bun --cwd sub096 x tsc", "bun"),
+        ("corepack pnpm --filter sub096 exec tsc", "corepack pnpm"),
+    ],
+)
+def test_a_node_runner_sent_to_another_package_is_covered_by_no_rule(command, rule):
+    # W7b (measured, npm 11.9): `npm exec tsc -w sub` runs sub's own `bin` - a monorepo's other
+    # package, whose package.json the folder's checks never read
+    from app.commands import elsewhere, is_exactly
+
+    assert suggest_prefix(command) == ""
+    assert not matches(command, rule)
+    assert not is_exactly(command, command)  # (a trigger's leave of the very line)
+    assert elsewhere(command)
+
+
+@pytest.mark.parametrize(
+    ("command", "rule"),
+    [
+        ("npm exec tsc -- --noEmit", "npm exec tsc"),  # (`--`: past it, tsc's own)
+        ("npm exec tsc -- -w", "npm exec tsc"),
+        ("npx tsc -w", "npx tsc"),  # (past the package: tsc's own watch)
+        ("npx prettier -w .", "npx prettier"),
+        ("pnpm exec tsc", "pnpm exec tsc"),
+        ("yarn tsc", "yarn tsc"),
+    ],
+)
+def test_a_node_runner_in_its_own_folder_is_still_covered(command, rule):
+    from app.commands import elsewhere
+
+    assert not elsewhere(command) and matches(command, rule)
+    # (npm exec's `-c` / `--call` before `--`: a shell line npm runs - past the rule)
+    assert not matches("npm exec tsc -c x", "npm exec tsc")
+    assert not matches("npm exec tsc --call x", "npm exec tsc")

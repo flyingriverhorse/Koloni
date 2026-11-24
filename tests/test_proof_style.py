@@ -1083,6 +1083,81 @@ def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(  # noqa
     wait_run(client, cid, second["run"]["id"])
 
 
+def _monorepo(root: Path) -> None:
+    """The user's monorepo (the second session's W7b): the root's workspaces, sub096's own
+    package, the root's tsc installed."""
+    (root / "package.json").write_text(
+        '{"name": "r", "workspaces": ["sub096"]}\n', encoding="utf-8"
+    )
+    (root / "sub096").mkdir()
+    (root / "sub096" / "package.json").write_text(
+        '{"name": "sub096", "bin": {"tsc": "./evil096.js"}}\n', encoding="utf-8"
+    )
+    (root / TSC).parent.mkdir(parents=True)
+    (root / TSC).write_text("@echo the project's\n", encoding="utf-8")
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize(
+    "line",
+    [
+        "npm exec tsc -w sub096 -- --noEmit",
+        "npm exec tsc --workspace=sub096 -- --noEmit",
+        "npm exec tsc --ws -- --noEmit",
+        "npm exec tsc -- --noEmit",  # (its own folder, nothing written: the rule covers it)
+    ],
+)
+def test_a_rule_for_npm_exec_never_runs_it_in_another_package(
+    make_client, wait_run, project_dir, line
+):
+    """W7b: `npm exec tsc -w sub096` runs sub096's own `bin` - under the `npm exec tsc` rule,
+    asked on a card with no rule offered."""
+    from tests.test_agent_commands import cmd
+
+    _monorepo(project_dir)
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    client, _model = make_client([text("ready"), cmd(line, "k1"), text("asked")], executor=executor)
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    wait_run(client, cid, run_id)
+    made = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": "npm exec tsc"}, headers=OWN
+    )
+    assert made.status_code in (200, 201), made.text
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "check"}).json()
+    if line.split()[3] == "--":
+        snap = wait_run(client, cid, second["run"]["id"])
+        (ran,) = [one for one in snap["commands"] if one["command"] == line]
+        assert ran["status"] == "exited", snap["commands"]
+        return
+    snap = wait_status(client, cid, "waiting_approval")
+    (card,) = [one for one in snap["commands"] if one["command"] == line]
+    assert card["status"] == "proposed" and card["suggested_prefix"] == "", snap["commands"]
+    assert line not in [one for one, _cwd in executor.started]
+    client.post(f"/api/commands/{card['id']}/reject")
+    wait_run(client, cid, second["run"]["id"])
+
+
+@pytest.mark.no_po
+def test_a_triggers_leave_never_runs_npm_exec_in_another_package(
+    make_client, wait_run, project_dir
+):
+    """W7b where nobody watches: a trigger's ticked rule of the very line - not run."""
+    from tests.test_agent_commands import cmd
+    from tests.test_triggers import allow, leave, run_now, setup, trigger
+
+    _monorepo(project_dir)
+    line = "npm exec tsc -w sub096 -- --noEmit"
+    executor = ScriptedExecutor([PASS, PASS])
+    client, model, pid, cid = setup(
+        make_client, project_dir, [cmd(line, "k1"), text("done")], executor=executor
+    )
+    made = trigger(client, pid, cid, permissions=leave(commands=[allow(client, cid, line)]))
+    wait_run(client, cid, run_now(client, made["id"]))
+    assert line not in [one for one, _cwd in executor.started], executor.started
+    said = [str(m["content"]) for m in model.calls[-1] if m["role"] == "tool"]
+    assert any("nobody is here to ask" in one for one in said), said
+
+
 def test_a_package_runner_finds_its_program_up_the_tree_or_anywhere_it_cannot_place(tmp_path):
     from app.command_runner import _runner_places
 

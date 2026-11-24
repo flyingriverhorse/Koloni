@@ -144,6 +144,7 @@ def _offer(command: str) -> str:  # noqa: C901
         or _git_runs(command)
         or (_fetch_writes(command))
         or any(_program(words[0]) in _DELETERS for words in _commands_in(command) if words)
+        or elsewhere(command)
     ):
         return ""
     words = _words(command.strip())
@@ -706,6 +707,7 @@ def matches(command: str, prefix: str) -> bool:
         or _git_runs(command)
         or _git_runs(prefix)
         or _fetch_writes(command)
+        or elsewhere(command)
     ):
         return False
     if _hands_on(command):
@@ -744,8 +746,11 @@ _PAST_A_RULE = {
         ("gradle", "gradlew"), ("-I", "--init-script", "-p", "--project-dir", "-b", "--build-file")
     ),
     # scripts run by another program; another folder's package.json or config; a package
-    # fetched; node given code to load
-    "npm": ("--script-shell", "--prefix", "-C", "--package", "--userconfig", "--node-options"),
+    # fetched; node given code to load; a shell line `npm exec` runs (`-c`, `--call`)
+    "npm": (
+        *("--script-shell", "--prefix", "-C", "--package", "--userconfig", "--node-options"),
+        *("-c", "--call"),
+    ),
     "make": ("SHELL=", "-f", "--file"),  # (recipes run by another program; another makefile)
     "tox": ("-c",),  # (another tox.ini: its commands)
     "mvn": ("-Dmaven.ext",),  # (an extension's classes loaded into the build)
@@ -894,7 +899,8 @@ def tidy_rule(command: str) -> str:
 def is_exactly(command: str, rule: str) -> bool:
     """Whether a command is a rule's text, character for character - how a rule is read
     where nobody is watching: no further argument, no other spacing, nothing chained or
-    wrapped, and nothing that deletes or cannot be undone."""
+    wrapped, nothing that deletes or cannot be undone, nor runs in another package
+    (`elsewhere`)."""
     return (
         bool(rule)
         and command == rule
@@ -902,6 +908,49 @@ def is_exactly(command: str, rule: str) -> bool:
         and not is_wrapped(command)
         and not _in_a_shell(command)
         and not danger(command)
+        and not elsewhere(command)
+    )
+
+
+# W7b: a node runner's options that run it in another package or folder of a monorepo - its
+# `bin`, its scripts (measured, npm 11.9: `npm exec tsc -w sub` runs sub's own `bin`, which the
+# folder's checks never read): no rule covers such a line, and none is offered.
+_NPM_ELSEWHERE = ("-w", "--workspace", "--workspaces", "--ws", "--prefix", "-C")
+_PNPM_ELSEWHERE = ("--filter", "-F", "-r", "--recursive", "-C", "--dir", "-w", "--workspace-root")
+_ELSEWHERE = {
+    "npm": _NPM_ELSEWHERE,
+    "npx": _NPM_ELSEWHERE,
+    "pnpm": _PNPM_ELSEWHERE,
+    "pnpx": _PNPM_ELSEWHERE,
+    "yarn": ("--cwd",),
+    "bun": ("--filter", "-F", "--cwd"),
+    "bunx": ("--cwd",),
+}
+
+
+def elsewhere(command: str) -> bool:
+    """W7b: whether a node runner's line (`corepack` before one too) runs in another package or
+    folder: npm's and npx's `-w` / `--workspace` / `--workspaces` / `--ws` / `--prefix` / `-C`,
+    pnpm's `--filter` / `-r` / `--dir` / `-C` / `-w`, yarn's `workspace x` / `workspaces
+    foreach` / `--cwd`, bun's `--filter` / `--cwd` - in any spelling (`--workspace=x`, `-ws`).
+    The words before `--` are the runner's; npx's, pnpx's and bunx's only before the package."""
+    words = [word.strip("'\"") for word in _words(command.strip())]
+    words = words[1:] if words and _program(words[0]) == "corepack" else words
+    flags = _ELSEWHERE.get(_program(words[0])) if words else None
+    if flags is None:
+        return False
+    if _program(words[0]) == "yarn" and words[1:2] in (["workspace"], ["workspaces"]):
+        return True
+    rest = words[1 : words.index("--")] if "--" in words else words[1:]
+    if _program(words[0]) in _RUNNER_PROGRAMS:
+        rest = list(itertools.takewhile(lambda word: word.startswith("-"), rest))
+    return any(
+        word.split("=")[0] in flags
+        or (
+            not word.startswith("--")
+            and any(word.startswith(one) for one in flags if len(one) == 2)
+        )
+        for word in rest
     )
 
 
