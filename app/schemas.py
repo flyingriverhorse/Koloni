@@ -4849,6 +4849,13 @@ class BacklogTaskOut(Out):
     story_id: str | None = None
     kind: TaskKind = "task"
     place: int | None = None
+    # Its story's title and its goal's, and who opened each ("agent": an agent's proposal opened
+    # it, the user has not added one of its tasks yet) - read by the backlog's list only, so that a
+    # proposal's card says where adding it puts it.
+    story_title: str | None = None
+    story_by: Literal["user", "agent"] | None = None
+    goal_title: str | None = None
+    goal_by: Literal["user", "agent"] | None = None
 
 
 class BacklogPoOut(BaseModel):
@@ -5023,7 +5030,8 @@ class StoryNoteOut(BaseModel):
 
 class StoryOut(Out):
     """0.1.8: a story of a project's To-do: its goal, its state from its tasks
-    (`stories.story_state`) and its notebook."""
+    (`stories.story_state`: "done?" once each is done or waits at "done?"; "done" only once the
+    user closed it) and its notebook."""
 
     id: str
     goal_id: str | None

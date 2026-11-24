@@ -492,7 +492,7 @@ class Topic(Base):
     trigger_id: Mapped[str | None] = mapped_column(String(32), default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
     # 0.1.8: the To-do story whose tasks go on in this topic; None for any other. Not a key.
-    story_id: Mapped[str | None] = mapped_column(String(32), default=None)
+    story_id: Mapped[str | None] = mapped_column(String(32), default=None, index=True)
 
 
 class Message(Base):

@@ -48,6 +48,9 @@ export function DraftTree({ draft, onAdd, onDrop, taskFields }: Props) {
         goal_id: goalId,
         stories: some.map(one => ({ title: one.title.trim(), notes: one.notes, tasks: one.tasks.map(clean) })),
         tasks: alone.map(clean),
+      }).catch(err => {
+        setGoalId(null) // (the goal it made may be gone since: the next Add names it again)
+        throw err
       })
       if (added.goal_id) setGoalId(added.goal_id)
       left(

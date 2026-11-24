@@ -222,6 +222,7 @@ def decide(session: Session, task: BacklogTask, approve: bool) -> BacklogTask | 
     if task.status == "proposed" or unseen(task) and task.status == "todo":
         if approve and task.status == "proposed":
             task.status = "todo"
+            stories.adopt(session, task.story_id)
             return task
         if approve:
             task.po = {**(task.po or {}), "seen": True}  # (replaced whole)

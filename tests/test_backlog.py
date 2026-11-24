@@ -339,3 +339,26 @@ def test_add_task_puts_a_proposal_in_a_story_named_by_its_title(client, project_
     agent(client, pid, "add_task", title="z", story="Mine")
     (task,) = client.get(f"/api/projects/{pid}/backlog").json()
     assert task["story_id"] != mine
+
+
+def test_an_approved_proposal_makes_its_story_the_users_and_its_row_names_it(client, project_dir):
+    """Review M2 / M3: a proposal's row says its story and goal, and that an agent opened them;
+    added, both are the user's - kept though its tasks go. A proposal moved out of a story an
+    agent opened for it leaves no empty story behind."""
+    pid, _ = setup(client, project_dir)
+    agent(client, pid, "add_task", title="Mobile button", story="Login", goal="Auth", kind="bug")
+    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
+    said = (task["story_title"], task["story_by"], task["goal_title"], task["goal_by"])
+    assert said == ("Login", "agent", "Auth", "agent")
+    client.post(f"/api/backlog/{task['id']}/decide", json={"decision": "approve"})
+    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert (task["status"], task["story_by"], task["goal_by"]) == ("todo", "user", "user")
+    assert client.delete(f"/api/backlog/{task['id']}").status_code == 204
+    tree = client.get(f"/api/projects/{pid}/stories").json()
+    assert [s["title"] for s in tree["stories"]] == ["Login"]
+    assert [g["title"] for g in tree["goals"]] == ["Auth"]
+    agent(client, pid, "add_task", title="Elsewhere", story="Fresh")
+    (moved,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert client.patch(f"/api/backlog/{moved['id']}", json={"story_id": None}).status_code == 200
+    with client.app.state.session_factory() as session:
+        assert [s.title for s in session.query(models.Story).all()] == ["Login"]

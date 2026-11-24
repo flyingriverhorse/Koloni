@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { BacklogTask, Goal, Story } from '../api/types'
 import { AwayPanel } from '../chat/AwayPanel'
 import { GUIDE } from '../shell/guide'
@@ -47,12 +47,13 @@ const STATE_TONE: Record<Story['state'], string> = {
 }
 
 /** A row's ⋯ and its menu: each item closes it, then does its work. */
-function RowMenu({ name, items }: { name: string; items: [string, () => void][] }) {
+function RowMenu({ id, name, items }: { id: string; name: string; items: [string, () => void][] }) {
   const { open, setOpen, close, button, panel } = usePanel()
   return (
     <>
       <button
         ref={button}
+        id={id}
         type="button"
         className="icon-btn"
         aria-label={`${name}: more`}
@@ -149,11 +150,36 @@ function Deleting({
 type Doing = 'rename' | 'goal' | 'delete' | null
 type Item = [string, () => void]
 
+/** What a row's ⋯ opened (Rename, Goal, Delete) - and, once that is done or left, the focus back on its ⋯. */
+function useDoing(menuId: string) {
+  const [doing, setDoing] = useState<Doing>(null)
+  const [back, setBack] = useState(0)
+  useEffect(() => {
+    if (back) document.getElementById(menuId)?.focus()
+  }, [back, menuId])
+  const done = () => {
+    setDoing(null)
+    setBack(n => n + 1)
+  }
+  return { doing, setDoing, done }
+}
+
+/** Whether a story may be closed: each of its tasks (proposals left out) done - one at "done?" waits for your word first. */
+const closable = (story: Story, tasks: BacklogTask[]) => {
+  const own = tasks.filter(task => task.story_id === story.id && task.status !== 'proposed')
+  return story.state === 'done?' && own.length > 0 && own.every(task => task.status === 'done')
+}
+
 /** A story's ⋯: Rename, Goal, Delete - and, once all its tasks are done, Close the story (done is only ever yours), or Open it again. */
-const storyItems = (story: Story, set: (doing: Doing) => void, close: (closed: boolean) => void): Item[] => [
+const storyItems = (
+  story: Story,
+  canClose: boolean,
+  set: (doing: Doing) => void,
+  close: (closed: boolean) => void,
+): Item[] => [
   ['Rename', () => set('rename')],
   ['Goal', () => set('goal')],
-  ...(story.state === 'done?' ? [['Close the story', () => close(true)] as Item] : []),
+  ...(canClose ? [['Close the story', () => close(true)] as Item] : []),
   ...(story.state === 'done' ? [['Open it again', () => close(false)] as Item] : []),
   ['Delete', () => set('delete')],
 ]
@@ -161,9 +187,9 @@ const storyItems = (story: Story, set: (doing: Doing) => void, close: (closed: b
 /** A goal: its title, how many of its stories are done, and a bar of it. */
 function GoalRow({ row, actions }: { row: Extract<TreeRow, { kind: 'goal' }>; actions: TreeActions }) {
   const { busy, error, ask } = useAsk()
-  const [doing, setDoing] = useState<Doing>(null)
   const { goal, done, all } = row
   const id = `goal-${goal.id}`
+  const { doing, setDoing, done: back } = useDoing(`${id}-more`)
   return (
     <li className="todo-goal" aria-labelledby={`${id}-title`}>
       <div className="backlog-row">
@@ -172,8 +198,8 @@ function GoalRow({ row, actions }: { row: Extract<TreeRow, { kind: 'goal' }>; ac
           <Rename
             id={`${id}-name`}
             title={goal.title}
-            onSave={title => void ask(() => actions.onGoal(goal.id, { title })).then(() => setDoing(null))}
-            onCancel={() => setDoing(null)}
+            onSave={title => void ask(() => actions.onGoal(goal.id, { title })).then(ok => ok && back())}
+            onCancel={back}
           />
         ) : (
           <strong id={`${id}-title`} className="backlog-row-text">
@@ -196,10 +222,11 @@ function GoalRow({ row, actions }: { row: Extract<TreeRow, { kind: 'goal' }>; ac
             title={goal.title}
             busy={busy}
             onDelete={() => void ask(() => actions.onDeleteGoal(goal.id))}
-            onKeep={() => setDoing(null)}
+            onKeep={back}
           />
         ) : (
           <RowMenu
+            id={`${id}-more`}
             name={goal.title}
             items={[
               ['Rename', () => setDoing('rename')],
@@ -295,9 +322,9 @@ interface StoryProps {
 /** A story: a tick for its open tasks, its state, its notebook, the chat it runs in, and ⋯ (Rename, Goal, Delete). */
 function StoryRow({ row, tasks, goals, selected, onSelect, chats, actions }: StoryProps) {
   const { busy, error, ask } = useAsk()
-  const [doing, setDoing] = useState<Doing>(null)
   const { story } = row
   const id = `story-${story.id}`
+  const { doing, setDoing, done: back } = useDoing(`${id}-more`)
   const open = tasks.filter(task => task.story_id === story.id && tickable(task)).map(task => task.id)
   const ticked = open.length > 0 && open.every(one => selected.has(one))
   const at = tasks.find(task => task.story_id === story.id && task.status === 'doing' && task.conversation_id)
@@ -317,8 +344,8 @@ function StoryRow({ row, tasks, goals, selected, onSelect, chats, actions }: Sto
           <Rename
             id={`${id}-name`}
             title={story.title}
-            onSave={title => void ask(() => actions.onStory(story.id, { title })).then(() => setDoing(null))}
-            onCancel={() => setDoing(null)}
+            onSave={title => void ask(() => actions.onStory(story.id, { title })).then(ok => ok && back())}
+            onCancel={back}
           />
         ) : (
           <strong id={`${id}-title`} className="backlog-row-text">
@@ -333,18 +360,22 @@ function StoryRow({ row, tasks, goals, selected, onSelect, chats, actions }: Sto
             title={story.title}
             busy={busy}
             onDelete={() => void ask(() => actions.onDeleteStory(story.id))}
-            onKeep={() => setDoing(null)}
+            onKeep={back}
           />
         ) : (
           <RowMenu
+            id={`${id}-more`}
             name={story.title}
-            items={storyItems(story, setDoing, closed => void ask(() => actions.onStory(story.id, { closed })))}
+            items={storyItems(
+              story,
+              closable(story, tasks),
+              setDoing,
+              closed => void ask(() => actions.onStory(story.id, { closed })),
+            )}
           />
         )}
       </div>
-      {doing === 'goal' && (
-        <GoalChoice id={id} story={story} goals={goals} actions={actions} onDone={() => setDoing(null)} />
-      )}
+      {doing === 'goal' && <GoalChoice id={id} story={story} goals={goals} actions={actions} onDone={back} />}
       {error && (
         <div role="alert" className="alert">
           {error}
@@ -464,7 +495,7 @@ export function TodoBar({
         + Task
       </button>
       {onHive && (
-        <button type="button" className="btn btn-small" aria-expanded={noting} onClick={onHive}>
+        <button id="todo-hive" type="button" className="btn btn-small" aria-expanded={noting} onClick={onHive}>
           Write it with the Hive keeper
         </button>
       )}

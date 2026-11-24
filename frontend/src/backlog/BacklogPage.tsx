@@ -51,7 +51,18 @@ const FIELD_WORD: Record<string, string> = {
   criteria: 'Done when',
   priority: 'Priority',
   status: 'Status',
+  kind: 'Type',
 }
+
+/** Where adding a proposal puts it (review M2): its story and goal, "(new)" where an agent's proposal opened them, and a bug said. */
+const placeOf = (task: BacklogTask) =>
+  [
+    task.story_title && `In story “${task.story_title}”${task.story_by === 'agent' ? ' (new)' : ''}`,
+    task.goal_title && `goal “${task.goal_title}”${task.goal_by === 'agent' ? ' (new)' : ''}`,
+    task.kind === 'bug' && 'bug',
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
 interface Props {
   backlog: BacklogTask[] | null
@@ -395,7 +406,14 @@ function TodoHead({ view, projectId, onAdd, ...note }: HeadProps) {
         onHive={note.onDraft || note.onPlan ? () => setNoting(!noting) : undefined}
         noting={noting}
       />
-      <HiveNote {...note} open={noting} onClose={() => setNoting(false)} />
+      <HiveNote
+        {...note}
+        open={noting}
+        onClose={() => {
+          setNoting(false)
+          document.getElementById('todo-hive')?.focus() // (back to the button that opened it)
+        }}
+      />
       <AddTask onAdd={onAdd} {...view.choice} />
     </>
   )
@@ -500,6 +518,7 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
           // (As a text that read like orders is told everywhere: the rule, never the text - here the task is the text.)
           task.po?.injection?.length &&
             `Its words look like they try to give the agent orders (rules: ${task.po.injection.map(rule => rule.replaceAll('_', ' ')).join(', ')}); read them before you add it`,
+          placeOf(task),
           task.detail,
           task.criteria && `Done when: ${task.criteria}`,
         ]
@@ -838,6 +857,10 @@ interface RowProps {
   choice: StoryChoice
 }
 
+/** Whether the task being dragged may be dropped on this one: another of the same story (its story is set in Edit). */
+const dropsOn = (dragged: BacklogTask | null, task: BacklogTask): dragged is BacklogTask =>
+  dragged !== null && dragged.id !== task.id && dragged.story_id === task.story_id
+
 /** A task's second line: how it stands, where its tag does not say that already, and that a change to it waits. */
 const subLine = (state: ReturnType<typeof runState>, tag: string, pending: BacklogTask['pending']) =>
   [state !== tag && state, pending && 'A change to it waits for you above'].filter(Boolean).join(' · ')
@@ -881,7 +904,7 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
     ['Delete', false, () => setDeleting(true)],
   ]
   // Dropped on: the dragged task takes this one's place - and its priority, as the list is by priority first.
-  const dropHere = dragged !== null && dragged.id !== task.id
+  const dropHere = dropsOn(dragged, task)
   /** The task being changed: its fields, what it waits for, Save and Cancel. */
   const editForm = (editing: NewBacklogTask) => (
     <form

@@ -446,6 +446,11 @@ a.btn {
   background: var(--surface);
 }
 
+/* (The Hive keeper's box, closed: it stays mounted, so that a draft written is not lost.) */
+.backlog-add[hidden] {
+  display: none;
+}
+
 .backlog-add:focus-within {
   border-color: var(--accent);
 }

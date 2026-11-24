@@ -227,21 +227,24 @@ test('the To-do tree', async ({ page }) => {
     await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })
   ).json()
   const [login, reset] = added.story_ids
-  const [rule, button, mail] = added.task_ids
-  for (const id of [rule, button])
-    await page.request.patch(`/api/backlog/${id}`, { headers: OWN, data: { status: 'done' } })
-  await page.request.patch(`/api/stories/${login}`, { headers: OWN, data: { closed: true } })
-  await page.request.patch(`/api/backlog/${mail}`, { headers: OWN, data: { status: 'doing' } })
-  await rail(page, 'To-do').click()
-  const list = page.getByRole('list', { name: 'Tasks' })
-  await expect(list.getByRole('listitem', { name: 'Password reset' })).toContainText('● running')
-  await expect(list.getByRole('listitem', { name: tree.goal })).toContainText('1 / 2 stories')
-  await list.scrollIntoViewIfNeeded()
-  await picture(page, 'todo-tree')
-  // (Gone again: the pictures after it show their own To-do.)
-  for (const id of added.task_ids) await page.request.delete(`/api/backlog/${id}`, { headers: OWN })
-  for (const id of [login, reset]) await page.request.delete(`/api/stories/${id}`, { headers: OWN })
-  await page.request.delete(`/api/goals/${added.goal_id}`, { headers: OWN })
+  try {
+    const [rule, button, mail] = added.task_ids
+    for (const id of [rule, button])
+      await page.request.patch(`/api/backlog/${id}`, { headers: OWN, data: { status: 'done' } })
+    await page.request.patch(`/api/stories/${login}`, { headers: OWN, data: { closed: true } })
+    await page.request.patch(`/api/backlog/${mail}`, { headers: OWN, data: { status: 'doing' } })
+    await rail(page, 'To-do').click()
+    const list = page.getByRole('list', { name: 'Tasks' })
+    await expect(list.getByRole('listitem', { name: 'Password reset' })).toContainText('● running')
+    await expect(list.getByRole('listitem', { name: tree.goal })).toContainText('1 / 2 stories')
+    await list.scrollIntoViewIfNeeded()
+    await picture(page, 'todo-tree')
+  } finally {
+    // (Gone again, whatever happened: the pictures after it show their own To-do.)
+    for (const id of added.task_ids) await page.request.delete(`/api/backlog/${id}`, { headers: OWN })
+    for (const id of [login, reset]) await page.request.delete(`/api/stories/${id}`, { headers: OWN })
+    await page.request.delete(`/api/goals/${added.goal_id}`, { headers: OWN })
+  }
 })
 
 test('Memory search, Triggers and Usage', async ({ page, request }) => {

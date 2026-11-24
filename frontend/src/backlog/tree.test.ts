@@ -114,10 +114,13 @@ test('the filters', () => {
     'story:Şifre sıfırlama',
     'task:E-posta gönderimi',
   ])
-  expect(treeOf(tasks, stories, [goal], 'todo').map(label)).toEqual([
-    'section:Without a story',
-    'task:Footer’daki yıl yanlış',
-  ])
+  // (nothing shown over the tasks of no story: no heading)
+  expect(treeOf(tasks, stories, [goal], 'todo').map(label)).toEqual(['task:Footer’daki yıl yanlış'])
+  // A story at done?, its task waiting for your word: under Running, not Done.
+  const waits = [task({ title: 'w', story_id: 'Waits', status: 'review' })]
+  const asked = [story({ title: 'Waits', state: 'done?' })]
+  expect(treeOf(waits, asked, [], 'running').map(label)).toEqual(['story:Waits', 'task:w'])
+  expect(treeOf(waits, asked, [], 'done')).toEqual([])
 })
 
 test('a story of the agent with only proposed tasks is not shown', () => {

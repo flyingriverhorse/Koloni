@@ -15,12 +15,13 @@ PRIORITIES = ("high", "normal", "low")
 # newest kept).
 NOTE_MOST, NOTEBOOK_MOST = 200, 20
 # What a story is: none of its tasks started; one at work or queued in a chat; one stuck; all of
-# them done (the user is asked); closed by the user.
+# them done or waiting at "done?" for the user's word (the user is asked); closed by the user.
 STORY_STATES = ("todo", "running", "stuck", "done?", "done")
 
 
 def story_state(story: Story, tasks: Sequence[BacklogTask]) -> str:
-    """Its state from its tasks, proposals left out: closed, at work, all done, stuck, or to do."""
+    """Its state from its tasks, proposals left out: closed, at work, all done or at "done?" (the
+    user's word waits), stuck, or to do."""
     if story.closed_at is not None:
         return "done"
     tasks = [task for task in tasks if task.status != "proposed"]
@@ -28,7 +29,7 @@ def story_state(story: Story, tasks: Sequence[BacklogTask]) -> str:
         return "todo"
     if any(task.status == "doing" or task.place for task in tasks):
         return "running"
-    if all(task.status == "done" for task in tasks):
+    if all(task.status in ("done", "review") for task in tasks):
         return "done?"
     if any(task.status == "blocked" for task in tasks):
         return "stuck"
@@ -163,6 +164,24 @@ def tree(session: Session, project_id: str) -> dict:
     return {"goals": goals, "stories": stories}
 
 
+def told(session: Session, project_id: str) -> dict[str, dict]:
+    """By story id, what a task's row says of its story (`BacklogTaskOut`): its title and goal's,
+    and who opened each - "agent" for one an agent's proposal would make, the user's not yet."""
+    goals = {
+        goal.id: goal for goal in session.scalars(select(Goal).where(Goal.project_id == project_id))
+    }
+    out: dict[str, dict] = {}
+    for story in session.scalars(select(Story).where(Story.project_id == project_id)):
+        goal = goals.get(story.goal_id or "")
+        out[story.id] = {
+            "story_title": story.title,
+            "story_by": story.created_by,
+            "goal_title": goal.title if goal else None,
+            "goal_by": goal.created_by if goal else None,
+        }
+    return out
+
+
 def goal_states(session: Session, goal: Goal) -> list[str]:
     """The states of a goal's shown stories."""
     return [
@@ -200,6 +219,18 @@ def goal_named(session: Session, project_id: str, title: str) -> Goal | None:
         ),
         None,
     )
+
+
+def adopt(session: Session, story_id: str | None) -> None:
+    """A proposal's story added by the user's word: it, and its goal where an agent opened it,
+    are the user's from then on - kept though its tasks go, as one the user made."""
+    story = session.get(Story, story_id) if story_id else None
+    if story is None:
+        return
+    story.created_by = "user"
+    goal = session.get(Goal, story.goal_id) if story.goal_id else None
+    if goal is not None:
+        goal.created_by = "user"
 
 
 def drop_if_empty(session: Session, story: Story) -> None:

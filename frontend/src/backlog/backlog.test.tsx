@@ -1044,3 +1044,50 @@ test('Edit gives a task its story and its type; a new story is made by its title
   await userEvent.click(within(again).getByRole('button', { name: 'Save' }))
   expect(props.onChange).toHaveBeenLastCalledWith('lone', expect.objectContaining({ story_id: 's9' }))
 })
+
+test('review M1 / M2 / LOW: a proposal says where adding it puts it; a story waiting at done? is closed only once each task is done; the focus comes back', async () => {
+  const props = page()
+  const tree = {
+    onGoal: vi.fn(async () => {}),
+    onDeleteGoal: vi.fn(),
+    onStory: vi.fn(async () => {}),
+    onDeleteStory: vi.fn(),
+    onNewGoal: vi.fn(),
+    onNewStory: vi.fn(),
+  }
+  const proposal = task({
+    id: 'p1',
+    title: 'Mobile button',
+    status: 'proposed',
+    created_by: 'agent',
+    kind: 'bug',
+    story_id: 'sx',
+    story_title: 'Login',
+    story_by: 'agent',
+    goal_title: 'Auth',
+    goal_by: 'user',
+  })
+  const waiting = { ...STORIES[0], state: 'done?' as const }
+  const backlog = [proposal, task({ id: 'r1', title: 'waits', story_id: 's1', status: 'review' })]
+  render(<BacklogPage {...props} backlog={backlog} stories={[waiting]} goals={GOALS} tree={tree} onDraft={vi.fn()} />)
+  expect(screen.getByRole('group', { name: 'Proposed task: Mobile button' })).toHaveTextContent(
+    'Proposed by an agent · In story “Login” (new) · goal “Auth” · bug',
+  )
+  // done? with a task still at done?: no Close the story yet.
+  const dots = screen.getByRole('button', { name: 'Şifre sıfırlama: more' })
+  await userEvent.click(dots)
+  expect(screen.queryByRole('menuitem', { name: 'Close the story' })).toBeNull()
+  // Rename left with Esc, and Delete's Keep it: the focus is back on ⋯.
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
+  await userEvent.keyboard('{Escape}')
+  expect(dots).toHaveFocus()
+  await userEvent.click(dots)
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Keep it' }))
+  expect(screen.getByRole('button', { name: 'Şifre sıfırlama: more' })).toHaveFocus()
+  // The Hive keeper's box closed with Esc: the focus is back on its button.
+  const hive = screen.getByRole('button', { name: 'Write it with the Hive keeper' })
+  await userEvent.click(hive)
+  await userEvent.keyboard('{Escape}')
+  expect(hive).toHaveFocus()
+})

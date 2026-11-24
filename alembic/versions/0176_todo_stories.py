@@ -57,10 +57,12 @@ def upgrade() -> None:
         batch.create_index("ix_runs_task_id", ["task_id"])
     with op.batch_alter_table("topics") as batch:
         batch.add_column(sa.Column("story_id", sa.String(length=32), nullable=True))
+        batch.create_index("ix_topics_story_id", ["story_id"])
 
 
 def downgrade() -> None:
     with op.batch_alter_table("topics") as batch:
+        batch.drop_index("ix_topics_story_id")
         batch.drop_column("story_id")
     with op.batch_alter_table("runs") as batch:
         batch.drop_index("ix_runs_task_id")

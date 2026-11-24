@@ -26,6 +26,9 @@ def test_a_storys_state_comes_from_its_tasks():
     assert story_state(story(closed=True), [t("todo")]) == "done"
     assert story_state(story(), [t("proposed")]) == "todo"
     assert story_state(story(), [t("done"), t("proposed")]) == "done?"  # (a proposal is not one)
+    # (each waiting at "done?" for the user's word: the story's done? too)
+    assert story_state(story(), [t("done"), t("review")]) == "done?"
+    assert story_state(story(), [t("review"), t("todo")]) == "todo"
 
 
 def test_goal_progress_counts_closed_stories():

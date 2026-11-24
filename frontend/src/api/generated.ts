@@ -5574,6 +5574,10 @@ export interface components {
             criteria: string | null;
             /** Detail */
             detail: string | null;
+            /** Goal By */
+            goal_by?: ("user" | "agent") | null;
+            /** Goal Title */
+            goal_title?: string | null;
             /** Id */
             id: string;
             /**
@@ -5613,8 +5617,12 @@ export interface components {
              * @enum {string}
              */
             status: "proposed" | "todo" | "doing" | "review" | "done" | "blocked";
+            /** Story By */
+            story_by?: ("user" | "agent") | null;
             /** Story Id */
             story_id?: string | null;
+            /** Story Title */
+            story_title?: string | null;
             /** Stuck */
             stuck?: string | null;
             /** Title */
@@ -11298,7 +11306,8 @@ export interface components {
         /**
          * StoryOut
          * @description 0.1.8: a story of a project's To-do: its goal, its state from its tasks
-         *     (`stories.story_state`) and its notebook.
+         *     (`stories.story_state`: "done?" once each is done or waits at "done?"; "done" only once the
+         *     user closed it) and its notebook.
          */
         StoryOut: {
             /** Closed At */

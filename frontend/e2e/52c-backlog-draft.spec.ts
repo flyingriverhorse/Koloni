@@ -49,6 +49,16 @@ test('a rough note is written as a goal, stories and tasks, added by your word; 
   await expect(drafts.getByRole('group', { name: 'Draft 2' }).getByLabel('Title')).toHaveValue('Add a password reset')
   const tasks = page.getByRole('list', { name: 'Tasks' })
   await expect(tasks.getByText('Add a password reset')).toHaveCount(0) // nothing saved yet
+  // Esc closes the box (review H1: it hid in no browser); the draft stays, and the button opens the box again.
+  const hive = page
+    .getByRole('toolbar', { name: 'To-do' })
+    .getByRole('button', { name: 'Write it with the Hive keeper' })
+  await box.getByLabel('Your note').press('Escape')
+  await expect(box).toBeHidden()
+  await expect(hive).toBeFocused()
+  await expect(drafts).toBeVisible()
+  await hive.click()
+  await expect(box.getByLabel('Your note')).toHaveValue(NOTE)
   await first.getByLabel('Title').fill(ADDED)
   await login.getByRole('button', { name: 'Add', exact: true }).click()
   // In the tree: the goal, its story, the task - a bug, as the Hive keeper wrote it.

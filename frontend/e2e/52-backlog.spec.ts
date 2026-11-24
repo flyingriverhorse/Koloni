@@ -14,10 +14,46 @@ test.afterEach(async ({ page }) => {
   const pid = await e2eProject(page)
   const left: { id: string; title: string }[] = await (await page.request.get(`/api/projects/${pid}/backlog`)).json()
   for (const task of left.filter(
-    one => one.title === 'Add a farewell' || /^Greet in (French|German) \(/.test(one.title),
+    one => one.title === 'Add a farewell' || /^(Greet in (French|German)|A stuck bug) \(/.test(one.title),
   ))
     expect((await page.request.delete(`/api/backlog/${task.id}`, { headers: OWN })).ok()).toBe(true)
+  const tree: { goals: { id: string; title: string }[]; stories: { id: string; title: string }[] } = await (
+    await page.request.get(`/api/projects/${pid}/stories`)
+  ).json()
+  for (const story of tree.stories.filter(one => one.title.startsWith('A stuck story (')))
+    expect((await page.request.delete(`/api/stories/${story.id}`, { headers: OWN })).ok()).toBe(true)
+  for (const goal of tree.goals.filter(one => one.title.startsWith('A goal to read (')))
+    expect((await page.request.delete(`/api/goals/${goal.id}`, { headers: OWN })).ok()).toBe(true)
 })
+
+/** 0.1.8: a goal over a stuck story with a note and a bug, made through the Hive keeper's way in - its rows read at 4.5
+ *  too. The bug is blocked: Run the backlog takes todo tasks only. */
+async function storyRows(page: Page, theme: string) {
+  const pid = await e2eProject(page)
+  const tree = {
+    goal: `A goal to read (${theme})`,
+    stories: [
+      {
+        title: `A stuck story (${theme})`,
+        notes: ['A note to read.'],
+        tasks: [{ title: `A stuck bug (${theme})`, kind: 'bug' }],
+      },
+    ],
+    tasks: [],
+  }
+  const made = await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })
+  expect(made.ok()).toBe(true)
+  const [bug] = (await made.json()).task_ids
+  expect((await page.request.patch(`/api/backlog/${bug}`, { headers: OWN, data: { status: 'blocked' } })).ok()).toBe(
+    true,
+  )
+  const tasks = page.getByRole('list', { name: 'Tasks' })
+  await expect(tasks.getByRole('listitem', { name: `A stuck story (${theme})` })).toContainText('⚠ stuck')
+  await expect(tasks.getByRole('listitem', { name: `A goal to read (${theme})` })).toContainText('0 / 1 stories')
+  await reads(tasks.getByRole('listitem', { name: `A goal to read (${theme})` }), 3)
+  await reads(tasks.getByRole('listitem', { name: `A stuck story (${theme})` }), 4)
+  await reads(tasks.getByRole('listitem', { name: `A stuck bug (${theme})` }), 3)
+}
 
 async function reads(root: Locator, least: number) {
   const pieces = await root.evaluate(contrasts)
@@ -70,6 +106,7 @@ for (const theme of ['light', 'dark'] as const)
     await page.getByRole('menuitem', { name: 'Move down' }).click()
     await expect.poll(async () => (await titles()).indexOf(first) < (await titles()).indexOf(second)).toBe(true)
     await reads(page.locator('.memory-page'), 10)
+    await storyRows(page, theme)
     if (process.env.KOLONI_SHOTS) await shot(page, `52-backlog-${theme}`)
 
     // Add / Edit / Reject (6 Nov): Edit opens its title and detail, and adds it as changed.

@@ -28,8 +28,9 @@ const byPosition = <T extends { position: number }>(rows: T[]) => [...rows].sort
 const storyIn = (state: Story['state'], filter: Filter) =>
   filter === 'all' ||
   (filter === 'todo' && (state === 'todo' || state === 'stuck')) ||
-  (filter === 'running' && state === 'running') ||
-  (filter === 'done' && (state === 'done' || state === 'done?'))
+  // (done? waits for your word: it is still running, not done)
+  (filter === 'running' && (state === 'running' || state === 'done?')) ||
+  (filter === 'done' && state === 'done')
 
 /**
  * The To-do list as a tree: the goals in their order, each with its stories and their tasks (priority, then place);
@@ -65,8 +66,8 @@ export function treeOf(tasks: BacklogTask[], stories: Story[], goals: Goal[], fi
     ),
   )
   const loose = of(null).filter(task => inFilter(task, filter))
-  // (A list with no story at all is a plain list: no heading over it.)
-  if (loose.length && (goals.length || shown.length)) rows.push({ kind: 'section', title: 'Without a story' })
+  // (A list with nothing shown over them is a plain list: no heading.)
+  if (loose.length && rows.length) rows.push({ kind: 'section', title: 'Without a story' })
   return [...rows, ...loose.map(task => ({ kind: 'task' as const, task, depth: 0 as const }))]
 }
 

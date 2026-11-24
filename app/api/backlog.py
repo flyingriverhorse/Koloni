@@ -232,9 +232,14 @@ async def set_auto(
 async def read_backlog(project_id: str, session: Session = Depends(get_session)):
     tasks = backlog.ordered(session, _project(session, project_id).id)
     left, waits = backlog.not_in(session, tasks), backlog.waiting(session, tasks)
+    told = stories.told(session, project_id)
     return [
         BacklogTaskOut.model_validate(task).model_copy(
-            update={"not_in": task.id in left, "waiting": task.id in waits}
+            update={
+                "not_in": task.id in left,
+                "waiting": task.id in waits,
+                **told.get(task.story_id or "", {}),
+            }
         )
         for task in tasks
     ]
@@ -271,6 +276,7 @@ async def change_task(
     changes = {
         k: v for k, v in changes.items() if v is not None or k in ("detail", "criteria", "story_id")
     }
+    left = task.story_id
     if "story_id" in changes:
         _in_story(session, task.project_id, changes["story_id"])
     if "title" in changes:
@@ -289,6 +295,9 @@ async def change_task(
         setattr(task, field, value)
     if position is not None:
         backlog.renumber(session, task.project_id, task, position)
+    if left != task.story_id:  # (an agent's story it was the last proposal of, now empty, goes)
+        session.flush()
+        backlog.tidy_story(session, left)
     # A done task is found by `recall` as the user's words of its closing (app.earlier).
     earlier.index_task(session, task, now())
     session.commit()
@@ -300,12 +309,14 @@ async def change_task(
 async def delete_task(task_id: str, request: Request, session: Session = Depends(get_session)):
     task = _task(session, task_id)
     earlier.unindex_task(session, task.id)
+    proposal = task.status == "proposed"
     if task.status in ("proposed", "todo"):  # (never worked on: a proposal turned down)
         backlog.turned_down(session, task)
     session.delete(task)
     session.flush()
     backlog.renumber(session, task.project_id)
-    backlog.tidy_story(session, task.story_id)
+    if proposal:  # (the story an agent opened for it goes with its last proposal)
+        backlog.tidy_story(session, task.story_id)
     session.commit()
     _told(request, session, task.project_id)
     return Response(status_code=204)

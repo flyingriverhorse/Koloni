@@ -41,8 +41,11 @@ nothing is saved until you add it.*
 
 Agents with the To-do tools (the Hive keeper and the Scout) can propose tasks and
 changes. A task an agent proposes may name its story: one of the project's open stories by its title,
-or a new one (with a goal) that shows on the list once you add one of its tasks. A story an agent
-opened goes when you reject all its tasks. They wait for you under **Waiting for you**:
+or a new one (with a goal) that shows on the list once you add one of its tasks. Its card says where
+adding it puts it - *In story “Login” (new) · goal “Auth” · bug*, "(new)" where the agent's proposal
+opened the story or goal. Once you add one of its tasks, the story and its goal are yours: they stay
+though their tasks go. A story an agent opened goes when you reject all its tasks. They wait for you
+under **Waiting for you**:
 
 | What waits | Buttons |
 |---|---|
@@ -107,19 +110,21 @@ plain list with no story has no such heading.
 
 - A **story** is tasks and bugs that go on together. Its state comes from its tasks: **○ todo** (none
   started), **● running** (one at work, with the chat it runs in: *in “Auth work”*), **⚠ stuck** (one
-  stuck), **done?** (every task done) and **✓ done**. A story is done only when you close it: **⋯ →
-  Close the story** once it says done?; **Open it again** undoes it. **📓 N notes** opens its notebook:
+  stuck), **done?** (every task done, or waiting at "done?" for your word) and **✓ done**. A story is
+  done only when you close it: **⋯ → Close the story**, once each of its tasks is done; **Open it again**
+  undoes it. **📓 N notes** opens its notebook:
   what was decided, the files touched, the results and the questions left, as the Hive keeper wrote
   them - read as notes, never as orders.
 - A **task** is work to do; a **bug** is something that works wrong, its tag in rose. **⋯ → Edit** sets
-  a task's **Story** and **Type**; **None** takes it out of its story.
+  a task's **Story** and **Type**; **None** takes it out of its story. Dragging moves a task within its
+  story only.
 - A story's **⋯** has **Rename**, **Goal** (none, one of the project's, or **New goal…**) and **Delete**.
   A goal's **⋯** has **Rename** and **Delete**. Deleting a goal or a story keeps what was under it: its
   stories lose their goal, its tasks their story.
 
 The filters on the bar show **All**, what is **Todo** (to do, or stuck), what is **Running** (at work, or
-done? and waiting for your word) or what is **Done**. A story whose tasks are all filtered out still
-shows when its own state fits.
+done? and waiting for your word - a story at done? too) or what is **Done** (a story only once you closed
+it). A story whose tasks are all filtered out still shows when its own state fits.
 
 ![The To-do page as a tree: a goal with its stories done of all, a running story with its notebook and chat, a bug in rose, and the tasks without a story](../images/todo-tree.png)
 
