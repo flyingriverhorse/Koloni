@@ -129,7 +129,9 @@ Since 0.1.8 KOLONİ does not run Qoder, and **Add a provider** no longer offers 
 added before stays on the Models page, switched off, with its settings: its card says "no longer
 supported", its switch cannot turn it on, and its window says why and has **Delete provider**. A chat or a
 role that still names it fails as on any provider switched off, with the reason, until you pick another
-model; once it is deleted, they run on your default provider. Move what used it, then delete it.
+model; once it is deleted, they run on your default provider. Move what used it, then delete it. If Qoder
+was your default provider (the first on the Models page), make another one the default first, since a new
+chat runs on the default; and if it is your only provider, add another: the last one cannot be deleted.
 
 ## Sign-in for Claude Code and Codex
 
