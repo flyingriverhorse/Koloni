@@ -63,8 +63,9 @@ if TYPE_CHECKING:
 # opened would write straight into the project.
 # shortcut: not add_skill - a native CLI's Lead proposes no skill; add it here (and to its
 # rules' words) when one should.
-# shortcut: nor propose_trigger (slice 69) - a native CLI's Lead proposes no trigger; add it
-# here and to its rules' words when one should.
+# notify and propose_trigger (0.1.8) as an API model's Lead has them, over the same call
+# (`_run_call`): notify only where the project has somewhere to send it (`_lead_tools`), at its
+# limits; propose_trigger only a card, never in a turn nobody watches (`_propose_trigger`).
 COLLABORATION_TOOLS = (
     "spawn_agent",
     "create_role",
@@ -76,6 +77,8 @@ COLLABORATION_TOOLS = (
     "add_task",
     "change_task",
     "assess_task",
+    "notify",
+    "propose_trigger",
     LEARN,
     LOOKUP,
     "post_note",
