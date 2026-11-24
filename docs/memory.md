@@ -184,9 +184,10 @@ What each agent is given:
   setup.
 - **GitHub Copilot CLI** run **Native** does the same: it goes on in its own session from the topic's
   previous turn, sent only what is new, and compacts the session itself, with a line on the agent's
-  record when it does. Its session is kept in a folder of its own under KOLONİ's runtime, removed when
-  you start a new topic or go back to another one, when a turn starts a new session, and when its chat
-  is deleted ([Data and privacy](security/privacy.md#where-your-data-is)). Where Copilot cannot go on in
+  record when it does. Past a size, about 75,000 tokens by default, it is not gone on in, so that it
+  stays below Copilot's dearer price step: the next turn starts anew from the history KOLONİ keeps.
+  Its session is kept in a folder of its own under KOLONİ's runtime, removed when you start a new
+  topic or go back to another one, when a turn starts a new session, and when its chat is deleted ([Data and privacy](security/privacy.md#where-your-data-is)). Where Copilot cannot go on in
   it, it starts a new session sent the whole topic, and its record says so once.
 - On any other model the Orchestrator is sent the topic's history each turn, and KOLONİ summarises its older part
   past **Summarise a long context at (%)** of the window (75 by default; see

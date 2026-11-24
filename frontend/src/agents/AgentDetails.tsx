@@ -195,7 +195,9 @@ function ContextLine({
   said: AgentLive['context'] | null
   tokensKnown: boolean
 }) {
-  const [used, window] = said ? [said.used, said.window] : [agent.input_tokens, agent.context_window]
+  // A native CLI's tokens in are its turn's calls added up, not how full it is: only what it says live.
+  const native = agent.provider_mode === 'native'
+  const [used, window] = said ? [said.used, said.window] : [native ? null : agent.input_tokens, agent.context_window]
   const full = percentFull(used, window)
   const show = (n: number | null) => (n === null ? 'unknown' : n.toLocaleString('en-US'))
   const units = spent(agent)

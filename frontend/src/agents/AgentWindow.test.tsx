@@ -652,6 +652,22 @@ test('the window says how full its context is, how many messages were summarised
   expect(screen.queryByRole('meter')).not.toBeInTheDocument()
 })
 
+test('a native CLI that ended shows no fill from its tokens in: they are its turn calls added up', async () => {
+  const ended = agent('r', 'completed', { provider_mode: 'native', input_tokens: 95000, context_window: 100000 })
+  render(
+    <AgentWindow
+      state={convState({ runs: [run('r')], agents: [ended] })}
+      agentId="r"
+      onClose={() => {}}
+      onOpenChange={() => {}}
+      onSelectAgent={() => {}}
+    />,
+  )
+  await openAgentFold('Details')
+  expect(screen.getByText('Context').nextElementSibling).toHaveTextContent(/^95,000 in \/ unknown out$/)
+  expect(screen.queryByRole('meter')).not.toBeInTheDocument()
+})
+
 test('89j: while its CLI works the window says how full it says its context is, and its plan step by step, as text', async () => {
   const working = agent('r', 'running')
   const live = {

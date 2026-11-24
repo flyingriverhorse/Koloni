@@ -24,8 +24,9 @@ from app.agent.cards import (
     needs_full_auto,
     sandbox_denied,
 )
-from app.agent.ctx import Ctx, _Hold, _NobodyToAsk, _Transcript, _Watch, inside_key
+from app.agent.ctx import TERMINAL, Ctx, _Hold, _NobodyToAsk, _Transcript, _Watch, inside_key
 from app.agent.merge import _git_parts, _put_back
+from app.agent.summary import compact_at
 from app.agent.words import (
     FINDING_KINDS,
     IN_THE_PROJECT,
@@ -37,6 +38,8 @@ from app.model_client import ModelInfo, ModelUnavailable, OwnStop, ToolCallReque
 from app.model_native import (
     COPILOT_SESSIONS,
     PATCH_MAY_RUN,
+    SESSION_FULL,
+    SESSION_UNSIZED,
     USED_INSIDE,
     ClaudeNativeClient,
     CodexNativeClient,
@@ -44,6 +47,7 @@ from app.model_native import (
     copilot_home,
     forget_session,
 )
+from app.model_session import SessionResult
 from app.project_view import ProjectView
 from app.project_view import standing as standing_files
 from app.roles import LEARN, LOOKUP, can_change_things
@@ -390,8 +394,8 @@ class NativeMixin:
             )
             self._slow_off(ctx)  # (what follows may wait for the user)
             left = usage.session
-            self._window_said(ctx, usage.context_window)
-            mark = self._session_mark(ctx) if keeps and usage.session else {}
+            self._window_said(ctx, model, usage.context_window)
+            mark = self._kept_mark(ctx, transcript, model, usage) if keeps else {}
             # (Its last command may have been after its last request: looked at once more, and
             # its turn is over once the user has said whether to keep what was taken back.)
             await self._standing_look(ctx, transcript, watch)
@@ -436,11 +440,45 @@ class NativeMixin:
         self._ran_on(ctx, usage.model, getattr(usage, "picked_why", None))
         return "completed", None
 
-    def _window_said(self: "AgentRunner", ctx: Ctx, window: int | None) -> None:
+    def _window_said(
+        self: "AgentRunner", ctx: Ctx, model: CodexNativeClient, window: int | None
+    ) -> None:
         """0.1.8: the window its CLI's session says it is held to (Copilot's) kept on its record,
-        where its role sets none - not the catalogue's, which may be far larger (`_idle_after`)."""
+        where its role sets none - not the catalogue's, which may be far larger (`_idle_after`) -
+        at most its `session_cap`: what KOLONİ compacts it against once it starts anew."""
         if window:
-            self._set_agent(ctx.cid, ctx.agent_id, context_window=ctx.context_window or window)
+            held = min(window, model.session_cap or window)
+            self._set_agent(ctx.cid, ctx.agent_id, context_window=ctx.context_window or held)
+
+    def _kept_mark(
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        model: CodexNativeClient,
+        usage: SessionResult,
+    ) -> dict:
+        """27: what its session is kept with for the topic's next turn (`_session_mark`); {}: none
+        is. 0.1.8: a CLI whose session costs more past a size (`session_cap`: Copilot's price step)
+        keeps none at Summarise a long context at (%) of its role's window, else of its own at
+        most that size, nor one whose size it did not say - said on its record; its next turn
+        starts anew, sent the history KOLONİ keeps and compacts (To-do design, "Oturum boyu
+        sınırı")."""
+        if not usage.session:
+            return {}
+        if cap := model.session_cap:
+            used = usage.context_used
+            window = ctx.context_window or min(usage.context_window or cap, cap)
+            with self._factory() as session:
+                share = compact_at(session)
+            if used is None or used >= window * share / 100:
+                said = (
+                    SESSION_FULL.format(used=used, at=share, window=window)
+                    if used is not None
+                    else SESSION_UNSIZED
+                )
+                self._note(ctx, transcript, f"{model.command}__session", {}, "succeeded", said)
+                return {}
+        return self._session_mark(ctx)
 
     def _forget_unkept(
         self: "AgentRunner", kept: dict | None, left: dict | None, stored: dict | None
@@ -466,6 +504,13 @@ class NativeMixin:
             return
         homes = self.settings.runtime_root / CLI_HOMES / COPILOT_SESSIONS
         gone = []
+        # (Nor one of a topic a turn is at work in or waits in: it may be taking it.)
+        busy = select(Run.topic_id).where(
+            Run.conversation_id == run.conversation_id,
+            Run.id != run.id,
+            Run.status.not_in(TERMINAL),
+            Run.topic_id.is_not(None),
+        )
         with self._factory() as session:
             for agent in session.scalars(
                 select(Agent)
@@ -474,6 +519,7 @@ class NativeMixin:
                 .where(
                     Run.conversation_id == run.conversation_id,
                     Run.topic_id != run.topic_id,
+                    Run.topic_id.not_in(busy),
                     Topic.trigger_id.is_(None),
                     Agent.cli_session.is_not(None),
                 )

@@ -17,10 +17,13 @@ from app.main import create_app
 from app.model_native import (
     COPILOT_SESSIONS,
     COPILOT_TOOLS,
+    NO_SANDBOX,
     RESUMED,
     SESSION_ANEW,
+    SESSION_UNSIZED,
     CopilotNativeClient,
     forget_session,
+    sweep_copilot_homes,
 )
 from app.model_session import SessionResult, copilot_since
 from tests.fakes import ScriptedModel
@@ -33,6 +36,19 @@ FIRST = [SYSTEM, {"role": "user", "content": "fix the greeting"}]
 SECOND = [*FIRST, {"role": "assistant", "content": "Done."}, {"role": "user", "content": "tests"}]
 THIRD = [*SECOND, {"role": "assistant", "content": "Tested."}, {"role": "user", "content": "docs"}]
 OWN = {"Origin": "http://127.0.0.1:8790"}
+
+
+# Its session.usage_info as measured live (1.0.114, 24 Nov 2026), at a size of `current`.
+def info(current: int, limit: int = 272000) -> dict:
+    return {
+        "tokenLimit": limit,
+        "currentTokens": current,
+        "messagesLength": 4,
+        "systemTokens": 4498,
+        "conversationTokens": 1162,
+        "toolDefinitionsTokens": 1646,
+        "isInitial": True,
+    }
 
 
 def checkpoint(inputs: int, outputs: int, premium: int) -> dict:
@@ -68,7 +84,7 @@ def copilot(tmp_path):
     runtime = tmp_path / "runtime"
     sessions = runtime / "cli-homes" / COPILOT_SESSIONS
 
-    def make(sessions_at: Path | None = None, **more) -> CopilotNativeClient:
+    def make(sessions_at: Path | None = None, provider="p1", **more) -> CopilotNativeClient:
         plan.write_text(plan_of(record, starts, **more), encoding="utf-8")
         return CopilotNativeClient(
             None,
@@ -77,6 +93,7 @@ def copilot(tmp_path):
             launcher=HEADLESS,
             env={"FAKE_CLI_PLAN": str(plan)},
             sessions=sessions_at or sessions,
+            provider=provider,
         )
 
     make.runtime, make.sessions = runtime, sessions
@@ -88,7 +105,7 @@ def copilot(tmp_path):
     return make
 
 
-def run(cli, root, messages, session=None, level="full_auto", withheld=(), also=()):
+def run(cli, root, messages, session=None, level="full_auto", withheld=(), also=(), denied=None):
     """One native turn of it, kept (`keep`), as `_native_work` runs it; what it put on record."""
     items: list[dict] = []
 
@@ -112,6 +129,7 @@ def run(cli, root, messages, session=None, level="full_auto", withheld=(), also=
             on_item,
             withheld=withheld,
             also=also,
+            denied=denied,
             session=session,
             level=level,
             keep=True,
@@ -267,7 +285,7 @@ def test_what_a_checkpoint_does_not_say_is_never_made_up():
 def test_its_window_and_its_compaction_are_what_its_session_says(copilot, tmp_path):
     result, items = run(
         copilot(
-            usage_info=[{"tokenLimit": 128000}, {"tokenLimit": 272000, "currentTokens": 9}],
+            usage_info=[info(5, 128000), info(9)],
             compaction={
                 "success": True,
                 "preCompactionTokens": 569494,
@@ -277,7 +295,9 @@ def test_its_window_and_its_compaction_are_what_its_session_says(copilot, tmp_pa
         tmp_path,
         FIRST,
     )
-    assert result.context_window == 272000  # (its last word)
+    assert (result.context_window, result.context_used) == (272000, 9)  # (its last word)
+    # How full it is, shown while it works (89j).
+    assert {"type": "live", "context": {"used": 9, "window": 272000}} in items
     (line,) = said(items, "compaction")
     assert "569,494 -> 9,298 tokens" in line and "its own summary" in line
     _, items = run(
@@ -327,7 +347,7 @@ def chat(settings_env, tmp_path, project_dir, wait_run):
     def rescript(**more):
         plan.write_text(plan_of(record, starts, **more), encoding="utf-8")
 
-    rescript(usage=[checkpoint(100, 10, 1)], usage_info=[{"tokenLimit": 272000}])
+    rescript(usage=[checkpoint(100, 10, 1)], usage_info=[info(7306)])
     cli = CopilotNativeClient(
         None,
         "gpt-6-luna",
@@ -381,7 +401,8 @@ def test_it_goes_on_within_its_topic_counts_each_turn_and_its_home_goes_with_a_n
     home = Path(lead.cli_session["home"])
     assert home.is_dir() and homes_of(chat) == [home]  # (it survived its turn, in the runtime)
     assert str(home.resolve()).startswith(str(chat.runtime.resolve()))
-    assert (lead.input_tokens, lead.context_window) == (100, 272000)
+    # (KOLONİ holds it to its price step, past which its next turn would not go on in it)
+    assert (lead.input_tokens, lead.context_window) == (100, 100_000)
     snap = chat(
         "now the tests",
         usage=[checkpoint(250, 25, 2)],
@@ -428,3 +449,64 @@ def test_a_turn_at_another_permission_level_starts_anew_and_its_old_home_goes(ch
     assert not home.exists()
     newer = Path(leads(chat)[-1].cli_session["home"])
     assert homes_of(chat) == [newer] and leads(chat)[-1].input_tokens == 40
+
+
+def test_a_session_from_another_provider_or_named_otherwise_is_not_gone_on_in(copilot, tmp_path):
+    kept = run(copilot(), tmp_path, FIRST)[0].session
+    result = run(copilot(provider="p2"), tmp_path, SECOND, session=kept)[0]
+    assert "resume" not in copilot.record() and result.session["home"] != kept["home"]
+    # Asked to go on in its session, it says it went on in another: anew, said once.
+    before = copilot.starts()
+    result, items = run(copilot(resume_as="another-session-0001"), tmp_path, SECOND, session=kept)
+    assert copilot.starts() == before + 2 and "create" in copilot.record()
+    assert "another session" in said(items, "session")[0]
+    assert result.session["home"] != kept["home"] and result.session["id"] == SID
+
+
+def test_its_sandbox_line_is_said_once_where_it_starts_anew(copilot, tmp_path):
+    unboxed = {"supported": False, "capabilities": []}
+    kept = run(copilot(sandbox=unboxed), tmp_path, FIRST, denied=())[0].session
+    (Path(kept["home"]) / "session-state" / SID / "events.jsonl").unlink()
+    _, items = run(copilot(sandbox=unboxed), tmp_path, SECOND, session=kept, denied=())
+    assert said(items, "sandbox") == [NO_SANDBOX] and len(said(items, "session")) == 1
+
+
+def test_homes_no_agent_names_are_swept_and_named_ones_stay(tmp_path):
+    runtime = tmp_path / "runtime"
+    homes = runtime / "cli-homes" / COPILOT_SESSIONS
+    named, stray, other = homes / ("a" * 32), homes / ("b" * 32), homes / "not-ours"
+    for one in (named, stray, other):
+        one.mkdir(parents=True)
+    sweep_copilot_homes(runtime, [{"id": SID, "home": str(named)}, None, {"id": "x"}])
+    assert named.is_dir() and not stray.exists() and other.is_dir()
+    sweep_copilot_homes(tmp_path / "none", [])  # (no folder: nothing to do)
+
+
+def test_kolonis_start_sweeps_a_home_a_closed_turn_left(settings_env, tmp_path):
+    settings = load_settings(settings_env)
+    left = settings.runtime_root / "cli-homes" / COPILOT_SESSIONS / ("c" * 32)
+    (left / "session-state").mkdir(parents=True)
+    with TestClient(create_app(settings, model=ScriptedModel([])), headers=PAGE):
+        assert not left.exists()
+
+
+def test_a_session_past_its_bound_is_not_gone_on_in_and_its_record_says_why(chat):
+    (lead,) = leads(chat)
+    home = Path(lead.cli_session["home"])
+    # 75 % (Summarise a long context at) of 100,000 (its price step, under its 272,000).
+    snap = chat("now the tests", usage=[checkpoint(250, 25, 2)], usage_info=[info(80_000)])
+    assert chat.record()["resume"]["sessionId"] == SID
+    assert leads(chat)[-1].cli_session is None and homes_of(chat) == []
+    assert not home.exists()
+    (line,) = [c["result"] for c in snap["tool_calls"] if c["name"] == "copilot__session"]
+    assert "80,000 tokens, 75% or more of 100,000" in line
+    assert leads(chat)[-1].input_tokens == 150  # (still this turn's own)
+    chat("and the docs", usage=[checkpoint(30, 3, 1)], usage_info=[info(9000)])
+    assert "resume" not in chat.record() and "what does it print?" in chat.record()["prompt"]
+    assert leads(chat)[-1].cli_session is not None
+
+
+def test_a_session_whose_size_was_not_said_is_not_gone_on_in(chat):
+    snap = chat("now the tests", usage_info=[], call_usage={})
+    assert leads(chat)[-1].cli_session is None and homes_of(chat) == []
+    assert SESSION_UNSIZED in [c["result"] for c in snap["tool_calls"]]

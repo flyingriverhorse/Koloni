@@ -900,7 +900,10 @@ class Providers:
                 routing=None if provider.base_url else row.get("routing"),
                 # 0.1.8: natively its session is kept for the topic's next turn, in a home there.
                 **(
-                    {"sessions": settings.runtime_root / CLI_HOMES / COPILOT_SESSIONS}
+                    {
+                        "sessions": settings.runtime_root / CLI_HOMES / COPILOT_SESSIONS,
+                        "provider": provider.id,
+                    }
                     if build is CopilotNativeClient
                     else {}
                 ),

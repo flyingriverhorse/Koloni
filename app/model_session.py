@@ -133,9 +133,10 @@ class SessionResult:
     # Why Copilot's auto picked `model`, as it said it (`session.auto_mode_resolved`); None: no
     # pick was said.
     picked_why: str | None = None
-    # The window its CLI's session says it is held to (Copilot's `session.usage_info`); None: not
-    # said.
+    # The window its CLI's session says it is held to (Copilot's `session.usage_info`), and how
+    # much its session holds at its end; None: not said.
     context_window: int | None = None
+    context_used: int | None = None
 
 
 # What a session's counts are, of `SessionResult` (Copilot's kept "spent": `copilot_since`).

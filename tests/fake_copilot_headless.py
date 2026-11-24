@@ -52,13 +52,16 @@ it, as Copilot 1.0.67's agent loop sends it). A write ("delete": the file goes) 
 "resolved" its resolvedPath, "diff" its diff.
 The plan's "aborted": its turn ends aborted. The plan's "usage": the data of each
 session.usage_checkpoint it sends, in order, before its turn ends (none: none sent); its
-"usage_info", of each session.usage_info; its "compaction", the data of one
-session.compaction_complete, sent before them.
+"usage_info", of each session.usage_info (measured live on 1.0.114, 24 Nov 2026: tokenLimit,
+currentTokens, systemTokens, conversationTokens, toolDefinitionsTokens, messagesLength,
+isInitial); its "call_usage", its one assistant.usage's (default {"inputTokens": 10}); its
+"compaction", the data of one session.compaction_complete, sent before them.
 
 Sessions (1.0.114, measured 23 Nov 2026): a new one is named the plan's "session_id" (default
 "s1"); its events are written to its home's `session-state/<id>/events.jsonl` once it is sent its
 prompt. Asked `session.resume` (kept in "resume", as session.create's in "create") it goes on in
-the one named where that file is in its home, else refuses it ("Session not found").
+the one named where that file is in its home, else refuses it ("Session not found"); with the
+plan's "resume_as" it says it went on in that session instead.
 
 Protocol 4 (1.0.114, measured 20 Nov 2026): session.create may come grouped (KOLONİ's bridge
 under mcp.servers). Given hooks (grouped `hooks.hasHandlers`, flat `hooks: true`) it asks the
@@ -293,7 +296,7 @@ if told["method"] == "session.resume":
             }
         )
         expect("never")
-    SID = asked_for
+    SID = plan.get("resume_as", asked_for)
 if handshake == "create":
     send({"id": create["id"], "error": {"code": -32602, "message": "unknown field mcpServers"}})
     expect("never")
@@ -780,7 +783,10 @@ for number, action in enumerate(plan.get("script", [])):
         sys.stderr.write(action.get("stderr", "") + "\n")
         sys.exit(action["exit"])
 
-event("assistant.usage", {"model": plan.get("model", "auto"), "inputTokens": 10})
+event(
+    "assistant.usage",
+    {"model": plan.get("model", "auto"), **plan.get("call_usage", {"inputTokens": 10})},
+)
 if "compaction" in plan:
     event("session.compaction_complete", plan["compaction"])
 for info in plan.get("usage_info", []):
