@@ -132,6 +132,36 @@ def test_a_role_merely_named_is_not_said_so_but_one_the_lead_says_it_asked_is(
     assert koloni(wait_run(client, cid, again)) == ["Tester was not opened this turn."]
 
 
+def test_a_role_named_in_a_table_a_quote_or_code_is_no_claim(make_client, wait_run, project_dir):
+    # B-331's remainder (PLAN-T28-07, live): a role in a table cell ("| Plan | The product owner
+    # writes the acceptance criteria…") was said not opened; nor is one in a quote or in code.
+    # A claim of the Lead's own beside them still is.
+    client, _model = make_client(
+        [
+            text(
+                "| Step | Who |\n|---|---|\n| Review | Reviewer checked the diff |\n\n"
+                "> Debugger found it last week.\n\n"
+                "Run `Coder fixed` to see.\n\n"
+                "```\nTester ran the suite\n```\n"
+                "~~~text\nData analyst wrote this\n"
+            ),
+            text("Done.\n\n```\nReviewer approved it\n```\nTester ran it."),
+        ]
+    )
+    cid, run_id = begin(client, project_dir)
+
+    def koloni(snap):
+        return [m["content"] for m in snap["messages"] if m["role"] == "koloni"]
+
+    assert koloni(wait_run(client, cid, run_id)) == []
+    again = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "again"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    ).json()["run"]["id"]
+    assert koloni(wait_run(client, cid, again)) == ["Tester was not opened this turn."]
+
+
 # --- the child loop -----------------------------------------------------------
 
 
