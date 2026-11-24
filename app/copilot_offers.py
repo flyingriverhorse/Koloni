@@ -12,7 +12,8 @@ account listed ~14 models: the list follows the plan, and is read again (`Limits
 
 A row of a Copilot provider that its account does not offer is switched off, with why, as a
 model Copilot refused is (`AgentRunner._refused`); one KOLONİ switched off is switched back on
-once the account offers it again. One the user switched off stays off.
+once the account lists it again - only then: one Copilot refused while it was listed stays off.
+One the user switched off stays off.
 """
 
 import re
@@ -61,18 +62,13 @@ def offers_of(listed: object) -> dict | None:
     """models.list's answer as KOLONİ keeps it: the ids of the models it lists, and Auto's
     tiers with whether each is on and why not - each string one printable line, the counts
     bounded. None: no list in it (not asked, refused, or not read in time).
-    shortcut: of a model only its `id` is read, and one whose `policy.state` says "disabled" is
-    not taken as offered - the shape of a listed model is from 23 Nov's listing and the SDK, not
-    from an answer kept here; check both against the next account that lists models."""
+    shortcut: of a model only its `id` is read - the shape of a listed model is from 23 Nov's
+    listing, not from an answer kept here; check it against the next account that lists models."""
     listed = _dict(listed)
     models = listed.get("models")
     if not isinstance(models, list):
         return None
-    ids = [
-        _text(_dict(m).get("id"))
-        for m in models[:MOST_MODELS]
-        if _dict(_dict(m).get("policy")).get("state") != "disabled"
-    ]
+    ids = [_text(_dict(m).get("id")) for m in models[:MOST_MODELS]]
     tiers = _dict(listed.get("auto")).get("tiers")
     kept = [_tier(t) for t in (tiers if isinstance(tiers, list) else [])[:MOST_TIERS]]
     return {
@@ -115,14 +111,19 @@ def why_not(name: str, offers: dict, no_premium: bool) -> str:
     return NO_PREMIUM if no_premium else NOT_LISTED
 
 
-def switched(rows: list[dict], offers: dict, no_premium: bool) -> list[dict]:
+def switched(
+    rows: list[dict], offers: dict, no_premium: bool, before: dict | None = None
+) -> list[dict]:
     """A Copilot provider's rows as its account offers them now: one it does not offer is
-    switched off with why (`off_why`); one KOLONİ switched off (it has an `off_why`) that it
-    offers again is switched back on. One the user switched off has none: it stays off."""
+    switched off with why (`off_why`); one KOLONİ switched off (it has an `off_why`) is switched
+    back on where the account offers it now and did not when last asked (`before`) - a model
+    Copilot refused while it was listed stays off, or it would fail the next agent again. One
+    the user switched off has none: it stays off."""
     out = []
     for row in rows:
         on = offered(row["name"], offers)
-        if on and row.get("enabled") is False and row.get("off_why"):
+        again = on and before is not None and offered(row["name"], before) is False
+        if again and row.get("enabled") is False and row.get("off_why"):
             row = {k: v for k, v in row.items() if k not in ("enabled", "off_why")}
         elif on is False and row.get("enabled") is not False:
             row = {**row, "enabled": False, "off_why": why_not(row["name"], offers, no_premium)}

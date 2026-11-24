@@ -160,6 +160,22 @@ test('once its account was asked, a routing offers only its tiers, by its names;
   expect(within(fusion).getByRole('option', { name: 'Standard' })).toBeEnabled()
 })
 
+test('a window open on Copilot shows the rows its account switched once the provider is read again', async () => {
+  const props = { ...handlers, onSave: vi.fn(async () => {}), picked: 'gh' }
+  const { rerender } = render(<ModelsPage providers={[github()]} {...props} />)
+  const dialog = screen.getByRole('dialog', { name: 'Copilot' })
+  expect(within(dialog).queryByText('off')).not.toBeInTheDocument()
+  // (As POST /offers gives it back: gpt-x switched off with why, the provider marked changed.)
+  const why = 'not on your Copilot plan now: Copilot’s own list does not offer it'
+  const switched = github({
+    offers,
+    updated_at: '2026-11-24T20:00:00Z',
+    models: github().models.map(m => (m.name === 'gpt-x' ? { ...m, enabled: false, off_why: why } : m)),
+  })
+  rerender(<ModelsPage providers={[switched]} {...props} />)
+  expect(await within(dialog).findByText(why)).toBeInTheDocument()
+})
+
 test('the chat’s model panel asks Copilot’s account as it opens on it, and offers only its tiers', async () => {
   const onOffers = vi.fn(async () => {})
   render(
@@ -183,7 +199,7 @@ test('a fill of a Copilot account that lists no models proposes only what it off
     'Your Copilot account lists no models by name now: only what it offers is proposed, and each other model is ' +
     'switched off until Copilot lists it again.'
   const onFill = vi.fn(async () => ({
-    models: [{ name: 'auto', note: null, tier: 'fast' as const }],
+    models: [{ name: 'auto', note: null, tier: 'fast' as const, agents: true }],
     left_out: 0,
     note,
   }))

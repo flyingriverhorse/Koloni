@@ -5,7 +5,6 @@ premium ones shown apart, and its auto not held back by premium at 0."""
 
 import json
 import sys
-import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -118,7 +117,6 @@ def test_what_it_lists_is_kept_bounded_and_nothing_is_made_of_what_it_did_not_sa
                 {"id": "gpt-6-luna"},
                 {"id": "gpt-6-luna"},  # (once)
                 {"id": "x" * 301},  # too long to be a name
-                {"id": "off", "policy": {"state": "disabled"}},
                 "not a model",
             ],
             "auto": {
@@ -168,9 +166,14 @@ def test_a_row_the_account_does_not_offer_is_off_with_why_and_back_on_once_it_do
     ]
     assert switched(rows, OFFERS, no_premium=False)[0]["off_why"] == NOT_LISTED
     later = {**OFFERS, "models": ["gpt-6-luna", "mine-off"]}
-    again = switched(now, later, no_premium=False)
+    again = switched(now, later, no_premium=False, before=OFFERS)
     assert again[0] == {"name": "gpt-6-luna", "tier": "balanced"}
     assert again[3] == {"name": "mine-off", "enabled": False}  # still the user's to switch on
+    # Only once it is listed anew: one Copilot refused while it was listed stays off, and so does
+    # one switched off before the account was ever asked.
+    refused = [{"name": "gpt-6-luna", "enabled": False, "off_why": "Copilot refused it"}]
+    assert switched(refused, later, no_premium=False, before=later) == refused
+    assert switched(refused, later, no_premium=False) == refused
 
 
 # --- its quota: chat and premium apart -----------------------------------------------------------
@@ -236,10 +239,9 @@ async def test_one_headless_start_says_the_quota_and_what_the_account_offers(tmp
 @pytest.mark.parametrize("refusal", [{"models_error": "no"}, {"models_hang": True}])
 async def test_a_list_it_will_not_give_leaves_the_quota_read(tmp_path, monkeypatch, refusal):
     plan(tmp_path, monkeypatch, quota=MEASURED_QUOTA, **refusal)
-    started = time.monotonic()
-    told = await copilot_quota(None, None, 6, launcher=FAKE_COPILOT)
+    monkeypatch.setattr(app.limits, "ALSO_SECONDS", 1.0)  # (one that never answers)
+    told = await copilot_quota(None, None, 20, launcher=FAKE_COPILOT)
     assert told["listed"] is None and told["quotaSnapshots"]["chat"]["entitlementRequests"] == 200
-    assert time.monotonic() - started < 6
 
 
 # --- kept on the provider, as the Models page and the model panel open --------------------------
@@ -307,13 +309,58 @@ def test_the_account_is_asked_at_most_once_in_ten_minutes_and_its_rows_follow_it
         (CHAT, 200, 200),
         (PREMIUM, 0, 0),
     ]
-    # Ten minutes on, it lists gpt-6-luna again: its row is on again.
-    providers = client.app.state.providers
+    # Ten minutes on, it lists gpt-6-luna again: its row is on again, and the provider is marked
+    # changed (a window open on it shows its rows anew).
+    limits = client.app.state.providers.limits
     of = account(Provider(kind="copilot_cli"))
-    providers.limits._tried[of] -= app.limits.AUTO_EVERY + 1
+    limits._tried[of] -= app.limits.AUTO_EVERY + 1
+    limits._listed[of] -= app.limits.AUTO_EVERY + 1
     again = offers_of_api(client, made["id"])
     assert len(asked) == 2 and again["offers"]["models"] == ["gpt-6-luna"]
     assert again["models"][0] == {**shown["models"][0], "enabled": None, "off_why": None}
+    assert again["updated_at"] > shown["updated_at"]
+
+
+def test_a_model_refused_while_it_is_listed_stays_off_after_the_read_it_starts(client, monkeypatch):
+    listed = measured(models=[{"id": "gpt-6-luna"}])
+    asked = stand_in(monkeypatch, [listed, listed])
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Copilot", "kind": "copilot_cli", "models": [{"name": "gpt-6-luna"}]},
+    ).json()
+    assert offers_of_api(client, made["id"])["models"][0]["enabled"] is None
+    limits = client.app.state.providers.limits
+    of = account(Provider(kind="copilot_cli"))
+    ctx = SimpleNamespace(provider_id=made["id"], model_name="gpt-6-luna")
+    refusal = ModelUnavailable("Copilot can't use gpt-6-luna on your account: pick another model")
+    assert client.portal.call(client.app.state.runner._refused, ctx, refusal)
+
+    async def read() -> None:  # (the reading it started, unless it is over already)
+        if (reading := limits._reading.get(of)) is not None:
+            await reading
+
+    client.portal.call(read)  # (asked again at once, though it was asked just now)
+    assert len(asked) == 2
+    (row,) = offers_of_api(client, made["id"])["models"]
+    assert row["enabled"] is False and row["off_why"].startswith("Copilot refused it")
+
+
+@pytest.mark.anyio
+async def test_native_turns_telling_the_quota_do_not_keep_the_list_from_being_read(monkeypatch):
+    asked = stand_in(monkeypatch, [measured(), measured()])
+    limits = Limits()
+    provider = Provider(id="g", name="Copilot", kind="copilot_cli")
+    await limits.refresh(provider)
+    provider.offers = OFFERS
+    of = account(provider)
+    limits._listed[of] -= app.limits.AUTO_EVERY + 60  # (its list read 11 minutes ago)
+    limits._tried[of] -= app.limits.AUTO_EVERY + 60
+    limits.copilot_said(of, MEASURED_QUOTA)  # a native turn's quota, just now
+    reading = limits.refresh(provider)
+    assert reading is not None
+    await reading
+    assert len(asked) == 2
 
 
 def test_a_copilot_on_a_server_of_ones_own_is_never_asked(client, monkeypatch):

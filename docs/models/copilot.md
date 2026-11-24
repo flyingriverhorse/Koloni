@@ -29,9 +29,10 @@ A Copilot on a model server of your own is never asked: its models are the serve
 | It has no premium requests left | The models it no longer lists go off with "your Copilot plan has no premium requests now". |
 | One of its Auto tiers is on | `auto` stays on. |
 | No Fusion tier is on | `fusion` goes off, in Copilot's own words: "This tier is not available for the user's Copilot plan." |
-| It lists a model again | KOLONİ switches the model back on. |
+| It lists a model it did not list before | KOLONİ switches the model back on. |
 
-A model you switched off yourself stays off: KOLONİ switches back on only what it switched off.
+A model you switched off yourself stays off: KOLONİ switches back on only what it switched off. So does
+a model Copilot refused while your account listed it: switch it on yourself once you think it works.
 
 - **Fill from the catalogue** proposes only what your account offers. When it lists no model by name,
   the fill says so. A Copilot not added yet is not filled: add it first, and KOLONİ then asks your
@@ -70,5 +71,4 @@ on 24 Nov 2026 `auto` ran with premium at 0 and chat requests left.
 - Whether Copilot takes `fast` from KOLONİ as Fast, not as its own default. A run with it went well, but
   the tier it ran at was not read back.
 - Which of the two counters `auto` spends.
-- What a listed model carries. KOLONİ reads only its name; a model the list marks as disabled by policy is
-  not offered.
+- What a listed model carries: KOLONİ reads only its name.

@@ -41,7 +41,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.copilot_offers import offers_of, premium_none, switched
-from app.db.models import Agent, LimitReading, Provider
+from app.db.models import Agent, LimitReading, Provider, now
 from app.model_agy import AgyClient
 from app.model_cli import (
     ClaudeCliClient,
@@ -100,6 +100,8 @@ FAILURES = (
 # at (`Limits.refresh`): no more often than this, in seconds, read well or not.
 QUIET = ("agy_cli", "copilot_cli")
 AUTO_EVERY = 600
+# How long Copilot's `models.list` is waited for after its getQuota, at most (`_copilot_asked`).
+ALSO_SECONDS = 5.0
 NAMES = {
     "codex_cli": "Codex",
     "claude_cli": "Claude Code",
@@ -410,7 +412,7 @@ async def _copilot_asked(
     starting: asyncio.Future | None = None
     complaints: asyncio.Future | None = None
     try:
-        async with asyncio.timeout(timeout):
+        async with asyncio.timeout(timeout) as whole:
             command, shim = client._command()
             env = client._native_env(workdir)
             argv = [*command, *client._native_arguments(workdir, workdir)]
@@ -452,8 +454,10 @@ async def _copilot_asked(
             # (Refused, `method` may still be answered; ended, its own ask says so.)
             with contextlib.suppress(ModelUnavailable):
                 await ask(1, "ping")
-            # (Each after the first within a third of `timeout`: the first is kept whatever.)
-            told = [await ask(2, methods[0]), *await _also(ask, methods[1:], timeout / 3)]
+            told = [await ask(2, methods[0])]
+            # (Each after it within ALSO_SECONDS and before `timeout` is past: the first is kept.)
+            left = (whole.when() or 0) - asyncio.get_running_loop().time() - 0.5
+            told += await _also(ask, methods[1:], max(0.0, min(ALSO_SECONDS, left)))
     except (BrokenPipeError, ConnectionResetError, ValueError):
         raise ModelUnavailable(f"Copilot ended without saying {saying}") from None
     finally:
@@ -1046,6 +1050,10 @@ class Limits:
         self._kept: dict[tuple, dict] = {}  # account -> its last reading, or its unknown
         self._reading: dict[tuple, asyncio.Future] = {}  # account -> its CLI being asked now
         self._tried: dict[tuple, float] = {}  # account -> when it was last asked (monotonic)
+        # Copilot's account -> when it was last asked what it offers: a native run's quota
+        # (`copilot_said`) does not list it. One kept from before a restart counts from the start.
+        self._listed: dict[tuple, float] = {}
+        self._born = time.monotonic()
         # A session's post is taken in a worker thread, a run's on the event loop: one at a
         # time, or one would write over a window the other took.
         self._taking = threading.Lock()
@@ -1247,8 +1255,10 @@ class Limits:
             read_at = self._known(of).get("read_at")
             if read_at is not None and read_at.tzinfo is None:
                 read_at = read_at.replace(tzinfo=UTC)  # (as the database gives it back: UTC)
-            listed = provider.kind != "copilot_cli" or provider.offers is not None
-            ago = (datetime.now(UTC) - read_at).total_seconds() if read_at and listed else math.inf
+            ago = (datetime.now(UTC) - read_at).total_seconds() if read_at else math.inf
+        if provider.kind == "copilot_cli":  # (and its account's list, never asked: for ever ago)
+            listed = self._listed.get(of, None if provider.offers is None else self._born)
+            ago = max(ago, math.inf if listed is None else time.monotonic() - listed)
         return self._asking(provider) if ago >= AUTO_EVERY else self._reading.get(of)
 
     def _asking(self, provider: Provider) -> asyncio.Future:
@@ -1337,6 +1347,7 @@ class Limits:
     async def _copilot(self, of: tuple, executable: str | None, token: str | None) -> dict:
         """Copilot's plan as it is shown, and what its account offers - kept on its providers
         (`_offered`) - read in one start (`copilot_quota`)."""
+        self._listed[of] = time.monotonic()
         answer = await copilot_quota(executable, token, SECONDS)
         if (offers := offers_of(answer.get("listed"))) is not None:
             self._offered(of, offers, premium_none(answer))
@@ -1344,8 +1355,9 @@ class Limits:
 
     def _offered(self, of: tuple, offers: dict, no_premium: bool) -> None:
         """What Copilot's account offers now, kept on each of its providers on GitHub's plan,
-        their rows switched by it (`copilot_offers.switched`). Without a database (a test's
-        Limits): nowhere."""
+        their rows switched by it against what it offered before (`copilot_offers.switched`) - a
+        provider whose rows changed is marked changed, so that a window open on it shows them.
+        Without a database (a test's Limits): nowhere."""
         if self._factory is None:
             return
         try:
@@ -1355,10 +1367,10 @@ class Limits:
                 ):
                     if _on_server(provider) or account(provider) != of:
                         continue
+                    rows = switched(provider.models or [], offers, no_premium, provider.offers)
                     provider.offers = offers
-                    rows = switched(provider.models or [], offers, no_premium)
                     if rows != (provider.models or []):
-                        provider.models = rows
+                        provider.models, provider.updated_at = rows, now()
                 session.commit()
         except SQLAlchemyError as exc:
             log.warning("what Copilot's account offers could not be kept: %s", type(exc).__name__)
