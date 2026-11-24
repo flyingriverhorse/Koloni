@@ -18,7 +18,7 @@ from sqlalchemy import literal_column, select, true
 from sqlalchemy.orm import Session
 
 from app.commands import RECALL_HINT, OutputMask, only_reads, plain, recallable, secret_values
-from app.db.models import Agent, Command, FileChange, Project, ToolCall
+from app.db.models import Agent, Command, FileChange, Merge, Project, ToolCall
 from app.finish_tests import command_of, did_not_start
 from app.workspace import in_scratch, unified_diff
 
@@ -1161,6 +1161,42 @@ def did(session: Session, agent_id: str, seen: bool = True) -> str | None:
         parts.append(f"{web} web")
     under = "" if len(ids) == 1 else f" (with the {_many(len(ids) - 1, 'agent')} it opened)"
     return DID.format(under=under) + ", ".join(parts) + "." if parts else None
+
+
+# L1 (live, 24 Nov): a Coder said it was done having changed nothing, and its opener passed that
+# on. Said first in its result, before its report's own words, where its role writes.
+NO_CHANGE = (
+    "KOLONİ: this agent changed no file. Its record holds no change by it or by an agent it "
+    "opened; where the report below says it changed a file, it did not."
+)
+
+
+def changed_nothing(session: Session, agent_id: str) -> bool:
+    """L1: whether KOLONİ's record holds no file change by an agent and those it opened - no
+    change of any status (one turned down was still made), none kept for Take in, and no command
+    that may have changed files off the record (`proof.may_write`: `sed -i`, a script). Its
+    scratch's are none, as in `did`.
+    shortcut: a CLI's write the record misses is not seen here (a hook missed, `model_agy`'s
+    "unhooked" stops the run); count its copy's files too if one is seen said as no change."""
+    from app.proof import may_write  # (here: proof imports this module)
+
+    run_id, ids = _family(session, agent_id)
+    paths = session.scalars(
+        select(FileChange.path).where(FileChange.run_id == run_id, FileChange.agent_id.in_(ids))
+    )
+    if any(not in_scratch(path) for path in paths):
+        return False
+    held = session.scalars(
+        select(Merge.files).where(Merge.run_id == run_id, Merge.agent_id.in_(ids))
+    )
+    if any(held):
+        return False
+    lines = session.scalars(
+        select(Command.command).where(
+            Command.run_id == run_id, Command.agent_id.in_(ids), Command.status.in_(STARTED)
+        )
+    )
+    return not any(may_write(line) for line in lines)
 
 
 def _last_test(last: Command, since: bool) -> str:

@@ -27,6 +27,7 @@ How to write an entry (every release looks the same):
 
 ### Fixed
 
+- **Chat**: a sub-agent whose role writes (a Coder, a Debugger) that says it is done having changed no file says **No file changed** over its report and on its row - it showed only "Done" - and the Orchestrator is told so before the report's own words, "KOLONİ: this agent changed no file", so it no longer passes on a change that was never made. A role that only reads is not marked; existing agents keep their record as it was ([docs](docs/use/chat-and-canvas.md#the-canvas)).
 - **Chat**: Code style and types reads a `tsconfig.json`'s files through what it extends, up to 8 deep: one that names none - itself or by a base's `files: []` - is said "not checked", never passed; one that extends a file outside the project or not there is said too, and a tsconfig with a byte-order mark or a `//` comment ended by a lone carriage return is read as tsc reads it ([docs](docs/use/checked.md)).
 - **Chat**: in a `.js`, `.ts` or `.vue` file, a line separator (U+2028, U+2029) ends a line for Code style and types as it does for eslint and tsc - a problem on a line the turn wrote was counted as on a line it did not change, and the other way round.
 - **Chat**: Code style and types does not offer a card for a program an earlier turn's agent wrote in an install folder while it was in a working copy, or that was merged in - it read only writes already in the project; such a write, while the file still holds it, is said "not run" as one in the project is ([docs](docs/use/checked.md)).

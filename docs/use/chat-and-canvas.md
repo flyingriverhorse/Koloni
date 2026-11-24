@@ -182,7 +182,11 @@ Click an agent to open the **Inspector**, a short report card. From the top:
   chat, and answering in one place answers it everywhere;
 - who asked it what, on one line;
 - its **Report**, or while it works "No report yet" and what it is on now. A long report is cut at six
-  lines, with **Show all**;
+  lines, with **Show all**. A sub-agent whose role writes (a Coder, a Debugger) that finished with no file
+  changed on KOLONİ's record has **No file changed** over its report, and on its row in the chat; the
+  Orchestrator gets the same fact, "KOLONİ: this agent changed no file", before the report's own words,
+  so a report that claims a change it never made is not passed on to you. A role that only reads (a
+  Reviewer, a Tester) is never marked so;
 - **Changes**: the files it changed, each with **View diff**, which opens the file in the Workspace;
 - what it did, counted, and its tokens. A number its provider did not report is "–".
 

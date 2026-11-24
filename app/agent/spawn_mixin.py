@@ -155,7 +155,7 @@ from app.team import (
     would_run,
 )
 from app.team import find as find_entry
-from app.tools import NOT_A_MODEL, ToolError
+from app.tools import NOT_A_MODEL, WRITE_TOOLS, ToolError
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -2992,8 +2992,24 @@ class SpawnMixin:
             did = ledger.did(session, child.agent_id, handoff.counted_on(child.model))
         counted += f"\n\n{did}" if did else ""
         if status == "completed":
+            report = self._said_unchanged(ctx, child, report, left_out)
             return self._see_through_finished(ctx, child, report, counted, left_out, found, looked)
         return self._see_through_failed(ctx, child, error, report, counted, left_out, looked)
+
+    def _said_unchanged(
+        self: "AgentRunner", ctx: Ctx, child: Ctx, report: str, left_out: str | None
+    ) -> str:
+        """L1 (live, 24 Nov): a sub-agent whose role writes that finished with no file changed on
+        record (`ledger.changed_nothing`), nothing of it left out either, is marked so on its card,
+        and its report goes to its opener after KOLONİ's word of it (`ledger.NO_CHANGE`). A role
+        that only reads is never marked."""
+        if left_out or not WRITE_TOOLS & set(child.tools):
+            return report
+        with self._factory() as session:
+            if not ledger.changed_nothing(session, child.agent_id):
+                return report
+        self._set_agent(ctx.cid, child.agent_id, changed_nothing=True)
+        return f"{ledger.NO_CHANGE}\n\n{report or '(it ended without a report)'}"
 
     async def _see_through_told(self: "AgentRunner", ctx: Ctx, child: Ctx) -> asyncio.Future | None:
         """`_see_through`: the answer a CLI's call over MCP waits for (`_run_from_cli`) where
