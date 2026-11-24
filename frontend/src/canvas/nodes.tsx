@@ -299,8 +299,15 @@ function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop
   return (
     <div className={['node-checks', 'node-checks-box', loop.loop && 'node-checks-loop', selected && 'node-checks-selected'].filter(Boolean).join(' ')}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
-      {/* Its panel, by click or key - the box's own (Enter / Space), never the canvas's selection too. */}
-      <button type="button" className="checks-tag nodrag" title={loop.loop ? loop.status : undefined} aria-label={`Checks · KOLONİ${loop.loop ? `: ${loop.status}` : ''} - open its panel`} {...pickBox(data.runId)}>
+      {/* Its panel: a click - by mouse, or Enter / Space on it - is the node's own click (the canvas picks it, as a click on the
+          box); its keys go no further (the canvas's own key handling would pick it a second time). */}
+      <button
+        type="button"
+        className="checks-tag nodrag"
+        title={loop.loop ? loop.status : undefined}
+        aria-label={`Checks · KOLONİ${loop.loop ? `: ${loop.status}` : ''} - open its panel`}
+        onKeyDown={event => event.stopPropagation()}
+      >
         <span className="checks-tag-title">Checks · KOLONİ</span>
         {loop.loop && (
           <span className="checks-status" data-tone={loop.tone}>
@@ -314,7 +321,7 @@ function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop
       <div className="checks-cards">
         <div className="checks-col">
           {loop.looks.map(card => (
-            <ChecksCard key={card.agentId} card={card} stacked={loop.loop} runId={data.runId} />
+            <ChecksCard key={card.agentId} card={card} stacked={loop.loop} />
           ))}
         </div>
         {loop.fixes.length > 0 && (
@@ -324,7 +331,7 @@ function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop
             </span>
             <div className="checks-col">
               {loop.fixes.map(card => (
-                <ChecksCard key={card.agentId} card={card} stacked={loop.loop} runId={data.runId} />
+                <ChecksCard key={card.agentId} card={card} stacked={loop.loop} />
               ))}
             </div>
           </>
@@ -363,18 +370,16 @@ const own = (act: () => void) => ({
   onKeyDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
 })
 
-/** The box picked: its panel in the inspector. */
-const pickBox = (runId: string) => own(() => useApp.getState().select(`checks:${runId}`))
-
 /**
  * A role in the box: its latest agent's name and what it said, as an agent's card; ×N and two shadows behind it where there were
  * more. A button: its agent's window, as the agent's node had it ("Open … window") - the Tests card, the box's panel.
  */
-function ChecksCard({ card, stacked, runId }: { card: LoopCard; stacked: boolean; runId: string }) {
+function ChecksCard({ card, stacked }: { card: LoopCard; stacked: boolean }) {
   const more = stacked && card.count > 1
   const tests = card.agentId.startsWith('tests:')
   const said = tests ? `${card.name}: ${card.said} - open the checks' panel` : `Open ${card.name}'s window: ${card.said}`
-  const act = tests ? pickBox(runId) : own(() => useApp.getState().openAgentWindow(card.agentId))
+  // (The Tests card's click is the box's own - its panel -; an agent's, its window alone.)
+  const act = tests ? { onKeyDown: (event: { stopPropagation: () => void }) => event.stopPropagation() } : own(() => useApp.getState().openAgentWindow(card.agentId))
   return (
     <button type="button" className={`checks-card-at nodrag${more ? ' checks-stack' : ''}`} aria-label={said} title={said} {...act}>
       {more && <span className="checks-badge">×{card.count}</span>}

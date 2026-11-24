@@ -112,18 +112,17 @@ test('E: what a fixer opened under it is drawn in the box with it - no lone node
   expect(positions['agent:kid']).toBeUndefined()
 })
 
-test('keyboard: the tag opens the panel, a card its agent’s window - Enter or Space, never the canvas’s own key too', async () => {
+test('keyboard: the tag is the box’s click (its panel), a card its agent’s window alone - Enter or Space, never the canvas’s own key too', async () => {
   const parts = [opened('c1', 'Coder', null), opened('rv', 'Reviewer', 'review', { role_name: 'Reviewer', findings: [{ what: 'x', kind: 'code', role: 'Orchestrator', blocking: true }] }), opened('cf1', 'Coder 2', null)]
   const passes = [pass(1, { looks: [looked('rv', 'HOLD')], why: '1 blocking finding', sent: 'fix', fixers: ['cf1'] }), pass(2)]
   const data = graphOf(turn(parts, [passed], passes)).nodes.find(n => n.kind === 'checks')!.data as ChecksData
-  const select = vi.spyOn(useApp.getState(), 'select')
   const openAgentWindow = vi.spyOn(useApp.getState(), 'openAgentWindow').mockImplementation(() => {})
-  const outer = vi.fn()
+  const [keys, clicks] = [vi.fn(), vi.fn()]
   const props = { id: 'checks:r', data, selected: false, type: 'checks', dragging: false, zIndex: 0, isConnectable: false, positionAbsoluteX: 0, positionAbsoluteY: 0, draggable: false, selectable: false, deletable: false }
   render(
     <ReactFlowProvider>
       {/* (The node's own wrapper: a key or click that reaches it would pick the node a second time.) */}
-      <div onKeyDown={outer} onClick={outer}>
+      <div onKeyDown={keys} onClick={clicks}>
         <ChecksNode {...(props as Parameters<typeof ChecksNode>[0])} />
       </div>
     </ReactFlowProvider>,
@@ -132,12 +131,13 @@ test('keyboard: the tag opens the panel, a card its agent’s window - Enter or 
   expect(tag).toHaveAttribute('title', data.loop!.status)
   tag.focus()
   await userEvent.keyboard('{Enter}')
-  expect(select).toHaveBeenCalledWith('checks:r')
+  expect(clicks).toHaveBeenCalledTimes(1) // (the node's click: the canvas picks the box - its panel)
   const card = screen.getByRole('button', { name: "Open Coder 2 · fix's window: 0 files" })
   card.focus()
   await userEvent.keyboard(' ')
   expect(openAgentWindow).toHaveBeenCalledWith('cf1')
-  expect(outer).not.toHaveBeenCalled()
+  expect(clicks).toHaveBeenCalledTimes(1) // (no second pick: the card's window alone)
+  expect(keys).not.toHaveBeenCalled()
 })
 
 test('the panel: the way to the Checked section only once it is written - a turn at work has none; its rounds say how each went back', () => {
