@@ -31,15 +31,17 @@ from app.agent.words import (
     IN_THE_PROJECT,
     NATIVE_NEEDS_A_FOLDER,
 )
-from app.db.models import Conversation, Provider, ToolCall, now
+from app.db.models import Agent, Conversation, Provider, Run, ToolCall, Topic, now
 from app.limits import CLI_HOMES
 from app.model_client import ModelInfo, ModelUnavailable, OwnStop, ToolCallRequest
 from app.model_native import (
+    COPILOT_SESSIONS,
     PATCH_MAY_RUN,
     USED_INSIDE,
     ClaudeNativeClient,
     CodexNativeClient,
     Steer,
+    copilot_home,
     forget_session,
 )
 from app.project_view import ProjectView
@@ -331,6 +333,7 @@ class NativeMixin:
         self._set_agent(ctx.cid, ctx.agent_id, effort=effort)
         ended, before = False, transcript.opened
         kept: dict | None = None  # (27: the session it was handed, and the one it leaves)
+        left: dict | None = None  # (the one its run returned, kept or not)
         stored: dict | None = None
         try:
             # shortcut: its pictures go once, with no retry without them as a step's
@@ -386,6 +389,8 @@ class NativeMixin:
                 level=level,
             )
             self._slow_off(ctx)  # (what follows may wait for the user)
+            left = usage.session
+            self._window_said(ctx, usage.context_window)
             mark = self._session_mark(ctx) if keeps and usage.session else {}
             # (Its last command may have been after its last request: looked at once more, and
             # its turn is over once the user has said whether to keep what was taken back.)
@@ -406,9 +411,7 @@ class NativeMixin:
             if not ended:
                 with contextlib.suppress(Exception):
                     self._cut(ctx)  # it says what it spent only at its end
-            if kept and (stored is None or stored["id"] != kept.get("id")):
-                with contextlib.suppress(Exception):
-                    forget_session(kept, self.settings.runtime_root)  # (27: one no turn goes on in)
+            self._forget_unkept(kept, left, stored)
             self._native[ctx.cid] -= counted
             self._end_live(ctx)
             self._last_looks.append(watch)  # (its looks still wait for Take in's writes)
@@ -432,6 +435,55 @@ class NativeMixin:
         )
         self._ran_on(ctx, usage.model, getattr(usage, "picked_why", None))
         return "completed", None
+
+    def _window_said(self: "AgentRunner", ctx: Ctx, window: int | None) -> None:
+        """0.1.8: the window its CLI's session says it is held to (Copilot's) kept on its record,
+        where its role sets none - not the catalogue's, which may be far larger (`_idle_after`)."""
+        if window:
+            self._set_agent(ctx.cid, ctx.agent_id, context_window=ctx.context_window or window)
+
+    def _forget_unkept(
+        self: "AgentRunner", kept: dict | None, left: dict | None, stored: dict | None
+    ) -> None:
+        """27: a session no turn goes on in gone - the one a run was handed, or the one it left
+        and was not kept (`stored`). Copilot's are told apart by their home too: a new session of
+        its is in a new one."""
+        for one in (kept, left):
+            if one and (
+                stored is None
+                or (stored["id"], stored.get("home")) != (one.get("id"), one.get("home"))
+            ):
+                with contextlib.suppress(Exception):
+                    forget_session(one, self.settings.runtime_root)
+
+    def _forget_other_topics(self: "AgentRunner", run: Run) -> None:
+        """0.1.8: Copilot's sessions kept in the chat's other topics gone - their homes, and their
+        agents' word of them - as a turn the user started works in this one: a session goes on
+        only within its topic (`topics.previous_lead`), and none is left to pile up once the user
+        moved on (New topic, or back in an older one). Not a trigger's topic's: its turns are its
+        own. Claude Code's stay, as before (in its sign-in folder, gone with the chat)."""
+        if run.unattended or run.topic_id is None:
+            return
+        homes = self.settings.runtime_root / CLI_HOMES / COPILOT_SESSIONS
+        gone = []
+        with self._factory() as session:
+            for agent in session.scalars(
+                select(Agent)
+                .join(Run, Run.id == Agent.run_id)
+                .join(Topic, Topic.id == Run.topic_id)
+                .where(
+                    Run.conversation_id == run.conversation_id,
+                    Run.topic_id != run.topic_id,
+                    Topic.trigger_id.is_(None),
+                    Agent.cli_session.is_not(None),
+                )
+            ):
+                if agent.cli_session and copilot_home(agent.cli_session, homes):
+                    gone.append(agent.cli_session)
+                    agent.cli_session = None
+            session.commit()
+        for one in gone:
+            forget_session(one, self.settings.runtime_root)
 
     async def _native_work_denied(
         self: "AgentRunner", ctx: Ctx, root: str, hide: bool

@@ -124,7 +124,7 @@ class SessionResult:
     cache_read: int | None = None
     cache_write: int | None = None
     # 27: the session its run left, to be resumed ({"id", "under"}: Claude Code's native turn,
-    # `run_native`); None: none.
+    # `run_native`; Copilot's with its "home" and "spent" too); None: none.
     session: dict | None = None
     # What Copilot says it spent in its own units: AI credits in billionths (totalNanoAiu) and
     # premium requests, its older one; None where it said nothing.
@@ -133,6 +133,50 @@ class SessionResult:
     # Why Copilot's auto picked `model`, as it said it (`session.auto_mode_resolved`); None: no
     # pick was said.
     picked_why: str | None = None
+    # The window its CLI's session says it is held to (Copilot's `session.usage_info`); None: not
+    # said.
+    context_window: int | None = None
+
+
+# What a session's counts are, of `SessionResult` (Copilot's kept "spent": `copilot_since`).
+COUNTED = (
+    "input_tokens",
+    "output_tokens",
+    "cache_read",
+    "cache_write",
+    "nano_aiu",
+    "premium_requests",
+)
+
+
+def copilot_since(result: SessionResult, spent: dict | None) -> tuple[SessionResult, dict]:
+    """A Copilot turn's own counts, and what its session has spent in all by its end - kept with
+    the session for its next turn. Its checkpoint is the session's total (measured on 1.0.114,
+    resumed in a new process: 1 -> 2 -> 3 premium requests), so a resumed turn is that less what
+    the session had spent before it (`spent`; None: a new session, all of it this turn's). A count
+    not known before, or one that went down, is not known: None, never made up. One this turn
+    did not say keeps the total before it."""
+
+    def less(now: object, then: object) -> object:
+        if spent is None:
+            return now
+        if not isinstance(now, int | float) or not isinstance(then, int | float) or now < then:
+            return None
+        return now - then
+
+    totals = {
+        name: getattr(result, name)
+        if getattr(result, name) is not None
+        else (spent or {}).get(name)
+        for name in COUNTED
+    }
+    return (
+        replace(
+            result,
+            **{name: less(getattr(result, name), (spent or {}).get(name)) for name in COUNTED},
+        ),
+        totals,
+    )
 
 
 def why_picked(told: dict, reported: str | None, why: str | None) -> str | None:

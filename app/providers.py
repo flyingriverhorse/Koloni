@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, is_local
 from app.db.models import Conversation, OwnRequest, Provider, Role
-from app.limits import Limits, account, cli_home
+from app.limits import CLI_HOMES, Limits, account, cli_home
 from app.model_agy import AgyClient, AgySearch
 from app.model_anthropic import AnthropicClient
 from app.model_cli import (
@@ -32,6 +32,7 @@ from app.model_client import (
     server_of,
 )
 from app.model_native import (
+    COPILOT_SESSIONS,
     ClaudeNativeClient,
     CodexNativeClient,
     CodexSessionClient,
@@ -883,9 +884,10 @@ class Providers:
             build = CopilotNativeClient if provider.mode == "native" else CopilotSessionClient
             # K-copilot-baglam: the tier comes only from the model's row, checked when it was
             # saved (`check_guide`), and only on GitHub's account.
-            # shortcut: KOLONİ's own window for a Copilot model (compaction, usage) stays the
-            # catalogue's one number whatever the tier; models.dev has no tiers, so that number
-            # may be the long tier's and the default one smaller. Measure both windows live.
+            # shortcut: KOLONİ's own window for a Copilot model (compaction, usage) is the
+            # catalogue's one number whatever the tier (models.dev has none) until a native turn
+            # says its session's own (`session.usage_info`), kept on that turn's agent; run as a
+            # session (`-p`) its window is not read.
             row = next((m for m in provider.models or [] if m["name"] == model_id), {})
             copilot = build(
                 provider.executable,
@@ -896,6 +898,12 @@ class Providers:
                 options=provider.options or {},
                 context=None if provider.base_url else row.get("context"),
                 routing=None if provider.base_url else row.get("routing"),
+                # 0.1.8: natively its session is kept for the topic's next turn, in a home there.
+                **(
+                    {"sessions": settings.runtime_root / CLI_HOMES / COPILOT_SESSIONS}
+                    if build is CopilotNativeClient
+                    else {}
+                ),
             )
             if build is CopilotNativeClient and not provider.base_url:
                 # 89l: on GitHub's plan its headless client says what is left of it.

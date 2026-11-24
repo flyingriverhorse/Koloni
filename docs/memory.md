@@ -181,17 +181,24 @@ What each agent is given:
 - **Claude Code** run **Native** with **Sign-in: Its own for KOLONİ** goes on in its own CLI session
   from the topic's previous turn: it is sent only what is new, and compacts the session itself. A new
   topic starts a new session, and so does a turn run with another model, folder, permission level or
-  setup. On any other model the Orchestrator is sent the topic's history each turn, and KOLONİ summarises its older part
+  setup.
+- **GitHub Copilot CLI** run **Native** does the same: it goes on in its own session from the topic's
+  previous turn, sent only what is new, and compacts the session itself, with a line on the agent's
+  record when it does. Its session is kept in a folder of its own under KOLONİ's runtime, removed when
+  you start a new topic or go back to another one, when a turn starts a new session, and when its chat
+  is deleted ([Data and privacy](security/privacy.md#where-your-data-is)). Where Copilot cannot go on in
+  it, it starts a new session sent the whole topic, and its record says so once.
+- On any other model the Orchestrator is sent the topic's history each turn, and KOLONİ summarises its older part
   past **Summarise a long context at (%)** of the window (75 by default; see
   [Going on from the last turn](models/setup-cli.md#going-on-from-the-last-turn)).
 
-[![Who remembers what: one chat's two topics with the line New topic draws between them, and where the turns before are kept - an API model sent the topic's history by KOLONİ, which compacts it; every other CLI started anew and sent it again; Claude Code, Native on its own sign-in, resuming its session from the topic's last turn](diagrams/topics.svg)](diagrams/topics.svg)
+[![Who remembers what: one chat's two topics with the line New topic draws between them, and where the turns before are kept - an API model sent the topic's history by KOLONİ, which compacts it; every other CLI started anew and sent it again; Claude Code, Native on its own sign-in, and Copilot, Native, resuming their session from the topic's last turn](diagrams/topics.svg)](diagrams/topics.svg)
 
 *Who remembers what, by topic and by kind of model.*
 
 **When to press New topic**: when the next message is about other work. The Orchestrator then starts
-with a short history - cheaper, and nothing of the other work leads it astray - and Claude Code with a
-new session. Keep going in the topic when the message builds on what was just done: the Orchestrator
+with a short history - cheaper, and nothing of the other work leads it astray - and Claude Code or
+Copilot with a new session. Keep going in the topic when the message builds on what was just done: the Orchestrator
 sees that work, and can go on with the agents that did it.
 
 ## Project notes and Knowledge are not memory

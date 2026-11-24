@@ -51,7 +51,14 @@ it, as Copilot 1.0.67's agent loop sends it). A write ("delete": the file goes) 
 "edits" gives them (true: what it will hold); "contents" is its newFileContents,
 "resolved" its resolvedPath, "diff" its diff.
 The plan's "aborted": its turn ends aborted. The plan's "usage": the data of each
-session.usage_checkpoint it sends, in order, before its turn ends (none: none sent).
+session.usage_checkpoint it sends, in order, before its turn ends (none: none sent); its
+"usage_info", of each session.usage_info; its "compaction", the data of one
+session.compaction_complete, sent before them.
+
+Sessions (1.0.114, measured 23 Nov 2026): a new one is named the plan's "session_id" (default
+"s1"); its events are written to its home's `session-state/<id>/events.jsonl` once it is sent its
+prompt. Asked `session.resume` (kept in "resume", as session.create's in "create") it goes on in
+the one named where that file is in its home, else refuses it ("Session not found").
 
 Protocol 4 (1.0.114, measured 20 Nov 2026): session.create may come grouped (KOLONİ's bridge
 under mcp.servers). Given hooks (grouped `hooks.hasHandlers`, flat `hooks: true`) it asks the
@@ -185,12 +192,15 @@ def expect(method: str) -> dict:
     return told
 
 
+SID = plan.get("session_id", "s1")  # (the session's: the one it goes on in, once resumed)
+
+
 def event(kind: str, data: dict) -> None:
     send(
         {
             "method": "session.event",
             "params": {
-                "sessionId": "s1",
+                "sessionId": SID,
                 "event": {
                     "id": f"e{next(numbers)}",
                     "timestamp": "2026-10-24T00:00:00Z",
@@ -265,9 +275,25 @@ if told.get("method") == "sandbox.getHostSupport":
         }
     )
     told = heard()
-create = told if told.get("method") == "session.create" else expect("session.create")
-record["create"] = create["params"]
+while told.get("method") not in ("session.create", "session.resume"):
+    told = heard()
+create = told
+record["create" if told["method"] == "session.create" else "resume"] = create["params"]
 save()
+if told["method"] == "session.resume":
+    asked_for = str(create["params"].get("sessionId"))
+    if not (Path(home or cwd) / "session-state" / asked_for / "events.jsonl").is_file():
+        send(
+            {
+                "id": create["id"],
+                "error": {
+                    "code": -32603,
+                    "message": "Failed to load session events: Session not found",
+                },
+            }
+        )
+        expect("never")
+    SID = asked_for
 if handshake == "create":
     send({"id": create["id"], "error": {"code": -32602, "message": "unknown field mcpServers"}})
     expect("never")
@@ -307,8 +333,8 @@ send(
     {
         "id": create["id"],
         "result": {
-            "sessionId": "s1",
-            "workspacePath": str(Path(home or cwd) / "session-state" / "s1"),
+            "sessionId": SID,
+            "workspacePath": str(Path(home or cwd) / "session-state" / SID),
             "authInfo": ACCOUNT,
         },
     }
@@ -317,7 +343,12 @@ asked = expect("session.send")
 record["prompt"] = asked["params"].get("prompt")
 save()
 send({"id": asked["id"], "result": {"messageId": "m1"}})
-event("session.start", {"sessionId": "s1", "context": {"cwd": str(cwd)}})
+if home:  # (its events, where a resume finds them)
+    kept = Path(home) / "session-state" / SID
+    kept.mkdir(parents=True, exist_ok=True)
+    with open(kept / "events.jsonl", "a", encoding="utf-8") as events:
+        print(json.dumps({"prompt": record["prompt"]}), file=events)
+event("session.start", {"sessionId": SID, "context": {"cwd": str(cwd)}})
 made = create["params"]
 hooks_on = made.get("hooks") is True or (
     isinstance(made.get("hooks"), dict) and made["hooks"].get("hasHandlers") is True
@@ -326,7 +357,7 @@ hooks_on = made.get("hooks") is True or (
 
 def invoke(hook_type: str, more: dict) -> dict:
     """Ask the client's hook, as Copilot does (a request of its own); its answer, kept."""
-    number, session_id = next(numbers), plan.get("hook_session", "s1")
+    number, session_id = next(numbers), plan.get("hook_session", SID)
     given = {"cwd": str(cwd), "sessionId": session_id, "timestamp": int(time.time() * 1000), **more}
     send(
         {
@@ -404,7 +435,7 @@ def permitted(call: str, request: dict, action: dict) -> bool:
             return True
         answer = expect("session.permissions.handlePendingPermissionRequest")
         params = answer["params"]
-        assert params["sessionId"] == "s1" and params["requestId"] == request_id
+        assert params["sessionId"] == SID and params["requestId"] == request_id
         record["answers"].append({"kind": request["kind"], "result": params["result"]})
         save()
         # ("unapplied": it says it did not take the answer)
@@ -729,7 +760,7 @@ for number, action in enumerate(plan.get("script", [])):
             {
                 "id": number_asked,
                 "method": action["request"],
-                "params": {"sessionId": "s1", **action.get("params", {})},
+                "params": {"sessionId": SID, **action.get("params", {})},
             }
         )
         while (told := heard()).get("id") != number_asked or "method" in told:
@@ -750,6 +781,10 @@ for number, action in enumerate(plan.get("script", [])):
         sys.exit(action["exit"])
 
 event("assistant.usage", {"model": plan.get("model", "auto"), "inputTokens": 10})
+if "compaction" in plan:
+    event("session.compaction_complete", plan["compaction"])
+for info in plan.get("usage_info", []):
+    event("session.usage_info", info)
 for checkpoint in plan.get("usage", []):
     event("session.usage_checkpoint", checkpoint)
 event("session.idle", {"aborted": True} if plan.get("aborted") else {})

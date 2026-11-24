@@ -11,8 +11,7 @@ What is planned after 0.1.0. Plans change; nothing here is promised.
 - **Add a GitHub issue to the To-do** (a chat can already start from one).
 - **Pull requests outside GitHub**, such as GitLab.
 - **Who wrote this line**: the agent and the turn behind each change.
-- **Codex and Copilot sessions that carry on across turns**. (Copilot's `fusion`, with its routing,
-  came in 0.1.5.)
+- **Codex sessions that carry on across turns**. (Copilot's came in 0.1.8.)
 - **Voice**: your own speech server, hands-free spoken conversation, and a voice for each role.
 - **Models that make images, audio and video**, on the canvas and for roles.
 - **Remote MCP servers** (reached over HTTP, with sign-in).

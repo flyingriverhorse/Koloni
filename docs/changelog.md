@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Added
+
+- **CLIs**: GitHub Copilot CLI run **Native** goes on in its own session from the topic's previous turn, as Claude Code on its own sign-in does: it is sent only what is new, with this turn's tools, permissions and KOLONİ's tools given again, and compacts the session itself - its record says when, with the size before and after. A new topic, another model, folder or permission level starts a new session; where Copilot cannot go on in its session it starts a new one sent the whole chat, and its record says so once. Its tokens and AI credits are counted per turn, not as the session's growing total, and its context is measured against the window its session says (272,000 for gpt-6-luna) instead of the catalogue's. Each session's home is kept under `runtime/cli-homes/copilot-sessions/`, never your own `~/.copilot`, and removed with a new session, when you move to another topic, and with its chat or project ([docs](models/setup-cli.md#going-on-from-the-last-turn)).
+
 ## [0.1.7] - 2026-11-24
 
 ### Added
