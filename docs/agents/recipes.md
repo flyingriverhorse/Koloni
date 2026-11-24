@@ -99,15 +99,18 @@ removed or dragged. KOLONİ runs its checks first, on the work in the recipe's c
 **Ready for you**: a fix round sends the recipe back to work, and work whose tests still fail after
 the rounds is never offered nor taken in.
 
-![The ready Bugfix in the editor - Reproduce it with a failing test, then Fix it - its locked Checks step between its last step and the end, and its panel set for the recipe with Tests, Review and Config ticked of Tests, Review, Docs, Diagrams, Data, Slides, Pages and Config](../images/recipe-checks-step.png)
+![The ready Bugfix in the editor - Reproduce it with a failing test, then Fix it - its locked Checks step between its last step and the end, and its panel set for the recipe with Tests, Review and Config ticked of Tests, Review, Docs, Diagrams, Data, Slides, Pages and Config (Scripts and Style and types are further down the panel)](../images/recipe-checks-step.png)
 
 Click it to choose:
 
 - **Follow the project** (the default): the project's **After a change** - Test and review, Tests
   only or Nothing - with its **Check by kind of work** and **Fix rounds**.
 - **Set for this recipe**: **Tests**, **Review**, **Docs**, **Diagrams**, **Data**, **Slides**,
-  **Pages** (a changed page in KOLONİ's own browser at phone, tablet and desktop widths) and
-  **Config** (JSON, YAML and TOML files parse; on unless you untick it), each on or off, and
+  **Pages** (a changed page in KOLONİ's own browser at phone, tablet and desktop widths),
+  **Config** (JSON, YAML and TOML files parse), **Scripts** (shell and PowerShell scripts parse -
+  read, never run) and **Style and types** (the project's own ruff, eslint, tsc and mypy, asked
+  before one runs unasked, as in [Checked](../use/checked.md#documents-diagrams-data-and-slides)),
+  each on or off (Config, Scripts and Style and types start on), and
   **Fix rounds** - the project's, until it passes, 1 to 10, or **0 - check only** (a problem is said,
   nothing goes back to be fixed). With **Review** on, a big change of screens is also tried by the
   Tester ([the live try](../use/checked.md#the-live-try)).

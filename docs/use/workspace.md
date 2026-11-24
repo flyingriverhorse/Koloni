@@ -64,12 +64,15 @@ KOLONİ reads the command as written: a path built in a script is not seen.
 
 When a sub-agent finishes, its changes come back on a card: **Take in …'s work?**, with
 **Take in** and **Discard**. At **Auto-edit files** and **Full auto** they come in without a card when the
-agent finished, nothing clashes and the project's test passed. See [Permission levels](permissions.md).
+agent finished, nothing clashes and the tests it wrote passed. See [Permission levels](permissions.md#sub-agents).
 
 - **Changed on both sides**: files you and the agent both changed. "Nothing is chosen for you"; pick a
   side for each, or press **Let an agent resolve the conflicts**.
-- **Run the test** runs the project's test on the copy (Settings › This project › Checks and git › **Test before
-  adding**).
+- **Run the test** runs, on the copy, the tests the agent wrote or changed - only those, each part's test
+  command from the project map narrowed to them. They are its own code: KOLONİ's guess runs them by itself
+  only at Full auto, so at Auto-edit the card waits for this click. One that wrote no test has none to
+  run: "No tests of its own to run before it is added - KOLONİ's check at the turn's end runs every
+  test." See [Checked](checked.md#when-the-tests-fail).
 
 A team's recipe keeps its work in one copy until you press **Take in** on the **Teams' work is ready** card. See
 [Ready and approval cards](ready.md).

@@ -24,6 +24,12 @@ of your own that already had one of these names keeps it; the built-in one is th
 (built-in)" or "Scout (built-in)". A slash command of yours named `scout` would hide behind the
 role's chip in the message box: it is renamed `scout-command`.
 
+Before 0.1.7 they were the Product owner and the Assistant product owner. Your recipes and saved
+slash commands that named the old roles were changed to name the new ones, and an agent that asks
+for an old name is told the new one ("Product owner is now the Hive keeper"). Past conversations
+keep the names they had. A recipe kept in a folder's `.koloni/recipes` is a file of yours, not
+changed: one that names an old role is renamed there, by hand.
+
 The **Roles** list on the **Teams & roles** tab shows them all. **Filter roles…** searches it, and the
 buttons **All**, **In no team** and **Off** narrow it. Each role has an on / off switch. The
 Orchestrator, the Planner and the Observer are always on. So are the Coder, Tester, Reviewer, Debugger and

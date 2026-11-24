@@ -281,7 +281,7 @@ can only read, search and ask you. It cannot write or run anything, at any level
 
 A turn started by a trigger has nobody to ask. There the permission level and your rules do not
 count. The trigger's own permissions decide, and anything they do not allow is refused, not
-asked - except the project's own test command, which runs even when it is not ticked. Secret files, files that steer agents, files outside the project and MCP tools are always
+asked - except a test command you set for a part on the project map, which runs, exactly as written in its part's folder, even when it is not ticked. Secret files, files that steer agents, files outside the project and MCP tools are always
 refused in such a turn. See [Triggers](../automation/triggers.md).
 
 KOLONİ's own check of [code style and types](checked.md#documents-diagrams-data-and-slides) runs

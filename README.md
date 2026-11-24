@@ -40,7 +40,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/away-panel.png" alt="The Away panel over the message box: two To-do tasks ticked, what the Orchestrator decides for you and what always waits, a stop time and a spend limit"><br><sub><b>☾ Away.</b> Your To-do tasks worked through one at a time, each in its own copy, until you are back.</sub></td>
-<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them; nothing invented.</sub></td>
+<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model, and Cards - the command cards asked, by why"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/checked-review.png" alt="The Checked section under an answer: Tests passed: python check.py - 2 passed; Review: Reviewer - MERGE, no findings"><br><sub><b>Checked.</b> Under the answer, what KOLONİ itself ran and found - from its records, never the model's word.</sub></td>
@@ -56,11 +56,12 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
    API key. Each role can run on a different one; a role on Copilot can take `auto` or `fusion`.
 2. **Open a folder** and write what you want, at one of three levels: **Ask before changes**,
    **Auto-edit files** or **Full auto**. **Plan first** adds a plan to approve before anything moves.
-3. **The Orchestrator works or delegates.** 29 built-in roles (Coder, Reviewer, Tester, Researcher,
+3. **The Orchestrator works or delegates.** 32 built-in roles (Coder, Reviewer, Tester, Researcher,
    UI designer, Security reviewer, …) and your own; teams with stages; recipes you draw.
 4. **Take it in.** Before an answer ends a turn that changed code, KOLONİ tests the work itself and
-   says under it what was checked. A sub-agent's changes come back as a card with the diff and your project's test
-   command. Take in, discard, or ask for changes. At Auto-edit and Full auto, clean work lands by
+   says under it what was checked. A sub-agent's changes come back as a card with the diff; the tests it
+   wrote run in its copy first - by themselves at Full auto or with your own test command, else when
+   you click Run the test. Take in, discard, or ask for changes. At Auto-edit and Full auto, clean work lands by
    itself; a git branch merges by itself only at Full auto.
 
 ## What is in the box
@@ -91,7 +92,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too) and
   merged or sent as a pull request from the card, carrying the agent's work alone; a chat started from
   a GitHub issue with your own `gh`. [Branches](docs/use/workspace.md#branches)
-- **Money**: tokens and credits per run, plan meters for each CLI, a monthly budget per project.
+- **Money**: tokens and credits per run, plan meters for each CLI, a monthly budget per project, and
+  the command cards you were asked, by why.
   [Usage and budgets](docs/money/usage.md)
 - **More tools**: MCP servers (each asks before it runs unless you say otherwise) and skills from a
   folder or a GitHub repository. [MCP servers](docs/tools/mcp.md) · [Skills](docs/tools/skills.md)
