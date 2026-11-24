@@ -59,7 +59,6 @@ topic**, **Chat settings** (this chat's sheet) and **More** (**Work together…*
 | **Memory** | Your preferences · This project's rules · Search by meaning with. See [Memory](../memory.md). |
 | **Knowledge** | Each topic's sources, money limit, model and page cap. See [Knowledge](../knowledge.md). |
 | **Triggers** | Each trigger's start, message, what it may do, budget and end. See [Triggers](../automation/triggers.md). |
-| **To-do** | Runs by itself · Run settings (level, who changes the files, provider, model), for the To-do list's chats instead of the project's. See [To-do](../automation/todo.md). |
 | **Usage** | Prices. See [Usage and budgets](../money/usage.md). |
 
 ## Before the start

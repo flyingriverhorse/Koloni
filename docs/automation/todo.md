@@ -1,8 +1,9 @@
 # To-do
 
 The To-do page holds a project's tasks, in your order: a **goal** holds **stories**, a story holds the
-**tasks** and **bugs** that go on together (see [Goals and stories](#goals-and-stories)). "Each task runs
-in its own chat; you decide when it is done." Open **To-do** on the left rail.
+**tasks** and **bugs** that go on together (see [Goals and stories](#goals-and-stories)). Ticked tasks
+run in a chat you give them to, one by one; you decide when each is done (see
+[Doing tasks in a chat](#doing-tasks-in-a-chat)). Open **To-do** on the left rail.
 
 Its bar has the filters **All**, **Todo**, **Running** and **Done**, **+ Task** (to the line where a task
 is added), **Write it with the Hive keeper** and **☾ Away**. **☾ Away** opens the Away panel of the chat
@@ -68,8 +69,8 @@ still matches CHANGELOG.md. A suggestion without
 such words is dropped. So is one that looks like a task already on the list, or one you rejected
 before. Each one dropped is written, with why, to `runtime/logs/koloni.log`, and shows in the
 Inspector of its canvas box (below). The
-suggestions wait under **Waiting for you** like any agent's. An added task starts when you press **Run
-the backlog**, or by itself where the To-do list runs by itself. A suggestion whose words look like
+suggestions wait under **Waiting for you** like any agent's. An added task runs once you give it to a
+chat ([Doing tasks in a chat](#doing-tasks-in-a-chat)). A suggestion whose words look like
 they try to give the agent orders says so on its row.
 
 It is one small model request, with no tools, after each turn that did something: changed a file, ran
@@ -91,10 +92,10 @@ out". A turn where it was not asked has no such box.
 At **Full auto**, in a turn you started, you are not asked. The Orchestrator's model decides each
 suggestion, add or reject, with one more request, and says why in one sentence. You see its word under
 **Decided for you** in the chat. **OK** keeps it; **Change** undoes it while the task is still todo. A
-task it added does not start, by **Run the backlog** or by itself, until you press **OK**, there or
+task it added cannot be given to a chat until you press **OK**, there or
 under **Waiting for you** on the To-do page. One it rejected stays on the To-do page, folded under
 **Rejected by the Orchestrator**, with **Add**. It is not
-asked when the provider has no room left on its plan, or when the To-do list runs by itself. Nor is
+asked when the provider has no room left on its plan. Nor is
 it asked when the Orchestrator runs on a CLI and the project does not let it answer while you're away.
 It never adds a suggestion whose words look like orders. Suggestions from jobs while you're away and from
 triggers always wait for you.
@@ -126,7 +127,7 @@ The filters on the bar show **All**, what is **Todo** (to do, or stuck), what is
 done? and waiting for your word - a story at done? too) or what is **Done** (a story only once you closed
 it). A story whose tasks are all filtered out still shows when its own state fits.
 
-![The To-do page as a tree: a goal with its stories done of all, a running story with its notebook and chat, a bug in rose, and the tasks without a story](../images/todo-tree.png)
+![The To-do page as a tree: a goal with its stories done of all, a running story with its notebook, a bug in rose, the tasks without a story, and two ticked: the bar under it says "2 selected · Do in chat"](../images/todo-tree.png)
 
 *A goal, its stories and their tasks and bugs; the tasks of no story last.*
 
@@ -139,32 +140,64 @@ move down. The **⋯** menu also has **Edit**, **Waits for** ("it starts once th
 A task's state shows as a tag, such as queued, running, "needs you", "needs you · Take in", stuck, or
 done.
 
-## Running tasks
+## Doing tasks in a chat
 
-**Run the backlog** starts the next tasks. **Runs by itself** keeps starting them, one after another.
-Each task runs in a new chat, with the task as its first message. At most two run at once.
+Tick the tasks you want done - a story's tick ticks its open tasks - and the bar under the list says
+"N selected · **Do in chat** ▾". Its menu gives them to **This chat - "…"** (the chat you have open, when
+it is a chat of this project) or to **A new chat**, named by the first of them. "Each story goes into its
+own topic; a task without a story gets a topic of its own. They wait in the chat's queue." KOLONİ checks
+your ticks as they stand when you press it: a task done meanwhile, one waiting in another chat's queue,
+a proposal, a night's job or a task of another project is refused, and nothing is queued.
 
-"A task not finished gets one fix round; still not, it is stuck and the next goes on." When an agent
-thinks a task is done, it waits as "done?" for your word.
+![A new chat running a story's tasks: each task's message "From To-do · task 2 / 3" with its title and the brief folded under, the Orchestrator's answer, and a "Done?" card with Yes, done and Not yet](../images/todo-in-chat.png)
+
+*A story given to a new chat: each task as itself, and "Done?" under it.*
+
+The chat runs them one by one. Above its message box, **N wait** lists the queue - the task at work
+"· running", each waiting one with **Remove** (back to To-do) - and "+ your message goes first when you
+send one": a message of yours goes before the next task, and goes on in the topic you were last in. A
+task that waits for others (**⋯** → **Waits for**) is passed over until they are done; the next ready
+task goes first.
+
+A task's turn is an ordinary turn of that chat: at the chat's level, on the chat's model (Claude Code and
+the other CLIs included), and what needs your word asks on its cards there. Its first message is the
+task - in the chat as **From To-do · task 2 / 3**, its title and what makes it done, the whole brief folded
+under. A story's tasks go on in one topic - a line **Topic · Story · …** over it - so the Orchestrator and
+a CLI that goes on in its session remember the task before; after a task that ended stuck, the story's
+next task starts in a new topic, carrying nothing of it. A task of no story has a topic of its own.
+
+"A task not finished gets one fix round; still not, it is stuck and the next goes on." Under a task's last
+turn the chat asks:
+
+- **Done? - "…"**, with the Scout's view if a fast model wrote one: **Yes, done** or **Not yet** (back to
+  To-do).
+- **Stuck - "…"**, with why: **Fix it** (one more round in its topic), **Open it in To-do**, or **Leave
+  it** (the card folds to one line).
+- **Story done? - "…"**, once every task of a story is done: **Close the story** or **Add a task** (it joins
+  the story and this chat's queue).
 
 A task's turn works as long as it makes progress. Once nothing has moved for Settings › The app ›
 **Stuck after this many minutes with no progress** (30 unless you change it) - no file of the turn
 changed, no agent finished its work, no failing command passed - it stops, its work kept, and counts
 as not finished: its fix round comes, then it is stuck and the next task goes on. The same happens,
 as a last resort, after **An unattended turn runs at most (hours)** (8 unless you change it; empty:
-no limit). Its Orchestrator also stops if it goes round in circles: see
-[Step limits](../agents/step-limits.md#when-the-orchestrator-goes-round-in-circles).
+no limit). A task's turn also waits for its checks before it ends, so a check that failed gives it its
+fix round.
 
-Nothing starts while one of your own turns is at work, while everything is paused, while you're away (the
-tasks you ticked for ☾ Away are worked through then, until you are back), or over the project's monthly budget.
+**Stop** on a task's turn, a restart of KOLONİ, or the project's monthly budget stops the queue: the task
+and those waiting go back to To-do, and one line in the chat says why ("The To-do queue stopped: …").
+**Stop everything** and **☾ Away** only hold it: the stopped task goes back to the head of the queue, and
+**Resume** - or your coming back - goes on.
 
-### Run settings
+### A story's branch
 
-**Run settings** sets the level of the task chats (**Ask before changes**, **Auto-edit files** or **Full
-auto**), **Who changes the files**, and the **Provider** and **Model name**.
-
-Task chats follow some extra rules: a CLI that works with its own tools does not run them; commands that
-delete, overwrite or send something off the machine, or that hand a command to a shell, ask at every
-level. The Orchestrator answers for you in them as in any chat of the project, once a card has waited
-the minutes of **When you're away** ([Answering for you](answering-for-you.md)). A task worked through
-while you're away runs at the lower of this level and the level of the chat you went away from.
+In a project that is a git repository, a story's tasks run on the story's own branch (`koloni/…`), one
+after another - each turn in a worktree of it, so nothing of the story is in your project until you close
+it. **Close the story** runs KOLONİ's check on the branch - the tests its tasks wrote: it passes, the branch
+is merged into yours, or sent as a pull request where the project's finished work goes so
+([Branches](../use/workspace.md#branches)); it fails, the branch waits and the story's last task
+is stuck with why - **Fix it** goes on on the branch, then close it again. A task of no story has a small
+branch of its own, merged at the end of its turn as a team's branch is (at **Ask before changes**, on a card).
+A project with no git has no branch: the tasks work in the project, agents holding the files they change
+as in any chat. Where the chat's Orchestrator is a CLI that works with its own tools in the project, its
+tasks work in the project too.

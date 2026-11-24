@@ -89,6 +89,14 @@ unread and how many things wait for you.
   **Submit**; keys 1-9 pick an option and Enter sends it; "‹ 1/2 ›" when it asks two. In its turn one line
   says it asks (a click goes to the card) and, once answered, "Question: … / Answered: …" opens to its
   options with the one given ticked. KOLONİ's own cards and sub-agents' questions stay in the turn.
+- A To-do task given to the chat (**Do in chat**, [To-do](../automation/todo.md#doing-tasks-in-a-chat))
+  shows as the task: **From To-do · task 2 / 3** (of its story; **task** or **bug** for one of no story), its
+  title and "Done when: …", its whole brief under **The whole brief**. A story's topic has the line
+  **Topic · Story · … · 📓 notes**. Under a task's last turn the chat asks **Done? - "…"** (**Yes, done** /
+  **Not yet**) or, stuck, **Stuck - "…"** with why (**Fix it** / **Open it in To-do** / **Leave it**); once
+  every task of a story is done, **Story done? - "…"** (**Close the story** / **Add a task**). Above the
+  message box, **N wait** lists the chat's queue - the task at work, those waiting with **Remove** - and
+  "+ your message goes first when you send one".
 - At the foot of a turn that did something, once it is over, one line sums it up at the right, such as "2
   agents · 3 files changed", with what is left open. **details ▸** shows the files, sub-agents, tokens and
   known cost.
