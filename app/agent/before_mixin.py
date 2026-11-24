@@ -290,7 +290,10 @@ class BeforeMixin:
                     proof.row("tests", "note", EXCUSED.format(said=one, why=why[one]), run.command),
                 )
             if left := [one for one in said if not why[one]]:
-                held.rows += [proof.row("tests", "failed", one, run.command) for one in left]
+                # (its code "removed": Fix it says fewer tests ran, not that they failed)
+                held.rows += [
+                    proof.row("tests", "failed", one, run.command, reason="removed") for one in left
+                ]
                 return left
             project.tests_green = {
                 **(project.tests_green or {}),

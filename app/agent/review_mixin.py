@@ -25,7 +25,7 @@ from app.agent.context_mixin import FINDINGS_PROMPT
 from app.agent.ctx import Ctx
 from app.agent.spawn_mixin import BEFORE_THE_WORK, CUT_SHORT, MAX_REVIEW_DIFF
 from app.agent.stronger_mixin import _cancelled_outside
-from app.agent.summary import _blocking, _findings
+from app.agent.summary import _blocking, _findings, fence
 from app.commands import (
     is_allowed,
     is_exactly,
@@ -252,7 +252,7 @@ def verdict_of(report: str) -> str | None:
     found, fenced, lines = set(), False, report.splitlines()
     for at, line in enumerate(lines):
         bare = line.lstrip()
-        if bare.startswith(("```", "~~~")):
+        if fence(bare):
             fenced = not fenced
         # (CL-329 E: an indented line of code - four spaces, a tab - is quoted, no verdict)
         elif (

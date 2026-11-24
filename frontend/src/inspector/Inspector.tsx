@@ -655,7 +655,12 @@ function checksPanel({ state, kind, refId, onClose, openWindow }: Shown): ReactN
       <Header
         icon={<ListChecks size={16} />}
         title="Checks"
-        sub={(loop?.tone === 'run' && loop.status) || stripOf(data) || 'KOLONİ'}
+        // (Its rounds counted as the panel lists them - a pass each -, not the fix rounds the Orchestrator's strip counts.)
+        sub={
+          (loop?.tone === 'run' && loop.status) ||
+          stripOf(loop?.rounds.length ? { ...data, rounds: loop.rounds.length } : data) ||
+          'KOLONİ'
+        }
         onClose={onClose}
       />
       <ChecksPanel state={state} run={run} loop={loop} openWindow={openWindow} />

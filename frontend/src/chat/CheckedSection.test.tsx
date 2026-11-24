@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import type { Message } from '../api/types'
 import { useApp } from '../state/store'
 import { assistantMessage, convState } from '../test-fixtures'
-import { FIX_HELD, FIX_IT, FIX_NOT_DONE, FIX_REVIEW, checkedOf, fixOf } from './checked'
+import { FIX_FEWER, FIX_HELD, FIX_IT, FIX_NOT_DONE, FIX_REVIEW, checkedOf, fixOf } from './checked'
 import { CheckedSection } from './CheckedSection'
 
 type Row = NonNullable<Message['checked']>[number]
@@ -324,4 +324,19 @@ test('CL-329: a file changed while KOLONİ’s run went on - Put back is the use
   } finally {
     vi.restoreAllMocks()
   }
+})
+
+test('R: where only fewer tests ran, or more were skipped, Fix it says that - never that the tests failed', () => {
+  const passed = row('passed', 'Tests passed: python -m pytest -q - 1 passed', { command: 'python -m pytest -q' })
+  const fewer = row('failed', 'Tests went from 2 to 1 (1 removed)', {
+    command: 'python -m pytest -q',
+    reason: 'removed',
+  })
+  const still = row('failed', 'Still fewer tests, or more skipped, after 1 fix rounds: you decide (Fix it)', {
+    kind: 'rounds',
+  })
+  expect(fixOf([passed, fewer, still])).toBe(FIX_FEWER('python -m pytest -q'))
+  expect(FIX_FEWER('python -m pytest -q')).toContain('fewer of its tests run, or more are skipped')
+  // (a test that fails beside it: that first, as before)
+  expect(fixOf([fewer, FAILED])).toBe(FIX_IT('pytest -q'))
 })

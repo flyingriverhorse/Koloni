@@ -541,3 +541,43 @@ def test_the_live_report_with_a_closing_line_keeps_its_rows():
     # (Claude Code · haiku: its section, then "Findings: see the suggestions above; …")
     said, found = look(SECTION.format(verdict="MERGE", mark="suggestion", closing="none blocking"))
     assert said == "MERGE" and [f["blocking"] for f in found] == [False, False]
+
+
+R1 = "- a.py:3: divides by zero | kind: bug | role: Coder | blocking"
+R2 = "- b.py:9: drops the error | kind: bug | role: Coder | blocking"
+
+
+@pytest.mark.parametrize(
+    ("report", "blocking"),
+    [
+        # (a row that starts with `#` - no heading: one to six `#` and a space - closes nothing)
+        (f"## Findings\n#main has no label | kind: bug | role: Coder | blocking\n{R2}", 2),
+        # (quoted code, indented, between two rows and first in the section: no heading either)
+        (f"## Findings\n{R1}\n    # the line:\n    eval(x)\n{R2}", 2),
+        (f"## Findings\n   # in calc.py\n{R1}", 1),
+        # (a one-line code span at a line's start is no fence: the rows after it are read)
+        (f"## Findings\n```eval(x)``` is called on the user's text\n{R1}", 1),
+        # (the section's heading by another name)
+        (f"## Findings (1)\n{R1}", 1),
+        (f"## Review findings\n{R1}", 1),
+    ],
+)
+def test_no_row_is_lost_to_a_hash_a_code_span_or_the_sections_other_name(report, blocking):
+    # (the second session's probes on 06fe8f3: each lost the rows after it - "not counted")
+    found = _findings(report, ["Coder"])
+    assert found is not None and sum(one["blocking"] for one in found) == blocking, found
+
+
+def test_a_real_fence_still_hides_what_is_in_it():
+    # (```lang opens one and ``` closes it: a row quoted in it is no finding of this look's)
+    report = f"## Findings\n```py\n{R1}\n```\n{R2}"
+    assert [one["what"] for one in _findings(report, ["Coder"])] == ["b.py:9: drops the error"]
+
+
+@pytest.mark.parametrize("earlier", ["Previous", "Earlier", "Last", "Old", "Resolved"])
+def test_an_earlier_looks_findings_heading_opens_no_section(earlier):
+    # (as an earlier verdict is no verdict: its rows are not this look's)
+    report = (
+        f"## {earlier} findings\n- old | kind: bug | role: Coder | blocking\n\n## Findings\nNone."
+    )
+    assert _findings(report, ["Coder"]) == []
