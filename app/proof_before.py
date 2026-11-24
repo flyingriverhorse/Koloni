@@ -242,6 +242,24 @@ def excuse(answer: str, said: str) -> str | None:
     return None
 
 
+def _added(was: str, now: str) -> list[str] | None:
+    """The lines of `now` that are not `was`'s, where all of `was` is in it, in order (one walk:
+    linear); None where a line of `was` was taken out or changed."""
+    old, added, at = was.splitlines(), [], 0
+    for line in now.splitlines():
+        if at < len(old) and line == old[at]:
+            at += 1
+        else:
+            added.append(line)
+    return added if at == len(old) else None
+
+
+def kept_lines(was: str, now: str) -> bool:
+    """R: whether `now` keeps every line of `was`, in order - lines added only (a record of
+    another turn's that took lines out of a test file: `BeforeMixin._tests_cut_since`)."""
+    return _added(was, now) is not None
+
+
 def green_said(was: dict | None, ran: int, skipped: int) -> list[str]:
     """Decision 14b: what a whole suite that passed says against the project's last green run -
     fewer tests that ran, more skipped. [] where it holds or none is known yet."""

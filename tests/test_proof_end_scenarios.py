@@ -153,6 +153,27 @@ def test_failing_tests_send_the_orchestrator_back_at_most_twice(make_client, wai
     assert [row["state"] for row in checked(snap)] == ["failed", "note", "failed"]
 
 
+def test_an_answer_to_a_round_that_changes_nothing_ends_as_a_spent_round(
+    make_client, wait_run, project_dir
+):
+    # (CL-342: sent back, the Orchestrator answered with no change - its turn ends there, the
+    # gate not run again; Checked ended on "Sent back to fix: 1 of 2 rounds" with no word of
+    # what stands. No change is no progress: said as a spent round is.)
+    executor = ScriptedExecutor([failing()])
+    client, _model = make_client(
+        [write("a.py", "x = 1\n"), text("done"), text("it is right as it is")],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert texts(snap) == [
+        "Tests failed: python check.py - 1 failed, 3 passed",
+        "Sent back to fix: 1 of 2 rounds",
+        "Still failing after 1 fix rounds: you decide (Fix it)",
+    ], texts(snap)
+
+
 def test_a_fix_that_passes_ends_with_one_round_said(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([failing(), PASS])
     client, model = make_client(
@@ -904,7 +925,11 @@ def test_a_capped_review_loop_leaves_the_end_checks_own_rounds(make_client, wait
     assert row(snap)["status"] != "in" and not (project_dir / "greet.py").exists()
     rows = checked(snap)
     assert rows[0]["state"] == "failed" and len(proof_calls(snap)) == 1, rows
-    assert [one["text"] for one in rows[1:]] == ["Sent back to fix: 1 of 2 rounds"], rows
+    # (CL-342: the Lead left it there - ended as a spent round is, the user decides)
+    assert [one["text"] for one in rows[1:]] == [
+        "Sent back to fix: 1 of 2 rounds",
+        "Still failing after 1 fix rounds: you decide (Fix it)",
+    ], rows
     assert row(snap)["status"] == "stopped", row(snap)
 
 

@@ -64,11 +64,17 @@ TEST_UNREAD = "Not a pass: the Reviewer did not read {model}'s test change ({why
 NO_LOOK = "no look"
 # What steers which tests run, besides the tests: a test changed too, under the same leave.
 # (pytest's own, as S6 reads them: pytest.toml first in pytest 9)
-TEST_CONFIGS = frozenset({"conftest.py", *PYTEST_FILES, "noxfile.py", "package.json"})
-TEST_CONFIG = re.compile(
-    r"(?:vitest|vite|jest|playwright)\.config\.|vitest\.workspace\.|"
-    r"karma\.conf\.|\.mocharc\."
+TEST_CONFIGS = frozenset(
+    {"conftest.py", *PYTEST_FILES, "noxfile.py", "package.json", "Makefile", "makefile"}
 )
+TEST_CONFIG = re.compile(
+    r"(?:vitest|vite|jest|playwright|cypress)\.config\.|vitest\.(?:workspace|projects)\.|"
+    r"jest\.setup\.|karma\.conf\.|\.mocharc\.|GNUmakefile$"
+)
+# ...and a file in a tests folder that is no test module itself - its `__init__.py`, a plugin, a
+# helper a conftest loads (pytest_collection_modifyitems, collect_ignore), the data a parametrize
+# reads (`tests/data/cases.json`): conservative.
+_IN_TESTS = re.compile(r"(?:^|/)tests?/(?:[^/]+/)*[^/]+$")
 NO_VERDICT = "Not handed further: the tests gave no verdict after its round (not run or not ended)"
 # k-onceki-1 (K): its round's work failed Take in's own check - kept out (decision 18).
 FIX_KEPT_OUT = (
@@ -115,6 +121,8 @@ TIER_NAMES = {"fast": "Fast", "balanced": "Balanced", "strongest": "Strongest"}
 # Decision 18: failing work is not taken in, at any level - its copy kept, said in Checked.
 RECIPE_FAILING = "the recipe's tests still fail after its fix rounds"
 TESTS_FAILING = "its tests still fail after its fix rounds"
+# R (CL-345): ...and work whose tests pass but fewer of them, or more skipped, after its rounds.
+TESTS_REMOVED = "fewer of its tests run, or more are skipped, after its fix rounds"
 # P: and so is work a look of KOLONİ's still holds after its fix rounds.
 ON_HOLD = "on hold - a look's findings still stand after its fix rounds"
 NOT_TAKEN_TOLD = (
@@ -132,6 +140,7 @@ NOT_TAKEN = "Not taken in: {what} after rounds by {by}"
 NOT_TAKEN_PLAIN = "Not taken in: {why}"
 ASK_DEFAULT = "Should the code change, or the test?"
 ASK_HOLD = "What should change for the look's findings?"
+ASK_REMOVED = "Should the tests that went be put back, or is it right they went?"
 RESUME_FAILED = (
     "Fix it could not go on in the kept work: {why}. This turn works in the project; "
     "the kept work still waits (Take in anyway)."
@@ -143,15 +152,25 @@ FIX_HELD = (
     "{reply} Fix it - you work in that turn's copy, as it was left."
 )
 # (Fix it's words by the row's reason code, which KOLONİ sets - never by its text)
-HELD_WHY = {"on_hold": "a look of KOLONİ's still held it"}
+HELD_WHY = {
+    "on_hold": "a look of KOLONİ's still held it",
+    "removed": "fewer of its tests run, or more are skipped",
+}
 HELD_WHY_TESTS = "its tests still fail"
 
 
 def steers_tests(path: str) -> bool:
-    """Whether a file says which tests run, or how: a conftest anywhere, a test runner's config
-    (`TEST_CONFIGS`, `TEST_CONFIG`) - conservative: changed without leave, the work stays held."""
-    name = path.replace("\\", "/").rsplit("/", 1)[-1]
-    return name in TEST_CONFIGS or bool(TEST_CONFIG.match(name))
+    """Whether a file says which tests run, or how: a conftest anywhere, a test runner's config or
+    setup, a Makefile (`TEST_CONFIGS`, `TEST_CONFIG`), a file in a tests folder that is no test
+    module (`_IN_TESTS`: a helper, a plugin, its data) - conservative: changed without leave, the
+    work stays held."""
+    path = path.replace("\\", "/")
+    name = path.rsplit("/", 1)[-1]
+    return (
+        name in TEST_CONFIGS
+        or bool(TEST_CONFIG.match(name))
+        or bool(_IN_TESTS.search(path) and not proof_before.TEST_FILE.search(path))
+    )
 
 
 def _cancelled_outside() -> bool:
@@ -207,6 +226,15 @@ class StrongerMixin:
         """At the end check's end, no step sending work back: where the rounds are spent and the
         last pass's own failures stand, each stronger tier in turn - a diagnosis, then its rounds
         - until the tests pass. Said in Checked; the turn's answer is not held for it."""
+        if (
+            not held.left_failing
+            and proof.counts_only(held.rows)
+            and self._works_in(ctx) is not None
+        ):
+            # (R: no test fails, but fewer run or more are skipped, and no round is left to send
+            # it back for - work in a copy of the turn's own is not taken in, its reason said)
+            self._held_back.setdefault(ctx.run_id, TESTS_REMOVED)
+            return None
         # (k-canli-016: until it passes, also where the rounds stopped for no progress - never
         # for a limit, which a stronger model would only spend more of.)
         if (
@@ -222,7 +250,9 @@ class StrongerMixin:
         still = await self._hand_up(ctx, held)  # (its rounds may empty `left_failing`)
         if still and self._works_in(ctx) is not None:
             # (decision 18: failing work in a copy of the turn's own is never taken in - kept)
-            self._held_back.setdefault(ctx.run_id, TESTS_FAILING)
+            self._held_back.setdefault(
+                ctx.run_id, TESTS_REMOVED if proof.counts_only(held.rows) else TESTS_FAILING
+            )
         elif not still and held.handed:
             held.passed_by_stronger = True  # (its recipe's row still says findings were left)
             # (held before, at the Lead's end: never inside Ready for you, which asks nothing while
@@ -261,6 +291,7 @@ class StrongerMixin:
             # (k-canli-016: until it passes, an answer that changed nothing is no progress - said,
             # and the stronger model's hand-off may come)
             held.halted = proof.NO_PROGRESS
+        held.unchanged = bool(held.rounds)  # (CL-342: numbered rounds - said as a spent one)
         try:
             await self._stronger(ctx, held)
         except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
@@ -884,6 +915,8 @@ class StrongerMixin:
         )
         if why == ON_HOLD:
             made["question"], made["reason"] = ASK_HOLD, "on_hold"
+        elif why == TESTS_REMOVED:
+            made["question"], made["reason"] = ASK_REMOVED, "removed"
         else:
             made["question"] = (held.question if held else "") or ASK_DEFAULT
         if merge_id:

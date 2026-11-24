@@ -2,7 +2,6 @@
 project's test command(s), the turn's changes on record, whether a test run on record stands for
 this turn's, and the rows of the Checked section KOLONİ writes under the answer (`ProofMixin`)."""
 
-import contextlib
 import difflib
 import fnmatch
 import hashlib
@@ -565,7 +564,9 @@ def touched_since(
     off the event loop.
     shortcut: a tracked test file deleted before the turn is counted too (git says no when);
     read the deletions as the turn begins if that is seen.
-    shortcut: another tracked file deleted is not seen (no time to read); count those if missed.
+    A file committed since the turn began that cannot be read (a committed deletion) is
+    touched - never passed over (R's second round); one deleted by hand, listed by git as
+    deleted, is not.
     shortcut: a write that keeps an old time (`cp -p`, `tar x`, `unzip`, `touch -d`), one into
     an ignored folder and a secret-named file (`git.changes` leaves it out) are not seen; ask
     git for them, or read the files' hashes as the turn begins, if a change slips by so."""
@@ -573,8 +574,12 @@ def touched_since(
     if listed is None:
         return None
     paths = [one["path"] for one in listed]
-    if head is not None:
-        paths += [one for one in git.committed_since(folder, head) if not is_secret(one)]
+    committed = (
+        {one for one in git.committed_since(folder, head) if not is_secret(one)}
+        if head is not None
+        else set()
+    )
+    paths += sorted(committed)
     edge = since.timestamp() - MTIME_SLACK if since is not None else float("-inf")
     found = [
         one["path"]
@@ -584,8 +589,11 @@ def touched_since(
     for path in dict.fromkeys(paths):
         if path in recorded or path in found:
             continue
-        with contextlib.suppress(OSError):
+        try:
             if (folder / path).stat().st_mtime >= edge:
+                found.append(path)
+        except OSError:  # (a deletion committed since the turn began: touched, never passed over -
+            if path in committed:  # one deleted by hand before it, as git lists it, is not)
                 found.append(path)
     return sorted(found)
 
@@ -955,7 +963,7 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
 
 # S11: why a stronger model's rounds were no pass - a test changed without leave, the Reviewer
 # held or did not read the test change, the tests gave no verdict, or they still fail.
-Reason = Literal["touched", "held", "unread", "no_verdict", "still", "on_hold"]
+Reason = Literal["touched", "held", "unread", "no_verdict", "still", "on_hold", "removed"]
 
 
 class Row(TypedDict):
@@ -1017,6 +1025,10 @@ AT_CEILING = "at most {most} rounds"
 TOKEN_LIMIT = "the turn's token limit"
 BUDGET = "the project's monthly budget"
 STILL_FAILING = "Still failing after {most} fix rounds: you decide (Fix it)"
+# R (CL-345): a whole suite's count against its last green run (`proof_before.green_said`) -
+# fewer tests, more skipped - the only failure left: said so, not as tests that fail.
+COUNT_ROWS = ("Tests went from ", "Skipped rose from ")
+STILL_FEWER = "Still fewer tests, or more skipped, after {most} fix rounds: you decide (Fix it)"
 RECIPE_SPENT = "Still failing after the recipe's fix rounds: you decide (Fix it)"
 WAITING = "Not in this run: {name}'s work waits in Ready for you"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
@@ -1070,6 +1082,13 @@ def row(
     if reason is not None:
         made["reason"] = reason
     return made
+
+
+def counts_only(rows: list[Row]) -> bool:
+    """R: whether the failed "tests" rows are all a count against the last green run (fewer
+    tests, more skipped) - no test fails."""
+    failed = [one["text"] for one in rows if one["kind"] == "tests" and one["state"] == "failed"]
+    return bool(failed) and all(one.startswith(COUNT_ROWS) for one in failed)
 
 
 def still_failing(rows: list[Row]) -> bool:

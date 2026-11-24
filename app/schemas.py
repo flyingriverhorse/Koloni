@@ -902,7 +902,9 @@ class CheckedRow(BaseModel):
     # S11: why a stronger model's rounds were no pass, on a "stronger" or "rounds" row Fix it
     # reads (`app.proof.Reason`) - or (P) "on_hold" on a "not_taken" row a look still holds;
     # None on any other, and on one kept before it was said.
-    reason: Literal["touched", "held", "unread", "no_verdict", "still", "on_hold"] | None = None
+    reason: (
+        Literal["touched", "held", "unread", "no_verdict", "still", "on_hold", "removed"] | None
+    ) = None
 
 
 class MessageOut(Out):

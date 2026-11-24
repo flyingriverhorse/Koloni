@@ -318,3 +318,109 @@ def test_a_hold_on_the_bugfix_goes_back_to_fix_it_and_its_fix_is_looked_at_once(
     ], row(snap)
     assert row(snap)["status"] == "in", row(snap)
     assert (project_dir / "calc.py").read_text(encoding="utf-8") == BIG2
+
+
+@pytest.mark.no_po
+def test_a_steps_suggestions_reach_the_next_step_by_findings_from(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    # (CL-345: the thin Bugfix's Lead handing the Debugger's findings to Fix it was refused -
+    # "left suggestions only - they are the user's": no step's brief carries a step's report on,
+    # so a recipe step's findings, suggestions too, are its handoff to the next - those for the
+    # next step's role or for none, never another role's)
+    from tests.test_spawn import call
+
+    guess(monkeypatch, PYTEST)
+    said = (
+        "Reproduced: calc(2) crashes.\n\n## Findings\n"
+        "- calc.py:2 divides by x with no check for 0 | kind: code | role: Coder | suggestion\n"
+        "- the crash shows only with 0 | kind: code | role: none | suggestion\n"
+        "- the README's example is wrong | kind: docs | role: Tester | suggestion"
+    )
+    lead = [
+        spawn("Debugger", "reproduce the crash", "d1"),
+        step(
+            call(
+                "spawn_agent",
+                {"role": "Coder", "task": "fix it", "findings_from": "Debugger"},
+                "c0",
+            )
+        ),
+        text("done"),
+    ]
+    client, model = make_client(
+        {"Lead": lead, "Debugger": [*REPRODUCES[:2], text(said)], "Coder": fixed()},
+        executor=ScriptedExecutor([REPRO, PASSED]),
+    )
+    cid, run_id = bugfix_run(client, project_dir, ready=True)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert opened(snap) == ["Debugger", "Coder"], by_call(snap)
+    first = model.calls_of["Coder"][0][1]["content"]
+    assert "divides by x with no check for 0" in first, first[-600:]
+    assert "the crash shows only with 0" in first and "README" not in first, first[-600:]
+
+
+@pytest.mark.no_po
+def test_a_steps_suggestions_reach_no_step_its_arrow_does_not_go_to(
+    make_client, wait_run, project_dir
+):
+    # (B-192 outside the handoff: a Reviewer's step before the Debugger's - its suggestions are
+    # the user's, never Fix it's, the step after the next)
+    from tests.test_chat_teams_scenarios import teams_of
+    from tests.test_recipe_run_scenarios import made
+    from tests.test_spawn import begin, call
+
+    said = (
+        "Looked.\n\n## Findings\n"
+        "- rename calc to divide | kind: code | role: Coder | suggestion\n\nVerdict: MERGE"
+    )
+    lead = [
+        spawn("Reviewer", "look first", "r1"),
+        spawn("Debugger", "trace it", "d1"),
+        step(
+            call(
+                "spawn_agent",
+                {"role": "Coder", "task": "fix it", "findings_from": "Reviewer"},
+                "c0",
+            )
+        ),
+        spawn("Coder", "fix it", "c1"),
+        text("done"),
+    ]
+    client, model = make_client(
+        {
+            "Lead": lead,
+            "Reviewer": [text(said)],
+            "Debugger": [text("reproduced")],
+            "Coder": [text("fixed")],
+        }
+    )
+    recipe = made(
+        client,
+        "Look, reproduce, fix",
+        {
+            **graph(
+                [
+                    part("look", "Look first", {"role": "Reviewer"}),
+                    part("trace", "Trace it", {"role": "Debugger"}),
+                    part("fix", "Fix it", {"role": "Coder"}),
+                ],
+                [("start", "look"), ("look", "trace"), ("trace", "fix"), ("fix", "end")],
+            ),
+            "checks": {"tests": False, "review": False},
+        },
+    )
+    backend = teams_of(client)["Backend / API"]
+    cid, run_id = begin(
+        client,
+        project_dir,
+        mode="full_auto",
+        spawn_approval="never",
+        teams_mode="manual",
+        teams=[{"team_id": backend["id"], "recipe_id": recipe["id"]}],
+    )
+    snap = wait_run(client, cid, run_id)
+    refused = [result for status, result in by_call(snap) if "findings_from" in (result or "")]
+    assert refused and "left suggestions only" in refused[0], by_call(snap)
+    assert all("rename calc" not in call[1]["content"] for call in model.calls_of["Coder"])
