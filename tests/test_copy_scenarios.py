@@ -398,6 +398,39 @@ def test_a_second_stop_while_the_half_work_is_kept_does_not_lose_it(
     assert len(copies_left(settings_env)) == 1 and not (project_dir / "a.txt").exists()
 
 
+def test_kept_copies_are_listed_in_your_data_with_what_they_take_and_go_only_on_discard(
+    make_client, wait_run, project_dir, settings_env
+):
+    """Kept copies have no cap - a trigger over its budget keeps one a firing - and KOLONİ deletes
+    none unasked: Settings › Your data lists them, what they take, and each one's Discard."""
+    first = Gate()
+    client, model, cid, run_id = one(
+        make_client,
+        project_dir,
+        [step(write("a.txt", "A" * 300_000)), first.step(text("A done"))],
+    )
+    first.wait_partial()
+    assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
+    snap = wait_run(client, cid, run_id)
+    first.release()
+    (kept,) = snap["merges"]
+    said = client.get("/api/storage").json()
+    title, coder = snap["conversation"]["title"], agent(snap, "Coder")
+    (listed,) = said["kept"]
+    assert listed | {"kept_at": None} == {
+        "merge_id": kept["id"],
+        "conversation_id": cid,
+        "title": title,
+        "agent": coder["name"] or "Coder",
+        "kept_at": None,
+    }
+    assert listed["kept_at"]  # (two of one chat told apart: by the agent, and when)
+    assert said["kept_mb"] >= 0.3 and said["kept_mb"] <= said["copies_mb"]
+    assert client.post(f"/api/merges/{kept['id']}/reject").status_code == 200
+    said = client.get("/api/storage").json()
+    assert (said["kept"], said["kept_mb"], copies_left(settings_env)) == ([], 0.0, [])
+
+
 def looping(tag):
     """Past the step limit (25): the agent stops with what it had changed."""
     return [step(call("list_dir", {}, f"{tag}{n}")) for n in range(25)]

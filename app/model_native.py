@@ -2780,6 +2780,9 @@ class ClaudeNativeClient(CodexNativeClient):
     command = "claude"
     label = "Claude Code"
     asks = True
+    # C2 (security review, 7 Nov): no sandbox holds its Bash's writes to the copy it works in - a
+    # command can write into the project by a path it does not name (`_native_work_watch`).
+    commands_held = False
     # Measured by the main session, 14 Nov 2026 (Claude Code 2.1.325, Windows, `-p
     # --output-format stream-json`, 4 short runs): a `cd sub` in one Bash call does not carry to
     # the next - each result ends "Shell cwd was reset to <project>", the next `pwd` is the

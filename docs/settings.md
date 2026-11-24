@@ -260,7 +260,11 @@ start."
 - After a restore, triggers and to-do work wait until you press **Resume**.
 - If the file had no keys, the page lists the providers that need theirs again.
 
-Under them: how much space KOLONİ's database, backups, working copies and logs take, and
+Under them: how much space KOLONİ's database, backups, working copies and logs take; the working
+copies kept for your word - how many, what they take, and each one's chat, agent and when it was
+kept, with **Discard**, which asks first and deletes that copy as its card's Discard does (KOLONİ
+never deletes one unasked; a trigger over its budget keeps one each time it fires, so over 1 GB a
+line warns you); and
 **Always blocked**, the places no agent ever opens, in every project; the list is KOLONİ's own and
 cannot be changed here.
 

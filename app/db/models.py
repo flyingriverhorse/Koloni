@@ -581,7 +581,7 @@ class ToolCall(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), index=True)
     agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"))
-    message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"))
+    message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
     seq: Mapped[int] = mapped_column(Integer)
     # The model's own id for this call; echoed back as tool_call_id on the next step.
     provider_call_id: Mapped[str] = mapped_column(String(100))

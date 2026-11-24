@@ -155,7 +155,7 @@ What is not framed:
 
 - **Sub-agents** work in working copies, not in your folder, until you take their work in. The commands of
   Claude Code or Qoder run **Native** there are not sandboxed: at Full auto, one that reaches the project by a path it does not
-  spell out changes it directly, and KOLONİ records that change at the end of the turn
+  spell out changes it directly, and KOLONİ records that change after the command, by an unknown maker
   ([Known limits](../reference/known-limits.md#clis)).
 - **Agents beside each other**: a sub-agent's command that names another agent's copy, a worktree or a
   place above its copy, writes in or installs into the linked dependency folders, or stops programs

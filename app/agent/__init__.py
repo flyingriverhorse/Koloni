@@ -151,6 +151,8 @@ from app.agent.ctx import (
     _NobodyToAsk,
     _Room,
     _Slow,
+    _through_all_stops,
+    _through_stops,
     _Unwatched,
     _Watch,
     announce_memory,
@@ -2175,7 +2177,9 @@ class AgentRunner(
                 said = await self._take_in(ctx, status, lambda: None)
             except asyncio.CancelledError:
                 # Stop while its card waits: the turn ends as Stopped, its copy gone and
-                # the branch kept where KOLONİ's commit is on it (`_into_project`).
+                # the branch kept where KOLONİ's commit is on it (`_into_project`). A Stop
+                # while its half work was being kept (`_take_in`): that waited for first.
+                await _through_all_stops(self._saving.pop(run_id, ()))
                 self._interrupt_open_calls(run_id, cid)
                 status, said = "interrupted" if self._closing else "cancelled", ""
             if said and status != "completed":  # (where the branch is left: said)
@@ -3041,7 +3045,8 @@ class AgentRunner(
         if copy is None or known is None:
             return
         # shortcut: kept copies have no cap, and only the user's Discard clears them - a trigger
-        # nobody watches, over its budget, leaves one a firing; cap them by project if that piles.
+        # nobody watches, over its budget, leaves one a firing. Settings › Your data lists them,
+        # their size and Discard (`/api/storage`); cap them by project if that is not enough.
         with contextlib.suppress(OSError, ValueError):
             copies.unlink(self.settings.runtime_root, copy.name)
         if copy.secrets():  # (refused after the turn too: `copies.load`, `_merge_file`)
@@ -3663,9 +3668,12 @@ class AgentRunner(
             # 6 Nov: Stop while its card waits (or its check, or a resolve) - a plain copy kept
             # for the user's Take in as half work is (`_stopped_in_copy`); a branch holding a
             # secret given this turn never kept, also as the app closes (`_secret_branch_gone`).
-            await self._through_any_stop(
-                owner.run_id,
-                self._said_gone(owner, copy) if (copy.branch) else self._stopped_in_copy(owner),
+            # Waited for to its end whatever Stops come: a Lead's own Take in comes after its
+            # turn's `_saved`, and a second Stop let the turn's end drop the copy under it.
+            await _through_stops(
+                asyncio.ensure_future(
+                    self._said_gone(owner, copy) if copy.branch else self._stopped_in_copy(owner)
+                )
             )
             self._drop_copy(owner.agent_id)  # (nothing of it is taken; one kept is gone already)
             raise
