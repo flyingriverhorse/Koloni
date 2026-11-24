@@ -11,6 +11,9 @@ export const FIX_FEWER = (command: string) =>
 /** S3: what Fix it sends where the Reviewer still held the change after the Fix rounds: words of the user's own - the findings reach the Orchestrator as data (`review_held`), never as theirs. */
 export const FIX_REVIEW =
   'The Reviewer KOLONİ opened at the end of the last turn still held its change. Fix its blocking findings.'
+/** k-a11y-2: where a kind's check (a page, a document, a config file) still failed after the Fix rounds (the closing row's code "kinds") - its problems reach the Orchestrator as data (`kinds_held`), never as the user's words. */
+export const FIX_KINDS =
+  "KOLONİ's checks of what the last turn wrote still found problems after its fix rounds. Fix them."
 
 type Row = NonNullable<Message['checked']>[number]
 
@@ -18,6 +21,7 @@ type Row = NonNullable<Message['checked']>[number]
 const HELD_WHY: Partial<Record<NonNullable<Row['reason']>, string>> = {
   on_hold: "a look of KOLONİ's still held it",
   removed: 'fewer of its tests run, or more are skipped',
+  kinds: "KOLONİ's checks of what it wrote still found problems",
 }
 export const FIX_HELD = (question: string, reply: string, reason?: Row['reason']) =>
   `The last turn's work was not taken in: ${(reason && HELD_WHY[reason]) || 'its tests still fail'}. ${question} My answer: ${reply.trim()} Fix it.`
@@ -35,11 +39,12 @@ const NOT_DONE: Record<NonNullable<Row['reason']>, string> = {
   still: 'it still fails after the rounds',
   on_hold: 'a look still held it',
   removed: 'fewer tests ran, or more were skipped',
+  kinds: "KOLONİ's checks of what it wrote still found problems",
 }
 export const FIX_NOT_DONE = (command: string, reason: Row['reason']) =>
   `${FIX_IT(command)} The stronger model's rounds were no pass: ${NOT_DONE[reason ?? 'still']}.`
 
-/** What Fix it asks for under a turn's Checked section: a failing test run first, else a stronger model's rounds that were no pass, else a Reviewer's hold; null: nothing to fix. */
+/** What Fix it asks for under a turn's Checked section: a failing test run first, else a stronger model's rounds that were no pass, else a kind's check the rounds left failing, else a Reviewer's hold; null: nothing to fix. */
 export function fixOf(rows: Row[]): string | null {
   // (a test that fails first; where only fewer ran, or more were skipped - its code "removed" - that is what is said)
   const failing = rows.filter(row => row.kind === 'tests' && row.state === 'failed' && row.command)
@@ -50,6 +55,7 @@ export function fixOf(rows: Row[]): string | null {
     row => (row.kind === 'stronger' || row.kind === 'rounds') && row.state === 'failed' && row.command,
   )
   if (notDone?.command) return FIX_NOT_DONE(notDone.command, notDone.reason)
+  if (rows.some(row => row.kind === 'rounds' && row.state === 'failed' && row.reason === 'kinds')) return FIX_KINDS
   const held = rows.some(row => row.kind === 'review' && row.text.startsWith('Still on hold'))
   return held && rows.some(row => row.kind === 'finding' && row.text.startsWith('Blocking: ')) ? FIX_REVIEW : null
 }

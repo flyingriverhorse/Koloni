@@ -48,6 +48,10 @@ ENDED = (
     "the browser ended (its connection to KOLONİ dropped, or a frame of the page could "
     "not be guarded): browser_open starts a new one"
 )
+# A page whose tab crashed (measured, Chrome 156 on Windows: one nested some 1,600 deep, as it is
+# drawn): nothing of it answers until a page is loaded again - each call said at once, not after
+# 30 s.
+CRASHED = "the page crashed the browser's tab"
 BLANK = "about:blank"
 LOOPBACK = frozenset({"localhost", "127.0.0.1", "::1"})
 # What a browser that went out never resolves (`Browser.start`): this machine and its network
@@ -508,10 +512,12 @@ _WIDE_JS = _tag("wide") + (
 # world - from its root, its first MOST_A11Y elements (an inline svg one, never its shapes), for
 # A11Y_MS at most (`cut`: which bound a read met, as `proof_kinds.CUT_WHY` says it): each image
 # shown with no text for it (no alt, aria-label, aria-labelledby nor title; alt="" is a decorative
-# one, aria-hidden or role none one nobody is told of), each button, link or field shown with no
-# name (its words, aria-label, aria-labelledby, title, its label, a placeholder, a button's value,
-# an image's alt in it), a page hidden whole (aria-hidden on html or body), a control one tabs
-# to inside aria-hidden, and each text shown: its colour (-webkit-text-fill-color where set), the
+# one, aria-hidden or role none one nobody is told of; one of a data: address named by its id,
+# class or place), each button, link or field shown - or a tab stop, whatever its size - with no
+# name (its words or an image's alt in it, aria-label, aria-labelledby, title, its label's words
+# or an image's alt in that, a placeholder, a button's value; else its own ::before and ::after
+# words), a page hidden whole (aria-hidden on html or body), a control one tabs to inside
+# aria-hidden, and each text shown: its colour (-webkit-text-fill-color where set), the
 # backgrounds under it up to the first opaque one, its size and weight - `under`: null where
 # something is drawn under it (an image, a gradient, gradient text, more than A11Y_LAYERS
 # see-through layers, or a picture or a layer of another element over its words - drawn inside
@@ -520,7 +526,8 @@ _WIDE_JS = _tag("wide") + (
 # The colours as numbers, [r, g, b, alpha] - any CSS colour, through a canvas
 # (Tailwind's are oklch). With prefers-color-scheme pinned to light (`Browser.light`), a page
 # whose colour scheme is dark only says so (`scheme`) and its texts are not judged; a page with
-# no body (`nobody`) is not read. Frames and shadow roots are counted, not read (`frames`).
+# no root (`noroot`) or no body (`nobody`) is not read, and none past A11Y_NESTED deep is.
+# Frames and shadow roots are counted, not read (`frames`).
 # The page's own named elements shadow a DOM property of their form or of the document
 # (`<input name="parentElement">`, `<img name="body">`): every one is read through its
 # prototype's own getter or method (`get`, `fn`). At most A11Y_LISTED images and controls named
@@ -539,10 +546,11 @@ A11Y_PAINTED = 1000
 A11Y_COMPARED = 200  # (drawn elements a text's words are compared with, then said in part)
 A11Y_PAIRS = 20000  # (...and line boxes compared with theirs, two by two)
 A11Y_DEPTH = 512  # (how far up a text's background is looked for)
+A11Y_NESTED = 1000  # (how deep an element is read: past it, the read stops - said in part)
 A11Y_NAMED_IDS, A11Y_TEXT = 20, 200  # (aria-labelledby's ids read, the characters of each text)
 _A11Y = r"""(o) => {
   const out = {cut: [], images: [], imagesN: 0, controls: [], controlsN: 0, texts: [],
-    hidden: false, focus: [], focusN: 0, scheme: '', frames: 0, nobody: false};
+    hidden: false, focus: [], focusN: 0, scheme: '', frames: 0, nobody: false, noroot: false};
   const N = Node.prototype, E = Element.prototype, D = Document.prototype;
   const get = (proto, name) => {
     const g = Object.getOwnPropertyDescriptor(proto, name).get;
@@ -573,7 +581,7 @@ _A11Y = r"""(o) => {
   };
   const field = (el) => el instanceof HTMLInputElement;
   const root = get(D, 'documentElement')(document), body = get(D, 'body')(document);
-  if (!root) return out;
+  if (!root) { out.noroot = true; return out; }
   if (!body) { out.nobody = true; return out; }
   const until = performance.now() + o.ms;
   const pen = D.createElement.call(document, 'canvas').getContext('2d', {willReadFrequently: true});
@@ -620,6 +628,11 @@ _A11Y = r"""(o) => {
       (!visible || visible(el, {checkOpacity: true, checkVisibilityCSS: true}));
   };
   const told = (el) => !closest(el, '[aria-hidden="true"]');
+  // (a tab stop the keyboard reaches whatever its size - an empty link is one; the 1 px rule is
+  // for what is only seen)
+  const stop = (el) => matches(el, tabbed) && !matches(el, '[tabindex^="-"]') &&
+    !closest(el, '[inert]') &&
+    (!visible || visible(el, {checkOpacity: true, checkVisibilityCSS: true}));
   const by = (el) => (attr(el, 'aria-labelledby') || '').split(/\s+/).filter(Boolean)
     .slice(0, o.ids).map(byId).filter(Boolean).map((one) => textOf(one, o.text));
   // (its words, and the alt or aria-label of what is in it - of its first 200 elements)
@@ -632,15 +645,31 @@ _A11Y = r"""(o) => {
     }
     return said;
   };
+  // (the ::before and ::after words of it and of what is shown in it - its first 200 elements:
+  // CSS generated content, part of a name as Chrome's is; attr() comes resolved. One not drawn
+  // (display: none) is none, and so is an icon font's glyph, a private-use character)
+  const generated = (el) => {
+    const said = [];
+    const w = walker(document, el, NodeFilter.SHOW_ELEMENT);
+    for (let at = el, i = 0; at && i <= 200; at = w.nextNode(), i++) {
+      if (at !== el && visible && !visible(at, {checkVisibilityCSS: true})) continue;
+      if (/^(INPUT|IMG)$/.test(tag(at))) continue;  // (no ::before is drawn on these)
+      for (const where of ['::before', '::after']) {
+        const s = getComputedStyle(at, where);
+        if (s.display !== 'none') said.push(...(s.content.match(/"(?:[^"\\]|\\.)*"/g) || []));
+      }
+    }
+    return said.join(' ').replace(/[\uE000-\uF8FF"\\]/g, ' ');
+  };
   const named = (el) => {
     const t = tag(el), input = field(el) ? typeOf(el) : '';
     return words([
       attr(el, 'aria-label'), attr(el, 'title'), attr(el, 'placeholder'), ...by(el),
-      ...labels(el).map((one) => textOf(one, o.text)),
+      ...labels(el).flatMap((one) => content(one)),  // (a label's words, or an image's alt in it)
       /^(submit|reset)$/.test(input) ? valueOf(el) || input : input === 'button' ? valueOf(el) : '',
       input === 'image' ? attr(el, 'alt') : '',
       ...(input || /^(SELECT|TEXTAREA)$/.test(t) ? [] : content(el)),
-    ].join(' '));
+    ].join(' ')) || words(generated(el));
   };
   const called = (el) => {
     const t = tag(el).toLowerCase(), id = idOf(el);
@@ -763,11 +792,24 @@ _A11Y = r"""(o) => {
   const walk = walker(document, root, NodeFilter.SHOW_ELEMENT,
     {acceptNode: (el) => skip.has(tag(el)) ? NodeFilter.FILTER_REJECT
       : shape(el) ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_ACCEPT});
-  const texts = [];
-  let n = 0;
+  const texts = [], level = new Map();
+  let n = 0, imgs = 0;
+  // (an image of the page's own bytes - a data: address - by its id, class or place: its address
+  // names nothing)
+  const inline = (el) => {
+    const id = idOf(el), one = (attr(el, 'class') || '').trim().split(/\s+/)[0];
+    return 'an inline image (' + (id ? '#' + id : one ? '.' + one : 'image ' + imgs).slice(0, 60) +
+      ')';
+  };
   for (let el = root; el; el = walk.nextNode()) {
     if (++n > o.most) { cut('elements'); break; }
     if (performance.now() > until) { cut('time'); break; }
+    // (how deep it is - from the nearest one read up: an svg's shapes are passed over - and past
+    // o.nested no more is read: each look up the page would cost that much)
+    let up = parent(el), deep = 1;
+    for (; up && !level.has(up); up = parent(up)) deep++;
+    if ((deep += up ? level.get(up) : 0) > o.nested) { cut('nested'); break; }
+    level.set(el, deep);
     const t = tag(el), html = nsOf(el) === 'http://www.w3.org/1999/xhtml';
     if (shadow(el) || t === 'IFRAME' || t === 'FRAME') out.frames++;
     if ((html || t === 'svg') && el !== root && el !== body && draws(el, t)) {
@@ -775,17 +817,19 @@ _A11Y = r"""(o) => {
       else painted.push({el, rs: [...rects(el)], all: box(el), backdrop: backdrop(el)});
     }
     if (!html) continue;
+    imgs += t === 'IMG';
     if (t === 'IMG' && !has(el, 'alt') && told(el) && seen(el) &&
         !/^(presentation|none)$/.test(attr(el, 'role') || '') &&
         !words([attr(el, 'aria-label'), attr(el, 'title'), ...by(el)].join(' '))) {
       out.imagesN++;
       if (out.images.length < o.listed) {
-        const src = (attr(el, 'src') || '').split(/[?#]/)[0].split('/').pop();
-        out.images.push(src.slice(0, 80) || 'img');
+        const src = (attr(el, 'src') || '').trim();
+        out.images.push(/^data:/i.test(src) ? inline(el)
+          : src.split(/[?#]/)[0].split('/').pop().slice(0, 80) || 'img');
       }
     }
-    if (matches(el, controls) && !matches(el, ':disabled') && told(el) && seen(el) &&
-        !named(el)) {
+    if (matches(el, controls) && !matches(el, ':disabled') && told(el) &&
+        (seen(el) || stop(el)) && !named(el)) {
       out.controlsN++;
       if (out.controls.length < o.listed) out.controls.push(called(el));
     }
@@ -840,6 +884,7 @@ def _a11y_js() -> str:
         "compare": A11Y_COMPARED,
         "pairs": A11Y_PAIRS,
         "depth": A11Y_DEPTH,
+        "nested": A11Y_NESTED,
         "ids": A11Y_NAMED_IDS,
         "text": A11Y_TEXT,
     }
@@ -981,6 +1026,7 @@ class Browser:
         self.marked: tuple[str, list[tuple[float, float]]] = ("", [])
         self._refused: list[str] = []
         self.gone = False
+        self.crashed = False  # (the page's tab, till a page is loaded again: `CRASHED`)
         # S5b: the one preview a browser of KOLONİ's Tester may load from (`origin`); None: any.
         self.only: tuple[str, str, int | None] | None = None
 
@@ -1178,11 +1224,25 @@ class Browser:
             self._loading.set()
         elif message.get("method") == "Page.loadEventFired":
             self._loaded.set()
+        elif message.get("method") == "Inspector.targetCrashed":
+            self._crashed(message.get("sessionId"))
         elif (line := _console_line(message)) is not None:
             if len(self._console) >= MAX_CONSOLE:
                 self._console.pop(0)
                 self._dropped += 1
             self._console.append(line)
+
+    def _crashed(self, session: str | None) -> None:
+        """The page's tab crashed (`CRASHED`): every wait for it ends now, and each later call
+        of it but a load fails at once (`_send`)."""
+        if self._session is None or session != self._session:
+            return
+        self.crashed = True
+        self._loaded.set()
+        waiting, self._waiting = self._waiting, {}
+        for future in waiting.values():
+            if not future.done():
+                future.set_exception(BrowserError(CRASHED))
 
     async def _die(self) -> None:
         """End the browser where its fence no longer holds; every later call says so."""
@@ -1291,6 +1351,8 @@ class Browser:
     ) -> dict:
         if self._ws is None or self.gone:
             raise BrowserError(ENDED if self.gone else "the browser is not running")
+        if self.crashed and session == self._session and method != "Page.navigate":
+            raise BrowserError(CRASHED)
         self._next += 1
         message: dict = {"id": self._next, "method": method, "params": params or {}}
         if session:
@@ -1352,6 +1414,7 @@ class Browser:
         self.marked = ("", [])
         self._loading.clear()
         self._loaded.clear()
+        self.crashed = False  # (a load is what brings a crashed tab back - one it crashes says so)
         gone = await self._call("Page.navigate", {"url": url})
         if gone.get("errorText"):
             raise BrowserError(f"{url}: {gone['errorText']}")

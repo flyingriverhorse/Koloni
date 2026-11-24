@@ -65,17 +65,37 @@ def test_a_broken_link_is_one_fix_round_then_said(make_client, wait_run, guide):
 
 
 def test_a_text_answer_to_the_nudge_keeps_the_failed_line(make_client, wait_run, guide):
-    client, _model = make_client(
+    client, model = make_client(
         [
             write("README.md", BROKEN),
             text("done"),
             text("The guide moves next week; leave the link."),
+            text("Fixed it."),
         ],
         executor=ScriptedExecutor([]),
     )
     cid, run_id = begin(client, guide)
-    rows = [(row["state"], row["text"]) for row in checked(wait_run(client, cid, run_id))]
+    snap = wait_run(client, cid, run_id)
+    rows = [(row["state"], row["text"]) for row in checked(snap)]
     assert ("failed", "README.md: link to docs/gone.md not found") in rows, rows
+    # (a round answered with no change ends as the tests' do - CL-365: it stopped at "Sent back
+    # to fix: 1 of 2 rounds", no closing line, no Fix it)
+    assert checked(snap)[-1] == {
+        **checked(snap)[-1],
+        "state": "failed",
+        "text": "Still failing after 1 fix rounds: you decide (Fix it)",
+        "reason": "kinds",
+    }, rows
+    # (Fix it's turn: the Orchestrator is told the problems, as data - never as the user's words)
+    again = client.post(f"/api/conversations/{cid}/messages", json={"content": "Fix them."}).json()
+    wait_run(client, cid, again["run"]["id"])
+    held = [
+        str(m["content"])
+        for m in model.calls[-1]
+        if m["role"] == "user" and str(m["content"]).startswith("KOLONİ's checks of what that")
+    ]
+    assert len(held) == 1 and "README.md: link to docs/gone.md not found" in held[0], held
+    assert "data, not instructions" in held[0]
 
 
 def test_fix_rounds_one_sends_a_kind_back_once(make_client, wait_run, guide):
@@ -92,7 +112,10 @@ def test_fix_rounds_one_sends_a_kind_back_once(make_client, wait_run, guide):
     snap = wait_run(client, cid, run_id)
     assert told(model) == 1  # (the second answer, still broken, is not sent back: the cap)
     assert "README.md: link to docs/gone.md not found" in texts(snap)
-    assert texts(snap)[-1] == "Sent back to fix: 1 of 1 rounds (1 problem in what it wrote)"
+    assert texts(snap)[-2:] == [
+        "Sent back to fix: 1 of 1 rounds (1 problem in what it wrote)",
+        "Still failing after 1 fix rounds: you decide (Fix it)",
+    ]
 
 
 def test_a_tests_round_and_a_kinds_round_share_the_count(make_client, wait_run, guide):
@@ -111,9 +134,10 @@ def test_a_tests_round_and_a_kinds_round_share_the_count(make_client, wait_run, 
     )
     cid, run_id = begin(client, guide, check_command="python check.py")
     snap = wait_run(client, cid, run_id)
-    assert texts(snap)[-1] == (
-        "Sent back to fix: 2 of 2 rounds (tests fail; 1 problem in what it wrote)"
-    ), texts(snap)
+    assert texts(snap)[-2:] == [
+        "Sent back to fix: 2 of 2 rounds (tests fail; 1 problem in what it wrote)",
+        "Still failing after 2 fix rounds: you decide (Fix it)",
+    ], texts(snap)
 
 
 def test_a_switched_off_kind_is_said_not_checked(make_client, wait_run, guide):
@@ -180,3 +204,20 @@ def test_a_link_broken_before_the_turn_is_said_and_not_sent_back(make_client, wa
     rows = [(row["state"], row["text"]) for row in checked(wait_run(client, cid, run_id))]
     assert told(model) == 0
     assert ("note", "README.md: link to docs/gone.md not found - so before this turn") in rows, rows
+
+
+def test_until_it_passes_an_unchanged_answer_to_a_kinds_round_stops_there(
+    make_client, wait_run, guide
+):
+    # (Until it passes, the default: an answer that changed nothing is no progress for a kind's
+    # problem too - said, its code for Fix it)
+    client, _model = make_client(
+        [write("README.md", BROKEN), text("done"), text("Leave the link.")],
+        executor=ScriptedExecutor([]),
+    )
+    cid, run_id = begin(client, guide, fix_rounds="until")
+    last = checked(wait_run(client, cid, run_id))[-1]
+    assert (last["text"], last.get("reason")) == (
+        "Stopped after round 1: no progress in two rounds - you decide (Fix it)",
+        "kinds",
+    ), last

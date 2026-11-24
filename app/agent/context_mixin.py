@@ -2002,9 +2002,10 @@ class ContextMixin:
             if row.role == "agent":
                 self._history_agent_row(h, row)
                 continue
-            if row.role == "checked" and not ctx.depth and (held := _review_held(row)):
+            if row.role == "checked" and not ctx.depth and (held := _still_held(row)):
                 # S3: a Reviewer still held that turn's change - its blocking findings, as
-                # data (Fix it sends no model's words as the user's).
+                # data (Fix it sends no model's words as the user's); k-a11y-2: a kind's
+                # check still failed after the rounds - its problems.
                 messages.append({"role": "user", "content": held})
                 continue
             if row.role in ("away", "git", "koloni", "landed", "checked"):
@@ -2282,8 +2283,10 @@ class ContextMixin:
             messages.append(Transient(role="user", content=CALL_RETURNED))
 
 
-def _review_held(row: Message) -> str | None:
-    """`review_mixin.review_held` (imported here: it imports from this module)."""
+def _still_held(row: Message) -> str | None:
+    """`review_mixin.review_held` and `kinds_mixin.kinds_held`, one after the other (imported
+    here: they import from this module)."""
+    from app.agent.kinds_mixin import kinds_held
     from app.agent.review_mixin import review_held
 
-    return review_held(row)
+    return "\n\n".join(filter(None, (review_held(row), kinds_held(row)))) or None

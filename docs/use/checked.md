@@ -446,7 +446,14 @@ A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model
 decides (Fix it). Work in a copy - a recipe's, before Ready for you - that a look still holds is
 not taken in by itself either, at any level: no Ready for you card, not even at Auto-edit, and
 not at Full auto; the section says "Not taken in: on hold - a look's findings still stand after
-its fix rounds", with **Take in anyway** and **Fix it**. **Fix it** goes on in the kept work's
+its fix rounds", with **Take in anyway** and **Fix it**. So is work in a copy whose check by kind
+of work (a page, a document, a config file, a script) still fails after its fix rounds: "Not taken
+in: KOLONİ's checks of what it wrote still fail after its fix rounds". A later pass of the
+same turn never lets that one go - it may not check the kind again (not judged, not run, out of
+time): **Take in anyway** or **Fix it**. Work held for its tests goes to Ready for you where the
+Orchestrator changes it in the same turn and KOLONİ's next pass runs every test command to a pass
+(one not run, timed out or still running keeps it out). Work stopped at the turn's token limit or
+the month's budget with tests failing stays out too. **Fix it** goes on in the kept work's
 copy, and that turn's end check covers the whole kept work as Take in would bring it - the held
 change and the fix, by the same rule (a big or security-touching change gets the look), never
 the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
@@ -517,7 +524,10 @@ A deck, Word file or other file a command made (a script that writes a `.pptx`) 
 when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix
 round, with the lines that failed (at most 20 named): one
 count with failing tests and the Reviewer's findings (**Fix rounds**), "(1 problem in what it
-wrote)" beside the round. A problem the file had before the turn is said, not sent back: the turn
+wrote)" beside the round. Where the rounds are spent with it still there - or the Orchestrator
+answered one without changing anything - the section ends as for failing tests, "Still failing
+after 1 fix rounds: you decide (Fix it)", and work in a copy is not taken in (see
+[A stronger model](#a-stronger-model)). A problem the file had before the turn is said, not sent back: the turn
 did not make it. A file KOLONİ cannot read (over 8 MB - or over 8 MB once its zip members or
 draw.io pages are inflated, all together, whatever size the file says they are; a deck of over
 1,000 slides - outside the project, an XML file that declares a DTD or entities in any encoding, a
@@ -571,15 +581,33 @@ kept for you in the project's `.koloni/tmp/checked/<turn>/` - never shown to a m
 the Orchestrator of a page is only these lines, as data. **Pages** is switched off with the other
 kinds.
 
-At each width the page, as it loaded, is also read for accessibility - by KOLONİ, in the page, with
-no model and nothing installed:
+At each width the page is also read for accessibility - by KOLONİ, in the page, with no model and
+nothing installed - half a second after it loaded, and again 0.3 s later (some 0.8 s a width). Each
+rule is judged by how many it finds in each read. Found in both, the fewer fail as below, named as
+the second read names them, however the rest of the page moves (a count going up, a clock, an
+image's address that rotates, controls that swap places); what one read finds more of - an image
+with no alt drawn as its data comes - and a rule found in one read only - a name put a moment late
+- are not judged, said by the rule: "accessibility not judged at 375 px for what changed after it
+loaded - images without alt text". Neither is sent back for what the page had not drawn yet nor
+passed for what it drew late. The
+notes (contrast and what it could not judge) are the second read's; a second read cut at its 3
+seconds leaves the width to the first. A change after the second read is not seen. What the read
+finds:
 
 - an image with no text for it: "index.html: 2 images without alt text at 375, 768, 1280 px -
   logo.png, hero.jpg". `alt=""` marks a picture as decoration, and one hidden from screen readers
-  (`aria-hidden`, `role="presentation"`) is not counted;
+  (`aria-hidden`, `role="presentation"`) is not counted. An image of the page's own bytes (a
+  `data:` address) is named by its id, class or place: "an inline image (#hero)", "an inline image
+  (image 3)";
 - a button, link or field with no name - no words of its own, `aria-label`, `aria-labelledby`,
-  `title`, label, placeholder, a button's value or an image's `alt` in it: "1 buttons, links or
-  fields with no name at 375, 768, 1280 px - input[type=email]#email";
+  `title`, label (its words, or the `alt` of an image in it), placeholder, a button's value or an
+  image's `alt` in it, and else the words of the CSS `::before` or `::after` of it or of what is
+  shown in it (`content: 'Menu'`; one with `display: none`, or an icon font's glyph, is no name):
+  "1 buttons, links or fields with no name at 375, 768, 1280 px -
+  input[type=email]#email". A control one can tab to counts whatever its size - an empty
+  `<a href>` is a tab stop with no name; any other (`tabindex="-1"`, inside `inert`) only where it
+  is drawn more than 1 px each way, as an image and a text are. A hidden or disabled one never
+  counts;
 - a page hidden whole from screen readers (`aria-hidden` on `html` or `body`), and a control one
   can tab to inside `aria-hidden` (a button, a link, a field, `tabindex` 0 or more, not disabled,
   not inside `inert`): "2 controls one can tab to inside aria-hidden at 375, 768, 1280 px -
@@ -608,12 +636,19 @@ guessed:
   page's colour scheme is dark only" - its canvas is dark, not the white the rule reads under it;
 - frames and shadow roots: counted, not read ("accessibility not read inside 1 frames or shadow
   roots"); a closed shadow root is not seen at all;
-- a page whose script took its body away: "accessibility not read … the page has no body". One
-  that moved its content out of the body is read all the same: the read starts at the page's root;
-- a page's first 2,000 elements are read (an inline `<svg>` counts as one, not its shapes), for 3
-  seconds at most a width, and a text's words are compared with the 200 drawn elements over its
-  box at most; past that: "accessibility checked only in part", with which limit it met ("only its
-  first 2000 elements are read", "a text has more than 200 drawn elements over it" …).
+- a page whose script took its body or its root away: "accessibility not read … the page has no
+  body" ("… no root"). One that moved its content out of the body is read all the same: the read
+  starts at the page's root;
+- a page's first 2,000 elements are read (an inline `<svg>` counts as one, not its shapes), none
+  nested over 1,000 deep, for 3 seconds at most a width, and a text's words are compared with the
+  200 drawn elements over its box at most; past that: "accessibility checked only in part", with
+  which limit it met ("only its first 2000 elements are read", "nested over 1000 deep", "a text has
+  more than 200 drawn elements over it" …). A read cut at its 3 seconds is not read again: that
+  width stands on its first read.
+
+A page nested deeper still (some 1,600 elements, measured on Windows) crashes the browser's tab as it is
+drawn, before any read: "index.html: not checked: the page crashed the browser's tab", said at
+once, and the turn's next page is read in a new browser.
 
 The read goes through the browser's own getters, so a field named after one of the page's
 properties (`<input name="parentElement">`) cannot steer it. Hidden and disabled elements are left
@@ -997,7 +1032,7 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Stopped after round 4: `why` - you decide (Fix it) | Until it passes, the rounds stopped short of a pass: no progress in two rounds, at most 20 rounds, the turn's token limit or the project's monthly budget. ("Still on hold after round 4: …" where a review's hold stood.) |
 | – `model`'s rounds stopped: no progress in two rounds | Until it passes, a stronger model's round left the same tests failing. |
 | – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn, of the project's Fix rounds; "(tests fail; 1 blocking finding)" after it where a review sent one back. |
-| ✗ Still failing after 1 fix rounds: you decide (Fix it) | The Fix rounds were spent with a test still failing - or the Orchestrator answered a round without changing anything, which ends its turn there. |
+| ✗ Still failing after 1 fix rounds: you decide (Fix it) | The Fix rounds were spent with a test still failing, or a problem KOLONİ's check by kind of work found (a page, a document, a config file …) - or the Orchestrator answered a round without changing anything, which ends its turn there. For a kind's problem, **Fix it** asks for it to be fixed, and the Orchestrator of that turn is told the problems as data. |
 | ✗ Still fewer tests, or more skipped, after 1 fix rounds: you decide (Fix it) | As above, where no test fails but fewer ran, or more were skipped, than at the last green run. |
 | – Tests went from 48 to 45 (3 removed) - not this turn's change | Fewer tests, or more skipped, than at the last green run, where nothing of the turn's could take them away (deleted by hand, a pull, a branch): said, the new counts the green state. |
 | ✓ Review: Reviewer (`provider · model`) - MERGE, no findings | The Reviewer looked over the whole change and let it stand ("after 1 round" where it held it first). |
@@ -1024,7 +1059,8 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ `page`: 2 images without alt text · 1 buttons, links or fields with no name … | The page is hard to use with a screen reader: sent back as a fix round. |
 | – `page`: 3 texts below the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1) | A warning: hard to read, said with its ratio - never sent back. |
 | ✗ `page`: the whole page is hidden from screen readers (aria-hidden) · 2 controls one can tab to inside aria-hidden … | A screen reader is told nothing of the page, or a control one tabs to is not there for it: sent back as a fix round. |
-| – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body) | What the accessibility read could not judge: said, not sent back. |
+| – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body · … no root) · accessibility not judged at 375 px for what changed after it loaded - images without alt text | What the accessibility read could not judge: said, not sent back. |
+| – `page`: not checked: the page crashed the browser's tab | The browser could not draw the page (one nested some 1,600 deep crashes Chrome's tab, measured on Windows): said at once; the turn's next page is read in a new browser. |
 | – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |
 | ✓ Tried `python 'bin/tool.py' --help`: exit 0, 12 lines | A command-line tool the turn changed answered its `--help`. |
 | ✗ Tried `line`: exit 2 · Tried `line`: it did not end in 30 s | Its `--help` failed or ran on: sent back as a fix round. |
@@ -1050,6 +1086,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Strongest skipped: over its limit | That tier's provider is past its limit of spend: it is not handed the fix. |
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Not taken in: on hold - a look's findings still stand after its fix rounds | Work in a copy (a recipe's) that the Reviewer or Security reviewer still holds stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
+| ✗ Not taken in: KOLONİ's checks of what it wrote still fail after its fix rounds | Work in a copy (a recipe's, an Away job's, a branch turn's) whose page, document, config file or script still fails its check by kind of work stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
 | – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |

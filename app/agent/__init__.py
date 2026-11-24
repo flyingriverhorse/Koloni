@@ -251,7 +251,7 @@ from app.agent.spawn_mixin import SpawnMixin
 from app.agent.spawn_mixin import _relative as _relative
 from app.agent.spawn_mixin import _said_from_here as _said_from_here
 from app.agent.spawn_mixin import thin_task as thin_task
-from app.agent.stronger_mixin import NOT_TAKEN_KEPT, StrongerMixin
+from app.agent.stronger_mixin import NOT_TAKEN_KEPT, StrongerMixin, held_said
 from app.agent.summary import COMPACT_FLAG as COMPACT_FLAG
 from app.agent.summary import STATE as STATE
 from app.agent.summary import THEIRS as THEIRS
@@ -2161,7 +2161,12 @@ class AgentRunner(
             await self._side_aside(ctx, t.run_compare)
         own = run_id in self._branch_runs or run_id in self._resumed  # (the Lead's own copy)
         if own and run_id in self._held_back:  # (S11: never merged, nor taken in)
-            self._set_aside(ctx.agent_id, NOT_TAKEN_KEPT.format(why=self._held_back[run_id]))
+            self._set_aside(
+                ctx.agent_id,
+                NOT_TAKEN_KEPT.format(
+                    why=held_said(self._held_back[run_id], self._proofs.get(run_id))
+                ),
+            )
         elif own and self._copies.get(ctx.agent_id) is not None:
             # K-dal-takim: the turn's work, on its own branch, merges as an agent's does -
             # on a card that waits for the user where it is not merged by itself.
@@ -2178,7 +2183,7 @@ class AgentRunner(
         if t.job:  # (however it ended: nothing of a job goes into the project unasked)
             self._set_aside(
                 ctx.agent_id,
-                NOT_TAKEN_KEPT.format(why=held)
+                NOT_TAKEN_KEPT.format(why=held_said(held, self._proofs.get(run_id)))
                 if (held := self._held_back.get(run_id))
                 else KEPT_AWAY,
                 await self._look_aside(ctx.agent_id),
@@ -9803,7 +9808,7 @@ class AgentRunner(
             # sync, called from async `_lead_taken`); pass `_look_aside`'s if it is felt.
             self._set_aside(
                 ctx.agent_id,
-                NOT_TAKEN_KEPT.format(why=held)
+                NOT_TAKEN_KEPT.format(why=held_said(held, self._proofs.get(ctx.run_id)))
                 if (held := self._held_back.get(ctx.run_id))
                 else ("a recipe's work its turn ended before taking in"),
             )
