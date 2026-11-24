@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import Select, case, func, select
 from sqlalchemy.orm import Session
 
-from app import judge
+from app import judge, memory
 from app.commands import (
     SEARCHES_FOLDER,
     _words,
@@ -250,6 +250,28 @@ def _stands(rules: str, line: str) -> bool:
     return (judge.verdict(answer, said) or {}).get("verdict") == "run"
 
 
+def mentioned(texts: list[str | None], command: str, cwd: str | None) -> str | None:
+    """S: the first line of the user's words - their preferences, the project's rules - that
+    names a target of this delete at all, however spelled (`./build`, `.\\build`, `build/`,
+    `build`, a path under it: `build/keep.txt`), a nested list item and a code block's line too;
+    None: none does. Such a delete is never suggested, nor added: where a line allows it a "You
+    may" is one too many, where one forbids it the two are set against each other - and no list
+    of words tells the two apart."""
+    targets = _targets(command, cwd) or []
+    if not targets:
+        return None
+    named = re.compile(
+        # (a path of its own or one under it - never part of a longer name: `src/build`,
+        # `build-cache`, `build.old`; a sentence's full stop after it is none)
+        r"(?<![\w./\\-])(?:\.[/\\])?(?:"
+        + "|".join(re.escape(one).replace("/", r"[/\\]") for one in targets)
+        + r")(?![\w-]|\.[\w-])",
+        re.IGNORECASE,
+    )
+    lines = (line.strip() for text in texts for line in (text or "").splitlines())
+    return next((line for line in lines if named.search(line)), None)
+
+
 def _has(rules: str, line: str) -> bool:
     """Whether the rules hold `line` as a line of their own (a list item too)."""
     return any(judge.LIST_MARK.sub("", one.strip()) == line for one in rules.splitlines())
@@ -265,7 +287,9 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
     its card at Full auto with Check what I said first on; one the rules hold already is left out
     (`added` False). Each command as it was approved, to the character: one with a line break
     in it is two commands, and never plain (review: `rm -rf build⏎src`, its spaces made one,
-    suggested "You may delete build and src.")."""
+    suggested "You may delete build and src."). One whose path the user's words name
+    (`mentioned`) is not suggested - `added`: kept, with that line, for Add to rules to refuse;
+    one the rules hold already is no such line."""
     times = func.count()
     approved = (
         select(Command.command, Command.cwd, times)
@@ -286,9 +310,13 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
         .limit(MOST_SUGGESTED)
     )
     found = []
+    preferences = memory.preferences(session)
     for command, cwd, n in session.execute(approved):
         line = rule_line(command, cwd)
-        if line is not None and (added or not _has(rules, line)) and _stands(rules, line):
+        if line is None or not (added or not _has(rules, line)) or not _stands(rules, line):
+            continue
+        why = None if _has(rules, line) else mentioned([preferences, rules], command, cwd)
+        if why is None or added:
             found.append(
                 {
                     "key": key_of(project.id, command, cwd),
@@ -296,6 +324,7 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
                     "cwd": cwd,
                     "times": n,
                     "rule": line,
+                    **({"mentioned": why} if why is not None else {}),
                 }
             )
     return found

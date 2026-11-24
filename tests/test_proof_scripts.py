@@ -34,6 +34,10 @@ if "hang" in text:
 if "BASH_ENV" in text and "BASH_ENV" in os.environ:
     sys.stderr.write("fake: line 1: BASH_ENV was passed\n")
     sys.exit(2)
+if "warn and fail" in text:
+    sys.stderr.write("fake: line 2: warning: here-document at line 1 delimited by end-of-file\n")
+    sys.stderr.write("fake: line 3: syntax error: unexpected end of file\n")
+    sys.exit(2)
 if "where?" in text:
     sys.stderr.write(f"fake: line 1: in {os.getcwd()}\n")
     sys.exit(2)
@@ -124,6 +128,20 @@ def test_what_powershell_would_look_up_never_reaches_its_parser(tmp_path, stand_
     ]
 
 
+DSC = "Configuration C { Import-DscResource -ModuleName //h/s/m\n Node localhost { } }\n"
+DSC_HIDDEN = [
+    ("# note\u2028 '\n", "# '\n"),
+    ("$q = 1 # x\u2028 '\n", "# '\n"),
+    ('$a = "${x"}"\n', '"\n'),
+    ('$a = @"\n${x\n"@}\n"@\n', '"\n'),
+    ("echo a` #b '\n'\n", "'\n"),
+    ("cmd \u2013-% '\n", "'\n"),
+    ("cmd \u2014\u2014% '\n", "'\n"),
+    ("cmd -\u2013% '\n", "'\n"),
+    ("$a = @'  \nx\n'@\n", ""),
+]
+
+
 @pytest.mark.parametrize(
     "body",
     [
@@ -137,7 +155,23 @@ def test_what_powershell_would_look_up_never_reaches_its_parser(tmp_path, stand_
         "\x0cusing assembly ./x.dll\n'x'\n",
         "\x0busing module ./x\n'x'\n",
         "using `\nassembly ./x.dll\n'x'\n",
-        "'we are using this'\n",  # (fail closed: an English "using" too)
+        # (fail closed: an English "using" too - in a comment or a string, the whole text is
+        # looked at; none of it is taken for a comment or a string first)
+        "'we are using this'\n",
+        "# Build using dotnet\n$x = 1\n",
+        "<#\n.SYNOPSIS\nDeploys using az.\n#>\nparam($a)\n",
+        "$s = @'\nWe are using it\n'@\n$s\n",
+        "Write-Output a<#; Import-DscResource -ModuleName x #>\n",
+        "x`\n# Import-DscResource -ModuleName x\n",
+        "Configuration C {\n cmd --% '\n Import-DscResource -ModuleName //h/s/m #'\n Node x { } }\n",
+        # (the review of U3's blanking, each a lookup it let through - pwsh 7 read a module
+        # outside the project: a `#` comment PowerShell ends at U+2028, U+2029, U+0085, VT or FF;
+        # a `${x"}` in "…" or @"…"@; a `#` after a backtick-escaped space; a dash of another kind)
+        *(f"# x{end} '\n<#c#>using module ./m\n# '\n" for end in "\u2028\u2029\u0085\x0b\x0c"),
+        "# x\u2028 '\n<#c#>using assembly ./x.dll\n# '\nclass X : Evil.Base { }\n",
+        "# x\u2029 <#\n<#c#>using module ./m\n# #>\n",
+        *(f"{before}{DSC}{after}" for before, after in DSC_HIDDEN),
+        '$a = "${x"}"\n<#c#>using assembly \'./x.dll\'\n"\n',
         # (a statement whose taking out would change the rest: a comment's end, a quote)
         "<#\nusing module x #>\n$y = 1\n",
         "using assembly 'a;b.dll'\n'x'\n",
@@ -150,7 +184,11 @@ def test_a_script_that_would_have_its_parser_look_something_up_is_not_read(
     tmp_path, stand_in, body
 ):
     ((state, line),) = said(tmp_path, {"a.ps1": body})
-    assert (state, line) == ("note", "a.ps1: not checked: it loads a module or an assembly")
+    assert (state, line) == (
+        "note",
+        "a.ps1: not checked: it may load a module or an assembly (it names `using` or "
+        "Import-DscResource)",
+    )
 
 
 @pytest.mark.parametrize(
@@ -446,3 +484,109 @@ def test_a_using_variable_is_no_statement_and_is_read(tmp_path, stand_in):
     assert said(tmp_path, {"a.ps1": "$x = 1\n1..2 | ForEach-Object -Parallel { $using:x }\n"}) == [
         ("passed", "a.ps1: parses")
     ]
+
+
+def test_no_folder_of_a_read_is_left_behind_whatever_its_shell_left_running(
+    tmp_path, stand_in, monkeypatch
+):
+    # (Six empty koloni-script-* folders stayed in %TEMP%: a process the shell left behind held
+    # its folder as its own, and the folder's removal failed unsaid. Now what the shell started
+    # ends with the read - its job on Windows, its group elsewhere - and the folder goes.)
+    import tempfile
+
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp))
+    monkeypatch.setattr(proof_kinds, "BASH_SECONDS", 2)
+    rows = said(tmp_path / "p", {"left.sh": "grandchild\n", "hung.sh": "grandchild hang\n"})
+    assert [state for state, _text in rows] == ["passed", "note"], rows
+    assert list(temp.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("first", "row"),
+    [
+        ("#!/bin/zsh", ("note", "s.sh: not checked: its first line says it is a zsh script")),
+        (
+            "#!/usr/bin/env fish",
+            ("note", "s.sh: not checked: its first line says it is a fish script"),
+        ),
+        (
+            "#!/usr/bin/env -S python3 -u",
+            ("note", "s.sh: not checked: its first line says it is a python3 script"),
+        ),
+        ("#!/bin/ksh", ("note", "s.sh: not checked: its first line says it is a ksh script")),
+        # (bash reads these: no first line of that kind, sh, bash, dash, through env too)
+        (
+            "#!/bin/sh",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+        (
+            "#!/usr/bin/env bash",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+        (
+            "#! /bin/dash -e",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+        (
+            "# a comment",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+        (
+            "#!C:\\Program Files\\Git\\bin\\bash.exe",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+        (
+            "#!C:\\tools\\zsh.exe -l",
+            ("note", "s.sh: not checked: its first line says it is a zsh script"),
+        ),
+        (
+            "#!C:\\Program Files\\Git\\bin\\bash -e",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+    ],
+)
+def test_a_script_whose_first_line_names_another_shell_is_not_read_by_bash(
+    tmp_path, stand_in, first, row
+):
+    # (U1: a valid zsh script was "does not parse" and sent back to fix)
+    assert said(tmp_path, {"s.sh": f"{first}\n{BROKEN}"}) == [row]
+
+
+@needs_bash
+def test_what_bash_warns_of_with_exit_0_is_a_note(tmp_path):
+    # (U2: a here-document ended by the file's end - bash -n exits 0 and warns: not "does not parse")
+    rows = said(
+        tmp_path, {"heredoc.sh": "cat <<EOF\nline\n", "zsh.sh": "#!/bin/zsh\nprint -l **/*(.)\n"}
+    )
+    assert rows[0] == ("passed", "heredoc.sh: parses"), rows
+    assert rows[-1] == ("note", "zsh.sh: not checked: its first line says it is a zsh script")
+    # (its warning, where this bash gives one - Git's 5.2 does: a note of its own)
+    assert all(
+        state == "note" and line.startswith("heredoc.sh:") and "bash warns - " in line
+        for state, line in rows[1:-1]
+    ), rows
+
+
+def test_a_failure_beside_a_warning_says_the_failure(tmp_path, stand_in):
+    # (U2: it quoted bash's here-document warning as the reason it did not parse)
+    assert said(tmp_path, {"s.sh": "warn and fail\n"}) == [
+        ("failed", "s.sh:3: does not parse - syntax error: unexpected end of file")
+    ]
+
+
+@needs_bash
+def test_bash_s_own_failure_beside_its_warning_is_said(tmp_path):
+    ((state, line),) = said(tmp_path, {"s.sh": "if true; then\ncat <<EOF\nline\n"})
+    assert state == "failed" and "syntax error" in line and "warning" not in line, line
+
+
+def test_a_crlf_scripts_windows_path_to_bash_is_bash(tmp_path, stand_in):
+    # (re-check: its first line's CR left "C:\Program" as the program - "a program script")
+    body = "#!C:\\Program Files\\Git\\bin\\bash.exe\r\n" + BROKEN.replace("\n", "\r\n")
+    rows = said(tmp_path, {"s.sh": body})
+    assert rows[0] == (
+        "failed",
+        "s.sh:5: does not parse - syntax error near unexpected token `fi'",
+    ), rows

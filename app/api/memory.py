@@ -157,6 +157,8 @@ async def add_suggested_rule(
     )
     if found is None:
         raise HTTPException(404, "no such suggestion: the approvals no longer suggest it")
+    if line := found.get("mentioned"):  # (S: never beside the user's own line on that path)
+        raise HTTPException(409, f"not added: your own words name that path - “{line[:200]}”")
     text = cards.with_rule(rules, found["rule"])
     try:
         if (tidy := kept.check_rules(text)) != rules:

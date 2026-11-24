@@ -501,13 +501,20 @@ adds whether it parses. KOLONİ reads it as its shell would and runs nothing of 
 `.bash` file with `bash -n` (on Windows Git's bash, never WSL's), a `.ps1` or `.psm1` file with
 PowerShell's own parser - the script's text given on its input, never in a command line, the
 shell started with none of your variables in an empty folder of its own, 10 s (bash) or 20 s
-(PowerShell) at most, then stopped with all it started. bash reads with `extglob` on. A `using
-assembly`, `using module` or `#requires` statement that names modules or assemblies is left out
-before PowerShell reads it, so nothing is looked up or loaded; a script that would still make
-its parser look one up - a `using` it cannot take out (a comment between its words, a line
-continued with a backtick, any `using` but `using namespace`, an English "using" in a comment
-too), an `Import-DscResource` - is not read: "not checked: it loads a module or an assembly".
-A type of a module left out is said, not failed. With Windows PowerShell 5.1 alone (no
+(PowerShell) at most, then stopped with all it started; its folder is removed after it. bash
+reads with `extglob` on. A `.sh` whose first line names another shell or language (`#!/bin/zsh`,
+`#!/usr/bin/env fish`, `python3`) is not bash's to read: "not checked: its first line says it is
+a zsh script" - one with no such line, or `sh`, `bash` or `dash`, is. What bash only warns of
+(a here-document ended by the file's end) is said as a note, never as a failure; where bash
+also fails, its error is said. A `using assembly`, `using module` or `#requires` statement that
+names modules or assemblies is left out before PowerShell reads it, so nothing is looked up or
+loaded; a script that would still make its parser look one up - a `using` it cannot take out (a
+comment between its words, a line continued with a backtick, any `using` but `using namespace`,
+an English "using" in a comment or a string too), an `Import-DscResource` - is not read: "not
+checked: it may load a module or an assembly (it names `using` or Import-DscResource)". KOLONİ
+looks at the whole text for these, none of it taken for a comment or a string first: only
+PowerShell's own parser knows where those end, and it is the very reader that would look the
+module up. A type of a module left out is said, not failed. With Windows PowerShell 5.1 alone (no
 PowerShell 7 here), a `Configuration` or PowerShell 7's own syntax (`??`, `&&`) is "not checked:
 it needs PowerShell 7". A `.sh` with Windows line endings (CR LF) is read as Git's bash reads it,
 and said: bash on Linux will not run it as it is. Where this machine has no bash or no
@@ -671,7 +678,13 @@ also what does not fit in the diff the Reviewer is shown.
   change - until MERGE with the tests passing, or the **Fix rounds** are spent. Then the section
   lists the findings and says "Still on hold after 2 fix rounds: you decide (Fix it)"; **Fix it**
   sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
-  as data, never as your words.
+  as data, never as your words. The findings are the rows of all its **Findings** sections - a
+  `## Findings` heading or a "Findings:" line, each to the next heading. A "Findings:" line that
+  sums up - "Findings: 1 blocking" above the rows, "Findings: see above, nothing blocking."
+  closing the report - takes no row away; "Findings: none" says it found nothing where no
+  section has a row. A section quoted from an earlier look (indented four spaces, or after `>`)
+  is not read - rows nested under a section of its own are - and neither is the instruction's
+  own row echoed back (`<what> | kind: <kind>`).
 - Each look is an agent's work on its model: on the canvas, in its window and in Usage. In the
   chat its step reads "KOLONİ's look: Reviewer", not as one of the Orchestrator's. KOLONİ's looks
   - a review, a look again, the live try's Tester, a stronger model's diagnosis and fix - use none
