@@ -7,12 +7,14 @@ asked). A problem on a line the turn wrote fails, the others are said. The tools
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
 
 from app import proof, proof_style
 from app.executors import host
+from tests.conftest import scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.keyed import OWN
 from tests.test_agent_writes import wait_status, write
@@ -827,3 +829,388 @@ def test_a_program_an_earlier_turn_planted_is_not_run_by_a_rule_either(
     (project_dir / planted).write_text("@echo the project's\n", encoding="utf-8")
     again(client, wait_run, cid)
     assert [Path(cwd).name for _c, cwd in executor.started].count("admin") == 1, executor.started
+
+
+# --- the second session's round (W1, W2): a program an agent wrote, a name a shim runs bare ------
+
+
+@pytest.mark.parametrize("name", ["node.cmd", "NODE.EXE", "python.exe", "node", "py.bat"])
+def test_a_name_a_shim_runs_bare_written_where_it_runs_is_never_run(tmp_path, name):
+    # W1: npm's tsc.cmd runs `node` - cmd.exe looked in the folder it runs in first
+    eslint_in(tmp_path, "admin")
+    said = proof_style.planted(tmp_path, tmp_path, an_eslint("admin"), [f"admin/{name}"])
+    assert said == f"this turn wrote {name} in the folder it runs in"
+    # (elsewhere, or another name: as before)
+    assert proof_style.planted(tmp_path, tmp_path, an_eslint("admin"), [f"web/{name}"]) is None
+    for other in ("admin/nodes.cmd", "admin/node.txt", "admin/src/node.cmd"):
+        assert proof_style.planted(tmp_path, tmp_path, an_eslint("admin"), [other]) is None
+
+
+def test_a_program_named_by_its_path_is_planted_by_itself_or_its_install_folder(tmp_path):
+    (tmp_path / "web").mkdir()
+    wrote = proof_style.wrote_program
+    # (out of an install folder: the program, or a file Windows runs by its name, alone)
+    assert wrote(tmp_path, ".", "./scripts/check", ["scripts/check.cmd"]) == "scripts/check"
+    assert wrote(tmp_path, ".", "scripts/check", ["scripts/CHECK"]) == "scripts/check"
+    assert wrote(tmp_path, ".", "scripts/check", ["scripts/check.txt", "scripts/x.cmd"]) is None
+    # (in one: anything in it - what its shim runs is there too)
+    tsc = "node_modules/.bin/tsc"
+    assert wrote(tmp_path, "web", tsc, ["web/node_modules/typescript/bin/tsc"]) == (
+        "web/node_modules"
+    )
+    assert wrote(tmp_path, "web", tsc, ["node_modules/.bin/tsc.cmd"]) is None
+    assert wrote(tmp_path, ".", ".venv\\Scripts\\ruff.exe", [".venv/Lib/site-packages/x.py"]) == (
+        ".venv"
+    )
+
+
+def test_a_program_named_in_quotes_is_found_as_its_shell_reads_it(tmp_path):
+    # W2: a quoted program path with a space in it - one word, as `commands._words` reads it
+    from app.command_runner import _planted
+    from app.db.models import Agent, Conversation, FileChange, Project
+    from app.db.models import Run as RunRow
+    from app.db.session import make_engine, make_session_factory, upgrade_db
+    from app.workspace import sha256_text
+
+    upgrade_db(tmp_path / "k.db")
+    factory = make_session_factory(make_engine(tmp_path / "k.db"))
+    tool = tmp_path / "my tools" / "node_modules" / ".bin" / "tsc.cmd"
+    tool.parent.mkdir(parents=True)
+    tool.write_text("@echo PLANTED\n", encoding="utf-8")
+    with factory() as session:
+        session.add(Project(id="p", name="p", root_path=str(tmp_path)))
+        session.flush()
+        session.add(Conversation(id="c", project_id="p"))
+        session.flush()
+        session.add(RunRow(id="r", conversation_id="c", status="completed"))
+        session.flush()
+        session.add(Agent(id="a", run_id="r", role_name="Lead", tools=[]))
+        session.flush()
+        session.add(
+            FileChange(
+                run_id="r",
+                agent_id="a",
+                path="my tools/node_modules/.bin/tsc.cmd",
+                kind="create",
+                after_content="@echo PLANTED\n",
+                after_sha=sha256_text("@echo PLANTED\n"),
+                status="applied",
+            )
+        )
+        session.commit()
+    for line in (
+        '"my tools/node_modules/.bin/tsc.cmd" -p x',
+        "& 'my tools/node_modules/.bin/tsc.cmd'",
+    ):
+        assert _planted(factory, "c", tmp_path, line, ".") == (
+            "an agent wrote its program (my tools/node_modules): no rule covers a program an "
+            "agent wrote"
+        ), line
+    # (the project's own install over it: theirs again)
+    tool.write_text("@echo the project's\n", encoding="utf-8")
+    assert _planted(factory, "c", tmp_path, '"my tools/node_modules/.bin/tsc.cmd"', ".") is None
+
+
+TSC = NODE.replace("eslint", "tsc")
+TSC_LINE = f"{TSC} --noEmit --pretty false --incremental false -p tsconfig.json"
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize(
+    ("written", "cwd", "asked"),
+    [
+        (f"sub096/{TSC}", "sub096", "sub096/node_modules"),  # (the review's Q4)
+        (TSC, ".", "node_modules"),  # (over the project's own)
+        ("sub096/notes.md", ".", None),  # (an install nobody wrote in: the rule covers it)
+    ],
+)
+def test_an_always_rule_does_not_cover_a_program_an_agent_wrote(
+    make_client, wait_run, project_dir, written, cwd, asked
+):
+    """W2: the root's tsc has an Always rule; a later turn runs the rule's very line where an
+    agent wrote a tsc of its own - asked on a card, whatever the rule says, and said why."""
+    from tests.test_agent_commands import cmd
+
+    (project_dir / TSC).parent.mkdir(parents=True)
+    (project_dir / TSC).write_text("@echo the project's\n", encoding="utf-8")
+    executor = ScriptedExecutor([PASS, PASS, PASS, PASS])
+    client, _model = make_client(
+        [
+            write(written, "@echo PLANTED %*\n", "w1"),
+            text("done"),
+            cmd(TSC_LINE, "k1", **({"cwd": cwd} if cwd != "." else {})),
+            text("asked"),
+        ],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    wait_run(client, cid, run_id)
+    made = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": TSC_LINE}, headers=OWN
+    )
+    assert made.status_code in (200, 201), made.text
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "check"}).json()
+    if asked is None:
+        snap = wait_run(client, cid, second["run"]["id"])
+        (ran,) = [one for one in snap["commands"] if one["command"] == TSC_LINE]
+        assert ran["status"] == "exited", snap["commands"]
+        return
+    snap = wait_status(client, cid, "waiting_approval")
+    (card,) = [one for one in snap["commands"] if one["command"] == TSC_LINE]
+    assert card["status"] == "proposed", snap["commands"]
+    assert card["danger"] == (
+        f"an agent wrote its program ({asked}): no rule covers a program an agent wrote"
+    )
+    assert TSC_LINE not in [line for line, _cwd in executor.started]
+    client.post(f"/api/commands/{card['id']}/reject")
+    wait_run(client, cid, second["run"]["id"])
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize("mode", ["auto_edit", "full_auto"])
+def test_a_triggers_leave_does_not_run_a_program_an_agent_wrote(
+    make_client, wait_run, project_dir, mode
+):
+    """W2 where nobody watches (the re-review's probe): a trigger with write leave and a ticked
+    rule for tsc's line - the agent writes over the project's tsc and runs the line: refused,
+    its why in the result, at any level."""
+    from tests.test_agent_commands import cmd
+    from tests.test_triggers import allow, leave, run_now, setup, trigger
+
+    (project_dir / TSC).parent.mkdir(parents=True)
+    (project_dir / TSC).write_text("@echo the project's\n", encoding="utf-8")
+    executor = ScriptedExecutor([PASS, PASS, PASS, PASS])
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        [write(TSC, "@echo PLANTED %*\n", "w1"), cmd(TSC_LINE, "k1"), text("done")],
+        executor=executor,
+        permission_mode=mode,
+    )
+    rules = [allow(client, cid, TSC_LINE)]
+    made = trigger(client, pid, cid, permissions=leave(write=True, commands=rules))
+    snap = wait_run(client, cid, run_now(client, made["id"]))
+    assert (project_dir / TSC).read_text() == "@echo PLANTED %*\n"
+    assert TSC_LINE not in [line for line, _cwd in executor.started], executor.started
+    (refused,) = [one for one in snap["commands"] if one["command"] == TSC_LINE]
+    assert refused["status"] == "refused", snap["commands"]
+    said = [str(m["content"]) for m in model.calls[-1] if m["role"] == "tool"]
+    assert any(
+        "an agent wrote its program (node_modules)" in one and "nobody is here to ask" in one
+        for one in said
+    ), said
+
+
+# --- the second session's round (W3-W5): what a tool said, how long its lines take ------------
+
+
+@pytest.mark.parametrize(
+    ("line", "tool", "runs"),
+    [
+        ("pip install ruff", "ruff", False),
+        ("echo ruff", "ruff", False),
+        ("ruff --version", "ruff", False),
+        ("pytest -q -k ruff", "ruff", False),
+        ("npm install eslint", "eslint", False),
+        ("npx eslint -v", "eslint", False),
+        ("pytest -k mypy", "mypy", False),
+        ("ruff format --check . && echo ok", "ruff", False),
+        (".venv/Scripts/ruff.exe check", "ruff", True),
+        ("ruff check . && ruff format --check .", "ruff", True),
+        ("FORCE_COLOR=0 uv run --frozen ruff check src", "ruff", True),
+        ("python -m mypy src", "mypy", True),
+        ("cd web && npx tsc --noEmit", "tsc", True),
+    ],
+)
+def test_a_check_line_runs_a_tool_only_as_a_commands_program(line, tool, runs):
+    assert proof_style.runs_tool(line, tool) is runs
+
+
+@pytest.mark.parametrize(
+    ("tool", "output", "said"),
+    [
+        (
+            "ruff",
+            "lint096.py:1:7: invalid-syntax: Expected a parameter name\nFound 1 error.\n",
+            "ruff invalid-syntax - Expected a parameter name",
+        ),
+        (
+            "ruff",
+            "lint096.py:1:7: SyntaxError: Expected ')'\n",
+            "ruff invalid-syntax - Expected ')'",
+        ),
+        ("mypy", "lint096.py:1: error: invalid syntax  [syntax]\n", "mypy syntax - invalid syntax"),
+        ("tsc", "lint096.py(1,7): error TS1005: ',' expected.\n", "tsc TS1005 - ',' expected."),
+        (
+            "eslint",
+            "lint096.py\n  1:7  error  Parsing error: Unexpected token\n",
+            "eslint - Parsing error: Unexpected token",
+        ),
+    ],
+)
+def test_a_file_a_tool_cannot_parse_is_a_problem_not_unread_output(tmp_path, tool, output, said):
+    # W3: ruff's concise `invalid-syntax:` was "its output was not read (exit 1)"
+    run = proof_style.Run(tool, "x", ".", ("lint096.py",))
+    rows = proof_style.rows_of(run, 1, output, tmp_path, {"lint096.py": [1]})
+    assert [(one["state"], one["text"]) for one in rows] == [("failed", f"lint096.py:1: {said}")]
+    # (on a line the turn did not write: said, never a pass)
+    rows = proof_style.rows_of(run, 1, output, tmp_path, {"lint096.py": [2]})
+    assert [one["state"] for one in rows] == ["note"]
+
+
+REPEATED = ("a = 1\n" * 1200, "".join("b = 2\n" if n % 10 == 0 else "a = 1\n" for n in range(1200)))
+
+
+def test_a_file_too_large_to_compare_in_time_is_not_judged_and_never_passes(tmp_path):
+    # W4: only the files a tool said a problem in are compared, while the kind's time lasts
+    run = proof_style.Run("ruff", LINE, ".", ("app.py", "big.py", "quiet.py"))
+    texts = {"app.py": ("", NEW), "big.py": REPEATED, "quiet.py": REPEATED}
+    added = proof_style.Changed(texts, time.monotonic() + 60)
+    output = "app.py:1:8: F401 [*] `os` imported but unused\nbig.py:5:1: E501 Line too long\n"
+    rows = proof_style.rows_of(run, 1, output, tmp_path, added)
+    assert [(one["state"], one["text"]) for one in rows] == [
+        ("failed", "app.py:1: ruff F401 - `os` imported but unused"),
+        ("note", "ruff: 1 problems not judged - too large to compare in time: big.py"),
+    ]
+    assert sorted(added._lines) == ["app.py", "big.py"]  # (quiet.py: never compared)
+    # (the kind's time gone: nothing is compared, nothing passes)
+    late = proof_style.Changed({"app.py": ("", NEW)}, time.monotonic() - 1)
+    rows = proof_style.rows_of(run, 1, "app.py:1:8: F401 x\n", tmp_path, late)
+    assert [one["state"] for one in rows] == ["note"] and "not judged" in rows[0]["text"]
+
+
+GROWTH = """
+import sys, time
+from app.proof import changed_lines
+lines, spread = int(sys.argv[1]), sys.argv[2] == "spread"
+if spread:  # (every line its own, every 7th changed: anchored, exact)
+    before = "".join(f"x{n} = {n}\\n" for n in range(lines))
+    after = "".join(f"x{n} = {n + (n % 7 == 0)}\\n" for n in range(lines))
+else:  # (one line repeated, every 10th changed: difflib's worst)
+    before = "a = 1\\n" * lines
+    after = "".join("b = 2\\n" if n % 10 == 0 else "a = 1\\n" for n in range(lines))
+start = time.perf_counter()
+said = changed_lines(before, after)
+print(len(before), "none" if said is None else len(said), time.perf_counter() - start)
+"""
+
+
+@pytest.mark.parametrize(
+    ("lines", "kind", "said"),
+    [(400, "repeated", "40"), (2600, "repeated", "none"), (1300, "spread", "186")],
+)
+def test_comparing_a_files_lines_stays_short_whatever_its_size(lines, kind, said):
+    """W4: autojunk-off difflib took 1.8 s on 1 000 repeated lines and grew past their square
+    (2 600 such lines, 15.6 KB: about 30 s). In a child process, at most ~16 KB of input."""
+    done = subprocess.run(
+        [sys.executable, "-c", GROWTH, str(lines), kind],
+        capture_output=True,
+        text=True,
+        timeout=scaled(60),
+        cwd=Path(__file__).resolve().parents[1],
+    )
+    size, found, seconds = done.stdout.split()
+    assert int(size) <= 16 * 1024 and found == said, done.stdout + done.stderr
+    assert float(seconds) < (20 if os.environ.get("CI") else 5), done.stdout
+
+
+@pytest.mark.parametrize(
+    ("run", "texts", "gone", "said"),
+    [
+        # (pyproject's [tool.ruff]: its own part changed - another part did not change it)
+        (
+            ("ruff", ".", ("app.py",)),
+            {"pyproject.toml": ("[tool.ruff]\n", "[tool.ruff]\nlint.ignore = ['F401']\n")},
+            (),
+            "pyproject.toml",
+        ),
+        (
+            ("ruff", ".", ("app.py",)),
+            {
+                "pyproject.toml": (
+                    '[project]\nname = "x"\n[tool.ruff]\n',
+                    '[project]\nname = "y"\n[tool.ruff]\n',
+                )
+            },
+            (),
+            None,
+        ),
+        (
+            ("ruff", ".", ("web/app.py",)),
+            {"web/ruff.toml": ("", "exclude = ['*']\n")},
+            (),
+            "web/ruff.toml",
+        ),
+        (("ruff", ".", ("app.py",)), {"api/ruff.toml": ("", "exclude = ['*']\n")}, (), None),
+        (("ruff", ".", ("app.py",)), {}, ("RUFF.toml",), "RUFF.toml"),
+        (
+            ("tsc", "web", ("web/a.ts",)),
+            {"tsconfig.base.json": ("{}", '{"strict": false}')},
+            (),
+            "tsconfig.base.json",
+        ),
+        (
+            ("mypy", ".", ("a.py",)),
+            {"setup.cfg": ("[mypy]\n", "[mypy]\n[mypy-x.*]\nignore_errors = True\n")},
+            (),
+            "setup.cfg",
+        ),
+        (
+            ("eslint", ".", ("a.js",)),
+            {"package.json": ('{"name": "x"}', '{"name": "y"}')},
+            (),
+            None,
+        ),
+        (
+            ("eslint", ".", ("a.js",)),
+            {"package.json": ("{}", '{"eslintConfig": {"rules": {}}}')},
+            (),
+            "package.json",
+        ),
+    ],
+)
+def test_a_tools_settings_the_turn_changed_are_said_beside_what_it_found(run, texts, gone, said):
+    # W5: the turn's `ignore = ["F401"]` made ruff quiet on its own lines
+    tool, cwd, files = run
+    note = proof_style.settings_changed(proof_style.Run(tool, "x", cwd, files), texts, gone)
+    expected = proof_style.SETTINGS_CHANGED.format(tool=tool, path=said) if said else None
+    assert note == expected
+
+
+@pytest.mark.parametrize(
+    ("tool", "output", "said"),
+    [
+        (
+            "ruff",
+            "\x1b[33mwarning\x1b[0m: No Python files found under the given path(s)\n",
+            "ruff: not checked - it found none of the turn's files to check "
+            "(No Python files found under the given path(s))",
+        ),
+        (
+            "eslint",
+            'a.js\n  0:0  warning  File ignored because of a matching ignore pattern. Use "--no-ignore"'
+            " to override\n",
+            "eslint: 1 of the turn's files not checked - its settings leave them out",
+        ),
+    ],
+)
+def test_a_tool_that_checked_none_of_the_files_never_passes(tmp_path, tool, output, said):
+    # W5: a `force-exclude` over the turn's file: ruff ends 0, having checked nothing
+    run = proof_style.Run(tool, "x", ".", ("a.js",))
+    rows = proof_style.rows_of(run, 0, output, tmp_path, {"a.js": [1]})
+    assert [(one["state"], one["text"]) for one in rows] == [("note", said)]
+
+
+@pytest.mark.no_po
+def test_ruffs_settings_the_turn_changed_are_said_on_its_row(make_client, wait_run, project_dir):
+    set_up(project_dir)
+    executor = ScriptedExecutor([PASS, RUFF_CLEAN])
+    settings = '[project]\nname = "x"\n\n[tool.ruff]\nlint.ignore = ["F401"]\n'
+    client, _model = make_client(
+        [write("pyproject.toml", settings, "w0"), write("app.py", NEW), text("done")],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    rows = texts(wait_run(client, cid, run_id))
+    assert "ruff's settings changed this turn (pyproject.toml) - the check runs by them" in rows
+    assert "ruff: no problems on the lines this turn changed (1 files)" in rows, rows

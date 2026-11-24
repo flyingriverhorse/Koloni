@@ -201,10 +201,11 @@ class KindsMixin:
             for one in held.rows
             if one["kind"] == "tests" and one["state"] in ("passed", "failed") and one["command"]
         ]
-        message_id, added = await asyncio.to_thread(self._style_record, ctx)
+        message_id, texts = await asyncio.to_thread(self._style_record, ctx)
         if message_id is None:
             return [*rows, proof.row(proof_style.STYLE, "note", proof_style.NO_ANSWER)]
         until = time.monotonic() + proof_style.STYLE_SECONDS
+        added = proof_style.Changed(texts, until)  # (W4: a file's lines once a tool says of it)
         for run in runs:
             if any(proof_style.runs_tool(line, run.tool) for line in theirs):
                 rows.append(
@@ -216,9 +217,12 @@ class KindsMixin:
             rows += await self._style_run(ctx, ws, run, held, message_id, until, added)
         return rows
 
-    def _style_record(self: "AgentRunner", ctx: Ctx) -> tuple[str | None, dict[str, list[int]]]:
-        """The Lead's last answer, which KOLONİ's runs go on (as its test runs do), and the lines
-        the turn added or changed in each file (`proof.added_lines`)."""
+    def _style_record(
+        self: "AgentRunner", ctx: Ctx
+    ) -> tuple[str | None, dict[str, tuple[str, str]]]:
+        """The Lead's last answer, which KOLONİ's runs go on (as its test runs do), and each file
+        the turn changed, its first before and last after (`proof.turn_texts`) - compared only for
+        a file a tool said a problem in (`proof_style.Changed`)."""
         with self._factory() as session:
             message_id = session.scalar(
                 select(Message.id)
@@ -230,7 +234,7 @@ class KindsMixin:
                 .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
                 .limit(1)
             )
-            return message_id, proof.added_lines(
+            return message_id, proof.turn_texts(
                 session, ctx.run_id, ctx.agent_id, self._sharing(ctx)
             )
 
@@ -308,7 +312,7 @@ class KindsMixin:
         held: "Proof",
         message_id: str,
         until: float,
-        added: dict[str, list[int]],
+        added: "proof_style.Changed",
     ) -> list[Row]:
         """One tool's command, on record as KOLONİ's call on the Lead's last answer (its card
         there where one is asked): a no stands for the tool in that folder this turn; a yes is
@@ -341,7 +345,11 @@ class KindsMixin:
         if ended == "failed_to_start":  # (its time gone, its folder not there: as it said)
             return _not_run(run, result.removeprefix("error: "))
         rows = await asyncio.to_thread(proof_style.rows_of, run, code, output, ws.root, added)
-        return rows + [proof.row(proof_style.STYLE, "note", one) for one in left if one]
+        gone = [one.path for one in held.changes if one.deleted]
+        settings = proof_style.settings_changed(run, added.texts, gone)  # (W5)
+        return rows + [
+            proof.row(proof_style.STYLE, "note", one) for one in (*left, settings) if one
+        ]
 
     @contextlib.asynccontextmanager
     async def _copy_window(self: "AgentRunner", copy: "copies.Copy | None", wait: float):

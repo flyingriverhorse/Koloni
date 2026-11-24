@@ -198,14 +198,29 @@ class ProcessCommand:
                 os.killpg(pid, signal.SIGKILL)
 
 
+def no_cwd_search(env: dict[str, str]) -> dict[str, str]:
+    """W1: `env` where cmd.exe finds a bare program name (an npm `.cmd` shim's `node`) on PATH
+    alone, never first in the folder it runs in - where an agent may have written a `node.cmd`
+    (as `app/git.py` has it) - over any spelling of it the user's own holds (Windows' names
+    ignore case: two would both go to the process)."""
+    return {
+        **{k: v for k, v in env.items() if k.upper() != "NODEFAULTCURRENTDIRECTORYINEXEPATH"},
+        "NoDefaultCurrentDirectoryInExePath": "1",
+    }
+
+
 def command_env(passed: str | None = None) -> dict[str, str]:
     """This machine's environment as a program KOLONİ starts gets it: KOLONİ's own settings (a
     model server's key among them) are not its to see, nor a secret variable the user did not
-    pass (slice 103) - what it prints is kept."""
+    pass (slice 103) - what it prints is kept. No search of its folder for a bare name (W1)."""
     held = set(held_back(os.environ, passed))
-    return {
-        k: v for k, v in os.environ.items() if not k.upper().startswith("KOLONI_") and k not in held
-    }
+    return no_cwd_search(
+        {
+            k: v
+            for k, v in os.environ.items()
+            if not k.upper().startswith("KOLONI_") and k not in held
+        }
+    )
 
 
 class HostExecutor:

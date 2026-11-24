@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 
 MEASURED = "Coverage: {p}% of the changed lines are run by tests ({tool})"
 NOT_MEASURED = "Coverage: not measured ({why})"
+NOT_COUNTED = "Coverage: not counted - too large to compare: {paths}"
 FLAGS_FAILED = "the flags failed"
 FAILED_BEFORE = "the flags failed before; tried again once the coverage settings change"
 NO_REPORT = "no report"
@@ -147,21 +148,24 @@ class CoverageMixin:
         diffs), and deleted after."""
         place, sharing = Path(self._ws(ctx).root), self._sharing(ctx)
 
-        def read() -> coverage.Covered | str:
+        def read() -> tuple[coverage.Covered, list[str]] | str:
             data = coverage.report(place, out, tool)
             shutil.rmtree(out, ignore_errors=True)
             if data is None:
                 return NO_REPORT
             with self._factory() as session:
                 added = proof.added_lines(session, ctx.run_id, ctx.agent_id, sharing)
+            compared = {path: lines for path, lines in added.items() if lines is not None}
             try:
-                return coverage.changed_lines_covered(place, data, tool, added, run.cwd)
+                covered = coverage.changed_lines_covered(place, data, tool, compared, run.cwd)
             except (ValueError, TypeError, AttributeError, RecursionError, MemoryError):
                 return BAD_REPORT
+            return covered, sorted(added.keys() - compared.keys())
 
-        said = await asyncio.to_thread(read)
-        if isinstance(said, str):
-            return [proof.row("coverage", "note", NOT_MEASURED.format(why=said), run.command)]
+        read_out = await asyncio.to_thread(read)
+        if isinstance(read_out, str):
+            return [proof.row("coverage", "note", NOT_MEASURED.format(why=read_out), run.command)]
+        said, too_large = read_out
         held.uncovered.update(said.uncovered)
         rows = (
             []
@@ -172,6 +176,10 @@ class CoverageMixin:
                 )
             ]
         )
+        if too_large:  # (W4: never counted as run, nor as not run)
+            more = f" +{len(too_large) - 5} more" if len(too_large) > 5 else ""
+            paths = ", ".join(too_large[:5]) + more
+            rows.append(proof.row("coverage", "note", NOT_COUNTED.format(paths=paths), run.command))
         held.measured[(run.command, run.cwd)] = (held.seen, rows, said.uncovered)
         return rows
 

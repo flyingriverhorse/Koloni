@@ -6,18 +6,19 @@ import os
 import re
 import time
 from collections.abc import Awaitable, Callable, Mapping
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-from sqlalchemy import func, select
+from sqlalchemy import func, literal_column, select, true
 from sqlalchemy.exc import IntegrityError
 
-from app import project_map
+from app import ledger, project_map, proof, proof_style
 from app.cards import card_reason
 from app.commands import ANSI as _ANSI
 from app.commands import (
     MAX_STORED_OUTPUT,
     OutputMask,
+    _words,
     applies_patch,
     danger,
     for_model,
@@ -32,7 +33,17 @@ from app.commands import (
     standing_asked,
     with_cwd,
 )
-from app.db.models import Agent, AllowedCommand, Command, Conversation, Project, Run, ToolCall, now
+from app.db.models import (
+    Agent,
+    AllowedCommand,
+    Command,
+    Conversation,
+    FileChange,
+    Project,
+    Run,
+    ToolCall,
+    now,
+)
 from app.executors.base import Executor, StartError
 from app.serialize import allowed_command_out, command_event, command_out
 from app.tools import ToolError, plan_command
@@ -167,6 +178,52 @@ def _noted(disposable: dict | None, unasked: bool) -> dict | None:
     return None if disposable is None else {"what": disposable["what"], "unasked": unasked}
 
 
+PLANTED = "an agent wrote its program ({place}): no rule covers a program an agent wrote"
+# (where nobody can be asked - a trigger's turn: its leave matches by the line's text too)
+PLANTED_REFUSED = "KOLONİ did not run this: {why}, and nobody is here to ask. " + CARRY_ON
+
+
+def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | None:
+    """W2: why a rule, a yes given before or a trigger's leave - each matches by the line's text,
+    in any folder - does not cover `command`: its program, named by its path, is one an agent
+    wrote on record - any turn's, as it still stands in `root` (`proof_style.still_written`) -,
+    or is in the install folder such a write is in (`proof_style.wrote_program`). None: no such
+    write. In a thread: the records are matched to the program's place first, and only those
+    files are read, once the session is closed.
+    shortcut: the program alone - a script an interpreter is given (`node x.js`) is not judged
+    so; judge it too if a rule of one is seen to run one an agent wrote."""
+    words = _words(command)
+    words = words[1:] if words[:1] in (["&"], ["."]) else words  # (PowerShell's call)
+    program = words[0].strip("'\"") if words else ""
+    parts = PurePosixPath(program.replace("\\", "/")).parts
+    if not parts or ("/" not in program and "\\" not in program):
+        return None
+    named = next(
+        (part for part in parts if part.casefold() in proof_style.INSTALLS),
+        parts[-1].split(".")[0],
+    ).lower()
+    with factory() as session:
+        found = session.execute(
+            select(FileChange.path, FileChange.after_sha)
+            .join(Run, Run.id == FileChange.run_id)
+            .join(Conversation, Conversation.id == Run.conversation_id)
+            .where(
+                Conversation.project_id
+                == select(Conversation.project_id).where(Conversation.id == cid).scalar_subquery(),
+                FileChange.status.in_((*ledger.KEPT, proof.MERGED)),
+                # (SQLite lowers ASCII alone: another name is looked for in every path)
+                func.lower(FileChange.path).contains(named, autoescape=True)
+                if named.isascii()
+                else true(),
+            )
+            .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
+        ).all()
+    newest = {path: digest for path, digest in found}
+    mine = [one for one in newest.items() if proof_style.wrote_program(root, cwd, program, one[:1])]
+    place = proof_style.wrote_program(root, cwd, program, proof_style.still_written(root, mine))
+    return PLANTED.format(place=place) if place else None
+
+
 HELD_BACK = (
     "(secret variables held back from this command: {names} - the user can pass one "
     "in Settings › This project › Commands and secrets)"
@@ -288,6 +345,9 @@ class CommandRunner:
         (KOLONİ's own test runs: their processes, S6) - never an agent's command."""
         planned = plan_command(ws, args)
         searched = await asyncio.to_thread(search_reason, planned.command, ws.root, planned.cwd_rel)
+        planted = await asyncio.to_thread(
+            _planted, self._factory, cid, ws.root, planned.command, planned.cwd_rel
+        )
         reads = await asyncio.to_thread(
             reads_here, planned.command, ws.root, planned.cwd_rel == ".", planned.cwd_rel
         )
@@ -332,6 +392,21 @@ class CommandRunner:
             # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
             judged = with_cwd(planned.command, planned.cwd_rel)
             free = _free(ask, disposable, conversation.permission_mode, project.disposable_deletes)
+            covered = (
+                is_allowed(planned.command, prefixes)
+                or reads
+                or own
+                or free
+                or planned.command in (once or ())
+            )
+            # W2: never a program an agent wrote by a rule or a yes given before - on its card -,
+            # nor by a trigger's leave where nobody can be asked: refused. (Full auto, watched:
+            # it runs, as any command does.)
+            by_leave = conversation.permission_mode != "full_auto" and covered
+            planted = planted if by_leave or not ask else None
+            refused = bool(planted) and not ask
+            if planted and asked is not None and not asked.why_asked:
+                asked.why_asked = planted
             asks = ask and (
                 always
                 or names_secret(judged)
@@ -342,16 +417,7 @@ class CommandRunner:
                 or _lapsed(disposable, free)
                 or (
                     conversation.permission_mode != "full_auto"
-                    and (
-                        planned.keep_running
-                        or not (
-                            is_allowed(planned.command, prefixes)
-                            or reads
-                            or own
-                            or free
-                            or planned.command in (once or ())
-                        )
-                    )
+                    and (planned.keep_running or not covered or bool(planted))
                 )
             )
             # The place is fixed now: changing the project setting while this command
@@ -365,8 +431,8 @@ class CommandRunner:
                 location=project.exec_location,
                 image=project.docker_image if project.exec_location == "docker" else None,
                 timeout_seconds=planned.timeout,
-                status="refused" if forbidden else "proposed" if asks else "approved",
-                ended_at=now() if forbidden else None,
+                status="refused" if forbidden or refused else "proposed" if asks else "approved",
+                ended_at=now() if forbidden or refused else None,
                 keep_running=planned.keep_running,
                 web_off=web_off,
                 # shortcut: a check that said run on one asked for another reason (a search that
@@ -394,6 +460,8 @@ class CommandRunner:
         self.bus.emit(cid, run_id, "command.created", payload)
         if forbidden and judgement:  # K-yargic: a sentence of the user's forbids it - not run
             return "denied", refused_by_rule(judgement)
+        if refused:
+            return "denied", PLANTED_REFUSED.format(why=planted)
 
         if asks:
             # (`rule` is empty when this command cannot be remembered.)

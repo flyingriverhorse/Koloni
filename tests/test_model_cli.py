@@ -167,6 +167,8 @@ def test_a_cli_is_not_given_kolonis_own_settings(monkeypatch):
         env = kind()._inherited()
         assert [name for name in env if name.upper().startswith("KOLONI_")] == []
         assert env["NOT_KOLONIS"] == "the-users-own"
+        # W1: its shim (cmd.exe, in the work's folder) and its commands find `node` on PATH alone
+        assert env["NoDefaultCurrentDirectoryInExePath"] == "1"
 
 
 async def test_claude_is_run_with_its_tools_off_in_an_empty_folder(cli):

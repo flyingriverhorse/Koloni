@@ -104,6 +104,20 @@ You can see and remove the rules you made under Settings › This project › **
 
 Below Full auto, a command that keeps running (a server) asks every time, even with a rule.
 
+Nor does a rule - or a yes you gave before - cover a command whose program, named by its path in
+the project (`node_modules/.bin/tsc`, `./scripts/check`), is one an agent wrote, or sits in an
+install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in, while that file still
+holds what the agent wrote: below Full auto it asks on a card that says so ("an agent wrote its
+program (web/node_modules): no rule covers a program an agent wrote"), and in a turn nobody can
+be asked in - a trigger's, whatever its leave - it is not run at any level. A rule matches by its
+words in any folder, so the same line in another folder, or after an agent's write over the
+project's own install, would otherwise run what the agent wrote. Once your own install writes
+over it, the rule covers it again.
+
+On Windows, a command KOLONİ runs, a server it starts and an agent's CLI (started in the work's
+folder) find a program named bare - `node`, which an npm `.cmd` shim calls - on PATH only, never
+first in the folder they run in, where an agent could have written a `node.cmd`.
+
 ## How a command is read
 
 KOLONİ reads an agent's command line the way its shell will run it, and judges every command it
