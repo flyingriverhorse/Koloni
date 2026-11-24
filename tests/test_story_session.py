@@ -313,3 +313,16 @@ def test_a_task_stop_everything_cut_goes_on_in_its_topic_and_is_no_bad_end(story
     backlog.unqueue(session, t["t1"])
     assert "held" not in (t["t1"].flow or {})
     assert stories.fresh_needed(session, topic, s) == 'its task "t1" went back to To-do'
+
+
+def test_a_held_task_marked_stuck_since_is_a_bad_end(story):
+    session, s, topic, t = story
+    cid = topic.conversation_id
+    t["t1"].status = "todo"
+    backlog.set_flow(t["t1"], place=1, held=True)
+    turn_of(session, topic, t["t1"])
+    t["t1"].status = "blocked"  # (its held went stale: a PATCH, Close's red path, ...)
+    assert stories.fresh_needed(session, topic, s) == 'its task "t1" is stuck'
+    fresh, made = stories.topic_for(session, cid, t["t2"])
+    assert made and fresh is not topic
+    assert stories.topic_for(session, cid, t["t1"]) == (fresh, False)  # (nor its own, held)

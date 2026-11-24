@@ -9,6 +9,7 @@ import sys
 import time
 from datetime import timedelta
 
+import pytest
 from sqlalchemy import select
 
 from app import agent, backlog, stories
@@ -327,3 +328,23 @@ def test_the_hive_keepers_draft_masks_a_note_before_its_cut(monkeypatch):
     )
     (kept,) = drawn["stories"][0]["notes"]
     assert "sk-live" not in kept and kept.endswith("***"), kept
+
+
+@pytest.mark.parametrize("pad", [" ", "​", "\x00", "\t"])
+def test_a_secret_the_first_cut_cuts_off_is_not_kept(monkeypatch, pad):
+    # (one_line takes the padding out: the cut-off head of a secret would come into the note)
+    secret = "Zq9vX2mB7kLw4Rt8"
+    monkeypatch.setenv("KOLONI_TEST_API_KEY", secret)
+    assert "Zq9" not in (stories._said("x" + pad * 3989 + secret, None) or "")
+    assert "Zq9" not in (stories.cut_note(pad * 3990 + secret) or "")
+    assert stories._said("x " + secret, None) == "x ***"  # (whole, it is masked as ever)
+
+
+def test_a_fence_closes_only_on_its_own_kind_and_length():
+    said = (
+        "````\n```\nStory note: decision: inside, after an inner fence\n```\n"
+        "Story note: decision: still inside\n````\n"
+        "~~~\n```\nStory note: question: inside a tilde fence\n~~~\n"
+        "Story note: decision: its own"
+    )
+    assert stories.note_lines(said) == [("decision", "its own")]

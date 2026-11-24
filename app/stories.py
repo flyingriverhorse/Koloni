@@ -37,6 +37,9 @@ PRIORITIES = ("high", "normal", "low")
 # Orchestrator adds at most NOTES_PER_TURN, each a line of its answer that starts STORY_NOTE.
 NOTE_KINDS = ("decision", "file", "result", "question")
 NOTE_MOST, NOTEBOOK_MOST, NOTES_PER_TURN = 200, 20, 3
+FIRST_CUT = NOTE_MOST * 20  # (what of a note's words is read at all: `_one_cut`)
+# A code fence's opening (or closing) line, as CommonMark reads it: three or more ` or ~.
+FENCE = re.compile(r"(`{3,}|~{3,})")
 STORY_NOTE = "Story note:"
 # Told with a story's task, its fix round too.
 SAY_STORY_NOTE = (
@@ -354,13 +357,21 @@ def _said(text: object, pass_env: str | None) -> str | None:
     NOTE_MOST (a secret cut first would no longer be seen); None for none, or for words that
     read like orders (`injection.scan`, every rule: they go to models at every turn) - as they
     came, before `one_line` makes a zero-width or soft hyphen a space that splits a phrase, and
-    as cut, where the cut ends a phrase. Cut to NOTE_MOST * 20 first: masking a long line costs
-    more than its length (a 128 KB one took seconds)."""
-    came = str(text or "")[: NOTE_MOST * 20]
-    line = masked(topics.one_line(came), pass_env)[:NOTE_MOST]
-    if not line or injection.scan(came) or injection.scan(line):
+    as cut, where the cut ends a phrase. Cut to NOTE_MOST * 20 first (`_one_cut`)."""
+    came = str(text or "")
+    line = masked(_one_cut(came), pass_env)[:NOTE_MOST]
+    if not line or injection.scan(came[:FIRST_CUT]) or injection.scan(line):
         return None
     return line
+
+
+def _one_cut(text: str) -> str:
+    """The text on one line, cut to FIRST_CUT first - masking a long line costs more than its
+    length (a 128 KB one took seconds) - and where it was longer, its last word gone too: a
+    secret cut off there is no longer seen as one, and the padding one_line takes out would
+    bring its head into the note."""
+    line = topics.one_line(text[:FIRST_CUT])
+    return line.rpartition(" ")[0] if len(text) > FIRST_CUT else line
 
 
 def cut_note(text: object) -> str | None:
@@ -369,7 +380,7 @@ def cut_note(text: object) -> str | None:
     added (`add_notes`): the user may change it before then."""
     if not isinstance(text, str):
         return None
-    return masked(text[: NOTE_MOST * 20], None).strip()[:NOTE_MOST] or None
+    return masked(_one_cut(text), None).strip()[:NOTE_MOST] or None
 
 
 def _notes(story: Story) -> list:
@@ -402,12 +413,18 @@ def note_lines(said: str) -> list[tuple[str, str]]:
     inside a code fence nor a quoted one (`>`): a file or a page it shows is not its word."""
     line = re.compile(rf"[^\w\n]*{re.escape(STORY_NOTE)}(.*)", re.IGNORECASE)
     found: list[tuple[str, str]] = []
-    fenced = False
+    fence = ""  # (the opening marker, while inside a fence: closed by one of its kind, as long)
     for one in said.splitlines():
         bare = one.lstrip()
-        if bare.startswith(("```", "~~~")):
-            fenced = not fenced
-        if fenced or bare.startswith((">", "```", "~~~")):
+        mark = FENCE.match(bare)
+        if not fence and mark:
+            fence = mark[1]
+            continue
+        if fence:
+            closes = mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence)
+            fence = "" if closes and not bare[len(mark[1]) :].strip() else fence
+            continue
+        if bare.startswith(">"):
             continue
         if (match := line.match(one)) and (note := match[1].strip(" \t*`")):
             kind, _, text = note.partition(":")
@@ -486,7 +503,8 @@ def brief(session: Session, task: BacklogTask, pass_env: str | None, first: bool
 def _bad_end(session: Session, topic: Topic, story: Story) -> str | None:
     """Rule 6: a task of the story that had a turn in `topic` and is stuck now, or back on the
     To-do list (Not yet, Stop) - its wrong guess is not carried on; why, or None. Not one Stop
-    everything cut (`flow["held"]`): held, not judged, it goes on in its topic."""
+    everything cut (`flow["held"]`), while it waits to go on: held, not judged, it goes on in
+    its topic."""
     ran = select(Run.task_id).where(Run.topic_id == topic.id, Run.task_id.is_not(None))
     bad = next(
         (
@@ -498,7 +516,7 @@ def _bad_end(session: Session, topic: Topic, story: Story) -> str | None:
                     BacklogTask.status.in_(("blocked", "todo")),
                 )
             )
-            if not (task.flow or {}).get("held")
+            if not (task.status == "todo" and (task.flow or {}).get("held"))
         ),
         None,
     )
@@ -666,7 +684,8 @@ def topic_for(session: Session, cid: str, task: BacklogTask) -> tuple[Topic, boo
     too: its wrong guess is not carried on. A story deleted since, or another project's, counts
     as none."""
     flow = task.flow or {}
-    if task.status == "doing" and flow.get("fix") or flow.get("held"):
+    held = task.status == "todo" and flow.get("held")  # (gone stale once it moved on)
+    if task.status == "doing" and flow.get("fix") or held:
         own = _last_topic(session, cid, Run.task_id == task.id)
         if own is not None:
             return own, False
