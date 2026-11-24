@@ -37,8 +37,9 @@ def test_tool_result_reaches_the_next_model_step(make_client, wait_run, project_
     # and show, every agent's at its own work; and open_room, add_skill, ask_folder and the
     # backlog's four, the lead's; and ask_secret, with run_command; and offer_away, slice 106;
     # and recall_output, every agent's at its own work: K-gecmis-zengin; and the eight browser
-    # tools, slice 51; and view_image, 28e; and diagram_image, K-drawio)
-    assert model.tool_args[0] is not None and len(model.tool_args[0]) == 38
+    # tools, slice 51; and view_image, 28e; and diagram_image, K-drawio; and command_output and
+    # stop_command, every agent's at its own work: k-araclar-018)
+    assert model.tool_args[0] is not None and len(model.tool_args[0]) == 40
 
 
 def test_tool_calls_are_kept_in_history_for_later_turns(make_client, wait_run, project_dir):
