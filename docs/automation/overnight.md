@@ -226,7 +226,8 @@ like orders to a model. It is on the summary, on the report and at the top of ea
   after your Run - run it yourself") does not run; and if anything in the job's copy changed after a
   line was parked - by an agent, a command, or an earlier line of this morning - **Run** does not run it
   ("the job changed files after this was parked: run it yourself", on the list as soon as it is
-  known). A command that runs none of the project's code (`curl`, `wget`, a file command) is the
+  known; where it runs in the project after a Take in, "its work was taken in after this was parked: run
+  it yourself"). A command that runs none of the project's code (`curl`, `wget`, a file command) is the
   exception. A program an agent wrote is still
   refused, and so is a line naming a place you kept out. A Take in or Discard under way is waited for;
   while the lines run, the copy can be neither taken in nor discarded. **Stop** in the job's chat, or

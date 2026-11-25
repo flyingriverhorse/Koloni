@@ -543,3 +543,140 @@ def test_an_install_or_a_test_run_is_closed_by_later_writes(make_client, wait_ru
     )
     rows = waiting(client, done["id"])
     assert [row["closed"] for row in rows] == [parked.WROTE_SINCE] * 2
+
+
+# --- round 4: the folders a copy's changes leave out; a value glued to curl's option --------------
+
+
+def _copy_of(client):
+    from pathlib import Path
+
+    with client.app.state.session_factory() as session:  # (one job: one copy)
+        row = session.scalars(select(Parked)).first()
+        assert row is not None
+        return Path(row.data["copy"])
+
+
+def test_a_pycache_written_after_parking_closes_the_line(make_client, wait_run, project_dir):
+    import importlib._bootstrap_external as ext
+    import importlib.util
+    from pathlib import Path
+
+    client, _pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "write them"),
+            write("go.py", "import helper\n"),
+            write("helper.py", "print('EVENING-HELPER')\n", "w2"),
+            text("written"),
+            run("python go.py"),
+            text("one done"),
+            text("went on"),
+        ],
+        mode="auto_edit",
+    )
+    source = _copy_of(client) / "helper.py"
+    stat = (
+        source.stat()
+    )  # (a cache that matches helper.py's own time and size: loaded in its place)
+    code = compile("print('EVIL-PYC')\n", str(source), "exec")
+    cache = Path(importlib.util.cache_from_source(str(source)))
+    cache.parent.mkdir(exist_ok=True)
+    cache.write_bytes(ext._code_to_timestamp_pyc(code, int(stat.st_mtime), stat.st_size))
+    (row,) = waiting(client, done["id"])
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    msg, _going = going_on_turn(client, cid)
+    assert "EVIL-PYC" not in msg and parked.WROTE_SINCE in msg
+
+
+def test_a_scratch_script_rewritten_after_parking_closes_the_line(
+    make_client, wait_run, project_dir
+):
+    client, _pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [run("python .koloni/tmp/x.py"), text("one done"), text("went on")],
+        mode="auto_edit",
+    )
+    scratch = _copy_of(client) / ".koloni" / "tmp"
+    scratch.mkdir(parents=True, exist_ok=True)
+    (scratch / "x.py").write_text("print('SCRATCH-SWAPPED')\n")
+    (row,) = waiting(client, done["id"])
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    msg, _going = going_on_turn(client, cid)
+    assert "SCRATCH-SWAPPED" not in msg and parked.WROTE_SINCE in msg
+
+
+def test_a_morning_python_leaves_no_pycache_in_the_copy_and_closes_nothing(
+    make_client, wait_run, project_dir
+):
+    client, _pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "write them"),
+            write("go.py", "import helper\n"),
+            write("helper.py", "print('EVENING-HELPER')\n", "w2"),
+            text("written"),
+            run("python go.py"),
+            run("python go.py again", "c2"),
+            text("one done"),
+            text("went on"),
+        ],
+        mode="auto_edit",
+    )
+    for row in waiting(client, done["id"]):
+        assert decide(client, done["id"], row["id"], "run").status_code == 200
+    msg, _going = going_on_turn(client, cid)
+    assert msg.count("EVENING-HELPER") == 2 and parked.WROTE_SINCE not in msg
+    assert not (_copy_of(client) / "__pycache__").exists()
+
+
+def test_a_curl_with_a_glued_config_is_closed_by_later_writes(make_client, wait_run, project_dir):
+    client, _pid, done, _cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "write it"),
+            write("cfg", "url = https://example.com\n"),
+            text("written"),
+            run("curl -Kcfg https://example.com/x"),
+            spawn("Coder", "write more", "s2"),
+            write("x.py", "x = 1\n", "w2"),
+            text("written"),
+            text("one done"),
+        ],
+        mode="auto_edit",
+    )
+    (row,) = waiting(client, done["id"])
+    assert row["closed"] == parked.WROTE_SINCE  # (it reads a file of the folder: no exception)
+
+
+def test_work_changed_in_the_project_after_take_in_says_so(make_client, wait_run, project_dir):
+    # (LOW: where it runs in the project, a difference there has its own sentence)
+    client, _pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "make hello say hello"),
+            edit(),
+            text("edited"),
+            run("python hello.py"),
+            text("one done"),
+            text("went on"),
+        ],
+        mode="auto_edit",
+    )
+    (row,) = waiting(client, done["id"])
+    (kept,) = done["jobs"][0]["kept"]
+    assert client.post(f"/api/merges/{kept}/approve").status_code == 200
+    (project_dir / "hello.py").write_text("print('CHANGED-IN-THE-PROJECT')\n")
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    msg, _going = going_on_turn(client, cid)
+    assert parked.TAKEN_IN in msg and "CHANGED-IN-THE-PROJECT" not in msg

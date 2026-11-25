@@ -125,6 +125,8 @@ SERVER = "A server line: run it yourself"
 # command's, a line of this morning's; not for a line that runs none of the project's code).
 MOVED = "its copy was taken in after your Run - run it yourself"
 WROTE_SINCE = "the job changed files after this was parked: run it yourself"
+# ...where it would run in the project, its copy's work (some of it) taken in since it was parked.
+TAKEN_IN = "its work was taken in after this was parked: run it yourself"
 STOPPED = "Stopped by you."
 CLOSED_MEANWHILE = away.CLOSED_MEANWHILE
 

@@ -93,10 +93,14 @@ run where its job's copy was taken in or discarded after your **Run**; in KOLON�
 asked for it in its own (another shell reads the same words otherwise); nor for a server. If anything
 in the job's copy changed after a line was parked - a file an agent wrote, one a command wrote, one an
 earlier line of the same morning wrote - **Run** does not run it: "the job changed files after this was
-parked: run it yourself" (KOLONİ keeps what the copy's work was as the line was parked, and looks again
-just before it runs; the list says so as soon as the job's turn is over). A command that runs none of
-the project's code - `curl`, `wget`, a file command (`rm`, `mkdir`, `cp`, `mv`…), as Full auto's judge
-reads it - is the exception. A program an agent
+parked: run it yourself" (KOLONİ keeps what the copy's work was as the line was parked - its changed
+files, and every file in its `__pycache__`, `build` and `dist` folders and the agents' scratch - and
+looks again just before it runs; the list says so as soon as the job's turn is over). Where it would run
+in the project, some of the copy taken in, the same holds of the project's files: "its work was taken in
+after this was parked: run it yourself". A Python of the morning keeps its compiled files in a folder
+of its own, never the copy's `__pycache__`. A command that runs none of the project's code - `curl`,
+`wget`, a file command (`rm`, `mkdir`, `cp`, `mv`…), as Full auto's judge reads it (a file it is told
+to read, `-K cfg` or `-Kcfg`, is code of the folder's) - is the exception. A program an agent
 wrote and a place you kept out are still refused. The list says where a line would run and which file
 an agent wrote that it runs. Nothing goes into your project without your Take in: the going-on turn's
 work, at Full auto too, is kept in its copy.

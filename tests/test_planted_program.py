@@ -230,6 +230,11 @@ def test_no_file_where_the_one_found_would_not_be_the_one_run(project, line):
         # (told a file of the folder's to read its settings or commands from)
         ("curl -K cfg https://example.com/x", False),
         ("curl -d @cfg https://example.com/x", False),
+        # (a value glued to a short option names the file too)
+        ("curl -Kcfg https://example.com/x", False),
+        ("curl -Tcfg https://example.com/x", False),
+        ("wget -icfg https://example.com/x", False),
+        ("curl -sS https://example.com/x", True),
         ("git -c core.hooksPath=hooks commit -m x", False),
     ],
 )

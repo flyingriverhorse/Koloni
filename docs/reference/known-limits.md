@@ -176,9 +176,11 @@ messages.
   interpreter (`python tool.py`, `node x.js`) is not read so: it runs on your **Run** - but only as it
   was when the line was parked (the list says "Runs a file an agent wrote").
 - If anything in the job's copy changed after a line was parked, **Run** does not run it - so a test
-  line parked early in a job is usually closed by the work after it: run it yourself. What a parked
-  line uses outside the copy (the project's linked dependency folders, files outside the project) is
-  not looked at, and a command that runs none of the project's code is not closed by changes at all.
+  line parked early in a job is usually closed by the work after it: run it yourself. What stays out
+  of that look: the dependency folders a copy links to the project's own (`node_modules`, `.venv`,
+  `venv`), files outside the project, and the caches that hold no code (`.pytest_cache`,
+  `.ruff_cache`, `.mypy_cache`, `.git`). A command that runs none of the project's code is not closed
+  by changes at all.
 - KOLONİ looks at the whole copy for this, each time a line is parked and just before each runs: about
   a second on a copy of 2,000 files (measured on Windows), the first look longer.
 - Between that last look and the line's start there is a moment - under a second - in which a process

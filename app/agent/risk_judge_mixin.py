@@ -305,9 +305,21 @@ def _no_local_code(root: Path, command: str, cwd: str) -> bool:
     program = _program(words[0]) if words else ""
     if not words or _pathlike(words[0]) or program not in RUNS_NO_LOCAL_CODE:
         return False
-    parts = [part.lstrip("@") for word in words[1:] for part in (word, *word.split("=")[1:])]
+    # (a value glued to a short option names a file too: `-Kcfg`, `-Tsecret.txt`, `-icfg`)
+    parts = [
+        part.lstrip("@")
+        for word in words[1:]
+        for part in (word, *word.split("=")[1:], *_glued(word))
+    ]
     return program not in _READS_NAMED or not any(
         _in_folder(root, cwd, part) for part in parts if part and "://" not in part
+    )
+
+
+def _glued(word: str) -> list[str]:
+    """The value of a short option written onto it (`-Kcfg`: `cfg`); none for another word."""
+    return (
+        [word[2:]] if word.startswith("-") and not word.startswith("--") and len(word) > 2 else []
     )
 
 

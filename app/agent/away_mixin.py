@@ -5,6 +5,8 @@ ends - `AwayMixin`.
 
 import asyncio
 import contextlib
+import os
+import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -127,6 +129,41 @@ def _tells_own_sub_agents(ctx: Ctx) -> bool:
     return isinstance(model, ClaudeNativeClient) and model.command == "claude"
 
 
+# H3: the folders a copy leaves out of its changes (`copies.NOT_COPIED`) where code may still be
+# read from - a Python's `__pycache__`, `build`, `dist` - and the agents' scratch; and those that
+# hold nothing that runs, never gone into (nor a link: the dependency folders are the project's).
+_LEFT_OUT = frozenset({"__pycache__", "build", "dist"})
+_SCRATCH = frozenset({".koloni/tmp", ".koloni/shared"})
+_NEVER = frozenset({".git", ".pytest_cache", ".ruff_cache", ".mypy_cache"}) | copies.LINKED
+
+
+def _left_out_work(root: Path) -> dict[str, str]:
+    """H3: every file of `root` in a folder a copy's changes leave out (`_LEFT_OUT`, `_SCRATCH`),
+    by its path, with its digest - links never followed. Blocking: a walk of the folders, the
+    files in those read whole."""
+    found: dict[str, str] = {}
+    todo = [("", False)]
+    while todo:
+        inside, held = todo.pop()
+        try:
+            with os.scandir(root / inside) as entries:
+                listed = list(entries)
+        except OSError:
+            continue
+        for entry in listed:
+            rel, path = f"{inside}{entry.name}", Path(entry.path)
+            if copies._is_link(path):
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                name = entry.name.casefold()
+                if name not in _NEVER:
+                    keep = held or name in _LEFT_OUT or rel.casefold() in _SCRATCH
+                    todo.append((f"{rel}/", keep))
+            elif held and entry.is_file(follow_symlinks=False):
+                found[rel] = _digest(path)
+    return found
+
+
 class AwayMixin:
     # --- a job while the user is away (slice 106, `app.away`) ------------------------------
 
@@ -193,6 +230,7 @@ class AwayMixin:
             # (H3: the copy's work as the line is parked - compared at Run: anything changed since,
             # and it does not run)
             work = await asyncio.to_thread(self._copy_work, copy) if copy is not None else None
+            left = await asyncio.to_thread(_left_out_work, copy.root) if copy is not None else None
             # (a line that runs none of the project's code - curl, a file command - as the judge
             # reads it: no later write of the job's closes it)
             no_code = await asyncio.to_thread(_no_local_code, root, line, cwd or ".")
@@ -225,6 +263,7 @@ class AwayMixin:
                             "file": program,
                             "no_code": no_code,
                             "work": work,
+                            "left": left,
                         },
                     )
                     session.commit()
@@ -253,22 +292,27 @@ class AwayMixin:
         return {path: _digest(copy.root / path) for path, *_rest in found}
 
     def _work_moved(
-        self, work: dict | None, root: Path, copy: copies.Copy | None, merge: Merge | None
-    ) -> bool:
-        """Whether the work a line was parked with is not what it is in the root it would run
-        in now: the copy's own (`_copy_work`), or - some of the copy taken in - the project's at
-        those paths, and nothing taken in besides them. No record of it: moved (fails closed).
+        self, row: Parked, root: Path, copy: copies.Copy | None, merge: Merge | None
+    ) -> str | None:
+        """Why the work a line was parked with is not what it is in the root it would run in now
+        - or None: the same. In its copy: the copy's own changes (`_copy_work`) and what is in the
+        folders a copy leaves out (`_left_out_work`: `__pycache__`, `build`, `dist`, the agents'
+        scratch) - `WROTE_SINCE`. Some of the copy taken in: the project's files at those paths,
+        and nothing taken in besides them - `TAKEN_IN`. No record of it: moved (fails closed).
         Blocking."""
-        if work is None:
-            return True
+        work, left = row.data.get("work"), row.data.get("left")
+        if work is None or (copy is not None and left is None):
+            return parked.WROTE_SINCE
         if copy is not None:
-            return self._copy_work(copy) != work
+            same = self._copy_work(copy) == work and _left_out_work(copy.root) == left
+            return None if same else parked.WROTE_SINCE
         taken = {
             one["path"] for one in (merge.files if merge else []) if one.get("state") == "applied"
         }
-        return bool(taken - set(work)) or any(
+        moved = bool(taken - set(work)) or any(
             _digest(root / path) != digest for path, digest in work.items()
         )
+        return parked.TAKEN_IN if moved else None
 
     async def _file_moved(
         self: "AgentRunner",
@@ -284,14 +328,13 @@ class AwayMixin:
         again here: curl's file to send, say, may name the folder now). None: it may run."""
         if row.data.get("no_code") and await asyncio.to_thread(_no_local_code, root, row.what, cwd):
             return None
-        moved = await asyncio.to_thread(self._work_moved, row.data.get("work"), root, copy, merge)
-        return parked.WROTE_SINCE if moved else None
+        return await asyncio.to_thread(self._work_moved, row, root, copy, merge)
 
-    def _mark_moved(self: "AgentRunner", copy: copies.Copy, changed: list) -> None:
+    def _mark_moved(self: "AgentRunner", copy: copies.Copy, now: tuple[dict, dict]) -> None:
         """The job's turn is over (`_set_aside`): each row parked in its copy whose work is not
-        what it is now is marked so - the list says `WROTE_SINCE` before Run is clicked.
-        shortcut: the changed files are read on the loop, as `_keep_copy` reads them next."""
-        now_work = self._copy_work(copy, changed)
+        what it is now (`now`: its changes and its left-out folders, looked at off the loop by
+        `_look_aside`) is marked so - the list says `WROTE_SINCE` before Run is clicked."""
+        now_work, now_left = now
         with self._factory() as session:
             for row in session.scalars(
                 select(Parked).where(
@@ -300,7 +343,7 @@ class AwayMixin:
                     Parked.went_on.is_(None),
                 )
             ):
-                if row.data.get("work") != now_work:
+                if row.data.get("work") != now_work or row.data.get("left") != now_left:
                     row.data = {**row.data, "moved": True}
             session.commit()
 
@@ -328,7 +371,7 @@ class AwayMixin:
         self: "AgentRunner",
         owner: str,
         why: str = "one side of a comparison, waiting for your choice",
-        found: tuple[copies.Copy, list] | None = None,
+        found: tuple[copies.Copy, list, tuple[dict, dict] | None] | None = None,
     ) -> None:
         """A side of a comparison is over - or a turn whose recipe was not taken in: what it
         changed stays in its copy, kept as a kept copy is (`_keep_copy`), for the user's
@@ -340,21 +383,30 @@ class AwayMixin:
         if copy is None:
             return
         changed = found[1] if found is not None and found[0] is copy else copy.changes()
-        if self._parked_here(owner):
-            self._mark_moved(copy, changed)  # (H3: what the list says of each, from now)
+        if found is not None and found[0] is copy and found[2] is not None:
+            self._mark_moved(copy, found[2])  # (H3: what the list says of each, from now)
         if any(not copy.ignored(one[0]) for one in changed) or self._parked_here(owner):
             self._keep_copy(owner, why)  # (B-189: not for a new file git ignores alone)
 
-    async def _look_aside(self: "AgentRunner", owner: str) -> tuple[copies.Copy, list] | None:
+    async def _look_aside(
+        self: "AgentRunner", owner: str
+    ) -> tuple[copies.Copy, list, tuple[dict, dict] | None] | None:
         """`_set_aside`'s look at an agent's copy, from a coroutine: a walk of every file of
-        it, in a thread - the server goes on meanwhile - to its end (`to_its_end`)."""
+        it, in a thread - the server goes on meanwhile - to its end (`to_its_end`). Where a job
+        parked lines in it, also its work as `_mark_moved` compares it (H3), in the same thread."""
         copy = self._copies.get(owner)
         if copy is None:
             return None
-        # (Against its records as they are now: a `refresh` meanwhile is no change of its own.)
-        return copy, await to_its_end(
-            asyncio.to_thread(copy.changes, dict(copy.base), dict(copy.names))
-        )
+        parks = self._parked_here(owner)
+
+        def look() -> tuple[list, tuple[dict, dict] | None]:
+            # (Against its records as they are now: a `refresh` meanwhile is no change of its own.)
+            changed = copy.changes(dict(copy.base), dict(copy.names))
+            work = (self._copy_work(copy, changed), _left_out_work(copy.root)) if parks else None
+            return changed, work
+
+        changed, work = await to_its_end(asyncio.to_thread(look))
+        return copy, changed, work
 
     def typing(self: "AgentRunner", question_id: str) -> None:
         """The user types an answer to a question that waits: the Lead holds off it
@@ -784,9 +836,21 @@ class AwayMixin:
             **({"timeout_seconds": seconds} if isinstance(seconds, int) and seconds > 0 else {}),
         }
         try:
-            status, said = await self.commands.run(
-                run_id, cid, agent_id, ws, call_id, args, ask=False
-            )
+            # (a Python of the morning reads and writes no `__pycache__` of the copy's: one an agent
+            # left there would be loaded in place of its source - H3)
+            with tempfile.TemporaryDirectory(
+                prefix="koloni-pyc-", ignore_cleanup_errors=True
+            ) as pyc:
+                status, said = await self.commands.run(
+                    run_id,
+                    cid,
+                    agent_id,
+                    ws,
+                    call_id,
+                    args,
+                    ask=False,
+                    env={"PYTHONPYCACHEPREFIX": pyc},
+                )
         except ToolError as exc:
             return f"error: {exc}", "not_run"
         if status == "failed" and said.startswith("error: timed out"):  # (`CommandRunner._told`)
