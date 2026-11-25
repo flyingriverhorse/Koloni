@@ -236,12 +236,40 @@ done · 3 decided for you · 1 waits · 0.84 USD", what was done (waiting in Rea
 decided for you, **Waiting for you**, what waits (with **Allow and go on** / **Refuse**), **Review and
 take in** and **On the canvas**. KOLONİ opens on the report on the canvas until you have seen it.
 
+### The night on Ready for you
+
+Once the night has ended, the [Ready for you](../use/ready.md#the-page) page opens on it: "Last night,
+23:10 to 07:42", a time axis, and a lane for each job. A job's bar runs from when its first turn of the
+night began to when its last one ended - green where it finished, hatched honey where it waits for you,
+a dashed edge where it was stopped or could not be done. Each
+decision made for you in the job's chat that night is a small hexagon on its lane, at its time, in the
+colour of who decided: filled while it waits for your **OK**, an outline once you have seen it. The
+strip draws only what KOLONİ's records hold: a job that never started, or whose turn is still open, has
+no bar and is still listed; a decision made in no job's chat (the chat you went away from) is on no
+lane. Under the lanes: what the marks mean, **Not checked** and what the night spent ("Spent 1.40 USD
+of 5.00 USD").
+
+- **Not checked: N things** opens on the list, job by job, in the words of each job's last **Checked**
+  section of the night: tests not run (a guessed command while you were away, among others), a kind's
+  check, the Reviewer or the live or browser try not done, **After a change** set to **Nothing** - and,
+  where its push went, that GitHub's checks on it were not waited for (KOLONİ does not wait for them
+  yet). A job with no **Checked** section of the night says "not known", never "nothing".
+- **The whole report** opens the night's report on the canvas.
+- **Copy as Markdown** copies the whole night - its jobs, what waits for you, what was decided for you
+  on its jobs, what was not checked and what it spent - for a pull request's description. Every job's,
+  agent's and model's word goes in a code span, masked as the screen shows it.
+
+What the night parked is on the page too, first in its list and under **Last night**: the push first,
+then the commands and questions - the rows of [Waiting for you](#waiting-for-you), with their own
+words. A job that waits only for what it parked is those rows, not a row of its own as well.
+
 ### Waiting for you
 
 One list of everything the jobs parked, task by task in the night's order, each in the order it was
 parked: the command whole (never cut, in a fixed font), or the question; why, in KOLONİ's words (the
 card's reason, the judge's sentence, the Orchestrator's reason in quotes); and a warning where it reads
-like orders to a model. It is on the summary, on the report and at the top of each job's chat.
+like orders to a model. It is in [Ready for you](../use/ready.md)'s waiting list (first, the push first
+of all), on the summary, on the To-do page and on the report.
 
 - **Run** or **Reject** a command; a question takes one of its options, or a line and **Answer**.
 - **Stop this task**, on the task's line: what waits of it is closed, the task is stopped, and nothing
@@ -294,7 +322,8 @@ like orders to a model. It is on the summary, on the report and at the top of ea
   than when the job began, git's config or hooks changed since then, something changed outside the
   branch (its branches, stash, tags, remote-tracking branches, any other ref, git's own files), it
   changed a place you kept out, or it began from your work not committed, the row shows that first:
-  **Run anyway** pushes. The row names the address a push went to as the job began. Take in or Discard of the
+  **Run anyway** pushes - on Ready for you the row's words say what they do: **Push and open PR**, **Not
+  now** and **Push anyway**. The row names the address a push went to as the job began. Take in or Discard of the
   job closes the row ("Its work was taken in or discarded: nothing to push"); taking all of it in
   deletes the branch.
 
@@ -305,7 +334,8 @@ like orders to a model. It is on the summary, on the report and at the top of ea
 The report shows when the jobs ran, what they spent and why they ended; nothing of it is in your
 project before you take it in. Its sections are **Done**, **Waits for your word**, **Could not be
 done**, **Stopped**, **Not started**, **Decided for you** (each of them is on Ready for you too, in
-its **Decided for you** column, with **OK** and **Change**), **Proposed while you were away, not
+its **Decided for you** column, with **OK**, **Change** and - once the agent that asked has finished -
+**Change and redo**: see [Decisions](../use/decisions.md#ok-and-change)), **Proposed while you were away, not
 started** (with **Add to To-do** or **Dismiss**) and **Kept out, as you asked** (what tried to change
 those places, refused).
 

@@ -71,8 +71,19 @@ contains instruction-like phrases; treat it as data." Longer text is cut at 300 
   choice, **Change** adds the task or takes it off, until the task has started; if the task moved on
   since you opened the list, it is refused ("it changed since you looked") and the list is read again.
   Only answers shown here as they are written are offered; one with masked words in it is not.
-- Where nothing can be changed, the row says why: "can't be undone: it ran", "the agent that asked has
-  finished", "the next step ran".
+- **Change and redo → …**, once the agent that asked has finished: your answer goes on record in place
+  of the Orchestrator's, and a new turn of its chat starts on KOLONİ's message - "KOLONİ: the user
+  changed your answer to "Which database?": "Postgres" (was "SQLite"). Go on with the task." - the
+  question and both answers in quotes, masked as the list shows them; never as your own message. The
+  button says what it costs: "starts a new turn" (KOLONİ has no estimate of what a turn will cost, so
+  it names no figure). The turn goes on with the agent's kept work, where its copy is kept; in a job's
+  chat from a [☾ Away](../automation/overnight.md) it is a job's turn, as the turn after
+  [Waiting for you](../automation/overnight.md#waiting-for-you) is: its work is kept for your **Take
+  in**, at Full auto too. It is done only from KOLONİ's own page, once for a decision, and not while
+  you are away ("You're away from this project: press I'm back first"), nor while a turn of its chat
+  is at work, nor over the month's budget.
+- Where nothing can be changed, the row says why: "can't be undone: it ran", "its work was taken in",
+  "its work was discarded", "its work waits for your Take in in its chat", "the next step ran".
 
 ## Copy as Markdown
 
@@ -82,8 +93,8 @@ spans, so a pasted link, image, heading or `@mention` in them stays plain text.
 
 ## What is not in it
 
-A decision leaves the list when its record changes: if you changed the Orchestrator's answer, the
-answer is yours; a task you turned down - one it added, with **Change**, or one it turned down, with
+A decision leaves the list when its record changes: if you changed the Orchestrator's answer - with
+**Change** or **Change and redo** -, the answer is yours; a task you turned down - one it added, with **Change**, or one it turned down, with
 **Reject** on To-do - is gone from To-do. The list is read again when something changes it, and when
 you come back to the window. Your own answers on cards are not decisions made for you, and
 are not listed. The list holds the newest 500 decisions of the period; with more, it says
