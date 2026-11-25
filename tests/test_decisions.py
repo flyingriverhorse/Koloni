@@ -428,23 +428,88 @@ def test_a_lone_surrogate_a_model_wrote_is_kept_as_the_replacement_character():
     assert picked == (f"A {fffd}", f"w {fffd} {emoji}")
 
 
-def test_a_record_that_holds_a_lone_surrogate_is_read(client, tmp_path):
-    # (A JSON column keeps one, escaped - from before the parsers replaced it; a text column
-    # cannot: SQLite refuses it.)
+def test_a_record_that_holds_a_lone_surrogate_is_read_everywhere(client, tmp_path):
+    # (A JSON column keeps one, escaped - from before the parsers replaced it, or from an agent's
+    # tool arguments: a card's options; a text column cannot: SQLite refuses it. Read as U+FFFD
+    # where it is read: `db.session.json_loads`.)
     pid, cid = chat(client, tmp_path / "a")
     ids = seed(client, pid, cid)
+    emoji, fffd = "\U0001f600", "\N{REPLACEMENT CHARACTER}"
     with client.app.state.session_factory() as session:
         command = session.get_one(Command, ids["refused"])
         command.judged = {**command.judged, "why": "It sends \udc00 away."}
         task = session.get_one(BacklogTask, ids["turned"])
-        task.po = {**task.po, "lead_why": "too \ud800 big"}
+        task.po = {**task.po, "lead_why": "too \ud800 big", f"note \ud83d{emoji}": emoji}
+        question = session.get_one(Question, ids["users"])
+        question.options = ["Tabs \ud83d", f"Spaces {emoji}"]
         session.commit()
+    snapshot = client.get(f"/api/conversations/{cid}")
+    assert snapshot.status_code == 200, snapshot.text
+    (card,) = [one for one in snapshot.json()["questions"] if one["id"] == ids["users"]]
+    assert card["options"] == [f"Tabs {fffd}", f"Spaces {emoji}"]
+    (judged,) = [one for one in snapshot.json()["commands"] if one["id"] == ids["refused"]]
+    assert judged["judged"]["why"] == f"It sends {fffd} away."
+    listed = client.get(f"/api/projects/{pid}/backlog")
+    assert listed.status_code == 200, listed.text
+    assert f"too {fffd} big" in listed.text
     rows = {row["id"]: row for row in log(client, pid)["rows"]}
-    fffd = "\N{REPLACEMENT CHARACTER}"
     assert rows[f"command:{ids['refused']}"]["why"] == f"It sends {fffd} away."
     assert rows[f"task:{ids['turned']}"]["why"] == f"too {fffd} big"
     with client.app.state.session_factory() as session:
+        po = session.get_one(BacklogTask, ids["turned"]).po
+        assert po[f"note {fffd}{emoji}"] == emoji  # (keys too; a pair stays one character)
         assert len(decisions.of(session, pid).rows) == len(rows)
+
+
+def test_a_reason_is_masked_before_it_is_cut(monkeypatch):
+    from app import backlog, risk_judge
+    from app.agent.cards import LEAD_WHY_CHARS, lead_pick
+
+    monkeypatch.setattr(raw, "_known", lambda fresh=False: raw.spellings([SECRET]))
+    why = "w" * 296 + " " + SECRET  # (cut after the mask, nothing of it is left at the edge)
+    assert LEAD_WHY_CHARS == risk_judge.WHY_CHARS == backlog.MAX_WHY == 300
+    picked = lead_pick(json.dumps({"answer": "A", "why": why}), [])
+    shown = [
+        picked[1] if picked else "",
+        (risk_judge.verdict(json.dumps({"verdict": "risky", "why": why})) or {}).get("why", ""),
+        backlog.lead_decided(json.dumps({"decisions": [{"task": 1, "add": True, "why": why}]}), 1)[
+            1
+        ][1],
+    ]
+    for one in shown:
+        assert one == "w" * 296 + " " + raw.HIDDEN, one
+
+
+def test_only_the_newest_rows_are_built(client, tmp_path, monkeypatch):
+    pid, cid = chat(client, tmp_path / "a")
+    seed(client, pid, cid), seed(client, pid, cid, minutes=600)
+    calls = []
+    real = decisions.said
+    monkeypatch.setattr(decisions, "said", lambda text: calls.append(text) or real(text))
+    monkeypatch.setattr(decisions, "MOST", 3)
+    got = log(client, pid)
+    assert len(got["rows"]) == 3 and got["more"] is True
+    assert len(calls) <= 3 * 3  # (a row's quote, answer and why at most)
+
+
+def test_controls_and_blanks_that_show_as_nothing_are_taken_out_before_masking(monkeypatch):
+    live = "sk-live-ABCDEFGHIJKLMNOP1234"
+    monkeypatch.setattr(raw, "_known", lambda fresh=False: raw.spellings([live]))
+    for unseen in (
+        "\N{HANGUL FILLER}",
+        "\N{BRAILLE PATTERN BLANK}",
+        "\N{COMBINING GRAPHEME JOINER}",
+        "\N{VARIATION SELECTOR-16}",
+        chr(7),  # (BEL: "\N{BELL}" is the bell emoji)
+        "\N{ESCAPE}",
+    ):
+        shown = decisions.said(f"the key {live[:6]}{unseen}{live[6:]} done")
+        assert shown == "the key *** done", (ascii(unseen), shown)
+
+
+def test_a_password_in_an_address_is_masked():
+    shown = decisions.said("cloned https://murat:pa55word-xyz@example.com/repo.git")
+    assert shown == "cloned https://murat:***@example.com/repo.git"
 
 
 def test_a_time_out_of_range_is_refused_not_a_failure(client, tmp_path):

@@ -13,21 +13,27 @@ decisions a table of their own (approach B) if the log must keep those."""
 import unicodedata
 from collections.abc import Callable
 from datetime import UTC, datetime
+from functools import partial
 from typing import Literal
 
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
-from app import injection, raw
+from app import injection
 from app.agent.spawn_mixin import SPAWN_WORDS
 from app.agent.words import AGENT_TERMINAL
-from app.commands import hide_keys
+from app.commands import OutputMask
 from app.db.models import Agent, BacklogTask, Command, Conversation, Question, Run
 from app.judge import whole
 from app.schemas_decisions import Decision, DecisionLink, DecisionLog
+from app.stories import BLANK_LOOKING
 
 SAID_MOST = 300  # characters of an agent's or a model's words a row shows
-MOST = 500  # rows, the newest: a night of a long To-do may have more (`DecisionLog.more`)
+# Rows, the newest: a night of a long To-do may have more (`DecisionLog.more`). Only those are
+# built - their words masked and cut (`said`).
+# shortcut: Today's "(N not seen)" counts the rows given, not the period's all; count the unseen
+# here too if a period of more than MOST is seen to hide some.
+MOST = 500
 # (`spawn_mixin._spawn_word`'s card: the one of KOLONİ's cards with these two options)
 SPAWN = list(SPAWN_WORDS)
 FROM = {
@@ -38,11 +44,25 @@ FROM = {
 
 When = ColumnElement[datetime] | InstrumentedAttribute[datetime]
 Window = Callable[[When], list[ColumnElement[bool]]]
+# A row as it is found: when, and how to build it - only the newest MOST are built.
+Later = tuple[datetime, Callable[[], Decision]]
+# What shows as nothing, or as a blank, and is no Cf: a braille blank, a Hangul filler...
+# (`stories.BLANK_LOOKING`), the combining grapheme joiner and the emoji variation selector.
+UNSEEN = BLANK_LOOKING | {"\N{COMBINING GRAPHEME JOINER}", "\N{VARIATION SELECTOR-16}"}
 
 
 def _masked(text: str) -> str:
-    """Every secret KOLONİ knows, and those known by their shape (a Bearer token, an API key)."""
-    return hide_keys(raw.hidden(text))
+    """Every secret KOLONİ knows, and those known by their shape - an API key, a Bearer token, a
+    password in an address (`https://user:pass@host`), a value given to a secret's name - as a
+    command's output is masked (`commands.OutputMask`)."""
+    return OutputMask(()).hide(text)
+
+
+def _shows(ch: str) -> bool:
+    """Whether a character shows: not a format character (Cf: zero-width, bidi, a soft hyphen),
+    a control character but whitespace (which `said` folds), nor one of `UNSEEN`."""
+    kind = unicodedata.category(ch)
+    return not (kind == "Cf" or kind == "Cc" and not ch.isspace() or ch in UNSEEN)
 
 
 def said(text: str | None) -> str | None:
@@ -51,11 +71,13 @@ def said(text: str | None) -> str | None:
     split by a zero-width space or a soft hyphen is one again; no bidi control turns the row
     around), every secret masked - before the cut, which could leave half of one, and again on one
     line, where one with a space in it was written across a line break -, cut, and after
-    `injection.NOTE` where the words, as written, read like orders. None for none."""
+    `injection.NOTE` where the words, as written, read like orders. None for none.
+    shortcut: what nobody sees goes whole - a family emoji joined by ZWJ shows as its people, a
+    Persian word's ZWNJ joins its parts; keep ZWJ and ZWNJ between letters if users read those."""
     if not text:
         return None
     text = whole(text)
-    seen = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+    seen = "".join(ch for ch in text if _shows(ch))
     shown = _masked(" ".join(_masked(seen).split()))
     cut = shown if len(shown) <= SAID_MOST else shown[: SAID_MOST - 1] + "…"
     return f"{injection.NOTE} {cut}" if injection.scan(text) else cut
@@ -80,7 +102,7 @@ def _card_undo(leave: bool, seen: bool, at_work: bool, others: bool) -> str | No
     return None if others else "it has no other answer to change to"
 
 
-def _cards(session: Session, project_id: str, window: Window) -> list[Decision]:
+def _cards(session: Session, project_id: str, window: Window) -> list[Later]:
     """The cards the Orchestrator answered for the user - a sub-agent to open among them."""
     at = func.coalesce(Question.answered_at, Question.created_at)
     found = session.execute(
@@ -104,38 +126,40 @@ def _cards(session: Session, project_id: str, window: Window) -> list[Decision]:
             )
         )
     }
-    rows = []
+    rows: list[Later] = []
     for question, when, cid, status in found:
         if question.leave and question.options == SPAWN:
             child = opened.get((question.agent_id, question.tool_call_id))
-            rows.append(_spawn(question, utc(when), cid, child))
-            continue
-        why_not = _card_undo(
-            question.leave,
-            question.seen_at is not None,
-            status not in AGENT_TERMINAL,
-            any(one != question.answer for one in question.options or []),
-        )
-        rows.append(
-            Decision(
-                id=f"answer:{question.id}",
-                at=utc(when),
-                kind="answer",
-                who="orchestrator",
-                what="Answered a card of KOLONİ's for you"
-                if question.leave
-                else "Answered a question for you",
-                quote=said(question.question),
-                answer=said(question.answer),
-                why=said(question.lead_why),
-                conversation_id=cid,
-                link=DecisionLink(kind="question", id=question.id),
-                undo="none" if why_not else "change",
-                undo_reason=why_not,
-                seen=question.seen_at is not None,
-            )
-        )
+            rows.append((utc(when), partial(_spawn, question, utc(when), cid, child)))
+        else:
+            rows.append((utc(when), partial(_answer, question, utc(when), cid, status)))
     return rows
+
+
+def _answer(question: Question, at: datetime, cid: str, status: str) -> Decision:
+    why_not = _card_undo(
+        question.leave,
+        question.seen_at is not None,
+        status not in AGENT_TERMINAL,
+        any(one != question.answer for one in question.options or []),
+    )
+    return Decision(
+        id=f"answer:{question.id}",
+        at=at,
+        kind="answer",
+        who="orchestrator",
+        what="Answered a card of KOLONİ's for you"
+        if question.leave
+        else "Answered a question for you",
+        quote=said(question.question),
+        answer=said(question.answer),
+        why=said(question.lead_why),
+        conversation_id=cid,
+        link=DecisionLink(kind="question", id=question.id),
+        undo="none" if why_not else "change",
+        undo_reason=why_not,
+        seen=question.seen_at is not None,
+    )
 
 
 def _spawn(question: Question, at: datetime, cid: str, child: str | None) -> Decision:
@@ -186,7 +210,7 @@ COMMANDS: dict[tuple[str, str], tuple[Literal["judge", "your_words"], str, str]]
 }
 
 
-def _commands(session: Session, project_id: str, window: Window) -> tuple[list[Decision], int]:
+def _commands(session: Session, project_id: str, window: Window) -> tuple[list[Later], int]:
     """The commands the judges decided - and how many the judge found fine."""
     found = session.execute(
         # (Its columns, not the record: a command's output may be long.)
@@ -200,7 +224,8 @@ def _commands(session: Session, project_id: str, window: Window) -> tuple[list[D
             *window(Command.created_at),
         )
     ).all()
-    rows, fine = [], 0
+    rows: list[Later] = []
+    fine = 0
     for command_id, line, judged, at, cid in found:
         judged = judged or {}
         kind = "risk" if judged.get("kind") == "risk" else "words"
@@ -211,24 +236,33 @@ def _commands(session: Session, project_id: str, window: Window) -> tuple[list[D
         # could read, the program changed while it looked - is no decision of the judge's.)
         if said_of is None or kind == "risk" and judged.get("looked") is not True:
             continue
-        who, what, why_not = said_of
-        rows.append(
-            Decision(
-                id=f"command:{command_id}",
-                at=utc(at),
-                kind="command",
-                who=who,
-                what=what.format(source=FROM.get(judged.get("source", ""), "your words")),
-                quote=said(line),
-                why=said(judged.get("why") if kind == "risk" else judged.get("quote")),
-                conversation_id=cid,
-                link=DecisionLink(kind="command", id=command_id),
-                undo="none",
-                undo_reason=why_not,
-                seen=None,
-            )
-        )
+        rows.append((utc(at), partial(_command, command_id, line, judged, utc(at), cid, said_of)))
     return rows, fine
+
+
+def _command(
+    command_id: str,
+    line: str,
+    judged: dict,
+    at: datetime,
+    cid: str,
+    said_of: tuple[Literal["judge", "your_words"], str, str],
+) -> Decision:
+    who, what, why_not = said_of
+    return Decision(
+        id=f"command:{command_id}",
+        at=at,
+        kind="command",
+        who=who,
+        what=what.format(source=FROM.get(judged.get("source", ""), "your words")),
+        quote=said(line),
+        why=said(judged.get("why") if who == "judge" else judged.get("quote")),
+        conversation_id=cid,
+        link=DecisionLink(kind="command", id=command_id),
+        undo="none",
+        undo_reason=why_not,
+        seen=None,
+    )
 
 
 def _task_undo(task: BacklogTask, added: bool) -> str | None:
@@ -241,7 +275,7 @@ def _task_undo(task: BacklogTask, added: bool) -> str | None:
     return None if task.status == "proposed" else "you added it since"
 
 
-def _tasks(session: Session, project_id: str, window: Window) -> list[Decision]:
+def _tasks(session: Session, project_id: str, window: Window) -> list[Later]:
     """The Scout's proposals the Orchestrator took onto the To-do list, or turned down, at Full
     auto. shortcut: `po` keeps no time of the Orchestrator's word; the proposal's own (the same
     turn's end) stands for it - keep the word's time in `po` if the two are seen to differ."""
@@ -252,32 +286,33 @@ def _tasks(session: Session, project_id: str, window: Window) -> list[Decision]:
             *window(BacklogTask.created_at),
         )
     ).all()
-    rows = []
-    for task in found:
-        po = task.po or {}
-        if po.get("lead") not in ("add", "no"):
-            continue
-        added = po["lead"] == "add"
-        why_not = _task_undo(task, added)
-        rows.append(
-            Decision(
-                id=f"task:{task.id}",
-                at=utc(task.created_at),
-                kind="task",
-                who="orchestrator",
-                what="Added a task the Scout proposed to To-do"
-                if added
-                else "Turned down a task the Scout proposed",
-                quote=said(task.title),
-                why=said(po.get("lead_why")),
-                conversation_id=po.get("chat"),
-                link=DecisionLink(kind="task", id=task.id),
-                undo="none" if why_not else "change",
-                undo_reason=why_not,
-                seen=None,
-            )
-        )
-    return rows
+    return [
+        (utc(task.created_at), partial(_task, task))
+        for task in found
+        if (task.po or {}).get("lead") in ("add", "no")
+    ]
+
+
+def _task(task: BacklogTask) -> Decision:
+    po = task.po or {}
+    added = po["lead"] == "add"
+    why_not = _task_undo(task, added)
+    return Decision(
+        id=f"task:{task.id}",
+        at=utc(task.created_at),
+        kind="task",
+        who="orchestrator",
+        what="Added a task the Scout proposed to To-do"
+        if added
+        else "Turned down a task the Scout proposed",
+        quote=said(task.title),
+        why=said(po.get("lead_why")),
+        conversation_id=po.get("chat"),
+        link=DecisionLink(kind="task", id=task.id),
+        undo="none" if why_not else "change",
+        undo_reason=why_not,
+        seen=None,
+    )
 
 
 def of(
@@ -297,10 +332,8 @@ def of(
         ]
 
     commands, fine = _commands(session, project_id, window)
-    rows: list[Decision] = [
-        *_cards(session, project_id, window),
-        *commands,
-        *_tasks(session, project_id, window),
-    ]
-    rows.sort(key=lambda row: row.at, reverse=True)
-    return DecisionLog(rows=rows[:MOST], judge_fine=fine, more=len(rows) > MOST)
+    rows = [*_cards(session, project_id, window), *commands, *_tasks(session, project_id, window)]
+    rows.sort(key=lambda row: row[0], reverse=True)
+    return DecisionLog(
+        rows=[build() for _at, build in rows[:MOST]], judge_fine=fine, more=len(rows) > MOST
+    )

@@ -65,7 +65,8 @@ def lead_pick(said: str, options: list[str]) -> tuple[str, str] | None:
     answer, why = (got.get("answer"), got.get("why")) if isinstance(got, dict) else (None, None)
     if not isinstance(answer, str) or not isinstance(why, str) or not why.strip():
         return None
-    answer, why = whole(answer.strip()), raw.hidden(whole(" ".join(why.split())[:LEAD_WHY_CHARS]))
+    # (masked before the cut: a secret cut in half would no longer be known to hide)
+    answer, why = whole(answer.strip()), raw.hidden(whole(" ".join(why.split())))[:LEAD_WHY_CHARS]
     if options:
         answer = next((one for one in options if one.casefold() == answer.casefold()), "")
     elif len(answer) > LEAD_ANSWER_CHARS or "\n" in answer:
