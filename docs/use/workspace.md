@@ -116,8 +116,8 @@ too: the card says why ("you have 2 commits not on GitHub yet", "you have a stas
 agent's work. KOLONİ never pushes onto a branch of the same name origin has already, a fast-forward
 too: "origin already has a branch named …: nothing was pushed". Nor does a branch that holds a secret
 KOLONİ knows - a provider key or an MCP server's value you saved, the page's key, one given on a card,
-one of the environment's - go up or into your branch: KOLONİ does not commit such a file, and says
-"take it off the branch first". Where a commit of yours not pushed is in another worktree, the
+one of the environment's - go up or into your branch: nothing goes, and KOLONİ says "take it off
+the branch first". Where a commit of yours not pushed is in another worktree, the
 card names that worktree's folder; if you deleted that folder by hand, git still keeps the worktree and
 its commit, and `git worktree prune` lets git drop it. A worktree of yours where you look at the agent's
 branch (`git worktree add --detach <folder> koloni/…`) does not make its commits yours, nor does a

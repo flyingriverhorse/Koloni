@@ -169,3 +169,10 @@ def test_offered_to_the_orchestrator_never_to_a_sub_agent(make_client, wait_run,
     )
     assert lead["status"] == "succeeded" and lead["result"].startswith(status_now.HEAD)
     assert coder["status"] == "failed" and NOT_HERE in coder["result"]
+
+
+def test_turns_with_no_price_are_said_never_a_made_up_zero():
+    found = {"spent": 0.0, "currency": "USD", "at_least": False, "unpriced_runs": 2}
+    assert status_now._money(found) == "at least 0.00 USD (2 turns with no price)"
+    assert status_now._money({"spent": 1.5, "currency": "USD", "unpriced_runs": 0}) == "1.50 USD"
+    assert status_now._money({"spent": None}) is None  # (prices in several currencies)

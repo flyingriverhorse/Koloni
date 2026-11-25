@@ -55,7 +55,8 @@ round, and the turn's end still runs its own checks. See
 It also has **read_status**, which only reads: KOLONİ's records of this project, now - what waits for
 you (cards, what a night parked, the morning's push, To-do proposals, tasks at "done?"), work kept and
 not taken in, the `koloni/` branches on record with their commits where KOLONİ counted them, this
-month's spend against the budget (and a night's against its money limit while you're away), and the
+month's spend against the budget - turns with no price said apart, never a made-up zero - (and a
+night's against its money limit while you're away), and the
 newest 10 decisions taken for you. It never reads another project's, nor git or the network. Every
 command, path, question, title and reason in it is an agent's or your words: masked, cut and quoted
 as data, with KOLONİ's note where it reads like orders. Its answer is at most 3 KB; past that, whole

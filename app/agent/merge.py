@@ -498,22 +498,19 @@ def _branch_files(
     return found
 
 
-def _secret_forms(copy: copies.Copy) -> list[bytes]:
-    """K-dal-takim: the secrets given in a branch copy's turn (`Copy.secrets`) and all KOLONİ knows
-    (`raw.known`: its keys, the page's - S1) as they are looked for in bytes: UTF-8, UTF-16-LE."""
-    return [
-        form
-        for one in {*copy.secrets(), *raw.known()}
-        if one
-        for form in (one.encode("utf-8"), one.encode("utf-16-le"))
-    ]
+def _secret_forms(copy: copies.Copy, every: bool = True) -> list[bytes]:
+    """K-dal-takim: the secrets given in a branch copy's turn (`Copy.secrets`) - and, `every` (what
+    a merge or a push looks for - S1), all KOLONİ knows (`raw.known`: its keys, the page's) - as
+    they are looked for in bytes: UTF-8 and UTF-16-LE."""
+    known = {*copy.secrets(), *(raw.known() if every else [])}
+    return [form for one in known if one for form in (one.encode("utf-8"), one.encode("utf-16-le"))]
 
 
 def _secret_in(copy: copies.Copy, path: str) -> bool:
     """K-dal-takim: whether a file of a branch's worktree holds a secret given in its turn
     (`Copy.secrets`), as UTF-8 or UTF-16 bytes, in a file of any text or none: it is not
     committed - git would keep it after the branch is gone."""
-    place, forms = copy.here(path), _secret_forms(copy)
+    place, forms = copy.here(path), _secret_forms(copy, every=False)  # (a commit's own hold)
     try:
         data = place.read_bytes() if forms and place and place.is_file() else b""
     except OSError:

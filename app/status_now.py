@@ -152,12 +152,15 @@ def _kept(session: Session, project_id: str) -> tuple[list[str], list[str]]:
 
 
 def _money(found: dict) -> str | None:
-    """An amount spent with its currency, "at least" where some of it is not known; None: not
-    known (prices in several currencies)."""
+    """An amount spent with its currency - "at least" where some of it is not known, and the turns
+    with no price (a CLI, a plan, none written) said apart, never a made-up zero; None: not known
+    (prices in several currencies)."""
     if found.get("spent") is None:
         return None
-    least = "at least " if found.get("at_least") else ""
-    return f"{least}{found['spent']:.2f} {found.get('currency') or ''}".rstrip()
+    unpriced = found.get("unpriced_runs") or 0
+    least = "at least " if found.get("at_least") or unpriced else ""
+    said = f"{least}{found['spent']:.2f} {found.get('currency') or ''}".rstrip()
+    return said + (f" ({unpriced} turn{'s' * (unpriced != 1)} with no price)" if unpriced else "")
 
 
 def _spent(session: Session, project: Project) -> list[str]:

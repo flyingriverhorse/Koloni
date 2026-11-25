@@ -6,10 +6,16 @@ a password in an address and a known secret split by a zero-width space are no l
 import json
 
 import pytest
+from sqlalchemy import select
 
 from app import backlog, judge, raw, risk_judge
 from app.agent.cards import lead_pick
+from app.db.models import Question
 from app.masking import masked
+from tests.test_agent_writes import wait_status
+from tests.test_chat_flow import text
+from tests.test_lead_decides import CODER, ask, fire, held, lead_timers, says, until_answered
+from tests.test_spawn import begin
 from tests.test_team import SECRET
 
 ZWSP = "​"
@@ -51,3 +57,19 @@ def test_masked_before_the_cut():
     edge = "w" * (risk_judge.WHY_CHARS - 10) + " " + SECRET
     why = risk_judge.verdict(json.dumps({"verdict": "risky", "why": edge}))["why"]
     assert SECRET[:6] not in why
+
+
+def test_a_cards_reason_is_kept_masked_on_its_row(make_client, wait_run, project_dir):
+    # (the record itself, read back: a sub-agent's card the Orchestrator answered at Full auto)
+    client, _model = make_client(
+        [CODER, ask(), says("By date", why=SAID), text("Sorted by date."), text("done")]
+    )
+    clock = held(client)
+    cid, run_id = begin(client, project_dir, mode="full_auto")
+    wait_status(client, cid, "waiting_approval")
+    fire(client, lead_timers(clock, 0.0)[0])
+    until_answered(client, cid)
+    wait_run(client, cid, run_id)
+    with client.app.state.session_factory() as session:
+        (kept,) = session.scalars(select(Question.lead_why)).all()
+    assert not plain(kept) and raw.HIDDEN in kept, kept
