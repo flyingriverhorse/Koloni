@@ -14,8 +14,10 @@ from app.schemas_decisions import DecisionLog
 router = APIRouter(prefix="/api/projects", tags=["decisions"])
 
 
+# (Not async: it reads the database for as long as a long night takes - in a worker thread, not on
+# the event loop.)
 @router.get("/{project_id}/decisions", response_model=DecisionLog)
-async def read(
+def read(
     project_id: str,
     since: datetime | None = None,
     until: datetime | None = None,
@@ -25,4 +27,8 @@ async def read(
     given), newest first, and how many commands the judge found fine meanwhile."""
     if session.get(Project, project_id) is None:
         raise HTTPException(404, "project not found")
+    try:
+        since, until = (None if at is None else decisions.utc(at) for at in (since, until))
+    except OverflowError:
+        raise HTTPException(422, "since and until must be times UTC can hold") from None
     return decisions.of(session, project_id, since, until)

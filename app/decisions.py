@@ -6,9 +6,11 @@ table of its own, no model asked, and nothing writes here - no row is added, cha
 agent. The judge's "fine" is counted, not listed. Agents' and models' words are masked, cut and
 marked where they read like orders (`said`); they are shown, never given to an agent as orders.
 shortcut: read from the records, a row leaves the log where its record changes - the user's own
-Change clears the Orchestrator's why (`api.questions.change`), and an added task turned down is
-deleted; give decisions a table of their own (approach B) if the log must keep those."""
+Change clears the Orchestrator's why (`api.questions.change`), and a task the Orchestrator turned
+down that you said OK to, or one it added that you turned down, is deleted (`backlog.decide`); give
+decisions a table of their own (approach B) if the log must keep those."""
 
+import unicodedata
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Literal
@@ -19,10 +21,13 @@ from sqlalchemy.orm import InstrumentedAttribute, Session
 from app import injection, raw
 from app.agent.spawn_mixin import SPAWN_WORDS
 from app.agent.words import AGENT_TERMINAL
+from app.commands import hide_keys
 from app.db.models import Agent, BacklogTask, Command, Conversation, Question, Run
+from app.judge import whole
 from app.schemas_decisions import Decision, DecisionLink, DecisionLog
 
 SAID_MOST = 300  # characters of an agent's or a model's words a row shows
+MOST = 500  # rows, the newest: a night of a long To-do may have more (`DecisionLog.more`)
 # (`spawn_mixin._spawn_word`'s card: the one of KOLONİ's cards with these two options)
 SPAWN = list(SPAWN_WORDS)
 FROM = {
@@ -35,18 +40,30 @@ When = ColumnElement[datetime] | InstrumentedAttribute[datetime]
 Window = Callable[[When], list[ColumnElement[bool]]]
 
 
+def _masked(text: str) -> str:
+    """Every secret KOLONİ knows, and those known by their shape (a Bearer token, an API key)."""
+    return hide_keys(raw.hidden(text))
+
+
 def said(text: str | None) -> str | None:
-    """An agent's or a model's words as a row shows them: every secret KOLONİ knows masked - before
-    the cut, which could leave half of one -, on one line, cut, and after `injection.NOTE` where the
-    whole reads like orders. None for none."""
+    """An agent's or a model's words as a row shows them: a lone surrogate the replacement
+    character (`judge.whole`: else the reply fails whole), what nobody sees taken out (a secret
+    split by a zero-width space or a soft hyphen is one again; no bidi control turns the row
+    around), every secret masked - before the cut, which could leave half of one, and again on one
+    line, where one with a space in it was written across a line break -, cut, and after
+    `injection.NOTE` where the words, as written, read like orders. None for none."""
     if not text:
         return None
-    shown = " ".join(raw.hidden(text).split())
+    text = whole(text)
+    seen = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+    shown = _masked(" ".join(_masked(seen).split()))
     cut = shown if len(shown) <= SAID_MOST else shown[: SAID_MOST - 1] + "…"
-    return f"{injection.NOTE} {cut}" if injection.scan(shown) else cut
+    return f"{injection.NOTE} {cut}" if injection.scan(text) else cut
 
 
-def _utc(at: datetime) -> datetime:
+def utc(at: datetime) -> datetime:
+    """A time in UTC, as the records keep it; one with no zone is UTC's. OverflowError for one
+    that is out of range there (year 1 at +14:00)."""
     return at.astimezone(UTC) if at.tzinfo else at.replace(tzinfo=UTC)
 
 
@@ -91,7 +108,7 @@ def _cards(session: Session, project_id: str, window: Window) -> list[Decision]:
     for question, when, cid, status in found:
         if question.leave and question.options == SPAWN:
             child = opened.get((question.agent_id, question.tool_call_id))
-            rows.append(_spawn(question, _utc(when), cid, child))
+            rows.append(_spawn(question, utc(when), cid, child))
             continue
         why_not = _card_undo(
             question.leave,
@@ -102,7 +119,7 @@ def _cards(session: Session, project_id: str, window: Window) -> list[Decision]:
         rows.append(
             Decision(
                 id=f"answer:{question.id}",
-                at=_utc(when),
+                at=utc(when),
                 kind="answer",
                 who="orchestrator",
                 what="Answered a card of KOLONİ's for you"
@@ -137,7 +154,7 @@ def _spawn(question: Question, at: datetime, cid: str, child: str | None) -> Dec
         else DecisionLink(kind="question", id=question.id),
         undo="none",
         undo_reason="the agent was opened" if yes else "the agent was not opened",
-        seen=None,
+        seen=question.seen_at is not None,  # (its card is under Decided for you, as an answer's)
     )
 
 
@@ -178,7 +195,8 @@ def _commands(session: Session, project_id: str, window: Window) -> tuple[list[D
         .join(Conversation, Conversation.id == Run.conversation_id)
         .where(
             Conversation.project_id == project_id,
-            Command.judged.is_not(None),
+            # (A JSON column keeps None as the text "null": not SQL's NULL.)
+            func.json_type(Command.judged) == "object",
             *window(Command.created_at),
         )
     ).all()
@@ -197,7 +215,7 @@ def _commands(session: Session, project_id: str, window: Window) -> tuple[list[D
         rows.append(
             Decision(
                 id=f"command:{command_id}",
-                at=_utc(at),
+                at=utc(at),
                 kind="command",
                 who=who,
                 what=what.format(source=FROM.get(judged.get("source", ""), "your words")),
@@ -244,7 +262,7 @@ def _tasks(session: Session, project_id: str, window: Window) -> list[Decision]:
         rows.append(
             Decision(
                 id=f"task:{task.id}",
-                at=_utc(task.created_at),
+                at=utc(task.created_at),
                 kind="task",
                 who="orchestrator",
                 what="Added a task the Scout proposed to To-do"
@@ -269,12 +287,13 @@ def of(
     until: datetime | None = None,
 ) -> DecisionLog:
     """What was decided for the user in project `project_id` at or after `since` and before
-    `until` (each where given; a time with no zone is UTC's), newest first."""
+    `until` (each where given; a time with no zone is UTC's), newest first - the newest `MOST`,
+    `more` where there were more."""
 
     def window(at: When) -> list[ColumnElement[bool]]:
         return [
-            *([at >= _utc(since)] if since else []),
-            *([at < _utc(until)] if until else []),
+            *([at >= utc(since)] if since else []),
+            *([at < utc(until)] if until else []),
         ]
 
     commands, fine = _commands(session, project_id, window)
@@ -284,4 +303,4 @@ def of(
         *_tasks(session, project_id, window),
     ]
     rows.sort(key=lambda row: row.at, reverse=True)
-    return DecisionLog(rows=rows, judge_fine=fine)
+    return DecisionLog(rows=rows[:MOST], judge_fine=fine, more=len(rows) > MOST)

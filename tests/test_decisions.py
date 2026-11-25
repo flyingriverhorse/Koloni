@@ -2,6 +2,7 @@
 the records of each kind - the Orchestrator's answers, the sub-agents it opened, the judges'
 commands and its To-do choices - project by project, in the period asked, masked and marked."""
 
+import json
 from datetime import UTC, datetime, timedelta
 
 from app import decisions, injection, raw
@@ -237,7 +238,8 @@ def test_each_kind_says_who_decided_what_and_whether_change_works(client, tmp_pa
         f"answer:{ids['answer']}": ("answer", "orchestrator", "change", None, False),
         f"answer:{ids['seen']}": ("answer", "orchestrator", "none", "you said OK to it", True),
         f"answer:{ids['leave']}": ("answer", "orchestrator", "none", "the next step ran", False),
-        f"spawn:{ids['spawn']}": ("spawn", "orchestrator", "none", "the agent was opened", None),
+        # (its card is under Decided for you too: not seen until its OK)
+        f"spawn:{ids['spawn']}": ("spawn", "orchestrator", "none", "the agent was opened", False),
         f"command:{ids['ran']}": ("command", "your_words", "none", "it ran", None),
         f"command:{ids['kept']}": ("command", "your_words", "none", "it did not run", None),
         f"command:{ids['old']}": ("command", "your_words", "none", "it ran", None),
@@ -368,3 +370,121 @@ def test_a_secret_is_masked_and_words_that_read_like_orders_are_marked(
     # Ordinary words are not marked; none stay none.
     assert decisions.said("the tests make one") == "the tests make one"
     assert decisions.said(None) is None and decisions.said("") is None
+
+
+def test_keys_known_by_their_shape_alone_are_masked_too():
+    for line, kept in (
+        ("curl -H 'Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz0123456789' x", "Bearer"),
+        ("export OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz0123", "OPENAI_API_KEY="),
+        ("the key AKIAABCDEFGHIJKLMNOP is in .env", "the key"),
+    ):
+        shown = decisions.said(line)
+        assert shown is not None and raw.HIDDEN in shown and kept in shown, shown
+        assert not {"ghp_abcdef", "sk-proj-abc", "AKIAABCD"} & {
+            shown[i : i + 10] for i in range(len(shown))
+        }
+
+
+def test_what_nobody_sees_is_taken_out_before_masking(monkeypatch):
+    monkeypatch.setattr(raw, "_known", lambda fresh=False: raw.spellings([SECRET]))
+    zwsp, override = "\N{ZERO WIDTH SPACE}", "\N{RIGHT-TO-LEFT OVERRIDE}"
+    isolate, soft, tag = (
+        "\N{LEFT-TO-RIGHT ISOLATE}",
+        "\N{SOFT HYPHEN}",
+        "\N{TAG LATIN CAPITAL LETTER A}",
+    )
+    for unseen in (zwsp, isolate, soft, override, tag):
+        shown = decisions.said(f"the key {SECRET[:6]}{unseen}{SECRET[6:]} done")
+        assert shown is not None and shown.endswith("the key *** done"), (ascii(unseen), shown)
+        assert unseen not in shown
+    # (A bidi override or a character nobody sees still marks the words: they are scanned as written.)
+    assert decisions.said(f"ok {override}exe.txt") == f"{injection.NOTE} ok exe.txt"
+    assert decisions.said(f"plain{zwsp}word") == f"{injection.NOTE} plainword"
+
+
+def test_a_secret_with_a_space_written_across_a_line_break_is_masked(monkeypatch):
+    phrase = "correct horse battery staple"
+    monkeypatch.setattr(raw, "_known", lambda fresh=False: raw.spellings([phrase]))
+    assert decisions.said("the phrase is correct horse\nbattery staple.") == "the phrase is ***."
+
+
+def test_a_lone_surrogate_a_model_wrote_is_kept_as_the_replacement_character():
+    from app import backlog, judge, risk_judge
+    from app.agent.cards import lead_pick
+
+    # (A model's JSON as it writes them: "\ud83d" alone - and a pair, an emoji, which stays one.)
+    lone, emoji, fffd = "\ud83d", "\U0001f600", "\N{REPLACEMENT CHARACTER}"
+    said = json.dumps({"verdict": "risky", "why": f"It is risky {lone} and {emoji}"})
+    assert "\\ud83d" in said and "\\ude00" in said
+    assert risk_judge.verdict(said) == {
+        "verdict": "risky",
+        "why": f"It is risky {fffd} and {emoji}",
+    }
+    asked = judge.verdict(json.dumps({"verdict": "ask", "why": f"not sure {lone}"}), {})
+    assert asked is not None and asked["why"] == f"not sure {fffd}"
+    told = {"decisions": [{"task": 1, "add": False, "why": f"nope {lone}"}]}
+    assert backlog.lead_decided(json.dumps(told), 1) == {1: (False, f"nope {fffd}")}
+    picked = lead_pick(json.dumps({"answer": f"A {lone}", "why": f"w {lone} {emoji}"}), [])
+    assert picked == (f"A {fffd}", f"w {fffd} {emoji}")
+
+
+def test_a_record_that_holds_a_lone_surrogate_is_read(client, tmp_path):
+    # (A JSON column keeps one, escaped - from before the parsers replaced it; a text column
+    # cannot: SQLite refuses it.)
+    pid, cid = chat(client, tmp_path / "a")
+    ids = seed(client, pid, cid)
+    with client.app.state.session_factory() as session:
+        command = session.get_one(Command, ids["refused"])
+        command.judged = {**command.judged, "why": "It sends \udc00 away."}
+        task = session.get_one(BacklogTask, ids["turned"])
+        task.po = {**task.po, "lead_why": "too \ud800 big"}
+        session.commit()
+    rows = {row["id"]: row for row in log(client, pid)["rows"]}
+    fffd = "\N{REPLACEMENT CHARACTER}"
+    assert rows[f"command:{ids['refused']}"]["why"] == f"It sends {fffd} away."
+    assert rows[f"task:{ids['turned']}"]["why"] == f"too {fffd} big"
+    with client.app.state.session_factory() as session:
+        assert len(decisions.of(session, pid).rows) == len(rows)
+
+
+def test_a_time_out_of_range_is_refused_not_a_failure(client, tmp_path):
+    pid, _cid = chat(client, tmp_path / "a")
+    for name in ("since", "until"):
+        got = client.get(
+            f"/api/projects/{pid}/decisions", params={name: "0001-01-01T00:00:00+14:00"}
+        )
+        assert got.status_code == 422, got.text
+    assert (
+        client.get(
+            f"/api/projects/{pid}/decisions", params={"since": "0001-01-01T00:00:00"}
+        ).status_code
+        == 200
+    )
+
+
+def test_only_the_newest_are_given_and_it_says_there_were_more(client, tmp_path, monkeypatch):
+    pid, cid = chat(client, tmp_path / "a")
+    early, late = seed(client, pid, cid), seed(client, pid, cid, minutes=600)
+    whole = log(client, pid)
+    assert whole["more"] is False
+    monkeypatch.setattr(decisions, "MOST", 3)
+    got = log(client, pid)
+    assert got["more"] is True and len(got["rows"]) == 3
+    assert [row["id"] for row in got["rows"]] == [row["id"] for row in whole["rows"][:3]]
+    assert {row["id"] for row in got["rows"]} <= {
+        f"{kind}:{one}" for kind in ("answer", "command", "task", "spawn") for one in late.values()
+    }
+    assert got["judge_fine"] == whole["judge_fine"] == 2 and early
+
+
+def test_a_task_turned_down_that_you_said_ok_to_leaves_the_log(client, tmp_path):
+    from app import backlog
+
+    pid, cid = chat(client, tmp_path / "a")
+    ids = seed(client, pid, cid)
+    assert f"task:{ids['turned']}" in {row["id"] for row in log(client, pid)["rows"]}
+    # (The chat's OK on it is `decideTask(id, 'reject')`: the task is deleted - a known limit.)
+    with client.app.state.session_factory() as session:
+        backlog.decide(session, session.get_one(BacklogTask, ids["turned"]), approve=False)
+        session.commit()
+    assert f"task:{ids['turned']}" not in {row["id"] for row in log(client, pid)["rows"]}

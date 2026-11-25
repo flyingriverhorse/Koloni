@@ -36,10 +36,12 @@ class Decision(BaseModel):
     # "change": today's Change still works (an answer while its agent works; a To-do choice).
     undo: Literal["change", "none"]
     undo_reason: str | None  # (where it is "none": why, in plain words)
-    seen: bool | None  # a card's answer only: whether the user said OK to it
+    # A card's (an answer, a sub-agent opened or not): whether the user said OK to it; else None.
+    seen: bool | None
 
 
 class DecisionLog(BaseModel):
-    rows: list[Decision]  # newest first
+    rows: list[Decision]  # newest first: the newest `decisions.MOST`
     # The judge's "fine" in the period: a count, not rows (a night can have hundreds).
     judge_fine: int
+    more: bool = False  # there were more rows than `rows` holds

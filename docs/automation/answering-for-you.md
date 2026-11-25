@@ -50,7 +50,8 @@ What it answered shows under **Decided for you while you were away**: who asked,
 chose, and why. Press **OK** to keep it, or **Change →** to give another answer. If the answer cannot be
 undone any more, it says so. Each item says who decided it - **Orchestrator**, **KOLONİ's judge** or
 **Check what I said first** - and **All decisions on Today** opens the project's whole list, with what
-you already said OK to: see [Decisions](../use/decisions.md).
+you already said OK to - but a task the Orchestrator turned down that you said OK to, which OK takes
+off To-do: see [Decisions](../use/decisions.md).
 
 At **Full auto** the Orchestrator also answers questions in a chat you watch, at once, and some of
 KOLONİ's own cards, such as an agent's Continue / Stop here card at its
