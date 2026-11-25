@@ -431,10 +431,10 @@ KOLONİ knows all the line runs, as it is:
 Every other line is asked about each time it runs, and its card has no box: a chain, a pipe, a
 redirection or a substitution - `python k.py && python e.py`, `… ; …`, `… | …`, `… || …`, `… > out.txt`,
 `$(…)` - kept on its first file, the next one could change unseen; `git` and `gh` (they may run the
-project's own aliases and settings), a wrapped line (`env …`, `uv run …`, `timeout …`), a shell's line -
-its code or a script it is handed (`bash -lc …`, `bash x.sh`, `powershell -File x.ps1`, `cmd /c …`) -,
-`npx …`, a line sent to another folder (`-C`, `--prefix`, `-w`, `--cwd`), an option that loads more code
-(`node -r x`), a variable set on make's line (`make CC=x`), a
+project's own aliases and settings), a wrapped line (`env …`, `uv run …`, `timeout …`), a shell's code
+(`bash -lc …`, `cmd /c …`), `npx …`, a line sent to another folder (`-C`, `--prefix`, `-w`, `--cwd`), an
+option that loads more code (`node -r x`; PowerShell with any option but `-NoProfile`, `-NonInteractive`,
+`-NoLogo`, `-ExecutionPolicy`, `-WindowStyle` and `-File`), a variable set on make's line (`make CC=x`), a
 package run by its `__main__.py` (`python -m pkg`, `python pkg`), a Python line without `-I` or `-E` in a
 working copy (its commands get the copy first on `PYTHONPATH`, so a `sitecustomize.py` there runs before
 the script) or where KOLONİ's own environment sets `PYTHONPATH`, `bun`, `Rscript`, any other runner

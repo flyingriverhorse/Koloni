@@ -486,8 +486,9 @@ class RiskJudgeMixin:
         # here" - only where all it runs is known as it is: one plain command, the file found,
         # hashed, all of it - never a chain, pipe, redirection or substitution after it (F408 J1:
         # `python k.py && python e.py` was kept on k.py) -, or it runs none of the folder's code;
-        # else what it runs may change unseen)
-        one = is_plain(command) and not is_wrapped(command) and not _in_a_shell(command)
+        # else what it runs may change unseen. A shell handed a script file is kept as `python
+        # x.py` is; a shell's code never is: `_named_file`'s exact)
+        one = is_plain(command) and not is_wrapped(command)
         hashed = bool(digest) and exact and one
         kept = known and (hashed or _no_local_code(root, command, cwd or "."))
         key = (command.strip(), cwd or "", digest if hashed else "", str(root)) if kept else None
