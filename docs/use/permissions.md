@@ -427,9 +427,14 @@ KOLONİ knows all the line runs, as it is:
   more - `python x.py`, `node x.js`, `make` or `make target` (its Makefile), `make -f F`, `npm test` or
   `npm run <script>` (that folder's `package.json`), `docker build [-f F] [-t T] .` (its Dockerfile). Once
   the file changes, it is another line, asked again;
-- or one plain command of a few that run none of the project's code, kept by its words: `curl` and `wget`
-  (where no word names a path in the folder), and the file commands `rm`, `rmdir`, `del`, `mkdir`, `md`,
-  `cp`, `copy`, `mv`, `move`, `ren`, `chmod`, `touch`.
+- or one plain command of a few that run none of the project's code, kept by its words: the file
+  commands `rm`, `rmdir`, `del`, `mkdir`, `md`, `cp`, `copy`, `mv`, `move`, `ren`, `chmod`, `touch`; and
+  `curl` and `wget` only where every word after them is an `http://` or `https://` address, a flag that
+  takes no value (curl: `-s`, `-S`, `-f`, `-L`, `-I`, `-v`, `-sS`, `-fsS`, `-fsSL`, `-sSL`, `-fL`,
+  `--silent`, `--show-error`, `--fail`, `--location`, `--head`, `--verbose`, `--compressed`; wget: `-q`,
+  `-nv`, `--quiet`, `--no-verbose`, `-S`, `--server-response`, `--spider`) or the output file `curl -o
+  NAME` / `wget -O NAME` (a plain file name) - any other word (a config, a file to send, a value glued
+  to a flag, a quote, `file://`) and the line is asked each time.
 
 Every other line is asked about each time it runs, and its card has no box: a chain, a pipe, a
 redirection or a substitution - `python k.py && python e.py`, `… ; …`, `… | …`, `… || …`, `… > out.txt`,

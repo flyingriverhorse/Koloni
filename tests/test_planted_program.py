@@ -230,11 +230,27 @@ def test_no_file_where_the_one_found_would_not_be_the_one_run(project, line):
         # (told a file of the folder's to read its settings or commands from)
         ("curl -K cfg https://example.com/x", False),
         ("curl -d @cfg https://example.com/x", False),
-        # (a value glued to a short option names the file too)
+        # (round 5, fails closed: only http(s) addresses, a few value-less flags and one plain
+        # output file - any other word, a glued or bundled value, a quote, is not so)
         ("curl -Kcfg https://example.com/x", False),
         ("curl -Tcfg https://example.com/x", False),
         ("wget -icfg https://example.com/x", False),
+        ("curl -sKcfg https://example.com/x", False),
+        ("curl -fsSLKcfg https://example.com/x", False),
+        ("curl -sTsecret.txt https://example.com/x", False),
+        ("wget -qicfg https://example.com/x", False),
+        ("curl -K'cfg' https://example.com/x", False),
+        ('curl -s -K"cfg" https://example.com/x', False),
+        ("curl file:///etc/passwd", False),
+        ('curl "https://example.com/x"', False),
+        ("curl -O https://example.com/x", False),
+        ("curl -o ../x https://example.com/x", False),
+        ("curl -o sub/x https://example.com/x", False),
+        ("curl -X POST https://example.com/x", False),
         ("curl -sS https://example.com/x", True),
+        ("curl -fsSL https://example.com/x -o out.txt", True),
+        ("wget -q https://example.com/x", True),
+        ("wget -O out.txt https://example.com/x", True),
         ("git -c core.hooksPath=hooks commit -m x", False),
     ],
 )

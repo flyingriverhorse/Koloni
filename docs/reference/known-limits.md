@@ -182,7 +182,8 @@ messages.
   `.ruff_cache`, `.mypy_cache`, `.git`). A command that runs none of the project's code is not closed
   by changes at all.
 - KOLONİ looks at the whole copy for this, each time a line is parked and just before each runs: about
-  a second on a copy of 2,000 files (measured on Windows), the first look longer.
+  a second on a copy of 2,000 files (measured on Windows), the first look longer. A large `build` or
+  `dist` folder in the copy (or a big scratch) makes each look slower: every file in it is read.
 - Between that last look and the line's start there is a moment - under a second - in which a process
   an earlier **Run** left behind (on Linux or macOS), or another task's going-on turn, could still
   change a file: that gap is not closed.

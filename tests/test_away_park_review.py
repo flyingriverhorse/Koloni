@@ -680,3 +680,32 @@ def test_work_changed_in_the_project_after_take_in_says_so(make_client, wait_run
     assert decide(client, done["id"], row["id"], "run").status_code == 200
     msg, _going = going_on_turn(client, cid)
     assert parked.TAKEN_IN in msg and "CHANGED-IN-THE-PROJECT" not in msg
+
+
+def test_a_bundled_curl_config_rewritten_after_parking_is_not_run(
+    make_client, wait_run, project_dir
+):
+    # (round 5: `-sKcfg` reads a file of the folder - no exception; its cfg rewritten after the
+    # night, the line is not run. Its own address a closed loopback port: no network either way.)
+    client, _pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "write it"),
+            write("cfg", "connect-timeout = 2\n"),
+            text("written"),
+            run("curl -sKcfg http://127.0.0.1:9/ping"),
+            text("one done"),
+            text("went on"),
+        ],
+        mode="auto_edit",
+    )
+    with client.app.state.session_factory() as session:
+        (found,) = session.scalars(select(Parked)).all()
+        assert found.data["no_code"] is False
+    (_copy_of(client) / "cfg").write_text('url = "file:///outside"\n')
+    (row,) = waiting(client, done["id"])
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    msg, _going = going_on_turn(client, cid)
+    assert parked.WROTE_SINCE in msg and ran_in_the_morning(client, cid) == []

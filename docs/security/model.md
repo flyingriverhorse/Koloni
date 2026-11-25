@@ -98,9 +98,14 @@ files, and every file in its `__pycache__`, `build` and `dist` folders and the a
 looks again just before it runs; the list says so as soon as the job's turn is over). Where it would run
 in the project, some of the copy taken in, the same holds of the project's files: "its work was taken in
 after this was parked: run it yourself". A Python of the morning keeps its compiled files in a folder
-of its own, never the copy's `__pycache__`. A command that runs none of the project's code - `curl`,
-`wget`, a file command (`rm`, `mkdir`, `cp`, `mv`…), as Full auto's judge reads it (a file it is told
-to read, `-K cfg` or `-Kcfg`, is code of the folder's) - is the exception. A program an agent
+of its own, never the copy's `__pycache__`. A command that runs none of the project's code is the
+exception: a file command (`rm`, `rmdir`, `del`, `mkdir`, `md`, `cp`, `copy`, `mv`, `move`, `ren`,
+`chmod`, `touch`), and `curl` or `wget` only where every word after it is an `http://` or `https://`
+address, one of a few flags that take no value (curl's `-s`, `-S`, `-f`, `-L`, `-I`, `-v`, `-sS`, `-fsS`,
+`-fsSL`, `-sSL`, `-fL`, `--silent`, `--show-error`, `--fail`, `--location`, `--head`, `--verbose`,
+`--compressed`; wget's `-q`, `-nv`, `--quiet`, `--no-verbose`, `-S`, `--server-response`, `--spider`),
+or its output file (`curl -o NAME`, `wget -O NAME`, a plain file name). Any other word - a config, a file
+to send, a value glued on, a quote, `file://` - and it is held to the copy as any line. A program an agent
 wrote and a place you kept out are still refused. The list says where a line would run and which file
 an agent wrote that it runs. Nothing goes into your project without your Take in: the going-on turn's
 work, at Full auto too, is kept in its copy.
