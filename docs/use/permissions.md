@@ -420,7 +420,7 @@ choose one of the models listed (those of every tier that answer with no tools).
 asked now (its provider gone, closed to agents or down) stays chosen and the list says so; the Fast tier's
 first is asked meanwhile. On a CLI each such command waits for it to start. **Check what I said first**
 asks the same model. Each command it looks at is one request, on your plan or your bill, shown on
-[Usage](../money/usage.md) under KOLONİ itself; reads, ordinary work and a line already judged in the turn
+[Usage](../money/usage.md) under that model; reads, ordinary work and a line already judged in the turn
 make none. Usage › Cards counts its cards on a row of their own.
 
 ### The judge is not a wall

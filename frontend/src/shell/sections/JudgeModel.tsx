@@ -5,7 +5,7 @@ import { GUIDE } from '../guide'
 import { Row } from './part'
 
 const JUDGE_WHY =
-  'For every project: the model Full auto’s judge asks whether a command looks risky, and Check what I said first whether your words cover one. It is sent your words and the command, with the secrets KOLONİ knows masked, and answers with no tools - one request for each such command, on your plan or your bill; Usage shows it under KOLONİ itself.'
+  'For every project: the model Full auto’s judge asks whether a command looks risky, and Check what I said first whether your words cover one. It is sent your words and the command, with the secrets KOLONİ knows masked, and answers with no tools - one request for each such command, on your plan or your bill; Usage shows it under that model.'
 
 /** A choice's value in the list: its provider and its model. */
 const keyOf = (provider: string, model: string) => `${provider}\n${model}`
