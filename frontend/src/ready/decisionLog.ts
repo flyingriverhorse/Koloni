@@ -65,7 +65,7 @@ export const openDecisions = (unseen = false) =>
 
 /** An agent's or a model's words in Markdown, inert: on one line in a code span - no link, image, heading, HTML or
  *  @mention is made of them - fenced longer than any run of backticks in them. */
-function inert(text: string): string {
+export function inert(text: string): string {
   const line = text.replace(/\s+/g, ' ').trim()
   const fence = '`'.repeat(Math.max(0, ...(line.match(/`+/g) ?? []).map(run => run.length)) + 1)
   return `${fence} ${line} ${fence}`
