@@ -498,7 +498,8 @@ export interface paths {
         /**
          * Decide
          * @description The user's word on a task an agent proposed, or on a change it proposed: the task as
-         *     it is now, or null when a proposed task was turned down (it is gone).
+         *     it is now, or null when a proposed task was turned down (it is gone). With `expect`, the
+         *     decision log's Change: only on the Orchestrator's word as its row showed it (409 else).
          */
         post: operations["decide_api_backlog__task_id__decide_post"];
         delete?: never;
@@ -2852,7 +2853,8 @@ export interface paths {
         /**
          * Read
          * @description What was decided for the user in the project from `since` until `until` (each where
-         *     given), newest first, and how many commands the judge found fine meanwhile.
+         *     given), newest first, and how many commands the judge found fine meanwhile. `unseen`: only
+         *     those that wait for your OK, of any age.
          */
         get: operations["read_api_projects__project_id__decisions_get"];
         put?: never;
@@ -5567,14 +5569,6 @@ export interface components {
             /** What */
             what: string;
         };
-        /** BacklogDecideIn */
-        BacklogDecideIn: {
-            /**
-             * Decision
-             * @enum {string}
-             */
-            decision: "approve" | "reject";
-        };
         /**
          * BacklogDoIn
          * @description Do in chat: the ticked tasks, for the queue of this chat - or of a new one (None).
@@ -7049,6 +7043,8 @@ export interface components {
             quote: string | null;
             /** Seen */
             seen: boolean | null;
+            /** Source */
+            source?: ("preferences" | "rules" | "message") | null;
             /**
              * Undo
              * @enum {string}
@@ -11742,6 +11738,21 @@ export interface components {
             /** Summary */
             summary: string;
         };
+        /**
+         * TaskDecideIn
+         * @description The user's word on a task an agent proposed - and, from the decision log's Change, the
+         *     state its row showed the Orchestrator's word in (`backlog.decide`'s `expect`): None from
+         *     the To-do page and the chat, which decide what waits now.
+         */
+        TaskDecideIn: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+            /** Expect */
+            expect?: ("proposed" | "added") | null;
+        };
         /** TeamIn */
         TeamIn: {
             /** Name */
@@ -13531,7 +13542,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BacklogDecideIn"];
+                "application/json": components["schemas"]["TaskDecideIn"];
             };
         };
         responses: {
@@ -17884,6 +17895,7 @@ export interface operations {
             query?: {
                 since?: string | null;
                 until?: string | null;
+                unseen?: boolean;
             };
             header?: never;
             path: {

@@ -205,10 +205,17 @@ def declined(task: BacklogTask) -> bool:
     return task.status == "proposed" and (task.po or {}).get("lead") == "no"
 
 
-def decide(session: Session, task: BacklogTask, approve: bool) -> BacklogTask | None:
+def decide(
+    session: Session, task: BacklogTask, approve: bool, expect: str | None = None
+) -> BacklogTask | None:
     """The user's word on what waits: a proposed task is kept as todo, or removed (None); one
     the Lead added at Full auto (`unseen`) is OK'd, or removed; a pending change is applied,
-    or dropped. Refused when nothing waits."""
+    or dropped. Refused when nothing waits. `expect` (the decision log's Change, from a row
+    read earlier): the Orchestrator's word only, and only in the state the row showed -
+    "proposed": one it turned down, still proposed; "added": one it added, still todo and not
+    OK'd - never an agent's pending change; else refused ("it changed since you looked")."""
+    if expect is not None and not _as_shown(task, expect):
+        raise Refused("it changed since you looked: read the decisions again")
     if task.status == "proposed" or unseen(task) and task.status == "todo":
         if approve and task.status == "proposed":
             task.status = "todo"
@@ -230,6 +237,14 @@ def decide(session: Session, task: BacklogTask, approve: bool) -> BacklogTask | 
             setattr(task, field, value)
     task.pending = None
     return task
+
+
+def _as_shown(task: BacklogTask, expect: str) -> bool:
+    """Whether the Orchestrator's word on a task stands as the decision log showed it."""
+    lead = (task.po or {}).get("lead")
+    if expect == "proposed":
+        return lead == "no" and task.status == "proposed"
+    return expect == "added" and unseen(task) and task.status == "todo"
 
 
 def tidy_story(session: Session, story_id: str | None, project_id: str) -> None:

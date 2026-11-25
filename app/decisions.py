@@ -36,7 +36,7 @@ SAID_MOST = 300  # characters of an agent's or a model's words a row shows
 MOST = 500
 # (`spawn_mixin._spawn_word`'s card: the one of KOLONİ's cards with these two options)
 SPAWN = list(SPAWN_WORDS)
-FROM = {
+FROM: dict[Literal["preferences", "rules", "message"], str] = {
     "preferences": "your preferences",
     "rules": "this project's rules",
     "message": "your message",
@@ -44,8 +44,9 @@ FROM = {
 
 When = ColumnElement[datetime] | InstrumentedAttribute[datetime]
 Window = Callable[[When], list[ColumnElement[bool]]]
-# A row as it is found: when, and how to build it - only the newest MOST are built.
-Later = tuple[datetime, Callable[[], Decision]]
+# A row as it is found: when, whether you said OK to it (None: it has no OK), and how to build it
+# - only the newest MOST are built.
+Later = tuple[datetime, bool | None, Callable[[], Decision]]
 # What shows as nothing, or as a blank, and is no Cf: a braille blank, a Hangul filler...
 # (`stories.BLANK_LOOKING`), the combining grapheme joiner and the emoji variation selector.
 UNSEEN = BLANK_LOOKING | {"\N{COMBINING GRAPHEME JOINER}", "\N{VARIATION SELECTOR-16}"}
@@ -137,7 +138,7 @@ def _cards(session: Session, project_id: str, window: Window) -> list[Later]:
             build = partial(_spawn, question, utc(when), cid, title, child)
         else:
             build = partial(_answer, question, utc(when), cid, title, status)
-        rows.append((utc(when), build))
+        rows.append((utc(when), question.seen_at is not None, build))
     return rows
 
 
@@ -257,7 +258,7 @@ def _commands(session: Session, project_id: str, window: Window) -> tuple[list[L
         if said_of is None or kind == "risk" and judged.get("looked") is not True:
             continue
         build = partial(_command, command_id, line, judged, utc(at), (cid, title), said_of)
-        rows.append((utc(at), build))
+        rows.append((utc(at), _command_seen(judged), build))
     return rows, fine
 
 
@@ -284,9 +285,18 @@ def _command(
         link=DecisionLink(kind="command", id=command_id),
         undo="none",
         undo_reason=why_not,
-        # (one it ran or did not run waits for your OK, as a card's answer; its card was risky's)
-        seen=None if judged.get("verdict") == "risky" else bool(judged.get("seen")),
+        seen=_command_seen(judged),
+        # (one of `FROM`'s, or none: the record's word is not taken as it is)
+        source=next((one for one in FROM if one == judged.get("source")), None)
+        if who == "your_words"
+        else None,
     )
+
+
+def _command_seen(judged: dict) -> bool | None:
+    """One it ran or did not run waits for your OK, as a card's answer; one it asked you about on
+    its card ("risky") has none."""
+    return None if judged.get("verdict") == "risky" else bool(judged.get("seen"))
 
 
 def _task_undo(task: BacklogTask, added: bool) -> str | None:
@@ -311,10 +321,17 @@ def _tasks(session: Session, project_id: str, window: Window) -> list[Later]:
         )
     ).all()
     return [
-        (utc(task.created_at), partial(_task, task))
+        (utc(task.created_at), _task_seen(task), partial(_task, task))
         for task in found
         if (task.po or {}).get("lead") in ("add", "no")
     ]
+
+
+def _task_seen(task: BacklogTask) -> bool:
+    """Your OK on the Orchestrator's word on a task - or one it turned down that you added since:
+    your own word on it, nothing left to OK."""
+    po = task.po or {}
+    return bool(po.get("seen")) or (po.get("lead") == "no" and task.status != "proposed")
 
 
 def _task(task: BacklogTask) -> Decision:
@@ -334,7 +351,7 @@ def _task(task: BacklogTask) -> Decision:
         link=DecisionLink(kind="task", id=task.id),
         undo="none" if why_not else "change",
         undo_reason=why_not,
-        seen=bool(po.get("seen")),
+        seen=_task_seen(task),
     )
 
 
@@ -343,10 +360,11 @@ def of(
     project_id: str,
     since: datetime | None = None,
     until: datetime | None = None,
+    unseen: bool = False,
 ) -> DecisionLog:
     """What was decided for the user in project `project_id` at or after `since` and before
     `until` (each where given; a time with no zone is UTC's), newest first - the newest `MOST`,
-    `more` where there were more."""
+    `more` where there were more. `unseen`: only those that wait for your OK."""
 
     def window(at: When) -> list[ColumnElement[bool]]:
         return [
@@ -356,7 +374,9 @@ def of(
 
     commands, fine = _commands(session, project_id, window)
     rows = [*_cards(session, project_id, window), *commands, *_tasks(session, project_id, window)]
+    if unseen:  # (only what waits for your OK - before the cut: one of any age is found)
+        rows = [row for row in rows if row[1] is False]
     rows.sort(key=lambda row: row[0], reverse=True)
     return DecisionLog(
-        rows=[build() for _at, build in rows[:MOST]], judge_fine=fine, more=len(rows) > MOST
+        rows=[build() for _at, _seen, build in rows[:MOST]], judge_fine=fine, more=len(rows) > MOST
     )

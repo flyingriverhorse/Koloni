@@ -14,7 +14,6 @@ from app.api.recipes import Asked, ask_in_turn, askers, chat_of
 from app.api.usage import over_budget, over_month
 from app.db.models import BacklogTask, Conversation, Project, Story, new_chat, now
 from app.schemas import (
-    BacklogDecideIn,
     BacklogDoIn,
     BacklogDoOut,
     BacklogDrafter,
@@ -26,6 +25,7 @@ from app.schemas import (
     TodoTreeAdded,
     TodoTreeIn,
 )
+from app.schemas_decisions import TaskDecideIn
 from app.serialize import conversation_out
 
 router = APIRouter(prefix="/api", tags=["backlog"])
@@ -321,14 +321,15 @@ async def delete_task(task_id: str, request: Request, session: Session = Depends
 
 @router.post("/backlog/{task_id}/decide", response_model=BacklogTaskOut | None, dependencies=OWN)
 async def decide(
-    task_id: str, body: BacklogDecideIn, request: Request, session: Session = Depends(get_session)
+    task_id: str, body: TaskDecideIn, request: Request, session: Session = Depends(get_session)
 ):
     """The user's word on a task an agent proposed, or on a change it proposed: the task as
-    it is now, or null when a proposed task was turned down (it is gone)."""
+    it is now, or null when a proposed task was turned down (it is gone). With `expect`, the
+    decision log's Change: only on the Orchestrator's word as its row showed it (409 else)."""
     task = _task(session, task_id)
     project_id = task.project_id
     try:
-        kept = backlog.decide(session, task, body.decision == "approve")
+        kept = backlog.decide(session, task, body.decision == "approve", body.expect)
     except backlog.Refused as exc:
         raise HTTPException(409, str(exc)) from None
     if kept is not None:  # (an approved change may have closed it)

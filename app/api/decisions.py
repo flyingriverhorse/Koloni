@@ -21,14 +21,16 @@ def read(
     project_id: str,
     since: datetime | None = None,
     until: datetime | None = None,
+    unseen: bool = False,
     session: Session = Depends(get_session),
 ):
     """What was decided for the user in the project from `since` until `until` (each where
-    given), newest first, and how many commands the judge found fine meanwhile."""
+    given), newest first, and how many commands the judge found fine meanwhile. `unseen`: only
+    those that wait for your OK, of any age."""
     if session.get(Project, project_id) is None:
         raise HTTPException(404, "project not found")
     try:
         since, until = (None if at is None else decisions.utc(at) for at in (since, until))
     except OverflowError:
         raise HTTPException(422, "since and until must be times UTC can hold") from None
-    return decisions.of(session, project_id, since, until)
+    return decisions.of(session, project_id, since, until, unseen)

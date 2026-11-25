@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.schemas import BacklogDecideIn
+
 
 class DecisionLink(BaseModel):
     """What a row is of: the card, the command, the To-do task or the agent opened."""
@@ -36,6 +38,9 @@ class Decision(BaseModel):
     why: str | None
     conversation_id: str | None
     chat: str | None = None  # (its chat's title, as `quote` is shown; None for a To-do task's)
+    # A rule of yours (`who` "your_words"): where its line is - your preferences, the project's
+    # rules or your message; None on the others, and on a record from before 0.1.9 that says not.
+    source: Literal["preferences", "rules", "message"] | None = None
     link: DecisionLink
     # "change": today's Change still works (an answer while its agent works; a To-do choice).
     undo: Literal["change", "none"]
@@ -51,3 +56,11 @@ class DecisionLog(BaseModel):
     # The judge's "fine" in the period: a count, not rows (a night can have hundreds).
     judge_fine: int
     more: bool = False  # there were more rows than `rows` holds
+
+
+class TaskDecideIn(BacklogDecideIn):
+    """The user's word on a task an agent proposed - and, from the decision log's Change, the
+    state its row showed the Orchestrator's word in (`backlog.decide`'s `expect`): None from
+    the To-do page and the chat, which decide what waits now."""
+
+    expect: Literal["proposed", "added"] | None = None
