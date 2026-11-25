@@ -27,6 +27,9 @@ const row = (over: Partial<Waiting>): Waiting => ({
   closed: null,
   held: false,
   seq: 1,
+  place: 'copy',
+  danger: null,
+  wrote: null,
   ...over,
 })
 
@@ -93,6 +96,17 @@ test('the line is shown whole, in mono, with KOLONİ’s warning where it reads 
   const what = await screen.findByText(line)
   expect(what.className).toContain('mono')
   expect(screen.getByRole('note').textContent).toBe(NOTE)
+})
+
+test('a command says where it would run, its card’s words, and a file an agent wrote that it runs', async () => {
+  shown([
+    row({ what: 'python go.py', danger: 'Deletes or overwrites build', wrote: 'go.py' }),
+    row({ id: 'w2', seq: 2, what: 'git commit -am x', place: 'project' }),
+  ])
+  expect(await screen.findByText(/Runs in its job’s copy/)).toBeTruthy()
+  expect(screen.getByText(/Runs in the project itself/)).toBeTruthy()
+  expect(screen.getByText('Deletes or overwrites build')).toBeTruthy()
+  expect(screen.getByText('Runs a file an agent wrote: go.py')).toBeTruthy()
 })
 
 test('a decided row says your word, and takes no other', async () => {

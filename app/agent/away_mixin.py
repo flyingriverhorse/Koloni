@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app import away, copies, parked
 from app.agent.ctx import TERMINAL, Ctx, announce
+from app.agent.risk_judge_mixin import _agents, _digest, _named_file
 from app.agent.words import AGENT_TERMINAL
 from app.api.usage import over_budget
 from app.commands import (
@@ -42,7 +43,7 @@ from app.db.models import (
 from app.model_cli import CliStepClient
 from app.model_native import ClaudeNativeClient
 from app.roles import LEAD
-from app.serialize import message_out, run_out
+from app.serialize import command_out, message_out, run_out
 from app.tools import ToolError
 from app.workspace import Workspace
 
@@ -180,6 +181,11 @@ class AwayMixin:
                     await make()
             copy = self._copies.get(self._works_in(ctx) or "")
             with self._factory() as session:
+                line, cwd = (one := session.get_one(Command, command_id)).command, one.cwd
+            # (H3: the file it runs by its name, as it is now - in the copy it would run in)
+            root = copy.root if copy is not None else Path(ctx.folder)
+            program = await asyncio.to_thread(self._program_of, ctx.cid, root, line, cwd or ".")
+            with self._factory() as session:
                 command = session.get_one(Command, command_id)
                 call = session.get(ToolCall, command.tool_call_id or "")
                 task = away.job_of(session, ctx.cid)
@@ -201,12 +207,40 @@ class AwayMixin:
                             if call is not None and command.asked_reason == "judge"
                             else None,
                             "needs_project": parked.needs_project(command.command),
+                            # (M2, L4, L6: a CLI's own shell's line, a server, its card's words)
+                            "origin": command.origin,
+                            "server": command.keep_running,
+                            "danger": command_out(command)["danger"] or None,
+                            "file": program,
                         },
                     )
                     session.commit()
                 return parked.said(command.command, command.cwd)
 
         return park
+
+    def _program_of(self: "AgentRunner", cid: str, root: Path, line: str, cwd: str) -> dict | None:
+        """H3: the file a parked line runs by its name (`_named_file`, as Full auto's judge finds
+        it) as it is in `root` now - its path, its digest, whether an agent wrote it - or None:
+        none it can see (`pytest`, `make`'s targets, `-m`'s modules - known limits). Blocking."""
+        path = _named_file(root, line, cwd)[0]
+        if path is None:
+            return None
+        rel = path.relative_to(root.resolve()).as_posix()
+        return {
+            "rel": rel,
+            "digest": _digest(path),
+            "agents": _agents(self._factory, cid, root, path),
+        }
+
+    def _program_changed(self, file: dict | None, root: Path, line: str, cwd: str) -> bool:
+        """H3: whether the file a line runs by its name is not as it was parked, in the root it
+        would run in now: another file, changed, gone - or one where none was (fails closed)."""
+        path = _named_file(root, line, cwd)[0]
+        if file is None or path is None:
+            return path is not None or file is not None
+        rel = path.relative_to(root.resolve()).as_posix()
+        return rel != file.get("rel") or _digest(path) != file.get("digest")
 
     def _parked_here(self: "AgentRunner", owner: str) -> bool:
         """Whether something of a job parked in this agent's copy still waits for the morning
@@ -575,23 +609,26 @@ class AwayMixin:
                     .order_by(Parked.seq)
                 )
             )
+        held = await self._hold_merges(rows, cid)
+        with self._factory() as session:
             kept = away.kept_copies(session, cid)
-            last = kept[-1] if kept and self._undecided(kept[-1]) else None
+            # (untouched: nothing of it taken in - its Take in held off by this morning itself)
+            last = (
+                kept[-1]
+                if kept and not any(f["state"] == "applied" for f in kept[-1].files)
+                else None
+            )
             places = {row.id: parked.where(session, row) for row in rows}
-        held = {merge.id for _place, merge in places.values() if merge is not None}
-        held |= {last.id} if last is not None else set()
-        held -= self._deciding
-        self._deciding |= held
         opened: dict[str, copies.Copy] = {}
         try:
             for row in rows:
                 if not self._still_queued(run_id):
                     break
                 place, merge = places[row.id]
-                said, ran = await self._run_parked(row, place, merge, night, root, cid, opened)
+                said, ended = await self._run_parked(row, place, merge, night, root, cid, opened)
                 with self._factory() as session:
                     one = session.get_one(Parked, row.id)
-                    one.result, one.data = said, {**one.data, "ran": ran}
+                    one.result, one.data = said, {**one.data, "ended": ended}
                     session.commit()
         finally:
             for copy in opened.values():
@@ -599,6 +636,19 @@ class AwayMixin:
                     copies.unlink(self.settings.runtime_root, copy.name)
             self._deciding -= held
         return last.id if last is not None else None
+
+    async def _hold_merges(self: "AgentRunner", rows: list[Parked], cid: str) -> set[str]:
+        """The copies the morning's lines run in, held off Take in and Discard (`_deciding`) -
+        once no Take in or Discard of them is under way (L3: one is waited for, never run over).
+        The ids held."""
+        while True:
+            with self._factory() as session:
+                ids = {merge.id for row in rows if (merge := parked.where(session, row)[1])}
+                ids |= {merge.id for merge in away.kept_copies(session, cid)}
+            if not ids & self._deciding:
+                self._deciding |= ids
+                return ids
+            await asyncio.sleep(0.2)
 
     def _still_queued(self: "AgentRunner", run_id: str) -> bool:
         """The going-on turn is still to start: no Stop of its chat meanwhile."""
@@ -614,15 +664,22 @@ class AwayMixin:
         root: str,
         cid: str,
         opened: dict[str, copies.Copy],
-    ) -> tuple[str, bool]:
-        """One Run of the morning: what it said, and whether it ran (False: could not)."""
+    ) -> tuple[str, str]:
+        """One Run of the morning: what it said, and how it ended - "ran", "timed_out",
+        "stopped", or "not_run": its Run closed now, or where it would run moved since (L1, H2),
+        a place kept out, the file it runs changed since it was parked (H3)."""
         cwd = row.data.get("cwd") or "."
         if place == "gone" or merge is None and place == "copy":
-            return parked.GONE, False
+            return parked.GONE, "not_run"
+        with self._factory() as session:
+            one, task = session.get_one(Parked, row.id), session.get_one(BacklogTask, row.task_id)
+            why = parked.stale(session, one, task)
+        if why:
+            return why, "not_run"
         if night is not None and (
             kept := away.kept_out(night, command=row.what, root=root, cwd=cwd)
         ):
-            return away.KEPT_OUT.format(path=kept), False
+            return away.KEPT_OUT.format(path=kept), "not_run"
         ws = Workspace(Path(root).resolve())
         if place == "copy" and merge is not None and merge.kept_in:
             if merge.kept_in not in opened:
@@ -634,13 +691,17 @@ class AwayMixin:
                     )
                     copies.relink(copy)
                 except (OSError, ValueError) as exc:
-                    return f"its copy could not be opened ({exc})", False
+                    return f"its copy could not be opened ({exc})", "not_run"
                 opened[merge.kept_in] = copy
             ws = opened[merge.kept_in].workspace()
+        if await asyncio.to_thread(
+            self._program_changed, row.data.get("file"), ws.root, row.what, cwd
+        ):
+            return parked.CHANGED, "not_run"
         with self._factory() as session:
             command = session.get(Command, row.ref_id or "")
             if command is None or command.tool_call_id is None:
-                return parked.GONE, False
+                return parked.GONE, "not_run"
             run_id, agent_id, call_id = command.run_id, command.agent_id, command.tool_call_id
         seconds = row.data.get("timeout")
         args = {
@@ -653,5 +714,9 @@ class AwayMixin:
                 run_id, cid, agent_id, ws, call_id, args, ask=False
             )
         except ToolError as exc:
-            return f"error: {exc}", False
-        return said, status not in ("denied", "failed")
+            return f"error: {exc}", "not_run"
+        if status == "failed" and said.startswith("error: timed out"):  # (`CommandRunner._told`)
+            return said, "timed_out"
+        if status == "failed" and said.startswith("error: the command was stopped"):
+            return said, "stopped"
+        return said, "not_run" if status in ("denied", "failed") else "ran"

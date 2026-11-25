@@ -12436,6 +12436,8 @@ export interface components {
             conversation_id: string | null;
             /** Cwd */
             cwd: string | null;
+            /** Danger */
+            danger: string | null;
             /** Decision */
             decision: string | null;
             /** Held */
@@ -12446,6 +12448,8 @@ export interface components {
             kind: string;
             /** Options */
             options: string[];
+            /** Place */
+            place: ("copy" | "project" | "gone") | null;
             /** Result */
             result: string | null;
             /** Seq */
@@ -12460,6 +12464,8 @@ export interface components {
             what: string;
             /** Why */
             why: string;
+            /** Wrote */
+            wrote: string | null;
         };
         /**
          * WarningOut

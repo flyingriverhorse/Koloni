@@ -1318,6 +1318,7 @@ def recover_interrupted(session_factory, notes: list | None = None) -> int:
         for run in runs:
             run.status, run.ended_at = "interrupted", now()
             backlog.turn_ended(session, run, "interrupted")
+            away.cut_morning(session, run)  # (§10: a morning a hard stop cut)
         backlog.restarted(session)
         away.settle(session, notes)  # (nor is a night started again: `notes`, its notification)
         cut_short = []

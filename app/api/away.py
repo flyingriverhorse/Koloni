@@ -42,6 +42,9 @@ class WaitingOut(BaseModel):
     closed: str | None
     held: bool  # (closed for every word, Reject too)
     seq: int
+    place: Literal["copy", "project", "gone"] | None  # (a command's: where it would run)
+    danger: str | None  # (its card's sentence)
+    wrote: str | None  # (the file an agent wrote that it runs, by its path)
 
 
 class DecideIn(BaseModel):

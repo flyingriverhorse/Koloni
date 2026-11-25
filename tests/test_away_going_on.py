@@ -121,7 +121,7 @@ def test_run_and_answer_then_the_same_agent_goes_on_in_the_same_chat_and_copy(
     assert decide(client, done["id"], question["id"], "answer", "the team's").status_code == 200
     said, going = going_on_turn(client, cid)
     assert said.startswith('KOLONİ: the user decided: ran "echo hi > ran.txt" (')
-    assert said.endswith('; answered "Which account?": the team\'s. Go on with the task.')
+    assert said.endswith('; answered "Which account?": "the team\'s". Go on with the task.')
     snap = chat(client, cid)
     night_run = snap["runs"][0]
     ran = next(c for c in snap["commands"] if c["status"] == "exited")
@@ -194,7 +194,7 @@ def test_a_line_naming_a_place_kept_out_is_not_run(make_client, wait_run, projec
         session.commit()
     assert decide(client, done["id"], row["id"], "run").status_code == 200
     msg, _going = going_on_turn(client, cid)
-    assert f"could not run {quoted('type secret' + chr(92) + 'k.txt')}: secret is kept out" in msg
+    assert f'could not run {quoted("type secret" + chr(92) + "k.txt")}: "secret is kept out' in msg
     assert ran_in_the_morning(client, cid) == []
 
 

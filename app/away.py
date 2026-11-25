@@ -78,6 +78,8 @@ JOB_TOO_LONG = (
     "Stopped after {hours} hour{s}, the most one job works: what it did is kept in its copy."
 )
 CLOSED = "Stopped: KOLONİ was closed while you were away."
+# §10: ...while what the user said Run ran, or its going-on turn: the job stopped, Try again open.
+CLOSED_MEANWHILE = "Stopped: KOLONİ was closed while what you said Run ran."
 # What starts no other work while the user is away (Try again; a chat's To-do queue waits).
 AWAY_NOW = "You're away from this project: press I'm back first"
 KEPT_OUT = (
@@ -711,6 +713,15 @@ def night_job(session: Session, cid: str) -> BacklogTask | None:
 def going_on(session: Session, run: Run) -> bool:
     """§10: whether a turn is a job's going-on turn after the user's decisions (`app.parked`)."""
     return session.scalar(select(Parked.id).where(Parked.went_on == run.id).limit(1)) is not None
+
+
+def cut_morning(session: Session, run: Run) -> None:
+    """§10, at the next start (`recover_interrupted`): a going-on turn a hard stop cut - before
+    it began or in it - leaves its job stopped, with why (Try again works it), not at work for
+    good. Not committed."""
+    task = session.get(BacklogTask, run.task_id or "") if going_on(session, run) else None
+    if task is not None and task.away_state is None:
+        task.away_state, task.away_why = "stopped", CLOSED_MEANWHILE
 
 
 def job_turn(session: Session, run: Run) -> bool:

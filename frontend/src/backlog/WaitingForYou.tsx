@@ -12,6 +12,9 @@ const DECIDED: Record<string, (row: Waiting) => string> = {
   stop: () => 'Stopped',
 }
 
+/** Where a command would run as it stands now (a copy taken in since: the project itself). */
+const PLACE: Record<string, string> = { copy: 'Runs in its job’s copy', project: 'Runs in the project itself' }
+
 /** The rows of a card, read again whenever the card is (a decision, Stop this task, the night's end). */
 function useWaiting(away: Away): Waiting[] {
   const [rows, setRows] = useState<Waiting[]>([])
@@ -80,20 +83,32 @@ export function WaitingForYou({ away }: { away: Away }) {
 
 type Decide = (row: Waiting, word: string, answer?: string) => void
 
-/** One parked row: the line or the question whole, why in KOLONİ's words, and your word on it. */
-function WaitingRow({ row, busy, decide }: { row: Waiting; busy: boolean; decide: Decide }) {
+/** What KOLONİ says of a parked row: why, where it would run, its card's words, a file an agent wrote it runs. */
+function RowNotes({ row }: { row: Waiting }) {
   return (
-    <li className="waiting-row">
-      <pre className="mono waiting-what">{row.what}</pre>
+    <>
       <div className="muted">
         {row.why}
         {row.cwd && row.cwd !== '.' ? ` · in ${row.cwd}` : ''}
+        {row.place && PLACE[row.place] ? ` · ${PLACE[row.place]}` : ''}
       </div>
+      {row.danger && row.danger !== row.why && <div className="muted">{row.danger}</div>}
+      {row.wrote && <div className="muted">Runs a file an agent wrote: {row.wrote}</div>}
       {row.warn && (
         <div role="note" className="alert">
           {row.warn}
         </div>
       )}
+    </>
+  )
+}
+
+/** One parked row: the line or the question whole, why in KOLONİ's words, and your word on it. */
+function WaitingRow({ row, busy, decide }: { row: Waiting; busy: boolean; decide: Decide }) {
+  return (
+    <li className="waiting-row">
+      <pre className="mono waiting-what">{row.what}</pre>
+      <RowNotes row={row} />
       {row.decision ? (
         <div className="waiting-said">{(DECIDED[row.decision] ?? (() => row.decision))(row)}</div>
       ) : (

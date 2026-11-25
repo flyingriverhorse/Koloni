@@ -255,8 +255,9 @@ class QuestionsMixin:
         ) -> None:
             if given_before:
                 again.append(why)
-            if parks and self._park_question(ctx, question_id, offered, why):
-                return future.set_result("")  # (§10: parked for the user, the job goes on)
+            if parks:  # (§10: parked for the user, the job goes on - or, not now, left to them)
+                now_parked = self._park_question(ctx, question_id, offered, why)
+                return future.set_result("") if now_parked else None
             with self._factory() as session:
                 question = session.get_one(Question, question_id)
                 question.answer, question.lead_why = (
@@ -308,7 +309,10 @@ class QuestionsMixin:
         self: "AgentRunner", ctx: Ctx, question_id: str, options: list[str], why: str | None
     ) -> bool:
         """§10: an agent's question in a job, parked for the user (`parked.park`) with why - the
-        Orchestrator's, or that it gave no answer that counts. False for no job's question."""
+        Orchestrator's, or that it gave no answer that counts. False for no job's question - nor
+        where its night runs no more (the user back meanwhile, L5): it waits for them."""
+        if self._parker(ctx, None) is None:
+            return False
         with self._factory() as session:
             task = away.job_of(session, ctx.cid)
             if task is None:

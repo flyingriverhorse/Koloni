@@ -88,7 +88,7 @@ def park(
             Parked.decision.is_(None),
         )
     ):
-        if one.data.get("cwd") == data.get("cwd"):
+        if (one.data.get("cwd"), one.data.get("copy")) == (data.get("cwd"), data.get("copy")):
             return one
     seq = session.scalar(select(func.max(Parked.seq)).where(Parked.away_run_id == task.away_run_id))
     row = Parked(
@@ -115,8 +115,15 @@ GONE = "Its copy is gone: there is nothing to run it in"
 NEEDS = "Needs the project itself: Take in first"
 NOWHERE = "Where it would run is not known: Reject it, or run it yourself"
 ELSEWHERE = "The project runs commands elsewhere now: Reject it, or set that back"
+# ...a line a CLI ran in its own shell (bash's quoting is not PowerShell's), and a server.
+CLI_SHELL = "Its CLI's own shell would run it: Reject it, or run it yourself"
+SERVER = "A server line: run it yourself"
+# Why a line you said Run did not run in the morning, though: where it would run, or the file it
+# runs, is not what it was when you decided (H2, H3).
+MOVED = "its copy was taken in after your Run - run it yourself"
+CHANGED = "changed since it was parked: run it yourself"
 STOPPED = "Stopped by you."
-CLOSED_MEANWHILE = "Stopped: KOLONİ was closed while what you said Run ran."
+CLOSED_MEANWHILE = away.CLOSED_MEANWHILE
 
 
 class Refused(ValueError):
@@ -169,6 +176,10 @@ def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | N
     place, _merge = where(session, row)
     if place == "gone":
         return GONE
+    if row.data.get("origin") == "cli":
+        return CLI_SHELL
+    if row.data.get("server"):
+        return SERVER
     if row.data.get("needs_project") and place != "project":
         return NEEDS
     if row.data.get("cwd") is None:  # (a CLI that did not say where its shell stood)
@@ -277,6 +288,12 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
                 # (no word of it is taken now - Reject too: away, its job at work, or a last kind's)
                 "held": not row.decision and _held(session, night, row, task) is not None,
                 "seq": row.seq,
+                # (L6: where it would run, the card's own sentence, a file an agent wrote it runs)
+                "place": where(session, row)[0] if row.kind == "command" else None,
+                "danger": row.data.get("danger") or None,
+                "wrote": (file or {}).get("rel")
+                if (file := row.data.get("file")) and file.get("agents")
+                else None,
             }
         )
     return found
@@ -324,6 +341,8 @@ async def decide(
         raise Refused(409, why)
     given = _answered(row, word, answer)
     row.decision, row.answer, row.decided_at = word, given or None, now()
+    if word == "run" and row.kind == "command":  # (where it would run as you said Run: H2)
+        row.data = {**row.data, "place": where(session, row)[0]}
     if row.kind == "question" and (question := session.get(Question, row.ref_id or "")):
         question.status, question.answer, question.answered_at = "answered", given, now()
     if kind.act is not None:
@@ -358,21 +377,38 @@ def stop(session: Session, night: AwayRun, task: BacklogTask) -> None:
 GO_ON = "KOLONİ: the user decided: {decided}. Go on with the task."
 
 
+# How a line you said Run ended, as the going-on message says it (`AwayMixin._run_parked`).
+ENDED = {"ran": "ran {what} ({said})", "timed_out": "ran {what}, which timed out ({said})"}
+ENDED["stopped"] = "ran {what}, which was stopped ({said})"
+
+
 def told(rows: list[Parked]) -> str:
     """The going-on turn's message: each decision of its rows, in the order parked - what a Run
-    printed handed on as data (`injection.noted`), why one could not run."""
+    printed, why one could not run and your answer all quoted, as data (a line of its own in
+    them cannot pass for KOLONİ's); what reads like orders behind KOLONİ's note."""
     said = []
     for row in rows:
         what = quoted(row.what)
         if row.decision == "reject":
             said.append(f"rejected {what}")
         elif row.decision == "answer":
-            said.append(f"answered {what}: {row.answer}")
-        elif row.decision == "run" and row.data.get("ran"):
-            said.append(f"ran {what} ({injection.noted(row.result or '', 'command')})")
+            said.append(f"answered {what}: {quoted(row.answer or '')}")
         elif row.decision == "run":
-            said.append(f"could not run {what}: {row.result or GONE}")
+            out = quoted(injection.noted(row.result or GONE, "command"))
+            shape = ENDED.get(row.data.get("ended") or "", "could not run {what}: {said}")
+            said.append(shape.format(what=what, said=out))
     return GO_ON.format(decided="; ".join(said))
+
+
+def stale(session: Session, row: Parked, task: BacklogTask) -> str | None:
+    """Why a line you said Run does not run now, after all (L1): its Run is closed now - or it
+    would run elsewhere than where it would have as you said Run (`MOVED`: its copy taken in
+    since)."""
+    kind = KINDS.get(row.kind)
+    if kind is not None and (why := kind.closed(session, row, task)):
+        return why
+    place = row.data.get("place")
+    return MOVED if place is not None and place != where(session, row)[0] else None
 
 
 def begin(session: Session, task_id: str) -> tuple[str, str, str] | None:
