@@ -884,9 +884,11 @@ work or tells you. It never assumes the condition holds.
 - **How long:** each test command to its own limit - not the 2 minutes a turn you watch waits at
   its end, and no whole suite goes on after the answer.
 - **How often:** at most **Fix rounds** + 1 times a turn - 3 at 2 rounds; under **Until it passes**
-  (the default) its ceiling of 20 rounds + 1, so 21 -; asked again after that, it gives its last
-  answer again with "KOLONİ ran its checks 3 times this turn, the most it runs on asking". That
-  answer is the last pass's, even where the work changed since: the turn's end checks the change.
+  (the default) its ceiling of 20 rounds + 1, so 21 -; asked again after that, it runs nothing
+  and says "KOLONİ ran its checks 3 times this turn, the most it runs on asking". Where the work is
+  just as its last pass checked it, that pass's answer comes again with it; where anything changed
+  since (or KOLONİ cannot tell, as with no git), the answer is `CHECKS: not complete` - the turn's
+  end checks the change.
 - **Who has it:** the Orchestrator at its own work in a project - an API model's, and a CLI's
   working with its own tools, over KOLONİ's bridge, as its other KOLONİ tools. Not a sub-agent, a
   plan, a side of a comparison, an answer to a message, nor a chat with no folder.

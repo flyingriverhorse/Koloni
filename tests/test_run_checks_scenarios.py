@@ -393,10 +393,34 @@ def test_the_cap_is_fix_rounds_plus_one(make_client, wait_run, project_dir):
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     outs = answers(snap)
-    assert len(outs) == 4 and outs[3].endswith(CAPPED_ASKED.format(n=3))
-    assert outs[3].startswith(outs[2])  # (the last result, again)
+    # (past the cap, on work no pass saw - and no git to say what changed: not complete)
+    assert len(outs) == 4 and outs[3] == f"CHECKS: not complete\n{CAPPED_ASKED.format(n=3)}"
     # (3 asked passes, and the end's own: the last edit was never checked)
     assert passes(snap) == ["asked", "asked", "asked", "check"] and len(executor.started) == 4
+
+
+@needs_git
+def test_past_the_cap_the_last_verdict_stands_only_on_the_same_work(make_client, wait_run, repo):  # noqa: F811
+    project = checked_repo(repo)
+    steps = []
+    for n in range(3):  # (three red passes, each after an edit)
+        steps += [write("a.py", f"OK = False  # {n}\n", f"w{n}"), asked(f"k{n}")]
+    steps += [
+        asked("k3"),  # (the same work as the third pass)
+        write("a.py", "OK = False  # 3\n", "w3"),
+        asked("k4"),  # (changed since)
+        text("done"),
+        text("left as it is"),
+    ]
+    client, _model = make_client(steps)
+    cid, run_id = begin(client, repo, **project)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    outs = answers(snap)
+    capped = CAPPED_ASKED.format(n=3)
+    assert outs[2].startswith("CHECKS: red\n") and outs[3] == f"{outs[2]}\n{capped}"
+    assert outs[4] == f"CHECKS: not complete\n{capped}"
+    assert passes(snap)[:3] == ["asked", "asked", "asked"]
 
 
 # --- a step tied to a condition ---------------------------------------------------------------

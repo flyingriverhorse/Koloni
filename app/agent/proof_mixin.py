@@ -228,11 +228,13 @@ class Proof:
     changed_files: list[str] = field(default_factory=list)
     changed_by: list[str] = field(default_factory=list)
     # run_checks (`ChecksToolMixin`): the call a pass runs for now (no round counted, no wait
-    # cut short, none gone on after it); the passes it ran and its last answer; and the work a
-    # green one checked - its content identity and checks on: the end gate need not run again.
+    # cut short, none gone on after it); the passes it ran, its last answer and that pass's work
+    # (its content identity); and the work a green one checked - its identity and checks on: the
+    # end gate need not run again.
     asked_call: str | None = None
     asked_runs: int = 0
     asked_said: str = ""
+    asked_as: str | None = None
     checked_as: tuple[str, frozenset[str]] | None = None
     # ...and whether the end gate itself ran, not run_checks alone (`ChecksToolMixin._gate_ran`).
     gated: bool = False

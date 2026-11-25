@@ -145,7 +145,7 @@ class ChecksToolMixin:
         if await self._checked_as_is(ctx):
             return (await self._checks_answer(ctx, held, None, checks_now.UNCHANGED_ASKED))[1]
         if held.asked_runs > held.most:
-            return f"{held.asked_said}\n{checks_now.CAPPED_ASKED.format(n=held.asked_runs)}"
+            return await self._checks_capped(ctx, held)
         # (What is checked is the work as the pass starts: a change while it runs is another.)
         before = await self._work_identity(ctx)
         ran, said = await self._proof_pass(ctx, True)
@@ -153,13 +153,22 @@ class ChecksToolMixin:
             return checks_now.answer(
                 checks_now.NOT_COMPLETE, [], None, None, checks_now.NOTHING_TO_CHECK
             )
-        held.asked_runs += 1
+        held.asked_runs, held.asked_as = held.asked_runs + 1, before
         if said is not None and held.verdict == "HOLD":
             held.looked_at = None  # (a hold it never sent back: the end looks for itself)
         verdict, held.asked_said = await self._checks_answer(ctx, held, said)
         green = verdict == checks_now.GREEN and before is not None
         held.checked_as = (before, held.checks.on) if green else None
         return held.asked_said
+
+    async def _checks_capped(self: "AgentRunner", ctx: Ctx, held: Proof) -> str:
+        """Past the cap: the last pass's answer again only where the work is as that pass checked
+        it; changed since, or not known, it is not complete (fail closed)."""
+        capped = checks_now.CAPPED_ASKED.format(n=held.asked_runs)
+        now = await self._work_identity(ctx)
+        if now is not None and now == held.asked_as:
+            return f"{held.asked_said}\n{capped}"
+        return checks_now.answer(checks_now.NOT_COMPLETE, [], None, None, capped)
 
     async def _checks_answer(
         self: "AgentRunner", ctx: Ctx, held: Proof, said: str | None, note: str = ""
