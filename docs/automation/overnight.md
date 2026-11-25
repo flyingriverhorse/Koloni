@@ -239,7 +239,8 @@ take in** and **On the canvas**. KOLONİ opens on the report on the canvas until
 ### The night on Ready for you
 
 Once the night has ended, the [Ready for you](../use/ready.md#the-page) page opens on it: "Last night,
-23:10 to 07:42", a time axis, and a lane for each job. A job's bar runs from when its first turn of the
+23:10 to 07:42" ("Night of Tue 24 Nov, …" once it ended more than a day ago), a time axis, and a lane
+for each job. A job's bar runs from when its first turn of the
 night began to when its last one ended - green where it finished, hatched honey where it waits for you,
 a dashed edge where it was stopped or could not be done. Each
 decision made for you in the job's chat that night is a small hexagon on its lane, at its time, in the
@@ -255,9 +256,10 @@ of 5.00 USD").
   where its push went, that GitHub's checks on it were not waited for (KOLONİ does not wait for them
   yet). A job with no **Checked** section of the night says "not known", never "nothing".
 - **The whole report** opens the night's report on the canvas.
-- **Copy as Markdown** copies the whole night - its jobs, what waits for you, what was decided for you
-  on its jobs, what was not checked and what it spent - for a pull request's description. Every job's,
-  agent's and model's word goes in a code span, masked as the screen shows it.
+- **Copy as Markdown** copies the whole night - named by its day, its jobs, what waits for you, what
+  was decided for you on its jobs, what was not checked and what it spent - for a pull request's
+  description. Every job's, agent's and model's word goes in a code span, masked as the screen shows
+  it: a parked command too, as the list shows it.
 
 What the night parked is on the page too, first in its list and under **Last night**: the push first,
 then the commands and questions - the rows of [Waiting for you](#waiting-for-you), with their own
@@ -266,7 +268,9 @@ words. A job that waits only for what it parked is those rows, not a row of its 
 ### Waiting for you
 
 One list of everything the jobs parked, task by task in the night's order, each in the order it was
-parked: the command whole (never cut, in a fixed font), or the question; why, in KOLONİ's words (the
+parked: the command whole (never cut, in a fixed font; a secret KOLONİ knows, or one known by its
+shape - a `Bearer` token, a password in an address - shows as `***`, and what runs is still the line
+as recorded), or the question; why, in KOLONİ's words (the
 card's reason, the judge's sentence, the Orchestrator's reason in quotes); and a warning where it reads
 like orders to a model. It is in [Ready for you](../use/ready.md)'s waiting list (first, the push first
 of all), on the summary, on the To-do page and on the report.
@@ -322,8 +326,8 @@ of all), on the summary, on the To-do page and on the report.
   than when the job began, git's config or hooks changed since then, something changed outside the
   branch (its branches, stash, tags, remote-tracking branches, any other ref, git's own files), it
   changed a place you kept out, or it began from your work not committed, the row shows that first:
-  **Run anyway** pushes - on Ready for you the row's words say what they do: **Push and open PR**, **Not
-  now** and **Push anyway**. The row names the address a push went to as the job began. Take in or Discard of the
+  **Run anyway** pushes - on Ready for you the row's words say what they do: **Push** (**Push and open
+  PR** where the project's way is a pull request), **Not now** and **Push anyway**. The row names the address a push went to as the job began. Take in or Discard of the
   job closes the row ("Its work was taken in or discarded: nothing to push"); taking all of it in
   deletes the branch.
 

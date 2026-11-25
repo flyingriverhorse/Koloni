@@ -67,8 +67,8 @@ What waits:
 - **Memory** proposals (**Approve**, **Approve as edited**, **Reject**) and suggested preferences
   (**Add** / **Reject**). See [Memory](../memory.md).
 - **Last night**: what the night's jobs parked for you, and the jobs that wait. A job's push comes first:
-  **Push and open PR** or **Not now** - where KOLONİ notes something first, its notes and **Push
-  anyway**. Then each command it parked, **Run** or **Reject**, and each question, its answer - the rows
+  **Push** - **Push and open PR** where the project's way is a pull request - or **Not now**; where
+  KOLONİ notes something first, its notes and **Push anyway**. Then each command it parked, **Run** or **Reject**, and each question, its answer - the rows
   of [Waiting for you](../automation/overnight.md#waiting-for-you), decided only once you are back and
   the job is not at work; a row that cannot be decided now says why. A job that waits for something
   else is answered in its chat (**Open its chat to answer**).
