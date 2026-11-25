@@ -38,6 +38,7 @@ PRIORITIES = ("high", "normal", "low")
 NOTE_KINDS = ("decision", "file", "result", "question")
 NOTE_MOST, NOTEBOOK_MOST, NOTES_PER_TURN = 200, 20, 3
 FIRST_CUT = NOTE_MOST * 20  # (what of a note's words is read at all: `_one_cut`)
+WORD = re.compile(r"\S+")
 # A code fence's opening (or closing) line, as CommonMark reads it: three or more ` or ~.
 FENCE = re.compile(r"(`{3,}|~{3,})")
 STORY_NOTE = "Story note:"
@@ -391,19 +392,28 @@ def _seen(text: str) -> str:
     return "".join(ch for ch in text if ch.isprintable() or ch.isspace())
 
 
+def _whole(word: re.Match) -> str:
+    """A word hidden whole where a part of it was and what nobody sees is in it: a key's head
+    has its shape alone, and its tail, past such a character, would be left."""
+    return raw.HIDDEN if raw.HIDDEN in word[0] and _seen(word[0]) != word[0] else word[0]
+
+
 def _masked_line(text: str, pass_env: str | None) -> str:
     """`_one_cut`, masked. one_line makes what nobody sees a space (a joiner it keeps), so a
-    secret split by one came in as two parts, neither one a secret (S1): where the text masked
-    as it came, those characters then taken out, hides more when masked again, the line is made
-    of that - no part of the secret left. Else it is as ever (joiners kept in an emoji, Persian).
+    secret split by one came in as two parts, neither one a secret (S1): the text is masked as
+    it came, a word of it with such a character and a part hidden is hidden whole (`_whole`),
+    those characters are taken out and it is masked again - where that hides more, the line is
+    made of it, no part of the secret left. Else it is as ever (joiners kept: an emoji, Persian).
     shortcut: a mark that prints but is not seen (a variation selector) is not taken out; add
     it to `_seen` if a secret split by one turns up."""
     line = masked(_one_cut(text), pass_env)
     if _seen(cut := text[:FIRST_CUT]) == cut:
         return line
-    joined = _seen(masked(cut, pass_env))  # (masked first: a secret's edge may be such a one)
+    first = masked(cut, pass_env)  # (as it came: a secret's edge may be such a character)
+    worded = WORD.sub(_whole, first)
+    joined = _seen(worded)
     again = masked(joined, pass_env)
-    return line if again == joined else _one_cut(text, again)
+    return line if again == joined and worded == first else _one_cut(text, again)
 
 
 def cut_note(text: object) -> str | None:

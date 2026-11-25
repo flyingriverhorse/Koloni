@@ -290,10 +290,11 @@ def test_words_that_hide_a_phrase_or_end_one_at_the_cut_are_left_out():
 
 
 def test_a_long_note_costs_no_more_than_its_cut():  # (a bomb probe: 16 KB, in a child, timed)
-    code = (
-        "import time; from app import stories; t = time.perf_counter(); "
-        "said = stories._said('-----BEGIN PRIVATE KEY----- ' + 'a b ' * 4000, None); "
-        "print(len(said or ''), time.perf_counter() - t)"
+    code = (  # (the second with what nobody sees in it: masked three times - `_masked_line`)
+        "import time; from app import stories; t = time.perf_counter(); z = chr(0x200B); "
+        "said = [stories._said(one, None) for one in ('-----BEGIN PRIVATE KEY----- ' + 'a b ' * "
+        "4000, ('-----BEGIN PRIVATE KEY-----' + z + 'a ') * 540)]; "
+        "print(max(len(one or '') for one in said), time.perf_counter() - t)"
     )
     done = subprocess.run(
         [sys.executable, "-c", code], capture_output=True, text=True, timeout=scaled(60)
@@ -351,18 +352,22 @@ def test_a_fence_closes_only_on_its_own_kind_and_length():
 
 
 @pytest.mark.parametrize("unseen", ["\u200b", "\u2060", "\ufeff", "\u200c", "\u200d", "\x00"])
-def test_a_secret_split_by_a_character_nobody_sees_is_masked_whole(monkeypatch, unseen):
-    # S1: one_line made the character a space, and each part of the secret was no secret
+@pytest.mark.parametrize("late", [False, True])
+def test_a_secret_split_by_a_character_nobody_sees_is_masked_whole(monkeypatch, unseen, late):
+    # S1: one_line made the character a space, and each part of the secret was no secret; `late`:
+    # its head alone has a key's shape (and is hidden), its tail past the character is left
     monkeypatch.setenv("KOLONI_TEST_API_KEY", SECRET)
     shaped = "ghp_" + "A1b2C3d4" * 5  # (a key KOLONİ knows by its shape; built, not written)
-    for secret in (SECRET, shaped):
-        split = f"{secret[:12]}{unseen}{secret[12:]}"  # (between digits: not hidden characters)
+    bearer = "Q7w9" * 7  # (hidden by what stands before it, from its 16th character)
+    for secret, before in ((SECRET, "key "), (shaped, "key "), (bearer, "Authorization: Bearer ")):
+        at = len(secret) - 8 if late else 12  # (after a digit: no hidden characters there)
+        split = f"{before}{secret[:at]}{unseen}{secret[at:]}"
         story = Story(id="s", notes=[])
-        assert stories.add_notes(story, [("decision", f"key {split} kept")], "Orchestrator") == 1
-        stored = Story(id="r", notes=[{"kind": "result", "text": f"old {split}"}])
+        assert stories.add_notes(story, [("decision", f"{split} kept")], "Orchestrator") == 1
+        stored = Story(id="r", notes=[{"kind": "result", "text": split}])
         for kept in (
             story.notes[0]["text"],
-            stories.cut_note(f"key {split}") or "",
+            stories.cut_note(split) or "",
             stories.notebook_text(stored),
         ):
             assert "***" in kept and not any(
