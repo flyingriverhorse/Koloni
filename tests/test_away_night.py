@@ -304,28 +304,29 @@ def nights_of_answers(client, root, answers, nights=3):
     return pid, cid
 
 
+def queries(client, url: str) -> int:
+    """How many queries the GET of `url` makes."""
+    engine = client.app.state.session_factory.kw["bind"]
+    count = [0]
+
+    def one(*_args, **_kw):
+        count[0] += 1
+
+    event.listen(engine, "before_cursor_execute", one)
+    try:
+        got = client.get(url)
+    finally:
+        event.remove(engine, "before_cursor_execute", one)
+    assert got.status_code == 200, got.text
+    return count[0]
+
+
 def test_a_report_asks_nothing_of_what_undoes_its_decisions(client, tmp_path, monkeypatch):
     # (The review's M1: every night of a chat is reported after each decision of the morning; its
     # answers' Change and redo read each chat's work - 9.7 s for 30 nights of 10 answers.)
     asked = []
     real = decisions.work
     monkeypatch.setattr(decisions, "work", lambda *one: asked.append(one) or real(*one))
-    engine = client.app.state.session_factory.kw["bind"]
-
-    def queries(url: str) -> int:
-        count = [0]
-
-        def one(*_args, **_kw):
-            count[0] += 1
-
-        event.listen(engine, "before_cursor_execute", one)
-        try:
-            got = client.get(url)
-        finally:
-            event.remove(engine, "before_cursor_execute", one)
-        assert got.status_code == 200, got.text
-        return count[0]
-
     few, cid_few = nights_of_answers(client, tmp_path / "few", answers=1)
     many, cid_many = nights_of_answers(client, tmp_path / "many", answers=10)
     for cid in (cid_few, cid_many):
@@ -336,13 +337,82 @@ def test_a_report_asks_nothing_of_what_undoes_its_decisions(client, tmp_path, mo
         )
     assert asked == []
     # No query an answer more: ten answers a night read as one does.
-    assert queries(f"/api/conversations/{cid_many}/away") == queries(
-        f"/api/conversations/{cid_few}/away"
+    assert queries(client, f"/api/conversations/{cid_many}/away") == queries(
+        client, f"/api/conversations/{cid_few}/away"
     )
-    assert queries(f"/api/projects/{many}/away") == queries(f"/api/projects/{few}/away")
+    assert queries(client, f"/api/projects/{many}/away") == queries(
+        client, f"/api/projects/{few}/away"
+    )
     # (Ready's log still asks it: its rows' Change and redo.)
     client.get(f"/api/projects/{many}/decisions", params={"unseen": "true"})
     assert asked
+
+
+def two_jobs(client, root, later: int) -> str:
+    """A night of two jobs, each in a chat of its own: the first's one decision, early in the night,
+    then the second's `later`, a second apart. The project's id."""
+    root.mkdir(parents=True, exist_ok=True)
+    pid, evening = chat(client, root / "a")
+    chats = [client.post(f"/api/projects/{pid}/conversations").json()["id"] for _ in range(2)]
+    with client.app.state.session_factory() as session:
+        card = AwayRun(
+            project_id=pid,
+            conversation_id=evening,
+            run_id="r",
+            status="ended",
+            started_at=at(0),
+            ended_at=at(600),
+        )
+        session.add(card)
+        session.flush()
+        for n, (cid, many) in enumerate(zip(chats, (1, later), strict=True)):
+            task = BacklogTask(
+                project_id=pid,
+                title=f"job {n}",
+                status="review",
+                position=n,
+                created_by="user",
+                conversation_id=cid,
+                away_run_id=card.id,
+                away_state="done",
+            )
+            session.add(task)
+            session.flush()
+            card.jobs = [*(card.jobs or []), {"title": task.title, "task_id": task.id}]
+            run = turn(session, cid, 10 + 200 * n, 190 + 200 * n)
+            lead = Agent(run_id=run.id, role_name="Lead", name="Lead", tools=[], status="completed")
+            session.add(lead)
+            session.flush()
+            for q in range(many):
+                when = at(20 + 200 * n) + timedelta(seconds=q)
+                session.add(
+                    Question(
+                        run_id=run.id,
+                        agent_id=lead.id,
+                        question=f"q{q}?",
+                        options=["SQLite", "Postgres"],
+                        status="answered",
+                        answer="SQLite",
+                        created_at=when,
+                        answered_at=when,
+                        lead_why="the tests make one",
+                    )
+                )
+        session.commit()
+    return pid
+
+
+def test_every_decision_of_the_night_is_on_its_job_however_many(client, tmp_path):
+    # (Codex, 0.1.9: the report took the project's newest 500 of the night - a job of 500 later
+    # decisions left the earlier job none, on the strip and in its Markdown)
+    pid = two_jobs(client, tmp_path / "many", 500)
+    found = jobs(client, pid)
+    assert [len(found[f"job {n}"]["decisions"]) for n in (0, 1)] == [1, 500]
+    # (read at once, as before: no query a decision or a job's decision more)
+    few = two_jobs(client, tmp_path / "few", 1)
+    assert queries(client, f"/api/projects/{pid}/away") == queries(
+        client, f"/api/projects/{few}/away"
+    )
 
 
 def test_a_parked_line_is_shown_and_copied_masked(client, tmp_path, monkeypatch):

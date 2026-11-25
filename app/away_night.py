@@ -102,8 +102,11 @@ def add(session: Session, away: AwayRun, jobs: list[dict], tasks: dict[str, Back
     if away.status != "ended" or away.started_at is None or ended is None:
         return
     # (Nothing of what undoes a row is asked: the strip and its Markdown show none - and a report
-    # is read for every night of a chat, after each decision of the morning.)
-    log = decisions.of(session, away.project_id, away.started_at, ended, undo=False)
+    # is read for every night of a chat, after each decision of the morning. Every row of the night,
+    # not the project's newest `decisions.MOST`: those of a busy job hid an earlier job's.)
+    # shortcut: every decision of the night is masked and built, read at once; cut each job's to
+    # its newest with the real total said ("500 of 812") if a night is seen to hold too many.
+    log = decisions.of(session, away.project_id, away.started_at, ended, undo=False, every=True)
     by_chat: dict[str, list[Decision]] = {}
     for row in log.rows:
         if row.conversation_id is not None:

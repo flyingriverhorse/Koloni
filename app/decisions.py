@@ -451,12 +451,13 @@ def of(
     until: datetime | None = None,
     unseen: bool = False,
     undo: bool = True,
+    every: bool = False,
 ) -> DecisionLog:
     """What was decided for the user in project `project_id` at or after `since` and before
-    `until` (each where given; a time with no zone is UTC's), newest first - the newest `MOST`,
-    `more` where there were more. `unseen`: only those that wait for your OK. `undo` False: what
-    still undoes an answer is not asked - "none", no reason (the night's report, which shows no
-    undo: `decisions.work` reads each chat's work)."""
+    `until` (each where given; a time with no zone is UTC's), newest first - the newest `MOST`
+    (`every`: all), `more` where there were more. `unseen`: only those that wait for your OK. `undo`
+    False: what still undoes an answer is not asked - "none", no reason (the night's report, which
+    shows no undo: `decisions.work` reads each chat's work)."""
 
     def window(at: When) -> list[ColumnElement[bool]]:
         return [
@@ -470,9 +471,10 @@ def of(
     if unseen:  # (only what waits for your OK - before the cut: one of any age is found)
         rows = [row for row in rows if row[1] is False]
     rows.sort(key=lambda row: row[0], reverse=True)
+    shown = rows if every else rows[:MOST]
     return DecisionLog(
-        rows=[build() for _at, _seen, build in rows[:MOST]],
+        rows=[build() for _at, _seen, build in shown],
         # (Not seen has no period: the judge's "fine" of all time is no count of it - nor waits.)
         judge_fine=0 if unseen else fine,
-        more=len(rows) > MOST,
+        more=len(shown) < len(rows),
     )
