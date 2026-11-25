@@ -38,10 +38,10 @@ def morning(make_client, wait_run, project_dir, steps, plan=ONE, mode="ask"):
     return client, pid, done, done["jobs"][0]["conversation_id"]
 
 
-def held_morning(make_client, wait_run, project_dir, gate, steps, mode="ask"):
-    """`morning`, its commands played by a script (held open by `gate`, where given): (client,
-    pid, the night, the job's chat, the executor)."""
-    executor = ScriptedExecutor([Script(["out\n"], hold=gate)])
+def held_morning(make_client, wait_run, project_dir, gate, steps, mode="ask", scripts=None):
+    """`morning`, its commands played by a script (held open by `gate`, where given; or by
+    `scripts`): (client, pid, the night, the job's chat, the executor)."""
+    executor = ScriptedExecutor(scripts or [Script(["out\n"], hold=gate)])
     client, _model = make_client([to_do(ONE), text("on your To-do"), *steps], executor=executor)
     client.headers.update(ORIGIN)
     client.away_given = {"kept_out": []}

@@ -14,7 +14,13 @@ from sqlalchemy.orm import Session
 
 from app import away, copies, parked
 from app.agent.ctx import TERMINAL, Ctx, announce
-from app.agent.risk_judge_mixin import _agents, _digest, _named_file, _sees_python_path
+from app.agent.risk_judge_mixin import (
+    _agents,
+    _digest,
+    _named_file,
+    _no_local_code,
+    _sees_python_path,
+)
 from app.agent.words import AGENT_TERMINAL
 from app.api.usage import over_budget
 from app.commands import (
@@ -190,6 +196,9 @@ class AwayMixin:
             program = await asyncio.to_thread(
                 self._program_of, ctx.cid, root, line, cwd or ".", copy is not None
             )
+            # (a line that runs none of the project's code - curl, a file command - as the judge
+            # reads it: no later write of the job's closes it)
+            no_code = await asyncio.to_thread(_no_local_code, root, line, cwd or ".")
             with self._factory() as session:
                 command = session.get_one(Command, command_id)
                 call = session.get(ToolCall, command.tool_call_id or "")
@@ -217,6 +226,7 @@ class AwayMixin:
                             "server": command.keep_running,
                             "danger": command_out(command)["danger"] or None,
                             "file": program,
+                            "no_code": no_code,
                         },
                     )
                     session.commit()
@@ -251,6 +261,24 @@ class AwayMixin:
             "agents": _agents(self._factory, cid, root, path),
             "pinned": pinned,
         }
+
+    async def _file_moved(self: "AgentRunner", row: Parked, root: Path, cwd: str) -> str | None:
+        """H3, just before a line runs in `root`: a pinned line by its file's digest (`CHANGED`);
+        one that ran none of the project's code when parked, where it now names a file of the
+        folder - curl's to send, say - and the job wrote after it (`WROTE_SINCE`). Any other line
+        was closed already where the job wrote after it (`parked.stale`). None: it may run."""
+        if parked.pinned(row) and await asyncio.to_thread(
+            self._program_changed, row.data.get("file"), root, row.what, cwd
+        ):
+            return parked.CHANGED
+        if row.data.get("no_code") and not await asyncio.to_thread(
+            _no_local_code, root, row.what, cwd
+        ):
+            with self._factory() as session:
+                task = session.get_one(BacklogTask, row.task_id)
+                if parked.written_since(session, row, task):
+                    return parked.WROTE_SINCE
+        return None
 
     def _program_changed(self, file: dict | None, root: Path, line: str, cwd: str) -> bool:
         """H3: whether the file a line runs by its name is not as it was parked, in the root it
@@ -713,13 +741,8 @@ class AwayMixin:
                     return f"its copy could not be opened ({exc})", "not_run"
                 opened[merge.kept_in] = copy
             ws = opened[merge.kept_in].workspace()
-        # (a pinned line by its file's digest; any other was closed above where the job wrote
-        # anything after it was parked - `parked.stale`)
-        file = row.data.get("file")
-        if parked.pinned(row) and await asyncio.to_thread(
-            self._program_changed, file, ws.root, row.what, cwd
-        ):
-            return parked.CHANGED, "not_run"
+        if why := await self._file_moved(row, ws.root, cwd):
+            return why, "not_run"
         with self._factory() as session:
             command = session.get(Command, row.ref_id or "")
             if command is None or command.tool_call_id is None:

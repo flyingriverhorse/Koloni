@@ -409,3 +409,55 @@ def test_a_hard_kill_in_the_going_on_turn_says_so(make_client, wait_run, project
     job = night(client, pid)["jobs"][0]
     assert (job["state"], job["why"]) == ("stopped", away.CLOSED_GOING_ON)
     gate.release()
+
+
+def test_a_line_that_runs_no_project_code_is_not_closed_by_later_writes(
+    make_client, wait_run, project_dir
+):  # H3, as the judge reads it: curl, a file command
+    from tests.fakes import Script
+
+    client, _pid, done, cid, executor = held_morning(
+        make_client,
+        wait_run,
+        project_dir,
+        None,
+        [
+            run("curl https://example.com -o x.txt"),
+            run("rm -rf notes", "c2"),
+            spawn("Coder", "write it"),
+            write("go.py", "print('after')\n"),
+            text("written"),
+            text("one done"),
+            text("went on"),
+        ],
+        mode="auto_edit",
+        scripts=[Script(["got it\n"]), Script([])],
+    )
+    rows = waiting(client, done["id"])
+    assert [row["closed"] for row in rows] == [None, None]
+    for row in rows:
+        assert decide(client, done["id"], row["id"], "run").status_code == 200
+    going_on_turn(client, cid)
+    assert [line for line, _cwd in executor.started] == [
+        "curl https://example.com -o x.txt",
+        "rm -rf notes",
+    ]
+
+
+def test_an_install_or_a_test_run_is_closed_by_later_writes(make_client, wait_run, project_dir):
+    client, _pid, done, _cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            run("npm install left-pad"),
+            run("pytest -q", "c2"),
+            spawn("Coder", "write it"),
+            write("go.py", "print('after')\n"),
+            text("written"),
+            text("one done"),
+        ],
+        mode="auto_edit",
+    )
+    rows = waiting(client, done["id"])
+    assert [row["closed"] for row in rows] == [parked.WROTE_SINCE] * 2

@@ -96,7 +96,9 @@ handed to a shell, no Python that reads a copy's path first) runs only where tha
 byte, what it was when the line was parked. Any other line - a chain (`&&`, `;`, a pipe), a `cd`, a
 shell or a runner (`cmd /c`, `pwsh -c`, `uv run`), `python go.py` in a copy, a line that names no file
 (`pytest`, `make`, `python -m`) - does not run once an agent of its job wrote any file after it was
-parked: "the job changed files after this was parked: run it yourself", on the list. A program an agent
+parked: "the job changed files after this was parked: run it yourself", on the list. A command that
+runs none of the project's code - `curl`, `wget`, a file command (`rm`, `mkdir`, `cp`, `mv`…), as Full
+auto's judge reads it - is not closed by later writes. A program an agent
 wrote and a place you kept out are still refused. The list says where a line would run and which file
 an agent wrote that it runs. Nothing goes into your project without your Take in: the going-on turn's
 work, at Full auto too, is kept in its copy.

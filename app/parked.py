@@ -188,7 +188,7 @@ def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | N
         return NEEDS
     if row.data.get("cwd") is None:  # (a CLI that did not say where its shell stood)
         return NOWHERE
-    if not pinned(row) and _written_since(session, row, task):
+    if not pinned(row) and not row.data.get("no_code") and written_since(session, row, task):
         return WROTE_SINCE
     project = session.get(Project, task.project_id)
     image = project.docker_image if project and project.exec_location == "docker" else None
@@ -203,7 +203,7 @@ def pinned(row: Parked) -> bool:
     return bool((row.data.get("file") or {}).get("pinned"))
 
 
-def _written_since(session: Session, row: Parked, task: BacklogTask) -> bool:
+def written_since(session: Session, row: Parked, task: BacklogTask) -> bool:
     """Whether an agent of the job's chat wrote a file - kept, in its copy or taken in - at or
     after the moment the line was parked (fails closed: the same moment counts)."""
     return (

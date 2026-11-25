@@ -227,7 +227,8 @@ like orders to a model. It is on the summary, on the report and at the top of ea
   is all it runs where that file is not what it was when it was parked ("changed since it was parked:
   run it yourself"), nor any other line - a chain, a `cd`, a shell, `python go.py` in a copy, `pytest` -
   once the job wrote any file after it was parked ("the job changed files after this was parked: run it
-  yourself", said on the list already). A program an agent wrote is still
+  yourself", said on the list already) - but a command that runs none of the project's code (`curl`,
+  `wget`, a file command) is not closed by later writes. A program an agent wrote is still
   refused, and so is a line naming a place you kept out. A Take in or Discard under way is waited for;
   while the lines run, the copy can be neither taken in nor discarded. **Stop** in the job's chat, or
   **Stop everything**, stops a line that runs, and the task.
