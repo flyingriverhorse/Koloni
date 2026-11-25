@@ -75,6 +75,41 @@ as it is then - KOLONİ's own command a second time just before it runs: one swa
 after that look is not seen. Windows PowerShell 5.1.26100, PowerShell 7 and Git Bash delete through
 no junction; older Windows 10 builds of PowerShell 5.1 do.
 
+### While you're away
+
+In a job while you're away a card does not wait: it is parked under **Waiting for you**
+([Work while you're away](../automation/overnight.md#waiting-for-you)). What is parked - a line, a
+question, what a command printed in the morning, your answer - is data: the agent is told it did not
+run, in KOLONİ's own words with the line quoted; the going-on turn's message is KOLONİ's, never yours (it
+starts "KOLONİ:", is not counted as your words by the judge or **Check what I said first**, and what a
+command printed, why one could not run and your answer are each in quotes - a line of their own cannot
+pass for KOLONİ's - and behind KOLONİ's note where they read like orders). Nothing parked runs without
+your **Run**, from the app's own page; the card endpoint does not decide a parked row, and no agent tool
+can.
+
+**Run** runs the line as it was recorded - its words, its folder, where commands run, its time limit -
+with no card, and only while that still holds: it is looked at again just before it runs. It does not
+run where its job's copy was taken in or discarded after your **Run**; in KOLONİ's shell when a CLI
+asked for it in its own (another shell reads the same words otherwise); nor for a server. If anything
+in the job's copy changed after a line was parked - a file an agent wrote, one a command wrote, one an
+earlier line of the same morning wrote - **Run** does not run it: "the job changed files after this was
+parked: run it yourself" (KOLONİ keeps what the copy's work was as the line was parked - its changed
+files, and every file in its `__pycache__`, `build` and `dist` folders and the agents' scratch - and
+looks again just before it runs; the list says so as soon as the job's turn is over). Where it would run
+in the project, some of the copy taken in, the same holds of the project's files: "its work was taken in
+after this was parked: run it yourself". A Python of the morning keeps its compiled files in a folder
+of its own, never the copy's `__pycache__`. A command that runs none of the project's code is the
+exception: a file command (`rm`, `rmdir`, `del`, `mkdir`, `md`, `cp`, `copy`, `mv`, `move`, `ren`,
+`chmod`, `touch`), and `curl` or `wget` only where every word after it is an `http://` or `https://`
+address, one of a few flags that take no value (curl's `-s`, `-S`, `-f`, `-L`, `-I`, `-v`, `-sS`, `-fsS`,
+`-fsSL`, `-sSL`, `-fL`, `--silent`, `--show-error`, `--fail`, `--location`, `--head`, `--verbose`,
+`--compressed`; wget's `-q`, `-nv`, `--quiet`, `--no-verbose`, `-S`, `--server-response`, `--spider`),
+or its output file (`curl -o NAME`, `wget -O NAME`, a plain file name). Any other word - a config, a file
+to send, a value glued on, a quote, `file://` - and it is held to the copy as any line. A program an agent
+wrote and a place you kept out are still refused. The list says where a line would run and which file
+an agent wrote that it runs. Nothing goes into your project without your Take in: the going-on turn's
+work, at Full auto too, is kept in its copy.
+
 ## Places agents never open
 
 - Your home folder, a drive's root and KOLONİ's own folder cannot be opened as a project. Settings ›

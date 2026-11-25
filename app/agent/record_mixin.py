@@ -482,7 +482,7 @@ class RecordMixin:
                 .where(
                     Question.run_id == run_id,
                     Question.tool_call_id.is_not(None),
-                    Question.status.in_(("pending", "cancelled", "interrupted")),
+                    Question.status.in_(("pending", "cancelled", "interrupted", "parked")),
                 )
                 .order_by(Question.created_at)
             )

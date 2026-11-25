@@ -668,6 +668,7 @@ class CommandRunner:
         judgement: dict | None = None,
         disposable: dict | None = None,
         env: Mapping[str, str] | None = None,
+        park: Callable[[str], Awaitable[str]] | None = None,
     ) -> tuple[str, str]:
         """Returns the tool call's final status and the result text for the model.
         `ask` is False where the command has its leave already and nobody can be asked
@@ -685,7 +686,8 @@ class CommandRunner:
         `disposable`: what of it KOLONİ found disposable, {"what", "allowed"} (coordination §4):
         `allowed` lifts the level's own ask only (`_free`), and its card offers "Allow such
         deletes in this project" where it is asked. `env`: what its environment gets besides
-        (KOLONİ's own test runs: their processes, S6) - never an agent's command."""
+        (KOLONİ's own test runs: their processes, S6) - never an agent's command. `park` (☾ Away):
+        one asked is parked, not waited on - what it returns, the model is told."""
         cap = self.longest(cid)
         planned = plan_command(ws, args, cap)
         searched = await asyncio.to_thread(search_reason, planned.command, ws.root, planned.cwd_rel)
@@ -776,7 +778,11 @@ class CommandRunner:
                 location=project.exec_location,
                 image=project.docker_image if project.exec_location == "docker" else None,
                 timeout_seconds=planned.timeout,
-                status="refused" if forbidden or refused else "proposed" if asks else "approved",
+                status="refused"
+                if forbidden or refused
+                else ("parked" if park else "proposed")
+                if asks
+                else "approved",
                 ended_at=now() if forbidden or refused else None,
                 keep_running=planned.keep_running,
                 web_off=web_off,
@@ -805,8 +811,9 @@ class CommandRunner:
         self.bus.emit(cid, run_id, "command.created", payload)
         if forbidden and judgement:  # K-yargic: a sentence of the user's forbids it - not run
             return "denied", refused_by_rule(judgement)
-        if refused:
-            return "denied", PLANTED_REFUSED.format(why=planted)
+        if refused or asks and park is not None:  # (☾ Away, §10: a card parked, not waited on)
+            by = None if refused else park
+            return "denied", await by(command_id) if by else PLANTED_REFUSED.format(why=planted)
 
         if asks:
             # (`rule` is empty when this command cannot be remembered.)
@@ -1169,6 +1176,7 @@ class CommandRunner:
         judgement: dict | None = None,
         disposable: dict | None = None,
         why: str = "",
+        park: Callable[[str], Awaitable[str]] | None = None,
     ) -> tuple[bool, str]:
         """A command a CLI is about to run with a tool of its own: put it on record,
         get it decided the way KOLONİ's own commands are, and say whether it may run.
@@ -1182,7 +1190,8 @@ class CommandRunner:
         screen and the record - the CLI's own model has read it already. `judgement`: as
         `run`'s (one it refused: (False, its id), as for the user's no); `disposable` too.
         `why`: KOLONİ's own reason for its card, for the family it is counted in (`card_reason`)
-        - never the reason the CLI gave in words of its own, shown on its card all the same."""
+        - never the reason the CLI gave in words of its own, shown on its card all the same.
+        `park`: as `run`'s - (False, its id) once it is parked."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
@@ -1224,7 +1233,7 @@ class CommandRunner:
                 timeout_seconds=0,
                 origin="cli",
                 web_off=web_off,
-                status="refused" if forbidden else "proposed",
+                status="refused" if forbidden else "parked" if asks and park else "proposed",
                 ended_at=now() if forbidden else None,
                 # (as `run`'s: what the check said holds only while its gate is open)
                 judged=_kept(judgement, asks, gate),
@@ -1240,6 +1249,9 @@ class CommandRunner:
             command_id, payload = row.id, command_out(row, held=held)
         self.bus.emit(cid, run_id, "command.created", payload)
         if forbidden:
+            return False, command_id
+        if asks and park is not None:
+            await park(command_id)
             return False, command_id
         if asks:
             decision = await self._wait_for_decision(

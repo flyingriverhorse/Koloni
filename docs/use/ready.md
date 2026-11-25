@@ -58,7 +58,8 @@ What waits:
   you press **OK**.
 - **Memory** proposals (**Approve**, **Approve as edited**, **Reject**) and suggested preferences
   (**Add** / **Reject**). See [Memory](../memory.md).
-- **While away**: jobs while you're away that wait. You answer it in its chat (**Open its chat to answer**).
+- **While away**: jobs while you're away that wait. You answer it in its chat (**Open its chat to answer**);
+  what a job parked is under **Waiting for you** on the morning's summary and report.
 
 A proposed trigger, a Project notes offer or the Orchestrator's Go away line waits only in its own chat unless that
 chat has something else waiting.

@@ -406,8 +406,8 @@ agent read, and the secrets KOLONİ knows are masked first.
 
 **What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - it
 waits for you on a card that says **KOLONİ's judge: …**, the model's one sentence; once answered, that
-sentence stays under the command's row. In a job while you're away the job waits there, as at any card,
-and the next one starts. A command over 4,000 characters, or one that - or the program an agent wrote that
+sentence stays under the command's row. In a job while you're away it is parked for you, as any card
+there is, and the job goes on ([Waiting for you](../automation/overnight.md#waiting-for-you)). A command over 4,000 characters, or one that - or the program an agent wrote that
 it runs, or one of the earlier commands it would be shown - reads like orders to a model, is a card without
 asking. So is one the judge gave no answer for in 20 seconds (90 for a model on a CLI), gave an answer it
 could not read for, or could not be asked about now - no room on its model's provider (its limit, this
@@ -427,9 +427,14 @@ KOLONİ knows all the line runs, as it is:
   more - `python x.py`, `node x.js`, `make` or `make target` (its Makefile), `make -f F`, `npm test` or
   `npm run <script>` (that folder's `package.json`), `docker build [-f F] [-t T] .` (its Dockerfile). Once
   the file changes, it is another line, asked again;
-- or one plain command of a few that run none of the project's code, kept by its words: `curl` and `wget`
-  (where no word names a path in the folder), and the file commands `rm`, `rmdir`, `del`, `mkdir`, `md`,
-  `cp`, `copy`, `mv`, `move`, `ren`, `chmod`, `touch`.
+- or one plain command of a few that run none of the project's code, kept by its words: the file
+  commands `rm`, `rmdir`, `del`, `mkdir`, `md`, `cp`, `copy`, `mv`, `move`, `ren`, `chmod`, `touch`; and
+  `curl` and `wget` only where every word after them is an `http://` or `https://` address, a flag that
+  takes no value (curl: `-s`, `-S`, `-f`, `-L`, `-I`, `-v`, `-sS`, `-fsS`, `-fsSL`, `-sSL`, `-fL`,
+  `--silent`, `--show-error`, `--fail`, `--location`, `--head`, `--verbose`, `--compressed`; wget: `-q`,
+  `-nv`, `--quiet`, `--no-verbose`, `-S`, `--server-response`, `--spider`) or the output file `curl -o
+  NAME` / `wget -O NAME` (a plain file name) - any other word (a config, a file to send, a value glued
+  to a flag, a quote, `file://`) and the line is asked each time.
 
 Every other line is asked about each time it runs, and its card has no box: a chain, a pipe, a
 redirection or a substitution - `python k.py && python e.py`, `… ; …`, `… | …`, `… || …`, `… > out.txt`,

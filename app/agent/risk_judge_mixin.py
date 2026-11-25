@@ -297,27 +297,53 @@ def _named_file(root: Path, command: str, cwd: str) -> tuple[Path | None, bool]:
 def _no_local_code(root: Path, command: str, cwd: str) -> bool:
     """Whether a line runs none of the folder's code, so its words alone may be its key: one
     plain command (`is_plain`, not wrapped nor in a shell), its program bare and one of
-    `RUNS_NO_LOCAL_CODE`, and - for one told what to read (`_READS_NAMED`) - no word of it, nor
-    a value after `=` or `@`, naming a path in the folder."""
+    `RUNS_NO_LOCAL_CODE` - and `curl` / `wget` (`_READS_NAMED`: they read what they are told)
+    only as `_only_fetches` reads them. `root` and `cwd`: where it runs (no word is looked up
+    there now - fails closed)."""
+    del root, cwd
     if not is_plain(command) or is_wrapped(command) or _in_a_shell(command):
         return False
-    words = [word.strip("'\"") for word in _words(command.strip())]
-    program = _program(words[0]) if words else ""
-    if not words or _pathlike(words[0]) or program not in RUNS_NO_LOCAL_CODE:
+    raw = _words(command.strip())
+    program = _program(raw[0].strip("'\"")) if raw else ""
+    if not raw or _pathlike(raw[0].strip("'\"")) or program not in RUNS_NO_LOCAL_CODE:
         return False
-    parts = [part.lstrip("@") for word in words[1:] for part in (word, *word.split("=")[1:])]
-    return program not in _READS_NAMED or not any(
-        _in_folder(root, cwd, part) for part in parts if part and "://" not in part
-    )
+    return program not in _READS_NAMED or _only_fetches(program, raw[1:])
 
 
-def _in_folder(root: Path, cwd: str, part: str) -> bool:
-    """Whether a word names a path in the folder (True where that cannot be told: fails closed)."""
-    try:
-        path = (root / cwd / part).resolve()
-        return path.is_relative_to(root.resolve()) and path.exists()
-    except (OSError, ValueError):
-        return True
+# `curl` / `wget` with none of the folder's code (fails closed, review round 5): each word after the
+# program a plain http(s) address or one of these value-less flags, matched whole - no quote taken
+# off - or the one output target (`-o NAME`; wget's `-O NAME`) to a plain file name of the folder it
+# runs in. Any other flag, a value glued on, `-K`, `--config`, `-T`, `-d`, `-i`, `-e`, `@file`, a
+# quote, `file://`: not so.
+_FETCH_FLAGS = {
+    "curl": frozenset(
+        {"-s", "-S", "-f", "-L", "-I", "-v", "-sS", "-fsS", "-fsSL", "-sSL", "-fL"}
+        | {"--silent", "--show-error", "--fail", "--location", "--head", "--verbose"}
+        | {"--compressed"}
+    ),
+    "wget": frozenset(
+        {"-q", "-nv", "--quiet", "--no-verbose", "-S", "--server-response", "--spider"}
+    ),
+}
+_FETCH_OUT = {"curl": "-o", "wget": "-O"}
+_PLAIN_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.\-]*")
+
+
+def _only_fetches(program: str, words: list[str]) -> bool:
+    """Whether `curl` / `wget`'s words (as written: quotes kept) are each an http(s) address, a
+    flag of `_FETCH_FLAGS`, or its output option followed by a plain file name."""
+    at = 0
+    while at < len(words):
+        word = words[at]
+        if word == _FETCH_OUT[program] and at + 1 < len(words):
+            if not _PLAIN_NAME.fullmatch(words[at + 1]):
+                return False
+            at += 2
+            continue
+        if word not in _FETCH_FLAGS[program] and not word.startswith(("http://", "https://")):
+            return False
+        at += 1
+    return True
 
 
 def _agents(factory, cid: str, root: Path, path: Path) -> bool:

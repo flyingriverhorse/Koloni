@@ -169,6 +169,39 @@ messages.
   [Troubleshooting](../troubleshooting.md#commands-and-docker). Under rootless Docker, the files a
   command makes belong to another user id on the host.
 
+## Work while you're away
+
+- In the morning **Run** does not look at what the job changed in its copy: you see that at Take in.
+- A line that runs a program an agent wrote is refused after **Run** too. A script given to an
+  interpreter (`python tool.py`, `node x.js`) is not read so: it runs on your **Run** - but only as it
+  was when the line was parked (the list says "Runs a file an agent wrote").
+- If anything in the job's copy changed after a line was parked, **Run** does not run it - so a test
+  line parked early in a job is usually closed by the work after it: run it yourself. What stays out
+  of that look: the dependency folders a copy links to the project's own (`node_modules`, `.venv`,
+  `venv`), files outside the project, and the caches that hold no code (`.pytest_cache`,
+  `.ruff_cache`, `.mypy_cache`, `.git`). A command that runs none of the project's code is not closed
+  by changes at all.
+- KOLONİ looks at the whole copy for this, each time a line is parked and just before each runs: about
+  a second on a copy of 2,000 files (measured on Windows), the first look longer. A large `build` or
+  `dist` folder in the copy (or a big scratch) makes each look slower: every file in it is read.
+- Between that last look and the line's start there is a moment - under a second - in which a process
+  an earlier **Run** left behind (on Linux or macOS), or another task's going-on turn, could still
+  change a file: that gap is not closed.
+- A line a CLI ran in its own shell is not run in the morning (**Reject** it, or run it yourself), nor
+  is a server line.
+- KOLONİ hard-stopped (killed, not closed) while the morning's lines run, or in the turn that went on
+  after them: at the next start the task is stopped, and says which; what had not run is not run again.
+- A line whose folder its CLI did not say does not run: **Reject** it, or run it yourself.
+- Where you took some of a job's copy in, its going-on turn works in a fresh copy, and the lines you
+  said **Run** run in the project itself.
+- A job tried twice parked its lines in two copies: each line runs in its own, the going-on turn in the
+  newest.
+- KOLONİ closed while the morning's lines run: the task is stopped, and what has not run is not run
+  again - **Try again** works it in its chat.
+- **Usage › Cards** counts a parked card as not answered.
+- `git` in the middle of a line - `cd sub && git push` - needs the project: Take in first; in a copy
+  there is no git.
+
 ## Recipes
 
 - Recipes do not run in triggers' turns.

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app import backlog, web
 from app.api.usage import money, month_spend, over_budget, spend
 from app.commands import _words
+from app.db.away_models import Parked
 from app.db.models import (
     Agent,
     AwayRun,
@@ -77,6 +78,10 @@ JOB_TOO_LONG = (
     "Stopped after {hours} hour{s}, the most one job works: what it did is kept in its copy."
 )
 CLOSED = "Stopped: KOLONİ was closed while you were away."
+# §10: ...while what the user said Run ran - or in the turn that went on after it: the job
+# stopped, Try again open.
+CLOSED_MEANWHILE = "Stopped: KOLONİ was closed while what you said Run ran."
+CLOSED_GOING_ON = "Stopped: KOLONİ was closed in the turn that went on after your decisions."
 # What starts no other work while the user is away (Try again; a chat's To-do queue waits).
 AWAY_NOW = "You're away from this project: press I'm back first"
 KEPT_OUT = (
@@ -707,6 +712,26 @@ def night_job(session: Session, cid: str) -> BacklogTask | None:
     return job_of(session, cid) if night_of(session, cid) else None
 
 
+def going_on(session: Session, run: Run) -> bool:
+    """§10: whether a turn is a job's going-on turn after the user's decisions (`app.parked`)."""
+    return session.scalar(select(Parked.id).where(Parked.went_on == run.id).limit(1)) is not None
+
+
+def cut_morning(session: Session, run: Run) -> None:
+    """§10, at the next start (`recover_interrupted`): a going-on turn a hard stop cut - before
+    it began or in it - leaves its job stopped, with why (Try again works it), not at work for
+    good. Not committed."""
+    task = session.get(BacklogTask, run.task_id or "") if going_on(session, run) else None
+    if task is not None and task.away_state is None:  # (it had started: its turn itself)
+        why = CLOSED_MEANWHILE if run.started_at is None else CLOSED_GOING_ON
+        task.away_state, task.away_why = "stopped", why
+
+
+def job_turn(session: Session, run: Run) -> bool:
+    """A job's turn: of its night while it runs, or the going-on turn after it (§10)."""
+    return night_job(session, run.conversation_id) is not None or going_on(session, run)
+
+
 def turn_ended(session: Session, run: Run, status: str) -> bool:
     """A turn of a job's chat ended (`run.status` set): done, to be tried once more where it
     failed while the night goes on, or could not be done, with why. Whether a job moved;
@@ -718,9 +743,12 @@ def turn_ended(session: Session, run: Run, status: str) -> bool:
     if status == "completed":
         # B-122: one its Lead says needs the project itself (what its copy leaves out) waits.
         needs = needs_project(backlog.last_word(session, run))
-        task.away_state, task.away_why = (
-            ("waits", f"{backlog.NEEDS_PROJECT} {needs}") if (needs) else ("done", None)
+        # §10: ...and so does one that parked something for the user, "{n} parked".
+        why = "; ".join(
+            ([f"{n} parked"] if (n := parked_left(session, task.id)) else [])
+            + ([f"{backlog.NEEDS_PROJECT} {needs}"] if needs else [])
         )
+        task.away_state, task.away_why = ("waits", why) if why else ("done", None)
     elif (
         status == "failed"
         and away is not None
@@ -750,12 +778,16 @@ def after_the_night(session: Session, run: Run) -> Message | None:
     ("0 done, 2 wait"). The line changed, or None. Not committed."""
     task = job_of(session, run.conversation_id)
     away = session.get(AwayRun, task.away_run_id) if task and task.away_run_id else None
-    # (Only the night's own turn, gone on after it: a later message in the job's chat is not its.)
+    # (Only the night's own turn, gone on after it - or its going-on turn, §10: a later message in
+    # the job's chat is not its.)
     if (
         away is None
         or away.status != "ended"
         or away.ended_at is None
-        or (run.created_at.replace(tzinfo=None) > away.ended_at.replace(tzinfo=None))
+        or (
+            run.created_at.replace(tzinfo=None) > away.ended_at.replace(tzinfo=None)
+            and not going_on(session, run)
+        )
     ):
         return None
     away.ended_at = now()
@@ -1127,10 +1159,35 @@ def settle(session: Session, notes: list | None = None) -> None:
     for away in session.scalars(select(AwayRun).where(AwayRun.status == "running")).all():
         for task in tasks_of(session, away):
             if task.conversation_id is not None and task.away_state in (None, "waits"):
+                if task.away_state == "waits" and _waits_parked(session, task):
+                    continue  # (§10: its turn was over - what it parked waits for the morning)
                 task.away_state, task.away_why = "failed", CLOSED
         _message, note = _close(session, away, CLOSED)
         if note and notes is not None:
             notes.append(note)
+
+
+def parked_left(session: Session, task_id: str) -> int:
+    """§10: what of a job is parked for the user and not decided yet (`app.parked`)."""
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(Parked)
+            .where(Parked.task_id == task_id, Parked.decision.is_(None))
+        )
+        or 0
+    )
+
+
+def _waits_parked(session: Session, task: BacklogTask) -> bool:
+    """A job that waits only for what it parked: its last turn completed, and some is parked."""
+    last = session.scalar(
+        select(Run.status)
+        .where(Run.conversation_id == task.conversation_id)
+        .order_by(Run.created_at.desc())
+        .limit(1)
+    )
+    return last == "completed" and parked_left(session, task.id) > 0
 
 
 def kept_copies(session: Session, cid: str) -> list[Merge]:
