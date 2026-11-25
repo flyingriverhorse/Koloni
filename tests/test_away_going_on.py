@@ -403,7 +403,7 @@ def test_a_last_kind_stays_closed_until_the_going_on_turn_ends(
     # (the Away branch's contract: a `push` row - `act` of its own, `last` - waits for the rest)
     acted: list = []
 
-    async def push_now(session, row, task):
+    async def push_now(session, row, task, **_more):  # (the runner, the notes seen)
         acted.append(row.id)
         return "pushed"
 
@@ -431,8 +431,8 @@ def test_a_last_kind_stays_closed_until_the_going_on_turn_ends(
     assert push_row()["closed"] == parked.LAST
     gate.release()
     until(lambda: chat(client, cid)["runs"][1]["status"] == "completed")
-    # (what it still holds waits for the user: the job waits on it)
-    assert night(client, pid)["jobs"][0]["why"] == "1 parked"
+    # (a push is KOLONİ's own row: the job is done, its push waits under Waiting for you - 0.1.9)
+    assert night(client, pid)["jobs"][0]["state"] == "done"
     assert push_row()["closed"] is None
     assert decide(client, done["id"], push_id, "run").status_code == 200
     assert push_row()["result"] == "pushed"

@@ -4,6 +4,8 @@ the chat, the To-do page, the top bar and the morning's node; Stop all, and Try 
 that could not be done. Waiting for you (§10): what the jobs parked for the user, decided only from
 the app's own page - Run, Reject, an answer, Stop this task."""
 
+import asyncio
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -11,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import away, backlog, parked
+from app import away, away_branch, backlog, parked
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.db.models import AwayRun, BacklogTask, Conversation, Project, Run, now
@@ -51,6 +53,8 @@ class WaitingOut(BaseModel):
 class DecideIn(BaseModel):
     word: Literal["run", "reject", "answer"]
     answer: str | None = Field(default=None, max_length=4000)
+    # A push's notes the user saw (its 409's): its second Run (0.1.9).
+    seen: list[str] = Field(default=[], max_length=50)
 
 
 def _away(session: Session, away_id: str) -> AwayRun:
@@ -101,8 +105,19 @@ async def go_away(
     conversation = session.get(Conversation, cid)
     if conversation is None:
         raise HTTPException(404, "conversation not found")
+    project = session.get(Project, conversation.project_id or "")
+    # (0.1.9: how its jobs work on the project - a copy, a branch, a branch pushed in the morning)
+    mode = (
+        await asyncio.to_thread(away_branch.mode_of, Path(project.root_path)) if project else None
+    )
     try:
-        night = away.go(session, conversation, body.model_dump(), request.app.state.runner)
+        night = away.go(
+            session,
+            conversation,
+            body.model_dump(),
+            request.app.state.runner,
+            mode or ("copy", None),
+        )
     except away.Refused as exc:
         raise HTTPException(409, str(exc)) from None
     _told(request, night.project_id)
@@ -201,9 +216,17 @@ async def decide_waiting(
     """The user's Run, Reject or answer of a parked row - only from the app's own page."""
     card = _away(session, away_id)
     try:
-        task = await parked.decide(session, card, item_id, body.word, body.answer)
+        task = await parked.decide(
+            session,
+            card,
+            item_id,
+            body.word,
+            body.answer,
+            runner=request.app.state.runner,
+            seen=body.seen,
+        )
     except parked.Refused as exc:
-        raise HTTPException(exc.status, str(exc)) from None
+        raise HTTPException(exc.status, {"notes": exc.notes} if exc.notes else str(exc)) from None
     if task is not None:  # (its last decision: what was Run runs, and its job goes on)
         request.app.state.runner.go_on_parked(task.id)
     _told(request, card.project_id)

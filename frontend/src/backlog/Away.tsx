@@ -211,6 +211,33 @@ const lineOf = (away: Away, job: AwayJob) =>
         ? null
         : job.why
 
+/** KOLONİ's checks' verdict on a job's branch, as its mark. */
+const CHECKS_MARK: Record<string, string> = { green: '✓', red: '✗' }
+
+/**
+ * 0.1.9: where a job's work is - on its own branch in the project's repository (its commits, files and checks, what
+ * moved outside it meanwhile), or in a copy and why where git is there.
+ */
+function BranchLine({ job }: { job: AwayJob }) {
+  const branch = job.branch
+  if (job.mode === 'copy' && job.mode_why) return <div className="muted away-line">In a copy: {job.mode_why}</div>
+  if (!branch) return null
+  return (
+    <>
+      <div className="muted away-line">
+        On branch <span className="mono">{branch.name}</span> · {branch.commits ?? '?'} commits · {branch.files ?? '?'}{' '}
+        files · checks {CHECKS_MARK[branch.checks ?? ''] ?? '…'}
+      </div>
+      {job.mode === 'branch' && <div className="muted away-line">No remote: merge it with git, or Take in.</div>}
+      {[branch.why, ...(branch.moved ?? [])].filter(Boolean).map(said => (
+        <div key={said} className="away-shared">
+          {said}
+        </div>
+      ))}
+    </>
+  )
+}
+
 /** One job of a night, with what you can do about it as it stands. */
 export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen: (cid: string) => void }) {
   const { busy, error, ask } = useAsk()
@@ -283,6 +310,7 @@ export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen
       <div className="away-grow">
         <b>{job.title}</b>
         {line && <div className="muted away-line">{line}</div>}
+        <BranchLine job={job} />
         {job.state === 'working' && job.now && <span className="away-now mono">{job.now}</span>}
         {job.checks.length > 0 && <div className="muted away-line">{job.checks.join(' · ')}</div>}
         {job.assessment && <q className="away-view">{job.assessment}</q>}

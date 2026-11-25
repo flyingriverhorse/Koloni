@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
 import type { Away, Command, Question, Waiting } from '../api/types'
 import { AskedRow } from '../chat/AskCard'
 import { commandStatus } from '../commands/commandStatus'
@@ -144,4 +144,41 @@ test('in the chat: a parked command is parked for the morning, a parked question
   } as unknown as Question
   render(<AskedRow question={question} />)
   expect(screen.getByText('Parked for you: answer it under Waiting for you')).toBeTruthy()
+})
+
+test('0.1.9: a job’s push - Run; KOLONİ’s notes first, then Run anyway with them seen; Reject; why nothing went up', async () => {
+  const push = row({
+    id: 'p1',
+    kind: 'push',
+    what: 'Push koloni/x-ab12 to origin (https://***@example.com/x.git) — one commit by KOLONİ, 2 files · checks ✓ at abc1234',
+    why: 'A push leaves this machine: it waits for your Run',
+    place: null,
+    cwd: null,
+    result: 'koloni/x-ab12 moved since the job ended (abc1234 → def5678): nothing was pushed',
+  })
+  const notes = ['git’s config changed since the job began']
+  const awayDo = vi.fn(async (_id: string, _action: string, body?: { seen?: string[] }) => {
+    if (!body?.seen?.length) throw new ApiError(409, '409 Conflict', { notes })
+  })
+  vi.spyOn(api, 'get').mockResolvedValue([push])
+  useApp.setState({ awayDo: awayDo as never })
+  render(<WaitingForYou away={away} />)
+  expect(await screen.findByText(/one commit by KOLONİ, 2 files/)).toBeTruthy()
+  expect(screen.getByText(/moved since the job ended/)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Stop this task' })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Run' }))
+  expect(awayDo).toHaveBeenLastCalledWith('a1', 'waiting/p1', { word: 'run', seen: [] })
+  expect(screen.getByRole('note').textContent).toBe(notes[0])
+  expect(screen.queryByRole('alert')).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Run anyway' }))
+  expect(awayDo).toHaveBeenLastCalledWith('a1', 'waiting/p1', { word: 'run', seen: notes })
+  await userEvent.click(screen.getByRole('button', { name: 'Reject' }))
+  expect(awayDo).toHaveBeenLastCalledWith('a1', 'waiting/p1', { word: 'reject', seen: notes })
+})
+
+test('0.1.9: a push decided says what came of it, never “You said Run”', async () => {
+  shown([row({ kind: 'push', decision: 'run', result: 'Pushed koloni/x-ab12 to origin as 1234567', place: null })])
+  expect(await screen.findByText('Pushed koloni/x-ab12 to origin as 1234567')).toBeTruthy()
+  expect(screen.queryByText('You said Run')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Run' })).toBeNull()
 })

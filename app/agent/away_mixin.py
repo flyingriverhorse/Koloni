@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app import away, copies, parked
+from app import away, away_branch, copies, parked
+from app.agent.away_branch_mixin import AwayBranchMixin
 from app.agent.ctx import TERMINAL, Ctx, announce, to_its_end
 from app.agent.risk_judge_mixin import (
     _agents,
@@ -164,7 +165,7 @@ def _left_out_work(root: Path) -> dict[str, str]:
     return found
 
 
-class AwayMixin:
+class AwayMixin(AwayBranchMixin):
     # --- a job while the user is away (slice 106, `app.away`) ------------------------------
 
     def _job_waits(self: "AgentRunner", run_id: str, waiting: bool) -> None:
@@ -255,7 +256,10 @@ class AwayMixin:
                             "judge": call.why_asked
                             if call is not None and command.asked_reason == "judge"
                             else None,
-                            "needs_project": parked.needs_project(command.command),
+                            # (in a job's worktree git is there: `git commit` runs in it)
+                            "needs_project": parked.needs_project(
+                                command.command, git=bool(copy is not None and copy.branch)
+                            ),
                             # (M2, L4, L6: a CLI's own shell's line, a server, its card's words)
                             "origin": command.origin,
                             "server": command.keep_running,
@@ -543,10 +547,14 @@ class AwayMixin:
         """Why a write of `path` (relative, or a full one in the project or the job's copy) or
         `command` (its words also from `cwd`, the folder it runs in) is refused in a job while
         the user is away: it touches a place the user kept out - also after the night, in a
-        job that waited for the user. Each try is on record for the morning. None elsewhere."""
+        job that waited for the user. Each try is on record for the morning. None elsewhere. And,
+        in a job on its branch, an agent's own `git push` (`PUSH_REFUSED`, no card: the morning
+        asks it once) - not on record."""
         if ctx.run_id not in self._away_jobs:
             return None
         copy = self._copies.get(self._away_jobs[ctx.run_id])
+        if command and copy is not None and copy.branch and away_branch.pushes(command):
+            return away_branch.PUSH_REFUSED  # (0.1.9: KOLONİ pushes it once the user says Run)
         roots = (ctx.folder, *([str(copy.workspace().root)] if copy is not None else []))
         with self._factory() as session:
             task = away.job_of(session, ctx.cid)

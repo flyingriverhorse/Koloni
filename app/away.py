@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta, tzinfo
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app import backlog, web
+from app import away_branch, backlog, git, web
 from app.api.usage import money, month_spend, over_budget, spend
 from app.commands import _words
 from app.db.away_models import Parked
@@ -231,11 +231,18 @@ def _keep_order(tasks: list[BacklogTask], order: object) -> list[BacklogTask]:
     return wanted
 
 
-def go(session: Session, conversation: Conversation, given: dict, runner) -> AwayRun:
+def go(
+    session: Session,
+    conversation: Conversation,
+    given: dict,
+    runner,
+    mode: tuple[str, str | None] = ("copy", None),
+) -> AwayRun:
     """The user's Go away from chat `conversation` - the only start: the tasks ticked (`given`
     task_ids, in its order; a proposed one is approved and held for Away), the places kept out
-    and the limits. The chat's turn finishes first (`go_on`); the cards waiting are decided now
-    (`AgentRunner.away_now`)."""
+    and the limits; how its jobs work on the project (`mode`, `away_branch.mode_of`: in a copy, on
+    a branch, and pushed in the morning), and why not on a branch. The chat's turn finishes first
+    (`go_on`); the cards waiting are decided now (`AgentRunner.away_now`)."""
     project_id = conversation.project_id
     if project_id is None:
         raise Refused("a chat with no folder has nothing to work on while you're away")
@@ -289,6 +296,8 @@ def go(session: Session, conversation: Conversation, given: dict, runner) -> Awa
                 "recipe": None,
                 "task_id": task.id,
                 "was_todo": was_todo,
+                "mode": mode[0],
+                "mode_why": mode[1],
             }
         )
     night.jobs = jobs
@@ -689,7 +698,11 @@ def _start(session: Session, away: AwayRun, task: BacklogTask, runner) -> None:
                 for one in evening.teams
             ]
 
-    backlog.start(session, task, runner.bus, runner.start, shape, night=True)
+    # (0.1.9: on its branch, where Go away found a git repository - `AwayBranchMixin`)
+    branch = git.BRANCH_PREFIX + git.task_branch(task.title, task.id)
+    on_branch = job.get("mode") in ("branch", "push")
+    night = away_branch.AWAY_BRANCH_JOB.format(branch=branch) if on_branch else True
+    backlog.start(session, task, runner.bus, runner.start, shape, night=night)
 
 
 def job_of(session: Session, cid: str) -> BacklogTask | None:
@@ -1168,12 +1181,13 @@ def settle(session: Session, notes: list | None = None) -> None:
 
 
 def parked_left(session: Session, task_id: str) -> int:
-    """§10: what of a job is parked for the user and not decided yet (`app.parked`)."""
+    """§10: what of a job is parked for the user and not decided yet (`app.parked`) - not its
+    push (0.1.9), KOLONİ's own row: a job whose push waits is done."""
     return (
         session.scalar(
             select(func.count())
             .select_from(Parked)
-            .where(Parked.task_id == task_id, Parked.decision.is_(None))
+            .where(Parked.task_id == task_id, Parked.decision.is_(None), Parked.kind != "push")
         )
         or 0
     )
@@ -1298,7 +1312,10 @@ def report(session: Session, away: AwayRun) -> dict:
     jobs, by_file, slipped = [], {}, []
     root = session.get_one(Project, away.project_id).root_path
     for job in away.jobs:
-        one = {key: job.get(key) for key in ("title", "line", "team", "recipe", "task_id")}
+        one = {
+            key: job.get(key)
+            for key in ("title", "line", "team", "recipe", "task_id", "mode", "mode_why")
+        }
         task = tasks.get(job.get("task_id") or "")
         if task is not None:
             cid = task.conversation_id
@@ -1330,6 +1347,7 @@ def report(session: Session, away: AwayRun) -> dict:
                 "now": doing_now(session, cid) if state == "working" and cid else None,
                 "checks": checks(session, cid) if cid else [],
                 "spent": spend(session, [Conversation.id == cid])["spent"] if cid else None,
+                "branch": away_branch.row(session, cid) if cid else None,
             }
             slipped += [
                 {"task_id": task.id, "what": f"{task.title}: changed {path} in its copy"}

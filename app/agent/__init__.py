@@ -1912,6 +1912,7 @@ class AgentRunner(
             if t.job:
                 self._away_jobs[run_id] = ctx.agent_id
                 self._arm_deadline(run_id, cid)
+                await self._away_on_branch(run_id, t, ctx)  # (0.1.9: in a git repository)
             if t.todo_turn:  # (B-413: it ends where nothing moves - its chat's rules else)
                 self._todo_turns.add(run_id)
                 self._arm_todo_deadline(run_id)
@@ -2141,6 +2142,7 @@ class AgentRunner(
                     self._koloni_line(cid, run_id, said)
         if t.run_compare and status in ("completed", "failed"):
             await self._side_aside(ctx, t.run_compare)
+        await to_its_end(self._away_branch_end(ctx, status))  # (0.1.9: a job's, before it is kept)
         own = run_id in self._branch_runs or run_id in self._resumed  # (the Lead's own copy)
         if own and run_id in self._held_back:  # (S11: never merged, nor taken in)
             self._set_aside(

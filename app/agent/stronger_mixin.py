@@ -436,6 +436,7 @@ class StrongerMixin:
                 except (OSError, ValueError) as exc:
                     why = f"its copy could not be opened ({exc})"
                 else:
+                    copy = self._as_away_branch(session, ctx, merge, copy)  # (a job's branch)
                     merge.status, merge.files, merge.kept_in = "discarded", [], None
                     merge.check, merge.decided_at = None, now()
                     session.commit()

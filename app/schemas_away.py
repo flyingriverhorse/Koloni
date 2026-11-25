@@ -31,6 +31,24 @@ class AwayTried(BaseModel):
     what: str
 
 
+class AwayBranchOut(BaseModel):
+    """0.1.9: a job's branch as its turn left it (`away_branch.row`) - its name, its commit and
+    the branch it was made from, its commits and files since, KOLONİ's checks' verdict, origin's
+    address (never its password) and what moved outside it meanwhile (H2); `why`: what git said
+    where it could not look at the branch."""
+
+    name: str | None
+    from_head: str | None = None
+    tip: str | None
+    into: str | None
+    why: str | None = None
+    commits: int | None
+    files: int | None
+    checks: Literal["green", "red", "not complete"] | None
+    origin: str | None
+    moved: list[str] = []
+
+
 class AwayJobOut(BaseModel):
     """A job of the card, and once started how it stands: next (not started), working,
     waits, done, failed or stopped (cut by the night's time, money or Stop all: B-148); `why`
@@ -61,3 +79,8 @@ class AwayJobOut(BaseModel):
     # What it does right now, while it works (slice 84d's words): "Coder · editing a.py".
     now: str | None = None
     spent: float | None = None
+    # 0.1.9: how it works on the project - in a copy, on a branch, pushed in the morning too -
+    # and why in a copy where git is there; its branch once its turn ended.
+    mode: Literal["copy", "branch", "push"] | None = None
+    mode_why: str | None = None
+    branch: AwayBranchOut | None = None
