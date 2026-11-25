@@ -513,6 +513,20 @@ def test_a_heading_forbids_only_its_own_list():
     assert _against("Never delete these:\n- ./build\nYou may delete ./build.", "rm -rf ./build")
     assert _against("Never delete these:\n\n- ./a\n\n- ./build", "rm -rf ./build")
     assert not _against("Never delete these:\n- ./a\n\nKeep it tidy.\n- ./build", "rm -rf ./build")
+    # (the judge's decision on the model's quote of the allowing line, as Codex's probe read it)
+    for rules, decided in (
+        ("Never delete these:\n- ./archive\n\nDisposable outputs:\nYou may delete ./build.", "run"),
+        ("Never delete these:\n- ./archive\nDisposable outputs:\nYou may delete ./build.", "run"),
+        ("Never delete these:\n- ./build\nYou may delete ./build.", "ask"),
+    ):
+        assert _decided(rules, "You may delete ./build.", "rm -rf ./build") == decided, rules
+
+
+def _decided(rules: str, quote: str, command: str) -> str:
+    answer = json.dumps({"verdict": "run", "quote": quote, "why": ""})
+    said = judge.said(None, rules, [])
+    found = judge.verdict(answer, said, lambda line: bool(cards.mentioned([line], command, ".")))
+    return found["verdict"] if found else ""
 
 
 def test_a_delete_of_dot_slash_x_names_x():

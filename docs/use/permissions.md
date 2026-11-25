@@ -519,8 +519,8 @@ messages in the chat - never anything an agent wrote - and then:
 - Two lines of yours that disagree about a delete: a line that names what the delete takes and forbids
   it or sets a condition - "Never delete ./x." beside "You may delete ./x.", or an item under "Never delete
   these:" - keeps its card, whichever line the model quoted, as KOLONİ reads such a line. A heading covers
-  the list under it, up to a blank line (a list's items, or code, though blank lines part them, until a
-  line of prose), so "Never delete these:" over `./archive` says nothing of a "You may delete ./build."
+  the lines right under it, up to a blank line or the next heading, and a list or code under it until a
+  line of prose; so "Never delete these:" over `./archive` says nothing of a "You may delete ./build."
   in a section of its own further on. Some wordings
   ("Keep build.", "Leave build alone.", "…but check with me first.") are not caught, and the measurement
   decides the rest. Two lines about a push, a branch or a remote are left to the model.
