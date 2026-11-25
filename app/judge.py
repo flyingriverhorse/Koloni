@@ -214,20 +214,26 @@ def _headed(text: str) -> Iterator[tuple[str, bool, str]]:
     `_prose`) and the heading it is read under: the nearest line above it that ends in `:`
     ("Never delete these:") - in its block (no blank line between), or for a list's item, code
     or a quote across blank lines and other items too (`listed`: a line of prose ends that). A
-    heading holds to the next one: its own list, not the words' other sections (Codex P2-3)."""
-    head = listed = ""
+    heading right under another is read with it ("Never delete:" over "Outputs:"); one after the
+    other's lines and a blank line (`parted`) starts a section of its own, which the other's words
+    do not reach (Codex P2-3)."""
+    head = listed = top = ""
+    under = parted = False  # (lines under the heading `top` yet; a blank line after them)
     for raw, line in zip(text.split("\n"), _prose(text), strict=True):
         if line is None:
+            under = True
             yield raw, False, head or listed
         elif not line.strip():
-            head = ""
+            head, parted = "", parted or under
         else:
             item = bool(LIST_MARK.match(line.strip()))
             yield line, True, head or (listed if item else "")
             if line.rstrip().endswith(":"):
-                head = listed = line
-            elif not item:
-                listed = ""
+                top = f"{top} {line}" if top and not parted else line
+                head = listed = top
+                under = parted = False
+            else:
+                under, listed = True, listed if item else ""
 
 
 def _units(text: str) -> list[tuple[str, str, str]]:
