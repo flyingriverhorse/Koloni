@@ -59,6 +59,7 @@ KOLONİ's own words, as they appear on screen.
 : Where you see the cards the Orchestrator decided for you: while you were away (☾ Away), or once a
   card waited the project's minutes (Settings › This project › Asking and away › **When you're
   away**); and the commands **Check what I said first** ran, or did not run, on a line of yours.
+  The project's whole list is under Usage › Today: [Decisions](../use/decisions.md).
 
 **Discussion**
 : Several agents talking one question through in rounds, with nobody changing anything meanwhile.
