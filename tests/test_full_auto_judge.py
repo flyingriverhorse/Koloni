@@ -18,7 +18,7 @@ from tests.conftest import TERMINAL, scaled
 from tests.fakes import Script
 from tests.keyed import OWN
 from tests.test_agent_commands import cmd
-from tests.test_agent_writes import wait_status, write
+from tests.test_agent_writes import write
 from tests.test_agy_agent import agy_app  # noqa: F401  (a fixture)
 from tests.test_backlog_auto import until
 from tests.test_chat_flow import text
@@ -44,13 +44,20 @@ def go(client, project_dir, content="add a CSV export", **more):
     return begin(client, project_dir, content, check="ask", **more)
 
 
+def waiting(client, cid):
+    """The one command of the chat that waits on its card, once there is one."""
+
+    def proposed():
+        snap = client.get(f"/api/conversations/{cid}").json()
+        return [one for one in snap["commands"] if one["status"] == "proposed"]
+
+    (asked,) = until(proposed, scaled(5))
+    return asked
+
+
 def card(client, cid, decide="reject", **body):
     """The command that waits on its card, decided (`decide`: reject, approve with `body`)."""
-    (asked,) = [
-        c
-        for c in wait_status(client, cid, "waiting_approval")["commands"]
-        if c["status"] == "proposed"
-    ]
+    asked = waiting(client, cid)
     path = f"/api/commands/{asked['id']}/{decide}"
     assert client.post(path, json=body, headers=OWN).status_code == 200
     return asked
@@ -389,11 +396,7 @@ def test_dont_ask_again_is_only_a_judges_cards_and_with_no_rule(judging, wait_ru
     )
     _, cid, run_id = go(client, project_dir)
     for body in ({"remember_line": True}, {"remember_line": True, "remember": True}):
-        (asked,) = [
-            one
-            for one in wait_status(client, cid, "waiting_approval")["commands"]
-            if one["status"] == "proposed"
-        ]
+        asked = waiting(client, cid)
         path = f"/api/commands/{asked['id']}/approve"
         assert client.post(path, json=body, headers=OWN).status_code == 422, asked["command"]
         assert client.post(f"/api/commands/{asked['id']}/reject", headers=OWN).status_code == 200
@@ -614,3 +617,15 @@ def test_a_script_in_the_agents_scratch_is_shown_whoever_wrote_it(judging, wait_
     _, cid, run_id = go(client, project_dir)
     wait_run(client, cid, run_id)
     assert "SCRATCH-7731" in judge.calls[0][0]["content"]
+
+
+def test_a_line_the_check_of_your_words_let_run_is_not_judged_again(judging, wait_run, project_dir):
+    from tests.test_judge_scenarios import RULE, verdict_line
+
+    client, _lead, judge, executor = judging(
+        [cmd("rm -rf build"), text("cleaned")], [verdict_line("run", RULE)], [Script([])]
+    )
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)  # (check: "judge")
+    (ran,) = wait_run(client, cid, run_id)["commands"]
+    assert ran["status"] == "exited" and ran["judged"]["verdict"] == "run"
+    assert len(judge.calls) == 1 and executor.started[0][0] == "rm -rf build"
