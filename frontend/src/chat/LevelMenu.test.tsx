@@ -1,7 +1,9 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
+import type { Project } from '../api/types'
 import { LevelMenu } from './LevelMenu'
+import { judgeWordsOf } from './levels'
 
 test('the level is three comb cells and its name; a click opens each level with a line on what it does, and Plan first', async () => {
   const onMode = vi.fn()
@@ -237,4 +239,15 @@ test('the switch’s line: Tests only runs with no review, Nothing as the projec
     'href',
     expect.stringContaining('use/checked/'),
   )
+})
+
+test('§8: the judge’s words by the project - off with its box off, on where the old choice was judge, else not until measured', () => {
+  const of = (judge_words: boolean, full_auto_check: 'ask' | 'judge') =>
+    judgeWordsOf({ judge_words, full_auto_check } as Project)
+  expect([of(false, 'judge'), of(true, 'judge'), of(true, 'ask'), judgeWordsOf(undefined)]).toEqual([
+    'off',
+    'on',
+    'unmeasured',
+    'off',
+  ])
 })
