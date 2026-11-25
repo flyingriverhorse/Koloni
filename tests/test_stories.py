@@ -265,3 +265,36 @@ def test_a_blank_looking_character_in_a_name_is_a_blank():
         != stories.name_key("LoginPage")
     )
     assert stories.name_key("\u2800\u3164") == ""
+
+
+def test_a_name_two_stories_of_an_older_store_share_is_the_exact_ones_or_refused(
+    client, project_dir
+):
+    """Codex P2-1: two open stories made before 0.1.9, their names apart only by a run of blanks
+    or a case, are one name now - an agent's task goes to the one of exactly its title; where
+    neither is, which one is meant is the agent's to say, never the first's by chance."""
+    pid, _ = setup(client, project_dir)
+    with client.app.state.session_factory() as session:
+        first = stories.add_story(session, pid, "Batch  Alpha", None, "user")
+        second = stories.add_story(session, pid, "Batch Alpha", None, "user")
+        session.commit()
+        ids = first.id, second.id
+    agent(client, pid, "add_task", title="t1", story="Batch Alpha")
+    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert task["story_id"] == ids[1]
+    with client.app.state.session_factory() as session:
+        assert stories.story_named(session, pid, "Batch  Alpha").id == ids[0]
+        assert stories.story_named(session, pid, "Batch Alpha").id == ids[1]
+    with pytest.raises(backlog.Refused, match='"Batch  Alpha", "Batch Alpha" - give the exact'):
+        agent(client, pid, "add_task", title="t2", story="BATCH ALPHA")
+    assert [task["title"] for task in client.get(f"/api/projects/{pid}/backlog").json()] == ["t1"]
+    # (two goals of one name are no such dead end: the first of them, by their order)
+    for title in ("Release", "Release", "release"):
+        client.post(f"/api/projects/{pid}/goals", json={"title": title})
+    goals = [goal["id"] for goal in tree(client, pid)["goals"]]
+    with client.app.state.session_factory() as session:
+        assert stories.goal_named(session, pid, "Release").id == goals[0]
+        assert stories.goal_named(session, pid, "release").id == goals[2]
+        with pytest.raises(backlog.Refused, match="3 goals match this name"):
+            stories.goal_named(session, pid, "RELEASE")
+
