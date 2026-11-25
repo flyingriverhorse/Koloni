@@ -352,7 +352,7 @@ def test_the_check_of_your_words_runs_only_under_the_judge_its_box_and_a_measure
     judging, wait_run, project_dir, monkeypatch, check, judge_on, words, measured, runs
 ):
     if measured:
-        monkeypatch.setattr("app.judge.MEASURED_MODELS", frozenset({("openai_compat", "quick")}))
+        monkeypatch.setattr("app.judge.measured", lambda _provider, model: model == "quick")
     client, _lead, judge, executor = judging(
         [cmd("rm -rf build"), text("done")], [verdict_line("run", RULE)], [Script([])]
     )

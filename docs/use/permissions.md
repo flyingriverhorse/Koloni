@@ -516,11 +516,15 @@ yours names it". It works only:
   command run wrongly. Claude Code's **haiku** (named so on its provider's list) passed on 25 Nov 2026:
   of 70 cases - 14 of them written after the check's prompt was last changed, in words it does not
   name - it let none run wrongly and refused none wrongly; 10 it asked about where a line of yours
-  allowed or forbade the command (a card: the safe side). A new project comes with the box ticked, and
-  in one made before you may tick it. On any other Judge model the box says **(after its measurement)**
-  (the level menu's line says so too), nothing is asked, and such a command waits for you on its card,
-  as before. Another model is measured with `scripts/measure_judge.py` (see its first lines; one request
-  a case);
+  allowed or forbade the command (a card: the safe side). It counts only as it was measured: on
+  Claude Code's own service (not a model server of yours, nor with your own Claude Code setup or a
+  variable such as `ANTHROPIC_BASE_URL` pointing it elsewhere), run as a session or natively, and as
+  the Judge model you chose - or, none chosen, the Fast tier's first; never one asked because your
+  choice could not be. Settings › Agents says so under the Judge model. A new project comes with the
+  box ticked, and in one made before you may tick it. On any other Judge model the box says **(after
+  its measurement)** (the level menu's line says so too), nothing is asked, and such a command waits for
+  you on its card, as before. Another model is measured with `scripts/measure_judge.py` (see its first
+  lines; one request a case);
 - or in a project where you had turned Check what I said first on before 0.1.9: its box comes ticked and
   works as it did, and you may untick it and tick it again.
 

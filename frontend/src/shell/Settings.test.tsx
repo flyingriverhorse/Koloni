@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import { api } from '../api/client'
 import type { ChatRules, JudgeOut, Project } from '../api/types'
+import { MEASURED } from './sections/JudgeModel'
 import { Settings } from './Settings'
 
 afterEach(() => vi.restoreAllMocks())
@@ -192,13 +193,17 @@ test('The app › Agents: the Judge model is the Fast tier’s first, named, unt
   expect(judge).toHaveDisplayValue('Fast tier’s first (now: quick)')
   const cli = 'On a CLI each such command waits for it to start.'
   expect(screen.queryByText(cli)).toBeNull()
+  // (§8: a measured Judge model - haiku here - makes a ticked box for your words live: said)
+  expect(screen.queryByText(MEASURED)).toBeNull()
   await userEvent.selectOptions(judge, 'Claude Code · haiku (fast)')
   expect(put).toHaveBeenLastCalledWith('/judge', { provider_id: 'p2', model_id: 'haiku' })
   expect(await screen.findByText(cli)).toBeVisible()
+  expect(screen.getByText(MEASURED)).toBeVisible()
   expect(judge).toHaveDisplayValue('Claude Code · haiku (fast)')
   await userEvent.selectOptions(judge, 'Fast tier’s first (now: quick)')
   expect(put).toHaveBeenLastCalledWith('/judge', { provider_id: null, model_id: null })
   await waitFor(() => expect(screen.queryByText(cli)).toBeNull())
+  expect(screen.queryByText(MEASURED)).toBeNull()
 })
 
 test('a chosen Judge model that cannot be asked now stays chosen and says so; with none to ask, the judge stands aside', async () => {
