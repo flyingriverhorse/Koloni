@@ -568,7 +568,7 @@ def _held_after(line: str, held: str) -> str:
     blank, mark = not line.strip(" \t"), FENCE.match(line)
     if held[0] in "`~":
         closes = mark and mark[1][0] == held[0] and len(mark[1]) >= len(held)
-        return "" if closes and not line[mark.end() :].strip() else held
+        return "" if closes and not line[mark.end() :].strip() else held  # pyrefly: ignore[missing-attribute]  # (`closes`: a match)
     if held == "raw":
         return "" if any(end in line.lower() for end in RAW_ENDS) else held
     if blank and held in ("div", "inline"):

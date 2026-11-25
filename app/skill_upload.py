@@ -91,13 +91,12 @@ def _unzipped(data: str) -> tuple[str | None, dict[str, bytes], list[str]]:
             return top, contents, skipped
     except SkillError:
         raise
-    # (an encrypted member: RuntimeError; an unknown compression: NotImplementedError; a
+    # (an encrypted member, an unknown compression's NotImplementedError: RuntimeError; a
     # broken bzip2 / lzma member: OSError / LZMAError; a broken header: ValueError - a name
     # that is not the UTF-8 it says among them)
     except (
         zipfile.BadZipFile,
         RuntimeError,
-        NotImplementedError,
         zlib.error,
         EOFError,
         OSError,

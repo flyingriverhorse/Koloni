@@ -52,7 +52,7 @@ def name_of(what: str) -> str:
 def header(by: str, turn: int | None, at: datetime, **more: str | None) -> str:
     """Who wrote it (team · role, or KOLONİ), in which turn and when; `for`, `answers` if given."""
     when = f"{at:%d %b %H:%M} UTC"
-    lines = [f"by: {' · '.join(str(p) for p in (by, turn and f'turn {turn}', when) if p)}"]
+    lines = [f"by: {' · '.join(str(p) for p in (by, turn and f'turn {turn}', when) if p)}"]  # pyrefly: ignore[unnecessary-type-conversion]  # (ty sees an int)
     # (Each on one line: an agent's `answers` with a line break would write a `for:` of its own.)
     lines += [f"{key}: {' '.join(value.split())}" for key, value in more.items() if value]
     return "---\n" + "\n".join(lines) + "\n---\n"

@@ -64,7 +64,7 @@ class Job:
         """Put a running process into a new job; None if Windows refuses."""
         if sys.platform != "win32":
             return None
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # pyrefly: ignore[missing-attribute]  # (Windows only)
         kernel32.CreateJobObjectW.restype = wintypes.HANDLE
         kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
         kernel32.SetInformationJobObject.argtypes = [
@@ -95,7 +95,7 @@ class Job:
         """End every process in the job and release it. Safe to call again."""
         if self._handle is None or sys.platform != "win32":
             return
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # pyrefly: ignore[missing-attribute]  # (Windows only)
         kernel32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
         kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
         kernel32.TerminateJobObject(self._handle, 1)
@@ -109,6 +109,6 @@ def resume(process_handle: int) -> bool:
     ResumeThread; NtResumeProcess - as psutil's resume() - needs none.)"""
     if sys.platform != "win32":
         return False
-    ntdll = ctypes.WinDLL("ntdll")
+    ntdll = ctypes.WinDLL("ntdll")  # pyrefly: ignore[missing-attribute]  # (Windows only)
     ntdll.NtResumeProcess.argtypes = [wintypes.HANDLE]
     return ntdll.NtResumeProcess(process_handle) == 0  # STATUS_SUCCESS

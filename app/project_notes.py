@@ -113,7 +113,7 @@ def items_of(session: Session, run_id: str, root: str) -> list[dict]:
     `docs/` it changed - as it is now in the project, where the Files window would show it - as
     {"line", "text", "source"}: `line` for the card and the guide, `text` for the note's page
     (and a file's "words": what its line quotes, for `_kept`). Only this turn's own changes."""
-    found = []
+    found: list[dict] = []
     # (Its fixers' own reports: not the Lead's, which may repeat theirs.)
     for agent in session.scalars(
         select(Agent)

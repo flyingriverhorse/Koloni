@@ -72,7 +72,7 @@ PUSH_LINE = (
 )
 PUSH_PR = " · opens a pull request into {into}"
 PUSH_LEFT = " · left out: {files} (holds a secret KOLONİ knows)"  # (HIGH-1)
-PUSH_WHY = "A push leaves this machine: it waits for your Run"
+PUSH_WHY = "A push leaves this machine: nothing goes up before you say so"
 MARKS = {"green": "✓", "red": "✗"}
 
 

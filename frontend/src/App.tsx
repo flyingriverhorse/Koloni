@@ -810,6 +810,19 @@ export function App() {
     <ReadyPage
       items={waiting}
       openChat={openChat}
+      // (The night's whole report: its node on the canvas, as its chat's "On the canvas" opens it.)
+      onReport={
+        away?.started_at
+          ? () =>
+              void useApp
+                .getState()
+                .openTurn(away.conversation_id, away.run_id)
+                .then(() => {
+                  useApp.getState().select('away:' + away.id)
+                  show('canvas')
+                })
+          : undefined
+      }
       // (The open folder's decision log: none for a plain chat's.)
       decisions={
         projectId

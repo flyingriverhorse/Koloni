@@ -15,6 +15,8 @@ import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { Decisions } from './Decisions'
 import { readySentence } from './decisionLog'
+import { NightStrip } from './NightStrip'
+import { ParkedRow } from './ParkedRow'
 import { READY_PANEL, type ReadyItem, type ReadySource, SOURCES, chatOf, ofChat, readyId } from './ready'
 
 /** Open a chat; `key`: at that card of it (the panel's This chat). Resolves once it is open. */
@@ -68,6 +70,7 @@ function fromOf(item: ReadyItem, folder: (projectId: string | null) => string | 
   if (item.what === 'task') return 'To-do'
   if (item.what === 'memory') return item.suggestion ? 'Memory · for your preferences' : 'Memory'
   if (item.what === 'night') return "While you're away"
+  if (item.what === 'parked') return item.row.task
   const agent = item.state.agents.find(a => a.id === item.row.agentId)
   const name = agent && titleOf(agent.name || agent.role_name, teams)
   const where = item.source === 'other' ? folder(item.state.conversation.project_id) : undefined
@@ -84,6 +87,57 @@ function ChatCard({ state, row, openChat }: { state: ConvState; row: WaitingRow;
   return <WaitingCard state={state} row={row} on={on} onDecidePlan={on.onDecidePlan} known={{ roles, providers }} />
 }
 
+/** A memory record that waits: a proposal for the project's memory, or a suggestion for your preferences. */
+function MemoryRow({ item }: { item: Extract<ReadyItem, { what: 'memory' }> }) {
+  const memory = useApp(s => s.memory)
+  const s = useApp.getState()
+  return item.suggestion ? (
+    <Suggestion record={item.record} onAdd={s.addPreference} onReject={s.rejectMemory} />
+  ) : (
+    <Proposal
+      record={item.record}
+      replaces={memory ? wouldReplace(memory, item.record) : undefined}
+      onApprove={s.approveMemory}
+      onReject={s.rejectMemory}
+      onConfirm={s.confirmMemory}
+    />
+  )
+}
+
+/** A row's own card, its decision on it. A night's job, whether from the night or from its chat's card: what it asks,
+ *  and the way to its chat - nothing more. */
+function RowBody({
+  item,
+  openChat,
+  error,
+  off,
+}: {
+  item: ReadyItem
+  openChat: OpenChat
+  error?: string
+  off?: boolean
+}) {
+  const s = useApp.getState()
+  const night =
+    item.what === 'night' ? item.job : item.what === 'card' && item.row.what === 'night' ? item.row.item.job : null
+  if (night) return <NightRow job={night} onOpen={id => void openChat(id)} />
+  if (item.what === 'card') return <ChatCard state={item.state} row={item.row} openChat={openChat} />
+  if (item.what === 'parked') return <ParkedRow row={item.row} awayId={item.away.id} />
+  if (item.what === 'memory') return <MemoryRow item={item} />
+  if (item.what !== 'task') return null
+  return (
+    <WaitRow
+      task={item.task}
+      only={item.kind}
+      onDecide={s.decideTask}
+      onChange={s.changeTask}
+      onOpen={id => void openChat(id)}
+      off={off}
+      failed={error}
+    />
+  )
+}
+
 /** One thing that waits: where it is from, since when, and its own card, its decision on it (tek-ev §1). */
 function ReadyRow({
   item,
@@ -97,14 +151,9 @@ function ReadyRow({
   off?: boolean
 }) {
   const projects = useApp(s => s.projects)
-  const memory = useApp(s => s.memory)
   const teams = useApp(s => s.teams)
   const chat = chatOf(item)
   const from = fromOf(item, projectId => projects.find(p => p.id === projectId)?.name, teams)
-  const s = useApp.getState()
-  // A night's job, whether from the night or from its chat's card: what it asks, and the way to its chat - nothing more.
-  const night =
-    item.what === 'night' ? item.job : item.what === 'card' && item.row.what === 'night' ? item.row.item.job : null
   return (
     // (Each row a group named by where it is from: their buttons told apart.)
     <li
@@ -128,33 +177,7 @@ function ReadyRow({
           </button>
         )}
       </div>
-      {night ? (
-        <NightRow job={night} onOpen={id => void openChat(id)} />
-      ) : item.what === 'card' ? (
-        <ChatCard state={item.state} row={item.row} openChat={openChat} />
-      ) : item.what === 'task' ? (
-        <WaitRow
-          task={item.task}
-          only={item.kind}
-          onDecide={s.decideTask}
-          onChange={s.changeTask}
-          onOpen={id => void openChat(id)}
-          off={off}
-          failed={error}
-        />
-      ) : item.what === 'memory' ? (
-        item.suggestion ? (
-          <Suggestion record={item.record} onAdd={s.addPreference} onReject={s.rejectMemory} />
-        ) : (
-          <Proposal
-            record={item.record}
-            replaces={memory ? wouldReplace(memory, item.record) : undefined}
-            onApprove={s.approveMemory}
-            onReject={s.rejectMemory}
-            onConfirm={s.confirmMemory}
-          />
-        )
-      ) : null}
+      <RowBody item={item} openChat={openChat} error={error} off={off} />
     </li>
   )
 }
@@ -275,17 +298,21 @@ type DecisionsProps = Omit<Parameters<typeof Decisions>[0], 'onLeft'>
  * Ready for you as a page (tek-ev §1): the same list, oldest first, by where it comes from; and the To-do list's new
  * tasks approved together - one after another, each as its own Approve does it, one that fails left on its row with why.
  * Beside it, on a wide screen (under it on a narrow one), the project's Decided for you: its decision log, with your OK
- * and Change (karar defteri).
+ * and Change (karar defteri). Above both, the project's last night once it ended (Part B): `onReport` opens its whole
+ * report.
  */
 export function ReadyPage({
   items,
   openChat,
   decisions,
+  onReport,
 }: {
   items: ReadyItem[]
   openChat: OpenChat
   decisions?: DecisionsProps
+  onReport?: () => void
 }) {
+  const away = useApp(s => s.away)
   const [only, setOnly] = useState<ReadySource | null>(null)
   const [left, setLeft] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -319,6 +346,13 @@ export function ReadyPage({
         )}
       </div>
       <p className="ready-said">{readySentence(items.length, decisions?.leftAt ? left : null)}</p>
+      {away && (
+        <NightStrip
+          away={away}
+          parked={items.flatMap(item => (item.what === 'parked' ? [item.row] : []))}
+          onReport={onReport}
+        />
+      )}
       <div className="ready-columns">
         <div className="ready-main">
           <div role="group" aria-label="Show" className="board-show">

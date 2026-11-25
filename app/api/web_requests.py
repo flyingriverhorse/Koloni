@@ -73,7 +73,7 @@ def _keep(
     """The rule asked for: `found` as it is - marked Ask first if that is asked - or `make()`."""
     rule = found or make()
     if found is None or mark and not found.ask_first:
-        rule.ask_first = bool(rule.ask_first) or mark
+        rule.ask_first = bool(rule.ask_first) or mark  # pyrefly: ignore[unnecessary-type-conversion]  # (None till flushed)
         session.add(rule)
         session.commit()
         request.app.state.runner.emit_web_rules(rule.conversation_id, rule.project_id)

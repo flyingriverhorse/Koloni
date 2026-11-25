@@ -1,9 +1,12 @@
 """☾ Away's request and response shapes beside `app.schemas` (that file is at its size limit; it
 imports these back for `AwayOut`)."""
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from app.schemas_decisions import Decision
 
 
 class AwayGoIn(BaseModel):
@@ -84,3 +87,11 @@ class AwayJobOut(BaseModel):
     mode: Literal["copy", "branch", "push"] | None = None
     mode_why: str | None = None
     branch: AwayBranchOut | None = None
+    # Part B (karar defteri), of a night that ended (`away_night`): when its turns of the night
+    # began and ended (None: not known - one not started, or still open), what was decided for
+    # the user in its chat that night, newest first, and what KOLONİ's checks did not do (None:
+    # no record says; [] nothing).
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    decisions: list[Decision] = []
+    not_checked: list[str] | None = None

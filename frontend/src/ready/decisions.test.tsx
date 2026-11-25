@@ -5,9 +5,9 @@ import remarkGfm from 'remark-gfm'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { Decision, DecisionLog } from '../api/types'
 import { Decisions } from './Decisions'
-import { markdown, markdownRow, weekStart } from './decisionLog'
+import { heardOf, markdown, markdownRow, weekStart } from './decisionLog'
 import { useApp } from '../state/store'
-import { conversation, convState } from '../test-fixtures'
+import { conversation, convState, question } from '../test-fixtures'
 import { since } from '../usage/period'
 
 type Log = Omit<DecisionLog, 'more'> & { more?: boolean }
@@ -286,6 +286,41 @@ test('OK on a row not seen, and Change while its agent works: to the server, the
   expect(within(command).queryByRole('button', { name: /Change/ })).toBeNull()
 })
 
+test('an answer whose agent finished: Change and redo, what it costs, to the project’s decision', async () => {
+  const calls = server()
+  useApp.setState({ projectId: 'p1' })
+  const finished: Decision = { ...answer, undo: 'change_and_redo' }
+  const gone: Decision = { ...answer, id: 'answer:q2', undo: 'none', undo_reason: 'its work was taken in' }
+  const { onLoad } = view({ rows: [finished, gone], judge_fine: 0 })
+  const [row, taken] = within(await screen.findByRole('list', { name: 'Decisions, newest first' })).getAllByRole(
+    'listitem',
+  )
+  expect(within(row).queryByRole('button', { name: 'Change → Postgres' })).toBeNull()
+  expect(row).toHaveTextContent('starts a new turn')
+  expect(row).not.toHaveTextContent('$')
+  await userEvent.click(within(row).getByRole('button', { name: 'Change and redo → Postgres' }))
+  expect(await screen.findByRole('status')).toHaveTextContent('A new turn of its chat started')
+  expect(calls()).toEqual([['/api/projects/p1/decisions/q1/redo', 'POST', JSON.stringify({ answer: 'Postgres' })]])
+  await vi.waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2))
+  // (its work taken in: no button, and why)
+  expect(within(taken).queryByRole('button', { name: /Change/ })).toBeNull()
+  expect(taken).toHaveTextContent("can't be undone: its work was taken in")
+})
+
+test('Change and redo on a job whose branch you pushed says it adds to that branch', async () => {
+  const pushed: Decision = {
+    ...answer,
+    undo: 'change_and_redo',
+    undo_note: 'adds to the branch koloni/fix-login that you pushed',
+  }
+  view({ rows: [pushed], judge_fine: 0 })
+  const button = await screen.findByRole('button', { name: 'Change and redo → Postgres' })
+  expect(button).toHaveAttribute('title', 'starts a new turn; adds to the branch koloni/fix-login that you pushed')
+  expect(button.closest('li')).toHaveTextContent(
+    'starts a new turn; adds to the branch koloni/fix-login that you pushed',
+  )
+})
+
 test('a row of the open chat tells its store at once, as the chat’s own box did', async () => {
   const ok = vi.spyOn(useApp.getState(), 'decidedOk').mockResolvedValue()
   const changed = vi.spyOn(useApp.getState(), 'decidedChange').mockResolvedValue()
@@ -381,4 +416,16 @@ test('a line of your own message is "Your words"; another rule of yours "Your ru
   expect(within(words).getByText('Your words')).toHaveClass('who-your_words')
   expect(within(rule).getByText('Your rule')).toBeInTheDocument()
   expect(markdownRow({ ...ran, source: 'message' })).toContain(' · Your words · ')
+})
+
+test('what the store hears is made again only where an array it reads is another - a token streamed is none', () => {
+  const questions = [question('q1', 'r1')]
+  const filter = vi.spyOn(questions, 'filter')
+  const conv = convState({ questions })
+  const first = heardOf(null, conv)
+  // (a token streamed: another state, the same arrays)
+  expect(heardOf(null, { ...conv, messages: [] })).toBe(first)
+  expect(filter).toHaveBeenCalledTimes(1)
+  const decided = question('q2', 'r1', { status: 'answered', answer: 'Yes', lead_why: 'it is safe' })
+  expect(heardOf(null, { ...conv, questions: [...questions, decided] })).toBe('q2')
 })

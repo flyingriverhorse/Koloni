@@ -15,7 +15,7 @@ import re
 import threading
 import time
 from collections import Counter, OrderedDict, deque
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass, field
 
 # What is kept for one agent: the bytes of its lines' text and, for each line, LINE_COST -
@@ -132,7 +132,7 @@ def hidden(text: str) -> str:
 
 
 @contextlib.contextmanager
-def of(agent_id: str | None) -> Iterator[None]:
+def of(agent_id: str | None) -> Generator[None]:
     """While this lasts, what a CLI writes in this task - and in the tasks started from it
     - is that agent's raw stream. None: nobody's (a CLI asked to search the web)."""
     token = _feeding.set(agent_id)

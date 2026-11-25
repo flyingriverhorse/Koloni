@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta, tzinfo
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app import away_branch, backlog, git, web
+from app import away_branch, away_night, backlog, git, web
 from app.api.usage import money, month_spend, over_budget, spend
 from app.commands import _words
 from app.db.away_models import Parked
@@ -611,7 +611,7 @@ def go_on(session: Session, project_id: str, runner, at: datetime | None = None)
             backlog.say(
                 session,
                 session.get_one(Conversation, task.conversation_id),
-                RETRY.format(why=ENDED.get(error, error) or "no reason given"),
+                RETRY.format(why=ENDED.get(error, error) or "no reason given"),  # pyrefly: ignore[no-matching-overload]  # (a None key finds none)
                 runner.bus,
                 runner.start,
                 task_id=task.id,
@@ -783,7 +783,7 @@ def turn_ended(session: Session, run: Run, status: str) -> bool:
     elif task.away_state != "stopped":  # (cut by the night's stop: `stop`)
         task.away_state = "failed"
         task.away_why = (
-            ENDED.get(run.error, run.error) or backlog.HOW.get(status, "was stopped").capitalize()
+            ENDED.get(run.error, run.error) or backlog.HOW.get(status, "was stopped").capitalize()  # pyrefly: ignore[no-matching-overload]  # (a None key finds none)
         )
     return True
 
@@ -806,7 +806,14 @@ def after_the_night(session: Session, run: Run) -> Message | None:
         )
     ):
         return None
-    away.ended_at = now()
+    # (Not by Change and redo's turn, `app.redo`: a word of the user's after the night, not of it.)
+    if (
+        session.scalar(
+            select(Parked.id).where(Parked.went_on == run.id, Parked.kind == "redo").limit(1)
+        )
+        is None
+    ):
+        away.ended_at = now()
     # Its own line: written at its end, before a later night of the chat started (one runs at a
     # time) - not the newest, which may be that later night's.
     later = session.scalar(
@@ -1363,6 +1370,7 @@ def report(session: Session, away: AwayRun) -> dict:
     for one in jobs:
         if one.get("state") == "done":
             one["shared"] = [path for path in one["files"] if len(by_file.get(path, ())) > 1]
+    away_night.add(session, away, jobs, tasks)  # (Part B: Ready for you's strip of the night)
     found = spent(session, away)  # (not started: nothing, in the prices' currency)
     proposed = (
         list(

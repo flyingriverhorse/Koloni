@@ -52,7 +52,7 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from sqlalchemy import and_, func, literal_column, or_, select, update
 from sqlalchemy.orm import Session
@@ -2234,7 +2234,7 @@ class AgentRunner(
             # A working copy still there is thrown away: nothing of it is taken.
             with contextlib.suppress(Exception):
                 self._drop_copy(agent_id)
-            self._native_turn.pop((cid, agent_id), None)  # (its copy's place: `_native_place`)
+            self._native_turn.pop((cid, agent_id), None)  # pyrefly: ignore[no-matching-overload]  # (a None cid finds none) (its copy's place: `_native_place`)
             self._kept_live.pop(agent_id, None)  # (its card stays: only the turn is over)
             self._kept_apart.pop(agent_id, None)
             self._given_back.discard(agent_id)
@@ -2628,7 +2628,7 @@ class AgentRunner(
         # happens to hold does not say how it is laid out (`_kept_as`).
         # So does its part, by that tree, None too: the folder says nothing of it
         # (`copies.load`), and a part copy's of before at that place is not this one's.
-        where = (
+        where: dict[str, Any] = (
             {"tree": str(made.root), "parts": {str(made.root): made.part}}
             if made is not None
             else {}
@@ -3859,9 +3859,9 @@ class AgentRunner(
                 self._went_in.add(ctx.run_id)
                 return await to_its_end(
                     self._branch_went_in(
-                        ctx, copy, merge_id, files, check, state, said, look, said_line, sha
+                        ctx, copy, merge_id, files, check, state, said, look, said_line, sha  # pyrefly: ignore[unbound-name]  # (both set where act is "merged")
                     )
-                )
+                )  # fmt: skip
             failed = None
             if act == "pull_request":
                 try:

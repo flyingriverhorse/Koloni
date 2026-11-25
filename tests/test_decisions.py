@@ -193,7 +193,7 @@ def seed(client, pid, cid, minutes=0, coder="running", why="the tests make one i
                 m + 10,
             ),
             # The user's own card, the judge's fine, and a card of KOLONİ's the judge gave no
-            # verdict for (its answer could not be read): no rows.
+            # verdict for (its answer could not be read): no rows - nor "risky" above.
             "unread": command(
                 "scp out host:",
                 {
@@ -245,7 +245,8 @@ def test_each_kind_says_who_decided_what_and_whether_change_works(client, tmp_pa
         f"command:{ids['kept']}": ("command", "your_words", "none", "it did not run", False),
         f"command:{ids['old']}": ("command", "your_words", "none", "it ran", False),
         f"command:{ids['refused']}": ("command", "judge", "none", "it did not run", False),
-        f"command:{ids['risky']}": ("command", "judge", "none", "it was asked on its card", None),
+        # (none for the one it found risky and asked you about: your card, or a row parked for
+        # you - it waits for you, or you decided it; nothing was decided for you)
         f"task:{ids['added']}": ("task", "orchestrator", "change", None, False),
         f"task:{ids['started']}": ("task", "orchestrator", "none", "it has started", False),
         f"task:{ids['turned']}": ("task", "orchestrator", "change", None, False),
@@ -307,11 +308,17 @@ def test_each_kind_says_who_decided_what_and_whether_change_works(client, tmp_pa
     )
 
 
-def test_an_answer_whose_agent_finished_cannot_be_changed(client, tmp_path):
+def test_an_answer_whose_agent_finished_is_changed_and_redone(client, tmp_path):
+    # (Part B: its agent finished, Change and redo - no work of its turn on record here; where its
+    # work was taken in or discarded, why not: `test_decisions_redo`.)
     pid, cid = chat(client, tmp_path / "a")
     ids = seed(client, pid, cid, coder="completed")
     (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
-    assert (row["undo"], row["undo_reason"]) == ("none", "the agent that asked has finished")
+    assert (row["undo"], row["undo_reason"], row["options"]) == (
+        "change_and_redo",
+        None,
+        ["Postgres"],
+    )
 
 
 def test_the_period_asked_bounds_it(client, tmp_path):
@@ -619,6 +626,8 @@ def test_not_seen_finds_one_of_any_age_and_ok_takes_it_off(client, tmp_path, mon
     assert {f"answer:{old['answer']}", f"answer:{late['answer']}"} <= ids
     assert all(row["seen"] is False for row in unseen["rows"])
     assert f"answer:{old['seen']}" not in ids and f"command:{old['risky']}" not in ids
+    # (Part A's review: the judge's "fine" of all time is no count of what waits for your OK.)
+    assert unseen["judge_fine"] == 0 and log(client, pid)["judge_fine"] == 2
     ask_ok(client, old["answer"])
     again = client.get(f"/api/projects/{pid}/decisions", params={"unseen": "true"}).json()
     assert f"answer:{old['answer']}" not in {row["id"] for row in again["rows"]}

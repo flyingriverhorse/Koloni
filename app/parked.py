@@ -321,19 +321,28 @@ def _why(row: Parked) -> str:
 def waiting(session: Session, night: AwayRun) -> list[dict]:
     """Waiting for you (`WaitingOut`): what an Away parked, its jobs in the card's order, each
     job's in the order parked - not a task's whose chat was deleted."""
+    from app import decisions  # (here: `app.decisions` reaches this module through `app.agent`)
+
     order = {job["task_id"]: at for at, job in enumerate(night.jobs) if job.get("task_id")}
-    rows = list(session.scalars(select(Parked).where(Parked.away_run_id == night.id)))
+    # (Not a Change and redo's record, `app.redo`: the user's own word, no row of theirs to decide.)
+    rows = list(
+        session.scalars(select(Parked).where(Parked.away_run_id == night.id, Parked.kind != "redo"))
+    )
     tasks = {
         task.id: task
         for task in session.scalars(
             select(BacklogTask).where(BacklogTask.id.in_({row.task_id for row in rows}))
         )
     }
+    project = session.get(Project, night.project_id)
+    # (a push's: whether its Run opens a pull request too - the project's way now, as it pushes)
+    opens_pr = project is not None and project.finish_way == "pull_request"
     found = []
     for row in sorted(rows, key=lambda one: (order.get(one.task_id, len(order)), one.seq)):
         task = tasks.get(row.task_id)
         if task is None or session.get(Conversation, task.conversation_id or "") is None:
             continue
+        what_shown, hid = decisions.shown(row.what)
         found.append(
             {
                 "id": row.id,
@@ -342,9 +351,13 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
                 "task": task.title,
                 "conversation_id": task.conversation_id,
                 "what": row.what,
+                # (as it is shown and copied: every secret KOLONİ knows, and those known by
+                # their shape, masked - `what` whole stays for what runs, KOLONİ's alone)
+                "what_shown": what_shown,
                 "cwd": row.data.get("cwd"),
                 "why": _why(row),
-                "warn": injection.NOTE if injection.scan(row.what) else None,
+                # (and where what nobody sees was taken out of what is shown: it runs as recorded)
+                "warn": injection.NOTE if hid or injection.scan(row.what) else None,
                 "options": row.data.get("options") or [],
                 "decision": row.decision,
                 "answer": row.answer,
@@ -355,6 +368,7 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
                 "seq": row.seq,
                 # (a push's: the commit it pushes, sent back with its Run - L9)
                 "tip": row.data.get("tip") if row.kind == "push" else None,
+                "opens_pr": opens_pr if row.kind == "push" else None,
                 # (L6: where it would run, the card's own sentence, a file an agent wrote it runs)
                 "place": where(session, row)[0] if row.kind == "command" else None,
                 "danger": row.data.get("danger") or None,
