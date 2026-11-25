@@ -193,8 +193,12 @@ def test_a_to_do_task_s_turn_reads_and_stops_the_server_it_started(
         [on_its_id(model, "command_output"), on_its_id(model, "stop_command"), text("ok")]
     )
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    client.post(f"/api/projects/{pid}/backlog", json={"title": "serve it"}, headers=ORIGIN)
-    started = client.post(f"/api/projects/{pid}/backlog/next", headers=ORIGIN)
+    task = client.post(f"/api/projects/{pid}/backlog", json={"title": "serve it"}, headers=ORIGIN)
+    started = client.post(  # (0.1.8: a task runs in a chat's queue - Do in chat)
+        f"/api/projects/{pid}/backlog/do-in-chat",
+        json={"task_ids": [task.json()["id"]]},
+        headers=ORIGIN,
+    )
     assert started.status_code < 300, started.text
     cid = started.json()["conversation_id"]
     (asked,) = until(
