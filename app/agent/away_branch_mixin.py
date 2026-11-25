@@ -9,7 +9,6 @@ H1 (`copies.no_push`), H2 (`away_branch.refs`), H3 (the push held to what was ch
 import asyncio
 import hashlib
 import logging
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -68,19 +67,13 @@ INTO_MOVED = (
     "then Run again - nothing was pushed"
 )
 # A pull request's body: what an agent wrote (its notes, the files' names) in a code block, so
-# that no @mention, closing keyword or link of it is read by GitHub (`_fenced`).
+# that no @mention, closing keyword or link of it is read by GitHub (`away_branch.fenced`).
 PUSH_BODY = (
     "{task}\n\nMade by KOLONİ's agents ({name}) while you were away, on the branch `{branch}`, "
     "pushed as one commit.\n\n### Changed files\n{files}\n\n### KOLONİ's checks\n{checks}\n\n"
     "### {name}'s notes\n{notes}\n"
 )
-
-
-def _fenced(text: str) -> str:
-    """`text` as a code block whose fence is longer than any run of backticks in it."""
-    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
-    fence = "`" * max(3, longest + 1)
-    return f"{fence}\n{text}\n{fence}"
+_fenced = away_branch.fenced
 
 
 # What of the repository a night's jobs are compared with: taken once, at Go away (`night_base`).
@@ -400,7 +393,8 @@ class AwayBranchMixin:
             merge_id = merge.id
         if on_branch is None:
             return {"state": "refused", "why": TAKEN}
-        known = secret_set.checked()  # (S1, MEDIUM-2: the set a branch's merge and push look for)
+        # (S1, MEDIUM-2: the set a branch's merge and push look for)
+        known = secret_set.checked(project=Path(what["root"]))
         # (no secret KOLONİ knows, nor a mention, goes up in a commit's message or a PR's words: R2)
         what["title"] = away_branch.titled(what["title"], known)[:72]
         for one in known:

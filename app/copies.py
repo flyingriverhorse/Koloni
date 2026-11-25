@@ -756,9 +756,9 @@ class Copy:
 
     def _ends_alone(self, path: str) -> bool:
         """T1: whether a branch copy's file was made from what the project holds but for its line
-        ends - a worktree git checked out with `core.autocrlf=true` (Windows' default) holds CRLF
-        where the project's file is LF, and git stores the two alike. Text alone (no NUL byte), as
-        git's own autocrlf reads it; never of a plain copy, which is made byte for byte."""
+        ends, where git stores the two alike (`_stored_alike`: a worktree git checked out with
+        `core.autocrlf=true`, Windows' default, holds CRLF where the project's file is LF) - not
+        where git records the line ends as a change. Never of a plain copy, made byte for byte."""
         place = self.there(path) if self.branch else None
         try:
             project = place.read_bytes() if place is not None and place.is_file() else None
@@ -767,31 +767,38 @@ class Copy:
         base = self.started_from(path) if project is not None else None
         if base is None or project is None or b"\0" in base or b"\0" in project:
             return False
-        return base.replace(b"\r\n", b"\n") == project.replace(b"\r\n", b"\n")
+        if base.replace(b"\r\n", b"\n") != project.replace(b"\r\n", b"\n"):
+            return False
+        return _stored_alike(self.project, self.names.get(_key(path), path), base, project)
 
     def ends_kept(
-        self, before: str | None, after: str | None, rows: Sequence
+        self, path: str, before: str | None, after: str | None, rows: Sequence
     ) -> tuple[str | None, str | None]:
         """T1: the project's text of a file and this branch copy's (`before`, `after`), the copy's -
         and its agent's records of it (`rows`, their after-texts) - turned to the project's own line
-        ends where the two hold one kind each and not the same (a worktree git checked out with
-        `core.autocrlf=true` holds CRLF where the project's file is LF): Take in never turns a whole
-        file's line ends. As they are for a plain copy, made byte for byte, or a mixed file."""
+        ends where the two hold one kind each and not the same, and git stores the copy's text so
+        turned as it is (`_stored_alike`: a worktree checked out with `core.autocrlf=true`): Take
+        in never turns a whole file's line ends - nor undoes an agent's own change of them where
+        git records one. As they are for a plain copy, made byte for byte, or a mixed file."""
         to, was = (_ends(before), _ends(after)) if self.branch else (None, None)
         if to is None or was is None or to == was:
+            return before, after
+        turned = _ended(after or "", to)
+        name = self.names.get(_key(path), path)
+        if not _stored_alike(self.project, name, (after or "").encode(), turned.encode()):
             return before, after
         for row in rows:
             if row.kind != "delete" and row.after_content and _ends(row.after_content) == was:
                 row.after_content = _ended(row.after_content, to)
                 row.after_sha = sha256_text(row.after_content)
-        return before, _ended(after or "", to)
+        return before, turned
 
     def every_secret(self) -> list[str]:
         """MEDIUM-2: the secrets given in its turn (`secrets`) and all KOLONİ checks a branch's
         commit, merge and push for (`secret_set.checked`), as they are looked for."""
         from app import secret_set  # (here: app.secret_set reads app.commands, which reads this)
 
-        return secret_set.checked(self.secrets())
+        return secret_set.checked(self.secrets(), self.project)
 
     def changes(
         self, base: dict[str, str] | None = None, names: dict[str, str] | None = None
@@ -1112,6 +1119,37 @@ def _ends(text: str | None) -> str | None:
         return None
     crlf = text.count("\r\n")
     return "\r\n" if crlf == text.count("\n") else "\n" if crlf == 0 else None
+
+
+def _stored_alike(project: Path, path: str, one: bytes, other: bytes) -> bool:
+    """T1: whether git stores two texts of `path` alike in `project` - its line-end settings and
+    attributes applied, as `git hash-object --path` reads them, no filter driver of the
+    repository's run (`git._no_filters`). False where git does not say."""
+    from app import git  # (here: git's executors import commands, which imports this)
+
+    try:
+        exe, _folder = git.repository(project)
+        off = git._no_filters(project, exe, git.SHORT_SECONDS)
+    except git.Refused:
+        return False
+    found = set()
+    for data in (one, other):
+        code, out, _said = git._fed(
+            project,
+            exe,
+            data,
+            *git.UNASKED,
+            "hash-object",
+            f"--path={path}",
+            "--stdin",
+            seconds=git.SHORT_SECONDS,
+            **git.UNASKED_ENV,
+            **off,
+        )
+        if code != 0:
+            return False
+        found.add(out.strip())
+    return len(found) == 1
 
 
 def _ended(text: str, ends: str) -> str:

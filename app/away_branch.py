@@ -200,12 +200,48 @@ def titled(text: str, secrets: Iterable[str] = ()) -> str:
     """R2: a To-do task's line - which an agent may have written (the Scout) - as a commit's subject
     or a pull request's title says it: no control or format character (a line break, a bidi
     override), each of `secrets` masked - before the joiner could split one - and a zero-width
-    joiner after each `@` that would mention someone. The rest as written: a link's or code's
-    marks there are only text."""
+    joiner after each `@` that would mention someone and each `#` a closing keyword would close
+    (`Fixes #12`, L-3). The rest as written: a link's or code's marks there are only text."""
     shown = "".join(ch for ch in text if unicodedata.category(ch) not in ("Cc", "Cf"))
     for one in filter(None, secrets):
         shown = shown.replace(one, "***")
-    return _MENTION.sub("@\u200d", shown)
+    return _MENTION.sub("@\u200d", _CLOSES.sub("\\1\u200d", shown))
+
+
+# L-3: a closing keyword before an issue's number (`Fixes #12`, `closes owner/repo#3`), which
+# GitHub acts on from a commit's message or a pull request's words.
+_CLOSES = re.compile(
+    r"(?i)\b((?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b[\s:]+(?:[\w.-]+/[\w.-]+)?#)(?=\d)"
+)
+# D2's team pull request: its body (`AgentRunner._pull_request`). What an agent wrote - its task's
+# name, the files' names, its notes - goes in fenced (`fenced`, L-3): no @mention, closing keyword
+# or link of it is read by GitHub.
+TEAM_PR_BODY = (
+    "{task}\n\nMade by KOLONİ's agents ({name}) on the branch `{branch}`, pushed as one "
+    "commit.\n\n### Changed files\n{files}\n\n### Check\n{check}\n\n"
+    "### {name}'s notes\n{notes}\n"
+)
+TEAM_PR_NOTES = 4000
+
+
+def fenced(text: str) -> str:
+    """`text` as a code block whose fence is longer than any run of backticks in it."""
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}\n{text}\n{fence}"
+
+
+def team_pr_body(task: str, name: str, branch: str, files: dict, check: str, notes: str) -> str:
+    """A team's pull request's body (`TEAM_PR_BODY`): its task, files and notes fenced."""
+    listed = "\n".join(f"{path} ({letter})" for path, letter in list(files.items())[:200])
+    return TEAM_PR_BODY.format(
+        task=fenced(task),
+        name=name,
+        branch=branch,
+        files=fenced(listed),
+        check=check,
+        notes=fenced(notes[:TEAM_PR_NOTES] or "(none)"),
+    )
 
 
 # D2: an address on github.com as git writes one - https, ssh, scp-like (`git@github.com:o/r`).

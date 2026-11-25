@@ -321,9 +321,10 @@ def known_secrets(factory, settings: Settings) -> list[str | None]:
 
 def loose_values(factory) -> list[str]:
     """HIGH-1: what KOLONİ keeps that is masked where text is shown, but no secret a branch's look
-    stops on, nor one a kept reason is masked of (`raw.known`): an MCP server's value no secret's
-    name holds (`NODE_ENV=production`, `HOME`, a credentials file's path) - and a saved value that
-    reads as a word (`raw.WORDISH`: a provider's key or `OPENAI_API_KEY` of `not-needed`)."""
+    stops on, nor one a kept reason is masked of (`raw.known`): an MCP server's value neither a
+    secret's name nor a secret's shape holds (`secret_set.values`: `NODE_ENV=production`, `HOME`, a
+    credentials file's path - not `GH=ghp_…`) - and a saved value that reads as a word
+    (`raw.WORDISH`: a provider's key or `OPENAI_API_KEY` of `not-needed`)."""
     with factory() as session:
         envs = [server.env for server in session.scalars(select(McpServer))]
         keys = [one for one in session.scalars(select(Provider.api_key)) if one]
@@ -334,12 +335,17 @@ def loose_values(factory) -> list[str]:
     ]
 
 
-def passed_values(factory) -> list[str]:
-    """MEDIUM-2: the values of the variables the projects pass to their commands (`pass_env`) -
-    what an agent can see, whatever their names (`secret_set.checked`)."""
+def passed_values(factory, project: Path | None) -> list[tuple[str, str]]:
+    """MEDIUM-2: the variables - name, value - the project at folder `project` passes to its
+    commands (`pass_env`: what an agent can see; `secret_set.checked`) - no other project's."""
+    if project is None:
+        return []
     with factory() as session:
-        names = ",".join(filter(None, session.scalars(select(Project.pass_env)))).split(",")
-    return [value for name in names if (value := os.environ.get(name.strip()))]
+        rows = session.execute(select(Project.root_path, Project.pass_env)).all()
+    names = next(
+        (passed or "" for root, passed in rows if Path(root).resolve() == project.resolve()), ""
+    ).split(",")
+    return [(name.strip(), value) for name in names if (value := os.environ.get(name.strip()))]
 
 
 def create_app(
@@ -487,7 +493,7 @@ def create_app(
         ],
         lambda: loose_values(factory),
     )
-    secret_set.passed = lambda: passed_values(factory)
+    secret_set.passed = lambda project: passed_values(factory, project)
     app.state.bus = EventBus(factory)
     # Set by the server's exit signal (`ClosingServer`): the page's open streams end on it.
     app.state.closing = asyncio.Event()

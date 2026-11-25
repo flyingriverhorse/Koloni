@@ -6,7 +6,7 @@ KOLONİ cannot read as a secret by its name - an ordinary MCP value - stays read
 reason (L-2)."""
 
 from app import main, masking, raw, secret_set
-from app.away_branch import titled
+from app.away_branch import team_pr_body, titled
 from app.db.models import McpServer
 from tests.keyed import OWN
 from tests.test_agent_writes import write
@@ -59,21 +59,75 @@ def test_a_value_the_project_passes_never_goes_up_with_a_teams_pull_request(
 ):
     # (MEDIUM-2: what a project passes to its commands is exactly what an agent can see)
     bare, _log = github
-    monkeypatch.setattr(main, "passed_values", lambda _factory: [PASSED])  # (`secret_set.passed`)
+    monkeypatch.setattr(main, "passed_values", passes)  # (`secret_set.passed`)
     pushed = left_out_of_the_pull_request(make_client, repo, bare, PASSED)
     assert PASSED not in pushed and "TWO-agent" in pushed
 
 
-def test_the_values_a_project_passes_are_read_from_its_settings(client, tmp_path, monkeypatch):
-    monkeypatch.setenv("MY_PASSED_VALUE", PASSED)
-    root = tmp_path / "p"
+def passes(_factory, _project):
+    """What the project passes to its commands, as `main.passed_values` reads it (a stand-in)."""
+    return [("DEPLOY_TOKEN", PASSED)]
+
+
+def project_passing(client, root, passed):
     root.mkdir()
     pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
-    changed = client.patch(
-        f"/api/projects/{pid}", json={"pass_env": "MY_PASSED_VALUE"}, headers=OWN
-    )
+    changed = client.patch(f"/api/projects/{pid}", json={"pass_env": passed}, headers=OWN)
     assert changed.status_code == 200, changed.text
-    assert main.passed_values(client.app.state.session_factory) == [PASSED]
+
+
+def test_only_the_project_checked_passes_its_values(client, tmp_path, monkeypatch):
+    # (M-B: another project's pass_env counts for none of this one's)
+    monkeypatch.setenv("MY_PASSED_VALUE", PASSED)
+    project_passing(client, tmp_path / "a", "")
+    project_passing(client, tmp_path / "b", "MY_PASSED_VALUE")
+    factory = client.app.state.session_factory
+    assert main.passed_values(factory, tmp_path / "a") == []
+    assert main.passed_values(factory, tmp_path / "b") == [("MY_PASSED_VALUE", PASSED)]
+
+
+def test_a_word_a_project_passes_leaves_nothing_out(client, tmp_path, monkeypatch):
+    # (M-B: pass_env=NODE_ENV, NODE_ENV=production - config.py was left out of the commit)
+    monkeypatch.setenv("NODE_ENV", "production")
+    project_passing(client, tmp_path / "p", "NODE_ENV")
+    raw.read_again()
+    assert "production" not in secret_set.checked(project=tmp_path / "p")
+
+
+def test_a_secrets_shape_is_checked_whatever_its_name(client, monkeypatch):
+    # (M-B: GH=ghp_…, a DATABASE_URL with its password, GH_PAT, MY_TOKEN_FILE=ghp_…)
+    ghp, pat, address = "ghp_" + "H" * 36, "ghp_" + "D" * 36, "postgresql://u:p4ssw0rd@db/x"
+    with client.app.state.session_factory() as session:
+        session.add(McpServer(name="db", command=["x"], env={"GH": ghp, "DATABASE_URL": address}))
+        session.add(
+            McpServer(name="web", command=["x"], env={"API_BASE": "https://api.github.com"})
+        )
+        session.commit()
+    raw.read_again()
+    assert {ghp, address} <= set(raw.known())
+    assert "https://api.github.com" not in raw.known()
+    assert secret_set.values({"GH_PAT": pat, "MY_TOKEN_FILE": ghp, "NODE_ENV": "production"}) == [
+        pat,
+        ghp,
+    ]
+
+
+def test_claude_codes_token_is_a_secret_and_its_other_handles_are_not():
+    # (M-A: HANDLE holds CLAUDE_CODE_.*, which dropped CLAUDE_CODE_OAUTH_TOKEN)
+    token = "sk-ant-oat01-" + "A" * 30
+    env = {
+        "CLAUDE_CODE_OAUTH_TOKEN": token,
+        "CLAUDE_CODE_ENTRYPOINT": "cli-entrypoint",
+        "VSCODE_GIT_ASKPASS_NONCE": "n0nce-" + "C" * 20,
+    }
+    assert secret_set.values(env) == [token]
+
+
+def test_a_teams_pull_request_body_fences_what_an_agent_wrote():
+    # (L-3: its notes went in as they were - an @mention or "Fixes #1" there acted on GitHub)
+    body = team_pr_body("t", "Coder", "koloni/x", {"a.py": "M"}, "`check`: passed", "Fixes #1 @me")
+    assert "```\nFixes #1 @me\n```" in body and "```\na.py (M)\n```" in body
+    assert titled("Fixes #12, closes o/r#3 - see #5") == "Fixes #‍12, closes o/r#‍3 - see #5"
 
 
 def test_an_ordinary_mcp_value_stays_readable_in_a_kept_reason(client):
@@ -93,7 +147,7 @@ def test_a_known_secret_an_agent_committed_stops_the_merge_and_never_deletes_the
 ):
     # (HIGH-1 at the team merge's site: refused, shown, and the branch kept through a Stop -
     # never dropped whole as a secret given in the turn is. MEDIUM-2: a value the project passes)
-    monkeypatch.setattr(main, "passed_values", lambda _factory: [PASSED])
+    monkeypatch.setattr(main, "passed_values", passes)
     commit = call("run_command", {"command": "git add token.txt && git commit -q -m mine"}, "c")
     client, cid, run_id = on_branch(
         make_client,

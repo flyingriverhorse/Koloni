@@ -116,6 +116,24 @@ def test_a_real_mcp_token_is_left_out_of_the_commit_and_the_rest_goes_on(
     assert "other.py" in pushed and "conf.txt" not in pushed and TOKEN not in pushed
 
 
+def test_claude_codes_own_token_is_left_out_and_never_goes_up(
+    make_client, wait_run, repo, monkeypatch
+):
+    # (M-A: CLAUDE_CODE_.* is a handle's name to HANDLE - its OAuth token went up)
+    token = "sk-ant-oat01-" + "Q" * 40
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", token)
+    steps = [
+        write("token.txt", f"t = {token}\n", "w1"),
+        write("new.txt", "new\n", "w2"),
+        text("one done"),
+    ]
+    client, done, job, row, origin = night(make_client, wait_run, repo, steps, {})
+    assert row is not None and "left out: token.txt" in row["what"], job
+    assert ran(client, done, row)["decision"] == "run"
+    pushed = at_origin(origin, job)
+    assert "new.txt" in pushed and "token.txt" not in pushed and token not in pushed
+
+
 def test_a_secret_in_a_files_name_never_goes_up(make_client, wait_run, repo):
     # (MEDIUM-3: known only in the morning, so committed at night - its name holds it)
     steps = [write(f"out-{TOKEN}.txt", "nothing secret inside\n", "w1"), text("one done")]

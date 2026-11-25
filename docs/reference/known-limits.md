@@ -180,10 +180,12 @@ messages.
   a shell or an interpreter handed its code on stdin or on the line (`cat x.sh | sh`, `python -c`),
   `iex`, `npx`, find's `-exec`, a test runner - the tests an agent wrote).
 - A branch's commit, merge and push look for a secret KOLONİ knows byte for byte, in a file's content
-  and its name: one an agent wrote base64'd, reversed or split in parts is not found. A saved key
-  that reads as a word (a provider's `not-needed`) is not looked for, nor a file's path given under a
-  secret's name (`GOOGLE_APPLICATION_CREDENTIALS`, `*_FILE`); of an MCP server's variables only
-  those a secret's name holds (`..._TOKEN`, `..._KEY`, a password).
+  and its name: one an agent wrote base64'd, reversed, or split across files or in parts is not
+  found. A saved key made of lowercase words alone (a provider's `not-needed`, `correct-horse`) is
+  not looked for, nor a file's path given under a secret's name (`GOOGLE_APPLICATION_CREDENTIALS`,
+  `*_FILE`); of an MCP server's variables, and the environment's, only those a secret's name or a
+  secret's shape holds (`..._TOKEN`, `..._KEY`, a password; `ghp_…`, `sk-…`, a password in an
+  address).
 - If anything in the job's copy changed after a line was parked, **Run** does not run it - so a test
   line parked early in a job is usually closed by the work after it: run it yourself. What stays out
   of that look: the dependency folders a copy links to the project's own (`node_modules`, `.venv`,

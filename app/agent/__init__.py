@@ -1044,12 +1044,7 @@ BRANCH_KEPT_TOLD = "The branch {branch} is kept, as you asked"
 BRANCH_NOT_KEPT = (
     "The branch {branch} was not kept: one of its agents' commits holds a secret given in this turn"
 )
-PR_BODY = (
-    "{task}\n\nMade by KOLONİ's agents ({name}) on the branch `{branch}`, pushed as one "
-    "commit.\n\n### Changed files\n{files}\n\n### Check\n{check}\n\n"
-    "### {name}'s notes\n{notes}\n"
-)
-PR_NOTES = 4000
+# (its body: `away_branch.team_pr_body`, L-3)
 PR_CONFIG = (
     ".git/config changed during this turn - a push runs what it names (an address, a "
     "credential helper, an ssh command): look at it, then Open pull request"
@@ -4142,16 +4137,7 @@ class AgentRunner(
             if check
             else "the project has no check command"
         )
-        body = PR_BODY.format(
-            task=first,
-            name=ctx.name,
-            branch=branch,
-            files="\n".join(
-                f"- `{path}` ({letter})" for path, letter in list(look["files"].items())[:200]
-            ),
-            check=tested,
-            notes=notes[:PR_NOTES] or "(none)",
-        )
+        body = away_branch.team_pr_body(first, ctx.name, branch, look["files"], tested, notes)
         title = first
         for one in copy.every_secret():  # (MEDIUM-2: its files' names too, MEDIUM-3)
             if one:
@@ -5593,7 +5579,7 @@ class AgentRunner(
                 session.commit()
                 payloads = [("file_change.updated", file_change_out(row)) for row in rows]
             else:
-                before, after = copy.ends_kept(before, after, rows)  # (T1: the project's line ends)
+                before, after = copy.ends_kept(path, before, after, rows)  # (T1: its line ends)
                 failure, payloads = self._apply_text(
                     session, ctx, ws, path, rows, (before, after), (here, there), together
                 )
