@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
+from app import judge
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.db.models import Provider, UserPreferences
 from app.model_client import OwnStop
@@ -23,6 +24,10 @@ class JudgeModel(BaseModel):
     model_id: str
     # Whether it is a CLI: its one-shot start makes each judged command wait for it.
     cli: bool
+    # §8: whether it runs as its measurement of Check what I said first passed (`judge.measured`) -
+    # the judge's box for the user's words works on it; never for `now` asked in the chosen one's
+    # place (the gate's `fallback`).
+    measured: bool
 
 
 class JudgeChoice(JudgeModel):
@@ -45,9 +50,15 @@ class JudgeIn(BaseModel):
     model_id: str | None = Field(default=None, max_length=200)
 
 
-def _model(session: Session, one: Entry, name: str) -> dict:
-    cli = mode_of(session.get_one(Provider, one.provider_id)) is not None
-    return {"provider_id": one.provider_id, "provider_name": one.name, "model_id": name, "cli": cli}
+def _model(session: Session, one: Entry, name: str, fallback: bool = False) -> dict:
+    provider = session.get_one(Provider, one.provider_id)
+    return {
+        "provider_id": one.provider_id,
+        "provider_name": one.name,
+        "model_id": name,
+        "cli": mode_of(provider) is not None,
+        "measured": judge.measured(provider, name) and not fallback,
+    }
 
 
 def _judge(session: Session, request: Request) -> dict:
@@ -61,7 +72,9 @@ def _judge(session: Session, request: Request) -> dict:
     return {
         "provider_id": chosen[0] if chosen else None,
         "model_id": chosen[1] if chosen else None,
-        "now": _model(session, *now) if now else None,
+        "now": _model(session, *now, chosen is not None and (now[0].provider_id, now[1]) != chosen)
+        if now
+        else None,
         "choices": [
             {**_model(session, one, name), "tier": tier}
             for one, name, tier in (judge_choices(session, would, providers) if would else [])
