@@ -114,8 +114,9 @@ To keep triggers from starting by themselves at all, start KOLONİ with `KOLONI_
 
 An agent can propose a trigger on a **Make this trigger?** card. A proposal only reads, opens no
 sub-agents, and has the default budget. "Approve makes it as shown; to let it do more, or change
-anything, Edit." Agents can propose clock and file triggers only, never webhooks. An Orchestrator on Claude
-Code, Codex or Copilot run **Native** can propose one too, only in a turn you started, never in a turn
-nobody watches. Its **Approve** is refused, saying why, while the chat's Orchestrator would itself run
-on a CLI with its own tools, since a trigger's turn never starts one: change what it runs on first, as
-the message says.
+anything, Edit." Agents can propose clock and file triggers only, never webhooks.
+
+An Orchestrator run **Native** on a CLI (Claude Code, Codex, Copilot, agy) does not propose triggers,
+and neither does any other agent run Native: a trigger's turn never starts a CLI that works with its own
+tools. In a chat whose Orchestrator runs on such a CLI, a card's **Approve** (one left from 0.1.8, say)
+is refused, saying why: change what the Orchestrator runs on first, as the message says.

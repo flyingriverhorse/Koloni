@@ -182,7 +182,9 @@ async def approve_proposal(
     project_id = session.get_one(Conversation, proposal.conversation_id).project_id
     if project_id is None:
         raise HTTPException(409, "this chat has no folder now: a trigger needs a project")
-    # (Its permissions and budget left out: TriggerIn's own, the safest.)
+    # (Its permissions and budget left out: TriggerIn's own, the safest.) `_create`'s
+    # check_starts stays for a card a Native CLI's Orchestrator proposed in 0.1.8 (none since):
+    # in a chat whose Orchestrator works with its own tools, its Approve is refused, said why.
     return _create(
         project_id,
         TriggerIn.model_validate(

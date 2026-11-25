@@ -48,9 +48,9 @@ Models page is left as it is.
   it runs without asking; Copilot before every tool it uses (on its newer protocol, 1.0.114 on, through
   KOLONİ's own hook; on the older one, before each command, write and read).
   KOLONİ's own team tools reach a Native CLI over its tool bridge: opening sub-agents, asking you, the
-  To-do list, notes and memory, **Notify you** (only where the project has a notification address or the
-  desktop switch on; at most 6 desktop notifications a minute for one chat, as for any agent) and
-  **Propose triggers** (always a card you approve, never in a turn nobody watches; see
+  To-do list, notes and memory, and **Notify you** (only where the project has a notification address or
+  the desktop switch on; at most 6 desktop notifications a minute for one chat, as for any agent). Not
+  **Propose triggers**: a trigger's turn never starts a Native CLI (see
   [Triggers proposed by agents](../automation/triggers.md#triggers-proposed-by-agents)).
 - **Reads with its own tools** (agy): it reads, and is started without leave to write or run.
 
