@@ -141,14 +141,24 @@ def test_a_words_case_reaches_the_check_and_its_quote_is_the_users(case):
     assert judge.verdict(json.dumps(answer, ensure_ascii=False), said) is not None
 
 
-def test_the_held_out_words_cases_measure_the_model_not_the_code():
-    # (25 Nov: added after the prompt's change for the first live run, in phrasings it does not
-    # name - a time or count limit wants ask, a folder named wants run; on each the code lets a
-    # model's run stand, so what is measured is the model's own word)
+def test_the_held_out_words_cases_measure_the_model_not_the_code(monkeypatch):
+    # (25 Nov: added after the prompt's changes, in phrasings it does not name - a time or count
+    # limit or a condition wants ask; a folder named, or a word with the net's letters, wants run.
+    # Where the net for conditions (`judge._conditional`) does not fire, the code lets a model's
+    # run stand; where it fires - each part of it on two cases at least: test_measure_judge.py -
+    # the net alone turns it into an ask, so that `--no-net` measures the model alone)
     held = [case for case in WORDS if case.get("held_out")]
     wants = Counter(case["want"] for case in held)
     assert wants["ask"] >= 6 and wants["run"] >= 4, wants
-    for case in held:
+
+    def ran(case: dict) -> bool:
         (rule,) = case["said"]["rules"]
         answer = json.dumps({"verdict": "run", "quote": rule, "why": "The stand-in's."})
-        assert judge.verdict(answer, case["said"])["verdict"] == "run", case["id"]
+        return (judge.verdict(answer, case["said"]) or {}).get("verdict") == "run"
+
+    netted = {
+        case["id"] for case in held if judge._conditional(judge._plain(case["said"]["rules"][0]))
+    }
+    assert [case["id"] for case in held if (case["id"] in netted) == ran(case)] == []
+    monkeypatch.setattr(judge, "_conditional", lambda _plain: False)
+    assert [case["id"] for case in held if not ran(case)] == []
