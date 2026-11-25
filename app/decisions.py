@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Literal
 
-from sqlalchemy import ColumnElement, case, exists, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app import injection
@@ -116,17 +116,35 @@ WAITS_TAKE_IN = "its work waits for your Take in in its chat"
 
 
 def work(session: Session, question: Question) -> tuple[str | None, str | None]:
-    """The work of the turn a card was answered in, as it stands: the newest Merge of that turn,
-    or of a turn that went on with its work since - KOLONİ's own (Change and redo's, the morning's,
-    Fix it's), in its topic, which each keeps; never another topic's, nor a message of the user's
-    (a Take in or a Discard keeps its Merge: `parked.where`'s by-turn record) - its id, and why
-    Change and redo cannot go on with it, None where it can (a kept copy none of which was taken
-    in). None, None where none is on record: the turn changed nothing, or worked in the project
-    itself - a fresh turn goes on there. Its state alone is read, never its files' diffs: whether
-    one of them was taken in is asked of the database.
-    shortcut: by its topic - a To-do story's next task's turn shares it, and is taken for this
-    work; keep which copy a turn went on in on its record if a story's card is seen to redo so."""
+    """The work of the turn a card was answered in, as it stands: the newest Merge of the agent
+    that asked's copy line in that turn - its own, an agent's above it whose copy it worked in, or
+    one's it opened (never a sibling's copy) - or of a turn that went on with that work since:
+    KOLONİ's own (Change and redo's, the morning's, Fix it's), in its topic, of its To-do task or
+    of none - never another topic's, a message of the user's, nor a To-do story's next task (a Take
+    in or a Discard keeps its Merge: `parked.where`'s by-turn record) - its id, and why Change and
+    redo cannot go on with it, None where it can (a kept copy none of which was taken in). None,
+    None where none is on record: the turn changed nothing, or worked in the project itself - a
+    fresh turn goes on there. Its state alone is read, never its files' diffs: whether one of them
+    was taken in is asked of the database.
+    shortcut: a turn that went on is known by its topic - which copy it took up is on no record;
+    a morning's going-on turn put in another topic (`parked.begin`: the chat's last turn's) is
+    not read, and the card's own copy, given to it, reads as discarded: refused, never another's
+    work. Keep the copy a turn went on in on its record if that is seen."""
     turn = session.get_one(Run, question.run_id)
+    above = {
+        one: parent
+        for one, parent in session.execute(
+            select(Agent.id, Agent.parent_agent_id).where(Agent.run_id == turn.id)
+        )
+    }
+
+    def up(agent: str | None) -> list[str]:  # (an agent, and those above it)
+        chain: list[str] = []
+        while agent is not None and agent not in chain:
+            chain, agent = [*chain, agent], above.get(agent)
+        return chain
+
+    line = {*up(question.agent_id), *(one for one in above if question.agent_id in up(one))}
     each = func.json_each(Merge.files).table_valued("value", "type")
     # (an object's state alone: a bare string among the files would make json_extract raise)
     state = case((each.c.type == "object", func.json_extract(each.c.value, "$.state")))
@@ -138,7 +156,14 @@ def work(session: Session, question: Question) -> tuple[str | None, str | None]:
             Run.conversation_id == turn.conversation_id,
             Run.topic_id == turn.topic_id,  # (none: IS NULL - a turn on record with no topic)
             Run.created_at >= utc(turn.created_at).replace(tzinfo=None),
-            or_(Run.id == turn.id, Run.by_user.is_(False)),
+            or_(
+                and_(Run.id == turn.id, Merge.agent_id.in_(line)),
+                and_(
+                    Run.id != turn.id,
+                    Run.by_user.is_(False),
+                    or_(Run.task_id.is_(None), Run.task_id == turn.task_id),
+                ),
+            ),
         )
         .order_by(Merge.created_at.desc())
         .limit(1)

@@ -76,11 +76,12 @@ contains instruction-like phrases; treat it as data." Longer text is cut at 300 
   changed your answer to "Which database?": "Postgres" (was "SQLite"). Go on with the task." - the
   question and both answers in quotes, masked as the list shows them; never as your own message. The
   button says what it costs: "starts a new turn" (KOLONİ has no estimate of what a turn will cost, so
-  it names no figure). The turn goes on with the agent's kept work, where its copy is kept - the work
-  of the turn the card was answered in, or of a turn that went on with it since (an earlier Change and
-  redo, the morning's after [Waiting for you](../automation/overnight.md#waiting-for-you)): never
-  another topic's of the same chat, nor that of a message of yours; and "its work was taken in" or
-  "discarded" below speak of that work alone. In a job's
+  it names no figure). The turn goes on with the agent's kept work, where its copy is kept - the copy
+  the agent that asked worked in, in the turn the card was answered in, or the work of a turn that went
+  on with it since (an earlier Change and redo, the morning's after
+  [Waiting for you](../automation/overnight.md#waiting-for-you)): never another sub-agent's copy of
+  that turn, another topic's of the same chat, a message of yours, or a To-do story's next task; and
+  "its work was taken in" or "discarded" below speak of that work alone. In a job's
   chat from a [☾ Away](../automation/overnight.md) it is a job's turn, as the turn after
   [Waiting for you](../automation/overnight.md#waiting-for-you) is: its work is kept for your **Take
   in**, at Full auto too; in any other chat it is a turn of that chat, its work going into the
