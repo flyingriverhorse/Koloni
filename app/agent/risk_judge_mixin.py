@@ -19,8 +19,11 @@ from app.command_runner import _planted
 from app.commands import (
     _INTERPRETER,
     _SHELLS,
+    _in_a_shell,
     _program,
     _words,
+    is_plain,
+    is_wrapped,
     names_secret,
     only_reads,
     standing_asked,
@@ -52,8 +55,13 @@ CARD = risk_judge.CARD
 ASIDE = "Full auto's judge is off for this turn: {why}."
 NO_MODEL = "no model to ask - choose a Judge model in Settings, or give a model the Fast tier"
 # Its card where it may not be asked now, or was asked and gave no answer to go by: never a run.
-NO_ROOM = "it could not be asked: {name} has no room for it now"
-OVER_LIMIT = "it could not be asked: the turn is past its token limit"
+NO_ROOM = "{name} has no room for it now"
+OVER_LIMIT = "the turn is past its token limit"
+NOT_ASKED = "it could not be asked: {why}"
+# ...and said once a turn in the chat, as such cards may come one after another.
+NOT_ASKED_LINE = (
+    "Full auto's judge could not be asked this turn: {why}. Each command it would look at asks you."
+)
 CHANGED = "the program it runs changed while it was looked at"
 LATE = "it did not answer in time"
 UNREAD = "its answer could not be read"
@@ -63,18 +71,26 @@ NO_REASON = "it gave no reason"  # (a "risky" with no sentence)
 
 # An option word of an interpreter's after which the line holds its code itself (`python -c`,
 # `node -e`, `-p`, `-r`): no file of its own runs (`python -m x` is read as its module's file). A
-# shell's are fewer: `bash -c`, PowerShell's `-Command` / `-EncodedCommand` cut short as it takes
-# them - `bash -e x.sh` runs x.sh. ...and PowerShell's `-File`, which names the file.
+# shell's: a POSIX shell's cluster with c in it (`bash -c`, `bash -lc`), PowerShell's `-Command` /
+# `-EncodedCommand` cut short as it takes them, cmd's `/c` `/k` - `bash -e x.sh` runs x.sh.
 _INLINE = re.compile(r"-(?:c|e|p|r|-eval|-print)")
-_SHELL_INLINE = re.compile(r"-c|(?i:-co\w*|-en\w*|-ec)")
+_POSIX_INLINE = re.compile(r"-[a-zA-Z]*c[a-zA-Z]*")
+_POWERSHELL_INLINE = re.compile(r"(?i)-c|-co\w*|-en\w*|-ec")
 _ENCODED = re.compile(r"(?i)-en\w*|-ec")
 _FILE = re.compile(r"(?i)-f(?:i(?:le?)?)?")
 _PYTHON = re.compile(r"python[\d.]*w?|pyw?")
 # Their options that take a value: the word after one is no script.
 _VALUED = frozenset(
     {"-X", "-W", "--require", "--import", "--loader", *("-executionpolicy", "-ep", "-ex")}
-    | {"-windowstyle", "-version", "-workingdirectory", "-wd", "-configurationname"}
+    | {"-windowstyle", "-version", "-workingdirectory", "-wd", "-configurationname", "-o"}
 )
+# The options of a Python's, a Node's or a POSIX shell's that load no code but the file it is
+# handed: with only these (and any of PowerShell's or cmd's but their code) the file found is the
+# whole program it runs (`_Files.exact`); any other (`node --require x`, `ruby -I x`, `bash
+# --rcfile x`) may load more, and nothing is kept for the line.
+_PYTHON_PLAIN = re.compile(r"-[uBOEsSIPqbdvi]+|-OO|-bb|-[XW]\S*")
+_NODE_PLAIN = frozenset({"--no-warnings", "--enable-source-maps", "--trace-warnings"})
+_POSIX_PLAIN = re.compile(r"-[abd-zA-Z]+|-o")
 # What a name with no ending may be, as its runner looks: Node's, a Python's folder, and a
 # program by its path on Windows (PowerShell's `.\x` runs x.ps1, cmd's x.cmd).
 _NODE_ENDINGS = ("", ".js", ".mjs", ".cjs", "/index.js")
@@ -82,18 +98,30 @@ _PYTHON_ENDINGS = ("", "/__main__.py")
 _RUN_ENDINGS = ("", ".ps1", ".cmd", ".bat")
 # A bare name with one of these endings is a script of the folder's, whatever runs it.
 _SCRIPT_ENDINGS = frozenset({".ps1", ".cmd", ".bat", ".sh", ".py", ".js", ".mjs", ".cjs", ".ts"})
-# The files make, docker and compose read for what they run, where the line names none.
-_MAKEFILES = ("GNUmakefile", "makefile", "Makefile")
-_COMPOSE = ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml")
-# Node's package runners read the package.json there or above (`npm run x` its scripts).
-_NODE_PACKAGES = frozenset({"npm", "npx", "pnpm", "pnpx", "yarn", "bun", "bunx"})
-_PACKAGE_JSON = tuple("../" * up + "package.json" for up in range(8))
+_MAKEFILES = ["GNUmakefile", "makefile", "Makefile"]
+# The programs a line keeps a key for by its words alone, with no file of the folder's hashed:
+# one plain command of one of these - and, for those told a file to read their settings or
+# commands from (`curl -K x`, `git -c core.hooksPath=x`), no word of it naming a path in the
+# folder (`_READS_NAMED`).
+# shortcut: deliberately small - a program goes in only if it never runs the project's code or
+# settings (no hooks, plugins, build or config it executes); grow it one measured program at a
+# time, else a line with no file hashed is judged at every run.
+RUNS_NO_LOCAL_CODE = frozenset(
+    {"curl", "wget", "git", "gh", "rm", "rmdir", "del", "mkdir", "md", "cp", "copy", "mv"}
+    | {"move", "ren", "chmod", "touch"}
+)
+_READS_NAMED = frozenset({"curl", "wget", "git", "gh"})
 
-# A line's files: those its runner may run or read as its program, in the order it looks, and
-# whether it runs or reads one at all (False: no local file - `curl`, `pip install x` -, the line
-# is its words alone).
-_Files = tuple[list[str], bool]
-_NONE: _Files = ([], False)
+
+class _Files(NamedTuple):
+    """The files a line may run as its program, in the order its runner looks, and whether one
+    found is all of it (`exact`: no option that loads more, no shell's code around it)."""
+
+    names: list[str]
+    exact: bool
+
+
+_NONE = _Files([], False)
 
 
 def _endings(name: str, endings: tuple[str, ...]) -> list[str]:
@@ -110,112 +138,143 @@ def _pathlike(word: str) -> bool:
 
 
 def _first_of(code: str) -> _Files:
-    """A shell's `-c` code (`bash -c ./x.sh`, `cmd /c .\\x`): the program its first word names,
-    where that is a file of the folder's; _NONE for a program from PATH."""
-    first = (_words(code.strip("'\"")) or [""])[0].strip("'\"")
-    return (_endings(first, _RUN_ENDINGS), True) if _pathlike(first) else _NONE
+    """A shell's code (`bash -lc ./x.sh`, `powershell -c "& .\\x.ps1"`, `cmd /c .\\x`): the file
+    its first word names, where it is one of the folder's - shown, never the whole of it."""
+    words = [word.strip("'\"") for word in _words(code.strip("'\""))]
+    first = (words[1:2] if words[:1] in (["&"], ["."]) else words[:1]) or [""]
+    return _Files(_endings(first[0], _RUN_ENDINGS), False) if _pathlike(first[0]) else _NONE
+
+
+def _loads_nothing(program: str, word: str) -> bool:
+    """Whether an option of `program`'s loads no code of its own (`_PYTHON_PLAIN` and the rest)."""
+    if _PYTHON.fullmatch(program):
+        return bool(_PYTHON_PLAIN.fullmatch(word))
+    if program.startswith(("node", "bun", "deno")):
+        return word in _NODE_PLAIN
+    if program in ("powershell", "pwsh", "cmd"):
+        return True
+    return program in _SHELLS and bool(_POSIX_PLAIN.fullmatch(word))
+
+
+def _inline(program: str, word: str, interpreter: bool) -> bool:
+    """Whether `word` is an option after which the line holds its code (`_INLINE` and the rest)."""
+    if interpreter:
+        return bool(_INLINE.fullmatch(word))
+    if program in ("powershell", "pwsh"):
+        return bool(_POWERSHELL_INLINE.fullmatch(word))
+    if program == "cmd":
+        return word.lower() in ("/c", "/k")
+    return bool(_POSIX_INLINE.fullmatch(word))
 
 
 def _script(words: list[str]) -> _Files:
     """An interpreter's or a shell's line (`_files`): the script it is handed - its first word
     that is no option, or the value of PowerShell's `-File` -, `python -m x`'s module (x.py,
-    x/__main__.py), Node's name with no ending; a shell's `-c` code by its first word (encoded:
-    a file it may run, none known); _NONE where an interpreter's line holds its code (`_INLINE`)."""
+    x/__main__.py), Node's name with no ending; a shell's code by its first word (`_first_of`;
+    encoded: none known); _NONE where an interpreter's line holds its code (`_INLINE`)."""
     program = _program(words[0])
     interpreter = bool(_INTERPRETER.fullmatch(program))
     python, node = bool(_PYTHON.fullmatch(program)), program.startswith(("node", "bun", "deno"))
-    rest = iter(words[1:])
+    exact, rest = True, iter(words[1:])
     for word in rest:
         if python and word.startswith("-m"):
             module = (word[2:] or next(rest, "")).replace(".", "/")
-            return [f"{module}.py", f"{module}/__main__.py"], bool(module)
-        if interpreter and _INLINE.fullmatch(word):
-            return _NONE
-        if not interpreter and (
-            _SHELL_INLINE.fullmatch(word) or program == "cmd" and word.lower() in ("/c", "/k")
-        ):
-            return ([], True) if _ENCODED.fullmatch(word) else _first_of(next(rest, ""))
+            return _Files([f"{module}.py", f"{module}/__main__.py"] if module else [], exact)
+        if _inline(program, word, interpreter):
+            return _NONE if interpreter or _ENCODED.fullmatch(word) else _first_of(next(rest, ""))
         if program in ("powershell", "pwsh") and _FILE.fullmatch(word):
-            return [next(rest, "")], True
+            return _Files([next(rest, "")], exact)
         if word.startswith("-") or program == "cmd" and word.startswith("/"):
+            exact = exact and _loads_nothing(program, word)
             if word in _VALUED or word.lower() in _VALUED:
                 next(rest, None)
             continue
-        return _endings(word, _NODE_ENDINGS if node else _PYTHON_ENDINGS if python else ("",)), True
+        ending = _NODE_ENDINGS if node else _PYTHON_ENDINGS if python else ("",)
+        return _Files(_endings(word, ending), exact)
     return _NONE
 
 
-def _valued(rest: list[str], *names: str) -> list[str]:
-    """The values of options `names` in `rest` (`-f x`, `--file=x`, `-fx` for a short one)."""
-    found, words = [], iter(rest)
-    for word in words:
-        if word in names:
-            found.append(next(words, ""))
-        elif "=" in word and word.split("=", 1)[0] in names:
-            found.append(word.split("=", 1)[1])
-        elif any(len(one) == 2 and word.startswith(one) and len(word) > 2 for one in names):
-            found.append(word[2:])
-    return found
-
-
-def _make(rest: list[str]) -> _Files:
-    """make's: the makefile it reads (`-f x`, else GNUmakefile, makefile, Makefile), in the
-    folder it goes to (`-C dir`)."""
-    folder = next(iter(_valued(rest, "-C", "--directory")), "")
-    names = _valued(rest, "-f", "--file", "--makefile") or list(_MAKEFILES)
-    return [f"{folder}/{name}" if folder else name for name in names], True
-
-
-def _docker(rest: list[str]) -> _Files:
-    """docker's: what `build` (`buildx build`, `image build`) builds from - its `-f` file, else
-    the Dockerfile of its context (its last word) - and `compose`'s compose file; _NONE for the
-    rest (an image's run is no file of the folder's).
-    shortcut: a context's other files, and what a compose file names, are not hashed."""
-    rest = rest[1:] if rest[:1] in (["buildx"], ["image"]) else rest
-    if rest[:1] == ["compose"]:
-        return _valued(rest[1:], "-f", "--file") or list(_COMPOSE), True
-    if rest[:1] != ["build"]:
-        return _NONE
-    context = rest[-1] if len(rest) > 1 and not rest[-1].startswith("-") else "."
-    return _valued(rest[1:], "-f", "--file") or [f"{context}/Dockerfile"], True
+def _plain_tool(words: list[str]) -> _Files:
+    """make's, npm's and docker build's line in its plain form alone, whose file is all it runs
+    for the line's key: `make [target...]` / `make -f F [target...]` (F, else GNUmakefile,
+    makefile, Makefile), `npm run <script>` / `npm test` (the folder's own package.json - npm
+    goes up from a folder with none), `docker build [-f F] [-t T] .` (F, else ./Dockerfile). Any
+    other option or form - another folder or project (`-C`, `--prefix`, `-w`, another context),
+    `npx`, `npm exec`, `yarn node` - is _NONE: its file is not the one it runs.
+    shortcut: what a makefile's recipe, a package script or a Dockerfile runs besides is not
+    hashed (the judge's known limit "a program that imports another file")."""
+    program, rest = _program(words[0]), words[1:]
+    if program == "make":
+        named = rest[1:2] if rest[:1] == ["-f"] else []
+        targets = rest[2:] if named else rest
+        if all(not word.startswith("-") for word in targets):
+            return _Files(named or list(_MAKEFILES), True)
+    if program == "npm" and (rest in (["test"], ["t"]) or len(rest) == 2 and rest[0] == "run"):
+        return _Files(["package.json"], not rest[-1].startswith("-"))
+    if program == "docker" and rest[:1] == ["build"] and rest[-1:] == ["."]:
+        options = dict(zip(rest[1:-1:2], rest[2:-1:2], strict=False))
+        if len(rest) % 2 == 0 and set(options) <= {"-f", "-t", "--file", "--tag"}:
+            return _Files([options.get("-f") or options.get("--file") or "Dockerfile"], True)
+    return _NONE
 
 
 def _files(words: list[str]) -> _Files:
-    """The files a line may run or read as its program, and whether it runs one at all: an
+    """The files a line may run as its program, and whether one found is all of it: an
     interpreter's or a shell's (`_script`), a program by its path (`.\\x`, `./x.sh`) or a
-    script's ending (`x.ps1`), make's makefile, docker's Dockerfile or compose file, Node's
-    package runners' package.json; _NONE for a program from PATH and no file of the folder's."""
+    script's ending (`x.ps1`), make's, npm's or docker build's in its plain form (`_plain_tool`);
+    _NONE for anything else."""
     program = _program(words[0])
     if _INTERPRETER.fullmatch(program) or program in _SHELLS:
         return _script(words)
     if _pathlike(words[0]):
-        return _endings(words[0], _RUN_ENDINGS), True
-    if program == "make":
-        return _make(words[1:])
-    if program in ("docker", "docker-compose"):
-        return _docker(["compose", *words[1:]] if program == "docker-compose" else words[1:])
-    return (list(_PACKAGE_JSON), True) if program in _NODE_PACKAGES else _NONE
+        return _Files(_endings(words[0], _RUN_ENDINGS), True)
+    return _plain_tool(words)
 
 
 def _named_file(root: Path, command: str, cwd: str) -> tuple[Path | None, bool]:
-    """The file `command` (run in `cwd` of `root`: the project, or a copy of it) runs or reads
-    as its program (`_files`: `node x.js`, `node x`, `python -m x`, `./x.sh`, `bash x.sh`,
-    `powershell -File x.ps1`, `.\\x`, make's Makefile, a Dockerfile, a package.json), its full
-    path - the first that is a file in `root` -, and whether the line runs or reads one at all.
-    (None, True): one is run that was not found (out of `root`, say) - no digest, and nothing is
-    kept for the line; (None, False): it runs no file of the folder's (`curl`)."""
+    """The file `command` (run in `cwd` of `root`: the project, or a copy of it) runs as its
+    program (`_files`: `node x.js`, `node x`, `python -m x`, `./x.sh`, `bash x.sh`, `powershell
+    -File x.ps1`, `.\\x`, the first word of a shell's code, make's Makefile, a Dockerfile, a
+    package.json), its full path - the first that is a file in `root` -, and whether it is all
+    of what the line runs (`_Files.exact`). (None, False): none found."""
     words = [word.strip("'\"") for word in _words(command)]
     words = words[1:] if words[:1] in (["&"], ["."]) else words  # (PowerShell's call)
-    names, expects = _files(words) if words else _NONE
+    names, exact = _files(words) if words else _NONE
     home = root.resolve()
     for name in names:
         try:
             path = (root / cwd / name).resolve()
             if name and path.is_relative_to(home) and path.is_file():
-                return path, True
+                return path, exact
         except (OSError, ValueError):
             continue
-    return None, expects
+    return None, False
+
+
+def _no_local_code(root: Path, command: str, cwd: str) -> bool:
+    """Whether a line runs none of the folder's code, so its words alone may be its key: one
+    plain command (`is_plain`, not wrapped nor in a shell), its program bare and one of
+    `RUNS_NO_LOCAL_CODE`, and - for one told what to read (`_READS_NAMED`) - no word of it, nor
+    a value after `=` or `@`, naming a path in the folder."""
+    if not is_plain(command) or is_wrapped(command) or _in_a_shell(command):
+        return False
+    words = [word.strip("'\"") for word in _words(command.strip())]
+    program = _program(words[0]) if words else ""
+    if not words or _pathlike(words[0]) or program not in RUNS_NO_LOCAL_CODE:
+        return False
+    parts = [part.lstrip("@") for word in words[1:] for part in (word, *word.split("=")[1:])]
+    return program not in _READS_NAMED or not any(
+        _in_folder(root, cwd, part) for part in parts if part and "://" not in part
+    )
+
+
+def _in_folder(root: Path, cwd: str, part: str) -> bool:
+    """Whether a word names a path in the folder (True where that cannot be told: fails closed)."""
+    try:
+        path = (root / cwd / part).resolve()
+        return path.is_relative_to(root.resolve()) and path.exists()
+    except (OSError, ValueError):
+        return True
 
 
 def _agents(factory, cid: str, root: Path, path: Path) -> bool:
@@ -274,10 +333,13 @@ def _program_read(path: Path, root: Path) -> tuple[tuple[str, str, int], str]:
 
 
 class _Seen(NamedTuple):
-    """What of a line besides it the judge goes by: the file it runs by its name (`_named_file`;
-    None: none found, or its folder no fact), that program as shown where an agent wrote it, its
-    digest ("": none), and what the same agent ran before it in the turn."""
+    """What of a line besides it the judge goes by: where it runs (`root`, `cwd`), the file it
+    runs by its name (`_named_file`; None: none found, or its folder no fact), that program as
+    shown where an agent wrote it, its digest ("": none), and what the same agent ran before it in
+    the turn."""
 
+    root: Path
+    cwd: str | None  # (None: no fact - `_risk_judged`'s `known`)
     path: Path | None
     program: tuple[str, str, int] | None
     digest: str
@@ -312,8 +374,9 @@ class RiskJudgeMixin:
         model to ask). A card unasked: `risk_judge.risky_unasked`.
         `known`: False where `cwd` is no fact (a CLI's folder not known, or its model's word):
         then no program is read. Nothing is kept for such a line - neither its verdict, nor a Run
-        on its card -, nor for one whose program file was not found to hash (`_named_file`):
-        what it runs may change unseen, the same words in another folder be another line.
+        on its card -, nor for one but where the file it runs was found, hashed, and is all it
+        runs (`_named_file`), or it runs none of the folder's code (`_no_local_code`): what it
+        runs may change unseen, the same words in another folder be another line.
         Whatever goes wrong in it but a Stop is its card, never a run."""
         if exempt or found != ("", None):
             return found
@@ -331,9 +394,9 @@ class RiskJudgeMixin:
         self: "AgentRunner", ctx: Ctx, command: str, cwd: str, root: Path, known: bool
     ) -> tuple[bool, Path | None, tuple[str, str, int] | None, str, bool]:
         """Whether a line is ordinary (`risk_judge.ordinary`, nothing it runs an agent's); the
-        file it runs or reads as its program (`_named_file`, where `known`); that program as the
-        judge is shown it where an agent wrote it (`_agents`); its digest whoever wrote it ("":
-        no file found); and whether the line runs such a file at all. Blocking."""
+        file it runs as its program (`_named_file`, where `known`); that program as the judge is
+        shown it where an agent wrote it (`_agents`); its digest whoever wrote it ("": no file
+        found); and whether that file is all the line runs (`_Files.exact`). Blocking."""
         npm = [_program(word) for word in _words(command.strip())[:1]] == ["npm"]  # (npm.cmd)
         plain = (
             risk_judge.ordinary(command, npm_run=True)
@@ -342,12 +405,12 @@ class RiskJudgeMixin:
             # its writes of one (or of a lock, a runner's setting) still stands: as npx's reads
             and not (npm and _planted(self._factory, ctx.cid, root, "npx -", cwd))
         )
-        path, expects = (None, False) if plain or not known else _named_file(root, command, cwd)
+        path, exact = (None, False) if plain or not known else _named_file(root, command, cwd)
         if path is None:
-            return plain, None, None, "", expects
+            return plain, None, None, "", False
         shown, digest = _program_read(path, root)
         agents = _agents(self._factory, ctx.cid, root, path)
-        return plain, path, shown if agents else None, digest, True
+        return plain, path, shown if agents else None, digest, exact
 
     async def _risk_judging(
         self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, root: Path, known: bool
@@ -367,16 +430,18 @@ class RiskJudgeMixin:
             project_id = project.id
             own = project_map.own_test(project.test_commands, command, cwd)
             earlier = self._risk_earlier(session, ctx)
-        plain, path, program, digest, expects = await asyncio.to_thread(
+        plain, path, program, digest, exact = await asyncio.to_thread(
             self._risk_line, ctx, command, cwd or ".", root, known
         )
         # (the user's own test command is theirs - but not where it runs a program an agent wrote)
         if plain or own and program is None:
             return "", None
-        # (a line that runs a file not found keeps nothing: what it runs may change unseen; one
-        # that runs none of the folder's - `curl` - is its words alone)
-        kept = known and (digest or not expects)
-        key = (command.strip(), cwd or "", digest, str(root)) if kept else None
+        # (fails closed: a key - its verdict kept for the turn, a Run on its card, "don't ask again
+        # here" - only where all it runs is known as it is: the file found, hashed, is all of it,
+        # or it runs none of the folder's code; else what it runs may change unseen)
+        hashed = bool(digest) and exact
+        kept = known and (hashed or _no_local_code(root, command, cwd or "."))
+        key = (command.strip(), cwd or "", digest if hashed else "", str(root)) if kept else None
         if key and (
             self._risk_cache.get(ctx.run_id, {}).get(key) == "approved"
             or self._risk_allowed(project_id, key)
@@ -390,7 +455,7 @@ class RiskJudgeMixin:
             return CARD.format(why=why), {**record, "why": why}
         if ctx.run_id in self._risk_aside:
             return "", None
-        seen = _Seen(path, program, digest, earlier)
+        seen = _Seen(root, (cwd or ".") if known else None, path, program, digest, earlier)
         return await self._risk_asked(ctx, command, cwd, seen, key, record)
 
     @staticmethod
@@ -471,6 +536,8 @@ class RiskJudgeMixin:
                 self._koloni_line(ctx.cid, ctx.run_id, ASIDE.format(why=NO_MODEL))
                 return "", None
             if why := self._risk_no_room(session, ctx, picked, project):
+                self._koloni_line(ctx.cid, ctx.run_id, NOT_ASKED_LINE.format(why=why))
+                why = NOT_ASKED.format(why=why)
                 return CARD.format(why=why), {**record, "why": why}
             asking, mode = self._on(session, ctx, *picked)
         program = seen.program
@@ -489,12 +556,22 @@ class RiskJudgeMixin:
         if got is None:
             return CARD.format(why=failed), {**record, "why": failed}
         record = {**record, **got, "why": raw.hidden(got["why"])}
-        if seen.path and await asyncio.to_thread(_digest, seen.path) != seen.digest:
+        if await asyncio.to_thread(self._risk_moved, command, seen):
             return CARD.format(why=CHANGED), {**record, "verdict": "risky", "why": CHANGED}
         if full:
             cache[full] = record
         why = record["why"] or NO_REASON
         return ("" if got["verdict"] == "fine" else CARD.format(why=why)), record
+
+    @staticmethod
+    def _risk_moved(command: str, seen: _Seen) -> bool:
+        """Whether what the line runs changed while the judge looked: the file it runs, found anew
+        (`_named_file`: a link or a junction set elsewhere meanwhile, one made or taken away), is
+        another, or its digest is. Not for a line whose folder is no fact: nothing was found."""
+        if seen.cwd is None:
+            return False
+        path, _exact = _named_file(seen.root, command, seen.cwd)
+        return path != seen.path or path is not None and _digest(path) != seen.digest
 
     async def _risk_asks(
         self: "AgentRunner", ctx: Ctx, asking: Ctx, mode: str | None, asked: str
