@@ -283,3 +283,29 @@ class StoryBranchMixin:
         with contextlib.suppress(Exception):
             if said := await self._secret_branch_gone(ctx, copy):
                 self._koloni_line(ctx.cid, ctx.run_id, said)
+
+    async def _branch_look(self: "AgentRunner", copy: copies.Copy) -> dict:
+        """`git.branch_look` of a branch copy, with its name - and where git did not say,
+        nothing to merge yet and why (`note`). W-1: measured from the snapshot it began from."""
+        try:
+            found = await asyncio.to_thread(
+                git.branch_look, copy.project, copy.branch or "", copy.start, copy.snapshot_sha
+            )
+        except git.Refused as exc:
+            return {
+                "name": copy.branch,
+                "into": None,
+                "files": {},
+                "conflicts": [],
+                "dirty": [],
+                "special": [],
+                "drift": None,
+                "half": None,
+                "tip": None,
+                "share": None,
+                "yours": [],
+                "since": None,
+                "over": [],
+                "note": str(exc),
+            }
+        return {"name": copy.branch, **found, "note": None}
