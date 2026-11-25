@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from sqlalchemy import literal_column, or_, select
+from sqlalchemy import func, literal_column, or_, select
 
 from app import injection, ledger, proof, proof_before, proof_related, recipe_run
 from app.agent import merge
@@ -351,6 +351,17 @@ class ProofMixin:
                 return held, said
         self._pass_ended(held, rounds, None)
         return held, None
+
+    def _calls_of(self: "AgentRunner", ctx: Ctx) -> int:
+        with self._factory() as session:
+            return (
+                session.scalar(
+                    select(func.count())
+                    .select_from(ToolCall)
+                    .where(ToolCall.agent_id == ctx.agent_id)
+                )
+                or 0
+            )
 
     def _lead_opened(self: "AgentRunner", run_id: str, lead_id: str) -> list[str]:
         """The agents the turn's Lead opened by a call of its own, oldest first - a spawn, or a

@@ -7146,17 +7146,6 @@ class AgentRunner(
             is not None
         )
 
-    def _calls_of(self, ctx: Ctx) -> int:
-        with self._factory() as session:
-            return (
-                session.scalar(
-                    select(func.count())
-                    .select_from(ToolCall)
-                    .where(ToolCall.agent_id == ctx.agent_id)
-                )
-                or 0
-            )
-
     def _nudge(self, ctx: Ctx, words: str) -> None:
         """`words` follow the agent's last message in what it sees from its next step on."""
         with self._factory() as session:
