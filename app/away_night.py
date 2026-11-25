@@ -1,8 +1,9 @@
-"""The night on Ready for you (karar defteri, Part B; §3.4): what `away.report` adds to each job
-of a night that ended, for its strip and its Markdown - when its turns of the night began and
-ended, what was decided for the user in its chat, and what KOLONİ's checks did not do. From the
-records alone: a time no record holds is None - never the night's own, nor now - and so is what
-was not checked where no record says."""
+"""The night on Ready for you (karar defteri, Part B; §3.4): what Ready's night alone
+(`api.away.read_night`: never a chat's snapshot, nor an action's answer) adds to each job of a
+night that ended, for its strip and its Markdown - when its turns of the night began and ended,
+what was decided for the user in its chat, and what KOLONİ's checks did not do. From the records
+alone: a time no record holds is None - never the night's own, nor now - and so is what was not
+checked where no record says."""
 
 from datetime import datetime
 
@@ -101,11 +102,12 @@ def add(session: Session, away: AwayRun, jobs: list[dict], tasks: dict[str, Back
     ended = away.ended_at
     if away.status != "ended" or away.started_at is None or ended is None:
         return
-    # (Nothing of what undoes a row is asked: the strip and its Markdown show none - and a report
-    # is read for every night of a chat, after each decision of the morning. Every row of the night,
-    # not the project's newest `decisions.MOST`: those of a busy job hid an earlier job's.)
-    # shortcut: every decision of the night is masked and built, read at once; cut each job's to
-    # its newest with the real total said ("500 of 812") if a night is seen to hold too many.
+    # (Nothing of what undoes a row is asked: the strip and its Markdown show none. Every row of
+    # the night, not the project's newest `decisions.MOST`: those of a busy job hid an earlier
+    # job's.)
+    # shortcut: every decision of the night is masked and built, at once, in Ready's read alone (a
+    # worker thread); cut each job's to its newest with the real total said ("500 of 812") if a
+    # night is seen to hold too many.
     log = decisions.of(session, away.project_id, away.started_at, ended, undo=False, every=True)
     by_chat: dict[str, list[Decision]] = {}
     for row in log.rows:

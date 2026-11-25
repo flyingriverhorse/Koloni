@@ -258,7 +258,7 @@ def nights_of_answers(client, root, answers, nights=3):
     pid, evening = chat(client, root / "a")
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     files = [
-        {"path": f"f{i}.py", "kind": "modified", "state": "refused", "diff": "+x" * 50}
+        {"path": f"f{i}.py", "kind": "changed", "state": "refused", "diff": "+x" * 50}
         for i in range(20)
     ]
     with client.app.state.session_factory() as session:
@@ -329,12 +329,8 @@ def test_a_report_asks_nothing_of_what_undoes_its_decisions(client, tmp_path, mo
     monkeypatch.setattr(decisions, "work", lambda *one: asked.append(one) or real(*one))
     few, cid_few = nights_of_answers(client, tmp_path / "few", answers=1)
     many, cid_many = nights_of_answers(client, tmp_path / "many", answers=10)
-    for cid in (cid_few, cid_many):
-        assert all(
-            len(job["decisions"])
-            for one in client.get(f"/api/conversations/{cid}/away").json()
-            for job in one["jobs"]
-        )
+    for pid in (few, many):
+        assert all(len(job["decisions"]) for job in jobs(client, pid).values())
     assert asked == []
     # No query an answer more: ten answers a night read as one does.
     assert queries(client, f"/api/conversations/{cid_many}/away") == queries(
@@ -346,6 +342,33 @@ def test_a_report_asks_nothing_of_what_undoes_its_decisions(client, tmp_path, mo
     # (Ready's log still asks it: its rows' Change and redo.)
     client.get(f"/api/projects/{many}/decisions", params={"unseen": "true"})
     assert asked
+
+
+def test_only_readys_night_builds_the_strip(client, tmp_path, monkeypatch):
+    # (The review, 0.1.9: a chat's snapshot - on the event loop - built every night's strip, all
+    # its decisions: 7.9 s for 3 nights of 3,000 decisions, 0.08 s without. So did each action's
+    # answer. Ready's night alone reads it.)
+    pid, cid = nights_of_answers(client, tmp_path / "many", answers=300)
+    few, cid_few = nights_of_answers(client, tmp_path / "few", answers=1)
+    built = []
+    monkeypatch.setattr(away_night, "add", lambda *one: built.append("add"))
+    monkeypatch.setattr(decisions, "of", lambda *one, **more: built.append("of"))
+    assert len(client.get(f"/api/conversations/{cid}").json()["away"]) == 2
+    assert len(client.get(f"/api/conversations/{cid}/away").json()) == 2
+    with client.app.state.session_factory() as session:
+        night = session.query(AwayRun).filter(AwayRun.conversation_id == cid).all()[-1]
+        task = session.query(BacklogTask).filter(BacklogTask.away_run_id == night.id).one()
+        task.away_state = "waits"
+        session.commit()
+        stop = f"/api/away/{night.id}/jobs/{task.id}/stop"
+    assert client.post(stop).status_code == 200  # (Stop this task: its answer is a report)
+    assert built == []
+    jobs(client, pid)  # (Ready's night)
+    assert built == ["add"]
+    # (as many queries for 300 answers a night as for one)
+    monkeypatch.undo()
+    snapshot = queries(client, f"/api/conversations/{cid}")
+    assert snapshot == queries(client, f"/api/conversations/{cid_few}")
 
 
 def two_jobs(client, root, later: int) -> str:
