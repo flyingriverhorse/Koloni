@@ -7,7 +7,7 @@ side: together they are the full verify, on GitHub's machines rather than yours.
 
 | When | Workflow | What |
 |---|---|---|
-| Each push and pull request to `main` | `pr-check.yml` | actionlint on every workflow; `backend.yml` (pytest in six parallel parts; ruff, the file size check (`scripts/check_file_size.py`), ty and `check:api` in a seventh); `frontend.yml` (lint, typecheck, complexity, vitest, build); `docs-check.yml` (the guide's checks); the SonarQube Cloud scan, only when the secret `SONAR_TOKEN` is set. A newer push to the same branch cancels the older run, except on `main` |
+| Each push and pull request to `main` | `pr-check.yml` | actionlint on every workflow; `backend.yml` (pytest in six parallel parts; ruff, the file size check (`scripts/check_file_size.py`), ty, vulture, Pyrefly and `check:api` in a seventh); `frontend.yml` (lint, typecheck, complexity, vitest, build); `docs-check.yml` (the guide's checks); the SonarQube Cloud scan, only when the secret `SONAR_TOKEN` is set. A newer push to the same branch cancels the older run, except on `main` |
 | A push or pull request that changes only `docs/` (but `docs/settings.md`, which a test reads), `pages/`, README / SECURITY / CHANGELOG and the like | `docs-check.yml` alone when the guide or one of those three changed; otherwise nothing | `pr-check.yml`'s `paths` list what is skipped |
 | Each pull request to `main` (same `paths` as PR Check); weekly (Mondays 03:30 UTC), only when the repository variable `HEAVY_WEEKLY` is `true`; by hand on any branch | `heavy.yml` | e2e (Playwright, Ubuntu, in three shards); `backend.yml`'s pytest parts on Windows (Python 3.12, twelve parts) and on Ubuntu (six) with Python 3.13 and 3.14 (no lint part: PR Check lints); the Docker image build (by hand only, tick `docker`) |
 | Each pull request to `main` (same `paths` as PR Check); by hand on any branch | `macos.yml` | `backend.yml`'s six pytest parts on macOS (Python 3.12). Apart from PR Check while macOS is new: a failure shows on the pull request but holds neither a merge nor a release |
@@ -18,12 +18,20 @@ side: together they are the full verify, on GitHub's machines rather than yours.
 | Weekly (Mondays 06:00 UTC); by hand | `security.yml` | `pip-audit` on `requirements-dev.lock` and `npm audit --omit=dev` on `frontend/package-lock.json`; reads the lock files, installs nothing. A finding fails the run |
 | Each pull request | `labeler.yml` | Labels it by the paths it changes (`.github/labeler.yml`): backend, migrations, frontend, tests, docs, ci, dependencies |
 | A push to `main` that changes `CHANGELOG.md` or `pyproject.toml`; by hand | `release-drafter.yml` | Keeps a draft release `v<version>` with the notes from `CHANGELOG.md` (`.github/scripts/release_notes.py --draft`: the version's section, or `[Unreleased]` until it is cut) |
-| Each push to `main` (stops in seconds unless release-ready); a pushed tag `v*`; by hand | `release.yml` | A `gate` job: on `main`, goes on only when `pyproject.toml`'s version has no tag `v<version>` yet and `CHANGELOG.md` has a dated `## [X.Y.Z] - YYYY-MM-DD` section with entries (`release_notes.py --ready`). Then checks the tag is `v` + that version and the changelog has its dated section; ruff, ty, the frontend's lint and build; publishes the GitHub Release (the draft if there is one) with the notes and the source plus `frontend/dist` as `.tar.gz` and `.zip`, with `SHA256SUMS`, once that commit's PR Check run on `main` has passed (a warning when its paths skipped it); from `main` it first creates the tag `v<version>` at the pushed commit |
+| Each push to `main` (stops in seconds unless release-ready); a pushed tag `v*`; by hand | `release.yml` | A `gate` job: on `main`, goes on only when `pyproject.toml`'s version has no tag `v<version>` yet and `CHANGELOG.md` has a dated `## [X.Y.Z] - YYYY-MM-DD` section with entries (`release_notes.py --ready`). Then checks the tag is `v` + that version and the changelog has its dated section; ruff, ty, vulture, Pyrefly, the frontend's lint and build; publishes the GitHub Release (the draft if there is one) with the notes and the source plus `frontend/dist` as `.tar.gz` and `.zip`, with `SHA256SUMS`, once that commit's PR Check run on `main` has passed (a warning when its paths skipped it); from `main` it first creates the tag `v<version>` at the pushed commit |
 | Weekly | Dependabot (`.github/dependabot.yml`) | Update pull requests for pip (`pyproject.toml`), npm (`frontend/`) and GitHub Actions; minor and patch grouped into one pull request per ecosystem |
 
 `backend.yml`, `frontend.yml` and `docs-check.yml` can each be started alone from the Actions tab
 (Run workflow); `backend.yml` takes the Python version, the runner (`os`), whether to lint and
 whether to measure coverage.
+
+Beside ruff and ty, the lint part runs:
+
+- **vulture** (`python -m vulture`): code nothing calls in `app/` and `scripts/`, where it is 80% sure or
+  more; its settings are `[tool.vulture]` in `pyproject.toml`.
+- **Pyrefly** (`python -m pyrefly check --python-interpreter-path <python> --min-severity warn`): a second
+  type checker beside ty, set in `pyrefly.toml`; its warnings fail too. `pyrefly-baseline.json` holds
+  findings in files other open branches change, till those are in.
 
 **The heavy set by hand:** Actions → Heavy → Run workflow, on the branch you want, with no pull
 request needed. With the GitHub CLI: `gh workflow run heavy.yml --ref <branch>` (add

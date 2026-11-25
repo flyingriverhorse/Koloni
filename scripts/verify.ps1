@@ -1,6 +1,6 @@
-# Runs every check for the repo: backend tests, lint and types, then the
+# Runs every check for the repo: backend tests, lint, dead code and types, then the
 # frontend's generated-types check, lint, typecheck, unit tests, build, the guide's checks and e2e.
-# -BackendOnly: the first three only.
+# -BackendOnly: the backend's only.
 param([switch]$BackendOnly)
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
@@ -26,6 +26,8 @@ Step 'pytest' { & $py -m pytest -q -n auto --durations=25 }
 Step 'ruff'   { & $py -m ruff check app tests scripts alembic }
 Step 'file size' { & $py scripts/check_file_size.py }
 Step 'ty'     { & $py -m ty check app }
+Step 'vulture' { & $py -m vulture }
+Step 'pyrefly' { & $py -m pyrefly check --python-interpreter-path $py --min-severity warn }
 if (-not $BackendOnly -and (Test-Path frontend/package.json)) {
   Set-Location frontend
   Step 'api types' { npm run check:api }

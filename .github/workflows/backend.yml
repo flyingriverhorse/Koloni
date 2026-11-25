@@ -158,6 +158,14 @@ jobs:
       - name: ty
         if: matrix.part == 'lint'
         run: '"$PY" -m ty check app'
+      - name: vulture
+        # Code nothing calls: app and scripts, 80% sure or more (pyproject.toml's [tool.vulture]).
+        if: matrix.part == 'lint'
+        run: '"$PY" -m vulture'
+      - name: Pyrefly
+        # A second type checker beside ty (pyrefly.toml); its warnings fail the step too.
+        if: matrix.part == 'lint'
+        run: '"$PY" -m pyrefly check --python-interpreter-path "$PY" --min-severity warn'
       - name: API types (check:api)
         if: matrix.part == 'lint'
         run: npm run check:api

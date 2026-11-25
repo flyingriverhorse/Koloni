@@ -15,11 +15,13 @@ cd ..
 2. `ruff check app tests scripts alembic`;
 3. `scripts/check_file_size.py` (below);
 4. `ty check app`;
-5. in `frontend/`: the generated-API-types check, oxlint, the type check, the complexity check, Vitest,
+5. `vulture`: code nothing calls, in `app/` and `scripts/` (below);
+6. `pyrefly check`: a second type checker beside ty (below);
+7. in `frontend/`: the generated-API-types check, oxlint, the type check, the complexity check, Vitest,
    the build, the guide's checks (below; skipped when Zensical is not installed), and the Playwright
    end-to-end tests.
 
-`-BackendOnly` runs only the first four. On Linux and macOS, run the script with `pwsh`; on Linux,
+`-BackendOnly` runs only the first six. On Linux and macOS, run the script with `pwsh`; on Linux,
 install Playwright's browser with `--with-deps`.
 
 The parallel test run can load a machine heavily. `PYTEST_XDIST_AUTO_NUM_WORKERS` sets how many processes
@@ -54,6 +56,19 @@ listed file that shrank is a note with its new count. `scripts/check_file_size.p
 count to its file's own and takes off the files at the limit or under, or gone, then checks; it never
 raises a count nor adds a file. Moving or renaming a listed file makes it look new: change its path in the
 list by hand.
+
+## Dead code and a second type checker
+
+`vulture` fails on code nothing calls in `app/` and `scripts/`, where it is 80% sure or more
+(`[tool.vulture]` in `pyproject.toml`; under 80 it is mostly FastAPI routes and pydantic fields it cannot
+see used). Delete what it finds; a name it takes for dead wrongly goes in `ignore_names` there, with why.
+
+`pyrefly check --min-severity warn` is a second type checker beside ty, on `app/` (`pyrefly.toml`): its
+default checks but `invalid-annotation`, which the runner's mixins (`self: "AgentRunner"`) trip, and its
+warnings fail it too. Fix what it finds. Where it is wrong, put `# pyrefly: ignore[<kind>]  # (why)` on the
+line as its first comment - ruff then leaves the line's length alone; where `ruff format` would split the
+line for the comment, a `# fmt: skip` on the statement keeps it. `pyrefly-baseline.json` holds, for now,
+findings in files that other open branches change.
 
 ## End-to-end tests
 
@@ -111,7 +126,7 @@ The first needs a model server on port 8080 and, for its CLI tests, signed-in `c
 ## CI
 
 Each push and pull request to `main` runs the same checks once, on Ubuntu with Python 3.12
-(`.github/workflows/pr-check.yml`): pytest, ruff, the file size check and ty, the API types, the
+(`.github/workflows/pr-check.yml`): pytest, ruff, the file size check, ty, vulture and Pyrefly, the API types, the
 frontend's lint, typecheck, complexity, unit tests and build, and the guide's checks. A change to the guide or the
 plans alone runs only the guide's checks, or nothing.
 

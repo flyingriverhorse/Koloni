@@ -31,6 +31,9 @@ dev = [
   "pytest-xdist>=3.6,<4",
   "ruff>=0.16,<0.17",
   "ty>=0.0.80,<0.1",
+  # CI's lint part beside ruff and ty: dead code, and a second type checker (pyrefly.toml). MIT both.
+  "vulture>=2.16,<3",
+  "pyrefly>=1.5,<1.6",
 ]
 # The user guide (docs): `zensical build` (zensical.toml).
 docs = [
@@ -46,6 +49,15 @@ markers = ["live: needs a running local model; excluded from verify",
            "no_po: counts model calls the Assistant PO's own request would add to",
            "judge: Full auto's judge is asked (off in every other test: tests/conftest.py)"]
 addopts = "-m 'not live' -p no:cacheprovider"
+
+[tool.vulture]
+# CI lint: `python -m vulture` - code nothing calls, where it is 80% sure or more (below, mostly
+# FastAPI routes and pydantic fields it cannot see used).
+paths = ["app", "scripts"]
+min_confidence = 80
+# SQLAlchemy calls `TypeDecorator.process_result_value` with it (`app.db.models`); ty and Pyrefly
+# hold an override to the parameter's name.
+ignore_names = ["dialect"]
 
 [tool.ruff]
 target-version = "py312"
