@@ -405,20 +405,30 @@ and the next one starts. A command over 4,000 characters, or one that - or the p
 it runs, or one of the earlier commands it would be shown - reads like orders to a model, is a card without
 asking. So is one the judge gave no answer for in 20 seconds (90 for a model on a CLI), gave an answer it
 could not read for, or could not be asked about now - no room on its model's provider (its limit, this
-month's budget) or the turn past its token limit: "it could not be asked: …" -, and one whose program
-changed while the judge looked: every time - an agent can write a command that slows, confuses or spends
-the judge, so none of these lets a command run.
+month's budget) or the turn past its token limit: "it could not be asked: …", and the chat says once in
+the turn `Full auto's judge could not be asked this turn: {why}. Each command it would look at asks you.` -,
+and one whose program changed while the judge looked (a link pointed elsewhere too): every time - an agent
+can write a command that slows, confuses or spends the judge, so none of these lets a command run.
 
-**Its card** offers **Run once** and **Reject**, and a box, **Don't ask about this line again here**.
-Run once runs the line, and the judge does not ask about it again in that turn; with the box ticked, not in
-this project either. A line is kept with its folder and, where it runs or reads a file of the project's (a
-script, a module, a Makefile, a Dockerfile, a `package.json`), with that file as it was: once the file
-changes, it is another line, asked again. A line that runs no file of the folder's (`curl …`, `git push …`,
-`pip install …`) is its words alone. Nothing is kept - the card has no box, and the line is asked about each
-time - where KOLONİ does not know the folder the line runs in (a CLI that does not say), or where the line
-runs a file KOLONİ did not find (`python -m x` with no `x.py`, `make` with no Makefile, `docker build` with
-no Dockerfile in its context). No **Always run** is offered, and an Always run rule does not let a command
-past the judge: a rule matches by its first words, and `python` would cover `python -c …`.
+**Its card** offers **Run once** and **Reject**, and, where KOLONİ can keep the line, a box, **Don't ask
+about this line again here**. Run once runs the line, and the judge does not ask about it again in that
+turn; with the box ticked, not in this project either. Both are kept only where the folder the line runs in
+is known and KOLONİ knows all the line runs, as it is:
+
+- a file of the project's it runs, found and unchanged, in a plain form that runs that file and nothing
+  more - `python x.py`, `node x.js`, `make` or `make target` (its Makefile), `make -f F`, `npm test` or
+  `npm run <script>` (that folder's `package.json`), `docker build [-f F] [-t T] .` (its Dockerfile). Once
+  the file changes, it is another line, asked again;
+- or one plain command of a few that run none of the project's code, kept by its words: `curl`, `wget`,
+  `git`, `gh` (where no word names a path in the folder), and the file commands `rm`, `rmdir`, `del`,
+  `mkdir`, `md`, `cp`, `copy`, `mv`, `move`, `ren`, `chmod`, `touch`.
+
+Every other line is asked about each time it runs, and its card has no box: a wrapped line (`env …`, `uv
+run …`, `timeout …`), a shell's code (`bash -lc …`, `cmd /c …`), `npx …`, a line sent to another folder
+(`-C`, `--prefix`, `-w`, `--cwd`), an option that loads more code (`node -r x`), a runner KOLONİ does not
+know, a file it did not find (`python -m x` with no `x.py`), or a line whose folder is not known (a CLI
+that does not say). No **Always run** is offered, and an Always run rule does not let a command past the
+judge: a rule matches by its first words, and `python` would cover `python -c …`.
 
 **Where it stands aside:** only with no model to ask - no Judge model chosen that can be asked, and none in
 the Fast tier. It says once in the chat "Full auto's judge is off for this turn: …" and the rest of the

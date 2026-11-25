@@ -143,9 +143,13 @@ messages.
       is not shown it.
     - **Don't ask about this line again here** cannot be listed or undone in the app yet; what it keeps
       goes with the project.
-    - Where KOLONİ does not know the folder a line runs in, or did not find the file it runs (`python
-      -m x` with no `x.py`, `make` with no Makefile), nothing is kept for the line: it is asked about
-      every time, and its card has no **Don't ask about this line again here**.
+    - A Run on its card, and **Don't ask about this line again here**, keep only a line whose whole run
+      KOLONİ knows - a project file it runs in a plain form, hashed, or one plain `curl`, `wget`, `git`,
+      `gh` or file command. Any other form - a wrapper, a shell's code, `npx`, a line sent to another
+      folder, a runner KOLONİ does not know, a file it did not find, a folder it does not know - is
+      asked about every time, and its card has no box: it fails closed, at the cost of more questions.
+    - A kept `git` line can still run the project's own git aliases and settings (git hooks are off
+      for agents); `git` is kept by its words, as its subcommand is not the project's code.
     - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
     - Each command it looks at waits for one model request and a few seconds; where only a CLI can be
       asked, from that CLI's quota, and each such command waits for the CLI to start.

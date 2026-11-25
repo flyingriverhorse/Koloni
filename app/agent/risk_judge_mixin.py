@@ -605,7 +605,7 @@ class RiskJudgeMixin:
         digest of the program it ran as the judge saw it and where it ran (a copy, say) - is not
         asked again this turn, and with `remember` (its card's "Don't ask about this line again
         here") nor in this project again, in any copy. Nothing for another card, nor for one
-        with no key (`_risk_judged`'s `known`, or no program file found: `risk_judge.kept`)."""
+        with no key (`_risk_judging`'s `kept`, as `risk_judge.kept` reads it from the record)."""
         with self._factory() as session:
             row = session.get(Command, command_id)
             record = row.judged if row is not None else None

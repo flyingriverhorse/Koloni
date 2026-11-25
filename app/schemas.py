@@ -1293,8 +1293,8 @@ class CommandOut(BaseModel):
     # K-yargic: what the check of the user's words said of it; None: not checked.
     judged: Judged | None = None
     # Full auto's judge's card: whether a Run on it can keep its line ("Don't ask about this line
-    # again here") - not where the judge did not look, where its folder is no fact, nor where the
-    # file it runs was not found (`risk_judge.kept`).
+    # again here") - not where the judge did not look, nor where KOLONİ does not know all the line
+    # runs: its folder, a wrapper, a shell's code, a file not found (`risk_judge.kept`).
     keeps_line: bool = False
     # Coordination §4: what of it is disposable; None: nothing. Its own, not `judged`'s: no card
     # of Decided for you.

@@ -984,13 +984,38 @@ def test_dont_ask_again_keeps_nothing_for_a_wrapped_line(judging, wait_run, proj
         [Script([])],
     )
     _, cid, first = go(client, project_dir)
-    card(client, cid, "approve", remember_line=True)
+    # (so its card does not offer "Don't ask about this line again here")
+    assert card(client, cid, "approve", remember_line=True)["keeps_line"] is False
     wait_run(client, cid, first)
     client.post(f"/api/conversations/{cid}/messages", json={"content": "again"}, headers=OWN)
     card(client, cid)
     assert len(judge.calls) == 2
     with client.app.state.session_factory() as session:
         assert session.scalars(select(JudgeAllowed)).all() == []
+
+
+@pytest.mark.parametrize(
+    "line, offered",
+    [
+        ("curl https://example.com/x", True),
+        ("git fetch origin", True),
+        ("env python exfil.py", False),
+        ("uv run exfil.py", False),
+        ("bash -lc 'python exfil.py'", False),
+    ],
+)
+def test_the_cards_box_is_offered_only_where_the_line_is_kept(
+    judging, wait_run, project_dir, line, offered
+):
+    # (the box goes by `risk_judge.kept`, as `_risk_approved` does: a plain command of the few
+    # that run none of the folder's code keeps its words; a wrapped line or a shell's code nothing)
+    client, *_ = judging(
+        [write("exfil.py", BENIGN), cmd(line, id="k1"), text("left")], [said("risky")], [Script([])]
+    )
+    _, cid, run_id = go(client, project_dir)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert asked["keeps_line"] is offered, asked["command"]
 
 
 def test_a_posix_shells_code_is_shown_with_the_file_it_runs(judging, wait_run, project_dir):
