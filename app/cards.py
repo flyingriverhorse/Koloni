@@ -41,6 +41,7 @@ REASONS = {
     "web": "The web, with web tools off",
     "server": "Starts a server",
     "rule": "No rule covers it",
+    "judge": "Full auto's judge found it risky",
     "other": "Another reason",
 }
 # A reason's sentence (`harms`, `copy_reason`, `installs`, `runs_another`, `web_off_reason`, the
@@ -60,6 +61,7 @@ _FAMILIES = (
     ("standing", r"(?:Names|Sets this project's git|Applies a patch)\b"),
     ("outside", r"(?:it names|it writes in|Climbs out|Makes a link|Opens a git worktree)\b"),
     ("web", r"web is off\b"),
+    ("judge", r"KOLONİ's judge: "),  # (Full auto's judge's card: `risk_judge.CARD`)
 )
 _FAMILY = [(name, re.compile(pattern)) for name, pattern in _FAMILIES]
 

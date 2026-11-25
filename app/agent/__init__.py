@@ -243,6 +243,7 @@ from app.agent.questions_mixin import USER_TOLD as USER_TOLD
 from app.agent.questions_mixin import QuestionsMixin
 from app.agent.record_mixin import RecordMixin
 from app.agent.review_mixin import ReviewMixin
+from app.agent.risk_judge_mixin import RiskJudgeMixin
 from app.agent.rooms_mixin import CODEX_NATIVE_NO_RECIPE as CODEX_NATIVE_NO_RECIPE
 from app.agent.rooms_mixin import RoomsMixin
 from app.agent.skills_mixin import SkillsMixin
@@ -1211,6 +1212,7 @@ class AgentRunner(
     BrowserMixin,
     PoMixin,
     JudgeMixin,
+    RiskJudgeMixin,
     ProofMixin,
     FoundMixin,
     ProofLaterMixin,
@@ -1576,6 +1578,9 @@ class AgentRunner(
         self._judge_cache: dict[str, dict[tuple[str, str | None, str], dict | None]] = {}
         # ...and run -> how many it refused in a row and in all (`_judgement`).
         self._judge_refused: dict[str, tuple[int, int]] = {}
+        # Full auto's judge: run -> a line's key -> its record or "approved"; -> why it stood aside
+        self._risk_cache: dict[str, dict[tuple, dict | str]] = {}
+        self._risk_aside: dict[str, str] = {}
         # K-fullauto-sorma: run -> how often a failing check went back to the Lead (`_merge`).
         self._check_rounds: dict[str, int] = {}
         self._away_cut: dict[str, str] = {}
@@ -2349,6 +2354,8 @@ class AgentRunner(
         self._asked_again.pop(run_id, None)
         self._judge_cache.pop(run_id, None)
         self._judge_refused.pop(run_id, None)
+        self._risk_cache.pop(run_id, None)
+        self._risk_aside.pop(run_id, None)
         self._check_rounds.pop(run_id, None)
         self._away_cut.pop(run_id, None)
         if (timer := self._away_timers.pop(run_id, None)) is not None:
@@ -6224,6 +6231,14 @@ class AgentRunner(
             (night, None)
             if unasked
             else await self._judged(ctx, planned.command, planned.cwd_rel, night)
+        )
+        night, judged = await self._risk_judged(  # (Full auto's judge: it only adds a card)
+            ctx,
+            planned.command,
+            planned.cwd_rel,
+            place or ws.root,
+            (night, judged),
+            exempt=unasked or free or bool(in_a_copy),
         )
         in_a_copy = in_a_copy or night
         self._never_asked(review, planned.command, in_a_copy)

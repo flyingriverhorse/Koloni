@@ -296,6 +296,8 @@ class ProjectOut(Out):
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge").
     full_auto_check: FullAutoCheck
+    # Full auto's judge: a small model looks at each command the list does not stop first.
+    full_auto_judge: bool
     # Coordination §4: whether a disposable delete goes without a card at Auto-edit and Full
     # auto in a watched turn.
     disposable_deletes: bool
@@ -397,6 +399,7 @@ class ProjectPatch(BaseModel):
     # S1b: true forgets what KOLONİ found and saved as the project's test command, and its look.
     forget_tests_found: bool | None = None
     full_auto_check: FullAutoCheck | None = None
+    full_auto_judge: bool | None = None
     disposable_deletes: bool | None = None
 
 
@@ -1236,9 +1239,12 @@ class Judged(BaseModel):
     no card ("run": on `quote`, a line of the user's found in `source`), it was not run and its
     agent told that line ("refuse"), or it was asked ("ask"; `why`, the check's own sentence where
     it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
-    (Decided for you)."""
+    (Decided for you). Full auto's judge's (`kind` "risk"): "fine", it ran; "risky", its card -
+    `why`, the judge's sentence, or KOLONİ's where it was not asked or gave no answer to go by
+    (`model` then "" where none was asked)."""
 
-    verdict: Literal["run", "ask", "refuse"]
+    kind: Literal["", "risk"] = ""
+    verdict: Literal["run", "ask", "refuse", "fine", "risky"]
     quote: str = ""
     source: Literal["preferences", "rules", "message", ""] = ""
     why: str = ""
@@ -1286,6 +1292,10 @@ class CommandOut(BaseModel):
     preview_url: str | None
     # K-yargic: what the check of the user's words said of it; None: not checked.
     judged: Judged | None = None
+    # Full auto's judge's card: whether a Run on it can keep its line ("Don't ask about this line
+    # again here") - not where the judge did not look, nor where KOLONİ does not know all the line
+    # runs: its folder, a wrapper, a shell's code, a file not found (`risk_judge.kept`).
+    keeps_line: bool = False
     # Coordination §4: what of it is disposable; None: nothing. Its own, not `judged`'s: no card
     # of Decided for you.
     disposable: DisposableOut | None = None

@@ -296,6 +296,7 @@ test('a follow-up task the Orchestrator decided at Full auto: OK keeps its word,
 test('a command the check of your words let run waits under Decided for you until OK', async () => {
   const rule = 'You may delete build/ and dist/.'
   const judged = {
+    kind: '' as const,
     verdict: 'run' as const,
     quote: rule,
     source: 'rules' as const,
@@ -313,6 +314,9 @@ test('a command the check of your words let run waits under Decided for you unti
     command('c2', 'r', { judged: { ...judged, seen: true } }),
     command('c3', 'r', { judged: { ...judged, verdict: 'ask' } }),
     command('c4', 'r'),
+    // (Full auto's judge's: no line of yours decided these)
+    command('c5', 'r', { judged: { ...judged, kind: 'risk', verdict: 'fine', quote: '', source: '' } }),
+    command('c6', 'r', { judged: { ...judged, kind: 'risk', verdict: 'risky', quote: '', source: '' } }),
   ]
   render(
     <WaitingList
@@ -336,6 +340,7 @@ test('a command the check of your words let run waits under Decided for you unti
 test('a command a line of yours kept from running waits under Decided for you until OK, with no Run it', async () => {
   const rule = 'Never push to main.'
   const judged = {
+    kind: '' as const,
     verdict: 'refuse' as const,
     quote: rule,
     source: 'rules' as const,

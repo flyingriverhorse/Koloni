@@ -42,12 +42,17 @@ interface Props {
   checkFirst?: boolean
   /** Turn it on or off; without it (a plain chat) there is no project to set it on. */
   onCheckFirst?: (on: boolean) => void
+  /** 0.1.9: Full auto's judge, the project's - and its setter, none in a plain chat. */
+  judge?: boolean
+  onJudge?: (on: boolean) => void
   /** S10: Check after a change for this chat; without it (a plain chat, nothing to check) no switch. */
   checks?: Checks
 }
 
 const CHECK_FIRST =
   'Before a harmful-looking command waits for you at Full auto or while you’re away, your own words are read first; it runs without a card only where a line of yours names it.'
+const JUDGE =
+  'At Full auto and while you’re away, a small model looks at each command the list does not stop before it runs: one that looks risky waits for you.'
 
 /** A switch row of the panel: its name and what it does. */
 function SwitchRow({
@@ -110,12 +115,49 @@ function ChecksRow({ id, mode, checks }: { id: string; mode: PermissionMode; che
   )
 }
 
+/** Under the levels, the project's own switches at Full auto: its judge (0.1.9) and Check what I said first - none
+ *  without its setter (a plain chat). */
+function ProjectSwitches(p: {
+  id: string
+  judge: boolean
+  onJudge?: (on: boolean) => void
+  checkFirst: boolean
+  onCheckFirst?: (on: boolean) => void
+}) {
+  return (
+    <>
+      {p.onJudge && (
+        <SwitchRow id={`${p.id}-judge`} name="Full auto’s judge" says={JUDGE} on={p.judge} onChange={p.onJudge} />
+      )}
+      {p.onCheckFirst && (
+        <SwitchRow
+          id={`${p.id}-check`}
+          name="Check what I said first"
+          says={CHECK_FIRST}
+          on={p.checkFirst}
+          onChange={p.onCheckFirst}
+        />
+      )}
+    </>
+  )
+}
+
 /**
  * The permission level in the message box's row (0.1.5): its comb and its short name - with Plan first on, " · plan"
  * after it, and " · no checks" where this chat's changes are not checked -; a click opens each level with a line on what
  * it does, Plan first and Check after a change. Esc closes it, the focus back on its button.
  */
-export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = false, onCheckFirst, checks }: Props) {
+export function LevelMenu({
+  mode,
+  onMode,
+  planFirst,
+  onPlanFirst,
+  checkFirst = false,
+  onCheckFirst,
+  judge = true,
+  onJudge,
+  checks,
+}: Props) {
   const { open, setOpen, close, button, panel } = usePanel()
   const id = useId()
   const level = LEVELS[mode]
@@ -185,15 +227,13 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = f
               </button>
             ))}
           </div>
-          {onCheckFirst && (
-            <SwitchRow
-              id={`${id}-check`}
-              name="Check what I said first"
-              says={CHECK_FIRST}
-              on={checkFirst}
-              onChange={onCheckFirst}
-            />
-          )}
+          <ProjectSwitches
+            id={id}
+            judge={judge}
+            onJudge={onJudge}
+            checkFirst={checkFirst}
+            onCheckFirst={onCheckFirst}
+          />
           {onPlanFirst && (
             <>
               <hr className="level-sep" />

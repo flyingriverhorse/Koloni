@@ -154,14 +154,18 @@ def said(preferences: str | None, rules: str | None, messages: list[str]) -> dic
     }
 
 
-def prompt(said: dict[str, list[str]], command: dict) -> str:
-    """The judge's one message: `said` under its heads ("(none)" for an empty one), then the
-    command as JSON - an agent's words, never where a quote is looked for (`verdict`)."""
-    sections = "\n\n".join(
+def sections(said: dict[str, list[str]]) -> str:
+    """`said` under its heads, "(none)" for an empty one (Full auto's judge reads them so too)."""
+    return "\n\n".join(
         f"[{HEADS[source]}]\n" + ("\n".join(f"- {one}" for one in said[source]) or "(none)")
         for source in SOURCES
     )
-    return ASKED.format(sections=sections, command=json.dumps(command, ensure_ascii=False))
+
+
+def prompt(said: dict[str, list[str]], command: dict) -> str:
+    """The judge's one message: `said` under its heads (`sections`), then the command as JSON -
+    an agent's words, never where a quote is looked for (`verdict`)."""
+    return ASKED.format(sections=sections(said), command=json.dumps(command, ensure_ascii=False))
 
 
 def _plain(text: str) -> str:

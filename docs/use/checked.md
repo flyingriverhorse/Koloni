@@ -95,7 +95,7 @@ test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads
 
 ### For one chat
 
-![The permission level's menu: Ask before changes, Auto-edit files, Full auto, Check what I said first, Plan first, and Test and review changes switched on with its line, As the project: failing work goes back until it passes](../images/level-menu-checks.png)
+![The permission level's menu: Ask before changes, Auto-edit files, Full auto, Full auto's judge (on), Check what I said first, Plan first, and Test and review changes switched on with its line, As the project: failing work goes back until it passes](../images/level-menu-checks.png)
 
 **Test and review changes**, in the permission level's menu beside **Plan first**, turns it on
 or off for this chat only. Its line says what this chat's changes get: "As the project: runs
@@ -940,7 +940,7 @@ them, the line says "Tests not run: you stopped the check".
 
 ### How many run at once
 
-![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits; under Save, the Show experimental CLIs switch, off](../images/settings-app-test-runs.png)
+![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits; under Save, the Show experimental CLIs switch, off, and the Judge model: Fast tier's first (now: fake-qwen)](../images/settings-app-test-runs.png)
 
 KOLONİ's own test runs queue: **Settings › The app › KOLONİ's test runs at once** (1 unless you
 change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says

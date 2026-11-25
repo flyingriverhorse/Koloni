@@ -148,11 +148,13 @@ def refused_by_rule(judgement: dict) -> str:
     return REFUSED_BY_A_MESSAGE
 
 
-def _gate_open(mode: str, check: str) -> bool:
+def _gate_open(mode: str, check: str, judgement: dict | None) -> bool:
     """Whether what the check of the user's words said of a command still holds: only while the
     chat is at Full auto and the project's check is on - a run or a refusal that comes back after
-    either changed is its card, as if never checked (the security review of K-yargic's slice 2)."""
-    return mode == "full_auto" and check == "judge"
+    either changed is its card, as if never checked (the security review of K-yargic's slice 2).
+    Full auto's judge's (`kind` "risk") has no gate: it only ever adds a card."""
+    risk = judgement is not None and judgement.get("kind") == "risk"
+    return risk or mode == "full_auto" and check == "judge"
 
 
 def _refuses(judgement: dict | None, gate: bool) -> bool:
@@ -162,8 +164,8 @@ def _refuses(judgement: dict | None, gate: bool) -> bool:
 
 def _kept(judgement: dict | None, asks: bool, gate: bool) -> dict | None:
     """What of the check goes on a command's record: nothing once its gate closed (`_gate_open`),
-    nor a run asked all the same."""
-    stale = judgement is not None and (not gate or asks and judgement["verdict"] == "run")
+    nor a run (or Full auto's judge's "fine") asked all the same."""
+    stale = judgement is not None and (not gate or asks and judgement["verdict"] in ("run", "fine"))
     return None if stale else judgement
 
 
@@ -695,7 +697,7 @@ class CommandRunner:
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
-            gate = _gate_open(conversation.permission_mode, project.full_auto_check)
+            gate = _gate_open(conversation.permission_mode, project.full_auto_check, judgement)
             forbidden = _refuses(judgement, gate)
             if planned.keep_running and not forbidden:
                 self._may_serve(
@@ -1188,7 +1190,7 @@ class CommandRunner:
                     Project.test_commands, Project.full_auto_check, Project.disposable_deletes
                 ).where(Project.id == conversation.project_id)
             ).one()
-            gate = _gate_open(mode, check)
+            gate = _gate_open(mode, check, judgement)
             forbidden = _refuses(judgement, gate)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
             own = project_map.own_test(tests, command, cwd)

@@ -691,6 +691,12 @@ export function ChatPanel() {
             ? on => void useApp.getState().saveProjectSettings({ full_auto_check: on ? 'judge' : 'ask' })
             : undefined
         }
+        judge={project?.full_auto_judge}
+        onJudge={
+          conv?.conversation.project_id
+            ? on => void useApp.getState().saveProjectSettings({ full_auto_judge: on })
+            : undefined
+        }
         checks={
           conv && project
             ? {
