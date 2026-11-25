@@ -25,7 +25,12 @@ side: together they are the full verify, on GitHub's machines rather than yours.
 (Run workflow); `backend.yml` takes the Python version, the runner (`os`), whether to lint and
 whether to measure coverage.
 
-Beside ruff and ty, the lint part runs:
+Beside ruff and ty, the lint part runs two tools of CI's and the maintainers' own: they are in
+`requirements-lint.lock` (the `lint` extra, locked against the dev lock), never in
+`requirements-dev.lock`, which an install or update of KOLONİ reads. The lint part installs that
+lock on top of the dev lock (`release.yml`'s quick checks too); on a machine of yours,
+`uv pip install -r requirements-lint.lock`. `check_lock.py` checks both locks, and that the lint
+lock moves no pin of the dev lock.
 
 - **vulture** (`python -m vulture`): code nothing calls in `app/` and `scripts/`, where it is 80% sure or
   more; its settings are `[tool.vulture]` in `pyproject.toml`.

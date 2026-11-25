@@ -59,6 +59,15 @@ list by hand.
 
 ## Dead code and a second type checker
 
+These two are the maintainers' and CI's only: they are in neither `requirements-dev.lock` nor an install
+or update of KOLONİ. Install them into your `.venv` once (the `lint` extra, locked against the dev lock):
+
+```powershell
+uv pip install -r requirements-lint.lock
+```
+
+Without them, `verify.ps1` stops at its `vulture` step with that line.
+
 `vulture` fails on code nothing calls in `app/` and `scripts/`, where it is 80% sure or more
 (`[tool.vulture]` in `pyproject.toml`; under 80 it is mostly FastAPI routes and pydantic fields it cannot
 see used). Delete what it finds; a name it takes for dead wrongly goes in `ignore_names` there, with why.

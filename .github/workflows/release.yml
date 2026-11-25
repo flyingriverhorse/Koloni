@@ -110,6 +110,7 @@ jobs:
         run: |
           uv venv .venv --python 3.12
           uv pip install --python .venv/bin/python -r requirements-dev.lock
+          uv pip install --python .venv/bin/python -r requirements-lint.lock  # (vulture, Pyrefly)
           uv pip install --python .venv/bin/python --no-deps -e .
       # The quick checks; the full suite ran on the pull request, and publish waits for main's run.
       - name: ruff, ty, vulture and Pyrefly

@@ -92,6 +92,12 @@ jobs:
           # verify.ps1 sets it too: ty, and the tests, see this checkout's environment.
           # (From Python itself, so it is a Windows path on Windows.)
           echo "VIRTUAL_ENV=$("$py" -c 'import sys; print(sys.prefix)' | tr -d '\r')" >> "$GITHUB_ENV"
+      - name: Install the lint tools
+        # vulture and Pyrefly: CI's and the maintainers' own, never in an install (the dev lock).
+        if: matrix.part == 'lint'
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+        run: uv pip install --python "$PY" -r requirements-lint.lock
       - uses: actions/setup-node@v7
         with:
           node-version: '24'

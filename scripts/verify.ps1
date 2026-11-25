@@ -26,8 +26,18 @@ Step 'pytest' { & $py -m pytest -q -n auto --durations=25 }
 Step 'ruff'   { & $py -m ruff check app tests scripts alembic }
 Step 'file size' { & $py scripts/check_file_size.py }
 Step 'ty'     { & $py -m ty check app }
-Step 'vulture' { & $py -m vulture }
-Step 'pyrefly' { & $py -m pyrefly check --python-interpreter-path $py --min-severity warn }
+# vulture and Pyrefly are CI's and the maintainers' own (requirements-lint.lock), never in an
+# install: missing, the step fails with how to install them.
+function Lint([string]$tool, [string[]]$arguments) {
+  & $py -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('$tool') is None)"
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host 'install the lint tools: uv pip install -r requirements-lint.lock'
+    return
+  }
+  & $py -m $tool @arguments
+}
+Step 'vulture' { Lint vulture @() }
+Step 'pyrefly' { Lint pyrefly @('check', '--python-interpreter-path', $py, '--min-severity', 'warn') }
 if (-not $BackendOnly -and (Test-Path frontend/package.json)) {
   Set-Location frontend
   Step 'api types' { npm run check:api }
