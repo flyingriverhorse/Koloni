@@ -8,7 +8,7 @@ import { WaitRow } from '../backlog/BacklogPage'
 import { count, since } from '../board/columns'
 import { type RequestHandlers, WaitingCard, WaitingList } from '../chat/MessageList'
 import { DecidedForYou } from '../chat/DecidedForYou'
-import { PARTS, decidedOf, koloniAbout } from '../chat/waiting'
+import { PARTS, decidedOf, judgedCommands, koloniAbout } from '../chat/waiting'
 import { wouldReplace } from '../memory/memoryText'
 import { Proposal, Suggestion } from '../memory/records'
 import type { WaitingKind, Waiting as WaitingRow } from '../chat/waiting'
@@ -333,7 +333,7 @@ export function ReadyPage({ items, openChat }: { items: ReadyItem[]; openChat: O
         )
       })}
       {/* shortcut: Told you shows the open chat's Decided for you only - the others' are not loaded here; load them if one is missed. */}
-      {!only && conv && decidedOf(conv).length > 0 && (
+      {!only && conv && decidedOf(conv).length + judgedCommands(conv).length > 0 && (
         // (Decided for you is its own card, under its own title: no second heading over it.)
         <section aria-label="Told you">
           <DecidedForYou state={conv} />

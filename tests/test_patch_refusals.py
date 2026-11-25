@@ -241,6 +241,7 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         "room_min_tokens": 8,
         "after_change": "tests",
         "judge_words": True,
+        "judge_risky": "ask",
         "disposable_deletes": True,
     }
     status, out = answer(client, f"/api/projects/{pid}", sent)
@@ -334,6 +335,7 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         {"also_in": []},
         {"read_in": []},
         {"judge_words": False},
+        {"judge_risky": "ask"},
         {"disposable_deletes": False},
         {"forget_tests_found": True},
         {"fix_rounds": 3},

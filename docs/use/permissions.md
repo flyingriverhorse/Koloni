@@ -369,9 +369,11 @@ At **Full auto** a command the list above does not stop runs without asking. **F
 small model before those: such a command is first sent to it once, and it says **fine** or **risky**. It
 is the project's switch - Settings › This project › Asking and away › **Full auto's judge** ("A small model
 looks at each command the list does not stop."), and the same switch in the level menu, under the levels.
-It is **on** by default, in new projects and in the ones you had; off, Full auto is as it was. Under it, a
-box lets it also run a harmful-looking command a line of yours names: [Check what I said
-first](#check-what-i-said-first).
+It is **on** by default, in new projects and in the ones you had; off, Full auto is as it was. Under it,
+**When the judge finds a command risky** says what it does with one it finds risky: **Refuse and go on**
+(the default, in new projects and in the ones you had) or **Ask me** (its card, as before) - see **What
+it says** below. And a box lets it also run a harmful-looking command a line of yours names: [Check
+what I said first](#check-what-i-said-first).
 
 It looks at Full auto's commands in a chat you watch (a To-do task done in a chat too) and in a job while
 you're away (☾ Away) - not at **Ask before changes** or **Auto-edit files**, and not in a trigger's turn.
@@ -388,8 +390,8 @@ It is not asked about:
   deletes](#disposable-deletes);
 - a command KOLONİ already asks about for a reason of its own - the list, a secret, `.koloni`, a file that
   steers agents, a working copy's reason: that card stays as it was (a delete or a send the list stops is
-  put to [your words](#check-what-i-said-first) instead, where that box works). The judge only ever adds a
-  card; it never runs a command that asks, and never refuses one.
+  put to [your words](#check-what-i-said-first) instead, where that box works). The judge never runs a
+  command that asks, and never takes such a card away: only its own **risky** may be refused.
 
 **What it reads:** your preferences, this project's rules as saved on the [Memory](../memory.md) page and
 your messages in the chat (in a job while you're away, in the chat you went away from) - at most your last
@@ -404,10 +406,30 @@ file. Everything but your own words is marked as
 data an agent wrote, not instructions. It never sees an agent's messages, a tool's result or a file an
 agent read, and the secrets KOLONİ knows are masked first.
 
-**What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - it
-waits for you on a card that says **KOLONİ's judge: …**, the model's one sentence; once answered, that
-sentence stays under the command's row. In a job while you're away it is parked for you, as any card
-there is, and the job goes on ([Waiting for you](../automation/overnight.md#waiting-for-you)). A command over 4,000 characters, or one that - or the program an agent wrote that
+**What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - as
+**When the judge finds a command risky** says:
+
+- **Refuse and go on** (the default) - as Claude Code's auto mode does: the command does not run, no card
+  opens and nothing waits. Its agent is told a general reason, never the judge's sentence - the judge read
+  your messages and may quote them, and its sentence would guide the next try: "KOLONİ's judge refused
+  this as risky (it may send data off this machine, run code it fetched, change things outside the
+  project, weaken security or hide what it does). Do it another way, or ask the user." - and goes on. You
+  see the sentence: the command's row says **refused**, with **KOLONİ's judge refused: …** under it, and
+  the chat's **Decided for you** - the top bar's pill says "1 decided", and opens it in Ready for you -
+  lists it with the judge's sentence until you click OK. Where KOLONİ keeps the line (see **Its card**
+  below for which lines it keeps), the same line is refused again in that turn without asking the model;
+  any other line is asked about each time it runs. After **3** refusals in a turn - counted for all its
+  agents, sub-agents too - the next risky command waits for you on its card, and the chat says once
+  "Full auto's judge refused 3 commands this turn; the next risky one asks you.": an agent cannot try
+  variant after variant until one is called fine.
+- **Ask me** - it waits for you on a card that says **KOLONİ's judge: …**, the model's one sentence; once
+  answered, that sentence stays under the command's row.
+
+In a job while you're away a risky command is always parked for you, whichever you chose, as any card
+there is, and the job goes on ([Waiting for you](../automation/overnight.md#waiting-for-you)). Only the
+judge's own **risky** is refused - every card below stays a card at either choice: when the judge gave no
+verdict, the decision is yours, never a silent refusal. A command over 4,000 characters, or one that - or
+the program an agent wrote that
 it runs, or one of the earlier commands it would be shown - reads like orders to a model, is a card without
 asking. So is one the judge gave no answer for in 20 seconds (90 for a model on a CLI), gave an answer it
 could not read for, or could not be asked about now - no room on its model's provider (its limit, this
@@ -416,8 +438,8 @@ the turn `Full auto's judge could not be asked this turn: {why}. Each command it
 and one whose program changed while the judge looked (a link pointed elsewhere too): every time - an agent
 can write a command that slows, confuses or spends the judge, so none of these lets a command run.
 
-**Its card** offers **Run once** and **Reject**, and, where KOLONİ can keep the line, a box, **Don't ask
-about this line again here**. Run once runs the line, and the judge does not ask about it again in that
+**Its card** (Ask me, a job while you're away, or one it gave no verdict for) offers **Run once** and
+**Reject**, and, where KOLONİ can keep the line, a box, **Don't ask about this line again here**. Run once runs the line, and the judge does not ask about it again in that
 turn; with the box ticked, not in this project either. Both are kept only where the judge itself looked at
 the line - never on a card it gave no verdict for (too long, orders in it, no room to ask, no answer in
 time or none it could read, its program changed meanwhile) -, the folder the line runs in is known and

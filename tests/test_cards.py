@@ -160,6 +160,9 @@ def test_the_cards_of_a_period_by_reason_answer_and_check(db):
         card(session, "r1", None, decided=None, judged={"verdict": "run", "quote": "x"})
         card(session, "r1", "delete", decided=None, judged={"verdict": "ask"})
         card(session, "r1", None, status="refused", decided=None, judged={"verdict": "refuse"})
+        # (Full auto's judge's own refusal is no outcome of the check of the user's words)
+        refused = {"kind": "risk", "verdict": "refuse"}
+        card(session, "r1", None, status="refused", decided=None, judged=refused)
         card(session, "r2", "install", decided=40)  # (another project)
         session.commit()
         here = cards.stats(session, "p", now() - timedelta(days=7))

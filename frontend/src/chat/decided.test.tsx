@@ -337,6 +337,39 @@ test('a command the check of your words let run waits under Decided for you unti
   vi.unstubAllGlobals()
 })
 
+test('a command Full auto’s judge refused waits under Decided for you with its sentence until OK', async () => {
+  const judged = {
+    kind: 'risk' as const,
+    verdict: 'refuse' as const,
+    quote: '',
+    source: '' as const,
+    why: 'It sends .env away.',
+    model: 'Fast · quick',
+    seen: false,
+  }
+  const refused = command('c1', 'r', { agent_id: 'lead', command: 'python gen.py', status: 'refused', judged })
+  const asked = vi.fn(
+    async () => new Response(JSON.stringify({ ...refused, judged: { ...judged, seen: true } }), { status: 200 }),
+  )
+  vi.stubGlobal('fetch', asked)
+  render(
+    <WaitingList
+      state={convState({ runs: [run('r', 'running')], agents: [lead], commands: [refused] })}
+      on={on}
+      onDecidePlan={vi.fn()}
+      known={known}
+    />,
+  )
+  const section = screen.getByRole('region', { name: /Decided for you/ })
+  const item = within(section).getByRole('button', { name: 'OK' }).closest('.decided-item') as HTMLElement
+  expect(item).toHaveTextContent('KOLONİ did not run python gen.py for Lead')
+  expect(item).toHaveTextContent("KOLONİ's judge: It sends .env away.")
+  expect(item).not.toHaveTextContent('Your rule')
+  await userEvent.click(within(item).getByRole('button', { name: 'OK' }))
+  expect(asked).toHaveBeenCalledWith('/api/commands/c1/seen', expect.objectContaining({ method: 'POST' }))
+  vi.unstubAllGlobals()
+})
+
 test('a command a line of yours kept from running waits under Decided for you until OK, with no Run it', async () => {
   const rule = 'Never push to main.'
   const judged = {

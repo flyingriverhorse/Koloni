@@ -62,13 +62,15 @@ function OnYourWords({ judged }: { judged: Command['judged'] }) {
 }
 
 /** Full auto's judge (0.1.9): once its card is answered, the sentence it was asked on stays under the row, as the card
- *  said it - not while the card is open, nor for a "fine", which ran as Full auto runs any. */
+ *  said it - not while the card is open, nor for a "fine", which ran as Full auto runs any; one it refused (Refuse and go
+ *  on), with its sentence. */
 function JudgedRisky({ command }: { command: Command }) {
   const judged = command.judged
-  if (judged?.kind !== 'risk' || judged.verdict !== 'risky' || command.status === 'proposed') return null
+  if (judged?.kind !== 'risk' || command.status === 'proposed') return null
+  if (judged.verdict !== 'risky' && judged.verdict !== 'refuse') return null
   return (
     <div className="tool-row-note muted" title={judged.model || undefined}>
-      {`KOLONİ's judge: ${judged.why || 'it gave no reason'}`}
+      {`KOLONİ's judge${judged.verdict === 'refuse' ? ' refused' : ''}: ${judged.why || 'it gave no reason'}`}
     </div>
   )
 }

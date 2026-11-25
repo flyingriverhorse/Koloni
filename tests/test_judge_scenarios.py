@@ -109,12 +109,17 @@ def begin(
     preferences=None,
     origin=OWN,
     provider=None,
+    risky=None,
 ):
-    """A project with the check as given (`old_choice`, its box `words`), the user's rules and preferences saved,
+    """A project with the check as given (`old_choice`, its box `words`; `risky`: what the judge
+    does with a "risky", where given), the user's rules and preferences saved,
     a chat at `mode` (its Lead on `provider`, where given) and its first message - sent from the
     app's own page unless `origin` says else."""
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     old_choice(client, pid, check, words)
+    if risky is not None:
+        patched = client.patch(f"/api/projects/{pid}", json={"judge_risky": risky}, headers=OWN)
+        assert patched.status_code == 200, patched.text
     if rules is not None:
         assert (
             client.put(f"/api/projects/{pid}/rules", json={"rules": rules}, headers=OWN).status_code

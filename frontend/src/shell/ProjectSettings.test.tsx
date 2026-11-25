@@ -40,6 +40,7 @@ const project: Project = {
   full_auto_check: 'ask',
   full_auto_judge: true,
   judge_words: false,
+  judge_risky: 'refuse',
   disposable_deletes: false,
   memory_links: [],
   embedding_provider_id: null,
@@ -1001,6 +1002,27 @@ test('Full auto’s judge is on as a project comes, says what it costs, and only
   await userEvent.click(judge)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ full_auto_judge: false })
+})
+
+test('a command the judge finds risky is refused until you choose Ask me; the choice waits while the judge is off', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Asking and away/)
+  const risky = screen.getByRole('combobox', { name: 'When the judge finds a command risky' })
+  expect(risky).toHaveValue('refuse')
+  expect(
+    within(risky)
+      .getAllByRole('option')
+      .map(o => o.textContent),
+  ).toEqual(['Refuse and go on', 'Ask me'])
+  const judge = screen.getByRole('checkbox', { name: /^Full auto’s judge/ })
+  await userEvent.click(judge)
+  expect(risky).toBeDisabled()
+  await userEvent.click(judge)
+  expect(risky).toBeEnabled()
+  await userEvent.selectOptions(risky, 'ask')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenCalledWith({ judge_risky: 'ask' })
 })
 
 test('disposable deletes are off until you allow them, and sent only when changed', async () => {

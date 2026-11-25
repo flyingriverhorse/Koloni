@@ -235,9 +235,10 @@ class Project(Base):
     tests_look: Mapped[dict | None] = mapped_column(JSON, default=None)
     # K-yargic's old choice, "ask" / "judge" - a carrier only since 0.1.9 §8 (`judge.words_on`).
     full_auto_check: Mapped[str] = mapped_column(String(5), default="ask", server_default="ask")
-    # Full auto's judge (0.1.9, `RiskJudgeMixin`); its box for the user's words (§8, `_judged`).
+    # Full auto's judge (`RiskJudgeMixin`), its box for words (§8), its "risky" refused or asked.
     full_auto_judge: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     judge_words: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    judge_risky: Mapped[str] = mapped_column(String(6), default="refuse", server_default="refuse")
     # Coordination §4: whether agents delete what KOLONİ checked is disposable (a build or cache
     # folder, a clean worktree, a merged branch) without a card, at Auto-edit and Full auto in a
     # watched turn. The user's own setting, off until they allow it.
@@ -1253,20 +1254,6 @@ class UserPreferences(Base):
     # The Judge model KOLONİ's judges ask (`team.judge_pick`); None: the Fast tier's first.
     judge_provider_id: Mapped[str | None] = mapped_column(String(32), default=None)
     judge_model_id: Mapped[str | None] = mapped_column(String(200), default=None)
-
-
-class JudgeAllowed(Base):
-    """A line the user said on a card of Full auto's judge not to ask about again in a project:
-    the command as it ran, its folder, and the digest of the agent's program it ran ("": none)."""
-
-    __tablename__ = "judge_allowed"
-    __table_args__ = (UniqueConstraint("project_id", "command", "cwd", "program_sha"),)
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    project_id: Mapped[str] = mapped_column(String(32), index=True)  # (gone with its project)
-    command: Mapped[str] = mapped_column(Text)
-    cwd: Mapped[str] = mapped_column(Text)
-    program_sha: Mapped[str] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(default=now)
 
 
 class Question(Base):

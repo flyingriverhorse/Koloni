@@ -76,6 +76,8 @@ interface Props {
   onJudge?: (on: boolean) => void
   /** §8: what the judge does with your words (Check what I said first), for its line in the level menu. */
   judgeWords?: JudgeWords
+  /** What it does with a command it finds risky, the project's - for the same line. */
+  judgeRisky?: 'refuse' | 'ask'
   /** S10: Check after a change for this chat, in the level menu; none in a plain chat. */
   checks?: Checks
   /** Where this project's commands run; decides whether full auto needs a warning. */
@@ -139,6 +141,7 @@ export function Composer({
   judge = true,
   onJudge,
   judgeWords,
+  judgeRisky,
   checks,
   location = 'host',
   model,
@@ -396,6 +399,7 @@ export function Composer({
             judge={judge}
             onJudge={onJudge}
             judgeWords={judgeWords}
+            judgeRisky={judgeRisky}
             checks={checks}
             dictate={voice}
             running={running}
@@ -725,6 +729,7 @@ function ComposerBar(p: {
   judge: boolean
   onJudge?: (on: boolean) => void
   judgeWords?: JudgeWords
+  judgeRisky?: 'refuse' | 'ask'
   checks?: Checks
   dictate: ReactNode
   running: boolean
@@ -743,6 +748,7 @@ function ComposerBar(p: {
         judge={p.judge}
         onJudge={p.onJudge}
         judgeWords={p.judgeWords}
+        judgeRisky={p.judgeRisky}
         checks={p.checks}
       />
       <span className="composer-actions">

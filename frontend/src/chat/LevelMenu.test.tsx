@@ -68,8 +68,9 @@ test('the arrows move between the levels only; a level is chosen by a click, Ent
 
 test('Full auto’s judge: the project’s one switch under the levels, on as it comes, its line on your words by its box; none without a project', async () => {
   const onJudge = vi.fn()
+  // (as the project says: Refuse and go on unless you chose Ask me - while you're away it is always parked)
   const risk =
-    'Before a command runs at Full auto or while you’re away, a small model looks at it first: one the list doesn’t stop waits for you if it looks risky'
+    'Before a command runs at Full auto or while you’re away, a small model looks at it first: one the list doesn’t stop is refused if it looks risky (while you’re away, it is parked for you)'
   const words = '; a harmful-looking one runs without a card only where a line of yours names it'
   const { unmount } = render(<LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} judge onJudge={onJudge} />)
   await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
@@ -93,6 +94,14 @@ test('Full auto’s judge: the project’s one switch under the levels, on as it
     expect(screen.getByRole('switch', { name: 'Full auto’s judge' })).toHaveAccessibleDescription(says)
     gone()
   }
+  const { unmount: asks } = render(
+    <LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} judge onJudge={vi.fn()} judgeRisky="ask" />,
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+  expect(screen.getByRole('switch', { name: 'Full auto’s judge' })).toHaveAccessibleDescription(
+    'Before a command runs at Full auto or while you’re away, a small model looks at it first: one the list doesn’t stop waits for you if it looks risky.',
+  )
+  asks()
   render(<LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} judge={false} />)
   await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
   expect(screen.queryByRole('switch', { name: 'Full auto’s judge' })).toBeNull()

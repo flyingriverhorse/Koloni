@@ -192,12 +192,13 @@ function DecidedTask({ task }: { task: BacklogTask }) {
 }
 
 /** K-yargıç: a command Full auto's check of your words let run with no card, or did not run, and the line of yours it
- *  rested on. OK only: it ran already, or its agent went its way (no "Run it" yet: you can tell it to). */
+ *  rested on - or one Full auto's judge refused (`kind` "risk"), and its sentence. OK only: it ran already, or its agent
+ *  went its way (no "Run it" yet: you can tell it to). */
 function DecidedCommand({ command, state }: { command: Command; state: ConvState }) {
   const { busy, error, ask } = useAsk()
   const agent = state.agents.find(a => a.id === command.agent_id)
   const name = agent?.name || agent?.role_name || 'An agent'
-  const { quote = '', source = '' } = command.judged ?? {}
+  const { quote = '', source = '', kind = '', why = '' } = command.judged ?? {}
   return (
     <div className="decided-item">
       <div className="decided-q">
@@ -206,7 +207,13 @@ function DecidedCommand({ command, state }: { command: Command; state: ConvState
           : `${name} ran ${command.command} without asking`}
       </div>
       <div className="decided-why">
-        Your rule: “{quote}” ({source && JUDGED_FROM[source]})
+        {kind === 'risk' ? (
+          `KOLONİ's judge: ${why || 'it gave no reason'}`
+        ) : (
+          <>
+            Your rule: “{quote}” ({source && JUDGED_FROM[source]})
+          </>
+        )}
       </div>
       <div className="decided-btns">
         <button

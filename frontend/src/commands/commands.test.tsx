@@ -406,6 +406,17 @@ test('once its card is answered, the judge’s sentence stays under the row - no
   expect(screen.queryByText(/KOLONİ's judge/)).toBeNull()
 })
 
+test('a command Full auto’s judge refused says so under its row, with its sentence', () => {
+  const refused = judgeCard({ status: 'refused', danger: '', judged: judged({ kind: 'risk', verdict: 'refuse' }) })
+  const { rerender } = render(
+    <CommandRow command={{ ...refused, judged: { ...refused.judged!, why: 'It sends .env away.' } }} />,
+  )
+  expect(screen.getByText("KOLONİ's judge refused: It sends .env away.")).toBeInTheDocument()
+  expect(screen.getByText('refused')).toBeInTheDocument()
+  rerender(<CommandRow command={refused} />)
+  expect(screen.getByText("KOLONİ's judge refused: it gave no reason")).toBeInTheDocument()
+})
+
 test('a delete that ran with no card as disposable says so on its row', () => {
   const { unmount } = render(
     <CommandRow
