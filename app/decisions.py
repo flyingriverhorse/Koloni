@@ -143,7 +143,8 @@ def _spawn(question: Question, at: datetime, cid: str, child: str | None) -> Dec
 
 # What a command's record of the judges says, as a row: (who, what, why it cannot be undone). The
 # check of the user's words is kind "words" ("" on a record from before 0.1.9); its "ask" was the
-# user's card, not a decision. The judge's "fine" is counted (`of`).
+# user's card, not a decision. The judge's "fine" is counted (`of`); its "risky" and "refuse" are
+# rows only where its model looked ("looked", `risk_judge_mixin._risk_asked`).
 COMMANDS: dict[tuple[str, str], tuple[Literal["judge", "your_words"], str, str]] = {
     ("risk", "risky"): (
         "judge",
@@ -188,7 +189,9 @@ def _commands(session: Session, project_id: str, window: Window) -> tuple[list[D
         if kind == "risk" and judged.get("verdict") == "fine":
             fine += 1
         said_of = COMMANDS.get((kind, judged.get("verdict", "")))
-        if said_of is None:
+        # (A card of KOLONİ's the judge gave no verdict of its own for - not asked, no answer it
+        # could read, the program changed while it looked - is no decision of the judge's.)
+        if said_of is None or kind == "risk" and judged.get("looked") is not True:
             continue
         who, what, why_not = said_of
         rows.append(
