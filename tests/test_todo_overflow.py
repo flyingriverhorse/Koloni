@@ -1,7 +1,8 @@
 """The user's question (24 Nov): a story's task run by a CLI Orchestrator whose context overflows
 inside one turn - Codex answers it with an error - goes stuck with Fix it, and the story's next
-task starts in a session of its own: a new topic, a new Codex thread, nothing of the stuck task
-in what it is sent (`stories.topic_for`, the spec's rule 6).
+task starts in a session of its own: a new topic, a new Codex thread, nothing of the stuck task's
+conversation in what it is sent - only the story's summary of it (`stories.topic_for`, the spec's
+rule 6; the summary since To-do C).
 
 shortcut: the error's shape is the stand-in's (`fake_codex_app_server.py` {"error": ...}: an
 `error` notification, willRetry true then false, then `turn/completed` failed with that error and
@@ -36,8 +37,9 @@ def codex_chat(settings_env, tmp_path, project_dir):
     settings = load_settings(settings_env)
     record, plan = tmp_path / "record.json", tmp_path / "plan.json"
     scripts = {
-        "Write the parser": [{"error": OVERFLOW}],  # (first: a run that holds both follows it)
+        # (the docs first: the next task's input names the stuck one in the story's summary)
         "Write the docs": [{"say": "Done."}],
+        "Write the parser": [{"error": OVERFLOW}],
     }
     plan.write_text(
         json.dumps(
@@ -93,4 +95,6 @@ def test_after_a_task_stuck_on_an_overflow_the_storys_next_task_starts_afresh(co
     assert topics[runs[2]["topic_id"]]["story_id"] == topics[runs[0]["topic_id"]]["story_id"]
     seen = record()
     assert seen["thread_method"] == "thread/start"
-    assert "Write the docs" in seen["stdin"] and "Write the parser" not in seen["stdin"]
+    assert "Write the docs" in seen["stdin"] and "task 1 of 2" not in seen["stdin"]
+    assert "this task is not finished" not in seen["stdin"]  # (the stuck one's fix round)
+    assert "Earlier tasks of this story" in seen["stdin"]  # (its summary goes on)
