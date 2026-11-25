@@ -13,7 +13,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app import away, copies, parked
-from app.agent.ctx import TERMINAL, Ctx, announce
+from app.agent.ctx import TERMINAL, Ctx, announce, to_its_end
 from app.agent.risk_judge_mixin import (
     _agents,
     _digest,
@@ -344,6 +344,17 @@ class AwayMixin:
             self._mark_moved(copy, changed)  # (H3: what the list says of each, from now)
         if any(not copy.ignored(one[0]) for one in changed) or self._parked_here(owner):
             self._keep_copy(owner, why)  # (B-189: not for a new file git ignores alone)
+
+    async def _look_aside(self: "AgentRunner", owner: str) -> tuple[copies.Copy, list] | None:
+        """`_set_aside`'s look at an agent's copy, from a coroutine: a walk of every file of
+        it, in a thread - the server goes on meanwhile - to its end (`to_its_end`)."""
+        copy = self._copies.get(owner)
+        if copy is None:
+            return None
+        # (Against its records as they are now: a `refresh` meanwhile is no change of its own.)
+        return copy, await to_its_end(
+            asyncio.to_thread(copy.changes, dict(copy.base), dict(copy.names))
+        )
 
     def typing(self: "AgentRunner", question_id: str) -> None:
         """The user types an answer to a question that waits: the Lead holds off it

@@ -3057,17 +3057,6 @@ class AgentRunner(
                 self.bus.emit(known.cid, known.run_id, "merge.updated", merge_out(merge))
         self._release(owner)
 
-    async def _look_aside(self, owner: str) -> tuple[copies.Copy, list] | None:
-        """`_set_aside`'s look at an agent's copy, from a coroutine: a walk of every file of
-        it, in a thread - the server goes on meanwhile - to its end (`to_its_end`)."""
-        copy = self._copies.get(owner)
-        if copy is None:
-            return None
-        # (Against its records as they are now: a `refresh` meanwhile is no change of its own.)
-        return copy, await to_its_end(
-            asyncio.to_thread(copy.changes, dict(copy.base), dict(copy.names))
-        )
-
     async def decide_kept(
         self, merge_id: str, decision: str, choices: dict[str, str] | None = None
     ) -> bool:
