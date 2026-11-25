@@ -1,9 +1,10 @@
 """§8 (0.1.9): Check what I said first lets a line of the user's run a delete without a card only on a
-judge model whose measurement passed (`judge.MEASURED_MODELS`) - Claude Code's haiku, measured on 25
-Nov 2026 - run as it was measured (`judge.measured`: its own service, a session or natively, no
-setup or environment that points it elsewhere), and only where it is the user's pick or, none made,
-the Fast tier's first - or where the project's old choice was "judge". Else the delete waits on its
-card, and the model is not asked."""
+judge model whose measurement passed (`judge.MEASURED_MODELS`: none yet - Claude Code's haiku,
+measured on 25 Nov 2026, let 2 commands run wrongly in one of three repeats) run as it was measured
+(`judge.measured`: its own service, a session or natively, no setup or environment that points it
+elsewhere), and only where it is the user's pick or, none made, the Fast tier's first - or where the
+project's old choice was "judge". Else the delete waits on its card, and the model is not asked.
+How a measured model would be treated is tried with haiku as one (`as_if_measured`)."""
 
 import hashlib
 
@@ -21,10 +22,16 @@ from tests.test_judge_scenarios import RULE, begin, carded, verdict_line
 from tests.test_team import ADDRESS, SECRET
 
 pytestmark = [pytest.mark.judge, pytest.mark.no_po]
-# The prompt haiku was measured with (scripts/measure_judge.py, 25 Nov 2026). Re-measure before
-# changing it - then MEASURED_MODELS, and these digests.
+# The prompt haiku was measured with (scripts/measure_judge.py, 25 Nov 2026) - the one a model's
+# measurement is for. Re-measure before changing it - then MEASURED_MODELS, and these digests.
 ASKED_SHA = "1580e23df032c983a63e41976f5c14023bb11955e80ce2611818ff4685b04dff"
 PROMPT_SHA = "c5b32d758f3094f822abdb03db5711bc9ce99a2e33abee6db5b817531196a674"
+
+
+@pytest.fixture
+def as_if_measured(monkeypatch):
+    """Claude Code's haiku in `judge.MEASURED_MODELS`, as a model whose measurement passed would be."""
+    monkeypatch.setattr(judge, "MEASURED_MODELS", frozenset({("claude_cli", "haiku")}))
 
 
 @pytest.fixture(autouse=True)
@@ -46,7 +53,8 @@ def test_the_measured_prompt_is_the_one_asked():
     again = "re-measure before changing it (scripts/measure_judge.py), then update MEASURED_MODELS"
     assert hashlib.sha256(judge.ASKED.encode()).hexdigest() == ASKED_SHA, again
     assert hashlib.sha256(judge.prompt(said, command).encode()).hexdigest() == PROMPT_SHA, again
-    assert {("claude_cli", "haiku")} == judge.MEASURED_MODELS, again
+    # (none passed: haiku's three repeats, 25 Nov 2026, had one with 2 wrong runs)
+    assert frozenset() == judge.MEASURED_MODELS, again
 
 
 def claude(**more) -> Provider:
@@ -69,13 +77,17 @@ def claude(**more) -> Provider:
         (Provider(name="Fast", kind="openai_compat", base_url=ADDRESS), "haiku", False),
     ],
 )
-def test_what_counts_as_the_measured_model(provider, model, measured):
+def test_what_counts_as_the_measured_model(as_if_measured, provider, model, measured):
     assert judge.measured(provider, model) is measured
+
+
+def test_no_model_is_measured_yet():
+    assert not judge.measured(claude(), "haiku")
 
 
 @pytest.mark.parametrize("name", judge.ELSEWHERE)
 def test_an_environment_that_points_claude_code_elsewhere_is_not_the_measured_model(
-    monkeypatch, name
+    as_if_measured, monkeypatch, name
 ):
     monkeypatch.setenv(name, "1")
     assert not judge.measured(claude(), "haiku")
@@ -139,9 +151,20 @@ FAST = {
 }
 
 
+def test_claude_codes_haiku_is_not_measured_and_the_delete_waits(app_with, wait_run, project_dir):
+    asked = ScriptedModel([verdict_line("run", RULE)], model_id="haiku")
+    client, executor, _ = app_with(
+        [as_claude()], [cmd("rm -rf build"), text("left it")], {"Claude": asked}
+    )
+    _, cid, run_id = begin(client, project_dir, "tidy up", check="ask", words=True, rules=RULE)
+    carded(client, cid, run_id, wait_run)
+    assert asked.calls == [] and executor.started == []
+    assert client.get("/api/judge").json()["now"]["measured"] is False
+
+
 @pytest.mark.parametrize("more", [{}, {"mode": "native"}], ids=["session", "native"])
-def test_claude_codes_haiku_lets_a_line_of_the_users_run_a_delete(
-    app_with, wait_run, project_dir, more
+def test_a_measured_model_lets_a_line_of_the_users_run_a_delete(
+    as_if_measured, app_with, wait_run, project_dir, more
 ):
     asked = ScriptedModel([verdict_line("run", RULE)], model_id="haiku")
     client, executor, _ = app_with(
@@ -163,7 +186,7 @@ def test_claude_codes_haiku_lets_a_line_of_the_users_run_a_delete(
     ids=["another-model", "a-model-server", "step"],
 )
 def test_a_model_not_run_as_measured_is_not_asked_and_the_delete_waits(
-    app_with, wait_run, project_dir, model, more
+    as_if_measured, app_with, wait_run, project_dir, model, more
 ):
     asked = ScriptedModel([verdict_line("run", RULE)], model_id=model)
     client, executor, _ = app_with(
@@ -176,7 +199,7 @@ def test_a_model_not_run_as_measured_is_not_asked_and_the_delete_waits(
 
 
 def test_a_fallback_to_haiku_while_the_chosen_judge_is_down_never_makes_the_check_live(
-    app_with, wait_run, project_dir
+    as_if_measured, app_with, wait_run, project_dir
 ):
     quick = ScriptedModel([verdict_line("run", RULE)], model_id="quick")
     haiku = ScriptedModel([verdict_line("run", RULE)], model_id="haiku")
@@ -206,7 +229,9 @@ def test_a_fallback_to_haiku_while_the_chosen_judge_is_down_never_makes_the_chec
     ],
     ids=["raises", "no-json", "no-quote"],
 )
-def test_haiku_failing_keeps_the_card(app_with, wait_run, project_dir, answer):
+def test_a_measured_model_failing_keeps_the_card(
+    as_if_measured, app_with, wait_run, project_dir, answer
+):
     haiku = ScriptedModel([answer], model_id="haiku")
     client, executor, _ = app_with(
         [as_claude()], [cmd("rm -rf build"), text("left it")], {"Claude": haiku}

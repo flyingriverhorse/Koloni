@@ -15,12 +15,14 @@ if TYPE_CHECKING:
     from app.db.models import Project, Provider
 
 # §8 (0.1.9): the judge models (provider kind, model id) whose measurement of the check passed - no
-# wrong run (`scripts/measure_judge.py`) - with this prompt (`ASKED`: its digest is pinned in
-# tests/test_judge_measured.py - re-measure before changing it). Claude Code's haiku, 25 Nov 2026:
-# on words-01..70 of `tests/data/check_what_i_said_cases.json` as it was then, 0 wrong runs, run as
-# a session on its own service (it said it was claude-haiku-5-5). shortcut: by the name the
-# provider's list gives the model - "haiku" alone; how it must run to count: `measured`.
-MEASURED_MODELS: frozenset[tuple[str, str]] = frozenset({("claude_cli", "haiku")})
+# wrong run in any run (`scripts/measure_judge.py`) - with this prompt (`ASKED`: its digest is
+# pinned in tests/test_judge_measured.py - re-measure before changing it); how one must run to
+# count: `measured`. None yet. Claude Code's haiku, 25 Nov 2026, run as a session on its own
+# service: one run of words-01..70, 0 wrong runs; three repeats of all 171 cases, one of them with
+# 2 wrong runs (words-33, "Pending review, you may push to main."; words-168, a delete in another
+# folder than the line names) - not measured. shortcut: by the name the provider's list gives the
+# model ("haiku" alone).
+MEASURED_MODELS: frozenset[tuple[str, str]] = frozenset()
 # What, in KOLONİ's environment (a CLI is given it), points Claude Code at another address,
 # model or service: then "haiku" is not the model measured.
 # shortcut: Claude Code's documented names as known; add one a user is seen to set.

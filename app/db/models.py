@@ -237,7 +237,7 @@ class Project(Base):
     full_auto_check: Mapped[str] = mapped_column(String(5), default="ask", server_default="ask")
     # Full auto's judge (`RiskJudgeMixin`), its box for words (§8), its "risky" refused or asked.
     full_auto_judge: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
-    judge_words: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    judge_words: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     judge_risky: Mapped[str] = mapped_column(String(6), default="refuse", server_default="refuse")
     # Coordination §4: whether agents delete what KOLONİ checked is disposable (a build or cache
     # folder, a clean worktree, a merged branch) without a card, at Auto-edit and Full auto in a
