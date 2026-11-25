@@ -1,7 +1,8 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { Project } from '../api/types'
+import { api } from '../api/client'
+import type { JudgeOut, Project } from '../api/types'
 import { LevelMenu } from './LevelMenu'
 import { judgeWordsOf } from './levels'
 
@@ -259,4 +260,18 @@ test('§8: the judge’s words by the project - off with its box off, on where t
     'unmeasured',
     'off',
   ])
+})
+
+test('§8: the box on, the judge’s words work without "(after its measurement)" where the Judge model was measured', async () => {
+  const measured = { now: { measured: true } } as JudgeOut
+  const get = vi.spyOn(api, 'get').mockResolvedValue(measured)
+  render(
+    <LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} judge onJudge={vi.fn()} judgeWords="unmeasured" />,
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+  const judge = screen.getByRole('switch', { name: 'Full auto’s judge' })
+  await vi.waitFor(() => expect(judge.getAttribute('aria-describedby')).toBeTruthy())
+  await vi.waitFor(() => expect(judge).toHaveAccessibleDescription(/names it\.$/))
+  expect(get).toHaveBeenCalledWith('/judge')
+  get.mockRestore()
 })

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Project } from '../../api/types'
+import { useJudgeMeasured } from '../../chat/judgeMeasured'
 import { wordsMeasured } from '../../chat/levels'
 import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
@@ -255,7 +256,7 @@ function useFullAutoJudge(project: Project) {
   const [on, setOn] = useState(project.full_auto_judge)
   const [words, setWords] = useState(project.judge_words)
   const [risky, setRisky] = useState(project.judge_risky)
-  const measured = wordsMeasured(project)
+  const measured = useJudgeMeasured(!wordsMeasured(project)) || wordsMeasured(project)
   const locked = !measured && !words
   return {
     patch: {

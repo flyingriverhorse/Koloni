@@ -1445,3 +1445,19 @@ test('the longest command is a whole number of minutes from 10 to 60, sent only 
     longest_command: 30,
   })
 })
+
+test('§8: the box for your words works, unlocked, where the Judge model was measured', async () => {
+  // (the Judge model measured; nothing else is served here)
+  const get = vi
+    .spyOn(api, 'get')
+    .mockImplementation((path: string) =>
+      path === '/judge' ? Promise.resolve({ now: { measured: true } }) : Promise.reject(new Error('not served')),
+    )
+  const label = 'It also lets a delete or a push run when a line you saved names it'
+  render(<ProjectSettings {...base} project={{ ...project, judge_words: true }} onSave={vi.fn()} />)
+  await choose(/^Asking and away/)
+  const words = await screen.findByRole('checkbox', { name: label })
+  expect(words).toBeChecked()
+  expect(words).toBeEnabled()
+  get.mockRestore()
+})

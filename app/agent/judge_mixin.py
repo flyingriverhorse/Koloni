@@ -119,17 +119,20 @@ class JudgeMixin:
                 or self._away_holds(session, ctx, line)
             ):
                 return reason, None
+            chosen = judge_chosen(session)
             fast = judge_pick(
                 session,
                 would_run(session, find_role(session, LEAD), conversation),
                 self.providers,
-                judge_chosen(session),
+                chosen,
             )
             if fast is None:
                 return reason, None
-            # (measured by its provider's kind and the model: `judge.MEASURED_MODELS`)
             provider = session.get_one(Provider, fast[0].provider_id)
-            if not judge.words_on(project, (provider.kind, fast[1])):
+            # (measured as it runs, and the user's own pick: a model asked because the chosen one
+            # is down never makes the check live - `judge.words_on`)
+            fallback = chosen is not None and (fast[0].provider_id, fast[1]) != chosen
+            if not judge.words_on(project, judge.measured(provider, fast[1]) and not fallback):
                 return reason, None
             # (A job's: the chat the user went away from - never its task's own words.)
             night = away.night_of(session, ctx.cid) if ctx.run_id in self._away_jobs else None

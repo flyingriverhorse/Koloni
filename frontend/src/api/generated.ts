@@ -7850,6 +7850,8 @@ export interface components {
         JudgeChoice: {
             /** Cli */
             cli: boolean;
+            /** Measured */
+            measured: boolean;
             /** Model Id */
             model_id: string;
             /** Provider Id */
@@ -7870,6 +7872,8 @@ export interface components {
         JudgeModel: {
             /** Cli */
             cli: boolean;
+            /** Measured */
+            measured: boolean;
             /** Model Id */
             model_id: string;
             /** Provider Id */

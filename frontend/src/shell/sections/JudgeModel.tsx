@@ -7,6 +7,10 @@ import { Row } from './part'
 const JUDGE_WHY =
   'For every project: the model Full auto’s judge asks whether a command looks risky - and, with its box for your words, whether a line of yours names a harmful-looking one. It is sent your words and the command, with the secrets KOLONİ knows masked, and answers with no tools - one request for each such command, on your plan or your bill; Usage shows it under that model.'
 
+/** §8: said where the model asked now was measured (and is the one chosen, or none is): its words check is live. */
+export const MEASURED =
+  'Projects whose ‘Check what I said first’ box is ticked will let a line of yours run commands without a card.'
+
 /** A choice's value in the list: its provider and its model. */
 const keyOf = (provider: string, model: string) => `${provider}\n${model}`
 
@@ -27,6 +31,7 @@ function JudgeNotes({ judge, stale }: { judge: JudgeOut; stale: boolean }) {
         </span>
       )}
       {judge.now?.cli && <span className="choice-note">On a CLI each such command waits for it to start.</span>}
+      {judge.now?.measured && <span className="choice-note">{MEASURED}</span>}
     </>
   )
 }
