@@ -212,3 +212,20 @@ def test_a_name_with_the_turkish_dotted_i_is_the_same_name(client, project_dir):
         for title in ("ZZ135 LOGİN", "zz135 logın", "ZZ135 LOGIN"):
             assert stories.story_named(session, pid, title).id == first.json()["id"], title
         assert stories.goal_named(session, pid, "ilk sürüm").id == goal
+
+
+def test_a_name_in_another_unicode_form_or_with_what_nobody_sees_is_the_same_name(
+    client, project_dir
+):
+    """L6: NFKC, what nobody sees left out - a decomposed é, a zero width, a fullwidth letter."""
+    pid, _ = setup(client, project_dir)
+    for first, again in (
+        ("Caf\u00e9", "Cafe\u0301"),
+        ("Login", "Login\u200b"),
+        ("\uff32eport", "report"),
+    ):
+        made = client.post(f"/api/projects/{pid}/stories", json={"title": first})
+        assert made.status_code == 201, made.text
+        twin = client.post(f"/api/projects/{pid}/stories", json={"title": again})
+        assert twin.status_code == 422, (first, again)
+    assert stories.name_key("LOGI\u0307N") == stories.name_key("login")  # (İ decomposed)

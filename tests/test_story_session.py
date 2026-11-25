@@ -387,3 +387,38 @@ def test_another_projects_story_on_a_task_row_is_not_waited_for_adopted_nor_tidi
         assert backlog.decide(session, task, approve=False) is None
         assert session.get(Story, theirs.id) is not None
         session.rollback()
+
+
+def test_a_task_row_of_another_project_naming_the_story_is_none_of_its_tasks(
+    story, client, tmp_path
+):
+    """L2: a story's id on a row of another project (set outside KOLONİ) does not make that row
+    one of the story's tasks: not listed, not counted, not in its summary, nor its last turn or
+    branch - and, waiting in a chat of that project, it holds no Do in chat of the story's own."""
+    session, s, topic, t = story
+    other = tmp_path / "other"
+    other.mkdir()
+    elsewhere = client.post("/api/projects", json={"root_path": str(other)}).json()["id"]
+    theirs_chat = client.post(f"/api/projects/{elsewhere}/conversations").json()["id"]
+    planted = backlog.add(session, elsewhere, {"title": "Theirs zq", "story_id": s.id}, "user")
+    planted.status, planted.conversation_id = "blocked", theirs_chat
+    backlog.set_flow(planted, place=1, stuck="their why")
+    session.flush()
+    ran = Run(conversation_id=theirs_chat, task_id=planted.id, status="completed")
+    ran.started_at = ran.ended_at = now()
+    session.add(ran)
+    session.flush()
+    on_branch = {"on_branch": "koloni/theirs"}
+    session.add(
+        Agent(run_id=ran.id, role_name="Lead", name="Lead", tools=[], depth=0, copy=on_branch)
+    )
+    session.flush()
+    assert [one.id for one in stories.tasks_of(session, s.id)] == [one.id for one in t.values()]
+    assert backlog.story_place(session, t["t1"])[1] == (1, 4)
+    assert stories.not_closable(session, s) == 4
+    assert "Theirs zq" not in stories.summary_lines(session, s, "none")
+    assert stories.last_task(session, s.id) is None
+    assert stories.branch_lead(session, s.id) is None
+    chat = session.get_one(Conversation, topic.conversation_id)
+    backlog.queue_in_chat(session, chat, [t["t2"]])  # (not refused)
+    session.rollback()

@@ -3,9 +3,11 @@ and bugs. A story's state comes from its tasks; it is done only by the user's wo
 
 (Never imports `app.backlog`, which imports this.)"""
 
+import itertools
 import logging
 import os
 import re
+import unicodedata
 from collections.abc import Iterator, Sequence
 from datetime import datetime, timedelta
 
@@ -37,15 +39,45 @@ PRIORITIES = ("high", "normal", "low")
 # Orchestrator adds at most NOTES_PER_TURN, each a line of its answer that starts STORY_NOTE.
 NOTE_KINDS = ("decision", "file", "result", "question")
 NOTE_MOST, NOTEBOOK_MOST, NOTES_PER_TURN = 200, 20, 3
-FIRST_CUT = NOTE_MOST * 20  # (what of a note's words is read at all: `_one_cut`)
-WORD = re.compile(r"\S+")
-# A code fence's opening (or closing) line, as CommonMark reads it: three or more ` or ~.
-FENCE = re.compile(r"(`{3,}|~{3,})")
+FIRST_CUT = NOTE_MOST * 20  # (what of a note's words is read at all: `_first_cut`)
+# What nobody sees, so a secret may be split with it unseen (S1, L3): what does not print (but
+# blanks), and these - variation selectors, the grapheme joiner, Mongolian and Khmer marks, Hangul
+# fillers, and the blanks Python counts that nobody sees as one (U+001C-001F, U+0085, U+2028-9).
+UNSEEN = frozenset(
+    map(
+        chr,
+        [
+            *range(0xFE00, 0xFE10),
+            *range(0xE0100, 0xE01F0),
+            0x034F,
+            *range(0x180B, 0x180E),
+            0x17B4,
+            0x17B5,
+            0x115F,
+            0x1160,
+            0x3164,
+            0xFFA0,
+            *range(0x1C, 0x20),
+            0x85,
+            0x2028,
+            0x2029,
+        ],
+    )
+)
+# A word as `_whole` hides one: what no blank anybody sees parts - an UNSEEN blank is in it.
+WORD = re.compile("(?:\\S|[" + "".join(sorted(ch for ch in UNSEEN if ch.isspace())) + "])+")
+# A code fence's opening (or closing) line, as CommonMark reads it: three or more ` or ~ after up
+# to 3 spaces (4 are code).
+FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
+# A setext heading's underline: the line above it is a heading's.
+SETEXT = re.compile(r" {0,3}(?:=+|-+)[ \t]*\Z")
 STORY_NOTE = "Story note:"
 # A note's line: STORY_NOTE after up to 3 spaces (4 are code to Markdown), maybe as a list's item
-# (`- `, `* `, `+ `), maybe in bold or italics.
+# (`- `, `* `, `+ `), maybe in bold or italics, maybe the marker alone in backticks (as 0.1.8 read
+# it; a line whole in them is code).
 NOTE_LINE = re.compile(
-    rf" {{0,3}}(?:[-*+][ \t]+)?\*{{0,3}}{re.escape(STORY_NOTE)}(.*)", re.IGNORECASE
+    rf" {{0,3}}(?:[-*+][ \t]+)?\*{{0,3}}(?P<tick>`)?{re.escape(STORY_NOTE)}(?(tick)`)(?P<note>.*)",
+    re.IGNORECASE,
 )
 LINE_END = re.compile(r"\r\n|\r|\n")
 # Told with a story's task, its fix round too: the form in plain words - one shown in code is
@@ -95,16 +127,19 @@ def goal_progress(states: Sequence[str]) -> tuple[int, int]:
     return sum(state == "done" for state in states), len(states)
 
 
+def _its_projects(query):
+    """`query` of task rows held to those of their story's project: a row of another project that
+    names the story (its id on a row is no key) is none of its tasks (L2)."""
+    return query.join(Story, Story.id == BacklogTask.story_id).where(
+        BacklogTask.project_id == Story.project_id
+    )
+
+
 def tasks_of(session: Session, story_id: str) -> list[BacklogTask]:
     """A story's tasks as the To-do list orders them: by priority, then by their place."""
     rank = case({p: i for i, p in enumerate(PRIORITIES)}, value=BacklogTask.priority)
-    return list(
-        session.scalars(
-            select(BacklogTask)
-            .where(BacklogTask.story_id == story_id)
-            .order_by(rank, BacklogTask.position)
-        )
-    )
+    query = select(BacklogTask).where(BacklogTask.story_id == story_id)
+    return list(session.scalars(_its_projects(query).order_by(rank, BacklogTask.position)))
 
 
 def _next_position(session: Session, model: type[Goal] | type[Story], project_id: str) -> int:
@@ -248,8 +283,10 @@ def goal_states(session: Session, goal: Goal) -> list[str]:
 def name_key(title: str) -> str:
     """A story's or a goal's name as two are told apart: whatever its case, and the Turkish İ and ı
     as an i - casefold makes İ an i with a dot of its own, so LOGİN, LOGIN, login and logın are one
-    name (T2b)."""
-    return title.strip().replace("İ", "i").replace("ı", "i").casefold()
+    name (T2b); in any Unicode form (NFKC: a decomposed é, a fullwidth letter), what nobody sees
+    left out (L6)."""
+    plain = "".join(ch for ch in unicodedata.normalize("NFKC", title) if not _unseen(ch))
+    return plain.strip().replace("İ", "i").replace("ı", "i").casefold()
 
 
 def taken(session: Session, project_id: str, title: str, but: str | None = None) -> Story | None:
@@ -373,7 +410,7 @@ def _said(text: object, pass_env: str | None) -> str | None:
     NOTE_MOST (a secret cut first would no longer be seen); None for none, or for words that
     read like orders (`injection.scan`, every rule: they go to models at every turn) - as they
     came, before `one_line` makes a zero-width or soft hyphen a space that splits a phrase, and
-    as cut, where the cut ends a phrase. Cut to NOTE_MOST * 20 first (`_one_cut`)."""
+    as cut, where the cut ends a phrase. Cut to NOTE_MOST * 20 first (`_first_cut`)."""
     came = str(text or "")
     line = _masked_line(came, pass_env)[:NOTE_MOST]
     if not line or injection.scan(came[:FIRST_CUT]) or injection.scan(line):
@@ -381,20 +418,34 @@ def _said(text: object, pass_env: str | None) -> str | None:
     return line
 
 
-def _one_cut(text: str, first: str | None = None) -> str:
-    """The text on one line, cut to FIRST_CUT first - masking a long line costs more than its
-    length (a 128 KB one took seconds) - and where it was longer, its last word gone too: a
-    secret cut off there is no longer seen as one, and the padding one_line takes out would
-    bring its head into the note. `first`: its first FIRST_CUT characters as they are read
-    instead (masked: `_masked_line`)."""
-    line = topics.one_line(text[:FIRST_CUT] if first is None else first)
-    return line.rpartition(" ")[0] if len(text) > FIRST_CUT else line
+def _unseen(ch: str) -> bool:
+    return ch in UNSEEN or not (ch.isprintable() or ch.isspace())
+
+
+def _first_cut(text: str) -> str:
+    """The text cut to FIRST_CUT - masking a long line costs more than its length (a 128 KB one
+    took seconds) - and where it was longer, the word the cut falls in gone whole, with what
+    nobody sees in it (L1): a secret's head cut off there is no longer seen as one, and the
+    padding one_line takes out would bring it into the note."""
+    if len(text) <= FIRST_CUT:
+        return text
+    keep = FIRST_CUT
+    while keep and (_unseen(text[keep - 1]) or not text[keep - 1].isspace()):
+        keep -= 1
+    return text[:keep]
 
 
 def _seen(text: str) -> str:
-    """The text without what nobody sees in it - what does not print, but blanks: a zero width,
-    a joiner, a byte-order mark, a NUL."""
-    return "".join(ch for ch in text if ch.isprintable() or ch.isspace())
+    """The text without what nobody sees in it (`_unseen`): a run of it with ASCII beside it, as
+    in a key, goes; one between two other characters (an emoji's joiner, a Persian word's) stays."""
+    out, at = [], 0
+    for unseen, chars in itertools.groupby(text, _unseen):
+        run = "".join(chars)
+        end = at + len(run)
+        if not unseen or not (text[at - 1 : at].isascii() or text[end : end + 1].isascii()):
+            out.append(run)
+        at = end
+    return "".join(out)
 
 
 def _whole(word: re.Match) -> str:
@@ -404,21 +455,29 @@ def _whole(word: re.Match) -> str:
 
 
 def _masked_line(text: str, pass_env: str | None) -> str:
-    """`_one_cut`, masked. one_line makes what nobody sees a space (a joiner it keeps), so a
-    secret split by one came in as two parts, neither one a secret (S1): the text is masked as
-    it came, a word of it with such a character and a part hidden is hidden whole (`_whole`),
-    those characters are taken out and it is masked again - where that hides more, the line is
-    made of it, no part of the secret left. Else it is as ever (joiners kept: an emoji, Persian).
-    shortcut: a mark that prints but is not seen (a variation selector) is not taken out; add
-    it to `_seen` if a secret split by one turns up."""
-    line = masked(_one_cut(text), pass_env)
-    if _seen(cut := text[:FIRST_CUT]) == cut:
+    """The text (`_first_cut`) on one line, masked. one_line makes what nobody sees a space (a
+    joiner it keeps), so a secret split by one came in as two parts, neither one a secret (S1):
+    the text is masked as it came, a word of it with such a character and a part hidden is
+    hidden whole (`_whole`), what nobody sees is taken out (`_seen`) and it is masked again -
+    where that hides more, the line is made of it, masked once more on one line (M1: `Bearer`
+    and `password:` need a plain blank beside them), no part of the secret left. Else it is as
+    ever. shortcut: a secret split by a blank anybody sees (a space, a line's end) or written
+    with letters that only look like its own is not found - masking knows a secret's letters."""
+    cut = _first_cut(text)
+    line = masked(topics.one_line(cut), pass_env)
+    if _seen(cut) == cut:
         return line
-    first = masked(cut, pass_env)  # (as it came: a secret's edge may be such a character)
+    # (as it came: a secret's edge may be such a character - a Hangul filler, a letter to `\b`,
+    # as a zero width)
+    first = masked(
+        "".join("\u200b" if ch.isalnum() and _unseen(ch) else ch for ch in cut), pass_env
+    )
     worded = WORD.sub(_whole, first)
     joined = _seen(worded)
     again = masked(joined, pass_env)
-    return line if again == joined and worded == first else _one_cut(text, again)
+    if again == joined and worded == first:
+        return line
+    return masked(topics.one_line(again), pass_env)
 
 
 def cut_note(text: object) -> str | None:
@@ -454,44 +513,57 @@ def add_notes(
     return len(added)
 
 
-def _comment_open(line: str, inside: bool) -> bool:
-    """Whether an HTML comment (`<!-- -->`) is open at the line's end - `inside`: at its start."""
+def _comment_after(line: str, open_: str) -> str:
+    """The HTML comment (`<!-- -->`) open at the line's end, `open_` at its start: "" none;
+    "block", one a line starts (after up to 3 spaces), open until `-->`; "inline", one opened
+    later in a line, which a blank line ends too - it does not cross a paragraph (M2)."""
     at = 0
-    while (end := line.find("-->" if inside else "<!--", at)) >= 0:
-        inside, at = not inside, end + (3 if inside else 4)
-    return inside
+    while True:
+        if open_:
+            if (end := line.find("-->", at)) < 0:
+                return open_
+            open_, at = "", end + 3
+        else:
+            if (start := line.find("<!--", at)) < 0:
+                return ""
+            open_ = "block" if start <= 3 and not line[:start].strip(" ") else "inline"
+            at = start + 4
 
 
-def _own_lines(said: str) -> Iterator[str]:
-    """The lines of a Markdown answer outside its code fences and HTML comments. Only CommonMark's
-    line ends end one (\\n, \\r\\n, \\r): not a U+2028, a form feed, a U+0085.
-    shortcut: a `<!--` in inline code opens a comment all the same - its notes after are lost,
-    never one too many; read code spans if a turn's notes go missing so."""
-    fence, comment = "", False  # (a fence's opening marker: closed by one of its kind, as long)
-    for one in LINE_END.split(said):
-        bare = one.lstrip()
-        mark = FENCE.match(bare)
+def _own_lines(said: str) -> Iterator[tuple[str, str]]:
+    """The lines of a Markdown answer outside its code fences and HTML comments, each with the
+    line after it. Only CommonMark's line ends end one (\\n, \\r\\n, \\r): not a U+2028, a form
+    feed, a U+0085.
+    shortcut: a `<!--` in inline code opens a comment all the same - the notes after it in its
+    paragraph are lost, never one too many; read code spans if a turn's notes go missing so."""
+    fence, comment = "", ""  # (a fence's opening marker: closed by one of its kind, as long)
+    for one, after in itertools.pairwise([*LINE_END.split(said), ""]):
+        mark = FENCE.match(one)
         if fence:
             closes = mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence)
-            fence = "" if closes and not bare[len(mark[1]) :].strip() else fence
+            fence = "" if closes and not one[mark.end() :].strip() else fence
+        elif comment == "inline" and not one.strip(" \t"):
+            comment = ""
         elif comment:
-            comment = _comment_open(one, True)
+            comment = _comment_after(one, comment)
         elif mark:
             fence = mark[1]
         else:
-            yield one
-            comment = _comment_open(one, False)
+            yield one, after
+            comment = _comment_after(one, "")
 
 
 def note_lines(said: str) -> list[tuple[str, str]]:
     """The STORY_NOTE lines of an Orchestrator's answer, at most NOTES_PER_TURN, as (kind,
     text): `kind: text`, else a result - read a line at a time, in time linear in it. A line
     that starts with it, as Markdown reads a line (`NOTE_LINE`), outside a code fence and an
-    HTML comment (S3): not a quoted one, one in a table, in inline code or indented as code -
-    a file or a page it shows is not its word."""
+    HTML comment (S3): not a quoted one, one in a table, in inline code, indented as code or
+    a heading's (a setext one: `SETEXT` under it) - a file or a page it shows is not its word."""
     found: list[tuple[str, str]] = []
-    for one in _own_lines(said):
-        if (match := NOTE_LINE.match(one)) and (note := match[1].strip(" \t*`")):
+    for one, after in _own_lines(said):
+        if SETEXT.match(after):
+            continue
+        if (match := NOTE_LINE.match(one)) and (note := match["note"].strip(" \t*`")):
             kind, _, text = note.partition(":")
             kind = kind.strip().casefold()
             found.append((kind, text.strip()) if kind in NOTE_KINDS else ("result", note))
@@ -699,9 +771,10 @@ def branch_lead(
     it again) still there: the one the next turn goes on from (`AgentRunner._branch_again`).
     None: no branch yet, or its last went in or was turned down at Close the story."""
     runs = select(Run.id).join(BacklogTask, BacklogTask.id == Run.task_id)
-    runs = runs.where(
-        BacklogTask.story_id == story_id if story_id is not None else BacklogTask.id == task_id
-    )
+    if story_id is not None:
+        runs = _its_projects(runs.where(BacklogTask.story_id == story_id))
+    else:
+        runs = runs.where(BacklogTask.id == task_id)
     for agent_id, copy in session.execute(
         select(Agent.id, Agent.copy)
         .where(Agent.run_id.in_(runs), Agent.depth == 0)
@@ -717,10 +790,9 @@ def branch_lead(
 
 def last_task(session: Session, story_id: str) -> BacklogTask | None:
     """The story's task whose turn ran last."""
+    query = select(BacklogTask).join(Run, Run.task_id == BacklogTask.id)
     return session.scalar(
-        select(BacklogTask)
-        .join(Run, Run.task_id == BacklogTask.id)
-        .where(BacklogTask.story_id == story_id)
+        _its_projects(query.where(BacklogTask.story_id == story_id))
         .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
         .limit(1)
     )

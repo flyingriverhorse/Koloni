@@ -465,6 +465,7 @@ def _story_elsewhere(
             for one in session.scalars(
                 select(BacklogTask).where(
                     BacklogTask.story_id == story_id,
+                    BacklogTask.project_id == project_id,
                     BacklogTask.conversation_id.is_not(None),
                     BacklogTask.conversation_id != cid,
                 )

@@ -128,8 +128,8 @@ plain list with no story has no such heading.
   stories lose their goal, its tasks their story.
 - A story's name is one in its project, whatever its case: agents name a story by it, so "Login" and
   "LOGIN" would leave which one they mean to chance. The Turkish İ and ı count as an i: "LOGİN" and
-  "logın" are "login" too. A name another story has, open or closed, is refused; an agent naming a
-  closed story is told so.
+  "logın" are "login" too; so does a name in another Unicode form or with a character nobody sees in
+  it. A name another story has, open or closed, is refused; an agent naming a closed story is told so.
 
 The filters on the bar show **All**, what is **Todo** (to do, or stuck), what is **Running** (at work, or
 done? and waiting for your word - a story at done? too) or what is **Done** (a story only once you closed
@@ -149,8 +149,9 @@ line - a **decision**, a **file**, a **result** or a **question** - with who wro
   or *— not finished: …* - and the files that turn changed in the project, five at most.
 - The task's **Orchestrator** is asked to end its answer with up to three lines
   `Story note: <decision|file|result|question>: <one line>`; KOLONİ reads them off its answer. A note
-  is a line that starts so - after up to three spaces, as a list's item or not, in bold or not; one in
-  a code block, a quote, a table, a heading, inline code or an HTML comment is not.
+  is a line that starts so, at the very start of the line: before it only up to three spaces, a list's
+  `- `, bold, or backticks round `Story note:` alone. One in a code block, a quote, a table, a heading,
+  inline code or an HTML comment is not.
 - The **Hive keeper** adds its notes as it drafts a story.
 
 ![A chat working through a story: the strip over it reads "Story · Two-step sign-in · 2 / 3 · next: Turn it on in Settings · notes", and its notebook is open - the Hive keeper's decision and KOLONİ's result line for the first task](../images/story-notebook.png)
@@ -168,7 +169,8 @@ What agents write there goes to models at every turn, so KOLONİ holds it to a f
 KOLONİ knows, and the variables the project passes to its commands, are masked - also one split by a
 character nobody sees, such as a zero-width space; a line that reads like orders is left out (in
 `runtime/logs/koloni.log`); each note is one line of at most 200 characters, and the newest 20 are
-kept. Notes kept before these rules are checked again as they are given.
+kept. Notes kept before these rules are checked again as they are given. Masking knows a secret by its
+own characters: one split by a space or a line's end, or written with look-alike letters, is not found.
 
 ## Your tasks
 

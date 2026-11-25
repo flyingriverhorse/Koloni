@@ -351,7 +351,28 @@ def test_a_fence_closes_only_on_its_own_kind_and_length():
     assert stories.note_lines(said) == [("decision", "its own")]
 
 
-@pytest.mark.parametrize("unseen", ["\u200b", "\u2060", "\ufeff", "\u200c", "\u200d", "\x00"])
+@pytest.mark.parametrize(
+    "unseen",
+    [
+        "\u200b",
+        "\u2060",
+        "\ufeff",
+        "\u200c",
+        "\u200d",
+        "\x00",
+        # (L3: what prints or is a blank to Python, but nobody sees)
+        "\ufe0f",
+        "\U000e0100",
+        "\u034f",
+        "\u180b",
+        "\u17b4",
+        "\u3164",
+        "\uffa0",
+        "\x1c",
+        "\x85",
+        "\u2028",
+    ],
+)
 @pytest.mark.parametrize("late", [False, True])
 def test_a_secret_split_by_a_character_nobody_sees_is_masked_whole(monkeypatch, unseen, late):
     # S1: one_line made the character a space, and each part of the secret was no secret; `late`:
@@ -437,3 +458,65 @@ def test_a_note_may_be_a_lists_item_and_the_form_is_asked_for_as_plain_words():
     assert "`" not in stories.SAY_STORY_NOTE and f": {stories.STORY_NOTE} <" in (
         stories.SAY_STORY_NOTE
     )
+
+
+@pytest.mark.parametrize(
+    "note, gone",
+    [
+        (
+            "key sk-live-0123\u200b456789abcdef and Authorization: Bearer\nQ7w9Q7w9Q7w9Q7w9 ok",
+            "Q7w9Q",
+        ),
+        ("see 1***\u200b2 then password:\nhunter2hunter2", "hunter2h"),
+        ("see 1***\u200b2 then password:\u00a0hunter2hunter2", "hunter2h"),
+        ("see 1***\u200b2 then password=\u3000hunter2hunter2", "hunter2h"),
+    ],
+)
+def test_a_line_rebuilt_without_what_nobody_sees_is_masked_on_one_line_too(monkeypatch, note, gone):
+    # M1: `Bearer` and `password:` need a plain blank beside them - the line made of the text with
+    # the zero width taken out (another secret was split by it) was not masked once on one line
+    monkeypatch.setenv("KOLONI_TEST_API_KEY", SECRET)
+    story = Story(id="s", notes=[])
+    assert stories.add_notes(story, [("decision", note)], "Orchestrator") == 1
+    for kept in (story.notes[0]["text"], stories.cut_note(note) or ""):
+        assert gone not in kept and "***" in kept, kept
+
+
+@pytest.mark.parametrize("into", range(9))
+def test_a_split_secret_the_first_cut_falls_in_is_not_kept_in_part(monkeypatch, into):
+    # L1: the cut falls `into` characters past the zero width - the word it falls in goes whole
+    monkeypatch.setenv("KOLONI_TEST_API_KEY", SECRET)
+    head = "key " + SECRET[:16] + "\u200b"
+    note = " " * (stories.FIRST_CUT - len(head) - into) + head + SECRET[16:]
+    for kept in (stories._said(note, None) or "", stories.cut_note(note) or ""):
+        assert not any(SECRET[at : at + 8] in kept for at in range(len(SECRET) - 7)), (into, kept)
+
+
+def test_only_what_nobody_sees_beside_a_keys_letters_goes():
+    # L4: a word with a hidden part and a joiner is hidden whole; the emoji family keeps its own
+    family = "\U0001f468\u200d\U0001f469\u200d\U0001f467"
+    kept = stories._said(f"use ***bold***\u200d\U0001f44d and {family}", None) or ""
+    assert kept == f"use *** and {family}", kept
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "I removed the <!-- marker from the template.\n\nStory note: decision: its own",
+        "The file starts with `<!--`.\n\nStory note: decision: its own",
+        # (one a line starts is open until -->; one opened later, until a blank line)
+        "<!--\n\nStory note: decision: hidden\n-->\nStory note: decision: its own",
+        "text <!-- open\nStory note: decision: hidden\n\nStory note: decision: its own",
+        # (the marker alone in backticks, as 0.1.8 read it)
+        "`Story note:` decision: its own",
+        # (a setext heading's text is no note)
+        "Story note: decision: a heading\n---\nStory note: decision: its own",
+        "Story note: decision: a heading\n===\nStory note: decision: its own",
+        # (a fence's marker indented as code neither closes a fence nor opens one)
+        "```\n    ```\nStory note: decision: inside\n```\nStory note: decision: its own",
+        "    ```\nStory note: decision: its own",
+    ],
+)
+def test_a_comment_a_heading_and_a_fence_as_markdown_reads_them(said):
+    # M2, L5
+    assert stories.note_lines(said) == [("decision", "its own")], said
