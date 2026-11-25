@@ -1,9 +1,9 @@
 // Full auto's judge (0.1.9) in the browser: the Judge model chosen in Settings › The app › Agents, the project's switch
 // turned on in the level menu - a command the list does not stop is first sent to the stand-in judge, which finds one
-// with JUDGE-RISKY risky: as a project comes it is refused with no card, its row says why, and the agent goes on; with
-// Ask me chosen in Settings › This project it waits on a card that says so, with no Always run and the box to keep its
-// line. With the switch turned off, the same command runs with no card. Nothing leaves the machine: the fake model is
-// the judge.
+// with JUDGE-RISKY risky: as a project comes it is refused with no card, its row and Decided for you say why, and the
+// agent goes on; with Ask me chosen in Settings › This project it waits on a card that says so, with no Always run and
+// the box to keep its line. With the switch turned off, the same command runs with no card. Nothing leaves the machine:
+// the fake model is the judge.
 import { expect, test, type Page } from './fixtures'
 import {
   appSettings,
@@ -68,7 +68,7 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   await level(page, 'full_auto')
   await flipJudge(page, pid, true)
   // Refuse and go on, as a project comes: no card - the row says refused, with the judge's sentence, and the agent goes
-  // on. (Decided for you lists it too: `decided.test.tsx`.)
+  // on; Decided for you, from the top bar's pill, lists it until OK.
   const refused = "KOLONİ's judge refused: The stand-in judge was told it is risky."
   await page.getByLabel('Message').fill(`Judge 109: run ${COMMAND}`)
   await page.getByRole('button', { name: 'Send' }).click()
@@ -76,6 +76,17 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   await expect(chat.getByText('Run this command?')).toHaveCount(0)
   await expect(chat.locator('.tool-row-note', { hasText: refused })).toHaveCount(1)
   await expect(chat.locator('.tool-row', { hasText: refused })).toContainText('refused')
+  // (other chats of the run may wait too: the panel's This chat is this one's)
+  const pill = page.locator('.ready-pill')
+  await expect(pill).toHaveText(/^(1 decided|\d+ waits?)$/)
+  await pill.click()
+  const panel = page.getByRole('complementary', { name: /^Ready for you/ })
+  const decided = panel.getByRole('region', { name: /Decided for you/ })
+  await expect(decided).toContainText(`KOLONİ did not run ${COMMAND}`)
+  await expect(decided).toContainText("KOLONİ's judge: The stand-in judge was told it is risky.")
+  await decided.getByRole('button', { name: 'OK' }).click()
+  await expect(decided).toHaveCount(0)
+  await panel.getByRole('button', { name: 'Close Ready for you' }).click()
 
   // Ask me, chosen in Settings › This project › Asking and away: its card.
   const settings = await projectSettings(page, /^Asking and away/)

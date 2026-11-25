@@ -411,8 +411,9 @@ agent read, and the secrets KOLONİ knows are masked first.
 - **Refuse and go on** (the default) - as Claude Code's auto mode does: the command does not run, no card
   opens and nothing waits. Its agent is told `KOLONİ's judge refused this: {why}. Do it another way, or ask
   the user.` and goes on; the command's row says **refused**, with **KOLONİ's judge refused: …** under it,
-  and the chat's **Decided for you** (in Ready for you) lists it with the judge's sentence until you click
-  OK. Within the turn the same line, as the judge saw it, is refused again without asking the model.
+  and the chat's **Decided for you** - the top bar's pill says "1 decided", and opens it in Ready for you
+  - lists it with the judge's sentence until you click OK. Where KOLONİ keeps the line (see **Its card** below for which lines it keeps), the same line is
+  refused again in that turn without asking the model; any other line is asked about each time it runs.
 - **Ask me** - it waits for you on a card that says **KOLONİ's judge: …**, the model's one sentence; once
   answered, that sentence stays under the command's row.
 

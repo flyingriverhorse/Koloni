@@ -71,7 +71,7 @@ The sections are listed on the left, in this order.
 
 ### Asking and away
 
-![Settings, This project: the sections on the left, and Asking and away on the right with Opening a sub-agent, When you're away, Full auto's judge with When the judge finds a command risky and its box for your words under it (after its measurement), and Agents may delete what is disposable without asking](images/settings-project.png)
+![Settings, This project: the sections on the left, and Asking and away on the right with Opening a sub-agent, When you're away, Full auto's judge with its box for your words under it (after its measurement), and Agents may delete what is disposable without asking](images/settings-project.png)
 
 *Settings › This project, at **Asking and away**.*
 

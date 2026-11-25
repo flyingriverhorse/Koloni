@@ -180,9 +180,10 @@ export const decidedTasks = (backlog: BacklogTask[] | null, chat: string): Backl
   )
 
 /** K-yargıç: the commands of this chat Full auto's check of the user's words let run with no card, or did not run - and
- *  those Full auto's judge refused (Refuse and go on) -, not yet OK'd.
- *  shortcut: as `decidedTasks`, shown in the chat's Decided for you only - not in `decidedOf`'s pill or Ready's counts;
- *  count these there too if one is missed. (Not the judge's "fine" or "risky": it ran, or the user said on its card.) */
+ *  those Full auto's judge refused (Refuse and go on) -, not yet OK'd: in the chat's Decided for you, counted by the top
+ *  bar's pill and the Ready page's Told you, so that the list can be reached.
+ *  shortcut: not in the canvas's count nor Ready's waiting counts; count these there too if one is missed. (Not the
+ *  judge's "fine" or "risky": it ran, or the user said on its card.) */
 export const judgedCommands = (conv: ConvState): Command[] =>
   conv.commands.filter(c => (c.judged?.verdict === 'run' || c.judged?.verdict === 'refuse') && !c.judged.seen)
 

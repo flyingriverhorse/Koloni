@@ -62,7 +62,7 @@ import { PlanUse } from './usage/PlanUse'
 import { ReadyPage, ReadyPanel } from './ready/ReadyViews'
 import { useReady } from './ready/useReady'
 import { READY_PANEL } from './ready/ready'
-import { decidedOf, waitingId } from './chat/waiting'
+import { decidedOf, judgedCommands, waitingId } from './chat/waiting'
 
 const HEALTH_POLL_MS = 15000
 // (A hash has no order: which of the two is newer is not known, so all three steps are said.)
@@ -188,7 +188,8 @@ export function App() {
   // What waits for your word anywhere (tek-ev §1): the pill, the rail's badge, the panel and the page.
   const waiting = useReady()
   const readyPanel = useApp(s => s.readyPanel)
-  const decided = conv ? decidedOf(conv).length : 0
+  // (and the commands decided on your words, or refused by Full auto's judge: Decided for you is reached by the pill)
+  const decided = conv ? decidedOf(conv).length + judgedCommands(conv).length : 0
   const [view, setView] = useState<View>('canvas')
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
   const [settingsWanted, setSettingsOpen] = useState(false)
