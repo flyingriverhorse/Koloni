@@ -7654,7 +7654,8 @@ export interface components {
          *     it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
          *     (Decided for you). Full auto's judge's (`kind` "risk"): "fine", it ran; "risky", its card -
          *     `why`, the judge's sentence, or KOLONİ's where it was not asked or gave no answer to go by
-         *     (`model` then "" where none was asked).
+         *     (`model` then "" where none was asked). Since §8 the check of the user's words is the judge's
+         *     too, `kind` "words" ("" on a record from before 0.1.9).
          */
         Judged: {
             /**
@@ -7662,7 +7663,7 @@ export interface components {
              * @default
              * @enum {string}
              */
-            kind: "" | "risk";
+            kind: "" | "risk" | "words";
             /**
              * Model
              * @default
@@ -9493,6 +9494,8 @@ export interface components {
             hide_secrets: boolean;
             /** Id */
             id: string;
+            /** Judge Words */
+            judge_words: boolean;
             /** @description What the folder's `.koloni/` holds, read now. */
             readonly koloni: components["schemas"]["KoloniOut"];
             /**
@@ -9665,14 +9668,14 @@ export interface components {
             fix_rounds?: number | "until" | null;
             /** Forget Tests Found */
             forget_tests_found?: boolean | null;
-            /** Full Auto Check */
-            full_auto_check?: ("ask" | "judge") | null;
             /** Full Auto Judge */
             full_auto_judge?: boolean | null;
             /** Git Commit */
             git_commit?: boolean | null;
             /** Hide Secrets */
             hide_secrets?: boolean | null;
+            /** Judge Words */
+            judge_words?: boolean | null;
             /** Lead Work */
             lead_work?: ("delegates" | "decides" | "itself") | null;
             /** Longest Command */

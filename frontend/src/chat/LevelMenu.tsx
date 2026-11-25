@@ -4,7 +4,16 @@ import type { PermissionMode } from '../api/types'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { usePanel } from '../shell/usePanel'
-import { type Checks, checksOn, checksSaid, checksValue, LEVELS, NO_CHECKS_AT_FULL_AUTO, PLAN_FIRST } from './levels'
+import {
+  type Checks,
+  checksOn,
+  checksSaid,
+  checksValue,
+  type JudgeWords,
+  LEVELS,
+  NO_CHECKS_AT_FULL_AUTO,
+  PLAN_FIRST,
+} from './levels'
 
 const MODES = Object.keys(LEVELS) as PermissionMode[]
 
@@ -38,21 +47,21 @@ interface Props {
   planFirst: boolean
   /** Turn Plan first on or off; without it there is no conversation to set it on. */
   onPlanFirst?: (on: boolean) => void
-  /** K-yargıç: the project checks your own words before a harmful-looking command waits for you. */
-  checkFirst?: boolean
-  /** Turn it on or off; without it (a plain chat) there is no project to set it on. */
-  onCheckFirst?: (on: boolean) => void
   /** 0.1.9: Full auto's judge, the project's - and its setter, none in a plain chat. */
   judge?: boolean
   onJudge?: (on: boolean) => void
+  /** §8: what the judge does with your words - its box off, on, or on but not until its measurement. */
+  judgeWords?: JudgeWords
   /** S10: Check after a change for this chat; without it (a plain chat, nothing to check) no switch. */
   checks?: Checks
 }
 
-const CHECK_FIRST =
-  'Before a harmful-looking command waits for you at Full auto or while you’re away, your own words are read first; it runs without a card only where a line of yours names it.'
 const JUDGE =
-  'At Full auto and while you’re away, a small model looks at each command the list does not stop before it runs: one that looks risky waits for you.'
+  'Before a command runs at Full auto or while you’re away, a small model looks at it first: one the list doesn’t stop waits for you if it looks risky'
+const JUDGE_WORDS = '; a harmful-looking one runs without a card only where a line of yours names it'
+/** The judge's line: its part for your words only where its box is on, and " (after its measurement)" until then. */
+const judgeSays = (words: JudgeWords) =>
+  `${JUDGE}${words === 'off' ? '' : JUDGE_WORDS}${words === 'unmeasured' ? ' (after its measurement)' : ''}.`
 
 /** A switch row of the panel: its name and what it does. */
 function SwitchRow({
@@ -115,30 +124,18 @@ function ChecksRow({ id, mode, checks }: { id: string; mode: PermissionMode; che
   )
 }
 
-/** Under the levels, the project's own switches at Full auto: its judge (0.1.9) and Check what I said first - none
- *  without its setter (a plain chat). */
-function ProjectSwitches(p: {
-  id: string
-  judge: boolean
-  onJudge?: (on: boolean) => void
-  checkFirst: boolean
-  onCheckFirst?: (on: boolean) => void
-}) {
+/** Under the levels, the project's own switch at Full auto: its judge (0.1.9; Check what I said first is its question
+ *  since §8) - none without its setter (a plain chat). */
+function ProjectSwitches(p: { id: string; judge: boolean; onJudge?: (on: boolean) => void; words: JudgeWords }) {
+  if (!p.onJudge) return null
   return (
-    <>
-      {p.onJudge && (
-        <SwitchRow id={`${p.id}-judge`} name="Full auto’s judge" says={JUDGE} on={p.judge} onChange={p.onJudge} />
-      )}
-      {p.onCheckFirst && (
-        <SwitchRow
-          id={`${p.id}-check`}
-          name="Check what I said first"
-          says={CHECK_FIRST}
-          on={p.checkFirst}
-          onChange={p.onCheckFirst}
-        />
-      )}
-    </>
+    <SwitchRow
+      id={`${p.id}-judge`}
+      name="Full auto’s judge"
+      says={judgeSays(p.words)}
+      on={p.judge}
+      onChange={p.onJudge}
+    />
   )
 }
 
@@ -152,10 +149,9 @@ export function LevelMenu({
   onMode,
   planFirst,
   onPlanFirst,
-  checkFirst = false,
-  onCheckFirst,
   judge = true,
   onJudge,
+  judgeWords = 'off',
   checks,
 }: Props) {
   const { open, setOpen, close, button, panel } = usePanel()
@@ -227,13 +223,7 @@ export function LevelMenu({
               </button>
             ))}
           </div>
-          <ProjectSwitches
-            id={id}
-            judge={judge}
-            onJudge={onJudge}
-            checkFirst={checkFirst}
-            onCheckFirst={onCheckFirst}
-          />
+          <ProjectSwitches id={id} judge={judge} onJudge={onJudge} words={judgeWords} />
           {onPlanFirst && (
             <>
               <hr className="level-sep" />

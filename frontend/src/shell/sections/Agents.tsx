@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Project } from '../../api/types'
+import { wordsMeasured } from '../../chat/levels'
 import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
 import { part, Row, within } from './part'
@@ -35,13 +36,9 @@ export const OPENING: [value: Project['spawn_approval'], label: string][] = [
 const OPENING_WHY =
   'Ask when it matters: only when you approve everything and the sub-agent could write files or run commands. Always: before every sub-agent. Never: sub-agents open on their own.'
 
-/** K-yargıç: at Full auto a command that deletes, overwrites or sends something off this machine asks you, or is first checked against what you said. */
-export const FULL_AUTO_CHECK: [value: Project['full_auto_check'], label: string][] = [
-  ['ask', 'Ask me'],
-  ['judge', 'Check what I said first'],
-]
-const CHECK_WHY =
-  'Check what I said first: your preferences, this project’s rules as saved on the Memory page (not the folder’s .koloni/rules.md) and your own messages in this chat are read first, and the command runs without a card only when a line of yours names it. Secret files, .koloni, files that steer later turns and paths outside the folder are always asked; anything that goes wrong opens the card as before.'
+/** §8: the judge's box for your words (Check what I said first, K-yargıç) - behind its ⓘ. */
+const WORDS_WHY =
+  'At Full auto a command that deletes, overwrites or sends something off this machine is put to the judge too: your preferences, this project’s rules as saved on the Memory page (not the folder’s .koloni/rules.md) and your own messages in this chat are read, and it runs without a card only when a line of yours names it; one a line of yours forbids is not run. Secret files, .koloni, files that steer later turns and paths outside the folder are always asked; anything that goes wrong opens the card as before. It works once your Judge model’s measurement has passed - none has yet - or in a project where Check what I said first was on before 0.1.9.'
 
 /** Full auto's judge (0.1.9): what it does and costs, in sight under its box; the rest behind ⓘ. */
 const JUDGE_SHOWN =
@@ -159,11 +156,9 @@ export function useAsking(project: Project) {
   const awayMinutes = within(minutesText, 0, 1440)
   const [approval, setApproval] = useState(savedApproval)
   const judge = useFullAutoJudge(project)
-  const check = useFullAutoCheck(project)
   const disposable = useDisposableDeletes(project)
   const patch = {
     ...judge.patch,
-    ...check.patch,
     ...disposable.patch,
     ...(approval !== savedApproval && { spawn_approval: approval }),
     ...(whenAway !== savedAway && { when_away: whenAway }),
@@ -241,27 +236,42 @@ export function useAsking(project: Project) {
         </span>
       </Row>
       {judge.row}
-      {check.row}
       {disposable.row}
     </>,
   )
 }
 
-/** `useAsking`'s switch for Full auto's judge (0.1.9), on unless turned off; what it costs in sight, the rest behind ⓘ. */
+/** `useAsking`'s switch for Full auto's judge (0.1.9), on unless turned off; what it costs in sight, the rest behind ⓘ -
+ *  and under it its box for your words (§8), which may be ticked only once measured, and always unticked. */
 function useFullAutoJudge(project: Project) {
   const [on, setOn] = useState(project.full_auto_judge)
+  const [words, setWords] = useState(project.judge_words)
+  const measured = wordsMeasured(project)
+  const locked = !measured && !words
   return {
-    patch: on === project.full_auto_judge ? {} : { full_auto_judge: on },
+    patch: {
+      ...(on !== project.full_auto_judge && { full_auto_judge: on }),
+      ...(words !== project.judge_words && { judge_words: words }),
+    },
     row: (
-      <label className="choice">
-        <input type="checkbox" checked={on} onChange={e => setOn(e.target.checked)} />
-        <span>
-          Full auto’s judge
-          <span className="choice-note">
-            {JUDGE_SHOWN} <Hint doc={GUIDE.fullAutoJudge}>{JUDGE_REST}</Hint>
+      <>
+        <label className="choice">
+          <input type="checkbox" checked={on} onChange={e => setOn(e.target.checked)} />
+          <span>
+            Full auto’s judge
+            <span className="choice-note">
+              {JUDGE_SHOWN} <Hint doc={GUIDE.fullAutoJudge}>{JUDGE_REST}</Hint>
+            </span>
           </span>
-        </span>
-      </label>
+        </label>
+        <label className={`choice${locked ? ' choice-disabled' : ''}`}>
+          <input type="checkbox" checked={words} disabled={locked} onChange={e => setWords(e.target.checked)} />
+          <span>
+            It also lets a delete or a push run when a line you saved names it
+            {measured ? '' : ' (after its measurement)'} <Hint doc={GUIDE.checkWhatISaid}>{WORDS_WHY}</Hint>
+          </span>
+        </label>
+      </>
     ),
   }
 }
@@ -282,43 +292,6 @@ function useDisposableDeletes(project: Project) {
           </span>
         </span>
       </label>
-    ),
-  }
-}
-
-/** `useAsking`'s row for a harmful-looking command at Full auto (K-yargıç): what it costs in sight once it checks. */
-function useFullAutoCheck(project: Project) {
-  const saved = project.full_auto_check ?? 'ask'
-  const [check, setCheck] = useState(saved)
-  return {
-    patch: check === saved ? {} : { full_auto_check: check },
-    row: (
-      <Row
-        label="A harmful-looking command at Full auto"
-        htmlFor="full-auto-check"
-        doc={GUIDE.settingsAsking}
-        why={CHECK_WHY}
-        warn={
-          check === 'judge' && (
-            <span className="choice-note">
-              Each such command is one request of your Judge model (on a CLI, of your plan).
-            </span>
-          )
-        }
-      >
-        <select
-          id="full-auto-check"
-          className="input"
-          value={check}
-          onChange={e => setCheck(e.target.value as Project['full_auto_check'])}
-        >
-          {FULL_AUTO_CHECK.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </Row>
     ),
   }
 }

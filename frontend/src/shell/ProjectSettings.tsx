@@ -70,10 +70,10 @@ export interface ProjectSettingsValues {
   when_away?: Project['when_away']
   away_minutes?: number
   spawn_approval?: Project['spawn_approval']
-  /** K-yargıç: a harmful-looking command at Full auto asks, or first checks what you said. Sent only when changed. */
-  full_auto_check?: Project['full_auto_check']
   /** 0.1.9: whether Full auto's judge looks at each command the list does not stop. Sent only when changed. */
   full_auto_judge?: boolean
+  /** §8: whether it also lets a harmful-looking command a line of yours names run. Sent only when changed. */
+  judge_words?: boolean
   /** Coordination §4: whether a delete KOLONİ checks is disposable goes without a card. Sent only when changed. */
   disposable_deletes?: boolean
   spawn_max_depth?: number
