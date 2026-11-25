@@ -25,7 +25,7 @@ test('a command a night job asks for is parked, Run in the morning runs it and t
   // The night: its job parks the command and goes on - it waits, "1 parked".
   const pid = await e2eProject(page)
   const night = async () => (await (await request.get(`/api/projects/${pid}/away`)).json()) as Record<string, any>
-  await expect.poll(async () => (await night()).jobs[0].why, { timeout: 30_000 }).toBe('1 parked')
+  await expect.poll(async () => (await night()).jobs[0]?.why, { timeout: 30_000 }).toBe('1 parked')
   await rail(page, 'To-do').click()
   await page.getByRole('button', { name: 'I’m back' }).first().click()
   await rail(page, 'Canvas').click()
@@ -38,7 +38,7 @@ test('a command a night job asks for is parked, Run in the morning runs it and t
   await waiting.getByRole('button', { name: 'Run' }).click()
 
   // The same Orchestrator goes on in the job's chat, on KOLONİ's message; the job is done.
-  await expect.poll(async () => (await night()).jobs[0].state, { timeout: 30_000 }).toBe('done')
+  await expect.poll(async () => (await night()).jobs[0]?.state, { timeout: 30_000 }).toBe('done')
   const cid = (await night()).jobs[0].conversation_id
   const snap = await (await request.get(`/api/conversations/${cid}`)).json()
   const said = snap.messages
