@@ -148,7 +148,9 @@ line - a **decision**, a **file**, a **result** or a **question** - with who wro
 - **KOLONİ** notes how each turn of the story's tasks ended - *“Add the reset mail” — done?*, *— stuck: …*
   or *— not finished: …* - and the files that turn changed in the project, five at most.
 - The task's **Orchestrator** is asked to end its answer with up to three lines
-  `Story note: <decision|file|result|question>: <one line>`; KOLONİ reads them off its answer.
+  `Story note: <decision|file|result|question>: <one line>`; KOLONİ reads them off its answer. A note
+  is a line that starts so - after up to three spaces, in bold or not; one in a code block, a quote, a
+  list, a table, inline code or an HTML comment is not.
 - The **Hive keeper** adds its notes as it drafts a story.
 
 ![A chat working through a story: the strip over it reads "Story · Two-step sign-in · 2 / 3 · next: Turn it on in Settings · notes", and its notebook is open - the Hive keeper's decision and KOLONİ's result line for the first task](../images/story-notebook.png)
@@ -163,9 +165,10 @@ buried in a long log): the notebook is what is not lost. Long content - a file, 
 again when it is needed.
 
 What agents write there goes to models at every turn, so KOLONİ holds it to a few rules: the secrets
-KOLONİ knows, and the variables the project passes to its commands, are masked; a line that reads like
-orders is left out (in `runtime/logs/koloni.log`); each note is one line of at most 200 characters, and
-the newest 20 are kept. Notes kept before these rules are checked again as they are given.
+KOLONİ knows, and the variables the project passes to its commands, are masked - also one split by a
+character nobody sees, such as a zero-width space; a line that reads like orders is left out (in
+`runtime/logs/koloni.log`); each note is one line of at most 200 characters, and the newest 20 are
+kept. Notes kept before these rules are checked again as they are given.
 
 ## Your tasks
 

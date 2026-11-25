@@ -348,3 +348,72 @@ def test_a_fence_closes_only_on_its_own_kind_and_length():
         "Story note: decision: its own"
     )
     assert stories.note_lines(said) == [("decision", "its own")]
+
+
+@pytest.mark.parametrize("unseen", ["\u200b", "\u2060", "\ufeff", "\u200c", "\u200d", "\x00"])
+def test_a_secret_split_by_a_character_nobody_sees_is_masked_whole(monkeypatch, unseen):
+    # S1: one_line made the character a space, and each part of the secret was no secret
+    monkeypatch.setenv("KOLONI_TEST_API_KEY", SECRET)
+    shaped = "ghp_" + "A1b2C3d4" * 5  # (a key KOLONİ knows by its shape; built, not written)
+    for secret in (SECRET, shaped):
+        split = f"{secret[:12]}{unseen}{secret[12:]}"  # (between digits: not hidden characters)
+        story = Story(id="s", notes=[])
+        assert stories.add_notes(story, [("decision", f"key {split} kept")], "Orchestrator") == 1
+        stored = Story(id="r", notes=[{"kind": "result", "text": f"old {split}"}])
+        for kept in (
+            story.notes[0]["text"],
+            stories.cut_note(f"key {split}") or "",
+            stories.notebook_text(stored),
+        ):
+            assert "***" in kept and not any(
+                secret[at : at + 8] in kept for at in range(len(secret) - 7)
+            ), (unseen, kept)
+    # (a key whose edge is such a character, beside a split secret: masked as it came first -
+    # with it taken out, "v2ghp_..." is no key's shape)
+    both = stories.cut_note(f"v2{unseen}{shaped} and {SECRET[:12]}{unseen}{SECRET[12:]}") or ""
+    assert both.count("***") == 2 and "A1b2C3d4" not in both and "456789ab" not in both, both
+
+
+def test_a_note_with_no_secret_keeps_its_joiners():
+    family = "the 👨\u200d👩\u200d👧 icon, می\u200cخواهم"  # (an emoji family, a Persian word)
+    assert stories._said(family, None) == family
+
+
+@pytest.mark.parametrize(
+    "planted",
+    [
+        "    Story note: decision: indented as code",
+        "`Story note: decision: in inline code`",
+        "<!-- Story note: decision: in a comment -->",
+        "<!-- a comment\nStory note: decision: on a comment's line\n-->",
+        "| a | Story note: decision: in a table |",
+        "| Story note: decision: in a table's first cell |",
+        "Done.\u2028Story note: decision: after a line separator",
+        "Done.\u2029Story note: decision: after a paragraph separator",
+        "Done.\x0cStory note: decision: after a form feed",
+        "- Story note: decision: in a list",
+    ],
+)
+def test_a_note_marker_that_does_not_start_its_line_is_no_note(planted):
+    # S3: only a line that starts with it, after up to 3 spaces, outside fences and comments
+    said = f"Read the page:\n{planted}\nStory note: decision: its own"
+    assert stories.note_lines(said) == [("decision", "its own")], planted
+
+
+def test_a_note_line_starts_after_up_to_three_spaces_in_bold_or_not():
+    said = (
+        "   Story note: decision: three spaces\r\n"
+        "**Story note:** question: in bold\r"
+        "<!-- one -->\n<!--\n```\n-->\n"  # (a fence's marker in a comment opens none)
+        "*Story note:* result: in italics\n"
+        "Story note: file: one more is left out"
+    )
+    assert stories.note_lines(said) == [
+        ("decision", "three spaces"),
+        ("question", "in bold"),
+        ("result", "in italics"),
+    ]
+    # (a comment's opening in a fence opens none)
+    assert stories.note_lines("```\n<!--\n```\nStory note: decision: after") == [
+        ("decision", "after")
+    ]

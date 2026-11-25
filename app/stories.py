@@ -6,7 +6,7 @@ and bugs. A story's state comes from its tasks; it is done only by the user's wo
 import logging
 import os
 import re
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from datetime import datetime, timedelta
 
 from sqlalchemy import case, func, literal_column, select
@@ -41,6 +41,9 @@ FIRST_CUT = NOTE_MOST * 20  # (what of a note's words is read at all: `_one_cut`
 # A code fence's opening (or closing) line, as CommonMark reads it: three or more ` or ~.
 FENCE = re.compile(r"(`{3,}|~{3,})")
 STORY_NOTE = "Story note:"
+# A note's line: STORY_NOTE after up to 3 spaces (4 are code to Markdown), maybe in bold or italics.
+NOTE_LINE = re.compile(rf" {{0,3}}\*{{0,3}}{re.escape(STORY_NOTE)}(.*)", re.IGNORECASE)
+LINE_END = re.compile(r"\r\n|\r|\n")
 # Told with a story's task, its fix round too.
 SAY_STORY_NOTE = (
     f"For this story's notebook, you may end with up to {NOTES_PER_TURN} lines "
@@ -366,19 +369,41 @@ def _said(text: object, pass_env: str | None) -> str | None:
     came, before `one_line` makes a zero-width or soft hyphen a space that splits a phrase, and
     as cut, where the cut ends a phrase. Cut to NOTE_MOST * 20 first (`_one_cut`)."""
     came = str(text or "")
-    line = masked(_one_cut(came), pass_env)[:NOTE_MOST]
+    line = _masked_line(came, pass_env)[:NOTE_MOST]
     if not line or injection.scan(came[:FIRST_CUT]) or injection.scan(line):
         return None
     return line
 
 
-def _one_cut(text: str) -> str:
+def _one_cut(text: str, first: str | None = None) -> str:
     """The text on one line, cut to FIRST_CUT first - masking a long line costs more than its
     length (a 128 KB one took seconds) - and where it was longer, its last word gone too: a
     secret cut off there is no longer seen as one, and the padding one_line takes out would
-    bring its head into the note."""
-    line = topics.one_line(text[:FIRST_CUT])
+    bring its head into the note. `first`: its first FIRST_CUT characters as they are read
+    instead (masked: `_masked_line`)."""
+    line = topics.one_line(text[:FIRST_CUT] if first is None else first)
     return line.rpartition(" ")[0] if len(text) > FIRST_CUT else line
+
+
+def _seen(text: str) -> str:
+    """The text without what nobody sees in it - what does not print, but blanks: a zero width,
+    a joiner, a byte-order mark, a NUL."""
+    return "".join(ch for ch in text if ch.isprintable() or ch.isspace())
+
+
+def _masked_line(text: str, pass_env: str | None) -> str:
+    """`_one_cut`, masked. one_line makes what nobody sees a space (a joiner it keeps), so a
+    secret split by one came in as two parts, neither one a secret (S1): where the text masked
+    as it came, those characters then taken out, hides more when masked again, the line is made
+    of that - no part of the secret left. Else it is as ever (joiners kept in an emoji, Persian).
+    shortcut: a mark that prints but is not seen (a variation selector) is not taken out; add
+    it to `_seen` if a secret split by one turns up."""
+    line = masked(_one_cut(text), pass_env)
+    if _seen(cut := text[:FIRST_CUT]) == cut:
+        return line
+    joined = _seen(masked(cut, pass_env))  # (masked first: a secret's edge may be such a one)
+    again = masked(joined, pass_env)
+    return line if again == joined else _one_cut(text, again)
 
 
 def cut_note(text: object) -> str | None:
@@ -387,7 +412,7 @@ def cut_note(text: object) -> str | None:
     added (`add_notes`): the user may change it before then."""
     if not isinstance(text, str):
         return None
-    return masked(_one_cut(text), None).strip()[:NOTE_MOST] or None
+    return _masked_line(text, None).strip()[:NOTE_MOST] or None
 
 
 def _notes(story: Story) -> list:
@@ -414,26 +439,44 @@ def add_notes(
     return len(added)
 
 
-def note_lines(said: str) -> list[tuple[str, str]]:
-    """The STORY_NOTE lines of an Orchestrator's answer, at most NOTES_PER_TURN, as (kind,
-    text): `kind: text`, else a result - read a line at a time, in time linear in it. Not one
-    inside a code fence nor a quoted one (`>`): a file or a page it shows is not its word."""
-    line = re.compile(rf"[^\w\n]*{re.escape(STORY_NOTE)}(.*)", re.IGNORECASE)
-    found: list[tuple[str, str]] = []
-    fence = ""  # (the opening marker, while inside a fence: closed by one of its kind, as long)
-    for one in said.splitlines():
+def _comment_open(line: str, inside: bool) -> bool:
+    """Whether an HTML comment (`<!-- -->`) is open at the line's end - `inside`: at its start."""
+    at = 0
+    while (end := line.find("-->" if inside else "<!--", at)) >= 0:
+        inside, at = not inside, end + (3 if inside else 4)
+    return inside
+
+
+def _own_lines(said: str) -> Iterator[str]:
+    """The lines of a Markdown answer outside its code fences and HTML comments. Only CommonMark's
+    line ends end one (\\n, \\r\\n, \\r): not a U+2028, a form feed, a U+0085.
+    shortcut: a `<!--` in inline code opens a comment all the same - its notes after are lost,
+    never one too many; read code spans if a turn's notes go missing so."""
+    fence, comment = "", False  # (a fence's opening marker: closed by one of its kind, as long)
+    for one in LINE_END.split(said):
         bare = one.lstrip()
         mark = FENCE.match(bare)
-        if not fence and mark:
-            fence = mark[1]
-            continue
         if fence:
             closes = mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence)
             fence = "" if closes and not bare[len(mark[1]) :].strip() else fence
-            continue
-        if bare.startswith(">"):
-            continue
-        if (match := line.match(one)) and (note := match[1].strip(" \t*`")):
+        elif comment:
+            comment = _comment_open(one, True)
+        elif mark:
+            fence = mark[1]
+        else:
+            yield one
+            comment = _comment_open(one, False)
+
+
+def note_lines(said: str) -> list[tuple[str, str]]:
+    """The STORY_NOTE lines of an Orchestrator's answer, at most NOTES_PER_TURN, as (kind,
+    text): `kind: text`, else a result - read a line at a time, in time linear in it. A line
+    that starts with it, as Markdown reads a line (`NOTE_LINE`), outside a code fence and an
+    HTML comment (S3): not a quoted one, one in a table, in inline code or indented as code -
+    a file or a page it shows is not its word."""
+    found: list[tuple[str, str]] = []
+    for one in _own_lines(said):
+        if (match := NOTE_LINE.match(one)) and (note := match[1].strip(" \t*`")):
             kind, _, text = note.partition(":")
             kind = kind.strip().casefold()
             found.append((kind, text.strip()) if kind in NOTE_KINDS else ("result", note))
