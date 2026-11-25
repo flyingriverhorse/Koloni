@@ -5505,6 +5505,13 @@ export interface components {
             /** Conversation Id */
             conversation_id?: string | null;
             /**
+             * Decisions
+             * @default []
+             */
+            decisions: components["schemas"]["Decision"][];
+            /** Ended At */
+            ended_at?: string | null;
+            /**
              * Files
              * @default []
              */
@@ -5525,6 +5532,8 @@ export interface components {
             mode?: ("copy" | "branch" | "push") | null;
             /** Mode Why */
             mode_why?: string | null;
+            /** Not Checked */
+            not_checked?: string[] | null;
             /** Now */
             now?: string | null;
             /** Recipe */
@@ -5536,6 +5545,8 @@ export interface components {
             shared: string[];
             /** Spent */
             spent?: number | null;
+            /** Started At */
+            started_at?: string | null;
             /**
              * State
              * @default planned
@@ -11807,7 +11818,8 @@ export interface components {
          * TaskDecideIn
          * @description The user's word on a task an agent proposed - and, from the decision log's Change, the
          *     state its row showed the Orchestrator's word in (`decisions.as_shown`): None from
-         *     the To-do page and the chat, which decide what waits now.
+         *     the To-do page and the chat, which decide what waits now. (Here, not beside the log's shapes
+         *     in `app.schemas_decisions`: those are in `AwayJobOut`, which `app.schemas` imports.)
          */
         TaskDecideIn: {
             /**

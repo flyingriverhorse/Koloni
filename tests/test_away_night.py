@@ -1,0 +1,232 @@
+"""The night on Ready for you (karar defteri, Part B; §3.4): each job of a night that ended, in its
+report, with when its turns of the night began and ended, the decisions in its chat that night and
+what KOLONİ's checks did not do - from the records alone: a time no record holds is None, and so is
+what was not checked where no Checked note says."""
+
+from datetime import UTC, datetime, timedelta
+
+from app import away_night
+from app.db.away_models import Parked
+from app.db.models import Agent, AwayRun, BacklogTask, Message, Question, Run
+from tests.test_decisions import chat
+
+T0 = datetime(2026, 11, 24, 2, 0, tzinfo=UTC)
+
+
+def at(minutes: int) -> datetime:
+    return T0 + timedelta(minutes=minutes)
+
+
+def same_time(said: str | None, when: datetime | None) -> bool:
+    return (said is None) == (when is None) and (
+        said is None or datetime.fromisoformat(said).astimezone(UTC) == when
+    )
+
+
+def turn(session, cid, created, ended=None, started=True):
+    run = Run(
+        conversation_id=cid,
+        status="completed" if ended else "running",
+        created_at=at(created),
+        started_at=at(created) if started else None,
+        ended_at=None if ended is None else at(ended),
+    )
+    session.add(run)
+    session.flush()
+    return run
+
+
+def answered(session, run, minute, question="Which database?"):
+    lead = Agent(run_id=run.id, role_name="Lead", name="Lead", tools=[], status="completed")
+    session.add(lead)
+    session.flush()
+    one = Question(
+        run_id=run.id,
+        agent_id=lead.id,
+        question=question,
+        options=["SQLite", "Postgres"],
+        status="answered",
+        answer="SQLite",
+        created_at=at(minute),
+        answered_at=at(minute),
+        lead_why="the tests make one",
+    )
+    session.add(one)
+    return one
+
+
+def checked(session, cid, run, rows):
+    session.add(
+        Message(
+            conversation_id=cid,
+            run_id=run.id,
+            role="checked",
+            content="",
+            blocks={"rows": rows},
+        )
+    )
+
+
+def row(kind, state, text, guessed=False):
+    return {"kind": kind, "state": state, "text": text, "guessed": guessed, "command": None}
+
+
+def night(client, tmp_path, status="ended"):
+    """A night of three jobs - one done, one whose turn is still open, one never started - and the
+    evening's chat it was gone from: (pid, the ids by name)."""
+    pid, evening = chat(client, tmp_path / "a")
+    one = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    two = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    with client.app.state.session_factory() as session:
+        card = AwayRun(
+            project_id=pid,
+            conversation_id=evening,
+            run_id="r",
+            status=status,
+            started_at=at(0),
+            ended_at=at(240) if status == "ended" else None,
+        )
+        session.add(card)
+        session.flush()
+
+        def task(title, cid, state, position):
+            made = BacklogTask(
+                project_id=pid,
+                title=title,
+                status="doing",
+                position=position,
+                created_by="user",
+                conversation_id=cid,
+                away_run_id=card.id,
+                away_state=state,
+            )
+            session.add(made)
+            session.flush()
+            return made
+
+        done = task("Fix the login", one, "done", 0)
+        open_ = task("Docs pass", two, None, 1)
+        never = task("Clean fixtures", None, None, 2)
+        card.jobs = [
+            {"title": t.title, "task_id": t.id, "was_todo": True} for t in (done, open_, never)
+        ]
+        turn(session, one, -60, -30)  # (before the night: not its)
+        first = turn(session, one, 10, 60)
+        second = turn(session, one, 70, 90)
+        turn(session, one, 300, 310)  # (a turn of its chat in the morning: not the night's)
+        asked = answered(session, first, 30)
+        # (the evening's chat: a decision of the night on no job)
+        gone_from = turn(session, evening, 5, 6)
+        elsewhere = answered(session, gone_from, 6, "Which branch?")
+        checked(
+            session,
+            one,
+            first,
+            [row("tests", "not_run", "Tests not run: an older note", guessed=True)],
+        )
+        checked(
+            session,
+            one,
+            second,
+            [
+                row("tests", "not_run", "Tests not run: a guessed command, you were away", True),
+                row("kinds", "not_run", "Kinds not checked: ui"),
+                row("try", "not_run", "Not tried live: no preview"),
+                row("review", "passed", "Reviewer: no findings"),
+                row("not_checked", "note", "Not checked: After a change is set to Nothing"),
+                row("tests", "passed", "Tests passed: pytest - 3 passed"),
+            ],
+        )
+        session.add(
+            Parked(
+                away_run_id=card.id,
+                task_id=done.id,
+                seq=1,
+                kind="push",
+                what="Push koloni/fix-login",
+                data={},
+                decision="run",
+                result="Pushed koloni/fix-login to origin as abc1234",
+            )
+        )
+        turn(session, two, 100)  # (still open: no end)
+        session.commit()
+        return pid, {
+            "first": first.id,
+            "asked": asked.id,
+            "elsewhere": elsewhere.id,
+            "one": one,
+            "two": two,
+        }
+
+
+def jobs(client, pid):
+    got = client.get(f"/api/projects/{pid}/away")
+    assert got.status_code == 200, got.text
+    return {job["title"]: job for job in got.json()["jobs"]}
+
+
+def test_each_job_says_when_its_night_began_and_ended_from_its_turns_alone(client, tmp_path):
+    pid, _ids = night(client, tmp_path)
+    found = jobs(client, pid)
+    done, still, never = found["Fix the login"], found["Docs pass"], found["Clean fixtures"]
+    # The first turn of the night's start, the last's end - not the night's own times, nor turns
+    # before or after it.
+    assert same_time(done["started_at"], at(10)) and same_time(done["ended_at"], at(90))
+    # A turn still open: its start, and no end.
+    assert same_time(still["started_at"], at(100)) and still["ended_at"] is None
+    # Never started: nothing - but the job is still there.
+    assert (never["started_at"], never["ended_at"], never["decisions"]) == (None, None, [])
+    assert never["not_checked"] is None
+
+
+def test_the_nights_decisions_go_on_their_jobs_lane_by_its_chat(client, tmp_path):
+    pid, ids = night(client, tmp_path)
+    found = jobs(client, pid)
+    assert [one["id"] for one in found["Fix the login"]["decisions"]] == [f"answer:{ids['asked']}"]
+    # (the evening chat's: on no job's lane)
+    lanes = [one["id"] for job in found.values() for one in job["decisions"]]
+    assert f"answer:{ids['elsewhere']}" not in lanes
+    (decision,) = found["Fix the login"]["decisions"]
+    assert (decision["who"], decision["seen"], decision["quote"]) == (
+        "orchestrator",
+        False,
+        "Which database?",
+    )
+
+
+def test_not_checked_is_read_from_the_last_checked_note_by_kind_and_state(client, tmp_path):
+    pid, _ids = night(client, tmp_path)
+    found = jobs(client, pid)
+    assert found["Fix the login"]["not_checked"] == [
+        "Tests not run: a guessed command, you were away",
+        "Kinds not checked: ui",
+        "Not tried live: no preview",
+        "Not checked: After a change is set to Nothing",
+        away_night.GITHUB,  # (its push went: GitHub's checks were not waited for)
+    ]
+    # No Checked note of the night: not known, never "nothing".
+    assert found["Docs pass"]["not_checked"] is None
+
+
+def test_a_night_still_at_work_draws_nothing_yet(client, tmp_path):
+    pid, _ids = night(client, tmp_path, status="running")
+    for job in jobs(client, pid).values():
+        assert (job["started_at"], job["ended_at"], job["decisions"], job["not_checked"]) == (
+            None,
+            None,
+            [],
+            None,
+        )
+
+
+def test_a_checked_note_with_nothing_skipped_is_an_empty_list(client, tmp_path):
+    pid, ids = night(client, tmp_path)
+    with client.app.state.session_factory() as session:
+        two = ids["two"]
+        open_turn = session.query(Run).filter(Run.conversation_id == two).one()
+        open_turn.ended_at, open_turn.status = at(120), "completed"
+        checked(session, two, open_turn, [row("tests", "passed", "Tests passed: pytest")])
+        session.commit()
+    still = jobs(client, pid)["Docs pass"]
+    assert still["not_checked"] == [] and same_time(still["ended_at"], at(120))

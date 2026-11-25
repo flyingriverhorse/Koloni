@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta, tzinfo
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app import away_branch, backlog, git, web
+from app import away_branch, away_night, backlog, git, web
 from app.api.usage import money, month_spend, over_budget, spend
 from app.commands import _words
 from app.db.away_models import Parked
@@ -1363,6 +1363,7 @@ def report(session: Session, away: AwayRun) -> dict:
     for one in jobs:
         if one.get("state") == "done":
             one["shared"] = [path for path in one["files"] if len(by_file.get(path, ())) > 1]
+    away_night.add(session, away, jobs, tasks)  # (Part B: Ready for you's strip of the night)
     found = spent(session, away)  # (not started: nothing, in the prices' currency)
     proposed = (
         list(

@@ -1,12 +1,11 @@
 """The decision log (`app.decisions`) as the API gives it - beside `app.schemas`, which is at its
-size limit. Read only: nothing adds, changes or deletes a row of it."""
+size limit, and imports nothing of it: a night's job carries its rows (`AwayJobOut.decisions`).
+Read only: nothing adds, changes or deletes a row of it."""
 
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
-
-from app.schemas import BacklogDecideIn
 
 
 class DecisionLink(BaseModel):
@@ -58,11 +57,3 @@ class DecisionLog(BaseModel):
     # The judge's "fine" in the period: a count, not rows (a night can have hundreds).
     judge_fine: int
     more: bool = False  # there were more rows than `rows` holds
-
-
-class TaskDecideIn(BacklogDecideIn):
-    """The user's word on a task an agent proposed - and, from the decision log's Change, the
-    state its row showed the Orchestrator's word in (`decisions.as_shown`): None from
-    the To-do page and the chat, which decide what waits now."""
-
-    expect: Literal["proposed", "added"] | None = None
