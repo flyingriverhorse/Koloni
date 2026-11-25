@@ -182,6 +182,7 @@ def renumber(
 def add(session: Session, project_id: str, fields: dict, created_by: str) -> BacklogTask:
     """A new task at the end of the order: todo from the user, proposed from an agent. A story
     closed before is open again with a task added to it: it is not done any more."""
+    # (its story is one of the project's: `_in_story`, `_check_tree`, `_story_for`, `open_story`)
     if (story := session.get(Story, fields.get("story_id") or "")) is not None:
         story.closed_at = None
     last = session.scalar(
@@ -214,7 +215,7 @@ def decide(session: Session, task: BacklogTask, approve: bool) -> BacklogTask | 
     if task.status == "proposed" or unseen(task) and task.status == "todo":
         if approve and task.status == "proposed":
             task.status = "todo"
-            stories.adopt(session, task.story_id)
+            stories.adopt(session, task.story_id, task.project_id)
             return task
         if approve:
             task.po = {**(task.po or {}), "seen": True}  # (replaced whole)
@@ -223,7 +224,7 @@ def decide(session: Session, task: BacklogTask, approve: bool) -> BacklogTask | 
         session.delete(task)
         session.flush()
         renumber(session, task.project_id)
-        tidy_story(session, task.story_id)
+        tidy_story(session, task.story_id, task.project_id)
         return None
     if task.pending is None:
         raise Refused("nothing of this task waits for a decision")
@@ -234,9 +235,10 @@ def decide(session: Session, task: BacklogTask, approve: bool) -> BacklogTask | 
     return task
 
 
-def tidy_story(session: Session, story_id: str | None) -> None:
-    """After a task of it went: the story an agent opened goes too where nothing is left in it."""
-    if story_id is not None and (story := session.get(Story, story_id)) is not None:
+def tidy_story(session: Session, story_id: str | None, project_id: str) -> None:
+    """After a task of it went: the story an agent opened goes too where nothing is left in it -
+    a story of the task's project (another's, its id on a task row, is none)."""
+    if (story := stories.story_of(session, story_id, project_id)) is not None:
         stories.drop_if_empty(session, story)
 
 
@@ -451,9 +453,12 @@ def chat_queue(session: Session, cid: str) -> list[BacklogTask]:
 
 
 def _story_elsewhere(
-    session: Session, story_id: str, cid: str, asked: set[str]
+    session: Session, project_id: str, story_id: str, cid: str, asked: set[str]
 ) -> BacklogTask | None:
-    """A task of the story, not one of `asked`, that waits or works in another chat than `cid`."""
+    """A task of the story, not one of `asked`, that waits or works in another chat than `cid` -
+    none for a story of another project (its id on a task row is no key)."""
+    if stories.story_of(session, story_id, project_id) is None:
+        return None
     return next(
         (
             one
@@ -494,7 +499,7 @@ def queue_in_chat(session: Session, conversation: Conversation, tasks: list[Back
             raise Refused(f"{quoted(task.title)} waits in a chat's queue already")
     asked = {task.id for task in tasks}
     for story_id in sorted({task.story_id for task in tasks if task.story_id}):
-        if (other := _story_elsewhere(session, story_id, conversation.id, asked)) is not None:
+        if other := _story_elsewhere(session, project_id, story_id, conversation.id, asked):
             raise Refused(
                 f"a task of its story ({quoted(other.title)}) is in another chat: "
                 "do the story there"
@@ -721,7 +726,9 @@ def fix_again(session: Session, task: BacklogTask) -> None:
     if task.status != "blocked" or task.conversation_id is None:
         raise Refused("only a task stuck in a chat gets a fix round")
     if task.story_id and (
-        other := _story_elsewhere(session, task.story_id, task.conversation_id, {task.id})
+        other := _story_elsewhere(
+            session, task.project_id, task.story_id, task.conversation_id, {task.id}
+        )
     ):
         raise Refused(
             f"a task of its story ({quoted(other.title)}) is in another chat: fix it once that "

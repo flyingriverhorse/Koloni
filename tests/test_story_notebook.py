@@ -396,7 +396,8 @@ def test_a_note_with_no_secret_keeps_its_joiners():
         "Done.\u2028Story note: decision: after a line separator",
         "Done.\u2029Story note: decision: after a paragraph separator",
         "Done.\x0cStory note: decision: after a form feed",
-        "- Story note: decision: in a list",
+        "## Story note: decision: in a heading",
+        "    - Story note: decision: a list's item indented as code",
     ],
 )
 def test_a_note_marker_that_does_not_start_its_line_is_no_note(planted):
@@ -422,3 +423,17 @@ def test_a_note_line_starts_after_up_to_three_spaces_in_bold_or_not():
     assert stories.note_lines("```\n<!--\n```\nStory note: decision: after") == [
         ("decision", "after")
     ]
+
+
+def test_a_note_may_be_a_lists_item_and_the_form_is_asked_for_as_plain_words():
+    for line in (
+        "- Story note: decision: listed",
+        "  * Story note: decision: listed",
+        "+ **Story note:** decision: listed",
+    ):
+        assert stories.note_lines(line) == [("decision", "listed")], line
+    # (a model copies a form shown in code in code - and a line in inline code is no note)
+    assert stories.note_lines("`Story note: decision: in code`") == []
+    assert "`" not in stories.SAY_STORY_NOTE and f": {stories.STORY_NOTE} <" in (
+        stories.SAY_STORY_NOTE
+    )

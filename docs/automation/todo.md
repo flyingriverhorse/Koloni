@@ -149,8 +149,8 @@ line - a **decision**, a **file**, a **result** or a **question** - with who wro
   or *— not finished: …* - and the files that turn changed in the project, five at most.
 - The task's **Orchestrator** is asked to end its answer with up to three lines
   `Story note: <decision|file|result|question>: <one line>`; KOLONİ reads them off its answer. A note
-  is a line that starts so - after up to three spaces, in bold or not; one in a code block, a quote, a
-  list, a table, inline code or an HTML comment is not.
+  is a line that starts so - after up to three spaces, as a list's item or not, in bold or not; one in
+  a code block, a quote, a table, a heading, inline code or an HTML comment is not.
 - The **Hive keeper** adds its notes as it drafts a story.
 
 ![A chat working through a story: the strip over it reads "Story · Two-step sign-in · 2 / 3 · next: Turn it on in Settings · notes", and its notebook is open - the Hive keeper's decision and KOLONİ's result line for the first task](../images/story-notebook.png)

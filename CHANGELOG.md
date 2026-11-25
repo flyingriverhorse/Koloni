@@ -24,11 +24,11 @@ How to write an entry (every release looks the same):
 ### Fixed
 
 - **To-do**: two story names that differ only by the Turkish dotted İ or dotless ı are one name - "LOGİN", "LOGIN", "login" and "logın" alike: a second story of that name is refused, and an agent naming the story finds it. A goal's name too ([docs](docs/automation/todo.md#goals-and-stories)).
-- **To-do**: only a line of the Orchestrator's answer that starts with `Story note:` - after up to three spaces, in bold or not - goes into the story's notebook. One indented as code, in inline code, in an HTML comment, in a table or a list (`- Story note:`), or after a line separator (U+2028) inside a line no longer does ([docs](docs/automation/todo.md#the-storys-notebook)).
+- **To-do**: only a line of the Orchestrator's answer that starts with `Story note:` - after up to three spaces, as a list's item (`- `, `* `, `+ `) or not, in bold or not - goes into the story's notebook. One indented as code, in inline code, in an HTML comment, in a table or a heading, or after a line separator (U+2028) inside a line no longer does. The Orchestrator is shown the line's form in plain words, no longer in code, so that it does not write its notes in code ([docs](docs/automation/todo.md#the-storys-notebook)).
 
 ### Security
 
-- **To-do**: a task whose story is another project's - set so outside KOLONİ - counts as a task of no story: its brief, the name of a new chat it starts in and its git branch no longer take that story's title.
+- **To-do**: a task whose story is another project's - set so outside KOLONİ - counts as a task of no story: its brief, the name of a new chat it starts in and its git branch no longer take that story's title; a task of that story in another project's chat no longer holds its **Do in chat** or **Fix it**, **Approve** no longer makes that story yours, and turning the task down no longer deletes it.
 - **To-do**: a secret split by a character nobody sees - a zero-width space or joiner, a word joiner, a byte-order mark - is masked in a story's notebook too: its two parts went in unmasked ([docs](docs/automation/todo.md#the-storys-notebook)).
 
 ### Removed

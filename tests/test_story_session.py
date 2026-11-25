@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import select
 
 from app import backlog, stories, topics
-from app.db.models import Agent, BacklogTask, FileChange, Run, Story, Topic, now
+from app.db.models import Agent, BacklogTask, Conversation, FileChange, Run, Story, Topic, now
 from app.team import quoted
 from tests.conftest import scaled
 from tests.test_backlog import run_todo, setup
@@ -354,3 +354,36 @@ def test_a_task_whose_story_is_another_projects_is_of_no_story(make_client, proj
         task = session.get_one(BacklogTask, tid)
         assert client.app.state.runner._branch_of(session, run) == (None, ("lone", tid))
         assert backlog.story_place(session, task) == (None, None)
+
+
+def test_another_projects_story_on_a_task_row_is_not_waited_for_adopted_nor_tidied(
+    client, project_dir, tmp_path
+):
+    """A story's id on a task row is no key: another project's story there, set outside KOLONİ -
+    a task of it in a chat of that project holds neither Do in chat nor Fix it, Approve does not
+    make it the user's, and turning down the task's proposal does not delete it."""
+    pid, (mine,) = setup(client, project_dir, "mine")
+    other = tmp_path / "other"
+    other.mkdir()
+    elsewhere = client.post("/api/projects", json={"root_path": str(other)}).json()["id"]
+    theirs_chat = client.post(f"/api/projects/{elsewhere}/conversations").json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    with db(client) as session:
+        theirs = stories.add_story(session, elsewhere, "Theirs zq", None, "agent")
+        busy = backlog.add(session, elsewhere, {"title": "b", "story_id": theirs.id}, "user")
+        busy.conversation_id = theirs_chat
+        backlog.set_flow(busy, place=1)
+        task = session.get_one(BacklogTask, mine)
+        task.story_id = theirs.id
+        backlog.queue_in_chat(session, session.get_one(Conversation, cid), [task])  # (no Refused)
+        task.status = "blocked"
+        backlog.fix_again(session, task)
+        assert task.status == "doing"
+        session.delete(busy)
+        task.status = "proposed"
+        backlog.decide(session, task, approve=True)
+        assert theirs.created_by == "agent"
+        task.status = "proposed"
+        assert backlog.decide(session, task, approve=False) is None
+        assert session.get(Story, theirs.id) is not None
+        session.rollback()
