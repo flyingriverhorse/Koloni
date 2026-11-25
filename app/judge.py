@@ -231,7 +231,7 @@ def _plain(text: str) -> str:
     return " ".join(evened.split()).rstrip(" .!?;")
 
 
-_APOSTROPHES = str.maketrans(dict.fromkeys("\u2019\u2018\u00b4\u02bc", "'"))
+_APOSTROPHES = str.maketrans("\u2019\u2018\u00b4\u02bc", "'" * 4)
 
 
 def _prose(text: str) -> list[str | None]:
