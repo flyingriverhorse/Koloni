@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app import away
+from app import away, copies
 from app.agent.ctx import TERMINAL, Ctx, announce
 from app.agent.words import AGENT_TERMINAL
 from app.commands import (
@@ -140,6 +140,24 @@ class AwayMixin:
                 away.night_of(session, ctx.cid) is not None
                 and session.get_one(Conversation, ctx.cid).permission_mode == "full_auto"
             )
+
+    def _set_aside(
+        self: "AgentRunner",
+        owner: str,
+        why: str = "one side of a comparison, waiting for your choice",
+        found: tuple[copies.Copy, list] | None = None,
+    ) -> None:
+        """A side of a comparison is over - or a turn whose recipe was not taken in: what it
+        changed stays in its copy, kept as a kept copy is (`_keep_copy`), for the user's
+        choice to take in or throw away (`decide_kept`). A copy that changed nothing goes
+        with its turn. `found`: its changes, from a look made off the event loop
+        (`_look_aside`) - for the copy that look was at."""
+        copy = self._copies.get(owner)
+        if copy is None:
+            return
+        changed = found[1] if found is not None and found[0] is copy else copy.changes()
+        if any(not copy.ignored(one[0]) for one in changed):
+            self._keep_copy(owner, why)  # (B-189: not for a new file git ignores alone)
 
     def typing(self: "AgentRunner", question_id: str) -> None:
         """The user types an answer to a question that waits: the Lead holds off it
