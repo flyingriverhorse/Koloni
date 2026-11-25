@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import away, judge, raw
+from app import away, judge, raw, risk_judge
 from app import memory as kept
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
@@ -18,7 +18,7 @@ from app.commands import _reasons, harm_class, with_cwd
 from app.db.models import Conversation, Message, Provider, Run, project_of
 from app.providers import ask_once
 from app.roles import LEAD, find_role
-from app.team import asked_how_hard, would_run
+from app.team import judge_pick, would_run
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -69,13 +69,14 @@ class JudgeMixin:
         neither asked nor run; (reason, None) - not checked: no reason, one asked at every level
         (`asked_anyway`, `harm_class` other than "soft"), a side of a comparison, not a watched
         Full auto turn, the check off or stood aside for the turn (`_stood_aside`), no project,
-        the turn over its token limit, no Fast model that answers with no tools, no room on its
+        the turn over its token limit, no judge model (`judge_pick`), no room on its
         provider, or any failure.
         What it reads: the user's preferences, this project's rules as saved (the column - never
         the folder's `.koloni/rules.md`, which a pull or a script may change), and their own
         messages in this chat (`Run.by_user`), each masked (`raw.hidden`) - never an agent's
-        words, a tool's result or a file. One tool-less request of the Fast tier's first model
-        (`ask_once`), in the turn's usage (`_own_request`); a verdict is kept for the turn by
+        words, a tool's result or a file. One tool-less request of the judges' model
+        (`judge_pick`: the user's Judge model, else the Fast tier's first; `ask_once`), in the
+        turn's usage (`_own_request`); a verdict is kept for the turn by
         command, folder and those words as they are (`_judge_cache`: a rule taken away is asked
         again). Whatever goes wrong in it but a Stop is today's card."""
         try:
@@ -127,11 +128,11 @@ class JudgeMixin:
             if key in (cache := self._judge_cache.setdefault(ctx.run_id, {})):
                 return self._judgement(ctx, reason, cache[key])
             limit = project.turn_token_limit
-            fast = asked_how_hard(
+            fast = judge_pick(
                 session,
                 would_run(session, find_role(session, LEAD), conversation),
                 self.providers,
-                "fast",
+                None,
             )
             if (
                 limit
@@ -197,7 +198,10 @@ class JudgeMixin:
         timed out or said nothing that can be read. Stop goes on as Stop."""
         try:
             try:
-                async with asyncio.timeout(judge.JUDGE_SECONDS):
+                # (a CLI's one-shot start is longer: Full auto's judge's limit for it)
+                async with asyncio.timeout(
+                    judge.JUDGE_SECONDS if mode is None else risk_judge.CLI_SECONDS
+                ):
                     said, answer = await ask_once(
                         asking.model, asking.model_name or "", [{"role": "user", "content": asked}]
                     )

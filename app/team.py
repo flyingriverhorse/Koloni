@@ -747,6 +747,31 @@ def askable(
             yield fast
 
 
+def judge_choices(
+    session: Session, would: Would, clients: Providers
+) -> list[tuple[Entry, str, str]]:
+    """The models KOLONİ's judges - Full auto's, and the check of the user's words - may be asked
+    on: of every tier, in the tiers' order and each tier's, those `askable` now (may be picked for
+    the Lead, not down, answer with every tool off): (entry, model, tier)."""
+    return [
+        (one, name, tier) for tier in TIERS for one, name in askable(session, would, clients, tier)
+    ]
+
+
+def judge_pick(
+    session: Session, would: Would, clients: Providers, chosen: tuple[str, str] | None
+) -> tuple[Entry, str] | None:
+    """Whom the judges ask: the user's Judge model (`chosen`: its provider's id and the model)
+    where it is among `judge_choices` now - not where its provider is gone, closed to agents,
+    down or past what may be picked -, else the Fast tier's first that answers with no tools
+    (`asked_how_hard`). None: nobody can be asked."""
+    if chosen is not None:
+        for one, name, _tier in judge_choices(session, would, clients):
+            if (one.provider_id, name) == chosen:
+                return one, name
+    return asked_how_hard(session, would, clients, "fast")
+
+
 def is_named(provider: Provider, name: str) -> bool:
     """Whether an agent means this provider by a name: spaces evened out, whatever the case."""
     return " ".join(name.split()).casefold() == shown_name(provider.name).casefold()
