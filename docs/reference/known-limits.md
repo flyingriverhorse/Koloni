@@ -250,7 +250,8 @@ messages.
   cleans them up (`git gc`).
 - Your own `pre-commit` and `pre-push` hooks run neither for the job's commits nor for KOLONİ's push.
 - KOLONİ's checks run before its last commit at the job's end; that commit holds the same files,
-  apart from one holding a secret given in the job or a new file your project already has.
+  apart from one holding a secret KOLONİ knows (left out, and its push row says so) or a new file your
+  project already has.
 - The branch's name is told to the job before its worktree is made: where a branch of that name was
   there already, the worktree is on the next free name, and its row says which.
 
