@@ -27,6 +27,8 @@ PARKED_ASKED = (
     "and say in your summary what waits."
 )
 WHY = "{n} parked"  # (a job's reason to wait, `away.turn_ended`)
+# Why a question was parked where the Orchestrator gave no answer that counts.
+COULD_NOT_ANSWER = "The Orchestrator could not answer it"
 # What a package manager's `run` is followed by: a script's name, not a folder.
 _RUNNERS = frozenset({"npm", "pnpm", "yarn", "bun"})
 
