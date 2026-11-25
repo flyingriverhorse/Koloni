@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -7,6 +7,7 @@ import type { Decision, DecisionLog } from '../api/types'
 import { Decisions } from './Decisions'
 import { markdown, markdownRow, weekStart } from './decisionLog'
 import { useApp } from '../state/store'
+import { conversation, convState } from '../test-fixtures'
 import { since } from '../usage/period'
 
 type Log = Omit<DecisionLog, 'more'> & { more?: boolean }
@@ -111,7 +112,7 @@ test('"Since I left" is not offered where the project was never left', async () 
     within(chips)
       .getAllByRole('button')
       .map(chip => chip.textContent),
-  ).toEqual(['Today', 'Week'])
+  ).toEqual(['Today', 'Week', 'Not seen'])
 })
 
 test('five rows, then Show all; each says when, who, where, what, the words it is of and why, and opens where it is', async () => {
@@ -188,7 +189,7 @@ test('a period with nothing decided says so in one sentence: no list, no Copy', 
 test('asked by "Open in Ready for you", it takes the focus, in view, and says so', async () => {
   const onOpened = vi.fn()
   const log = { rows: [answer], judge_fine: 0, more: false }
-  render(<Decisions onLoad={vi.fn().mockResolvedValue(log)} leftAt={null} asked onOpened={onOpened} />)
+  render(<Decisions onLoad={vi.fn().mockResolvedValue(log)} leftAt={null} asked="any" onOpened={onOpened} />)
   const box = await screen.findByRole('region', { name: /^Decided for you/ })
   expect(box).toHaveFocus()
   expect(onOpened).toHaveBeenCalledTimes(1)
@@ -288,7 +289,7 @@ test('OK on a row not seen, and Change while its agent works: to the server, the
 test('a row of the open chat tells its store at once, as the chat’s own box did', async () => {
   const ok = vi.spyOn(useApp.getState(), 'decidedOk').mockResolvedValue()
   const changed = vi.spyOn(useApp.getState(), 'decidedChange').mockResolvedValue()
-  useApp.setState({ conv: { conversation: { id: 'c1' } } as never })
+  useApp.setState({ conv: convState({ conversation: { ...conversation, id: 'c1' } }) })
   view({ rows: [answer], judge_fine: 0 })
   const row = (await screen.findAllByRole('listitem'))[0]
   await userEvent.click(within(row).getByRole('button', { name: 'OK' }))
@@ -297,30 +298,87 @@ test('a row of the open chat tells its store at once, as the chat’s own box di
   expect(changed).toHaveBeenCalledWith('q1', 'Postgres')
   ok.mockRestore()
   changed.mockRestore()
+  useApp.setState({ conv: null })
 })
 
-test('a To-do choice: OK keeps it, Change turns it the other way; a refusal is said on its row', async () => {
+test('a To-do choice: OK decides nothing - its word seen -; Change sends the state its row showed; refused, it is read again', async () => {
   const seen = vi.spyOn(useApp.getState(), 'seenTask').mockResolvedValue()
-  const decide = vi
-    .spyOn(useApp.getState(), 'decideTask')
-    .mockRejectedValueOnce(new Error('it has started'))
-    .mockResolvedValue()
-  view({ rows: [task, { ...task, id: 'task:t2', answer: 'Reject', link: { kind: 'task', id: 't2' } }], judge_fine: 0 })
+  const decide = vi.spyOn(useApp.getState(), 'decideTask')
+  vi.spyOn(useApp.getState(), 'loadBacklog').mockResolvedValue()
+  vi.spyOn(useApp.getState(), 'loadBoard').mockResolvedValue()
+  const asked = vi.fn(async (url: string, _init?: RequestInit) =>
+    url.endsWith('/t1/decide')
+      ? new Response(JSON.stringify({ detail: 'it changed since you looked: read the decisions again' }), {
+          status: 409,
+        })
+      : new Response('{}', { status: 200 }),
+  )
+  vi.stubGlobal('fetch', asked)
+  const { onLoad } = view({
+    rows: [task, { ...task, id: 'task:t2', answer: 'Reject', link: { kind: 'task', id: 't2' } }],
+    judge_fine: 0,
+  })
   const [added, turned] = within(await screen.findByRole('list', { name: 'Decisions, newest first' })).getAllByRole(
     'listitem',
   )
   await userEvent.click(within(added).getByRole('button', { name: 'Change → Reject' }))
-  expect(await within(added).findByRole('alert')).toHaveTextContent('it has started')
+  expect(await within(added).findByRole('alert')).toHaveTextContent('it changed since you looked')
+  await vi.waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2))
   await userEvent.click(within(added).getByRole('button', { name: 'OK' }))
-  // (OK on one turned down takes it off To-do, as the chat's box did)
   await userEvent.click(within(turned).getByRole('button', { name: 'OK' }))
   await userEvent.click(within(turned).getByRole('button', { name: 'Change → Add' }))
-  expect(seen).toHaveBeenCalledWith('t1')
-  expect(decide.mock.calls).toEqual([
-    ['t1', 'reject'],
-    ['t2', 'reject'],
-    ['t2', 'approve'],
+  expect(seen.mock.calls).toEqual([['t1'], ['t2']])
+  expect(decide).not.toHaveBeenCalled()
+  expect(asked.mock.calls.map(([url, init]) => [url, init?.body])).toEqual([
+    ['/api/backlog/t1/decide', JSON.stringify({ decision: 'reject', expect: 'added' })],
+    ['/api/backlog/t2/decide', JSON.stringify({ decision: 'approve', expect: 'proposed' })],
   ])
-  seen.mockRestore()
-  decide.mockRestore()
+  vi.restoreAllMocks()
+})
+
+test('Not seen: what waits for your OK, of any age - and opened at it when asked so', async () => {
+  const onLoad = vi.fn().mockResolvedValue({ rows: [answer], judge_fine: 0, more: false })
+  const onOpened = vi.fn()
+  render(<Decisions onLoad={onLoad} leftAt={at(1, 0)} asked="unseen" onOpened={onOpened} />)
+  const chips = await screen.findByRole('group', { name: 'Decisions since' })
+  await vi.waitFor(() =>
+    expect(within(chips).getByRole('button', { name: 'Not seen' })).toHaveAttribute('aria-pressed', 'true'),
+  )
+  expect(onLoad).toHaveBeenLastCalledWith(null, true)
+  expect(onOpened).toHaveBeenCalledTimes(1)
+})
+
+test('it is read again on what the store hears change it, and when the window comes back', async () => {
+  const { onLoad } = view({ rows: [answer], judge_fine: 0 })
+  await screen.findByRole('list', { name: 'Decisions, newest first' })
+  expect(onLoad).toHaveBeenCalledTimes(1)
+  act(() => useApp.setState({ backlog: [{ id: 't9', status: 'todo', po: { lead: 'add' } } as never] }))
+  await vi.waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2))
+  act(() => void window.dispatchEvent(new Event('focus')))
+  await vi.waitFor(() => expect(onLoad).toHaveBeenCalledTimes(3))
+})
+
+test('another project’s reader: the last project’s rows go at once', async () => {
+  const first = vi.fn().mockResolvedValue({ rows: [answer], judge_fine: 0, more: false })
+  const { rerender } = render(<Decisions onLoad={first} leftAt={null} />)
+  await screen.findByRole('list', { name: 'Decisions, newest first' })
+  const other = vi.fn().mockReturnValue(new Promise<DecisionLog>(() => {}))
+  rerender(<Decisions onLoad={other} leftAt={null} />)
+  expect(screen.queryByRole('list', { name: 'Decisions, newest first' })).toBeNull()
+})
+
+test('a line of your own message is "Your words"; another rule of yours "Your rule"', async () => {
+  view({
+    rows: [
+      { ...ran, source: 'message' },
+      { ...ran, id: 'command:k3', source: 'rules' },
+    ],
+    judge_fine: 0,
+  })
+  const [words, rule] = within(await screen.findByRole('list', { name: 'Decisions, newest first' })).getAllByRole(
+    'listitem',
+  )
+  expect(within(words).getByText('Your words')).toHaveClass('who-your_words')
+  expect(within(rule).getByText('Your rule')).toBeInTheDocument()
+  expect(markdownRow({ ...ran, source: 'message' })).toContain(' · Your words · ')
 })

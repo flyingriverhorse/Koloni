@@ -379,23 +379,27 @@ export function App() {
   }, [])
   // "Open in Ready for you" (the chat's line, Usage's Today): the Ready for you page, its Decided for you in view - asked
   // until it is, or the page is left before it could be (then a later visit is as any).
-  const [decisionsAsked, setDecisionsAsked] = useState(false)
+  // ("unseen": at Not seen - the line or Today counted some that wait for your OK)
+  const [decisionsAsked, setDecisionsAsked] = useState<'unseen' | 'any' | null>(null)
   useEffect(() => {
-    const open = () => {
+    const open = (event: Event) => {
       setView('ready')
       setSettingsOpen(false)
-      setDecisionsAsked(true)
+      setDecisionsAsked((event as CustomEvent<boolean>).detail ? 'unseen' : 'any')
     }
     window.addEventListener(OPEN_DECISIONS, open)
     return () => window.removeEventListener(OPEN_DECISIONS, open)
   }, [])
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (view !== 'ready') setDecisionsAsked(false)
+    if (view !== 'ready') setDecisionsAsked(null)
   }, [view])
-  const decisionsOpened = useCallback(() => setDecisionsAsked(false), [])
+  const decisionsOpened = useCallback(() => setDecisionsAsked(null), [])
   // (One for the project: Decisions reads again only for another period.)
-  const decisionsOf = useCallback((from: string) => readDecisions(projectId ?? '', from), [projectId])
+  const decisionsOf = useCallback(
+    (from: string | null, unseen?: boolean) => readDecisions(projectId ?? '', from, unseen),
+    [projectId],
+  )
   const morning = useRef(false)
   useEffect(() => {
     if (!away || morning.current) return

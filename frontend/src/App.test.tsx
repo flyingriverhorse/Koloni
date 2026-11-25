@@ -580,7 +580,8 @@ function refusedByTheJudge() {
   })
   const row = {
     id: 'command:k',
-    at: new Date().toISOString(),
+    // (a month old: older than any period but Not seen)
+    at: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
     kind: 'command',
     who: 'judge',
     what: "KOLONİ's judge did not run a command; the agent went on",
@@ -613,6 +614,10 @@ test("the pill counts a command Full auto's judge refused; the chat says it in o
   await userEvent.click(within(panel).getByRole('button', { name: 'Open in Ready for you' }))
   const decided = await screen.findByRole('region', { name: /^Decided for you 1, 1 not seen/ })
   await vi.waitFor(() => expect(decided).toHaveFocus())
+  // (at Not seen: the chat counted one that waits for your OK, whatever its age)
+  expect(within(decided).getByRole('button', { name: 'Not seen' })).toHaveAttribute('aria-pressed', 'true')
+  const unseen = (read.mock.calls as unknown as [string][]).map(([url]) => url)
+  expect(unseen).toContain('/api/projects/p/decisions?unseen=true')
   expect(within(decided).getByText("KOLONİ's judge")).toHaveClass('who-judge')
   expect(within(decided).getByText('It sends .env away.').tagName).toBe('Q')
   expect(decided).toHaveTextContent('The judge let 2 commands run.')

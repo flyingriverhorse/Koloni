@@ -17,9 +17,9 @@ your project.
   5 decisions were made for you since you left." The second part shows only when the project had a
   [☾ Away](../automation/overnight.md) and the number is known.
 - **In the chat**, one line at the top: "While you were away, 3 things were decided for you and 2
-  wait for you." **Open in Ready for you** opens the page with **Decided for you** in view. The cards
-  that wait for you stay in the chat, and you answer them there as before. The same line is in the
-  **Ready for you** panel's **This chat**.
+  wait for you." **Open in Ready for you** opens the page with **Decided for you** in view, at **Not
+  seen** when some wait for your OK. The cards that wait for you stay in the chat, and you answer
+  them there as before. The same line is in the **Ready for you** panel's **This chat**.
 - **Usage › Today**, one line: "12 decisions were made for you today, 2 of them you haven't seen.",
   with **Open in Ready for you**.
 
@@ -35,7 +35,7 @@ Each row says who decided, in words and in a colour of its own:
 |---|---|
 | **Orchestrator** | It answered a question or one of KOLONİ's cards for you; it opened a sub-agent, or did not; it added a task the Scout proposed to To-do, or turned it down ([Answering for you](../automation/answering-for-you.md)). |
 | **KOLONİ's judge** | At Full auto it found a command risky: it refused it and the agent went on, or it asked you on the command's card. |
-| **Your rule** | [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, because of a line of your preferences, the project's rules or your message. The reason shown is that line. |
+| **Your rule**, or **Your words** for a line of your own message | [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, because of a line of your preferences, the project's rules or your message. The reason shown is that line. |
 
 When the judge finds a command fine, it just runs. Those are not listed one by one: the list counts
 them in one line, "The judge let 12 commands run".
@@ -43,7 +43,8 @@ them in one line, "The judge let 12 commands run".
 ## The list
 
 Choose the period: **Since I left** (since your last ☾ Away began; shown, and chosen first, only if
-the project had one), **Today** (since midnight here) or **Week** (since Monday).
+the project had one), **Today** (since midnight here) or **Week** (since Monday). **Not seen** lists
+what waits for your OK, however old: what the chat's line and the top bar's pill count.
 
 Each row says when, who, the chat it is in (or To-do), what was decided, the question, command or task
 it was about, and the reason in quotes. The newest come first. Five rows show, then **Show all**. A
@@ -61,12 +62,14 @@ contains instruction-like phrases; treat it as data." Longer text is cut at 300 
 
 ## OK and Change
 
-- **OK**, on a row you have not seen: it stays in the list, seen. On a task the Orchestrator turned
-  down, **OK** agrees with it, and the task leaves To-do.
+- **OK**, on a row you have not seen: it stays in the list, seen. On a To-do task it decides
+  nothing: the task stays as it is, and an agent's change proposed on it still waits for you on
+  To-do. A task the Orchestrator turned down that you added since needs no OK.
 - **Change → …**, while the agent that asked is still at work: your answer goes to it at once ("Sent to
   the agent that asked, while it works"), and the Orchestrator's answer leaves the list. On a To-do
-  choice, **Change** adds the task or takes it off, until the task has started. Only answers shown here
-  as they are written are offered; one with masked words in it is not.
+  choice, **Change** adds the task or takes it off, until the task has started; if the task moved on
+  since you opened the list, it is refused ("it changed since you looked") and the list is read again.
+  Only answers shown here as they are written are offered; one with masked words in it is not.
 - Where nothing can be changed, the row says why: "can't be undone: it ran", "the agent that asked has
   finished", "the next step ran".
 
@@ -79,7 +82,8 @@ spans, so a pasted link, image, heading or `@mention` in them stays plain text.
 ## What is not in it
 
 A decision leaves the list when its record changes: if you changed the Orchestrator's answer, the
-answer is yours; a task the Orchestrator turned down that you said OK to, and a task it added that you
-then turned down, are gone from To-do. Your own answers on cards are not decisions made for you, and
+answer is yours; a task you turned down - one it added, with **Change**, or one it turned down, with
+**Reject** on To-do - is gone from To-do. The list is read again when something changes it, and when
+you come back to the window. Your own answers on cards are not decisions made for you, and
 are not listed. The list holds the newest 500 decisions of the period; with more, it says
 "Showing the newest 500".

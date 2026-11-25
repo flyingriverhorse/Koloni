@@ -21,10 +21,11 @@ export function DecidedToday({ onLoad }: { onLoad: (since: string) => Promise<De
     }
   }, [onLoad, from])
   if (!log) return null
+  const unseen = log.rows.some(row => row.seen === false)
   return (
     <p className="decided-today">
       <span>{todaySentence(log)}</span>{' '}
-      <button type="button" className="link-btn" onClick={openDecisions}>
+      <button type="button" className="link-btn" onClick={() => openDecisions(unseen)}>
         Open in Ready for you
       </button>
     </p>

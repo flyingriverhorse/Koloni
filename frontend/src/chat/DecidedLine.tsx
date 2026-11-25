@@ -22,7 +22,8 @@ export function DecidedLine({ conv }: { conv: ConvState | null }) {
   return (
     <p className="decided-line">
       <span>{decidedSentence(decided, waiting)}</span>{' '}
-      <button type="button" className="link-btn" onClick={openDecisions}>
+      {/* (at Not seen where something waits for your OK: one of any age is there) */}
+      <button type="button" className="link-btn" onClick={() => openDecisions(decided > 0)}>
         Open in Ready for you
       </button>
     </p>

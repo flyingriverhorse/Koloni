@@ -1,22 +1,26 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { api, errorText } from '../api/client'
-import type { Decision, DecisionLog } from '../api/types'
+import type { BacklogTask, Decision, DecisionLog } from '../api/types'
 import { OPEN_TODO } from '../chat/TodoCards'
+import { decidedOf, judgedCommands } from '../chat/waiting'
 import { useAsk } from '../memory/useAsk'
+import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { since } from '../usage/period'
-import { WHO, fineLine, markdown, newestLine, stamp, weekStart } from './decisionLog'
+import { fineLine, markdown, newestLine, stamp, weekStart, whoOf } from './decisionLog'
 
-type Chip = 'left' | 'today' | 'week'
+type Chip = 'left' | 'today' | 'week' | 'unseen'
 const CHIPS: [Chip, string][] = [
   ['left', 'Since I left'],
   ['today', 'Today'],
   ['week', 'Week'],
+  ['unseen', 'Not seen'],
 ]
 const EMPTY: Record<Chip, string> = {
   left: 'Nothing was decided for you since you left.',
   today: 'Nothing was decided for you today.',
   week: 'Nothing was decided for you this week.',
+  unseen: 'Nothing waits for your OK.',
 }
 const MOST = 5 // rows shown before "Show all"
 const LINK: Record<Decision['link']['kind'], string> = {
@@ -27,14 +31,15 @@ const LINK: Record<Decision['link']['kind'], string> = {
 }
 
 interface Props {
-  /** Reads the project's decision log from a moment on. Throws ApiError. */
-  onLoad: (since: string) => Promise<DecisionLog>
+  /** Reads the project's decision log from a moment on - `unseen`: what waits for your OK, of any age. Throws
+   *  ApiError. */
+  onLoad: (since: string | null, unseen?: boolean) => Promise<DecisionLog>
   /** When the project's last ☾ Away started; null: it had none ("Since I left" is not offered). */
   leftAt: string | null
   /** Opens a chat: where a decision's card, command or agent is. */
   onOpenChat?: (conversationId: string) => void
-  /** "Open in Ready for you" asked for it in view; `onOpened` once it is. */
-  asked?: boolean
+  /** "Open in Ready for you" asked for it in view - "unseen": at Not seen; `onOpened` once it is. */
+  asked?: 'unseen' | 'any' | null
   onOpened?: () => void
   /** How many were decided since you left, read with "Since I left" (the page's first line); null: more than the log
    *  gives. */
@@ -46,33 +51,75 @@ interface Props {
  * Orchestrator, KOLONİ's judge or a rule of yours - with why, from the record, and your OK and Change on it where they
  * still work. Copy as Markdown copies it as masked as shown.
  */
-export function Decisions({ onLoad, leftAt, onOpenChat, asked = false, onOpened, onLeft }: Props) {
+export function Decisions({ onLoad, leftAt, onOpenChat, asked = null, onOpened, onLeft }: Props) {
   const id = useId()
   // (Since I left first where there is a ☾ Away to have left by - known once it is read: so at the render.)
   const [picked, setPicked] = useState<Chip | null>(null)
   const chip = chipOf(picked, leftAt)
-  const [log, setLog] = useState<DecisionLog | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [again, setAgain] = useState(0) // read again after your OK or Change
   const box = useRef<HTMLElement>(null)
-  const shownFrom = useRef<string | null>(null)
-  const from = chip === 'left' && leftAt ? leftAt : chip === 'week' ? weekStart() : since('today')!
+  const { log, error, reread } = useLog(onLoad, chip, leftAt, onLeft)
 
   useEffect(() => {
     if (!asked) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (asked === 'unseen') setPicked('unseen')
     box.current?.scrollIntoView?.({ block: 'start' })
     box.current?.focus()
     onOpened?.()
   }, [asked, onOpened])
+
+  return (
+    <section ref={box} tabIndex={-1} aria-labelledby={id} className="decisions">
+      <Head id={id} log={log} chip={chip} left={leftAt !== null} onPick={setPicked} />
+      {error && (
+        <div role="alert" className="alert">
+          The decisions could not be read: {error}
+        </div>
+      )}
+      {log && <Body key={chip} log={log} chip={chip} onOpenChat={onOpenChat} onDone={reread} />}
+    </section>
+  )
+}
+
+/** What the store hears that changes the log: the To-do list's tasks and, of the open chat, what was decided and waits
+ *  for your OK - as one text, so that only a change of it reads the log again. */
+const heardOf = (backlog: BacklogTask[] | null, conv: ConvState | null) =>
+  [
+    ...(backlog ?? []).map(task => `${task.id}:${task.status}:${task.po?.lead ?? ''}:${task.po?.seen ?? ''}`),
+    ...(conv ? [...decidedOf(conv), ...judgedCommands(conv)].map(one => one.id) : []),
+  ].join(',')
+
+/**
+ * The log as its chip asks it: read again after your OK or Change, on what the store hears change it (a task decided, a
+ * card answered or changed, a command judged or seen) and when the window comes back. Another period - or another
+ * project's reader - shows none of the last one's rows meanwhile, nor copies them as its.
+ */
+function useLog(
+  onLoad: Props['onLoad'],
+  chip: Chip,
+  leftAt: string | null,
+  onLeft: Props['onLeft'],
+): { log: DecisionLog | null; error: string | null; reread: () => void } {
+  const [log, setLog] = useState<DecisionLog | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [again, setAgain] = useState(0)
+  const heard = useApp(s => heardOf(s.backlog, s.conv))
+  const shown = useRef<[string, Props['onLoad']] | null>(null)
+  const from = chip === 'left' && leftAt ? leftAt : chip === 'week' ? weekStart() : since('today')!
+  useEffect(() => {
+    const back = () => setAgain(n => n + 1)
+    window.addEventListener('focus', back)
+    return () => window.removeEventListener('focus', back)
+  }, [])
   useEffect(() => {
     let live = true
-    // (Another period: not the last one's rows under its chip, nor copied as its. Read again: kept until it comes.)
-    if (shownFrom.current !== from) {
-      shownFrom.current = from
+    const key = `${chip} ${from}`
+    if (shown.current?.[0] !== key || shown.current[1] !== onLoad) {
+      shown.current = [key, onLoad]
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLog(null)
     }
-    onLoad(from).then(
+    ;(chip === 'unseen' ? onLoad(null, true) : onLoad(from)).then(
       read => {
         if (!live) return
         setLog(read)
@@ -84,19 +131,8 @@ export function Decisions({ onLoad, leftAt, onOpenChat, asked = false, onOpened,
     return () => {
       live = false
     }
-  }, [onLoad, from, again, chip, onLeft])
-
-  return (
-    <section ref={box} tabIndex={-1} aria-labelledby={id} className="decisions">
-      <Head id={id} log={log} chip={chip} left={leftAt !== null} onPick={setPicked} />
-      {error && (
-        <div role="alert" className="alert">
-          The decisions could not be read: {error}
-        </div>
-      )}
-      {log && <Body key={chip} log={log} chip={chip} onOpenChat={onOpenChat} onDone={() => setAgain(n => n + 1)} />}
-    </section>
-  )
+  }, [onLoad, from, again, chip, onLeft, heard])
+  return { log, error, reread: () => setAgain(n => n + 1) }
 }
 
 /** The period shown: the one picked - Since I left only where there is a ☾ Away to have left by -, else since you left
@@ -205,7 +241,7 @@ function Row({ row, onOpenChat, onDone }: { row: Decision; onOpenChat?: (id: str
       <span className="muted decision-time">{stamp(row.at)}</span>
       <div className="decision-body">
         <span className="decision-head">
-          <b className={`decision-who who-${row.who}`}>{WHO[row.who]}</b>
+          <b className={`decision-who who-${row.who}`}>{whoOf(row)}</b>
           {where && <span className="muted decision-where">{where}</span>}
           {row.seen === false && <span className="decision-unseen">not seen</span>}
         </span>
@@ -237,20 +273,29 @@ const recordOf = (row: Decision) => row.id.slice(row.id.indexOf(':') + 1)
 const here = (row: Decision) =>
   row.conversation_id !== null && useApp.getState().conv?.conversation.id === row.conversation_id
 
-/** Your OK on a row: it stays, seen - but a To-do task the Orchestrator turned down, which OK takes off the list. */
+/** Your OK on a row: it stays, seen. On a To-do task it decides nothing - the Orchestrator's word seen, the task as it is. */
 async function ok(row: Decision): Promise<void> {
   const s = useApp.getState()
   const id = recordOf(row)
-  if (row.kind === 'task') return row.answer === 'Add' ? s.seenTask(id) : s.decideTask(id, 'reject')
+  if (row.kind === 'task') return s.seenTask(id)
   if (row.kind === 'command') return here(row) ? s.commandSeen(id) : void (await api.post(`/commands/${id}/seen`))
   return here(row) ? s.decidedOk(id) : void (await api.post(`/questions/${id}/ok`))
 }
 
-/** Your Change: another answer, to the agent that asked while it works; a To-do choice the other way. */
+/** Your Change: another answer, to the agent that asked while it works; a To-do choice the other way - only in the state
+ *  its row showed (`expect`): one moved on since is refused, never an agent's change dropped or applied by it. */
 async function change(row: Decision, answer: string): Promise<void> {
   const s = useApp.getState()
   const id = recordOf(row)
-  if (row.kind === 'task') return s.decideTask(id, row.answer === 'Add' ? 'reject' : 'approve')
+  if (row.kind === 'task') {
+    const added = row.answer === 'Add'
+    await api.post(`/backlog/${id}/decide`, {
+      decision: added ? 'reject' : 'approve',
+      expect: added ? 'added' : 'proposed',
+    })
+    await Promise.all([s.loadBacklog(), s.loadBoard()])
+    return
+  }
   if (here(row)) return s.decidedChange(id, answer)
   await api.post(`/questions/${id}/change`, { answer })
 }
@@ -263,7 +308,8 @@ const choicesOf = (row: Decision) =>
  *  can't be undone. */
 function RowActions({ row, onOpenChat, onDone }: { row: Decision; onOpenChat?: (id: string) => void; onDone: Done }) {
   const { busy, error, ask } = useAsk()
-  const act = (what: () => Promise<void>, said?: string) => void ask(what).then(fine => fine && onDone(said))
+  // (read again either way: refused, it may have moved on since the row was read - its row says so)
+  const act = (what: () => Promise<void>, said?: string) => void ask(what).then(fine => onDone(fine ? said : undefined))
   const sent = row.kind === 'task' ? undefined : 'Sent to the agent that asked, while it works'
   return (
     <div className="decision-actions">

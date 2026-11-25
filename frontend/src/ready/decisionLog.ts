@@ -8,9 +8,16 @@ export const WHO: Record<Decision['who'], string> = {
   your_words: 'Your rule',
 }
 
-/** The project's decision log from a moment on (read only: nothing adds, changes or deletes a row). Throws ApiError. */
-export const readDecisions = (projectId: string, since: string) =>
-  api.get<DecisionLog>(`/projects/${projectId}/decisions?since=${encodeURIComponent(since)}`)
+/** Who decided a row, in words: a line of your own message is "Your words"; another rule of yours "Your rule". */
+export const whoOf = (row: Decision) =>
+  row.who === 'your_words' && row.source === 'message' ? 'Your words' : WHO[row.who]
+
+/** The project's decision log from a moment on - or, `unseen`, what waits for your OK, of any age (read only: nothing
+ *  adds, changes or deletes a row). Throws ApiError. */
+export const readDecisions = (projectId: string, since: string | null, unseen = false) =>
+  api.get<DecisionLog>(
+    `/projects/${projectId}/decisions?` + (unseen ? 'unseen=true' : `since=${encodeURIComponent(since ?? '')}`),
+  )
 
 /** Monday's midnight here, of the week `now` is in. */
 export const weekStart = (now = new Date()) =>
@@ -27,8 +34,10 @@ export function stamp(iso: string, now = new Date()): string {
 
 // "Open in Ready for you" (the chat's line, Usage's Today): App opens the Ready for you page with Decided for you in view -
 // its own state, cleared once it is in view, or the page left.
+// `unseen`: at Not seen - what waits for your OK, as the line or the pill counted it.
 export const OPEN_DECISIONS = 'koloni:open-decisions'
-export const openDecisions = () => window.dispatchEvent(new CustomEvent(OPEN_DECISIONS))
+export const openDecisions = (unseen = false) =>
+  window.dispatchEvent(new CustomEvent<boolean>(OPEN_DECISIONS, { detail: unseen }))
 
 /** An agent's or a model's words in Markdown, inert: on one line in a code span - no link, image, heading, HTML or
  *  @mention is made of them - fenced longer than any run of backticks in them. */
@@ -44,7 +53,7 @@ const said = (before: string, text: string | null | undefined) => (text?.trim() 
 /** One row as a line of Markdown: when, who, KOLONİ's sentence, then the words it is of, each inert. */
 export function markdownRow(row: Decision, now = new Date()): string {
   const words = said(': ', row.quote) + said(' → ', row.answer) + said(' · why: ', row.why)
-  return `- ${stamp(row.at, now)} · ${WHO[row.who]} · ${row.what}${words}`
+  return `- ${stamp(row.at, now)} · ${whoOf(row)} · ${row.what}${words}`
 }
 
 /** Copy as Markdown: a plain list to paste into a PR's body, as masked as the screen shows it. */

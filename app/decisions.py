@@ -6,9 +6,9 @@ table of its own, no model asked, and nothing writes here - no row is added, cha
 agent. The judge's "fine" is counted, not listed. Agents' and models' words are masked, cut and
 marked where they read like orders (`said`); they are shown, never given to an agent as orders.
 shortcut: read from the records, a row leaves the log where its record changes - the user's own
-Change clears the Orchestrator's why (`api.questions.change`), and a task the Orchestrator turned
-down that you said OK to, or one it added that you turned down, is deleted (`backlog.decide`); give
-decisions a table of their own (approach B) if the log must keep those."""
+Change clears the Orchestrator's why (`api.questions.change`), and a task you turned down - one it
+added, by its row's Change; one it turned down, rejected on To-do - is deleted (`backlog.decide`);
+give decisions a table of their own (approach B) if the log must keep those."""
 
 import unicodedata
 from collections.abc import Callable
