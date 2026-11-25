@@ -43,6 +43,9 @@ NOT_NOW = "{why}: nothing was pushed"
 TAKEN = "its work was taken in or discarded: nothing to push"
 UNDER_WAY = "its push or its Take in is under way"
 PUSH_SECRET = "{files} on the branch holds a secret KOLONİ knows - take it off the branch first"
+# (D1: a branch of that name made on origin between its look and the push - git's own words name
+# this machine's folders)
+ON_ORIGIN = "origin already has a branch named {name}: nothing was pushed"
 # ...and what it asks a second Run for.
 PUSH_CONFIG = (
     "git's config changed since the job began - a push runs what it names (an address, a "
@@ -340,6 +343,10 @@ class AwayBranchMixin:
                 parked.park(session, task, "push", None, what, data)
             session.commit()
 
+    async def _origin_is(self: "AgentRunner", copy: copies.Copy) -> str:
+        """`away_branch.origin_name`, off the event loop."""
+        return await asyncio.to_thread(away_branch.origin_name, copy.project)
+
     async def push_away_branch(
         self: "AgentRunner", away_id: str, task_id: str, decision: str, seen: list[str]
     ) -> dict:
@@ -389,7 +396,8 @@ class AwayBranchMixin:
             merge_id = merge.id
         if on_branch is None:
             return {"state": "refused", "why": TAKEN}
-        known = spellings_of([*secret_values(os.environ), *passed])
+        # (S1: and every secret KOLONİ knows - its keys, the page's -, not the environment's alone)
+        known = [*spellings_of([*secret_values(os.environ), *passed]), *raw.known()]
         for one in known:  # (no secret KOLONİ knows goes up in a commit's message or a PR's words)
             what["title"], what["notes"] = (
                 what[key].replace(one, "***") for key in ("title", "notes")
@@ -458,7 +466,12 @@ class AwayBranchMixin:
                 under=copies.folders(self.settings.runtime_root),
             )
         except git.Refused as exc:
-            return {"state": "refused", "why": _nothing(exc)}
+            said = str(exc)
+            rejected = said.startswith("git push failed") and "[rejected]" in said
+            return {
+                "state": "refused",
+                "why": ON_ORIGIN.format(name=name) if rejected else _nothing(said),
+            }
         if what["way"] != "pull_request":
             return {"state": "pushed", "sha": sha}
         return await self._push_pr(copy, look, held, what, sha)

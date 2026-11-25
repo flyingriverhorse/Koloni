@@ -24,7 +24,7 @@ from typing import Literal, NamedTuple
 from sqlalchemy import and_, func, literal_column, or_, select
 from sqlalchemy.orm import object_session
 
-from app import away, backlog, copies, git, koloni, project_view, proof, recipe_run, web
+from app import away, backlog, copies, git, koloni, project_view, proof, raw, recipe_run, web
 from app import room as rooms
 from app.agent.ctx import TERMINAL, Ctx
 from app.agent.words import (
@@ -499,11 +499,11 @@ def _branch_files(
 
 
 def _secret_forms(copy: copies.Copy) -> list[bytes]:
-    """K-dal-takim: the secrets given in a branch copy's turn (`Copy.secrets`) as they are looked
-    for in bytes: UTF-8 and UTF-16-LE."""
+    """K-dal-takim: the secrets given in a branch copy's turn (`Copy.secrets`) and all KOLONİ knows
+    (`raw.known`: its keys, the page's - S1) as they are looked for in bytes: UTF-8, UTF-16-LE."""
     return [
         form
-        for one in copy.secrets()
+        for one in {*copy.secrets(), *raw.known()}
         if one
         for form in (one.encode("utf-8"), one.encode("utf-16-le"))
     ]

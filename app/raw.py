@@ -94,6 +94,12 @@ def _known(fresh: bool = False) -> list[str]:
     return _secrets
 
 
+def known() -> list[str]:
+    """Every secret KOLONİ knows (`use`), as they are looked for - what `hidden` masks: a branch's
+    commit, merge and push look for them too (S1)."""
+    return _known()
+
+
 def hide(text: str, secrets: Iterable[str]) -> str:
     for secret in secrets:
         text = text.replace(secret, HIDDEN)

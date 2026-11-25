@@ -1057,9 +1057,8 @@ PR_CONFIG = (
 PR_NAMED_SECRET = "{files}: named as a secret - it goes to GitHub only on your click"
 # ... and where the user holds commits origin does not, or a stash: what an agent copied of them
 # into a commit of its own (a squash, a pick, an amend) its history does not show - always asked.
-PR_UNPUSHED = (
-    "you have {commits} not on GitHub yet: before a pull request, check its files are "
-    "the agent's work"
+PR_UNPUSHED = (  # (D2: "GitHub" only where origin is GitHub's - `AgentRunner._origin_is`)
+    "you have {commits} not on {where} yet: before a push, check its files are the agent's work"
 )
 # ... said with its commits where another worktree of the user's holds one (`git.unpushed_places`):
 # by its folder, and one deleted by hand is still git's until it is pruned.
@@ -4245,7 +4244,7 @@ class AgentRunner(
         )
         said += ["a stash" if stashes == 1 else f"{stashes} stashes"] if stashes else []
         if said:
-            return PR_UNPUSHED.format(commits=" and ".join(said))
+            return PR_UNPUSHED.format(commits=" and ".join(said), where=await self._origin_is(copy))
         return PR_SNAPSHOT if copy.snapshot_sha else None
 
     async def _sent(self, copy: copies.Copy, look: dict) -> str:

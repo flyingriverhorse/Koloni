@@ -12,6 +12,7 @@ the repository's refs before and after a job (`refs`, `moved`: H2) and the morni
 import contextlib
 import hashlib
 import os
+import re
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -187,6 +188,18 @@ def origin_checked(project: Path) -> None:
         raise git.Refused(git.NO_ADDRESS)
     exe, _folder = git.repository(project)
     git._origin_holds(project, exe, url)
+
+
+# D2: an address on github.com as git writes one - https, ssh, scp-like (`git@github.com:o/r`).
+_GITHUB = re.compile(
+    r"(?:(?:https?|ssh|git)://(?:[^/@]+@)?|[^/@:]+@)github\.com(?::\d+)?[:/]", re.I
+)
+
+
+def origin_name(project: Path) -> str:
+    """What a note calls origin (D2): "GitHub" where a push goes to github.com, else "origin" - a
+    folder on this machine, another host."""
+    return "GitHub" if _GITHUB.match(git.push_address(project)) else "origin"
 
 
 def config_digest(project: Path) -> str | None:

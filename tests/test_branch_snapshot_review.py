@@ -822,7 +822,7 @@ def test_with_commits_of_yours_not_on_github_full_auto_asks_before_a_pull_reques
         ),
         timeout=LONG,
     )["merges"][0]
-    assert merge["branch"]["note"] == PR_UNPUSHED.format(commits="1 commit")
+    assert merge["branch"]["note"] == PR_UNPUSHED.format(commits="1 commit", where="origin")
     assert merge["status"] == "pending" and run(bare, "for-each-ref", "refs/heads/koloni/") == ""
     assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -930,7 +930,9 @@ def test_a_stash_or_a_detached_commit_copied_onto_the_branch_is_asked_and_never_
     bare, _log = github
     client, cid, _run_id = pr_run(make_client, repo, lambda: how(repo))
     merge = pr_card(client, cid)  # (Full auto: asked, the user has work not on GitHub)
-    said = PR_UNPUSHED.format(commits=yours).split("{wt}")  # (the folder as git keeps it)
+    said = PR_UNPUSHED.format(commits=yours, where="origin").split(
+        "{wt}"
+    )  # (the folder as git keeps it)
     note = merge["branch"]["note"]
     assert (
         note.startswith(said[0])
@@ -996,7 +998,7 @@ def test_at_ask_the_pull_requests_card_says_you_have_commits_not_on_github(
 
     client, cid, _run_id = pr_run(make_client, repo, meanwhile, permission_mode="ask")
     merge = pr_card(client, cid)
-    assert merge["branch"]["note"] == PR_UNPUSHED.format(commits="1 commit")
+    assert merge["branch"]["note"] == PR_UNPUSHED.format(commits="1 commit", where="origin")
 
 
 # --- k-okuyucu-3: whose a worktree's commits are (the k-pr-wt review's non-blocking items) --------

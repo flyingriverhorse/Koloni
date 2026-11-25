@@ -3902,12 +3902,11 @@ def push_one(
     from (a local branch of theirs it left since) - nor what the branch took in that origin does not
     hold (`_taken_in_unpushed`, of `source`: the branch's own tip, where `tip` is its share - W-1,
     `snapshot` the commit it began from):
-    once the user rewrote or dropped such a commit, where the branch left theirs is its start,
-    and the commit's content would go up under it. Never forced: a branch of that name there
-    already refuses it. No hook, tag, push option or signing of the repository's; git's own
-    receive-pack; to the one address origin was asked at (`push_address`), never rewritten.
-    `under`: KOLONİ's copies folders - its worktrees there are not the user's (`_users_unpushed`).
-    Returns the commit pushed. Refused, with why."""
+    once the user rewrote or dropped such a commit, where the branch left theirs is its start, and
+    the commit's content would go up under it. Never where origin has a branch of that name (D1:
+    not on top of it either). No hook, tag, push option or signing; git's own receive-pack; to the
+    one address origin was asked at (`push_address`), never rewritten. `under`: KOLONİ's copies
+    folders, not the user's (`_users_unpushed`). Returns the commit pushed. Refused, with why."""
     if not branch.startswith(BRANCH_PREFIX):
         raise Refused(f"{branch} is not a branch KOLONİ made")
     git, _folder = repository(project)
@@ -3915,6 +3914,8 @@ def push_one(
         raise Refused(NO_ADDRESS)
     # (what origin holds, as origin says it - never a remote-tracking ref of the repository's)
     listed, origin = _origin_holds(project, git, url)
+    if branch in listed:
+        raise Refused(f"origin already has a branch named {branch}: nothing was pushed")
     if into in listed and listed[into] not in origin:
         raise Refused(FETCH_FIRST.format(into=into))
     code, out, said = _in(
@@ -3936,8 +3937,7 @@ def push_one(
         for one in (base, start)
     ):
         raise Refused(
-            f"push {into} first: commits of yours not on origin yet would go up with "
-            "the pull request"
+            f"push {into} first: commits of yours not on origin yet would go up with the push"
         )
     if taken := _taken_in_unpushed(project, git, source or tip, start, branch, snapshot, origin):
         # (Named as the user's only those their own refs hold - what they can push; a reflog of
