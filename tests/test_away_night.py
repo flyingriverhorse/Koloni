@@ -5,7 +5,10 @@ what was not checked where no Checked note says."""
 
 from datetime import UTC, datetime, timedelta
 
-from app import away_night
+from app import away_night, proof
+from app.agent.kinds_mixin import NOT_REACHED
+from app.agent.proof_mixin import AWAY_GUESS
+from app.agent.try_mixin import NO_DEV, NOT_TRIED
 from app.db.away_models import Parked
 from app.db.models import Agent, AwayRun, BacklogTask, Message, Question, Run
 from tests.test_decisions import chat
@@ -68,7 +71,26 @@ def checked(session, cid, run, rows):
 
 
 def row(kind, state, text, guessed=False):
-    return {"kind": kind, "state": state, "text": text, "guessed": guessed, "command": None}
+    return proof.row(kind, state, text, guessed=guessed)
+
+
+# A Checked note's rows as KOLONİ writes them (`proof.row`, its own sentences): what was not done...
+GUESSED = proof.NOT_RUN.format(why=AWAY_GUESS)
+UNCHECKED = [
+    row("tests", "not_run", GUESSED, guessed=True),
+    row("tests", "not_run", proof.NO_COMMAND),
+    row("kinds", "not_run", NOT_REACHED.format(kinds="ui")),
+    row("try", "note", NOT_TRIED.format(why=NO_DEV)),
+    row("tests", "note", proof.TESTS_OFF),
+    row("not_checked", "note", proof.NOT_CHECKED),
+]
+# ...and what was, or says what was found: no row of Not checked.
+CHECKED = [
+    row("review", "passed", "Reviewer: no findings"),
+    row("tests", "passed", "Tests passed: pytest - 3 passed"),
+    row("tests", "note", proof.NO_TESTS_ROW),
+    row("try", "passed", "Tried live: the page opened"),
+]
 
 
 def night(client, tmp_path, status="ended"):
@@ -128,14 +150,7 @@ def night(client, tmp_path, status="ended"):
             session,
             one,
             second,
-            [
-                row("tests", "not_run", "Tests not run: a guessed command, you were away", True),
-                row("kinds", "not_run", "Kinds not checked: ui"),
-                row("try", "not_run", "Not tried live: no preview"),
-                row("review", "passed", "Reviewer: no findings"),
-                row("not_checked", "note", "Not checked: After a change is set to Nothing"),
-                row("tests", "passed", "Tests passed: pytest - 3 passed"),
-            ],
+            [*CHECKED[:2], *UNCHECKED, *CHECKED[2:]],
         )
         session.add(
             Parked(
@@ -199,12 +214,10 @@ def test_not_checked_is_read_from_the_last_checked_note_by_kind_and_state(client
     pid, _ids = night(client, tmp_path)
     found = jobs(client, pid)
     assert found["Fix the login"]["not_checked"] == [
-        "Tests not run: a guessed command, you were away",
-        "Kinds not checked: ui",
-        "Not tried live: no preview",
-        "Not checked: After a change is set to Nothing",
+        *(one["text"] for one in UNCHECKED),
         away_night.GITHUB,  # (its push went: GitHub's checks were not waited for)
     ]
+    assert GUESSED == "Tests not run: a guessed command, you were away"
     # No Checked note of the night: not known, never "nothing".
     assert found["Docs pass"]["not_checked"] is None
 

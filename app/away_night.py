@@ -11,12 +11,16 @@ from sqlalchemy.orm import Session
 
 from app.db.away_models import Parked
 from app.db.models import AwayRun, BacklogTask, Message, Run
+from app.proof import TESTS_OFF
 from app.schemas_decisions import Decision
 
-# A Checked note's rows that say a check was not done (`proof.row`), by their kind and state alone:
-# any that did not run ("not_run": the tests - a guessed command while away among them -, a kind's
-# check, the Reviewer, the live or browser try, a stronger model), and the notes that nothing was:
-# After a change set to Nothing, off for this chat, a recipe's Checks step that checks nothing.
+# A Checked note's rows that say a check was not done (`proof.row`), by their kind and state: any
+# that did not run ("not_run": the tests - no command, a guessed one while away, none collected, a
+# masked exit -, a kind's check, the Reviewer, a stronger model), the live or browser try's notes
+# (not tried: no preview, nobody watching, the tests still failing; no verdict), the notes that
+# nothing was - After a change set to Nothing, off for this chat, a recipe's Checks step that checks
+# nothing - and its tests off there (a "tests" note, by its sentence: the other such notes say what
+# was found, not what was skipped).
 NOTHING_CHECKED = frozenset({"not_checked", "chat_off", "recipe_off"})
 # shortcut: KOLONİ waits for no check of GitHub's on a push yet (`wait_for_ci`, 0.1.10): a job whose
 # push you said Run says so; read the record of that wait once there is one.
@@ -46,6 +50,17 @@ def times(
     return began, max(ends) if len(ends) == len(found) else None
 
 
+def _not_done(row: dict) -> bool:
+    """Whether a Checked note's row says a check was not done (`NOTHING_CHECKED`)."""
+    kind, state = row.get("kind"), row.get("state")
+    return (
+        state == "not_run"
+        or kind in NOTHING_CHECKED
+        or (kind == "try" and state == "note")
+        or (kind == "tests" and row.get("text") == TESTS_OFF)
+    )
+
+
 def not_checked(
     session: Session, away: AwayRun, ended: datetime, task: BacklogTask, cid: str
 ) -> list[str] | None:
@@ -64,7 +79,7 @@ def not_checked(
     said = [
         str(row.get("text") or "")
         for row in (note.blocks or {}).get("rows") or []
-        if row.get("state") == "not_run" or row.get("kind") in NOTHING_CHECKED
+        if _not_done(row)
     ]
     pushed = session.scalar(
         select(Parked.id)
