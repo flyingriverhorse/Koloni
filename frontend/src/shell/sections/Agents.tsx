@@ -53,7 +53,7 @@ const OBSERVE_REST =
 const SUGGEST_SHOWN =
   'The Scout looks for what is left after each turn that did something (changed a file, ran a command, handed work on or had a step fail): one small model request, on your plan or your bill; Usage shows it under that model. At Full auto the Orchestrator’s model decides them with one more.'
 const SUGGEST_REST =
-  'The first model of the tier you choose is sent what was said in the turn, the files it changed and the steps that failed, with the secrets KOLONİ knows masked, and the open tasks’ titles. It proposes at most three follow-up tasks, each from words of the turn; they wait on the To-do list for your Add, Edit or Reject. An added task starts when you run the backlog, or by itself where the To-do list runs by itself. Proposals made while you’re away or by a trigger always wait for you; rooms, discussions and To-do tasks’ own turns get none.'
+  'The first model of the tier you choose is sent what was said in the turn, the files it changed and the steps that failed, with the secrets KOLONİ knows masked, and the open tasks’ titles. It proposes at most three follow-up tasks, each from words of the turn; they wait on the To-do list for your Add, Edit or Reject. An added task runs once you tick it and give it to a chat (Do in chat). After a turn of a To-do story - one of its tasks’ or yours in its topic - they go into that story while it is open, one from a step that failed as a bug. Proposals made while you’re away or by a trigger always wait for you; rooms and discussions get none.'
 const SUGGEST_TIERS: [value: Project['suggest_tier'], label: string][] = [
   ['fast', 'Fast tier'],
   ['balanced', 'Balanced tier'],

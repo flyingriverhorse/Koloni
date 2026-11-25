@@ -601,10 +601,9 @@ def for_lead(session: Session, run: Run) -> str:
     """What a turn's Lead is told beside its topic: the names of the conversation's other
     topics, with how each that is a story's or a task's stands (`titled`) - and, in a turn of
     the user's own in a story's topic, the story's notebook as it stood when the turn began (a
-    task's turn has it in its message: `brief`) - a story of the chat's project.
-    shortcut: a Claude Code session gone on in is not sent its instructions again
-    (`model_native.since_its_last_word`): there the Lead of such a turn goes without the
-    notebook; add it to the user's message as a note of KOLONİ's if that is missed."""
+    task's turn has it in its message: `brief`) - a story of the chat's project. A CLI that goes
+    on in its own session (Claude Code, Copilot or Codex run Native) is given it too: a resumed
+    run is sent its instructions again with what is new (`model_native.RESUMED`)."""
     # shortcut: where a task's state changes while the turn runs, its Lead's instructions change
     # at its next step (a new prompt-cache prefix); keep them as the turn began if that costs.
     others = [titled(session, topic) for topic in topics.earlier_topics(session, run)]

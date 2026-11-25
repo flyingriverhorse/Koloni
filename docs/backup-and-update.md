@@ -37,7 +37,9 @@ logs, and the CLIs' own sign-ins.
 2. Nothing changes yet. Close KOLONİ and start it again; the restore happens at that start. Until then
    you can **Cancel** it.
 3. Your data as it was is set aside in `runtime/before-restore/`, not deleted.
-4. "Triggers and backlogs wait until you press Resume."
+4. "Triggers wait until you press Resume. To-do tasks that waited in a chat's queue are back on To-do."
+   KOLONİ starts held (**Held · Resume** in the top bar), and as at any start, nothing left in a chat's
+   To-do queue starts by itself: give the tasks to a chat again.
 
 If the file had no keys, the page lists what needs its key again. A restore is refused while a turn is at
 work, or if the file is not a KOLONİ export, comes from a newer KOLONİ, or is damaged. If a restore fails

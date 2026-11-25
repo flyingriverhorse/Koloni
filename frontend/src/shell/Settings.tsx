@@ -417,7 +417,7 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
         setting={stuck}
         low={5}
         high={1440}
-        why="For every project, in work nobody watches - a To-do task, a job while you’re away, a trigger’s run (only where its Minutes a run are longer): the Orchestrator’s turn ends, its work kept, once nothing has moved for this long - no file of the turn changed, no agent finished its work, no failing command passed. A card waiting for you, a command or a model step under way, or an agent below it at work is not nothing."
+        why="For every project, in a To-do task’s turn and in work nobody watches - a job while you’re away, a trigger’s run (only where its Minutes a run are longer): the Orchestrator’s turn ends, its work kept, once nothing has moved for this long - no file of the turn changed, no agent finished its work, no failing command passed. A card waiting for you, a command or a model step under way, or an agent below it at work is not nothing."
       />
       <WholeRow
         id="turn-hours"

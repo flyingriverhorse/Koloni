@@ -47,7 +47,7 @@ export function moment(iso: string): string {
  * trigger's turn. Never an empty part between the dots (B-329).
  */
 export function saidWhere(said: SaidInTurn): string {
-  const who = said.kind === 'task' ? 'a backlog task closed by you' : said.who
+  const who = said.kind === 'task' ? 'a To-do task closed by you' : said.who
   const when = said.at ? moment(said.at) : 'a day not on record'
   return [who, said.conversation_title, when, said.trigger ? 'in a trigger’s turn' : ''].filter(Boolean).join(' · ')
 }

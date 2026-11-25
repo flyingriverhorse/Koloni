@@ -7534,8 +7534,9 @@ export interface components {
         /**
          * HoldOut
          * @description Stop everything (`app.api.hold`): whether it holds, since when, how many turns of every
-         *     chat have not ended, and what a hold holds (triggers on, backlogs that work themselves,
-         *     the projects' nights while the user is away) - and, while it holds, the turns it stopped.
+         *     chat have not ended, and what a hold holds (triggers on, the projects with To-do tasks
+         *     waiting in a chat's queue - `backlogs` - and the projects' nights while the user is away) -
+         *     and, while it holds, the turns it stopped.
          */
         HoldOut: {
             /** Backlogs */

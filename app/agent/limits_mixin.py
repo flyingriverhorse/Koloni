@@ -487,11 +487,12 @@ class LimitsMixin:
 
     async def _circled(self: "AgentRunner", ctx: Ctx) -> tuple[str, str | None] | None:
         """How an agent KOLONİ stopped (`_stuck`) ends - or, B-413, None where the Orchestrator's
-        loop guard stopped it (`_counted`) in a turn the user can be asked in and they said Go
-        on: its counts start again. Elsewhere - a trigger's turn, a night's job, a backlog task -
-        it ends with why on record, and the night or the To-do run goes on with the next (there
-        a stop is a failure: the task gets its fix round, or is blocked). In a turn the user
-        started where work of it is in the project, it ends completed, with why as KOLONİ's line:
+        loop guard stopped it (`_counted`) in a turn the user can be asked in (`_attended`: one
+        they started, a To-do task's too, 0.1.8) and they said Go on: its counts start again.
+        Elsewhere - a trigger's turn, a night's job - it ends with why on record, and the night
+        goes on with the next. A To-do task's turn that fails so gets its fix round, then is
+        stuck, and its chat's queue goes on (`backlog.turn_ended`). In a turn the user can be
+        asked in where work of it is in the project, it ends completed, with why as KOLONİ's line:
         a guard does not make red a turn whose work landed (the live B-413 ended so). Its end is
         the turn's: nothing more is waited for or told (`_guard_ended`, `_loop_steps`)."""
         why = self._stuck.pop(ctx.agent_id)
