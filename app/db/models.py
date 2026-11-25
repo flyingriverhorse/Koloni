@@ -1256,20 +1256,6 @@ class UserPreferences(Base):
     judge_model_id: Mapped[str | None] = mapped_column(String(200), default=None)
 
 
-class JudgeAllowed(Base):
-    """A line the user said on a card of Full auto's judge not to ask about again in a project:
-    the command as it ran, its folder, and the digest of the agent's program it ran ("": none)."""
-
-    __tablename__ = "judge_allowed"
-    __table_args__ = (UniqueConstraint("project_id", "command", "cwd", "program_sha"),)
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    project_id: Mapped[str] = mapped_column(String(32), index=True)  # (gone with its project)
-    command: Mapped[str] = mapped_column(Text)
-    cwd: Mapped[str] = mapped_column(Text)
-    program_sha: Mapped[str] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(default=now)
-
-
 class Question(Base):
     """Something an agent asked the user in the middle of its work - or that KOLONİ asked
     them for it: leave for a tool it cannot show as a change or a command (`leave`)."""

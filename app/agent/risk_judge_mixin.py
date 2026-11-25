@@ -30,11 +30,11 @@ from app.commands import (
     standing_asked,
     with_cwd,
 )
+from app.db.judge_models import JudgeAllowed
 from app.db.models import (
     Command,
     Conversation,
     FileChange,
-    JudgeAllowed,
     Project,
     Provider,
     Run,

@@ -15,7 +15,8 @@ from sqlalchemy import select
 from app import risk_judge
 from app.agent.ctx import Ctx, _Unwatched
 from app.agent.risk_judge_mixin import ASIDE, NO_MODEL
-from app.db.models import AllowedCommand, BacklogTask, Command, JudgeAllowed, OwnRequest
+from app.db.judge_models import JudgeAllowed
+from app.db.models import AllowedCommand, BacklogTask, Command, OwnRequest
 from app.model_native import DECLINED_WHY
 from tests.conftest import TERMINAL, scaled
 from tests.fakes import Script

@@ -8,7 +8,8 @@ from sqlalchemy import select
 
 from app import cards
 from app.config import load_settings
-from app.db.models import JudgeAllowed, OwnRequest
+from app.db.judge_models import JudgeAllowed
+from app.db.models import OwnRequest
 from app.main import create_app
 from tests.fakes import ScriptedModel
 from tests.keyed import NO_ORIGIN, OWN, TestClient
