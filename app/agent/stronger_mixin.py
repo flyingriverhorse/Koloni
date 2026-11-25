@@ -329,8 +329,8 @@ class StrongerMixin:
     async def _stronger_at_end(self: "AgentRunner", ctx: Ctx, status: str) -> None:
         """The Orchestrator's answer to the last round changed nothing: its turn ends, the gate
         not run again - the stronger model's hand-off still comes (`_stronger`)."""
-        held = self._proofs.get(ctx.run_id)
-        if held is None or status != "completed" or ctx.depth:
+        held = self._proofs.get(ctx.run_id)  # (the end gate's: never run_checks' alone)
+        if held is None or not held.gated or status != "completed" or ctx.depth:
             return
         if (
             held.until_passes

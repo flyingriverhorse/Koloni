@@ -8,6 +8,7 @@ stands for it there: no second run after a commit. Offered to the Orchestrator a
 in a project only, a CLI's over KOLONİ's bridge as any of its tools - `ChecksToolMixin`."""
 
 import asyncio
+import copy as copying
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,9 +16,9 @@ from sqlalchemy import literal_column, select
 
 from app import checks_now, proof
 from app.agent.ctx import Ctx
-from app.agent.proof_mixin import NO_CHANGE_SEEN, Proof
+from app.agent.proof_mixin import Proof, Work
 from app.agent.words import PROOF_LEAD, RUN_CHECKS_LEAD
-from app.db.models import Conversation, Message, Run, ToolCall
+from app.db.models import Conversation, FileChange, Message, Run, ToolCall
 from app.tools import ToolError, _fn
 
 if TYPE_CHECKING:
@@ -40,6 +41,23 @@ NOT_HERE = (
     "at the end of the turn"
 )
 GOING = "run_checks is already running in this turn: wait for its answer"
+READYING = (
+    "KOLONİ's checks of Ready for you run in this turn now, or its card waits: call run_checks "
+    "again once they end"
+)
+# What an asked pass leaves as it found it (security review, H2): what the end's own pass does
+# once a turn, or pins at its first look - the Reviewer's verdict and look, the reviewers taken,
+# the documents read, the live try - and its rounds. The end looks afresh at its own work.
+KEPT = (
+    "verdict",
+    "looked",
+    "looked_at",
+    "lookers",
+    "docs_read",
+    "tried",
+    "tried_rows",
+    "review_rounds",
+)
 
 
 class ChecksToolMixin:
@@ -93,85 +111,97 @@ class ChecksToolMixin:
             .limit(1)
         )
 
-    async def _work_identity(self: "AgentRunner", ctx: Ctx) -> str | None:
-        """`checks_now.identity` of the Lead's work where it is: the project from the turn's
-        first commit, its branch's worktree from where the branch began, or its plain copy."""
-        copy = self._copies.get(self._works_in(ctx) or "")
-        if copy is None:
-            head = (self._git_at.get(ctx.run_id) or {}).get("head")
-            return await asyncio.to_thread(checks_now.identity, Path(ctx.folder), head)
-        if copy.branch:
-            start = copy.snapshot_sha or (copy.start[1] if copy.start else None)
-            return await asyncio.to_thread(checks_now.identity, copy.root, start)
-        return await asyncio.to_thread(checks_now.identity, copy.root, None, copy)
-
-    async def _checked_as_is(self: "AgentRunner", ctx: Ctx) -> bool:
-        """Whether run_checks found this very work green - the same content, the same checks on
-        - so the end gate need not run again (a `git commit` since rewrote nothing). Then a
-        change on record since is that same content: as checked (`_checked_at_ready`)."""
-        held = self._proofs.get(ctx.run_id)
-        if held is None or held.checked_as is None or not self._checks_offered(ctx):
-            return False
+    async def _work_now(self: "AgentRunner", ctx: Ctx) -> Work:
+        """What a run_checks answer stands for (`Work`): the content identity of the Lead's work
+        where it is (`checks_now.identity`: the project from the turn's first commit, its branch's
+        worktree from where the branch began, or its plain copy - with the paths of the turn's
+        change records, whatever git ignores), the checks on, and the turn's change records, each
+        with its status: a record made or decided since is other work, whatever git shows."""
         with self._factory() as session:
             on = proof.checks_of(
                 session, session.get_one(Conversation, ctx.cid), session.get(Run, ctx.run_id)
             ).on
-        if held.checked_as != (await self._work_identity(ctx), on):
+            made = session.execute(
+                select(FileChange.id, FileChange.status, FileChange.path).where(
+                    FileChange.run_id == ctx.run_id
+                )
+            ).all()
+        also = {path for _id, _status, path in made}
+        copy = self._copies.get(self._works_in(ctx) or "")
+        if copy is None:
+            start, folder = (self._git_at.get(ctx.run_id) or {}).get("head"), Path(ctx.folder)
+        else:
+            start = (
+                (copy.snapshot_sha or (copy.start[1] if copy.start else None))
+                if copy.branch
+                else None
+            )
+            folder = copy.root
+        plain = copy if copy is not None and not copy.branch else None
+        identity = await asyncio.to_thread(checks_now.identity, folder, start, plain, also)
+        return identity, on, frozenset((one, status) for one, status, _path in made)
+
+    async def _checked_as_is(self: "AgentRunner", ctx: Ctx) -> bool:
+        """Whether run_checks found this very work green (`Proof.checked_as`) - the same content,
+        the same checks on, no change record made or decided since - so the end gate need not
+        run again (a `git commit` since rewrote nothing)."""
+        held = self._proofs.get(ctx.run_id)
+        if held is None or held.checked_as is None or not self._checks_offered(ctx):
             return False
-        with self._factory() as session:
-            taken = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
-        held.seen = taken if held.seen is not None else None
-        held.kinds_seen = taken if held.kinds_seen is not None else None
-        return True
+        return await self._work_now(ctx) == held.checked_as
 
     async def _run_checks(self: "AgentRunner", ctx: Ctx, call_id: str) -> str:
         """run_checks: the end gate's pass on the work as it stands, waited for - each command
         to its own limit, none going on after the answer, no fix round spent (`Proof.asked_call`
-        while it runs) - and its answer. Unchanged since a green one: that one stands. At most
-        Fix rounds + 1 passes a turn: past them, the last answer again."""
+        while it runs), nothing of the end's own left spent (`KEPT`) - and its answer. One at a
+        time, and never beside Ready for you's pass: none starts inside this one (`_readying`).
+        shortcut: an agent that ends meanwhile asks no Ready for you - the Lead's answer does
+        (`_ready_at_end`); ask it after the pass too if a CLI's turn is seen to miss it."""
         if not self._checks_offered(ctx):
             raise ToolError(NOT_HERE)
+        if ctx.run_id in self._readying:
+            raise ToolError(READYING)
+        new = ctx.run_id not in self._proofs
         held = self._proofs.setdefault(ctx.run_id, Proof())
         if held.asked_call is not None:  # (a CLI may call twice at once)
             raise ToolError(GOING)
-        held.asked_call, looks = call_id, held.review_rounds
+        kept = {name: copying.copy(getattr(held, name)) for name in KEPT}
+        held.asked_call = call_id
+        self._readying.add(ctx.run_id)
         try:
             return await self._checks_asked(ctx, held)
         finally:
-            held.asked_call, held.review_rounds = None, looks
+            self._readying.discard(ctx.run_id)
+            held.asked_call = None
+            for name, value in kept.items():
+                setattr(held, name, value)
+            if new and not held.passes:  # (nothing checked: no trace for the end to read)
+                self._proofs.pop(ctx.run_id, None)
 
     async def _checks_asked(self: "AgentRunner", ctx: Ctx, held: Proof) -> str:
-        """`_run_checks` while its call holds the turn's checks (`Proof.asked_call`)."""
-        if await self._checked_as_is(ctx):
-            return (await self._checks_answer(ctx, held, None, checks_now.UNCHANGED_ASKED))[1]
-        if held.asked_runs > held.most:
-            return await self._checks_capped(ctx, held)
+        """`_run_checks` while its call holds the turn's checks: its last answer again where the
+        work is as that pass found it (any verdict: nothing runs twice, no Reviewer is paid
+        twice); past the cap, not complete - the work changed, or is not known; else a pass."""
         # (What is checked is the work as the pass starts: a change while it runs is another.)
-        before = await self._work_identity(ctx)
+        now = await self._work_now(ctx)
+        if now[0] is not None and now == held.asked_as:
+            return f"{held.asked_said}\n{checks_now.UNCHANGED_ASKED}"
+        if held.asked_runs > held.most:
+            capped = checks_now.CAPPED_ASKED.format(n=held.asked_runs)
+            return checks_now.answer(checks_now.NOT_COMPLETE, [], None, None, capped)
         ran, said = await self._proof_pass(ctx, True)
         if ran is None:
             return checks_now.answer(
                 checks_now.NOT_COMPLETE, [], None, None, checks_now.NOTHING_TO_CHECK
             )
-        held.asked_runs, held.asked_as = held.asked_runs + 1, before
-        if said is not None and held.verdict == "HOLD":
-            held.looked_at = None  # (a hold it never sent back: the end looks for itself)
-        verdict, held.asked_said = await self._checks_answer(ctx, held, said)
-        green = verdict == checks_now.GREEN and before is not None
-        held.checked_as = (before, held.checks.on) if green else None
-        return held.asked_said
-
-    async def _checks_capped(self: "AgentRunner", ctx: Ctx, held: Proof) -> str:
-        """Past the cap: the last pass's answer again only where the work is as that pass checked
-        it; changed since, or not known, it is not complete (fail closed)."""
-        capped = checks_now.CAPPED_ASKED.format(n=held.asked_runs)
-        now = await self._work_identity(ctx)
-        if now is not None and now == held.asked_as:
-            return f"{held.asked_said}\n{capped}"
-        return checks_now.answer(checks_now.NOT_COMPLETE, [], None, None, capped)
+        verdict, answer = await self._checks_answer(ctx, held, said)
+        held.asked_runs, held.asked_as, held.asked_said = held.asked_runs + 1, now, answer
+        green = verdict == checks_now.GREEN and now[0] is not None
+        held.checked_as = now if green else None
+        return answer
 
     async def _checks_answer(
-        self: "AgentRunner", ctx: Ctx, held: Proof, said: str | None, note: str = ""
+        self: "AgentRunner", ctx: Ctx, held: Proof, said: str | None
     ) -> tuple[str, str]:
         """The pass's verdict, and run_checks' answer from its rows (`checks_now.answer`), with
         where the checked work stands in git."""
@@ -186,4 +216,4 @@ class ChecksToolMixin:
         copy = self._copies.get(self._works_in(ctx) or "")
         folder = copy.root if copy is not None else Path(ctx.folder)
         where = await asyncio.to_thread(checks_now.git_line, folder)
-        return verdict, checks_now.answer(verdict, held.rows, said, where, note)
+        return verdict, checks_now.answer(verdict, held.rows, said, where)

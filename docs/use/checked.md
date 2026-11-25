@@ -862,40 +862,52 @@ work or tells you. It never assumes the condition holds.
 
 - **What runs:** the same pass as at the turn's end - the tests, the type and style checks, the
   Reviewer's look and the live try -, on the work as it is then. The ask for a test comes at the
-  end only.
+  end only. What it found stands for its own answer: the turn's end looks again for itself - a
+  Reviewer's MERGE on asking, the reviewers it took, the live try made then are not the end's.
 - **The answer's first line** is KOLONİ's own: `CHECKS: green`, `CHECKS: red` or `CHECKS: not
-  complete`, whatever the tests printed. The Checked lines follow, then where the work stands in
-  git ("At commit 3c4d5e6 on main; not committed: a.py."). A red answer adds what KOLONİ would send
-  back at the end, the failing output marked as data.
+  complete`, whatever the tests printed. The Checked lines and where the work stands in git ("At
+  commit 3c4d5e6 on main; not committed: a.py.") follow fenced, as data - a test's summary or a
+  file's name says what it likes, each on one line of its own. A red answer adds what KOLONİ would
+  send back at the end, the failing output marked as data.
 - **Green is strict:** a test command of yours, or one KOLONİ saved, passed - never a guess -; no
   line failed, even one failing before this turn; none was not run or still running; the Reviewer
   does not hold; no test was deleted or loosened. Anything else that is not red is not complete:
-  only documents changed, no test command, a guessed command while you're away, a run the machine
-  had no room for, a check that broke. A turn that changed nothing gets "KOLONİ found nothing of
-  this turn to check" and no test runs.
+  only documents changed, no test command, a guessed command while you're away, a check that broke.
+  A turn that changed nothing - or whose checks are off - gets "KOLONİ found nothing of this turn to
+  check" and no test runs.
 - **No fix round:** a red answer is the tool's answer, not a round of **Fix rounds** - the turn's
   end checks again and sends the work back as ever.
-- **Not twice:** where the work is the same at the turn's end as when a green answer checked it -
-  the same files with the same content, the same checks on -, the end does not run the checks
-  again: a `git commit` after a green answer is the same work. Asked again on the same work, it
-  answers "Unchanged since KOLONİ's last check: its result stands." A change since, of any file,
-  runs them again. KOLONİ compares the files git tracks and the new ones it does not ignore: a file
-  git ignores (`.env`, data) is not compared.
+- **Not twice:** where the work is the same at the turn's end as when a green answer checked it,
+  the end does not run the checks again: a `git commit` after a green answer is the same work. The
+  same means: the files git shows as changed since the turn began, and every file the turn's agents
+  wrote on record - one git ignores too -, with the same content; the same checks on; and no change
+  of the turn recorded, or decided on a card, since. Anything else runs them again: any edit, a new
+  file, one deleted. Asked again on the same work, whatever it answered - green, red or not
+  complete -, it answers so again, nothing run, with "Unchanged since KOLONİ's last check: its
+  result stands."
+- **What "the same" cannot see:** KOLONİ reads the files as they are in the folder, as the tests
+  do - not git's index: a staged version that differs from the file, or a mode set only in the
+  index (`git update-index --chmod`), is not compared. A file git ignores that a command changed
+  (not one of the agents' own writes, which are on record) is not either. A project with a
+  submodule is never the same: what is in a submodule is not read, so its checks always run again.
+  Without git, in the project itself, nothing is the same either.
 - **How long:** each test command to its own limit - not the 2 minutes a turn you watch waits at
   its end, and no whole suite goes on after the answer.
 - **How often:** at most **Fix rounds** + 1 times a turn - 3 at 2 rounds; under **Until it passes**
-  (the default) its ceiling of 20 rounds + 1, so 21 -; asked again after that, it runs nothing
-  and says "KOLONİ ran its checks 3 times this turn, the most it runs on asking". Where the work is
-  just as its last pass checked it, that pass's answer comes again with it; where anything changed
-  since (or KOLONİ cannot tell, as with no git), the answer is `CHECKS: not complete` - the turn's
-  end checks the change.
+  (the default) its ceiling of 20 rounds + 1, so 21. Asked again after that on changed work (or
+  where KOLONİ cannot tell, as with no git), it runs nothing and answers `CHECKS: not complete`,
+  saying "KOLONİ ran its checks 3 times this turn, the most it runs on asking" - the turn's end
+  checks the change.
+- **One at a time:** a second call while one runs is refused, and so is one while Ready for you's
+  own checks or its card are open; Ready for you does not start in the middle of one.
 - **Who has it:** the Orchestrator at its own work in a project - an API model's, and a CLI's
   working with its own tools, over KOLONİ's bridge, as its other KOLONİ tools. Not a sub-agent, a
   plan, a side of a comparison, an answer to a message, nor a chat with no folder.
 
 At **Full auto** a commit in the project runs without a card; a push still asks as the level says
 ([Permission levels](permissions.md)). In the Checks box's panel such a pass is "Round 1 · asked by
-the Orchestrator" ([On the canvas](#on-the-canvas)).
+the Orchestrator" ([On the canvas](#on-the-canvas)). Looking at your folder for it, KOLONİ runs no
+program your repository's settings name (a filter of `.gitattributes`).
 
 ## How long it waits
 

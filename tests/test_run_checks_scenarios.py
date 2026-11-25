@@ -5,17 +5,20 @@ there: a `git commit` after it runs the tests no second time. Offered to the Orc
 own work in a project only - an API model's, a CLI's over KOLONİ's bridge."""
 
 import sys
+import time
 
 import pytest
 
+from app import proof
 from app.agent import AgentRunner
-from app.agent.checks_tool_mixin import NOT_HERE, RUN_CHECKS_SCHEMA
-from app.agent.proof_mixin import PROOF_CALL
-from app.agent.review_mixin import ReviewMixin
+from app.agent.checks_tool_mixin import NOT_HERE, READYING, RUN_CHECKS_SCHEMA
+from app.agent.proof_mixin import AWAY_GUESS, PROOF_CALL
+from app.agent.review_mixin import REVIEWERS, ReviewMixin
 from app.agent.test_ask_mixin import TestAskMixin
 from app.agent.words import RUN_CHECKS_LEAD, TEST_ASKED
 from app.checks_now import CAPPED_ASKED, NOTHING_TO_CHECK, UNCHANGED_ASKED
 from app.model_client import StepResult, ToolCallRequest
+from tests.conftest import scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import write
 from tests.test_chat_flow import text
@@ -237,7 +240,7 @@ def test_asked_again_on_the_same_work_the_result_stands(make_client, wait_run, r
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     first, second = answers(snap)
     assert first.startswith("CHECKS: green\n") and second.startswith("CHECKS: green\n")
-    assert second.endswith(UNCHANGED_ASKED) and "nothing uncommitted." in second
+    assert second == f"{first}\n{UNCHANGED_ASKED}"  # (its answer as it was: nothing ran again)
     assert len(proof_calls(snap)) == 1 and passes(snap) == ["asked"]
 
 
@@ -400,7 +403,13 @@ def test_the_cap_is_fix_rounds_plus_one(make_client, wait_run, project_dir):
 
 
 @needs_git
-def test_past_the_cap_the_last_verdict_stands_only_on_the_same_work(make_client, wait_run, repo):  # noqa: F811
+def test_the_same_work_asked_again_stands_red_too_and_past_the_cap_changed_work_is_not_complete(
+    make_client,
+    wait_run,
+    repo,  # noqa: F811
+):
+    # (security review M2: a red or not-complete answer stands for its work too - nothing runs,
+    # no Reviewer is paid, twice; past the cap, only changed work is left: not complete)
     project = checked_repo(repo)
     steps = []
     for n in range(3):  # (three red passes, each after an edit)
@@ -418,9 +427,9 @@ def test_past_the_cap_the_last_verdict_stands_only_on_the_same_work(make_client,
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     outs = answers(snap)
     capped = CAPPED_ASKED.format(n=3)
-    assert outs[2].startswith("CHECKS: red\n") and outs[3] == f"{outs[2]}\n{capped}"
+    assert outs[2].startswith("CHECKS: red\n") and outs[3] == f"{outs[2]}\n{UNCHANGED_ASKED}"
     assert outs[4] == f"CHECKS: not complete\n{capped}"
-    assert passes(snap)[:3] == ["asked", "asked", "asked"]
+    assert passes(snap)[:4] == ["asked", "asked", "asked", "check"]  # (the end's own, after)
 
 
 # --- a step tied to a condition ---------------------------------------------------------------
@@ -517,3 +526,194 @@ def test_claude_code_calls_it_over_the_bridge_and_waits(claude_app, wait_run, pr
     asked_call, mine = bound(snap)
     assert asked_call["result"].startswith("CHECKS: green\n"), asked_call["result"]
     assert mine
+
+
+# --- the security review's findings (H1, H2, M2, M3) and the plan's last cases ----------------
+
+SHELL = "import subprocess\n\n\ndef go(x):\n    subprocess.run(x, shell=True)\n"
+
+
+def looks_of(snap):
+    return [c for c in proof_calls(snap) if c["provider_call_id"].startswith(f"{PROOF_CALL}review")]
+
+
+@needs_git
+def test_a_change_git_does_not_show_after_green_still_gets_the_ends_pass(
+    make_client,
+    wait_run,
+    repo,  # noqa: F811
+):
+    # (H1: a new folder whose .gitignore hides itself, and a failing test in it - git shows
+    # nothing; its change records do)
+    project = checked_repo(repo)
+    client, _model = make_client(
+        [
+            step(
+                call("write_file", {"path": "a.py", "content": "OK = True\n"}, "w1"),
+                call("write_file", {"path": "test_a.py", "content": TEST}, "w2"),
+            ),
+            asked(),
+            step(
+                call("write_file", {"path": "x/.gitignore", "content": "*\n"}, "w3"),
+                call("write_file", {"path": "x/test_bad.py", "content": BAD}, "w4"),
+            ),
+            text("done"),
+        ]
+    )
+    cid, run_id = begin(client, repo, **project)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert answers(snap)[0].startswith("CHECKS: green\n")
+    assert "x/" not in git(repo, "status", "--porcelain")  # (hidden from git, as the probe's)
+    assert passes(snap) == ["asked", "check"] and len(proof_calls(snap)) == 2
+
+
+BAD = "def test_bad():\n    assert False\n"
+
+
+@pytest.mark.no_po  # (the Scout's own request would take a scripted step)
+def test_a_look_on_asking_never_stands_for_the_ends_other_work(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    # (H2: the asked pass's MERGE, its reviewers, its try are its own - the end looks afresh at
+    # a shell call written after it, and the Security reviewer opens)
+    monkeypatch.setattr(ReviewMixin, "_proof_review", LOOK)
+    client, _model = make_client(
+        {
+            "Lead": [
+                write("a.py", BIG),
+                asked(),
+                write("tool.py", SHELL, "w2"),
+                text("done"),
+                text("left as it is"),
+            ],
+            "Reviewer": [MERGE],
+            "Reviewer 2": [hold("tool.py runs a shell with what it is given")],
+            "Security reviewer": [hold("tool.py runs a shell with what it is given")],
+        },
+        executor=ScriptedExecutor([PASS, PASS, PASS]),
+    )
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert answers(snap)[0].startswith("CHECKS: green\n")
+    roles = sorted(a["role_name"] for a in snap["agents"] if a["role_name"] in REVIEWERS)
+    assert roles == ["Reviewer", "Reviewer", "Security reviewer"], roles
+    assert passes(snap)[:2] == ["asked", "check"] and len(looks_of(snap)) == 3
+    assert "Sent back to fix: 1 of 2 rounds (2 blocking findings)" in texts(snap), texts(snap)
+
+
+@needs_git
+@pytest.mark.no_po
+def test_asking_again_on_the_same_red_work_pays_for_no_second_look(
+    make_client,
+    wait_run,
+    repo,  # noqa: F811
+    monkeypatch,
+):
+    # (M2: the same work, the same answer - its Reviewer not asked again)
+    monkeypatch.setattr(ReviewMixin, "_proof_review", LOOK)
+    project = checked_repo(repo)
+    client, _model = make_client(
+        {
+            "Lead": [
+                write("a.py", BIG + "OK = True\n"),
+                asked("k1"),
+                asked("k2"),
+                text("done"),
+                text("left as it is"),
+            ],
+            "Reviewer": [hold("a.py names nothing")],
+            "Reviewer 2": [hold("a.py names nothing")],
+        }
+    )
+    cid, run_id = begin(client, repo, **project)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    first, second = answers(snap)
+    assert first.startswith("CHECKS: red\n") and second == f"{first}\n{UNCHANGED_ASKED}"
+    assert len(looks_of(snap)) == 2  # (one on asking, and the end's own)
+
+
+def test_no_ready_for_you_pass_starts_inside_an_asked_one_nor_is_one_asked_beside_it(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    # (M3: run_checks' pass and Ready for you's - each changes the turn's one record of its
+    # checks: never at once)
+    inside: list[bool] = []
+
+    async def kinds(self, ctx, _held):
+        inside.append(ctx.run_id in self._readying)  # (Ready for you: none asked meanwhile)
+
+    monkeypatch.setattr(AgentRunner, "_proof_kinds", kinds)
+    runner: list = []
+
+    async def readying(_on_delta):
+        lead = next(one for one in runner[0]._ctxs.values() if not one.depth)
+        inside.append(lead.run_id in runner[0]._readying)  # (let go after the first)
+        runner[0]._readying.add(lead.run_id)  # (Ready for you's pass at work now)
+        return asked("k2")
+
+    client, _model = make_client(
+        [write("test_a.py", "x = 1\n"), asked("k1"), readying, text("done")],
+        executor=ScriptedExecutor([PASS, PASS]),
+    )
+    runner.append(client.app.state.runner)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    first, second = [one for one in snap["tool_calls"] if one["name"] == "run_checks"]
+    assert first["result"].startswith("CHECKS: green\n") and inside[:2] == [True, False]
+    assert second["status"] == "failed" and READYING in second["result"]
+
+
+def test_asked_with_the_checks_off_leaves_the_end_saying_so(make_client, wait_run, project_dir):
+    # (nothing checked on asking leaves no trace: the end says why nothing was checked)
+    executor = ScriptedExecutor([])
+    client, _model = make_client(
+        [write("a.py", "x = 1\n"), asked(), text("done")], executor=executor
+    )
+    cid, run_id = begin(
+        client, project_dir, check_command="python check.py", after_change="nothing"
+    )
+    snap = wait_run(client, cid, run_id)
+    assert answers(snap) == [f"CHECKS: not complete\n{NOTHING_TO_CHECK}"]
+    assert texts(snap) == ["Not checked: After a change is set to Nothing"] and not executor.started
+
+
+def test_a_guessed_command_while_away_is_not_complete(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    monkeypatch.setattr(proof.finish_tests, "command_of", lambda _root, _check: "python check.py")
+    monkeypatch.setattr(AgentRunner, "_away_now", lambda _self, _ctx: True)
+    executor = ScriptedExecutor([])
+    client, _model = make_client(
+        [write("test_a.py", "x = 1\n"), asked(), text("done")], executor=executor
+    )
+    cid, run_id = begin(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    (out,) = answers(snap)
+    assert out.startswith("CHECKS: not complete\n") and AWAY_GUESS in out, out
+    assert executor.started == []
+
+
+def test_stop_during_an_asked_pass_ends_the_turn(make_client, wait_run, project_dir, gate):
+    client, _model = make_client(
+        [write("test_a.py", "x = 1\n"), asked(), text("never")],
+        executor=ScriptedExecutor([Script(["running\n"], hold=gate)]),
+    )
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    deadline = time.monotonic() + scaled(10)
+    while not [
+        c
+        for c in client.get(f"/api/conversations/{cid}").json()["commands"]
+        if c["status"] == "running"
+    ]:
+        assert time.monotonic() < deadline, "the tests never started"
+        time.sleep(0.02)
+    client.post(f"/api/runs/{run_id}/cancel")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "cancelled"
+    (asked_call,) = [one for one in snap["tool_calls"] if one["name"] == "run_checks"]
+    assert asked_call["status"] != "succeeded"
+    assert texts(snap) == ["Tests not finished: stopped"]
