@@ -17,6 +17,9 @@ if TYPE_CHECKING:
 # wrong run in `tests/data/check_what_i_said_cases.json`; none has been run yet (the user's leave).
 MEASURED_MODELS: frozenset[tuple[str, str]] = frozenset()
 MOST_MESSAGES, MOST_CHARS, LEAST_QUOTE, WHY_CHARS = 6, 4000, 12, 300
+# A lone surrogate: a model's JSON "\ud83d" with no pair (`json.loads` makes a pair one character)
+# - no UTF-8 can hold it, and a reply with it in fails whole (the chat, To-do, the decision log).
+LONE = re.compile(r"[\ud800-\udfff]")
 # Refusals in a turn, in a row and in all, after which the check stands aside until it ends.
 MOST_REFUSED_IN_A_ROW, MOST_REFUSED_IN_A_TURN = 3, 10
 # Where a quote may stand, in this order: the user's preferences, the project's rules as saved
@@ -301,6 +304,11 @@ def set_against(said: dict[str, list[str]], names: Callable[[str], bool]) -> boo
     )
 
 
+def whole(text: str) -> str:
+    """A model's words as they may be kept: each lone surrogate the replacement character."""
+    return LONE.sub("\N{REPLACEMENT CHARACTER}", text)
+
+
 def verdict(
     answer: str, said: dict[str, list[str]], names: Callable[[str], bool] | None = None
 ) -> dict | None:
@@ -319,8 +327,8 @@ def verdict(
     if not isinstance(got, dict):
         return None
     word, quote, why = (got.get(key) for key in ("verdict", "quote", "why"))
-    quote = quote if isinstance(quote, str) else ""
-    why = " ".join(why.split())[:WHY_CHARS] if isinstance(why, str) else ""
+    quote = whole(quote) if isinstance(quote, str) else ""
+    why = whole(" ".join(why.split())[:WHY_CHARS]) if isinstance(why, str) else ""
     source, shown, context = source_of(quote, said)
     unit = _plain(shown)
     holds = (

@@ -59,6 +59,8 @@ KOLONİ's own words, as they appear on screen.
 : Where you see the cards the Orchestrator decided for you: while you were away (☾ Away), or once a
   card waited the project's minutes (Settings › This project › Asking and away › **When you're
   away**); and the commands **Check what I said first** ran, or did not run, on a line of yours.
+  The project's whole list is on the Ready for you page, with OK and Change; a chat says it in one
+  line: [Decisions](../use/decisions.md).
 
 **Discussion**
 : Several agents talking one question through in rounds, with nobody changing anything meanwhile.
@@ -151,8 +153,9 @@ KOLONİ's own words, as they appear on screen.
 : A page on the rail that lists everything waiting for your word, with a count.
 
 **Ready for you**
-: The panel and page that list everything waiting for your word, in three parts: **Needs your
-  answer**, **Ready to take in** and **Told you**.
+: The panel and page that list everything waiting for your word, in two parts: **Needs your
+  answer** and **Ready to take in**. Beside the page's list, **Decided for you**: what was decided for
+  you in the project ([Decisions](../use/decisions.md)).
 
 **Recipe**
 : The drawn steps of a piece of work: who does each step, what runs at once, where it loops back

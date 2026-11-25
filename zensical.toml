@@ -24,6 +24,7 @@ nav = [
     { "Chats" = "use/chats.md" },
     { "Permission levels" = "use/permissions.md" },
     { "Ready and approval cards" = "use/ready.md" },
+    { "Decisions" = "use/decisions.md" },
     { "Working copies and Take in" = "use/workspace.md" },
     { "Checked" = "use/checked.md" },
     { "Plan first" = "use/plan-first.md" },

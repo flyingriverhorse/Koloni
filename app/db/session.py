@@ -1,4 +1,6 @@
+import json
 import logging
+import re
 import sqlite3
 from contextlib import closing, suppress
 from datetime import UTC, datetime
@@ -11,14 +13,43 @@ from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import REPO_ROOT
+from app.judge import whole
 
 log = logging.getLogger(__name__)
+
+# The escape of half a surrogate pair (d800-dfff) in a JSON column's text: `json.dumps` keeps a
+# lone one so.
+SURROGATE_ESCAPE = re.compile(r"\\u[dD][89a-fA-F][0-9a-fA-F]{2}")
+
+
+def _whole_json(value: object) -> object:
+    """A loaded JSON value, each of its strings - keys too - with a lone surrogate the
+    replacement character (`judge.whole`)."""
+    if isinstance(value, str):
+        return whole(value)
+    if isinstance(value, list):
+        return [_whole_json(one) for one in value]
+    if isinstance(value, dict):
+        return {_whole_json(key): _whole_json(one) for key, one in value.items()}
+    return value
+
+
+def json_loads(text: str) -> object:
+    """A JSON column as it is read: a lone surrogate kept in it - a model's lone "\\ud83d" from
+    before its parser replaced it, an agent's tool arguments (a card's options) - is the
+    replacement character: a reply that holds one fails whole (the chat, To-do, the decision
+    log). Walked once loaded, not replaced in the text: an escaped pair is one character only
+    once loaded. Text with no such escape - nearly all - is only loaded."""
+    loaded = json.loads(text)
+    return _whole_json(loaded) if SURROGATE_ESCAPE.search(text) else loaded
 
 
 def make_engine(db_path: Path) -> Engine:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(
-        f"sqlite:///{db_path.as_posix()}", connect_args={"check_same_thread": False}
+        f"sqlite:///{db_path.as_posix()}",
+        connect_args={"check_same_thread": False},
+        json_deserializer=json_loads,
     )
 
     @event.listens_for(engine, "connect")

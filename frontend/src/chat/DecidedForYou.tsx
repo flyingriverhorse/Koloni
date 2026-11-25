@@ -8,6 +8,7 @@ import { useApp } from '../state/store'
 import { hearsNothing } from '../agents/agentStatus'
 import { decidedOf, decidedTasks, judgedCommands } from './waiting'
 import { shownOption, shownQuestion } from '../agents/teamRun'
+import { WHO } from '../ready/decisionLog'
 
 /** A time as this machine's clock says it: "02:10". */
 const clock = (iso: string | null) =>
@@ -17,7 +18,8 @@ const OVER = new Set(['completed', 'failed', 'cancelled', 'rejected', 'interrupt
 /**
  * "Decided for you" (K-vekil-karar): what the Lead answered for you while you were away, with its reason. OK takes one
  * off the list; Change sends your own choice to the agent that asked while it is still at work - a card of KOLONİ's
- * (Ask me, opening an agent) went on at once, and cannot be undone.
+ * (Ask me, opening an agent) went on at once, and cannot be undone. Only a chat with no folder's now: a project's are on
+ * Ready for you's Decided for you, its decision log, and the chat says them in one line (`DecidedLine`).
  */
 export function DecidedForYou({ state }: { state: ConvState }) {
   const id = useId()
@@ -100,6 +102,7 @@ function Decided({
   }
   return (
     <div className="decided-item">
+      <div className="decided-who">{WHO.orchestrator}</div>
       <div className="decided-q">
         {question.leave ? shownQuestion(question) : `${name} asked: ${question.question}`}
       </div>
@@ -155,6 +158,7 @@ function DecidedTask({ task }: { task: BacklogTask }) {
   const cant = added && task.status !== 'todo' ? 'it has started' : null
   return (
     <div className="decided-item">
+      <div className="decided-who">{WHO.orchestrator}</div>
       <div className="decided-q">The Scout proposed a To-do task: {task.title}</div>
       <div>
         Orchestrator chose <b className="decided-a">{added ? 'Add' : 'Reject'}</b>
@@ -201,6 +205,7 @@ function DecidedCommand({ command, state }: { command: Command; state: ConvState
   const { quote = '', source = '', kind = '', why = '' } = command.judged ?? {}
   return (
     <div className="decided-item">
+      <div className="decided-who">{kind === 'risk' ? WHO.judge : WHO.your_words}</div>
       <div className="decided-q">
         {command.status === 'refused'
           ? `KOLONİ did not run ${command.command} for ${name}`
@@ -208,7 +213,11 @@ function DecidedCommand({ command, state }: { command: Command; state: ConvState
       </div>
       <div className="decided-why">
         {kind === 'risk' ? (
-          `KOLONİ's judge: ${why || 'it gave no reason'}`
+          why ? (
+            `“${why}”`
+          ) : (
+            'it gave no reason'
+          )
         ) : (
           <>
             Your rule: “{quote}” ({source && JUDGED_FROM[source]})

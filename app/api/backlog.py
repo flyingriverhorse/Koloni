@@ -7,14 +7,13 @@ neither writes a task nor approves its own proposal. Reading is open."""
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from app import backlog, earlier, stories, topics
+from app import backlog, decisions, earlier, stories, topics
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.api.recipes import Asked, ask_in_turn, askers, chat_of
 from app.api.usage import over_budget, over_month
 from app.db.models import BacklogTask, Conversation, Project, Story, new_chat, now
 from app.schemas import (
-    BacklogDecideIn,
     BacklogDoIn,
     BacklogDoOut,
     BacklogDrafter,
@@ -26,6 +25,7 @@ from app.schemas import (
     TodoTreeAdded,
     TodoTreeIn,
 )
+from app.schemas_decisions import TaskDecideIn
 from app.serialize import conversation_out
 
 router = APIRouter(prefix="/api", tags=["backlog"])
@@ -321,12 +321,17 @@ async def delete_task(task_id: str, request: Request, session: Session = Depends
 
 @router.post("/backlog/{task_id}/decide", response_model=BacklogTaskOut | None, dependencies=OWN)
 async def decide(
-    task_id: str, body: BacklogDecideIn, request: Request, session: Session = Depends(get_session)
+    task_id: str, body: TaskDecideIn, request: Request, session: Session = Depends(get_session)
 ):
     """The user's word on a task an agent proposed, or on a change it proposed: the task as
-    it is now, or null when a proposed task was turned down (it is gone)."""
+    it is now, or null when a proposed task was turned down (it is gone). With `expect`, the
+    decision log's Change: only on the Orchestrator's word as its row showed it (409 else)."""
     task = _task(session, task_id)
     project_id = task.project_id
+    # (the decision log's Change: never what moved on since its row was read - an agent's change
+    # proposed since is not dropped, nor applied, by it)
+    if body.expect is not None and not decisions.as_shown(task, body.expect):
+        raise HTTPException(409, "it changed since you looked: read the decisions again")
     try:
         kept = backlog.decide(session, task, body.decision == "approve")
     except backlog.Refused as exc:

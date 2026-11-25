@@ -96,7 +96,8 @@ out". A turn where it was not asked has no such box.
 
 At **Full auto**, in a turn you started, you are not asked. The Orchestrator's model decides each
 suggestion, add or reject, with one more request, and says why in one sentence. You see its word under
-**Decided for you** in the chat. **OK** keeps it; **Change** undoes it while the task is still todo. A
+**Decided for you** on the [Ready for you](../use/decisions.md) page. **OK** keeps it; **Change** undoes
+it while the task is still todo. A
 task it added cannot be given to a chat until you press **OK**, there or
 under **Waiting for you** on the To-do page. One it rejected stays on the To-do page, folded under
 **Rejected by the Orchestrator**, with **Add**. It is not

@@ -46,13 +46,17 @@ away](overnight.md#questions-and-approvals).
 
 ## Decided for you
 
-What it answered shows under **Decided for you while you were away**: who asked, what the Orchestrator
-chose, and why. Press **OK** to keep it, or **Change →** to give another answer. If the answer cannot be
-undone any more, it says so.
+What it answered shows under **Decided for you** on the [Ready for you](../use/ready.md) page, the
+project's whole list: who decided, what the Orchestrator chose, and why. Press **OK** to keep it, or
+**Change →** to give another answer while the agent that asked still works. If the answer cannot be
+undone any more, the row says why. The chat says it in one line at its top, "While you were away, 3
+things were decided for you and 2 wait for you.", with **Open in Ready for you**. See
+[Decisions](../use/decisions.md). A chat with no folder keeps its own **Decided for you while you were
+away** box, with the same **OK** and **Change →**.
 
 At **Full auto** the Orchestrator also answers questions in a chat you watch, at once, and some of
 KOLONİ's own cards, such as an agent's Continue / Stop here card at its
-[step limit](../agents/step-limits.md#who-answers-the-card); those answers show under the same heading.
+[step limit](../agents/step-limits.md#who-answers-the-card); those answers are in the same list.
 So does a command that [Check what I said first](../use/permissions.md#check-what-i-said-first) ran
 without a card, or did not run, on a line of yours: "Coder ran … without asking" or "KOLONİ did not run
 … for Coder", with that line, until you press **OK**.

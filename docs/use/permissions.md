@@ -415,8 +415,8 @@ agent read, and the secrets KOLONİ knows are masked first.
   this as risky (it may send data off this machine, run code it fetched, change things outside the
   project, weaken security or hide what it does). Do it another way, or ask the user." - and goes on. You
   see the sentence: the command's row says **refused**, with **KOLONİ's judge refused: …** under it, and
-  the chat's **Decided for you** - the top bar's pill says "1 decided", and opens it in Ready for you -
-  lists it with the judge's sentence until you click OK. Where KOLONİ keeps the line (see **Its card**
+  Ready for you lists it in its **Decided for you** column with the judge's sentence until you click OK
+  (the top bar's pill says "1 decided" and opens it; so does the chat's one line about it). Where KOLONİ keeps the line (see **Its card**
   below for which lines it keeps), the same line is refused again in that turn without asking the model;
   any other line is asked about each time it runs. After **3** refusals in a turn - counted for all its
   agents, sub-agents too - the next risky command waits for you on its card, and the chat says once
@@ -554,8 +554,8 @@ messages in the chat - never anything an agent wrote - and then:
   ("Keep build.", "Leave build alone.", "…but check with me first.") are not caught, and the measurement
   decides the rest. Two lines about a push, a branch or a remote are left to the model.
 
-A command that ran or was not run this way also waits under **Decided for you** until you press
-**OK**. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of
+A command that ran or was not run this way also waits on Ready for you, in its **Decided for you**
+column, until you press **OK**. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of
 that turn asks you on a card. Secret files, `.koloni`, files that steer later turns, paths outside the
 folder, a delete or a send of the whole folder, and a CLI's command whose folder KOLONİ does not know
 are always asked; anything that goes wrong (no model to ask, over the budget, no answer in 20 seconds -

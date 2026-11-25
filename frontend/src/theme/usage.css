@@ -249,3 +249,9 @@ th[aria-sort='descending'] > .sort-head::after {
 .usage-fold[open] > summary {
   margin-bottom: 10px;
 }
+
+/* Today's decisions in one line (karar defteri): how many, and the way to Ready for you, which says each. */
+.decided-today {
+  margin: 10px 0 0;
+  color: var(--muted);
+}

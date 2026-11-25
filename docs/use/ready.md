@@ -6,14 +6,15 @@ own buttons. You answer it there, or in the chat where it was asked.
 Every card has the same shape: a title that says what is asked or told, one sentence on what and why,
 the buttons, and a folded **Details** with the longer notes on what the buttons do. A warning about what
 something runs, sends or spends is never folded. A card that asks has a honey edge; a card that only
-tells you something (such as **Decided for you while you were away**, or a turn that failed) has a grey
-one. The same act has the same word on every card: **Take in** brings work into the project, **Approve**
+tells you something (such as a turn that failed) has a grey one. The same act has the same word on every card: **Take in** brings work into the project, **Approve**
 says yes to a proposal, and **Reject** says no. **Discard** deletes kept work and **Not now** puts a
 question off.
 
 ## Where you see what waits
 
-- **Ready** on the left rail. When something waits, it shows the count.
+- **Ready** on the left rail. When something waits, it shows the count. The page lists what waits
+  on the left and, beside it, **Decided for you**: what was decided for you in the project, with
+  **OK** and **Change**. See [Decisions](decisions.md).
 - **The pill in the top bar**, such as "2 wait". It opens the **Ready for you** panel. When nothing
   waits but the Orchestrator decided things for you in this chat, the pill says how many it decided.
 - **In the chat**, where the card was asked. A closed chat's line says how many wait for you, and a
@@ -24,9 +25,9 @@ question off.
 
 The **Ready for you** panel opens from the right. Esc closes it.
 
-- **This chat** lists what waits in the open chat in three parts: **Needs your answer** (questions and
-  approvals), **Ready to take in** (work in a copy), and **Told you** (what the Orchestrator decided
-  for you). **Told you** is not counted with what waits.
+- **This chat** lists what waits in the open chat in two parts: **Needs your answer** (questions and
+  approvals) and **Ready to take in** (work in a copy), then one line on what was decided for you in
+  it, with **Open in Ready for you**. What was decided is not counted with what waits.
 - **Elsewhere** lists what waits in other chats, the To-do list, memory and work while you're away.
 - **Open all as a page →** opens the Ready page.
 
@@ -40,8 +41,11 @@ The **Ready for you** panel opens from the right. Esc closes it.
 
 ### The page
 
-The Ready page lists everything that waits, oldest first, under **Needs your answer** and **Ready to
-take in**, with the open chat's **Told you** last. The buttons at the top show one kind at a
+The Ready page's first line says how many things wait for your word, and how many decisions were
+made for you since you left. It lists everything that waits, oldest first, under **Needs your answer**
+and **Ready to take in**; beside it (under it on a narrow screen), **Decided for you** lists the
+project's decisions, with **OK** and **Change**: see [Decisions](decisions.md). The buttons at the
+top of the list show one kind at a
 time: **All**, **Chats**, **To-do**, **Memory**, **While away** and **Other folders**. Each row says where it
 comes from and how long it has waited, and has **Open chat** to go to its chat. A chat's row names its
 agent: "Coder asks" for its own question or request, "for Coder" on KOLONİ's own card about it, such as
@@ -110,7 +114,7 @@ On the canvas the same card is a box titled **Ready for you**. **Open the list �
 | **Make this trigger?** | **Approve**, **Edit**, **Reject** | An agent proposes a trigger. |
 | **Add to Project notes?** | ticks, **Add**, **Not now** | After a turn found things worth noting. It never holds the turn. |
 | **☾ Go away now?** | **Go away**, **Change** | The Orchestrator put work on To-do and offers to go away; nothing starts before Go away. |
-| **Decided for you while you were away** | **OK**, or **Change →** another answer | The Orchestrator answered for you (see [Answering for you](../automation/answering-for-you.md)), or [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, on a line of yours (**OK**). |
+| **Decided for you** (on the Ready for you page; a chat with no folder: **Decided for you while you were away**) | **OK**, or **Change →** another answer | The Orchestrator answered for you (see [Answering for you](../automation/answering-for-you.md)), KOLONİ's judge refused a command, or [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, on a line of yours (**OK**). See [Decisions](decisions.md). |
 | **Go on past its step limit?** | **Continue (+*N* steps)**, **Stop here** | An agent came to its step limit before its work was done. See [Step limits](../agents/step-limits.md). |
 | "*Model* has not answered for 5 min. Keep waiting, or stop this turn and pick another model?" | **Keep waiting**, **Stop and pick another model** | The Orchestrator's model said nothing for 5 minutes in a turn you started. See [Step limits](../agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer). |
 

@@ -10,7 +10,7 @@ from collections.abc import Callable
 from sqlalchemy import and_, case, literal_column, or_, select
 from sqlalchemy.orm import Session
 
-from app import copies, earlier, observer, stories, topics
+from app import copies, earlier, observer, raw, stories, topics
 from app.api.usage import over_budget
 from app.db.models import (
     Agent,
@@ -34,6 +34,7 @@ from app.db.models import (
     new_chat,
     now,
 )
+from app.judge import whole
 from app.likeness import alike as alike
 from app.model_client import OwnStop
 from app.providers import works_with_own_tools
@@ -207,7 +208,8 @@ def declined(task: BacklogTask) -> bool:
 def decide(session: Session, task: BacklogTask, approve: bool) -> BacklogTask | None:
     """The user's word on what waits: a proposed task is kept as todo, or removed (None); one
     the Lead added at Full auto (`unseen`) is OK'd, or removed; a pending change is applied,
-    or dropped. Refused when nothing waits."""
+    or dropped. Refused when nothing waits. (The decision log's Change acts only on the
+    Orchestrator's word as its row showed it: `decisions.as_shown`, asked first.)"""
     if task.status == "proposed" or unseen(task) and task.status == "todo":
         if approve and task.status == "proposed":
             task.status = "todo"
@@ -1245,9 +1247,13 @@ def lead_decided(said: str, count: int) -> dict[int, tuple[bool, str]]:
     for one in listed:
         if not isinstance(one, dict):
             continue
-        n, add, why = one.get("task"), one.get("add"), _cut(one.get("why"), MAX_WHY)
+        # (masked before the cut: a secret cut in half would no longer be known to hide)
+        said = one.get("why")
+        shown = raw.hidden(whole(" ".join(said.split()))) if isinstance(said, str) else None
+        why = _cut(shown, MAX_WHY)
+        n, add = one.get("task"), one.get("add")
         if type(n) is int and 1 <= n <= count and isinstance(add, bool) and why:
-            decided.setdefault(n, (add, " ".join(why.split())))
+            decided.setdefault(n, (add, why))
     return decided
 
 

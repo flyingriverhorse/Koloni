@@ -155,6 +155,9 @@ export type AwayGo = Schemas['AwayGoIn']
 export type Waiting = Schemas['WaitingOut']
 export type Day = Schemas['DayOut']
 export type DayWords = Schemas['DayWordsOut']
+/** The decision log (karar defteri): what was decided for you in a project, by whom and why, newest first. */
+export type DecisionLog = Schemas['DecisionLog']
+export type Decision = Schemas['Decision']
 export type PendingRole = Schemas['PendingRoleOut']
 /** Text from outside that read like orders to an agent (93-A4): the rule and where, never the text. */
 export type InjectionWarning = Schemas['WarningOut']

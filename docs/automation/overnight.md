@@ -165,8 +165,9 @@ agent's question, a recipe's "Ask me", opening a sub-agent on its role's own mod
 stopping at a step limit. The cards already waiting when you press Go away are decided then. In a job,
 its **own questions** go to it too: "The user is away. Decide yourself and say what you assumed in one
 sentence. Only if the answer is something only the user can know (a password, an account, a personal
-fact), answer `park`." Its answer is under **Decided for you**. What it answers `park` - and a
-question it could not answer - is parked for you, and the job goes on. In the chat you went away from,
+fact), answer `park`." Its answer is on Ready for you, in its **Decided for you** column. What it
+answers `park` - and a question it could not answer - is parked for you, and the job goes on. In the
+chat you went away from,
 its own questions wait for your return. It does not answer once the project is over its monthly budget
 or a provider is over its limit.
 
@@ -303,9 +304,10 @@ like orders to a model. It is on the summary, on the report and at the top of ea
 
 The report shows when the jobs ran, what they spent and why they ended; nothing of it is in your
 project before you take it in. Its sections are **Done**, **Waits for your word**, **Could not be
-done**, **Stopped**, **Not started**, **Decided for you**, **Proposed while you were away, not started**
-(with **Add to To-do** or **Dismiss**) and **Kept out, as you asked** (what tried to change those
-places, refused).
+done**, **Stopped**, **Not started**, **Decided for you** (each of them is on Ready for you too, in
+its **Decided for you** column, with **OK** and **Change**), **Proposed while you were away, not
+started** (with **Add to To-do** or **Dismiss**) and **Kept out, as you asked** (what tried to change
+those places, refused).
 
 Each job row says what its reviews found, and warns where its copy changed a place you kept out, or a
 file another job changed too. A job that changed nothing is "Done, nothing changed". For each job:
