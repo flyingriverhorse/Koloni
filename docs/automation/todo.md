@@ -127,8 +127,9 @@ plain list with no story has no such heading.
   A goal's **⋯** has **Rename** and **Delete**. Deleting a goal or a story keeps what was under it: its
   stories lose their goal, its tasks their story.
 - A story's name is one in its project, whatever its case: agents name a story by it, so "Login" and
-  "LOGIN" would leave which one they mean to chance. A name another story has, open or closed, is
-  refused; an agent naming a closed story is told so.
+  "LOGIN" would leave which one they mean to chance. The Turkish İ and ı count as an i: "LOGİN" and
+  "logın" are "login" too. A name another story has, open or closed, is refused; an agent naming a
+  closed story is told so.
 
 The filters on the bar show **All**, what is **Todo** (to do, or stuck), what is **Running** (at work, or
 done? and waiting for your word - a story at done? too) or what is **Done** (a story only once you closed

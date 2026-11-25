@@ -60,13 +60,19 @@ class StoryBranchMixin:
     ) -> tuple[str | None, tuple[str, str] | None]:
         """The story a To-do task's turn (or Close the story's) works for, and the git branch it
         works on (`_turn_on_branch`), named by its story's title and id - the task's where it is
-        of no story, or its story is gone. None: no task's - nor a night's job, whose copy is its
-        own."""
+        of no story, or its story is gone or another project's. None: no task's - nor a night's
+        job, whose copy is its own."""
         story_id = self._closes_story.get(run.id)
         task = session.get(BacklogTask, run.task_id) if run.task_id and not story_id else None
         if task is not None and task.away_run_id is not None:
             return None, None
-        story = session.get(Story, story_id or (task.story_id if task else None) or "")
+        story = (
+            session.get(Story, story_id)
+            if story_id
+            else stories.story_of(session, task.story_id, task.project_id)
+            if task
+            else None
+        )
         if story is not None:
             return story.id, (story.title, story.id)
         return None, (task.title, task.id) if task is not None else None

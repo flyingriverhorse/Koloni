@@ -6,6 +6,14 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **To-do**: two story names that differ only by the Turkish dotted İ or dotless ı are one name - "LOGİN", "LOGIN", "login" and "logın" alike: a second story of that name is refused, and an agent naming the story finds it. A goal's name too ([docs](automation/todo.md#goals-and-stories)).
+
+### Security
+
+- **To-do**: a task whose story is another project's - set so outside KOLONİ - counts as a task of no story: its brief, the name of a new chat it starts in and its git branch no longer take that story's title.
+
 ### Removed
 
 - **CLIs**: an agent run **Native** on a CLI (Claude Code, Codex, Copilot, agy) - the Orchestrator or a sub-agent - no longer proposes triggers: for an Orchestrator there, its **Make this trigger?** card's **Approve** was always refused in that chat, since a trigger's turn never starts a CLI that works with its own tools. **Notify you** stays. A card left from 0.1.8 is still refused at Approve, saying why ([docs](automation/triggers.md#triggers-proposed-by-agents)).

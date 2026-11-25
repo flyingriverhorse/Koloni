@@ -237,16 +237,23 @@ def goal_states(session: Session, goal: Goal) -> list[str]:
     ]
 
 
+def name_key(title: str) -> str:
+    """A story's or a goal's name as two are told apart: whatever its case, and the Turkish İ and ı
+    as an i - casefold makes İ an i with a dot of its own, so LOGİN, LOGIN, login and logın are one
+    name (T2b)."""
+    return title.strip().replace("İ", "i").replace("ı", "i").casefold()
+
+
 def taken(session: Session, project_id: str, title: str, but: str | None = None) -> Story | None:
     """The project's story - open or closed, any but `but` - of this title, whatever its case.
     A story's name is one in its project: an agent names a story by it (`story_named`), so two
     that differ only by case would leave which one it means to chance."""
-    folded = title.strip().casefold()
+    key = name_key(title)
     return next(
         (
             story
             for story in session.scalars(select(Story).where(Story.project_id == project_id))
-            if story.id != but and story.title.casefold() == folded
+            if story.id != but and name_key(story.title) == key
         ),
         None,
     )
@@ -259,7 +266,7 @@ def not_closable(session: Session, story: Story) -> int:
 
 def story_named(session: Session, project_id: str, title: str) -> Story | None:
     """The project's open story of this title, whatever its case; None if it has none."""
-    folded = title.strip().casefold()
+    key = name_key(title)
     return next(
         (
             story
@@ -268,7 +275,7 @@ def story_named(session: Session, project_id: str, title: str) -> Story | None:
                 .where(Story.project_id == project_id, Story.closed_at.is_(None))
                 .order_by(Story.position)
             )
-            if story.title.casefold() == folded
+            if name_key(story.title) == key
         ),
         None,
     )
@@ -276,12 +283,12 @@ def story_named(session: Session, project_id: str, title: str) -> Story | None:
 
 def goal_named(session: Session, project_id: str, title: str) -> Goal | None:
     """The project's goal of this title, whatever its case; None if it has none."""
-    folded = title.strip().casefold()
+    key = name_key(title)
     return next(
         (
             goal
             for goal in session.scalars(select(Goal).where(Goal.project_id == project_id))
-            if goal.title.casefold() == folded
+            if name_key(goal.title) == key
         ),
         None,
     )

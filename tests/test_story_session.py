@@ -326,3 +326,31 @@ def test_a_held_task_marked_stuck_since_is_a_bad_end(story):
     fresh, made = stories.topic_for(session, cid, t["t2"])
     assert made and fresh is not topic
     assert stories.topic_for(session, cid, t["t1"]) == (fresh, False)  # (nor its own, held)
+
+
+def test_a_task_whose_story_is_another_projects_is_of_no_story(make_client, project_dir, tmp_path):
+    """LOW 3 (To-do C re-review): a story's id on a task is no key - set by hand to another
+    project's story, the task's brief, its new chat's name and its branch know no story."""
+    client, _model = make_client([text("ok")])
+    pid, (tid,) = setup(client, project_dir, "lone")
+    other = tmp_path / "other"
+    other.mkdir()
+    elsewhere = client.post("/api/projects", json={"root_path": str(other)}).json()["id"]
+    theirs = client.post(f"/api/projects/{elsewhere}/stories", json={"title": "Theirs zq"})
+    with db(client) as session:
+        session.get_one(BacklogTask, tid).story_id = theirs.json()["id"]
+        session.commit()
+    done = client.post(
+        f"/api/projects/{pid}/backlog/do-in-chat", json={"task_ids": [tid], "conversation_id": None}
+    )
+    cid = done.json()["conversation_id"]
+    assert client.get(f"/api/conversations/{cid}").json()["conversation"]["title"] == "lone"
+    (brief,) = until(lambda: said(client, cid))
+    assert "Theirs zq" not in brief, brief
+    (row,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert row["story_title"] is None
+    with db(client) as session:
+        run = session.scalars(select(Run).where(Run.task_id == tid)).one()
+        task = session.get_one(BacklogTask, tid)
+        assert client.app.state.runner._branch_of(session, run) == (None, ("lone", tid))
+        assert backlog.story_place(session, task) == (None, None)

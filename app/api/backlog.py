@@ -216,7 +216,7 @@ async def do_in_chat(
     queued = backlog.chat_queue(session, chat.id)
     if body.conversation_id is None:
         first = queued[0]
-        story = session.get(Story, first.story_id) if first.story_id else None
+        story = stories.story_of(session, first.story_id, project.id)
         # (Named by it whole, as a To-do chat was: K-backlog-sohbet.)
         chat.title = topics.one_line(story.title if story else first.title) or chat.title
     session.commit()

@@ -535,9 +535,9 @@ def next_in_chat(session: Session, cid: str) -> BacklogTask | None:
 
 
 def story_place(session: Session, task: BacklogTask) -> tuple[Story | None, tuple[int, int] | None]:
-    """The task's story (None: of none, or deleted since) and which of its tasks it is, i of n
-    in the list's order - its proposals left out."""
-    story = session.get(Story, task.story_id) if task.story_id else None
+    """The task's story (None: of none, deleted since, or another project's) and which of its
+    tasks it is, i of n in the list's order - its proposals left out."""
+    story = stories.story_of(session, task.story_id, task.project_id)
     if story is None:
         return None, None
     ids = [one.id for one in stories.tasks_of(session, story.id) if one.status != "proposed"]
@@ -975,7 +975,7 @@ def _check_tree(session: Session, project_id: str, tree: dict) -> None:
     for title in new:
         if (found := stories.taken(session, project_id, title)) is not None:
             raise Refused(f"the project has a story of this name already: “{found.title}”")
-    if len({title.casefold() for title in new}) < len(new):
+    if len({stories.name_key(title) for title in new}) < len(new):
         raise Refused("two new stories of one name")
     every = [*(task for one in tree["stories"] for task in one["tasks"]), *tree["tasks"]]
     if any(not task["title"].strip() for task in every):
