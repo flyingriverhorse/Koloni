@@ -512,9 +512,15 @@ run when a line you saved names it**. Its own row and its switch in the level me
 judge's line says, where the box is on, "…; a harmful-looking one runs without a card only where a line of
 yours names it". It works only:
 
-- once your Judge model's measurement has passed - a set of cases on which a good check never lets a
-  command run wrongly. None has run yet: the box says **(after its measurement)** and cannot be ticked
-  (the level menu's line says so too), and such a command waits for you on its card, as before;
+- on a Judge model whose measurement has passed - a set of cases on which a good check never lets a
+  command run wrongly. Claude Code's **haiku** (named so on its provider's list) passed on 25 Nov 2026:
+  of 70 cases - 14 of them written after the check's prompt was last changed, in words it does not
+  name - it let none run wrongly and refused none wrongly; 10 it asked about where a line of yours
+  allowed or forbade the command (a card: the safe side). A new project comes with the box ticked, and
+  in one made before you may tick it. On any other Judge model the box says **(after its measurement)**
+  (the level menu's line says so too), nothing is asked, and such a command waits for you on its card,
+  as before. Another model is measured with `scripts/measure_judge.py` (see its first lines; one request
+  a case);
 - or in a project where you had turned Check what I said first on before 0.1.9: its box comes ticked and
   works as it did, and you may untick it and tick it again.
 

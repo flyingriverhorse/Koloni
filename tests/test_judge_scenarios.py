@@ -168,20 +168,21 @@ def carded(client, cid, run_id, wait_run):
 
 
 def test_a_project_asks_as_before_until_the_user_turns_the_check_on(client, project_dir):
-    # (§8: the old choice is read, never written - the judge's box is the switch now)
+    # (§8: the old choice is read, never written - the judge's box is the switch now, ticked in a
+    # new project since a judge model's measurement passed: migration 0188)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     got = client.get(f"/api/projects/{pid}").json()
     assert (got["full_auto_check"], got["full_auto_judge"], got["judge_words"]) == (
         "ask",
         True,
-        False,
+        True,
     )
-    assert client.patch(f"/api/projects/{pid}", json={"judge_words": True}).status_code == 403
+    assert client.patch(f"/api/projects/{pid}", json={"judge_words": False}).status_code == 403
     sent = client.patch(
-        f"/api/projects/{pid}", json={"full_auto_check": "judge", "judge_words": True}, headers=OWN
+        f"/api/projects/{pid}", json={"full_auto_check": "judge", "judge_words": False}, headers=OWN
     )
     assert sent.status_code == 200, sent.text
-    assert (sent.json()["full_auto_check"], sent.json()["judge_words"]) == ("ask", True)
+    assert (sent.json()["full_auto_check"], sent.json()["judge_words"]) == ("ask", False)
     old_choice(client, pid, "judge")
     assert client.get(f"/api/projects/{pid}").json()["full_auto_check"] == "judge"
     assert not {"full_auto_check", "judge_words"} & set(koloni.SETTINGS)

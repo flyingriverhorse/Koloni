@@ -52,8 +52,20 @@ def test_the_judge_model_is_the_fast_tiers_first_until_the_user_chooses(client):
     }
     fast = provider(client, "Fast", [{"name": "quick", "tier": "fast"}])
     big = provider(client, "Big", [{"name": "deep", "tier": "balanced"}, {"name": "plain"}])
-    first = {"provider_id": fast["id"], "provider_name": "Fast", "model_id": "quick", "cli": False}
-    deep = {"provider_id": big["id"], "provider_name": "Big", "model_id": "deep", "cli": False}
+    first = {
+        "provider_id": fast["id"],
+        "provider_name": "Fast",
+        "model_id": "quick",
+        "cli": False,
+        "measured": False,
+    }
+    deep = {
+        "provider_id": big["id"],
+        "provider_name": "Big",
+        "model_id": "deep",
+        "cli": False,
+        "measured": False,
+    }
     said = client.get("/api/judge").json()
     assert said["now"] == first and said["provider_id"] is None
     assert said["choices"] == [{**first, "tier": "fast"}, {**deep, "tier": "balanced"}]

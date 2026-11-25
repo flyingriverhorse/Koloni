@@ -77,14 +77,14 @@ const project: Project = {
 const base = { dockerAvailable: true, dockerError: null, desktopAvailable: true, onClose: vi.fn() }
 
 /** The Judge model as a server with two fast models (one a CLI) and a strongest one has it, none chosen. */
-const LOCAL = { provider_id: 'p1', provider_name: 'Local', cli: false }
+const LOCAL = { provider_id: 'p1', provider_name: 'Local', cli: false, measured: false }
 const JUDGE: JudgeOut = {
   provider_id: null,
   model_id: null,
   now: { ...LOCAL, model_id: 'quick' },
   choices: [
     { ...LOCAL, model_id: 'quick', tier: 'fast' },
-    { provider_id: 'p2', provider_name: 'Claude Code', model_id: 'haiku', cli: true, tier: 'fast' },
+    { provider_id: 'p2', provider_name: 'Claude Code', model_id: 'haiku', cli: true, measured: true, tier: 'fast' },
     { ...LOCAL, model_id: 'big', tier: 'strongest' },
   ],
 }

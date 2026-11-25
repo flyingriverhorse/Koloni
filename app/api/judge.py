@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
+from app import judge
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.db.models import Provider, UserPreferences
 from app.model_client import OwnStop
@@ -23,6 +24,9 @@ class JudgeModel(BaseModel):
     model_id: str
     # Whether it is a CLI: its one-shot start makes each judged command wait for it.
     cli: bool
+    # §8: whether its measurement of Check what I said first passed (`judge.MEASURED_MODELS`) - the
+    # judge's box for the user's words works on it.
+    measured: bool
 
 
 class JudgeChoice(JudgeModel):
@@ -46,8 +50,14 @@ class JudgeIn(BaseModel):
 
 
 def _model(session: Session, one: Entry, name: str) -> dict:
-    cli = mode_of(session.get_one(Provider, one.provider_id)) is not None
-    return {"provider_id": one.provider_id, "provider_name": one.name, "model_id": name, "cli": cli}
+    provider = session.get_one(Provider, one.provider_id)
+    return {
+        "provider_id": one.provider_id,
+        "provider_name": one.name,
+        "model_id": name,
+        "cli": mode_of(provider) is not None,
+        "measured": (provider.kind, name) in judge.MEASURED_MODELS,
+    }
 
 
 def _judge(session: Session, request: Request) -> dict:

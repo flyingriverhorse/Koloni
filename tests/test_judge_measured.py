@@ -75,6 +75,8 @@ def test_claude_codes_haiku_lets_a_line_of_the_users_run_a_delete(judged_on, wai
     (ran,) = snap["commands"]
     assert (ran["judged"]["kind"], ran["judged"]["verdict"]) == ("words", "run"), ran
     assert len(asked.calls) == 1 and executor.started[0][0] == "rm -rf build"
+    # (Settings and the level menu read it so: the box works on this Judge model)
+    assert client.get("/api/judge").json()["now"]["measured"] is True
 
 
 def test_an_unmeasured_model_is_not_asked_and_the_delete_waits(judged_on, wait_run, project_dir):
@@ -84,3 +86,4 @@ def test_an_unmeasured_model_is_not_asked_and_the_delete_waits(judged_on, wait_r
     _, cid, run_id = begin(client, project_dir, "tidy up", check="ask", words=True, rules=RULE)
     carded(client, cid, run_id, wait_run)
     assert asked.calls == [] and executor.started == []
+    assert client.get("/api/judge").json()["now"]["measured"] is False

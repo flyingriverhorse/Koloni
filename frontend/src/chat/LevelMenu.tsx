@@ -4,6 +4,7 @@ import type { PermissionMode } from '../api/types'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { usePanel } from '../shell/usePanel'
+import { useJudgeMeasured } from './judgeMeasured'
 import {
   type Checks,
   checksOn,
@@ -141,12 +142,14 @@ function ProjectSwitches(p: {
   words: JudgeWords
   risky: JudgeRisky
 }) {
+  // (the box on and no old choice: its words work where the Judge model was measured)
+  const measured = useJudgeMeasured(p.words === 'unmeasured' && Boolean(p.onJudge))
   if (!p.onJudge) return null
   return (
     <SwitchRow
       id={`${p.id}-judge`}
       name="Full auto’s judge"
-      says={judgeSays(p.words, p.risky)}
+      says={judgeSays(measured ? 'on' : p.words, p.risky)}
       on={p.judge}
       onChange={p.onJudge}
     />
