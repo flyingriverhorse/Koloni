@@ -32,8 +32,8 @@ asked: 4 approved, 1 rejected, 2 not answered · 12 s to answer, on average" - a
 asked each one (**Deletes or overwrites**, **Sends off this machine**, **Installs packages**, **Runs a
 command through a shell**, **A secret file**, **A file that steers later turns**, **Stops programs by
 name**, **Out of its working copy**, **The web, with web tools off**, **Starts a server**, **No rule
-covers it**), how many were approved and rejected. The reason is the one KOLONİ's gate gave as the card
-opened - a rule you change later does not rewrite it - and an answer is yours from the app's own page:
+covers it**, **Full auto's judge found it risky**), how many were approved and rejected. The reason is
+the one KOLONİ's gate gave as the card opened - a rule you change later does not rewrite it - and an answer is yours from the app's own page:
 a card still open when its turn ended is "not answered". Where [Check what I said
 first](../use/permissions.md#check-what-i-said-first) was asked: "3 ran on a line of yours · 1 not
 run · 2 still asked".

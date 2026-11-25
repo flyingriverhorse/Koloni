@@ -48,6 +48,7 @@ export const GUIDE = {
   prices: 'money/usage/#where-the-money-comes-from',
   roomWindow: 'agents/rooms/#the-room-window',
   checked: 'use/checked/',
+  fullAutoJudge: 'use/permissions/#full-autos-judge',
 } as const
 
 export type GuidePlace = (typeof GUIDE)[keyof typeof GUIDE]

@@ -108,6 +108,10 @@ its jobs started, with a link back to their report.
   continued (a backtick or a backslash at a line's end), a line that also sends work off the machine
   or touches a git remote, Docker's prune or volumes, and a delete of a file that steers agents
   (`AGENTS.md`, `CLAUDE.md`) keep their card - in the chat you went away from as in a task's. See [Permissions](../use/permissions.md).
+- At **Full auto**, with [Full auto's judge](../use/permissions.md#full-autos-judge) on (the default), a
+  command the list does not stop is first looked at by a small model, reading the chat you went away
+  from: one it finds risky waits for you on its card, "KOLONİ's judge: …", and the job with it - the
+  next one starts.
 
 ## Questions and approvals
 

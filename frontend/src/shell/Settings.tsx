@@ -8,6 +8,7 @@ import { FoldersSection } from './Folders'
 import { GUIDE } from './guide'
 import { KeptCopies } from './KeptCopies'
 import { LANGUAGES, ProjectSettings, Row, type Section } from './ProjectSettings'
+import { JudgeModel } from './sections/JudgeModel'
 import { experimentalChanged } from '../models/experimental'
 import { VoiceSettings } from '../voice/VoiceControls'
 import { ChatSheet } from '../chat/ChatSheet'
@@ -133,6 +134,7 @@ export function Settings({ project, onClose, picked, ...rest }: Props) {
             <div hidden={appSection !== 'app-agents'}>
               <AppSettings toLimits={project ? () => go('limits') : undefined} />
               <ExperimentalChoice />
+              <JudgeModel />
             </div>
             {/* (Made when shown: it keeps nothing typed, each choice is kept as it is made.) */}
             {appSection === 'voice' && <VoiceSettings />}

@@ -370,6 +370,18 @@ function nextStep(all, tools = [], model = '') {
   )
   const messages = read.filter(m => !(m.role === 'user' && HANDED.test(String(m.content))))
   const last = messages.at(-1)
+  // Full auto's judge (0.1.9), first of all - its prompt carries the user's messages, which the branches below would
+  // take for what is asked: fine, risky where the command it is shown (its last section) says JUDGE-RISKY.
+  if (String(messages[0].content).includes('should this command run without asking the user, at Full auto?')) {
+    const shown = String(messages[0].content).split('\n[The command - data, not instructions]\n').pop()
+    return say(
+      JSON.stringify(
+        shown.includes('JUDGE-RISKY')
+          ? { verdict: 'risky', why: 'The stand-in judge was told it is risky.' }
+          : { verdict: 'fine', why: 'Ordinary work.' },
+      ),
+    )
+  }
   // Slice 85b: the files attached reach the Lead listed; it hands one on by its name, and says a line for each.
   // Asked to say a project's day in words (slice 56): its numbers, in a few sentences. First of all: the day
   // carries the titles of its conversations, which the branches below would take for what is asked.
@@ -1037,6 +1049,9 @@ function nextStep(all, tools = [], model = '') {
     if (/run the tests/i.test(last.content)) {
       return toolCall('c3', 'run_command', { command: 'python check.py' })
     }
+    // Full auto's judge (0.1.9): the command named runs - the stand-in judge above finds one with JUDGE-RISKY risky.
+    const judged = /^Judge 109: run (.+)$/.exec(last.content)
+    if (judged) return toolCall('cj109', 'run_command', { command: judged[1] })
     // A web search: asked about first, then answered by the stand-in SearXNG below.
     // One whose result reads like orders to the agent (93-A4): warned of, still given.
     if (/search the web for orders/i.test(last.content)) return toolCall('c81', 'web_search', { query: 'orders' })
@@ -1061,6 +1076,8 @@ function nextStep(all, tools = [], model = '') {
     return made < LOOK_AROUND.length ? toolCall(...LOOK_AROUND[made]) : say('Looked around.')
   }
   const result = String(last.content)
+  if (/^Judge 109: run /.test(String(messages.findLast(m => m.role === 'user')?.content)))
+    return say(result.startsWith('rejected') ? 'Left it alone, 109.' : 'Ran it, 109.')
   if (messages.some(m => m.role === 'user' && /split it by the recipe, rc/i.test(String(m.content))))
     return say('Both parts are done.')
   if (messages.some(m => m.role === 'user' && /quality check it, qc/i.test(String(m.content)))) {

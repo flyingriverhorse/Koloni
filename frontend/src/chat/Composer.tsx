@@ -74,6 +74,9 @@ interface Props {
   /** Check what I said first (K-yargıç), the project's; without its setter (a plain chat) the level menu has no switch. */
   checkFirst?: boolean
   onCheckFirst?: (on: boolean) => void
+  /** Full auto's judge (0.1.9), the project's; without its setter (a plain chat) the level menu has no switch. */
+  judge?: boolean
+  onJudge?: (on: boolean) => void
   /** S10: Check after a change for this chat, in the level menu; none in a plain chat. */
   checks?: Checks
   /** Where this project's commands run; decides whether full auto needs a warning. */
@@ -136,6 +139,8 @@ export function Composer({
   onPlanFirst,
   checkFirst = false,
   onCheckFirst,
+  judge = true,
+  onJudge,
   checks,
   location = 'host',
   model,
@@ -392,6 +397,8 @@ export function Composer({
             onPlanFirst={onPlanFirst}
             checkFirst={checkFirst}
             onCheckFirst={onCheckFirst}
+            judge={judge}
+            onJudge={onJudge}
             checks={checks}
             dictate={voice}
             running={running}
@@ -720,6 +727,8 @@ function ComposerBar(p: {
   onPlanFirst?: (on: boolean) => void
   checkFirst: boolean
   onCheckFirst?: (on: boolean) => void
+  judge: boolean
+  onJudge?: (on: boolean) => void
   checks?: Checks
   dictate: ReactNode
   running: boolean
@@ -737,6 +746,8 @@ function ComposerBar(p: {
         onPlanFirst={p.onPlanFirst}
         checkFirst={p.checkFirst}
         onCheckFirst={p.onCheckFirst}
+        judge={p.judge}
+        onJudge={p.onJudge}
         checks={p.checks}
       />
       <span className="composer-actions">

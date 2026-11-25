@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import select
 
 from app import backlog, stories, topics
-from app.db.models import Agent, BacklogTask, FileChange, Run, Story, Topic, now
+from app.db.models import Agent, BacklogTask, Conversation, FileChange, Run, Story, Topic, now
 from app.team import quoted
 from tests.conftest import scaled
 from tests.test_backlog import run_todo, setup
@@ -326,3 +326,99 @@ def test_a_held_task_marked_stuck_since_is_a_bad_end(story):
     fresh, made = stories.topic_for(session, cid, t["t2"])
     assert made and fresh is not topic
     assert stories.topic_for(session, cid, t["t1"]) == (fresh, False)  # (nor its own, held)
+
+
+def test_a_task_whose_story_is_another_projects_is_of_no_story(make_client, project_dir, tmp_path):
+    """LOW 3 (To-do C re-review): a story's id on a task is no key - set by hand to another
+    project's story, the task's brief, its new chat's name and its branch know no story."""
+    client, _model = make_client([text("ok")])
+    pid, (tid,) = setup(client, project_dir, "lone")
+    other = tmp_path / "other"
+    other.mkdir()
+    elsewhere = client.post("/api/projects", json={"root_path": str(other)}).json()["id"]
+    theirs = client.post(f"/api/projects/{elsewhere}/stories", json={"title": "Theirs zq"})
+    with db(client) as session:
+        session.get_one(BacklogTask, tid).story_id = theirs.json()["id"]
+        session.commit()
+    done = client.post(
+        f"/api/projects/{pid}/backlog/do-in-chat", json={"task_ids": [tid], "conversation_id": None}
+    )
+    cid = done.json()["conversation_id"]
+    assert client.get(f"/api/conversations/{cid}").json()["conversation"]["title"] == "lone"
+    (brief,) = until(lambda: said(client, cid))
+    assert "Theirs zq" not in brief, brief
+    (row,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert row["story_title"] is None
+    with db(client) as session:
+        run = session.scalars(select(Run).where(Run.task_id == tid)).one()
+        task = session.get_one(BacklogTask, tid)
+        assert client.app.state.runner._branch_of(session, run) == (None, ("lone", tid))
+        assert backlog.story_place(session, task) == (None, None)
+
+
+def test_another_projects_story_on_a_task_row_is_not_waited_for_adopted_nor_tidied(
+    client, project_dir, tmp_path
+):
+    """A story's id on a task row is no key: another project's story there, set outside KOLONİ -
+    a task of it in a chat of that project holds neither Do in chat nor Fix it, Approve does not
+    make it the user's, and turning down the task's proposal does not delete it."""
+    pid, (mine,) = setup(client, project_dir, "mine")
+    other = tmp_path / "other"
+    other.mkdir()
+    elsewhere = client.post("/api/projects", json={"root_path": str(other)}).json()["id"]
+    theirs_chat = client.post(f"/api/projects/{elsewhere}/conversations").json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    with db(client) as session:
+        theirs = stories.add_story(session, elsewhere, "Theirs zq", None, "agent")
+        busy = backlog.add(session, elsewhere, {"title": "b", "story_id": theirs.id}, "user")
+        busy.conversation_id = theirs_chat
+        backlog.set_flow(busy, place=1)
+        task = session.get_one(BacklogTask, mine)
+        task.story_id = theirs.id
+        backlog.queue_in_chat(session, session.get_one(Conversation, cid), [task])  # (no Refused)
+        task.status = "blocked"
+        backlog.fix_again(session, task)
+        assert task.status == "doing"
+        session.delete(busy)
+        task.status = "proposed"
+        backlog.decide(session, task, approve=True)
+        assert theirs.created_by == "agent"
+        task.status = "proposed"
+        assert backlog.decide(session, task, approve=False) is None
+        assert session.get(Story, theirs.id) is not None
+        session.rollback()
+
+
+def test_a_task_row_of_another_project_naming_the_story_is_none_of_its_tasks(
+    story, client, tmp_path
+):
+    """L2: a story's id on a row of another project (set outside KOLONİ) does not make that row
+    one of the story's tasks: not listed, not counted, not in its summary, nor its last turn or
+    branch - and, waiting in a chat of that project, it holds no Do in chat of the story's own."""
+    session, s, topic, t = story
+    other = tmp_path / "other"
+    other.mkdir()
+    elsewhere = client.post("/api/projects", json={"root_path": str(other)}).json()["id"]
+    theirs_chat = client.post(f"/api/projects/{elsewhere}/conversations").json()["id"]
+    planted = backlog.add(session, elsewhere, {"title": "Theirs zq", "story_id": s.id}, "user")
+    planted.status, planted.conversation_id = "blocked", theirs_chat
+    backlog.set_flow(planted, place=1, stuck="their why")
+    session.flush()
+    ran = Run(conversation_id=theirs_chat, task_id=planted.id, status="completed")
+    ran.started_at = ran.ended_at = now()
+    session.add(ran)
+    session.flush()
+    on_branch = {"on_branch": "koloni/theirs"}
+    session.add(
+        Agent(run_id=ran.id, role_name="Lead", name="Lead", tools=[], depth=0, copy=on_branch)
+    )
+    session.flush()
+    assert [one.id for one in stories.tasks_of(session, s.id)] == [one.id for one in t.values()]
+    assert backlog.story_place(session, t["t1"])[1] == (1, 4)
+    assert stories.not_closable(session, s) == 4
+    assert "Theirs zq" not in stories.summary_lines(session, s, "none")
+    assert stories.last_task(session, s.id) is None
+    assert stories.branch_lead(session, s.id) is None
+    chat = session.get_one(Conversation, topic.conversation_id)
+    backlog.queue_in_chat(session, chat, [t["t2"]])  # (not refused)
+    session.rollback()

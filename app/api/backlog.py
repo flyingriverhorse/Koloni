@@ -216,7 +216,7 @@ async def do_in_chat(
     queued = backlog.chat_queue(session, chat.id)
     if body.conversation_id is None:
         first = queued[0]
-        story = session.get(Story, first.story_id) if first.story_id else None
+        story = stories.story_of(session, first.story_id, project.id)
         # (Named by it whole, as a To-do chat was: K-backlog-sohbet.)
         chat.title = topics.one_line(story.title if story else first.title) or chat.title
     session.commit()
@@ -294,7 +294,7 @@ async def change_task(
         backlog.renumber(session, task.project_id, task, position)
     if left != task.story_id:  # (an agent's story it was the last proposal of, now empty, goes)
         session.flush()
-        backlog.tidy_story(session, left)
+        backlog.tidy_story(session, left, task.project_id)
     # A done task is found by `recall` as the user's words of its closing (app.earlier).
     earlier.index_task(session, task, now())
     session.commit()
@@ -313,7 +313,7 @@ async def delete_task(task_id: str, request: Request, session: Session = Depends
     session.flush()
     backlog.renumber(session, task.project_id)
     if proposal:  # (the story an agent opened for it goes with its last proposal)
-        backlog.tidy_story(session, task.story_id)
+        backlog.tidy_story(session, task.story_id, task.project_id)
     session.commit()
     _told(request, session, task.project_id)
     return Response(status_code=204)

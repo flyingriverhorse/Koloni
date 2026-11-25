@@ -63,6 +63,9 @@ const SUB_AGENT_DEFAULTS = {
   room_min_tokens: 60000,
   // (Kanıtlı bitiş: the specs written before it count the commands and cards of turns that change files; its own sets it.)
   after_change: 'nothing',
+  // (Full auto's judge, 0.1.9: the e2e app has no Fast-tier model, so at Full auto it would stand aside and say so in each
+  // chat - the specs written before it read those chats; its own turns it on.)
+  full_auto_judge: false,
 }
 
 /**

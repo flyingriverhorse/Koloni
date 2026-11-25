@@ -43,6 +43,12 @@ export const FULL_AUTO_CHECK: [value: Project['full_auto_check'], label: string]
 const CHECK_WHY =
   'Check what I said first: your preferences, this project’s rules as saved on the Memory page (not the folder’s .koloni/rules.md) and your own messages in this chat are read first, and the command runs without a card only when a line of yours names it. Secret files, .koloni, files that steer later turns and paths outside the folder are always asked; anything that goes wrong opens the card as before.'
 
+/** Full auto's judge (0.1.9): what it does and costs, in sight under its box; the rest behind ⓘ. */
+const JUDGE_SHOWN =
+  'A small model looks at each command the list does not stop. One request of your Judge model (Settings › The app › Agents) for each such command, on your plan or your bill.'
+const JUDGE_REST =
+  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky waits for you on a card, “KOLONİ’s judge: …”. Reads, ordinary work (tests, compilers and checkers, local git), your own test command (unless it runs a program an agent wrote) and a trigger’s turn are not asked about. It only adds cards - one it cannot get an answer for waits for you too; only where there is no model to ask does it stand aside for the turn, and it says so in the chat. Off: Full auto as before.'
+
 /** What a look over each report costs, and what is sent to which model, in sight under its box; the rest behind ⓘ. */
 const OBSERVE_SHOWN =
   'One more model request after every sub-agent’s report, on your plan or your bill; Usage shows it under that model. The Observer role’s model (set on the Agents page) is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked.'
@@ -152,9 +158,11 @@ export function useAsking(project: Project) {
   const [minutesText, setMinutesText] = useState(String(savedMinutes))
   const awayMinutes = within(minutesText, 0, 1440)
   const [approval, setApproval] = useState(savedApproval)
+  const judge = useFullAutoJudge(project)
   const check = useFullAutoCheck(project)
   const disposable = useDisposableDeletes(project)
   const patch = {
+    ...judge.patch,
     ...check.patch,
     ...disposable.patch,
     ...(approval !== savedApproval && { spawn_approval: approval }),
@@ -232,10 +240,30 @@ export function useAsking(project: Project) {
           min
         </span>
       </Row>
+      {judge.row}
       {check.row}
       {disposable.row}
     </>,
   )
+}
+
+/** `useAsking`'s switch for Full auto's judge (0.1.9), on unless turned off; what it costs in sight, the rest behind ⓘ. */
+function useFullAutoJudge(project: Project) {
+  const [on, setOn] = useState(project.full_auto_judge)
+  return {
+    patch: on === project.full_auto_judge ? {} : { full_auto_judge: on },
+    row: (
+      <label className="choice">
+        <input type="checkbox" checked={on} onChange={e => setOn(e.target.checked)} />
+        <span>
+          Full auto’s judge
+          <span className="choice-note">
+            {JUDGE_SHOWN} <Hint doc={GUIDE.fullAutoJudge}>{JUDGE_REST}</Hint>
+          </span>
+        </span>
+      </label>
+    ),
+  }
 }
 
 /** `useAsking`'s switch for what KOLONİ checks is disposable (coordination §4): such a delete goes without a card where it is on. */
@@ -273,7 +301,7 @@ function useFullAutoCheck(project: Project) {
         warn={
           check === 'judge' && (
             <span className="choice-note">
-              Each such command is one request of your Fast tier’s first model (on a CLI, of your plan).
+              Each such command is one request of your Judge model (on a CLI, of your plan).
             </span>
           )
         }

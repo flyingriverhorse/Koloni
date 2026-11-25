@@ -182,9 +182,10 @@ export const decidedTasks = (backlog: BacklogTask[] | null, chat: string): Backl
 /** K-yargıç: the commands of this chat Full auto's check of the user's words let run with no card, or did not run, not
  *  yet OK'd.
  *  shortcut: as `decidedTasks`, shown in the chat's Decided for you only - not in `decidedOf`'s pill or Ready's counts;
- *  count these there too if one is missed. */
+ *  count these there too if one is missed. (Not Full auto's judge's "fine" or "risky": no line of the user's decided
+ *  those.) */
 export const judgedCommands = (conv: ConvState): Command[] =>
-  conv.commands.filter(c => c.judged != null && c.judged.verdict !== 'ask' && !c.judged.seen)
+  conv.commands.filter(c => (c.judged?.verdict === 'run' || c.judged?.verdict === 'refuse') && !c.judged.seen)
 
 // What a row of the list is, in the canvas's one line: one, and more than one.
 const WORDS: Record<Exclude<Waiting['what'], 'question'>, [string, string]> = {

@@ -128,6 +128,40 @@ messages.
   `rsync --delete`, `robocopy /MIR`, `mail`, `ssh host 'command'`.
 - At Full auto, the harm check sees honest commands only; a command written to hide what it does is not
   seen. See [Security model](../security/model.md).
+- [Full auto's judge](../use/permissions.md#full-autos-judge) is a net, not a wall:
+    - It is a model's decision: it can call a risky command fine, and then the command runs, as it did
+      at Full auto before the judge.
+    - Text aimed at the judge inside a command or a program an agent wrote can still sway the model:
+      the judge is told it is an agent's data, and a few known phrases make a card without asking,
+      but other wordings reach it.
+    - Hidden work may not be seen: a tool an agent changed but did not write, a program past its first
+      4 KB, a program that imports another file.
+    - Test runners and build tools load the project's test and settings code by design - a
+      `conftest.py`, test files, an eslint or mypy plugin a setting names, `build.rs`, a cargo runner -
+      so `pytest -q` or `cargo build` runs what an agent wrote there with no judge.
+    - A file an agent made by copying another (`cp x.txt x.py`) is not known as the agent's: the judge
+      is not shown it.
+    - **Don't ask about this line again here** cannot be listed or undone in the app yet; what it keeps
+      goes with the project.
+    - A Run on its card, and **Don't ask about this line again here**, keep only a line whose whole run
+      KOLONİ knows - a project file it runs in a plain form, hashed, or one plain `curl`, `wget` or file
+      command. Any other form - `git`, a wrapper, a shell's code, `npx`, a line sent to another folder,
+      a variable set on make's line, a package's `__main__.py`, a Python line without `-I` or `-E` in a
+      working copy (or with `PYTHONPATH` set), a runner KOLONİ does not know, a file it did not find, a
+      folder it does not know - is asked about every time, and its card has no box: it fails closed, at
+      the cost of more questions.
+    - A command the judge could not look at - too long, orders in it, no room to ask, no answer in time
+      or none it could read, its program changed while it looked - is never kept: a Run on its card
+      runs it once, and its card has no box.
+    - What a kept program imports in turn is not looked at - not even a file in its folder that shadows
+      a standard module (a `json.py` beside `x.py`): a changed import does not make `python x.py`
+      another line.
+    - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
+    - Each command it looks at waits for one model request and a few seconds; where only a CLI can be
+      asked, from that CLI's quota, and each such command waits for the CLI to start.
+    - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
+      git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
+      asked about.
 - Commands cannot be given input while they run.
 - In Docker on Linux and macOS, commands run as your user, not as root. A command that needs root in
   the container, such as `apt-get install`, fails. On Linux, files an older version of KOLONİ made as

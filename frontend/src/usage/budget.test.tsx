@@ -122,6 +122,7 @@ test('the monthly budget is set and taken away in Limits and money, an amount ab
       tests_look: null,
       test_commands: {},
       full_auto_check: 'ask',
+      full_auto_judge: true,
       disposable_deletes: false,
       memory_links: [],
       embedding_provider_id: null,

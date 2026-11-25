@@ -38,6 +38,7 @@ const project: Project = {
   tests_look: null,
   test_commands: {},
   full_auto_check: 'ask',
+  full_auto_judge: true,
   disposable_deletes: false,
   memory_links: [],
   embedding_provider_id: null,
@@ -972,12 +973,26 @@ test('a harmful-looking command at Full auto asks you, or first checks what you 
   await choose(/^Asking and away/)
   const check = screen.getByLabelText('A harmful-looking command at Full auto')
   expect(check).toHaveValue('ask')
-  const costs = 'Each such command is one request of your Fast tier’s first model (on a CLI, of your plan).'
+  const costs = 'Each such command is one request of your Judge model (on a CLI, of your plan).'
   expect(screen.queryByText(costs)).toBeNull()
   await userEvent.selectOptions(check, 'Check what I said first')
   expect(screen.getByText(costs)).toBeVisible()
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ full_auto_check: 'judge' })
+})
+
+test('Full auto’s judge is on as a project comes, says what it costs, and only its change is sent', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Asking and away/)
+  const judge = screen.getByRole('checkbox', { name: /^Full auto’s judge/ })
+  expect(judge).toBeChecked()
+  expect(judge.closest('label')).toHaveTextContent(
+    'A small model looks at each command the list does not stop. One request of your Judge model (Settings › The app › Agents) for each such command, on your plan or your bill.',
+  )
+  await userEvent.click(judge)
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenCalledWith({ full_auto_judge: false })
 })
 
 test('disposable deletes are off until you allow them, and sent only when changed', async () => {

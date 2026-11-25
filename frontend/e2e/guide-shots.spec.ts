@@ -165,14 +165,16 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
   await rail(page, 'Models').click()
   await expect(page.getByRole('heading', { name: 'Models' })).toBeVisible()
   await picture(page, 'models')
-  // (As a new project has it, 0.1.5: the harness's own is "everything waits", 10 minutes.)
-  await setProject(page, { when_away: 'lead', away_minutes: 5 })
+  // (As a new project has it, 0.1.5: the harness's own is "everything waits", 10 minutes - and, 0.1.9, Full auto's
+  // judge on.)
+  await setProject(page, { when_away: 'lead', away_minutes: 5, full_auto_judge: true })
   await page.reload()
   await page.getByLabel('Message').waitFor()
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('form', { name: 'Project settings' })
-  // (At Asking and away: when you're away, Full auto's check of your words, disposable deletes - 0.1.5.)
+  // (At Asking and away: when you're away, Full auto's judge (0.1.9) and its check of your words, disposable deletes.)
   await settings.getByRole('button', { name: /^Asking and away/ }).click()
+  await expect(settings.getByRole('checkbox', { name: /^Full auto’s judge/ })).toBeChecked()
   await expect(settings.getByText('A harmful-looking command at Full auto')).toBeVisible()
   await picture(page, 'settings-project')
   await page.getByRole('button', { name: 'Close settings' }).click()
@@ -577,7 +579,8 @@ test.describe('proven finish (0.1.6)', () => {
     page,
   }) => {
     await openFreshConversation(page)
-    await setProject(page, { after_change: 'check' })
+    // (Full auto's judge as a project has it, 0.1.9: on - its switch in the menu.)
+    await setProject(page, { after_change: 'check', full_auto_judge: true })
     // (No message yet: the First steps panel would show the project's folder - under this machine's user.)
     await page.addInitScript(() => localStorage.setItem('koloni-first-steps', 'hidden'))
     await page.reload()
@@ -588,6 +591,7 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(
       chat.getByRole('dialog', { name: 'Permission level' }).getByText('Test and review changes'),
     ).toBeVisible()
+    await expect(chat.getByRole('switch', { name: 'Full auto’s judge' })).toBeChecked()
     await picture(page, 'level-menu-checks')
     await page.keyboard.press('Escape')
     // This project › Checks and git: After a change with its live line, Fix rounds (Then a stronger model, once in),
@@ -599,16 +603,33 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(settings.getByLabel('Fix rounds')).toBeVisible()
     await picture(page, 'settings-checks')
     await page.getByRole('button', { name: 'Close settings' }).click()
-    // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental CLIs under
-    // Save (read once shown).
-    const app = await appSettings(page, 'Agents')
-    const experimental = app.getByRole('checkbox', { name: /Show experimental CLIs/ })
-    await expect(experimental).toBeEnabled()
-    await experimental.scrollIntoViewIfNeeded()
-    await expect(app.getByText('KOLONİ’s test runs at once')).toBeInViewport()
-    await expect(app.getByText('Test processes per run')).toBeInViewport()
-    await expect(experimental).toBeInViewport()
-    await picture(page, 'settings-app-test-runs')
+    // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental CLIs and the
+    // Judge model (0.1.9) under Save (read once shown) - the fake model the Fast tier's first, as on a machine set up.
+    type Local = { id: string; models: { name: string }[] }
+    const local: Local = (await (await page.request.get('/api/providers')).json()).find(
+      (one: { name: string }) => one.name === 'Local',
+    )
+    const tiered = [...local.models.filter(one => one.name !== 'fake-qwen'), { name: 'fake-qwen', tier: 'fast' }]
+    const models = async (data: unknown[]) =>
+      expect(
+        (await page.request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { models: data } })).ok(),
+      ).toBe(true)
+    await models(tiered)
+    try {
+      const app = await appSettings(page, 'Agents')
+      const experimental = app.getByRole('checkbox', { name: /Show experimental CLIs/ })
+      await expect(experimental).toBeEnabled()
+      const judge = app.getByLabel('Judge model')
+      await expect(judge).toHaveValue('')
+      await expect(judge.locator('option').first()).toHaveText('Fast tier’s first (now: fake-qwen)')
+      await judge.scrollIntoViewIfNeeded()
+      await expect(app.getByText('KOLONİ’s test runs at once')).toBeInViewport()
+      await expect(app.getByText('Test processes per run')).toBeInViewport()
+      await expect(experimental).toBeInViewport()
+      await picture(page, 'settings-app-test-runs')
+    } finally {
+      await models(local.models)
+    }
   })
 
   test('Checked under the answer, and the Checks node with its ⋯ menu', async ({ page }) => {

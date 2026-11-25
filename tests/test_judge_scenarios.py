@@ -179,6 +179,7 @@ def test_a_delete_the_users_rule_names_runs_without_a_card_and_says_which_line(
     snap = wait_run(client, cid, run_id)
     (ran,) = snap["commands"]
     assert ran["status"] == "exited" and ran["judged"] == {
+        "kind": "",
         "verdict": "run",
         "quote": RULE,
         "source": "rules",
@@ -206,6 +207,7 @@ def test_a_quote_the_user_never_wrote_is_a_card(judging, wait_run, project_dir):
     asked = carded(client, cid, run_id, wait_run)
     assert asked["status"] == "proposed" and asked["danger"] == harms("rm -rf build")
     assert asked["judged"] == {
+        "kind": "",
         "verdict": "ask",
         "quote": "",
         "source": "",
@@ -681,6 +683,7 @@ def test_a_push_the_users_rule_forbids_is_not_run_and_the_agent_hears_the_rule(
         and refused["ended_at"]
         and refused["judged"]
         == {
+            "kind": "",
             "verdict": "refuse",
             "quote": NO_MAIN,
             "source": "rules",
@@ -705,6 +708,7 @@ def test_a_refuse_on_a_line_that_forbids_nothing_is_a_card(judging, wait_run, pr
     _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
     asked = carded(client, cid, run_id, wait_run)
     assert asked["status"] == "proposed" and asked["judged"] == {
+        "kind": "",
         "verdict": "ask",
         "quote": "",
         "source": "",
