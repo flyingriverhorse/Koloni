@@ -827,6 +827,7 @@ class AwayMixin(AwayBranchMixin):
                     copies.relink(copy)
                 except (OSError, ValueError) as exc:
                     return f"its copy could not be opened ({exc})", "not_run"
+                self._no_push_if_away(merge, copy)  # (H1, after a restart too)
                 opened[merge.kept_in] = copy
             ws = opened[merge.kept_in].workspace()
         held = opened.get(merge.kept_in or "") if merge is not None and place == "copy" else None

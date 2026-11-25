@@ -348,3 +348,43 @@ def test_a_parked_line_is_closed_once_the_worktree_changed_after_it(make_client,
     (line,) = [one for one in waiting(client, done["id"]) if one["kind"] == "command"]
     assert line["closed"] == parked.WROTE_SINCE
     assert decide(client, done["id"], line["id"], "run").status_code == 409
+
+
+# A script of the project's that pushes, as a test or a build step might (H1).
+PUSHES = (
+    "import subprocess\n"
+    "done = subprocess.run(['git', 'push', 'origin', 'HEAD:refs/heads/x'], capture_output=True,"
+    " text=True)\n"
+    "print('push exit', done.returncode, done.stderr[-300:])\n"
+)
+
+
+def test_a_jobs_script_push_fails_by_h1_through_run_command(make_client, wait_run, repo):
+    (repo / "push.py").write_text(PUSHES)
+    git_run(repo, "add", "push.py")
+    git_run(repo, "commit", "-qm", "a script that pushes")
+    origin = origin_of(repo)
+    client, _model, _pid, _done, job = branch_night(
+        make_client, wait_run, repo, [run(f"{sys.executable} push.py", "c1"), text("one done")]
+    )
+    (ran,) = commands_in(client, job["conversation_id"])
+    assert ran["status"] == "exited" and "push exit 0" not in ran["output"], ran["output"]
+    assert "koloni-no-push" in ran["output"]
+    assert git_run(origin, "branch", "--list", "x") == ""
+
+
+def test_a_morning_line_in_a_jobs_worktree_pushes_nothing_after_a_restart_too(
+    make_client, wait_run, repo
+):
+    from app import copies
+
+    # (git's config is the shared repository's: parked at every level, so at Full auto too)
+    line = "git config --get url.koloni-no-push://.pushinsteadof"
+    client, _model, _pid, done, _job = branch_night(
+        make_client, wait_run, repo, [run(line, "c1"), text("one done"), text("went on")]
+    )
+    (row,) = waiting(client, done["id"])
+    copies._NO_PUSH.clear()  # (a restart: this process's trees forgotten)
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    ran = until(lambda: (one := waiting(client, done["id"])[0])["result"] and one)
+    assert ran["result"].startswith("exit code 0"), ran["result"]  # (set: the line found H1's)

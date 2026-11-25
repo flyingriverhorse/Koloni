@@ -183,6 +183,8 @@ def test_take_in_all_or_discard_deletes_the_branch_and_closes_the_row(
     assert git_run(repo, "branch", "--list", name_of(job)) == ""
     assert row_now(client, done)["closed"] == parked.PUSH_TAKEN
     assert push(client, done, row).status_code == 409
+    assert push(client, done, row, "reject").status_code == 200  # (Reject still decides it)
+    assert row_now(client, done)["decision"] == "reject"
     if word == "approve":
         assert (repo / "new.txt").read_text() == "new\n"
 
@@ -191,17 +193,28 @@ def test_a_pull_request_only_where_finish_way_says(make_client, wait_run, repo, 
     opened = []
     monkeypatch.setattr(git, "pr_ready", lambda project: ("owner/repo", None))
 
+    bodies = []
+
     def open_pr(project, repo_name, branch, into, title, body, folder):
         opened.append((repo_name, branch, into, title))
+        bodies.append(body)
         return "https://github.com/owner/repo/pull/7"
 
     monkeypatch.setattr(git, "open_pr", open_pr)
-    client, done, job, row, _origin = night_with_origin(
+    client, done, job, row, origin = night_with_origin(
         make_client, wait_run, repo, finish_way="pull_request"
     )
     assert row["what"].endswith(" · opens a pull request into main")
+    secret = "tok-0123456789abcdef-in-its-report"
+    with client.app.state.session_factory() as session:
+        for agent in session.scalars(select(Agent).where(Agent.depth == 0)):
+            agent.report = f"done; the key is {secret}"
+        session.commit()
+    monkeypatch.setenv("KOLONI_TEST_API_TOKEN", secret)
     assert push(client, done, row).status_code == 200
     assert opened == [("owner/repo", name_of(job), "main", "one")]
+    assert secret not in bodies[0] and "the key is ***" in bodies[0]
+    assert secret not in git_run(origin, "log", "-1", "--format=%B", f"refs/heads/{name_of(job)}")
     assert row_now(client, done)["result"].endswith(
         "pull request: https://github.com/owner/repo/pull/7"
     )

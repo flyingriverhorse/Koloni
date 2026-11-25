@@ -70,11 +70,11 @@ def mode_of(project: Path) -> tuple[str, str | None]:
         return "copy", None
     try:
         exe, _folder, _on = git._on_a_branch(project)
-    except git.Refused as exc:
+        if why := _not_for_a_worktree(project, exe):
+            return "copy", why
+        return ("push" if git._origin(project) else "branch"), None
+    except git.Refused as exc:  # (git refused, or did not answer in time)
         return "copy", str(exc)
-    if why := _not_for_a_worktree(project, exe):
-        return "copy", why
-    return ("push" if git._origin(project) else "branch"), None
 
 
 def _not_for_a_worktree(project: Path, exe: str) -> str | None:

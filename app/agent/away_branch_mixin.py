@@ -116,6 +116,13 @@ class AwayBranchMixin:
         now_away = {**was, "mode": job["mode"], "refs": refs, "config": was.get("config", config)}
         self._set_agent(ctx.cid, ctx.agent_id, copy={**record, "away": now_away})
 
+    def _no_push_if_away(self: "AgentRunner", merge: Merge, copy: copies.Copy) -> None:
+        """H1 where a kept copy opened again (a morning's Run line) is a job's branch: whatever
+        runs there pushes nothing - after a restart too, which forgot this process's trees."""
+        with self._factory() as session:
+            if "away" in (session.get_one(Agent, merge.agent_id).copy or {}):
+                copies.no_push(copy.root)
+
     def _git_section(self: "AgentRunner", ctx: Ctx, seen: dict, copy: copies.Copy | None) -> str:
         """A CLI's git section (slice 70): in a job on its branch, that branch's (`AWAY_GIT`)."""
         if copy is not None and copy.branch and ctx.run_id in self._away_jobs:
@@ -273,13 +280,13 @@ class AwayBranchMixin:
             if found is None:
                 return {"state": "refused", "why": TAKEN}
             agent, held = found
+            if decision == "reject":  # (whatever became of its work: the row is decided)
+                return self._pushed(agent.id, {"state": "rejected"})
             merge = session.scalar(
                 select(Merge).where(Merge.kept_in == (agent.copy or {}).get("tree")).limit(1)
             )
             if merge is None or not self._undecided(merge):
                 return {"state": "refused", "why": TAKEN}
-            if decision == "reject":
-                return self._pushed(agent.id, {"state": "rejected"})
             if merge.id in self._deciding:
                 return {"state": "refused", "why": UNDER_WAY}
             runtime = self.settings.runtime_root
@@ -295,21 +302,25 @@ class AwayBranchMixin:
                 "title": task.title,
                 "name": agent.name or agent.role_name,
                 "notes": (agent.report or "").strip(),
-                "passed": [
-                    os.environ[key.strip()]
-                    for key in (project.pass_env or "").split(",")
-                    if len(os.environ.get(key.strip(), "")) >= raw.MIN_SECRET
-                ],
             }
+            passed = [
+                os.environ[key.strip()]
+                for key in (project.pass_env or "").split(",")
+                if len(os.environ.get(key.strip(), "")) >= raw.MIN_SECRET
+            ]
             merge_id = merge.id
         if on_branch is None:
             return {"state": "refused", "why": TAKEN}
+        known = spellings_of([*secret_values(os.environ), *passed])
+        for one in known:  # (no secret KOLONİ knows goes up in a commit's message or a PR's words)
+            what["title"], what["notes"] = (
+                what[key].replace(one, "***") for key in ("title", "notes")
+            )
         self._deciding.add(merge_id)
         try:
             copy = _as_branch(
                 copies.kept(Path(what["root"]), runtime, name, tree, recorded, part), on_branch
             )
-            known = spellings_of([*secret_values(os.environ), *what["passed"]])
             copy.secrets = lambda: known
             done = await self._push_held(copy, held, night, what, seen)
         except (OSError, ValueError) as exc:

@@ -32,6 +32,9 @@ test.beforeAll(() => {
   writeFileSync(path.join(REPO, 'hello.py'), "print('hi')\n")
   writeFileSync(path.join(REPO, 'check.py'), "print('===== 1 passed in 0.01s =====')\n")
   git(REPO, 'init', '-q', '-b', 'main')
+  // (the job's own `git commit` needs a name: the repository's, not the machine's)
+  git(REPO, 'config', 'user.email', 'e2e@example.com')
+  git(REPO, 'config', 'user.name', 'e2e')
   git(REPO, 'add', '-A')
   git(REPO, 'commit', '-q', '-m', 'first')
   git(os.tmpdir(), 'init', '-q', '--bare', ORIGIN)
@@ -81,6 +84,7 @@ test('a night job works on its own branch, and its push waits for your Run', asy
   await expect(waiting).toContainText(`Push ${job.branch.name} to origin`, { timeout: 10_000 })
   await waiting.getByRole('button', { name: 'Run' }).click()
   await expect(waiting).toContainText(`Pushed ${job.branch.name} to origin as`, { timeout: 30_000 })
+  expect(git(REPO, 'log', '--format=%s', job.branch.name).split(/\r?\n/)).toContain('tidy') // (the job's own commit)
   const sha = git(ORIGIN, 'rev-parse', `refs/heads/${job.branch.name}`)
   expect(git(ORIGIN, 'log', '-1', '--format=%ae', sha)).toBe('koloni@localhost')
   // Nothing went into the project: main and its files as they were.

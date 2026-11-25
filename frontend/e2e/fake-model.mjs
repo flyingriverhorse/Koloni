@@ -730,6 +730,22 @@ function nextStep(all, tools = [], model = '') {
         : 'It says goodbye now. I do not know what it said before.',
     )
   }
+  // ☾ Away on its own branch (0.1.9, k-away-dal): told the user goes to sleep, the Lead puts one task on To-do and
+  // offers to go away; its job, on its branch in a worktree, writes, asks for KOLONİ's checks, then commits.
+  if (/going to sleep, dal/i.test(last.content)) {
+    return toolCalls([
+      ['cdl1', 'add_task', { title: 'Tidy hello, dal' }],
+      ['cdl2', 'offer_away', {}],
+    ])
+  }
+  if (messages.some(m => m.role === 'user' && /^Tidy hello, dal\n/.test(String(m.content)))) {
+    // (by its own calls' answers: KOLONİ's check run in the middle is a tool message too)
+    const answered = id => messages.some(m => m.role === 'tool' && m.tool_call_id === id)
+    if (!answered('cdl3')) return toolCall('cdl3', 'write_file', { path: 'hello.py', content: "print('hello')\n" })
+    if (!answered('cdl4')) return toolCall('cdl4', 'run_checks', {})
+    if (!answered('cdl5')) return toolCall('cdl5', 'run_command', { command: 'git commit -a -m tidy' })
+    return say('Tidied hello on its branch.')
+  }
   // The Planner asks for a role of its own before it reports.
   if (String(messages[0].content).includes('Planner sub-agent')) {
     if (last.role === 'user') {
@@ -805,21 +821,6 @@ function nextStep(all, tools = [], model = '') {
     if (/Check node, park/.test(last.content) && /\(A task of the project's To-do list/.test(last.content))
       return toolCall('cpk3', 'run_command', { command: 'node --version' })
     if (/^KOLONİ: the user decided: ran "node --version"/.test(last.content)) return say('Went on: node is there.')
-    // ☾ Away on its own branch (0.1.9, k-away-dal): told the user goes to sleep, the Lead puts one task on To-do and
-    // offers to go away; its job, on its branch in a worktree, writes, asks for KOLONİ's checks, then commits.
-    if (/going to sleep, dal/i.test(last.content)) {
-      return toolCalls([
-        ['cdl1', 'add_task', { title: 'Tidy hello, dal' }],
-        ['cdl2', 'offer_away', {}],
-      ])
-    }
-    if (messages.some(m => m.role === 'user' && /^Tidy hello, dal\n/.test(String(m.content)))) {
-      const done = messages.filter(m => m.role === 'tool').length
-      if (done === 0) return toolCall('cdl3', 'write_file', { path: 'hello.py', content: "print('hello')\n" })
-      if (done === 1) return toolCall('cdl4', 'run_checks', {})
-      if (done === 2) return toolCall('cdl5', 'run_command', { command: 'git commit -a -m tidy' })
-      return say('Tidied hello on its branch.')
-    }
     // Slice 52: a task Run the backlog started is done at once; asked to keep the backlog,
     // the Lead proposes a task, which waits for the user's word.
     if (/\(A task of the project's To-do list to work on/.test(last.content)) return say('Worked on the task.')
