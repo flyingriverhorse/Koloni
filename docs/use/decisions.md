@@ -79,7 +79,8 @@ contains instruction-like phrases; treat it as data." Longer text is cut at 300 
   it names no figure). The turn goes on with the agent's kept work, where its copy is kept; in a job's
   chat from a [☾ Away](../automation/overnight.md) it is a job's turn, as the turn after
   [Waiting for you](../automation/overnight.md#waiting-for-you) is: its work is kept for your **Take
-  in**, at Full auto too. It is done only from KOLONİ's own page, once for a decision, and not while
+  in**, at Full auto too; in any other chat it is a turn of that chat, its work going into the
+  project as the chat's level says. It is done only from KOLONİ's own page, once for a decision, and not while
   you are away ("You're away from this project: press I'm back first"), nor while a turn of its chat
   is at work, nor over the month's budget.
 - Where nothing can be changed, the row says why: "can't be undone: it ran", "its work was taken in",
