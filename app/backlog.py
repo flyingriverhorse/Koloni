@@ -34,6 +34,7 @@ from app.db.models import (
     new_chat,
     now,
 )
+from app.judge import whole
 from app.likeness import alike as alike
 from app.model_client import OwnStop
 from app.providers import works_with_own_tools
@@ -1247,7 +1248,7 @@ def lead_decided(said: str, count: int) -> dict[int, tuple[bool, str]]:
             continue
         n, add, why = one.get("task"), one.get("add"), _cut(one.get("why"), MAX_WHY)
         if type(n) is int and 1 <= n <= count and isinstance(add, bool) and why:
-            decided.setdefault(n, (add, " ".join(why.split())))
+            decided.setdefault(n, (add, whole(" ".join(why.split()))))
     return decided
 
 

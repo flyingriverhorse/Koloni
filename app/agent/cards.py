@@ -15,12 +15,13 @@ from typing import Any
 
 from sqlalchemy import func, select
 
-from app import copies
+from app import copies, raw
 from app.agent.ctx import Ctx
 from app.agent.words import GO_ON_AT, RECONNECT, RUN_THERE
 from app.claims import place
 from app.commands import holds_a_key, secret_files
 from app.db.models import Agent, Conversation, Message, Project, Provider
+from app.judge import whole
 from app.model_client import ToolCallRequest
 from app.model_native import ClaudeNativeClient
 from app.roles import can_change_things, shown_name
@@ -55,7 +56,8 @@ def _answer(said: str) -> str:
 def lead_pick(said: str, options: list[str]) -> tuple[str, str] | None:
     """The Lead's answer for the user and its reason, from its JSON line (`LEAD_ASKED`): one of
     `options` as written there, or - with none - one short line; None for anything else, or
-    with no reason: the question waits for the user."""
+    with no reason: the question waits for the user. The reason is kept masked (`raw.hidden`), as
+    the judge's sentence is: Decided for you shows it."""
     try:
         got = json.loads(said[said.find("{") : said.rfind("}") + 1])
     except ValueError:
@@ -63,7 +65,7 @@ def lead_pick(said: str, options: list[str]) -> tuple[str, str] | None:
     answer, why = (got.get("answer"), got.get("why")) if isinstance(got, dict) else (None, None)
     if not isinstance(answer, str) or not isinstance(why, str) or not why.strip():
         return None
-    answer, why = answer.strip(), " ".join(why.split())[:LEAD_WHY_CHARS]
+    answer, why = whole(answer.strip()), raw.hidden(whole(" ".join(why.split())[:LEAD_WHY_CHARS]))
     if options:
         answer = next((one for one in options if one.casefold() == answer.casefold()), "")
     elif len(answer) > LEAD_ANSWER_CHARS or "\n" in answer:

@@ -145,8 +145,8 @@ def verdict(answer: str) -> dict | None:
         return None
     if not isinstance(got, dict) or got.get("verdict") not in VERDICTS:
         return None
-    why = got.get("why")
-    return {"verdict": got["verdict"], "why": " ".join(str(why or "").split())[:WHY_CHARS]}
+    why = judge.whole(" ".join(str(got.get("why") or "").split())[:WHY_CHARS])
+    return {"verdict": got["verdict"], "why": why}
 
 
 def ordinary(command: str, npm_run: bool = False) -> bool:
