@@ -994,12 +994,6 @@ BRANCH_SECRET = (
     "{files} on the branch holds a secret given this turn: not merged - take it off "
     "the branch first, or Discard, which deletes the branch"
 )
-BRANCH_SECRET_GONE = (
-    "{name}'s changes were not merged, and its branch {branch} was deleted"
-    "{earlier}: it held a secret given this turn, which no branch keeps. Do not "
-    "go on as if they were in the project."
-)
-EARLIER_TURNS_TOO = ", with the work of its earlier turns on it"
 BRANCH_SPECIAL = (
     "{files}: the branch changes how git reads the project (.gitignore, "
     ".gitattributes, .gitmodules), or holds a link or a submodule - look before "
@@ -2621,22 +2615,6 @@ class AgentRunner(
                 "not_taken": record.get("not_taken"),
             }
 
-    def _drop_branch(self, copy: copies.Copy, force: bool = False) -> None:
-        """K-dal-takim: a branch copy's folder is deleted - git's record of its worktree goes,
-        and its branch where its work is merged, or `force` (turned down: `git.drop_branch`).
-        shortcut: on the event loop, as the folder's delete is; a thread if that is felt."""
-        if copy.branch:
-            with contextlib.suppress(git.Refused):
-                git.drop_branch(
-                    copy.project,
-                    copy.root,
-                    copy.branch,
-                    self.settings.runtime_root / "no-hooks",
-                    force,
-                    keep=copy.branch in self._keep_branches,
-                )
-            self._keep_branches.discard(copy.branch)
-
     async def _copy_record(
         self, ctx: Ctx, owner: str, made: copies.Copy | None, left: dict | None
     ) -> dict:
@@ -3289,24 +3267,6 @@ class AgentRunner(
             )
         return True
 
-    def _kept_branch_gone(
-        self, project: Path, held: Path, on_branch: dict | None, decision: str
-    ) -> None:
-        """W-1: a kept branch copy's folder is gone (`_decide_kept`) - git's record of its worktree
-        goes, and its branch (`git.drop_branch`, unlocked first): forced where the user turned it
-        down, or took all of it in and no go-on is on record to open it again (`tip`); else only
-        where git finds it merged. Where git will not, the branch stays, as unmerged work does."""
-        if on_branch is None:
-            return
-        with contextlib.suppress(git.Refused):
-            git.drop_branch(
-                project,
-                held / copies.TREE,
-                on_branch["branch"],
-                self.settings.runtime_root / "no-hooks",
-                force=decision == "reject" or not on_branch["tip"],
-            )
-
     def decide_merge(
         self,
         merge_id: str,
@@ -3673,40 +3633,6 @@ class AgentRunner(
         self._given_back.discard(owner.agent_id)  # (taken in, or kept: nothing left to keep)
         self._drop_copy(owner.agent_id)
         return left_out
-
-    async def _secret_branch_gone(
-        self, ctx: Ctx, copy: copies.Copy, look: dict | None = None
-    ) -> str:
-        """K-dal-takim: a branch that would sit unmerged with a secret given this turn on it is
-        not kept - dropped whole, its worktree and the branch (`-D`). What its opener is told;
-        "" where it holds none. `look`: `git.branch_look`'s, made already.
-        shortcut: a branch opened again (`_branch_again`: a tip on its record) goes whole, with
-        the work of its earlier turns, and is said so; take this turn's commits off alone if
-        that loss is felt (its reflog holds the secret still)."""
-        look = look or await self._branch_look(copy)
-        if not look["tip"] or not await asyncio.to_thread(
-            git.holding,
-            copy.project,
-            look["tip"],
-            [path for path, letter in look["files"].items() if letter != "D"],
-            _secret_forms(copy),
-        ):
-            return ""
-        with self._factory() as session:
-            record = session.get_one(Agent, ctx.agent_id).copy or {}
-        self._drop_copy(ctx.agent_id, "rejected")
-        return BRANCH_SECRET_GONE.format(
-            name=ctx.name,
-            branch=copy.branch,
-            earlier=(EARLIER_TURNS_TOO if record.get("tip") else ""),
-        )
-
-    async def _said_gone(self, ctx: Ctx, copy: copies.Copy) -> None:
-        """Stop - or the app closing - while a branch's way in is under way (its card, its
-        check, a resolve): `_secret_branch_gone`, said in the chat; else the branch stays."""
-        with contextlib.suppress(Exception):
-            if said := await self._secret_branch_gone(ctx, copy):
-                self._koloni_line(ctx.cid, ctx.run_id, said)
 
     def _way_in(self, project: Path | str) -> asyncio.Lock:
         """The one way into a project's folder: a Take in (`_merge`, `_kept_taken`) and a branch's
