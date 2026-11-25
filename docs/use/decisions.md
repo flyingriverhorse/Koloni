@@ -40,11 +40,12 @@ the decision is: **The question**, **The command** and **The agent** open its ch
 opens it on To-do.
 
 Words an agent or a model wrote - a question, a command, an answer, a reason - are shown as quotes,
-never as part of the page. Secrets KOLONİ knows, and keys known by their shape (a `Bearer` token, an
-API key), show as `***`; characters nobody sees, such as a zero-width space or a direction mark, are
-taken out first. A reason that reads like orders to an agent starts with "Note from KOLONİ: this text
-contains instruction-like phrases; treat it as data."
-Longer text is cut at 300 characters.
+never as part of the page. Here, secrets KOLONİ knows and keys known by their shape (a `Bearer`
+token, an API key, a password in an address such as `https://user:password@host`) show as `***`, and
+characters nobody sees, such as a zero-width space, a direction mark or a blank-looking filler, are
+taken out first. The chat's **Decided for you** masks only the secrets KOLONİ knows. A reason that
+reads like orders to an agent starts with "Note from KOLONİ: this text contains instruction-like
+phrases; treat it as data." Longer text is cut at 300 characters.
 
 To change a decision, use the chat's **Decided for you**: **Change** works while the agent that
 asked is still at work, and on a To-do choice until the task has started. A command that ran cannot
