@@ -328,10 +328,13 @@ def test_the_judges_fine_is_counted_not_listed(client, tmp_path):
     assert not [row for row in got["rows"] if row["quote"] == "pytest"]
 
 
-def test_nothing_writes_a_decision(client, tmp_path):
+def test_nothing_writes_a_decision_and_the_page_key_reads_them(client, tmp_path):
     pid, _cid = chat(client, tmp_path / "a")
     for method in ("post", "put", "patch", "delete"):
         assert getattr(client, method)(f"/api/projects/{pid}/decisions").status_code == 405
+    # (An agent's command against the app's address, with no page key: refused.)
+    bare = client.get(f"/api/projects/{pid}/decisions", headers={"X-KOLONI-Key": ""})
+    assert bare.status_code == 401
 
 
 def test_a_secret_is_masked_and_words_that_read_like_orders_are_marked(
