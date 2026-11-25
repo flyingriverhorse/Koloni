@@ -21,6 +21,8 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-25
+
 ### Added
 
 - **To-do**: **Do in chat**: tick tasks, or a whole story, on To-do and give them to the chat open now or to a new one: they wait in that chat's queue and run there one by one - each story in a topic of its own, where its tasks go on in one session, a task of no story in a topic of its own - and your own message still goes first. A stop, a restart or the month's budget stops the queue, the tasks back on To-do and one line in the chat saying why; Stop everything and ☾ Away only hold it until you resume or are back ([docs](docs/automation/todo.md)).
