@@ -1041,7 +1041,7 @@ def test_a_secret_the_agent_committed_itself_is_never_merged_not_even_on_a_click
         ],
     )
     merge = card(client, cid)
-    assert "holds a secret given this turn" in merge["branch"]["note"]
+    assert "holds a secret KOLONİ knows" in merge["branch"]["note"]
     assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 200
     merge = card(client, cid)  # (still asked: nothing merged)
     assert not (repo / "token.txt").exists()
@@ -1067,7 +1067,7 @@ def test_stop_while_a_card_waits_on_a_secret_deletes_the_branch_and_says_so(
             text("A done"),
         ],
     )
-    assert "holds a secret given this turn" in card(client, cid)["branch"]["note"]
+    assert "holds a secret KOLONİ knows" in card(client, cid)["branch"]["note"]
     if how == "stop":
         assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
         snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -1110,7 +1110,7 @@ def test_stop_while_the_check_of_a_card_blocked_by_a_secret_runs_deletes_the_bra
         project=root_runs(),
     )
     merge = card(client, cid)
-    assert "holds a secret given this turn" in merge["branch"]["note"]
+    assert "holds a secret KOLONİ knows" in merge["branch"]["note"]
     assert client.post(f"/api/merges/{merge['id']}/check").status_code == 200
     until(client, cid, lambda s: "running" in [c["status"] for c in s["commands"]], timeout=LONG)
     assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202

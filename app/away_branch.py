@@ -70,6 +70,7 @@ PUSH_LINE = (
     "at {tip7}"
 )
 PUSH_PR = " · opens a pull request into {into}"
+PUSH_LEFT = " · left out: {files} (holds a secret KOLONİ knows)"  # (HIGH-1)
 PUSH_WHY = "A push leaves this machine: it waits for your Run"
 MARKS = {"green": "✓", "red": "✗"}
 
@@ -279,7 +280,9 @@ def push_line(away: dict, name: str, into: str | None, pull_request: bool) -> st
         mark=MARKS.get(away.get("checks") or "", "…"),
         tip7=(away.get("tip") or "")[:7],
     )
-    return said + (PUSH_PR.format(into=into) if pull_request and into else "")
+    said += PUSH_PR.format(into=into) if pull_request and into else ""
+    left = away.get("left_out") or []
+    return said + (PUSH_LEFT.format(files=", ".join(left)) if left else "")
 
 
 def record(session: Session, cid: str) -> tuple[Agent, dict] | None:

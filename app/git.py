@@ -2797,10 +2797,10 @@ def branch_look(
 
 def holding(project: Path, tip: str, paths: Iterable[str], needles: Sequence[bytes]) -> list[str]:
     """Of these files at the commit `tip` (`branch_look`'s), those whose content there - what a
-    merge of it brings in - holds any of `needles` (bytes): read from git's objects, as stored,
-    no filter. Fails closed: a file that cannot be read counts as holding one - but a submodule,
-    which has no content here. `paths`: files the branch did not delete. Refused as
-    `repository`."""
+    merge of it brings in - or whose path holds any of `needles` (bytes; MEDIUM-3): read from git's
+    objects, as stored, no filter. Fails closed: a file that cannot be read counts as holding one -
+    but a submodule, which has no content here. `paths`: files the branch did not delete. Refused
+    as `repository`."""
     git, _folder = repository(project)
     found = []
     for path in paths if needles else ():
@@ -2827,7 +2827,7 @@ def holding(project: Path, tip: str, paths: Iterable[str], needles: Sequence[byt
             )[1].strip()
             if kind != b"commit":
                 found.append(path)
-        elif any(needle in out for needle in needles):
+        elif any(needle in out or needle in path.encode() for needle in needles):
             found.append(path)
     return found
 

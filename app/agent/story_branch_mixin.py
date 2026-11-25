@@ -5,18 +5,16 @@ and merges it, or opens a pull request (`AgentRunner._merge_branch`)."""
 
 import asyncio
 import contextlib
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import backlog, copies, git, raw, stories
+from app import backlog, copies, git, stories
 from app.agent.ctx import Ctx, announce
 from app.agent.merge import _secret_forms
-from app.commands import secret_values, spellings_of
-from app.db.models import Agent, BacklogTask, Conversation, Project, Run, Story, now
+from app.db.models import Agent, BacklogTask, Run, Story, now
 from app.team import only_in_project
 
 if TYPE_CHECKING:
@@ -147,22 +145,14 @@ class StoryBranchMixin:
         with self._factory() as session:
             lead = stories.branch_lead(session, story_id)
             held = (session.get_one(Agent, lead).copy or {}) if lead else {}
-            project = session.get_one(
-                Project, session.get_one(Conversation, ctx.cid).project_id or ""
-            )
-            passed = [
-                os.environ[name.strip()]
-                for name in (project.pass_env or "").split(",")
-                if len(os.environ.get(name.strip(), "")) >= raw.MIN_SECRET
-            ]
         branch = held.get("on_branch") or held.get("left_on") or ""
         copy = None
         if ctx.run_id in self._branch_runs:
             await self._git_start(ctx)
             copy = await self._working_copy(ctx, ctx.agent_id)
         if copy is not None and copy.branch:
-            known = spellings_of([*secret_values(os.environ), *passed])
-            copy.secrets = lambda run_id=ctx.run_id: [*self.given_spellings(run_id), *known]
+            # (and every secret KOLONİ checks, at its merge: `Copy.every_secret`, MEDIUM-2)
+            copy.secrets = lambda run_id=ctx.run_id: self.given_spellings(run_id)
             return "completed", None
         why = self._no_branch.get(ctx.agent_id) or NOT_ON_A_BRANCH
         self._drop_copy(ctx.agent_id)  # (a plain copy in its place is nothing to take in)
@@ -265,7 +255,7 @@ class StoryBranchMixin:
             copy.project,
             look["tip"],
             [path for path, letter in look["files"].items() if letter != "D"],
-            _secret_forms(copy),
+            _secret_forms(copy, every=False),  # (HIGH-1: one KOLONİ knows stops it, never drops it)
         ):
             return ""
         with self._factory() as session:

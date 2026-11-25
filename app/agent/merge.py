@@ -24,7 +24,7 @@ from typing import Literal, NamedTuple
 from sqlalchemy import and_, func, literal_column, or_, select
 from sqlalchemy.orm import object_session
 
-from app import away, backlog, copies, git, koloni, project_view, proof, raw, recipe_run, web
+from app import away, backlog, copies, git, koloni, project_view, proof, recipe_run, web
 from app import room as rooms
 from app.agent.ctx import TERMINAL, Ctx
 from app.agent.words import (
@@ -499,23 +499,23 @@ def _branch_files(
 
 
 def _secret_forms(copy: copies.Copy, every: bool = True) -> list[bytes]:
-    """K-dal-takim: the secrets given in a branch copy's turn (`Copy.secrets`) - and, `every` (what
-    a merge or a push looks for - S1), all KOLONİ knows (`raw.known`: its keys, the page's) - as
-    they are looked for in bytes: UTF-8 and UTF-16-LE."""
-    known = {*copy.secrets(), *(raw.known() if every else [])}
+    """K-dal-takim: the secrets given in a branch copy's turn (`Copy.secrets`) - and, `every` (S1,
+    MEDIUM-2), all KOLONİ checks (`Copy.every_secret`) - as they are looked for in bytes: UTF-8 and
+    UTF-16-LE. Not `every`: what drops a branch whole (`_secret_branch_gone`) - the turn's alone."""
+    known = copy.every_secret() if every else copy.secrets()
     return [form for one in known if one for form in (one.encode("utf-8"), one.encode("utf-16-le"))]
 
 
-def _secret_in(copy: copies.Copy, path: str) -> bool:
-    """K-dal-takim: whether a file of a branch's worktree holds a secret given in its turn
-    (`Copy.secrets`), as UTF-8 or UTF-16 bytes, in a file of any text or none: it is not
-    committed - git would keep it after the branch is gone."""
-    place, forms = copy.here(path), _secret_forms(copy, every=False)  # (a commit's own hold)
+def _secret_in(copy: copies.Copy, path: str, every: bool = False) -> bool:
+    """K-dal-takim: whether a file of a copy holds a secret given in its turn (`Copy.secrets`;
+    `every`: all KOLONİ checks - a branch's own commit, HIGH-1) as UTF-8 or UTF-16 bytes, in a file
+    of any text or none, or in its name (MEDIUM-3): it is not committed - git would keep it."""
+    place, forms = copy.here(path), _secret_forms(copy, every)
     try:
         data = place.read_bytes() if forms and place and place.is_file() else b""
     except OSError:
         return False
-    return any(form in data for form in forms)
+    return any(form in data or form in path.encode() for form in forms)
 
 
 def kept_work(copy: copies.Copy, lead_id: str) -> list[tuple[proof.Change, str]]:

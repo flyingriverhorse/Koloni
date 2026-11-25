@@ -993,7 +993,7 @@ BRANCH_THEIRS = (
     "merge would write over it"
 )
 BRANCH_SECRET = (
-    "{files} on the branch holds a secret given this turn: not merged - take it off "
+    "{files} on the branch holds a secret KOLONİ knows: not merged - take it off "
     "the branch first, or Discard, which deletes the branch"
 )
 BRANCH_SPECIAL = (
@@ -3653,7 +3653,7 @@ class AgentRunner(
                     .limit(1)
                 )
         first = ((task or "").strip().splitlines() or [branch])[0][:COMMIT_LINE]
-        for one in copy.secrets():  # (a secret given this turn goes into no commit's message)
+        for one in copy.every_secret():  # (no secret KOLONİ checks goes into a commit's message)
             first = first.replace(one, "***") if one else first
         try:
             held = await self._commit_line(ctx, copy, first)
@@ -3977,9 +3977,9 @@ class AgentRunner(
                 if not copies.under(path.split("/"), copies.LINKED | copies.NOT_COPIED)
             }
         )
-        # Not committed: a file holding a secret given this turn, and a new one where the project
+        # Not committed: a file holding a secret KOLONİ checks, and a new one where the project
         # has its own file (git ignores it there - the merge would write over the user's).
-        held = {path: SECRET_IN_COPY for path in changed if _secret_in(copy, path)} | {
+        held = {path: SECRET_IN_COPY for path in changed if _secret_in(copy, path, True)} | {
             path: BRANCH_THEIRS
             for path, kind, state in found
             if kind == "new" and state == "conflict"
@@ -4153,7 +4153,7 @@ class AgentRunner(
             notes=notes[:PR_NOTES] or "(none)",
         )
         title = first
-        for one in copy.secrets():
+        for one in copy.every_secret():  # (MEDIUM-2: its files' names too, MEDIUM-3)
             if one:
                 body, title = body.replace(one, "***"), title.replace(one, "***")
         if sent.get("tip") == look["tip"]:

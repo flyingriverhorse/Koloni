@@ -745,6 +745,13 @@ class Copy:
             return kind, "left_out"  # (B-189: `changes`; `git`: one the project has, a conflict)
         return kind, "ready" if there in (was, here) else "conflict"
 
+    def every_secret(self) -> list[str]:
+        """MEDIUM-2: the secrets given in its turn (`secrets`) and all KOLONİ checks a branch's
+        commit, merge and push for (`secret_set.checked`), as they are looked for."""
+        from app import secret_set  # (here: app.secret_set reads app.commands, which reads this)
+
+        return secret_set.checked(self.secrets())
+
     def changes(
         self, base: dict[str, str] | None = None, names: dict[str, str] | None = None
     ) -> list[tuple[str, str, str]]:

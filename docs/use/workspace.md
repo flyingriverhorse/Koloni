@@ -114,10 +114,12 @@ branch began from your uncommitted work, a pull request waits for your click at 
 too: the card says why ("you have 2 commits not on GitHub yet", "you have a stash not on GitHub yet";
 "not on origin" where the push goes to a folder or another host), so you can check its files are the
 agent's work. KOLONİ never pushes onto a branch of the same name origin has already, a fast-forward
-too: "origin already has a branch named …: nothing was pushed". Nor does a branch that holds a secret
-KOLONİ knows - a provider key or an MCP server's value you saved, the page's key, one given on a card,
-one of the environment's - go up or into your branch: nothing goes, and KOLONİ says "take it off
-the branch first". Where a commit of yours not pushed is in another worktree, the
+too: "origin already has a branch named …: nothing was pushed". Nor does a secret KOLONİ knows - a
+provider key you saved, an MCP server's variable a secret's name holds, the page's key, one given on a
+card, one of the environment's or a value the project passes to its commands - go up or into your
+branch, in a file or in its name: KOLONİ's own commit leaves such a file out and its card says so, and
+a branch an agent committed one on itself is neither merged nor pushed ("take it off the branch
+first"). The rest of the work goes on; an ordinary value (`production`, a path) stops nothing. Where a commit of yours not pushed is in another worktree, the
 card names that worktree's folder; if you deleted that folder by hand, git still keeps the worktree and
 its commit, and `git worktree prune` lets git drop it. A worktree of yours where you look at the agent's
 branch (`git worktree add --detach <folder> koloni/…`) does not make its commits yours, nor does a

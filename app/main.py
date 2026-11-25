@@ -36,7 +36,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import backup as backups
-from app import earlier, mcp_client, models_dev, raw, web
+from app import earlier, mcp_client, models_dev, raw, secret_set, web
 from app.agent import (
     AgentRunner,
     recover_copies,
@@ -92,6 +92,7 @@ from app.api import (
 )
 from app.api.deps import carries_key, require_own_origin
 from app.away import send as send_night
+from app.commands import secret_values
 from app.config import Settings, load_settings
 from app.db.models import Agent, Flag, McpServer, Project, Provider, now
 from app.db.session import (
@@ -319,6 +320,25 @@ def known_secrets(factory, settings: Settings) -> list[str | None]:
         ]
 
 
+def loose_values(factory) -> list[str]:
+    """HIGH-1: the MCP servers' values no secret's name holds (`NODE_ENV=production`, `HOME`) -
+    masked where text is shown, but no secret a branch's look stops on, nor one a kept reason is
+    masked of (`raw.known`); not one a secret's name holds too, nor a provider's key."""
+    with factory() as session:
+        envs = [server.env for server in session.scalars(select(McpServer))]
+        keys = set(session.scalars(select(Provider.api_key)))
+    named = {value for env in envs for value in secret_values(env)} | keys
+    return [value for env in envs for value in env.values() if value not in named]
+
+
+def passed_values(factory) -> list[str]:
+    """MEDIUM-2: the values of the variables the projects pass to their commands (`pass_env`) -
+    what an agent can see, whatever their names (`secret_set.checked`)."""
+    with factory() as session:
+        names = ",".join(filter(None, session.scalars(select(Project.pass_env)))).split(",")
+    return [value for name in names if (value := os.environ.get(name.strip()))]
+
+
 def create_app(
     settings: Settings,
     model: ModelClient | None = None,
@@ -461,8 +481,10 @@ def create_app(
             *known_secrets(factory, settings),
             *app.state.runner.given_spellings(),
             app.state.page_key,
-        ]
+        ],
+        lambda: loose_values(factory),
     )
+    secret_set.passed = lambda: passed_values(factory)
     app.state.bus = EventBus(factory)
     # Set by the server's exit signal (`ClosingServer`): the page's open streams end on it.
     app.state.closing = asyncio.Event()
