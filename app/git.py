@@ -9,7 +9,6 @@ is started in, whatever KOLONİ itself was started with.
 """
 
 import contextlib
-import json
 import os
 import re
 import shutil
@@ -19,7 +18,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from pathlib import Path, PureWindowsPath
 
 from app.executors.winjob import Job
@@ -113,12 +112,18 @@ def _started(
     }
     # (Windows looks for a program in the folder it is started in first: not here. And
     # a look at the user's repository takes no lock it could do without: it neither
-    # rewrites their index nor stands in the way of a git command of their own.)
+    # rewrites their index nor stands in the way of a git command of their own. And no object
+    # is read as another (`git replace`: a ref anything in the repository may write; a graft of
+    # `info/grafts`, read from a file that is never there) - what is looked at, committed and
+    # pushed is what its id names. No sign-in window opens (Git Credential Manager's).)
     env.update(
         {
             "NoDefaultCurrentDirectoryInExePath": "1",
             "GIT_TERMINAL_PROMPT": "0",
+            "GCM_INTERACTIVE": "never",
             "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_GRAFT_FILE": os.path.join(os.devnull, "koloni-no-grafts"),
             **more,
         }
     )
@@ -714,6 +719,9 @@ FILTER_KEYS = ("clean", "smudge", "process")
 # .git/hooks are put back after the command (K-yazma-denetimi), but objects/info/alternates is
 # not looked at; look at those files first if that changes.
 UNASKED = ("-c", "protocol.allow=never")
+# What the push's ancestry is read without: a commit-graph file anything in the repository may write
+# (its parents are taken from it as they are) - `push_one`, `_said_or_refused`.
+NO_GRAPH = ("-c", "core.commitGraph=false")
 UNASKED_ENV = {"GIT_NO_LAZY_FETCH": "1"}
 
 
@@ -3326,7 +3334,8 @@ GH_ENV = {
 PUSH_SECONDS = 120.0
 # How a push may reach the remote: no protocol that runs a program (`ext::`), nor plain http;
 # a local one (file) for a remote on this machine.
-# No tag goes along (`followTags`), nothing is signed, no submodule pushed.
+# No tag goes along (`followTags`), nothing is signed, no submodule pushed, no push option of the
+# config's sent (an empty `push.pushOption` resets its list).
 PUSH_OWN = (
     "-c",
     "protocol.allow=never",
@@ -3342,6 +3351,8 @@ PUSH_OWN = (
     "push.followTags=false",
     "-c",
     "push.gpgSign=false",
+    "-c",
+    "push.pushOption=",
 )
 NO_GH = "gh (GitHub's CLI) is not installed"
 NOT_IN = "gh is not logged in: run gh auth login"
@@ -3442,128 +3453,6 @@ def pr_ready(project: Path) -> tuple[str | None, str | None]:
     return name, None
 
 
-# --- Item 57: a chat started from a GitHub issue - read with the user's own gh, never a token --
-# shortcut: gh issue JSON fields not measured live (`gh issue list/view --json`, as gh's manual
-# names them), measure once with the user's OK.
-ISSUE_URL = re.compile(r"https://github\.com/([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/issues/(\d{1,9})")
-ISSUE_SECONDS = 30.0  # (gh asks GitHub: longer than a look at the repository)
-MOST_ISSUE = 20_000  # characters of an issue's text, its comments with it
-# (read_attachment gives 400 lines at once: the whole issue, its frame with it, in one read)
-MOST_LINES = 380
-CUT = "\n…(cut: the rest is on GitHub)"
-
-
-def issue_ref(raw: str) -> str:
-    """What gh is given for an issue the user names: its number in the project's repository
-    (`#12`, `12`) or its address on github.com - written anew from what was matched, so
-    nothing else reaches gh's command line. Refused, for anything else."""
-    raw = raw.strip()
-    if number := re.fullmatch(r"#?(\d{1,9})", raw):
-        return str(int(number[1]))
-    # (Nor a name of dots alone - a way up - or one that starts as an option.)
-    if (found := ISSUE_URL.fullmatch(raw)) and not any(
-        name.strip(".") == "" or name.startswith("-") for name in (found[1], found[2])
-    ):
-        return f"https://github.com/{found[1]}/{found[2]}/issues/{int(found[3])}"
-    raise Refused(
-        "an issue is its number (#12) or its address (https://github.com/owner/repo/issues/12)"
-    )
-
-
-def _gh_json(project: Path, *args: str) -> object:
-    """What a read-only `gh issue` command answers, as JSON. Refused, with why."""
-    # shortcut: what gh writes is read whole, bounded by its time (`ISSUE_SECONDS`) alone - `run`
-    # reads with `communicate`; read in pieces and stop at a few MB if a huge answer is seen.
-    # shortcut: gh runs in the project with its git hooks off (`_gh_env`), so a project that is no
-    # git repository's top folder opens no issue, not even by address; run it elsewhere if asked.
-    command = gh()
-    if command is None:
-        raise Refused(NO_GH)
-    with tempfile.TemporaryDirectory(prefix="no-hooks-") as empty:
-        env = _gh_env(project, empty)
-        if run([*command, "auth", "status"], project, SHORT_SECONDS, program="gh", **env)[0]:
-            raise Refused(NOT_IN)
-        code, out, said = run(
-            [*command, "issue", *args], project, ISSUE_SECONDS, program="gh", **env
-        )
-    if code != 0:
-        raise Refused(f"gh issue {args[0]} failed: {_text(out, said)[-TAIL:]}")
-    try:
-        return json.loads(out.decode("utf-8", "replace"))
-    except ValueError:
-        raise Refused(f"gh issue {args[0]} said no JSON") from None
-
-
-def issues(project: Path) -> tuple[list[dict], str | None]:
-    """The open issues of the project's GitHub repository, latest first (gh's own order) - or
-    none and why: gh not installed or logged in, no GitHub remote, gh failed."""
-    name, why = gh_repo(project)
-    if name is None:
-        return [], why
-    # shortcut: the first 30 open issues, no search or paging; add them when a repository's list
-    # is seen to be longer than that and the one wanted is not pasted.
-    try:
-        found = _gh_json(
-            project,
-            "list",
-            f"--repo={name}",
-            "--state=open",
-            "--limit=30",
-            "--json=number,title,url,updatedAt",
-        )
-    except Refused as refused:
-        return [], str(refused)
-    return [
-        {
-            "number": one["number"],
-            "title": str(one.get("title") or ""),
-            "url": str(one.get("url") or ""),
-            "updated_at": one.get("updatedAt"),
-        }
-        for one in found
-        if isinstance(one, dict) and isinstance(one.get("number"), int)
-    ] if isinstance(found, list) else [], None
-
-
-def issue(project: Path, ref: str) -> dict:
-    """One issue (`issue_ref`'s): its number, its address, and its text - title, state,
-    author, body, then each comment, oldest first - cut at `MOST_ISSUE`. One by number is of
-    the project's repository; one by address of any. Refused, with why."""
-    ref = issue_ref(ref)
-    if ref.isdigit():
-        name, why = gh_repo(project)
-        if name is None:
-            raise Refused(why)
-        args = [ref, f"--repo={name}"]
-    else:
-        args = [ref]
-    found = _gh_json(project, "view", *args, "--json=number,title,body,url,state,author,comments")
-    if not isinstance(found, dict) or not isinstance(found.get("number"), int):
-        raise Refused("gh issue view said no issue")
-
-    def who(one: dict) -> str:
-        author = one.get("author")
-        return str(author.get("login") or "?") if isinstance(author, dict) else "?"
-
-    url, state = str(found.get("url") or ""), str(found.get("state") or "").lower()
-    parts = [
-        f"Issue #{found['number']}: {found.get('title') or ''}",
-        f"{url} ({state}, opened by {who(found)})",
-        "",
-        str(found.get("body") or "").strip() or "(no text)",
-    ]
-    for one in found.get("comments") or []:
-        if isinstance(one, dict):
-            parts += ["", f"--- {who(one)} commented:", str(one.get("body") or "").strip()]
-    lines = "\n".join(parts).splitlines()  # (as read_attachment counts them)
-    text = "\n".join(lines)
-    # shortcut: cut from the end - the newest comments go first; keep the body and the latest
-    # comments, cutting the middle, if a long thread's end is seen to matter.
-    if len(text) > MOST_ISSUE or len(lines) > MOST_LINES:
-        text = "\n".join(text[: MOST_ISSUE - len(CUT)].split("\n")[: MOST_LINES - 1]) + CUT
-    return {"number": found["number"], "url": url, "text": text}
-
-
 # Why a pull request is not pushed: the branch took in commits not on origin (`_taken_in_unpushed`)
 # - the user's, where their own refs hold them; else whose is not known (a pick of theirs is a new
 # commit; the branch's reflog expired).
@@ -3614,10 +3503,17 @@ def _made_on(project: Path, git: str, branch: str) -> set[str]:
 
 
 def _taken_in_unpushed(
-    project: Path, git: str, source: str, start: str, branch: str, snapshot: str | None
+    project: Path,
+    git: str,
+    source: str,
+    start: str,
+    branch: str,
+    snapshot: str | None,
+    origin: Collection[str],
 ) -> list[str]:
     """Of the commits on the branch since it was made (`start..source`) that no branch of origin's
-    holds, as git last fetched it, those not made on it (`_made_on`; the snapshot it began from,
+    holds (`origin`: as origin itself says, `_origin_holds`), those not made on it (`_made_on`; the
+    snapshot it began from,
     KOLONİ's, aside): what came in from elsewhere - the user's branch or another merged in (by D2
     or by its agent's own merge: a parent of it), fast-forwarded to, rebased onto, cherry-picked.
     Their ids; Refused where git does not say (fails closed).
@@ -3626,20 +3522,8 @@ def _taken_in_unpushed(
     some of those run unasked at Full auto: `_users_content` reads the pushed files themselves,
     and a pull request is asked about while the user has commits not on origin
     (`unpushed_count`)."""
-    code, out, said = _in(
-        project,
-        git,
-        *UNASKED,
-        "rev-list",
-        source,
-        f"^{start}",
-        "--not",
-        "--remotes=origin",
-        seconds=SHORT_SECONDS,
-        **UNASKED_ENV,
-    )
-    if code != 0:
-        raise Refused(f"git rev-list failed: {_text(out, said)[-TAIL:]}")
+    lines = [source.encode(), f"^{start}".encode(), *_origin_nots(origin)]
+    out = _said_or_refused(project, git, b"\n".join(lines) + b"\n", "rev-list", "--stdin")
     made = _made_on(project, git, branch) | ({snapshot} if snapshot else set())
     return [sha for sha in out.decode("ascii", "replace").split() if sha not in made]
 
@@ -3651,8 +3535,17 @@ USERS_CONTENT = (
 )
 
 
+def origin_held(project: Path) -> set[str]:
+    """`_origin_held`, asked once for a caller's `unpushed_count` and `unpushed_places`."""
+    git, _folder = repository(project)
+    return _origin_held(project, git)
+
+
 def unpushed_count(
-    project: Path, under: Iterable[Path], branch: str | None = None
+    project: Path,
+    under: Iterable[Path],
+    branch: str | None = None,
+    origin: Collection[str] | None = None,
 ) -> tuple[int, int]:
     """How many commits of the user's no branch of origin's holds, as git last fetched it
     (`_users_unpushed`, `under` KOLONİ's copies folders, `branch` the pull request's) - all of
@@ -3660,7 +3553,10 @@ def unpushed_count(
     index, its untracked files) are one stash, not commits. Refused as `repository`, and where git
     does not say."""
     git, _folder = repository(project)
-    found = set(_users_unpushed(project, git, under, branch).decode("ascii", "replace").split())
+    origin = _origin_held(project, git) if origin is None else origin
+    found = set(
+        _users_unpushed(project, git, under, branch, origin).decode("ascii", "replace").split()
+    )
     stashes = (
         [
             line.split()
@@ -3678,18 +3574,22 @@ def unpushed_count(
 
 
 def unpushed_places(
-    project: Path, under: Iterable[Path], branch: str | None = None
+    project: Path,
+    under: Iterable[Path],
+    branch: str | None = None,
+    origin: Collection[str] | None = None,
 ) -> list[tuple[Path, bool]]:
     """The user's other worktrees whose HEAD, or its reflog, holds a commit of theirs no branch of
     origin's holds (`unpushed_count`) that neither a branch of theirs nor the project's HEAD does:
     each its folder, and whether that is still there (git keeps a worktree whose folder was deleted
     until `git worktree prune`). Refused as `unpushed_count`."""
     git, _folder = repository(project)
-    found = set(_users_unpushed(project, git, under, branch).split())
+    origin = _origin_held(project, git) if origin is None else origin
+    found = set(_users_unpushed(project, git, under, branch, origin).split())
     nots = [
         b"^HEAD",
         *(b"^" + head.encode() for head in _users_heads(project, git)),
-        *_origin_nots(project, git),
+        *_origin_nots(origin),
     ]
     places = []
     for tip, tree, log, drop in _users_worktrees(project, git, under) if found else []:
@@ -3724,11 +3624,10 @@ def _users_heads(project: Path, git: str) -> list[str]:
     ]
 
 
-def _origin_nots(project: Path, git: str) -> list[bytes]:
-    """What origin's branches hold, as rev-list's --stdin takes it away (`^<commit>`)."""
-    return _said_or_refused(
-        project, git, None, "for-each-ref", "--format=^%(objectname)", "refs/remotes/origin/"
-    ).split()
+def _origin_nots(origin: Iterable[str]) -> list[bytes]:
+    """What origin's branches hold (`origin`: their commits, as origin itself says them -
+    `_origin_holds`), as rev-list's --stdin takes it away (`^<commit>`)."""
+    return [b"^" + sha.encode() for sha in origin]
 
 
 def _users_worktrees(
@@ -3827,10 +3726,16 @@ def _logged(project: Path, git: str, ref: str) -> list[tuple[str, str]]:
 
 
 def _users_unpushed(
-    project: Path, git: str, under: Iterable[Path], branch: str | None = None
+    project: Path,
+    git: str,
+    under: Iterable[Path],
+    branch: str | None = None,
+    origin: Collection[str] = (),
 ) -> bytes:
-    """The commits of the user's that no branch of origin's holds: what every ref of theirs reaches
-    (`--all`: branches, tags, other remotes, the stash, this worktree's HEAD - KOLONİ's branches
+    """The commits of the user's that no branch of origin's holds (`origin`: their commits, as
+    origin itself says them - `_origin_holds`; never a remote-tracking ref of the repository's,
+    which anything there may write: such a ref is one of the user's): what every ref of theirs
+    reaches (`--all`: branches, tags, remotes, the stash, this worktree's HEAD - KOLONİ's branches
     aside - and the HEADs of their other worktrees: `_users_worktrees`, KOLONİ's aside)
     and what their branches', the stash's and those HEADs' reflogs do (an amended one, a stash below
     the top, a commit on a detached HEAD, on a branch deleted since) - with the commits stashes keep
@@ -3853,7 +3758,7 @@ def _users_unpushed(
         tip.encode() for tip, _tree, _log, _drop in others if tip and _verified(project, git, tip)
     ]
     # (No empty line: rev-list's --stdin stops reading at one, and the ^origin ones would be lost.)
-    lines = [*(sha.encode() for sha, _says in entries), *tops, *_origin_nots(project, git)]
+    lines = [*(sha.encode() for sha, _says in entries), *tops, *_origin_nots(origin)]
     out = _said_or_refused(
         project,
         git,
@@ -3875,7 +3780,7 @@ def _users_unpushed(
             _said_or_refused(
                 project,
                 git,
-                b"\n".join(_origin_nots(project, git)) + b"\n",
+                b"\n".join(_origin_nots(origin)) + b"\n",
                 "rev-list",
                 # (--branches' and --remotes' patterns are their refs' short names)
                 "--ignore-missing",
@@ -3896,7 +3801,7 @@ def _users_unpushed(
 
 def _said_or_refused(project: Path, git: str, stdin: bytes | None, *args: str) -> bytes:
     code, out, said = _fed(
-        project, git, stdin, *UNASKED, *args, seconds=SHORT_SECONDS, **UNASKED_ENV
+        project, git, stdin, *UNASKED, *NO_GRAPH, *args, seconds=SHORT_SECONDS, **UNASKED_ENV
     )
     if code != 0:
         raise Refused(f"git {args[0]} failed: {_text(out, said)[-TAIL:]}")
@@ -3921,6 +3826,7 @@ def _users_content(
     under: Iterable[Path],
     snapshot: str | None = None,
     branch: str | None = None,
+    origin: Collection[str] = (),
 ) -> list[str]:
     """The files a push would add or change (`tip` against `base`) that hold exactly what a commit
     of the user's not on origin introduced (`_users_unpushed`: their branches, stashes, a detached
@@ -3928,7 +3834,7 @@ def _users_content(
     was made on it) - or what the branch's `snapshot` took of their folder, not committed: their
     work copied onto the branch. An empty file is no one's. Refused where git does not say (fails
     closed)."""
-    commits = _users_unpushed(project, git, under, branch)
+    commits = _users_unpushed(project, git, under, branch, origin)
     held: set[str] = set()
     if commits.strip():
         held |= set(
@@ -3990,23 +3896,32 @@ def push_one(
     """Push the branch's commit `tip` to the remote "origin", as `branch` there, as ONE commit
     by KOLONİ - its tree, on where it left the project's branch `into`: what `merge_branch`
     would bring in, not the agents' own steps (a secret committed and taken out). Only where
-    origin has that place already (`refs/remotes/origin/<into>` holds it): the user's own
+    origin has that place already (origin's own `<into>`, as origin itself says it - fetched: no
+    remote-tracking ref of the repository's is read, `_origin_holds`): the user's own
     commits not pushed yet do not go up under it - nor, `start`, the commit the branch was made
     from (a local branch of theirs it left since) - nor what the branch took in that origin does not
     hold (`_taken_in_unpushed`, of `source`: the branch's own tip, where `tip` is its share - W-1,
     `snapshot` the commit it began from):
     once the user rewrote or dropped such a commit, where the branch left theirs is its start,
     and the commit's content would go up under it. Never forced: a branch of that name there
-    already refuses it. No hook, tag or signing of the repository's; git's own receive-pack.
+    already refuses it. No hook, tag, push option or signing of the repository's; git's own
+    receive-pack; to the one address origin was asked at (`push_address`), never rewritten.
     `under`: KOLONİ's copies folders - its worktrees there are not the user's (`_users_unpushed`).
     Returns the commit pushed. Refused, with why."""
     if not branch.startswith(BRANCH_PREFIX):
         raise Refused(f"{branch} is not a branch KOLONİ made")
     git, _folder = repository(project)
+    if not (url := push_address(project)):
+        raise Refused(NO_ADDRESS)
+    # (what origin holds, as origin says it - never a remote-tracking ref of the repository's)
+    listed, origin = _origin_holds(project, git, url)
+    if into in listed and listed[into] not in origin:
+        raise Refused(FETCH_FIRST.format(into=into))
     code, out, said = _in(
         project,
         git,
         *UNASKED,
+        *NO_GRAPH,
         "merge-base",
         f"refs/heads/{into}",
         tip,
@@ -4016,18 +3931,20 @@ def push_one(
     if code != 0:
         raise Refused(f"git merge-base failed: {_text(out, said)[-TAIL:]}")
     base = out.decode("ascii", "replace").strip()
-    if any(
-        _in(project, git, "merge-base", "--is-ancestor", one, f"refs/remotes/origin/{into}")[0]
+    if into not in listed or any(
+        _in(project, git, *NO_GRAPH, "merge-base", "--is-ancestor", one, listed[into])[0]
         for one in (base, start)
     ):
         raise Refused(
             f"push {into} first: commits of yours not on origin yet would go up with "
             "the pull request"
         )
-    if taken := _taken_in_unpushed(project, git, source or tip, start, branch, snapshot):
+    if taken := _taken_in_unpushed(project, git, source or tip, start, branch, snapshot, origin):
         # (Named as the user's only those their own refs hold - what they can push; a reflog of
         # the branch's expired or cut by gc leaves the agents' own commits not made on it to git.)
-        yours = set(_users_unpushed(project, git, under, branch).decode("ascii", "replace").split())
+        yours = set(
+            _users_unpushed(project, git, under, branch, origin).decode("ascii", "replace").split()
+        )
         mine = [sha for sha in taken if sha in yours]
         said, named = (TAKEN_IN_UNPUSHED, mine) if mine else (TAKEN_IN_UNKNOWN, taken)
         more = len(named) - NAMED_COMMITS
@@ -4037,7 +3954,7 @@ def push_one(
                 + (f" and {more} more" if more > 0 else "")
             )
         )
-    if copied := _users_content(project, git, base, tip, under, snapshot, branch):
+    if copied := _users_content(project, git, base, tip, under, snapshot, branch, origin):
         raise Refused(
             USERS_CONTENT.format(
                 files=", ".join(copied[:NAMED_COMMITS])
@@ -4081,7 +3998,7 @@ def push_one(
             "--no-verify",
             "--quiet",
             "--receive-pack=git-receive-pack",
-            "origin",
+            url,  # (where origin was asked what it holds: `_origin_holds`)
             f"{sha}:refs/heads/{branch}",
             seconds=PUSH_SECONDS,
             **UNASKED_ENV,
@@ -4089,6 +4006,106 @@ def push_one(
     if code != 0:
         raise Refused(f"git push failed: {_text(out, said)[-TAIL:]}")
     return sha
+
+
+# Why nothing is pushed: no one address of origin's; one git's config rewrites (an insteadOf: what
+# origin is asked and where the push goes could be two repositories); origin's own branch not here.
+NO_ADDRESS = "origin has no one address a push goes to"
+REWRITTEN = (
+    "git's config rewrites the address a push to origin goes to ({key}): what origin is asked and "
+    "where the push goes could be two repositories - take that rule off, then Run again"
+)
+FETCH_FIRST = "origin's {into} holds commits this repository has not fetched: fetch first"
+
+
+def push_address(project: Path) -> str:
+    """Where a push to origin goes, as git resolves it now - its pushurl, and a pushInsteadOf or
+    insteadOf of any scope of the user's config, applied (`git remote get-url --push --all`). ""
+    where there is none, more than one (a push goes to each) or one git would read as an option."""
+    try:
+        git, _folder = repository(project)
+    except Refused:
+        return ""
+    code, out, _said = _in(
+        project,
+        git,
+        *UNASKED,
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
+    found = out.decode("utf-8", "replace").splitlines()
+    return found[0] if code == 0 and len(found) == 1 and not found[0].startswith("-") else ""
+
+
+def _not_rewritten(project: Path, git: str, url: str) -> None:
+    """Refused where git would rewrite `url` itself - an `insteadOf` (what `ls-remote` applies)
+    or `pushInsteadOf` (what `push` applies) of any scope whose prefix it starts with: the look
+    at origin and the push could reach two repositories. And where `ls-remote` would not ask `url`
+    as it is."""
+    code, out, _said = _in(
+        project,
+        git,
+        *UNASKED,
+        "config",
+        "-z",
+        "--get-regexp",
+        r"^url\..*\.(push)?insteadof$",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
+    for entry in out.decode("utf-8", "replace").split("\0") if code == 0 else []:
+        key, _newline, value = entry.partition("\n")
+        if key and url.startswith(value):  # (an empty one rewrites every address)
+            raise Refused(REWRITTEN.format(key=re.sub(r"//[^/@]*@", "//***@", key)))
+    got = _in(
+        project, git, *UNASKED, "ls-remote", "--get-url", url, seconds=SHORT_SECONDS, **UNASKED_ENV
+    )[1]
+    if got.decode("utf-8", "replace").strip() != url:
+        raise Refused(REWRITTEN.format(key="ls-remote"))
+
+
+def _origin_holds(project: Path, git: str, url: str) -> tuple[dict[str, str], set[str]]:
+    """What origin at `url` holds, as origin itself says (`ls-remote --heads`, by the transports a
+    push may use - `PUSH_OWN`): each branch's commit, by its name - and of those the commits this
+    repository has (fetched). Never a remote-tracking ref of the repository's (`refs/remotes/
+    origin/*`, which anything there may write: a symbolic one too): a commit only such a ref says
+    is pushed counts as the user's. Refused where `url` is one git rewrites (`_not_rewritten`) or
+    origin does not answer (fails closed)."""
+    _not_rewritten(project, git, url)
+    code, out, said = _in(
+        project, git, *PUSH_OWN, "ls-remote", "--heads", url, seconds=PUSH_SECONDS, **UNASKED_ENV
+    )
+    if code != 0:
+        raise Refused(f"origin did not say what it holds: {_text(out, said)[-TAIL:]}")
+    listed = {
+        ref.removeprefix("refs/heads/"): sha
+        for sha, _tab, ref in (
+            line.partition("\t") for line in out.decode("utf-8", "replace").splitlines()
+        )
+        if sha
+    }
+    shas = sorted(set(listed.values()))
+    said = _said_or_refused(
+        project, git, "".join(f"{sha}\n" for sha in shas).encode(), "cat-file", "--batch-check"
+    )
+    here = {
+        words[0]
+        for words in (line.split() for line in said.decode("ascii", "replace").splitlines())
+        if len(words) == 3 and words[1] == "commit"
+    }
+    return listed, here
+
+
+def _origin_held(project: Path, git: str) -> set[str]:
+    """`_origin_holds`' commits this repository has - none where the project has no origin to
+    push to (every commit of the user's is then theirs alone). Refused as `_origin_holds`."""
+    url = push_address(project)
+    return _origin_holds(project, git, url)[1] if url else set()
 
 
 def open_pr(
@@ -4134,172 +4151,3 @@ def open_pr(
     if url is None:
         raise Refused(f"gh pr create said no address: {_text(out, said)[-TAIL:]}")
     return url
-
-
-# Coordination §4: what the checks of a disposable delete ask of the project's git
-# (`app.disposable`) - looks as `where` takes them: read only, no program of the repository's
-# run, None where git does not answer.
-
-
-def default_branch(project: Path) -> str | None:
-    """The project's default branch: the remote's (origin/HEAD), else the one git starts a
-    repository on (init.defaultBranch), else main or master where there is one; None where
-    git says none of these."""
-    try:
-        git, until = _looking(project)
-        remote = (
-            _said(project, git, until, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD")
-            or ""
-        ).strip()
-        if remote.startswith("origin/") and remote != "origin/":
-            return remote.removeprefix("origin/")
-        started = (
-            _said(project, git, until, "config", "--get", "init.defaultBranch") or ""
-        ).strip()
-        return started or next(
-            (
-                name
-                for name in ("main", "master")
-                if _said(project, git, until, "rev-parse", "--verify", "-q", f"refs/heads/{name}")
-                is not None
-            ),
-            None,
-        )
-    except Refused:
-        return None
-
-
-def ahead(project: Path, base: str, branch: str) -> int | None:
-    """How many commits the local `branch` has that the local `base` has not; None where git
-    does not say (either is no local branch)."""
-    try:
-        said = _said(
-            project,
-            *_looking(project),
-            "rev-list",
-            "--count",
-            f"refs/heads/{base}..refs/heads/{branch}",
-            "--",
-        )
-    except Refused:
-        return None
-    return int(said) if said and said.strip().isdigit() else None
-
-
-def kept_under(project: Path, rel: str) -> bool | None:
-    """Whether git keeps a file at `rel` (the project's, `/` between its parts) or below it, in
-    any case of its letters (NTFS and APFS open `build` as `Build`): one it tracks, or a new one
-    it does not ignore (`!build/keep.txt` under `build/*`); None where git does not say.
-    (Not `_in`: its `--literal-pathspecs` turns off the pathspec's `icase`.)"""
-    try:
-        git, until = _looking(project)
-        code, out, _said = run(
-            [
-                git,
-                "-c",
-                "core.fsmonitor=false",
-                "-c",
-                "safe.bareRepository=explicit",
-                *UNASKED,
-                "ls-files",
-                "-z",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "--",
-                f":(literal,icase){rel}",
-            ],
-            project,
-            _left(until),
-            **UNASKED_ENV,
-        )
-    except Refused:
-        return None
-    return bool(out) if code == 0 else None
-
-
-def not_committed(tree: Path) -> list[str] | None:
-    """What a worktree's folder holds that none of its commits does, as git's own look before
-    `worktree remove` may not see it: a changed file, a new one it does not ignore (whatever
-    `status.showUntrackedFiles` says), a tracked one marked skip-worktree or assume-unchanged,
-    whose changes git hides - and "HEAD" where its last commit is on no branch, tag or remote
-    (a detached one's: its reflog goes with the worktree); None where git does not say."""
-    try:
-        git, until = _looking(tree)
-        changed = _said(
-            tree, git, until, "ls-files", "-z", "--modified", "--others", "--exclude-standard"
-        )
-        tagged = _said(tree, git, until, "ls-files", "-z", "-v")
-        alone = _said(
-            tree,
-            git,
-            until,
-            "rev-list",
-            "-n1",
-            "HEAD",
-            "--not",
-            "--branches",
-            "--tags",
-            "--remotes",
-        )
-    except Refused:
-        return None
-    if changed is None or tagged is None or alone is None:
-        return None
-    return (
-        [one for one in changed.split("\0") if one]
-        + [one[2:] for one in tagged.split("\0") if one and not one.startswith("H ")]
-        + (["HEAD"] if alone.strip() else [])
-    )
-
-
-def left_out(tree: Path) -> list[str] | None:
-    """What git leaves out by its ignore rules in a worktree's folder - a file, or a folder as one
-    (`build/`) -, which `worktree remove` deletes with it; None where git does not say."""
-    try:
-        said = _said(
-            tree,
-            *_looking(tree),
-            "ls-files",
-            "-z",
-            "--others",
-            "--ignored",
-            "--exclude-standard",
-            "--directory",
-        )
-    except Refused:
-        return None
-    return None if said is None else [one for one in said.split("\0") if one]
-
-
-def same_repository(project: Path, folder: Path) -> bool:
-    """Whether git run in `folder` is the project's own: the same top folder and git folder
-    (`rev-parse --show-toplevel --git-common-dir`) - not a repository of its own in it, a
-    worktree's, nor a bare one (it has no top folder, and `_in` uses no bare one it was not
-    named: a mirror.git/ in the project). False where git does not say."""
-    try:
-        git, until = _looking(project)
-
-        def found(where: Path) -> tuple[str, ...] | None:
-            code, out, _said = _in(
-                where,
-                git,
-                *UNASKED,
-                "rev-parse",
-                "--path-format=absolute",
-                "--show-toplevel",
-                "--git-common-dir",
-                seconds=_left(until),
-                **UNASKED_ENV,
-            )
-            lines = out.decode("utf-8", "replace").splitlines()
-            return (
-                tuple(os.path.normcase(os.path.realpath(line)) for line in lines)
-                if (code == 0 and len(lines) == 2)
-                else None
-            )
-
-        own = found(project)
-        return own is not None and found(folder) == own
-    except Refused:
-        return False

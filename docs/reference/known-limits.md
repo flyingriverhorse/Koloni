@@ -202,6 +202,47 @@ messages.
 - `git` in the middle of a line - `cd sub && git push` - needs the project: Take in first; in a copy
   there is no git.
 
+### Away on a branch
+
+- A job on its branch works in a worktree of your own repository: its `.git` is shared. A script or a
+  test that runs git there can reach your branches, tags, stash and config - KOLONİ reads only the
+  git lines the agent itself writes. Your branches, stash, tags, remotes and git's config are compared
+  as the job starts and ends, and what changed is on its row; nothing is undone.
+- A plain push from a script fails there because KOLONİ sets git's `pushInsteadOf` for the job's
+  commands. Measured with git 2.53: `git push` to the remote's name, a path or a `file://` address
+  fails, a fetch works. It is no wall, and the job's own script can get past it: `git send-pack`, its
+  own `-c url.<x>.pushInsteadOf=...`, a `remote.origin.pushurl` it sets first, or git's environment
+  replaced (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`) all push - and so does a `pushurl` or a longer
+  `pushInsteadOf` of your own. Each of these the agent types itself is refused or asked on a card;
+  what a script it runs does is not read.
+- Before any branch's push - ☾ Away's in the morning, a team's pull request - KOLONİ asks origin
+  itself what its branches hold, and never reads your remote-tracking branches (`origin/*`) for it: a
+  ref written in your repository (a script's `git update-ref`, a symbolic ref) cannot make your own
+  unpushed commits look pushed - a commit only such a ref says is pushed counts as yours. Stale ones
+  (a branch deleted on origin, a teammate's push you have not fetched, a force-pushed branch) do not
+  matter. Where origin's branch the push goes into holds commits you have not fetched, it asks you to
+  fetch first; where git's config rewrites the address the push goes to (an `insteadOf` or
+  `pushInsteadOf` rule that matches it - what origin is asked and where the push goes could be two
+  repositories), or origin has more than one push address, nothing is pushed. No KOLONİ git call reads
+  an object through `git replace` or a graft of `info/grafts`, and the push's ancestry is read without
+  the commit-graph file. Origin is asked only once a branch's way is a pull request, never at the end
+  of a turn that may still be a merge. Between that look and the push itself there is a moment in which
+  another process could still change your repository: that gap is not closed.
+- ☾ Away compares every job's push with the repository as you went away (its refs, git's config in
+  every scope, its hooks, where a push goes): what an earlier job of the night changed is noted on a
+  later one's push too. The branches of that night's own jobs are not counted.
+- **Try again** on a job a day later still compares its push with the night's repository: what you
+  changed since is noted on it too, to be seen and Run anyway.
+- The worktree holds what git tracks; what it ignores (`.env`, data, build output) is not there, and a
+  test that reads such a file may fail. A project with a git submodule or Git LFS works in a copy.
+- The commits of a branch that was deleted, or of a job's first try, stay in git's objects until git
+  cleans them up (`git gc`).
+- Your own `pre-commit` and `pre-push` hooks run neither for the job's commits nor for KOLONİ's push.
+- KOLONİ's checks run before its last commit at the job's end; that commit holds the same files,
+  apart from one holding a secret given in the job or a new file your project already has.
+- The branch's name is told to the job before its worktree is made: where a branch of that name was
+  there already, the worktree is on the next free name, and its row says which.
+
 ## Recipes
 
 - Recipes do not run in triggers' turns.

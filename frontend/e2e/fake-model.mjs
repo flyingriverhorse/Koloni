@@ -730,6 +730,22 @@ function nextStep(all, tools = [], model = '') {
         : 'It says goodbye now. I do not know what it said before.',
     )
   }
+  // ☾ Away on its own branch (0.1.9, k-away-dal): told the user goes to sleep, the Lead puts one task on To-do and
+  // offers to go away; its job, on its branch in a worktree, writes, asks for KOLONİ's checks, then commits.
+  if (/going to sleep, dal/i.test(last.content)) {
+    return toolCalls([
+      ['cdl1', 'add_task', { title: 'Tidy hello, dal' }],
+      ['cdl2', 'offer_away', {}],
+    ])
+  }
+  if (messages.some(m => m.role === 'user' && /^Tidy hello, dal\n/.test(String(m.content)))) {
+    // (by its own calls' answers: KOLONİ's check run in the middle is a tool message too)
+    const answered = id => messages.some(m => m.role === 'tool' && m.tool_call_id === id)
+    if (!answered('cdl3')) return toolCall('cdl3', 'write_file', { path: 'hello.py', content: "print('hello')\n" })
+    if (!answered('cdl4')) return toolCall('cdl4', 'run_checks', {})
+    if (!answered('cdl5')) return toolCall('cdl5', 'run_command', { command: 'git commit -a -m tidy' })
+    return say('Tidied hello on its branch.')
+  }
   // The Planner asks for a role of its own before it reports.
   if (String(messages[0].content).includes('Planner sub-agent')) {
     if (last.role === 'user') {

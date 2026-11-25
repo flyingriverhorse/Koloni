@@ -59,6 +59,7 @@ from sqlalchemy.orm import Session
 
 from app import (
     away,
+    away_branch,
     browser,
     copies,
     diagram,
@@ -1068,6 +1069,11 @@ PR_HELD_GONE = (
 )
 # ... and where the branch began from the user's folder with work not committed (W-1's snapshot): an
 # agent's copy of a file of it, under another name, is its own work to git.
+# ...or where origin did not answer what it holds: nothing of that could be looked at.
+PR_NO_ORIGIN = (
+    "origin did not answer, so KOLONİ could not check what it holds ({why}): before a pull "
+    "request, check its files are the agent's work"
+)
 PR_SNAPSHOT = (
     "it began from your folder with work not committed: before a pull request, check "
     "its files are the agent's work"
@@ -1912,6 +1918,7 @@ class AgentRunner(
             if t.job:
                 self._away_jobs[run_id] = ctx.agent_id
                 self._arm_deadline(run_id, cid)
+                await self._away_on_branch(run_id, t, ctx)  # (0.1.9: in a git repository)
             if t.todo_turn:  # (B-413: it ends where nothing moves - its chat's rules else)
                 self._todo_turns.add(run_id)
                 self._arm_todo_deadline(run_id)
@@ -2141,6 +2148,7 @@ class AgentRunner(
                     self._koloni_line(cid, run_id, said)
         if t.run_compare and status in ("completed", "failed"):
             await self._side_aside(ctx, t.run_compare)
+        await to_its_end(self._away_branch_end(ctx, status))  # (0.1.9: a job's, before it is kept)
         own = run_id in self._branch_runs or run_id in self._resumed  # (the Lead's own copy)
         if own and run_id in self._held_back:  # (S11: never merged, nor taken in)
             self._set_aside(
@@ -2651,6 +2659,9 @@ class AgentRunner(
                 self._git_at_start[ctx.run_id] = _git_parts(
                     await asyncio.to_thread(standing_files, str(made.project)), made.project
                 )
+            # (...in every scope: a global one, a worktree's - L-D)
+            mine = await asyncio.to_thread(away_branch.config_digest, made.project)
+            self._git_at_start[ctx.run_id].setdefault("all", mine or "")
         elif left:
             # Its branch not opened again, and still there: a later go-on tries it again
             # (not `on_branch`: the git map would name this copy's agent its team).
@@ -3696,7 +3707,7 @@ class AgentRunner(
         # (A pull request's branch pushed already, for a `gh pr create` that failed after it; and
         # git's config as the card last showed it.)
         sent: dict[str, str] = {}
-        config_shown = None
+        config_shown = asks_shown = None
         # (One way in, `_way_in`: no Take in writes between git's look and its merge.)
         lock = self._way_in(copy.project)
         while True:
@@ -3717,17 +3728,16 @@ class AgentRunner(
             # A push runs what git's config names (an address, a credential helper, an ssh
             # command): not unasked where it changed during the turn, as Take in's commit asks.
             config = (
-                _git_parts(
-                    await asyncio.to_thread(standing_files, str(copy.project)), copy.project
-                )["config"]
+                await asyncio.to_thread(away_branch.config_digest, copy.project)
                 if way == "pull_request"
                 else None
             )
             config_moved = config is not None and config != (
                 self._git_at_start.get(ctx.run_id) or {}
-            ).get("config")
-            # (A pull request while the user's branches hold commits origin does not: asked.)
-            pr_asks = await self._pr_asks(copy) if way == "pull_request" or ask_way else None
+            ).get("all")
+            # (A pull request while the user's branches hold commits origin does not: asked - once
+            # the way is one: origin is asked nothing at a turn's end that may be a merge.)
+            pr_asks = await self._pr_asks(copy) if way == "pull_request" else None
             async with lock:  # (looked at again right before: two teams finish at once)
                 look = await self._branch_look(copy)
                 # W-1: what is scanned and merged - of a branch that began from the user's folder,
@@ -3812,7 +3822,7 @@ class AgentRunner(
                         state["note"] = pr_blocked
                     elif named and merge_id is None:
                         state["note"] = PR_NAMED_SECRET.format(files=_few(named))
-                    elif pr_asks and merge_id is None:  # (pushed on a click with this said)
+                    elif pr_asks and pr_asks != asks_shown:  # (pushed on a click with it said)
                         state["note"] = pr_asks
                     elif config_moved and (merge_id is None or config != config_shown):
                         state["note"] = PR_CONFIG  # (pushed on a click with this said)
@@ -3887,6 +3897,7 @@ class AgentRunner(
             else:
                 merge_id = self._record_merge(ctx, merge_id, "pending", files, check, state)
                 config_shown = config if state["note"] == PR_CONFIG else None
+                asks_shown = pr_asks if state["note"] == pr_asks else asks_shown
                 ended()
                 future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
                 self._merge_decisions[merge_id] = future
@@ -4155,9 +4166,7 @@ class AgentRunner(
                 way = session.get_one(
                     Project, session.get_one(Conversation, ctx.cid).project_id
                 ).finish_way
-            config = _git_parts(
-                await asyncio.to_thread(standing_files, str(copy.project)), copy.project
-            )["config"]
+            config = await asyncio.to_thread(away_branch.config_digest, copy.project)
             if config != seen[0] or seen[1] is not None and way != seen[1]:
                 raise git.Refused(
                     "git's config or the project's way changed just now: look at the card again"
@@ -4208,12 +4217,18 @@ class AgentRunner(
         commit) - not the agent's own commits a worktree of theirs holds as they look at its branch
         -, or the branch began from their uncommitted work (`PR_SNAPSHOT`). None where neither."""
         under = copies.folders(self.settings.runtime_root)
+        try:  # (origin asked once, for both)
+            origin = await asyncio.to_thread(git.origin_held, copy.project)
+        except git.Refused as exc:
+            return PR_NO_ORIGIN.format(why=exc)
         try:
             commits, stashes = await asyncio.to_thread(
-                git.unpushed_count, copy.project, under, copy.branch
+                git.unpushed_count, copy.project, under, copy.branch, origin
             )
             places = (
-                await asyncio.to_thread(git.unpushed_places, copy.project, under, copy.branch)
+                await asyncio.to_thread(
+                    git.unpushed_places, copy.project, under, copy.branch, origin
+                )
                 if commits
                 else []
             )
@@ -4319,32 +4334,6 @@ class AgentRunner(
                     ),
                 )
         return None
-
-    async def _branch_look(self, copy: copies.Copy) -> dict:
-        """`git.branch_look` of a branch copy, with its name - and where git did not say,
-        nothing to merge yet and why (`note`). W-1: measured from the snapshot it began from."""
-        try:
-            found = await asyncio.to_thread(
-                git.branch_look, copy.project, copy.branch or "", copy.start, copy.snapshot_sha
-            )
-        except git.Refused as exc:
-            return {
-                "name": copy.branch,
-                "into": None,
-                "files": {},
-                "conflicts": [],
-                "dirty": [],
-                "special": [],
-                "drift": None,
-                "half": None,
-                "tip": None,
-                "share": None,
-                "yours": [],
-                "since": None,
-                "over": [],
-                "note": str(exc),
-            }
-        return {"name": copy.branch, **found, "note": None}
 
     def _branch_merged(self, ctx: Ctx, copy: copies.Copy) -> None:
         """A branch copy is merged: its line's change records made there went in with it.

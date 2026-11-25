@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
 import type { Away, Waiting } from '../api/types'
 import { useAsk } from '../memory/useAsk'
 import { useApp } from '../state/store'
@@ -53,7 +53,8 @@ export function WaitingForYou({ away }: { away: Away }) {
           <div key={taskId} className="waiting-task">
             <div className="away-job">
               <b className="away-grow">{own[0].task}</b>
-              {own.some(row => !row.decision) && (
+              {/* (A push is no decision its job waits on: Reject it.) */}
+              {own.some(row => !row.decision && row.kind !== 'push') && (
                 <button
                   type="button"
                   className="btn btn-small nodrag"
@@ -65,9 +66,14 @@ export function WaitingForYou({ away }: { away: Away }) {
               )}
             </div>
             <ol className="waiting-rows">
-              {own.map(row => (
-                <WaitingRow key={row.id} row={row} busy={busy} decide={decide} />
-              ))}
+              {own.map(row =>
+                row.kind === 'push' ? (
+                  // (made again with a new commit: a new row - the notes seen of the old one go)
+                  <PushRow key={`${row.id}:${row.tip}`} row={row} awayId={away.id} />
+                ) : (
+                  <WaitingRow key={row.id} row={row} busy={busy} decide={decide} />
+                ),
+              )}
             </ol>
           </div>
         )
@@ -181,5 +187,72 @@ function Answer({ row, busy, decide }: { row: Waiting; busy: boolean; decide: De
         Answer
       </button>
     </div>
+  )
+}
+
+/** What a 409 of a push says KOLONİ notes first (`detail.notes`); null: another refusal. */
+function notesOf(err: unknown): string[] | null {
+  const raw = err instanceof ApiError && err.status === 409 ? (err.raw as { notes?: unknown }) : null
+  return raw && Array.isArray(raw.notes) ? raw.notes.map(String) : null
+}
+
+/**
+ * 0.1.9: a job's push - its branch to origin as one commit by KOLONİ, once its other rows are decided and its going-on
+ * turn is over. Run; where KOLONİ notes something first (git's config changed, what moved outside the branch), the notes
+ * and Run again; why nothing went up where it did not (the row waits again); Reject leaves the branch as it is.
+ */
+function PushRow({ row, awayId }: { row: Waiting; awayId: string }) {
+  const [notes, setNotes] = useState<string[]>([])
+  const { busy, error, ask } = useAsk()
+  const go = (word: string) =>
+    void ask(async () => {
+      try {
+        // (the commit the row shows: a Run is of that one, never of one made since)
+        await useApp.getState().awayDo(awayId, `waiting/${row.id}`, { word, seen: notes, tip: row.tip })
+      } catch (err) {
+        const noted = notesOf(err)
+        if (!noted) throw err
+        setNotes(noted)
+      }
+    })
+  return (
+    <li className="waiting-row">
+      <pre className="mono waiting-what">{row.what}</pre>
+      <div className="muted">{row.why}</div>
+      {row.result && <div className={row.decision ? 'waiting-said' : 'muted'}>{row.result}</div>}
+      {!row.decision && (
+        <>
+          {row.closed && <div className="muted waiting-closed">{row.closed}</div>}
+          {notes.map(note => (
+            <div key={note} role="note" className="alert">
+              {note}
+            </div>
+          ))}
+          <div className="memory-actions">
+            <button
+              type="button"
+              className="btn btn-small btn-primary nodrag"
+              disabled={busy || !!row.closed}
+              onClick={() => go('run')}
+            >
+              {notes.length ? 'Run anyway' : 'Run'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-small nodrag"
+              disabled={busy || row.held}
+              onClick={() => go('reject')}
+            >
+              Reject
+            </button>
+          </div>
+        </>
+      )}
+      {error && (
+        <div role="alert" className="alert">
+          {error}
+        </div>
+      )}
+    </li>
   )
 }

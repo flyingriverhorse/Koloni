@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import away, backlog, injection
+from app.away_branch import PUSH_WHY
 from app.cards import REASONS
 from app.commands import _BLOCKS, _parts, _program
 from app.copies import NOT_COPIED
@@ -54,14 +55,15 @@ def said(line: str, cwd: str | None) -> str:
     return PARKED.format(what=f"run {quoted(line)}{at}")
 
 
-def needs_project(line: str) -> bool:
+def needs_project(line: str, git: bool = False) -> bool:
     """Whether a command needs the project itself, not a copy of it: a stage of it runs git (a
-    copy has no `.git`), or a word of it names a folder a copy leaves out (`copies.NOT_COPIED`:
-    `build`, `dist`...), split as `away.kept_out` splits words - not `npm run build`'s script.
+    copy has no `.git` - but a job's worktree, `git`), or a word of it names a folder a copy
+    leaves out (`copies.NOT_COPIED`: `build`, `dist`...), split as `away.kept_out` splits words -
+    not `npm run build`'s script.
     shortcut: a script named by its runner without `run` (`yarn build`) counts as a folder; read
     the runner's own scripts if that keeps a line closed that need not be."""
     for words in _parts(line, _BLOCKS):
-        if words and _program(words[0]) == "git":
+        if words and _program(words[0]) == "git" and not git:
             return True
         if words and _program(words[0]) in _RUNNERS and words[1:2] == ["run"]:
             words = words[:2] + words[3:]  # (its script's name is no folder)
@@ -115,6 +117,9 @@ LAST = "Waits for this task's other decisions and its going-on turn"
 # ...and a command's Run (its Reject stays open).
 GONE = "Its copy is gone: there is nothing to run it in"
 NEEDS = "Needs the project itself: Take in first"
+# (L7: a line of a job on its branch, its work taken in since: it would run on your checkout - a git
+# line in a wrapper or a variable too, which no reading of it finds)
+BRANCH_GIT = "A line of its branch's worktree: it never runs in your project - run it yourself"
 NOWHERE = "Where it would run is not known: Reject it, or run it yourself"
 ELSEWHERE = "The project runs commands elsewhere now: Reject it, or set that back"
 # ...a line a CLI ran in its own shell (bash's quoting is not PowerShell's), and a server.
@@ -132,11 +137,12 @@ CLOSED_MEANWHILE = away.CLOSED_MEANWHILE
 
 
 class Refused(ValueError):
-    """A decision not taken, with its HTTP status: 404 no such row, 409 not now, 422 not so."""
+    """A decision not taken, with its HTTP status: 404 no such row, 409 not now, 422 not so -
+    and, a push's, what its second Run is asked over (`notes`)."""
 
-    def __init__(self, status: int, why: str):
+    def __init__(self, status: int, why: str, notes: list[str] | None = None):
         super().__init__(why)
-        self.status = status
+        self.status, self.notes = status, notes
 
 
 @dataclass(frozen=True)
@@ -187,6 +193,8 @@ def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | N
         return SERVER
     if row.data.get("needs_project") and place != "project":
         return NEEDS
+    if place == "project" and row.data.get("branch"):
+        return BRANCH_GIT
     if row.data.get("cwd") is None:  # (a CLI that did not say where its shell stood)
         return NOWHERE
     if row.data.get("moved") and not row.data.get("no_code"):  # (`AwayMixin._mark_moved`)
@@ -199,9 +207,55 @@ def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | N
     return None
 
 
+# A job's push (0.1.9, `AwayBranchMixin._push_row`): KOLONİ's own row - why its Run is closed.
+PUSH_TAKEN = "Its work was taken in or discarded: nothing to push"
+NOTES_FIRST = "Look at what KOLONİ notes, then Run again"
+# (L9: a Run is of the commit the row showed - never a later one made since it was read)
+SEEN_MOVED = "Its branch moved since you looked: look at the row again"
+
+
+def _push_closed(session: Session, row: Parked, _task: BacklogTask) -> str | None:
+    """A push's Run is closed once its kept worktree is taken in - some of it - or discarded."""
+    tree = row.data.get("tree")
+    merge = session.scalar(select(Merge).where(Merge.kept_in == tree).limit(1)) if tree else None
+    if merge is None or any(one.get("state") == "applied" for one in merge.files):
+        return PUSH_TAKEN
+    return None
+
+
+async def _push_now(
+    _session: Session,
+    row: Parked,
+    task: BacklogTask,
+    *,
+    runner,
+    seen: list[str] | None = None,
+    tip: str | None = None,
+) -> str:
+    """A push row's Run or Reject (`AgentRunner.push_away_branch`): what came of it. A Run is of
+    the commit the row showed (`tip`: the page's; `SEEN_MOVED` else). Where it pushed nothing
+    (`refused`) the row waits again; where it notes something not seen yet, nothing is decided
+    (`Refused` 409 with its `notes`)."""
+    if row.decision == "run" and tip != row.data.get("tip"):
+        raise Refused(409, SEEN_MOVED)
+    done = await runner.push_away_branch(row.away_run_id, task.id, row.decision, seen or [])
+    if done["state"] == "asks":
+        raise Refused(409, NOTES_FIRST, done["notes"])
+    if done["state"] == "refused":
+        row.decision = row.decided_at = None
+        return done["why"]
+    if done["state"] == "rejected":
+        return f"Rejected: {row.data.get('branch')} stays as it is"
+    said = f"Pushed {row.data.get('branch')} to origin as {done['sha'][:7]}"
+    if done.get("url"):
+        said += f"; pull request: {done['url']}"
+    return said + (f" ({done['why']})" if done.get("why") else "")
+
+
 KINDS: dict[str, Kind] = {
     "command": Kind(frozenset({"run", "reject"}), _command_closed),
     "question": Kind(frozenset({"answer"}), lambda _session, _row, _task: None),
+    "push": Kind(frozenset({"run", "reject"}), _push_closed, _push_now, last=True),
 }
 
 
@@ -254,6 +308,8 @@ def closed(session: Session, night: AwayRun, row: Parked, task: BacklogTask) -> 
 def _why(row: Parked) -> str:
     """Why it was parked, in KOLONİ's words alone: the card's family (`cards.REASONS`), the
     judge's own sentence; a question's reason, the Orchestrator's, quoted."""
+    if row.kind == "push":
+        return PUSH_WHY
     if row.kind != "command":
         said = row.data.get("why") or COULD_NOT_ANSWER
         return said if said == COULD_NOT_ANSWER else f"The Orchestrator: {quoted(said)}"
@@ -295,6 +351,8 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
                 # (no word of it is taken now - Reject too: away, its job at work, or a last kind's)
                 "held": not row.decision and _held(session, night, row, task) is not None,
                 "seq": row.seq,
+                # (a push's: the commit it pushes, sent back with its Run - L9)
+                "tip": row.data.get("tip") if row.kind == "push" else None,
                 # (L6: where it would run, the card's own sentence, a file an agent wrote it runs)
                 "place": where(session, row)[0] if row.kind == "command" else None,
                 "danger": row.data.get("danger") or None,
@@ -328,11 +386,11 @@ def _answered(row: Parked, word: str, answer: str | None) -> str:
 
 
 async def decide(
-    session: Session, night: AwayRun, item_id: str, word: str, answer: str | None
+    session: Session, night: AwayRun, item_id: str, word: str, answer: str | None, **more
 ) -> BacklogTask | None:
     """The user's word on a parked row (`Refused`: why not). A row with an `act` does its work
-    at once; else the task, where this was its last decision (`ready`) - its going-on turn may
-    start - or None. Committed."""
+    at once (`more`: what it is given - the runner, the notes seen); else the task, where this was
+    its last decision (`ready`) - its going-on turn may start - or None. Committed."""
     row = session.get(Parked, item_id)
     task = session.get(BacklogTask, row.task_id) if row is not None else None
     kind = KINDS.get(row.kind) if row is not None else None
@@ -353,7 +411,7 @@ async def decide(
     if row.kind == "question" and (question := session.get(Question, row.ref_id or "")):
         question.status, question.answer, question.answered_at = "answered", given, now()
     if kind.act is not None:
-        row.result = await kind.act(session, row, task)
+        row.result = await kind.act(session, row, task, **more)
         session.commit()
         return None
     session.commit()

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import attachments, git, injection, project_files, web
+from app import attachments, git, git_issues, injection, project_files, web
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.db.models import Attachment, Conversation, project_of
 from app.schemas import AttachmentOut, AttachmentTextOut
@@ -109,10 +109,10 @@ async def add_github_issue(
     if project is None:
         raise HTTPException(404, "this chat has no project folder")
     try:
-        ref = git.issue_ref(ref)
+        ref = git_issues.issue_ref(ref)
         # (Room for it first: GitHub is not asked for a file the message cannot take.)
         shown = _room_for(session, conversation_id, f"github-issue-{ref.rsplit('/')[-1]}.md", None)
-        found = await asyncio.to_thread(git.issue, Path(project.root_path), ref)
+        found = await asyncio.to_thread(git_issues.issue, Path(project.root_path), ref)
     except git.Refused as refused:
         raise HTTPException(422, str(refused)) from None
     text = found["text"]

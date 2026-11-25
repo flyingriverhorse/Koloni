@@ -103,7 +103,12 @@ yours holds - an agent's cherry-pick of yours (a new commit), or the agent's own
 attribute it, rather than calling it yours. Nor is a file that holds exactly what a commit of yours not
 pushed yet put there (an agent's squash, pick or amend of it, or a copy of a stashed file, of a commit on a
 detached HEAD - in this folder or in another worktree of yours -, or of a file you had not committed when
-the branch began). And while you have any commit or
+the branch began). What is on GitHub is what origin itself says its branches hold, asked right before the
+push - never your remote-tracking branches (`origin/*`), which anything in your repository may write: a
+commit only such a ref says is pushed is yours, and a stale one (a branch deleted on GitHub, a teammate's
+push you have not fetched) changes nothing. Where GitHub's branch the pull request goes into has commits
+you have not fetched, it asks you to fetch first; where git's config rewrites the address the push goes
+to (an `insteadOf` or `pushInsteadOf` rule matching it), nothing is pushed. And while you have any commit or
 stash not on GitHub - on a branch, in a stash, on a detached HEAD, in any worktree of yours - or the
 branch began from your uncommitted work, a pull request waits for your click at every level, Full auto
 too: the card says why ("you have 2 commits not on GitHub yet", "you have a stash not on GitHub yet"), so

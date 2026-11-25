@@ -157,6 +157,24 @@ def ceiling(tree: Path) -> str:
     )
 
 
+def _tree_key(tree: Path) -> str:
+    return os.path.normcase(os.path.realpath(tree))
+
+
+# H1: the trees of ☾ Away jobs on their branch (`no_push`), by `_tree_key` - this process's.
+_NO_PUSH: set[str] = set()
+# Every push URL starts with "": rewritten to a scheme git has no helper for, it fails; a fetch is
+# not rewritten (`pushInsteadOf` is push's alone). Measured with git 2.53 (25 Nov): a push to a
+# remote's name, a path and a file:// URL fail; a fetch works.
+NO_PUSH = "'url.koloni-no-push://.pushInsteadOf='"
+
+
+def no_push(tree: Path) -> None:
+    """H1: whatever is started in `tree` - a ☾ Away job's worktree - pushes nothing: `git_env`
+    adds `NO_PUSH` there. For this process: set again wherever such a tree is opened."""
+    _NO_PUSH.add(_tree_key(tree))
+
+
 def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
     """What git is given for whatever is started in a copy's tree, `env` being the environment it
     is started with: it looks no higher than the copies folder (`ceiling`), and runs no hook of the
@@ -170,14 +188,23 @@ def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
     name (`commands.secret_name`), held back where its count is not - and git stops at a count
     with no key. Not `safe.bareRepository=explicit`, as KOLONİ's own git has it: a project's tests
     that use a bare repository by its folder (`git -C remote.git log`) would fail in a copy
-    (measured), and what such a repository's config could run (hooks, fsmonitor) is off here."""
+    (measured), and what such a repository's config could run (hooks, fsmonitor) is off here.
+    H1, in a ☾ Away job's worktree (`no_push`): no push (`NO_PUSH`), and no prompt for a login.
+    shortcut: H1 is no wall - measured with git 2.53, a script of the job's own pushes all the same
+    with `git send-pack`, its own `-c url.<x>.pushInsteadOf=...`, a `remote.origin.pushurl` it
+    sets first, or this environment replaced (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`); so
+    does a pushurl or a longer pushInsteadOf of the user's. Each such line the agent types itself
+    is refused or asked on a card; what a script it runs does is not read. H2 says what moved
+    outside the branch in the morning, and the morning's push checks origin itself (H3)."""
     # shortcut: an empty core.hooksPath stops the hooks git finds in a folder, not hooks set in its
     # config (`hook.<name>.command` / `.event`: git 2.53 ran none, probed 21 Nov); turn those off
     # here too once a git that runs them is seen.
     empty = tree.parent / NO_HOOKS
     empty.mkdir(exist_ok=True)
     ours = "'" + f"core.hooksPath={empty}".replace("'", "'\\''") + "'"  # (git's own quoting)
+    away = _tree_key(tree) in _NO_PUSH
     return {
+        **({"GIT_TERMINAL_PROMPT": "0"} if away else {}),
         "GIT_CEILING_DIRECTORIES": ceiling(tree),
         "GIT_CONFIG_PARAMETERS": " ".join(
             filter(
@@ -188,6 +215,7 @@ def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
                     "'core.fsmonitor=false'",
                     "'commit.gpgsign=false'",
                     "'core.logAllRefUpdates=true'",
+                    NO_PUSH if away else None,
                 ],
             )
         ),

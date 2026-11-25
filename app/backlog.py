@@ -250,7 +250,7 @@ def turned_down(session: Session, task: BacklogTask) -> None:
 
 def first_message(
     task: BacklogTask,
-    night: bool = False,
+    night: bool | str = False,
     story: Story | None = None,
     place: tuple[int, int] | None = None,
     notes: str = "",
@@ -284,7 +284,7 @@ def first_message(
     if task.criteria:
         parts.append(f"Done when:\n{task.criteria}")
     parts += [notes] if notes else []
-    parts.append(AWAY_JOB if night else SAY_NOT_FINISHED)
+    parts.append((night if isinstance(night, str) else AWAY_JOB) if night else SAY_NOT_FINISHED)
     return "\n\n".join(parts)
 
 
@@ -335,15 +335,15 @@ def start(
     bus,
     start_run: Callable[[str], object],
     shape: Callable[[Conversation], None] | None = None,
-    night: bool = False,
+    night: bool | str = False,
 ) -> str:
     """A night's job (slice 106, `app.away`): `task` in a new conversation, its first message
     the task itself as if the user had written it there - an ordinary turn of that chat. The
     task is doing until that turn ends.
     Committed, before its turn can start - or end. A folder the task names is not opened by
     it: its words may be an agent's. `shape`: what else of the new chat is set first (the chat
-    gone from's level and model); `night`: told it is a job while the user is away. The
-    conversation's id."""
+    gone from's level and model); `night`: told it is a job while the user is away (a text: told
+    so in its words). The conversation's id."""
     project = session.get_one(Project, task.project_id)
     conversation = new_chat(session, project)  # (as any new chat: its folder's folders, teams)
     if shape is not None:

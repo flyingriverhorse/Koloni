@@ -88,7 +88,7 @@ def git_line(folder: Path) -> str | None:
 
 
 def _not_committed(folder: Path) -> set[str] | None:
-    """`git.not_committed`'s files - changed, new and not ignored, or hidden by a flag
+    """`git_looks.not_committed`'s files - changed, new and not ignored, or hidden by a flag
     (skip-worktree, assume-unchanged) - with every filter driver the repository's settings name
     turned off (`git._no_filters`): a look at the user's folder runs no program of theirs. None
     where git does not answer."""

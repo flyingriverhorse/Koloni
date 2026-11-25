@@ -5404,6 +5404,38 @@ export interface components {
             text: string;
         };
         /**
+         * AwayBranchOut
+         * @description 0.1.9: a job's branch as its turn left it (`away_branch.row`) - its name, its commit and
+         *     the branch it was made from, its commits and files since, KOLONİ's checks' verdict, origin's
+         *     address (never its password) and what moved outside it meanwhile (H2); `why`: what git said
+         *     where it could not look at the branch.
+         */
+        AwayBranchOut: {
+            /** Checks */
+            checks: ("green" | "red" | "not complete") | null;
+            /** Commits */
+            commits: number | null;
+            /** Files */
+            files: number | null;
+            /** From Head */
+            from_head?: string | null;
+            /** Into */
+            into: string | null;
+            /**
+             * Moved
+             * @default []
+             */
+            moved: string[];
+            /** Name */
+            name: string | null;
+            /** Origin */
+            origin: string | null;
+            /** Tip */
+            tip: string | null;
+            /** Why */
+            why?: string | null;
+        };
+        /**
          * AwayGoIn
          * @description The user's Go away (☾ Away): the To-do tasks ticked, the panel's order of the list, the
          *     places kept out and the limits - none unless named.
@@ -5443,6 +5475,7 @@ export interface components {
             asks: components["schemas"]["AwayAsk"][];
             /** Assessment */
             assessment?: string | null;
+            branch?: components["schemas"]["AwayBranchOut"] | null;
             /**
              * Checks
              * @default []
@@ -5467,6 +5500,10 @@ export interface components {
             kept_out: string[];
             /** Line */
             line: string | null;
+            /** Mode */
+            mode?: ("copy" | "branch" | "push") | null;
+            /** Mode Why */
+            mode_why?: string | null;
             /** Now */
             now?: string | null;
             /** Recipe */
@@ -7004,6 +7041,13 @@ export interface components {
         DecideIn: {
             /** Answer */
             answer?: string | null;
+            /**
+             * Seen
+             * @default []
+             */
+            seen: string[];
+            /** Tip */
+            tip?: string | null;
             /**
              * Word
              * @enum {string}
@@ -12576,6 +12620,8 @@ export interface components {
             task: string;
             /** Task Id */
             task_id: string;
+            /** Tip */
+            tip?: string | null;
             /** Warn */
             warn: string | null;
             /** What */

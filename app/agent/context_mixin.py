@@ -1607,7 +1607,7 @@ class ContextMixin:
         if any("__" in name for name in has):  # (none of KOLONİ's own tools is named so)
             system += "\n\n" + MCP_PROMPT.format(root=here)
         if (seen := self._git_of(ctx)) is not None:
-            system += "\n\n" + git_prompt(seen["branch"], copy is not None, self._reports_git(ctx))
+            system += "\n\n" + self._git_section(ctx, seen, copy)  # (0.1.9: a job's branch too)
             # A CLI told of git: one of the turn's, named for what git shows at its end.
             self._git_clis.setdefault(ctx.run_id, {})[ctx.agent_id] = ctx.provider or "A CLI"
         return system, write_in

@@ -4,6 +4,8 @@ the chat, the To-do page, the top bar and the morning's node; Stop all, and Try 
 that could not be done. Waiting for you (§10): what the jobs parked for the user, decided only from
 the app's own page - Run, Reject, an answer, Stop this task."""
 
+import asyncio
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -11,11 +13,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import away, backlog, parked
+from app import away, away_branch, backlog, parked
 from app.agent import announce
+from app.agent.away_branch_mixin import night_base
 from app.api.deps import get_session, require_own_origin
 from app.db.models import AwayRun, BacklogTask, Conversation, Project, Run, now
-from app.schemas import AwayGoIn, AwayOut
+from app.schemas import AwayOut
+from app.schemas_away import AwayGoIn
 from app.serialize import message_out
 
 router = APIRouter(prefix="/api", tags=["away"])
@@ -42,6 +46,7 @@ class WaitingOut(BaseModel):
     closed: str | None
     held: bool  # (closed for every word, Reject too)
     seq: int
+    tip: str | None = None  # (a push's: the commit it pushes - its Run sends it back)
     place: Literal["copy", "project", "gone"] | None  # (a command's: where it would run)
     danger: str | None  # (its card's sentence)
     wrote: str | None  # (the file an agent wrote that it runs, by its path)
@@ -50,6 +55,9 @@ class WaitingOut(BaseModel):
 class DecideIn(BaseModel):
     word: Literal["run", "reject", "answer"]
     answer: str | None = Field(default=None, max_length=4000)
+    # A push's notes the user saw (its 409's): its second Run (0.1.9); the commit its row showed.
+    seen: list[str] = Field(default=[], max_length=50)
+    tip: str | None = Field(default=None, max_length=64)
 
 
 def _away(session: Session, away_id: str) -> AwayRun:
@@ -100,8 +108,23 @@ async def go_away(
     conversation = session.get(Conversation, cid)
     if conversation is None:
         raise HTTPException(404, "conversation not found")
+    project = session.get(Project, conversation.project_id or "")
+    # (0.1.9: how its jobs work on the project - a copy, a branch, a branch pushed in the morning -
+    # and, on a branch, what every job's push is compared with: the repository as it is now, M-B)
+    root = Path(project.root_path) if project else None
+    mode = await asyncio.to_thread(away_branch.mode_of, root) if root else None
+    base = (
+        await asyncio.to_thread(night_base, root) if root and mode and mode[0] != "copy" else None
+    )
     try:
-        night = away.go(session, conversation, body.model_dump(), request.app.state.runner)
+        night = away.go(
+            session,
+            conversation,
+            body.model_dump(),
+            request.app.state.runner,
+            mode or ("copy", None),
+            base,
+        )
     except away.Refused as exc:
         raise HTTPException(409, str(exc)) from None
     _told(request, night.project_id)
@@ -200,9 +223,18 @@ async def decide_waiting(
     """The user's Run, Reject or answer of a parked row - only from the app's own page."""
     card = _away(session, away_id)
     try:
-        task = await parked.decide(session, card, item_id, body.word, body.answer)
+        task = await parked.decide(
+            session,
+            card,
+            item_id,
+            body.word,
+            body.answer,
+            runner=request.app.state.runner,
+            seen=body.seen,
+            tip=body.tip,
+        )
     except parked.Refused as exc:
-        raise HTTPException(exc.status, str(exc)) from None
+        raise HTTPException(exc.status, {"notes": exc.notes} if exc.notes else str(exc)) from None
     if task is not None:  # (its last decision: what was Run runs, and its job goes on)
         request.app.state.runner.go_on_parked(task.id)
     _told(request, card.project_id)
