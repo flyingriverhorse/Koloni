@@ -2,15 +2,19 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import type { Decision, DecisionLog } from '../api/types'
 import { Decisions } from './Decisions'
 import { markdown, markdownRow, weekStart } from './decisionLog'
-import { since } from './period'
+import { useApp } from '../state/store'
+import { since } from '../usage/period'
 
 type Log = Omit<DecisionLog, 'more'> & { more?: boolean }
 
-/** Today's Decisions (karar defteri): the period's chips, Show all, Copy as Markdown and the empty state. */
+/** Ready for you's Decided for you (karar defteri): the period's chips, its rows and what can still be done about
+ * them, Show all, Copy as Markdown and the empty state. */
+
+afterEach(() => vi.unstubAllGlobals())
 
 const NOW = new Date(2026, 10, 25, 12, 0)
 const at = (hour: number, minute: number) => new Date(2026, 10, 25, hour, minute).toISOString()
@@ -23,8 +27,10 @@ const answer: Decision = {
   what: 'Answered a question for you',
   quote: 'Which database for the tests?',
   answer: 'SQLite',
+  options: ['Postgres'],
   why: 'they make one in a temp folder',
   conversation_id: 'c1',
+  chat: 'Fix login',
   link: { kind: 'question', id: 'q1' },
   undo: 'change',
   undo_reason: null,
@@ -40,10 +46,11 @@ const ran: Decision = {
   answer: null,
   why: 'You may delete ./build.',
   conversation_id: 'c1',
+  chat: 'Fix login',
   link: { kind: 'command', id: 'k1' },
   undo: 'none',
   undo_reason: 'it ran',
-  seen: null,
+  seen: false,
 }
 const task: Decision = {
   ...ran,
@@ -51,10 +58,14 @@ const task: Decision = {
   at: at(2, 10),
   kind: 'task',
   who: 'orchestrator',
-  what: 'Added a task the Scout proposed to To-do',
+  what: 'Decided on a task the Scout proposed',
   quote: 'Fix the login timeout',
+  answer: 'Add',
   why: 'it blocks the release',
+  chat: null,
   link: { kind: 'task', id: 't1' },
+  undo: 'change',
+  undo_reason: null,
 }
 const many = (n: number): Decision[] =>
   Array.from({ length: n }, (_, i) => ({
@@ -70,19 +81,27 @@ function view(log: Log, leftAt: string | null = null, onOpenChat = vi.fn()) {
   return { onLoad, onOpenChat }
 }
 
-test('folded under its count and how many of its answers you have not seen; the period is chosen by its chips', async () => {
+test('its count and how many you have not seen; since you left first, where you left; the period by its chips', async () => {
   const left = at(1, 0)
   const { onLoad } = view({ rows: many(7), judge_fine: 0 }, left)
-  const fold = (await screen.findByText('· 7 (3 not seen)')).closest('details')!
-  expect(fold).not.toHaveAttribute('open')
-  expect(fold.querySelector('summary')).toHaveTextContent('Decisions· 7 (3 not seen)')
-  expect(onLoad).toHaveBeenLastCalledWith(since('today'))
-  const chips = within(fold).getByRole('group', { name: 'Decisions since' })
-  expect(within(chips).getByRole('button', { name: 'Today' })).toHaveAttribute('aria-pressed', 'true')
-  await userEvent.click(within(chips).getByRole('button', { name: 'This week' }))
-  expect(onLoad).toHaveBeenLastCalledWith(weekStart())
-  await userEvent.click(within(chips).getByRole('button', { name: 'Since I left' }))
+  const box = await screen.findByRole('region', { name: 'Decided for you 7, 3 not seen' })
   expect(onLoad).toHaveBeenLastCalledWith(left)
+  const chips = within(box).getByRole('group', { name: 'Decisions since' })
+  expect(within(chips).getByRole('button', { name: 'Since I left' })).toHaveAttribute('aria-pressed', 'true')
+  await userEvent.click(within(chips).getByRole('button', { name: 'Week' }))
+  expect(onLoad).toHaveBeenLastCalledWith(weekStart())
+  await userEvent.click(within(chips).getByRole('button', { name: 'Today' }))
+  expect(onLoad).toHaveBeenLastCalledWith(since('today'))
+})
+
+test('how many were decided since you left is told the page, read with Since I left - not where more were', async () => {
+  const onLeft = vi.fn()
+  const onLoad = vi.fn().mockResolvedValue({ rows: many(4), judge_fine: 0, more: false })
+  render(<Decisions onLoad={onLoad} leftAt={at(1, 0)} onLeft={onLeft} />)
+  await vi.waitFor(() => expect(onLeft).toHaveBeenCalledWith(4))
+  onLoad.mockResolvedValue({ rows: many(2), judge_fine: 0, more: false })
+  await userEvent.click(screen.getByRole('button', { name: 'Today' }))
+  expect(onLeft).toHaveBeenCalledTimes(1)
 })
 
 test('"Since I left" is not offered where the project was never left', async () => {
@@ -92,17 +111,21 @@ test('"Since I left" is not offered where the project was never left', async () 
     within(chips)
       .getAllByRole('button')
       .map(chip => chip.textContent),
-  ).toEqual(['Today', 'This week'])
+  ).toEqual(['Today', 'Week'])
 })
 
-test('five rows, then Show all; each says when, who, what, the words it is of and why, and opens where it is', async () => {
+test('five rows, then Show all; each says when, who, where, what, the words it is of and why, and opens where it is', async () => {
   const { onOpenChat } = view({ rows: [answer, ran, ...many(5)], judge_fine: 2 })
   const list = await screen.findByRole('list', { name: 'Decisions, newest first' })
   expect(within(list).getAllByRole('listitem')).toHaveLength(5)
-  const first = within(list).getAllByRole('listitem')[0]
-  expect(first).toHaveTextContent(
-    'Orchestrator · Answered a question for you: Which database for the tests? → SQLite · “they make one in a temp folder”not seen',
-  )
+  const [first, second] = within(list).getAllByRole('listitem')
+  expect(within(first).getByText('Orchestrator')).toHaveClass('who-orchestrator')
+  expect(first).toHaveTextContent('Fix loginnot seen')
+  expect(first).toHaveTextContent('Answered a question for you: Which database for the tests? → SQLite')
+  expect(within(first).getByText('they make one in a temp folder').tagName).toBe('Q')
+  // (a rule of yours: in its colour, and in words)
+  expect(within(second).getByText('Your rule')).toHaveClass('who-your_words')
+  expect(within(second).getByText('rm -rf build').tagName).toBe('CODE')
   await userEvent.click(within(first).getByRole('button', { name: /^The question in its chat/ }))
   expect(onOpenChat).toHaveBeenCalledWith('c1')
   expect(screen.getByText('The judge let 2 commands run.')).toBeInTheDocument()
@@ -138,7 +161,7 @@ test('the Markdown: when, who and KOLONİ’s sentence as they are; a quote, an 
       'Decided for you (Today):',
       '',
       '- 04:40 · Orchestrator · Answered a question for you: ` Which database for the tests? ` → ` SQLite ` · why: ` they make one in a temp folder `',
-      "- 03:55 · Check what I said first · Ran a command without asking, on a line of this project's rules: ` rm -rf build ` · why: `` see ![x](https://evil.example/a.png?k=1) and `code` @octocat <img src=x> # heading ``",
+      "- 03:55 · Your rule · Ran a command without asking, on a line of this project's rules: ` rm -rf build ` · why: `` see ![x](https://evil.example/a.png?k=1) and `code` @octocat <img src=x> # heading ``",
       '',
       'The judge let 3 commands run.',
     ].join('\n'),
@@ -149,7 +172,9 @@ test('the Markdown: when, who and KOLONİ’s sentence as they are; a quote, an 
     'This week',
     NOW,
   )
-  expect(before).toMatch(/^- \S+ 22:05 · Orchestrator · Added a task/m)
+  expect(before).toMatch(
+    /^- \S+ 22:05 · Orchestrator · Decided on a task the Scout proposed: ` Fix the login timeout ` → ` Add `/m,
+  )
 })
 
 test('a period with nothing decided says so in one sentence: no list, no Copy', async () => {
@@ -160,23 +185,19 @@ test('a period with nothing decided says so in one sentence: no list, no Copy', 
   expect(screen.queryByRole('button', { name: 'Copy as Markdown' })).toBeNull()
 })
 
-test('asked from the chat’s "All decisions on Today", it opens itself and says so', async () => {
+test('asked by "Open in Ready for you", it takes the focus, in view, and says so', async () => {
   const onOpened = vi.fn()
   const log = { rows: [answer], judge_fine: 0, more: false }
   render(<Decisions onLoad={vi.fn().mockResolvedValue(log)} leftAt={null} asked onOpened={onOpened} />)
-  expect((await screen.findByText('· 1 (1 not seen)')).closest('details')).toHaveAttribute('open')
+  const box = await screen.findByRole('region', { name: /^Decided for you/ })
+  expect(box).toHaveFocus()
   expect(onOpened).toHaveBeenCalledTimes(1)
-})
-
-test('not asked, it is folded', async () => {
-  view({ rows: [answer], judge_fine: 0 })
-  expect((await screen.findByText('· 1 (1 not seen)')).closest('details')).not.toHaveAttribute('open')
 })
 
 test('a period of more than the log gives says it shows the newest, on the screen and in the Markdown', async () => {
   const user = userEvent.setup()
   view({ rows: many(7), judge_fine: 0, more: true })
-  expect(await screen.findByText('· 7+ (3 not seen)')).toBeInTheDocument()
+  expect(await screen.findByRole('region', { name: 'Decided for you 7+, 3 not seen' })).toBeInTheDocument()
   expect(screen.getByText('Showing the newest 7.')).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Copy as Markdown' }))
   await screen.findByRole('status')
@@ -190,9 +211,9 @@ test('another period: the last one’s rows go at once, not shown nor copied und
     .mockResolvedValueOnce({ rows: [answer], judge_fine: 0, more: false })
     .mockReturnValue(later)
   render(<Decisions onLoad={onLoad} leftAt={null} />)
-  expect(await screen.findByText('· 1 (1 not seen)')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'This week' }))
-  expect(screen.queryByText('· 1 (1 not seen)')).toBeNull()
+  expect(await screen.findByRole('region', { name: 'Decided for you 1, 1 not seen' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Week' }))
+  expect(screen.getByRole('region', { name: 'Decided for you' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Copy as Markdown' })).toBeNull()
 })
 
@@ -233,4 +254,73 @@ test('an agent’s words, rendered as GitHub renders a PR body, make no link, im
   }
   // Blank words make no empty code span.
   expect(markdownRow({ ...answer, quote: ' ', why: null })).not.toContain('`  `')
+})
+
+/** The server, as the rows' OK and Change reach it: each request kept. */
+function server() {
+  const asked = vi.fn(async (_url: string, _init?: RequestInit) => new Response('{}', { status: 200 }))
+  vi.stubGlobal('fetch', asked)
+  const calls = () => asked.mock.calls.map(([url, init]) => [url, init?.method, init?.body ?? null])
+  return calls
+}
+
+test('OK on a row not seen, and Change while its agent works: to the server, then the log is read again', async () => {
+  const calls = server()
+  const unseenCommand = { ...ran, id: 'command:k2', link: { kind: 'command' as const, id: 'k2' } }
+  const { onLoad } = view({ rows: [answer, unseenCommand], judge_fine: 0 })
+  const list = await screen.findByRole('list', { name: 'Decisions, newest first' })
+  const [card, command] = within(list).getAllByRole('listitem')
+  await userEvent.click(within(card).getByRole('button', { name: 'OK' }))
+  await vi.waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2))
+  await userEvent.click(within(card).getByRole('button', { name: 'Change → Postgres' }))
+  expect(await screen.findByRole('status')).toHaveTextContent('Sent to the agent that asked, while it works')
+  await userEvent.click(within(command).getByRole('button', { name: 'OK' }))
+  expect(calls()).toEqual([
+    ['/api/questions/q1/ok', 'POST', '{}'],
+    ['/api/questions/q1/change', 'POST', JSON.stringify({ answer: 'Postgres' })],
+    ['/api/commands/k2/seen', 'POST', '{}'],
+  ])
+  // (it ran: no Change, and why)
+  expect(command).toHaveTextContent("can't be undone: it ran")
+  expect(within(command).queryByRole('button', { name: /Change/ })).toBeNull()
+})
+
+test('a row of the open chat tells its store at once, as the chat’s own box did', async () => {
+  const ok = vi.spyOn(useApp.getState(), 'decidedOk').mockResolvedValue()
+  const changed = vi.spyOn(useApp.getState(), 'decidedChange').mockResolvedValue()
+  useApp.setState({ conv: { conversation: { id: 'c1' } } as never })
+  view({ rows: [answer], judge_fine: 0 })
+  const row = (await screen.findAllByRole('listitem'))[0]
+  await userEvent.click(within(row).getByRole('button', { name: 'OK' }))
+  await userEvent.click(within(row).getByRole('button', { name: 'Change → Postgres' }))
+  expect(ok).toHaveBeenCalledWith('q1')
+  expect(changed).toHaveBeenCalledWith('q1', 'Postgres')
+  ok.mockRestore()
+  changed.mockRestore()
+})
+
+test('a To-do choice: OK keeps it, Change turns it the other way; a refusal is said on its row', async () => {
+  const seen = vi.spyOn(useApp.getState(), 'seenTask').mockResolvedValue()
+  const decide = vi
+    .spyOn(useApp.getState(), 'decideTask')
+    .mockRejectedValueOnce(new Error('it has started'))
+    .mockResolvedValue()
+  view({ rows: [task, { ...task, id: 'task:t2', answer: 'Reject', link: { kind: 'task', id: 't2' } }], judge_fine: 0 })
+  const [added, turned] = within(await screen.findByRole('list', { name: 'Decisions, newest first' })).getAllByRole(
+    'listitem',
+  )
+  await userEvent.click(within(added).getByRole('button', { name: 'Change → Reject' }))
+  expect(await within(added).findByRole('alert')).toHaveTextContent('it has started')
+  await userEvent.click(within(added).getByRole('button', { name: 'OK' }))
+  // (OK on one turned down takes it off To-do, as the chat's box did)
+  await userEvent.click(within(turned).getByRole('button', { name: 'OK' }))
+  await userEvent.click(within(turned).getByRole('button', { name: 'Change → Add' }))
+  expect(seen).toHaveBeenCalledWith('t1')
+  expect(decide.mock.calls).toEqual([
+    ['t1', 'reject'],
+    ['t2', 'reject'],
+    ['t2', 'approve'],
+  ])
+  seen.mockRestore()
+  decide.mockRestore()
 })

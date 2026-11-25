@@ -4773,21 +4773,6 @@ fieldset.choice > label .choice-note,
   font-style: italic;
 }
 
-.decided-top {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.decided-top .decided-head {
-  flex: 1;
-}
-
-.decided-all {
-  font-size: var(--text-meta);
-  font-weight: var(--weight-body);
-}
-
 /* Who decided (karar defteri): the Orchestrator, KOLONİ's judge or Check what I said first. */
 .decided-who {
   color: var(--accent);

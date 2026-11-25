@@ -7,13 +7,14 @@ import { NightRow } from './NightRow'
 import { WaitRow } from '../backlog/BacklogPage'
 import { count, since } from '../board/columns'
 import { type RequestHandlers, WaitingCard, WaitingList } from '../chat/MessageList'
-import { DecidedForYou } from '../chat/DecidedForYou'
-import { PARTS, decidedOf, judgedCommands, koloniAbout } from '../chat/waiting'
+import { PARTS, koloniAbout } from '../chat/waiting'
 import { wouldReplace } from '../memory/memoryText'
 import { Proposal, Suggestion } from '../memory/records'
 import type { WaitingKind, Waiting as WaitingRow } from '../chat/waiting'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
+import { Decisions } from './Decisions'
+import { readySentence } from './decisionLog'
 import { READY_PANEL, type ReadyItem, type ReadySource, SOURCES, chatOf, ofChat, readyId } from './ready'
 
 /** Open a chat; `key`: at that card of it (the panel's This chat). Resolves once it is open. */
@@ -267,13 +268,26 @@ export function ReadyPanel({ items, openChat, onPage, onClose }: PanelProps) {
   )
 }
 
+/** The project's decision log beside the list: what `Decisions` reads and is asked. */
+type DecisionsProps = Omit<Parameters<typeof Decisions>[0], 'onLeft'>
+
 /**
  * Ready for you as a page (tek-ev §1): the same list, oldest first, by where it comes from; and the To-do list's new
  * tasks approved together - one after another, each as its own Approve does it, one that fails left on its row with why.
+ * Beside it, on a wide screen (under it on a narrow one), the project's Decided for you: its decision log, with your OK
+ * and Change (karar defteri).
  */
-export function ReadyPage({ items, openChat }: { items: ReadyItem[]; openChat: OpenChat }) {
+export function ReadyPage({
+  items,
+  openChat,
+  decisions,
+}: {
+  items: ReadyItem[]
+  openChat: OpenChat
+  decisions?: DecisionsProps
+}) {
   const [only, setOnly] = useState<ReadySource | null>(null)
-  const conv = useApp(s => s.conv)
+  const [left, setLeft] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const shown = only ? items.filter(item => item.source === only) : items
@@ -304,41 +318,40 @@ export function ReadyPage({ items, openChat }: { items: ReadyItem[]; openChat: O
           </button>
         )}
       </div>
-      <div role="group" aria-label="Show" className="board-show">
-        <button type="button" className="btn btn-small" aria-pressed={only === null} onClick={() => setOnly(null)}>
-          All · {items.length}
-        </button>
-        {SOURCES.map(([source, word]) => (
-          <button
-            key={source}
-            type="button"
-            className="btn btn-small"
-            aria-pressed={only === source}
-            onClick={() => setOnly(source)}
-          >
-            {word} · {items.filter(item => item.source === source).length}
-          </button>
-        ))}
+      <p className="ready-said">{readySentence(items.length, decisions?.leftAt ? left : null)}</p>
+      <div className="ready-columns">
+        <div className="ready-main">
+          <div role="group" aria-label="Show" className="board-show">
+            <button type="button" className="btn btn-small" aria-pressed={only === null} onClick={() => setOnly(null)}>
+              All · {items.length}
+            </button>
+            {SOURCES.map(([source, word]) => (
+              <button
+                key={source}
+                type="button"
+                className="btn btn-small"
+                aria-pressed={only === source}
+                onClick={() => setOnly(source)}
+              >
+                {word} · {items.filter(item => item.source === source).length}
+              </button>
+            ))}
+          </div>
+          {shown.length === 0 && <p className="muted">Nothing waits for you here.</p>}
+          {PARTS.map(([head, kinds]) => {
+            const mine = shown.filter(item => kinds.includes(kindOf(item)))
+            return (
+              mine.length > 0 && (
+                <section key={head} aria-label={head}>
+                  <h3 className="kicker">{head}</h3>
+                  <ReadyList items={mine} openChat={openChat} errors={errors} off={busy} />
+                </section>
+              )
+            )
+          })}
+        </div>
+        {decisions && <Decisions {...decisions} onLeft={setLeft} />}
       </div>
-      {shown.length === 0 && <p className="muted">Nothing waits for you here.</p>}
-      {PARTS.map(([head, kinds]) => {
-        const mine = shown.filter(item => kinds.includes(kindOf(item)))
-        return (
-          mine.length > 0 && (
-            <section key={head} aria-label={head}>
-              <h3 className="kicker">{head}</h3>
-              <ReadyList items={mine} openChat={openChat} errors={errors} off={busy} />
-            </section>
-          )
-        )
-      })}
-      {/* shortcut: Told you shows the open chat's Decided for you only - the others' are not loaded here; load them if one is missed. */}
-      {!only && conv && decidedOf(conv).length + judgedCommands(conv).length > 0 && (
-        // (Decided for you is its own card, under its own title: no second heading over it.)
-        <section aria-label="Told you">
-          <DecidedForYou state={conv} />
-        </section>
-      )}
     </div>
   )
 }

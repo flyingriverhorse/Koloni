@@ -250,42 +250,8 @@ th[aria-sort='descending'] > .sort-head::after {
   margin-bottom: 10px;
 }
 
-/* Today's Decisions (karar defteri): the period's chips, a row a decision - when, who and what, where it is. */
-.decisions .chip[aria-pressed='true'] {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.decisions-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 8px 0;
-  padding: 0;
-  list-style: none;
-}
-
-.decision {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 4px 10px;
-  align-items: baseline;
-  overflow-wrap: anywhere;
-}
-
-.decision-unseen {
-  margin-left: 6px;
-}
-
-/* An agent's or a model's words: no direction mark in them turns the rest of the row around. */
-.decision q,
-.decision-why {
-  unicode-bidi: isolate;
-}
-
-.decisions-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
+/* Today's decisions in one line (karar defteri): how many, and the way to Ready for you, which says each. */
+.decided-today {
+  margin: 10px 0 0;
+  color: var(--muted);
 }

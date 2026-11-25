@@ -78,6 +78,7 @@ const answer = (url: string, over: Record<string, unknown> = {}) => {
     '/api/conversations/c': snapshot,
     '/api/projects/p/board': { limit: null, running: 0, conversations: [], conflicts: [] },
     '/api/projects/p/others-instructions': { paths: [], more: 0, partial: false },
+    '/api/projects/p/decisions': { rows: [], judge_fine: 0, more: false },
     '/api/board': { backlog_waiting: 0, limit: null, running: 0, conversations: [], conflicts: [] },
     '/api/hold': {
       held: false,
@@ -570,73 +571,86 @@ test("the top bar's pill says what the Lead decided for you when nothing waits; 
   expect(document.getElementById('ready-panel')).toBeNull()
 })
 
-test("the pill counts a command Full auto's judge refused, so that Decided for you can be reached", async () => {
+/** A command Full auto's judge refused in chat c, as the chat has it and as the project's decision log says it. */
+function refusedByTheJudge() {
   const judged = { kind: 'risk' as const, verdict: 'refuse' as const, quote: '', source: '' as const }
   const refused = command('k', 'r', {
     status: 'refused',
     judged: { ...judged, why: 'It sends .env away.', model: 'Fast · quick', seen: false },
   })
-  vi.stubGlobal(
-    'fetch',
-    emptyPages({ '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] } }),
-  )
-  render(<App />)
-  await userEvent.click(await screen.findByRole('button', { name: '1 decided for you' }))
-  const decided = within(document.getElementById('ready-panel')!).getByRole('region', { name: /Decided for you/ })
-  expect(decided).toHaveTextContent("KOLONİ's judge")
-  expect(decided).toHaveTextContent('“It sends .env away.”')
-})
+  const row = {
+    id: 'command:k',
+    at: new Date().toISOString(),
+    kind: 'command',
+    who: 'judge',
+    what: "KOLONİ's judge did not run a command; the agent went on",
+    quote: 'python gen.py',
+    answer: null,
+    options: null,
+    why: 'It sends .env away.',
+    conversation_id: 'c',
+    chat: 'Chat',
+    link: { kind: 'command', id: 'k' },
+    undo: 'none',
+    undo_reason: 'it did not run',
+    seen: false,
+  }
+  return { refused, log: { rows: [row], judge_fine: 2, more: false } }
+}
 
-test('"All decisions on Today" opens Usage at Today, made anew from another period, with Decisions open', async () => {
-  const judged = { kind: 'risk' as const, verdict: 'refuse' as const, quote: '', source: '' as const }
-  const refused = command('k', 'r', {
-    status: 'refused',
-    judged: { ...judged, why: 'It sends .env away.', model: 'Fast · quick', seen: false },
-  })
-  const pages = emptyPages({
+test("the pill counts a command Full auto's judge refused; the chat says it in one line, and Ready for you has its OK", async () => {
+  const { refused, log } = refusedByTheJudge()
+  const read = emptyPages({
     '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] },
-  })
-  const day = { turns: 0, agents: [], changed_files: [], waiting: 0, failed: 0, conversations: [] }
-  let dayDown = false
-  const read = vi.fn(async (url: string) => {
-    if (url.startsWith('/api/projects/p/day'))
-      return dayDown
-        ? new Response('{"detail":"down"}', { status: 500 })
-        : new Response(JSON.stringify(day), { status: 200 })
-    if (url.startsWith('/api/projects/p/decisions?since='))
-      return new Response(JSON.stringify({ rows: [], judge_fine: 2, more: false }), { status: 200 })
-    return pages(url)
+    '/api/projects/p/decisions': log,
+    '/api/commands/k/seen': { ...refused, judged: { ...refused.judged, seen: true } },
   })
   vi.stubGlobal('fetch', read)
   render(<App />)
-  const pill = await screen.findByRole('button', { name: '1 decided for you' })
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Usage' }))
-  await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Period' }), '7')
-  expect(screen.queryByRole('region', { name: 'Decisions' })).toBeNull()
-  await userEvent.click(pill)
-  const decided = within(document.getElementById('ready-panel')!).getByRole('region', { name: /Decided for you/ })
-  await userEvent.click(within(decided).getByRole('button', { name: 'All decisions on Today' }))
-  const decisions = await screen.findByRole('region', { name: 'Decisions' })
-  expect(decisions.querySelector('details')).toHaveAttribute('open')
-  expect(decisions).toHaveTextContent('The judge let 2 commands run.')
-  expect(screen.getByRole('combobox', { name: 'Period' })).toHaveValue('today')
-  // The ask was taken: a later visit of Usage's own is folded, as any.
+  await userEvent.click(await screen.findByRole('button', { name: '1 decided for you' }))
+  const panel = document.getElementById('ready-panel')!
+  expect(within(panel).getByText('While you were away, 1 thing was decided for you.')).toBeInTheDocument()
+  await userEvent.click(within(panel).getByRole('button', { name: 'Open in Ready for you' }))
+  const decided = await screen.findByRole('region', { name: /^Decided for you 1, 1 not seen/ })
+  await vi.waitFor(() => expect(decided).toHaveFocus())
+  expect(within(decided).getByText("KOLONİ's judge")).toHaveClass('who-judge')
+  expect(within(decided).getByText('It sends .env away.').tagName).toBe('Q')
+  expect(decided).toHaveTextContent('The judge let 2 commands run.')
+  await userEvent.click(within(decided).getByRole('button', { name: 'OK' }))
+  const calls = read.mock.calls as unknown as [string, RequestInit | undefined][]
+  const asked = calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)
+  expect(asked).toContain('POST /api/commands/k/seen')
+  // (the open chat's: told at once - the pill has nothing more)
+  await vi.waitFor(() => expect(screen.queryByRole('button', { name: '1 decided for you' })).toBeNull())
+})
+
+test("Usage's Today says the day's decisions in one line; Open in Ready for you brings its Decided for you in view, once", async () => {
+  const { refused, log } = refusedByTheJudge()
+  const pages = emptyPages({
+    '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] },
+    '/api/projects/p/decisions': log,
+  })
+  const day = { turns: 0, agents: [], changed_files: [], waiting: 0, failed: 0, conversations: [] }
+  const read = vi.fn(async (url: string) =>
+    url.startsWith('/api/projects/p/day') ? new Response(JSON.stringify(day), { status: 200 }) : pages(url),
+  )
+  vi.stubGlobal('fetch', read)
+  render(<App />)
+  await screen.findByRole('button', { name: '1 decided for you' })
   const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
-  await userEvent.click(rail('Canvas'))
   await userEvent.click(rail('Usage'))
-  const again = await screen.findByRole('region', { name: 'Decisions' })
-  expect(again.querySelector('details')).not.toHaveAttribute('open')
-  // Asked where the day could not be read - Decisions never shown -, then the page left: not asked any more.
-  dayDown = true
-  if (!document.getElementById('ready-panel')) await userEvent.click(pill)
-  const link = within(document.getElementById('ready-panel')!).getByRole('button', { name: 'All decisions on Today' })
-  await userEvent.click(link)
-  expect(await screen.findByText(/^The day could not be read/)).toBeInTheDocument()
+  expect(await screen.findByText("1 decision was made for you today, 1 of them you haven't seen.")).toBeInTheDocument()
+  // (Usage keeps no list of them any more)
+  expect(screen.queryByRole('region', { name: /Decisions|Decided for you/ })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Open in Ready for you' }))
+  const decided = await screen.findByRole('region', { name: /^Decided for you/ })
+  await vi.waitFor(() => expect(decided).toHaveFocus())
+  // The ask was taken: Ready for you opened later, from the rail, is as any.
   await userEvent.click(rail('Canvas'))
-  dayDown = false
-  await userEvent.click(rail('Usage'))
-  const later = await screen.findByRole('region', { name: 'Decisions' })
-  expect(later.querySelector('details')).not.toHaveAttribute('open')
+  await userEvent.click(rail('Ready'))
+  const again = await screen.findByRole('region', { name: /^Decided for you/ })
+  await within(again).findByText("KOLONİ's judge")
+  expect(again).not.toHaveFocus()
 })
 
 test("an agent's window and a discussion's open over the canvas only with a chat; selecting a node opens the inspector", async () => {

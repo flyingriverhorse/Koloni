@@ -57,8 +57,8 @@ import { continuesFrom } from './topics/topics'
 import { UsagePage } from './usage/UsagePage'
 import { BudgetPill } from './usage/Budget'
 import { TodayView } from './usage/TodayView'
-import { Decisions } from './usage/Decisions'
-import { OPEN_DECISIONS, readDecisions } from './usage/decisionLog'
+import { DecidedToday } from './ready/DecidedToday'
+import { OPEN_DECISIONS, readDecisions } from './ready/decisionLog'
 import type { Near } from './usage/limitsText'
 import { PlanUse } from './usage/PlanUse'
 import { ReadyPage, ReadyPanel } from './ready/ReadyViews'
@@ -377,15 +377,13 @@ export function App() {
     window.addEventListener(OPEN_TODO, open)
     return () => window.removeEventListener(OPEN_TODO, open)
   }, [])
-  // The chat's "All decisions on Today": Usage made anew, at Today (its own period, this project), Decisions open -
-  // asked until Decisions opens, or the page is left before it could (then a later visit is folded, as any).
-  const [usageAgain, setUsageAgain] = useState(0)
+  // "Open in Ready for you" (the chat's line, Usage's Today): the Ready for you page, its Decided for you in view - asked
+  // until it is, or the page is left before it could be (then a later visit is as any).
   const [decisionsAsked, setDecisionsAsked] = useState(false)
   useEffect(() => {
     const open = () => {
-      setView('usage')
+      setView('ready')
       setSettingsOpen(false)
-      setUsageAgain(n => n + 1)
       setDecisionsAsked(true)
     }
     window.addEventListener(OPEN_DECISIONS, open)
@@ -393,7 +391,7 @@ export function App() {
   }, [])
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (view !== 'usage') setDecisionsAsked(false)
+    if (view !== 'ready') setDecisionsAsked(false)
   }, [view])
   const decisionsOpened = useCallback(() => setDecisionsAsked(false), [])
   // (One for the project: Decisions reads again only for another period.)
@@ -804,7 +802,24 @@ export function App() {
       }}
     />
   )
-  const readyPage = () => <ReadyPage items={waiting} openChat={openChat} />
+  const readyPage = () => (
+    <ReadyPage
+      items={waiting}
+      openChat={openChat}
+      // (The open folder's decision log: none for a plain chat's.)
+      decisions={
+        projectId
+          ? {
+              onLoad: decisionsOf,
+              leftAt: away?.started_at ?? null,
+              asked: decisionsAsked,
+              onOpened: decisionsOpened,
+              onOpenChat: id => void openChat(id),
+            }
+          : undefined
+      }
+    />
+  )
   const boardPage = () =>
     !project ? (
       noFolder('Board')
@@ -873,7 +888,6 @@ export function App() {
     )
   const usagePage = () => (
     <UsagePage
-      key={usageAgain}
       project={project}
       projects={projects}
       onLoad={useApp.getState().usage}
@@ -902,18 +916,7 @@ export function App() {
               await useApp.getState().openTurn(id, runId)
               setView('canvas')
             }}
-            decisions={
-              <Decisions
-                onLoad={decisionsOf}
-                leftAt={away?.started_at ?? null}
-                asked={decisionsAsked}
-                onOpened={decisionsOpened}
-                onOpenChat={id => {
-                  void useApp.getState().openConversation(id)
-                  setView('canvas')
-                }}
-              />
-            }
+            decisions={<DecidedToday onLoad={decisionsOf} />}
           />
         )
       }

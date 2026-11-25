@@ -8,7 +8,7 @@ import { useApp } from '../state/store'
 import { hearsNothing } from '../agents/agentStatus'
 import { decidedOf, decidedTasks, judgedCommands } from './waiting'
 import { shownOption, shownQuestion } from '../agents/teamRun'
-import { WHO, openDecisions } from '../usage/decisionLog'
+import { WHO } from '../ready/decisionLog'
 
 /** A time as this machine's clock says it: "02:10". */
 const clock = (iso: string | null) =>
@@ -18,7 +18,8 @@ const OVER = new Set(['completed', 'failed', 'cancelled', 'rejected', 'interrupt
 /**
  * "Decided for you" (K-vekil-karar): what the Lead answered for you while you were away, with its reason. OK takes one
  * off the list; Change sends your own choice to the agent that asked while it is still at work - a card of KOLONİ's
- * (Ask me, opening an agent) went on at once, and cannot be undone.
+ * (Ask me, opening an agent) went on at once, and cannot be undone. Only a chat with no folder's now: a project's are on
+ * Ready for you's Decided for you, its decision log, and the chat says them in one line (`DecidedLine`).
  */
 export function DecidedForYou({ state }: { state: ConvState }) {
   const id = useId()
@@ -43,23 +44,15 @@ export function DecidedForYou({ state }: { state: ConvState }) {
   const span = from === to ? from : `${from}–${to}`
   return (
     <section aria-labelledby={id} className="cmd-approval card-tell decided">
-      {/* (The link beside the heading, not in it: the heading names the section.) */}
-      <div className="decided-top">
-        <h3 id={id} className="kicker cmd-approval-kicker decided-head">
-          {/* shortcut: at Full auto the Lead decides in a watched turn too (K-fullauto-sorma); say
-              "at Full auto" here by the chat's level if the heading is seen to mislead. */}
-          Decided for you while you were away
-          <span className="decided-count">
-            {count}
-            {span && ` · ${span}`}
-          </span>
-        </h3>
-        {state.conversation.project_id && (
-          <button type="button" className="usage-open decided-all" onClick={openDecisions}>
-            All decisions on Today
-          </button>
-        )}
-      </div>
+      <h3 id={id} className="kicker cmd-approval-kicker decided-head">
+        {/* shortcut: at Full auto the Lead decides in a watched turn too (K-fullauto-sorma); say
+            "at Full auto" here by the chat's level if the heading is seen to mislead. */}
+        Decided for you while you were away
+        <span className="decided-count">
+          {count}
+          {span && ` · ${span}`}
+        </span>
+      </h3>
       {items.map(q => (
         <Decided key={q.id} question={q} state={state} onSent={setSent} />
       ))}
