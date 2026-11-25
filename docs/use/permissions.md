@@ -389,7 +389,10 @@ It is not asked about:
   never runs a command that asks, and never refuses one.
 
 **What it reads:** your preferences, this project's rules as saved on the [Memory](../memory.md) page and
-your messages in the chat (in a job while you're away, in the chat you went away from); the command, its
+your messages in the chat (in a job while you're away, in the chat you went away from) - at most your last
+6, newest first, and 4,000 characters of them together, the last one cut where a line or a sentence ends:
+a newest message longer than that with no line or sentence break in its first 4,000 characters gives
+"(none)" for your messages; the command, its
 folder and who runs it (the Orchestrator or a sub-agent's role); the last 5 commands the same agent ran in
 the turn (only ones that started, each cut to 300 characters); and, where the line runs or reads a file an
 agent wrote - a script (`node x.js`, `python x.py`, `python -m x`, `./x.sh`, `x.ps1`, `powershell -File
@@ -425,8 +428,10 @@ KOLONİ knows all the line runs, as it is:
   (where no word names a path in the folder), and the file commands `rm`, `rmdir`, `del`, `mkdir`, `md`,
   `cp`, `copy`, `mv`, `move`, `ren`, `chmod`, `touch`.
 
-Every other line is asked about each time it runs, and its card has no box: `git` and `gh` (they may run
-the project's own aliases and settings), a wrapped line (`env …`, `uv run …`, `timeout …`), a shell's code
+Every other line is asked about each time it runs, and its card has no box: a chain, a pipe, a
+redirection or a substitution - `python k.py && python e.py`, `… ; …`, `… | …`, `… || …`, `… > out.txt`,
+`$(…)` - kept on its first file, the next one could change unseen; `git` and `gh` (they may run the
+project's own aliases and settings), a wrapped line (`env …`, `uv run …`, `timeout …`), a shell's code
 (`bash -lc …`, `cmd /c …`), `npx …`, a line sent to another folder (`-C`, `--prefix`, `-w`, `--cwd`), an
 option that loads more code (`node -r x`; PowerShell with any option but `-NoProfile`, `-NonInteractive`,
 `-NoLogo`, `-ExecutionPolicy`, `-WindowStyle` and `-File`), a variable set on make's line (`make CC=x`), a
