@@ -864,10 +864,12 @@ work or tells you. It never assumes the condition holds.
   Reviewer's look and the live try -, on the work as it is then. The ask for a test comes at the
   end only.
 - **The end runs its own checks too:** asking is an extra pass, never the end's. Whatever an answer
-  said, the turn's end checks the work again as it is then - after a commit too -, and what it
-  found on asking stands for that answer only: the end looks again for itself (a Reviewer's
-  MERGE, the reviewers taken, the live try made on asking are not the end's). Asking costs one
-  more pass - its test runs and, where the change is big, one more Reviewer.
+  said, the turn's end runs its own checks - a test run KOLONİ made after the last change may
+  stand for it, as at any end ([Which tests](#which-tests)); after a command that may have
+  written, such as a commit, they run again. What it found on asking stands for that answer only:
+  the end looks again for itself (a Reviewer's MERGE, the reviewers taken, the live try made on
+  asking are not the end's). Asking costs one more pass - its test runs and, where the change is
+  big, one more Reviewer. A call stopped half way counts toward the most below.
 - **The answer's first line** is KOLONİ's own: `CHECKS: green`, `CHECKS: red` or `CHECKS: not
   complete`, whatever the tests printed. The Checked lines and where the work stands in git ("At
   commit 3c4d5e6 on main; not committed: a.py.") follow fenced, as data - a test's summary or a

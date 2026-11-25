@@ -143,16 +143,19 @@ class ChecksToolMixin:
 
     async def _checks_asked(self: "AgentRunner", ctx: Ctx, held: Proof) -> str:
         """`_run_checks` while its call holds the turn's checks: a pass each call, at most Fix
-        rounds + 1 a turn - past them, not complete (nothing run says the work is checked)."""
+        rounds + 1 a turn - past them, not complete (nothing run says the work is checked). A
+        pass counts as it starts: one stopped half way (a CLI that gave up on the call) was paid
+        for all the same."""
         if held.asked_runs > held.most:
             capped = checks_now.CAPPED_ASKED.format(n=held.asked_runs)
             return checks_now.answer(checks_now.NOT_COMPLETE, [], None, None, capped)
+        held.asked_runs += 1
         ran, said = await self._proof_pass(ctx, True)
-        if ran is None:
+        if ran is None:  # (nothing was due: no pass)
+            held.asked_runs -= 1
             return checks_now.answer(
                 checks_now.NOT_COMPLETE, [], None, None, checks_now.NOTHING_TO_CHECK
             )
-        held.asked_runs += 1
         return await self._checks_answer(ctx, held, said)
 
     async def _checks_answer(self: "AgentRunner", ctx: Ctx, held: Proof, said: str | None) -> str:

@@ -759,3 +759,32 @@ def test_a_try_that_failed_on_asking_leaves_no_row_once_fixed(
     tried = [one for one in checked(snap) if one["kind"] == "try"]
     assert tried and all(one["state"] != "failed" for one in tried), tried
     assert passes(snap) == ["asked", "asked", "check"]
+
+
+def test_a_pass_stopped_half_way_still_counts_toward_the_cap(make_client, monkeypatch):
+    # (round 3, M1: a CLI that gives up on the call cancels it - its tests and Reviewer were
+    # paid for all the same: no way round Fix rounds + 1)
+    client, _model = make_client([])
+    runner, started = client.app.state.runner, []
+
+    async def pass_(_self, _ctx, asked=False):
+        started.append(asked)
+        if len(started) == 1:
+            await asyncio.Event().wait()  # (the first: stopped half way)
+        return None, None
+
+    monkeypatch.setattr(AgentRunner, "_proof_pass", pass_)
+    held, ctx = Proof(most=0), SimpleNamespace(run_id="r1")
+
+    async def main():
+        going = asyncio.ensure_future(runner._checks_asked(ctx, held))
+        while not started:
+            await asyncio.sleep(0)
+        going.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await going
+        return await runner._checks_asked(ctx, held)
+
+    again = asyncio.run(main())
+    assert held.asked_runs == 1 and started == [True]
+    assert again == f"CHECKS: not complete\n{CAPPED_ASKED.format(n=1)}"
