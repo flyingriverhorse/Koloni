@@ -39,9 +39,9 @@ KOLONİ's own words, as they appear on screen.
   searches, secret files, opening a sub-agent, plans and more.
 
 **Check what I said first**
-: A switch in the permission level's menu, the project's: at Full auto, before a harmful-looking
-  command waits for you on a card, a fast model reads your own words, and the command runs without a
-  card only where a line of yours names it. See
+: Full auto's judge's question of your words (its box in Settings › This project › Asking and away,
+  since 0.1.9): at Full auto, before a harmful-looking command waits for you on a card, a fast model
+  reads your own words, and the command runs without a card only where a line of yours names it. See
   [Permission levels](../use/permissions.md#check-what-i-said-first).
 
 **Compare**

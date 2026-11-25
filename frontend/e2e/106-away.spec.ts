@@ -3,7 +3,7 @@
 // through, each task in a chat of its own, the status line saying where it stands; I'm back writes one summary in the
 // chat, the To-do page shows the same, and the report is on the canvas - which KOLONÄ° goes to once.
 import { expect, test, type Locator } from './fixtures'
-import { contrasts, e2eProject, openFreshConversation, rail, say, setProject, shot } from './helpers'
+import { contrasts, openFreshConversation, rail, say, shot } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -15,7 +15,6 @@ async function reads(root: Locator, least: number) {
 
 test('the work goes on To-do with a Go away line; Away works it through until Iâ€™m back; one summary, the report on the canvas', async ({
   page,
-  request,
 }) => {
   test.setTimeout(90_000)
   await openFreshConversation(page)
@@ -29,15 +28,6 @@ test('the work goes on To-do with a Go away line; Away works it through until Iâ
   await expect(offer).toContainText('kept out secret106')
   await reads(offer, 2)
   if (process.env.KOLONI_SHOTS) await shot(page, '106-offer')
-
-  // Check what I said first, in the level menu: the project's own setting.
-  const pid = await e2eProject(page)
-  await page.getByRole('button', { name: /^Permission level/ }).click()
-  await page.getByRole('switch', { name: 'Check what I said first' }).click()
-  await expect
-    .poll(async () => (await (await request.get(`/api/projects/${pid}`)).json()).full_auto_check)
-    .toBe('judge')
-  await page.keyboard.press('Escape')
 
   // Change: the Away panel, here - both new tasks ticked; the second moved up; Go away.
   await offer.getByRole('button', { name: 'Change' }).click()
@@ -139,5 +129,4 @@ test('the work goes on To-do with a Go away line; Away works it through until Iâ
   await openFreshConversation(page)
   await expect(chat.getByText('Send a message to start.')).toBeVisible()
   await expect(page.locator('.away-node')).toHaveCount(0)
-  await setProject(page, { full_auto_check: 'ask' })
 })

@@ -267,6 +267,7 @@ const project: Project = {
   test_commands: {},
   full_auto_check: 'ask',
   full_auto_judge: true,
+  judge_words: false,
   disposable_deletes: false,
   memory_links: [],
   embedding_provider_id: null,

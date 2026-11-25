@@ -35,6 +35,7 @@ import { AskCard } from './AskCard'
 import { ChatTodoQueue } from './TodoQueue'
 import type { Second } from './Compare'
 import { Composer, type ComposerTopic } from './Composer'
+import { judgeWordsOf } from './levels'
 import { MessageList, type RequestHandlers } from './MessageList'
 import { ChatStoryStrip } from './StoryStrip'
 import { toFront } from '../shell/move'
@@ -685,13 +686,8 @@ export function ChatPanel() {
         onPermissionMode={mode => void useApp.getState().setPermissionMode(mode)}
         planFirst={conv?.conversation.plan_first}
         onPlanFirst={on => void useApp.getState().setPlanFirst(on)}
-        checkFirst={project?.full_auto_check === 'judge'}
-        onCheckFirst={
-          conv?.conversation.project_id
-            ? on => void useApp.getState().saveProjectSettings({ full_auto_check: on ? 'judge' : 'ask' })
-            : undefined
-        }
         judge={project?.full_auto_judge}
+        judgeWords={judgeWordsOf(project)}
         onJudge={
           conv?.conversation.project_id
             ? on => void useApp.getState().saveProjectSettings({ full_auto_judge: on })

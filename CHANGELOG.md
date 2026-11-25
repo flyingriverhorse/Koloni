@@ -28,6 +28,7 @@ How to write an entry (every release looks the same):
 ### Changed
 
 - **Settings**: Full auto's judge is on by default, in new projects and in the ones you have: Settings › This project › Asking and away turns it off; off, Full auto is as before ([docs](docs/settings.md#asking-and-away)).
+- **Settings**: **Check what I said first** is a question of **Full auto's judge** now: its row **A harmful-looking command at Full auto** and its switch in the level menu are gone, and under the judge's switch in Settings › This project › Asking and away its own box, **It also lets a delete or a push run when a line you saved names it**, lets a delete or a send a line of yours names run without a card, as it did. It works only once your Judge model's measurement has passed - none has yet, so the box says **(after its measurement)** and cannot be ticked - or in a project where you had turned Check what I said first on: there its box comes ticked, works as before, and you may untick it. With the judge off or the box unticked, such a command waits for you on its card. The level menu's **Full auto's judge** says what it does with your words. A line of yours that forbids the same delete as the one the model quoted ("Never delete ./x." beside "You may delete ./x.", or an item under "Never delete these:") now keeps the card, and its answer is waited for 20 seconds, as the judge's own (30 before; 90 on a CLI) ([docs](docs/use/permissions.md#check-what-i-said-first)).
 
 ### Fixed
 
