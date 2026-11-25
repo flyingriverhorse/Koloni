@@ -27,16 +27,22 @@ class Decision(BaseModel):
     what: str
     # The question, the command or the task's title.
     quote: str | None
-    # The answer the Orchestrator gave, on an answer's row; None on the others.
+    # The answer the Orchestrator gave, on an answer's row ("Add" or "Reject" on a task's); None on
+    # the others.
     answer: str | None = None
+    # An answer's row: the other answers Change can give, each as it is kept; None on the others.
+    options: list[str] | None = None
     # The model's reason - of Check what I said first, the line of yours it rested on; None: none.
     why: str | None
     conversation_id: str | None
+    chat: str | None = None  # (its chat's title, as `quote` is shown; None for a To-do task's)
     link: DecisionLink
     # "change": today's Change still works (an answer while its agent works; a To-do choice).
     undo: Literal["change", "none"]
     undo_reason: str | None  # (where it is "none": why, in plain words)
-    # A card's (an answer, a sub-agent opened or not): whether the user said OK to it; else None.
+    # Whether the user said OK to it: a card's answer, a sub-agent opened or not, a command run or
+    # not run on their words or refused by the judge, a To-do choice; None for one with no OK (a
+    # command the judge asked about on its card).
     seen: bool | None
 
 

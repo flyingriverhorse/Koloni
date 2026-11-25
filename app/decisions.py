@@ -89,7 +89,9 @@ def utc(at: datetime) -> datetime:
     return at.astimezone(UTC) if at.tzinfo else at.replace(tzinfo=UTC)
 
 
-def _card_undo(leave: bool, seen: bool, at_work: bool, others: bool) -> str | None:
+def _card_undo(
+    leave: bool, seen: bool, at_work: bool, others: list[str], offered: list[str]
+) -> str | None:
     """Why today's Change no longer works on a card's answer (`api.questions.change`); None: it
     does. shortcut: not where its agent is a CLI that hears nothing more (`steer`) - known only to
     the runner at work; the Change says so when pressed."""
@@ -99,14 +101,16 @@ def _card_undo(leave: bool, seen: bool, at_work: bool, others: bool) -> str | No
         return "you said OK to it"
     if not at_work:
         return "the agent that asked has finished"
-    return None if others else "it has no other answer to change to"
+    if not others:
+        return "it has no other answer to change to"
+    return None if offered else "its other answers hold words masked here"
 
 
 def _cards(session: Session, project_id: str, window: Window) -> list[Later]:
     """The cards the Orchestrator answered for the user - a sub-agent to open among them."""
     at = func.coalesce(Question.answered_at, Question.created_at)
     found = session.execute(
-        select(Question, at, Run.conversation_id, Agent.status)
+        select(Question, at, Run.conversation_id, Conversation.title, Agent.status)
         .join(Run, Run.id == Question.run_id)
         .join(Conversation, Conversation.id == Run.conversation_id)
         .join(Agent, Agent.id == Question.agent_id)
@@ -127,21 +131,27 @@ def _cards(session: Session, project_id: str, window: Window) -> list[Later]:
         )
     }
     rows: list[Later] = []
-    for question, when, cid, status in found:
+    for question, when, cid, title, status in found:
         if question.leave and question.options == SPAWN:
             child = opened.get((question.agent_id, question.tool_call_id))
-            rows.append((utc(when), partial(_spawn, question, utc(when), cid, child)))
+            build = partial(_spawn, question, utc(when), cid, title, child)
         else:
-            rows.append((utc(when), partial(_answer, question, utc(when), cid, status)))
+            build = partial(_answer, question, utc(when), cid, title, status)
+        rows.append((utc(when), build))
     return rows
 
 
-def _answer(question: Question, at: datetime, cid: str, status: str) -> Decision:
+def _answer(question: Question, at: datetime, cid: str, title: str, status: str) -> Decision:
+    others = [one for one in question.options or [] if one != question.answer]
+    # (Change sends an option as it is kept - `api.questions.change` takes nothing else -, so only
+    # one shown as it is: none masked, cut or marked.)
+    offered = [one for one in others if said(one) == one]
     why_not = _card_undo(
         question.leave,
         question.seen_at is not None,
         status not in AGENT_TERMINAL,
-        any(one != question.answer for one in question.options or []),
+        others,
+        offered,
     )
     return Decision(
         id=f"answer:{question.id}",
@@ -153,8 +163,10 @@ def _answer(question: Question, at: datetime, cid: str, status: str) -> Decision
         else "Answered a question for you",
         quote=said(question.question),
         answer=said(question.answer),
+        options=offered,
         why=said(question.lead_why),
         conversation_id=cid,
+        chat=said(title),
         link=DecisionLink(kind="question", id=question.id),
         undo="none" if why_not else "change",
         undo_reason=why_not,
@@ -162,7 +174,7 @@ def _answer(question: Question, at: datetime, cid: str, status: str) -> Decision
     )
 
 
-def _spawn(question: Question, at: datetime, cid: str, child: str | None) -> Decision:
+def _spawn(question: Question, at: datetime, cid: str, title: str, child: str | None) -> Decision:
     yes = question.answer == SPAWN[0]
     return Decision(
         id=f"spawn:{question.id}",
@@ -173,6 +185,7 @@ def _spawn(question: Question, at: datetime, cid: str, child: str | None) -> Dec
         quote=said(question.question),
         why=said(question.lead_why),
         conversation_id=cid,
+        chat=said(title),
         link=DecisionLink(kind="agent", id=child)
         if child
         else DecisionLink(kind="question", id=question.id),
@@ -214,7 +227,14 @@ def _commands(session: Session, project_id: str, window: Window) -> tuple[list[L
     """The commands the judges decided - and how many the judge found fine."""
     found = session.execute(
         # (Its columns, not the record: a command's output may be long.)
-        select(Command.id, Command.command, Command.judged, Command.created_at, Run.conversation_id)
+        select(
+            Command.id,
+            Command.command,
+            Command.judged,
+            Command.created_at,
+            Run.conversation_id,
+            Conversation.title,
+        )
         .join(Run, Run.id == Command.run_id)
         .join(Conversation, Conversation.id == Run.conversation_id)
         .where(
@@ -226,7 +246,7 @@ def _commands(session: Session, project_id: str, window: Window) -> tuple[list[L
     ).all()
     rows: list[Later] = []
     fine = 0
-    for command_id, line, judged, at, cid in found:
+    for command_id, line, judged, at, cid, title in found:
         judged = judged or {}
         kind = "risk" if judged.get("kind") == "risk" else "words"
         if kind == "risk" and judged.get("verdict") == "fine":
@@ -236,7 +256,8 @@ def _commands(session: Session, project_id: str, window: Window) -> tuple[list[L
         # could read, the program changed while it looked - is no decision of the judge's.)
         if said_of is None or kind == "risk" and judged.get("looked") is not True:
             continue
-        rows.append((utc(at), partial(_command, command_id, line, judged, utc(at), cid, said_of)))
+        build = partial(_command, command_id, line, judged, utc(at), (cid, title), said_of)
+        rows.append((utc(at), build))
     return rows, fine
 
 
@@ -245,10 +266,11 @@ def _command(
     line: str,
     judged: dict,
     at: datetime,
-    cid: str,
+    chat: tuple[str, str],
     said_of: tuple[Literal["judge", "your_words"], str, str],
 ) -> Decision:
     who, what, why_not = said_of
+    cid, title = chat
     return Decision(
         id=f"command:{command_id}",
         at=at,
@@ -258,10 +280,12 @@ def _command(
         quote=said(line),
         why=said(judged.get("why") if who == "judge" else judged.get("quote")),
         conversation_id=cid,
+        chat=said(title),
         link=DecisionLink(kind="command", id=command_id),
         undo="none",
         undo_reason=why_not,
-        seen=None,
+        # (one it ran or did not run waits for your OK, as a card's answer; its card was risky's)
+        seen=None if judged.get("verdict") == "risky" else bool(judged.get("seen")),
     )
 
 
@@ -302,16 +326,15 @@ def _task(task: BacklogTask) -> Decision:
         at=utc(task.created_at),
         kind="task",
         who="orchestrator",
-        what="Added a task the Scout proposed to To-do"
-        if added
-        else "Turned down a task the Scout proposed",
+        what="Decided on a task the Scout proposed",
         quote=said(task.title),
+        answer="Add" if added else "Reject",
         why=said(po.get("lead_why")),
         conversation_id=po.get("chat"),
         link=DecisionLink(kind="task", id=task.id),
         undo="none" if why_not else "change",
         undo_reason=why_not,
-        seen=None,
+        seen=bool(po.get("seen")),
     )
 
 

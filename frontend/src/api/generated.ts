@@ -7031,6 +7031,8 @@ export interface components {
              * Format: date-time
              */
             at: string;
+            /** Chat */
+            chat?: string | null;
             /** Conversation Id */
             conversation_id: string | null;
             /** Id */
@@ -7041,6 +7043,8 @@ export interface components {
              */
             kind: "answer" | "command" | "task" | "spawn";
             link: components["schemas"]["DecisionLink"];
+            /** Options */
+            options?: string[] | null;
             /** Quote */
             quote: string | null;
             /** Seen */

@@ -240,15 +240,16 @@ def test_each_kind_says_who_decided_what_and_whether_change_works(client, tmp_pa
         f"answer:{ids['leave']}": ("answer", "orchestrator", "none", "the next step ran", False),
         # (its card is under Decided for you too: not seen until its OK)
         f"spawn:{ids['spawn']}": ("spawn", "orchestrator", "none", "the agent was opened", False),
-        f"command:{ids['ran']}": ("command", "your_words", "none", "it ran", None),
-        f"command:{ids['kept']}": ("command", "your_words", "none", "it did not run", None),
-        f"command:{ids['old']}": ("command", "your_words", "none", "it ran", None),
-        f"command:{ids['refused']}": ("command", "judge", "none", "it did not run", None),
+        # (one run or not run on your words, or refused by the judge, waits for your OK: not seen)
+        f"command:{ids['ran']}": ("command", "your_words", "none", "it ran", False),
+        f"command:{ids['kept']}": ("command", "your_words", "none", "it did not run", False),
+        f"command:{ids['old']}": ("command", "your_words", "none", "it ran", False),
+        f"command:{ids['refused']}": ("command", "judge", "none", "it did not run", False),
         f"command:{ids['risky']}": ("command", "judge", "none", "it was asked on its card", None),
-        f"task:{ids['added']}": ("task", "orchestrator", "change", None, None),
-        f"task:{ids['started']}": ("task", "orchestrator", "none", "it has started", None),
-        f"task:{ids['turned']}": ("task", "orchestrator", "change", None, None),
-        f"task:{ids['overruled']}": ("task", "orchestrator", "none", "you added it since", None),
+        f"task:{ids['added']}": ("task", "orchestrator", "change", None, False),
+        f"task:{ids['started']}": ("task", "orchestrator", "none", "it has started", False),
+        f"task:{ids['turned']}": ("task", "orchestrator", "change", None, False),
+        f"task:{ids['overruled']}": ("task", "orchestrator", "none", "you added it since", False),
     }
     assert got["judge_fine"] == 1
     answer = rows[f"answer:{ids['answer']}"]
@@ -262,6 +263,9 @@ def test_each_kind_says_who_decided_what_and_whether_change_works(client, tmp_pa
         cid,
         {"kind": "question", "id": ids["answer"]},
     )
+    # The chat it is of, by its title; the answers Change can give, as they are kept.
+    title = client.get(f"/api/conversations/{cid}").json()["conversation"]["title"]
+    assert (answer["chat"], answer["options"]) == (title, ["Postgres"])
     spawn = rows[f"spawn:{ids['spawn']}"]
     assert (spawn["what"], spawn["answer"], spawn["link"]) == (
         "Opened a sub-agent",
@@ -280,12 +284,15 @@ def test_each_kind_says_who_decided_what_and_whether_change_works(client, tmp_pa
         {"kind": "command", "id": ids["refused"]},
     )
     turned = rows[f"task:{ids['turned']}"]
-    assert (turned["what"], turned["quote"], turned["why"], turned["conversation_id"]) == (
-        "Turned down a task the Scout proposed",
-        "Rewrite in Rust",
-        "too big",
-        cid,
-    )
+    assert (
+        turned["what"],
+        turned["quote"],
+        turned["answer"],
+        turned["why"],
+        turned["conversation_id"],
+        turned["chat"],
+    ) == ("Decided on a task the Scout proposed", "Rewrite in Rust", "Reject", "too big", cid, None)
+    assert rows[f"task:{ids['added']}"]["answer"] == "Add"
     # Newest first - each at its own minute here.
     assert [row["at"] for row in got["rows"]] == sorted(
         (row["at"] for row in got["rows"]), reverse=True
@@ -553,3 +560,25 @@ def test_a_task_turned_down_that_you_said_ok_to_leaves_the_log(client, tmp_path)
         backlog.decide(session, session.get_one(BacklogTask, ids["turned"]), approve=False)
         session.commit()
     assert f"task:{ids['turned']}" not in {row["id"] for row in log(client, pid)["rows"]}
+
+
+def test_change_offers_only_an_answer_shown_as_it_is_kept(client, tmp_path, monkeypatch):
+    # (Change sends the option as written; one masked or marked here would be refused: 422.)
+    monkeypatch.setattr(raw, "_known", lambda fresh=False: raw.spellings([SECRET]))
+    pid, cid = chat(client, tmp_path / "a")
+    ids = seed(client, pid, cid)
+    with client.app.state.session_factory() as session:
+        question = session.get_one(Question, ids["answer"])
+        question.options = ["SQLite", f"Postgres with {SECRET}", "MySQL"]
+        session.commit()
+    (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
+    assert (row["undo"], row["options"]) == ("change", ["MySQL"])
+    with client.app.state.session_factory() as session:
+        session.get_one(Question, ids["answer"]).options = ["SQLite", f"Postgres with {SECRET}"]
+        session.commit()
+    (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
+    assert (row["undo"], row["undo_reason"], row["options"]) == (
+        "none",
+        "its other answers hold words masked here",
+        [],
+    )
