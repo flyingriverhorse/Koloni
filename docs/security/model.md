@@ -79,15 +79,24 @@ no junction; older Windows 10 builds of PowerShell 5.1 do.
 
 In a job while you're away a card does not wait: it is parked under **Waiting for you**
 ([Work while you're away](../automation/overnight.md#waiting-for-you)). What is parked - a line, a
-question, what a command printed in the morning - is data: the agent is told it did not run, in
-KOLONİ's own words with the line quoted; the going-on turn's message is KOLONİ's, never yours (it starts
-"KOLONİ:", is not counted as your words by the judge or **Check what I said first**, and what a command
-printed reaches it after KOLONİ's note where it reads like orders). Nothing parked runs without your
-**Run**, from the app's own page; the card endpoint does not decide a parked row, and no agent tool
-can. **Run** runs exactly what was recorded - the line, its folder, its copy, where commands run, its
-time limit - with no card, yet a program an agent wrote and a place you kept out are still refused.
-Nothing goes into your project without your Take in: the going-on turn's work, at Full auto too, is
-kept in its copy.
+question, what a command printed in the morning, your answer - is data: the agent is told it did not
+run, in KOLONİ's own words with the line quoted; the going-on turn's message is KOLONİ's, never yours (it
+starts "KOLONİ:", is not counted as your words by the judge or **Check what I said first**, and what a
+command printed, why one could not run and your answer are each in quotes - a line of their own cannot
+pass for KOLONİ's - and behind KOLONİ's note where they read like orders). Nothing parked runs without
+your **Run**, from the app's own page; the card endpoint does not decide a parked row, and no agent tool
+can.
+
+**Run** runs the line as it was recorded - its words, its folder, where commands run, its time limit -
+with no card, and only while that still holds: it is looked at again just before it runs. It does not
+run where its job's copy was taken in or discarded after your **Run**; where the file it runs by its
+name (`python go.py`, `./x.sh`, `node x.js`, `npm run`'s package.json) is not, byte for byte, what it was
+when the line was parked; in KOLONİ's shell when a CLI asked for it in its own (another shell reads the
+same words otherwise); nor for a server. A program an agent wrote and a place you kept out are still
+refused. What that file imports, and what a line that names no file runs (`pytest`, `make`, `python -m`)
+is not compared: the list says where it would run and which file an agent wrote that it runs. Nothing
+goes into your project without your Take in: the going-on turn's work, at Full auto too, is kept in its
+copy.
 
 ## Places agents never open
 

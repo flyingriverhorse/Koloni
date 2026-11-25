@@ -173,7 +173,14 @@ messages.
 
 - In the morning **Run** does not look at what the job changed in its copy: you see that at Take in.
 - A line that runs a program an agent wrote is refused after **Run** too. A script given to an
-  interpreter (`python tool.py`, `node x.js`) is not read so: it runs on your **Run**.
+  interpreter (`python tool.py`, `node x.js`) is not read so: it runs on your **Run** - but only as it
+  was when the line was parked (the list says "Runs a file an agent wrote").
+- What a parked line's file imports, and what a line that names no file runs (`pytest`, `make`'s
+  targets, `python -m`), is not compared with what it was at park time.
+- A line a CLI ran in its own shell is not run in the morning (**Reject** it, or run it yourself), nor
+  is a server line.
+- KOLONİ hard-stopped (killed, not closed) while the morning's lines run: at the next start the task
+  is stopped; what had not run is not run again.
 - A line whose folder its CLI did not say does not run: **Reject** it, or run it yourself.
 - Where you took some of a job's copy in, its going-on turn works in a fresh copy, and the lines you
   said **Run** run in the project itself.

@@ -215,15 +215,23 @@ like orders to a model. It is on the summary, on the report and at the top of ea
   naming `build/`, `dist/` or another folder a copy leaves out - a copy has no `.git`), "Its copy is gone:
   there is nothing to run it in" (you discarded it - **Reject** still works), "Where it would run is not
   known: Reject it, or run it yourself" (a CLI that did not say its folder), "The project runs commands
-  elsewhere now: Reject it, or set that back" (Docker or this machine, changed since).
+  elsewhere now: Reject it, or set that back" (Docker or this machine, changed since), "Its CLI's own
+  shell would run it: Reject it, or run it yourself" (a line Claude Code, Codex or another CLI asked to
+  run in its own shell), "A server line: run it yourself". Each row says where it would run - the job's
+  copy, or the project itself - its card's words, and "Runs a file an agent wrote" where it does.
 - Once every row of a task is decided, KOLONİ runs what you said **Run**, in the order it was parked,
-  exactly as it was recorded - the same line, its folder, the job's kept copy (or, where you took some
-  of that copy in, the project itself), its time limit - with no card. A program an agent wrote is still
-  refused, and so is a line naming a place you kept out. While it runs, the copy can be neither taken in
-  nor discarded.
+  as it was recorded - the same line, its folder, the job's kept copy (or, where you took some of that
+  copy in before your **Run**, the project itself), its time limit - with no card. Just before each, it
+  looks again: a line whose copy was taken in or discarded after your **Run** ("its copy was taken in
+  after your Run - run it yourself"), or whose file it runs by its name is not what it was when it was
+  parked ("changed since it was parked: run it yourself"), does not run. A program an agent wrote is still
+  refused, and so is a line naming a place you kept out. A Take in or Discard under way is waited for;
+  while the lines run, the copy can be neither taken in nor discarded. **Stop** in the job's chat, or
+  **Stop everything**, stops a line that runs, and the task.
 - Then the same Orchestrator goes on in the same chat, in one turn, on KOLONİ's message: "KOLONİ: the
-  user decided: ran "npm test" (…); rejected "git push"; answered "Which database?": Postgres. Go on
-  with the task." It is a job's turn: held to a job's hours, in the kept copy (a fresh one where you
+  user decided: ran "npm test" ("…"); rejected "git push"; answered "Which database?": "Postgres". Go on
+  with the task." - what a line printed, and your answer, in quotes; a line that timed out or was
+  stopped says so. It is a job's turn: held to a job's hours, in the kept copy (a fresh one where you
   took some of it in), its work kept for your Take in - at Full auto too - and the judge looks at its
   commands. It does not start where the project is over its monthly budget: the job then waits with
   why. A message of yours in that chat meanwhile waits behind it.
