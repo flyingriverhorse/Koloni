@@ -355,6 +355,17 @@ def _task(task: BacklogTask) -> Decision:
     )
 
 
+def as_shown(task: BacklogTask, expect: str) -> bool:
+    """Whether the Orchestrator's word on a task stands as a row of the log showed it - the
+    state its Change acts on (`api.backlog.decide`'s `expect`): "proposed", one it turned down
+    and still proposed; "added", one it added, still todo and not OK'd (`backlog.unseen`)."""
+    po = task.po or {}
+    if expect == "proposed":
+        return po.get("lead") == "no" and task.status == "proposed"
+    unseen = po.get("lead") == "add" and not po.get("seen")
+    return expect == "added" and unseen and task.status == "todo"
+
+
 def of(
     session: Session,
     project_id: str,

@@ -7,7 +7,7 @@ neither writes a task nor approves its own proposal. Reading is open."""
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from app import backlog, earlier, stories, topics
+from app import backlog, decisions, earlier, stories, topics
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.api.recipes import Asked, ask_in_turn, askers, chat_of
@@ -328,8 +328,12 @@ async def decide(
     decision log's Change: only on the Orchestrator's word as its row showed it (409 else)."""
     task = _task(session, task_id)
     project_id = task.project_id
+    # (the decision log's Change: never what moved on since its row was read - an agent's change
+    # proposed since is not dropped, nor applied, by it)
+    if body.expect is not None and not decisions.as_shown(task, body.expect):
+        raise HTTPException(409, "it changed since you looked: read the decisions again")
     try:
-        kept = backlog.decide(session, task, body.decision == "approve", body.expect)
+        kept = backlog.decide(session, task, body.decision == "approve")
     except backlog.Refused as exc:
         raise HTTPException(409, str(exc)) from None
     if kept is not None:  # (an approved change may have closed it)

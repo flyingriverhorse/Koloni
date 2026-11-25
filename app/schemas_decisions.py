@@ -60,7 +60,7 @@ class DecisionLog(BaseModel):
 
 class TaskDecideIn(BacklogDecideIn):
     """The user's word on a task an agent proposed - and, from the decision log's Change, the
-    state its row showed the Orchestrator's word in (`backlog.decide`'s `expect`): None from
+    state its row showed the Orchestrator's word in (`decisions.as_shown`): None from
     the To-do page and the chat, which decide what waits now."""
 
     expect: Literal["proposed", "added"] | None = None
