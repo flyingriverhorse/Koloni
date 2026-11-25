@@ -8,6 +8,7 @@ from app.db.away_models import Parked
 from app.db.models import Agent, AwayRun, BacklogTask, Command, Merge, Question, Run
 from app.model_client import StepResult, ToolCallRequest
 from tests.test_chat_flow import text
+from tests.test_compare_scenarios import compared, ready, two  # noqa: F401  (a fixture)
 from tests.test_decisions import ORDERS, chat
 from tests.test_proof_end_scenarios import begin
 from tests.test_run_checks_scenarios import tools_of
@@ -176,3 +177,14 @@ def test_turns_with_no_price_are_said_never_a_made_up_zero():
     assert status_now._money(found) == "at least 0.00 USD (2 turns with no price)"
     assert status_now._money({"spent": 1.5, "currency": "USD", "unpriced_runs": 0}) == "1.50 USD"
     assert status_now._money({"spent": None}) is None  # (prices in several currencies)
+
+
+def test_a_side_of_a_comparison_is_refused_it(two, project_dir):  # noqa: F811
+    # (as run_checks)
+    asks = StepResult("", [ToolCallRequest("r1", "read_status", "{}")], 1, 1)
+    client, providers = two([asks, text("a")], [text("b")])
+    cid, started = compared(client, project_dir, providers)
+    ready(client, started["compare_id"])
+    snap = client.get(f"/api/conversations/{cid}").json()
+    (refused,) = [one for one in snap["tool_calls"] if one["name"] == "read_status"]
+    assert refused["status"] == "failed" and NOT_HERE in refused["result"]

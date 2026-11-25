@@ -62,9 +62,31 @@ def test_every_file_a_chained_wrapped_or_grouped_line_runs_is_found(tmp_path, li
     assert found[-1] in ("q096.py", "tools/q096.py"), found
 
 
+# L-1: what runs code no word of the line names as a file - stdin to a shell, an expression, a
+# package runner, find's -exec, a test runner (the tests an agent wrote)
+UNNAMED = [
+    "sh < evil.sh",
+    "cat evil.sh | sh",
+    "iex (gc evil.ps1 -Raw)",
+    "Invoke-Expression (Get-Content evil.ps1 -Raw)",
+    "npx tsx evil.ts",
+    "find . -name x -exec ./evil.sh {} ;",
+    "pytest",
+    "python -m pytest -q",
+    "npm test",
+    "vitest run",
+    'python -c "import evil"',
+]
+
+
 @pytest.mark.parametrize(
     "line",
-    ["cd $HOME && python q.py", "(python q.py", " && ".join(["echo a"] * (MOST_PARTS + 1))],
+    [
+        "cd $HOME && python q.py",
+        "(python q.py",
+        " && ".join(["echo a"] * (MOST_PARTS + 1)),
+        *UNNAMED,
+    ],
 )
 def test_a_line_not_read_whole_is_none(tmp_path, line):  # P1: fails closed - the list warns
     assert named_files(tmp_path, line, ".") is None

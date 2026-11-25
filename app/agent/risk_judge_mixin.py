@@ -23,6 +23,7 @@ from app.commands import (
     _SHELLS,
     _commands_in,
     _in_a_shell,
+    _parts,
     _program,
     _words,
     is_plain,
@@ -303,15 +304,48 @@ def _named_file(root: Path, command: str, cwd: str) -> tuple[Path | None, bool]:
 # What moves a line's later parts to another folder (`named_files`), and the most parts it reads.
 _CDS = frozenset({"cd", "chdir", "pushd", "set-location", "sl"})
 MOST_PARTS = 32
+# L-1: what runs code no word of its part names as a file - an expression (`iex`), a package runner
+# (`npx tsx x.ts`), find's -exec, a test runner (the tests an agent wrote) - and, `_runs_unnamed`,
+# a shell or an interpreter given no script (`sh < x.sh`, `cat x.sh | sh`, `python -c`).
+_RUNS_UNNAMED = frozenset(
+    {"iex", "invoke-expression", "npx", "pnpx", "bunx", "uvx", "pytest", "py.test", "vitest"}
+    | {"jest", "mocha", "tox", "nox"}
+)
+_EXECS = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+_RUNS_TESTS = re.compile(
+    r"(?i)\s-m\s+(?:pytest|unittest)\b|^(?:npm|pnpm|yarn|bun)\s+(?:(?:run\s+)?test|exec|dlx|x)\b"
+    r"|^(?:go|cargo)\s+test\b|^playwright\s+test\b"
+)
+
+
+def _runs_unnamed(words: list[str]) -> bool:
+    """Whether a part runs code no word of it names as a file (L-1): its files are not known."""
+    program = _program(words[0])
+    if program in _RUNS_UNNAMED or _EXECS & {word.lower() for word in words}:
+        return True
+    if _RUNS_TESTS.search(" ".join([program, *words[1:]])):
+        return True
+    if _INTERPRETER.fullmatch(program) and not _files(words).names:
+        return True  # (its code on its line or on stdin: `python -c`, `node -`)
+    # (a shell's code on its line is read past it - `_commands_in`; on stdin, or a redirection)
+    return bool(_INTERPRETER.fullmatch(program) or program in _SHELLS) and (
+        any(word.startswith("<") for word in words[1:])
+        or all(word.startswith(("-", "/")) for word in words[1:])
+    )
 
 
 def named_files(root: Path, command: str, cwd: str) -> list[Path] | None:
     """Every file `command` runs as a program (`_named_file`), not its first alone (F411 P1): each
     part of a chain, a pipe, a group, a shell's or a wrapper's (`_commands_in`, cut as harm is),
     looked for in `cwd` and in each folder a `cd` of the line goes to. None - fails closed: a part
-    not read (`commands.UNREAD`), a `cd` not plainly to a folder, or past MOST_PARTS parts."""
+    not read (`commands.UNREAD`), one that runs code no word of it names (`_runs_unnamed`, L-1), a
+    `cd` not plainly to a folder, or past MOST_PARTS parts."""
     parts = [words for words in _commands_in(command, at=_BLOCKS) if any(words)]
+    # (and as written, before a shell's or a wrapper's own words are read past: `cat x.sh | sh`)
+    written = [words for words in _parts(command, _BLOCKS) if any(words)]
     if len(parts) > MOST_PARTS or [commands.UNREAD] in parts:
+        return None
+    if any(map(_runs_unnamed, [*parts, *written])):
         return None
     places = [cwd]
     for words in (words for words in parts if _program(words[0]) in _CDS):

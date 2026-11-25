@@ -60,7 +60,8 @@ night's against its money limit while you're away), and the
 newest 10 decisions taken for you. It never reads another project's, nor git or the network. Every
 command, path, question, title and reason in it is an agent's or your words: masked, cut and quoted
 as data, with KOLONİ's note where it reads like orders. Its answer is at most 3 KB; past that, whole
-lines are left out and a last line says how many. A sub-agent is not given it, nor an Orchestrator
+lines are left out and a last line says how many. A sub-agent is not given it, nor a side of a
+comparison, nor an Orchestrator
 whose role has no To-do tools.
 
 A role needs at least one tool. Tools from MCP servers and skills are given to roles on the Tools page;

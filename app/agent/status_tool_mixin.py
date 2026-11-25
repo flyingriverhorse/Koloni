@@ -34,14 +34,15 @@ class StatusToolMixin:
     def _status_offered(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether this agent is offered read_status: the Orchestrator at its own work in a
         project, its role with the To-do list (what it reads is of that list's) - not a sub-agent,
-        an answer, a discussion, nor a CLI that cannot be handed KOLONİ's tools. The same all
-        through a turn (the prompt cache's prefix)."""
+        an answer, a discussion, a side of a comparison (as run_checks), nor a CLI that cannot be
+        handed KOLONİ's tools. The same all through a turn (the prompt cache's prefix)."""
         return bool(
             ctx.depth == 0
             and ctx.root
             and "read_backlog" in ctx.tools
             and not ctx.answering
             and not ctx.discussion
+            and ctx.run_id not in self._sides
             and getattr(ctx.model, "collaborates", True)
         )
 

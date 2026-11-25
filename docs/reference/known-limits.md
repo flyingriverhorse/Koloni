@@ -176,7 +176,13 @@ messages.
   interpreter (`python tool.py`, `node x.js`) is not read so: it runs on your **Run** - but only as it
   was when the line was parked (the list says "Runs a file an agent wrote", of any part of a chained,
   piped, wrapped or grouped line too - `python hello.py && python q.py`, `cmd /c "python q.py"` - and
-  "maybe" where it cannot read all of the line).
+  "maybe" where it cannot read all of the line, or the line runs code no word of it names as a file:
+  a shell or an interpreter handed its code on stdin or on the line (`cat x.sh | sh`, `python -c`),
+  `iex`, `npx`, find's `-exec`, a test runner - the tests an agent wrote).
+- A branch's commit, merge and push look for a secret KOLONİ knows byte for byte, in a file's content
+  and its name: one an agent wrote base64'd, reversed or split in parts is not found. A value that
+  reads as a word (`production`, `not-needed`) is not looked for at all, and of an MCP server's
+  variables only those a secret's name holds (`..._TOKEN`, `..._KEY`, a password).
 - If anything in the job's copy changed after a line was parked, **Run** does not run it - so a test
   line parked early in a job is usually closed by the work after it: run it yourself. What stays out
   of that look: the dependency folders a copy links to the project's own (`node_modules`, `.venv`,
