@@ -286,6 +286,27 @@ test('OK on a row not seen, and Change while its agent works: to the server, the
   expect(within(command).queryByRole('button', { name: /Change/ })).toBeNull()
 })
 
+test('an answer whose agent finished: Change and redo, what it costs, to the project’s decision', async () => {
+  const calls = server()
+  useApp.setState({ projectId: 'p1' })
+  const finished: Decision = { ...answer, undo: 'change_and_redo' }
+  const gone: Decision = { ...answer, id: 'answer:q2', undo: 'none', undo_reason: 'its work was taken in' }
+  const { onLoad } = view({ rows: [finished, gone], judge_fine: 0 })
+  const [row, taken] = within(await screen.findByRole('list', { name: 'Decisions, newest first' })).getAllByRole(
+    'listitem',
+  )
+  expect(within(row).queryByRole('button', { name: 'Change → Postgres' })).toBeNull()
+  expect(row).toHaveTextContent('starts a new turn')
+  expect(row).not.toHaveTextContent('$')
+  await userEvent.click(within(row).getByRole('button', { name: 'Change and redo → Postgres' }))
+  expect(await screen.findByRole('status')).toHaveTextContent('A new turn of its chat started')
+  expect(calls()).toEqual([['/api/projects/p1/decisions/q1/redo', 'POST', JSON.stringify({ answer: 'Postgres' })]])
+  await vi.waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2))
+  // (its work taken in: no button, and why)
+  expect(within(taken).queryByRole('button', { name: /Change/ })).toBeNull()
+  expect(taken).toHaveTextContent("can't be undone: its work was taken in")
+})
+
 test('a row of the open chat tells its store at once, as the chat’s own box did', async () => {
   const ok = vi.spyOn(useApp.getState(), 'decidedOk').mockResolvedValue()
   const changed = vi.spyOn(useApp.getState(), 'decidedChange').mockResolvedValue()

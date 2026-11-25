@@ -300,17 +300,50 @@ async function change(row: Decision, answer: string): Promise<void> {
   await api.post(`/questions/${id}/change`, { answer })
 }
 
-/** The other answers Change can give a row: a card's, as kept; a To-do choice's, the other way. */
+/** Change and redo: your answer in place of the Orchestrator's on a card whose agent has finished, and a new turn of its
+ *  chat that goes on with it - KOLONİ's message, never yours. Refused (409) where it moved on since the row was read. */
+async function redo(row: Decision, answer: string): Promise<void> {
+  await api.post(`/projects/${useApp.getState().projectId}/decisions/${recordOf(row)}/redo`, { answer })
+}
+
+/** The other answers Change - or Change and redo - can give a row: a card's, as kept; a To-do choice's, the other way. */
 const choicesOf = (row: Decision) =>
-  row.undo !== 'change' ? [] : row.kind === 'task' ? [row.answer === 'Add' ? 'Reject' : 'Add'] : (row.options ?? [])
+  row.undo === 'none' ? [] : row.kind === 'task' ? [row.answer === 'Add' ? 'Reject' : 'Add'] : (row.options ?? [])
+
+type Act = (what: () => Promise<void>, said?: string) => void
+
+/** A row's Change buttons, one an answer: to the agent while it works - or, its agent finished, Change and redo, which
+ *  says what it costs (no figure: KOLONİ has no estimate of a turn's cost). */
+function Changes({ row, busy, act }: { row: Decision; busy: boolean; act: Act }) {
+  const again = row.undo === 'change_and_redo'
+  const sent = row.kind === 'task' ? undefined : 'Sent to the agent that asked, while it works'
+  const [word, what, said] = again
+    ? (['Change and redo', redo, 'A new turn of its chat started'] as const)
+    : (['Change', change, sent] as const)
+  return (
+    <>
+      {choicesOf(row).map(choice => (
+        <button
+          key={choice}
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => act(() => what(row, choice), said)}
+        >
+          {word} → {choice}
+        </button>
+      ))}
+      {again && <span className="muted decided-note">starts a new turn</span>}
+    </>
+  )
+}
 
 /** What can still be done about a row: where it is, your OK while it is not seen, and Change while it works - or why it
  *  can't be undone. */
 function RowActions({ row, onOpenChat, onDone }: { row: Decision; onOpenChat?: (id: string) => void; onDone: Done }) {
   const { busy, error, ask } = useAsk()
   // (read again either way: refused, it may have moved on since the row was read - its row says so)
-  const act = (what: () => Promise<void>, said?: string) => void ask(what).then(fine => onDone(fine ? said : undefined))
-  const sent = row.kind === 'task' ? undefined : 'Sent to the agent that asked, while it works'
+  const act: Act = (what, said) => void ask(what).then(fine => onDone(fine ? said : undefined))
   return (
     <div className="decision-actions">
       <RowLink row={row} onOpenChat={onOpenChat} />
@@ -319,17 +352,7 @@ function RowActions({ row, onOpenChat, onDone }: { row: Decision; onOpenChat?: (
           OK
         </button>
       )}
-      {choicesOf(row).map(choice => (
-        <button
-          key={choice}
-          type="button"
-          className="btn btn-small"
-          disabled={busy}
-          onClick={() => act(() => change(row, choice), sent)}
-        >
-          Change → {choice}
-        </button>
-      ))}
+      <Changes row={row} busy={busy} act={act} />
       {row.undo === 'none' && row.undo_reason && (
         <span className="muted decided-note">can't be undone: {row.undo_reason}</span>
       )}

@@ -2865,6 +2865,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/decisions/{question_id}/redo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redo
+         * @description Change and redo (`app.redo`): the user's answer in place of the Orchestrator's on a card of
+         *     the project's whose agent has finished, and a new turn of its chat that goes on with it.
+         */
+        post: operations["redo_api_projects__project_id__decisions__question_id__redo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/delete-preview": {
         parameters: {
             query?: never;
@@ -7093,7 +7114,7 @@ export interface components {
              * Undo
              * @enum {string}
              */
-            undo: "change" | "none";
+            undo: "change" | "change_and_redo" | "none";
             /** Undo Reason */
             undo_reason: string | null;
             /** What */
@@ -17959,6 +17980,40 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DecisionLog"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    redo_api_projects__project_id__decisions__question_id__redo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

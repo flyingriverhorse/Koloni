@@ -43,7 +43,9 @@ class Decision(BaseModel):
     source: Literal["preferences", "rules", "message"] | None = None
     link: DecisionLink
     # "change": today's Change still works (an answer while its agent works; a To-do choice).
-    undo: Literal["change", "none"]
+    # "change_and_redo": an answer whose agent has finished, its work still there to go on with -
+    # the user's answer in its place and a new turn of its chat (`app.redo`).
+    undo: Literal["change", "change_and_redo", "none"]
     undo_reason: str | None  # (where it is "none": why, in plain words)
     # Whether the user said OK to it: a card's answer, a sub-agent opened or not, a command run or
     # not run on their words or refused by the judge, a To-do choice; None for one with no OK (a

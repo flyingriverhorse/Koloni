@@ -307,11 +307,17 @@ def test_each_kind_says_who_decided_what_and_whether_change_works(client, tmp_pa
     )
 
 
-def test_an_answer_whose_agent_finished_cannot_be_changed(client, tmp_path):
+def test_an_answer_whose_agent_finished_is_changed_and_redone(client, tmp_path):
+    # (Part B: its agent finished, Change and redo - no work of its turn on record here; where its
+    # work was taken in or discarded, why not: `test_decisions_redo`.)
     pid, cid = chat(client, tmp_path / "a")
     ids = seed(client, pid, cid, coder="completed")
     (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
-    assert (row["undo"], row["undo_reason"]) == ("none", "the agent that asked has finished")
+    assert (row["undo"], row["undo_reason"], row["options"]) == (
+        "change_and_redo",
+        None,
+        ["Postgres"],
+    )
 
 
 def test_the_period_asked_bounds_it(client, tmp_path):

@@ -320,7 +320,10 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
     """Waiting for you (`WaitingOut`): what an Away parked, its jobs in the card's order, each
     job's in the order parked - not a task's whose chat was deleted."""
     order = {job["task_id"]: at for at, job in enumerate(night.jobs) if job.get("task_id")}
-    rows = list(session.scalars(select(Parked).where(Parked.away_run_id == night.id)))
+    # (Not a Change and redo's record, `app.redo`: the user's own word, no row of theirs to decide.)
+    rows = list(
+        session.scalars(select(Parked).where(Parked.away_run_id == night.id, Parked.kind != "redo"))
+    )
     tasks = {
         task.id: task
         for task in session.scalars(

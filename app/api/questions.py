@@ -3,6 +3,8 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
+from app import redo as redo_
+from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.db.models import Question, Run, now
 from app.schemas import AnswerIn, QuestionOut
@@ -100,6 +102,25 @@ async def change(
         raise HTTPException(409, why)
     question.answer, question.lead_why = text, None
     return _seen(request, session, question)
+
+
+@router.post("/projects/{project_id}/decisions/{question_id}/redo", status_code=204)
+async def redo(
+    project_id: str,
+    question_id: str,
+    body: AnswerIn,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """Change and redo (`app.redo`): the user's answer in place of the Orchestrator's on a card of
+    the project's whose agent has finished, and a new turn of its chat that goes on with it."""
+    try:
+        redo_.redo(session, project_id, question_id, body.answer, request.app.state.runner)
+    except redo_.Refused as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+    state = request.app.state  # (a job's chat: its job is at work again)
+    announce(state.session_factory, state.bus, project_id, "backlog.changed")
+    return Response(status_code=204)
 
 
 @router.post("/questions/{question_id}/typing", status_code=204)
