@@ -13,7 +13,7 @@ message box. See [Settings](../settings.md#this-chat).
 | Section | Settings |
 |---|---|
 | **Agents** | Who changes the files · Have a model look over each sub-agent's report · Suggest follow-up tasks after each turn · Follow-up tasks from |
-| **Asking and away** | Opening a sub-agent · When you're away · A harmful-looking command at Full auto · Agents may delete what is disposable without asking |
+| **Asking and away** | Opening a sub-agent · When you're away · Full auto's judge · A harmful-looking command at Full auto · Agents may delete what is disposable without asking |
 | **New chats start with** | New chats' teams · Other folders · Posts, at most · Minutes, at most · Tokens, at most · Tokens, at least |
 | **Limits and money** | At most this many agents at work in this project · Agents at the same time · Sub-agent levels · Sub-agents per request · Continue gives this many more steps · Stop the work on a message over this many tokens · A discussion's tokens, at most · Monthly budget |
 | **Commands and secrets** | This machine / Docker container · Image · Allow network access · Longest command (minutes) · Hide secret files from commands · Secret variables commands may see · Planted test key (canary) |

@@ -1292,6 +1292,9 @@ class CommandOut(BaseModel):
     preview_url: str | None
     # K-yargic: what the check of the user's words said of it; None: not checked.
     judged: Judged | None = None
+    # Full auto's judge's card: whether a Run on it can keep its line ("Don't ask about this line
+    # again here") - not where the judge did not look, nor where its folder is no fact.
+    keeps_line: bool = False
     # Coordination §4: what of it is disposable; None: nothing. Its own, not `judged`'s: no card
     # of Decided for you.
     disposable: DisposableOut | None = None

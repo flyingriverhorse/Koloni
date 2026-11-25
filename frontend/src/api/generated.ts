@@ -6345,6 +6345,11 @@ export interface components {
             /** Keep Running */
             keep_running: boolean;
             /**
+             * Keeps Line
+             * @default false
+             */
+            keeps_line: boolean;
+            /**
              * Location
              * @enum {string}
              */

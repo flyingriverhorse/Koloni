@@ -219,6 +219,7 @@ export function command(id: string, runId: string, over: Partial<Command> = {}):
     danger: '',
     keep_running: false,
     preview_url: null,
+    keeps_line: false,
     created_at: '2026-10-05T10:00:02Z',
     started_at: '2026-10-05T10:00:03Z',
     ended_at: '2026-10-05T10:00:05Z',

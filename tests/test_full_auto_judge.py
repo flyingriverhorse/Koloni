@@ -121,6 +121,7 @@ def test_risky_is_a_card_with_the_judges_sentence_and_no_rule(judging, wait_run,
     assert asked["danger"] == "KOLONİ's judge: It sends .env away."
     assert asked["suggested_prefix"] == "" and executor.started == []
     assert (asked["judged"]["kind"], asked["judged"]["verdict"]) == ("risk", "risky")
+    assert asked["keeps_line"] is True  # (its card offers "Don't ask about this line again here")
     with client.app.state.session_factory() as session:
         assert session.get_one(Command, asked["id"]).asked_reason == "judge"
 
@@ -648,7 +649,8 @@ def test_where_a_clis_folder_is_not_known_nothing_is_kept_for_the_line(
     )
     judged_by_local(client, cli)
     _, cid, run_id = go(client, project_dir, provider=cli)
-    card(client, cid, "approve", remember_line=True)
+    # (so its card does not offer "Don't ask about this line again here")
+    assert card(client, cid, "approve", remember_line=True)["keeps_line"] is False
     card(client, cid, "approve")
     wait_run(client, cid, run_id, 30)
     assert len(default.calls) == 2

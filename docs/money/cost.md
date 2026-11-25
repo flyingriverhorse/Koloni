@@ -10,7 +10,8 @@ Some settings make one more model request each time. Each says so where you swit
 | **Have a model look over each sub-agent's report** (Settings › This project › Agents) | One request after every sub-agent's report. |
 | **Orchestrator model: automatic** (the chat's model picker) | One request for each message you send. |
 | **The Orchestrator answers what it safely can** (Settings › This project › Asking and away › When you're away), on a CLI | One request of your plan for each answer. |
-| **Check what I said first** (Settings › This project › Asking and away › A harmful-looking command at Full auto) | One request of your Fast tier's first model (on a CLI, of your plan) for each harmful-looking command at Full auto. |
+| **Full auto's judge** (Settings › This project › Asking and away; on by default) | One request of your Judge model (Settings › The app › Agents; the Fast tier's first unless you choose one - on a CLI, of your plan) for each command at Full auto the list does not stop that is not a read or ordinary work. |
+| **Check what I said first** (Settings › This project › Asking and away › A harmful-looking command at Full auto) | One request of your Judge model (on a CLI, of your plan) for each harmful-looking command at Full auto. |
 | **Try a real run** (Models page, a CLI) | One short run, on your plan. |
 | **Read now** for Claude Code (a provider's card) | One short request. |
 | Search by meaning (Memory page) | One embeddings request for each search. |

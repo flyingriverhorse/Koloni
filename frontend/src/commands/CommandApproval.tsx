@@ -6,8 +6,12 @@ import { CardMore } from '../shell/CardMore'
 import { useApp } from '../state/store'
 import { placeLabel } from './commandStatus'
 
-/** `disposable`: run once, and allow such deletes in the project from now on (coordination §4). */
-export type CommandDecision = 'once' | 'always' | 'disposable' | 'reject'
+/** `disposable`: run once, and allow such deletes in the project from now on (coordination §4). `line`: run once, and
+ *  on a card of Full auto's judge (0.1.9) not ask about this line again in the project. */
+export type CommandDecision = 'once' | 'always' | 'disposable' | 'line' | 'reject'
+
+/** How a card of Full auto's judge starts its line (`risk_judge.CARD`), as the server's `cards` knows it too. */
+const JUDGE_SAYS = "KOLONİ's judge: "
 
 interface Props {
   command: Command
@@ -33,16 +37,31 @@ function useOffersDisposable(command: Command): boolean {
   return command.disposable != null && !allowed
 }
 
+/** Full auto's judge's card (0.1.9): its box - ticked, Run once also keeps the line from being asked again here. None
+ *  where the server keeps nothing for it (the judge did not look, or the line's folder is not known). */
+function KeepLine({ command, keep, onKeep }: { command: Command; keep: boolean; onKeep: (on: boolean) => void }) {
+  if (!command.keeps_line) return null
+  return (
+    <label className="choice cmd-approval-keep">
+      <input type="checkbox" checked={keep} onChange={e => onKeep(e.target.checked)} />
+      <span>Don’t ask about this line again here</span>
+    </label>
+  )
+}
+
+/** Why no rule is offered on a card: a judge's card's has none to pass it, one asked while web is off is asked each
+ *  time, and so is any other. */
+function noRule(command: Command): string {
+  if (command.danger.startsWith(JUDGE_SAYS)) return 'No rule lets a command past Full auto’s judge, so none is offered.'
+  return command.web_off ? 'This command is asked every time while web is off.' : 'This command is asked every time.'
+}
+
 /** Under Details: why no rule is offered, and what Allow such deletes turns on. */
 function CardNotes({ command, rememberable, offers }: { command: Command; rememberable: boolean; offers: boolean }) {
   if (rememberable && !offers) return null
   return (
     <CardMore>
-      {!rememberable && (
-        <div>
-          {command.web_off ? 'This command is asked every time while web is off.' : 'This command is asked every time.'}
-        </div>
-      )}
+      {!rememberable && <div>{noRule(command)}</div>}
       {offers && (
         <div>
           KOLONİ checked {command.disposable?.what}: disposable. Allow such deletes in this project runs this one, and
@@ -59,6 +78,7 @@ function CardNotes({ command, rememberable, offers }: { command: Command; rememb
 export function CommandApproval({ command, why, onDecide }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [keep, setKeep] = useState(false)
   // The server offers a rule only for commands a rule can safely cover: none for one asked because web is off (K-web-komut).
   const rememberable = command.suggested_prefix !== ''
   const offers = useOffersDisposable(command)
@@ -105,8 +125,14 @@ export function CommandApproval({ command, why, onDecide }: Props) {
           <span className="mono muted">stops after {command.timeout_seconds}s</span>
         )}
       </div>
+      <KeepLine command={command} keep={keep} onKeep={setKeep} />
       <div className="change-actions">
-        <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => decide('once')}>
+        <button
+          type="button"
+          className="btn btn-small btn-primary"
+          disabled={busy}
+          onClick={() => decide(keep ? 'line' : 'once')}
+        >
           <Check size={13} />
           Run once
         </button>

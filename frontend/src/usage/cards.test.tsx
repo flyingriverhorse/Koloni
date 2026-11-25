@@ -20,6 +20,18 @@ const cards = (over: Partial<Cards> = {}): Cards => ({
 })
 const SUGGESTED = { key: 'k1', command: 'rm -rf build', cwd: '.', times: 5, rule: 'You may delete ./build.' }
 
+test('the cards Full auto’s judge opened are a row of their own, by the server’s name for them', async () => {
+  const judge = { reason: 'judge', said: "Full auto's judge found it risky", asked: 3, approved: 1, rejected: 2 }
+  const onLoad = vi.fn().mockResolvedValue(cards({ by_reason: [{ ...judge, unanswered: 0 }] }))
+  render(<CardsSection projectId="p" period="7" onLoad={onLoad} />)
+  const table = await screen.findByRole('table', { name: 'Cards by reason' })
+  expect(
+    within(table)
+      .getAllByRole('row')
+      .map(row => row.textContent),
+  ).toEqual(['Why it was askedAskedApprovedRejected', "Full auto's judge found it risky312"])
+})
+
 test('Cards says the period’s cards, answered how and why, and what Check what I said first did', async () => {
   const onLoad = vi.fn().mockResolvedValue(cards())
   const { unmount } = render(<CardsSection projectId="p" period="7" onLoad={onLoad} />)

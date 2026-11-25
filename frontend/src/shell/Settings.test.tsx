@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import { api } from '../api/client'
-import type { ChatRules, Project } from '../api/types'
+import type { ChatRules, JudgeOut, Project } from '../api/types'
 import { Settings } from './Settings'
 
 afterEach(() => vi.restoreAllMocks())
@@ -74,33 +74,48 @@ const project: Project = {
 }
 const base = { dockerAvailable: true, dockerError: null, desktopAvailable: true, onClose: vi.fn() }
 
+/** The Judge model as a server with two fast models (one a CLI) and a strongest one has it, none chosen. */
+const LOCAL = { provider_id: 'p1', provider_name: 'Local', cli: false }
+const JUDGE: JudgeOut = {
+  provider_id: null,
+  model_id: null,
+  now: { ...LOCAL, model_id: 'quick' },
+  choices: [
+    { ...LOCAL, model_id: 'quick', tier: 'fast' },
+    { provider_id: 'p2', provider_name: 'Claude Code', model_id: 'haiku', cli: true, tier: 'fast' },
+    { ...LOCAL, model_id: 'big', tier: 'strongest' },
+  ],
+}
+
 /** The server, by what is asked. */
-function server(rules: ChatRules[] = []) {
+function server(rules: ChatRules[] = [], judge: JudgeOut = JUDGE) {
   vi.spyOn(api, 'get').mockImplementation(
     async (path: string) =>
       (path === '/answer-in'
         ? { answer_in: null }
-        : path === '/experimental-clis'
-          ? { show: false }
-          : path === '/folders'
-            ? { never: [] }
-            : path === '/storage'
-              ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null }
-              : path === '/compaction'
-                ? { compact_at: 75 }
-                : path === '/steps'
-                  ? { max_steps: 25 }
-                  : path === '/unattended'
-                    ? { stuck_minutes: 30, turn_hours: 8 }
-                    : path === '/knowledge-limits'
-                      ? { max_files: 50000, max_mb: 300 }
-                      : path === '/test-load'
-                        ? { runs_at_once: 1, workers: 2 }
-                        : path.endsWith('/allowed')
-                          ? rules
-                          : path.endsWith('/sites')
-                            ? []
-                            : { paths: [], more: 0, partial: false }) as never,
+        : path === '/judge'
+          ? judge
+          : path === '/experimental-clis'
+            ? { show: false }
+            : path === '/folders'
+              ? { never: [] }
+              : path === '/storage'
+                ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null }
+                : path === '/compaction'
+                  ? { compact_at: 75 }
+                  : path === '/steps'
+                    ? { max_steps: 25 }
+                    : path === '/unattended'
+                      ? { stuck_minutes: 30, turn_hours: 8 }
+                      : path === '/knowledge-limits'
+                        ? { max_files: 50000, max_mb: 300 }
+                        : path === '/test-load'
+                          ? { runs_at_once: 1, workers: 2 }
+                          : path.endsWith('/allowed')
+                            ? rules
+                            : path.endsWith('/sites')
+                              ? []
+                              : { paths: [], more: 0, partial: false }) as never,
   )
 }
 
@@ -152,6 +167,58 @@ test('Show experimental CLIs, ticked in The app › Agents, offers Let agy searc
   expect(await screen.findByLabelText(/^Let agy search too/)).toBeVisible()
 })
 
+test('The app › Agents: the Judge model is the Fast tier’s first, named, until one is chosen; kept as it is changed; a CLI says each command waits for it', async () => {
+  server()
+  const put = vi.spyOn(api, 'put').mockImplementation(async (_path, body) => {
+    const { provider_id, model_id } = body as { provider_id: string | null; model_id: string | null }
+    const picked = JUDGE.choices.find(one => one.provider_id === provider_id && one.model_id === model_id)
+    return { ...JUDGE, provider_id, model_id, now: picked ?? JUDGE.now } as never
+  })
+  render(<Settings {...base} project={null} onSave={vi.fn()} />)
+  const judge = screen.getByLabelText('Judge model')
+  await waitFor(() => expect(judge).toBeEnabled())
+  expect(
+    within(judge)
+      .getAllByRole('option')
+      .map(one => one.textContent),
+  ).toEqual([
+    'Fast tier’s first (now: quick)',
+    'Local · quick (fast)',
+    'Claude Code · haiku (fast)',
+    'Local · big (strongest)',
+  ])
+  expect(judge).toHaveDisplayValue('Fast tier’s first (now: quick)')
+  const cli = 'On a CLI each such command waits for it to start.'
+  expect(screen.queryByText(cli)).toBeNull()
+  await userEvent.selectOptions(judge, 'Claude Code · haiku (fast)')
+  expect(put).toHaveBeenLastCalledWith('/judge', { provider_id: 'p2', model_id: 'haiku' })
+  expect(await screen.findByText(cli)).toBeVisible()
+  expect(judge).toHaveDisplayValue('Claude Code · haiku (fast)')
+  await userEvent.selectOptions(judge, 'Fast tier’s first (now: quick)')
+  expect(put).toHaveBeenLastCalledWith('/judge', { provider_id: null, model_id: null })
+  await waitFor(() => expect(screen.queryByText(cli)).toBeNull())
+})
+
+test('a chosen Judge model that cannot be asked now stays chosen and says so; with none to ask, the judge stands aside', async () => {
+  server([], { ...JUDGE, provider_id: 'gone', model_id: 'old' })
+  const { unmount } = render(<Settings {...base} project={null} onSave={vi.fn()} />)
+  const judge = screen.getByLabelText('Judge model')
+  await waitFor(() => expect(judge).toHaveDisplayValue('old (cannot be asked now)'))
+  expect(
+    screen.getByText(
+      'Your choice, old, cannot be asked now - its provider is gone, closed to agents or down - so the Fast tier’s first is asked.',
+    ),
+  ).toBeVisible()
+  unmount()
+  vi.restoreAllMocks()
+  server([], { ...JUDGE, now: null, choices: [] })
+  render(<Settings {...base} project={null} onSave={vi.fn()} />)
+  await waitFor(() => expect(screen.getByLabelText('Judge model')).toHaveDisplayValue('Fast tier’s first (now: none)'))
+  expect(
+    screen.getByText(/^No model can be asked: Full auto’s judge stands aside and says so in the chat\./),
+  ).toBeVisible()
+})
+
 test('a place asked for lands on its level and section, each time it is asked; the steps link goes between the two levels', async () => {
   server()
   const { rerender } = render(
@@ -189,7 +256,9 @@ test('The app › Your data: a backup, what KOLONİ’s data takes on this machi
                 ? { stuck_minutes: 30, turn_hours: 8 }
                 : path === '/knowledge-limits'
                   ? { max_files: 50000, max_mb: 300 }
-                  : { answer_in: null }) as never,
+                  : path === '/judge'
+                    ? JUDGE
+                    : { answer_in: null }) as never,
   )
   render(<Settings {...base} project={null} picked={{ section: 'data', n: 1 }} onSave={vi.fn()} />)
   expect(await screen.findByText('KOLONİ’s data: db 12.3 MB · backups 535 MB · copies – · logs 0.1 MB')).toBeVisible()

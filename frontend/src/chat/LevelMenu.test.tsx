@@ -84,10 +84,37 @@ test('Check what I said first: a switch under the levels that saves the project�
   )
   await userEvent.click(check)
   expect(onCheckFirst).toHaveBeenCalledWith(true)
+  // (Full auto's judge's switch is its own: none without its setter)
+  expect(screen.queryByRole('switch', { name: 'Full auto’s judge' })).toBeNull()
   unmount()
   render(<LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} checkFirst />)
   await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
   expect(screen.queryByRole('switch', { name: 'Check what I said first' })).toBeNull()
+})
+
+test('Full auto’s judge: the project’s switch under the levels, on as it comes, beside Check what I said first; none without a project', async () => {
+  const onJudge = vi.fn()
+  const { unmount } = render(
+    <LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} onCheckFirst={vi.fn()} judge onJudge={onJudge} />,
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+  const judge = screen.getByRole('switch', { name: 'Full auto’s judge' })
+  expect(judge).toBeChecked()
+  expect(judge).toHaveAccessibleDescription(
+    'At Full auto and while you’re away, a small model looks at each command the list does not stop before it runs: one that looks risky waits for you.',
+  )
+  // (first of the two: the one that looks at every command)
+  const switches = screen.getAllByRole('switch').map(one => one.getAttribute('aria-labelledby'))
+  expect(switches.map(id => document.getElementById(id!)?.textContent)).toEqual([
+    'Full auto’s judge',
+    'Check what I said first',
+  ])
+  await userEvent.click(judge)
+  expect(onJudge).toHaveBeenCalledWith(false)
+  unmount()
+  render(<LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} judge={false} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+  expect(screen.queryByRole('switch', { name: 'Full auto’s judge' })).toBeNull()
 })
 
 test('Test and review changes: a switch beside Plan first that saves the chat’s choice against the project’s', async () => {

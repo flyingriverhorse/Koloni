@@ -189,6 +189,8 @@ export type Compaction = Schemas['Compaction']
 /** K-cevap-dili: the language every agent writes in, in every project; null: Auto. */
 export type AnswerLanguage = Schemas['AnswerLanguage']
 export type ExperimentalClis = Schemas['ExperimentalClis']
+/** 0.1.9: whom KOLONİ's judges ask - the user's Judge model, else the Fast tier's first - and what may be chosen. */
+export type JudgeOut = Schemas['JudgeOut']
 export type Storage = Schemas['StorageOut']
 export type ProjectFile = Schemas['ProjectFileOut']
 export type OthersInstructions = Schemas['OthersInstructionsOut']
