@@ -425,19 +425,6 @@ def claude_is_never_run_to_read_its_limits(monkeypatch):
     monkeypatch.setattr(app.limits, "copilot_quota", unread)
     monkeypatch.setattr(app.limits, "copilot_signed_in", unread)
 
-    # Nor the real qodercli, asked for its models by a provider's model list: only a
-    # stand-in started through a launcher is.
-    from app.model_session import QoderSessionClient
-
-    listed = QoderSessionClient.models
-
-    async def stood_in(self):
-        if not self._launcher and self._which(self._executable or self.command):
-            raise ModelUnavailable("a test reached the real qodercli without standing it in")
-        return await listed(self)
-
-    monkeypatch.setattr(QoderSessionClient, "models", stood_in)
-
 
 @pytest.fixture
 def settings_env(tmp_path: Path) -> dict[str, str]:

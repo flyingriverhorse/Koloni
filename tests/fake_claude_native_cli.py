@@ -146,16 +146,15 @@ def die(code: int) -> None:
 
 save()
 # 27: every start's line, after the record's ("<record>.starts", one JSON line each). Its session
-# is the plan's "session_id"; a --resume (Qoder's -r) of one not in its "sessions" ends it before
-# anything (as the real CLI is guessed to: not measured) - or, with "resume_late", once it has
-# connected to its MCP server. "no_session": [exit code, stderr] it ends with then (Qoder's, as
-# measured 5 Nov 2026: tests/qoder_streams/no-session.txt).
+# is the plan's "session_id"; a --resume of one not in its "sessions" ends it before anything (as
+# the real CLI is guessed to: not measured) - or, with "resume_late", once it has connected to its
+# MCP server. "no_session": [exit code, stderr] it ends with then.
 with open(plan["record"] + ".starts", "a", encoding="utf-8") as starts:
     starts.write(json.dumps(argv) + "\n")
 # "at_start": {"4": [...]} - the script of its 4th start (counted in that file) instead.
 with open(plan["record"] + ".starts", encoding="utf-8") as starts:
     plan["script"] = plan.get("at_start", {}).get(str(len(starts.readlines())), plan["script"])
-resumed = next((argv[argv.index(flag) + 1] for flag in ("--resume", "-r") if flag in argv), None)
+resumed = argv[argv.index("--resume") + 1] if "--resume" in argv else None
 unknown_session = resumed is not None and resumed not in plan.get("sessions", [])
 if unknown_session and not plan.get("resume_late"):
     code, said = plan.get("no_session") or (1, f"No conversation found with session ID: {resumed}")

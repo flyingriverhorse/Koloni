@@ -4,7 +4,8 @@ import type { Restored, Staged } from '../api/types'
 
 export const RESTORED_NOTE =
   'Ready to restore. It replaces your data the next time KOLONİ starts: close KOLONİ and start it again. Until then nothing changes, and anything you do meanwhile is set aside with your current data in runtime/before-restore/.'
-export const HELD_NOTE = 'Triggers and backlogs wait until you press Resume.'
+export const HELD_NOTE =
+  'Triggers wait until you press Resume. To-do tasks that waited in a chat’s queue are back on To-do.'
 export const SECRETS_NOTE =
   "Without this, the keys KOLONİ stores in its settings and secret files you attached to a chat (a .env, a key file) are left out. A key that was ever written in a chat, in another file you attached, an agent's output or a command stays in the file: keep it private either way."
 export const TRUST_NOTE = 'Restore only a file you exported yourself: it decides which programs KOLONİ may start.'

@@ -4,6 +4,7 @@ import { expect, test, vi } from 'vitest'
 import { api, ApiError } from '../api/client'
 import type { Project } from '../api/types'
 import { useApp } from '../state/store'
+import { showExperimental } from '../test-fixtures'
 import { ProjectSettings } from './ProjectSettings'
 
 const project: Project = {
@@ -23,6 +24,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null,
   continue_steps: 25,
+  longest_command: 10,
   monthly_budget: null,
   measure_command: null,
   after_change: 'check',
@@ -293,9 +295,15 @@ test('where a search and a notification go is set here, and only what was change
 
 test('agy searches only where the box is ticked, which says why it is a risk; it is sent only when changed', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
+  // (0.1.8: agy is experimental - offered with experimental CLIs shown, or where already ticked.)
+  const hidden = render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Memory and web/)
+  expect(screen.queryByLabelText(/^Let agy search too/)).not.toBeInTheDocument()
+  hidden.unmount()
+  showExperimental()
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Memory and web/)
-  const box = screen.getByLabelText(/^Let agy search too/)
+  const box = await screen.findByLabelText(/^Let agy search too/)
   expect(box).not.toBeChecked()
   expect(
     screen.getByText(
@@ -600,7 +608,6 @@ test('a chosen section alone is shown, each field under its label as before', as
         'Search by meaning with',
         'Search address (SearXNG)',
         'Otherwise search with',
-        /^Let agy search too/,
       ],
     ],
     [/^Notifications/, ['Notification address', 'Post it as', /^Show a desktop notification/]],
@@ -1371,4 +1378,25 @@ test('Check by kind of work: Code style and types is on, said, and unticking it 
   await userEvent.click(within(group).getByRole('checkbox', { name: 'Code style and types' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ check_kinds: { style: false } })
+})
+
+test('the longest command is a whole number of minutes from 10 to 60, sent only when changed (0.1.8)', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  const box = screen.getByLabelText('Longest command (minutes)')
+  expect(box).toHaveValue('10')
+  await userEvent.clear(box)
+  await userEvent.type(box, '61')
+  expect(screen.getByText('A whole number from 10 to 60.')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).not.toHaveBeenCalled()
+  await userEvent.clear(box)
+  await userEvent.type(box, '30')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenCalledWith({
+    exec_location: 'host',
+    docker_image: null,
+    docker_network: false,
+    longest_command: 30,
+  })
 })

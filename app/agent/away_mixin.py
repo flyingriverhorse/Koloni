@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app import away, project_map
+from app import away
 from app.agent.ctx import TERMINAL, Ctx, announce
 from app.agent.words import AGENT_TERMINAL
 from app.commands import (
@@ -18,7 +18,6 @@ from app.commands import (
     installs,
     reaches_shared_git,
     runs_another,
-    runs_inline,
     scratch_delete_only,
     switches_branch,
     with_cwd,
@@ -96,9 +95,8 @@ def _tells_own_sub_agents(ctx: Ctx) -> bool:
     """☾ Away: whether KOLONİ tells the Orchestrator's own calls of its tools from those of a
     sub-agent of its CLI's own - always on a model KOLONİ steps (none such), and on Claude Code,
     whose hook names them (`USED_INSIDE`).
-    shortcut: Qoder keeps Agent/Task on Claude's hook path, but whether its hook names the
-    sub-agent (`agent_type`) is not measured - nor the other CLIs' own sub-agents: their Go away
-    line takes no task; measure Qoder's hook (and Copilot's, Codex's) and add each here."""
+    shortcut: the other CLIs' own sub-agents are not measured: their Go away line takes no
+    task; measure Copilot's and Codex's hooks and add each here."""
     model = ctx.model
     if not isinstance(model, CliStepClient):
         return True
@@ -211,9 +209,7 @@ class AwayMixin:
         installs into the project's own (`installs`); "" for one that does none of these, or
         in a turn nobody watches (its trigger's leave decides). In a side of a comparison harm
         (a side is thrown away, a push is not) and such an install alone: it stays in the
-        project whichever side is chosen (K-54). In a backlog task's turn (K-r135) a night's,
-        in the project itself - and so also one that runs code written on its line
-        (`runs_inline`), but for the user's own test command (`project_map.own_test`).
+        project whichever side is chosen (K-54). (A To-do task's turn is its chat's, 0.1.8.)
         `plain` runs in `cwd` (run_command's), as `with_cwd` judges it. `scratch_of`: the
         folder the command runs in, where a delete only in its scratch is no harm to ask about
         in a watched turn (B-336, `scratch_delete_only`); None, not a copy's nor a CLI's own."""
@@ -223,19 +219,6 @@ class AwayMixin:
             # `runs_another` would catch only by asking about every one; look inside if seen.
             copy = self._copies.get(self._sides[ctx.run_id])
             return harms(command) or (installs(command) if copy is not None and copy.links else "")
-        if ctx.run_id in self._backlog_turns:  # (a night's rules, in the project: no copy)
-            if why := harms(command) or runs_another(command):
-                return why
-            if not (inline := runs_inline(command)):
-                return ""
-            with self._factory() as session:
-                project = self._project(session, ctx.cid)
-                tests = project.test_commands if project is not None else None
-            return (
-                ""
-                if project_map.own_test(tests, plain, cwd if isinstance(cwd, str) else None)
-                else inline
-            )
         if ctx.run_id not in self._away_jobs:
             # (K-fullauto-sorma: at Full auto an instruction file alone is no harm.)
             if not self._watched(ctx.run_id) or scratch_delete_only(command, scratch_of):

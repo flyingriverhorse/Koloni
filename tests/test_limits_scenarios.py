@@ -115,7 +115,7 @@ def test_a_codex_that_cannot_say_is_unknown(limits, given):
 
 # Not claude_cli: Read now runs one short Claude Code turn for it (test_claude_fresh_scenarios);
 # nor agy_cli, whose /quota says it (test_plan_quota). Copilot here is on a model server.
-@pytest.mark.parametrize("kind", ["qoder_cli", "copilot_cli", "openai_compat"])
+@pytest.mark.parametrize("kind", ["copilot_cli", "openai_compat"])
 def test_what_no_cli_says_is_unknown_and_nothing_is_asked(limits, kind):
     client, answer_with, asked = limits
     answer_with(told_by_codex(int(time.time()) + 3600))

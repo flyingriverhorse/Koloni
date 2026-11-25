@@ -56,8 +56,8 @@ IMAGE_SHOWN = "it is shown to you with your next step"
 # B-344: a CLI session keeps its own loop: its picture goes in the tool's MCP result itself.
 # Claude Code hands an MCP image block to its model in the same step: measured by REA 3 Nov
 # 2026, Claude Code 2.1.317 (R131, a 2 KB PNG); and Copilot's session (R133, gpt-6-luna saw
-# it). shortcut: one of 1-3 MB is not measured (a cap on a tool's output?), nor Qoder's session
-# at all (the same bridge); say "not shown to you" there if one is seen not to pass it on.
+# it). shortcut: one of 1-3 MB is not measured (a cap on a tool's output?); say "not shown to
+# you" there if one is seen not to pass it on.
 IMAGE_HERE = "it is shown to you with this result"
 IMAGE_MIME = {ext: mime for mime, ext in IMAGE_EXT.items()}
 
@@ -152,13 +152,6 @@ NO_MORE_GO_ON = (
 
 TEAM_STOPPED = "Stopped by you: the user stopped this team"
 
-# K-r135: as UNATTENDED_NOT_THIS, for a backlog task's turn.
-BACKLOG_NOT_THIS = (
-    "{provider} cannot work on a backlog task: it works with its own tools - KOLONİ sees of "
-    "them only what the CLI asks about - and nobody is here to ask. Choose another provider "
-    "for the backlog's chats (To-do page) or this role, or set this one to a way of working "
-    "that uses KOLONİ's tools (a session, or one step at a time)."
-)
 UNATTENDED_NOT_THIS = (
     "{provider} cannot work in a turn nobody is watching: it works with its own tools - "
     "KOLONİ sees of them only what the CLI asks about - so it cannot be "

@@ -184,14 +184,163 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
 test('the To-do page with the Hive keeper’s draft', async ({ page }) => {
   await openFreshConversation(page)
   await rail(page, 'To-do').click()
-  const form = page.getByRole('form', { name: 'Add a task' })
-  await form.getByLabel('Title').fill('the login page breaks on mobile, and we need a password reset')
-  await form.getByRole('button', { name: 'Write it with the Hive keeper' }).click()
+  await page
+    .getByRole('toolbar', { name: 'To-do' })
+    .getByRole('button', { name: 'Write it with the Hive keeper' })
+    .click()
+  const box = page.getByRole('form', { name: 'Write it with the Hive keeper' })
+  await box.getByLabel('Your note').fill('the login page breaks on mobile, and we need a password reset')
+  await box.getByRole('button', { name: 'Write it', exact: true }).click()
   const drafts = page.getByRole('region', { name: 'Drafted tasks' })
   await expect(drafts.getByRole('group', { name: 'Draft 2' }).getByLabel('Title')).toHaveValue('Add a password reset')
-  await form.getByRole('button', { name: 'Write it with the Hive keeper' }).scrollIntoViewIfNeeded()
-  await page.mouse.wheel(0, 300)
+  await box.scrollIntoViewIfNeeded()
+  await page.mouse.wheel(0, 120)
   await picture(page, 'todo-draft')
+})
+
+test('the To-do tree', async ({ page }) => {
+  await openFreshConversation(page)
+  const pid = await e2eProject(page)
+  const tree = {
+    goal: 'Sign-in holds on every screen',
+    stories: [
+      {
+        title: 'Login works on mobile',
+        notes: ['The form is shared with the desktop page.'],
+        tasks: [
+          { title: 'Find the rule that breaks it', priority: 'high', kind: 'task' },
+          { title: 'The button slips under the keyboard', kind: 'bug' },
+        ],
+      },
+      {
+        title: 'Password reset',
+        notes: ['Mails go through the queue.', 'Links last one hour.'],
+        tasks: [
+          { title: 'Send the reset mail', kind: 'task' },
+          { title: 'Rate-limit the reset form', kind: 'task' },
+        ],
+      },
+    ],
+    tasks: [{ title: 'The footer shows last year', kind: 'bug' }],
+  }
+  const added = await (
+    await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })
+  ).json()
+  const [login, reset] = added.story_ids
+  try {
+    const [rule, button, mail] = added.task_ids
+    for (const id of [rule, button])
+      await page.request.patch(`/api/backlog/${id}`, { headers: OWN, data: { status: 'done' } })
+    await page.request.patch(`/api/stories/${login}`, { headers: OWN, data: { closed: true } })
+    await page.request.patch(`/api/backlog/${mail}`, { headers: OWN, data: { status: 'doing' } })
+    await rail(page, 'To-do').click()
+    const list = page.getByRole('list', { name: 'Tasks' })
+    await expect(list.getByRole('listitem', { name: 'Password reset' })).toContainText('● running')
+    await expect(list.getByRole('listitem', { name: tree.goal })).toContainText('1 / 2 stories')
+    // (0.1.8: two ticked - the dock under the tree says what Do in chat does.)
+    for (const name of ['Rate-limit the reset form', 'The footer shows last year'])
+      await list.getByRole('listitem', { name }).getByRole('checkbox').first().check()
+    await expect(page.getByRole('region', { name: 'Selected tasks' })).toContainText('2 selected')
+    await list.scrollIntoViewIfNeeded()
+    await picture(page, 'todo-tree')
+  } finally {
+    // (Gone again, whatever happened: the pictures after it show their own To-do.)
+    for (const id of added.task_ids) await page.request.delete(`/api/backlog/${id}`, { headers: OWN })
+    for (const id of [login, reset]) await page.request.delete(`/api/stories/${id}`, { headers: OWN })
+    await page.request.delete(`/api/goals/${added.goal_id}`, { headers: OWN })
+  }
+})
+
+test('To-do in a chat', async ({ page }) => {
+  await openFreshConversation(page)
+  const pid = await e2eProject(page)
+  const tree = {
+    stories: [
+      {
+        title: 'Two-step sign-in',
+        notes: [],
+        tasks: [
+          { title: 'Send a code by mail', criteria: 'a six-digit code is mailed, valid for ten minutes' },
+          { title: 'Check the code on sign-in' },
+          { title: 'Turn it on in Settings' },
+        ],
+      },
+    ],
+    tasks: [],
+  }
+  const added = await (
+    await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })
+  ).json()
+  try {
+    await rail(page, 'To-do').click()
+    const list = page.getByRole('list', { name: 'Tasks' })
+    await list.getByRole('checkbox', { name: 'Tick the story Two-step sign-in' }).check()
+    await page
+      .getByRole('region', { name: 'Selected tasks' })
+      .getByRole('button', { name: /Do in chat/ })
+      .click()
+    await page.getByRole('menuitem', { name: 'A new chat' }).click()
+    const chat = page.getByRole('region', { name: 'Chat' })
+    await expect(chat.getByRole('group', { name: 'Done? — “Send a code by mail”' })).toBeVisible({ timeout: 20_000 })
+    await expect(chat.getByRole('group', { name: 'Done? — “Turn it on in Settings”' })).toBeVisible({
+      timeout: 20_000,
+    })
+    await picture(page, 'todo-in-chat')
+  } finally {
+    for (const id of added.task_ids) await page.request.delete(`/api/backlog/${id}`, { headers: OWN })
+    for (const id of added.story_ids) await page.request.delete(`/api/stories/${id}`, { headers: OWN })
+  }
+})
+
+test('a story’s strip and notebook', async ({ page }) => {
+  await openFreshConversation(page)
+  const pid = await e2eProject(page)
+  const tree = {
+    stories: [
+      {
+        title: 'Two-step sign-in',
+        notes: ['Codes go by mail, not SMS.'],
+        tasks: [
+          { title: 'Send a code by mail', criteria: 'a six-digit code is mailed, valid for ten minutes' },
+          { title: 'Check the code on sign-in' },
+          { title: 'Turn it on in Settings' },
+        ],
+      },
+    ],
+    tasks: [],
+  }
+  const added = await (
+    await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })
+  ).json()
+  try {
+    // (The two after the first wait for it: once it waits at "done?", the strip says the next.)
+    const [first, ...later] = added.task_ids
+    for (const id of later) await page.request.patch(`/api/backlog/${id}`, { headers: OWN, data: { after: [first] } })
+    await rail(page, 'To-do').click()
+    await page
+      .getByRole('list', { name: 'Tasks' })
+      .getByRole('checkbox', { name: 'Tick the story Two-step sign-in' })
+      .check()
+    await page
+      .getByRole('region', { name: 'Selected tasks' })
+      .getByRole('button', { name: /Do in chat/ })
+      .click()
+    await page.getByRole('menuitem', { name: 'A new chat' }).click()
+    const chat = page.getByRole('region', { name: 'Chat' })
+    await expect(chat.getByRole('group', { name: 'Done? — “Send a code by mail”' })).toBeVisible({ timeout: 20_000 })
+    const strip = page.getByRole('region', { name: 'Story' })
+    await expect(strip).toHaveText('Story · Two-step sign-in · 2 / 3 · next: Turn it on in Settings · 📓 notes', {
+      timeout: 20_000,
+    })
+    await strip.getByRole('button', { name: 'notes' }).click()
+    await expect(page.getByRole('dialog', { name: 'Notebook of Two-step sign-in' })).toContainText(
+      '“Send a code by mail” — done?',
+    )
+    await picture(page, 'story-notebook')
+  } finally {
+    for (const id of added.task_ids) await page.request.delete(`/api/backlog/${id}`, { headers: OWN })
+    for (const id of added.story_ids) await page.request.delete(`/api/stories/${id}`, { headers: OWN })
+  }
 })
 
 test('Memory search, Triggers and Usage', async ({ page, request }) => {
@@ -450,9 +599,15 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(settings.getByLabel('Fix rounds')).toBeVisible()
     await picture(page, 'settings-checks')
     await page.getByRole('button', { name: 'Close settings' }).click()
-    // The app › Agents: KOLONİ's test runs at once, and the test processes each may use.
+    // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental CLIs under
+    // Save (read once shown).
     const app = await appSettings(page, 'Agents')
-    await app.getByText('KOLONİ’s test runs at once').scrollIntoViewIfNeeded()
+    const experimental = app.getByRole('checkbox', { name: /Show experimental CLIs/ })
+    await expect(experimental).toBeEnabled()
+    await experimental.scrollIntoViewIfNeeded()
+    await expect(app.getByText('KOLONİ’s test runs at once')).toBeInViewport()
+    await expect(app.getByText('Test processes per run')).toBeInViewport()
+    await expect(experimental).toBeInViewport()
     await picture(page, 'settings-app-test-runs')
   })
 

@@ -317,10 +317,11 @@ MOST_COMPARED = 1_000_000
 COMPARE_STEPS = 2_000_000
 
 
-def changed_lines(before: str, after: str) -> list[int] | None:
+def changed_lines(before: str, after: str, script: bool = False) -> list[int] | None:
     """The numbers of the lines `after` added or rewrote, counted as the tools count them
-    (`_lines`); None: too large to compare in the time it may take - never "nothing changed"."""
-    a, b = _lines(before), _lines(after)
+    (`_lines`; `script`: a JavaScript or TypeScript file's, as eslint and tsc count them); None:
+    too large to compare in the time it may take - never "nothing changed"."""
+    a, b = _lines(before, script), _lines(after, script)
     out: list[int] = []
     steps, compared, stack = 0, 0, [(0, len(a), 0, len(b))]
     while stack:
@@ -380,15 +381,17 @@ def _anchors(
     return found[::-1]
 
 
-def _lines(text: str) -> list[str]:
+def _lines(text: str, script: bool = False) -> list[str]:
     """A file's lines as its tools number them - split at `\\n`, `\\r\\n` and `\\r` only: a form
-    feed or a line separator inside a line is no line of its own to ruff, mypy, eslint or tsc
-    (`str.splitlines` would make it one, and blame the turn for a line it never wrote)."""
-    found = _LINE_END.split(text)
+    feed or a line separator inside a line is no line of its own to ruff or mypy (`str.splitlines`
+    would make it one, and blame the turn for a line it never wrote). eslint and tsc (`script`)
+    end a line at U+2028 and U+2029 too - JavaScript's line ends (tsc 5.9, measured)."""
+    found = (_SCRIPT_LINE_END if script else _LINE_END).split(text)
     return found[:-1] if found[-1] == "" else found
 
 
 _LINE_END = re.compile(r"\r\n|[\r\n]")
+_SCRIPT_LINE_END = re.compile("\r\n|[\r\n\u2028\u2029]")
 
 
 def _kept(session: Session, run_id: str) -> dict[str, list[FileChange]]:
@@ -1040,8 +1043,9 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
 
 
 # S11: why a stronger model's rounds were no pass - a test changed without leave, the Reviewer
-# held or did not read the test change, the tests gave no verdict, or they still fail.
-Reason = Literal["touched", "held", "unread", "no_verdict", "still", "on_hold", "removed"]
+# held or did not read the test change, the tests gave no verdict, or they still fail - and
+# (k-a11y-2) "kinds": a kind's check of the work still fails after the rounds.
+Reason = Literal["touched", "held", "unread", "no_verdict", "still", "on_hold", "removed", "kinds"]
 
 
 class Row(TypedDict):
@@ -1113,6 +1117,8 @@ COUNT_ROWS = ("Tests went from ", "Skipped rose from ")
 STILL_FEWER = "Still fewer tests, or more skipped, after {most} fix rounds: you decide (Fix it)"
 RECIPE_SPENT = "Still failing after the recipe's fix rounds: you decide (Fix it)"
 WAITING = "Not in this run: {name}'s work waits in Ready for you"
+# N1: a turn that changed nothing after one whose checks still failed - those rows, carried.
+UNCHANGED = "Still failing as last checked - this turn changed nothing"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
 NOT_CHECKED = "Not checked: After a change is set to Nothing"
 # CL-321 Bulgu D: a turn whose only change a command made - no change of it on record.
@@ -1164,6 +1170,13 @@ def row(
     if reason is not None:
         made["reason"] = reason
     return made
+
+
+def held_rows(blocks: dict | None) -> list[Row]:
+    """A Checked section's rows, to read what still held it - none of one a turn that changed
+    nothing said again (N1, its first row "unchanged"): its turn before told the same."""
+    rows = (blocks or {}).get("rows") or []
+    return [] if rows[:1] and rows[0]["kind"] == "unchanged" else rows
 
 
 def counts_only(rows: list[Row]) -> bool:
@@ -1244,11 +1257,13 @@ def tests_row(
     ended: str | None,
     said: str,
     seconds: int = MAX_TIMEOUT,
+    longest: int = MAX_TIMEOUT,
 ) -> Row:
     """A test run as its Checked row: failed is any exit but 0 (pytest's 5, nothing collected,
     aside) or a failure its output counts; never passed without exit code 0. `ended`: its
-    record's status (None: none - it never started); `seconds`: the wait it was given. Its
-    output is read with its colours off (`commands.plain`: CL-316)."""
+    record's status (None: none - it never started); `seconds`: the wait it was given, and
+    `longest` the project's longest command (0.1.8): given that long, it timed out; given less, it
+    was not waited for. Its output is read with its colours off (`commands.plain`: CL-316)."""
     output = plain(output)
     guessed = " (guessed)" if run.guessed else " (from CI)" if run.ci else ""
     found = test_found.counts(output, run.command)
@@ -1269,7 +1284,7 @@ def tests_row(
         return made(
             "timed_out",
             TIMED_OUT.format(minutes=seconds // 60, command=run.command)
-            if seconds >= MAX_TIMEOUT
+            if seconds >= longest
             else NOT_WAITED.format(clock=clock(seconds), command=run.command),
         )
     if ended != "exited" or code is None:

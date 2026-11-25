@@ -31,7 +31,6 @@ from app.command_runner import CARRY_ON, refused_by_rule, rejected
 from app.commands import reads_here, search_reason, sends_canary, web_off_reason
 from app.db.models import Command, Conversation, FileChange, now
 from app.model_native import (
-    CLAUDE_KNOWN,
     CLAUDE_READS,
     CLAUDE_RUNS,
     CLAUDE_SHELL_OUTPUT,
@@ -197,7 +196,7 @@ class ApprovalsMixin:
         under = watch.under(use_id)  # asked from inside one of the CLI's own sub-agents
         allow = {"behavior": "allow", "updatedInput": given}
         who = getattr(ctx.model, "label", "Claude Code")  # (Codex asks here too: slice 89a)
-        # (Review: Claude Code's and Qoder's input is the model's own - a `cwd` it writes there
+        # (Review: Claude Code's input is the model's own - a `cwd` it writes there
         # is no report of where the command runs, and is not read as one: `cwd_from`. But it
         # goes back to the CLI as it came, which may run the command there: a card at every
         # level, by its reason - KOLONİ's own, with the folder named, never a "reason" the
@@ -388,16 +387,12 @@ class ApprovalsMixin:
         # trigger allows. Why it asks (native agy: a tool KOLONİ does not know) makes it a
         # card at every level - a read too (Copilot's, to go outside its sandbox). So does
         # one of a Lead that hands code on (slice 48): it may write, and that Lead may not.
-        # B-306: and none of a Qoder tool named as none of Claude Code's - an unknown name may
-        # be a shell, a write or the network past every check. shortcut: allow by name once
-        # Qoder's tool list is measured (K-fullauto-sorma 2 review).
         if not given.get("reason") and (
             tool in CLAUDE_READS
             or level == "full_auto"
             and self._watched(ctx.run_id)
             and ctx.run_id not in self._away_jobs  # (nor at night: the job waits for it)
             and not self._hands_code(ctx)
-            and (tool in CLAUDE_KNOWN or getattr(ctx.model, "command", "") != "qodercli")
         ):
             return allow  # recorded when it reports it done
         shown = json.dumps(given, ensure_ascii=False)
@@ -604,13 +599,10 @@ class ApprovalsMixin:
             # (One out of the folder it works in: as the CLI gave it. Where it gave none:
             # `unnamed` - "." for Claude Code's Bash tool, whose every call starts in the project
             # (`ClaudeNativeClient.cwd_from`, measured), and Copilot's in a new shell; None for
-            # one whose shell may stand anywhere: its PowerShell and Monitor, Qoder, Codex or agy
+            # one whose shell may stand anywhere: its PowerShell and Monitor, Codex or agy
             # without one, and Copilot's other commands - its 1.0.91 sends no cwd
             # (measured 24 Oct 2026). Its paths are then judged at the root all the same, and a
             # line that begins with a `cd` into the scratch is a card: `with_cwd`.)
-            # shortcut: Qoder's shell is not measured; if it keeps a `cd`, a later relative
-            # path is judged at the wrong place - a `cd` into a protected folder is a card
-            # itself. Measure it, and read a cwd from the hook's payload if it carries one.
             cwd=(where if where is not None else cwd) if isinstance(cwd, str) and cwd else unnamed,
             judgement=judged,
             disposable=found,
@@ -1066,7 +1058,7 @@ class ApprovalsMixin:
             # Desktop: `not_a_project` refuses one in it) is never opened by name; a search
             # of a folder that holds it would read it all - its .env, its logs. Refused at
             # every level, with the place to leave out.
-            # (Qoder's come as Grep and Glob, agy's searches as Grep; Copilot is given none.)
+            # (agy's searches come as Grep; Copilot is given none.)
             # shortcut: a glob that keeps the search off it is refused all the same; Codex's
             # own reads have no hook - refuse its searches too if it is ever given one.
             try:

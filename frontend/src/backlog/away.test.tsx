@@ -325,8 +325,8 @@ test('the report: Take in all takes in every done job, and what was proposed whi
     assessment: null,
     not_in: false,
     after: [],
-    queued: false,
     waiting: false,
+    kind: 'task' as const,
     created_at: '2026-10-26T22:00:00Z',
   }
   const night = card({
@@ -522,9 +522,9 @@ const task = (id: string, over: Partial<BacklogTask> = {}): BacklogTask => ({
   assessment: null,
   not_in: false,
   after: [],
-  queued: false,
   stuck: null,
   waiting: false,
+  kind: 'task' as const,
   created_at: '2026-11-16T10:00:00Z',
   proposed_in: 'c',
   ...over,

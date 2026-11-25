@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app.commands import secret_files
 from app.executors.base import StartError
-from app.executors.host import ProcessCommand
+from app.executors.host import NO_COPY_PATH, ProcessCommand
 
 CONTAINER_PREFIX = "koloni-"
 STATUS_TTL_SECONDS = 10.0
@@ -250,7 +250,7 @@ class DockerExecutor:
             hidden,
             self._empty,
             tuple(secrets or ()),
-            env,
+            {k: v for k, v in (env or {}).items() if k != NO_COPY_PATH},
         )
         try:
             process = await asyncio.create_subprocess_exec(

@@ -251,6 +251,7 @@ def test_codex_reaches_other_agents_and_the_user_through_koloni(native_app, wait
         "change_task",
         "assess_task",
         "offer_away",
+        "propose_trigger",  # (0.1.8; notify only where the project sends notifications)
         "post_note",
         "read_notes",
         "remember",
@@ -441,25 +442,12 @@ def test_codex_may_run_natively_and_as_a_session(client):
         ).json()["mode"]
         == "session"
     )
-    # Claude Code can: it asks KOLONİ before a tool of its own needs leave. So may Qoder, over
-    # the same protocol (B-306: what was measured is in `QoderNativeClient`).
+    # Claude Code can: it asks KOLONİ before a tool of its own needs leave.
     assert (
         client.post(
             "/api/providers", json={"name": "Cl", "kind": "claude_cli", "mode": "native"}
         ).status_code
         == 201
-    )
-    assert (
-        client.post(
-            "/api/providers", json={"name": "Q", "kind": "qoder_cli", "mode": "native"}
-        ).status_code
-        == 201
-    )
-    assert (
-        client.post(
-            "/api/providers", json={"name": "Q2", "kind": "qoder_cli", "mode": "step"}
-        ).status_code
-        == 422
     )
 
 

@@ -68,10 +68,14 @@ KOLONİ's own words, as they appear on screen.
 : A short piece of memory that you approved or wrote, usually pointing to lines of a file. It is
   given to an agent whose task names its subject.
 
+**Goal**
+: On the To-do page, what a few stories are for together, with how many of them are done. See
+  [Goals and stories](../automation/todo.md#goals-and-stories).
+
 **Hive keeper**
-: The built-in role that keeps the To-do list: it turns a goal into tasks, each with what makes it
-  done, and puts them in order. **Write it with the Hive keeper** on the To-do page asks for its way of
-  writing tasks. See [To-do](../automation/todo.md).
+: The built-in role that keeps the To-do list: it turns a goal into stories and tasks, each with what
+  makes it done, and puts them in order. **Write it with the Hive keeper** on the To-do page asks for its
+  way of writing a note as a goal, its stories and their tasks. See [To-do](../automation/todo.md).
 
 **Journal**
 : The notes in a project's memory: what agents wrote while they worked. Agents find notes only
@@ -141,7 +145,7 @@ KOLONİ's own words, as they appear on screen.
 
 **Provider**
 : Where a model runs: an OpenAI-compatible server, the Anthropic API, or a CLI you are signed in to
-  (Claude Code, Codex, GitHub Copilot CLI, Qoder, agy). You add providers on the Models page.
+  (Claude Code, Codex, GitHub Copilot CLI, agy). You add providers on the Models page.
 
 **Ready**
 : A page on the rail that lists everything waiting for your word, with a count.
@@ -175,9 +179,16 @@ KOLONİ's own words, as they appear on screen.
   Tools page and give them to roles.
 
 **Stop everything**
-: The button in the top bar that stops every turn in every chat and holds triggers, To-do lists that run
-  by themselves, and work while you're away. While it holds, it reads **Held · Resume**. See
+: The button in the top bar that stops every turn in every chat and holds triggers, the To-do tasks
+  waiting in a chat's queue, and work while you're away. While it holds, it reads **Held · Resume**. See
   [Chat and canvas](../use/chat-and-canvas.md#writing-a-message).
+
+**Story**
+: On the To-do page, tasks and bugs that go on together. Its state comes from its tasks; it is done
+  only when you close it. It has a short notebook, given to each of its turns as data, and its tasks go
+  on in one topic of a chat. A **bug** is a task about something that works wrong. See
+  [Goals and stories](../automation/todo.md#goals-and-stories) and
+  [The story's notebook](../automation/todo.md#the-storys-notebook).
 
 **Sub-agent**
 : An agent that the Orchestrator (or another agent) opens for a part of the work. It works in its
@@ -206,14 +217,16 @@ KOLONİ's own words, as they appear on screen.
   the Models page. A model with no tier is never picked by itself.
 
 **To-do**
-: A project's tasks, in your order. Agents, and the Scout after a turn, propose tasks; you
-  decide.
+: A project's tasks, in your order: goals hold stories, stories hold tasks and bugs. Ticked tasks run
+  in a chat you give them to (**Do in chat**), one by one, at that chat's level and on its model. Agents,
+  and the Scout after a turn, propose tasks; you decide. See [To-do](../automation/todo.md).
 
 **Topic**
 : The turns of a chat that go on with one piece of work. The Orchestrator is sent its own topic's
   turns, and the chat's other topics by name only; an agent of an earlier turn is gone on with only
-  inside its topic. **New topic**, under the message box, starts one with your next message. See
-  [Topics](../memory.md#topics).
+  inside its topic. **New topic**, under the message box, starts one with your next message. A To-do
+  story given to a chat goes on in a topic of its own, its tasks one after another. See
+  [Topics](../memory.md#topics) and [Doing tasks in a chat](../automation/todo.md#doing-tasks-in-a-chat).
 
 **Trigger**
 : Something that starts a turn by itself: the clock, a change to the project's files, or a request

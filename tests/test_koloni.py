@@ -652,7 +652,7 @@ def test_claude_codes_cd_into_the_scratch_is_free_as_each_of_its_commands_starts
     cid, run_id = start_claude(client, project_dir, provider, "full_auto")
     snap = wait_run(client, cid, run_id)
     assert [(c["status"], c["danger"]) for c in snap["commands"]] == [("exited", "")] * 2
-    from app.model_native import ClaudeNativeClient, QoderNativeClient
+    from app.model_native import ClaudeNativeClient
 
     assert (
         ClaudeNativeClient(launcher=["x"])._native_env(project_dir)[
@@ -671,9 +671,8 @@ def test_claude_codes_cd_into_the_scratch_is_free_as_each_of_its_commands_starts
             CopilotNativeClient,
             AgyClient,
             ClaudeNativeClient,
-            QoderNativeClient,
         )
-    ] == ["cli", "cli", "model", "root", "none"]
+    ] == ["cli", "cli", "model", "root"]
 
 
 def test_a_cwd_the_model_writes_in_claude_codes_input_is_not_where_the_command_runs(

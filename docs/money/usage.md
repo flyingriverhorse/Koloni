@@ -99,5 +99,6 @@ See [Limits](../models/limits.md).
 ## Plan meters
 
 For Claude Code, Codex, agy and Copilot, the top bar shows how much of the plan is used, from what each
-CLI last reported. Near the limit (90%), KOLONİ tells you. On the Usage page, **Plan limits** shows the
+CLI last reported. Copilot's chat requests and premium requests show apart
+([Copilot on your GitHub account](../models/copilot.md#plan-limits)). Near the limit (90%), KOLONİ tells you. On the Usage page, **Plan limits** shows the
 same with **Check now**: "These are the limits of the account the CLI on this machine is signed in to."

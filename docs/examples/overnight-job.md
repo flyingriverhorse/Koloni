@@ -7,9 +7,8 @@ project, so nothing changes until you take it in.
 
 1. In a chat with a folder, tell the Orchestrator you are going away and what to work on meanwhile.
    It puts each piece on your [To-do](../automation/todo.md) list and offers one line under its
-   answer: "☾ Go away now?". The tasks run on this chat's model, at the lower of its permission level
-   and the To-do page's (the Away panel says which): below **Full auto**, a command no rule covers
-   waits for you.
+   answer: "☾ Go away now?". The tasks run on this chat's model, at its permission level (the Away
+   panel says which): below **Full auto**, a command no rule covers waits for you.
 2. Press **Change** on that line - or **☾ Away** on the chat's status line - to see the Away panel:
    the tasks from this chat are ticked; tick others from To-do too, and put them in order with
    **Move up** / **Move down**. Set when to stop (**Until** a time, or **spend at most** an amount) and

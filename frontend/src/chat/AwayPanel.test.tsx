@@ -25,9 +25,9 @@ const task = (id: string, over: Partial<BacklogTask> = {}): BacklogTask => ({
   assessment: null,
   not_in: false,
   after: [],
-  queued: false,
   stuck: null,
   waiting: false,
+  kind: 'task',
   created_at: '2026-11-16T10:00:00Z',
   proposed_in: 'c',
   ...over,
@@ -184,14 +184,13 @@ test('no chip in a plain chat; in a chat with no turn yet it waits, saying why',
   expect(chip).toHaveAttribute('title', 'Write to the Orchestrator first: Away finishes this chat’s turn')
 })
 
-test('the panel says the level the tasks run at: the lower of this chat’s and the To-do page’s', async () => {
-  useApp.setState({ backlog: [], backlogAuto: { permission_mode: 'ask' } as never })
-  render(<ComposerStatus {...at} conv={{ ...chat, conversation: { ...conversation, permission_mode: 'full_auto' } }} />)
+test('the panel says the level the tasks run at: this chat’s', async () => {
+  useApp.setState({ backlog: [] })
+  render(<ComposerStatus {...at} conv={{ ...chat, conversation: { ...conversation, permission_mode: 'ask' } }} />)
   await userEvent.click(screen.getByRole('button', { name: 'Away' }))
   expect(screen.getByRole('dialog', { name: 'Away' })).toHaveTextContent(
-    'The tasks run at Ask before changes - the lower of this chat’s level and the To-do page’s.',
+    'The tasks run at Ask before changes - this chat’s level.',
   )
-  useApp.setState({ backlogAuto: null })
 })
 
 test('while the project is not on Test and review the panel suggests it; Use Test and review saves it; on it, nothing', async () => {

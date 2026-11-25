@@ -6,6 +6,8 @@ import { type AgentAsks, AgentWindow } from './agents/AgentWindow'
 import { ChatTeams } from './agents/ChatTeams'
 import { AwayStatus } from './backlog/Away'
 import { BacklogPage } from './backlog/BacklogPage'
+import { OPEN_TODO } from './chat/TodoCards'
+import { doInChat } from './chat/todoActions'
 import { BoardPage } from './board/BoardPage'
 import { ConflictStrip } from './board/ConflictStrip'
 import { QuestionCard } from './agents/QuestionCard'
@@ -178,7 +180,10 @@ export function App() {
   const boardError = useApp(s => s.boardError)
   const backlog = useApp(s => s.backlog)
   const backlogError = useApp(s => s.backlogError)
-  const backlogAuto = useApp(s => s.backlogAuto)
+  const drafter = useApp(s => s.drafter)
+  const stories = useApp(s => s.stories)
+  const goals = useApp(s => s.goals)
+  const chatList = useApp(s => s.conversations)
   const away = useApp(s => s.away)
   // What waits for your word anywhere (tek-ev §1): the pill, the rail's badge, the panel and the page.
   const waiting = useReady()
@@ -358,6 +363,17 @@ export function App() {
   }, [view, projectId])
   // The morning (slice 106): KOLONİ opened after a night while you were away goes to that night's report on the
   // canvas, at the first reading after the page opens - until the report has been on screen (its node says so).
+  // 0.1.8: a To-do card in a chat (Open it in To-do): the To-do page, at that task's row.
+  useEffect(() => {
+    const open = (event: Event) => {
+      setView('backlog')
+      setSettingsOpen(false)
+      const row = `task-${(event as CustomEvent<string>).detail}-title`
+      window.setTimeout(() => document.getElementById(row)?.scrollIntoView?.({ block: 'center' }), 300)
+    }
+    window.addEventListener(OPEN_TODO, open)
+    return () => window.removeEventListener(OPEN_TODO, open)
+  }, [])
   const morning = useRef(false)
   useEffect(() => {
     if (!away || morning.current) return
@@ -721,6 +737,7 @@ export function App() {
       onFill={useApp.getState().fillFromCatalogue}
       onFillNew={useApp.getState().fillNewFromCatalogue}
       onAvailability={useApp.getState().availability}
+      onOffers={useApp.getState().readOffers}
       onFacts={useApp.getState().modelFacts}
       onSuggest={useApp.getState().suggest}
       onUpdateCatalogue={useApp.getState().updateCatalogue}
@@ -794,14 +811,12 @@ export function App() {
         key={project.id}
         backlog={backlog}
         error={backlogError}
-        auto={backlogAuto}
+        drafter={drafter}
         away={away}
         providers={providers}
-        onAuto={useApp.getState().setBacklogAuto}
-        onChoice={useApp.getState().setBacklogChoice}
-        onModels={useApp.getState().providerModels}
         onAdd={useApp.getState().addTask}
         onDraft={useApp.getState().draftTasks}
+        onAddTree={useApp.getState().addTree}
         onPlan={async message => {
           await useApp.getState().newConversation(project.id)
           await useApp.getState().send(message)
@@ -810,10 +825,25 @@ export function App() {
         onChange={useApp.getState().changeTask}
         onDelete={useApp.getState().deleteTask}
         onDecide={useApp.getState().decideTask}
-        onRun={useApp.getState().runBacklog}
+        onDoInChat={async (ids, cid) => {
+          await doInChat(ids, cid)
+          setView('canvas')
+        }}
         onOpen={id => {
           void useApp.getState().openConversation(id)
           setView('canvas')
+        }}
+        stories={stories}
+        goals={goals}
+        chats={Object.fromEntries(chatList.map(chat => [chat.id, chat.title]))}
+        projectId={project.id}
+        tree={{
+          onGoal: useApp.getState().changeGoal,
+          onDeleteGoal: useApp.getState().deleteGoal,
+          onStory: useApp.getState().changeStory,
+          onDeleteStory: useApp.getState().deleteStory,
+          onNewGoal: useApp.getState().addGoal,
+          onNewStory: title => useApp.getState().addStory(title),
         }}
       />
     )

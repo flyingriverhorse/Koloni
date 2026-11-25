@@ -44,7 +44,13 @@ step ([The Checks step](../agents/recipes.md#the-checks-step)).
 ## When it runs
 
 - After a turn in a project folder that changed a file. A turn that changed nothing, a plain
-  chat, a plan, and a side of a comparison get no Checked section. A change made only by a
+  chat, a plan, and a side of a comparison get no Checked section - except a turn that changed
+  nothing right after one whose checks still failed: it says "Still failing as last checked - this
+  turn changed nothing" with those failing lines, and **Fix it** stays under the newest turn (not
+  once the turn they came from is undone - also after turns that said them again, and no Fix it
+  is offered for it then -, nor once this chat's checks are off; the canvas draws no Checks node
+  for it, as no check ran). A
+  change made only by a
   command (`python -c "open(…).write(…)"`, `sed -i`, a heredoc to a file, a redirection into one
   - `cat a > b`, `git show HEAD:f > f`, not `2>&1` or `> /dev/null` -, a formatter,
   `black . && pytest -q`, a test run that writes - `jest -u`, `pytest --snapshot-update`,
@@ -238,11 +244,11 @@ KOLONİ's test run is asked about as the Orchestrator's own command would be:
   while you're away. An **Always run** rule you gave another command's card (`python -m pytest`)
   lets it run without a card in that chat only. **Forget it** forgets that too. At **Full auto**
   it runs by itself.
-- While you're away (a job of **Away**, or a To-do task's turn while Away runs) a guessed
+- While you're away (a job of **Away**) a guessed
   command is not run: the section says "Tests not run: a guessed command, you were away", and the
   job finishes. Nor is a saved command you have not said **Always** to: "Tests not run: a saved
-  command no Always rule covers, you were away". Your own command still runs. A To-do task you
-  run from the screen asks as any turn does.
+  command no Always rule covers, you were away". Your own command still runs. A To-do task's turn in a
+  chat asks as any turn of that chat does (a chat's To-do queue waits while you're away).
 - In a trigger's turn it runs only where the trigger allows that very command. Otherwise the
   section says "Tests not run" with the trigger's words.
 
@@ -437,7 +443,10 @@ copy and the section says "Not taken in: 2 tests still fail after rounds by `A` 
 what the stronger model found as one question to you, and two buttons on that line: **Take in
 anyway** and **Fix it**: your answer to the question starts a turn that goes on in the kept
 work's copy - what was done there holds - and it goes into the project at that turn's end when
-its tests pass. Where the kept work was decided since, Fix it says so and Take in anyway is left.
+its tests pass. Once the kept work is taken in, Take in anyway goes, the line says "Taken in
+anyway." and **Fix it** asks for the fix as for work in the project; discarded, or gone on in a Fix
+it turn, both buttons go (after a reload as well). Taken in, discarded or gone on in a Fix it turn,
+the turn's line of where its work is ("Not in the project yet: …") is written anew.
 An Away job ends
 there, and its report lists it. Work that is already in the project (no copy) gets the stronger
 model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
@@ -446,7 +455,14 @@ A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model
 decides (Fix it). Work in a copy - a recipe's, before Ready for you - that a look still holds is
 not taken in by itself either, at any level: no Ready for you card, not even at Auto-edit, and
 not at Full auto; the section says "Not taken in: on hold - a look's findings still stand after
-its fix rounds", with **Take in anyway** and **Fix it**. **Fix it** goes on in the kept work's
+its fix rounds", with **Take in anyway** and **Fix it**. So is work in a copy whose check by kind
+of work (a page, a document, a config file, a script) still fails after its fix rounds: "Not taken
+in: KOLONİ's checks of what it wrote still fail after its fix rounds". A later pass of the
+same turn never lets that one go - it may not check the kind again (not judged, not run, out of
+time): **Take in anyway** or **Fix it**. Work held for its tests goes to Ready for you where the
+Orchestrator changes it in the same turn and KOLONİ's next pass runs every test command to a pass
+(one not run, timed out or still running keeps it out). Work stopped at the turn's token limit or
+the month's budget with tests failing stays out too. **Fix it** goes on in the kept work's
 copy, and that turn's end check covers the whole kept work as Take in would bring it - the held
 change and the fix, by the same rule (a big or security-touching change gets the look), never
 the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
@@ -476,7 +492,7 @@ below). Under **Tests only**, **Nothing**, or where checks are off for the chat,
 
 | Kind | Checked | Said, not failed |
 |---|---|---|
-| Code style and types (`.py`, `.js`, `.ts`, `.tsx`, `.vue` …) | a problem the project's own ruff, eslint, tsc or mypy finds on a line the turn added or changed, in a file it changed ("app/x.py:12: ruff F401 - `os` imported but unused") - a file it cannot parse too ("ruff invalid-syntax - …") | the problems on lines the turn did not change, counted; eslint's and tsc's warnings on its lines, counted; a tool set up but not installed here; one the project's own check ran this turn (its CI lines, its test command - the tool as a command's program there, never `pip install ruff` or `pytest -k mypy`); a tsconfig that names no files (a solution's `references`) or is composite - tsc is not run on it; a file too large to compare in time ("not judged"); the tool's settings the turn changed ("ruff's settings changed this turn (pyproject.toml)"); a run that found none of the turn's files to check (ruff's "No Python files found", eslint's ignored file) - never "no problems" |
+| Code style and types (`.py`, `.js`, `.ts`, `.tsx`, `.vue` …) | a problem the project's own ruff, eslint, tsc or mypy finds on a line the turn added or changed, in a file it changed ("app/x.py:12: ruff F401 - `os` imported but unused") - a file it cannot parse too ("ruff invalid-syntax - …") | the problems on lines the turn did not change, counted; eslint's and tsc's warnings on its lines, counted; a tool set up but not installed here; one the project's own check ran this turn (its CI lines, its test command - the tool as a command's program there, never `pip install ruff` or `pytest -k mypy`); a tsconfig that names no files - itself or by what it `extends` (a solution's `references`) - or that extends a file outside the project, not there or more than 8 deep: tsc is not run on it; a file too large to compare in time ("not judged"); the tool's settings the turn changed ("ruff's settings changed this turn (pyproject.toml)"); a run that found none of the turn's files to check (ruff's "No Python files found", eslint's ignored file) - never "no problems" |
 | Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file (a site's page name, `guide` for `guide.md`, counts as found; a link in code does not count); a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
 | Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without `@startuml` … `@enduml` (or `@startmindmap` … `@endmindmap` and the like) | labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid |
 | Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
@@ -493,25 +509,35 @@ folder up from a file that has them. Running one runs the project's code (an `es
 is JavaScript), so it goes as the project's test command goes: at Full auto it runs; at Ask and
 Auto-edit it waits on a card - your yes covers that very line in that folder for the rest of
 the turn, and **Always** keeps that line (the program and its options, never the bare program:
-a line that adds another config, a plugin folder or a report elsewhere asks again); while you are
+a line that adds another config, a plugin, parser or formatter, a plugin folder, `--fix`, a
+report or trace elsewhere, or tells tsc to build or write (`--incremental`, `--noEmit false`, `-b`)
+asks again); while you are
 away, or in a turn a trigger started without its leave for that line, it is not run and its line
-says "needs your leave once". A program the turn wrote itself - in the folder a tool is installed
-in (`node_modules`, `.venv`), in any case of its name, or through a link - is never run, nor one
-whose real place is outside the project, nor a tool where the turn wrote a `node.cmd` or
+says "needs your leave once". A program an agent wrote - this turn, or an earlier turn in an install
+folder (`node_modules`, `.venv`, `site-packages`), in the project or in a working copy, taken in or
+not, while the file still holds what it wrote - in any case of its name, or through a link, is never run and
+offers no card, nor one whose real place is outside the project, nor eslint or tsc where the turn wrote in a
+`node_modules` above the folder they run in (Node loads their packages from there too), nor a
+tool where the turn wrote a `node.cmd` or
 `python.exe` (a name a tool's shim runs bare) in the folder it runs in. A file's lines are
 compared with what it was before the turn only where a tool says a problem in it, within the 2
 minutes: one too large to compare in that time is said "not judged", never passed. It waits for KOLONİ's test-run slot (Settings › The
-app), so a type check never runs beside the whole test suite. tsc is told not to build
-incrementally and mypy to keep its cache in the folder (`.mypy_cache`). In a
-recipe's copy it runs there, and what it writes (a cache, a report) is put back - never taken
-in. At most 50 files a run, 2 minutes for them all, its wait for the slot too. Where the project
+app), so a type check never runs beside the whole test suite. tsc is told to write nothing outside the project
+(KOLONİ's own line, `--noEmit --incremental false --composite false --generateTrace null`: its command line wins
+over its tsconfig and what that extends) and mypy to keep its cache in the folder (`.mypy_cache`). In a
+recipe's copy it runs there - without the copy's own code first on its Python path, so a module
+an agent wrote there (`mypy/`) is never imported in place of the tool's own - and what it writes
+(a cache, a report) is put back - never taken in. At most 50 files a run, 2 minutes for them all, its wait for the slot too. Where the project
 sets none of them up, nothing at all is said of it.
 
 A deck, Word file or other file a command made (a script that writes a `.pptx`) is checked too,
 when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix
 round, with the lines that failed (at most 20 named): one
 count with failing tests and the Reviewer's findings (**Fix rounds**), "(1 problem in what it
-wrote)" beside the round. A problem the file had before the turn is said, not sent back: the turn
+wrote)" beside the round. Where the rounds are spent with it still there - or the Orchestrator
+answered one without changing anything - the section ends as for failing tests, "Still failing
+after 1 fix rounds: you decide (Fix it)", and work in a copy is not taken in (see
+[A stronger model](#a-stronger-model)). A problem the file had before the turn is said, not sent back: the turn
 did not make it. A file KOLONİ cannot read (over 8 MB - or over 8 MB once its zip members or
 draw.io pages are inflated, all together, whatever size the file says they are; a deck of over
 1,000 slides - outside the project, an XML file that declares a DTD or entities in any encoding, a
@@ -565,15 +591,33 @@ kept for you in the project's `.koloni/tmp/checked/<turn>/` - never shown to a m
 the Orchestrator of a page is only these lines, as data. **Pages** is switched off with the other
 kinds.
 
-At each width the page, as it loaded, is also read for accessibility - by KOLONİ, in the page, with
-no model and nothing installed:
+At each width the page is also read for accessibility - by KOLONİ, in the page, with no model and
+nothing installed - half a second after it loaded, and again 0.3 s later (some 0.8 s a width). Each
+rule is judged by how many it finds in each read. Found in both, the fewer fail as below, named as
+the second read names them, however the rest of the page moves (a count going up, a clock, an
+image's address that rotates, controls that swap places); what one read finds more of - an image
+with no alt drawn as its data comes - and a rule found in one read only - a name put a moment late
+- are not judged, said by the rule: "accessibility not judged at 375 px for what changed after it
+loaded - images without alt text". Neither is sent back for what the page had not drawn yet nor
+passed for what it drew late. The
+notes (contrast and what it could not judge) are the second read's; a second read cut at its 3
+seconds leaves the width to the first. A change after the second read is not seen. What the read
+finds:
 
 - an image with no text for it: "index.html: 2 images without alt text at 375, 768, 1280 px -
   logo.png, hero.jpg". `alt=""` marks a picture as decoration, and one hidden from screen readers
-  (`aria-hidden`, `role="presentation"`) is not counted;
+  (`aria-hidden`, `role="presentation"`) is not counted. An image of the page's own bytes (a
+  `data:` address) is named by its id, class or place: "an inline image (#hero)", "an inline image
+  (image 3)";
 - a button, link or field with no name - no words of its own, `aria-label`, `aria-labelledby`,
-  `title`, label, placeholder, a button's value or an image's `alt` in it: "1 buttons, links or
-  fields with no name at 375, 768, 1280 px - input[type=email]#email";
+  `title`, label (its words, or the `alt` of an image in it), placeholder, a button's value or an
+  image's `alt` in it, and else the words of the CSS `::before` or `::after` of it or of what is
+  shown in it (`content: 'Menu'`; one with `display: none`, or an icon font's glyph, is no name):
+  "1 buttons, links or fields with no name at 375, 768, 1280 px -
+  input[type=email]#email". A control one can tab to counts whatever its size - an empty
+  `<a href>` is a tab stop with no name; any other (`tabindex="-1"`, inside `inert`) only where it
+  is drawn more than 1 px each way, as an image and a text are. A hidden or disabled one never
+  counts;
 - a page hidden whole from screen readers (`aria-hidden` on `html` or `body`), and a control one
   can tab to inside `aria-hidden` (a button, a link, a field, `tabindex` 0 or more, not disabled,
   not inside `inert`): "2 controls one can tab to inside aria-hidden at 375, 768, 1280 px -
@@ -602,12 +646,19 @@ guessed:
   page's colour scheme is dark only" - its canvas is dark, not the white the rule reads under it;
 - frames and shadow roots: counted, not read ("accessibility not read inside 1 frames or shadow
   roots"); a closed shadow root is not seen at all;
-- a page whose script took its body away: "accessibility not read … the page has no body". One
-  that moved its content out of the body is read all the same: the read starts at the page's root;
-- a page's first 2,000 elements are read (an inline `<svg>` counts as one, not its shapes), for 3
-  seconds at most a width, and a text's words are compared with the 200 drawn elements over its
-  box at most; past that: "accessibility checked only in part", with which limit it met ("only its
-  first 2000 elements are read", "a text has more than 200 drawn elements over it" …).
+- a page whose script took its body or its root away: "accessibility not read … the page has no
+  body" ("… no root"). One that moved its content out of the body is read all the same: the read
+  starts at the page's root;
+- a page's first 2,000 elements are read (an inline `<svg>` counts as one, not its shapes), none
+  nested over 1,000 deep, for 3 seconds at most a width, and a text's words are compared with the
+  200 drawn elements over its box at most; past that: "accessibility checked only in part", with
+  which limit it met ("only its first 2000 elements are read", "nested over 1000 deep", "a text has
+  more than 200 drawn elements over it" …). A read cut at its 3 seconds is not read again: that
+  width stands on its first read.
+
+A page nested deeper still (some 1,600 elements, measured on Windows) crashes the browser's tab as it is
+drawn, before any read: "index.html: not checked: the page crashed the browser's tab", said at
+once, and the turn's next page is read in a new browser.
 
 The read goes through the browser's own getters, so a field named after one of the page's
 properties (`<input name="parentElement">`) cannot steer it. Hidden and disabled elements are left
@@ -795,8 +846,8 @@ a user would:
   runs in the project itself only: where the work waits in a working copy, "Not tried: the work
   waits in a working copy…".
 - Not tried, and said: while the turn's tests still fail (not those failing before it), in a turn
-  nobody watches (Away, a trigger, a
-  To-do task), or where the Tester's role has no browser tools.
+  nobody watches (Away, a trigger), or where the Tester's role has no browser tools. A To-do task's
+  turn is tried as the chat's other turns are.
 
 On the canvas the Tester is drawn in the Checks box ([On the canvas](#on-the-canvas)); KOLONİ's own
 runs of the try (the `--help`, the dev server) are not counted as test runs there.
@@ -847,8 +898,9 @@ itself, the end works like a pull request's CI:
     If the related tests fail on the last round, the whole suite is not run: "Full tests not
     run: the related tests fail".
 
-The whole suite's own limit is the commands' 10 minutes. Past it the section says "Tests timed
-out after 10 min".
+The whole suite's own limit is the project's **Longest command**, 10 minutes unless you raise it
+(up to 60, in [Settings › This project › Commands and secrets](../settings.md#commands-and-secrets)).
+Past it the section says "Tests timed out after 10 min" (or the minutes you set).
 
 **Stop this check**, under a suite running after the answer, stops it: what finished stays, and
 the line says "Full tests stopped by you at 1:02 - not checked" (counted from when it started),
@@ -875,7 +927,7 @@ them, the line says "Tests not run: you stopped the check".
   the next start says "Tests not finished: KOLONİ restarted".
 - A job while you're away, a To-do task's turn and a trigger's turn have nobody waiting for
   the answer, and their fix rounds need the result: they wait for the whole suite, up to the
-  commands' 10 minutes, with no related step.
+  project's **Longest command** (10 minutes unless you raise it), with no related step.
 - A turn whose work is in its own working copy (a team's branch) cannot leave its tests running
   after it: the copy is taken in or set aside when the turn ends. There KOLONİ waits at most
   **2 minutes** for the tests, all of the turn's test commands together and another turn's run
@@ -888,7 +940,7 @@ them, the line says "Tests not run: you stopped the check".
 
 ### How many run at once
 
-![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits](../images/settings-app-test-runs.png)
+![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits; under Save, the Show experimental CLIs switch, off](../images/settings-app-test-runs.png)
 
 KOLONİ's own test runs queue: **Settings › The app › KOLONİ's test runs at once** (1 unless you
 change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says
@@ -984,14 +1036,15 @@ the Orchestrator's window, whose record holds the runs.
 | – Full tests stopped by you at `m:ss` - not checked | You stopped it. Nothing it had run is counted. |
 | – Tests not finished: `why` | Stopped, a newer run took its place, or KOLONİ restarted while it ran. |
 | – `…` - the project changed while they ran | The project changed under the run. Its result stands for no state of the work, and a pass is not shown as passed. |
-| – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. |
+| – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. Kept work Fix it went on in, taken in at the turn's end, is no change after the run. |
+| – Still failing as last checked - this turn changed nothing | The turn changed no file, right after a turn whose checks still failed: the failing lines below are that turn's, said again, and **Fix it** is offered under them. |
 | – No test command | There was nothing to run; the line says where to set one: the project map's whole project's row or a part's (Settings › This project › This folder). |
 | – Were failing before this turn: `files` (from CI: `command`) | A lint, format or type check failed only on files the turn did not change, and each of its findings is there on the old code too. Not sent back. |
 | – Sent back to fix: round 3 (until it passes, 3 failing → 1) | Until it passes: the rounds sent back, and how many failed at the first and fail now. |
 | ✗ Stopped after round 4: `why` - you decide (Fix it) | Until it passes, the rounds stopped short of a pass: no progress in two rounds, at most 20 rounds, the turn's token limit or the project's monthly budget. ("Still on hold after round 4: …" where a review's hold stood.) |
 | – `model`'s rounds stopped: no progress in two rounds | Until it passes, a stronger model's round left the same tests failing. |
 | – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn, of the project's Fix rounds; "(tests fail; 1 blocking finding)" after it where a review sent one back. |
-| ✗ Still failing after 1 fix rounds: you decide (Fix it) | The Fix rounds were spent with a test still failing - or the Orchestrator answered a round without changing anything, which ends its turn there. |
+| ✗ Still failing after 1 fix rounds: you decide (Fix it) | The Fix rounds were spent with a test still failing, or a problem KOLONİ's check by kind of work found (a page, a document, a config file …) - or the Orchestrator answered a round without changing anything, which ends its turn there. For a kind's problem, **Fix it** asks for it to be fixed, and the Orchestrator of that turn is told the problems as data. |
 | ✗ Still fewer tests, or more skipped, after 1 fix rounds: you decide (Fix it) | As above, where no test fails but fewer ran, or more were skipped, than at the last green run. |
 | – Tests went from 48 to 45 (3 removed) - not this turn's change | Fewer tests, or more skipped, than at the last green run, where nothing of the turn's could take them away (deleted by hand, a pull, a branch): said, the new counts the green state. |
 | ✓ Review: Reviewer (`provider · model`) - MERGE, no findings | The Reviewer looked over the whole change and let it stand ("after 1 round" where it held it first). |
@@ -1018,7 +1071,8 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ `page`: 2 images without alt text · 1 buttons, links or fields with no name … | The page is hard to use with a screen reader: sent back as a fix round. |
 | – `page`: 3 texts below the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1) | A warning: hard to read, said with its ratio - never sent back. |
 | ✗ `page`: the whole page is hidden from screen readers (aria-hidden) · 2 controls one can tab to inside aria-hidden … | A screen reader is told nothing of the page, or a control one tabs to is not there for it: sent back as a fix round. |
-| – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body) | What the accessibility read could not judge: said, not sent back. |
+| – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body · … no root) · accessibility not judged at 375 px for what changed after it loaded - images without alt text | What the accessibility read could not judge: said, not sent back. |
+| – `page`: not checked: the page crashed the browser's tab | The browser could not draw the page (one nested some 1,600 deep crashes Chrome's tab, measured on Windows): said at once; the turn's next page is read in a new browser. |
 | – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |
 | ✓ Tried `python 'bin/tool.py' --help`: exit 0, 12 lines | A command-line tool the turn changed answered its `--help`. |
 | ✗ Tried `line`: exit 2 · Tried `line`: it did not end in 30 s | Its `--help` failed or ran on: sent back as a fix round. |
@@ -1044,6 +1098,8 @@ the Orchestrator's window, whose record holds the runs.
 | – Strongest skipped: over its limit | That tier's provider is past its limit of spend: it is not handed the fix. |
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Not taken in: on hold - a look's findings still stand after its fix rounds | Work in a copy (a recipe's) that the Reviewer or Security reviewer still holds stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
+| ✗ Not taken in: KOLONİ's checks of what it wrote still fail after its fix rounds | Work in a copy (a recipe's, an Away job's, a branch turn's) whose page, document, config file or script still fails its check by kind of work stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
+| Taken in anyway. | You took the held work in as it was: said under the lines, not as a line of its own. **Fix it** now asks for the fix as for work in the project, where a line still fails; a turn that changes nothing after it says the work still fails. |
 | ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
 | – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |

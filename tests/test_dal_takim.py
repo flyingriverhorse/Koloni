@@ -18,7 +18,7 @@ from app.db.models import Agent, BacklogTask
 from app.model_client import ModelUnavailable
 from tests.conftest import Gate, scaled
 from tests.test_backlog import setup
-from tests.test_backlog_auto import tasks, worked
+from tests.test_backlog_auto import run_todo, tasks, worked
 from tests.test_chat_flow import text
 from tests.test_claim_scenarios import calls, write
 from tests.test_git_view import run
@@ -482,10 +482,10 @@ def beside(make_client, folder, gate):
         }
     )
     pid, (first,) = setup(client, folder, "first")
-    assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] == first
+    assert run_todo(client, pid)["task_id"] == first
     gate.wait_partial()  # (the first is at work, in the project)
     second = client.post(f"/api/projects/{pid}/backlog", json={"title": "Second task"}).json()
-    assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] == second["id"]
+    assert run_todo(client, pid)["task_id"] == second["id"]
     cid = tasks(client, pid)["Second task"]["conversation_id"]
     coder = until(
         client, cid, lambda s: any(a["status"] == "proposed" for a in s["agents"]), timeout=LONG
@@ -536,6 +536,53 @@ def test_stopped_while_its_merge_waits_the_turn_ends_and_the_branch_keeps_the_wo
     gate.release()
 
 
+def test_a_second_stop_while_the_leads_own_branch_is_saved_waits_for_the_save(
+    make_client, wait_run, repo, gate, monkeypatch
+):
+    """CancelledError review (8 Nov): the Lead's own Take in comes after its turn's `_saved` -
+    a second Stop while its Stop's save ran (the look for a secret given this turn) cut the
+    wait, and the turn's end dropped the copy under the save, which went on alone. It is waited
+    for: the save sees its worktree and ends before the turn lets go of what it held."""
+    from app.agent import AgentRunner
+
+    saving, go, released = threading.Event(), threading.Event(), threading.Event()
+    order: list[str] = []
+    whole: list[bool] = []
+    real_gone, real_release = AgentRunner._secret_branch_gone, AgentRunner._release_run
+
+    async def slow_save(self, ctx, copy, look=None):
+        saving.set()
+        while not go.is_set():
+            await asyncio.sleep(0.02)
+        whole.append(copy.root.exists())
+        order.append("saved")
+        return await real_gone(self, ctx, copy, look)
+
+    def release(self, run_id):
+        order.append("released")
+        released.set()
+        return real_release(self, run_id)
+
+    monkeypatch.setattr(AgentRunner, "_secret_branch_gone", slow_save)
+    monkeypatch.setattr(AgentRunner, "_release_run", release)
+    try:  # (a failed assert never leaves the save spinning)
+        client, pid, _first, cid = beside(make_client, repo, gate)
+        merge = card(client, cid)
+        assert client.post(f"/api/runs/{merge['run_id']}/cancel").status_code == 202
+        assert saving.wait(LONG)
+        order.clear()  # (the first task's turn is held at its model: none of its)
+        assert client.post(f"/api/runs/{merge['run_id']}/cancel").status_code == 202  # (lands)
+        released.wait(scaled(1))  # (before: the turn ended at once, under the save)
+    finally:
+        go.set()
+    snap = wait_run(client, cid, merge["run_id"], timeout=LONG)
+    assert order[:2] == ["saved", "released"] and whole == [True]
+    assert [m["status"] for m in snap["merges"]] == ["discarded"]
+    assert len(worktrees(repo)) == 1
+    assert run(repo, "branch", "--list", "koloni/*") == second(client, pid)
+    gate.release()
+
+
 def test_where_the_project_has_no_git_the_task_beside_works_as_today(
     make_client, wait_run, project_dir, gate
 ):
@@ -545,14 +592,6 @@ def test_where_the_project_has_no_git_the_task_beside_works_as_today(
     assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 200
     worked(client, wait_run, pid, "Second task")
     assert (project_dir / "b.txt").read_text() == "b\n"
-    gate.release()
-
-
-def test_tasks_started_together_each_go_on_a_branch(make_client, repo, gate):
-    client, _model = make_client([gate.step(text("a")), gate.step(text("b"))])
-    pid, (one, two) = setup(client, repo, "one", "two")
-    client.post(f"/api/projects/{pid}/backlog/next")
-    assert flow(client, one).get("branch") and flow(client, two).get("branch")
     gate.release()
 
 

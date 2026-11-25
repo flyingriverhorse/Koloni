@@ -3,6 +3,7 @@ open and what a page may do unwatched, its screenshots, and view_image's copies 
 (and a CLI's own look at one) - `BrowserMixin`.
 """
 
+import asyncio
 import os
 import re
 import time
@@ -389,12 +390,14 @@ class BrowserMixin:
         if views.DEVICES.fullmatch(name) or is_secret(name):
             name = f"image.{IMAGE_EXT[mime]}"
         folder = f"{ctx.agent_id[:8]}-{call_id[:8]}"
-        # shortcut: the copies under .koloni/tmp/images are never swept (the browser's
-        # screenshots are, after 7 days: `browser.sweep`); sweep them too if a project's
-        # scratch is seen to grow.
         try:
             koloni.scratch(ctx.folder)
-            target = self._scratch_folder(ctx, "images", "the image is not copied there") / folder
+            images = self._scratch_folder(ctx, "images", "the image is not copied there")
+            # (Those over a week old go as a new one comes, as screenshots go as a browser starts -
+            # off the event loop: the first sweep after an upgrade may take thousands. This call's
+            # folder, made now, is never old enough to go with them.)
+            asyncio.get_running_loop().run_in_executor(None, browser.sweep_images, images)
+            target = images / folder
             target.mkdir(parents=True, exist_ok=True)
             (target / name).write_bytes(data)
         except OSError as exc:

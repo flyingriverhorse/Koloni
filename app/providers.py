@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, is_local
 from app.db.models import Conversation, OwnRequest, Provider, Role
-from app.limits import Limits, account, cli_home
+from app.limits import CLI_HOMES, Limits, account, cli_home
 from app.model_agy import AgyClient, AgySearch
 from app.model_anthropic import AnthropicClient
 from app.model_cli import (
@@ -32,22 +32,27 @@ from app.model_client import (
     server_of,
 )
 from app.model_native import (
+    COPILOT_SESSIONS,
     ClaudeNativeClient,
     CodexNativeClient,
     CodexSessionClient,
     CopilotNativeClient,
-    QoderNativeClient,
 )
 from app.model_session import (
     ROUTINGS,
     ClaudeSessionClient,
     CopilotSessionClient,
-    QoderSessionClient,
 )
 from app.roles import shown_name
 
 HTTP_KINDS = ("openai_compat", "anthropic")
-CLI_KINDS = ("claude_cli", "qoder_cli", "codex_cli", "copilot_cli", "agy_cli")
+CLI_KINDS = ("claude_cli", "codex_cli", "copilot_cli", "agy_cli")
+# Kinds KOLONİ ran once and no longer does, with why: a row of one stays, switched off (migration
+# 0181), for the user to delete; it never runs (`allowed`) nor can be switched on again.
+RETIRED = {
+    "qoder_cli": "Qoder is no longer supported (0.1.8): KOLONİ does not run it any more. Pick "
+    "another provider for what used it, then delete this one.",
+}
 # The CLIs KOLONİ gives images (and a video's frames) as they are, by their own image input
 # (slice 85c): Claude Code's image blocks, Codex's --image and localImage. The others have
 # none KOLONİ can use: their agents are told of a picture, never shown it. No CLI is sent a
@@ -58,6 +63,10 @@ IMAGE_CLIS = ("claude_cli", "codex_cli")
 SERVER_CLIS = ("claude_cli", "codex_cli")
 # Agents at work at once on a provider the user set no number for (`Providers.most_at_once`).
 CLI_AT_ONCE, SERVICE_AT_ONCE = 3, 8
+# 0.1.8 (the user, 24 Nov): agy, and Codex run one step at a time, are offered only with Show
+# experimental CLIs on (Settings › The app › Agents; a Flag of this name, which the Models page
+# reads). A provider already set so runs as before, tagged Experimental; nothing here refuses it.
+EXPERIMENTAL_FLAG = "experimental_clis"
 # How each CLI can be run, the first being its default. A session needs the CLI's own
 # tools to be really off while KOLONİ's reach it over MCP: Codex's patch tool cannot be
 # switched off, so KOLONİ declines each patch it asks about (`CodexSessionClient`).
@@ -66,7 +75,6 @@ CLI_AT_ONCE, SERVICE_AT_ONCE = 3, 8
 # refuses a write or a command, so nothing has to be asked.
 MODES = {
     "claude_cli": ("session", "step", "native"),
-    "qoder_cli": ("session", "native"),  # (native: B-306, stopped before it acts: NOT_WATCHED)
     "codex_cli": ("session", "step", "native"),
     "copilot_cli": ("session", "native"),
     "agy_cli": ("reads", "native"),
@@ -81,7 +89,6 @@ ANTHROPIC_URL = "https://api.anthropic.com"
 # What the CLI is called when the provider does not name a path.
 CLI_COMMANDS = {
     "claude_cli": "claude",
-    "qoder_cli": "qodercli",
     "codex_cli": "codex",
     "copilot_cli": "copilot",
     "agy_cli": "agy",
@@ -89,7 +96,6 @@ CLI_COMMANDS = {
 # agy goes by its command's name: what the product is called was not measured.
 CLI_NAMES = {
     "claude_cli": "Claude Code",
-    "qoder_cli": "Qoder",
     "codex_cli": "Codex",
     "copilot_cli": "GitHub Copilot CLI",
     "agy_cli": "agy",
@@ -117,13 +123,6 @@ def per_token(provider: Provider) -> bool:
 # agy's hooks, each of Copilot's requests.
 NOT_WATCHED: dict[tuple[str, str], tuple[str, ...]] = {
     ("claude_cli", "native"): (),
-    # shortcut: as `QoderNativeClient` says, the versions tried do not apply KOLONİ's hook
-    # (`_control` stops them first); how one that applies it asks before its tools is not
-    # measured (`_heard` stops it only once one ran unasked); drop this line once measured live.
-    ("qoder_cli", "native"): (
-        "the Qoder versions tried so far do not apply KOLONİ's hook and are stopped before they "
-        "act; how one that applies it asks before each tool is not measured",
-    ),
     ("copilot_cli", "native"): (),
     ("agy_cli", "native"): (),
     ("codex_cli", "native"): (
@@ -401,9 +400,12 @@ class SwitchedOff(ClosedToAgents):
 def is_on(provider: Provider, model: str | None) -> bool:
     """Whether the user left this provider, and this model of it, switched on. (One not
     saved yet says nothing of it: on.) With no model at all - a CLI's own default would run,
-    which KOLONİ does not know - it is off where every model of its list is."""
+    which KOLONİ does not know - it is off where every model of its list is. One of a kind
+    KOLONİ no longer runs (`RETIRED`) is never on."""
     rows = provider.models or []
-    if model is None and rows and not any(m.get("enabled", True) for m in rows):
+    if provider.kind in RETIRED or (
+        model is None and rows and not any(m.get("enabled", True) for m in rows)
+    ):
         return False
     return provider.enabled is not False and not any(
         m["name"] == model and not m.get("enabled", True) for m in rows
@@ -418,6 +420,11 @@ def allowed(provider: Provider, model: str | None) -> None:
     shortcut: a CLI with no model named and no default runs its own, which KOLONİ does not
     know: it is held back only where its whole list is off (`is_on`), not where that own
     default is one model switched off; name its default if that is ever missed."""
+    if why := RETIRED.get(provider.kind):
+        raise SwitchedOff(
+            f"{provider.name}: {why}",
+            f"{shown_name(provider.name)} can no longer be used: choose another model.",
+        )
     model_or_default = model or provider.default_model
     if not is_on(provider, model_or_default):
         whole = provider.enabled is False
@@ -658,8 +665,8 @@ def seed_providers(
     session: Session, settings: Settings, which: Callable[[str], str | None] = shutil.which
 ) -> None:
     """On the very first start, offer what is at hand: the local server from the
-    environment, and the CLIs that are installed (all but Copilot). After that the
-    list is the user's and is left alone."""
+    environment, and the CLIs that are installed (all but Copilot, and agy: experimental since
+    0.1.8, `EXPERIMENTAL_FLAG`). After that the list is the user's and is left alone."""
     if session.scalar(select(func.count()).select_from(Provider)):
         return
     session.add(
@@ -675,8 +682,10 @@ def seed_providers(
         )
     )
     if settings.detect_cli:
-        # Copilot is not offered by itself: the user adds it on the Models page.
-        seeded = [kind for kind in CLI_KINDS if kind != "copilot_cli"]
+        # Copilot is not offered by itself: the user adds it on the Models page. Nor is agy:
+        # experimental, and Google's Antigravity terms (section 6) forbid using it through
+        # another app.
+        seeded = [kind for kind in CLI_KINDS if kind not in ("copilot_cli", "agy_cli")]
         for position, kind in enumerate(seeded, 1):
             if which(CLI_COMMANDS[kind]):
                 session.add(
@@ -685,9 +694,6 @@ def seed_providers(
                         kind=kind,
                         position=position,
                         mode=MODES[kind][0],
-                        # Google's Antigravity terms (section 6) forbid using it through another
-                        # app.
-                        enabled=kind != "agy_cli",
                     )
                 )
     session.commit()
@@ -883,9 +889,10 @@ class Providers:
             build = CopilotNativeClient if provider.mode == "native" else CopilotSessionClient
             # K-copilot-baglam: the tier comes only from the model's row, checked when it was
             # saved (`check_guide`), and only on GitHub's account.
-            # shortcut: KOLONİ's own window for a Copilot model (compaction, usage) stays the
-            # catalogue's one number whatever the tier; models.dev has no tiers, so that number
-            # may be the long tier's and the default one smaller. Measure both windows live.
+            # shortcut: KOLONİ's own window for a Copilot model (compaction, usage) is the
+            # catalogue's one number whatever the tier (models.dev has none) until a native turn
+            # says its session's own (`session.usage_info`), kept on that turn's agent; run as a
+            # session (`-p`) its window is not read.
             row = next((m for m in provider.models or [] if m["name"] == model_id), {})
             copilot = build(
                 provider.executable,
@@ -896,6 +903,15 @@ class Providers:
                 options=provider.options or {},
                 context=None if provider.base_url else row.get("context"),
                 routing=None if provider.base_url else row.get("routing"),
+                # 0.1.8: natively its session is kept for the topic's next turn, in a home there.
+                **(
+                    {
+                        "sessions": settings.runtime_root / CLI_HOMES / COPILOT_SESSIONS,
+                        "provider": provider.id,
+                    }
+                    if build is CopilotNativeClient
+                    else {}
+                ),
             )
             if build is CopilotNativeClient and not provider.base_url:
                 # 89l: on GitHub's plan its headless client says what is left of it.
@@ -916,8 +932,6 @@ class Providers:
             cli = {
                 ("claude_cli", "session"): ClaudeSessionClient,
                 ("claude_cli", "step"): ClaudeCliClient,
-                ("qoder_cli", "session"): QoderSessionClient,
-                ("qoder_cli", "native"): QoderNativeClient,
                 ("codex_cli", "step"): CodexCliClient,
                 ("codex_cli", "session"): CodexSessionClient,
                 ("codex_cli", "native"): CodexNativeClient,

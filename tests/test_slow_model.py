@@ -1,8 +1,7 @@
 """K-yavas (the user, 20 Nov 2026): a turn the user watches sat for minutes with nothing happening -
-Qoder's free model queued 7 min for the Orchestrator, Codex at its 5-hour limit answering every
+a free model queued 7 min for the Orchestrator, Codex at its 5-hour limit answering every
 7-10 min - and Stop was the only way out. Now its Orchestrator's model, silent for
-WATCHED_SLOW_MINUTES (Qoder: queued past QUEUE_WAIT_SECONDS), is asked about on one card: Keep
-waiting, or Stop and pick another model. Nobody answering, it waits; a sub-agent and a turn
+WATCHED_SLOW_MINUTES, is asked about on one card: Keep waiting, or Stop and pick another model. Nobody answering, it waits; a sub-agent and a turn
 nobody watches are as before."""
 
 import asyncio
@@ -77,9 +76,8 @@ async def held(event: threading.Event) -> None:
 
 
 class Queued(ScriptedModel):
-    """A CLI session for the Lead whose model Qoder queues: one queue line for each of `lines`
-    (seconds waited) - or, a line that is words, those words - each then held until the test
-    lets it go on; then its answer."""
+    """A CLI session for the Lead that says each of `lines`, each then held until the test lets
+    it go on; then its answer."""
 
     session = True
 
@@ -100,11 +98,8 @@ class Queued(ScriptedModel):
         on_live=None,
     ):
         try:
-            for i, elapsed in enumerate(self.lines):
-                if isinstance(elapsed, str):
-                    await on_text(elapsed)
-                else:
-                    on_live({"queue": {"elapsed_s": elapsed, "max_s": 3600, "available": False}})
+            for i, line in enumerate(self.lines):
+                await on_text(line)
                 self.at = i
                 await held(self.go[i])
             await on_text("done")
@@ -331,47 +326,16 @@ def test_stop_while_its_card_waits_ends_the_turn_as_stop_does(
     nothing_left(runner)
 
 
-# --- Qoder's queue -------------------------------------------------------------------------------
-
-
-def test_qoder_queuing_the_orchestrator_is_asked_sooner_and_once(
+def test_stop_and_pick_another_model_ends_the_turn_and_its_cli_and_says_what_to_do(
     settings_env, wait_run, project_dir
 ):
-    client, cli = queued_app(settings_env, [65, 120, 150])
+    client, cli = queued_app(settings_env, ["Looking"])
     try:
         runner = client.app.state.runner
         clock = runner.call_later = HeldClock()
         cid, run_id = begin(client, project_dir)
         at(cli, 0)
-        assert now_snap(client, cid)["questions"] == []  # (65 s: not past QUEUE_WAIT_SECONDS)
-        cli.go[0].set()
-        snap = until(client, cid, asked)
-        lead = agent(snap, "Lead")
-        assert asked(snap)["question"] == (
-            f"{lead['provider_name']} has kept {lead['model_id']} queued for 2 min.{ASKED}"
-        )
-        answer(client, asked(snap), "Keep waiting")
-        cli.go[1].set()
-        at(cli, 2)  # (its next queue line, 150 s: no second card before a whole limit more)
-        assert len(now_snap(client, cid)["questions"]) == 1 and len(slow_timers(clock)) == 1
-        cli.go[2].set()
-        snap = wait_run(client, cid, run_id)
-        assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-        nothing_left(runner)
-    finally:
-        for go in cli.go:
-            go.set()
-        client.__exit__(None, None, None)
-
-
-def test_stop_and_pick_another_model_ends_the_turn_and_its_cli_and_says_what_to_do(
-    settings_env, wait_run, project_dir
-):
-    client, cli = queued_app(settings_env, [120])
-    try:
-        runner = client.app.state.runner
-        runner.call_later = HeldClock()
-        cid, run_id = begin(client, project_dir)
+        fire(client, armed(clock)[0])
         snap = until(client, cid, asked)
         said = asked(snap)["question"].removesuffix(ASKED)
         answer(client, asked(snap), "Stop and pick another model")

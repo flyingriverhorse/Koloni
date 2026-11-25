@@ -2065,22 +2065,15 @@ def test_agy_runs_reading_unless_native_is_chosen(client):
     )
 
 
-def test_agy_found_on_the_first_start_is_offered_switched_off_reading_and_not_to_agents(
-    settings_env, tmp_path
-):
+def test_agy_found_on_the_first_start_is_not_offered(settings_env, tmp_path):
+    # (0.1.8: experimental, offered only with Show experimental CLIs on - and Google's terms
+    # forbid using it through another app.)
     settings_env["KOLONI_DETECT_CLI"] = "1"
     found = {"agy": str(tmp_path / "agy.cmd"), "claude": str(tmp_path / "claude.cmd")}
     app = create_app(load_settings(settings_env), model=ScriptedModel([]), which=found.get)
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
         by_kind = {p["kind"]: p for p in client.get("/api/providers").json()}
-        agy = by_kind["agy_cli"]
-        assert (agy["name"], agy["mode"], agy["for_agents"], agy["enabled"]) == (
-            "agy",
-            "reads",
-            False,
-            False,
-        )
-        # Google's terms: agy waits for the user to switch it on; the others are on.
+        assert by_kind.keys() == {"openai_compat", "claude_cli"}
         assert by_kind["openai_compat"]["enabled"] and by_kind["claude_cli"]["enabled"]
 
 
@@ -2380,8 +2373,6 @@ def test_an_agy_model_whose_name_fixes_its_level_takes_none():
         cli = AgyClient(None, name)
         assert not cli.level_named and cli.efforts == ("low", "medium", "high", "xhigh", "max")
     assert facts("agy_cli", None, "gemini-3.8-flash")[0]["efforts"] == list(cli.efforts)
-    # (agy's alone: a Qoder model's name ends in a level's word, and is not read so)
-    assert facts("qoder_cli", None, "Qwen-3.8-Max")[1].get("efforts") != "its name says its level"
 
 
 def test_an_agy_that_crashes_leaving_a_child_on_its_output_fails_the_turn_at_once(

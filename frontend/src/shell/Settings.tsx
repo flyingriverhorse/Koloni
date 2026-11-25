@@ -1,12 +1,14 @@
 import { X } from '@phosphor-icons/react'
 import { type ComponentProps, type FormEvent, Fragment, type ReactNode, useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
-import type { AnswerLanguage, Folders, Project, Storage } from '../api/types'
+import type { AnswerLanguage, ExperimentalClis, Folders, Project, Storage } from '../api/types'
 import { Backup } from './Backup'
 import { DeleteProject } from './DeleteProject'
 import { FoldersSection } from './Folders'
 import { GUIDE } from './guide'
+import { KeptCopies } from './KeptCopies'
 import { LANGUAGES, ProjectSettings, Row, type Section } from './ProjectSettings'
+import { experimentalChanged } from '../models/experimental'
 import { VoiceSettings } from '../voice/VoiceControls'
 import { ChatSheet } from '../chat/ChatSheet'
 import { useApp } from '../state/store'
@@ -130,6 +132,7 @@ export function Settings({ project, onClose, picked, ...rest }: Props) {
           <div className="role-editor">
             <div hidden={appSection !== 'app-agents'}>
               <AppSettings toLimits={project ? () => go('limits') : undefined} />
+              <ExperimentalChoice />
             </div>
             {/* (Made when shown: it keeps nothing typed, each choice is kept as it is made.) */}
             {appSection === 'voice' && <VoiceSettings />}
@@ -414,7 +417,7 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
         setting={stuck}
         low={5}
         high={1440}
-        why="For every project, in work nobody watches - a To-do task, a job while you’re away, a trigger’s run (only where its Minutes a run are longer): the Orchestrator’s turn ends, its work kept, once nothing has moved for this long - no file of the turn changed, no agent finished its work, no failing command passed. A card waiting for you, a command or a model step under way, or an agent below it at work is not nothing."
+        why="For every project, in a To-do task’s turn and in work nobody watches - a job while you’re away, a trigger’s run (only where its Minutes a run are longer): the Orchestrator’s turn ends, its work kept, once nothing has moved for this long - no file of the turn changed, no agent finished its work, no failing command passed. A card waiting for you, a command or a model step under way, or an agent below it at work is not nothing."
       />
       <WholeRow
         id="turn-hours"
@@ -482,15 +485,64 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
   )
 }
 
+/** Settings › The app › Agents, under its Save: whether the Models page offers what is experimental (0.1.8: agy, and
+ *  Codex run one step at a time) - kept as it is changed. */
+function ExperimentalChoice() {
+  const [show, setShow] = useState<boolean | undefined>(undefined)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    api.get<ExperimentalClis>('/experimental-clis').then(
+      read => setShow(read.show),
+      err => setError(errorText(err)),
+    )
+  }, [])
+  async function change(on: boolean) {
+    setError(null)
+    try {
+      const saved = (await api.put<ExperimentalClis>('/experimental-clis', { show: on })).show
+      setShow(saved)
+      experimentalChanged(saved)
+    } catch (err) {
+      setError(errorText(err))
+    }
+  }
+  return (
+    <div className="settings-app-form">
+      <label className="choice">
+        <input
+          type="checkbox"
+          checked={show ?? false}
+          disabled={show === undefined}
+          onChange={e => void change(e.target.checked)}
+        />
+        <span>
+          Show experimental CLIs
+          <span className="choice-note">
+            Kept as you change it. Offers agy, and Codex’s One run per model step, under Experimental on the Models
+            page: they are less measured than the rest. A provider already set up so works either way, tagged
+            Experimental.
+          </span>
+        </span>
+      </label>
+      {error && (
+        <p role="alert" className="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 /** Settings › The app › Your data: a backup, what KOLONİ's data takes on this machine, and the places no agent opens - read once shown. */
 function YourData({ shown }: { shown: boolean }) {
   // What KOLONİ's own data takes on this machine (0.1.0-hijyen): counted each time it is shown.
   const [storage, setStorage] = useState<Storage | null>(null)
   const [shared, setShared] = useState<Folders | null>(null)
   const [sharedError, setSharedError] = useState<string | null>(null)
+  const count = () => api.get<Storage>('/storage').then(setStorage, () => setStorage(null))
   useEffect(() => {
     if (!shown) return
-    api.get<Storage>('/storage').then(setStorage, () => setStorage(null))
+    count()
     api.get<Folders>('/folders').then(setShared, err => setSharedError(errorText(err)))
   }, [shown])
   return (
@@ -503,6 +555,7 @@ function YourData({ shown }: { shown: boolean }) {
           logs {mb(storage.logs_mb)}
         </p>
       )}
+      {storage && <KeptCopies storage={storage} onChanged={count} />}
       <FoldersSection shared={shared} sharedError={sharedError} />
     </>
   )

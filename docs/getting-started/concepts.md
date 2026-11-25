@@ -3,7 +3,7 @@
 KOLONİ's words, each in two or three sentences, with a link to the page that goes deeper. The map shows
 how they hang together.
 
-[![Concept map: project, chat, turn, Orchestrator, sub-agent, role, team, recipe, room, discussion, memory, knowledge, To-do task, trigger and card](../diagrams/concept-map.svg)](../diagrams/concept-map.svg)
+[![Concept map: project, chat, turn, Orchestrator, sub-agent, role, team, recipe, room, discussion, memory, knowledge, To-do (goal, story, task or bug: ticked tasks run in a chat's queue), trigger and card](../diagrams/concept-map.svg)](../diagrams/concept-map.svg)
 
 *KOLONİ's words and how they hang together.*
 
@@ -105,8 +105,10 @@ how they hang together.
 ## Work that starts by itself
 
 **To-do**
-: A project's tasks, in your order. Each task runs in a chat of its own, by hand or one after another;
-  agents can propose tasks, and you decide when a task is done. See [To-do](../automation/todo.md).
+: A project's tasks, in your order: a goal holds stories, a story holds tasks and bugs. Tick tasks and
+  give them to a chat (**Do in chat**): they wait in its queue and run there one by one, each story in a
+  topic of its own, with a short notebook. Agents can propose tasks, and you decide when a task is done.
+  See [To-do](../automation/todo.md).
 
 **Trigger**
 : Starts a turn by itself: by the clock, when files change, or on a request from outside. Nobody watches

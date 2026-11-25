@@ -446,6 +446,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/backlog/{task_id}/fix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fix It
+         * @description Fix it, on a stuck task's card: one more fix round in its chat, in its topic, on why it
+         *     is stuck - a turn the user pays for, by their click (`backlog.fix_again`). 409 with why
+         *     where it is not stuck in a chat.
+         */
+        post: operations["fix_it_api_backlog__task_id__fix_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backlog/{task_id}/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unqueue
+         * @description Out of its chat's queue, back on To-do (the queue's Remove); 409 where it waits in none.
+         */
+        delete: operations["unqueue_api_backlog__task_id__queue_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/backlog/{task_id}/seen": {
         parameters: {
             query?: never;
@@ -1394,6 +1436,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/experimental-clis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Experimental Clis */
+        get: operations["experimental_clis_api_experimental_clis_get"];
+        /**
+         * Set Experimental Clis
+         * @description 0.1.8: Show experimental CLIs (Settings › The app › Agents) - the user's, from the app's
+         *     own page.
+         */
+        put: operations["set_experimental_clis_api_experimental_clis_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/file-changes/{change_id}/approve": {
         parameters: {
             query?: never;
@@ -1504,6 +1568,24 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/goals/{goal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Goal */
+        delete: operations["delete_goal_api_goals__goal_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change Goal */
+        patch: operations["change_goal_api_goals__goal_id__patch"];
         trace?: never;
     };
     "/api/health": {
@@ -2443,30 +2525,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{project_id}/backlog/auto": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Auto */
-        get: operations["read_auto_api_projects__project_id__backlog_auto_get"];
-        /**
-         * Set Auto
-         * @description The user's switch, Run the backlog by itself: todo tasks start by themselves as there
-         *     is room (`backlog.chain`), now too. Why the run paused or stopped is cleared either way:
-         *     it is the user's word now. Off stops the run: what Run the backlog queued is not started.
-         */
-        put: operations["set_auto_api_projects__project_id__backlog_auto_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/backlog/choice": {
+    "/api/projects/{project_id}/backlog/do-in-chat": {
         parameters: {
             query?: never;
             header?: never;
@@ -2474,17 +2533,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        put?: never;
         /**
-         * Set Choice
-         * @description The level and the model the chats the backlog opens from now start with (B-350): the
-         *     user's, from the app's own page, as raising a chat's level is. Their turns hold to a
-         *     night's rules at any level (`AgentRunner._backlog_turns`), so a provider that cannot work
-         *     under them - one with tools of its own, or with no model to run - is refused here rather
-         *     than failing every task. (The default one is said on the page and checked as a run
-         *     starts, `backlog.cannot_run`: the level is still to be set with none chosen.)
+         * Do In Chat
+         * @description Do in chat: the ticked tasks wait in a chat's queue - this one, or a new chat of the
+         *     project named by the first of them - and run there one by one, each story in a topic of its
+         *     own (`backlog.queue_in_chat`, `backlog.go_on`). Checked here as they stand now, not as the
+         *     page saw them: all of them or none (422 with why); an unknown chat is 404. Not over the
+         *     month's budget (409), as a message is not.
          */
-        put: operations["set_choice_api_projects__project_id__backlog_choice_put"];
-        post?: never;
+        post: operations["do_in_chat_api_projects__project_id__backlog_do_in_chat_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2514,7 +2572,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{project_id}/backlog/next": {
+    "/api/projects/{project_id}/backlog/drafter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Drafter
+         * @description Who "Write it with the Hive keeper" asks first - its provider and model (None: its
+         *     default) - or why nobody is asked now.
+         */
+        get: operations["read_drafter_api_projects__project_id__backlog_drafter_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/backlog/tree": {
         parameters: {
             query?: never;
             header?: never;
@@ -2524,16 +2603,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Run The Backlog
-         * @description Run the backlog (K-symphony): every todo task is queued, and they start as there is
-         *     room - MAX_PARALLEL at once, each once the tasks it waits for are done (`backlog.chain`) -
-         *     each in a new conversation (`backlog.start`). Not while everything is held or the
-         *     project works while the user is away, nor over the month's budget, as a message is not.
-         *     A pause or a stop of the run is cleared: it is the user's word now.
-         *     shortcut: no trigger runs the backlog every morning (the spec's 18a idea); the switch
-         *     on the page runs it by itself instead. Add a trigger kind that calls this when asked.
+         * Add Tree
+         * @description The Hive keeper's draft - a goal, its stories and their tasks, as the user changed it -
+         *     added at once by the user's word: the tasks todo, each the user's (`backlog.add_tree`).
          */
-        post: operations["run_the_backlog_api_projects__project_id__backlog_next_post"];
+        post: operations["add_tree_api_projects__project_id__backlog_tree_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2835,6 +2909,23 @@ export interface paths {
          *     A POST from the app's own page only: it reads GitHub as the user.
          */
         post: operations["github_issues_api_projects__project_id__github_issues_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/goals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Goal */
+        post: operations["add_goal_api_projects__project_id__goals_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3169,6 +3260,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/stories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Tree */
+        get: operations["read_tree_api_projects__project_id__stories_get"];
+        put?: never;
+        /** Add Story */
+        post: operations["add_story_api_projects__project_id__stories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/triggers": {
         parameters: {
             query?: never;
@@ -3386,7 +3495,8 @@ export interface paths {
         /**
          * Fill From Catalogue
          * @description A team guide proposed from the catalogue and the provider's own list; nothing is
-         *     saved: the user looks it over and saves it. The user's, from the app's own page.
+         *     saved: the user looks it over and saves it. The user's, from the app's own page. Copilot's
+         *     account is asked first where that is due: only what it offers is proposed.
          */
         post: operations["fill_from_catalogue_api_providers__provider_id__fill_from_catalogue_post"];
         delete?: never;
@@ -3504,6 +3614,28 @@ export interface paths {
         get: operations["provider_models_api_providers__provider_id__models_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/providers/{provider_id}/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Provider Offers
+         * @description What a Copilot account offers, as the Models page and the chat's model panel open: asked
+         *     (`models.list` and `account.getQuota`, no model turn) where that is due, the provider's rows
+         *     switched by it; the provider as it then is. Any other provider is answered as it is.
+         */
+        post: operations["provider_offers_api_providers__provider_id__offers_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4358,7 +4490,8 @@ export interface paths {
         };
         /**
          * Storage
-         * @description What KOLONİ's data takes, counted when asked (0.1.0-hijyen).
+         * @description What KOLONİ's data takes, counted when asked (0.1.0-hijyen) - and the copies kept for the
+         *     user's word, which only their Discard deletes (a trigger over its budget keeps one a firing).
          */
         get: operations["storage_api_storage_get"];
         put?: never;
@@ -4367,6 +4500,24 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/stories/{story_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Story */
+        delete: operations["delete_story_api_stories__story_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change Story */
+        patch: operations["change_story_api_stories__story_id__patch"];
         trace?: never;
     };
     "/api/teams": {
@@ -4843,6 +4994,8 @@ export interface components {
             cache_read_tokens: number | null;
             /** Cache Write Tokens */
             cache_write_tokens: number | null;
+            /** Changed Nothing */
+            changed_nothing?: boolean | null;
             /** Chosen */
             chosen: boolean;
             /** Chosen Why */
@@ -5306,57 +5459,6 @@ export interface components {
             /** What */
             what: string;
         };
-        /** BacklogAutoIn */
-        BacklogAutoIn: {
-            /** On */
-            on: boolean;
-        };
-        /**
-         * BacklogAutoOut
-         * @description Whether the backlog works itself, and why its run is paused or last stopped (or None);
-         *     and the level and the model the chats it opens start with (`BacklogChoiceIn`).
-         */
-        BacklogAutoOut: {
-            /** Cannot Run */
-            cannot_run: string | null;
-            drafter?: components["schemas"]["BacklogDrafter"] | null;
-            /** Halt */
-            halt: string | null;
-            /**
-             * Lead Work
-             * @enum {string}
-             */
-            lead_work: "delegates" | "decides" | "itself";
-            /** Model Id */
-            model_id: string | null;
-            /** On */
-            on: boolean;
-            /**
-             * Permission Mode
-             * @enum {string}
-             */
-            permission_mode: "ask" | "auto_edit" | "full_auto";
-            /** Provider Id */
-            provider_id: string | null;
-        };
-        /**
-         * BacklogChoiceIn
-         * @description The level and the model the chats the backlog opens start with (B-350), whole: no
-         *     provider is the default one, no model its default model.
-         */
-        BacklogChoiceIn: {
-            /** Lead Work */
-            lead_work?: ("delegates" | "decides" | "itself") | null;
-            /** Model Id */
-            model_id?: string | null;
-            /**
-             * Permission Mode
-             * @enum {string}
-             */
-            permission_mode: "ask" | "auto_edit" | "full_auto";
-            /** Provider Id */
-            provider_id?: string | null;
-        };
         /** BacklogDecideIn */
         BacklogDecideIn: {
             /**
@@ -5364,6 +5466,26 @@ export interface components {
              * @enum {string}
              */
             decision: "approve" | "reject";
+        };
+        /**
+         * BacklogDoIn
+         * @description Do in chat: the ticked tasks, for the queue of this chat - or of a new one (None).
+         */
+        BacklogDoIn: {
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Task Ids */
+            task_ids: string[];
+        };
+        /**
+         * BacklogDoOut
+         * @description The chat the tasks wait in, and the ids queued there, in their order.
+         */
+        BacklogDoOut: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** Queued */
+            queued: string[];
         };
         /** BacklogDraftIn */
         BacklogDraftIn: {
@@ -5374,15 +5496,27 @@ export interface components {
         };
         /**
          * BacklogDraftOut
-         * @description A model's tasks from the user's note, saved nowhere: each is added by the user's word.
+         * @description A model's goal, stories and tasks from the user's note, saved nowhere: added by the user's
+         *     word (`POST .../backlog/tree`). An answer of tasks alone has no goal and no story.
          */
         BacklogDraftOut: {
             /** By */
             by: string;
+            /** Goal */
+            goal?: string | null;
+            /**
+             * Stories
+             * @default []
+             */
+            stories: components["schemas"]["DraftStory"][];
             /** Tasks */
             tasks: components["schemas"]["BacklogTaskIn"][];
         };
-        /** BacklogDrafter */
+        /**
+         * BacklogDrafter
+         * @description Who "Write it with the Hive keeper" asks (`api.backlog._drafter`): its provider and
+         *     model (None: its default), or why nobody is asked now.
+         */
         BacklogDrafter: {
             /** Model Id */
             model_id?: string | null;
@@ -5390,17 +5524,6 @@ export interface components {
             provider_id?: string | null;
             /** Why */
             why: string | null;
-        };
-        /**
-         * BacklogNextOut
-         * @description The first task Run the backlog started, and its conversation; None when none started
-         *     at once (as many are at work as may be: the rest start as they end).
-         */
-        BacklogNextOut: {
-            /** Conversation Id */
-            conversation_id: string | null;
-            /** Task Id */
-            task_id: string | null;
         };
         /** BacklogPoOut */
         BacklogPoOut: {
@@ -5430,11 +5553,19 @@ export interface components {
             /** Detail */
             detail?: string | null;
             /**
+             * Kind
+             * @default task
+             * @enum {string}
+             */
+            kind: "task" | "bug";
+            /**
              * Priority
              * @default normal
              * @enum {string}
              */
             priority: "high" | "normal" | "low";
+            /** Story Id */
+            story_id?: string | null;
             /** Title */
             title: string;
         };
@@ -5466,8 +5597,18 @@ export interface components {
             criteria: string | null;
             /** Detail */
             detail: string | null;
+            /** Goal By */
+            goal_by?: ("user" | "agent") | null;
+            /** Goal Title */
+            goal_title?: string | null;
             /** Id */
             id: string;
+            /**
+             * Kind
+             * @default task
+             * @enum {string}
+             */
+            kind: "task" | "bug";
             /**
              * Not In
              * @default false
@@ -5477,6 +5618,8 @@ export interface components {
             pending: {
                 [key: string]: unknown;
             } | null;
+            /** Place */
+            place?: number | null;
             po?: components["schemas"]["BacklogPoOut"] | null;
             /** Position */
             position: number;
@@ -5488,15 +5631,16 @@ export interface components {
             /** Proposed In */
             proposed_in?: string | null;
             /**
-             * Queued
-             * @default false
-             */
-            queued: boolean;
-            /**
              * Status
              * @enum {string}
              */
             status: "proposed" | "todo" | "doing" | "review" | "done" | "blocked";
+            /** Story By */
+            story_by?: ("user" | "agent") | null;
+            /** Story Id */
+            story_id?: string | null;
+            /** Story Title */
+            story_title?: string | null;
             /** Stuck */
             stuck?: string | null;
             /** Title */
@@ -5515,12 +5659,16 @@ export interface components {
             criteria?: string | null;
             /** Detail */
             detail?: string | null;
+            /** Kind */
+            kind?: ("task" | "bug") | null;
             /** Position */
             position?: number | null;
             /** Priority */
             priority?: ("high" | "normal" | "low") | null;
             /** Status */
             status?: ("todo" | "doing" | "review" | "done" | "blocked") | null;
+            /** Story Id */
+            story_id?: string | null;
             /** Title */
             title?: string | null;
         };
@@ -5834,13 +5982,16 @@ export interface components {
         };
         /**
          * CatalogueFillOut
-         * @description A team guide proposed from the catalogue, not saved; how many did not fit.
+         * @description A team guide proposed from the catalogue, not saved; how many did not fit, and why
+         *     nothing more could be proposed where that is so (a Copilot account that lists no models).
          */
         CatalogueFillOut: {
             /** Left Out */
             left_out: number;
             /** Models */
             models: components["schemas"]["ProviderModel"][];
+            /** Note */
+            note?: string | null;
         };
         /** CatalogueFreshIn */
         CatalogueFreshIn: {
@@ -6102,7 +6253,7 @@ export interface components {
             /** Question */
             question?: string | null;
             /** Reason */
-            reason?: ("touched" | "held" | "unread" | "no_verdict" | "still" | "on_hold" | "removed") | null;
+            reason?: ("touched" | "held" | "unread" | "no_verdict" | "still" | "on_hold" | "removed" | "kinds") | null;
             /** Started At */
             started_at: string | null;
             /**
@@ -6586,6 +6737,16 @@ export interface components {
             refused: components["schemas"]["NotDeleted"][];
         };
         /**
+         * CopilotOffers
+         * @description What a Copilot account offered when last asked: its models' ids and Auto's tiers.
+         */
+        CopilotOffers: {
+            /** Models */
+            models: string[];
+            /** Tiers */
+            tiers: components["schemas"]["OfferedTier"][];
+        };
+        /**
          * CopyCountOut
          * @description How much a working copy changed, for a card: files, lines added and removed.
          */
@@ -6833,6 +6994,27 @@ export interface components {
             unasked: boolean;
             /** What */
             what: string;
+        };
+        /** DraftStory */
+        DraftStory: {
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /** Tasks */
+            tasks: components["schemas"]["BacklogTaskIn"][];
+            /** Title */
+            title: string;
+        };
+        /**
+         * ExperimentalClis
+         * @description 0.1.8: whether the Models page offers what is experimental - agy, and Codex run one step
+         *     at a time (`providers.EXPERIMENTAL_FLAG`). Off by default; a provider already set so runs.
+         */
+        ExperimentalClis: {
+            /** Show */
+            show: boolean;
         };
         /**
          * ExpertIn
@@ -7198,6 +7380,39 @@ export interface components {
             /** Path */
             path: string;
         };
+        /** GoalIn */
+        GoalIn: {
+            /** Title */
+            title: string;
+        };
+        /**
+         * GoalOut
+         * @description 0.1.8: a goal of a project's To-do, and how many of its stories are done (closed).
+         */
+        GoalOut: {
+            /**
+             * Created By
+             * @enum {string}
+             */
+            created_by: "user" | "agent";
+            /** Id */
+            id: string;
+            /** Position */
+            position: number;
+            /** Stories All */
+            stories_all: number;
+            /** Stories Done */
+            stories_done: number;
+            /** Title */
+            title: string;
+        };
+        /** GoalPatch */
+        GoalPatch: {
+            /** Position */
+            position?: number | null;
+            /** Title */
+            title?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -7319,8 +7534,9 @@ export interface components {
         /**
          * HoldOut
          * @description Stop everything (`app.api.hold`): whether it holds, since when, how many turns of every
-         *     chat have not ended, and what a hold holds (triggers on, backlogs that work themselves,
-         *     the projects' nights while the user is away) - and, while it holds, the turns it stopped.
+         *     chat have not ended, and what a hold holds (triggers on, the projects with To-do tasks
+         *     waiting in a chat's queue - `backlogs` - and the projects' nights while the user is away) -
+         *     and, while it holds, the turns it stopped.
          */
         HoldOut: {
             /** Backlogs */
@@ -7398,6 +7614,27 @@ export interface components {
              * @default
              */
             why: string;
+        };
+        /**
+         * KeptCopyOut
+         * @description A working copy kept on disk for the user's word: its card (Discard there is
+         *     `POST /api/merges/{merge_id}/reject`), its chat, the agent whose work it holds and when it
+         *     was kept - two of one chat told apart.
+         */
+        KeptCopyOut: {
+            /** Agent */
+            agent: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Kept At
+             * Format: date-time
+             */
+            kept_at: string;
+            /** Merge Id */
+            merge_id: string;
+            /** Title */
+            title: string;
         };
         /**
          * Knowledge
@@ -8587,6 +8824,27 @@ export interface components {
              */
             status: "waiting" | "added" | "discarded";
         };
+        /**
+         * OfferedTier
+         * @description One of Auto's tiers as Copilot's `models.list` said it of the account (`copilot_offers`).
+         */
+        OfferedTier: {
+            /** Enabled */
+            enabled: boolean;
+            /** Fusion */
+            fusion?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "auto" | "fusion";
+            /** Why */
+            why?: string | null;
+        };
         /** OpenIn */
         OpenIn: {
             /** Code */
@@ -9160,6 +9418,8 @@ export interface components {
              * @enum {string}
              */
             lead_work: "delegates" | "decides" | "itself";
+            /** Longest Command */
+            longest_command: number;
             /** Max Agents */
             max_agents: number | null;
             /** Measure Command */
@@ -9331,6 +9591,8 @@ export interface components {
             hide_secrets?: boolean | null;
             /** Lead Work */
             lead_work?: ("delegates" | "decides" | "itself") | null;
+            /** Longest Command */
+            longest_command?: number | null;
             /** Max Agents */
             max_agents?: number | null;
             /** Measure Command */
@@ -9448,7 +9710,7 @@ export interface components {
             /** Off Why */
             off_why?: string | null;
             /** Routing */
-            routing?: ("efficiency" | "balance" | "intelligence" | "standard" | "high" | "max") | null;
+            routing?: ("efficiency" | "balance" | "intelligence" | "fast" | "standard" | "high" | "max") | null;
             /** Tier */
             tier?: ("fast" | "balanced" | "strongest") | null;
         };
@@ -9494,7 +9756,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "openai_compat" | "anthropic" | "claude_cli" | "qoder_cli" | "codex_cli" | "copilot_cli" | "agy_cli";
+            kind: "openai_compat" | "anthropic" | "claude_cli" | "codex_cli" | "copilot_cli" | "agy_cli" | "qoder_cli";
             /** Max Running */
             max_running: number | null;
             /** Mode */
@@ -9517,6 +9779,9 @@ export interface components {
             } | null;
             /** Note */
             note: string | null;
+            /** Off Why */
+            off_why?: string | null;
+            offers?: components["schemas"]["CopilotOffers"] | null;
             /** Only Listed */
             only_listed: boolean;
             /** Options */
@@ -10628,6 +10893,8 @@ export interface components {
              * @enum {string}
              */
             status: "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled" | "interrupted";
+            /** Task Id */
+            task_id?: string | null;
             /** Teams */
             teams?: components["schemas"]["ChatTeamOut"][] | null;
             /** Topic Id */
@@ -11093,7 +11360,9 @@ export interface components {
          * StorageOut
          * @description What KOLONİ's own data takes on this machine, in MB: the database (its WAL too), its
          *     backups (each migration's and update's, and the daily ones: apart, R125 - they were most of
-         *     "db"), the working copies, the log. None: not counted in time.
+         *     "db"), the working copies, the log. None: not counted in time. `kept`: the copies kept for
+         *     the user's word - never deleted unasked, so they pile up only by their cards - oldest first,
+         *     and `kept_mb` what they take (of `copies_mb`).
          */
         StorageOut: {
             /** Backups Mb */
@@ -11102,8 +11371,77 @@ export interface components {
             copies_mb: number | null;
             /** Db Mb */
             db_mb: number | null;
+            /**
+             * Kept
+             * @default []
+             */
+            kept: components["schemas"]["KeptCopyOut"][];
+            /** Kept Mb */
+            kept_mb?: number | null;
             /** Logs Mb */
             logs_mb: number | null;
+        };
+        /** StoryIn */
+        StoryIn: {
+            /** Goal Id */
+            goal_id?: string | null;
+            /** Title */
+            title: string;
+        };
+        /** StoryNoteOut */
+        StoryNoteOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** By */
+            by: string;
+            /** Kind */
+            kind: string;
+            /** Text */
+            text: string;
+        };
+        /**
+         * StoryOut
+         * @description 0.1.8: a story of a project's To-do: its goal, its state from its tasks
+         *     (`stories.story_state`: "done?" once each is done or waits at "done?"; "done" only once the
+         *     user closed it) and its notebook.
+         */
+        StoryOut: {
+            /** Closed At */
+            closed_at: string | null;
+            /**
+             * Created By
+             * @enum {string}
+             */
+            created_by: "user" | "agent";
+            /** Goal Id */
+            goal_id: string | null;
+            /** Id */
+            id: string;
+            /** Notes */
+            notes: components["schemas"]["StoryNoteOut"][];
+            /** Position */
+            position: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "todo" | "running" | "stuck" | "done?" | "done";
+            /** Title */
+            title: string;
+        };
+        /** StoryPatch */
+        StoryPatch: {
+            /** Closed */
+            closed?: boolean | null;
+            /** Goal Id */
+            goal_id?: string | null;
+            /** Position */
+            position?: number | null;
+            /** Title */
+            title?: string | null;
         };
         /**
          * SuggestIn
@@ -11239,6 +11577,46 @@ export interface components {
             /** Strongest */
             strongest: components["schemas"]["TierModelOut"][];
         };
+        /** TodoTreeAdded */
+        TodoTreeAdded: {
+            /** Goal Id */
+            goal_id: string | null;
+            /** Story Ids */
+            story_ids: string[];
+            /** Task Ids */
+            task_ids: string[];
+        };
+        /**
+         * TodoTreeIn
+         * @description A drafted goal, its stories and their tasks, added at once by the user's word: the stories'
+         *     goal one of the project's (`goal_id`) or a new one of `goal`'s title.
+         */
+        TodoTreeIn: {
+            /** Goal */
+            goal?: string | null;
+            /** Goal Id */
+            goal_id?: string | null;
+            /**
+             * Stories
+             * @default []
+             */
+            stories: components["schemas"]["TreeStoryIn"][];
+            /**
+             * Tasks
+             * @default []
+             */
+            tasks: components["schemas"]["BacklogTaskIn"][];
+        };
+        /**
+         * TodoTreeOut
+         * @description A project's goals and stories in their order; its tasks are the backlog's.
+         */
+        TodoTreeOut: {
+            /** Goals */
+            goals: components["schemas"]["GoalOut"][];
+            /** Stories */
+            stories: components["schemas"]["StoryOut"][];
+        };
         /** ToolCallDecision */
         ToolCallDecision: {
             /**
@@ -11303,6 +11681,8 @@ export interface components {
             created_at: string;
             /** Id */
             id: string;
+            /** Story Id */
+            story_id?: string | null;
             /** Title */
             title: string;
             /** Trigger Id */
@@ -11325,6 +11705,27 @@ export interface components {
             max_files?: number | null;
             /** Max Mb */
             max_mb?: number | null;
+        };
+        /**
+         * TreeStoryIn
+         * @description A story of a drafted tree: one of the project's by its `id` (its tasks go into it), or a
+         *     new one of this `title`.
+         */
+        TreeStoryIn: {
+            /** Id */
+            id?: string | null;
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /**
+             * Tasks
+             * @default []
+             */
+            tasks: components["schemas"]["BacklogTaskIn"][];
+            /** Title */
+            title?: string | null;
         };
         /**
          * TriggerBudget
@@ -12736,6 +13137,66 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BacklogTaskOut"] | null;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fix_it_api_backlog__task_id__fix_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BacklogTaskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unqueue_api_backlog__task_id__queue_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -14397,6 +14858,59 @@ export interface operations {
             };
         };
     };
+    experimental_clis_api_experimental_clis_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentalClis"];
+                };
+            };
+        };
+    };
+    set_experimental_clis_api_experimental_clis_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentalClis"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentalClis"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     approve_api_file_changes__change_id__approve_post: {
         parameters: {
             query?: never;
@@ -14561,6 +15075,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FolderBrowseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_goal_api_goals__goal_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_goal_api_goals__goal_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                goal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoalPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalOut"];
                 };
             };
             /** @description Validation Error */
@@ -16413,40 +16991,7 @@ export interface operations {
             };
         };
     };
-    read_auto_api_projects__project_id__backlog_auto_get: {
-        parameters: {
-            query?: {
-                conversation_id?: string | null;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BacklogAutoOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    set_auto_api_projects__project_id__backlog_auto_put: {
+    do_in_chat_api_projects__project_id__backlog_do_in_chat_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -16457,7 +17002,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BacklogAutoIn"];
+                "application/json": components["schemas"]["BacklogDoIn"];
             };
         };
         responses: {
@@ -16467,42 +17012,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BacklogAutoOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    set_choice_api_projects__project_id__backlog_choice_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BacklogChoiceIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BacklogAutoOut"];
+                    "application/json": components["schemas"]["BacklogDoOut"];
                 };
             };
             /** @description Validation Error */
@@ -16551,9 +17061,11 @@ export interface operations {
             };
         };
     };
-    run_the_backlog_api_projects__project_id__backlog_next_post: {
+    read_drafter_api_projects__project_id__backlog_drafter_get: {
         parameters: {
-            query?: never;
+            query?: {
+                conversation_id?: string | null;
+            };
             header?: never;
             path: {
                 project_id: string;
@@ -16568,7 +17080,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BacklogNextOut"];
+                    "application/json": components["schemas"]["BacklogDrafter"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_tree_api_projects__project_id__backlog_tree_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoTreeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoTreeAdded"];
                 };
             };
             /** @description Validation Error */
@@ -17126,6 +17673,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_goal_api_projects__project_id__goals_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoalIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalOut"];
                 };
             };
             /** @description Validation Error */
@@ -17832,6 +18414,72 @@ export interface operations {
             };
         };
     };
+    read_tree_api_projects__project_id__stories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoTreeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_story_api_projects__project_id__stories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_triggers_api_projects__project_id__triggers_get: {
         parameters: {
             query?: never;
@@ -18402,6 +19050,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderModelsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_offers_api_providers__provider_id__offers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderOut"];
                 };
             };
             /** @description Validation Error */
@@ -19974,6 +20653,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StorageOut"];
+                };
+            };
+        };
+    };
+    delete_story_api_stories__story_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_story_api_stories__story_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoryPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

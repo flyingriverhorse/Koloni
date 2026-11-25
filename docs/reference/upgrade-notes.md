@@ -18,6 +18,54 @@ put one back in place of `runtime/data/koloni.db`.
 
 Only what needs your attention after an update; everything else is in the [Changelog](../changelog.md).
 
+### 0.1.8
+
+- **The database** is upgraded at the first start (migrations 0176 to 0182), after KOLONİ copies it to
+  `runtime/data/backups/`. Your chats and tasks are kept: To-do tasks become tasks of no story, a task
+  left at work goes back to todo, and a Qoder provider is switched off, not removed. Only To-do's six
+  Run settings are dropped (below). To go back to 0.1.7, stop KOLONİ and put that copy back in place of
+  `runtime/data/koloni.db`.
+- **To-do: Run the backlog, Runs by itself and Run settings are gone.** Tick tasks on To-do and press
+  **Do in chat**: they wait in that chat's queue and run there one by one, your own messages first. A
+  project whose To-do ran by itself stops; the Run settings (level, model, who changes the files) are
+  not kept anywhere. See [Doing tasks in a chat](../automation/todo.md#doing-tasks-in-a-chat).
+- **A To-do task's turn is its chat's**: at that chat's permission level and on its model (a CLI with
+  tools of its own too), asking on its cards there - no longer under a night's rules. Look at the level
+  of a chat before you give it tasks.
+- **A story works on its own git branch** (`koloni/…`) in a project in git: nothing of it is in your
+  project until **Close the story** checks the branch and merges it or opens a pull request. See
+  [A story's branch](../automation/todo.md#a-storys-branch).
+- **☾ Away** runs its jobs at the level of the chat you go away from, no longer the lower of it and the
+  To-do page's. See [Work while you're away](../automation/overnight.md).
+- **Copilot on your GitHub account**: once the Models page or the chat's model panel opens, KOLONİ asks
+  your account what it offers and switches off the models your plan does not list ("not on your Copilot
+  plan now"). Look at the Copilot provider's **Models** tab. See
+  [Copilot on your GitHub account](../models/copilot.md#models).
+- **Copilot run Native**, and **Codex run Native** with **Sign-in: Its own for KOLONİ**, now go on in their
+  session from the topic's last turn. Press **New topic** for other work. See
+  [Going on from the last turn](../models/setup-cli.md#going-on-from-the-last-turn).
+- **Some Always run rules cover less.** A rule no longer covers ruff's or eslint's `--fix` past its words,
+  nor another of their options that writes or loads code. A rule for a runner or tsc (`uv run ruff`,
+  `pip install -e .`, `npm install`, `npx tsc`) no longer covers its line while an agent's write of a
+  `pyproject.toml`, a lock (`uv.lock`, `package-lock.json`, …) or a `tsconfig*.json` in the project still
+  stands, until your own edit or install replaces it. Below Full auto such a line asks on its card; in a
+  trigger's turn it is not run. See [What a rule never covers](../use/permissions.md#what-a-rule-never-covers).
+- **Work in a copy whose check by kind of work still fails** (a page, a document, a config file, a script)
+  is no longer taken in, at any level: press **Take in anyway** or **Fix it**. See
+  [What KOLONİ checked](../use/checked.md#what-each-line-means).
+- **Kept working copies** are now listed in Settings › The app › [Your data](../settings.md#your-data). A
+  trigger over its budget kept one at each run: discard what you no longer need.
+- **Longest command**: every project keeps 10 minutes. Raise it in Settings › This project ›
+  [Commands and secrets](../settings.md#commands-and-secrets) where your tests or a build take longer.
+- **Qoder** is no longer run. A Qoder provider is kept, switched off for good, with its settings; its card
+  says "no longer supported". If Qoder was your default provider (the first on the Models page), make
+  another provider the default or delete Qoder: until then the chats, triggers and To-do turns that run on
+  the default fail with that reason. A chat or a role set to Qoder fails the same way until you pick
+  another model. See [Qoder is no longer supported](../models/setup-cli.md#qoder-is-no-longer-supported).
+- **agy**, and Codex run **One run per model step**, are offered only with **Show experimental CLIs** on
+  (Settings › The app › Agents). A provider already set up so keeps working, tagged Experimental. See
+  [Experimental CLIs](../models/setup-cli.md#experimental-clis).
+
 ### 0.1.5
 
 - **When you're away**: a new project lets the Orchestrator decide a waiting card after 5 minutes. A

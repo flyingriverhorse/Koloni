@@ -12,7 +12,7 @@ from app.db.models import ROOM_MIN_TOKENS
 from app.model_client import EFFORTS
 from app.providers import CLI_COMMANDS, TIERS
 from app.roles import shown_name
-from app.schemas import MAX_CHAT_TEAMS
+from app.schemas import LONGEST_COMMAND, MAX_CHAT_TEAMS
 from app.team import CONVERSATION, describe, quoted, tier_range
 from app.workspace import (
     HARD_LINK,
@@ -893,6 +893,23 @@ _TASK_FIELDS = {
         "enum": ["high", "normal", "low"],
         "description": "Optional: normal if left out.",
     },
+    "kind": {
+        "type": "string",
+        "enum": ["task", "bug"],
+        "description": "Optional: a bug is something that works wrong; task if left out.",
+    },
+}
+# What only add_task takes: the story it goes into, and that story's goal.
+_TASK_STORY = {
+    "story": {
+        "type": "string",
+        "description": "Optional: the title of the To-do story it goes on with - one there now, "
+        "whatever its case, or a new one; leave it out for a task that stands alone.",
+    },
+    "goal": {
+        "type": "string",
+        "description": "Optional, with a new story: the title of the goal that story is for.",
+    },
 }
 # The project's To-do list (`app.backlog`): what is added or changed waits for the user's word.
 BACKLOG_SCHEMAS = {
@@ -915,8 +932,9 @@ BACKLOG_SCHEMAS = {
     "add_task": _fn(
         "add_task",
         "Propose a task for the project's To-do list. It waits on a card for the user's "
-        "approval; until then it is not on the list. Returns its id.",
-        _TASK_FIELDS,
+        "approval; until then it is not on the list. Tasks that go on together - each building on "
+        "the one before - are one story: name it. Returns its id.",
+        {**_TASK_FIELDS, **_TASK_STORY},
         ["title"],
     ),
     "change_task": _fn(
@@ -1403,6 +1421,32 @@ RECALL_OUTPUT_SCHEMA = _fn(
     },
     ["id"],
 )
+# 0.1.8: offered beside run_command while a command keeps running in the conversation
+# (`AgentRunner._serving_offered`) - its later output, and the stop of one the agent started.
+_COMMAND_ID = {"type": "string", "description": "The command's id, as run_command gave it."}
+COMMAND_OUTPUT_SCHEMA = _fn(
+    "command_output",
+    "Read what a command that keeps running in this conversation (a server started with "
+    "keep_running) printed, by its id: its newest output, or from since on - the number the "
+    "last answer gave. Of one that has ended, its last output and how it ended.",
+    {
+        "id": _COMMAND_ID,
+        "since": {
+            "type": "integer",
+            "description": "Optional: the character to read from, as the last answer said.",
+        },
+    },
+    ["id"],
+)
+STOP_COMMAND_SCHEMA = _fn(
+    "stop_command",
+    "Stop a command that keeps running which you started yourself, with what it started, and "
+    "wait until it has ended - before you start it again, say. One you did not start is the "
+    "user's to stop, under Preview.",
+    {"id": _COMMAND_ID},
+    ["id"],
+)
+SERVING_TOOLS = ("command_output", "stop_command")
 # The files handed on with spawn_agent or message_agent, when there are any to hand on.
 ATTACHMENTS_PROPERTY = {
     "type": "array",
@@ -1683,7 +1727,21 @@ def plan_write(ws: Workspace, name: str, args: dict) -> PlannedChange:
         raise ToolError(f"file system error: {exc.strerror or exc}") from None
 
 
+# MAX_TIMEOUT: the longest command where the project says no more (0.1.8: `longest_command`).
 DEFAULT_TIMEOUT, MAX_TIMEOUT = 120, 600
+
+
+def capped(schema: dict, cap: int) -> dict:
+    """run_command's schema with this project's longest command, in seconds, as its timeout's
+    most (0.1.8) - the very schema where that is MAX_TIMEOUT: the same words, the same cache."""
+    if cap == MAX_TIMEOUT:
+        return schema
+    told = json.loads(json.dumps(schema))
+    timeout = told["function"]["parameters"]["properties"]["timeout_seconds"]
+    timeout["description"] = timeout["description"].replace(
+        f"at most {MAX_TIMEOUT}.", f"at most {cap}."
+    )
+    return told
 
 
 @dataclass(frozen=True)
@@ -1695,8 +1753,9 @@ class PlannedCommand:
     keep_running: bool = False
 
 
-def plan_command(ws: Workspace, args: dict) -> PlannedCommand:
-    """Check a run_command call's arguments without running anything."""
+def plan_command(ws: Workspace, args: dict, cap: int = MAX_TIMEOUT) -> PlannedCommand:
+    """Check a run_command call's arguments without running anything. `cap`: its longest, in
+    seconds - the project's (`command_runner.longest_seconds`)."""
     command = _str(args, "command").strip()
     if not command:
         raise ToolError("command is empty")
@@ -1705,8 +1764,15 @@ def plan_command(ws: Workspace, args: dict) -> PlannedCommand:
         timeout = DEFAULT_TIMEOUT
     if isinstance(timeout, bool) or not isinstance(timeout, int):
         raise ToolError("argument timeout_seconds must be an integer")
-    if not 1 <= timeout <= MAX_TIMEOUT:
-        raise ToolError(f"timeout_seconds must be between 1 and {MAX_TIMEOUT}")
+    if not 1 <= timeout <= cap:
+        raise ToolError(
+            f"timeout_seconds must be between 1 and {cap}, this project's longest command"
+            + (
+                f": the user can raise it in its settings, up to {most}"
+                if cap < (most := LONGEST_COMMAND[1] * 60)
+                else ""
+            )
+        )
     keep_running = args.get("keep_running") or False  # (null: not asked for)
     if not isinstance(keep_running, bool):
         raise ToolError("argument keep_running must be true or false")

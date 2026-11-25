@@ -61,7 +61,6 @@ from app.agent.summary import (
 from app.agent.words import (
     AGENT_TERMINAL,
     ANSWER_PREFIX,
-    BACKLOG_NOT_THIS,
     BRANCH_NOT_IN_RECIPE,
     GIVEN_ONCE,
     HOW_RAISE,
@@ -155,7 +154,7 @@ from app.team import (
     would_run,
 )
 from app.team import find as find_entry
-from app.tools import NOT_A_MODEL, ToolError
+from app.tools import NOT_A_MODEL, WRITE_TOOLS, ToolError
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -2391,8 +2390,8 @@ class SpawnMixin:
         "Add to Project notes?" offer (`project_notes.offer`), on a card under this turn where
         somebody watches it - answered whenever the user likes, on the app's own page: it never
         holds the turn, at any level (it adds to the project's knowledge: the user's call, never
-        the Lead's). A turn nobody watches - a trigger's, a backlog task's - only adds to it."""
-        watched = self._watched(ctx.run_id) and ctx.run_id not in self._backlog_turns
+        the Lead's). A turn nobody watches - a trigger's - only adds to it."""
+        watched = self._watched(ctx.run_id)
         made = project_id = None
         for last in (False, True):  # (once more where another turn made the waiting one first)
             with self._factory() as session:
@@ -2828,8 +2827,6 @@ class SpawnMixin:
                 raise _NobodyToAsk(PAID_UNATTENDED.format(to=shown_name(provider.name)))
             if self._cannot_be_held(model, provider):
                 raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
-        elif ctx.run_id in self._backlog_turns and self._cannot_be_held(model, provider):
-            raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
 
     def _opened_this_turn(self: "AgentRunner", session, run_id: str) -> int:
         """The sub-agents a turn's allowance (`spawn_max_agents`) counts: not one the user
@@ -2992,8 +2989,24 @@ class SpawnMixin:
             did = ledger.did(session, child.agent_id, handoff.counted_on(child.model))
         counted += f"\n\n{did}" if did else ""
         if status == "completed":
+            report = self._said_unchanged(ctx, child, report, left_out)
             return self._see_through_finished(ctx, child, report, counted, left_out, found, looked)
         return self._see_through_failed(ctx, child, error, report, counted, left_out, looked)
+
+    def _said_unchanged(
+        self: "AgentRunner", ctx: Ctx, child: Ctx, report: str, left_out: str | None
+    ) -> str:
+        """L1 (live, 24 Nov): a sub-agent whose role writes that finished with no file changed on
+        record (`ledger.changed_nothing`), nothing of it left out either, is marked so on its card,
+        and its report goes to its opener after KOLONİ's word of it (`ledger.NO_CHANGE`). A role
+        that only reads is never marked."""
+        if left_out or not WRITE_TOOLS & set(child.tools):
+            return report
+        with self._factory() as session:
+            if not ledger.changed_nothing(session, child.agent_id):
+                return report
+        self._set_agent(ctx.cid, child.agent_id, changed_nothing=True)
+        return f"{ledger.NO_CHANGE}\n\n{report or '(it ended without a report)'}"
 
     async def _see_through_told(self: "AgentRunner", ctx: Ctx, child: Ctx) -> asyncio.Future | None:
         """`_see_through`: the answer a CLI's call over MCP waits for (`_run_from_cli`) where
@@ -3153,6 +3166,7 @@ class SpawnMixin:
                         own.provider,
                         self.providers.limits.last(own.provider),
                         never_ran_is_room=True,
+                        model=own.model_id,
                     )
                     is None
                     or over_month(session, project_of(session, conversation))
@@ -3256,9 +3270,9 @@ class SpawnMixin:
     async def _moved_on(
         self: "AgentRunner", ctx: Ctx, child: Ctx, went_on: bool
     ) -> tuple[Ctx, str] | None:
-        """K-altajan-saglayici (R115: three sub-agents queued on Qoder's free tier for 5.5 min,
-        then failed): a sub-agent whose provider failed before its first word - its model
-        queued past `QUEUE_WAIT_SECONDS`, the server down, a limit - is opened once more on
+        """K-altajan-saglayici (R115: three sub-agents queued on a free tier for 5.5 min, then
+        failed): a sub-agent whose provider failed before its first word - the server down, a
+        limit - is opened once more on
         the next model of its tier in the user's order (`Would.tried`), one not past its
         limit; its opener is told (`MOVED_ON`), and its record keeps both (`chosen_why`).
         Returns its context on the new model, and what the opener is told; None where it

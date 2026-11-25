@@ -17,7 +17,6 @@ from app.agent.cards import _goes_on, _steps_of_chain
 from app.agent.ctx import Ctx, _NobodyToAsk, _Slow, _Unwatched
 from app.agent.words import (
     ANSWER_PREFIX,
-    BACKLOG_NOT_THIS,
     CONTINUE_WORDS,
     GIVEN_UNDONE,
     LEFT_UNDONE,
@@ -49,7 +48,6 @@ from app.db.models import (
     now,
 )
 from app.model_client import ModelClient, OwnStop
-from app.model_session import QUEUE_WAIT_SECONDS
 from app.providers import works_with_own_tools
 from app.roles import find_role, shown_name
 from app.serialize import question_out
@@ -102,14 +100,11 @@ NO_PROGRESS = (
     "agent finished its work, no failing command passed"
 )
 # K-yavas (the user, 20 Nov 2026): in a turn the user watches, the Orchestrator's model silent this
-# long is asked about on a card (`_slow`) - measured: Qoder's free queue held one 5.5 and 7 min,
-# Codex at its 5-hour limit answered every 7-10 min; a CLI's own silence limit
-# (`model_first_token_seconds`, 15 min) is longer, so the card comes first. Qoder's queue line
-# past QUEUE_WAIT_SECONDS asks sooner. shortcut: a constant, not a setting; make it a setting if
-# the user asks.
+# long is asked about on a card (`_slow`) - measured: Codex at its 5-hour limit answered every
+# 7-10 min; a CLI's own silence limit (`model_first_token_seconds`, 15 min) is longer, so the card
+# comes first. shortcut: a constant, not a setting; make it a setting if the user asks.
 WATCHED_SLOW_MINUTES = 5
 SLOW_SILENT = "{who} has not answered for {minutes} min."
-SLOW_QUEUED = "{provider} has kept {model} queued for {minutes} min."
 SLOW_ASKED = "{said} Keep waiting, or stop this turn and pick another model?"
 SLOW_WAIT = "Keep waiting"
 SLOW_STOP = "Stop and pick another model"
@@ -492,11 +487,12 @@ class LimitsMixin:
 
     async def _circled(self: "AgentRunner", ctx: Ctx) -> tuple[str, str | None] | None:
         """How an agent KOLONİ stopped (`_stuck`) ends - or, B-413, None where the Orchestrator's
-        loop guard stopped it (`_counted`) in a turn the user can be asked in and they said Go
-        on: its counts start again. Elsewhere - a trigger's turn, a night's job, a backlog task -
-        it ends with why on record, and the night or the To-do run goes on with the next (there
-        a stop is a failure: the task gets its fix round, or is blocked). In a turn the user
-        started where work of it is in the project, it ends completed, with why as KOLONİ's line:
+        loop guard stopped it (`_counted`) in a turn the user can be asked in (`_attended`: one
+        they started, a To-do task's too, 0.1.8) and they said Go on: its counts start again.
+        Elsewhere - a trigger's turn, a night's job - it ends with why on record, and the night
+        goes on with the next. A To-do task's turn that fails so gets its fix round, then is
+        stuck, and its chat's queue goes on (`backlog.turn_ended`). In a turn the user can be
+        asked in where work of it is in the project, it ends completed, with why as KOLONİ's line:
         a guard does not make red a turn whose work landed (the live B-413 ended so). Its end is
         the turn's: nothing more is waited for or told (`_guard_ended`, `_loop_steps`)."""
         why = self._stuck.pop(ctx.agent_id)
@@ -626,7 +622,7 @@ class LimitsMixin:
 
     def _todo_ceiling(self: "AgentRunner", run_id: str, hours: int) -> None:
         """`_arm_todo_deadline`'s hours are up: the turn stops - not one that waits for the
-        user's word (a To-do task's card waits for it, K-r135), as a night's job that waits is
+        user's word (a To-do task's card waits for it), as a night's job that waits is
         spared (`_deadline`): its ceiling is looked at again a minute later."""
         with self._factory() as session:
             waits = self._waits_for_user(session, run_id)
@@ -774,26 +770,12 @@ class LimitsMixin:
         if slow is not None and slow.card is not None:
             await asyncio.shield(asyncio.gather(slow.card, return_exceptions=True))
 
-    def _slow_queued(self: "AgentRunner", ctx: Ctx, queue: dict | None) -> None:
-        """`_show_live`: Qoder has kept the Orchestrator's model queued past QUEUE_WAIT_SECONDS -
-        asked now, and once until its model is heard from (the line comes every ~30 s)."""
-        slow = self._slow_turns.get(ctx.run_id)
-        if (
-            queue
-            and (queue.get("elapsed_s") or 0) >= QUEUE_WAIT_SECONDS
-            and slow is not None
-            and slow.agent_id == ctx.agent_id
-            and not slow.waited
-        ):
-            self._slow_due(ctx.run_id, queue)
-
-    def _slow_due(self: "AgentRunner", run_id: str, queue: dict | None = None) -> None:
-        """`_slow`'s minutes are up - or, `queue`, Qoder's line said so (`_slow_queued`): the user
-        is asked on one card, unless the wait is not the model's - a card or anything else of the
-        turn waits for the user (they are slow, not the model), a call of the Orchestrator's is at
-        work (KOLONİ's time: a sub-agent, a command), or it is not at work itself (in line for a
-        place): then its clock starts again. The card says its model and how long: Qoder's own
-        count where its last line said queued, else the limits gone by with no word.
+    def _slow_due(self: "AgentRunner", run_id: str) -> None:
+        """`_slow`'s minutes are up: the user is asked on one card, unless the wait is not the
+        model's - a card or anything else of the turn waits for the user (they are slow, not the
+        model), a call of the Orchestrator's is at work (KOLONİ's time: a sub-agent, a command), or
+        it is not at work itself (in line for a place): then its clock starts again. The card says
+        its model and how long: the limits gone by with no word.
         shortcut: a CLI's spawn_agent answered at once stays at work on record till its sub-agent
         is back - no card meanwhile; tell the two apart if a CLI is seen silent then."""
         slow = self._slow_turns.get(run_id)
@@ -824,22 +806,12 @@ class LimitsMixin:
             )
             provider, model = shown_name(lead.provider_name or "Its CLI"), lead.model_id
         if busy:
-            if queue is None:
-                self._slow_timer(run_id)
+            self._slow_timer(run_id)
             return
         slow.waited += 1
-        queue = queue or self._cli_live.get(ctx.agent_id, ("", {}))[1].get("queue")
-        said = (
-            SLOW_QUEUED.format(
-                provider=provider,
-                model=model or "its model",
-                minutes=round(queue["elapsed_s"] / 60),
-            )
-            if queue and queue.get("elapsed_s")
-            else SLOW_SILENT.format(
-                who=f"{provider} · {model}" if model else provider,
-                minutes=slow.waited * WATCHED_SLOW_MINUTES,
-            )
+        said = SLOW_SILENT.format(
+            who=f"{provider} · {model}" if model else provider,
+            minutes=slow.waited * WATCHED_SLOW_MINUTES,
         )
         slow.card = asyncio.ensure_future(self._slow_asked(ctx, said))
 
@@ -885,10 +857,8 @@ class LimitsMixin:
 
     def _attended(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether the user can be asked on a card in this turn: one they started - not a
-        trigger's, a night's job or a backlog task."""
-        return self._watched(ctx.run_id) and (
-            ctx.run_id not in self._away_jobs and ctx.run_id not in self._backlog_turns
-        )
+        trigger's, nor a night's job (a To-do task's turn is its chat's, 0.1.8)."""
+        return self._watched(ctx.run_id) and ctx.run_id not in self._away_jobs
 
     async def _more_steps(self: "AgentRunner", ctx: Ctx) -> bool:
         """B-397: a sub-agent - a team's coordinator too - that came to its step limit in a turn
@@ -953,7 +923,6 @@ class LimitsMixin:
             or ctx.agent_id in self._halted
             or not self._watched(ctx.run_id)
             or ctx.run_id in self._away_jobs
-            or ctx.run_id in self._backlog_turns
             or self._member_of(ctx) is not None
             or await self._kept_card_comes(ctx)
         ):
@@ -1000,24 +969,19 @@ class LimitsMixin:
         away): by their rule nothing asks there but harm - the Lead decides the rest.
         shortcut: a session per call, at every command look too; cache it per run once a
         turn is seen to feel it (the level may change mid-turn: read it then)."""
-        if (
-            not self._watched(ctx.run_id)
-            or ctx.run_id in self._away_jobs
-            or ctx.run_id in self._backlog_turns
-        ):
+        if not self._watched(ctx.run_id) or ctx.run_id in self._away_jobs:
             return False
         with self._factory() as session:
             return session.get_one(Conversation, ctx.cid).permission_mode == "full_auto"
 
     def _unwatched_like(self: "AgentRunner", run_id: str) -> bool:
-        """Whether a provider is picked as for a turn nobody watches - a trigger's, or a
-        backlog task's (K-r135) - a CLI with its own tools passed over rather than refused."""
-        return not self._watched(run_id) or run_id in self._backlog_turns
+        """Whether a provider is picked as for a turn nobody watches - a trigger's - a CLI with
+        its own tools passed over rather than refused."""
+        return not self._watched(run_id)
 
     def _standing_asks(self: "AgentRunner", run_id: str, standing: str | None, level: str) -> bool:
-        """`standing_asks` - but in a backlog task's turn every such file is asked, an
-        instruction file at Full auto too (K-r135: a night's rules)."""
-        return standing_asks(standing, "ask" if run_id in self._backlog_turns else level)
+        """`standing_asks` at the turn's level (a To-do task's turn too, since 0.1.8)."""
+        return standing_asks(standing, level)
 
     def _nobody_to_ask(
         self: "AgentRunner",
@@ -1113,19 +1077,15 @@ class LimitsMixin:
         )
 
     def _not_unattended(self: "AgentRunner", ctx: Ctx) -> str | None:
-        """Why this agent's turn is not started: nobody is watching - a trigger's turn, or a
-        backlog task's (K-r135) - and it would work with tools of its own. None when it may
-        start."""
-        backlog_turn = ctx.run_id in self._backlog_turns
-        if self._watched(ctx.run_id) and not backlog_turn:
+        """Why this agent's turn is not started: nobody is watching - a trigger's turn - and it
+        would work with tools of its own. None when it may start."""
+        if self._watched(ctx.run_id):
             return None
         with self._factory() as session:
             provider = session.get(Provider, ctx.provider_id) if ctx.provider_id else None
             if not self._cannot_be_held(ctx.model, provider):
                 return None
-        return (BACKLOG_NOT_THIS if backlog_turn else UNATTENDED_NOT_THIS).format(
-            provider=ctx.provider or "This CLI"
-        )
+        return UNATTENDED_NOT_THIS.format(provider=ctx.provider or "This CLI")
 
     def _leave(self: "AgentRunner", run_id: str) -> dict:
         """What the trigger of an unattended turn allows, as it stands right now; nothing

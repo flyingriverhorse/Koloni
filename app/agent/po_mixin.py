@@ -8,12 +8,21 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 
-from app import backlog, earlier, injection, raw, topics
+from app import backlog, earlier, injection, raw, stories, topics
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx, announce
 from app.agent.questions_mixin import LEAD_LANGUAGE
 from app.api.usage import over_month, past_its_limit
-from app.db.models import BacklogTask, Conversation, Message, Project, Provider, Run, project_of
+from app.db.models import (
+    BacklogTask,
+    Conversation,
+    Message,
+    Project,
+    Provider,
+    Run,
+    Topic,
+    project_of,
+)
 from app.limits import has_room
 from app.providers import ask_once, mode_of
 from app.roles import LEAD, find_role
@@ -49,6 +58,10 @@ class _Asked:
     turned_down: list[str]
     project_id: str
     full: bool
+    # The lines of the turn's failed steps (a proposal from them is a bug), and the story of the
+    # turn's topic its proposals go into (0.1.8: the spec's "Scout"); None: of no story.
+    failed: str = ""
+    story_id: str | None = None
 
 
 def po_entries(entries: list[Entry], spent: set[str], passed: set[str]) -> list[Entry]:
@@ -136,9 +149,19 @@ class PoMixin:
             ids: list[str] = []
             try:
                 found = backlog.proposed(
-                    said, asked.sources, asked.titles, asked.turned_down, ctx.run_id, po
+                    said,
+                    asked.sources,
+                    asked.titles,
+                    asked.turned_down,
+                    ctx.run_id,
+                    po,
+                    asked.failed,
                 )
-                ids = self._proposals_added(ctx, asked.project_id, found, po) if found else []
+                ids = (
+                    self._proposals_added(ctx, asked.project_id, found, po, asked.story_id)
+                    if found
+                    else []
+                )
             finally:  # (heard out: on record however adding them went)
                 self._po_noted(ctx, {**po, "proposed": len(ids)})
             if not ids:
@@ -168,9 +191,12 @@ class PoMixin:
         if picked is None:
             return None
         asking, mode = self._on(session, ctx, *picked)
-        record, sources = backlog.po_record(
+        record, sources, failed = backlog.po_record(
             session, ctx.run_id, self._turn_in_words(session, ctx), project.pass_env
         )
+        run = session.get_one(Run, ctx.run_id)
+        topic = session.get(Topic, run.topic_id) if run.topic_id else None
+        story = stories.open_story(session, topic and topic.story_id, project.id)
         titles = [
             task.title for task in backlog.ordered(session, project.id) if task.status != "done"
         ]
@@ -183,6 +209,8 @@ class PoMixin:
             list(project.po_rejected or []),
             project.id,
             turn.decides and conversation.permission_mode == "full_auto",
+            failed,
+            story.id if story else None,
         )
 
     def _po_model(
@@ -223,12 +251,18 @@ class PoMixin:
         )
 
     def _proposals_added(
-        self: "AgentRunner", ctx: Ctx, project_id: str, found: list[dict], po: dict
+        self: "AgentRunner",
+        ctx: Ctx,
+        project_id: str,
+        found: list[dict],
+        po: dict,
+        story_id: str | None = None,
     ) -> list[str]:
         """Each on the To-do list, proposed - where the setting is still on, and none like a
         task that is there now (another turn's may have come meanwhile): one dropped is on
         `po` too. One whose words read like orders (`injection`) is marked so - the Lead adds
-        none of those - and the user warned in its chat."""
+        none of those - and the user warned in its chat. In the turn's story (`story_id`)
+        where it is still open, else a task of no story."""
         warned: list[str] = []
         with self._factory() as session:
             project = session.get_one(Project, project_id)
@@ -236,6 +270,7 @@ class PoMixin:
                 task.title for task in backlog.ordered(session, project_id) if task.status != "done"
             ] + list(project.po_rejected or [])
             ids = []
+            story = stories.open_story(session, story_id, project_id)
             if not project.suggest_tasks:
                 log.info("run %s: To-do proposals dropped: the setting was turned off", ctx.run_id)
                 po.setdefault("dropped", []).extend(
@@ -250,7 +285,9 @@ class PoMixin:
                     continue
                 titles.append(one["title"])
                 fields = {key: value for key, value in one.items() if key != "why"}
-                task = backlog.add(session, project_id, fields, "agent")
+                task = backlog.add(
+                    session, project_id, {**fields, "story_id": story and story.id}, "agent"
+                )
                 rules = injection.scan("\n".join(filter(None, [*fields.values(), one["why"]])))
                 task.po = {
                     "chat": ctx.cid,
@@ -294,7 +331,6 @@ class PoMixin:
                 not ids
                 or provider is None
                 or lead.model is None
-                or project.backlog_auto
                 or not self._has_room(session, provider, project)
             ):
                 return
@@ -327,9 +363,6 @@ class PoMixin:
         decided = backlog.lead_decided(heard[0] if heard else "", len(ids))
         added = 0
         with self._factory() as session:
-            # (Read again: the list may have been set to run by itself meanwhile.)
-            if session.get_one(Project, project_id).backlog_auto:
-                return
             for n, task_id in enumerate(ids, 1):
                 task = session.get(BacklogTask, task_id)
                 # (Not one the user decided meanwhile.)

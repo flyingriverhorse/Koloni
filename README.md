@@ -4,7 +4,7 @@
 
 # KOLONİ
 
-**Five AI coding CLIs as one team, on your machine, every change on a card.**
+**Four AI coding CLIs as one team, on your machine, every change on a card.**
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 [![Python 3.12 | 3.13 | 3.14](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)](pyproject.toml)
@@ -21,7 +21,7 @@
        alt="A real run, sped up: one message asks three teams for a small command-line tool; the Orchestrator opens the Backend, Web app and Docs teams on the canvas; the Web app team designs in a room; the work comes back on one card and Take in brings four files into the project. Every role on Claude Code with haiku.">
 </p>
 
-KOLONİ runs Claude Code, Codex, GitHub Copilot CLI, agy and Qoder, plus a local llama.cpp server or
+KOLONİ runs Claude Code, Codex, GitHub Copilot CLI and agy, plus a local llama.cpp server or
 any OpenAI-compatible API, side by side in one chat with a canvas. A lead hands parts of the job to
 roles; each sub-agent works in its own copy of your project; what it changed comes back on a card
 with the diff and your tests, and you take it in or discard it. Stop never loses half-done work.
@@ -85,7 +85,11 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Knowledge and memory**: experts learn from docs, a public GitHub repository or a folder on
   this machine (code kept as text, a free symbol map, answers with file:line); notes agents keep
   and you approve. [Knowledge](docs/knowledge.md) · [Memory](docs/memory.md)
-- **Work over time**: a To-do list with suggested tasks, triggers (clock, files, webhook), and
+- **Work over time**: a To-do list of goals, stories and their tasks and bugs - a rough note written
+  as one by the Hive keeper - ticked tasks done in a chat one by one, at its level and on its model
+  (each story in a topic of its own with a short notebook, on a git branch of its own that is checked,
+  then merged or sent as a pull request when you close the story), with suggested tasks, triggers
+  (clock, files, webhook), and
   **☾ Away**: your To-do tasks worked through one at a time, each in its own copy, until you are back,
   then one summary of what is done, decided and waiting.
   [To-do](docs/automation/todo.md) · [Triggers](docs/automation/triggers.md) · [☾ Away](docs/automation/overnight.md)
@@ -102,11 +106,10 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 
 | Provider | How it runs | Sign in |
 |---|---|---|
-| Claude Code | session (KOLONİ's tools over MCP) or native | `claude auth login` |
-| Codex | session (KOLONİ's tools over MCP), step, or native | `codex login` |
-| GitHub Copilot CLI | session or native (asks before its tools; from 1.0.114 on through KOLONİ's own hook); `auto` and `fusion` pick the model, with a routing | `gh auth login` |
-| agy | reads (its default) or native | agy's own sign-in |
-| Qoder | session | Qoder's own sign-in |
+| Claude Code | session (KOLONİ's tools over MCP) or native (goes on in its session on its own sign-in) | `claude auth login` |
+| Codex | session (KOLONİ's tools over MCP), native (goes on in its thread on its own sign-in), or step (experimental) | `codex login` |
+| GitHub Copilot CLI | session or native (goes on in its session; asks before its tools; from 1.0.114 on through KOLONİ's own hook); `auto` and `fusion` pick the model, with a routing; on GitHub's plan, only the models your Copilot plan lists | `gh auth login` |
+| agy (experimental) | reads (its default) or native | agy's own sign-in |
 | llama.cpp `llama-server` | OpenAI-compatible, started with `--jinja`; the Server tab starts and stops it | — |
 | Anthropic API, any OpenAI-compatible API | per token | your key |
 
@@ -176,7 +179,7 @@ cd frontend && npx playwright install chromium && cd ..
 ./scripts/verify.ps1
 ```
 
-`verify.ps1` runs pytest, Ruff, Ty, the frontend's checks, Vitest, the build and the Playwright
+`verify.ps1` runs pytest, Ruff, the 1,500-line file size check, Ty, the frontend's checks, Vitest, the build and the Playwright
 tests against a scripted model server. Commits are signed off (`git commit -s`, DCO) and a pull
 request agrees to the short [CLA](CLA.md). How to send a change: [CONTRIBUTING.md](CONTRIBUTING.md);
 architecture and live tests: [developer pages](docs/developer/architecture.md). Questions go to

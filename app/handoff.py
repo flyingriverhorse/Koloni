@@ -87,9 +87,7 @@ NOT_TAKEN = "not taken in"
 # KOLONİ's own codes on an agent's or a turn's error, in words (`app.away` says them too).
 ENDED = {"step_limit": "stopped at its step limit"}
 # KOLONİ's own reads and writes, and Claude Code's as KOLONİ records them (`AgentRunner._note`:
-# its server is "claude"; Qoder runs the same way).
-# shortcut: Qoder's hook naming its server "claude" is taken from the test fixture, not
-# re-measured live.
+# its server is "claude").
 CLI_READS = frozenset(f"claude__{tool}" for tool in ("Read", "Grep", "Glob", "LS", "NotebookRead"))
 CLI_WRITES = frozenset(f"claude__{tool}" for tool in CLAUDE_WRITES)
 COUNTED = frozenset(READ_TOOLS | {"view_image", "recall"} | CLI_READS)  # (28e: a read too)
@@ -98,7 +96,7 @@ WRITES = frozenset(WRITE_TOOLS | CLI_WRITES)
 # measured by name, so an agent on those CLIs is not counted (None); add their names to
 # CLI_READS once a live run shows what KOLONİ records them as. A shell call (run_command,
 # claude__Bash) is neither a read nor a write here, whatever it did.
-READS_SEEN = ("claude", "qodercli")
+READS_SEEN = ("claude",)
 
 
 @dataclass(frozen=True)

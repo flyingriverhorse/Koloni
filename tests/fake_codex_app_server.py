@@ -54,7 +54,10 @@ def native() -> None:  # noqa: C901
     """One thread and one turn, as Codex works natively for KOLONİ (slice 89a). FAKE_CLI_PLAN
     names a JSON file: {"record": path, "script": [...]}; "handshake" ("initialize",
     "thread", "policy", "gone"; "reviewer", "wider", "network", "full": its thread is not
-    what was asked for) makes the start go wrong. It writes down how it was
+    what was asked for) makes the start go wrong. 0.1.8: "thread_id" names its new thread; one
+    started not ephemeral is kept in its CODEX_HOME, and thread/resume goes on in it only there
+    ("resume": "refuse" refuses it all the same, "other" answers another thread); "last_input"
+    and "window" are its size and window at its end. It writes down how it was
     started and asked ("stdin" is the turn's text, which `codex exec` read on stdin), and
     each answer it got to a request of its own ("answers"). Steps of the script:
 
@@ -72,7 +75,11 @@ def native() -> None:  # noqa: C901
         {"delete": "a.py"}                               a patch that deletes a file
         {"mcp": {"server": "s", "tool": "t", ...}}       a call to one of its own MCP servers
         {"web": "query"}                                 a web search
+        {"compaction": true}                             it compacted its thread (an item)
         {"koloni": "ask_user", "args": {...}}            a call to KOLONİ's MCP server, for real
+                                                         ("pending": its answer never waited
+                                                         for - it goes on, Codex L2, once
+                                                         "after" names a file that is there)
         {"request": "item/tool/requestUserInput", "params": {...}}  another request of its own
         {"pause": s} / {"hang": true} / {"exit": 3, "stderr": ".."} / {"error": "message"}
         {"await_steer": true}                            it waits for a turn/steer ("steers")
@@ -174,8 +181,9 @@ def native() -> None:  # noqa: C901
         value = next(a[len(wanted) :] for a in argv if a.startswith(wanted))
         return tomllib.loads(f"v = {value}")["v"]  # Codex reads these as TOML values
 
-    def koloni(method: str, params: dict) -> dict:
-        """Talk to KOLONİ's tool server the way Codex would: through the bridge it was given."""
+    def koloni(method: str, params: dict, wait: bool = True) -> dict:
+        """Talk to KOLONİ's tool server the way Codex would: through the bridge it was given.
+        Not `wait`: the call is sent and its answer never read (Codex L2)."""
         nonlocal bridge
         if bridge is None:
             bridge = subprocess.Popen(
@@ -194,6 +202,8 @@ def native() -> None:  # noqa: C901
             ).encode()
         )
         bridge.stdin.flush()
+        if not wait:
+            return {}
         line = bridge.stdout.readline()
         if not line:
             record["cut_off"] = True
@@ -210,9 +220,26 @@ def native() -> None:  # noqa: C901
     say({"id": started["id"], "result": {"userAgent": "codex_cli_rs/0.164.0-fake"}})
     expect("initialized")
     say({"method": "account/updated", "params": ACCOUNT})
-    thread = expect("thread/start")
-    record["thread"] = thread["params"]
+    while (thread := heard()).get("method") not in ("thread/start", "thread/resume"):
+        pass
+    record["thread"], record["thread_method"] = thread["params"], thread["method"]
+    record["codex_home"] = os.environ.get("CODEX_HOME")
     save()
+    # Its thread's id ("thread_id": a uuid, as Codex names one), and where it keeps one that is
+    # not ephemeral (measured on 0.164.0: sessions/YYYY/MM/DD/rollout-...-<id>.jsonl in its home).
+    tid = str(thread["params"].get("threadId") or plan.get("thread_id", "thr_1"))
+    home = Path(os.environ.get("CODEX_HOME") or cwd)
+    rollout = home / "sessions" / "2026" / "11" / "24" / f"rollout-2026-11-24T10-00-00-{tid}.jsonl"
+    if thread["method"] == "thread/resume":
+        if plan.get("resume") == "refuse" or not rollout.exists():
+            message = f"no rollout found for thread id {tid}"  # (as measured, in another home)
+            say({"id": thread["id"], "error": {"code": -32600, "message": message}})
+            expect("never")
+        if plan.get("resume") == "other":
+            tid = "01a20e24-0000-7000-8000-000000000000"
+    elif thread["params"].get("ephemeral") is False and os.environ.get("CODEX_HOME"):
+        rollout.parent.mkdir(parents=True, exist_ok=True)
+        rollout.write_text("{}\n", encoding="utf-8")
     if plan.get("handshake") == "thread":
         say({"id": thread["id"], "error": {"code": -32600, "message": "unknown field cwd"}})
         expect("never")  # it waits to be ended
@@ -241,7 +268,7 @@ def native() -> None:  # noqa: C901
         {
             "id": thread["id"],
             "result": {
-                "thread": {"id": "thr_1"},
+                "thread": {"id": tid},
                 "approvalPolicy": policy,
                 "approvalsReviewer": reviewer,
                 "cwd": thread["params"].get("cwd"),
@@ -251,7 +278,7 @@ def native() -> None:  # noqa: C901
             },
         }
     )
-    say({"method": "thread/started", "params": {"thread": {"id": "thr_1"}}})
+    say({"method": "thread/started", "params": {"thread": {"id": tid}}})
     turn = expect("turn/start")
     record["turn"] = {k: v for k, v in turn["params"].items() if k != "input"}
     record["stdin"] = "".join(part.get("text", "") for part in turn["params"]["input"])
@@ -269,7 +296,7 @@ def native() -> None:  # noqa: C901
             "result": {"turn": {"id": "turn_1", "status": "inProgress", "items": []}},
         }
     )
-    ids = {"threadId": "thr_1", "turnId": "turn_1"}
+    ids = {"threadId": tid, "turnId": "turn_1"}
     say({"method": "turn/started", "params": {**ids, "turn": {"id": "turn_1"}}})
 
     def item(phase: str, body: dict) -> None:
@@ -474,6 +501,9 @@ def native() -> None:  # noqa: C901
             item("completed", {"id": item_id, "type": action["begin"], "status": "completed"})
             record.setdefault("done", []).append(item_id)
             save()
+        elif "compaction" in action:  # (0.1.8: it compacted its thread - measured on 0.164.0)
+            item("started", {"id": item_id, "type": "contextCompaction"})
+            item("completed", {"id": item_id, "type": "contextCompaction"})
         elif "image" in action:  # (B-347: an image it looks at with its own tool, R128's item)
             item("completed", {"id": item_id, "type": "imageView", "path": action["image"]})
         elif "koloni" in action:
@@ -491,8 +521,18 @@ def native() -> None:  # noqa: C901
                 rejected(body)
                 continue
             answer = koloni(
-                "tools/call", {"name": action["koloni"], "arguments": action.get("args", {})}
+                "tools/call",
+                {"name": action["koloni"], "arguments": action.get("args", {})},
+                wait=not action.get("pending"),
             )
+            if action.get("pending"):  # (L2: its MCP item begun and never ended; it goes on)
+                # (once KOLONİ has the call at work - "after": a file the test makes then)
+                deadline = time.monotonic() + 60
+                while action.get("after") and not Path(action["after"]).exists():
+                    if time.monotonic() > deadline:
+                        sys.exit(6)
+                    time.sleep(0.02)
+                continue
             record["results"].append(answer.get("result", answer))
             save()
             item("completed", {**body, "status": "completed", "result": answer.get("result")})
@@ -504,7 +544,7 @@ def native() -> None:  # noqa: C901
                     "method": "thread/tokenUsage/updated",
                     "params": {
                         **ids,
-                        "threadId": action.get("thread", "thr_1"),
+                        "threadId": action.get("thread", tid),
                         "tokenUsage": {
                             "total": {"inputTokens": action["context"] * 9, "outputTokens": 10},
                             "last": {
@@ -523,7 +563,7 @@ def native() -> None:  # noqa: C901
                     "method": "turn/plan/updated",
                     "params": {
                         **ids,
-                        "threadId": action.get("thread", "thr_1"),
+                        "threadId": action.get("thread", tid),
                         "explanation": None,
                         "plan": action["plan"],
                     },
@@ -555,7 +595,7 @@ def native() -> None:  # noqa: C901
                 {
                     "method": "turn/completed",
                     "params": {
-                        "threadId": "thr_1",
+                        "threadId": tid,
                         "turn": {"id": "turn_1", "status": "failed", "items": [], "error": error},
                     },
                 }
@@ -578,7 +618,12 @@ def native() -> None:  # noqa: C901
                 "method": "thread/tokenUsage/updated",
                 "params": {
                     **ids,
-                    "tokenUsage": {"total": total, "last": {**total, "inputTokens": 1}},
+                    "tokenUsage": {
+                        "total": total,
+                        # (its last request's input: its thread's size, of "window")
+                        "last": {**total, "inputTokens": plan.get("last_input", 1)},
+                        "modelContextWindow": plan.get("window"),
+                    },
                 },
             }
         )
@@ -589,7 +634,7 @@ def native() -> None:  # noqa: C901
         {
             "method": "turn/completed",
             "params": {
-                "threadId": "thr_1",
+                "threadId": tid,
                 "turn": {"id": "turn_1", "status": "completed", "items": [], "error": None},
             },
         }

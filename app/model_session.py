@@ -11,7 +11,6 @@ import contextlib
 import json
 import logging
 import os
-import re
 import secrets
 import shutil
 import sys
@@ -55,20 +54,6 @@ SECOND_BRIDGE = (
     "had it, or the CLI started KOLONİ's bridge again), so the run is stopped"
 )
 INIT_WAIT_SECONDS = 10.0
-# K-altajan-saglayici: how long a model may stay queued (Qoder's free models, `queued`) before
-# the session is given up as unavailable - its opener then moves a sub-agent to the next of
-# its tier (`AgentRunner._moved_on`). An agent that could not be moved waits for as long as
-# Qoder queues it (`run_session`'s `queue_wait` None, R130).
-# shortcut: a guess, not measured against how long Qoder's queue usually takes (R114: 5.5 min
-# ended in "Queuing failed"); set it from a measurement.
-# shortcut: one constant, not a setting of the provider's (`check_options` has none for Qoder,
-# nor its form a field); make it one if the user asks to tune it.
-# shortcut: raised wherever the queue line comes - a session queued again mid-work (after a
-# tool call) fails then too, with no move; limit it to before the first word if Qoder is seen
-# queuing mid-work.
-# shortcut: Qoder natively (`QoderNativeClient`) does not read its queue line at all: neither
-# shown nor given up on; read it there once Qoder native is measured.
-QUEUE_WAIT_SECONDS = 90
 # How long a CLI is asked to wait for one tool: an approval can take a while.
 TOOL_WAIT_MS = str(24 * 60 * 60 * 1000)
 
@@ -124,7 +109,7 @@ class SessionResult:
     cache_read: int | None = None
     cache_write: int | None = None
     # 27: the session its run left, to be resumed ({"id", "under"}: Claude Code's native turn,
-    # `run_native`); None: none.
+    # `run_native`; Copilot's with its "home" and "spent" too); None: none.
     session: dict | None = None
     # What Copilot says it spent in its own units: AI credits in billionths (totalNanoAiu) and
     # premium requests, its older one; None where it said nothing.
@@ -133,6 +118,51 @@ class SessionResult:
     # Why Copilot's auto picked `model`, as it said it (`session.auto_mode_resolved`); None: no
     # pick was said.
     picked_why: str | None = None
+    # The window its CLI's session says it is held to (Copilot's `session.usage_info`), and how
+    # much its session holds at its end; None: not said.
+    context_window: int | None = None
+    context_used: int | None = None
+
+
+# What a session's counts are, of `SessionResult` (Copilot's kept "spent": `copilot_since`).
+COUNTED = (
+    "input_tokens",
+    "output_tokens",
+    "cache_read",
+    "cache_write",
+    "nano_aiu",
+    "premium_requests",
+)
+
+
+def copilot_since(result: SessionResult, spent: dict | None) -> tuple[SessionResult, dict]:
+    """A Copilot turn's own counts, and what its session has spent in all by its end - kept with
+    the session for its next turn. Its checkpoint is the session's total (measured on 1.0.114,
+    resumed in a new process: 1 -> 2 -> 3 premium requests), so a resumed turn is that less what
+    the session had spent before it (`spent`; None: a new session, all of it this turn's). A count
+    not known before, or one that went down, is not known: None, never made up. One this turn
+    did not say keeps the total before it."""
+
+    def less(now: object, then: object) -> object:
+        if spent is None:
+            return now
+        if not isinstance(now, int | float) or not isinstance(then, int | float) or now < then:
+            return None
+        return now - then
+
+    totals = {
+        name: getattr(result, name)
+        if getattr(result, name) is not None
+        else (spent or {}).get(name)
+        for name in COUNTED
+    }
+    return (
+        replace(
+            result,
+            **{name: less(getattr(result, name), (spent or {}).get(name)) for name in COUNTED},
+        ),
+        totals,
+    )
 
 
 def why_picked(told: dict, reported: str | None, why: str | None) -> str | None:
@@ -211,6 +241,7 @@ class ToolServer:
         # Calls are answered one at a time, in the order they arrive.
         self._turn = asyncio.Lock()
         self.in_flight = 0  # calls being run or waiting their turn
+        self.at_work: list[str] = []  # (their tools' names)
         self.last_reply = time.monotonic()
 
     async def start(self) -> None:
@@ -249,9 +280,11 @@ class ToolServer:
         writing = asyncio.Lock()
 
         async def send(message: dict) -> None:
-            async with writing:
-                writer.write(json.dumps(message).encode("utf-8") + b"\n")
-                await writer.drain()
+            # (A CLI gone while its call ran - Codex L2, waited for past its turn - hears nothing.)
+            with contextlib.suppress(ConnectionError):
+                async with writing:
+                    writer.write(json.dumps(message).encode("utf-8") + b"\n")
+                    await writer.drain()
 
         async def answer(request: dict) -> None:
             request_id = request.get("id")
@@ -331,6 +364,7 @@ class ToolServer:
         if name not in {tool["name"] for tool in self.describe()}:
             return _tool_text(f"error: {name} is not one of the tools offered here", failed=True)
         self.in_flight += 1
+        self.at_work.append(str(name))
         try:
             # Sub-agents asked for at once work at once; everything else takes its turn.
             together = name in TOGETHER
@@ -356,6 +390,7 @@ class ToolServer:
             return said
         finally:
             self.in_flight -= 1
+            self.at_work.remove(str(name))
             self.last_reply = time.monotonic()
 
 
@@ -376,24 +411,6 @@ def _given_up(notice: dict, pending: dict[asyncio.Task, str]) -> None:
 
 def _tool_text(text: str, failed: bool) -> dict:
     return {"content": [{"type": "text", "text": text}], "isError": failed}
-
-
-def queued(event: dict) -> dict | None:
-    """Qoder's `model_queue_status` line as what is shown live of its queue (K-qoder-kuyruk).
-    Measured 29 Oct 2026 (qodercli 1.1.51, `tests/qoder_streams/queue-status.jsonl`): while a
-    free model is queued, one every ~30 s with `status` "queued", how long it has waited and
-    how long it would at most. None with any other status: it is queued no longer.
-    shortcut: how the queue ends ("Queuing failed", REA R114) was not measured - it goes as
-    any CLI error does; read its line once seen."""
-    if event.get("status") != "queued":
-        return None
-    elapsed, most = event.get("queue_wait_elapsed_ms"), event.get("queue_max_wait_ms")
-    available = event.get("service_available")
-    return {
-        "elapsed_s": round(elapsed / 1000) if isinstance(elapsed, (int, float)) else None,
-        "max_s": round(most / 1000) if isinstance(most, (int, float)) else None,
-        "available": available if isinstance(available, bool) else None,
-    }
 
 
 def bridge_file(server: ToolServer, workdir: Path) -> Path:
@@ -459,14 +476,11 @@ class CliSessionClient(CliStepClient):
         on_message: Callable[[object], None] | None = None,
         effort: str | None = None,
         on_live: Callable[[dict], None] | None = None,
-        queue_wait: float | None = QUEUE_WAIT_SECONDS,
     ) -> SessionResult:
         """`on_message`: told, before anything of it is passed on, which message of
         the model a piece of the stream belongs to - a message with several tool calls
-        comes in several pieces, and is one step. `on_live`: what the CLI says of its
-        queue while it waits for its model (`queued`), shown and never on record.
-        `queue_wait`: the seconds after which a model still queued is given up as
-        unavailable; None: never by KOLONİ (an agent that could not be moved on)."""
+        comes in several pieces, and is one step. `on_live`: what the CLI says live of its
+        session, shown and never on record."""
         server = ToolServer(tools or [], call_tool)
         allowed = [PREFIX + tool["name"] for tool in server.describe()]
         workdir: Path | None = None
@@ -493,7 +507,6 @@ class CliSessionClient(CliStepClient):
                 on_text,
                 on_message,
                 on_live,
-                queue_wait,
             )
         finally:
             await server.close()
@@ -511,7 +524,6 @@ class CliSessionClient(CliStepClient):
         on_text,
         on_message=None,
         on_live=None,
-        queue_wait: float | None = QUEUE_WAIT_SECONDS,
     ) -> SessionResult:
         try:
             process, job = await self._start(argv, shim, workdir, self._session_env(workdir))
@@ -527,7 +539,6 @@ class CliSessionClient(CliStepClient):
         picked_why: str | None = None  # why Copilot's auto picked it, where it said so
         limited = None  # what it said of its plan's limit, if it turned this run away
         own_word: tuple | None = None  # what its own word says a failure is (`own_error`)
-        in_queue: dict | None = None  # what it last said of its model's queue (`queued`)
         heard = time.monotonic()  # when the CLI last said anything
         # The CLI says which tools it starts with before anything else. Until it has,
         # and they are all KOLONİ's, nothing it writes is taken and no tool is run.
@@ -566,7 +577,7 @@ class CliSessionClient(CliStepClient):
 
         async def talk() -> None:  # noqa: C901
             nonlocal result, counted, announced, heard, text_open, reported, limited, own_word
-            nonlocal in_queue, picked_why
+            nonlocal picked_why
             with contextlib.suppress(BrokenPipeError, ConnectionResetError):
                 stdin.write(prompt.encode("utf-8"))
                 await stdin.drain()
@@ -577,10 +588,6 @@ class CliSessionClient(CliStepClient):
                 feed("stdout", written, (server.key,))
                 for event in (told for line in _events(written) for told in self._translate(line)):
                     kind = event.get("type")
-                    if in_queue and kind != "system" and on_live:
-                        # Its model is at work (words, a tool call, its result): queued no more.
-                        in_queue = None
-                        on_live({"queue": None})
                     if isinstance(event.get("model"), str) and kind in ("system", "model"):
                         picked_why = why_picked(event, reported, picked_why)
                         reported = event["model"] or reported
@@ -604,19 +611,6 @@ class CliSessionClient(CliStepClient):
                                 f"({', '.join(map(str, own[:5]))}); the session was stopped"
                             )
                         vetted.set()
-                    elif kind == "system" and event.get("subtype") == "model_queue_status":
-                        in_queue = queued(event)
-                        if on_live:
-                            on_live({"queue": in_queue})
-                        if (
-                            in_queue
-                            and queue_wait is not None
-                            and (in_queue["elapsed_s"] or 0) >= queue_wait
-                        ):
-                            raise ModelUnavailable(
-                                f"{self.label} kept its model queued for "
-                                f"{round(in_queue['elapsed_s'] / 60)} min"
-                            )
                     elif kind in ("assistant", "result") and not vetted.is_set():
                         raise OwnStop(
                             f"{self.label} did not say which tools it started with; "
@@ -750,79 +744,6 @@ class ClaudeSessionClient(CliSessionClient):
         return arguments
 
 
-QODER_MODELS_SECONDS = 10.0
-# A model's name first on its line, of letters, digits and `._:/-`, then nothing, or a column
-# (two spaces, a tab, a box's bar) or a remark ("(default)", "- fast"): not a sentence.
-_MODEL_LINE = re.compile(r"([A-Za-z0-9][A-Za-z0-9._:/-]*)(?:$|\s{2}|\t|\s*[│|]|\s+[(\[—*✓-])")
-_HEADINGS = {"name", "model", "models", "id"}  # a table's first column, named
-_COLOURS = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
-
-
-def qoder_models(printed: str) -> list[str]:
-    """The model names in what `qodercli --list-models` prints: of each line, its colours
-    and marks (`*`, `-`, `>`, a box's `│`) taken off, the name it begins with (`_MODEL_LINE`,
-    with a letter in it); a line that ends in ":" (a heading) is passed over.
-    Measured on 29 Oct 2026 (qodercli 1.1.51): a "MODEL" heading, then one model a line, a
-    paid one as `Name (where it is served) (its/id)`; the name is kept.
-    shortcut: whether --model takes a paid model's name or the id in its last parentheses
-    is not measured (the free ones ran by name); keep the id instead if the name is refused.
-    shortcut: an image model is passed over by "image" in its line; use catalog.json's
-    not_chat if another kind of model turns up there."""
-    names: list[str] = []
-    for line in _COLOURS.sub("", printed).splitlines():
-        line = line.strip().lstrip("*->•│|✓→ \t")
-        skip = line.endswith(":") or "image" in line.lower()
-        found = None if skip else _MODEL_LINE.match(line)
-        name = found.group(1) if found else ""
-        if re.search("[A-Za-z]", name) and name.lower() not in _HEADINGS and name not in names:
-            names.append(name)
-    return names
-
-
-class QoderSessionClient(CliSessionClient):
-    command = "qodercli"
-    label = "Qoder"
-    # shortcut: the same levels for every model; xhigh measured on the two free ones only
-    # (29 Oct), max not offered. Upgrade once each model's are known.
-    efforts = levels_of("qoder_cli")
-    effort_flag = "--reasoning-effort"
-    effort_words = {"off": "none"}  # its own word for no thinking
-
-    async def models(self) -> list[str]:
-        """The names `qodercli --list-models` prints; none where it fails. No model is used.
-        What it says on stderr (it could name the account) is never kept."""
-        code, printed, _ = await self.run_status(["--list-models"], QODER_MODELS_SECONDS)
-        return qoder_models(printed) if code == 0 else []
-
-    def _session_env(self, workdir: Path) -> dict[str, str]:
-        return {"MCP_TOOL_TIMEOUT": TOOL_WAIT_MS}
-
-    def _session_arguments(self, config: Path, allowed: list[str]) -> list[str]:
-        # Measured 4 Nov 2026 (R185, Qwen3.8-Flash): `--tools ""` starts it with `"tools":[]` and
-        # no tool_use. Its init still lists plugin `agents` and `skills`, but with no tool of its
-        # own (no Task, no Skill) nothing can start them.
-        arguments = [
-            "-p",
-            "--tools",
-            "",
-            "--strict-mcp-config",
-            "--mcp-config",
-            str(config),
-            "--no-session-persistence",
-            "--setting-sources",
-            "",
-            "-o",
-            "stream-json",
-            "--system-prompt",
-            SYSTEM_LINE,
-        ]
-        for name in allowed:
-            arguments += ["--allowed-tools", name]
-        if self._model:
-            arguments += ["-m", self._model]
-        return arguments
-
-
 COPILOT_PREFIX = f"{SERVER}-"  # how the Copilot CLI names an MCP server's tools
 # B-410 (live, R206): on a Claude model (its auto picked one) it first asks for its own
 # `tool_search_tool`, which finds the tools it may call - here only KOLONİ's
@@ -850,11 +771,15 @@ def _finds(said: dict, key: str) -> bool:
 
 
 # Copilot's routings of its own models, as its 1.0.114 package types them: Auto's tier
-# (`AutoTier`; its integrator-only `fast` left out) and Fusion's (`FusionTier`: several models
-# try each turn and one is kept; High and Max cost more). Each by its model's name, sent as its
-# flag to a session and as session.create's `capi` field natively - never both of them.
+# (`AutoTier`) and Fusion's (`FusionTier`: several models try each turn and one is kept; High
+# and Max cost more). Each by its model's name, sent as its flag to a session and as
+# session.create's `capi` field natively - never both of them. Which the user's account offers
+# is its own `models.list`'s (`app.copilot_offers`): on 24 Nov 2026 only balance and fast.
+# shortcut: `fast` is offered by the account (models.list, enabled, not in its picker) and was
+# given to a native run that went well, but that session.create took it as such (not as the
+# default) is not measured; check `session.model.getCurrent` once on a run with it.
 ROUTINGS = {
-    "auto": ("efficiency", "balance", "intelligence"),
+    "auto": ("efficiency", "balance", "intelligence", "fast"),
     "fusion": ("standard", "high", "max"),
 }
 ROUTE_FLAGS = {"auto": ("--auto-tier", "autoTier"), "fusion": ("--fusion-tier", "fusionTier")}
@@ -993,6 +918,10 @@ class CopilotSessionClient(CliSessionClient):
         return env
 
     def _session_arguments(self, config: Path, allowed: list[str]) -> list[str]:
+        # shortcut: Copilot's own time limit on an MCP call is not measured and none is set (Claude
+        # Code gets MCP_TOOL_TIMEOUT, Codex tool_timeout_sec: 24 h) - a run_command of up
+        # to a project's Longest command (60 minutes, 0.1.8) may be given up on by it; measure it
+        # and set one where it has one.
         names = [COPILOT_PREFIX + name.removeprefix(PREFIX) for name in allowed]
         arguments = [
             "--output-format",
@@ -1108,7 +1037,6 @@ class CopilotSessionClient(CliSessionClient):
         on_message=None,
         effort=None,
         on_live=None,
-        queue_wait=QUEUE_WAIT_SECONDS,
     ) -> SessionResult:
         try:
             return await super().run_session(
@@ -1120,7 +1048,6 @@ class CopilotSessionClient(CliSessionClient):
                 on_message,
                 effort,
                 on_live,
-                queue_wait,
             )
         except ModelUnavailable as exc:
             # Whatever the CLI or the server said, the key is not repeated.

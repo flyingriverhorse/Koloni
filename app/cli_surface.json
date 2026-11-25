@@ -7,7 +7,8 @@
       "turn/steer", "item/started", "item/completed", "item/commandExecution/requestApproval",
       "item/fileChange/requestApproval", "item/fileChange/patchUpdated",
       "mcpServer/elicitation/request", "thread/tokenUsage/updated", "account/rateLimits/read",
-      "account/rateLimits/updated", "approvalsReviewer", "writableRoots"
+      "account/rateLimits/updated", "approvalsReviewer", "writableRoots", "thread/resume",
+      "excludeTurns", "contextCompaction", "modelContextWindow"
     ]
   },
   "claude": {
@@ -33,7 +34,8 @@
       "session.usage_checkpoint", "session.auto_mode_resolved", "session.tools_updated",
       "resolvedByHook", "requestPermission", "availableTools", "hooks.invoke", "preToolUse",
       "permissionDecision", "modifiedArgs", "hasHandlers", "apply_patch", "autoTier", "fusionTier",
-      "shellExecution"
+      "shellExecution", "session.resume", "session.usage_info", "tokenLimit",
+      "session.compaction_complete"
     ]
   },
   "agy": {

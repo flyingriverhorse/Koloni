@@ -253,6 +253,23 @@ async def test_a_copy_whose_empty_hooks_folder_cannot_be_made_is_a_start_error(t
         await HostExecutor().start("cmd1", "echo hi", tree, copy=tree)
 
 
+async def test_a_copys_code_is_first_on_pythonpath_unless_its_caller_says_not(tmp_path):
+    # Code style's own tools: a `mypy/__init__.py` an agent wrote in the copy is never imported
+    # before the tool's own - any other run in a copy has the copy's code first, as before
+    copy = tmp_path / "copy"
+    (copy / "mypy").mkdir(parents=True)
+    (copy / "mypy" / "__init__.py").write_text("print('SHADOWED')\n")
+    (copy / "sub").mkdir()  # (it runs here: `-c` puts this folder first, not the copy's root)
+    python = f'& "{sys.executable}"' if sys.platform == "win32" else f'"{sys.executable}"'
+    line = f"{python} -c \"import os; print('word', os.environ.get('{host.NO_COPY_PATH}')); import mypy\""
+    for env, shadowed in (({}, True), ({host.NO_COPY_PATH: "1"}, False)):
+        running = await HostExecutor().start("cmd1", line, copy / "sub", copy=copy, env=env)
+        output = "".join([chunk async for chunk in running])
+        await running.wait()
+        assert ("SHADOWED" in output) == shadowed, output
+        assert "word None" in output, output  # (the word itself never reaches the command)
+
+
 async def test_a_shell_builtin_reports_success_and_failure(tmp_path):
     _, ok = await run("echo hi", tmp_path)
     assert ok == 0

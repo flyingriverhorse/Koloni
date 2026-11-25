@@ -7,7 +7,7 @@ use, and the models you choose, in one place on your own machine, and shows you 
 
 - **Many agents, one chat.** The Orchestrator hands parts of a job to other roles (Coder, Reviewer, Tester
   and more), each in its own working copy, so your folder changes only when you take the work in.
-- **Any model you have.** Claude Code, Codex, GitHub Copilot CLI, Qoder and agy on your own plans, an API
+- **Any model you have.** Claude Code, Codex, GitHub Copilot CLI and agy on your own plans, an API
   key, or a model server on your own machine, side by side. Each agent shows the provider and model it
   really ran on.
 - **Evidence, not a story.** The canvas draws every turn from the record: the agents, their tools,

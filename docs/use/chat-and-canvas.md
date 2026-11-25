@@ -32,7 +32,7 @@ unread and how many things wait for you.
   A queued message can be removed. **Stop**, on the line over the message, stops the work. If KOLONİ restarts before a queued message
   runs, it stays in the chat as "Not sent: KOLONİ restarted", with **Send** to send it now.
 - **Stop everything**, in the top bar on every page, stops every turn in every chat and holds what
-  starts by itself: triggers, To-do lists that run by themselves, and work while you're away. It asks first, saying
+  starts by itself: triggers, the To-do tasks waiting in a chat's queue, and work while you're away. It asks first, saying
   what runs and what will be held. Then the button reads **Held · Resume**; its panel lists the chats it
   stopped and what is held, with **Resume**. Your own messages still run while it holds. After
   **Resume**, a trigger waits for its next time: the times missed meanwhile are skipped.
@@ -89,6 +89,15 @@ unread and how many things wait for you.
   **Submit**; keys 1-9 pick an option and Enter sends it; "‹ 1/2 ›" when it asks two. In its turn one line
   says it asks (a click goes to the card) and, once answered, "Question: … / Answered: …" opens to its
   options with the one given ticked. KOLONİ's own cards and sub-agents' questions stay in the turn.
+- A To-do task given to the chat (**Do in chat**, [To-do](../automation/todo.md#doing-tasks-in-a-chat))
+  shows as the task: **From To-do · task 2 / 3** (of its story; **task** or **bug** for one of no story), its
+  title and "Done when: …", its whole brief under **The whole brief**. A story's topic has the line
+  **Topic · Story · … · 📓 notes**; once the story's notebook has a note, its 📓 is a button that opens
+  it. Under a task's last turn the chat asks **Done? - "…"** (**Yes, done** /
+  **Not yet**) or, stuck, **Stuck - "…"** with why (**Fix it** / **Open it in To-do** / **Leave it**); once
+  every task of a story is done, **Story done? - "…"** (**Close the story** / **Add a task**). Above the
+  message box, **N wait** lists the chat's queue - the task at work, those waiting with **Remove** - and
+  "+ your message goes first when you send one".
 - At the foot of a turn that did something, once it is over, one line sums it up at the right, such as "2
   agents · 3 files changed", with what is left open. **details ▸** shows the files, sub-agents, tokens and
   known cost.
@@ -96,6 +105,10 @@ unread and how many things wait for you.
   answer, under older ones when you point at them or tab into them.
 - A message's **⋯** menu has **Copy**, **Restore to before this message** and **Show its work on the
   canvas**. The **↺** button on a message whose work changed files is **Undo these changes**.
+- While a story of To-do works in the chat, one line over the messages says so: **Story · Login · 2 / 3 ·
+  next: Add a test · 📓 notes** - the story, the place of its task at work among its tasks, and its next
+  task while one waits in the chat's queue. **📓 notes**, there once the notebook has a note, opens the
+  story's [notebook](../automation/todo.md#the-storys-notebook). In a narrow chat only the story and its place stay.
 
 ### Undo and restore
 
@@ -182,7 +195,11 @@ Click an agent to open the **Inspector**, a short report card. From the top:
   chat, and answering in one place answers it everywhere;
 - who asked it what, on one line;
 - its **Report**, or while it works "No report yet" and what it is on now. A long report is cut at six
-  lines, with **Show all**;
+  lines, with **Show all**. A sub-agent whose role writes (a Coder, a Debugger) that finished with no file
+  changed on KOLONİ's record has **No file changed** over its report, and on its row in the chat; the
+  Orchestrator gets the same fact, "KOLONİ: this agent changed no file", before the report's own words,
+  so a report that claims a change it never made is not passed on to you. A role that only reads (a
+  Reviewer, a Tester) is never marked so;
 - **Changes**: the files it changed, each with **View diff**, which opens the file in the Workspace;
 - what it did, counted, and its tokens. A number its provider did not report is "–".
 
@@ -210,5 +227,15 @@ and, in the chat, the Orchestrator's name over its turn. No agent's window opens
 An agent can start a dev server that keeps running, on this machine only, and show its page. At most
 three run in a chat. They are listed under **Previews** in the Workspace; a preview has **Reload**,
 **Open in browser** and **Stop**.
+
+While one runs, an agent that may run commands can read what it printed since ("the server gives a
+500: read its log"), in a later turn of the same topic too, and the last output of one that has ended.
+It can stop only a server it started itself, and waits until it has ended (to start it again, say); one
+another agent or an earlier turn started is yours to stop here. Neither works in a turn nobody watches
+or a job while you're away, nor for a CLI run **Native**, which runs its commands with its own tools.
+What it reads is hidden as any command's output is (secrets), and text in it that tries to give orders
+shows the **Text tried to give orders** card: a server's log holds what any request to it carried.
+What a server whose line names a secret file prints (`node --env-file=.env server.js`, asked about on
+its card at every level) is not read again later, as with any output read on your word for that once.
 
 See [Working copies and Take in](workspace.md).

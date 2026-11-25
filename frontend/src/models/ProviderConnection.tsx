@@ -1,8 +1,11 @@
+import { useState } from 'react'
+import { errorText } from '../api/client'
 import type { Availability, ModelFacts, Provider, ProviderTest, Suggestion } from '../api/types'
 import { modelName } from '../shell/modelName'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { ModelNameInput } from './ModelNameInput'
+import { Choices, modesShown } from './experimental'
 import { factsText, levelsKnown, namedLevel, takesOf } from './levels'
 import type { GuideRow } from './ModelRow'
 import type { CopilotOptions, ListedModel, Mode, Props as PageProps, ProviderKind, SignIn } from './ModelsPage'
@@ -12,7 +15,6 @@ const MAX_NOTE = 300
 
 const COMMAND: Partial<Record<ProviderKind, string>> = {
   claude_cli: 'claude',
-  qoder_cli: 'qodercli',
   codex_cli: 'codex',
   copilot_cli: 'copilot',
   agy_cli: 'agy',
@@ -23,14 +25,12 @@ const MODE_LABEL: Record<Mode, string> = {
   native: 'Native: its own tools, in the project',
   reads: 'Reads with its own tools; started without leave to write or run',
 }
-// What each CLI asks KOLONİ before, natively (89a Codex, 89b Claude Code, 89c Copilot; agy through its hook) -
-// Qoder: what was measured instead (app/model_native.py, its hook's check).
+// What each CLI asks KOLONİ before, natively (89a Codex, 89b Claude Code, 89c Copilot; agy through its hook).
 const NATIVE_ASKS: Partial<Record<ProviderKind, string>> = {
   claude_cli: 'asks before every tool it uses',
   agy_cli: 'asks before every tool it uses',
   codex_cli: 'asks before each command and patch, but not those its own rules count as safe',
   copilot_cli: 'asks before each command, write and read',
-  qoder_cli: "stops before it acts on the versions measured so far: they do not apply KOLONİ's hook",
 }
 // KOLONİ's tools in either way, from the agy version they were measured to reach (app/model_agy.py BRIDGE_FROM).
 const AGY_TOOLS =
@@ -100,6 +100,8 @@ interface CliProps extends CopilotProps {
   ownServer: boolean
   copilot: boolean
   agy: boolean
+  /** Settings › The app › Agents, Show experimental CLIs: Codex's One run per model step is offered only then, or in use. */
+  experimental: boolean
 }
 
 /** A CLI's connection: its command, how it runs, whose sign-in, and what each way of running does. */
@@ -120,7 +122,10 @@ export function CliFields(props: CliProps) {
     address,
     setAddress,
     copilot,
+    experimental,
   } = props
+  const [usual, tried] = modesShown(kind, modes, runs, experimental)
+  const named = (shown: Mode[]) => shown.map((mode): [Mode, string] => [mode, modeLabel(kind, mode)])
   return (
     <>
       <div className="field">
@@ -133,7 +138,7 @@ export function CliFields(props: CliProps) {
           onChange={e => setExecutable(e.target.value)}
         />
       </div>
-      {modes.length > 1 && (
+      {usual.length + tried.length > 1 && (
         <div className="field">
           <label htmlFor="provider-mode">How it runs</label>
           <select
@@ -142,11 +147,7 @@ export function CliFields(props: CliProps) {
             value={runs ?? ''}
             onChange={e => setMode(e.target.value as Mode)}
           >
-            {modes.map(value => (
-              <option key={value} value={value}>
-                {modeLabel(kind, value)}
-              </option>
-            ))}
+            <Choices usual={named(usual)} experimental={named(tried)} />
           </select>
         </div>
       )}
@@ -211,7 +212,9 @@ function SignInField({ kind, signIn, setSignIn, savedSignIn }: CliProps) {
       </select>
       <Hint doc={GUIDE.cliSignIn}>
         Its own: a sign-in folder for this provider alone, so several {COMMAND[kind]} accounts can run side by side,
-        each its own provider, without switching accounts. You log in to it once from your own terminal.
+        each its own provider, without switching accounts. You log in to it once from your own terminal. Run Native, a
+        provider on its own sign-in goes on in its {kind === 'claude_cli' ? 'session' : 'thread'} from a topic’s
+        previous turn; on yours, the default, each turn starts anew.
       </Hint>
       {signIn === 'koloni' && savedSignIn !== 'koloni' && (
         // (R125: said before it is saved - the command to log in comes once its folder is made)
@@ -370,7 +373,6 @@ function ToolsHint({ kind, runs }: Pick<CliProps, 'kind' | 'runs'>) {
       {kind === 'codex_cli' &&
         runs === 'session' &&
         " Codex's own patch tool cannot be switched off, so KOLONİ refuses every patch it asks to make and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. Tried on short work so far."}
-      {kind === 'qoder_cli' && " A model name has to be set below if Qoder's own default model does not answer."}
     </Hint>
   )
 }
@@ -404,15 +406,6 @@ function CliNotes(props: CliProps) {
           its diff, and a command as a command to approve. It reads files by running commands, so its role has to be
           allowed to write and run them. What its own Codex rules let it do unasked is marked so on the record. It can
           open sub-agents and ask you questions through KOLONİ. {NOT_BY_TRIGGER}
-        </p>
-      )}
-      {runs === 'native' && kind === 'qoder_cli' && (
-        <p role="note" className="composer-warning provider-note">
-          Native: the Qoder versions measured so far do not apply KOLONİ&apos;s hook, so a native turn stops before
-          Qoder does anything and says to run it as a session (One session per agent) instead. A Qoder that applies the
-          hook passes that check; how it works natively after that, asking KOLONİ before each tool of its own as Claude
-          Code does, is not measured. It does not run natively in a project with Qoder settings of its own (.qoder).{' '}
-          {NATIVE_COPY} {NOT_BY_TRIGGER}
         </p>
       )}
       {runs === 'native' && kind === 'copilot_cli' && (
@@ -897,6 +890,49 @@ export function ProviderActions({
         Delete provider
       </button>
     </>
+  )
+}
+
+/** A provider of a kind KOLONİ no longer runs (0.1.8: Qoder): why, and Delete - nothing of it is set or run here. */
+export function RetiredProvider({
+  provider,
+  onlyOne,
+  onDelete,
+}: Pick<PageProps, 'onDelete'> & { provider: Provider; onlyOne: boolean }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const remove = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await onDelete(provider.id)
+    } catch (err) {
+      setError(errorText(err))
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="role-editor">
+      <p role="note" className="composer-warning provider-note">
+        {provider.off_why}
+      </p>
+      {error && (
+        <div role="alert" className="alert">
+          {error}
+        </div>
+      )}
+      <div className="role-actions">
+        <button
+          type="button"
+          className="btn btn-danger"
+          disabled={busy || onlyOne}
+          title={onlyOne ? 'At least one provider is needed' : undefined}
+          onClick={() => void remove()}
+        >
+          Delete provider
+        </button>
+      </div>
+    </div>
   )
 }
 

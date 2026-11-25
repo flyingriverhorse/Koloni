@@ -84,7 +84,7 @@ Instructions for the agent.
 | `recipes/` | Recipes kept in this folder. |
 | `knowledge/` | Knowledge topics: each one's guide; the pages read are kept out of git. |
 | `shared/` | Files teams share while they work; kept out of git. |
-| `tmp/` | The agents' scratch space; kept out of git. |
+| `tmp/` | The agents' scratch space; kept out of git. The copies of images an agent looked at (`tmp/images/`) and the browser's screenshots go after a week, as new ones come. |
 
 `settings.json` holds only these keys:
 

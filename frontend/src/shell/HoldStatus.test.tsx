@@ -58,7 +58,7 @@ test('Stop everything asks first, saying what runs and what will be held - and C
   await userEvent.click(await screen.findByRole('button', { name: 'Stop everything' }))
   const ask = screen.getByRole('dialog', { name: 'Stop everything' })
   expect(ask).toHaveTextContent(
-    '3 turns running in your chats will stop. 2 triggers, 1 backlog and 1 project working while you’re away are held until you resume.',
+    '3 turns running in your chats will stop. 2 triggers, 1 project’s To-do queue and 1 project working while you’re away are held until you resume.',
   )
   expect(ask).toHaveTextContent('Your own messages still run')
   await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }))
@@ -84,7 +84,9 @@ test('once confirmed it lists what stopped and what is held; the bar says Held, 
   expect(list).toHaveTextContent(
     'times missed while held are skipped, also for triggers that catch up, and files changed meanwhile start nothing',
   )
-  expect(within(list).getByRole('region', { name: 'Held' })).toHaveTextContent('Backlog of shop: its next task waits')
+  expect(within(list).getByRole('region', { name: 'Held' })).toHaveTextContent(
+    'To-do queue of shop: its next task waits',
+  )
   expect(within(list).getByRole('region', { name: 'Held' })).toHaveTextContent(
     'While you’re away · shop: its next job waits',
   )
@@ -243,10 +245,10 @@ test('held with nothing stopped and no trigger on, and not held with nothing run
   render(<HoldStatus every={60_000} onOpen={() => {}} />)
   const stop = await screen.findByRole('button', { name: 'Stop everything' })
   expect(stop).toHaveAttribute('class', 'btn')
-  expect(stop).toHaveAttribute('title', 'Stop every turn in every chat, and hold triggers and backlogs')
+  expect(stop).toHaveAttribute('title', 'Stop every turn in every chat, and hold triggers and To-do queues')
   await userEvent.click(stop)
   const ask = screen.getByRole('dialog', { name: 'Stop everything' })
-  expect(ask).toHaveTextContent('No turn is running now. Triggers and backlogs are held until you resume.')
+  expect(ask).toHaveTextContent('No turn is running now. Triggers and To-do queues are held until you resume.')
   await userEvent.click(within(ask).getByRole('button', { name: 'Stop everything' }))
   expect(await within(ask).findByRole('alert')).toHaveTextContent(/^the server is busy$/)
 })

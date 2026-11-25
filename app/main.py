@@ -78,6 +78,7 @@ from app.api import (
     rooms,
     runs,
     skills,
+    stories,
     teams,
     tiers,
     triggers,
@@ -90,7 +91,7 @@ from app.api import (
 from app.api.deps import carries_key, require_own_origin
 from app.away import send as send_night
 from app.config import Settings, load_settings
-from app.db.models import Flag, McpServer, Project, Provider, now
+from app.db.models import Agent, Flag, McpServer, Project, Provider, now
 from app.db.session import (
     back_up_daily,
     make_engine,
@@ -103,6 +104,7 @@ from app.executors.docker import kill_containers
 from app.local_server import LocalServer
 from app.model_agy import sweep_homes
 from app.model_client import ModelClient
+from app.model_native import sweep_codex_threads, sweep_copilot_homes
 from app.providers import Providers, search_apis, search_clients, seed_providers
 from app.roles import seed_builtin_roles
 from app.triggers import Triggers
@@ -399,6 +401,13 @@ def create_app(
     # unless it holds changes that never reached the project.
     recover_copies(factory, settings.runtime_root)
     sweep_homes(settings.runtime_root / "agy-home")  # (as `providers` names it for agy)
+    # (Copilot's session homes and Codex's threads no agent goes on in: 0.1.8)
+    with factory() as session:
+        kept = list(session.scalars(select(Agent.cli_session).where(Agent.cli_session.isnot(None))))
+        codex = list(session.scalars(select(Provider.id).where(Provider.kind == "codex_cli")))
+    sweep_copilot_homes(settings.runtime_root, kept)
+    with contextlib.suppress(OSError):  # (a folder it cannot read never stops KOLONİ starting)
+        sweep_codex_threads(settings.runtime_root, kept, codex)
     with factory() as session:
         seed_builtin_roles(session)
         seed_providers(session, settings, which)
@@ -486,6 +495,7 @@ def create_app(
         folders,
         board,
         backlog,
+        stories,
         away,
         day,
         views,

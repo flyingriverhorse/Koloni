@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import functools
 import os
 import re
 import time
@@ -18,6 +19,8 @@ from app.cards import card_reason
 from app.commands import (
     _INTERPRETER,
     MAX_STORED_OUTPUT,
+    MODEL_HEAD,
+    MODEL_TAIL,
     PLANTED,
     OutputMask,
     _program,
@@ -50,7 +53,7 @@ from app.db.models import (
 )
 from app.executors.base import Executor, StartError
 from app.serialize import allowed_command_out, command_event, command_out
-from app.tools import ToolError, plan_command
+from app.tools import MAX_TIMEOUT, ToolError, plan_command
 from app.workspace import Workspace
 
 FLUSH_SECONDS = 0.5
@@ -59,6 +62,14 @@ DRAIN_GRACE_SECONDS = 2.0
 # How long killing a command may take before we stop waiting for it.
 KILL_SECONDS = 20.0
 TRUNCATED_NOTE = "\n[output truncated: more than 1 MiB]"
+# command_output (0.1.8): at most this much of a command that keeps running at a time - as much
+# as of a command's output the model is shown (`for_model`).
+OUTPUT_AT_MOST = MODEL_HEAD + MODEL_TAIL
+# stop_command: the one way round the command gate is to stop a command the agent started itself.
+NOT_YOURS = (
+    "command {id} was not started by you, and you stop only one you started: another agent's "
+    "or an earlier turn's is the user's to stop, under Preview"
+)
 # B-321: a refusal ends that one action, not the task - told "do not try another way" and
 # "stop and ask", Codex gave up the whole task over one part of one command.
 CARRY_ON = (
@@ -196,42 +207,86 @@ PLANTED_REFUSED = "KOLONİ did not run this: {why}, and nobody is here to ask. "
 # runs in holds first (`python -m`), and in a working copy what PYTHONPATH names - the copy's root
 # and its `src` (`host.copy_python_path`) - `sitecustomize` there before anything it runs.
 _NODE_RUNNERS = frozenset({"npx", "pnpx", "bunx", "npm", "pnpm", "yarn", "bun"})
+# (yarn's `.env.yarn` and bun's `.env` files go into the environment of what it runs:
+# `NODE_OPTIONS=--require x`)
+_BUN_ENV = (".env", ".env.local", ".env.production", ".env.development")
 _NODE_SETTINGS = {
-    "yarn": (".yarnrc.yml", ".yarnrc", ".yarn", ".pnp.cjs", ".pnp.loader.mjs", ".npmrc"),
+    "yarn": (
+        ".yarnrc.yml",
+        ".yarnrc",
+        ".yarn",
+        ".pnp.cjs",
+        ".pnp.loader.mjs",
+        ".npmrc",
+        ".env.yarn",
+    ),
     "pnpm": (".pnpmfile.cjs", ".npmrc"),
     "pnpx": (".pnpmfile.cjs", ".npmrc"),
-    "bun": ("bunfig.toml",),
-    "bunx": ("bunfig.toml",),
+    "bun": ("bunfig.toml", *_BUN_ENV),
+    "bunx": ("bunfig.toml", *_BUN_ENV),
 }
 # W7: npx and `npm exec` run a name the local package's `bin` gives first (measured, npm 11.9:
 # installed into its cache and run from there, never node_modules/.bin), yarn and pnpm a script of
 # its own, `npm install` every workspace's lifecycle scripts (W7d), and npm reads any `*.npmrc` it
 # is pointed at (W7c) - so an agent's write of any package.json or runner setting in the project
-# (`_NODE_EVERYWHERE`; outside node_modules, which counts up the tree) stops the rule. A line of
-# npm's or pnpm's that runs a script by its name (`npm run x`, `npm test`) runs the project's code
-# by design and is not so - yarn's and bun's `run` run a bin too, npx's `test` is a package.
+# (`_NODE_EVERYWHERE`, a package's in a node_modules too) stops the rule: an install follows a
+# lock's `resolved` address and runs node-gyp on a `binding.gyp`. A line of npm's or pnpm's that
+# runs a script by its name (`npm run x`, `npm test`) runs the project's code by design and is not
+# so - yarn's and bun's `run` run a bin too, npx's `test` is a package.
 _SCRIPT_VERBS = frozenset({"run", "run-script", "test", "t", "tst", "start", "stop", "restart"})
 _NODE_EVERYWHERE = frozenset(
-    {"package.json", ".yarn", ".pnpmfile.cjs", "pnpm-workspace.yaml", "bunfig.toml"}
+    {
+        *("package.json", ".yarn", ".pnpmfile.cjs", "pnpm-workspace.yaml", "bunfig.toml"),
+        *("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock"),
+        *("bun.lockb", "bun.lock", "binding.gyp"),
+    }
 )
 
 
 def _node_setting(rel: str) -> str | None:
-    """W7c, W7d: the package.json or runner setting (`.npmrc` / `x.npmrc`, `.yarnrc*`, `.yarn/`,
-    `_NODE_EVERYWHERE`) `rel` (from the root) is or is in, outside node_modules; None: none."""
+    """W7c, W7d: the package.json, lock or runner setting (`.npmrc` / `x.npmrc`, `.yarnrc*`,
+    `.yarn/`, `_NODE_EVERYWHERE`) `rel` (from the root) is or is in; None: none."""
     parts = PurePosixPath(rel).parts
-    if any(part.casefold() == "node_modules" for part in parts):
-        return None
     for at, part in enumerate(part.casefold() for part in parts):
         if part in _NODE_EVERYWHERE or part.endswith(".npmrc") or part.startswith(".yarnrc"):
             return PurePosixPath(*parts[: at + 1]).as_posix()
     return None
 
 
-_PY_RUNNERS = frozenset({"uv", "uvx", "poetry", "pipenv", "pdm", "hatch"})
+_PY_RUNNERS = frozenset({"uv", "uvx", "poetry", "pipenv", "pdm", "hatch", "pip", "pip3"})
+# (one run as a module is that one - `python -m uv`, `py -m pip` -, and so is `python -m build`)
+_PY_RUNNER_MODULES = _PY_RUNNERS | {"build"}
 # ...and uv, poetry, pipenv, pdm, hatch resolve `[project.scripts]` and build the project to run
-# in it: an agent's `pyproject.toml` (or `setup.py`) there stops theirs - but a test run's.
+# in it, pip and build the one they install: an agent's `pyproject.toml` (or `setup.py`) there
+# stops theirs - but a test run's. So
+# does one anywhere in the project (F395, as W7d: a workspace member's or a path dependency's,
+# built with it), and any of their settings, locks and requirements (`_python_setting`).
 _PY_MANIFESTS = ("pyproject.toml", "setup.py")
+_PY_EVERYWHERE = frozenset(
+    {
+        *(*_PY_MANIFESTS, "setup.cfg", "uv.toml", "poetry.toml", "pdm.toml", "hatch.toml"),
+        *("pipfile", "pipfile.lock", "uv.lock", "poetry.lock", "pdm.lock", "pylock.toml"),
+        *(".python-version", ".pdm-python"),  # (the Python uv / pdm run: a path too)
+    }
+)
+_PY_RUNNER_SETTINGS = {"pipenv": (".env",)}  # (loaded into its environment: PATH, PYTHONPATH)
+
+
+def _python_setting(rel: str, runner: str) -> str | None:
+    """F395: `rel` (from the root) where it is a Python runner's manifest, setting or lock
+    (`_PY_EVERYWHERE`, the runner's own `_PY_RUNNER_SETTINGS`) or requirements (`requirements*.txt`,
+    `requirements/x.txt`); None: none.
+    shortcut: by the tools' documents, not measured (no uv, poetry, pipenv, pdm or hatch runs
+    here); a file a manifest names by another name (`-r deps.txt`) is not seen - count it if one is
+    seen used so."""
+    parts = [part.casefold() for part in PurePosixPath(rel).parts]
+    name = parts[-1] if parts else ""
+    if name in _PY_EVERYWHERE or name in _PY_RUNNER_SETTINGS.get(runner, ()):
+        return rel
+    named = any(part.startswith("requirements") for part in parts)
+    return rel if named and name.endswith(".txt") else None
+
+
 _PY_INSTALLS = (".venv", "venv", "site-packages")
 _PYTHON = re.compile(r"python[\d.]*w?|pyw?")
 # (`python -m pytest` imports the project's own modules by design - its tests are its code)
@@ -253,6 +308,7 @@ class _Reach(NamedTuple):
     reads_path: bool = False
     startup_only: bool = False
     node_settings: bool = False  # (`_node_setting`: any in the project)
+    py_settings: str = ""  # (the Python runner whose `_python_setting` count: any in the project)
 
 
 def _python_module(words: list[str]) -> tuple[str, str] | None:
@@ -292,19 +348,24 @@ def _runner_places(words: list[str], cwd: str) -> _Reach | None:
         )
     python = next((at for at, word in enumerate(words) if _PYTHON.fullmatch(_program(word))), None)
     module = _python_module(words[python:]) if python is not None else None
-    if name not in _PY_RUNNERS and module is None:
+    led = module is not None and module[0] in _PY_RUNNER_MODULES  # (`python -m uv`, `-m pip`)
+    runner = name if name in _PY_RUNNERS or not led else module[0]
+    if runner not in _PY_RUNNERS and module is None:
         return None
     flags = set(module[1]) if module else set()
-    tool = module[0] if module else next((w for w in words[1:] if w[:1] != "-" and w != "run"), "")
+    skip = ("run", module[0] if led else "run")
+    rest = (w for w in words[1:] if w[:1] != "-" and w not in skip)
+    tool = module[0] if module and not led else next(rest, "")
     safe_path = bool(os.environ.get("PYTHONSAFEPATH")) and "E" not in flags
     tests = _program(tool.split(".")[0]) in _RUNS_THE_PROJECT
-    own = _PY_MANIFESTS if name in _PY_RUNNERS and not tests else ()
+    own = _PY_MANIFESTS if runner in _PY_RUNNER_MODULES and not tests else ()
     return _Reach(
         [str(folder / one) for folder in above for one in (".venv", "venv", *own)],
         _PY_INSTALLS,
         reads_cwd=module is not None and not flags & {"I", "P"} and not safe_path,
         reads_path=not flags & {"I", "E"},
         startup_only=tests,
+        py_settings=runner if own else "",
     )
 
 
@@ -333,23 +394,21 @@ def _path_reach(parts: tuple[str, ...]) -> _Reach:
     return _Reach(None, reads_path=script, startup_only=tool in _RUNS_THE_PROJECT)
 
 
-def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | None:
-    """W2, W6: why a rule, a yes given before or a trigger's leave - each matches by the line's
-    text, in any folder - does not cover `command`: its program, named by its path, is one an
-    agent wrote on record - any turn's, as it still stands in `root` (`proof_style.
-    still_written`) -, or is in the install folder such a write is in (`proof_style.
-    wrote_program`); or a package runner's line (`_runner_places`) finds its program where such
-    a write is; or a Python imports a module such a write is (`proof_style.shadows`). None: no
-    such write. In a thread: the records are matched to the program's place first, and only
-    those files are read, once the session is closed.
-    shortcut: the program alone - a script an interpreter is given (`node x.js`) is not judged
-    so; judge it too if a rule of one is seen to run one an agent wrote."""
-    words = [word.strip("'\"") for word in _words(command)]
-    words = words[1:] if words[:1] in (["&"], ["."]) else words  # (PowerShell's call)
-    program = _program_word(words)
+def _reach_of(words: list[str], program: str, cwd: str) -> tuple[_Reach, list[str], bool] | None:
+    """W2, W6: where a line's program comes from (`_Reach`), the names of what a write there is
+    looked up by - and whether it runs tsc (W7: tsc's settings count too - but on Code style's own
+    line, word for word `proof_style.TSC_WORDS`, whose `--composite false --generateTrace null`
+    win over them: measured, 5.9); None: none of these."""
     parts = PurePosixPath(program.replace("\\", "/")).parts
     # (a runner first: `.venv/Scripts/python.exe -m x` is named by its path, and reads its folder)
-    if reach := _runner_places(words, cwd):
+    reach = _runner_places(words, cwd)
+    tsc = words[1:] != proof_style.TSC_WORDS.split() and (
+        _program(program).removesuffix(".js") in ("tsc", "_tsc")  # (`node …/lib/tsc.js` too)
+        or reach is not None
+        and reach.node_settings
+        and "tsc" in {_program(word) for word in words}
+    )
+    if reach:
         named = [*{PurePosixPath(place).name for place in reach.places or ()}, *reach.anywhere]
     elif parts and ("/" in program or "\\" in program):
         reach = _path_reach(parts)
@@ -359,8 +418,54 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
                 parts[-1].split(".")[0],
             )
         ]
+    elif tsc:
+        reach, named = _Reach([]), []
     else:
         return None
+    return reach, named, tsc
+
+
+def _written_settings(
+    reach: _Reach, root: Path, cwd: str, words: list[str], tsc: bool
+) -> tuple[list[str], Callable[[str], str | None]]:
+    """W7, F395: the settings files anywhere in the project an agent's write of which stops a
+    rule of the line - a node runner's (`_node_setting`), a Python runner's (`_python_setting`),
+    tsc's (`proof_style.tsc_setting`) -: the names a write's record is looked up by, and the test
+    of its path (the place said; None: not one)."""
+    names: list[str] = []
+    tests: list[Callable[[str], str | None]] = []
+    if reach.node_settings:
+        names += [*_NODE_EVERYWHERE, "npmrc", ".yarnrc", "node_modules"]
+        tests.append(_node_setting)
+    if reach.py_settings:
+        names += [*_PY_EVERYWHERE, *_PY_RUNNER_SETTINGS.get(reach.py_settings, ()), "requirements"]
+        tests.append(functools.partial(_python_setting, runner=reach.py_settings))
+    if tsc:
+        read = proof_style.tsc_reads(root, cwd, words)
+        names += ["tsconfig", "jsconfig", *map(os.path.basename, read or [".json"])]
+        tests.append(functools.partial(proof_style.tsc_setting, root, read=read))
+    return names, lambda rel: next((place for test in tests if (place := test(rel))), None)
+
+
+def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | None:
+    """W2, W6: why a rule, a yes given before or a trigger's leave - each matches by the line's
+    text, in any folder - does not cover `command`: its program, named by its path, is one an
+    agent wrote on record - any turn's, as it still stands in `root` (`proof_style.
+    still_written`) -, or is in the install folder such a write is in (`proof_style.
+    wrote_program`); or a package runner's line (`_runner_places`) finds its program where such
+    a write is; or a Python imports a module such a write is (`proof_style.shadows`); or such a
+    write is a setting the line reads (`_written_settings`). None: no such write. In a thread:
+    the records are matched to the program's place first, and only those files are read, once
+    the session is closed.
+    shortcut: the program alone - a script an interpreter is given (`node x.js`) is not judged
+    so; judge it too if a rule of one is seen to run one an agent wrote."""
+    words = [word.strip("'\"") for word in _words(command)]
+    words = words[1:] if words[:1] in (["&"], ["."]) else words  # (PowerShell's call)
+    program = _program_word(words)
+    if (reached := _reach_of(words, program, cwd)) is None:
+        return None
+    reach, named, tsc = reached
+    settings, setting = _written_settings(reach, root, cwd, words, tsc)
     with factory() as session:
         project = session.scalar(
             select(Project.root_path)
@@ -375,7 +480,7 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
             for one in [
                 *named,
                 *((*proof_style.MODULE_ENDINGS, "__init__") if own or path else ()),
-                *((*_NODE_EVERYWHERE, "npmrc", ".yarnrc") if reach.node_settings else ()),
+                *settings,
             ]
         ]
         found = session.execute(
@@ -409,7 +514,7 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
                 (one for entry, only in imported if (one := proof_style.shadows(entry, rel, only))),
                 None,
             )
-            or (_node_setting(rel) if reach.node_settings else None)
+            or setting(rel)
         )
 
     held = proof_style.still_written(root, [one for one in newest.items() if plants(one[0])])
@@ -473,6 +578,12 @@ def preview_url(output: str, closed: set[int]) -> str | None:
     return None
 
 
+def longest_seconds(project: Project | None) -> int:
+    """The longest a command may take in `project` (0.1.8: its `longest_command`), in seconds -
+    an agent's, and KOLONİ's own test runs'; MAX_TIMEOUT where there is no project."""
+    return project.longest_command * 60 if project is not None else MAX_TIMEOUT
+
+
 def port_of(url: str | None) -> int | None:
     try:
         parts = urlsplit(url or "")
@@ -528,6 +639,13 @@ class CommandRunner:
         future.set_result(decision)
         return True
 
+    def longest(self, cid: str) -> int:
+        """The longest a command may take in conversation `cid`'s project, in seconds."""
+        with self._factory() as session:
+            conversation = session.get(Conversation, cid)
+            project_id = conversation.project_id if conversation is not None else None
+            return longest_seconds(session.get(Project, project_id) if project_id else None)
+
     def live_outputs(self, conversation_id: str) -> dict[str, str]:
         return {k: text for k, (cid, text) in self._live.items() if cid == conversation_id}
 
@@ -565,7 +683,8 @@ class CommandRunner:
         `allowed` lifts the level's own ask only (`_free`), and its card offers "Allow such
         deletes in this project" where it is asked. `env`: what its environment gets besides
         (KOLONİ's own test runs: their processes, S6) - never an agent's command."""
-        planned = plan_command(ws, args)
+        cap = self.longest(cid)
+        planned = plan_command(ws, args, cap)
         searched = await asyncio.to_thread(search_reason, planned.command, ws.root, planned.cwd_rel)
         planted = await asyncio.to_thread(
             _planted, self._factory, cid, ws.root, planned.command, planned.cwd_rel
@@ -697,7 +816,7 @@ class CommandRunner:
         try:
             if where is not None:
                 ws = await where()
-                planned = plan_command(ws, args)
+                planned = plan_command(ws, args, cap)
         except ToolError as exc:  # its folder is not in the copy (one that is left out)
             self._set(
                 cid, command_id, status="failed_to_start", output=f"error: {exc}", ended_at=now()
@@ -909,7 +1028,8 @@ class CommandRunner:
         )
         return "succeeded", (
             f"keeps running as command {command_id}, {where}. The user sees its page under "
-            f"Preview and can stop it there. Its last lines:\n{for_model(last)}"
+            f"Preview and can stop it there; command_output reads what it prints later, and "
+            f"stop_command stops it. Its last lines:\n{for_model(last)}"
         )
 
     def stop(self, command_id: str) -> bool:
@@ -919,6 +1039,90 @@ class CommandRunner:
             return False
         serving[1].cancel()
         return True
+
+    def serving_here(self, cid: str) -> list[tuple[str, str]]:
+        """The commands that keep running in a conversation now: (id, command line)."""
+        ids = [command_id for command_id, (at, _life) in self._serving.items() if at == cid]
+        if not ids:
+            return []
+        with self._factory() as session:
+            return [
+                (command_id, line)
+                for command_id, line in session.execute(
+                    select(Command.id, Command.command).where(Command.id.in_(ids))
+                )
+            ]
+
+    def server(self, cid: str, command_id: str) -> Command:
+        """A command that keeps running (or did) in conversation `cid`, by its id - where it is
+        none, a ToolError that names the ones running there now."""
+        with self._factory() as session:
+            command = session.scalar(
+                select(Command)
+                .join(Run, Run.id == Command.run_id)
+                .where(
+                    Command.id == command_id,
+                    Run.conversation_id == cid,
+                    Command.keep_running.is_(True),
+                )
+            )
+            if command is not None:
+                session.expunge(command)
+                return command
+        running = "; ".join(f"{one} ({line})" for one, line in self.serving_here(cid))
+        raise ToolError(
+            f"no command that keeps running in this conversation has the id {command_id!r}: "
+            + (f"these run now - {running}" if running else "none runs now")
+        )
+
+    def output_of(self, command: Command, since: int | None) -> str:
+        """command_output: what a command that keeps running (`server`) printed - hidden as it was
+        kept (`_masks`), never the half line still held back - its newest OUTPUT_AT_MOST, or from
+        `since` on; of one that ended, its record's."""
+        command_id = command.id
+        live = self._live.get(command_id) if command_id in self._serving else None
+        text = live[1] if live is not None else command.output or ""
+        total = len(text)
+        start = max(0, total - OUTPUT_AT_MOST) if since is None else min(since, total)
+        shown = text[start : start + OUTPUT_AT_MOST]
+        end = start + len(shown)
+        if live is not None:
+            url = f", serving {command.preview_url}" if command.preview_url else ""
+            state = f"keeps running{url}"
+        else:
+            code = f", exit code {command.exit_code}" if command.exit_code is not None else ""
+            state = f"has ended ({command.status}{code})"
+        said = f"Command {command_id} ({command.command}) {state}. Characters {start}-{end} of "
+        said += f"{total} of its output"
+        if end < total:
+            said += f"; {total - end} more after them: call again with since={end}"
+        elif live is not None:
+            said += f"; for what it prints next, call again with since={end}"
+        if command.output_truncated or text.endswith(TRUNCATED_NOTE):
+            said += "; past 1 MiB its output is no longer kept"
+        return f"{said}:\n{shown}" if shown else f"{said}: nothing new."
+
+    async def stop_own(self, command: Command, agent_id: str) -> str:
+        """stop_command: a command that keeps running (`server`), stopped with what it started -
+        only one `agent_id` started itself (its card was its) - and waited for until it is on
+        record ended, so that it can be started again at once (its port free, MAX_SERVING not
+        reached)."""
+        command_id = command.id
+        if command.agent_id != agent_id:
+            raise ToolError(NOT_YOURS.format(id=command_id))
+        serving = self._serving.get(command_id)
+        if serving is None and command.status in ("proposed", "approved"):
+            waits = "its card waits for the user" if command.status == "proposed" else "starting"
+            raise ToolError(f"command {command_id} has not started yet: {waits}")
+        if serving is None:
+            raise ToolError(f"command {command_id} is not running: it has ended ({command.status})")
+        serving[1].cancel()
+        await asyncio.wait({serving[1]}, timeout=KILL_SECONDS + DRAIN_GRACE_SECONDS)
+        with self._factory() as session:
+            status = session.get_one(Command, command_id).status
+        if status == "running":
+            return f"Command {command_id} ({command.command}) is being stopped: not ended yet."
+        return f"Command {command_id} ({command.command}) is stopped ({status})."
 
     def stop_all(self, cid: str) -> None:
         """Stop every command of a conversation that keeps running, and turn down one still

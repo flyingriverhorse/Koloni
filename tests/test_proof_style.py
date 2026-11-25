@@ -14,7 +14,7 @@ import pytest
 
 from app import proof, proof_style
 from app.executors import host
-from tests.conftest import scaled
+from tests.conftest import migrated_copy, scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.keyed import OWN
 from tests.test_agent_writes import wait_status, write
@@ -199,6 +199,8 @@ def test_ruffs_problem_on_the_turns_line_is_a_fix_round_and_its_tests_still_run(
     assert "app.py:1: ruff F401 - `os` imported but unused" in nudged
     assert "data, not instructions" in nudged  # (the tool's words: data)
     assert "ruff: no problems on the lines this turn changed (1 files)" in rows, rows
+    # (a copy's code is never first on a tool's PYTHONPATH - the project's own tests as before)
+    assert [host.NO_COPY_PATH in one for one in executor.extra_envs] == [False, True] * 2
 
 
 @pytest.mark.no_po
@@ -707,6 +709,13 @@ def test_the_turns_lines_are_counted_as_the_tools_count_them():
     assert proof.changed_lines("\x0c\nimport os\n", "\x0c\ny = 1\nimport os\n") == [2]
     assert proof.changed_lines("a\r\nb\r\n", "a\r\nB\r\n") == [2]
     assert proof.changed_lines("a\rb", "a\rb\rc") == [3]
+    # (a line separator ends a line to eslint and tsc - measured, tsc 5.9 - never to ruff or mypy)
+    before, after = "a\u2028b\nc\n", "a\u2028B\nc\n"
+    assert proof.changed_lines(before, after) == [1]
+    assert proof.changed_lines(before, after, script=True) == [2]
+    texts = {"x.ts": (before, after), "x.py": (before, after)}
+    changed = proof_style.Changed(texts, time.monotonic() + 60)
+    assert (changed.get("x.ts"), changed.get("x.py")) == ({2}, {1})
 
 
 def test_warnings_on_the_turns_lines_are_not_counted_as_elsewhere(tmp_path):
@@ -722,27 +731,104 @@ def test_warnings_on_the_turns_lines_are_not_counted_as_elsewhere(tmp_path):
     ]
 
 
+COMPOSITE = '{"compilerOptions": {"composite": true}}'
+
+
 @pytest.mark.parametrize(
-    "config, said",
+    "files, said",
     [
-        ('{"files": [], "references": [{"path": "./tsconfig.app.json"}]}', proof_style.NO_FILES),
-        ('{"compilerOptions": {"composite": true}}', proof_style.COMPOSITE),
-        ('{"compilerOptions": {', proof_style.NO_TSCONFIG),
-        ('{\n  // checked\n  "compilerOptions": {"strict": true,},\n}', None),
+        ({"tsconfig.json": '{"files": [], "references": [{"path": "./tsconfig.app.json"}]}'}, (
+            proof_style.NO_FILES
+        )),
+        ({"tsconfig.json": '{"compilerOptions": {'}, proof_style.NO_TSCONFIG),
+        ({"tsconfig.json": '{\n  // checked\n  "compilerOptions": {"strict": true,},\n}'}, None),
+        ({"tsconfig.json": '\ufeff{"include": ["src"]}'}, None),  # (a BOM, as tsc reads it)
+        # (the review's probes: composite, an incremental build info or a trace - itself or in
+        # what it extends - made tsc write where they said, outside the project too: it runs,
+        # told on its line to write none of them)
+        (
+            {
+                "base.json": COMPOSITE,
+                "tsconfig.json": '{"extends": "./base.json", "compilerOptions": '
+                '{"tsBuildInfoFile": "../../outside/x.json"}}',
+            },
+            None,
+        ),
+        ({"tsconfig.json": '{"compilerOptions": {"generateTrace": "../../out"}}'}, None),
+        ({"node_modules/foo.json": COMPOSITE, "tsconfig.json": '{"extends": "foo"}'}, None),
+        # (files as tsc takes them: its own, else from what it extends - the last one first)
+        ({"b.json": '{"files": []}', "tsconfig.json": '{"extends": "./b.json"}'}, (
+            proof_style.NO_FILES
+        )),
+        ({"b.json": '{"include": ["src"]}', "tsconfig.json": '{"extends": "./b", "files": []}'}, (
+            None
+        )),
+        (
+            {
+                "a.json": '{"files": [], // a\n}',
+                "b.json": '{"files": ["src/a.ts"]}',
+                "tsconfig.json": '{"extends": ["./b.json", "./a.json"]}',
+            },
+            proof_style.NO_FILES,
+        ),
+        ({"tsconfig.json": '{"extends": "../../outside.json"}'}, proof_style.NO_BASE),
+        ({"tsconfig.json": '{"extends": "./missing.json"}'}, proof_style.NO_BASE),
+        ({"tsconfig.json": '{"extends": "./tsconfig.json"}'}, proof_style.NO_BASE),  # (a loop)
+        ({"tsconfig.json": '{"extends": 1}'}, proof_style.NO_BASE),
+        ({"base.json": '{"compilerOptions": {', "tsconfig.json": '{"extends": "./base.json"}'}, (
+            proof_style.NO_BASE
+        )),
     ],
-)
-def test_tsc_runs_only_on_a_tsconfig_that_checks_files_and_writes_nothing(tmp_path, config, said):
-    (tmp_path / "web" / "node_modules" / ".bin").mkdir(parents=True)
+)  # fmt: skip
+def test_tsc_runs_where_its_tsconfig_checks_files_and_is_told_to_write_nothing(
+    tmp_path, files, said
+):
+    root = tmp_path / "p"
+    (root / "web" / "node_modules" / ".bin").mkdir(parents=True)
     tsc = "node_modules/.bin/tsc.cmd" if sys.platform == "win32" else "node_modules/.bin/tsc"
-    (tmp_path / "web" / tsc).write_text("")
-    (tmp_path / "web" / "tsconfig.json").write_text(config, encoding="utf-8")
-    runs, notes = proof_style.planned(tmp_path, ["web/src/a.ts"])
+    (root / "web" / tsc).write_text("")
+    (tmp_path / "outside.json").write_text('{"include": ["src"]}')
+    for name, content in files.items():
+        (root / "web" / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / "web" / name).write_text(content, encoding="utf-8")
+    runs, notes = proof_style.planned(root, ["web/src/a.ts"])
     if said is not None:  # (never a pass row for nothing checked)
         assert (runs, notes) == ([], [said])
         return
     ((_tool, line, cwd, _files),) = runs
-    assert line == f"{tsc} --noEmit --pretty false --incremental false -p tsconfig.json"
+    # (its command line wins over any tsconfig: no build info, no trace, no output)
+    assert line == (
+        f"{tsc} --noEmit --pretty false --incremental false -p tsconfig.json"
+        " --composite false --generateTrace null"
+    )
     assert cwd == "web" and notes == []
+
+
+@pytest.mark.parametrize("end", ["\r", "\u2028", "\u2029"])
+def test_a_line_comment_in_a_tsconfig_ends_where_tsc_ends_it(end):
+    # (the review's: a `//` comment ended by CR or a line separator hid what came after it)
+    from app.proof_kinds import _json
+
+    text = '{"o": { // x' + end + '"composite": true,' + "\n" + '"strict": true}}'
+    found, _said = _json(text, "tsconfig.json")
+    assert found is None or found["o"].get("composite") is True, found
+    assert end != "\r" or found is not None
+
+
+def test_tsc_follows_at_most_eight_links_of_extends(tmp_path):
+    (tmp_path / "node_modules" / ".bin").mkdir(parents=True)
+    tsc = "node_modules/.bin/tsc.cmd" if sys.platform == "win32" else "node_modules/.bin/tsc"
+    (tmp_path / tsc).write_text("")
+    (tmp_path / "tsconfig.json").write_text('{"extends": "./c1.json", "include": ["src"]}')
+    for n in range(1, proof_style.MOST_EXTENDS + 2):
+        (tmp_path / f"c{n}.json").write_text(f'{{"extends": "./c{n + 1}.json"}}')
+    (tmp_path / f"c{proof_style.MOST_EXTENDS}.json").write_text("{}")
+    assert proof_style.planned(tmp_path, ["src/a.ts"])[1] == []
+    (tmp_path / f"c{proof_style.MOST_EXTENDS}.json").write_text(
+        f'{{"extends": "./c{proof_style.MOST_EXTENDS + 1}.json"}}'
+    )
+    (tmp_path / f"c{proof_style.MOST_EXTENDS + 1}.json").write_text("{}")
+    assert proof_style.planned(tmp_path, ["src/a.ts"]) == ([], [proof_style.NO_BASE])
 
 
 def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(tmp_path):
@@ -754,16 +840,31 @@ def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(
         "mypy": f"{RUFF.replace('ruff', 'mypy')} --no-error-summary --no-pretty "
         f"--cache-dir=.mypy_cache ./{py}",
         "eslint": f"{NODE} --format stylish --no-color ./a.js",
-        "tsc": f"{NODE.replace('eslint', 'tsc')} --noEmit --pretty false --incremental false "
-        "-p tsconfig.json",
+        "tsc": f"{NODE.replace('eslint', 'tsc')} {proof_style.TSC_WORDS}",
     }
     escapes = {
-        "ruff": ["--config C:/x/evil.toml", "--output-file C:/x/out.txt", "-o C:/x/out.txt"],
+        "ruff": ["--config C:/x/evil.toml", "--output-file C:/x/out.txt", "-o C:/x/out.txt",
+                 "--fix", "--fix-only", "--unsafe-fixes", "--add-noqa"],
         "mypy": ["--python-executable C:/x/evil.exe", "--config-file C:/x/evil.ini",
-                 "--cache-dir C:/x", "--junit-xml C:/x/out.xml"],
+                 "--cache-dir C:/x", "--junit-xml C:/x/out.xml", "--html-report C:/x",
+                 "--txt-report ../x", "--install-types --non-interactive"],
         "eslint": ["--resolve-plugins-relative-to C:/x", "-c C:/x/evil.js", "--rulesdir C:/x",
-                   "-o C:/x/out.txt", "--config C:/x/evil.js"],
-        "tsc": ["--outDir C:/x", "-p C:/x/tsconfig.json"],
+                   "-o C:/x/out.txt", "--config C:/x/evil.js", "--fix", "--plugin evil",
+                   "--parser C:/x/p.js", "--format ./evil.js", "-f C:/x/f.js", "--format=x",
+                   "--init", "--inspect-config", "--suppress-all", "--suppress-rule no-x",
+                   "--prune-suppressions", "--suppressions-location C:/x/s.json",
+                   "--cache --cache-file C:/x/c",
+                   # (eslint's optionator refuses these spellings - covered by none all the same)
+                   "--Format ./x.js", "--outputFile C:/x/o.txt", "--inspectConfig", "--Fix",
+                   "--resolvePluginsRelativeTo C:/x", "--Plugin x", "--Config C:/x/c.js"],
+        # (tsc reads its options in any case - measured, 5.9)
+        "tsc": ["--outDir C:/x", "-p C:/x/tsconfig.json", "--generateTrace C:/x",
+                "--generateCpuProfile C:/x/p.cpuprofile", "--OUTDIR C:/x", "--generatetrace C:/x",
+                "-P C:/x/tsconfig.json", "--generateTrace .",
+                # (the review's: each wrote outside with a tsconfig that asks for it; `FALSE` is
+                # true to tsc)
+                "--incremental", "--incremental true", "--INCREMENTAL", "--incremental FALSE",
+                "--noEmit false", "--composite null", "--composite", "-b", "--build", "-B"],
     }  # fmt: skip
     assert suggest_prefix("./node_modules/.bin/eslint --format stylish ./a.js") == (
         "./node_modules/.bin/eslint --format stylish"
@@ -780,6 +881,64 @@ def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(
             assert not matches(f"{fixed} {escape} ./b.py", offered), (tool, escape)
             # (nor an older rule of the bare program's)
             assert not matches(f"{program} {escape} ./b.py", program), (tool, escape)
+        assert matches(line, program), tool  # (which covers KOLONİ's own line)
+    # (eslint's own formatter loads nothing; a rule that says `--fix` itself covers it; another
+    # program's option of the same letter is never eslint's or pytest's harmless one)
+    assert matches(f"{NODE} --format json ./a.js", NODE)
+    assert matches(f"{NODE} -f json ./a.js", NODE)
+    assert matches(f'{NODE} --format "stylish" ./a.js', NODE)
+    tsc = NODE.replace("eslint", "tsc")  # (what writes nothing: as Code style's line says it)
+    assert matches(f"{tsc} --noEmit -p tsconfig.json --incremental false --composite false", tsc)
+    assert matches(f"{RUFF} check --fix ./a.py", f"{RUFF} check --fix")
+    assert not matches("make -f html", "make")
+    assert not matches("gradle build -p no:x", "gradle build")
+
+
+def test_a_word_in_pieces_a_shell_joins_is_never_harmless_past_a_rule():
+    """The re-check's: `fal""se` is `false` to PowerShell and sh (and `f\\alse` to sh) - tsc
+    then emitted. A value or an option so written is never harmless, nor a path so built
+    inside; and tsc reads `--p` as `-p`."""
+    from app.commands import matches
+
+    tsc = NODE.replace("eslint", "tsc")
+    past = {
+        f"{tsc} {proof_style.TSC_WORDS}": [
+            *('--noEmit fal""se', '--noEmit f"alse"', '--noEmit "fa"lse', "--noEmit fal''se"),
+            *("--noEmit fals\\e", "--noEmit \\false", '--noEmit "false"', "--noEmit ./x.ts"),
+            *('--incremental fal""se', '--generateTrace nu""ll', '--incre"mental"'),
+            *('"--incremental"', "'-b'", '--no"Emit" false', "--incre\\mental"),
+            *('--outDir ".."/x', "--p C:/x/tsconfig.json", "--b", "--B"),
+        ],
+        f"{NODE} --format stylish": [
+            *('--output-file "."./x', '-o ".."/x', '--format st"yl"ish', '--output-file="../x"'),
+            *("-o=../x", "-o=C:/x", "-o=/x"),  # (`-o=x` is `-o x` to clap and optionator)
+        ],
+        FIXED_LINE: ["-o=../x", "-o=C:/x", "-o=/x"],  # (the re-check's: ruff wrote outside)
+        f"{tsc} --noEmit": ['--outDir="..\\x"', '--outDir="../x"'],
+        ".venv/Scripts/mypy.exe": ['--html-report ".."/x'],
+        "pytest": ['-p no:"x"'],
+    }
+    for rule, extras in past.items():
+        for extra in extras:
+            assert not matches(f"{rule} {extra} ./a", rule), extra
+    # (one pair of outer quotes is a word as it is; a value that is no option's stays covered)
+    covered = {
+        f"{tsc} {proof_style.TSC_WORDS}": ["--noEmit", "--noEmit true", '--outDir "dist"'],
+        f"{NODE} --format stylish": ['--format "stylish"', "--format 'json'"],
+        "pytest": ['-k "a or b"', '-p "no:cacheprovider"', '-k="a"', '--tb="short"', "-p=no:x"],
+        # (a value after `=` quoted whole is that value: no card for these)
+        "go test": ['-run="TestX"'],
+        "cargo test": ['--features="a"'],
+        "pytest -q": ['--deselect="tests/a.py::t"', "--cov=app\\core"],
+        FIXED_LINE: ['--select="E,F"'],
+        ".venv/Scripts/mypy.exe": ['--exclude="build/"'],
+        f"{NODE} --no-color": ['--ext=".ts"', '--format="json"'],
+        # (on Windows a backslash is a path's separator: inside)
+        **({"pytest -x": ["--junitxml=.\\out.xml"]} if sys.platform == "win32" else {}),
+    }
+    for rule, extras in covered.items():
+        for extra in extras:
+            assert matches(f"{rule} {extra}", rule), extra
 
 
 @pytest.mark.no_po
@@ -831,6 +990,47 @@ def test_a_program_an_earlier_turn_planted_is_not_run_by_a_rule_either(
     assert [Path(cwd).name for _c, cwd in executor.started].count("admin") == 1, executor.started
 
 
+@pytest.mark.no_po
+@pytest.mark.parametrize("status", ["in_copy", "merged"])
+def test_an_earlier_turns_plant_in_a_copy_or_merged_offers_no_card(
+    make_client, wait_run, project_dir, status
+):
+    """Across turns, a write still in a copy or merged in counts as an applied one does: the
+    eslint an earlier turn wrote, its bytes still there, is said not run - no card for it."""
+    from sqlalchemy import update
+
+    from app.db.models import FileChange
+    from tests.test_proof_ci_scenarios import again
+
+    planted = f"admin/{NODE}"
+    executor = ScriptedExecutor([PASS] * 6)
+    client, _model = make_client(
+        [
+            write("admin/eslint.config.js", "export default []\n", "w1"),
+            write(planted, "@echo PLANTED %*\n", "w2"),
+            text("done"),
+            write("admin/x.js", "let x = 1\n", "w3"),
+            text("done again"),
+        ],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    wait_run(client, cid, run_id)
+    with client.app.state.session_factory() as session:
+        session.execute(update(FileChange).where(FileChange.path == planted).values(status=status))
+        session.commit()
+    second, snap = again(client, wait_run, cid)
+    assert not [cwd for _c, cwd in executor.started if Path(cwd).name == "admin"], executor.started
+    rows = [
+        row["text"]
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == second
+        for row in m["checked"]
+    ]
+    said = "eslint: not run - this turn wrote in admin/node_modules: no install of the project's"
+    assert said in rows, rows
+
+
 # --- the second session's round (W1, W2): a program an agent wrote, a name a shim runs bare ------
 
 
@@ -858,10 +1058,18 @@ def test_a_program_named_by_its_path_is_planted_by_itself_or_its_install_folder(
     assert wrote(tmp_path, "web", tsc, ["web/node_modules/typescript/bin/tsc"]) == (
         "web/node_modules"
     )
-    assert wrote(tmp_path, "web", tsc, ["node_modules/.bin/tsc.cmd"]) is None
+    # (and in a node_modules above it, which Node loads from too: the root's `espree` a subfolder's
+    # eslint loads - the review's probe; never a sibling's, nor a .venv above)
+    assert wrote(tmp_path, "web", tsc, ["node_modules/espree/x.js"]) == "node_modules"
+    assert wrote(tmp_path, "web/a", tsc, ["web/NODE_MODULES/x.js"]) == "web/node_modules"
+    assert wrote(tmp_path, "web", tsc, ["admin/node_modules/x.js"]) is None
     assert wrote(tmp_path, ".", ".venv\\Scripts\\ruff.exe", [".venv/Lib/site-packages/x.py"]) == (
         ".venv"
     )
+    assert wrote(tmp_path, "web", ".venv/Scripts/ruff.exe", [".venv/x.py"]) is None
+    eslint_in(tmp_path, "web")
+    said = proof_style.planted(tmp_path, tmp_path, an_eslint("web"), ["node_modules/espree/x.js"])
+    assert said == "this turn wrote in node_modules: no install of the project's"
 
 
 def test_a_program_named_in_quotes_is_found_as_its_shell_reads_it(tmp_path):
@@ -869,10 +1077,10 @@ def test_a_program_named_in_quotes_is_found_as_its_shell_reads_it(tmp_path):
     from app.command_runner import _planted
     from app.db.models import Agent, Conversation, FileChange, Project
     from app.db.models import Run as RunRow
-    from app.db.session import make_engine, make_session_factory, upgrade_db
+    from app.db.session import make_engine, make_session_factory
     from app.workspace import sha256_text
 
-    upgrade_db(tmp_path / "k.db")
+    migrated_copy(tmp_path / "k.db")  # (one migration a run: 30 s a test on Windows CI)
     factory = make_session_factory(make_engine(tmp_path / "k.db"))
     tool = tmp_path / "my tools" / "node_modules" / ".bin" / "tsc.cmd"
     tool.parent.mkdir(parents=True)
@@ -1150,6 +1358,16 @@ def test_a_rule_for_npm_exec_never_runs_it_in_another_package(
         # (a script by its name under its own rule: the project's code, by design)
         ("npm test", "npm test", "sub096/package.json", None),
         ("npx tsc --noEmit", "npx tsc", "other096/notes.md", None),
+        # (F395: a lock an install follows; a Python runner's lock anywhere - a pyproject.toml in a
+        # folder would make KOLONİ's own test run ask first; tsc's settings)
+        ("npm install", "npm install", "package-lock.json", "package-lock.json"),
+        (
+            "poetry run ruff check .",
+            "poetry run ruff",
+            "libs096/poetry.lock",
+            "libs096/poetry.lock",
+        ),
+        ("npx tsc --noEmit", "npx tsc", "web096/tsconfig.json", "web096/tsconfig.json"),
     ],
 )
 def test_a_node_runners_rule_stops_at_a_manifest_an_agent_wrote_anywhere(  # noqa: PLR0913
@@ -1165,6 +1383,8 @@ def test_a_node_runners_rule_stops_at_a_manifest_an_agent_wrote_anywhere(  # noq
     planted = (
         '{"name": "sub096", "scripts": {"postinstall": "node evil096.js"}}\n'
         if written.endswith(".json")
+        else MANIFESTS["pyproject.toml"]
+        if written.endswith(".toml")
         else "PLANTED\n"
     )
     client, _model = make_client(
@@ -1282,10 +1502,10 @@ def _copy_db(tmp_path, writes: dict[str, str]):
     `tmp_path/copy` that holds them."""
     from app.db.models import Agent, Conversation, FileChange, Project
     from app.db.models import Run as RunRow
-    from app.db.session import make_engine, make_session_factory, upgrade_db
+    from app.db.session import make_engine, make_session_factory
     from app.workspace import sha256_text
 
-    upgrade_db(tmp_path / "k.db")
+    migrated_copy(tmp_path / "k.db")  # (one migration a run: 30 s a test on Windows CI)
     factory = make_session_factory(make_engine(tmp_path / "k.db"))
     (tmp_path / "p").mkdir()
     for rel, said in writes.items():
@@ -1426,6 +1646,234 @@ def test_what_python_m_imports_from_its_folder_before_the_tools_own():
     assert shadows(".", "subprocess.py", startup_only=True) is None
 
 
+@pytest.mark.parametrize(
+    ("line", "cwd", "written", "asked"),
+    [
+        # (F395: a Python runner builds a workspace member or a path dependency with the project,
+        # and reads its settings, locks and requirements - any of them anywhere stops its rule)
+        (
+            "uv run ruff check .",
+            ".",
+            "packages/x096/pyproject.toml",
+            "packages/x096/pyproject.toml",
+        ),
+        ("uv run ruff check .", ".", "packages/x096/setup.py", "packages/x096/setup.py"),
+        ("uv run python -m ruff check .", "web", "api/pyproject.toml", "api/pyproject.toml"),
+        ("uvx ruff check .", ".", "uv.toml", "uv.toml"),
+        ("poetry run ruff check .", "web", "setup.cfg", "setup.cfg"),
+        ("poetry run ruff check .", ".", "libs/a/poetry.toml", "libs/a/poetry.toml"),
+        ("poetry run ruff check .", ".", "poetry.lock", "poetry.lock"),
+        ("pipenv run ruff check .", ".", "Pipfile", "Pipfile"),
+        ("pipenv run ruff check .", ".", "Pipfile.lock", "Pipfile.lock"),
+        ("pipenv run ruff check .", ".", ".env", ".env"),  # (pipenv loads it: PATH, PYTHONPATH)
+        ("pdm run ruff check .", ".", "pdm.toml", "pdm.toml"),
+        ("pdm run ruff check .", ".", "pdm.lock", "pdm.lock"),
+        ("pdm run ruff check .", ".", ".pdm-python", ".pdm-python"),
+        ("hatch run ruff check .", ".", "hatch.toml", "hatch.toml"),
+        ("uv run ruff check .", ".", "uv.lock", "uv.lock"),
+        ("uv run ruff check .", ".", ".python-version", ".python-version"),
+        ("uv run ruff check .", ".", "requirements-dev.txt", "requirements-dev.txt"),
+        ("uv run ruff check .", ".", "requirements/dev.txt", "requirements/dev.txt"),
+        # (what is covered still: a test run, a Python with no runner, another file, another's)
+        ("uv run pytest -q", ".", "packages/x096/pyproject.toml", None),
+        ("python -m mypy .", ".", "web/pyproject.toml", None),
+        ("pytest -q", ".", "setup.cfg", None),
+        ("python x.py", ".", "pyproject.toml", None),
+        ("uv run ruff check .", ".", "docs/notes.md", None),
+        ("uv run ruff check .", ".", ".env", None),  # (pipenv's alone)
+        ("uv run ruff check .", ".", "docs/requirements.md", None),
+        # (a runner run as a module is that runner; pip and build build what they install)
+        (
+            "python -m uv run ruff check .",
+            ".",
+            "packages/y/pyproject.toml",
+            "packages/y/pyproject.toml",
+        ),
+        ("py -m pip install -e .", ".", "setup.py", "setup.py"),
+        ("pip install -e .", ".", "setup.py", "setup.py"),
+        ("pip3 install -r requirements.txt", "web", "requirements.txt", "requirements.txt"),
+        ("python -m build", ".", "pyproject.toml", "pyproject.toml"),
+        ("python -m uv run pytest -q", ".", "packages/y/pyproject.toml", None),  # (a test run)
+    ],
+)
+def test_a_python_runners_rule_stops_at_a_manifest_or_setting_an_agent_wrote_anywhere(
+    tmp_path, line, cwd, written, asked
+):
+    from app.command_runner import PLANTED, _planted
+
+    factory = _copy_db(tmp_path, {written: "PLANTED = 1\n"})
+    root = (tmp_path / "copy").resolve()
+    (root / cwd).mkdir(parents=True, exist_ok=True)
+    assert _planted(factory, "c", root, line, cwd) == (
+        PLANTED.format(place=asked) if asked else None
+    )
+    # (written over since - the user's own again: covered)
+    (root / written).write_text("[tool.ruff]\n", encoding="utf-8")
+    assert _planted(factory, "c", root, line, cwd) is None
+
+
+@pytest.mark.parametrize(
+    ("line", "cwd", "written", "asked"),
+    [
+        # (a package in a node_modules below the folder: an install runs its scripts)
+        (
+            "npm install",
+            ".",
+            "sub096/node_modules/x/package.json",
+            "sub096/node_modules/x/package.json",
+        ),
+        (
+            "npx tsc --noEmit",
+            "web",
+            "web/app/node_modules/x/package.json",
+            "web/app/node_modules/x/package.json",
+        ),
+        # (a lock's `resolved` address, node-gyp's binding.gyp)
+        ("npm install", ".", "package-lock.json", "package-lock.json"),
+        ("npm ci", ".", "sub096/npm-shrinkwrap.json", "sub096/npm-shrinkwrap.json"),
+        ("pnpm install", ".", "pnpm-lock.yaml", "pnpm-lock.yaml"),
+        ("yarn install", ".", "yarn.lock", "yarn.lock"),
+        ("bun install", ".", "bun.lockb", "bun.lockb"),
+        ("bun install", ".", "bun.lock", "bun.lock"),
+        ("npm install", ".", "native/binding.gyp", "native/binding.gyp"),
+        ("npm test", ".", "package-lock.json", None),  # (a script by its name: the project's)
+        ("npm install", ".", "sub096/node_modules/x/index.md", None),
+        # (yarn's `.env.yarn`, bun's `.env` files: what it runs gets them - `NODE_OPTIONS`)
+        ("yarn eslint .", ".", ".env.yarn", ".env.yarn"),
+        ("bunx eslint .", "web", ".env", ".env"),
+        ("bun run lint", ".", ".env.local", ".env.local"),
+        ("npx eslint .", ".", ".env", None),
+    ],
+)
+def test_a_node_runners_rule_stops_at_a_lock_or_a_package_below_an_agent_wrote(
+    tmp_path, line, cwd, written, asked
+):
+    from app.command_runner import PLANTED, _planted
+
+    factory = _copy_db(tmp_path, {written: "PLANTED\n"})
+    root = (tmp_path / "copy").resolve()
+    (root / cwd).mkdir(parents=True, exist_ok=True)
+    assert _planted(factory, "c", root, line, cwd) == (
+        PLANTED.format(place=asked) if asked else None
+    )
+
+
+TSC_EXTENDS = '{"extends": "./configs/base", "include": ["src"]}\n'
+
+
+@pytest.mark.parametrize(
+    ("line", "cwd", "written", "asked"),
+    [
+        # (W7: a tsconfig or jsconfig anywhere - it can set `generateTrace`, or a composite build's
+        # `tsBuildInfoFile` outside: measured, tsc 5.9)
+        ("tsc --noEmit", ".", "tsconfig.json", "tsconfig.json"),
+        ("npx tsc --noEmit", ".", "tsconfig.json", "tsconfig.json"),
+        ("pnpm exec tsc --noEmit", ".", "web/tsconfig.app.json", "web/tsconfig.app.json"),
+        ("yarn tsc --noEmit", ".", "jsconfig.json", "jsconfig.json"),
+        ("npm exec tsc -- --noEmit", "web", "tsconfig.base.json", "tsconfig.base.json"),
+        ("corepack pnpm exec tsc --noEmit", ".", "lib/TSConfig.Lib.json", "lib/TSConfig.Lib.json"),
+        (TSC_LINE, ".", "tsconfig.json", "tsconfig.json"),  # (0.1.7's Code style rule)
+        ("node node_modules/typescript/lib/tsc.js --noEmit", ".", "tsconfig.json", "tsconfig.json"),
+        # (a JSON the project's tsconfig extends - from the folder up, or `-p`'s)
+        ("npx tsc --noEmit", ".", "configs/base.json", "configs/base.json"),
+        ("npx tsc --noEmit", "src", "configs/base.json", "configs/base.json"),
+        ("npx tsc -p web", ".", "shared/strict.json", "shared/strict.json"),
+        ("npx tsc --project=web/tsconfig.json", ".", "shared/strict.json", "shared/strict.json"),
+        ("npx tsc -p web", ".", "configs/base.json", "configs/base.json"),  # (the nearest too)
+        # (covered still: a JSON nothing extends; another tool; a script by its name; Code style's
+        # own line, which writes nothing whatever its settings say)
+        ("npx tsc --noEmit", ".", "data/fixture.json", None),
+        ("npx eslint .", ".", "data/fixture.json", None),
+        ("npm run tsc", ".", "tsconfig.json", None),
+        (f"{TSC} {proof_style.TSC_WORDS}", ".", "tsconfig.json", None),
+        # (...word for word: its words joined in one quoted word are not it)
+        (
+            f"{TSC} --noEmit --pretty false --incremental false"
+            " -p 'tsconfig.json --composite false --generateTrace null'",
+            ".",
+            "tsconfig.json",
+            "tsconfig.json",
+        ),
+    ],
+)
+def test_a_tsc_rule_stops_at_a_setting_an_agent_wrote(tmp_path, line, cwd, written, asked):
+    from app.command_runner import PLANTED, _planted
+
+    factory = _copy_db(tmp_path, {written: '{"compilerOptions": {"generateTrace": "../x"}}\n'})
+    root = (tmp_path / "copy").resolve()
+    # (the project's own: its tsconfig extends `./configs/base` - tsc reads `base.json` -, web's
+    # one a shared file)
+    for rel, said in {
+        "tsconfig.json": TSC_EXTENDS,
+        "web/tsconfig.json": '{"extends": "../shared/strict.json"}\n',
+    }.items():
+        if rel != written:
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(said, encoding="utf-8")
+    (root / cwd).mkdir(parents=True, exist_ok=True)
+    assert _planted(factory, "c", root, line, cwd) == (
+        PLANTED.format(place=asked) if asked else None
+    )
+
+
+def test_what_tsc_reads_follows_extends_and_references_once_each_and_not_for_ever(tmp_path):
+    reads = proof_style.tsc_reads
+    (tmp_path / "a.json").write_text('{"extends": "./b.json"}', encoding="utf-8")
+    (tmp_path / "b.json").write_text('{"extends": ["./a.json"], "references": [{"path": "p"}]}')
+    (tmp_path / "p").mkdir()
+    (tmp_path / "p" / "tsconfig.json").write_text('{"extends": "../../outside.json"}')
+    found = reads(tmp_path, ".", ["-p", "a.json"])
+    assert {os.path.basename(one) for one in found} == {"a.json", "b.json", "tsconfig.json"}
+    # (past MOST_TSC_READS of them: None - any JSON may be one)
+    for at in range(proof_style.MOST_TSC_READS + 1):
+        (tmp_path / f"c{at}.json").write_text(f'{{"extends": "./c{at + 1}.json"}}')
+    (tmp_path / f"c{proof_style.MOST_TSC_READS + 1}.json").write_text("{}")
+    assert reads(tmp_path, ".", ["--project", "c0.json"]) is None
+    assert proof_style.tsc_setting(tmp_path, "x/data.json", None) == "x/data.json"
+    assert proof_style.tsc_setting(tmp_path, "x/data.md", None) is None
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drops a name's last dots and spaces")
+@pytest.mark.no_po
+@pytest.mark.parametrize(
+    ("line", "rule", "written"),
+    [
+        ("uv run ruff check .", "uv run ruff", "packages/x096/pyproject.toml."),
+        ("uv run ruff check .", "uv run ruff", "uv.toml "),
+        ("npm install", "npm install", "sub096/package.json."),
+        ("npx tsc --noEmit", "npx tsc", "web096/tsconfig.json."),
+    ],
+)
+def test_a_setting_named_with_an_end_windows_drops_is_never_written(  # noqa: PLR0913
+    make_client, wait_run, project_dir, line, rule, written
+):
+    """The review of F395: `pyproject.toml.` was written as `pyproject.toml` and on record under
+    the name the agent gave, which no setting's name matched - refused, nothing written, so the
+    rule's line runs on what the user has."""
+    from tests.test_agent_commands import cmd
+
+    _monorepo(project_dir)
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    client, model = make_client(
+        [write(written, "PLANTED\n", "w1"), text("done"), cmd(line, "k1"), text("ran")],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    wait_run(client, cid, run_id)
+    said = [str(m["content"]) for call in model.calls for m in call if m["role"] == "tool"]
+    assert any("is not written" in one and "ends in a dot or a space" in one for one in said), said
+    on_disk = project_dir / written.rstrip(" .")
+    assert not on_disk.exists() or "PLANTED" not in on_disk.read_text(encoding="utf-8")
+    made = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": rule}, headers=OWN
+    )
+    assert made.status_code in (200, 201), made.text
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()
+    snap = wait_run(client, cid, second["run"]["id"])
+    (ran,) = [one for one in snap["commands"] if one["command"] == line]
+    assert ran["status"] == "exited", snap["commands"]
+
+
 # W7: what an agent writes into a package's own manifest (the second session's E4) - each a file
 # Config reads as whole
 MANIFESTS = {
@@ -1438,6 +1886,41 @@ def proof_style_planted(place: str) -> str:
     from app.command_runner import PLANTED
 
     return PLANTED.format(place=place)
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize(
+    ("line", "written", "planted"),
+    [
+        ("uv run ruff check .", "packages/x096/pyproject.toml", MANIFESTS["pyproject.toml"]),
+        ("npx tsc --noEmit", "tsconfig.json", '{"compilerOptions": {"generateTrace": "../x"}}\n'),
+    ],
+)
+def test_a_triggers_leave_does_not_run_a_runner_whose_setting_an_agent_wrote(  # noqa: PLR0913
+    make_client, wait_run, project_dir, line, written, planted
+):
+    """F395, W7 where nobody watches: a trigger with write leave and a ticked rule of the very
+    line - the agent writes a workspace member's pyproject.toml, a tsconfig.json, and runs the
+    line: not run, its why in the result."""
+    from tests.test_agent_commands import cmd
+    from tests.test_triggers import allow, leave, run_now, setup, trigger
+
+    executor = ScriptedExecutor([PASS, PASS])
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        [write(written, planted, "w1"), cmd(line, "k1"), text("done")],
+        executor=executor,
+    )
+    rules = [allow(client, cid, line)]
+    made = trigger(client, pid, cid, permissions=leave(write=True, commands=rules))
+    wait_run(client, cid, run_now(client, made["id"]))
+    assert line not in [one for one, _cwd in executor.started], executor.started
+    said = [str(m["content"]) for m in model.calls[-1] if m["role"] == "tool"]
+    assert any(
+        f"an agent wrote its program ({written})" in one and "nobody is here to ask" in one
+        for one in said
+    ), said
 
 
 # --- the second session's round (W3-W5): what a tool said, how long its lines take ------------

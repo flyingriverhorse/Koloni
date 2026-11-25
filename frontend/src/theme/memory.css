@@ -446,6 +446,11 @@ a.btn {
   background: var(--surface);
 }
 
+/* (The Hive keeper's box, closed: it stays mounted, so that a draft written is not lost.) */
+.backlog-add[hidden] {
+  display: none;
+}
+
 .backlog-add:focus-within {
   border-color: var(--accent);
 }
@@ -468,6 +473,84 @@ a.btn {
   font: inherit;
   font-size: var(--text-body);
   outline: none;
+}
+
+/* 0.1.8, To-do as a tree: its bar (filters, + Task, the Hive keeper, Away), then goals - a honey line on their left -,
+   their stories and the tasks and bugs under them, a step in each. */
+.todo-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.todo-filters {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+}
+
+.todo-filters [aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.todo-goal {
+  box-shadow: inset 3px 0 0 var(--accent-fill);
+}
+
+.todo-goal .backlog-row-text,
+.todo-story .backlog-row-text {
+  overflow-wrap: anywhere;
+}
+
+.todo-depth-1 > .backlog-row {
+  padding-left: 32px;
+}
+
+.todo-depth-2 > .backlog-row {
+  padding-left: 52px;
+}
+
+.todo-section {
+  padding: 8px 12px 4px;
+}
+
+.todo-progress {
+  display: inline-block;
+  width: 64px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.todo-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent-fill);
+}
+
+.todo-rename {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  align-items: center;
+  padding: 0 12px 8px;
+}
+
+.backlog-row .todo-rename {
+  padding: 0;
+}
+
+.todo-notebook ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 12px;
+  list-style: none;
+  font-size: var(--text-meta);
 }
 
 /* What waits for your word: one line above the tabs, its notes unfolded under it. */
@@ -777,4 +860,24 @@ a.btn {
 .away-sec h4 {
   margin: 4px 0;
   font-size: var(--text-body);
+}
+
+/* 0.1.8: the selection dock under the To-do tree - "N selected · Do in chat ▾" */
+.todo-dock {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.todo-dock-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.todo-dock-says {
+  margin: 4px 0 0;
 }

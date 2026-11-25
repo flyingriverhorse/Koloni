@@ -9,8 +9,7 @@ import type {
   Away,
   AwayAsk,
   AwayGo,
-  BacklogAuto,
-  BacklogChoice,
+  BacklogDrafter,
   BacklogTask,
   BacklogTaskChange,
   Board,
@@ -90,6 +89,11 @@ import type {
   RecipeDraft,
   BacklogDraft,
   Recipes,
+  Goal,
+  Story,
+  TodoTree,
+  TodoTreeAdded,
+  TodoTreeIn,
 } from '../api/types'
 import type { RoleValues } from '../agents/AgentsPage'
 import type { RoleChange } from '../agents/RolePanel'
@@ -233,13 +237,24 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** The open project's backlog, in order, once its page asked for it; null until then. */
   backlog: BacklogTask[] | null
   backlogError: string | null
-  /** Its switch, read with it; null until then. */
-  backlogAuto: BacklogAuto | null
+  /** Who "Write it with the Hive keeper" asks, read with it; null until then. */
+  drafter: BacklogDrafter | null
+  /** 0.1.8: its stories and goals, read with it; null until then. */
+  stories: Story[] | null
+  goals: Goal[] | null
   loadBacklog(): Promise<void>
-  /** Turn on or off the backlog running by itself (off drops what Run the backlog queued). Throws ApiError. */
-  setBacklogAuto(on: boolean): Promise<void>
-  /** The level and model the chats the backlog opens from now start with (B-350). Throws ApiError. */
-  setBacklogChoice(choice: BacklogChoice): Promise<void>
+  /** A goal or a story of the open project added, changed or deleted (what was under it stays); each throws ApiError. */
+  addGoal(title: string): Promise<Goal>
+  changeGoal(goalId: string, change: { title?: string; position?: number }): Promise<void>
+  deleteGoal(goalId: string): Promise<void>
+  addStory(title: string, goalId?: string | null): Promise<Story>
+  changeStory(
+    storyId: string,
+    change: { title?: string; goal_id?: string | null; position?: number; closed?: boolean },
+  ): Promise<void>
+  deleteStory(storyId: string): Promise<void>
+  /** The Hive keeper's draft, or a part of it, added at once by your word: what was added. Throws ApiError. */
+  addTree(tree: TodoTreeIn): Promise<TodoTreeAdded>
   /** The user's changes to the backlog; each throws ApiError, and the backlog and the board are read again. */
   addTask(task: NewBacklogTask): Promise<void>
   changeTask(taskId: string, change: BacklogTaskChange): Promise<void>
@@ -247,8 +262,6 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   decideTask(taskId: string, decision: 'approve' | 'reject'): Promise<void>
   /** OK to the Orchestrator's word on a proposal of the Scout's at Full auto: it leaves "Decided for you". Throws ApiError. */
   seenTask(taskId: string): Promise<void>
-  /** Run the backlog: every todo task is queued, and they start as there is room, each in a new conversation. Throws ApiError. */
-  runBacklog(): Promise<void>
   /** What the user typed, written as tasks by a model asked once ("Write it with the Hive keeper"); nothing is saved. Throws ApiError. */
   draftTasks(text: string): Promise<BacklogDraft>
   /** The open project's ☾ Away (slice 106): the one that runs, else its last; null: none, or not read yet. */
@@ -327,6 +340,9 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   testProvider(providerId: string, run?: boolean): Promise<ProviderTest>
   /** Model names a provider can offer; never throws for a provider that lists none. */
   providerModels(providerId: string): Promise<OfferedModels>
+  /** Copilot on your GitHub account: what its account offers, asked where due (at most once in 10 minutes), the
+   *  provider then as the server has it - its rows switched by it. Throws ApiError. */
+  readOffers(providerId: string): Promise<void>
   /** A team guide proposed from the catalogue; nothing is saved. Throws ApiError. */
   fillFromCatalogue(providerId: string): Promise<CatalogueFill>
   /** The same for a provider not added yet: the catalogue only. Throws ApiError. */
@@ -640,9 +656,6 @@ let memoryReads = 0
 let backlogReads = 0
 // When each question's answer was last said to be typed (`typing`): once in 30 s is enough to hold it.
 const typed = new Map<string, number>()
-// The backlog's choice being saved: Run the backlog waits for it - a model name is saved as its field
-// is left, which a click on Run the backlog does.
-let backlogChoice: Promise<unknown> = Promise.resolve()
 let triggerReads = 0
 // The Board row each of `readyChats` was read for: read again when it changes.
 const readyRows = new Map<string, string>()
@@ -750,7 +763,9 @@ export const useApp = create<AppStore>()((set, get) => {
       memoryError: null,
       backlog: null,
       backlogError: null,
-      backlogAuto: null,
+      drafter: null,
+      stories: null,
+      goals: null,
       away: null,
       triggers: null,
       triggersError: null,
@@ -842,8 +857,10 @@ export const useApp = create<AppStore>()((set, get) => {
     const moved =
       was &&
       (was.status !== (payload as Agent).status || was.waiting_for?.path !== (payload as Agent).waiting_for?.path)
-    if (moved || ['claims.changed', 'agent.created', 'run.updated', 'run.finished'].includes(type))
-      void get().loadBoard()
+    // (A turn's update moves the board only where its status moved: its tokens, its error, its spend do not.)
+    const ran = type === 'run.updated' && get().conv?.runs.find(r => r.id === (payload as Run).id)?.status
+    const runMoved = type === 'run.updated' && ran !== (payload as Run).status
+    if (moved || runMoved || ['claims.changed', 'agent.created', 'run.finished'].includes(type)) void get().loadBoard()
   }
 
   /** The window an event of the open conversation opens: a room's, a discussion's. */
@@ -1167,7 +1184,9 @@ export const useApp = create<AppStore>()((set, get) => {
 
     backlog: null,
     backlogError: null,
-    backlogAuto: null,
+    drafter: null,
+    stories: null,
+    goals: null,
 
     async loadBacklog() {
       const { projectId } = get()
@@ -1175,26 +1194,54 @@ export const useApp = create<AppStore>()((set, get) => {
       // Only the latest reading counts, as with the memory.
       const mine = ++backlogReads
       try {
-        const [backlog, backlogAuto] = await Promise.all([
+        const [backlog, drafter, tree] = await Promise.all([
           api.get<BacklogTask[]>('/projects/' + projectId + '/backlog'),
-          api.get<BacklogAuto>('/projects/' + projectId + '/backlog/auto' + inChat(get())),
+          api.get<BacklogDrafter>('/projects/' + projectId + '/backlog/drafter' + inChat(get())),
+          api.get<TodoTree>('/projects/' + projectId + '/stories'),
         ])
-        if (mine === backlogReads) set({ backlog, backlogAuto, backlogError: null })
+        if (mine === backlogReads)
+          set({ backlog, drafter, stories: tree.stories, goals: tree.goals, backlogError: null })
       } catch (err) {
         if (mine === backlogReads) set({ backlogError: errorText(err) })
       }
     },
 
-    async setBacklogAuto(on) {
-      await api.put('/projects/' + get().projectId + '/backlog/auto', { on })
-      // A task it started has a conversation of its own now.
-      await Promise.all([get().loadBacklog(), get().loadBoard(), refreshConversations()])
+    async addGoal(title) {
+      const goal = await api.post<Goal>('/projects/' + get().projectId + '/goals', { title })
+      await get().loadBacklog()
+      return goal
     },
 
-    async setBacklogChoice(choice) {
-      const saving = api.put<BacklogAuto>('/projects/' + get().projectId + '/backlog/choice', choice)
-      backlogChoice = saving.catch(() => {}) // (its error is said beside the choice)
-      set({ backlogAuto: await saving })
+    async changeGoal(goalId, change) {
+      await api.patch('/goals/' + goalId, change)
+      await get().loadBacklog()
+    },
+
+    async deleteGoal(goalId) {
+      await api.delete('/goals/' + goalId)
+      await get().loadBacklog()
+    },
+
+    async addStory(title, goalId = null) {
+      const story = await api.post<Story>('/projects/' + get().projectId + '/stories', { title, goal_id: goalId })
+      await get().loadBacklog()
+      return story
+    },
+
+    async changeStory(storyId, change) {
+      await api.patch('/stories/' + storyId, change)
+      await get().loadBacklog()
+    },
+
+    async deleteStory(storyId) {
+      await api.delete('/stories/' + storyId)
+      await get().loadBacklog()
+    },
+
+    async addTree(tree) {
+      const added = await api.post<TodoTreeAdded>('/projects/' + get().projectId + '/backlog/tree', tree)
+      await Promise.all([get().loadBacklog(), get().loadBoard()])
+      return added
     },
 
     async addTask(task) {
@@ -1227,13 +1274,6 @@ export const useApp = create<AppStore>()((set, get) => {
         text,
         conversation_id: openChatId(get()),
       }),
-
-    async runBacklog() {
-      await backlogChoice
-      await api.post('/projects/' + get().projectId + '/backlog/next')
-      // (The page stays: two may start at once, each opened from its task.)
-      await Promise.all([get().loadBacklog(), get().loadBoard(), refreshConversations()])
-    },
 
     away: null,
 
@@ -1462,6 +1502,11 @@ export const useApp = create<AppStore>()((set, get) => {
 
     async providerModels(providerId) {
       return api.get<OfferedModels>(`/providers/${providerId}/models`)
+    },
+
+    async readOffers(providerId) {
+      const provider = await api.post<Provider>(`/providers/${providerId}/offers`)
+      set(s => ({ providers: s.providers.map(p => (p.id === provider.id ? provider : p)) }))
     },
 
     async fillFromCatalogue(providerId) {

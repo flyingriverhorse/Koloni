@@ -32,9 +32,11 @@ import { ofChat } from '../ready/ready'
 import { useReady } from '../ready/useReady'
 import { nextTopic, titleOf } from '../topics/topics'
 import { AskCard } from './AskCard'
+import { ChatTodoQueue } from './TodoQueue'
 import type { Second } from './Compare'
 import { Composer, type ComposerTopic } from './Composer'
 import { MessageList, type RequestHandlers } from './MessageList'
+import { ChatStoryStrip } from './StoryStrip'
 import { toFront } from '../shell/move'
 import { testsRun } from '../shell/sections/afterChangeWords'
 import { FilesWindow } from '../views/FilesWindow'
@@ -614,6 +616,7 @@ function modelPicker(conv: ConvState | null, providers: Provider[], roles: Role[
       lead={roles.find(role => role.name === 'Lead')}
       hasHistory={(conv?.runs.length ?? 0) > 0}
       onRouting={(id, models) => app.saveProvider(id, { models })}
+      onOffers={app.readOffers}
     />
   )
 }
@@ -650,6 +653,7 @@ export function ChatPanel() {
       <div className="chat-body" hidden={!open}>
         <WidthEdge open={open} />
         <ChatTabs tab={tab} handoffs={handoffs} notes={notes} count={count} onHide={toggle} />
+        <ChatStoryStrip conv={conv} tab={tab} />
         {/* The tab's own content scrolls in what the tabs and the message box leave (base.css .chat-pane). */}
         {/* (B-142: its tabs' panel, by name, for a screen reader) */}
         <div className="chat-pane" role="tabpanel" id="chat-tabpanel" aria-labelledby={tabId(tab)}>
@@ -658,6 +662,8 @@ export function ChatPanel() {
       </div>
       {/* The Orchestrator's question, just over the message box (0.1.5). */}
       <AskCard conv={conv} open={open} tab={tab} onAnswer={app.answerQuestion} />
+      {/* 0.1.8: the chat's To-do queue, over the box: what waits, and that your message goes first. */}
+      <ChatTodoQueue conv={conv} open={open} />
       {/* Open, under the chat; closed, the small box's one line - the same box, the same draft. */}
       <Composer
         compact={!open}

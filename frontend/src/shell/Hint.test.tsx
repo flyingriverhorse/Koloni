@@ -84,6 +84,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null,
   continue_steps: 25,
+  longest_command: 10,
   monthly_budget: null,
   measure_command: null,
   after_change: 'check',
@@ -319,29 +320,17 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
         <BacklogPage
           backlog={[]}
           error={null}
-          auto={{
-            on: true,
-            halt: null,
-            permission_mode: 'ask',
-            provider_id: null,
-            model_id: null,
-            lead_work: 'delegates',
-            cannot_run: null,
-          }}
           providers={[]}
-          onAuto={none}
-          onChoice={none}
           onAdd={none}
           onChange={none}
           onDelete={none}
           onDecide={none}
-          onRun={none}
           onOpen={vi.fn()}
         />,
       )
     },
     [
-      /A task not finished gets one fix round; still not, it is stuck and the next goes on\. A stop, a restart or a limit pauses the run and says why\./,
+      /A task not finished gets one fix round; still not, it is stuck and the next goes on\. A stop, a restart or the month’s budget stops the chat’s queue and says why there\./,
       /a fast model, if you have one, writes the Scout’s view of it - what of what makes it done looks met: one more request, and only an opinion\. None is written for work that failed, was stopped, only made a plan or went over its turn’s token limit\./,
     ],
   ],

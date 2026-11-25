@@ -6,12 +6,12 @@ A fake model and a scripted executor (none of its runs may start)."""
 import pytest
 
 from app import proof
-from app.agent import review_mixin
+from app.agent import review_mixin, stronger_mixin
 from tests.fakes import ScriptedExecutor
 from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import teams_of
 from tests.test_claim_scenarios import write
-from tests.test_proof_end_scenarios import texts
+from tests.test_proof_end_scenarios import checked, texts
 from tests.test_recipe_run_scenarios import made, recipe_named, row
 from tests.test_recipes_scenarios import graph
 from tests.test_recipes_scenarios import step as part
@@ -54,9 +54,9 @@ def writer():
     return [step(write("README.md", "# Guide\n\n[more](gone.md)\n")), text("written")]
 
 
-def test_a_recipe_with_tests_off_and_docs_on_runs_no_test_and_checks_its_docs(
-    make_client, wait_run, project_dir
-):
+def held_docs(make_client, wait_run, project_dir):
+    """A docs recipe whose link the fix round left broken: its work kept out, Take in anyway or
+    Fix it. The client, model, chat, turn and its "not_taken" row."""
     executor = ScriptedExecutor([])  # (a test run would start one: none may)
     client, model = make_client(
         {
@@ -77,11 +77,131 @@ def test_a_recipe_with_tests_off_and_docs_on_runs_no_test_and_checks_its_docs(
     cid, run_id = run_it(client, project_dir, recipe)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert row(snap)["status"] == "in" and executor.started == []
+    assert executor.started == []
     rows = texts(snap)
     assert proof.TESTS_OFF in rows and BROKEN in rows, rows
     assert "Sent back to fix: 1 of 1 rounds (1 problem in what it wrote)" in rows, rows
     assert "gone.md" in str(model.calls[-1])  # (the fix round told the Orchestrator)
+    # (k-a11y-2: the link the round left broken - ended as failing tests are, and the work kept
+    # out, Take in anyway or Fix it: it was taken in by a plain Take in)
+    assert "Still failing after 1 fix rounds: you decide (Fix it)" in rows, rows
+    (kept,) = [one for one in checked(snap) if one["kind"] == "not_taken"]
+    assert kept["text"] == f"Not taken in: {stronger_mixin.KINDS_FAILING}", kept
+    assert kept["reason"] == "kinds" and kept["question"] == stronger_mixin.ASK_KINDS, kept
+    assert kept.get("merge_id") and row(snap)["status"] != "in", row(snap)
+    assert not (project_dir / "README.md").exists()
+    return client, model, cid, run_id, kept
+
+
+def fix_held(client, wait_run, model, cid, run_id, kept, lead):
+    """Fix it with an answer on the kept work: a turn in its copy, the Lead's steps `lead`. Its
+    snapshot, its turn and its Checked rows' texts."""
+    from tests.test_proof_end_scenarios import OWN
+
+    model.by_agent["Lead"] += lead
+    client.patch(f"/api/conversations/{cid}", json={"lead_hands_code": False}, headers=OWN)
+    went = client.post(
+        f"/api/runs/{run_id}/held/fix",
+        json={"merge_id": kept["merge_id"], "reply": "fix the link"},
+        headers=OWN,
+    )
+    assert went.status_code == 202, went.text
+    second = went.json()["run_id"]
+    snap = wait_run(client, cid, second)
+    rows = [
+        r["text"]
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == second
+        for r in m["checked"]
+    ]
+    return snap, second, rows
+
+
+def test_a_recipe_with_tests_off_and_docs_on_runs_no_test_and_checks_its_docs(
+    make_client, wait_run, project_dir
+):
+    client, model, cid, run_id, kept = held_docs(make_client, wait_run, project_dir)
+    # (Fix it with an answer: a turn in the kept copy, told why by the row's code)
+    snap, second, rows = fix_held(client, wait_run, model, cid, run_id, kept, [text("on it")])
+    (asked,) = [
+        m["content"] for m in snap["messages"] if m["role"] == "user" and m["run_id"] == second
+    ]
+    assert asked.startswith(
+        "The last turn's work was not taken in: KOLONİ's checks of what it wrote still found "
+        "problems."
+    ), asked
+    # (N2: it changed nothing, and the kept work was checked - none of it "not checked")
+    assert BROKEN in rows and not any(one.startswith("Not checked") for one in rows), rows
+    # (N3: the held turn's line of where its work is - it went on in this turn, never "Not in the
+    # project yet: … wait in Ready for you")
+    assert "Not in the project yet" not in landed_of(client, cid, run_id)["content"]
+
+
+def landed_of(client, cid, run_id):
+    snap = client.get(f"/api/conversations/{cid}").json()
+    (said,) = [m for m in snap["messages"] if m["role"] == "landed" and m["run_id"] == run_id]
+    return said
+
+
+def test_fix_it_on_kept_work_that_breaks_after_a_round_is_no_check_not_reached(
+    make_client, wait_run, project_dir
+):
+    # (review: no change, sent back a round, and the model breaks - the copy is kept again, with
+    # no record of this turn's: the kept work was checked all the same)
+    client, model, cid, run_id, kept = held_docs(make_client, wait_run, project_dir)
+    snap, second, rows = fix_held(client, wait_run, model, cid, run_id, kept, [RuntimeError("x")])
+    assert [r["status"] for r in snap["runs"] if r["id"] == second] == ["failed"], rows
+    assert BROKEN in rows and not any(one.startswith("Not checked") for one in rows), rows
+
+
+def test_fix_it_on_kept_work_that_passes_is_taken_in_as_checked(make_client, wait_run, project_dir):
+    # (N2: its Take in at the end, after the check, puts records of its own on the turn - the
+    # kept turn's files - which are no later change)
+    client, model, cid, run_id, kept = held_docs(make_client, wait_run, project_dir)
+    fixed = [step(write("README.md", "# Guide\n")), text("fixed the link")]
+    _snap, _second, rows = fix_held(client, wait_run, model, cid, run_id, kept, fixed)
+    assert (project_dir / "README.md").read_text(encoding="utf-8") == "# Guide\n", rows
+    assert rows and not any("Not checked" in one or "Not taken" in one for one in rows), rows
+
+
+def test_fix_it_on_kept_work_changed_after_its_check_says_so(make_client, wait_run, project_dir):
+    # (the real case: sent back, it writes again - and its model breaks before KOLONİ's check)
+    client, model, cid, run_id, kept = held_docs(make_client, wait_run, project_dir)
+    again = [
+        step(write("README.md", "# Guide\n\n[more](lost.md)\n")),
+        text("fixed the link"),
+        step(write("README.md", "# Guide\n", "w2")),
+        RuntimeError("its model broke"),
+    ]
+    _snap, _second, rows = fix_held(client, wait_run, model, cid, run_id, kept, again)
+    assert "Not checked on the last change: documents" in rows, rows
+
+
+def test_take_in_anyway_says_anew_where_the_work_is(make_client, wait_run, project_dir):
+    # (N3: the turn's line of where its work is, written again once it is taken in - never "Not
+    # in the project yet" beside work that is in)
+    from tests.test_proof_end_scenarios import OWN
+
+    client, model, cid, run_id, kept = held_docs(make_client, wait_run, project_dir)
+    before = landed_of(client, cid, run_id)
+    assert before["content"].startswith("Not in the project yet: README.md"), before
+    went = client.post(f"/api/merges/{kept['merge_id']}/approve", headers=OWN)
+    assert went.status_code == 200, went.text
+    after = landed_of(client, cid, run_id)
+    assert after["id"] == before["id"] and after["content"].startswith(
+        "In the project: README.md"
+    ), after
+    assert "Not in the project yet" not in after["content"], after
+    # (review: the failing work is in the project now - a turn that changes nothing says it
+    # still fails, Fix it with it; its kept copy's row is not said again)
+    model.by_agent["Lead"] += [text("a guide")]
+    asked = client.post(f"/api/conversations/{cid}/messages", json={"content": "what is it?"})
+    next_run = asked.json()["run"]["id"]
+    wait_run(client, cid, next_run)
+    snap = client.get(f"/api/conversations/{cid}").json()
+    (rows,) = [m["checked"] for m in snap["messages"] if m["checked"] and m["run_id"] == next_run]
+    assert [r["text"] for r in rows][:2] == [proof.UNCHANGED, BROKEN], rows
+    assert not any(r["kind"] == "not_taken" for r in rows), rows
 
 
 def test_fix_rounds_0_checks_only_and_sends_nothing_back(make_client, wait_run, project_dir):

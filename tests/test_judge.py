@@ -239,6 +239,17 @@ def test_a_run_stands_only_on_a_line_the_user_wrote():
             "Pushing branches other than main is fine.",
             "Pushing branches other than main is fine.",
         ),
+        # (English words that end in "se" or "sa" as no Turkish "if" does)
+        *(
+            (one, one, one)
+            for one in (
+                "Please push the release branch to origin.",
+                "Push the k-* branches to origin.",
+                "Set CI to false and push the k-* branches.",
+                "You may update the license file and close the issue.",
+                "Use the response body and announce the release.",
+            )
+        ),
         # (an item of a list under a heading that forbids nothing; the list's mark is no part of it)
         (
             "Rules:\n- You may delete build/ and dist/.",
@@ -358,6 +369,31 @@ def test_a_run_never_stands_on_a_piece_a_condition_a_forbidding_line_or_code(wor
         ("Eğer testler geçtiyse main'e pushla.", "Eğer testler geçtiyse main'e pushla."),
         ("Testler bittikten sonra build'i sil.", "Testler bittikten sonra build'i sil."),
         ("Sormadan build'i silebilirsin.", "Sormadan build'i silebilirsin."),
+        # (Turkish "-se" / "-sa" after any consonant, its person too - the second session's find)
+        *(
+            (one, one)
+            for one in (
+                "Kontroller yeşilse k-* dallarını push edebilirsin.",
+                "Çalışma alanı temizse build'i silebilirsin.",
+                "Hata yoksa main'e pushla.",
+                "Testler geçerse k-* dallarını push edebilirsin.",
+                "CI yeşil olursa main'e pushla.",
+                "İstersen k-* dallarını push edebilirsin.",
+                "Testler geçtiyseniz main'e pushlayın.",
+                "Build boşsa dist'i silebilirsin.",
+                "Mümkünse k-* dallarını push et.",
+                # (a loanword's, against vowel harmony; after an apostrophe)
+                "Testler kontrolse k-* dallarını push et.",
+                "Saatse build'i silebilirsin.",
+                "Testler OK'se k-* dallarını push et.",
+                "CI'ysa main'e pushla.",
+                "Exit code 0'sa main'e pushla.",
+                # ("when", "as long as")
+                "Testler bitince main'e pushla.",
+                "CI yeşil olduğunda main'e pushla.",
+                "Testler geçtiği sürece k-* dallarını push edebilirsin.",
+            )
+        ),
         # (more ways of saying no)
         ("main dalına itme.", "main dalına itme."),
         ("main'e itmeyin lütfen.", "main'e itmeyin lütfen."),
@@ -393,6 +429,77 @@ def test_a_run_never_stands_under_a_forbidding_head_on_a_question_a_condition_or
     assert verdict(line(verdict="run", quote=quote), said(None, words, []))["verdict"] == "ask"
 
 
+# The review of F395 (its probe): more ways of setting a condition - each asks, in a message too
+@pytest.mark.parametrize(
+    ("words", "verdict_"),
+    [
+        *(
+            (one, "ask")
+            for one in (
+                "Ben onayladığımda main'e push et",
+                "Testler geçtiklerinde main'e push et",
+                "Siz onayladığınızda main'e push et",
+                "Testler yeşilken main'e push et",
+                "Testler geçtikçe main'e push et",
+                "Testlerin geçmesi durumunda main'e push et",
+                "Testler geçtiği zaman main'e push et",
+                "Onaydan sonra main'e push et",
+                "Review'dan sonra main'e push et",
+                "Ben dönene kadar main'e push et",
+                "Madem testler geçti, main'e push et",
+                "Yeter ki testler geçsin, main'e push et",
+                "Hazır isen main'e push et",
+                "Hazır iseniz main'e push et",
+                "CI´ysa main'e push et",
+                "CIʼysa main'e push et",
+                "CI‘ysa main'e push et",
+                "Şayet CI yeşil olursa main'e push et",
+                "Testler bitinceye kadar main'e push et",
+                "Push to main as long as CI is green",
+                "Push to main so long as CI is green",
+                "Push to main provided the tests pass",
+                "Push to main providing the tests pass",
+                "Push to main whenever the tests pass",
+                "Push to main while CI is green",
+                "Push to main in case CI passes",
+                "Push to main assuming the build passes",
+                "Push to main, else revert the branch",
+                "Hata yokken main'e push et",
+                "Build kirliyken main'e push et",
+                "Ben toplantıdayken main'e push et",
+                "Testler yeşil iken main'e push et",
+            )
+        ),
+        *(
+            (one, "run")
+            for one in (
+                "Push my branch to main",
+                "Delete the build folder please",
+                "You may force push to main",
+                "Of course you can push to main",
+                "Main'e push etmeni istiyorum",
+                "Build klasörünü silebilirsin",
+                "Parse the config and push to main",
+                "Rotate the token and push the broken build to main",
+                # (the re-check's: a leave said with "zaman", "kadar", "-ken", "provided")
+                "Her zaman main'e push edebilirsin",
+                "Build klasörünü istediğin zaman silebilirsin",
+                "İstediğin kadar push edebilirsin",
+                "Şu ana kadar yaptıklarını main'e push edebilirsin",
+                "Gereken paketleri kurabilirsin",
+                "Bunu çeken script'i silebilirsin",
+                "Use the provided script and push to main",
+            )
+        ),
+    ],
+)
+def test_a_condition_said_another_way_asks(words, verdict_):
+    got = verdict(
+        line(verdict="run", quote=words), {"preferences": [], "rules": [], "message": [words]}
+    )
+    assert got["verdict"] == verdict_
+
+
 NO_MAIN = "Never push to main."
 
 
@@ -422,6 +529,12 @@ def test_a_refuse_keeps_the_users_sentence_and_where_it_stands():
         ),
         ("main'e asla itme.", "main'e asla itme.", "main'e asla itme."),
         ("build klasörünü silme.", "build klasörünü silme.", "build klasörünü silme."),
+        ("Kimse main'e push etmesin.", "Kimse main'e push etmesin.", "Kimse main'e push etmesin."),
+        (
+            "Never push the release branch.",
+            "Never push the release branch.",
+            "Never push the release branch.",
+        ),
         (f"{NO_MAIN} Ask me if you are unsure.", NO_MAIN, NO_MAIN),
     ],
 )
@@ -439,6 +552,9 @@ def test_a_refuse_stands_on_a_whole_sentence_of_the_users_that_says_no(words, qu
         ("Don't push to main without asking me.", "Don't push to main without asking me."),
         ("Never push to main unless I say so.", "Never push to main unless I say so."),
         ("Testler geçmeden main'e itme.", "Testler geçmeden main'e itme."),
+        ("Testler kırmızıysa main'e itme.", "Testler kırmızıysa main'e itme."),
+        ("Hata varsa k-* dallarını push etme.", "Hata varsa k-* dallarını push etme."),
+        ("Kontroller yeşil değilse push etme.", "Kontroller yeşil değilse push etme."),
         # (an item under a heading that forbids: the item itself says no "no"; and the heading
         # alone, which says nothing of what it forbids - the security review of slice 2)
         ("Never delete these:\n- the build/ output folder", "the build/ output folder"),

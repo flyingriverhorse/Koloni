@@ -14,7 +14,7 @@ import {
 import { type LoadFacts, sourceOf, useModelFacts } from './levels'
 import { InputIcons, inputsLine, MarkInputs, withMarks } from './inputs'
 import { type ContextTier, isCli } from './ModelsPage'
-import { type Routing, ROUTING_WHY, ROUTINGS, routingOf } from './routing'
+import { NOT_ON_PLAN, type Routing, type RoutingChoice, ROUTING_WHY, routingChoices, routingOf } from './routing'
 
 /** Beside a model: usable now, not (and why), or not known. A glyph of its own for each, not only a colour
  *  (and not the row's remove cross). */
@@ -262,7 +262,13 @@ export function ModelRow({
         {nameCell()}
         <TierCell name={name} row={row} facts={facts} onTier={onTier} />
         <ContextCell tiered={tiered} name={name} row={row} catalogued={catalogued} onContext={onContext}>
-          <RoutingSelect routed={routingOf(provider, name)} name={name} value={row.routing} onRouting={onRouting} />
+          <RoutingSelect
+            provider={provider}
+            routed={routingOf(provider, name)}
+            name={name}
+            value={row.routing}
+            onRouting={onRouting}
+          />
         </ContextCell>
         <Fact value={facts?.max_output ? tokens(facts.max_output) : null} />
         <Fact value={levels(efforts)} />
@@ -337,13 +343,26 @@ function TierCell({
   )
 }
 
-/** Copilot's auto's or fusion's routing on your GitHub account (`routed`); nothing for any other model. */
+/** A routing's options (`routingChoices`): one the account does not offer is disabled - dimmed, "not on your plan",
+ *  its own words its title. */
+export function RoutingOptions({ choices }: { choices: RoutingChoice[] }) {
+  return choices.map(({ value, label, off }) => (
+    <option key={value} value={value} disabled={off !== null} title={off ?? undefined}>
+      {off ? `${label} — ${NOT_ON_PLAN}` : label}
+    </option>
+  ))
+}
+
+/** Copilot's auto's or fusion's routing on your GitHub account (`routed`), by what its account offers; nothing for
+ *  any other model. */
 function RoutingSelect({
+  provider,
   routed,
   name,
   value,
   onRouting,
 }: {
+  provider: Provider | null | undefined
   routed: 'auto' | 'fusion' | null
   name: string
   value: Routing | null | undefined
@@ -359,11 +378,7 @@ function RoutingSelect({
       onChange={e => onRouting((e.target.value || null) as Routing | null)}
     >
       <option value="">Default</option>
-      {ROUTINGS[routed].map(([routing, label]) => (
-        <option key={routing} value={routing}>
-          {label}
-        </option>
-      ))}
+      <RoutingOptions choices={routingChoices(provider, routed, value)} />
     </select>
   )
 }

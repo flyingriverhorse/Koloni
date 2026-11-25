@@ -249,9 +249,9 @@ def previous_lead(session: Session, run: Run) -> str | None:
     return None
 
 
-def earlier_titles(session: Session, run: Run) -> list[str]:
-    """The names of the conversation's other topics that had a turn before this one, in
-    the order they began. Their names and nothing else: a lead sees its own topic."""
+def earlier_topics(session: Session, run: Run) -> list[Topic]:
+    """The conversation's other topics that had a turn before this one, in the order they
+    began: a lead is told their names (`titles_line`), and sees its own topic alone."""
     rows = session.execute(
         _in_order(
             select(Run.id, Run.topic_id, Run.started_at).where(
@@ -267,20 +267,24 @@ def earlier_titles(session: Session, run: Run) -> list[str]:
             others.append(topic_id)
     if not others:
         return []
-    titles = {
-        topic.id: topic.title
+    found = {
+        topic.id: topic
         for topic in session.scalars(
             select(Topic).where(Topic.id.in_(others), Topic.conversation_id == run.conversation_id)
         )
     }
-    return [titles[topic_id] for topic_id in others if topic_id in titles]
+    return [found[topic_id] for topic_id in others if topic_id in found]
 
 
-def titles_line(titles: list[str], quoted: Callable[[str], str]) -> str:
-    """The one line a lead is told about the other topics; "" when there are none."""
+def titles_line(titles: list[tuple[str, str | None]], quoted: Callable[[str], str]) -> str:
+    """The one line a lead is told about the other topics, each (name, how it stands or None:
+    `stories.titled`); "" when there are none."""
     if not titles:
         return ""
-    shown = [quoted(one_line(title)) for title in titles[-TITLES_SHOWN:]]
+    shown = [
+        quoted(one_line(title)) + (f" ({how})" if how else "")
+        for title, how in titles[-TITLES_SHOWN:]
+    ]
     older = len(titles) - len(shown)
     listed = ", ".join(shown) + (f" (and {older} older)" if older else "")
     return EARLIER_TOPICS.format(titles=listed)

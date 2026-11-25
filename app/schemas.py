@@ -97,6 +97,8 @@ SpawnApproval = Literal["auto", "always", "never"]
 # The most a room's budget can be set to: a number, not a way round having one.
 MAX_ROOM_POSTS, MAX_ROOM_TOKENS, MAX_ROOM_MINUTES = 1000, 100_000_000, 24 * 60
 MAX_CHAT_TEAMS = 6
+# 0.1.8: a project's longest command, in minutes - the most the user may raise it to.
+LONGEST_COMMAND = (10, 60)
 
 
 class ChatTeamIn(BaseModel):
@@ -213,6 +215,8 @@ class ProjectOut(Out):
     max_agents: int | None
     # K-devam-butce: the steps a stopped agent gets on top when told to go on with none left.
     continue_steps: int
+    # 0.1.8: the longest a command (KOLONİ's own test runs too) may take, in minutes.
+    longest_command: int
     # What this calendar month's turns may cost, in the prices' currency; None: no budget.
     monthly_budget: float | None
     # K-evrim: the command whose last line of output scores a candidate (0-100); None: none.
@@ -334,6 +338,10 @@ class ProjectPatch(BaseModel):
     max_agents: int | None = Field(default=None, gt=0, le=1000, strict=True)
     # Left out: kept as it is. A whole number from 1 to 200.
     continue_steps: int | None = Field(default=None, ge=1, le=200, strict=True)
+    # Left out: kept as it is. Minutes, 10 to 60 (the user, 24 Nov: at most an hour).
+    longest_command: int | None = Field(
+        default=None, ge=LONGEST_COMMAND[0], le=LONGEST_COMMAND[1], strict=True
+    )
     # The same: null takes it away. A number as such: not `true`, not "5".
     monthly_budget: float | None = Field(
         default=None, gt=0, le=2**53, allow_inf_nan=False, strict=True
@@ -436,15 +444,31 @@ class FolderBrowseOut(BaseModel):
     more: bool
 
 
+class KeptCopyOut(BaseModel):
+    """A working copy kept on disk for the user's word: its card (Discard there is
+    `POST /api/merges/{merge_id}/reject`), its chat, the agent whose work it holds and when it
+    was kept - two of one chat told apart."""
+
+    merge_id: str
+    conversation_id: str
+    title: str
+    agent: str
+    kept_at: datetime
+
+
 class StorageOut(BaseModel):
     """What KOLONİ's own data takes on this machine, in MB: the database (its WAL too), its
     backups (each migration's and update's, and the daily ones: apart, R125 - they were most of
-    "db"), the working copies, the log. None: not counted in time."""
+    "db"), the working copies, the log. None: not counted in time. `kept`: the copies kept for
+    the user's word - never deleted unasked, so they pile up only by their cards - oldest first,
+    and `kept_mb` what they take (of `copies_mb`)."""
 
     db_mb: float | None
     backups_mb: float | None
     copies_mb: float | None
     logs_mb: float | None
+    kept: list[KeptCopyOut] = []
+    kept_mb: float | None = None
 
 
 class HealthOut(BaseModel):
@@ -555,7 +579,8 @@ class ConversationListed(ConversationOut):
     kept: bool
     # It has a turn the user started (not a trigger's).
     wrote: bool
-    # The To-do list's task it was started for ("Run the backlog"); None: an ordinary chat.
+    # The To-do task at work in it, else the first waiting in its queue, else the last it worked on
+    # (0.1.8, Do in chat); None: none.
     backlog_task: ListedBacklogTask | None
 
 
@@ -697,6 +722,8 @@ class RunOut(Out):
     trigger_name: str | None
     # The piece of work this turn goes on with; None for a turn on record without one.
     topic_id: str | None
+    # 0.1.8: the To-do task this turn works on; None for any other turn.
+    task_id: str | None = None
     # A plan turn: it only reads, and its answer is a plan put before the user (slice 49).
     plan_turn: bool
     # What it planned; None until a plan turn has written one.
@@ -773,6 +800,8 @@ class TopicOut(Out):
     # The trigger whose turns these are (it may be gone since); None for the user's own.
     trigger_id: str | None
     created_at: datetime
+    # 0.1.8: the To-do story whose tasks go on in it; None for any other.
+    story_id: str | None = None
 
 
 class TopicPatch(BaseModel):
@@ -897,10 +926,12 @@ class CheckedRow(BaseModel):
     merge_id: str | None = None
     question: str | None = None
     # S11: why a stronger model's rounds were no pass, on a "stronger" or "rounds" row Fix it
-    # reads (`app.proof.Reason`) - or (P) "on_hold" on a "not_taken" row a look still holds;
+    # reads (`app.proof.Reason`) - or (P) "on_hold" on a "not_taken" row a look still holds,
+    # "kinds" on the closing row or the "not_taken" row of a kind's check that still fails;
     # None on any other, and on one kept before it was said.
     reason: (
-        Literal["touched", "held", "unread", "no_verdict", "still", "on_hold", "removed"] | None
+        Literal["touched", "held", "unread", "no_verdict", "still", "on_hold", "removed", "kinds"]
+        | None
     ) = None
 
 
@@ -1853,6 +1884,8 @@ class AgentOut(Out):
     # of the ended agents whose work its briefing carried (None: nothing was).
     rediscovery: int | None = None
     handed_from: list[str] | None = None
+    # L1: a sub-agent whose role writes finished with no file changed (None: not judged so).
+    changed_nothing: bool | None = None
     # K-skill-uyum: the role's skills it started with, and those left out with why.
     skills: AgentSkills | None = None
 
@@ -1905,6 +1938,14 @@ class TreeLimits(BaseModel):
     model_config = ConfigDict(extra="forbid")
     max_files: int | None = Field(None, ge=100, le=1_000_000, strict=True)
     max_mb: int | None = Field(None, ge=1, le=10_240, strict=True)
+
+
+class ExperimentalClis(BaseModel):
+    """0.1.8: whether the Models page offers what is experimental - agy, and Codex run one step
+    at a time (`providers.EXPERIMENTAL_FLAG`). Off by default; a provider already set so runs."""
+
+    model_config = ConfigDict(extra="forbid")
+    show: bool
 
 
 class AnswerLanguage(BaseModel):
@@ -3562,9 +3603,30 @@ class ProviderModel(BaseModel):
     context: Literal["default", "long_context"] | None = None
     # Copilot's auto's or fusion's routing (`model_session.ROUTINGS`), only on the user's GitHub
     # account (`providers.check_guide`). None: Copilot's own default.
-    routing: Literal["efficiency", "balance", "intelligence", "standard", "high", "max"] | None = (
-        None
-    )
+    routing: (
+        Literal["efficiency", "balance", "intelligence", "fast", "standard", "high", "max"] | None
+    ) = None
+
+
+class OfferedTier(BaseModel):
+    """One of Auto's tiers as Copilot's `models.list` said it of the account (`copilot_offers`)."""
+
+    id: str
+    # Its own name for it ("Standard" for balance).
+    name: str
+    type: Literal["auto", "fusion"]
+    # The routing its Fusion takes for it (standard, high, max); None: none.
+    fusion: str | None = None
+    enabled: bool
+    # Why not, in the account's own words; None where it is on.
+    why: str | None = None
+
+
+class CopilotOffers(BaseModel):
+    """What a Copilot account offered when last asked: its models' ids and Auto's tiers."""
+
+    models: list[str]
+    tiers: list[OfferedTier]
 
 
 class TierModel(BaseModel):
@@ -3603,10 +3665,11 @@ class ProviderOut(Out):
         "openai_compat",
         "anthropic",
         "claude_cli",
-        "qoder_cli",
         "codex_cli",
         "copilot_cli",
         "agy_cli",
+        # 0.1.8: no longer run (`providers.RETIRED`); a row of it stays, switched off.
+        "qoder_cli",
     ]
     base_url: str | None
     default_model: str | None
@@ -3622,6 +3685,9 @@ class ProviderOut(Out):
     # False: switched off - nobody uses it; its key and settings stay. (Always said; optional,
     # as `key_warning`, only so that what reads a provider from before needs no change.)
     enabled: bool | None = None
+    # Why it stays off whatever the user does: its kind is one KOLONİ no longer runs
+    # (`providers.RETIRED`). None: it can be switched on.
+    off_why: str | None = None
     # The most agents at work on it at once, in the whole app, as the user set it; None: by
     # its kind - `most_at_once`, what holds now (K-paralel-saglayici).
     max_running: int | None
@@ -3637,6 +3703,8 @@ class ProviderOut(Out):
     key_warning: str | None = None
     # K-cli-surface: the CLI version it last ran natively on, where KOLONİ did not measure it.
     version_note: str | None = None
+    # Copilot on GitHub's plan: what its account offered when last asked; None: not asked yet.
+    offers: CopilotOffers | None = None
     # K-native-not: by each way it runs with its own tools, which of KOLONİ's rules nobody
     # watches there (`providers.NOT_WATCHED`) - for an agent, by the mode it ran in; and the
     # same where the agent's project runs its commands in Docker (`providers.ON_HOST`).
@@ -3652,7 +3720,7 @@ class ProviderOut(Out):
         if isinstance(value, dict):
             return value
         from app import cli_surface  # (they import the clients: not at the top)
-        from app.providers import mode_of, most_at_once, not_watched
+        from app.providers import RETIRED, mode_of, most_at_once, not_watched
 
         fields = {
             name: getattr(value, name)
@@ -3661,6 +3729,7 @@ class ProviderOut(Out):
             not in (
                 "has_key",
                 "key_warning",
+                "off_why",
                 "most_at_once",
                 "version_note",
                 "not_watched",
@@ -3672,6 +3741,7 @@ class ProviderOut(Out):
             "models": value.models or [],
             "has_key": bool(value.api_key),
             "key_warning": _key_warning(value.kind, value.api_key),
+            "off_why": RETIRED.get(value.kind),
             "most_at_once": most_at_once(value),
             "not_watched": not_watched(value.kind, docker=False),
             "not_watched_in_docker": not_watched(value.kind, docker=True),
@@ -3750,10 +3820,12 @@ class CatalogueFillIn(BaseModel):
 
 
 class CatalogueFillOut(BaseModel):
-    """A team guide proposed from the catalogue, not saved; how many did not fit."""
+    """A team guide proposed from the catalogue, not saved; how many did not fit, and why
+    nothing more could be proposed where that is so (a Copilot account that lists no models)."""
 
     models: list[ProviderModel]
     left_out: int
+    note: str | None = None
 
 
 class FillAllProvider(BaseModel):
@@ -4421,8 +4493,9 @@ class HoldStopped(BaseModel):
 
 class HoldOut(BaseModel):
     """Stop everything (`app.api.hold`): whether it holds, since when, how many turns of every
-    chat have not ended, and what a hold holds (triggers on, backlogs that work themselves,
-    the projects' nights while the user is away) - and, while it holds, the turns it stopped."""
+    chat have not ended, and what a hold holds (triggers on, the projects with To-do tasks
+    waiting in a chat's queue - `backlogs` - and the projects' nights while the user is away) -
+    and, while it holds, the turns it stopped."""
 
     held: bool
     since: datetime | None
@@ -4803,6 +4876,7 @@ class ClaudeSessionSetupOut(BaseModel):
 
 
 Priority = Literal["high", "normal", "low"]
+TaskKind = Literal["task", "bug"]
 
 
 class BacklogTaskOut(Out):
@@ -4825,10 +4899,9 @@ class BacklogTaskOut(Out):
     # Waiting for review, with work of its chat not in the project yet (`backlog.not_in`):
     # read by the backlog's list only, false elsewhere.
     not_in: bool = False
-    # K-symphony: the tasks it waits for (until each is done), whether Run the backlog took it,
-    # and why it is stuck (status blocked) - `BacklogTask.flow`.
+    # The tasks it waits for (until each is done), and why it is stuck (status blocked) -
+    # `BacklogTask.flow`.
     after: list[str] = []
-    queued: bool = False
     stuck: str | None = None
     # Doing, its turn waiting for the user's word now (`backlog.waiting`): the list's only.
     waiting: bool = False
@@ -4837,6 +4910,18 @@ class BacklogTaskOut(Out):
     # ☾ Away: the chat an agent proposed it in (None: the user's), and when it was made.
     proposed_in: str | None = None
     created_at: datetime
+    # 0.1.8: its story (None: of no story), whether it is a task or a bug, and its place in a
+    # chat's queue (None: not queued there).
+    story_id: str | None = None
+    kind: TaskKind = "task"
+    place: int | None = None
+    # Its story's title and its goal's, and who opened each ("agent": an agent's proposal opened
+    # it, the user has not added one of its tasks yet) - read by the backlog's list only, so that a
+    # proposal's card says where adding it puts it.
+    story_title: str | None = None
+    story_by: Literal["user", "agent"] | None = None
+    goal_title: str | None = None
+    goal_by: Literal["user", "agent"] | None = None
 
 
 class BacklogPoOut(BaseModel):
@@ -4856,6 +4941,9 @@ class BacklogTaskIn(BaseModel):
     detail: str | None = Field(default=None, max_length=4000)
     criteria: str | None = Field(default=None, max_length=4000)
     priority: Priority = "normal"
+    # 0.1.8: a story of its project, or None; a task or a bug.
+    story_id: str | None = Field(default=None, max_length=32)
+    kind: TaskKind = "task"
 
 
 class BacklogTaskPatch(BaseModel):
@@ -4869,57 +4957,36 @@ class BacklogTaskPatch(BaseModel):
     position: int | None = Field(default=None, ge=0)
     # The tasks of its project it waits for (K-symphony): [] waits for none.
     after: list[str] | None = Field(default=None, max_length=50)
+    # 0.1.8: a story of its project; null takes it out of its story.
+    story_id: str | None = Field(default=None, max_length=32)
+    kind: TaskKind | None = None
 
 
 class BacklogDecideIn(BaseModel):
     decision: Literal["approve", "reject"]
 
 
-class BacklogNextOut(BaseModel):
-    """The first task Run the backlog started, and its conversation; None when none started
-    at once (as many are at work as may be: the rest start as they end)."""
+class BacklogDoIn(BaseModel):
+    """Do in chat: the ticked tasks, for the queue of this chat - or of a new one (None)."""
 
-    task_id: str | None
-    conversation_id: str | None
-
-
-class BacklogAutoIn(BaseModel):
-    on: bool
+    task_ids: list[str] = Field(min_length=1, max_length=100)
+    conversation_id: str | None = None
 
 
-class BacklogChoiceIn(BaseModel):
-    """The level and the model the chats the backlog opens start with (B-350), whole: no
-    provider is the default one, no model its default model."""
+class BacklogDoOut(BaseModel):
+    """The chat the tasks wait in, and the ids queued there, in their order."""
 
-    permission_mode: PermissionMode
-    provider_id: str | None = Field(default=None, max_length=32)
-    model_id: str | None = Field(default=None, max_length=200)
-    # K-r144: who changes the files there; None: as the project's new chats.
-    lead_work: LeadWork | None = None
+    conversation_id: str
+    queued: list[str]
 
 
 class BacklogDrafter(BaseModel):
+    """Who "Write it with the Hive keeper" asks (`api.backlog._drafter`): its provider and
+    model (None: its default), or why nobody is asked now."""
+
     why: str | None
     provider_id: str | None = None
     model_id: str | None = None
-
-
-class BacklogAutoOut(BaseModel):
-    """Whether the backlog works itself, and why its run is paused or last stopped (or None);
-    and the level and the model the chats it opens start with (`BacklogChoiceIn`)."""
-
-    on: bool
-    halt: str | None
-    permission_mode: PermissionMode
-    provider_id: str | None
-    model_id: str | None
-    lead_work: LeadWork
-    # Why no backlog task can run on the provider its chats would use, or None: one with tools
-    # of its own (Run the backlog and by itself are refused while it holds).
-    cannot_run: str | None
-    # Who "Write it with the Hive keeper" asks (`api.backlog._drafter`): its provider and
-    # model (None: its default), or why nobody is asked now.
-    drafter: BacklogDrafter | None = None
 
 
 class BacklogDraftIn(BaseModel):
@@ -4929,11 +4996,114 @@ class BacklogDraftIn(BaseModel):
     conversation_id: str | None = Field(default=None, max_length=32)
 
 
-class BacklogDraftOut(BaseModel):
-    """A model's tasks from the user's note, saved nowhere: each is added by the user's word."""
+class DraftStory(BaseModel):
+    title: str
+    # Short lines the Hive keeper would have its notebook keep.
+    notes: list[str] = []
+    tasks: list[BacklogTaskIn]
 
+
+class BacklogDraftOut(BaseModel):
+    """A model's goal, stories and tasks from the user's note, saved nowhere: added by the user's
+    word (`POST .../backlog/tree`). An answer of tasks alone has no goal and no story."""
+
+    goal: str | None = None
+    stories: list[DraftStory] = []
     tasks: list[BacklogTaskIn]
     by: str
+
+
+# A note of a story's notebook as the user adds it (`stories.NOTE_MOST`).
+TreeNote = Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class TreeStoryIn(BaseModel):
+    """A story of a drafted tree: one of the project's by its `id` (its tasks go into it), or a
+    new one of this `title`."""
+
+    id: str | None = Field(default=None, max_length=32)
+    title: str | None = Field(default=None, max_length=200)
+    notes: list[TreeNote] = Field(default=[], max_length=20)
+    tasks: list[BacklogTaskIn] = Field(default=[], max_length=50)
+
+
+class TodoTreeIn(BaseModel):
+    """A drafted goal, its stories and their tasks, added at once by the user's word: the stories'
+    goal one of the project's (`goal_id`) or a new one of `goal`'s title."""
+
+    goal: str | None = Field(default=None, max_length=200)
+    goal_id: str | None = Field(default=None, max_length=32)
+    stories: list[TreeStoryIn] = Field(default=[], max_length=20)
+    tasks: list[BacklogTaskIn] = Field(default=[], max_length=50)
+
+
+class TodoTreeAdded(BaseModel):
+    goal_id: str | None
+    story_ids: list[str]
+    task_ids: list[str]
+
+
+class GoalOut(Out):
+    """0.1.8: a goal of a project's To-do, and how many of its stories are done (closed)."""
+
+    id: str
+    title: str
+    position: int
+    created_by: Literal["user", "agent"]
+    stories_done: int
+    stories_all: int
+
+
+class GoalIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
+class GoalPatch(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    position: int | None = Field(default=None, ge=0)
+
+
+class StoryNoteOut(BaseModel):
+    kind: str
+    text: str
+    by: str
+    at: datetime
+
+
+class StoryOut(Out):
+    """0.1.8: a story of a project's To-do: its goal, its state from its tasks
+    (`stories.story_state`: "done?" once each is done or waits at "done?"; "done" only once the
+    user closed it) and its notebook."""
+
+    id: str
+    goal_id: str | None
+    title: str
+    position: int
+    state: Literal["todo", "running", "stuck", "done?", "done"]
+    notes: list[StoryNoteOut]
+    created_by: Literal["user", "agent"]
+    closed_at: datetime | None
+
+
+class StoryIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    goal_id: str | None = Field(default=None, max_length=32)
+
+
+class StoryPatch(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    # Null takes it out of its goal.
+    goal_id: str | None = Field(default=None, max_length=32)
+    position: int | None = Field(default=None, ge=0)
+    # The user's Close the story (done), or opened again.
+    closed: bool | None = None
+
+
+class TodoTreeOut(BaseModel):
+    """A project's goals and stories in their order; its tasks are the backlog's."""
+
+    goals: list[GoalOut]
+    stories: list[StoryOut]
 
 
 class AwayGoIn(BaseModel):

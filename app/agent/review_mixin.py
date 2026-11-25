@@ -322,7 +322,7 @@ def review_held(message: Message) -> str | None:
     """A turn's Checked section where a Reviewer still held its change (its cap row): its
     blocking findings, noted, for the Orchestrator's later turns - what Fix it asks to fix.
     None: no such hold."""
-    rows = (message.blocks or {}).get("rows") or []
+    rows = proof.held_rows(message.blocks)
     if not any(
         one.get("kind") == "review" and one.get("text", "").startswith(CAPPED[:14]) for one in rows
     ):

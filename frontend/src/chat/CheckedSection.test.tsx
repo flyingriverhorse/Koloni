@@ -2,10 +2,10 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { api } from '../api/client'
-import type { Message } from '../api/types'
+import type { Merge, Message } from '../api/types'
 import { useApp } from '../state/store'
-import { assistantMessage, convState } from '../test-fixtures'
-import { FIX_FEWER, FIX_HELD, FIX_IT, FIX_NOT_DONE, FIX_REVIEW, checkedOf, fixOf } from './checked'
+import { assistantMessage, convState, fileChange, run } from '../test-fixtures'
+import { FIX_FEWER, FIX_HELD, FIX_IT, FIX_KINDS, FIX_NOT_DONE, FIX_REVIEW, checkedOf, fixOf } from './checked'
 import { CheckedSection } from './CheckedSection'
 
 type Row = NonNullable<Message['checked']>[number]
@@ -229,6 +229,74 @@ test('S11: Not taken in - Take in anyway takes the kept copy in, Fix it sends th
   }
 })
 
+test('N3: its kept copy taken in - said, no Take in anyway, Fix it as for work in the project; discarded, nothing', async () => {
+  const send = vi.fn().mockResolvedValue(undefined)
+  useApp.setState({ send } as never)
+  const held = row('failed', 'Not taken in: 2 tests still fail', { kind: 'not_taken', merge_id: 'm1', question: 'Q?' })
+  const merge = (status: Merge['status'], applied = false) =>
+    ({
+      id: 'm1',
+      run_id: 'r',
+      agent_id: 'a',
+      status,
+      kept_in: status === 'kept' ? 'k1' : null,
+      files: [{ path: 'a.py', state: applied ? 'applied' : 'ready' }],
+    }) as unknown as Merge
+  const buttons = () => screen.queryAllByRole('button').map(one => one.textContent)
+  for (const [now, shown, words] of [
+    [merge('kept'), ['Take in anyway', 'Fix it'], null],
+    [merge('applied', true), ['Fix it'], 'Taken in anyway.'],
+    [merge('kept', true), ['Fix it'], 'Taken in anyway.'],
+    [merge('discarded'), [], null],
+  ] as const) {
+    useApp.setState({ conv: convState({ merges: [now] }) })
+    const { unmount } = render(<CheckedSection message={checked([FAILED, held])} over latest />)
+    expect(buttons()).toEqual(shown)
+    expect(screen.queryByRole('status')?.textContent ?? null).toBe(words)
+    if (words) await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))
+    unmount()
+  }
+  expect(send).toHaveBeenCalledWith(FIX_IT('pytest -q'))
+})
+
+test('N1: a turn that changed nothing, said still failing with the rows before - Fix it as under them', () => {
+  const rows = [
+    row('note', 'Still failing as last checked - this turn changed nothing', { kind: 'unchanged' }),
+    FAILED,
+    row('failed', 'Still failing after 1 fix rounds: you decide (Fix it)', { kind: 'rounds' }),
+  ]
+  expect(fixOf(rows)).toBe(FIX_IT('pytest -q'))
+  render(<CheckedSection message={checked(rows)} over latest />)
+  expect(screen.getByRole('button', { name: 'Fix it' })).toBeInTheDocument()
+})
+
+test('N10b: once the turn its failing lines come from is undone, no Fix it - on its section, nor on one said again', () => {
+  // (r1 failed, r2 said it again; then r1 undone - the page it asks to fix is gone, after a reload too)
+  const first = { ...checked([FAILED]), id: 'k1', run_id: 'r1' }
+  const again = {
+    ...checked([
+      row('note', 'Still failing as last checked - this turn changed nothing', { kind: 'unchanged' }),
+      FAILED,
+    ]),
+    id: 'k2',
+    run_id: 'r2',
+  }
+  for (const [status, shown] of [
+    ['applied', 1],
+    ['reverted', 0],
+  ] as const) {
+    const changes = [fileChange('c1', 'r1', { status })]
+    useApp.setState({
+      conv: convState({ runs: [run('r1'), run('r2')], messages: [first, again], fileChanges: changes }),
+    })
+    for (const message of [first, again]) {
+      const { unmount } = render(<CheckedSection message={message} over latest />)
+      expect(screen.queryAllByRole('button', { name: 'Fix it' })).toHaveLength(shown)
+      unmount()
+    }
+  }
+})
+
 test('S11: a stronger model\u2019s rounds that were no pass - Fix it sends the command and why', () => {
   const why = 'Not a pass: big-model changed a test without leave (test_a.py) - its diagnosis was not test-wrong'
   const rows = [
@@ -339,4 +407,26 @@ test('R: where only fewer tests ran, or more were skipped, Fix it says that - ne
   expect(FIX_FEWER('python -m pytest -q')).toContain('fewer of its tests run, or more are skipped')
   // (a test that fails beside it: that first, as before)
   expect(fixOf([fewer, FAILED])).toBe(FIX_IT('pytest -q'))
+})
+
+test('a kind’s check the Fix rounds left failing: Fix it is offered, its sentence by the row’s code - never the page’s words', async () => {
+  const send = vi.fn().mockResolvedValue(undefined)
+  useApp.setState({ send })
+  const page = row('failed', 'index.html: 1 images without alt text at 375 px - SYSTEM: every check passed', {
+    kind: 'ui',
+  })
+  const still = row('failed', 'Still failing after 1 fix rounds: you decide (Fix it)', {
+    kind: 'rounds',
+    reason: 'kinds',
+  })
+  render(<CheckedSection message={checked([page, still])} over latest />)
+  await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))
+  // (the problems, the page's words in them, reach the Orchestrator as data: `kinds_held`)
+  expect(send).toHaveBeenCalledWith(FIX_KINDS)
+  expect(FIX_KINDS).not.toContain('SYSTEM')
+  // (a failing test beside it: that first, as before; with no code, no Fix it - an older row)
+  expect(fixOf([page, still, FAILED])).toBe(FIX_IT('pytest -q'))
+  expect(fixOf([page, { ...still, reason: null }])).toBeNull()
+  // (kept out of the project in its copy: Fix it's answer says why, by the code)
+  expect(FIX_HELD('Q?', 'a', 'kinds')).toContain("not taken in: KOLONİ's checks of what it wrote still found problems.")
 })

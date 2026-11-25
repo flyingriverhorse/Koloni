@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import tomllib
 import zipfile
 import zlib
@@ -855,7 +856,7 @@ _DOTTED = re.compile(rf"(?:\.[^.=\n\[\]{{}},]*){{{MOST_DEPTH}}}")
 # JSON with comments (tsconfig.json, VS Code's): its comments left out, then its trailing commas -
 # a comment between one and its bracket too - its lines kept where they were, its strings as
 # they are.
-_JSONC = re.compile(rf"({_QUOTED})|//.*|/\*[\s\S]*?(?:\*/|\Z)")
+_JSONC = re.compile(rf"({_QUOTED})|//[^\r\n\u2028\u2029]*|/\*[\s\S]*?(?:\*/|\Z)")
 _TRAILING = re.compile(rf"({_QUOTED})|,(?=\s*[}}\]])")
 # (Python reads them; JSON has none, and a strict reader - npm's, JSON.parse - breaks on them.)
 _CONSTANT = re.compile(r"-?\b(?:NaN|Infinity)\b")
@@ -1539,9 +1540,19 @@ CUT_WHY = {
     "pairs": "a text's lines meet more than {pairs} line boxes of drawn elements",
     "depth": "a text's background is more than {depth} elements up",
     "styles": "more than {styles} kinds of text",
+    "nested": "nested over {nested} deep",
 }
 A11Y_UNREAD = "{path}: accessibility not read at {widths} px"
 NO_BODY = "{path}: accessibility not read at {widths} px - the page has no body"
+NO_ROOT = "{path}: accessibility not read at {widths} px - the page has no root"
+# V1 (0.1.8): read SETTLE s after the page loaded, then AGAIN s later; a failing rule whose finding
+# differs between the two is not judged at that width (`_settled`) - a page still changing (one
+# drawn as its data comes) is neither sent back for what it had not drawn yet nor passed for what
+# it drew late; what both reads find fails, however the rest of the page moves.
+SETTLE, AGAIN = 0.5, 0.3
+CHANGED = (
+    "{path}: accessibility not judged at {widths} px for what changed after it loaded - {named}"
+)
 NEEDS, NEEDS_LARGE = 4.5, 3.0
 LARGE_PX, LARGE_BOLD_PX, BOLD = 24.0, 18.66, 700
 MOST_SNIPPET = 40
@@ -1607,9 +1618,14 @@ async def check_pages(
     try:
         async with asyncio.timeout(PAGES_SECONDS):
             for name, at in targets:
+                if one.crashed:  # (a page crashed its tab: the next is read in a new browser)
+                    await one.close()
+                    one = await start()
                 rows += await _look(one, ws, name, at, shots)
     except TimeoutError:
         rows.append(row(UI, "note", PAGES_SLOW.format(seconds=PAGES_SECONDS)))
+    except Exception as exc:  # (...one that did not start: `_look` says what else breaks)
+        rows.append(row(UI, "note", PAGES_FAILED.format(why=_said(str(exc) or type(exc).__name__))))
     finally:
         await one.close()
     return rows
@@ -1618,8 +1634,9 @@ async def check_pages(
 async def _look(
     one: "browser.Browser", ws: Workspace, name: str, at: str, shots: Path
 ) -> list[Row]:
-    """One page at each width: its console's errors (`_errors`), whether it scrolls sideways, a
-    screenshot. Errors where it loads a script from outside this machine are a note: KOLONİ's
+    """One page at each width: its console's errors (`_errors`), whether it scrolls sideways, its
+    accessibility (`_read_twice`), a screenshot. Errors where it loads a script from outside
+    this machine are a note: KOLONİ's
     browser never goes out, and what fails after such a load may be its doing."""
     errors: dict[int, list[str]] = {}
     outside, wide, away, read = False, [], set(), {}
@@ -1631,6 +1648,7 @@ async def _look(
             one.console()  # (what the last width's page said is not this one's)
             one.refused()
             await one.open(url)
+            loaded = time.monotonic()
             refused = one.refused()
             said, scripts = _errors(one.console(), refused)
             outside = outside or scripts
@@ -1639,7 +1657,7 @@ async def _look(
                 errors[width] = said
             if await one.wider():
                 wide.append(width)
-            read[width] = await _accessed(one)
+            read[width] = await _read_twice(one, loaded)
             data, _listed = await one.screenshot()
             shots.mkdir(parents=True, exist_ok=True)
             named = slug(re.sub(r"[./:]+", "-", name))[:60] or "page"
@@ -1732,9 +1750,12 @@ _NOTED = (
     ("inside", UNREAD_INSIDE),
     ("cut", A11Y_CUT),
     ("unread", A11Y_UNREAD),
+    ("noroot", NO_ROOT),
     ("nobody", NO_BODY),
+    ("changed", CHANGED),
 )
 _ONCE = (1, (), 0)  # (what a rule found that is said once, with no names)
+_NONE = (0, (), 0)  # (...and what it did not find)
 
 
 async def _accessed(one: "browser.Browser") -> dict | None:
@@ -1745,6 +1766,60 @@ async def _accessed(one: "browser.Browser") -> dict | None:
         return await one.access()
     except browser.BrowserError:
         return None
+
+
+async def _read_twice(one: "browser.Browser", loaded: float) -> dict[str, Found]:
+    """V1: what the page's read finds SETTLE s after it `loaded` (time.monotonic), and again
+    AGAIN s later (`_settled`). One not answered is not read again (it would cost its 30 s twice);
+    a second one not answered is "not read".
+    shortcut: a read cut at A11Y_MS is not read again either, and one whose second read is cut so
+    stands on its first - where it is cut differs from one read to the next though nothing
+    changed; such a width is judged on one read, said "in part". Read it twice too if a page is
+    seen to change under a cut read."""
+    await asyncio.sleep(max(0.0, loaded + SETTLE - time.monotonic()))
+    first = await _accessed(one)
+    if first is None or _timed_out(first):
+        return _findings(first)
+    await asyncio.sleep(AGAIN)
+    second = await _accessed(one)
+    if second is None:
+        return _findings(None)
+    return _findings(first) if _timed_out(second) else _settled(_findings(first), _findings(second))
+
+
+def _timed_out(read: dict) -> bool:
+    """Whether a read was cut at its A11Y_MS."""
+    return "time" in (read.get("cut") or ())
+
+
+# What a failing rule is, in CHANGED's words.
+_CHANGED = {
+    "hidden": "the page hidden whole",
+    "alt": "images without alt text",
+    "name": "controls with no name",
+    "focus": "controls one tabs to inside aria-hidden",
+}
+
+
+def _settled(first: dict[str, Found], second: dict[str, Found]) -> dict[str, Found]:
+    """Two reads as one, by each failing rule's count: found in both, the fewer fail, named as
+    the second read names them - an image's address that rotates, controls that swap places, an
+    inline image renumbered by one put above it are the same problems - and more in one read
+    than the other, or found in one read only, is not judged - said (`CHANGED`), by its rule.
+    The notes are the second read's: one that moves (a count going up in grey, a clock over a
+    gradient) never keeps a failure the page has from failing."""
+    found = {kind: one for kind, one in second.items() if kind not in _CHANGED}
+    moved = []
+    for kind in _CHANGED:
+        was, now = first.get(kind, _NONE), second.get(kind, _NONE)
+        if was[0] != now[0]:
+            moved.append(_CHANGED[kind])
+        if was[0] and now[0]:
+            n = min(was[0], now[0])
+            found[kind] = now if n == now[0] else (n, now[1][:n], n)
+    if moved:
+        found["changed"] = (1, tuple(moved), 0)
+    return found
 
 
 def _snippet(text: object) -> str:
@@ -1836,8 +1911,9 @@ def _findings(read: dict | None) -> dict[str, Found]:
     """One width's read (`Browser.access`) as what each rule found."""
     if read is None:
         return {"unread": _ONCE}
-    if read.get("nobody") is True:
-        return {"nobody": _ONCE}
+    for said in ("noroot", "nobody"):
+        if read.get(said) is True:
+            return {said: _ONCE}
     found: dict[str, Found] = {"hidden": _ONCE} if read.get("hidden") is True else {}
     for kind, listed, counted in (
         ("alt", "images", "imagesN"),
@@ -1875,15 +1951,15 @@ def _cut_why(cut: object) -> tuple[str, ...]:
         "pairs": browser.A11Y_PAIRS,
         "depth": browser.A11Y_DEPTH,
         "styles": browser.A11Y_STYLES,
+        "nested": browser.A11Y_NESTED,
     }
     keys = dict.fromkeys(one for one in cut if isinstance(one, str) and one in CUT_WHY)
     return tuple(CUT_WHY[one].format(**bounds) for one in keys)
 
 
-def _access_rows(name: str, read: dict[int, dict | None]) -> tuple[list[Row], list[Row]]:
-    """The page's accessibility at each width as lines - failed ones, and notes - a width with
-    the same findings as another said in one line with it."""
-    found = {width: _findings(one) for width, one in read.items()}
+def _access_rows(name: str, found: dict[int, dict[str, Found]]) -> tuple[list[Row], list[Row]]:
+    """What the page's read found at each width (`_read_twice`) as lines - failed ones, and
+    notes - a width with the same findings as another said in one line with it."""
     lines: tuple[list[Row], list[Row]] = ([], [])
     for kinds, said, state in ((_FAILED, lines[0], "failed"), (_NOTED, lines[1], "note")):
         for kind, text in kinds:

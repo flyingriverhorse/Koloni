@@ -10,8 +10,9 @@ from pathlib import Path
 import pytest
 from alembic import command
 
-from app import backlog
+from app import away, backlog
 from app.agent import recover_interrupted
+from app.db import models
 from app.db.models import BacklogTask, Run
 from tests.test_chat_flow import text
 from tests.test_migration_0002 import _config
@@ -25,6 +26,32 @@ def setup(client, project_dir, *titles):
     return pid, [
         client.post(f"/api/projects/{pid}/backlog", json={"title": t}).json()["id"] for t in titles
     ]
+
+
+def run_todo(client, pid, mode=None) -> dict:
+    """Each task to do - not one waiting for your OK, nor a night's - goes into a new chat of its
+    own and starts there (Do in chat); at `mode` where given, else at the level `full_auto` set
+    for the client. The first's task id and chat."""
+    mode = mode or getattr(client, "todo_mode", None)
+    first = {"task_id": None, "conversation_id": None}
+    for one in client.get(f"/api/projects/{pid}/backlog").json():
+        if one["status"] != "todo" or one["place"] is not None:
+            continue
+        cid = None
+        if mode:
+            cid = client.post(f"/api/projects/{pid}/conversations", headers=ORIGIN).json()["id"]
+            changed = client.patch(
+                f"/api/conversations/{cid}", json={"permission_mode": mode}, headers=ORIGIN
+            )
+            assert changed.status_code == 200, changed.text
+        answer = client.post(
+            f"/api/projects/{pid}/backlog/do-in-chat",
+            json={"task_ids": [one["id"]], "conversation_id": cid},
+            headers=ORIGIN,
+        )
+        if answer.status_code == 200 and first["task_id"] is None:
+            first = {"task_id": one["id"], "conversation_id": answer.json()["conversation_id"]}
+    return first
 
 
 def titles(client, pid):
@@ -145,10 +172,12 @@ def test_a_turn_that_did_not_complete_puts_its_task_back(client, project_dir):
             task = session.get_one(BacklogTask, task_id)
             task.status, task.conversation_id = status, "c1" if task_id != other else "c2"
         # A side of a comparison is not c1's own turn: it moves nothing.
-        assert not backlog.turn_ended(session, Run(conversation_id="c1", compare_id="x"), "failed")
-        assert backlog.turn_ended(session, Run(conversation_id="c1"), "interrupted")
+        side = Run(conversation_id="c1", compare_id="x", task_id=failed)
+        assert not backlog.turn_ended(session, side, "failed")
+        assert backlog.turn_ended(session, Run(conversation_id="c1", task_id=failed), "interrupted")
         session.commit()
-        assert not backlog.turn_ended(session, Run(conversation_id="c3"), "completed")
+        # (a turn of no task - the user's own in its chat - moves none)
+        assert not backlog.turn_ended(session, Run(conversation_id="c1"), "completed")
     seen = {t["title"]: t for t in client.get(f"/api/projects/{pid}/backlog").json()}
     assert (seen["failed"]["status"], seen["failed"]["conversation_id"]) == ("todo", "c1")
     assert seen["done"]["status"] == "done" and seen["other"]["status"] == "doing"
@@ -181,7 +210,7 @@ def test_work_opens_no_folder_a_task_names_and_says_who_wrote_it(
     agent(client, pid, "add_task", title="tidy", detail=f"Look in `{outside}` first.")
     (task,) = client.get(f"/api/projects/{pid}/backlog").json()
     client.post(f"/api/backlog/{task['id']}/decide", json={"decision": "approve"})
-    cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     snap = client.get(f"/api/conversations/{cid}").json()
     assert snap["conversation"]["also_in"] == []
     assert snap["conversation"]["title"] == "tidy"  # its title comes first, on its own line
@@ -205,7 +234,7 @@ def test_a_tasks_chat_is_named_by_its_whole_title_and_listed_as_the_tasks(
     )
     pid, (tid,) = setup(client, project_dir, title)
     own = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     wait_run(client, cid, client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"])
     listed = {c["id"]: c for c in client.get(f"/api/projects/{pid}/conversations").json()}
     assert listed[cid]["title"] == title  # not cut at a chat's 60 characters (K-backlog-sohbet)
@@ -220,7 +249,7 @@ def test_a_turn_the_restart_cut_short_puts_its_task_back(client, project_dir):
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     factory = client.app.state.session_factory
     with factory() as session:
-        session.add(Run(conversation_id=cid, status="running"))
+        session.add(Run(conversation_id=cid, status="running", task_id=task_id))
         task = session.get_one(BacklogTask, task_id)
         task.status, task.conversation_id = "doing", cid
         session.commit()
@@ -268,6 +297,7 @@ def test_a_task_whose_turn_waits_for_the_user_is_at_work_while_another_agent_of_
     with client.app.state.runner._factory() as session:
         session.add(
             BacklogTask(
+                id="t",
                 project_id=pid,
                 title="night job",
                 status="doing",
@@ -276,7 +306,7 @@ def test_a_task_whose_turn_waits_for_the_user_is_at_work_while_another_agent_of_
                 created_by="user",
             )
         )
-        session.add(Run(id="r", conversation_id=cid, status="waiting_approval"))
+        session.add(Run(id="r", conversation_id=cid, status="waiting_approval", task_id="t"))
         session.flush()
         session.add_all(
             [
@@ -285,7 +315,80 @@ def test_a_task_whose_turn_waits_for_the_user_is_at_work_while_another_agent_of_
             ]
         )
         session.commit()
-        assert backlog.busy(session, pid, waiting=True) is not None
+        assert away.busy(session, pid, waiting=True) is not None
         session.get_one(Agent, "b").status = "waiting_approval"
         session.commit()
-        assert backlog.busy(session, pid, waiting=True) is None
+        assert away.busy(session, pid, waiting=True) is None
+
+
+def test_add_task_puts_a_proposal_in_a_story_named_by_its_title(client, project_dir):
+    """0.1.8: an agent's add_task names a story by its title - an open one of the project, whatever
+    its case, or a new one of its own (with a goal, new or of that name); turned down, the story it
+    opened goes, and so does its goal once it holds no story."""
+    pid, _ = setup(client, project_dir)
+    said = agent(
+        client, pid, "add_task", title="Mobile button", story="Login", goal="Auth", kind="bug"
+    )
+    assert "story" in said and "Login" in said
+    tree = client.get(f"/api/projects/{pid}/stories").json()
+    assert tree == {
+        "goals": [],
+        "stories": [],
+    }  # (an agent's story holding only proposals: not shown)
+    with client.app.state.session_factory() as session:
+        (story,) = session.query(models.Story).all()
+        (goal,) = session.query(models.Goal).all()
+        assert (story.title, story.created_by, story.goal_id) == ("Login", "agent", goal.id)
+        assert (goal.title, goal.created_by) == ("Auth", "agent")
+    agent(client, pid, "add_task", title="Check the form", story="login")
+    tasks = client.get(f"/api/projects/{pid}/backlog").json()
+    assert {(t["title"], t["status"], t["kind"]) for t in tasks} == {
+        ("Mobile button", "proposed", "bug"),
+        ("Check the form", "proposed", "task"),
+    }
+    assert {t["story_id"] for t in tasks} == {story.id}
+    # The agents read it so too: each task's story, and a bug said.
+    listed = agent(client, pid, "read_backlog")
+    assert listed.count("; story: ") == 2 and "Login" in listed and ", bug, " in listed
+    bug = next(t for t in tasks if t["kind"] == "bug")
+    assert "a bug" in agent(client, pid, "read_backlog", task_id=bug["id"])
+    with pytest.raises(backlog.Refused):
+        agent(client, pid, "add_task", title="x", kind="epic")
+    for task in tasks:
+        client.post(f"/api/backlog/{task['id']}/decide", json={"decision": "reject"})
+    with client.app.state.session_factory() as session:
+        assert session.query(models.Story).count() == 0 and session.query(models.Goal).count() == 0
+    # A story of the user's stays though its tasks go; one closed is not added to.
+    mine = client.post(f"/api/projects/{pid}/stories", json={"title": "Mine"}).json()["id"]
+    agent(client, pid, "add_task", title="y", story="mine")
+    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert task["story_id"] == mine
+    assert client.delete(f"/api/backlog/{task['id']}").status_code == 204
+    assert client.patch(f"/api/stories/{mine}", json={"closed": True}).status_code == 200
+    # A closed one is not added to, nor named again: the agent is told so.
+    with pytest.raises(backlog.Refused, match="is closed"):
+        agent(client, pid, "add_task", title="z", story="mine")
+    assert client.get(f"/api/projects/{pid}/backlog").json() == []
+
+
+def test_an_approved_proposal_makes_its_story_the_users_and_its_row_names_it(client, project_dir):
+    """Review M2 / M3: a proposal's row says its story and goal, and that an agent opened them;
+    added, both are the user's - kept though its tasks go. A proposal moved out of a story an
+    agent opened for it leaves no empty story behind."""
+    pid, _ = setup(client, project_dir)
+    agent(client, pid, "add_task", title="Mobile button", story="Login", goal="Auth", kind="bug")
+    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
+    said = (task["story_title"], task["story_by"], task["goal_title"], task["goal_by"])
+    assert said == ("Login", "agent", "Auth", "agent")
+    client.post(f"/api/backlog/{task['id']}/decide", json={"decision": "approve"})
+    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert (task["status"], task["story_by"], task["goal_by"]) == ("todo", "user", "user")
+    assert client.delete(f"/api/backlog/{task['id']}").status_code == 204
+    tree = client.get(f"/api/projects/{pid}/stories").json()
+    assert [s["title"] for s in tree["stories"]] == ["Login"]
+    assert [g["title"] for g in tree["goals"]] == ["Auth"]
+    agent(client, pid, "add_task", title="Elsewhere", story="Fresh")
+    (moved,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert client.patch(f"/api/backlog/{moved['id']}", json={"story_id": None}).status_code == 200
+    with client.app.state.session_factory() as session:
+        assert [s.title for s in session.query(models.Story).all()] == ["Login"]

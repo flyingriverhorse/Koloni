@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.ledger import NO_CHANGE
 from app.model_client import ModelUnavailable, StepResult, ToolCallRequest
 from app.roles import BUILTIN_ROLES, effective_tools
 from tests.fakes import Script, ScriptedExecutor, ScriptedModel
@@ -65,8 +66,10 @@ def begin(client, project_dir, mode="ask", content="please check my greeting", *
 def reported(result: str) -> str:
     """A spawn_agent result without KOLONİ's line on a thin task (K-brief-kalitesi): a test's
     task is short, and the line is asserted once (`test_a_thin_task_is_said_to_its_opener`) -
-    nor its record line (K-kanit), asserted in `test_child_runs_with_a_clean_context_...`."""
-    return re.sub(r"\n\nWhat it did\b[^\n]*", "", result.split("\n\nKOLONİ: the task you gave")[0])
+    nor its record line (K-kanit), asserted in `test_child_runs_with_a_clean_context_...`, nor
+    the line on a role that writes and changed nothing (L1), asserted in `test_no_change`."""
+    said = re.sub(r"\n\nWhat it did\b[^\n]*", "", result.split("\n\nKOLONİ: the task you gave")[0])
+    return said.replace(f"\n\n{NO_CHANGE}", "")
 
 
 def names(tools):
@@ -130,6 +133,101 @@ def test_a_role_merely_named_is_not_said_so_but_one_the_lead_says_it_asked_is(
         headers={"Origin": "http://127.0.0.1:8790"},
     ).json()["run"]["id"]
     assert koloni(wait_run(client, cid, again)) == ["Tester was not opened this turn."]
+
+
+def test_a_role_named_in_a_table_a_quote_or_code_is_no_claim(make_client, wait_run, project_dir):
+    # B-331's remainder (PLAN-T28-07, live): a role in a table cell ("| Plan | The product owner
+    # writes the acceptance criteria…") was said not opened; nor is one in a quote or in code.
+    # A claim of the Lead's own beside them still is.
+    client, _model = make_client(
+        [
+            text(
+                "| Step | Who |\n|---|---|\n| Review | Reviewer checked the diff |\n\n"
+                "> Debugger found it last week.\n\n"
+                "Run `Coder fixed` to see.\n\n"
+                "```\nTester ran the suite\n```\n"
+                "~~~text\nData analyst wrote this\n"
+            ),
+            text("Done.\n\n```\nReviewer approved it\n```\nTester ran it."),
+        ]
+    )
+    cid, run_id = begin(client, project_dir)
+
+    def koloni(snap):
+        return [m["content"] for m in snap["messages"] if m["role"] == "koloni"]
+
+    assert koloni(wait_run(client, cid, run_id)) == []
+    again = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "again"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    ).json()["run"]["id"]
+    assert koloni(wait_run(client, cid, again)) == ["Tester was not opened this turn."]
+
+
+def test_a_step_loads_only_the_tool_calls_of_the_messages_it_sends(
+    make_client, wait_run, project_dir, gate, monkeypatch
+):
+    """Each model step's history loaded every tool call of the chat - its sub-agents' too, which
+    a Lead is never sent (`_history_calls`). Now only those of its messages, and what it is sent
+    is the same."""
+    from sqlalchemy import event, select
+
+    from app.agent import AgentRunner
+    from app.agent.proof_mixin import PROOF_CALL
+    from app.db.models import Run, ToolCall
+
+    client, _model = make_client(
+        [
+            spawn("Coder", "look around"),
+            *[step(call("list_dir", {}, f"l{n}")) for n in range(3)],
+            text("Looked."),
+            text("The coder looked."),
+            gate.step(text("Again.")),
+        ]
+    )
+    cid, run_id = begin(client, project_dir, "full_auto")
+    wait_run(client, cid, run_id)
+    client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "again"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    )
+    gate.wait_partial()  # (the Lead's step of the second turn, held)
+    runner = client.app.state.runner
+    lead = next(ctx for ctx in runner._ctxs.values() if ctx.depth == 0)
+
+    def every_call(self, session, ids):  # the loader before: the whole chat's
+        calls: dict = {}
+        for one in session.scalars(
+            select(ToolCall)
+            .join(Run, Run.id == ToolCall.run_id)
+            .where(Run.conversation_id == cid)
+            .order_by(ToolCall.seq)
+        ):
+            if not one.provider_call_id.startswith(PROOF_CALL):
+                calls.setdefault(one.message_id, []).append(one)
+        return calls
+
+    loaded: list[str] = []
+
+    def history() -> tuple[list[dict], int]:
+        loaded.clear()
+        return client.portal.call(lambda: runner._history(lead, None, quiet=True)), len(loaded)
+
+    def counted(target, _context):
+        loaded.append(target.name)
+
+    event.listen(ToolCall, "load", counted)
+    try:
+        sent, narrow = history()
+        monkeypatch.setattr(AgentRunner, "_history_calls", every_call)
+        before, wide = history()
+    finally:
+        event.remove(ToolCall, "load", counted)
+    gate.release()
+    assert sent == before and "spawn_agent" in str(sent)
+    assert (narrow, wide) == (1, 4)  # (the Lead's spawn_agent; before, the Coder's 3 list_dir too)
 
 
 # --- the child loop -----------------------------------------------------------

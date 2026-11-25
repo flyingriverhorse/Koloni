@@ -124,8 +124,9 @@ def test_agys_groups_are_its_windows_each_a_week():
     assert "unknown" in app.limits.of_agy({"status": "SUCCESS"}, NOW)
 
 
-def test_copilots_premium_requests_are_its_one_window_and_the_unlimited_are_passed_over():
+def test_copilots_premium_requests_are_a_window_and_the_unlimited_are_passed_over():
     shown = app.limits.of_copilot(COPILOT_QUOTA, NOW)
+    # (Its chat requests were unlimited then: no window. A limited one is: test_copilot_offers.)
     assert shown["windows"] == [
         {
             "name": "premium requests",
@@ -133,6 +134,8 @@ def test_copilots_premium_requests_are_its_one_window_and_the_unlimited_are_pass
             "used_percent": 90.2,
             "resets_at": RESETS + timedelta(days=1),
             "stale": False,
+            "limit": 300,
+            "remaining": 29,
         }
     ]
     assert "someone" not in json.dumps(shown, default=str)
@@ -394,8 +397,9 @@ def test_a_native_copilot_says_its_quota_and_no_other_copilot_is_started(
     assert "someone" not in json.dumps(kept) + json.dumps(shown, default=str) + json.dumps(snap)
     # Only the run's own Copilot was started, and its background read is not due now. (Before
     # it, the one its version is asked of: K-cli-surface's `status.get`, started as the run is.)
+    # (Where its account's list was never kept, that is due: test_copilot_offers.)
     assert len(starts.read_text("utf-8").splitlines()) == 2
-    limits.refresh(ON_GITHUB)
+    limits.refresh(Provider(id="g", name="Copilot", kind="copilot_cli", offers={"models": []}))
     assert not limits._reading
 
 

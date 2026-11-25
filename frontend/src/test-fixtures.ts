@@ -1,6 +1,8 @@
 // Record builders shared by tests.
 import { within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { onTestFinished, vi } from 'vitest'
+import { api } from './api/client'
 import type {
   Agent,
   Board,
@@ -441,4 +443,21 @@ export async function openAgentFold(name: string, root: HTMLElement = document.b
   const fold = summary.closest('details') as HTMLElement
   if (!fold.hasAttribute('open')) await userEvent.click(summary)
   return fold
+}
+
+/** Settings › The app › Agents' Show experimental CLIs on, for this test: agy and Codex step by step offered. Any
+ *  other GET goes where it went: to a stand-in a test set (kept after), else the real one. */
+export function showExperimental() {
+  const was = api.get
+  const before = vi.isMockFunction(was) ? was.getMockImplementation() : was
+  const spy = vi
+    .spyOn(api, 'get')
+    .mockImplementation(((path: string, signal?: AbortSignal) =>
+      path === '/experimental-clis'
+        ? Promise.resolve({ show: true })
+        : (before?.(path, signal) ?? Promise.reject(new Error(path)))) as typeof api.get)
+  onTestFinished(() => {
+    if (before && vi.isMockFunction(was)) spy.mockImplementation(before)
+    else spy.mockRestore()
+  })
 }

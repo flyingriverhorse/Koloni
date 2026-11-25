@@ -652,6 +652,22 @@ test('the window says how full its context is, how many messages were summarised
   expect(screen.queryByRole('meter')).not.toBeInTheDocument()
 })
 
+test('a native CLI that ended shows no fill from its tokens in: they are its turn calls added up', async () => {
+  const ended = agent('r', 'completed', { provider_mode: 'native', input_tokens: 95000, context_window: 100000 })
+  render(
+    <AgentWindow
+      state={convState({ runs: [run('r')], agents: [ended] })}
+      agentId="r"
+      onClose={() => {}}
+      onOpenChange={() => {}}
+      onSelectAgent={() => {}}
+    />,
+  )
+  await openAgentFold('Details')
+  expect(screen.getByText('Context').nextElementSibling).toHaveTextContent(/^95,000 in \/ unknown out$/)
+  expect(screen.queryByRole('meter')).not.toBeInTheDocument()
+})
+
 test('89j: while its CLI works the window says how full it says its context is, and its plan step by step, as text', async () => {
   const working = agent('r', 'running')
   const live = {
@@ -661,7 +677,6 @@ test('89j: while its CLI works the window says how full it says its context is, 
         { step: 'Read <b>hello.py</b>', status: 'completed' as const },
         { step: 'Fix it', status: 'inProgress' as const },
       ],
-      queue: null,
     },
   }
   render(
@@ -680,37 +695,6 @@ test('89j: while its CLI works the window says how full it says its context is, 
   const steps = within(screen.getByText('Plan').nextElementSibling as HTMLElement).getAllByRole('listitem')
   expect(steps.map(one => one.textContent)).toEqual(['✓ Read <b>hello.py</b>', '▸ Fix it'])
   expect(steps[1]).toHaveClass('agent-plan-inProgress')
-  expect(screen.queryByText('Queue')).toBeNull()
-})
-
-test('K-qoder-kuyruk: while Qoder’s model is queued the window says for how long, in one line that is updated in place', () => {
-  const working = agent('r', 'running')
-  const queued = (elapsed_s: number) => ({
-    r: { context: null, plan: null, queue: { elapsed_s, max_s: 3600, available: false } },
-  })
-  const { rerender } = render(
-    <AgentWindow
-      state={convState({ runs: [run('r')], agents: [working], live: queued(163) })}
-      agentId="r"
-      onClose={() => {}}
-      onOpenChange={() => {}}
-      onSelectAgent={() => {}}
-    />,
-  )
-  expect(screen.getByText('Queue').nextElementSibling).toHaveTextContent(
-    "Qoder: in the model's queue for 2 min 43 s (waits up to 60 min), the service says it is not available",
-  )
-  rerender(
-    <AgentWindow
-      state={convState({ runs: [run('r')], agents: [working], live: queued(193) })}
-      agentId="r"
-      onClose={() => {}}
-      onOpenChange={() => {}}
-      onSelectAgent={() => {}}
-    />,
-  )
-  expect(screen.getAllByText(/in the model's queue/)).toHaveLength(1)
-  expect(screen.getByText('Queue').nextElementSibling).toHaveTextContent(/for 3 min 13 s/)
 })
 
 test('the working state is shown under the context line and the user can correct it (slice 59d)', async () => {

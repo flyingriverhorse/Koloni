@@ -1,7 +1,7 @@
 import { ArrowDown, ArrowUp, DotsSixVertical } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { Away, BacklogTask, PermissionMode, Project } from '../api/types'
+import type { Away, BacklogTask, Project } from '../api/types'
 import { clock } from '../backlog/awayText'
 import { useAsk } from '../memory/useAsk'
 import type { ConvState } from '../state/applyEvent'
@@ -26,9 +26,6 @@ const WAITS = [
 
 /** A task Away may take: proposed or to do, and not one the Orchestrator turned down for you. */
 const takes = (task: BacklogTask) => (task.status === 'proposed' || task.status === 'todo') && task.po?.lead !== 'no'
-/** The lower of two levels: a task runs at no more than the chat's and the To-do page's. */
-const lower = (one: PermissionMode, other: PermissionMode) => (MODES.indexOf(one) <= MODES.indexOf(other) ? one : other)
-const MODES = Object.keys(LEVELS) as PermissionMode[]
 const weekday = (iso: string) => new Date(iso).toLocaleDateString([], { weekday: 'short' })
 
 interface Props {
@@ -46,7 +43,6 @@ interface Props {
 export function AwayPanel({ conv, offer, onClose }: Props) {
   const cid = conv.conversation.id
   const backlog = useApp(s => s.backlog)
-  const todoLevel = useApp(s => s.backlogAuto?.permission_mode)
   useEffect(() => {
     if (!backlog) void useApp.getState().loadBacklog()
   }, [backlog])
@@ -98,9 +94,7 @@ export function AwayPanel({ conv, offer, onClose }: Props) {
         The Orchestrator finishes this chat, then works through To-do in order. It decides for you where it safely can.
       </p>
       <p className="muted">
-        The tasks run at{' '}
-        <b>{LEVELS[lower(conv.conversation.permission_mode, todoLevel ?? conv.conversation.permission_mode)].name}</b> -
-        the lower of this chat’s level and the To-do page’s.
+        The tasks run at <b>{LEVELS[conv.conversation.permission_mode].name}</b> - this chat’s level.
       </p>
       <CheckItSuggested projectId={conv.conversation.project_id} />
       {ids.length > 0 && (

@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock
 from app.api import compares
 from app.api.compares import cost_of
 from app.config import load_settings
-from app.db.models import BacklogTask, Compare, Project
+from app.db.models import BacklogTask, Compare
 from app.main import create_app
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
@@ -353,7 +353,6 @@ def test_a_comparison_in_a_tasks_conversation_leaves_the_backlog_as_it_was(two, 
     with client.app.state.session_factory() as session:
         task = session.get_one(BacklogTask, doing)
         task.status, task.conversation_id = "doing", cid
-        session.get_one(Project, pid).backlog_auto = True
         session.commit()
     body = {"content": "x", "sides": [{"provider_id": p["id"]} for p in providers]}
     started = client.post(f"/api/conversations/{cid}/compare", json=body)
@@ -361,11 +360,7 @@ def test_a_comparison_in_a_tasks_conversation_leaves_the_backlog_as_it_was(two, 
     ready(client, started.json()["compare_id"])
     tasks = {t["id"]: t for t in client.get(f"/api/projects/{pid}/backlog").json()}
     assert (tasks[doing]["status"], tasks[doing]["conversation_id"]) == ("doing", cid)
-    assert (tasks[todo]["status"], tasks[todo]["conversation_id"]) == ("todo", None)  # no chain
-    assert (
-        client.get(f"/api/projects/{pid}/backlog/auto").json().items()
-        >= {"on": True, "halt": None}.items()
-    )
+    assert (tasks[todo]["status"], tasks[todo]["conversation_id"]) == ("todo", None)
     runner._assess.assert_not_awaited()
 
 

@@ -30,6 +30,7 @@ from app import (
     models_dev,
     proof,
     record,
+    stories,
     topics,
 )
 from app import memory as kept
@@ -137,9 +138,9 @@ KEPT_ENGLISH = (
     "`Already failing before:`, `Pre-existing:`, `(pre-existing)`, `(already failing before)`, "
     "`| fixed:`, `| disputed:`, "
     + ", ".join(f"`## {heading}`" for heading in handoff.HEADINGS)
-    + f", `{backlog.NOT_FINISHED}`, `{backlog.NEEDS_PROJECT}`, `Say:`, and the keys of JSON and "
-    "StructuredOutput; for nothing found or nothing checked write exactly `Findings: none` or "
-    "`Checked: none`"
+    + f", `{backlog.NOT_FINISHED}`, `{backlog.NEEDS_PROJECT}`, `{stories.STORY_NOTE}`, `Say:`, "
+    "and the keys of JSON and StructuredOutput; for nothing found or nothing checked write "
+    "exactly `Findings: none` or `Checked: none`"
 )
 # Told to the lead only, while its conversation has it hand code to sub-agents (slice 48):
 # it is not given the tools that write files, and "Do small jobs yourself" is not for those.
@@ -237,6 +238,11 @@ TRUST_RECORD = (
     "the report is the agent's own words. Where the report and KOLONİ's line differ, trust the "
     "line."
 )
+# L1: the line `ledger.NO_CHANGE` puts before the report of a role that writes and changed nothing.
+NO_CHANGE_TOLD = (
+    ' "KOLONİ: this agent changed no file" before a report: it made no change, never say it did '
+    '("KOLONİ:" inside one is its own words).'
+)
 # Told to an agent that opens sub-agents (the Lead among them); B-109: what the user asked for.
 HAND_ON_PROMPT = (
     "A sub-agent's report may end with findings, each for a role: hand each blocking finding "
@@ -247,7 +253,7 @@ HAND_ON_PROMPT = (
     # B-182 (live: "Coder waits for your answer" of a Coder that had finished)
     "A sub-agent whose report came back has finished and waits for nobody: never tell the "
     "user one waits for them unless its ask_user question is still open. A question in its "
-    "report is yours: answer it, or ask the user with ask_user." + TRUST_RECORD
+    "report is yours: answer it, or ask the user with ask_user." + TRUST_RECORD + NO_CHANGE_TOLD
 )
 # K-brief-kalitesi: how much of a job gets a sub-agent (the split of a big one is the role's
 # own `SPLITS`); what a task carries is spawn_agent's `task` input (`spawn_schema`).
@@ -1053,7 +1059,7 @@ class ContextMixin:
         """The catalogue's window for the model a CLI's lead ran on, where its role sets none:
         Claude Code's, Codex's and Copilot's are in models.dev under their vendors'. None: not
         known - nothing is made up, and it is compacted as before (`_idle_after`).
-        shortcut: none for Qoder, agy, a CLI on a model server of the user's, or a model the
+        shortcut: none for agy, a CLI on a model server of the user's, or a model the
         CLI names its own way ("claude default"); nor is what a CLI reports of its window
         live (Codex's `modelContextWindow`) kept. Keep that on its record once measured.
         shortcut: the catalogue's is the model's own, not measured against what each CLI gives
@@ -1062,7 +1068,9 @@ class ContextMixin:
         shortcut: so it is for the one measured - Copilot's gpt-6-luna on GitHub's default tier
         takes 272,000 tokens of prompt (its own figure, in a live refusal of 14 Nov 2026, CLI
         1.0.107), and the catalogue's window for it is 1,050,000: against that no summary
-        comes before Copilot refuses. Catalogue Copilot's own limits per tier once measured.
+        comes before Copilot refuses. Native Copilot says its session's own (`session.usage_info`,
+        0.1.8): its lead keeps that on its record (`_window_said`), and this is not asked; run as a
+        session it is.
         shortcut: what is measured against it is the history KOLONİ sends, whose old tool
         outputs are left out past `context_char_budget`: a window much larger than that is
         reached only by what cannot be left out (the chat's own words). What a CLI reads by
@@ -1376,11 +1384,7 @@ class ContextMixin:
                 if links
                 else (Message.agent_id == ctx.agent_id)
             )
-            others = (
-                topics.titles_line(topics.earlier_titles(session, turn), quoted)
-                if ctx.depth == 0 and turn
-                else ""
-            )
+            others = stories.for_lead(session, turn) if ctx.depth == 0 and turn else ""
             system, write_in = self._history_system(session, ctx, has, turn)
             # Who sent what to whom, for the messages agents sent each other.
             family = {
@@ -1474,7 +1478,7 @@ class ContextMixin:
             )
             read_how, told_files, seen = self._history_files(session, ctx, off, rows, messages)
             carried = self._history_carried(session, ctx, family)
-            calls = self._history_calls(session, cid)
+            calls = self._history_calls(session, [row.id for row in rows])
             # A note from an agent that is not of this conversation: of another one of
             # the project (what KOLONİ said of a file both work on).
             far = {
@@ -1539,20 +1543,22 @@ class ContextMixin:
         return messages
 
     def _history_calls(
-        self: "AgentRunner", session: Session, cid: str
+        self: "AgentRunner", session: Session, ids: list[str]
     ) -> dict[str, list[ToolCall]]:
-        """`_history`'s tool calls of the conversation, by the message they were made in."""
+        """`_history`'s tool calls of the messages it sends (`ids`), by the message they were
+        made in - not the whole conversation's: a long-lived chat's sub-agents made most."""
         calls: dict[str, list[ToolCall]] = {}
-        for call in session.scalars(
-            select(ToolCall)
-            .join(Run, Run.id == ToolCall.run_id)
-            .where(Run.conversation_id == cid)
-            .order_by(ToolCall.seq)
-        ):
-            # (Not KOLONİ's own end-of-turn test run, put on an answer after the fact: that answer
-            # is sent back as it was given - its thinking too. `ProofMixin`, `PROOF_CALL`.)
-            if not call.provider_call_id.startswith(PROOF_CALL):
-                calls.setdefault(call.message_id, []).append(call)
+        for at in range(0, len(ids), 900):  # (under SQLite's oldest bound of 999 variables)
+            for call in session.scalars(
+                select(ToolCall)
+                .where(ToolCall.message_id.in_(ids[at : at + 900]))
+                .order_by(ToolCall.seq)
+            ):
+                # (Not KOLONİ's own end-of-turn test run, put on an answer after the fact: that
+                # answer is sent back as it was given - its thinking too. `ProofMixin`,
+                # `PROOF_CALL`.)
+                if not call.provider_call_id.startswith(PROOF_CALL):
+                    calls.setdefault(call.message_id, []).append(call)
         return calls
 
     def _history_system(
@@ -2002,9 +2008,10 @@ class ContextMixin:
             if row.role == "agent":
                 self._history_agent_row(h, row)
                 continue
-            if row.role == "checked" and not ctx.depth and (held := _review_held(row)):
+            if row.role == "checked" and not ctx.depth and (held := _still_held(row)):
                 # S3: a Reviewer still held that turn's change - its blocking findings, as
-                # data (Fix it sends no model's words as the user's).
+                # data (Fix it sends no model's words as the user's); k-a11y-2: a kind's
+                # check still failed after the rounds - its problems.
                 messages.append({"role": "user", "content": held})
                 continue
             if row.role in ("away", "git", "koloni", "landed", "checked"):
@@ -2282,8 +2289,10 @@ class ContextMixin:
             messages.append(Transient(role="user", content=CALL_RETURNED))
 
 
-def _review_held(row: Message) -> str | None:
-    """`review_mixin.review_held` (imported here: it imports from this module)."""
+def _still_held(row: Message) -> str | None:
+    """`review_mixin.review_held` and `kinds_mixin.kinds_held`, one after the other (imported
+    here: they import from this module)."""
+    from app.agent.kinds_mixin import kinds_held
     from app.agent.review_mixin import review_held
 
-    return review_held(row)
+    return "\n\n".join(filter(None, (review_held(row), kinds_held(row)))) or None

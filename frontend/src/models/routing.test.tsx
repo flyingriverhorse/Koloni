@@ -55,7 +55,8 @@ test('Copilot’s auto and fusion on your GitHub account take a routing on their
   await userEvent.click(screen.getByRole('button', { name: /^Copilot/ }))
   const dialog = screen.getByRole('dialog', { name: 'Copilot' })
   const auto = within(dialog).getByLabelText('Routing of auto')
-  expect(options(auto)).toEqual(['Default', 'Efficiency', 'Balance', 'Intelligence'])
+  // (Before its account was asked: every routing the package knows.)
+  expect(options(auto)).toEqual(['Default', 'Efficiency', 'Balance', 'Intelligence', 'Fast'])
   expect(auto).toHaveValue('')
   const fusion = within(dialog).getByLabelText('Routing of fusion')
   expect(options(fusion)).toEqual(['Default', 'Standard', 'High', 'Max'])
@@ -114,6 +115,108 @@ test('the chat’s model panel shows Copilot’s routing and saves it on its Mod
   )
   await userEvent.click(screen.getByRole('button', { name: /^Model:/ }))
   expect(screen.queryByLabelText('Routing')).not.toBeInTheDocument()
+})
+
+// As Copilot 1.0.114's models.list said the user's account on 24 Nov 2026 (app/copilot_offers.py keeps it so).
+const NOT_ON_PLAN = "This tier is not available for the user's Copilot plan."
+const offers: NonNullable<Provider['offers']> = {
+  models: [],
+  tiers: [
+    { id: 'balance', name: 'Standard', type: 'auto', fusion: 'standard', enabled: true, why: null },
+    { id: 'hydrafusion', name: 'High', type: 'fusion', fusion: 'high', enabled: false, why: NOT_ON_PLAN },
+    { id: 'hydrafusion-max', name: 'Max', type: 'fusion', fusion: 'max', enabled: false, why: NOT_ON_PLAN },
+    { id: 'fast', name: 'Fast', type: 'auto', fusion: null, enabled: true, why: null },
+  ],
+}
+
+test('once its account was asked, a routing offers only its tiers, by its names; one it lacks is dimmed with why', async () => {
+  const onOffers = vi.fn(async () => {})
+  const rows: Provider['models'] = [
+    { name: 'auto', note: null, tier: 'fast', agents: true, routing: 'efficiency' },
+    { name: 'fusion', note: null, tier: null, agents: true, routing: 'high' },
+  ]
+  render(
+    <ModelsPage
+      providers={[github({ offers, models: rows })]}
+      {...handlers}
+      onSave={vi.fn(async () => {})}
+      onOffers={onOffers}
+    />,
+  )
+  // Asked as the page opens: the server asks the account at most once in 10 minutes.
+  expect(onOffers).toHaveBeenCalledWith('gh')
+  await userEvent.click(screen.getByRole('button', { name: /^Copilot/ }))
+  const dialog = screen.getByRole('dialog', { name: 'Copilot' })
+  const auto = within(dialog).getByLabelText('Routing of auto')
+  // Its own `fast` is offered (not in Copilot's picker, on in the account); a routing it does not list stays, dimmed.
+  expect(options(auto)).toEqual(['Default', 'Standard', 'Fast', 'Efficiency — not on your plan'])
+  expect(within(auto).getByRole('option', { name: 'Efficiency — not on your plan' })).toBeDisabled()
+  expect(auto).toHaveValue('efficiency')
+  const fusion = within(dialog).getByLabelText('Routing of fusion')
+  // (Fusion's from its Fusion tiers alone, as the server reads them: balance's Standard is an auto tier's.)
+  expect(options(fusion)).toEqual(['Default', 'High — not on your plan', 'Max — not on your plan'])
+  const high = within(fusion).getByRole('option', { name: 'High — not on your plan' })
+  expect(high).toBeDisabled()
+  expect(high).toHaveAttribute('title', NOT_ON_PLAN)
+})
+
+test('a window open on Copilot shows the rows its account switched once the provider is read again', async () => {
+  const props = { ...handlers, onSave: vi.fn(async () => {}), picked: 'gh' }
+  const { rerender } = render(<ModelsPage providers={[github()]} {...props} />)
+  const dialog = screen.getByRole('dialog', { name: 'Copilot' })
+  expect(within(dialog).queryByText('off')).not.toBeInTheDocument()
+  // (As POST /offers gives it back: gpt-x switched off with why, the provider marked changed.)
+  const why = 'not on your Copilot plan now: Copilot’s own list does not offer it'
+  const switched = github({
+    offers,
+    updated_at: '2026-11-24T20:00:00Z',
+    models: github().models.map(m => (m.name === 'gpt-x' ? { ...m, enabled: false, off_why: why } : m)),
+  })
+  rerender(<ModelsPage providers={[switched]} {...props} />)
+  expect(await within(dialog).findByText(why)).toBeInTheDocument()
+})
+
+test('the chat’s model panel asks Copilot’s account as it opens on it, and offers only its tiers', async () => {
+  const onOffers = vi.fn(async () => {})
+  render(
+    <ModelPicker
+      providers={[github({ offers })]}
+      providerId="gh"
+      modelId="auto"
+      onSave={async () => {}}
+      onRouting={async () => {}}
+      onOffers={onOffers}
+    />,
+  )
+  expect(onOffers).not.toHaveBeenCalled() // (not before it is opened)
+  await userEvent.click(screen.getByRole('button', { name: /^Model:/ }))
+  expect(onOffers).toHaveBeenCalledWith('gh')
+  expect(options(screen.getByLabelText('Routing'))).toEqual(['Default', 'Standard', 'Fast'])
+})
+
+test('a fill of a Copilot account that lists no models proposes only what it offers, and says why', async () => {
+  const note =
+    'Your Copilot account lists no models by name now: only what it offers is proposed, and each other model is ' +
+    'switched off until Copilot lists it again.'
+  const onFill = vi.fn(async () => ({
+    models: [{ name: 'auto', note: null, tier: 'fast' as const, agents: true }],
+    left_out: 0,
+    note,
+  }))
+  render(
+    <ModelsPage
+      providers={[github({ offers, models: [] })]}
+      picked="gh"
+      {...handlers}
+      onSave={vi.fn(async () => {})}
+      onFill={onFill}
+    />,
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Fill from the catalogue' }))
+  expect(onFill).toHaveBeenCalledWith('gh')
+  expect(screen.getByText(note)).toHaveAttribute('role', 'note')
+  expect(screen.getByText(/not saved yet/)).toBeInTheDocument()
+  expect(screen.getByLabelText('Routing of auto')).toBeInTheDocument()
 })
 
 test('fusion picks its own level, as auto does', () => {

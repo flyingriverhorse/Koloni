@@ -17,13 +17,13 @@ import shutil
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from sqlalchemy import literal_column, or_, select
 
-from app import away, injection, ledger, proof, proof_before, proof_related, recipe_run
+from app import injection, ledger, proof, proof_before, proof_related, recipe_run
 from app.agent import merge
 from app.agent.before_mixin import NOT_YOURS
 from app.agent.ctx import Ctx, _GateRefused
@@ -63,11 +63,14 @@ PROOF_CALL = proof.PROOF_CALL
 # S1, until a run can go on in the background (S6): a turn the user watches waits at most this
 # long for the tests at its end - all its test commands, and another turn's run before them; past
 # it they are stopped and said not waited for. An Away job, a To-do task's and a trigger's turn
-# wait to the commands' own limit (MAX_TIMEOUT), each command.
+# wait to the commands' own limit (the project's longest command), each command.
 END_WAIT_SECONDS = 120
 # CL-329: how long Put back's kept folder of a run stays, unclicked (or its chat deleted).
 KEPT_DAYS = 3
 SLOT_BUSY = "another of KOLONİ's test runs held the machine past the wait"
+# A pass that saw no change of the turn on record (Fix it's kept work is the held turn's): any
+# made after it is later - never "no pass made" (None).
+NO_CHANGE_SEEN = datetime.min.replace(tzinfo=UTC)
 # Plan decision 8: while the user is away (an Away job, a To-do turn) nobody is there to say yes to
 # a guess - it is not run; the user's own saved command still is.
 AWAY_GUESS = "a guessed command, you were away"
@@ -393,7 +396,8 @@ class ProofMixin:
     ) -> None:
         """A run's window in its copy (`_copy_lock`): the copy as it is, for `_window_close`.
         Taken once the run has the machine - a run waiting for it holds up no look's command -
-        waiting `wait` seconds at most (MAX_TIMEOUT where the run has no wait of its own: never
+        waiting `wait` seconds at most (its caller's: the project's longest command, where the run
+        has no wait of its own - MAX_TIMEOUT where none is given: never
         for ever while it holds the app-wide slot), then SLOT_BUSY (`taken` says so: the run's row
         is not run). The lock it took is kept in `look`: the one `_window_close` lets go, whatever
         the copy's path reads as by then."""
@@ -461,10 +465,27 @@ class ProofMixin:
                 if was.ready_seen.get(one, (None,))[0] != status
             ):
                 return False
-            taken = proof.last_change(session, ctx.run_id)
+            taken = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
         was.seen = taken if was.seen is not None else None
         was.kinds_seen = taken if was.kinds_seen is not None else None
         return True
+
+    async def _take_in_checked(self: "AgentRunner", ctx: Ctx, status: str) -> str:
+        """N2: the Lead's own copy (Fix it's kept work, a branch turn's) goes in after its end
+        check, Take in putting records of its own on the turn (the kept turn's files): where none
+        was made since the check, the work is as checked (as `_checked_at_ready`). shortcut: a
+        command's change after it is on no record - hold `_calls_of` to the check's if seen."""
+        with self._factory() as session:
+            was = proof.last_change(session, ctx.run_id)
+        said = await self._take_in(ctx, status, lambda: None)
+        if (held := self._proofs.get(ctx.run_id)) is not None:
+            with self._factory() as session:  # (a copy kept again: no record - still checked)
+                taken = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
+            if held.seen is not None and (was is None or was <= held.seen):
+                held.seen = taken
+            if held.kinds_seen is not None and (was is None or was <= held.kinds_seen):
+                held.kinds_seen = taken
+        return said
 
     async def _what_it_touched(
         self: "AgentRunner", ctx: Ctx, ran: tuple[str, Any], found: list[Change]
@@ -532,9 +553,10 @@ class ProofMixin:
         ]
 
     @staticmethod
-    def _halt_row(held: "Proof") -> list[Row]:
+    def _halt_row(held: "Proof", kinds: bool = False) -> list[Row]:
         """Until it passes, stopped short of a pass: why (no progress, the ceiling, a limit) -
-        unless a hold already said it ("Still on hold after round …")."""
+        unless a hold already said it ("Still on hold after round …"). `kinds`: only a kind's
+        check fails (its code for Fix it)."""
         if (
             held.halted is None
             or not any(one["state"] == "failed" for one in held.rows)
@@ -543,7 +565,10 @@ class ProofMixin:
             return []
         return [
             proof.row(
-                "rounds", "failed", proof.STOPPED_AFTER.format(n=held.rounds, why=held.halted)
+                "rounds",
+                "failed",
+                proof.STOPPED_AFTER.format(n=held.rounds, why=held.halted),
+                reason="kinds" if kinds else None,
             )
         ]
 
@@ -609,7 +634,7 @@ class ProofMixin:
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             root = project.root_path if project is not None else None
-            held.seen = proof.last_change(session, ctx.run_id)
+            held.seen = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
         held.until = (
             time.monotonic() + END_WAIT_SECONDS
             if self._answer_waits(ctx) and (not held.judging)
@@ -796,26 +821,20 @@ class ProofMixin:
 
     def _answer_waits(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether somebody is there waiting for the answer: a turn the user watches - not an Away
-        job, nor a To-do task's turn."""
+        job, nor a To-do task's turn: its end needs what its checks found (a fix round is due
+        where one failed, `backlog.not_finished`), so it waits for them."""
         return (
             self._watched(ctx.run_id)
             and ctx.run_id not in self._away_jobs
-            and (ctx.run_id not in self._backlog_turns)
+            and ctx.run_id not in self._todo_turns
         )
 
     def _away_now(self: "AgentRunner", ctx: Ctx) -> bool:
-        """Whether the user is away from this turn: an Away job, or a To-do turn while an Away
-        runs for the project (`away.running`). A To-do turn they run from the screen is not.
-        shortcut: Away is the one sign of absence KOLONİ has - a To-do list left running by
-        itself while the user only walked off counts as watched; keep a presence beat if that
-        is met."""
-        if ctx.run_id in self._away_jobs:
-            return True
-        if ctx.run_id not in self._backlog_turns:
-            return False
-        with self._factory() as session:
-            project = self._project(session, ctx.cid)
-            return project is not None and away.running(session, project.id) is not None
+        """Whether the user is away from this turn: an Away job. (A chat's queue of To-do tasks
+        waits while Away runs: `backlog.go_on`.)
+        shortcut: Away is the one sign of absence KOLONİ has - a chat's queue going on while the
+        user only walked off counts as watched; keep a presence beat if that is met."""
+        return ctx.run_id in self._away_jobs
 
     def _may_run_tests(self: "AgentRunner", ctx: Ctx, run: TestRun) -> Literal["run", "ask"] | str:
         """As the Lead's own run_command would be: in a watched turn "ask" - the user's own
@@ -934,7 +953,10 @@ class ProofMixin:
                 raise ToolError(SLOT_BUSY) from None
             taken.append(True)
             check.going.set_result(now())
-            await self._window_open(copy, look, left(), taken)  # (once it has the machine)
+            wait = left()  # (once it has the machine; with no wait of its own, its own limit's)
+            await self._window_open(
+                copy, look, self.commands.longest(ctx.cid) if wait is None else wait, taken
+            )
             look["at"] = await self._sources_now(ctx, held, copy)
             if (now_left := left()) is not None:
                 if now_left < 1:
@@ -998,8 +1020,9 @@ class ProofMixin:
                 run.command,
                 run.guessed,
             ), ""
+        longest = self._limit_of(ctx, call_id, given["seconds"])
         return proof.tests_row(
-            run, code, output, ended, said, given["seconds"] or MAX_TIMEOUT
+            run, code, output, ended, said, given["seconds"] or longest, longest
         ), output
 
     @staticmethod
@@ -1159,6 +1182,19 @@ class ProofMixin:
             shutil.rmtree(place, ignore_errors=True)
         return {"put_back": done, "refused": refused}
 
+    def _limit_of(self: "AgentRunner", ctx: Ctx, call_id: str, wait: int | None) -> int:
+        """The longest a run of KOLONİ's tests could take (`proof.tests_row`'s `longest`): with no
+        wait of its own, the limit it ran with, on its record - the setting may change while it
+        runs; else the project's longest command now."""
+        longest = self.commands.longest(ctx.cid)
+        if wait is not None:
+            return longest
+        with self._factory() as session:
+            recorded = session.scalar(
+                select(Command.timeout_seconds).where(Command.tool_call_id == call_id)
+            )
+        return recorded or longest
+
     def _timeout_on_record(self: "AgentRunner", call_id: str, seconds: int) -> None:
         """The limit a run really has, on its record: what is left of the wait once it held the
         machine - not what it was given before the wait (`proof.too_slow` reads it)."""
@@ -1186,7 +1222,8 @@ class ProofMixin:
     ) -> None:
         """What was checked at the turn's end, under its answer: a "checked" message (one a
         turn, written again where there is one), its rows in `blocks`, which no agent is given.
-        Nothing where not `due` or the turn changed nothing. Under Nothing: that it was not
+        Nothing where not `due` or the turn changed nothing (N1: unless the turn before still
+        failed - said again, `_still_failing`). Under Nothing: that it was not
         checked, and the last test run an agent made. A turn that never reached the gate: why."""
         if not due:
             return
@@ -1234,7 +1271,8 @@ class ProofMixin:
         if project is None or not (
             any(one.in_project for one in found) or (held is not None and held.unrecorded)
         ):
-            return []
+            # (N1: a turn that changed nothing at all - what still failed, said again)
+            return self._still_failing(session, run_id) if lead and project and not found else []
         waiting = self._waiting_rows(session, found)
         # (What the gate used where it ran: the recipe's row may have run again since.)
         checks = (
@@ -1273,11 +1311,16 @@ class ProofMixin:
             ]
         rounds = self._rounds_said(held)
         failing = any(one["state"] == "failed" for one in held.rows if one["kind"] == "tests")
+        # (k-a11y-2: a kind's problem the rounds left ends as failing tests do - its code "kinds"
+        # for Fix it, `kinds_held`)
+        kinds = not failing and self._kinds_failing(held.rows)
         if held.handed and held.left_failing:  # (S11: still held - a pass that was none too)
             rounds += self._stronger_left(held)  # (S11: after the stronger models' rounds too)
         elif held.until_passes and not held.recipe_spent:
-            rounds += self._halt_row(held)
-        elif failing and (held.rounds >= held.most or held.recipe_spent or held.unchanged):
+            rounds += self._halt_row(held, kinds)
+        elif (failing or kinds) and (
+            held.rounds >= held.most or held.recipe_spent or held.unchanged
+        ):
             # (R: where only the count fell - fewer tests, more skipped - that is what is said)
             still = proof.STILL_FEWER if proof.counts_only(held.rows) else proof.STILL_FAILING
             rounds.append(
@@ -1289,6 +1332,7 @@ class ProofMixin:
                     else proof.CHECK_ONLY
                     if (not held.most)
                     else still.format(most=min(held.rounds, held.most) or held.most),
+                    reason="kinds" if kinds else None,
                 )
             )
         later = proof.last_change(session, run_id)

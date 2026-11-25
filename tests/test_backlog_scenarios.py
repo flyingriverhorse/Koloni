@@ -21,21 +21,17 @@ Contract:
   `assessment`, no card.
 - `POST /api/backlog/{id}/decide {decision: approve|reject}` (own page): a proposed task becomes
   todo, or is removed; a pending change is applied, or dropped.
-- `POST /api/projects/{pid}/backlog/next` (own page) → `{task_id, conversation_id}`: the first todo
-  starts in a new conversation whose first message holds its title and criteria; the task is doing
-  and linked; its turn ended, it is review. No todo, a task doing (or a task's
-  conversation still at work), or over the month's budget: 409.
-- `GET|PUT /api/projects/{pid}/backlog/auto {on}` (PUT: own page) → `{on, halt}`: on, the next todo
-  never worked on starts when none is doing - at once, and when a task's turn ends. A failed or
-  stopped turn, or the month's budget spent, turns it off with `halt` saying why (22 Oct).
+- `POST /api/projects/{pid}/backlog/do-in-chat {task_ids, conversation_id?}` (own page, 0.1.8) →
+  `{conversation_id, queued}`: the tasks wait in the chat's queue (a new chat where none is named)
+  and start there one by one, the first message holding a task's title and criteria; the task is
+  doing and linked; its turn ended, it is review. One not to do: 422.
 - When a task's turn ends, the first fast model that can be asked with no tools writes the
   Scout's `assessment`; with none, it stays null (22 Oct).
 """
 
-import time
-
 import pytest
 
+from tests.test_backlog_auto import run_todo
 from tests.test_chat_flow import text
 from tests.test_spawn import call, spawn, step
 
@@ -214,17 +210,17 @@ def test_a_change_an_agent_proposes_waits_and_an_assessment_does_not(
 def test_work_the_backlog_starts_the_next_task_and_its_end_waits_for_review(
     make_client, project_dir, wait_run
 ):
-    # (One reply for each task: both start at once (MAX_PARALLEL), and with one, the task that
-    # asked second got none - "pop from empty list" on a CI runner, its turn and fix round failed.)
-    client, _model = make_client([text("made the form"), text("made the form")])
+    client, _model = make_client([text("made the form")])
     client.headers.update(ORIGIN)
     pid = project(client, project_dir)
     add(client, pid, "later", priority="low")
     task = add(client, pid, "login form", criteria="shows errors")
-    started = client.post(f"/api/projects/{pid}/backlog/next")
+    started = client.post(
+        f"/api/projects/{pid}/backlog/do-in-chat", json={"task_ids": [task["id"]]}
+    )
     assert started.status_code == 200, started.text
     cid = started.json()["conversation_id"]
-    assert started.json()["task_id"] == task["id"]
+    assert started.json()["queued"] == [task["id"]]
     snap = client.get(f"/api/conversations/{cid}").json()
     first = snap["messages"][0]["content"]
     assert "login form" in first and "shows errors" in first
@@ -236,8 +232,8 @@ def test_work_the_backlog_starts_the_next_task_and_its_end_waits_for_review(
         (r["status"], r["error"]) for r in client.get(f"/api/conversations/{cid}").json()["runs"]
     ]
     assert client.patch(f"/api/backlog/{task['id']}", json={"status": "done"}).status_code == 200
-    client.patch(f"/api/backlog/{backlog(client, pid)[-1]['id']}", json={"status": "done"})
-    assert client.post(f"/api/projects/{pid}/backlog/next").status_code == 409  # nothing left to do
+    done = client.post(f"/api/projects/{pid}/backlog/do-in-chat", json={"task_ids": [task["id"]]})
+    assert done.status_code == 422  # (done: not to do now)
 
 
 def test_a_task_whose_work_waits_outside_the_project_is_said_to(make_client, project_dir, wait_run):
@@ -248,7 +244,7 @@ def test_a_task_whose_work_waits_outside_the_project_is_said_to(make_client, pro
     client.headers.update(ORIGIN)
     pid = project(client, project_dir)
     task = add(client, pid, "login form")
-    cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     snap = wait_run(client, cid, client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"])
     assert [(t["status"], t["not_in"]) for t in backlog(client, pid)] == [("review", False)]
     with client.app.state.session_factory() as session:  # its copy kept for the user's word
@@ -265,28 +261,6 @@ def test_a_task_whose_work_waits_outside_the_project_is_said_to(make_client, pro
         kept.kept_in, kept.status = None, "applied"  # taken in
         session.commit()
     assert [(t["id"], t["not_in"]) for t in backlog(client, pid)] == [(task["id"], False)]
-
-
-def test_the_backlog_works_itself_from_the_switch_on_its_page(make_client, project_dir, wait_run):
-    client, _model = make_client([text("made the form"), text("made the logout")])
-    pid = project(client, project_dir)
-    add(client, pid, "login form")
-    add(client, pid, "logout")
-    switch = f"/api/projects/{pid}/backlog/auto"
-    assert client.put(switch, json={"on": True}).status_code == 403  # not from the app's page
-    assert (
-        client.put(switch, json={"on": True}, headers=ORIGIN).json().items()
-        >= {"on": True, "halt": None}.items()
-    )
-    for title in ("login form", "logout"):
-        for _ in range(250):
-            (task,) = [t for t in backlog(client, pid) if t["title"] == title]
-            if task["conversation_id"]:
-                break
-            time.sleep(0.02)
-        snap = client.get(f"/api/conversations/{task['conversation_id']}").json()
-        wait_run(client, task["conversation_id"], snap["runs"][0]["id"])
-    assert [t["status"] for t in backlog(client, pid)] == ["review", "review"]
 
 
 def test_an_agents_task_says_the_chat_it_was_proposed_in_and_the_users_none(

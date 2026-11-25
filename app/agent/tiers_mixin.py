@@ -19,6 +19,7 @@ from app.agent.cards import _answer, _then, outside_a_copy
 from app.agent.ctx import Ctx
 from app.agent.words import MAX_WHY
 from app.api.usage import month_spend
+from app.copilot_offers import LISTED_REFUSED, offered
 from app.db.models import Agent, Conversation, Message, Provider, Room, Run
 from app.model_client import ModelClient, ModelUnavailable, OwnStop
 from app.providers import TIERS, NotListed, allowed, ask_once, list_providers, mode_of, own_request
@@ -465,10 +466,12 @@ class TiersMixin:
         (`REFUSED_LAST`). Only Copilot's words, in its own phrasing: whether the failure was
         such a refusal. R194: the model is the one the words name, wherever in them (a step's
         failure may say it after its CLI's name) - the agent's own, or its provider's default
-        where the agent was given none by name."""
+        where the agent was given none by name. After it, or a routing its plan lacks (whose row
+        stays on), its account is asked again at once what it offers (`Limits.refresh`)."""
         said = re.search(
             r'Error: Model "([^"]+)" from --model flag is not available'
-            r"|Copilot can't use (\S+) on your account",
+            r"|Copilot can't use (\S+) on your account"
+            r"|(Copilot refused \S+ at )",
             str(exc),
         )
         if said is None:
@@ -476,15 +479,23 @@ class TiersMixin:
         model = said.group(1) or said.group(2)
         with self._factory() as session:
             provider = session.get(Provider, ctx.provider_id or "")
+            if provider is not None and provider.kind == "copilot_cli":
+                self.providers.limits.refresh(provider, now=True)
             if (
                 provider is None
                 or provider.kind != "copilot_cli"
+                or model is None
                 or model != (ctx.model_name or provider.default_model)
             ):
                 return False
             rows = provider.models or []
             if any(m["name"] == model and m.get("enabled", True) for m in rows):
+                # (Refused though its account listed it: the list does not switch it on again.)
+                listed = provider.offers is not None and offered(model, provider.offers)
                 why = REFUSED_OFF.format(provider=shown_name(provider.name)) + (
+                    LISTED_REFUSED if listed else ""
+                )
+                why += (
                     ""
                     if any(m["name"] != model and m.get("enabled", True) for m in rows)
                     else REFUSED_LAST

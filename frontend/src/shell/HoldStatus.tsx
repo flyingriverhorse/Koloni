@@ -5,6 +5,8 @@ import type { Hold } from '../api/types'
 import { usePanel } from './usePanel'
 
 const many = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
+/** 0.1.8: the projects whose To-do tasks wait in a chat’s queue. */
+const queues = (n: number) => (n === 1 ? '1 project’s To-do queue' : `${n} projects’ To-do queues`)
 const OWN = 'Your own messages still run: only what starts by itself is held.'
 /** The answer as the server gives it, or null: anything else is taken for not held, and nothing is shown. */
 const shaped = (found: unknown) =>
@@ -16,15 +18,15 @@ const shaped = (found: unknown) =>
 const MISSED =
   'After Resume a trigger waits for its next time: times missed while held are skipped, also for triggers that catch up, and files changed meanwhile start nothing.'
 
-/** What Stop everything would hold: the triggers that are on, the backlogs that work themselves, the nights. */
+/** What Stop everything would hold: the triggers that are on, the chats’ To-do queues (by project), the nights. */
 function heldNow(hold: Hold): string {
   const counts: [number, string][] = [
     [hold.triggers, many(hold.triggers, 'trigger')],
-    [hold.backlogs.length, many(hold.backlogs.length, 'backlog')],
+    [hold.backlogs.length, queues(hold.backlogs.length)],
     [hold.nights.length, `${many(hold.nights.length, 'project')} working while you’re away`],
   ]
   const parts = counts.filter(([n]) => n > 0).map(([, said]) => said)
-  if (parts.length === 0) return 'Triggers and backlogs are held until you resume.'
+  if (parts.length === 0) return 'Triggers and To-do queues are held until you resume.'
   const named = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0]
   return `${named} ${counts.reduce((sum, [n]) => sum + n, 0) === 1 ? 'is' : 'are'} held until you resume.`
 }
@@ -141,7 +143,7 @@ export function HoldStatus({
           <ul className="hold-list">
             <li>{hold.triggers > 0 ? `${many(hold.triggers, 'trigger')} on` : 'Triggers'}</li>
             {hold.backlogs.map(name => (
-              <li key={name}>Backlog of {name}: its next task waits</li>
+              <li key={name}>To-do queue of {name}: its next task waits</li>
             ))}
             {hold.nights.map(name => (
               <li key={`night ${name}`}>While you’re away · {name}: its next job waits</li>
@@ -204,7 +206,7 @@ export function HoldStatus({
         title={
           hold.held
             ? 'Held: what was stopped and what is held, and Resume'
-            : 'Stop every turn in every chat, and hold triggers and backlogs'
+            : 'Stop every turn in every chat, and hold triggers and To-do queues'
         }
         onClick={() => (open ? close() : setOpen(true))}
       >

@@ -96,7 +96,19 @@ You can see and remove the rules you made under Settings › This project › **
   `-toolexec` and `-C`; cargo's `--config` and `--manifest-path`; gradle's `-I`, `-p` and `-b`;
   npm's `--script-shell`, `--prefix`, `--package`, `--userconfig` and `--node-options`; make's
   `SHELL=` and `-f`; tox's `-c`; maven's `-Dmaven.ext…`; uv's and pipx's `--with`, `-w`, `--from`,
-  `--spec`; a shell handed a line (`bash -c`). A rule for `python -m pytest` still covers
+  `--spec`; ruff's `--config`, `--fix`, `--fix-only`, `--unsafe-fixes` and `--add-noqa`; mypy's
+  `--config-file`, `--python-executable` and `--install-types`, and its `--cache-dir`,
+  `--junit-xml` and `--…-report` outside the folder; eslint's `-c`, `--rulesdir`,
+  `--resolve-plugins-relative-to`, `--plugin`, `--parser`, `--fix`, `--init`, `--inspect-config`,
+  `--suppress-all`, `--suppress-rule`, `--prune-suppressions` and a `--format` other than its own
+  (`stylish`, `json`, `json-with-metadata`, `html`), and its `-o`, `--cache-location`,
+  `--cache-file` and `--suppressions-location` outside the folder - a long one in any spelling
+  (`--outputFile`); tsc's `--incremental`, `--composite`, `--noEmit false`, `--generateTrace`, `-b`
+  and `--build` (but `false` and `null`, which write nothing: `--incremental false`), and its `-p`,
+  `--outDir`, `--outFile`, `--tsBuildInfoFile`, `--declarationDir` and `--generateCpuProfile`
+  outside the folder - in any case (`--OUTDIR`, `--p`); an option or its value written in pieces a
+  shell joins (`fal""se`, `".."/x`), and a word of its own so (`make 'SHELL=/x'`, `SH""ELL=/x`); a
+  shell handed a line (`bash -c`). A rule for `python -m pytest` still covers
   `python -m pytest -q tests`, `-p no:cacheprovider` (a plugin turned off) and `-o log_cli=true`,
   but not `python -m pytest -p plugin`. Words after `--` are the script's own (`npm test --
   --prefix x` is covered), and past a rule that names a runner's package (`npx tsc`) the words are
@@ -106,7 +118,8 @@ Below Full auto, a command that keeps running (a server) asks every time, even w
 
 Nor does a rule - or a yes you gave before - cover a command whose program, named by its path in
 the project (`node_modules/.bin/tsc`, `./scripts/check`), is one an agent wrote, or sits in an
-install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in, while that file still
+install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in - for a program in a
+`node_modules`, in one above it too, which Node loads its packages from -, while that file still
 holds what the agent wrote: below Full auto it asks on a card that says so ("an agent wrote its
 program (web/node_modules): no rule covers a program an agent wrote, so none is offered - run it
 once or reject it"), with **Run once** and **Reject** alone - an **Always run** rule would not
@@ -118,16 +131,21 @@ over it, the rule covers it again. A package runner finds its program by itself,
 (`npx tsc`, `npm exec tsc`, `yarn tsc`, `bun x tsc`, `corepack pnpm exec tsc`, `uv run ruff`,
 `python -m mypy`) is read the same way: npx, npm, pnpm, yarn and bun look in the `node_modules`
 of the folder the command runs in or of one above it - and read an `.npmrc` there, yarn its
-`.yarnrc.yml`, `.yarnrc`, `.yarn` folder and Plug'n'Play loader, pnpm its `.pnpmfile.cjs`, bun its
-`bunfig.toml` - and an agent's write in any of them stops the rule.
+`.yarnrc.yml`, `.yarnrc`, `.yarn` folder, Plug'n'Play loader and `.env.yarn`, pnpm its
+`.pnpmfile.cjs`, bun its `bunfig.toml` and `.env`, `.env.local`, `.env.production`,
+`.env.development` (what they run gets those: `NODE_OPTIONS=--require x`) - and an agent's write in
+any of them stops the rule.
 
 A rule for a node runner (npx, pnpx, bunx, npm, pnpm, yarn, bun; `corepack` before one) is
-closed on two sides. **What an agent wrote:** while an agent's write of any `package.json`, any
-`.npmrc` or `x.npmrc`, `.yarnrc*`, `.yarn/`, `.pnpmfile.cjs`, `pnpm-workspace.yaml` or
-`bunfig.toml` anywhere in the project still holds what it wrote, no node runner's rule covers a
-line - npx and `npm exec` run a name the package's own `bin` gives before any installed one, yarn
-and pnpm a script of that name, `npm install` every workspace's lifecycle scripts, and npm reads
-any settings file it is pointed at. The cost: after an agent edits a `package.json` (adding a
+closed on two sides. **What an agent wrote:** while an agent's write of any `package.json` (a
+package's in a `node_modules` too), any `.npmrc` or `x.npmrc`, `.yarnrc*`, `.yarn/`,
+`.pnpmfile.cjs`, `pnpm-workspace.yaml`, `bunfig.toml`, lock (`package-lock.json`,
+`npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lockb`, `bun.lock`) or `binding.gyp`
+anywhere in the project still holds what it wrote, no node runner's rule covers a line - npx and
+`npm exec` run a name the package's own `bin` gives before any installed one, yarn and pnpm a
+script of that name, `npm install` every workspace's lifecycle scripts, fetches what a lock's
+`resolved` address says and runs node-gyp on a `binding.gyp`, and npm reads any settings file it
+is pointed at. The cost: after an agent edits a `package.json` (adding a
 dependency, say), node runner rules ask until that write is replaced - by your own edit or
 install. A line of npm's or pnpm's that runs a script by its name under its own rule (`npm run
 build`, `npm test`) is the exception: the script is the project's code by design, as a test is.
@@ -136,16 +154,37 @@ options:** past the rule's words (up to `--` for npm; up to the verb that hands 
 `exec`, `dlx`, `x`, `run` - for pnpm, yarn and bun), a rule covers only options that change what
 the runner prints, where it fetches from or that it runs less: `--silent` / `-s`, `--quiet` /
 `-q`, `--loglevel`, `--color` / `--no-color`, `--offline`, `--prefer-offline`, `--no`,
-`--no-audit`, `--no-fund`, `--ignore-scripts`, `--frozen-lockfile`, `--immutable`. Any other
-(`--globalconfig=x` - a settings file whose `node-options` loads code -, `--shell=`, `--node-gyp=`)
-and no rule covers the line or is offered for it. So `yarn tsc --noEmit` is offered none: use
+`--no-audit`, `--no-fund`, `--ignore-scripts`, `--frozen-lockfile`, `--immutable` - each but
+`--loglevel` and `--color` alone or `=true`: `--ignore-scripts=false`, or a `false` after it
+(`npm install --ignore-scripts false`, under an `npm install --ignore-scripts` rule too), runs the
+scripts again, and an option of the runner's written in pieces a shell joins
+(`'--ignore-scripts=false'`) is never harmless. Any other (`--globalconfig=x` - a settings file whose `node-options` loads code -,
+`--shell=`, `--node-gyp=`) and no rule covers the line or is offered for it. So `yarn tsc --noEmit` is offered none: use
 `yarn run tsc --noEmit`, or for npm `npm exec tsc -- --noEmit` (past `--`, tsc's own).
+
+A rule for tsc - `tsc`, `npx tsc`, `npm exec tsc`, `pnpm exec tsc`, `yarn tsc`, tsc named by its
+path (`node_modules/.bin/tsc`, as the rule Code style and types offered in 0.1.7) or its script
+(`node node_modules/typescript/lib/tsc.js`) - covers no line
+while an agent's write of a `tsconfig*.json` or `jsconfig*.json` anywhere in the project, or of a
+JSON file that a tsconfig the line reads (the nearest `tsconfig.json`, a folder or `.json` its
+words name - `-p`'s) `extends` or `references`, still holds what it wrote: a tsconfig can make tsc
+write a trace, or a composite build's info where `tsBuildInfoFile` says, outside the project too.
+Code style and types' own line, word for word, is the exception: its `--composite false
+--generateTrace null`, last, win over a tsconfig's composite or incremental build info and its
+trace, so its rule still covers it.
 
 For uv, poetry, pipenv, pdm, hatch and `python -m`, whose
 environment KOLONİ cannot always place, an agent's write in any `.venv`, `venv` or
-`site-packages` of the project does, and for uv, poetry, pipenv, pdm and hatch one in a
-`pyproject.toml` or `setup.py` in the folder or above (they run its `[project.scripts]` and build
-the project first) - but not for a test run (`uv run pytest`). Their rule names what they run
+`site-packages` of the project does. For uv, uvx, poetry, pipenv, pdm, hatch, pip and pip3 - run
+as a module too (`python -m uv`, `py -m pip`), and `python -m build` - so does its
+write of any `pyproject.toml`, `setup.py` or `setup.cfg` anywhere in the project (they run its
+`[project.scripts]` and build the project first - a workspace member or a path dependency with
+it; pip and build build what they install), of their settings (`uv.toml`, `poetry.toml`, `pdm.toml`, `hatch.toml`, `Pipfile`,
+`.python-version`, `.pdm-python`, and pipenv's `.env`, which it loads), their locks (`uv.lock`,
+`poetry.lock`, `pdm.lock`, `Pipfile.lock`, `pylock.toml`) or requirements (`requirements*.txt`,
+`requirements/*.txt`) - but not for a test run (`uv run pytest`). As for node runners, the cost:
+after an agent edits a `pyproject.toml` (adding a dependency, say), these rules ask until that
+write is replaced. Their rule names what they run
 (`poetry run ruff`, `uv run python -m ruff`), never the tool alone; and npm's PowerShell shims are
 npm's own (`npx.ps1 tsc` is `npx tsc`). A runner's line sent to another package or folder of a
 monorepo - npm's and npx's `-w` / `--workspace` / `--workspaces` / `--ws` / `--prefix` / `-C`,
@@ -163,6 +202,33 @@ either stops a `python -m` rule, a `uv run` rule or a rule for a `.venv` console
 `usercustomize.py` there, which Python imports before anything it runs, stops `python -m pytest`
 too (not under `-E` or `-I`). `node <script>` with the script in an install folder
 (`node node_modules/typescript/bin/tsc`) is read as that program.
+
+On Windows, KOLONİ writes no file whose name, or a folder's in its path, ends in a dot or a space
+(`pyproject.toml.`, `uv.toml `): Windows drops those and would write `pyproject.toml`, while the
+record would name another file.
+
+### Known limits
+
+Always run rules are a convenience, not a security boundary: what a rule covers runs unasked; at
+Full auto KOLONİ's judge looks at what no rule names. What the rules above do not see:
+
+- Files a command makes - `cp`, `mv`, `tar`, `Expand-Archive` into a settings file's name - are not
+  on record as an agent's writes, so they do not stop a rule; nor does a CLI's write of a `.env`
+  or `.npmrc` into the project from its working copy, nor an agent's delete of a setting that protected the project.
+- tsc's `-p` naming any other file (`-p tsconfig.build`), and a tsconfig that extends a
+  package's config (`@scope/cfg`); ts-patch's tsconfig plugins; `vue-tsc`. Past a tsc rule,
+  `--init`, `--outDir out` (they write in the folder) and `-w` (it never ends).
+- mypy's `--timing-stats F`, `--line-checking-stats F` and `--cache-map …`, which write where they
+  name; `ruff format .` and `ruff clean` under a `uv run ruff` or `python -m ruff` rule (they write
+  in the folder); eslint's `--mcp`, `--cache` and `--fix-dry-run`.
+- pdm's `.pdm.toml`, `pdm_build.py` (pdm-backend loads it), poetry's `build.py` that its
+  manifest names, `pylock.<name>.toml`, `.python-versions`, `hatch_build.py`, a file named on
+  the line (`-r deps.txt`, `--config-file x`), node-gyp's `*.gypi`, bun's `.env.test`; pip named
+  with its version (`pip3.12`).
+- make's `SHELL:=`, `SHELL+=` and `.SHELLFLAGS`, and its `--makefile=x`, `-C ../x` /
+  `--directory=x` and `--eval=…`, past a make rule.
+- On macOS, a name its file system folds into a settings file's (`uv.lock` written with the
+  Kelvin sign, U+212A, for its `k`).
 
 On Windows, a command KOLONİ runs, a server it starts and an agent's CLI (started in the work's
 folder) find a program named bare - `node`, which an npm `.cmd` shim calls - on PATH only, never
@@ -263,7 +329,7 @@ Only such a delete alone on its line counts, written the way the shell it runs i
   Bash on Windows): `rm` with `-r`, `-R` or `-rf`, `-f` / `--force` if you like: `rm -rf build dist`.
 - **git**, in every shell: `git worktree remove ../wt/x`, `git branch -d old`.
 
-Codex, agy and Qoder do not say which shell their command runs in, so their delete of a folder keeps
+Codex and agy do not say which shell their command runs in, so their delete of a folder keeps
 its card. A disposable delete that ran and then failed says so on its row: "Ran without asking as
 disposable (…) and failed: exit 1". Anything else on the line, a forced worktree
 remove, a path above the folder or with a link in it, a line the shell continues, a command of a CLI
@@ -271,7 +337,7 @@ whose folder KOLONİ does not know or that its model names, and any of GitHub Co
 commands (it has no sandbox) asks as before. A delete whose folder changed
 between KOLONİ's look and its run - a card of the turn was answered meanwhile - asks too. At
 **Ask before changes**, in a turn nobody watches,
-a side of a comparison, a To-do task's turn and a job while you are away, every delete asks or waits
+a side of a comparison and a job while you are away, every delete asks or waits
 as before. No **Always run** rule covers a delete either way.
 
 ## Sub-agents
@@ -318,8 +384,13 @@ messages in the chat - never anything an agent wrote - and then:
   The agent is told that sentence (for a sentence in a message of yours, only that one of yours
   forbids it - the sentence stays with you), and not to run it or anything that does the same again,
   and goes on with the rest of its task. Its row says "Not run · your rule: …".
-- A sentence that sets a condition or asks to be asked ("unless", "ask me before"), or nothing of
-  yours that covers it: the card, as before. Its card then says "Nothing you said covers this."
+- A sentence that sets a condition or asks to be asked ("unless", "ask me before", "else",
+  "while", "whenever", "as long as", "so long as", "provided", "providing", "in case", "assuming"; in
+  Turkish "eğer", "ise" / "isen", "-madan", any "-se" / "-sa" - "Kontroller yeşilse …", "Hata yoksa …",
+  "Testler OK'se …" -, "-ınca", "-dığında" / "-dığımda" / "-diklerinde", "-ken", "-dikçe", "durumunda",
+  "-dığı zaman", "sonra", "-ene kadar", "dek", "madem", "yeter ki" and "sürece"; an apostrophe written as
+  ’, ‘, ´ or ʼ is read as one, so "OK’se" counts too), or nothing of yours that covers it: the card, as
+  before. Its card then says "Nothing you said covers this."
 
 A command that ran or was not run this way also waits under **Decided for you** until you press
 **OK**. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of
@@ -356,7 +427,8 @@ KOLONİ's own check of [code style and types](checked.md#documents-diagrams-data
 the project's ruff, eslint, tsc or mypy as it runs the test command: at Ask and Auto-edit it asks
 on a card - a yes is that line in that folder for the turn, and **Always** keeps that line, never
 the bare program; while you are away, or in a turn nobody watches without its trigger's leave for
-the line, it is not run, and says so. A program the turn wrote itself is never run.
+the line, it is not run, and says so. A program an agent wrote - this turn, or an earlier turn in an
+install folder, while the file still holds it - is never run.
 
 ## Choosing a level
 

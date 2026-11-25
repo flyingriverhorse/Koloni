@@ -557,7 +557,9 @@ def test_claude_codes_own_settings_are_asked_about_by_any_name_windows_opens(
     claude_app, wait_run, project_dir, named
 ):
     """With no `.claude` yet, `resolve()` keeps the name as written: on NTFS these are
-    still the folder Claude Code reads its settings from."""
+    still the folder Claude Code reads its settings from. On Windows a name ending in a dot
+    (`.claude.`) is not written at all - Windows drops the dot, the record would not: refused,
+    never asked, and Claude Code is told why."""
     grant = {
         "tool": "Write",
         "input": {
@@ -568,6 +570,16 @@ def test_claude_codes_own_settings_are_asked_about_by_any_name_windows_opens(
     }
     client, provider, _ = claude_app([grant, {"say": "done"}])
     cid, run_id = start(client, project_dir, provider, "full_auto")
+    if sys.platform == "win32" and named.split("/")[0].endswith("."):
+        snap = wait_run(client, cid, run_id)
+        assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+        assert not snap["questions"] and not snap["file_changes"], snap
+        assert not (project_dir / ".claude").exists()
+        verdict = claude_app.record()["asked"][0]
+        assert verdict["behavior"] == "deny", verdict
+        assert "is not written" in verdict["message"], verdict
+        assert "ends in a dot or a space" in verdict["message"], verdict
+        return
     question = wait_status(client, cid, "waiting_approval")["questions"][0]
     assert "its own settings" in question["question"]
     client.post(
@@ -1572,7 +1584,7 @@ def test_own_setup_is_a_setting_of_claude_code_only_and_reaches_its_native_clien
             check_options("claude_cli", {"own_setup": bad}, False)
     with pytest.raises(ValueError, match="unknown setting"):
         check_options("claude_cli", {"own_setup": True, "offline": True}, False)
-    for kind in ("openai_compat", "codex_cli", "qoder_cli", "agy_cli", "anthropic", "copilot_cli"):
+    for kind in ("openai_compat", "codex_cli", "agy_cli", "anthropic", "copilot_cli"):
         with pytest.raises(ValueError):
             check_options(kind, {"own_setup": True}, False)
 
