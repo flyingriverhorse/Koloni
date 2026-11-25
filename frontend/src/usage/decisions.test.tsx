@@ -73,7 +73,7 @@ test('folded under its count and how many of its answers you have not seen; the 
   expect(fold).not.toHaveAttribute('open')
   expect(fold.querySelector('summary')).toHaveTextContent('Decisions· 7 (3 not seen)')
   expect(onLoad).toHaveBeenLastCalledWith(since('today'))
-  const chips = within(fold).getByRole('group', { name: 'Period of the decisions' })
+  const chips = within(fold).getByRole('group', { name: 'Decisions since' })
   expect(within(chips).getByRole('button', { name: 'Today' })).toHaveAttribute('aria-pressed', 'true')
   await userEvent.click(within(chips).getByRole('button', { name: 'This week' }))
   expect(onLoad).toHaveBeenLastCalledWith(weekStart())
@@ -83,7 +83,7 @@ test('folded under its count and how many of its answers you have not seen; the 
 
 test('"Since I left" is not offered where the project was never left', async () => {
   view({ rows: [answer], judge_fine: 0 })
-  const chips = await screen.findByRole('group', { name: 'Period of the decisions' })
+  const chips = await screen.findByRole('group', { name: 'Decisions since' })
   expect(
     within(chips)
       .getAllByRole('button')
@@ -93,7 +93,7 @@ test('"Since I left" is not offered where the project was never left', async () 
 
 test('five rows, then Show all; each says when, who, what, the words it is of and why, and opens where it is', async () => {
   const { onOpenChat } = view({ rows: [answer, ran, ...many(5)], judge_fine: 2 })
-  const list = await screen.findByRole('list', { name: 'Decisions in the period' })
+  const list = await screen.findByRole('list', { name: 'Decisions, newest first' })
   expect(within(list).getAllByRole('listitem')).toHaveLength(5)
   const first = within(list).getAllByRole('listitem')[0]
   expect(first).toHaveTextContent(

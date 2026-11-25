@@ -74,7 +74,7 @@ export function Decisions({ onLoad, leftAt, onOpenChat }: Props) {
             {unseen > 0 && ` (${unseen} not seen)`}
           </span>
         </summary>
-        <div role="group" aria-label="Period of the decisions" className="chips decisions-chips">
+        <div role="group" aria-label="Decisions since" className="chips decisions-chips">
           {CHIPS.filter(([one]) => one !== 'left' || leftAt).map(([one, label]) => (
             <button key={one} type="button" className="chip" aria-pressed={chip === one} onClick={() => setChip(one)}>
               {label}
@@ -113,7 +113,7 @@ function Body({ log, chip, onOpenChat }: { log: DecisionLog; chip: Chip; onOpenC
   }
   return (
     <>
-      <ul className="decisions-rows" aria-label="Decisions in the period">
+      <ul className="decisions-rows" aria-label="Decisions, newest first">
         {(all ? log.rows : log.rows.slice(0, MOST)).map(row => (
           <Row key={row.id} row={row} onOpenChat={onOpenChat} />
         ))}
