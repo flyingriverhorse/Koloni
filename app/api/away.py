@@ -15,7 +15,8 @@ from app import away, backlog, parked
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.db.models import AwayRun, BacklogTask, Conversation, Project, Run, now
-from app.schemas import AwayGoIn, AwayOut
+from app.schemas import AwayOut
+from app.schemas_away import AwayGoIn
 from app.serialize import message_out
 
 router = APIRouter(prefix="/api", tags=["away"])
