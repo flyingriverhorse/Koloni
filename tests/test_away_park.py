@@ -226,12 +226,12 @@ def test_a_native_cli_command_is_parked_with_a_fixed_deny(claude_app, wait_run, 
     assert parked.data["copy"] and one["kept"]
 
 
-def test_0184_up_and_down(tmp_path):
+def test_0186_up_and_down(tmp_path):
     import sqlite3
 
     db = tmp_path / "fresh.db"
     cfg = _config(db)
-    alembic.upgrade(cfg, "0184")
+    alembic.upgrade(cfg, "0186")
     with sqlite3.connect(db) as conn:
         assert "parked" in tables(conn)
         conn.execute("PRAGMA foreign_keys = OFF")
@@ -246,7 +246,7 @@ def test_0184_up_and_down(tmp_path):
             "created_at) VALUES ('q', 'r', 'a', 'Which?', '[]', 0, 'parked', ?)",
             (AT,),
         )
-    alembic.downgrade(cfg, "0183")
+    alembic.downgrade(cfg, "0185")
     with sqlite3.connect(db) as conn:
         assert "parked" not in tables(conn)
         assert conn.execute("SELECT status FROM commands").fetchone() == ("rejected",)

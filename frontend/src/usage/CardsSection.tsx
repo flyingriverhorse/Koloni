@@ -73,7 +73,7 @@ export function CardsSection({ projectId, period, onLoad, onAdd }: Props) {
       ))}
       <p className="muted memory-hint">
         Counted from 0.1.7, by the reason KOLONİ asked each card for. A line in the project’s rules spares a card only
-        at Full auto with Check what I said first on (Settings › This project › Asking and away).
+        at Full auto with Full auto’s judge’s box for your words on (Settings › This project › Asking and away).
       </p>
     </section>
   )

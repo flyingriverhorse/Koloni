@@ -42,7 +42,8 @@ NOTE_MOST, NOTEBOOK_MOST, NOTES_PER_TURN = 200, 20, 3
 FIRST_CUT = NOTE_MOST * 20  # (what of a note's words is read at all: `_first_cut`)
 # What nobody sees, so a secret may be split with it unseen (S1, L3): what does not print (but
 # blanks), and these - variation selectors, the grapheme joiner, Mongolian and Khmer marks, Hangul
-# fillers, and the blanks Python counts that nobody sees as one (U+001C-001F, U+0085, U+2028-9).
+# fillers, the blanks Python counts that nobody sees as one (U+001C-001F, U+0085, U+2028-9), and
+# what prints as a blank (S1b): the braille blank, a null notehead, an object's replacement.
 UNSEEN = frozenset(
     map(
         chr,
@@ -63,6 +64,9 @@ UNSEEN = frozenset(
             0x85,
             0x2028,
             0x2029,
+            0x2800,
+            0x1D159,
+            0xFFFC,
         ],
     )
 )
@@ -74,6 +78,21 @@ FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
 # A setext heading's underline: the line above it is a heading's - but for a list's item.
 SETEXT = re.compile(r" {0,3}(?:=+|-+)[ \t]*\Z")
 LIST_ITEM = re.compile(r" {0,3}[-*+][ \t]")
+# A quote's line: the lines after it are the quote's too, to a blank line (`_own_lines`).
+# (a quote may open a list's item too: `- > q`, `1. > q` - its lazy line is the quote's)
+QUOTE = re.compile(r" {0,3}(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?>")
+# An HTML block's first line, as CommonMark reads one (its types 1 and 6): a `raw` one - `<pre>`,
+# `<script>`, `<style>`, `<textarea>` - runs to a line with such a tag's end (RAW_ENDS, any of
+# them), one of the other tags' to a blank line.
+HTML_BLOCK = re.compile(
+    r" {0,3}<(?:(?P<raw>pre|script|style|textarea)(?:[ \t>]|\Z)|/?(?:address|article|aside|base|"
+    r"basefont|blockquote|body|caption|center|colgroup|col|dd|details|dialog|dir|div|dl|dt|"
+    r"fieldset|figcaption|figure|footer|form|frameset|frame|h[1-6]|head|header|hr|html|iframe|"
+    r"legend|li|link|main|menuitem|menu|nav|noframes|ol|optgroup|option|p|param|search|section|"
+    r"summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \t>]|/>|\Z))",
+    re.IGNORECASE,
+)
+RAW_ENDS = ("</pre>", "</script>", "</style>", "</textarea>")
 STORY_NOTE = "Story note:"
 # A note's line: STORY_NOTE after up to 3 spaces (4 are code to Markdown), maybe as a list's item
 # (`- `, `* `, `+ `), maybe in bold or italics, maybe the marker alone in backticks (as 0.1.8 read
@@ -106,6 +125,9 @@ SHOWN_STATE = {"done": "done", "done?": "done?", "stuck": "stuck"}
 # What a story is: none of its tasks started; one at work or queued in a chat; one stuck; all of
 # them done or waiting at "done?" for the user's word (the user is asked); closed by the user.
 STORY_STATES = ("todo", "running", "stuck", "done?", "done")
+# Said where a story's name is of what nobody sees alone (`name_key` "", K3): a story nobody sees
+# on the page, nor can name.
+NO_NAME = "a story needs a name you can see"
 
 
 def story_state(story: Story, tasks: Sequence[BacklogTask]) -> str:
@@ -283,13 +305,20 @@ def goal_states(session: Session, goal: Goal) -> list[str]:
     ]
 
 
+BLANK_LOOKING = frozenset("\u2800\u3164\uffa0\u115f\u1160")
+
+
 def name_key(title: str) -> str:
     """A story's or a goal's name as two are told apart: whatever its case, and the Turkish İ and ı
-    as an i - casefold makes İ an i with a dot of its own, so LOGİN, LOGIN, login and logın are one
-    name (T2b); in any Unicode form (NFKC: a decomposed é, a fullwidth letter), what nobody sees
-    left out (L6)."""
-    plain = "".join(ch for ch in unicodedata.normalize("NFKC", title) if not _unseen(ch))
-    return plain.strip().replace("İ", "i").replace("ı", "i").casefold()
+    as an i - casefold, as `lower()` (K1), makes İ an i with a dot of its own: LOGİN, LOGIN, login
+    and logın are one name (T2b); in any Unicode form (NFKC: a decomposed é, a fullwidth letter),
+    what nobody sees left out (L6), its blanks one space, as the page shows them (K2). "" for a
+    name of what nobody sees alone: none (`NO_NAME`)."""
+    # (what shows as a blank - a braille blank, a Hangul filler - is a blank, not left out)
+    shown = "".join(" " if ch.isspace() or ch in BLANK_LOOKING else ch for ch in title)
+    plain = "".join(ch for ch in unicodedata.normalize("NFKC", shown) if not _unseen(ch))
+    dotted = " ".join(plain.split()).casefold().replace("ı", "i")
+    return dotted.replace("i\N{COMBINING DOT ABOVE}", "i")
 
 
 def taken(session: Session, project_id: str, title: str, but: str | None = None) -> Story | None:
@@ -513,29 +542,58 @@ def _comment_after(line: str, open_: str) -> str:
             at = start + 2  # (`<!-->` and `<!--->` are whole comments: CommonMark 0.31)
 
 
+def _opens(line: str) -> str:
+    """What a line opens that the lines after it are no note in: a code fence (its marker), an
+    HTML block (`HTML_BLOCK`: "raw", or "div" to a blank line); "" none."""
+    if mark := FENCE.match(line):
+        return mark[1]
+    if not (start := HTML_BLOCK.match(line)):
+        return ""
+    if not start["raw"]:
+        return "div"
+    return "" if any(end in line.lower() for end in RAW_ENDS) else "raw"
+
+
+def _held_after(line: str, held: str) -> str:
+    """What the line after this one is in, this one in `held` (`_own_lines`): a fence closes on
+    one of its kind, as long; a raw HTML block on its end tag; a `<div>`'s on a blank line; a
+    comment on `-->` (`_comment_after`), one opened in a paragraph on its end too - a blank line,
+    a fence or an HTML block."""
+    blank, mark = not line.strip(" \t"), FENCE.match(line)
+    if held[0] in "`~":
+        closes = mark and mark[1][0] == held[0] and len(mark[1]) >= len(held)
+        return "" if closes and not line[mark.end() :].strip() else held
+    if held == "raw":
+        return "" if any(end in line.lower() for end in RAW_ENDS) else held
+    if blank and held in ("div", "inline"):
+        return ""
+    if held == "inline" and (opens := _opens(line)):  # (no comment was in the paragraph)
+        return opens
+    return held if held == "div" else _comment_after(line, held)
+
+
 def _own_lines(said: str) -> Iterator[tuple[str, str]]:
-    """The lines of a Markdown answer outside its code fences and HTML comments, each with the
-    line after it. Only CommonMark's line ends end one (\\n, \\r\\n, \\r): not a U+2028, a form
-    feed, a U+0085.
-    shortcut: a `<!--` in inline code opens a comment all the same - the notes after it in its
-    paragraph are lost, never one too many; read code spans if a turn's notes go missing so."""
-    fence, comment = "", ""  # (a fence's opening marker: closed by one of its kind, as long)
+    """The lines of a Markdown answer outside its code fences, HTML blocks and comments and its
+    quotes, each with the line after it. Only CommonMark's line ends end one (\\n, \\r\\n, \\r):
+    not a U+2028, a form feed, a U+0085. A quote runs to a blank line - the lines after its `>`
+    one are its paragraph's (S3b) - but for a list's item, which ends it.
+    shortcut: a `<!--` in inline code opens a comment all the same, and a quote is read to its
+    blank line though a heading, or a `>` line that is no paragraph's, ends it sooner - the notes
+    so hidden are lost, never one too many; read code spans and quotes so if a turn's notes go
+    missing. HTML blocks of CommonMark's types 3-5 and 7 (`<?`, `<!X`, CDATA, another tag alone
+    on its line) are not read: read them if a planted note gets in so."""
+    held, quote = "", False  # (a fence's marker, an HTML block, a comment; in a quote's paragraph)
     for one, after in itertools.pairwise([*LINE_END.split(said), ""]):
-        mark = FENCE.match(one)
-        if fence:
-            closes = mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence)
-            fence = "" if closes and not one[mark.end() :].strip() else fence
-        elif comment == "inline" and not one.strip(" \t"):
-            comment = ""
-        elif comment == "inline" and mark:  # (a fence ends the paragraph: no comment was in it)
-            comment, fence = "", mark[1]
-        elif comment:
-            comment = _comment_after(one, comment)
-        elif mark:
-            fence = mark[1]
+        quote = quote and bool(one.strip(" \t"))
+        if held:
+            held = _held_after(one, held)
+        elif opens := _opens(one):
+            held, quote = opens, False
         else:
-            yield one, after
-            comment = _comment_after(one, "")
+            quote = bool(QUOTE.match(one)) or quote and not LIST_ITEM.match(one)
+            if not quote:
+                yield one, after
+            held = _comment_after(one, "")
 
 
 def note_lines(said: str) -> list[tuple[str, str]]:

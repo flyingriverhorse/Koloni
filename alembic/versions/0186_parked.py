@@ -5,16 +5,17 @@ user decides it under Waiting for you.
 Going back, a parked command is "rejected" and a parked question "cancelled" (the statuses before
 this), and the table goes.
 
-Revision ID: 0184
-Revises: 0183
+Revision ID: 0186
+Revises: 0185
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0184"
-# (Written on the k-away-park branch: re-chained after main's newest at its merge.)
-down_revision = "0183"
+revision = "0186"
+# (Written on the k-away-park branch as 0184: re-chained after 0185, k-judge-sozun's, at its
+# merge of 0.1.9.)
+down_revision = "0185"
 branch_labels = None
 depends_on = None
 

@@ -64,6 +64,12 @@ def _title(title: str) -> str:
     return title
 
 
+def _story_title(title: str) -> str:
+    if not stories.name_key(title := _title(title)):
+        raise HTTPException(422, stories.NO_NAME)
+    return title
+
+
 def _story_out(session: Session, story: Story) -> dict:
     return stories.story_row(story, stories.tasks_of(session, story.id))
 
@@ -120,7 +126,7 @@ async def add_story(
     project = _project(session, project_id)
     if body.goal_id is not None and not stories.of_project(session, Goal, project.id, body.goal_id):
         raise HTTPException(422, OTHER_GOAL)
-    title = _title(body.title)
+    title = _story_title(body.title)
     if found := stories.taken(session, project.id, title):
         raise HTTPException(422, TAKEN.format(title=found.title))
     story = stories.add_story(session, project.id, title, body.goal_id, "user")
@@ -136,7 +142,7 @@ async def change_story(
     story = _story(session, story_id)
     changes = body.model_dump(exclude_unset=True)
     if changes.get("title") is not None:
-        title = _title(changes["title"])
+        title = _story_title(changes["title"])
         if found := stories.taken(session, story.project_id, title, but=story.id):
             raise HTTPException(422, TAKEN.format(title=found.title))
         story.title = title

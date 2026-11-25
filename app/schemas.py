@@ -293,11 +293,13 @@ class ProjectOut(Out):
     # K-buyuk-proje: the user's own test command by part of the project map ("./" the root part,
     # "sub/" another; "" their "no test" there) - run before what KOLONİ saved for that folder.
     test_commands: dict[str, str]
-    # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
-    # checked against what they wrote ("judge").
+    # K-yargic's old choice ("judge": the check of the user's words was on before 0.1.9) - read
+    # only: since §8 it lets that check go on unmeasured (`judge.words_on`); nothing writes it.
     full_auto_check: FullAutoCheck
-    # Full auto's judge: a small model looks at each command the list does not stop first.
+    # Full auto's judge: a small model looks at each command the list does not stop first - and,
+    # with its box `judge_words` (§8), lets a harmful-looking one a line of the user's names run.
     full_auto_judge: bool
+    judge_words: bool
     # Coordination §4: whether a disposable delete goes without a card at Auto-edit and Full
     # auto in a watched turn.
     disposable_deletes: bool
@@ -398,8 +400,8 @@ class ProjectPatch(BaseModel):
     check_kinds: dict[CheckKind, bool] | None = None
     # S1b: true forgets what KOLONİ found and saved as the project's test command, and its look.
     forget_tests_found: bool | None = None
-    full_auto_check: FullAutoCheck | None = None
     full_auto_judge: bool | None = None
+    judge_words: bool | None = None
     disposable_deletes: bool | None = None
 
 
@@ -1242,9 +1244,10 @@ class Judged(BaseModel):
     it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
     (Decided for you). Full auto's judge's (`kind` "risk"): "fine", it ran; "risky", its card -
     `why`, the judge's sentence, or KOLONİ's where it was not asked or gave no answer to go by
-    (`model` then "" where none was asked)."""
+    (`model` then "" where none was asked). Since §8 the check of the user's words is the judge's
+    too, `kind` "words" ("" on a record from before 0.1.9)."""
 
-    kind: Literal["", "risk"] = ""
+    kind: Literal["", "risk", "words"] = ""
     verdict: Literal["run", "ask", "refuse", "fine", "risky"]
     quote: str = ""
     source: Literal["preferences", "rules", "message", ""] = ""

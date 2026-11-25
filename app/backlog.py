@@ -977,8 +977,8 @@ def _check_tree(session: Session, project_id: str, tree: dict) -> None:
         if one.get("id") is not None:
             if not stories.of_project(session, Story, project_id, one["id"]):
                 raise Refused("a task's story is one of its project")
-        elif not (one.get("title") or "").strip():
-            raise Refused("a new story needs a title")
+        elif not stories.name_key(one.get("title") or ""):
+            raise Refused(stories.NO_NAME)
     new = [one["title"].strip() for one in tree["stories"] if one.get("id") is None]
     for title in new:
         if (found := stories.taken(session, project_id, title)) is not None:
@@ -1452,6 +1452,8 @@ def _story_for(session: Session, project_id: str, args: dict) -> Story | None:
     title, goal = _text(args, "story"), _text(args, "goal")
     if title is None:
         return None
+    if not stories.name_key(title):
+        raise Refused(f"{stories.NO_NAME}, or none for a task that stands alone")
     if (story := stories.story_named(session, project_id, title)) is not None:
         return story
     if (closed := stories.taken(session, project_id, title)) is not None:
