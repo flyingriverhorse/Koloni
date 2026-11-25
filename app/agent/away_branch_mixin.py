@@ -393,7 +393,7 @@ class AwayBranchMixin:
                 "root": project.root_path,
                 "way": project.finish_way,
                 # (its first line: nothing past it - a trailer - goes into the commit or the PR)
-                "title": (task.title.strip().splitlines() or ["?"])[0][:72],
+                "title": away_branch.titled((task.title.strip().splitlines() or ["?"])[0])[:72],
                 "name": agent.name or agent.role_name,
                 "notes": (agent.report or "").strip(),
             }

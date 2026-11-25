@@ -119,7 +119,11 @@ provider key you saved, an MCP server's variable a secret's name holds, the page
 card, one of the environment's or a value the project passes to its commands - go up or into your
 branch, in a file or in its name: KOLONİ's own commit leaves such a file out and its card says so, and
 a branch an agent committed one on itself is neither merged nor pushed ("take it off the branch
-first"). The rest of the work goes on; an ordinary value (`production`, a path) stops nothing. Where a commit of yours not pushed is in another worktree, the
+first"). The rest of the work goes on; an ordinary value (`production`, a path) stops nothing. A
+task's name goes up as the commit's subject and the pull request's title mentioning nobody: a
+zero-width joiner follows each `@`, and no control character is kept. Where git checks your files
+out with CRLF (`core.autocrlf=true`, Windows' default) and they are LF, a file whose line ends alone
+differ is no change of yours, and Take in keeps your file's own line ends. Where a commit of yours not pushed is in another worktree, the
 card names that worktree's folder; if you deleted that folder by hand, git still keeps the worktree and
 its commit, and `git worktree prune` lets git drop it. A worktree of yours where you look at the agent's
 branch (`git worktree add --detach <folder> koloni/…`) does not make its commits yours, nor does a

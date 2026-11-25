@@ -4,18 +4,20 @@ name holds (`NODE_ENV=production`, `HOME`, an address) and a value that reads as
 the work goes on, and the row and the chat say which file -; a secret in a file's name never goes
 up. Nothing of a job's work is ever deleted for a secret KOLONİ knows."""
 
+import subprocess
 import sys
 from pathlib import Path
 
 from app import raw
-from app.db.models import McpServer
+from app.away_branch import titled
+from app.db.models import BacklogTask, McpServer
 from tests.test_agent_writes import write
 from tests.test_away_branch_scenarios import (
     ONE,
     origin_of,
     repo,  # noqa: F401  (a fixture)
 )
-from tests.test_away_push import name_of, on_origin, push, row_now
+from tests.test_away_push import name_of, night_with_origin, on_origin, push, row_now
 from tests.test_away_scenarios import ended, evening, go_away
 from tests.test_away_waiting import waiting
 from tests.test_chat_flow import text
@@ -121,3 +123,28 @@ def test_a_secret_in_a_files_name_never_goes_up(make_client, wait_run, repo):
     after = ran(client, done, row)
     assert after["decision"] is None and "holds a secret KOLONİ knows" in after["result"], after
     assert on_origin(origin, name_of(job)) == ""
+
+
+TITLE = "zz152 A1 push [x](http://evil.example/t) @octocat `tick` <b>b</b>\x1b[31m\u202e"
+
+
+def test_a_task_name_mentions_nobody_in_what_goes_up():
+    # (R2: the Scout writes task names - a mention there would reach a stranger on GitHub)
+    said = titled(TITLE)
+    assert "@\u200doctocat" in said and "@octocat" not in said
+    assert not any(ord(ch) < 32 or ch == "\u202e" for ch in said)
+    assert said.startswith("zz152 A1 push [x](http://evil.example/t) @") and "`tick`" in said
+
+
+def test_the_pushed_commits_subject_is_the_task_name_mentioning_nobody(make_client, wait_run, repo):
+    client, done, job, row, origin = night_with_origin(make_client, wait_run, repo)
+    with client.app.state.session_factory() as session:
+        session.get_one(BacklogTask, job["task_id"]).title = TITLE
+        session.commit()
+    assert ran(client, done, row)["decision"] == "run"
+    ref = f"refs/heads/{name_of(job)}"
+    got = subprocess.run(
+        ["git", "-C", str(origin), "log", "-1", "--format=%s", ref], capture_output=True
+    )
+    subject = got.stdout.decode("utf-8").strip()  # (as written: a zero-width joiner in it)
+    assert subject == titled(TITLE) and "@octocat" not in subject

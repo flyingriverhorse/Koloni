@@ -13,6 +13,7 @@ import contextlib
 import hashlib
 import os
 import re
+import unicodedata
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -189,6 +190,19 @@ def origin_checked(project: Path) -> None:
         raise git.Refused(git.NO_ADDRESS)
     exe, _folder = git.repository(project)
     git._origin_holds(project, exe, url)
+
+
+# R2: an @ that would mention someone on GitHub (`@octocat`, `@org/team`).
+_MENTION = re.compile(r"@(?=[\w-])")
+
+
+def titled(text: str) -> str:
+    """R2: a To-do task's line - which an agent may have written (the Scout) - as a commit's subject
+    or a pull request's title says it: no control or format character (a line break, a bidi
+    override), and a zero-width joiner after each `@` that would mention someone. The rest as
+    written: a link's or code's marks there are only text."""
+    shown = "".join(ch for ch in text if unicodedata.category(ch) not in ("Cc", "Cf"))
+    return _MENTION.sub("@\u200d", shown)
 
 
 # D2: an address on github.com as git writes one - https, ssh, scp-like (`git@github.com:o/r`).
