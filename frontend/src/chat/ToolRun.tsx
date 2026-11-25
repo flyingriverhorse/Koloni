@@ -3,7 +3,9 @@ import { type ReactNode, useState } from 'react'
 import type { Command, FileChange, ToolCall } from '../api/types'
 import { StatusLabel } from '../shell/StatusLabel'
 import { TOOL_STATUS } from './ToolRow'
-import { runHead } from './toolRuns'
+import { type End, runHead } from './toolRuns'
+
+const ENDED: Record<End, [label: string, color: string]> = { ...TOOL_STATUS, parked: ['parked', 'var(--warn)'] }
 
 // Calls whose line was left open, kept while the page is open (a reload closes them): by every
 // call of the line, so a line a card splits stays open on both sides, and one joined to an open one opens.
@@ -25,9 +27,9 @@ export function ToolRun({ calls, state, children, live = false }: Props) {
   const [, redraw] = useState(0)
   const open = calls.some(call => opened.has(call.id)) || (live && !shut.has(calls[0].id))
   const { what, marks, status } = runHead(calls, state)
-  const [label, color] = TOOL_STATUS[status]
-  // "1 failed", "2 rejected", "1 interrupted": what did not end well is never folded away.
-  const marked = marks.map(([end, count]) => `${count} ${TOOL_STATUS[end][0]}`)
+  const [label, color] = ENDED[status]
+  // "1 failed", "2 rejected", "4 parked", "1 interrupted": what did not end well is never folded away.
+  const marked = marks.map(([end, count]) => `${count} ${ENDED[end][0]}`)
   return (
     <div className="tool-run">
       <button

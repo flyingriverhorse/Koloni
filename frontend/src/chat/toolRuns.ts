@@ -119,18 +119,23 @@ export function runHead(
     })
   const now = calls.find(call => call.status === 'running')
   const what = [done.join(', '), now && `now: ${toolSummary(now)}`].filter(Boolean).join(' · ')
-  const count = (status: ToolCall['status']) => calls.filter(call => call.status === status).length
+  // ☾ Away (F411): a command a job parked for the morning - its call denied to the agent - is parked, not rejected.
+  const parked = (call: ToolCall) =>
+    call.status === 'denied' && commands.some(c => c.tool_call_id === call.id && c.status === 'parked')
+  const count = (end: End) => calls.filter(call => (parked(call) ? 'parked' : call.status) === end).length
   // Done if any was; else the worst there is.
-  const status: ToolCall['status'] = calls.some(call => call.status === 'running' || call.status === 'pending')
+  const status: End = calls.some(call => call.status === 'running' || call.status === 'pending')
     ? 'running'
     : (ENDS.find(end => count(end) > 0) ?? 'succeeded')
   const marks = ENDS.slice(1)
     .filter(end => count(end) > 0)
-    .map(end => [end, count(end)] as [ToolCall['status'], number])
+    .map(end => [end, count(end)] as [End, number])
   return { what: what.charAt(0).toUpperCase() + what.slice(1), marks, status }
 }
 
-const ENDS: ToolCall['status'][] = ['succeeded', 'failed', 'denied', 'interrupted']
+/** How a run's call ended, as its line counts it: the call's own status, or parked (`runHead`). */
+export type End = ToolCall['status'] | 'parked'
+const ENDS: End[] = ['succeeded', 'failed', 'denied', 'parked', 'interrupted']
 const MADE = new Set<FileChange['status']>(['applied', 'merged', 'in_copy'])
 
 /** Each kind's icon in the chat, by VS Code's meaning: a book reads, a pencil edits, a terminal runs. */

@@ -131,3 +131,16 @@ test('a command that exited with an error is marked failed on its line, though i
   const state = { commands: [command('k1', 'r', { tool_call_id: 'c1', exit_code: 1 })], fileChanges: [] }
   expect(runHead([read, ran], state)).toEqual({ what: 'Read 1 file', marks: [['failed', 1]], status: 'succeeded' })
 })
+
+test('a command an Away job parked for the morning is counted parked on its line, not rejected (F411)', () => {
+  const asked = (id: string) => toolCall(id, 'r', 'run_command', 'denied', '{"command":"python q.py"}')
+  const parked = (id: string) => command(`k${id}`, 'r', { tool_call_id: id, status: 'parked', exit_code: null })
+  const state = { commands: ['1', '2', '3', '4'].map(parked), fileChanges: [] }
+  const four = ['1', '2', '3', '4'].map(asked)
+  expect(runHead(four, state)).toEqual({ what: '', marks: [['parked', 4]], status: 'parked' })
+  // (one the user turned down on its card is still rejected beside them)
+  expect(runHead([...four, asked('5')], state).marks).toEqual([
+    ['denied', 1],
+    ['parked', 4],
+  ])
+})
