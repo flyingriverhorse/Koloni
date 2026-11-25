@@ -110,6 +110,14 @@ wrote and a place you kept out are still refused. The list says where a line wou
 an agent wrote that it runs. Nothing goes into your project without your Take in: the going-on turn's
 work, at Full auto too, is kept in its copy.
 
+In a git repository a job works on a branch of its own in a worktree of your repository, not in a copy:
+its `.git` is yours. Its own `git push` is refused; what reaches the rest of your repository is
+parked. A script's push is set to fail there (git's `pushInsteadOf`), your branches, stash, tags,
+remotes and git's config are compared before and after the job, and its push in the morning goes up
+only on your **Run**, only the commit KOLONİ checked at the job's end, as one commit of KOLONİ's - none
+of these is a wall: a script in the job reaches your repository as you could. See
+[Known limits](../reference/known-limits.md#away-on-a-branch).
+
 ## Places agents never open
 
 - Your home folder, a drive's root and KOLONİ's own folder cannot be opened as a project. Settings ›

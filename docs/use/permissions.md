@@ -557,6 +557,14 @@ rules**.
 With **Plan first** on, each new message first gets a plan to approve. While it plans, an agent
 can only read, search and ask you. It cannot write or run anything, at any level.
 
+## A job's own branch while you're away
+
+In a git repository a job of [☾ Away](../automation/overnight.md#in-a-git-repository-each-job-on-its-own-branch)
+works on its own `koloni/<task>` branch in a worktree. Its git there - `status`, `diff`, `log`, `add`,
+`commit` on that branch - runs at every level without a card. Its `git push` never runs: "KOLONİ pushes
+this branch when the user says yes: go on" - the push waits for your **Run** in the morning. Anything
+else of git (switching branches, reset, stash, fetch, config) is parked for you.
+
 ## Turns nobody watches
 
 A turn started by a trigger has nobody to ask. There the permission level and your rules do not

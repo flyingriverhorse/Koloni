@@ -202,6 +202,26 @@ messages.
 - `git` in the middle of a line - `cd sub && git push` - needs the project: Take in first; in a copy
   there is no git.
 
+### Away on a branch
+
+- A job on its branch works in a worktree of your own repository: its `.git` is shared. A script or a
+  test that runs git there can reach your branches, tags, stash and config - KOLONİ reads only the
+  git lines the agent itself writes. Your branches, stash, tags, remotes and git's config are compared
+  as the job starts and ends, and what changed is on its row; nothing is undone.
+- A push from a script fails there because KOLONİ sets git's `pushInsteadOf` for the job's commands.
+  Measured with git 2.53: a push to the remote's name, a path or a `file://` address fails, a fetch
+  works. It does not stop a remote that has its own `pushurl`, a longer `pushInsteadOf` of your own,
+  or a script that clears git's environment.
+- The worktree holds what git tracks; what it ignores (`.env`, data, build output) is not there, and a
+  test that reads such a file may fail. A project with a git submodule or Git LFS works in a copy.
+- The commits of a branch that was deleted, or of a job's first try, stay in git's objects until git
+  cleans them up (`git gc`).
+- Your own `pre-commit` and `pre-push` hooks run neither for the job's commits nor for KOLONİ's push.
+- KOLONİ's checks run before its last commit at the job's end; that commit holds the same files,
+  apart from one holding a secret given in the job or a new file your project already has.
+- The branch's name is told to the job before its worktree is made: where a branch of that name was
+  there already, the worktree is on the next free name, and its row says which.
+
 ## Recipes
 
 - Recipes do not run in triggers' turns.

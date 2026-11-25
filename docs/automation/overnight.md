@@ -81,6 +81,40 @@ works in a copy of the project of its own.
   one goes on.
 - **A job that waits for your word** waits, and the next one goes on.
 
+### In a git repository: each job on its own branch
+
+Where the project is the top folder of a git repository, a job works on a git branch of its own,
+`koloni/<task>` (for example `koloni/fix-login-3f2a`), in a worktree of your repository, and commits
+there as it goes. How Go away finds the project decides it, once for every job:
+
+| The project | The job | In the morning |
+|---|---|---|
+| No git; a folder inside a repository; HEAD on no branch; no commit yet; a merge or rebase under way; a git submodule; files in Git LFS | works in a copy, as above | **Take in**; its row says "In a copy: …" and why |
+| A git repository with no remote called `origin` | works on its branch, commits there | "No remote: merge it with git, or Take in." |
+| A git repository with an `origin` | works on its branch, commits there | its **push** waits under [Waiting for you](#waiting-for-you) |
+
+- **Its first message** says so: the branch's name, commit as you go, do not push - KOLONİ pushes this
+  branch when you say yes. A CLI's instructions say the same. Only the files git tracks are in the
+  worktree; what git ignores (`.env`, data, build output) is read in the project.
+- **Its git:** `git status`, `diff`, `log`, `add` and `commit` on its own branch run without a card. Its
+  own `git push` is refused with "KOLONİ pushes this branch when the user says yes: go on" - no card,
+  nothing parked. What reaches the rest of your repository (switching branches, reset, stash, fetch,
+  config) is parked for you as any card is.
+- **A script's push** - a test or a build step that runs `git push` - fails inside the job's worktree:
+  KOLONİ starts its commands with git set to push nowhere (a fetch still works). That is a safeguard,
+  not a wall: see [Known limits](../reference/known-limits.md#away-on-a-branch).
+- **Where git will not** when the job starts (HEAD detached since Go away, say), it works in a copy;
+  its Orchestrator is told why, and its row says "In a copy: …".
+- **At its end** KOLONİ commits what the job left on the branch and keeps the worktree for your Take in -
+  the same card as a copy's, file by file. Nothing of it goes into your project by itself, at Full auto
+  too. A branch that holds a secret given during the job is deleted, and the chat says so.
+- **Its second try** after a failure, and the turn that goes on after your decisions in the morning,
+  work in the same worktree, on the same branch.
+- KOLONİ also notes your repository's branches, stash, tags and remotes as the job starts and ends:
+  anything that changed outside the job's branch meanwhile is on its row - "Changed outside its
+  branch: main 1a2b3c4 → 3c4d5e6", "git's config changed during the job" - for you to look at. KOLONİ
+  does not undo it: it may be yours.
+
 The top bar shows "☾ Away · To-do 2 of 4" with **I'm back** and **Stop all**, and "· until 07:00"
 after it when you set a stop time. The To-do page shows the jobs too: since when, what they spent against the limit,
 and each job as it stands, with what its agents are doing right now. A job's chat says at the top when
@@ -212,7 +246,8 @@ like orders to a model. It is on the summary, on the report and at the top of ea
   of it runs.
 - You decide only once you are back (I'm back), and only while the task's job is not at work. A row
   that cannot be decided now says why: "Needs the project itself: Take in first" (a `git` line, or one
-  naming `build/`, `dist/` or another folder a copy leaves out - a copy has no `.git`), "Its copy is gone:
+  naming `build/`, `dist/` or another folder a copy leaves out - a copy has no `.git`; in a job on its
+  branch a `git` line runs in its worktree), "Its copy is gone:
   there is nothing to run it in" (you discarded it - **Reject** still works), "Where it would run is not
   known: Reject it, or run it yourself" (a CLI that did not say its folder), "The project runs commands
   elsewhere now: Reject it, or set that back" (Docker or this machine, changed since), "Its CLI's own
@@ -239,6 +274,22 @@ like orders to a model. It is on the summary, on the report and at the top of ea
   took some of it in), its work kept for your Take in - at Full auto too - and the judge looks at its
   commands. It does not start where the project is over its monthly budget: the job then waits with
   why. A message of yours in that chat meanwhile waits behind it.
+- **A job's push** (a git repository with an `origin`): "Push koloni/fix-login-3f2a to origin
+  (github.com/…) — one commit by KOLONİ, 5 files · checks ✓ at 3c4d5e6", and "· opens a pull request
+  into main" where the project's **How a team's finished branch reaches yours** is **Open a pull
+  request** ([Settings](../settings.md)). **Run** pushes the
+  branch's work as ONE commit by KOLONİ onto where it left `main` - never the agents' own steps, never
+  what you had not committed when it began - and opens the pull request; **Reject** leaves the branch as
+  it is. It waits for the task's other rows and its going-on turn ("Waits for this task's other
+  decisions and its going-on turn"), and is made again with the branch's new commit after that turn: a
+  yes is never for a commit you did not see. Just before it pushes, KOLONİ looks again: a branch
+  deleted or moved since the job ended, a secret KOLONİ knows in what would go up, a branch of that
+  name on origin, commits of yours on `main` not on origin ("push main first") - nothing goes up, the
+  row says why and waits, to try again once that is set right. Where git's config changed since the
+  job began, something changed outside the branch, it changed a place you kept out, or it began from
+  your work not committed, the row shows that first: **Run anyway** pushes. Take in or Discard of the
+  job closes the row ("Its work was taken in or discarded: nothing to push"); taking all of it in
+  deletes the branch.
 
 ![Back from Away: the chat's summary, While you were away, 2 of 2 To-do done, with Review and take in and On the canvas; on the canvas the two jobs and their report](../images/away-summary.png)
 
