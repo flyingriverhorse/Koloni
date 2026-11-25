@@ -97,10 +97,6 @@ NOT_REACHED = {
     "failed": "the turn failed before its end",
 }
 ENDED_FIRST = "the turn ended before KOLONİ's check"
-# What a run_checks answer stands for (`ChecksToolMixin._work_now`): the work's content identity
-# (None: not known), the checks on, the turn's change records with their statuses, and its
-# commands that may have written.
-type Work = tuple[str | None, frozenset[str], frozenset[tuple[str, str]], frozenset[str]]
 
 
 @dataclass
@@ -232,14 +228,10 @@ class Proof:
     changed_files: list[str] = field(default_factory=list)
     changed_by: list[str] = field(default_factory=list)
     # run_checks (`ChecksToolMixin`): the call a pass runs for now (no round counted, no wait
-    # cut short, none gone on after it); the passes it ran, its last answer and the work it
-    # stands for (`Work`); and the work a green one checked: the end gate need not run again.
+    # cut short, none gone on after it), and the passes it ran; and whether the end gate itself
+    # ran, not run_checks alone (`ChecksToolMixin._gate_ran`).
     asked_call: str | None = None
     asked_runs: int = 0
-    asked_said: str = ""
-    asked_as: "Work | None" = None
-    checked_as: "Work | None" = None
-    # ...and whether the end gate itself ran, not run_checks alone (`ChecksToolMixin._gate_ran`).
     gated: bool = False
 
 
@@ -260,12 +252,8 @@ class ProofMixin:
         return self._left_to_do(ctx) or await self._proof_left(ctx)
 
     async def _proof_left(self: "AgentRunner", ctx: Ctx) -> str | None:
-        """The end gate (`_proof_pass`) - not again on work run_checks found green as it is: its
-        rows stand, only the ask for a test is left (an end's own) -, then the stronger models'
-        rounds and a hold that stands."""
-        if await self._checked_as_is(ctx):
-            (held := self._proofs[ctx.run_id]).gated = True
-            return await self._proof_test_ask(ctx, held)
+        """The end gate (`_proof_pass`) - its own pass always, whatever run_checks answered -, then
+        the stronger models' rounds and a hold that stands."""
         held, said = await self._proof_pass(ctx)
         if held is None or said is not None:
             return said
@@ -328,7 +316,6 @@ class ProofMixin:
         held.unrecorded, held.gone_tests = unrecorded, gone
         held.recipe_spent = held.recipe_spent or self._recipe_spent(ctx)
         held.style_set_up = await self._style_seen(ctx, found)
-        held.checked_as = None  # (this pass's rows from here: run_checks' green says it again)
         held.gated = held.gated or not asked
         opened = self._lead_opened(ctx.run_id, ctx.agent_id)
         self._fixed_by(held, opened)  # (the last pass's send-back: what it opened, now known)

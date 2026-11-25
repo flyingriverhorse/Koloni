@@ -94,8 +94,10 @@ def _free_port() -> int:
 class TryMixin:
     async def _proof_try(self: "AgentRunner", ctx: Ctx, held: "Proof") -> str | None:
         """The gate's last step: the live try, once a turn - after it, its rows stand."""
+        mine = {id(one) for one in held.tried_rows}
+        # (a try run_checks made is its answer's: the end tries for itself - `ChecksToolMixin`)
+        held.rows = [one for one in held.rows if one["kind"] != "try" or id(one) in mine]
         if held.tried:  # (its rows of the first pass, once - the other steps keep theirs)
-            mine = {id(one) for one in held.tried_rows}
             held.rows = [one for one in held.rows if id(one) not in mine] + held.tried_rows
             return None
         ws = self._ws(ctx)
