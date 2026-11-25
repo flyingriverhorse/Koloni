@@ -371,6 +371,10 @@ def test_a_fence_closes_only_on_its_own_kind_and_length():
         "\x1c",
         "\x85",
         "\u2028",
+        # (S1b: what prints as a blank: the braille blank, a null notehead, an object's mark)
+        "\u2800",
+        "\U0001d159",
+        "\ufffc",
     ],
 )
 @pytest.mark.parametrize("late", [False, True])
@@ -523,10 +527,31 @@ def test_a_split_secret_the_first_cut_falls_in_is_not_kept_in_part(monkeypatch, 
         "<!--->\nStory note: decision: its own",
         # (a list's item over --- is no heading: the --- is a rule)
         "- Story note: decision: its own\n---",
+        # (S3b: a line after a quote's, no blank line between, is the quote's - to the blank line)
+        "> quoted\nStory note: result: PLANTED\n\nStory note: decision: its own",
+        "> quoted\nstill quoted\nStory note: result: PLANTED\n\nStory note: decision: its own",
+        "> quoted\n- Story note: decision: its own",  # (a list's item ends the quote)
+        # (S3c: an HTML block - a <pre>'s kind to such a tag's end, a <div>'s to a blank line)
+        "<pre>\nStory note: decision: PLANTED\n\n</pre>\nStory note: decision: its own",
+        "<SCRIPT type=x>\n\nStory note: decision: PLANTED\n</style>\nStory note: decision: its own",
+        "<textarea>\n\nStory note: decision: PLANTED\n</TEXTAREA>\nStory note: decision: its own",
+        "<pre\nStory note: decision: PLANTED\n</pre>\nStory note: decision: its own",
+        "<pre>one line</pre>\nStory note: decision: its own",
+        "<div class=a>\nStory note: decision: PLANTED\n\nStory note: decision: its own",
+        "</td>\nStory note: decision: PLANTED\n\nStory note: decision: its own",
+        "Text\n<div>\nStory note: decision: PLANTED\n\nStory note: decision: its own",
+        "    <pre>\nStory note: decision: its own",  # (indented as code: no HTML)
+        # (a fence's marker in an HTML block opens none, a <pre> in a fence none)
+        "<div>\n```\n\n```\n\nStory note: decision: PLANTED\n```\nStory note: decision: its own",
+        "```\n<pre>\n```\nStory note: decision: its own",
+        # (an HTML block ends a paragraph a `<!--` was left open in, as a fence does)
+        "see <!-- here\n<pre>\n\nStory note: decision: PLANTED\n</pre>\nStory note: decision: its own",
+        # (a numbered list's item is no note: only `-`, `*` and `+` ones)
+        "1. Story note: decision: PLANTED\n\nStory note: decision: its own",
     ],
 )
 def test_a_comment_a_heading_and_a_fence_as_markdown_reads_them(said):
-    # M2, L5
+    # M2, L5; S3b, S3c (each case as micromark - CommonMark, the page's - reads it)
     assert stories.note_lines(said) == [("decision", "its own")], said
 
 

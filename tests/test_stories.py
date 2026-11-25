@@ -4,10 +4,12 @@ project; deleting a goal or a story keeps what was under it, deleting the projec
 
 from datetime import datetime
 
-from app import stories
+import pytest
+
+from app import backlog, stories
 from app.db.models import BacklogTask, Story
 from app.stories import goal_progress, story_state
-from tests.test_backlog import ORIGIN, setup
+from tests.test_backlog import ORIGIN, agent, setup
 
 
 def story(closed: bool = False) -> Story:
@@ -223,9 +225,33 @@ def test_a_name_in_another_unicode_form_or_with_what_nobody_sees_is_the_same_nam
         ("Caf\u00e9", "Cafe\u0301"),
         ("Login", "Login\u200b"),
         ("\uff32eport", "report"),
+        # (K1: an i with a dot above of its own - 'LOG\u0130N'.lower() in Python, toLowerCase() in JS)
+        ("zz147 login", "zz147 logi\u0307n"),
+        # (K2: two spaces or a tab show as one)
+        ("zz148 login", "zz148  login"),
+        ("zz149 login", "zz149\t\u200b LOGIN"),
     ):
         made = client.post(f"/api/projects/{pid}/stories", json={"title": first})
         assert made.status_code == 201, made.text
         twin = client.post(f"/api/projects/{pid}/stories", json={"title": again})
         assert twin.status_code == 422, (first, again)
     assert stories.name_key("LOGI\u0307N") == stories.name_key("login")  # (İ decomposed)
+    assert stories.name_key("log\u0131\u0307n") == "login"
+
+
+def test_a_name_nobody_can_see_is_refused(client, project_dir):
+    """K3: a name of what nobody sees alone - a zero width, a braille blank - is a story nobody
+    sees on the page nor can name; refused wherever a story is named."""
+    pid, _ = setup(client, project_dir)
+    for title in ("\u200b", "\u2800\u200b", " \ufe0f "):
+        made = client.post(f"/api/projects/{pid}/stories", json={"title": title})
+        assert made.status_code == 422 and made.json()["detail"] == stories.NO_NAME, title
+    sid = client.post(f"/api/projects/{pid}/stories", json={"title": "Seen"}).json()["id"]
+    assert client.patch(f"/api/stories/{sid}", json={"title": "\u200b"}).status_code == 422
+    drawn = {"stories": [{"title": "\u200b", "tasks": [{"title": "t"}]}], "tasks": []}
+    added = client.post(f"/api/projects/{pid}/backlog/tree", json=drawn)
+    assert added.status_code == 422 and added.json()["detail"] == stories.NO_NAME
+    with pytest.raises(backlog.Refused, match=stories.NO_NAME):
+        agent(client, pid, "add_task", title="t", story="\u200b")
+    assert [s["title"] for s in tree(client, pid)["stories"]] == ["Seen"]
+    assert client.get(f"/api/projects/{pid}/backlog").json() == []
