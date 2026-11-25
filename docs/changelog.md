@@ -6,6 +6,16 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **To-do**: two story names that differ only by the Turkish dotted İ or dotless ı are one name - "LOGİN", "LOGIN", "login" and "logın" alike: a second story of that name is refused, and an agent naming the story finds it. So are names that differ only in their Unicode form or by a character nobody sees - a decomposed é, a fullwidth letter, a zero-width space. A goal's name too ([docs](automation/todo.md#goals-and-stories)).
+- **To-do**: only a line of the Orchestrator's answer that starts with `Story note:` - after up to three spaces, as a list's item (`- `, `* `, `+ `) or not, in bold or not, the marker alone in backticks or not - goes into the story's notebook. One indented as code, in inline code, in an HTML comment, in a table or a heading (an underlined one too), or after a line separator (U+2028) inside a line no longer does; a `` is a whole comment, a list's item over `---` still counts, and a fence's marker indented as code neither opens nor closes a fence. The Orchestrator is shown the line's form in plain words, no longer in code, so that it does not write its notes in code ([docs](automation/todo.md#the-storys-notebook)).
+
+### Security
+
+- **To-do**: a task whose story is another project's - set so outside KOLONİ - counts as a task of no story: its brief, the name of a new chat it starts in and its git branch no longer take that story's title; a task of that story in another project's chat no longer holds its **Do in chat** or **Fix it**, **Approve** no longer makes that story yours, and turning the task down no longer deletes it. The other way round, a task of another project that names your story is none of its tasks: it is not counted, not told in its summary, and not the turn **Close the story** goes on from.
+- **To-do**: a secret split by a character nobody sees - a zero-width space or joiner, a word joiner, a byte-order mark, a variation selector, a Hangul filler, a line separator - no longer goes into a story's notebook in parts: a word next to such a character is hidden whole (`***`), and the note is masked with each such character read as a plain space, so a `Bearer` token or a private key split by one is masked as ever. A secret whose head ends where a long note is cut is not kept either. An emoji family, or a Persian word, joined by such a character shows as `***` in a note ([docs](automation/todo.md#the-storys-notebook)).
+
 ### Removed
 
 - **CLIs**: an agent run **Native** on a CLI (Claude Code, Codex, Copilot, agy) - the Orchestrator or a sub-agent - no longer proposes triggers: for an Orchestrator there, its **Make this trigger?** card's **Approve** was always refused in that chat, since a trigger's turn never starts a CLI that works with its own tools. **Notify you** stays. A card left from 0.1.8 is still refused at Approve, saying why ([docs](automation/triggers.md#triggers-proposed-by-agents)).

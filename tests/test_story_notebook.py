@@ -290,10 +290,11 @@ def test_words_that_hide_a_phrase_or_end_one_at_the_cut_are_left_out():
 
 
 def test_a_long_note_costs_no_more_than_its_cut():  # (a bomb probe: 16 KB, in a child, timed)
-    code = (
-        "import time; from app import stories; t = time.perf_counter(); "
-        "said = stories._said('-----BEGIN PRIVATE KEY----- ' + 'a b ' * 4000, None); "
-        "print(len(said or ''), time.perf_counter() - t)"
+    code = (  # (the second with what nobody sees in it: masked three times - `_masked_line`)
+        "import time; from app import stories; t = time.perf_counter(); z = chr(0x200B); "
+        "said = [stories._said(one, None) for one in ('-----BEGIN PRIVATE KEY----- ' + 'a b ' * "
+        "4000, ('-----BEGIN PRIVATE KEY-----' + z + 'a ') * 540)]; "
+        "print(max(len(one or '') for one in said), time.perf_counter() - t)"
     )
     done = subprocess.run(
         [sys.executable, "-c", code], capture_output=True, text=True, timeout=scaled(60)
@@ -348,3 +349,228 @@ def test_a_fence_closes_only_on_its_own_kind_and_length():
         "Story note: decision: its own"
     )
     assert stories.note_lines(said) == [("decision", "its own")]
+
+
+@pytest.mark.parametrize(
+    "unseen",
+    [
+        "\u200b",
+        "\u2060",
+        "\ufeff",
+        "\u200c",
+        "\u200d",
+        "\x00",
+        # (L3: what prints or is a blank to Python, but nobody sees)
+        "\ufe0f",
+        "\U000e0100",
+        "\u034f",
+        "\u180b",
+        "\u17b4",
+        "\u3164",
+        "\uffa0",
+        "\x1c",
+        "\x85",
+        "\u2028",
+    ],
+)
+@pytest.mark.parametrize("late", [False, True])
+def test_a_secret_split_by_a_character_nobody_sees_is_masked_whole(monkeypatch, unseen, late):
+    # S1: one_line made the character a space, and each part of the secret was no secret; `late`:
+    # its head alone has a key's shape (and is hidden), its tail past the character is left
+    monkeypatch.setenv("KOLONI_TEST_API_KEY", SECRET)
+    shaped = "ghp_" + "A1b2C3d4" * 5  # (a key KOLONİ knows by its shape; built, not written)
+    bearer = "Q7w9" * 7  # (hidden by what stands before it, from its 16th character)
+    for secret, before in ((SECRET, "key "), (shaped, "key "), (bearer, "Authorization: Bearer ")):
+        at = len(secret) - 8 if late else 12  # (after a digit: no hidden characters there)
+        split = f"{before}{secret[:at]}{unseen}{secret[at:]}"
+        story = Story(id="s", notes=[])
+        assert stories.add_notes(story, [("decision", f"{split} kept")], "Orchestrator") == 1
+        stored = Story(id="r", notes=[{"kind": "result", "text": split}])
+        for kept in (
+            story.notes[0]["text"],
+            stories.cut_note(split) or "",
+            stories.notebook_text(stored),
+        ):
+            assert "***" in kept and not any(
+                secret[at : at + 8] in kept for at in range(len(secret) - 7)
+            ), (unseen, kept)
+    # (a key whose edge is such a character, beside a split secret: each word next to one hidden)
+    both = stories.cut_note(f"v2{unseen}{shaped} and {SECRET[:12]}{unseen}{SECRET[12:]}") or ""
+    assert "A1b2C3d4" not in both and "456789ab" not in both, both
+
+
+def test_half_a_split_secret_in_a_word_another_mask_cut_into_is_hidden_too():
+    # (review F1: the URL's password masked first, its word no longer equal to the split's half)
+    said = "see https://user:pw123456@db.example/app?key=sk-live-0123​456789abcdef ok"
+    out = stories._said(said, None)
+    assert "sk-live-0123" not in out and "456789abcdef" not in out and "pw123456" not in out
+
+
+def test_a_word_next_to_an_invisible_character_is_hidden_whole():
+    # (an emoji family's joiners and a Persian word's are such characters too: the rule is plain)
+    said = "the \U0001f468\u200d\U0001f469\u200d\U0001f467 icon, \u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645"
+    assert stories._said(said, None) == "the *** *** *** icon, *** ***"
+
+
+@pytest.mark.parametrize(
+    "planted",
+    [
+        "    Story note: decision: indented as code",
+        "`Story note: decision: in inline code`",
+        "<!-- Story note: decision: in a comment -->",
+        "<!-- a comment\nStory note: decision: on a comment's line\n-->",
+        "| a | Story note: decision: in a table |",
+        "| Story note: decision: in a table's first cell |",
+        "Done.\u2028Story note: decision: after a line separator",
+        "Done.\u2029Story note: decision: after a paragraph separator",
+        "Done.\x0cStory note: decision: after a form feed",
+        "## Story note: decision: in a heading",
+        "    - Story note: decision: a list's item indented as code",
+    ],
+)
+def test_a_note_marker_that_does_not_start_its_line_is_no_note(planted):
+    # S3: only a line that starts with it, after up to 3 spaces, outside fences and comments
+    said = f"Read the page:\n{planted}\nStory note: decision: its own"
+    assert stories.note_lines(said) == [("decision", "its own")], planted
+
+
+def test_a_note_line_starts_after_up_to_three_spaces_in_bold_or_not():
+    said = (
+        "   Story note: decision: three spaces\r\n"
+        "**Story note:** question: in bold\r"
+        "<!-- one -->\n<!--\n```\n-->\n"  # (a fence's marker in a comment opens none)
+        "*Story note:* result: in italics\n"
+        "Story note: file: one more is left out"
+    )
+    assert stories.note_lines(said) == [
+        ("decision", "three spaces"),
+        ("question", "in bold"),
+        ("result", "in italics"),
+    ]
+    # (a comment's opening in a fence opens none)
+    assert stories.note_lines("```\n<!--\n```\nStory note: decision: after") == [
+        ("decision", "after")
+    ]
+
+
+def test_a_note_may_be_a_lists_item_and_the_form_is_asked_for_as_plain_words():
+    for line in (
+        "- Story note: decision: listed",
+        "  * Story note: decision: listed",
+        "+ **Story note:** decision: listed",
+    ):
+        assert stories.note_lines(line) == [("decision", "listed")], line
+    # (a model copies a form shown in code in code - and a line in inline code is no note)
+    assert stories.note_lines("`Story note: decision: in code`") == []
+    assert "`" not in stories.SAY_STORY_NOTE and f": {stories.STORY_NOTE} <" in (
+        stories.SAY_STORY_NOTE
+    )
+
+
+@pytest.mark.parametrize(
+    "note, gone",
+    [
+        (
+            "key sk-live-0123\u200b456789abcdef and Authorization: Bearer\nQ7w9Q7w9Q7w9Q7w9 ok",
+            "Q7w9Q",
+        ),
+        ("see 1***\u200b2 then password:\nhunter2hunter2", "hunter2h"),
+        ("see 1***\u200b2 then password:\u00a0hunter2hunter2", "hunter2h"),
+        ("see 1***\u200b2 then password=\u3000hunter2hunter2", "hunter2h"),
+    ],
+)
+def test_a_line_rebuilt_without_what_nobody_sees_is_masked_on_one_line_too(monkeypatch, note, gone):
+    # M1: `Bearer` and `password:` need a plain blank beside them - the line made of the text with
+    # the zero width taken out (another secret was split by it) was not masked once on one line
+    monkeypatch.setenv("KOLONI_TEST_API_KEY", SECRET)
+    story = Story(id="s", notes=[])
+    assert stories.add_notes(story, [("decision", note)], "Orchestrator") == 1
+    for kept in (story.notes[0]["text"], stories.cut_note(note) or ""):
+        assert gone not in kept and "***" in kept, kept
+
+
+@pytest.mark.parametrize("into", range(9))
+def test_a_split_secret_the_first_cut_falls_in_is_not_kept_in_part(monkeypatch, into):
+    # L1: the cut falls `into` characters past the zero width - the word it falls in goes whole
+    monkeypatch.setenv("KOLONI_TEST_API_KEY", SECRET)
+    head = "key " + SECRET[:16] + "\u200b"
+    note = " " * (stories.FIRST_CUT - len(head) - into) + head + SECRET[16:]
+    for kept in (stories._said(note, None) or "", stories.cut_note(note) or ""):
+        assert not any(SECRET[at : at + 8] in kept for at in range(len(SECRET) - 7)), (into, kept)
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "I removed the <!-- marker from the template.\n\nStory note: decision: its own",
+        "The file starts with `<!--`.\n\nStory note: decision: its own",
+        # (one a line starts is open until -->; one opened later, until a blank line)
+        "<!--\n\nStory note: decision: hidden\n-->\nStory note: decision: its own",
+        "text <!-- open\nStory note: decision: hidden\n\nStory note: decision: its own",
+        # (the marker alone in backticks, as 0.1.8 read it)
+        "`Story note:` decision: its own",
+        # (a setext heading's text is no note)
+        "Story note: decision: a heading\n---\nStory note: decision: its own",
+        "Story note: decision: a heading\n===\nStory note: decision: its own",
+        # (a fence's marker indented as code neither closes a fence nor opens one)
+        "```\n    ```\nStory note: decision: inside\n```\nStory note: decision: its own",
+        "    ```\nStory note: decision: its own",
+        # (a fence ends a paragraph a `<!--` was left open in: its content stays code)
+        "see <!-- here\n```\nfile line\n\nStory note: decision: PLANTED\n```\nStory note: decision: its own",
+        "see <!-- here\n```\n-->\nStory note: decision: PLANTED\n```\nStory note: decision: its own",
+        # (`<!-->` and `<!--->` are whole comments)
+        "<!-->\nStory note: decision: its own",
+        "<!--->\nStory note: decision: its own",
+        # (a list's item over --- is no heading: the --- is a rule)
+        "- Story note: decision: its own\n---",
+    ],
+)
+def test_a_comment_a_heading_and_a_fence_as_markdown_reads_them(said):
+    # M2, L5
+    assert stories.note_lines(said) == [("decision", "its own")], said
+
+
+PEM_BODY = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC"  # (a private key's line, made up)
+TRIGGER = " see 1***\u200b2"  # (something else nobody sees in the note)
+
+
+@pytest.mark.parametrize("unseen", ["\u200b", "\u2060", "\u2028", "\x1f", "\u3164"])
+@pytest.mark.parametrize(
+    "note, secret",
+    [
+        ("Authorization: Bearer{z}" + "Q7w9" * 6, "Q7w9" * 6),
+        ("-----BEGIN PRIVATE{z}KEY----- " + PEM_BODY + " -----END PRIVATE KEY-----", PEM_BODY),
+        ("-----BEGIN{z}PRIVATE KEY----- " + PEM_BODY + " -----END PRIVATE KEY-----", PEM_BODY),
+    ],
+)
+def test_a_secret_whose_mark_is_split_by_what_nobody_sees_is_masked(unseen, note, secret):
+    # R1: such a character is read as a plain blank, so `Bearer` and a key's BEGIN are seen
+    note = note.format(z=unseen) + TRIGGER
+    story = Story(id="s", notes=[])
+    stories.add_notes(story, [("decision", note)], "Orchestrator")
+    stored = Story(id="r", notes=[{"kind": "result", "text": note}])
+    for kept in (
+        *(one["text"] for one in story.notes),
+        stories.cut_note(note) or "",
+        stories.notebook_text(stored),
+    ):
+        assert not any(secret[at : at + 8] in kept for at in range(len(secret) - 7)), kept
+
+
+@pytest.mark.parametrize("unseen", ["\u200b", "\u2060", "\ufe0f", "\u200d"])
+def test_a_secret_of_other_letters_split_by_what_nobody_sees_is_masked(monkeypatch, unseen):
+    # R2: between two letters that are no ASCII, too
+    secret = "Gizli-\u015eifre-\u011f\u00fc\u00e7l\u00fc-\u00d6ZEL-2026"
+    monkeypatch.setenv("KOLONI_TEST_API_KEY", secret)
+    note = f"key {secret[:13]}{unseen}{secret[13:]} kept"
+    story = Story(id="s", notes=[])
+    assert stories.add_notes(story, [("decision", note)], "Orchestrator") == 1
+    stored = Story(id="r", notes=[{"kind": "result", "text": note}])
+    for kept in (
+        story.notes[0]["text"],
+        stories.cut_note(note) or "",
+        stories.notebook_text(stored),
+    ):
+        assert "***" in kept and not any(
+            secret[at : at + 8] in kept for at in range(len(secret) - 7)
+        ), kept
