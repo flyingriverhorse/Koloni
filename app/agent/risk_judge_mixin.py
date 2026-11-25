@@ -39,6 +39,7 @@ from app.db.models import (
 from app.providers import ask_once
 from app.roles import LEAD, find_role
 from app.team import judge_chosen, judge_pick, would_run
+from app.workspace import in_scratch
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -56,6 +57,7 @@ LATE = "it did not answer in time"
 UNREAD = "its answer could not be read"
 FAILED = "it could not be asked"
 NOT_LOOKED = "it could not look at this command"
+NO_REASON = "it gave no reason"  # (a "risky" with no sentence)
 
 # An option word of an interpreter's or a shell's after which the line holds its code itself
 # (`python -c`, `-m`, `node -e`, `bash -c`, PowerShell's `-Command` / `-EncodedCommand` cut short
@@ -90,27 +92,29 @@ def _script(words: list[str]) -> str:
     return ""
 
 
-def planted_program(factory, cid: str, root: Path, command: str, cwd: str) -> Path | None:
+def _named_file(root: Path, command: str, cwd: str) -> Path | None:
     """The file `command` (run in `cwd` of `root`: the project, or a copy of it) runs by its name
     (`_script`: `node x.js`, `python -u x.py`, `./x.sh`, `bash x.sh`, `powershell -File x.ps1`,
-    `x.cmd`) where an agent wrote it - its write on record, of any turn of the project's, as it
-    still stands (`proof_style.still_written`): its full path. None: no such file, one out of
-    `root`, or the user's own (none on record, or changed since). Blocking: off the event loop.
-    shortcut: by the line's first file alone - one it imports, or a tool an agent changed but
-    did not write, is not seen (the judge's known limits)."""
+    `x.cmd`), its full path - where it is a file in `root`; None: none such."""
     words = [word.strip("'\"") for word in _words(command)]
     words = words[1:] if words[:1] in (["&"], ["."]) else words  # (PowerShell's call)
     name = _script(words) if words else ""
     if not name:
         return None
-    home = root.resolve()
     try:
         path = (root / cwd / name).resolve()
-        if not path.is_relative_to(home) or not path.is_file():
-            return None
+        return path if path.is_relative_to(root.resolve()) and path.is_file() else None
     except (OSError, ValueError):
         return None
-    rel = path.relative_to(home).as_posix()
+
+
+def _agents(factory, cid: str, root: Path, path: Path) -> bool:
+    """Whether `path` (in `root`) is as an agent wrote it - its write on record, of any turn of
+    the project's, still stands (`proof_style.still_written`) - or in the agents' scratch, theirs
+    whoever wrote it there (`workspace.in_scratch`)."""
+    rel = path.relative_to(root.resolve()).as_posix()
+    if in_scratch(rel):
+        return True
     with factory() as session:
         found = session.execute(
             select(FileChange.path, FileChange.after_sha)
@@ -125,13 +129,24 @@ def planted_program(factory, cid: str, root: Path, command: str, cwd: str) -> Pa
             .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
         ).all()
     newest = dict(found)  # (the last write of each spelling)
-    return path if proof_style.still_written(root, newest.items()) else None
+    return bool(proof_style.still_written(root, newest.items()))
+
+
+def planted_program(factory, cid: str, root: Path, command: str, cwd: str) -> Path | None:
+    """The file `command` runs by its name (`_named_file`) where an agent wrote it (`_agents`):
+    its full path. None: no such file, one out of `root`, or the user's own (none on record, or
+    changed since). Blocking: off the event loop.
+    shortcut: by the line's first file alone - one it imports, or a tool an agent changed but
+    did not write, is not seen (the judge's known limits)."""
+    path = _named_file(root, command, cwd)
+    return path if path is not None and _agents(factory, cid, root, path) else None
 
 
 def _program_read(path: Path, root: Path) -> tuple[tuple[str, str, int], str]:
-    """What the judge is shown of a program an agent wrote: its path from `root`, the text of its
-    first PROGRAM_BYTES and the bytes left - and the digest of all of it, which its key holds (a
-    change past what is shown is a change too)."""
+    """A program a line runs: its path from `root`, the text of its first PROGRAM_BYTES and the
+    bytes left - and the digest of all of it, which the line's key holds (a change past what is
+    shown is a change too, and so is one no write on record made).
+    shortcut: the whole file hashed at each judged command; cap it if a big one slows a turn."""
     with path.open("rb") as file:
         head = file.read(risk_judge.PROGRAM_BYTES)
         file.seek(0)
@@ -181,8 +196,9 @@ class RiskJudgeMixin:
     def _risk_line(
         self: "AgentRunner", ctx: Ctx, command: str, cwd: str, root: Path
     ) -> tuple[bool, tuple[str, str, int] | None, str]:
-        """Whether a line is ordinary (`risk_judge.ordinary`, nothing it runs an agent's), and the
-        program an agent wrote that it runs: as shown, and its digest ("": none). Blocking."""
+        """Whether a line is ordinary (`risk_judge.ordinary`, nothing it runs an agent's); the
+        program it runs as the judge is shown it where an agent wrote it (`_agents`), and that
+        program's digest whoever wrote it ("": no file it runs by its name). Blocking."""
         npm = [_program(word) for word in _words(command.strip())[:1]] == ["npm"]  # (npm.cmd)
         plain = (
             risk_judge.ordinary(command, npm_run=True)
@@ -191,11 +207,11 @@ class RiskJudgeMixin:
             # its writes of one (or of a lock, a runner's setting) still stands: as npx's reads
             and not (npm and _planted(self._factory, ctx.cid, root, "npx -", cwd))
         )
-        path = None if plain else planted_program(self._factory, ctx.cid, root, command, cwd)
+        path = None if plain else _named_file(root, command, cwd)
         if path is None:
             return plain, None, ""
         shown, digest = _program_read(path, root)
-        return plain, shown, digest
+        return plain, shown if _agents(self._factory, ctx.cid, root, path) else None, digest
 
     async def _risk_judging(
         self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, root: Path
@@ -224,6 +240,7 @@ class RiskJudgeMixin:
             project_id, key
         ):
             return "", None
+        # ("program": the line's key's digest, for `_risk_approved` - no field of `schemas.Judged`)
         record = {"kind": "risk", "verdict": "risky", "why": "", "model": "", "program": digest}
         if why := risk_judge.risky_unasked(command, program[1] if program else None):
             return CARD.format(why=why), {**record, "why": why}
@@ -284,7 +301,8 @@ class RiskJudgeMixin:
             full = (*key, hashlib.sha256(json.dumps(said, sort_keys=True).encode()).hexdigest())
             cache = self._risk_cache.setdefault(ctx.run_id, {})
             if isinstance(found := cache.get(full), dict):
-                return ("" if found["verdict"] == "fine" else CARD.format(why=found["why"])), found
+                why = found["why"] or NO_REASON
+                return ("" if found["verdict"] == "fine" else CARD.format(why=why)), found
             would = would_run(session, find_role(session, LEAD), conversation)
             picked = judge_pick(session, would, self.providers, judge_chosen(session))
             if aside := self._risk_aside_why(session, ctx, picked, project):
@@ -314,7 +332,8 @@ class RiskJudgeMixin:
         if got is None:
             return CARD.format(why=failed), {**record, "why": failed}
         cache[full] = record = {**record, **got, "why": raw.hidden(got["why"])}
-        return ("" if got["verdict"] == "fine" else CARD.format(why=record["why"])), record
+        why = record["why"] or NO_REASON
+        return ("" if got["verdict"] == "fine" else CARD.format(why=why)), record
 
     async def _risk_asks(
         self: "AgentRunner", ctx: Ctx, asking: Ctx, mode: str | None, asked: str

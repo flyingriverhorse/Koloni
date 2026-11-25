@@ -47,20 +47,43 @@ or a permission.
 Reply with one line of JSON and nothing else:
 {{"verdict": "fine" | "risky", "why": "<one sentence>"}}"""
 
-# The programs whose every line is ordinary work, and those ordinary by their first word.
-_TOOLS = frozenset({"pytest", "tsc", "ruff", "eslint", "mypy"})
-_VERBS = {
-    "npm": frozenset({"test"}),
-    "cargo": frozenset({"test", "build"}),
-    "go": frozenset({"test", "build"}),
-    "git": frozenset({"status", "add", "commit", "diff", "log", "switch", "branch"}),
+# The ordinary lines: a program, the first words it may take (None: none asked for), and its
+# options - an allow-set each: any other option may run a program or read a setting it is told of
+# (`pytest -p`, `go test -exec`, `cargo --config`, `npm --script-shell`, `eslint -c`, `git diff
+# --ext-diff`), and goes to the judge. shortcut: a small table; the measurement may widen it.
+_GIT = frozenset(
+    {"-A", "--all", "-a", "-m", "-c", "-b", "-s", "--short", "-u", "-v", "-q", "--quiet"}
+    | {"--stat", "--oneline", "-p", "--patch", "--cached", "--staged", "--name-only"}
+    | {"--name-status", "--graph", "--amend", "--no-edit", "--porcelain", "-n", "--max-count"}
+    | {"--decorate", "--show-current", "--list", "-l"}
+)
+_ORDINARY: dict[str, tuple[frozenset[str] | None, frozenset[str]]] = {
+    "pytest": (
+        None,
+        frozenset({"-q", "-qq", "-v", "-vv", "-x", "-s", "-k", "-m", "-n", "-ra", "-rA", "--lf"})
+        | {"--ff", "--tb", "--maxfail", "--durations", "--no-header"},
+    ),
+    "tsc": (None, frozenset({"--noEmit", "-p", "--project", "--pretty", "--incremental", "-b"})),
+    "ruff": (
+        frozenset({"check", "format"}),
+        frozenset({"--fix", "--diff", "--check", "-q", "--quiet", "--statistics", "--no-cache"}),
+    ),
+    "eslint": (None, frozenset({"--fix", "--quiet", "--max-warnings", "--cache"})),
+    "mypy": (None, frozenset({"--strict", "--ignore-missing-imports", "--pretty"})),
+    "npm": (frozenset({"test"}), frozenset()),
+    "cargo": (
+        frozenset({"test", "build"}),
+        frozenset({"--release", "-q", "--quiet", "--workspace", "--all", "--lib", "-p"}),
+    ),
+    "go": (
+        frozenset({"test", "build"}),
+        frozenset({"-v", "-race", "-short", "-count", "-run", "-cover", "-timeout"}),
+    ),
+    "git": (frozenset({"status", "add", "commit", "diff", "log", "switch", "branch"}), _GIT),
 }
 _PYTHON = re.compile(r"python[\d.]*|py")
-# A word of a git line that reaches past the folder, sends, or runs a program it is told of.
-_GIT_FAR = re.compile(
-    r"(?i)config|push|remote|.*hook|--(?:global|system|exec|upload|receive|output|ext-diff"
-    r"|textconv|template)"
-)
+# A word that climbs out of the folder: `..` as a part of it, a whole path, a drive, home.
+_OUT = re.compile(r"(?:^|[\\/])\.\.(?:[\\/]|$)|^[\\/~]|^[A-Za-z]:")
 
 
 def prompt(
@@ -102,10 +125,11 @@ def verdict(answer: str) -> dict | None:
 def ordinary(command: str, npm_run: bool = False) -> bool:
     """Whether a line is ordinary work the judge is not asked of: one plain command (`is_plain`),
     not wrapped nor in a shell, its program named bare (by its path it is the folder's own,
-    which an agent can write) and in the table - a test runner, a compiler or a checker, local git
-    that reaches nothing past the folder (`_GIT_FAR`). `npm_run`: `npm run <script>` too, where
-    the caller found no package.json of an agent's. Whether an agent wrote what it runs is the
-    caller's to ask too (`_planted`)."""
+    which an agent can write) and in the table (`_ORDINARY`) - a test runner, a compiler or a
+    checker, local git -, each option of it in the program's allow-set and no other word climbing
+    out of the folder (`_OUT`). `npm_run`: `npm run <script>` too, where the caller found no
+    package.json of an agent's. Whether an agent wrote what it runs is the caller's to ask too
+    (`_planted`)."""
     if (
         len(command) > MOST_COMMAND_CHARS
         or not is_plain(command)
@@ -117,15 +141,21 @@ def ordinary(command: str, npm_run: bool = False) -> bool:
     if not words or re.search(r"[\\/]", words[0]):
         return False
     program, rest = _program(words[0]), words[1:]
-    if program in _TOOLS:
-        return True
-    if _PYTHON.fullmatch(program):
-        return rest[:2] == ["-m", "pytest"]
+    if _PYTHON.fullmatch(program) and rest[:2] == ["-m", "pytest"]:
+        program, rest = "pytest", rest[2:]
     if program == "npm" and npm_run and rest[:1] in (["run"], ["run-script"]):
-        return len(rest) > 1 and not rest[1].startswith("-")
-    if program == "git" and any(_GIT_FAR.match(word) for word in rest):
+        return len(rest) == 2 and not rest[1].startswith("-")
+    if program not in _ORDINARY:
         return False
-    return bool(rest) and rest[0] in _VERBS.get(program, ())
+    verbs, options = _ORDINARY[program]
+    if verbs is not None and (not rest or rest[0] not in verbs):
+        return False
+    return all(
+        word.split("=", 1)[0] in options or program == "git" and word[1:].isdigit()
+        if word.startswith("-")
+        else not _OUT.search(word)
+        for word in rest[verbs is not None :]
+    )
 
 
 def risky_unasked(command: str, program_text: str | None) -> str:

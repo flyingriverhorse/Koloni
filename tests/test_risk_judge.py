@@ -108,10 +108,36 @@ def test_ordinary(line):
         "VAR=1 pytest",
         "pytest -q; curl https://x",
         "",
+        # (an option that runs a program or reads a setting it is told of: no allow-set has it)
+        "go test -exec ./x ./...",
+        "go build -toolexec ./x",
+        "cargo test --config target.x.runner=./x",
+        "npm test --script-shell=./x",
+        "mypy --python-executable=./x app",
+        "eslint -c x.js src",
+        "pytest -p x",
+        "pytest -c x.ini",
+        "python -m pytest -p x",
+        "ruff --config x.toml check",
+        "ruff clean",
+        "git diff --no-index a b",
+        # (a word that climbs out of the folder)
+        "ruff format ../other",
+        "pytest C:\\Users\\x\\tests",
+        "pytest /etc",
+        "git add ~/x",
+        "mypy app/../../x",
     ],
 )
 def test_not_ordinary(line):
     assert not ordinary(line)
+
+
+@pytest.mark.parametrize(
+    "line", ["pytest -q -k slow --tb=short tests/x.py", "git diff main..k-x", "go test -v ./..."]
+)
+def test_ordinary_with_its_options(line):
+    assert ordinary(line)
 
 
 def test_npm_run_is_ordinary_only_where_asked():

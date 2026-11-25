@@ -5222,6 +5222,11 @@ export interface components {
              * @default false
              */
             remember: boolean;
+            /**
+             * Remember Line
+             * @default false
+             */
+            remember_line: boolean;
         };
         /** AskFirstIn */
         AskFirstIn: {
@@ -7643,7 +7648,8 @@ export interface components {
          *     agent told that line ("refuse"), or it was asked ("ask"; `why`, the check's own sentence where
          *     it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
          *     (Decided for you). Full auto's judge's (`kind` "risk"): "fine", it ran; "risky", its card -
-         *     `why`, the judge's own sentence.
+         *     `why`, the judge's sentence, or KOLONİ's where it was not asked or gave no answer to go by
+         *     (`model` then "" where none was asked).
          */
         Judged: {
             /**

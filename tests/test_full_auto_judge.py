@@ -194,10 +194,30 @@ async def hang(on_delta):
     await asyncio.Event().wait()
 
 
-def test_no_answer_is_a_card_every_time_and_never_stands_it_aside(
-    judging, wait_run, project_dir, monkeypatch
+@pytest.mark.parametrize(
+    "answer, why",
+    [
+        (hang, "it did not answer in time"),
+        (text("I think it is fine"), "its answer could not be read"),
+        (text('{"verdict": "run", "why": "go"}'), "its answer could not be read"),
+        (RuntimeError("boom"), "it could not be asked"),
+        (text('{"verdict": "risky"}'), "it gave no reason"),
+    ],
+)
+def test_no_answer_to_go_by_is_a_card(judging, wait_run, project_dir, monkeypatch, answer, why):
+    if answer is hang:
+        monkeypatch.setattr(risk_judge, "API_SECONDS", 0.05)
+    client, _lead, judge, executor = judging([cmd("python a.py"), text("left")], [answer], [])
+    _, cid, run_id = go(client, project_dir)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert asked["danger"] == f"KOLONİ's judge: {why}"
+    assert executor.started == [] and len(judge.calls) == 1 and not koloni_lines(client, cid)
+
+
+def test_unreadable_answers_are_a_card_every_time_and_never_stand_it_aside(
+    judging, wait_run, project_dir
 ):
-    monkeypatch.setattr(risk_judge, "API_SECONDS", 0.05)
     client, _lead, judge, executor = judging(
         [
             cmd("python a.py", id="k1"),
@@ -205,17 +225,13 @@ def test_no_answer_is_a_card_every_time_and_never_stands_it_aside(
             cmd("python c.py", id="k3"),
             text("left"),
         ],
-        [hang, text("I think it is fine"), RuntimeError("boom")],
+        [text("fine I guess")] * 3,
         [],
     )
     _, cid, run_id = go(client, project_dir)
     whys = [card(client, cid)["danger"] for _ in range(3)]
     wait_run(client, cid, run_id)
-    assert whys == [
-        "KOLONİ's judge: it did not answer in time",
-        "KOLONİ's judge: its answer could not be read",
-        "KOLONİ's judge: it could not be asked",
-    ]
+    assert whys == ["KOLONİ's judge: its answer could not be read"] * 3
     assert executor.started == [] and len(judge.calls) == 3 and not koloni_lines(client, cid)
 
 
@@ -223,7 +239,7 @@ def test_a_failure_in_the_gate_itself_is_a_card(judging, wait_run, project_dir, 
     def broken(*_args, **_more):
         raise OSError("the disk")
 
-    monkeypatch.setattr("app.agent.risk_judge_mixin.planted_program", broken)
+    monkeypatch.setattr("app.agent.risk_judge_mixin._named_file", broken)
     client, _lead, judge, executor = judging([cmd("python gen.py"), text("left")], [], [])
     _, cid, run_id = go(client, project_dir)
     asked = card(client, cid)
@@ -532,3 +548,69 @@ def test_npm_scripts_are_ordinary_unless_an_agent_wrote_the_package_json(
     (ran,) = [one for one in wait_run(client, cid, run_id)["commands"] if one["command"] == line]
     asked_of = [one for one in judge.calls if JUDGE_ASKED in one[0]["content"]]
     assert ran["status"] == "exited" and len(asked_of) == int(wrote)
+
+
+def test_a_secret_in_the_command_or_the_agents_program_is_masked_before_the_judge(
+    judging, wait_run, project_dir
+):
+    from app import raw
+    from tests.test_team import SECRET
+
+    client, _lead, judge, _executor = judging(
+        [write("gen.py", f"KEY = '{SECRET}'\n"), cmd(f"python gen.py {SECRET}"), text("done")],
+        [said("fine")],
+        [Script([])],
+    )
+    raw.read_again()
+    _, cid, run_id = go(client, project_dir, f"my key is {SECRET}")
+    wait_run(client, cid, run_id)
+    prompt = judge.calls[0][0]["content"]
+    assert SECRET not in prompt and prompt.count(raw.HIDDEN) >= 3
+
+
+def test_dont_ask_again_is_asked_again_once_the_file_changed_off_record(
+    judging, wait_run, project_dir
+):
+    # Review Focus 4: the user's own script, changed by no write on record (a command's, say)
+    (project_dir / "mine.py").write_text("print(1)\n", encoding="utf-8")
+    client, _lead, judge, _executor = judging(
+        [
+            cmd("python mine.py", id="k1"),
+            text("one"),
+            cmd("python mine.py", id="k2"),
+            text("two"),
+            cmd("python mine.py", id="k3"),
+            text("three"),
+        ],
+        [said("risky"), said("fine")],
+        [Script([])] * 3,
+    )
+    _, cid, first = go(client, project_dir)
+    card(client, cid, "approve", remember_line=True)
+    wait_run(client, cid, first)
+
+    def again(content):
+        sent = client.post(
+            f"/api/conversations/{cid}/messages", json={"content": content}, headers=OWN
+        )
+        return wait_run(client, cid, sent.json()["run"]["id"])
+
+    again("again")
+    assert len(judge.calls) == 1  # (as it was: not asked)
+    (project_dir / "mine.py").write_text("print(2)\n", encoding="utf-8")
+    snap = again("and again")
+    assert len(judge.calls) == 2 and [c["status"] for c in snap["commands"]] == ["exited"] * 3
+    # (the user's own file: its text is not shown, its digest is the key)
+    assert "print(" not in judge.calls[1][0]["content"]
+
+
+def test_a_script_in_the_agents_scratch_is_shown_whoever_wrote_it(judging, wait_run, project_dir):
+    scratch = project_dir / ".koloni" / "tmp"
+    scratch.mkdir(parents=True)
+    (scratch / "x.py").write_text("print('SCRATCH-7731')\n", encoding="utf-8")
+    client, _lead, judge, _executor = judging(
+        [cmd("python .koloni/tmp/x.py"), text("done")], [said("fine")], [Script([])]
+    )
+    _, cid, run_id = go(client, project_dir)
+    wait_run(client, cid, run_id)
+    assert "SCRATCH-7731" in judge.calls[0][0]["content"]
