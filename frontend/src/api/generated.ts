@@ -6220,7 +6220,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "check" | "stronger";
+            kind: "check" | "stronger" | "asked";
             /** Looks */
             looks: components["schemas"]["CheckedLook"][];
             /** N */

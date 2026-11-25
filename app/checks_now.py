@@ -92,7 +92,9 @@ def identity(folder: Path, start: str | None, copy: "Copy | None" = None) -> str
     with its file's bytes as they are now. A commit changes neither the paths nor the bytes: the
     same before and after it. A plain `copy` (no git): its changed files (`Copy.changes`). None
     where it cannot be known - no git and no copy, no `start`, git or a file that does not
-    answer: never the same as another, so the checks run again."""
+    answer: never the same as another, so the checks run again.
+    shortcut: a file git ignores (`.env`, data a test reads) is not compared; take those the
+    tests read in too if a green answer is seen standing for changed data."""
     if copy is not None:
         return _digest("copy", copy.root, (path for path, _kind, _state in copy.changes()))
     if start is None:

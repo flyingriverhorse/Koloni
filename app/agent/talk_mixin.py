@@ -342,7 +342,7 @@ class TalkMixin:
             (i + 1 for i, s in enumerate(schemas) if s["function"]["name"] == "assess_task"),
             len(schemas),
         )
-        schemas[at:at] = away_tool
+        schemas[at:at] = away_tool + self._checks_schemas(ctx)  # (0.1.9: and run_checks)
         if door is not None and door.step and door.step[1]:
             self._offered_step(ctx, schemas, door.step, running)
         if self._reports_git(ctx):

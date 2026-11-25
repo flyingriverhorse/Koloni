@@ -45,6 +45,12 @@ server), in a turn you watch: one reads what it printed since, the other stops i
 started itself. See
 [Preview](../use/chat-and-canvas.md#preview).
 
+The Orchestrator, at its own work in a project, also has **run_checks**: KOLONİ's checks of its work
+now - the tests, the type and style checks, the Reviewer and the live try, as the turn's end runs
+them -, waited for. Its answer starts with `CHECKS: green`, `CHECKS: red` or `CHECKS: not complete`.
+Say "if the tests pass, commit it" and the Orchestrator commits only on green. A red answer is no fix
+round. See [Checks on asking](../use/checked.md#checks-on-asking).
+
 A role needs at least one tool. Tools from MCP servers and skills are given to roles on the Tools page;
 see [MCP servers](mcp.md) and [Skills](skills.md).
 

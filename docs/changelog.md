@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Added
+
+- **Chat**: the Orchestrator can ask for KOLONİ's checks in the middle of its turn and wait for them - the tests, the type and style checks, the Reviewer and the live try, as the turn's end runs them. Tie a step to a condition ("if the tests pass, commit it", "testler geçerse commit et") and it takes that step only when the answer's first line is `CHECKS: green`; red or not complete, it fixes the work or tells you. Green is strict (a test command of yours that passed, nothing failing or not run, no hold). A red answer is no fix round, and where the work is still the same at the end - a commit after a green answer - the checks do not run twice. The Checks box's panel says "asked by the Orchestrator" for such a round ([docs](use/checked.md#checks-on-asking)).
+
 ### Removed
 
 - **CLIs**: an agent run **Native** on a CLI (Claude Code, Codex, Copilot, agy) - the Orchestrator or a sub-agent - no longer proposes triggers: for an Orchestrator there, its **Make this trigger?** card's **Approve** was always refused in that chat, since a trigger's turn never starts a CLI that works with its own tools. **Notify you** stays. A card left from 0.1.8 is still refused at Approve, saying why ([docs](automation/triggers.md#triggers-proposed-by-agents)).

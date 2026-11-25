@@ -734,16 +734,7 @@ class StrongerMixin:
         """An agent KOLONİ opens on the Orchestrator's last answer, as its own spawn: its status,
         its report and its id. `read_only`: held to reading, as S3's Reviewer is."""
         with self._factory() as session:
-            message_id = session.scalar(
-                select(Message.id)
-                .where(
-                    Message.agent_id == ctx.agent_id,
-                    Message.run_id == ctx.run_id,
-                    Message.role == "assistant",
-                )
-                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
-                .limit(1)
-            )
+            message_id = self._proof_message(session, ctx)
         if message_id is None:
             return "failed", "the Orchestrator's answer is not on record", None
         request = ToolCallRequest(

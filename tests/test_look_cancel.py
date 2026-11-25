@@ -31,6 +31,9 @@ class Runner:
     def _factory(self):
         yield SimpleNamespace(scalar=lambda _query: "m1")
 
+    def _proof_message(self, session, _ctx):  # (0.1.9: the answer a look goes on)
+        return session.scalar(None)
+
     def _record_calls(self, _ctx, _message_id, _requests):
         return [("call1", None)]
 

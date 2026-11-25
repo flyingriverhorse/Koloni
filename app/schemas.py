@@ -951,7 +951,7 @@ class CheckedPass(BaseModel):
 
     n: int
     # "check": the gate's steps; "stronger": a stronger tier's round.
-    kind: Literal["check", "stronger"]
+    kind: Literal["check", "stronger", "asked"]
     # How its tests came out; None: none ran.
     tests: Literal["passed", "failed"] | None
     looks: list[CheckedLook]
