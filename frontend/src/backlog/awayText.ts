@@ -12,7 +12,7 @@ const some = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one
 /** What a job done left, in words: the report's line and its canvas node say it alike. */
 export const doneSaid = (job: AwayJob) =>
   job.kept.length
-    ? `${some(job.files.length, 'file')} in its copy, waits for you`
+    ? `${some(job.files.length, 'file')} ${job.branch ? 'on its branch' : 'in its copy'}, waits for you` // (D3)
     : job.taken.length
       ? `taken in: ${job.taken.join(', ')}`
       : 'nothing changed'

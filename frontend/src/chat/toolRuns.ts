@@ -119,10 +119,13 @@ export function runHead(
     })
   const now = calls.find(call => call.status === 'running')
   const what = [done.join(', '), now && `now: ${toolSummary(now)}`].filter(Boolean).join(' · ')
-  // ☾ Away (F411): a command a job parked for the morning - its call denied to the agent - is parked, not rejected.
-  const parked = (call: ToolCall) =>
-    call.status === 'denied' && commands.some(c => c.tool_call_id === call.id && c.status === 'parked')
-  const count = (end: End) => calls.filter(call => (parked(call) ? 'parked' : call.status) === end).length
+  // F411: a command its call was denied for - parked for the morning (☾ Away), or refused by a judge - is that, not rejected.
+  const endOf = (call: ToolCall): End => {
+    const ran = call.status === 'denied' ? commands.find(c => c.tool_call_id === call.id) : undefined
+    if (ran?.status === 'parked') return 'parked'
+    return ran?.status === 'refused' && ran.judged?.verdict === 'refuse' ? 'judged' : call.status
+  }
+  const count = (end: End) => calls.filter(call => endOf(call) === end).length
   // Done if any was; else the worst there is.
   const status: End = calls.some(call => call.status === 'running' || call.status === 'pending')
     ? 'running'
@@ -133,9 +136,9 @@ export function runHead(
   return { what: what.charAt(0).toUpperCase() + what.slice(1), marks, status }
 }
 
-/** How a run's call ended, as its line counts it: the call's own status, or parked (`runHead`). */
-export type End = ToolCall['status'] | 'parked'
-const ENDS: End[] = ['succeeded', 'failed', 'denied', 'parked', 'interrupted']
+/** How a run's call ended, as its line counts it: the call's own status, parked or refused by a judge (`runHead`). */
+export type End = ToolCall['status'] | 'parked' | 'judged'
+const ENDS: End[] = ['succeeded', 'failed', 'denied', 'judged', 'parked', 'interrupted']
 const MADE = new Set<FileChange['status']>(['applied', 'merged', 'in_copy'])
 
 /** Each kind's icon in the chat, by VS Code's meaning: a book reads, a pencil edits, a terminal runs. */

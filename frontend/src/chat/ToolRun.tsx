@@ -5,7 +5,11 @@ import { StatusLabel } from '../shell/StatusLabel'
 import { TOOL_STATUS } from './ToolRow'
 import { type End, runHead } from './toolRuns'
 
-const ENDED: Record<End, [label: string, color: string]> = { ...TOOL_STATUS, parked: ['parked', 'var(--warn)'] }
+const ENDED: Record<End, [label: string, color: string]> = {
+  ...TOOL_STATUS,
+  parked: ['parked', 'var(--warn)'],
+  judged: ['refused by the judge', 'var(--warn)'],
+}
 
 // Calls whose line was left open, kept while the page is open (a reload closes them): by every
 // call of the line, so a line a card splits stays open on both sides, and one joined to an open one opens.
@@ -28,7 +32,7 @@ export function ToolRun({ calls, state, children, live = false }: Props) {
   const open = calls.some(call => opened.has(call.id)) || (live && !shut.has(calls[0].id))
   const { what, marks, status } = runHead(calls, state)
   const [label, color] = ENDED[status]
-  // "1 failed", "2 rejected", "4 parked", "1 interrupted": what did not end well is never folded away.
+  // "1 failed", "2 rejected", "3 refused by the judge", "4 parked": what did not end well is never folded away.
   const marked = marks.map(([end, count]) => `${count} ${ENDED[end][0]}`)
   return (
     <div className="tool-run">
