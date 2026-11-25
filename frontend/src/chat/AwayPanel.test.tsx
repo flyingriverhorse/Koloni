@@ -50,6 +50,7 @@ const job = (title: string, state: AwayJob['state']): AwayJob => ({
   kept_out: [],
   asks: [],
   checks: [],
+  decisions: [],
   now: null,
   spent: null,
 })

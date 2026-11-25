@@ -1,7 +1,7 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import type { Away, BacklogTask, Merge } from '../api/types'
+import type { Away, BacklogTask, Merge, Waiting } from '../api/types'
 import { Rail } from '../shell/Rail'
 import { resetStoreForTests, useApp } from '../state/store'
 import { agent, command, conversation, convState, memoryRecord, projectMemory, question, run } from '../test-fixtures'
@@ -203,14 +203,14 @@ test('the page: the same list, by where it is from', async () => {
     within(shows)
       .getAllByRole('button')
       .map(button => button.textContent),
-  ).toEqual(['All · 5', 'Chats · 2', 'To-do · 2', 'Memory · 1', 'While away · 0', 'Other folders · 0'])
+  ).toEqual(['All · 5', 'Chats · 2', 'To-do · 2', 'Memory · 1', 'Last night · 0', 'Other folders · 0'])
   await userEvent.click(within(shows).getByRole('button', { name: 'To-do · 2' }))
   expect(
     screen.getAllByRole('group', { name: /^(chat|to-do|memory)/ }).map(row => row.getAttribute('aria-label')),
   ).toEqual(['to-do: To-do', 'to-do: To-do'])
   await userEvent.click(within(shows).getByRole('button', { name: 'Memory · 1' }))
   expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
-  await userEvent.click(within(shows).getByRole('button', { name: 'While away · 0' }))
+  await userEvent.click(within(shows).getByRole('button', { name: 'Last night · 0' }))
   expect(screen.getByText('Nothing waits for you here.')).toBeInTheDocument()
 })
 
@@ -385,4 +385,93 @@ test('the panel asked to open at a card takes the focus to it', () => {
   useApp.getState().showReady(true, 'ready-cmd')
   render(<Shown />)
   expect(document.getElementById('ready-cmd')).toHaveFocus()
+})
+
+/** A row the night parked for you (§10), as Waiting for you reads it. */
+const parkedRow = (over: Partial<Waiting>): Waiting => ({
+  id: 'w1',
+  kind: 'command',
+  task_id: 'j1',
+  task: 'Clean old fixtures',
+  conversation_id: 'cj',
+  what: 'curl -o data/sample.csv https://example.com/sample.csv',
+  cwd: '.',
+  why: 'No rule covers it',
+  warn: null,
+  options: [],
+  decision: null,
+  answer: null,
+  result: null,
+  closed: null,
+  held: false,
+  seq: 1,
+  tip: null,
+  place: 'copy',
+  danger: null,
+  wrote: null,
+  ...over,
+  what_shown: over.what_shown ?? over.what ?? 'curl -o data/sample.csv https://example.com/sample.csv',
+})
+const ended = (jobs: unknown[] = []) =>
+  ({ id: 'a', status: 'ended', started_at: '2026-10-05T08:00:00Z', jobs }) as unknown as Away
+
+test('what the night parked joins the list first, its push first of all; a decided row does not, nor a job it already is', () => {
+  const push = parkedRow({
+    id: 'p1',
+    kind: 'push',
+    task_id: 'j2',
+    task: 'Fix the login',
+    what: 'Push koloni/fix',
+    tip: 'abc',
+  })
+  const items = readyItems({
+    conv: here,
+    chats: {},
+    projectId: 'p',
+    backlog: null,
+    memory: null,
+    // (j1 waits only for what it parked: those rows, not a night row as well)
+    away: ended([{ title: 'Clean old fixtures', task_id: 'j1', state: 'waits', why: '1 parked', asks: [], kept: [] }]),
+    parked: [parkedRow({}), parkedRow({ id: 'w0', decision: 'run' }), push],
+  })
+  expect(items.map(item => [item.key, item.source])).toEqual([
+    ['parked:p1:abc', 'night'],
+    ['parked:w1:', 'night'],
+    ['q', 'chat'],
+  ])
+  // A plan parks nothing.
+  const plan = { ...ended(), status: 'planned' } as Away
+  expect(
+    readyItems({ conv: null, chats: {}, projectId: 'p', backlog: null, memory: null, away: plan, parked: [push] }),
+  ).toEqual([])
+})
+
+test('a parked row on the page: Run or Reject, its push Push and open PR or Not now, Last night shows them', async () => {
+  const awayDo = vi.fn(async () => {})
+  const push = { kind: 'push', task_id: 'j2', task: 'Fix the login', what: 'Push koloni/fix', tip: 'abc' } as const
+  const rows = [
+    parkedRow({ id: 'p1', ...push, opens_pr: true }),
+    parkedRow({ what: 'curl -H "Authorization: Bearer ghp_x"', what_shown: 'curl -H "Authorization: ***"' }),
+    parkedRow({ id: 'p2', ...push, task_id: 'j3', task: 'Docs', opens_pr: false }),
+  ]
+  const get = vi.fn(async () => new Response(JSON.stringify(rows), { status: 200 }))
+  vi.stubGlobal('fetch', get)
+  useApp.setState({ awayDo, away: ended() })
+  render(<Shown page />)
+  const shows = screen.getByRole('group', { name: 'Show' })
+  await userEvent.click(await within(shows).findByRole('button', { name: 'Last night · 3' }))
+  const [first, plain, second] = screen.getAllByRole('group', { name: /^while away/ })
+  // (where the project's way is no pull request, its Push says no more than that)
+  expect(within(plain).getByRole('button', { name: 'Push' })).toBeInTheDocument()
+  expect(within(plain).queryByRole('button', { name: /open PR/ })).toBeNull()
+  // (the line as the server shows it: masked)
+  expect(second).toHaveTextContent('curl -H "Authorization: ***"')
+  expect(second).not.toHaveTextContent('ghp_x')
+  expect(first).toHaveAccessibleName('while away: Fix the login')
+  await userEvent.click(within(first).getByRole('button', { name: 'Push and open PR' }))
+  expect(awayDo).toHaveBeenCalledWith('a', 'waiting/p1', { word: 'run', seen: [], tip: 'abc' })
+  expect(within(first).getByRole('button', { name: 'Not now' })).toBeInTheDocument()
+  await userEvent.click(within(second).getByRole('button', { name: 'Reject' }))
+  expect(awayDo).toHaveBeenCalledWith('a', 'waiting/w1', { word: 'reject', answer: undefined })
+  expect(get).toHaveBeenCalledTimes(1) // (one read of the night's rows)
 })

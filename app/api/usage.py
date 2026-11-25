@@ -147,7 +147,7 @@ def usage(
     own: list | None = []  # and KOLONİ's own requests with no turn
     if project_id:
         turns.append(Conversation.project_id == project_id)
-        own.append(OwnRequest.project_id == project_id)
+        own.append(OwnRequest.project_id == project_id)  # pyrefly: ignore[missing-attribute]  # (a list till below)
     if conversation_id:
         # shortcut: no page asks by chat yet (the Usage page sums by project, the chat by
         # turn); give the Usage page a chat's view on this when one is wanted.

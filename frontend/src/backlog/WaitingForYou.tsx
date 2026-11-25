@@ -87,7 +87,7 @@ export function WaitingForYou({ away }: { away: Away }) {
   )
 }
 
-type Decide = (row: Waiting, word: string, answer?: string) => void
+export type Decide = (row: Waiting, word: string, answer?: string) => void
 
 /** What KOLONİ says of a parked row: why, where it would run, its card's words, a file an agent wrote it runs. */
 function RowNotes({ row }: { row: Waiting }) {
@@ -110,10 +110,10 @@ function RowNotes({ row }: { row: Waiting }) {
 }
 
 /** One parked row: the line or the question whole, why in KOLONİ's words, and your word on it. */
-function WaitingRow({ row, busy, decide }: { row: Waiting; busy: boolean; decide: Decide }) {
+export function WaitingRow({ row, busy, decide }: { row: Waiting; busy: boolean; decide: Decide }) {
   return (
     <li className="waiting-row">
-      <pre className="mono waiting-what">{row.what}</pre>
+      <pre className="mono waiting-what">{row.what_shown}</pre>
       <RowNotes row={row} />
       {row.decision ? (
         <div className="waiting-said">{(DECIDED[row.decision] ?? (() => row.decision))(row)}</div>
@@ -196,12 +196,17 @@ function notesOf(err: unknown): string[] | null {
   return raw && Array.isArray(raw.notes) ? raw.notes.map(String) : null
 }
 
+/** A push row's buttons: its Run, its Run once KOLONİ noted something, its Reject. */
+export type PushWords = [run: string, again: string, reject: string]
+const PUSH_WORDS: PushWords = ['Run', 'Run anyway', 'Reject']
+
 /**
  * 0.1.9: a job's push - its branch to origin as one commit by KOLONİ, once its other rows are decided and its going-on
  * turn is over. Run; where KOLONİ notes something first (git's config changed, what moved outside the branch), the notes
- * and Run again; why nothing went up where it did not (the row waits again); Reject leaves the branch as it is.
+ * and Run again; why nothing went up where it did not (the row waits again); Reject leaves the branch as it is. `words`:
+ * its buttons' (Ready for you's say what they do).
  */
-function PushRow({ row, awayId }: { row: Waiting; awayId: string }) {
+export function PushRow({ row, awayId, words = PUSH_WORDS }: { row: Waiting; awayId: string; words?: PushWords }) {
   const [notes, setNotes] = useState<string[]>([])
   const { busy, error, ask } = useAsk()
   const go = (word: string) =>
@@ -217,7 +222,7 @@ function PushRow({ row, awayId }: { row: Waiting; awayId: string }) {
     })
   return (
     <li className="waiting-row">
-      <pre className="mono waiting-what">{row.what}</pre>
+      <pre className="mono waiting-what">{row.what_shown}</pre>
       <div className="muted">{row.why}</div>
       {row.result && <div className={row.decision ? 'waiting-said' : 'muted'}>{row.result}</div>}
       {!row.decision && (
@@ -235,7 +240,7 @@ function PushRow({ row, awayId }: { row: Waiting; awayId: string }) {
               disabled={busy || !!row.closed}
               onClick={() => go('run')}
             >
-              {notes.length ? 'Run anyway' : 'Run'}
+              {notes.length ? words[1] : words[0]}
             </button>
             <button
               type="button"
@@ -243,7 +248,7 @@ function PushRow({ row, awayId }: { row: Waiting; awayId: string }) {
               disabled={busy || row.held}
               onClick={() => go('reject')}
             >
-              Reject
+              {words[2]}
             </button>
           </div>
         </>

@@ -1,14 +1,16 @@
 """The decision log (karar defteri, Part A): what was decided for the user in one project, by whom
 and why - by the Orchestrator (the cards it answered, the sub-agents it opened or not, the Scout's
-To-do proposals it took or turned down), by KOLONİ's judge (a command refused, or found risky) and
-by the user's own words (Check what I said first). Read from the records that keep each of them: no
-table of its own, no model asked, and nothing writes here - no row is added, changed or hidden by an
-agent. The judge's "fine" is counted, not listed. Agents' and models' words are masked, cut and
-marked where they read like orders (`said`); they are shown, never given to an agent as orders.
+To-do proposals it took or turned down), by KOLONİ's judge (a command it refused, the agent going
+on) and by the user's own words (Check what I said first). Read from the records that keep each of
+them: no table of its own, no model asked, and nothing writes here - no row is added, changed or
+hidden by an agent. The judge's "fine" is counted, not listed. Agents' and models' words are
+masked, cut and marked where they read like orders (`said`); they are shown, never given to an
+agent as orders.
 shortcut: read from the records, a row leaves the log where its record changes - the user's own
-Change clears the Orchestrator's why (`api.questions.change`), and a task you turned down - one it
-added, by its row's Change; one it turned down, rejected on To-do - is deleted (`backlog.decide`);
-give decisions a table of their own (approach B) if the log must keep those."""
+Change, and Change and redo, clear the Orchestrator's why (`api.questions.change`, `app.redo`),
+and a task you turned down - one it added, by its row's Change; one it turned down, rejected on
+To-do - is deleted (`backlog.decide`); give decisions a table of their own (approach B) if the log
+must keep those."""
 
 import unicodedata
 from collections.abc import Callable
@@ -16,14 +18,15 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Literal
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, case, exists, func, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app import injection
 from app.agent.spawn_mixin import SPAWN_WORDS
 from app.agent.words import AGENT_TERMINAL
 from app.commands import OutputMask
-from app.db.models import Agent, BacklogTask, Command, Conversation, Question, Run
+from app.db.away_models import Parked
+from app.db.models import Agent, BacklogTask, Command, Conversation, Merge, Question, Run
 from app.judge import whole
 from app.schemas_decisions import Decision, DecisionLink, DecisionLog
 from app.stories import BLANK_LOOKING
@@ -66,6 +69,16 @@ def _shows(ch: str) -> bool:
     return not (kind == "Cf" or kind == "Cc" and not ch.isspace() or ch in UNSEEN)
 
 
+def shown(text: str) -> tuple[str, bool]:
+    """A line as a page shows it whole - neither cut nor folded, as `said` does: what nobody sees
+    taken out first (a secret split by a zero-width space, a soft hyphen, an isolate or a Hangul
+    filler is one again), then every secret masked - and whether anything was taken out (what runs
+    still holds it: the row warns, as `said` marks)."""
+    text = whole(text)
+    seen = "".join(ch for ch in text if _shows(ch))
+    return _masked(seen), seen != text
+
+
 def said(text: str | None) -> str | None:
     """An agent's or a model's words as a row shows them: a lone surrogate the replacement
     character (`judge.whole`: else the reply fails whole), what nobody sees taken out (a secret
@@ -90,25 +103,79 @@ def utc(at: datetime) -> datetime:
     return at.astimezone(UTC) if at.tzinfo else at.replace(tzinfo=UTC)
 
 
-def _card_undo(
-    leave: bool, seen: bool, at_work: bool, others: list[str], offered: list[str]
-) -> str | None:
-    """Why today's Change no longer works on a card's answer (`api.questions.change`); None: it
-    does. shortcut: not where its agent is a CLI that hears nothing more (`steer`) - known only to
-    the runner at work; the Change says so when pressed."""
-    if leave:
-        return "the next step ran"
-    if seen:
-        return "you said OK to it"
-    if not at_work:
-        return "the agent that asked has finished"
-    if not others:
-        return "it has no other answer to change to"
-    return None if offered else "its other answers hold words masked here"
+def offered(question: Question) -> list[str]:
+    """The other answers Change - or Change and redo - can give a card, each as it is kept: only
+    one shown as it is, none masked, cut or marked (`api.questions.change` takes nothing else)."""
+    return [one for one in question.options or [] if one != question.answer and said(one) == one]
 
 
-def _cards(session: Session, project_id: str, window: Window) -> list[Later]:
-    """The cards the Orchestrator answered for the user - a sub-agent to open among them."""
+# Why Change and redo cannot go on with the work of the turn an answer was given in (`work`).
+TAKEN_IN = "its work was taken in"
+DISCARDED = "its work was discarded"
+WAITS_TAKE_IN = "its work waits for your Take in in its chat"
+
+
+def work(session: Session, question: Question) -> tuple[str | None, str | None]:
+    """The work of the turn a card was answered in, as it stands: the newest Merge of its chat
+    from that turn on (a Take in or a Discard keeps its Merge: `parked.where`'s by-turn record) -
+    its id, and why Change and redo cannot go on with it, None where it can (a kept copy none of
+    which was taken in). None, None where none is on record: the turn changed nothing, or worked in
+    the project itself - a fresh turn goes on there. Its state alone is read, never its files'
+    diffs: whether one of them was taken in is asked of the database."""
+    turn = session.get_one(Run, question.run_id)
+    each = func.json_each(Merge.files).table_valued("value", "type")
+    # (an object's state alone: a bare string among the files would make json_extract raise)
+    state = case((each.c.type == "object", func.json_extract(each.c.value, "$.state")))
+    taken = exists().select_from(each).where(each.c.type == "object", state == "applied")
+    found = session.execute(
+        select(Merge.id, Merge.status, Merge.kept_in, taken)
+        .join(Run, Run.id == Merge.run_id)
+        .where(
+            Run.conversation_id == turn.conversation_id,
+            Run.created_at >= utc(turn.created_at).replace(tzinfo=None),
+        )
+        .order_by(Merge.created_at.desc())
+        .limit(1)
+    ).first()
+    if found is None:
+        return None, None
+    merge_id, status, kept_in, some_taken = found
+    if status == "applied" or some_taken:
+        return merge_id, TAKEN_IN
+    if status == "pending":
+        return merge_id, WAITS_TAKE_IN
+    return merge_id, None if status == "interrupted" and kept_in else DISCARDED
+
+
+Undo = Literal["change", "change_and_redo", "none"]
+
+
+def card_undo(
+    question: Question, at_work: bool, gone: Callable[[], str | None]
+) -> tuple[Undo, str | None]:
+    """What still undoes the Orchestrator's answer on a card, and why nothing does where nothing
+    does: today's Change while the agent that asked works (`api.questions.change`); once it has
+    finished, Change and redo (`app.redo`) - not where its work was taken in or discarded (`gone`:
+    why, asked only then). The row and Change and redo's own click go by this alone.
+    shortcut: Change not where its agent is a CLI that hears nothing more (`steer`) - known only
+    to the runner at work; the Change says so when pressed."""
+    if question.leave:
+        return "none", "the next step ran"
+    if question.seen_at is not None:
+        return "none", "you said OK to it"
+    if not any(one != question.answer for one in question.options or []):
+        return "none", "it has no other answer to change to"
+    if not offered(question):
+        return "none", "its other answers hold words masked here"
+    if at_work:
+        return "change", None
+    why = gone()
+    return ("none", why) if why else ("change_and_redo", None)
+
+
+def _cards(session: Session, project_id: str, window: Window, undo: bool) -> list[Later]:
+    """The cards the Orchestrator answered for the user - a sub-agent to open among them. `undo`:
+    what still undoes an answer is asked (`card_undo`)."""
     at = func.coalesce(Question.answered_at, Question.created_at)
     found = session.execute(
         select(Question, at, Run.conversation_id, Conversation.title, Agent.status)
@@ -137,23 +204,23 @@ def _cards(session: Session, project_id: str, window: Window) -> list[Later]:
             child = opened.get((question.agent_id, question.tool_call_id))
             build = partial(_spawn, question, utc(when), cid, title, child)
         else:
-            build = partial(_answer, question, utc(when), cid, title, status)
+            asked = session if undo else None
+            build = partial(_answer, asked, question, utc(when), cid, title, status)
         rows.append((utc(when), question.seen_at is not None, build))
     return rows
 
 
-def _answer(question: Question, at: datetime, cid: str, title: str, status: str) -> Decision:
-    others = [one for one in question.options or [] if one != question.answer]
-    # (Change sends an option as it is kept - `api.questions.change` takes nothing else -, so only
-    # one shown as it is: none masked, cut or marked.)
-    offered = [one for one in others if said(one) == one]
-    why_not = _card_undo(
-        question.leave,
-        question.seen_at is not None,
-        status not in AGENT_TERMINAL,
-        others,
-        offered,
+def _answer(
+    session: Session | None, question: Question, at: datetime, cid: str, title: str, status: str
+) -> Decision:
+    """An answer's row - what still undoes it asked of `session`; None: not asked (the night's
+    report, `away_night`: none, no reason)."""
+    undo, why_not = (
+        card_undo(question, status not in AGENT_TERMINAL, lambda: work(session, question)[1])
+        if session is not None
+        else ("none", None)
     )
+    note = _pushed(session, cid) if session is not None and undo == "change_and_redo" else None
     return Decision(
         id=f"answer:{question.id}",
         at=at,
@@ -164,15 +231,30 @@ def _answer(question: Question, at: datetime, cid: str, title: str, status: str)
         else "Answered a question for you",
         quote=said(question.question),
         answer=said(question.answer),
-        options=offered,
+        options=offered(question),
         why=said(question.lead_why),
         conversation_id=cid,
         chat=said(title),
         link=DecisionLink(kind="question", id=question.id),
-        undo="none" if why_not else "change",
+        undo=undo,
         undo_reason=why_not,
+        undo_note=note,
         seen=question.seen_at is not None,
     )
+
+
+def _pushed(session: Session, cid: str) -> str | None:
+    """What Change and redo adds to in a job's chat whose branch went to origin (its push row you
+    said Run): that branch - KOLONİ's name for it, not an agent's word."""
+    data = session.scalar(
+        select(Parked.data)
+        .join(BacklogTask, BacklogTask.id == Parked.task_id)
+        .where(BacklogTask.conversation_id == cid, Parked.kind == "push", Parked.decision == "run")
+        .order_by(Parked.decided_at.desc())
+        .limit(1)
+    )
+    branch = (data or {}).get("branch")
+    return f"adds to the branch {branch} that you pushed" if branch else None
 
 
 def _spawn(question: Question, at: datetime, cid: str, title: str, child: str | None) -> Decision:
@@ -198,14 +280,11 @@ def _spawn(question: Question, at: datetime, cid: str, title: str, child: str | 
 
 # What a command's record of the judges says, as a row: (who, what, why it cannot be undone). The
 # check of the user's words is kind "words" ("" on a record from before 0.1.9); its "ask" was the
-# user's card, not a decision. The judge's "fine" is counted (`of`); its "risky" and "refuse" are
-# rows only where its model looked ("looked", `risk_judge_mixin._risk_asked`).
+# user's card, not a decision. The judge's "fine" is counted (`of`); its "refuse" is a row only
+# where its model looked ("looked", `risk_judge_mixin._risk_asked`). Its "risky" is none: the user
+# was asked - its card, or its row parked at night, waits for them or they decided it - nothing
+# was decided for them.
 COMMANDS: dict[tuple[str, str], tuple[Literal["judge", "your_words"], str, str]] = {
-    ("risk", "risky"): (
-        "judge",
-        "KOLONİ's judge found a command risky and asked you",
-        "it was asked on its card",
-    ),
     ("risk", "refuse"): (
         "judge",
         "KOLONİ's judge did not run a command; the agent went on",
@@ -293,10 +372,9 @@ def _command(
     )
 
 
-def _command_seen(judged: dict) -> bool | None:
-    """One it ran or did not run waits for your OK, as a card's answer; one it asked you about on
-    its card ("risky") has none."""
-    return None if judged.get("verdict") == "risky" else bool(judged.get("seen"))
+def _command_seen(judged: dict) -> bool:
+    """One it ran or did not run waits for your OK, as a card's answer."""
+    return bool(judged.get("seen"))
 
 
 def _task_undo(task: BacklogTask, added: bool) -> str | None:
@@ -372,10 +450,13 @@ def of(
     since: datetime | None = None,
     until: datetime | None = None,
     unseen: bool = False,
+    undo: bool = True,
 ) -> DecisionLog:
     """What was decided for the user in project `project_id` at or after `since` and before
     `until` (each where given; a time with no zone is UTC's), newest first - the newest `MOST`,
-    `more` where there were more. `unseen`: only those that wait for your OK."""
+    `more` where there were more. `unseen`: only those that wait for your OK. `undo` False: what
+    still undoes an answer is not asked - "none", no reason (the night's report, which shows no
+    undo: `decisions.work` reads each chat's work)."""
 
     def window(at: When) -> list[ColumnElement[bool]]:
         return [
@@ -384,10 +465,14 @@ def of(
         ]
 
     commands, fine = _commands(session, project_id, window)
-    rows = [*_cards(session, project_id, window), *commands, *_tasks(session, project_id, window)]
+    cards = _cards(session, project_id, window, undo)
+    rows = [*cards, *commands, *_tasks(session, project_id, window)]
     if unseen:  # (only what waits for your OK - before the cut: one of any age is found)
         rows = [row for row in rows if row[1] is False]
     rows.sort(key=lambda row: row[0], reverse=True)
     return DecisionLog(
-        rows=[build() for _at, _seen, build in rows[:MOST]], judge_fine=fine, more=len(rows) > MOST
+        rows=[build() for _at, _seen, build in rows[:MOST]],
+        # (Not seen has no period: the judge's "fine" of all time is no count of it - nor waits.)
+        judge_fine=0 if unseen else fine,
+        more=len(rows) > MOST,
     )

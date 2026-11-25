@@ -5,18 +5,9 @@ import { AwayPanel } from '../chat/AwayPanel'
 import { useAsk } from '../memory/useAsk'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
-import { amount, clock, doneSaid } from './awayText'
+import { STATE_WORD, amount, clock, doneSaid } from './awayText'
 import { WaitingForYou } from './WaitingForYou'
 
-const STATE_WORD: Record<AwayJob['state'], string> = {
-  planned: '',
-  next: 'Next',
-  working: 'Working',
-  waits: 'Waits for you',
-  done: 'Done',
-  failed: 'Could not be done',
-  stopped: 'Stopped',
-}
 const STATE_MARK: Record<AwayJob['state'], string> = {
   planned: '',
   next: '·',

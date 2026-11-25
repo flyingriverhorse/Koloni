@@ -326,6 +326,7 @@ test('the night is one line when nothing of it waits for you; a job that does ke
     kept_out: [],
     asks: [],
     checks: [],
+    decisions: [],
     now: null,
     spent: null,
     ...over,

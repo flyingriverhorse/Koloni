@@ -180,7 +180,7 @@ def _send(method: str, url: str, headers: dict[str, str], body: bytes | None, ip
     try:
         try:
             if secure:
-                sock = context.wrap_socket(
+                sock = context.wrap_socket(  # pyrefly: ignore[unbound-name]  # (set when secure)
                     sock, server_hostname=host, do_handshake_on_connect=False
                 )
                 sock.do_handshake()

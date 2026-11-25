@@ -386,9 +386,9 @@ class NativeMixin:
                 on_live=partial(self._native_work_door, ctx),
                 on_end=lambda end: setattr(watch, "end", end),
                 # 89p: its findings come back in their schema, not to be read out of its words.
-                **({"report_schema": REPORT_SCHEMA} if _hands_back(ctx) and findings else {}),
-                **({"effort": effort} if effort else {}),
-                **({"inside": inside} if inside else {}),
+                **({"report_schema": REPORT_SCHEMA} if _hands_back(ctx) and findings else {}),  # pyrefly: ignore[bad-argument-type]  # (its own keyword)
+                **({"effort": effort} if effort else {}),  # pyrefly: ignore[bad-argument-type]  # (its own keyword)
+                **({"inside": inside} if inside else {}),  # pyrefly: ignore[bad-argument-type]  # (its own keyword)
                 session=kept if kept and self._whole(kept) else None,
                 keep=keeps,
                 level=level,

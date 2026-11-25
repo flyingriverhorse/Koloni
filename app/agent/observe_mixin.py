@@ -11,7 +11,7 @@ import os
 import re
 import time
 import uuid
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncGenerator, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -316,7 +316,7 @@ class ObserveMixin:
         return self.settings.runtime_root / "taken-back" / ctx.run_id
 
     @contextlib.asynccontextmanager
-    async def _looks_held(self: "AgentRunner", project: Path) -> AsyncIterator[None]:
+    async def _looks_held(self: "AgentRunner", project: Path) -> AsyncGenerator[None]:
         """Take in writes a project (`_apply`): no native agent at work there, or in a copy of
         it, looks meanwhile - a look runs in a thread beside the writes, and one that read a file
         still half written put it down to its CLI (a macOS runner, 23 Nov: the Lead's last look

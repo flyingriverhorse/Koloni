@@ -8,7 +8,8 @@ import { decidedOf, decidedTasks, judgedCommands } from './waiting'
 /**
  * The chat's one line of Decided for you (karar defteri): how many things were decided for you in it, not yet OK'd, and
  * how many wait for your word - and Ready for you, where its Decided for you says each, and its OK and Change are. Cards
- * that wait are answered in the chat as before. Nothing when nothing was decided and nothing waits.
+ * that wait are answered in the chat as before. Nothing when nothing was decided for you: cards that wait alone have
+ * their own count and cards (a watched chat's card is no "while you were away").
  * shortcut: "while you were away" - at Full auto the Orchestrator decides in a watched turn too (K-fullauto-sorma);
  * say "at Full auto" by the chat's level if the line is seen to mislead.
  */
@@ -18,12 +19,12 @@ export function DecidedLine({ conv }: { conv: ConvState | null }) {
   const decided =
     decidedOf(conv).length + decidedTasks(backlog, conv.conversation.id).length + judgedCommands(conv).length
   const waiting = waitingCards(conv)
-  if (decided === 0 && waiting === 0) return null
+  if (decided === 0) return null
   return (
     <p className="decided-line">
       <span>{decidedSentence(decided, waiting)}</span>{' '}
-      {/* (at Not seen where something waits for your OK: one of any age is there) */}
-      <button type="button" className="link-btn" onClick={() => openDecisions(decided > 0)}>
+      {/* (at Not seen: what waits for your OK, one of any age, is there) */}
+      <button type="button" className="link-btn" onClick={() => openDecisions(true)}>
         Open in Ready for you
       </button>
     </p>

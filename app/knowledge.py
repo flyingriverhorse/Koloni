@@ -1587,7 +1587,7 @@ def _homes(root: str, name: str) -> list[str]:
     """Where the library of this name is made, as the project's installed copy of it says: its
     npm package.json's homepage and repository, its Python METADATA's home page and project
     addresses. shortcut: these two only; read another manifest when that is met."""
-    found: list[str] = []
+    found: list[object] = []  # (JSON's, a str or not)
     with contextlib.suppress(Refused, ValueError, RecursionError, AttributeError):
         told = json.loads(
             project_files.bytes_of(root, f"node_modules/{name}/package.json", 200_000)

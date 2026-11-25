@@ -403,7 +403,7 @@ _OWN_ERRORS = {"billing_error": ("credits_exhausted", None), "rate_limit": ("rat
 
 def own_error(event: dict) -> tuple[str, None] | None:
     """What an assistant event's own `error` says a failure is; None for any other."""
-    return _OWN_ERRORS.get(event.get("error")) if event.get("type") == "assistant" else None
+    return _OWN_ERRORS.get(event.get("error")) if event.get("type") == "assistant" else None  # pyrefly: ignore[bad-argument-type]  # (a None key finds none)
 
 
 def classed(limited: tuple | None, own: tuple | None) -> tuple | None:
@@ -963,7 +963,8 @@ class Exited:
     measured for the five CLIs; measure one (K-cli-surface) if it is seen to."""
 
     def __init__(self, process: asyncio.subprocess.Process, job) -> None:
-        self._process, self._job, self._at = process, job, None
+        self._process, self._job = process, job
+        self._at: float | None = None
 
     def _open(self) -> bool:
         """Whether its output or its errors' pipe has not reached its end yet - taken to be

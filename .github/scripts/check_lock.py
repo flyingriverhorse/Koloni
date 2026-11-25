@@ -1,10 +1,13 @@
-"""Fails unless requirements-dev.lock satisfies pyproject.toml (backend.yml's lint part).
+"""Fails unless requirements-dev.lock and requirements-lint.lock satisfy pyproject.toml
+(backend.yml's lint part).
 
     python .github/scripts/check_lock.py
 
-Every requirement of [project].dependencies and the dev extra must be in the lock at a version its
-specifier accepts. Dependabot bumps pyproject.toml but cannot rebuild the lock (compiled on
-Windows), so its pull request would otherwise pass on the old versions. Offline: reads two files.
+Every requirement of [project].dependencies and the dev extra must be in the dev lock at a version
+its specifier accepts; those and the lint extra's in the lint lock, which installs on top of the dev
+lock (CI's lint part) and so may not hold another version of a package the dev lock pins. Dependabot
+bumps pyproject.toml but cannot rebuild a lock (compiled on Windows), so its pull request would
+otherwise pass on the old versions. Offline: reads three files.
 """
 
 import re
@@ -21,30 +24,46 @@ def name(text: str) -> str:
     return re.sub(r"[-_.]+", "-", text).lower()
 
 
-def problems(pyproject: str, lock: str) -> list[str]:
+def pinned(lock: str) -> dict[str, str]:
+    return {name(n): v for n, v in re.findall(r"^([A-Za-z0-9._-]+)==(\S+)", lock, re.MULTILINE)}
+
+
+def problems(pyproject: str, lock: str, extra: str = "dev") -> list[str]:
     project = tomllib.loads(pyproject)["project"]
-    pins = re.findall(r"^([A-Za-z0-9._-]+)==(\S+)", lock, re.MULTILINE)
-    locked = {name(n): v for n, v in pins}
+    locked = pinned(lock)
     found = []
-    for line in [*project["dependencies"], *project["optional-dependencies"]["dev"]]:
+    for line in [*project["dependencies"], *project["optional-dependencies"][extra]]:
         req = Requirement(line)
         version = locked.get(name(req.name))
         if version is None:
-            found.append(f"{req.name}: not in requirements-dev.lock")
+            found.append(f"{req.name}: not in requirements-{extra}.lock")
         elif not req.specifier.contains(version, prereleases=True):
             found.append(f"{req.name}: locked {version}, pyproject.toml wants {req.specifier}")
     return found
 
 
+def moved(dev: str, lint: str) -> list[str]:
+    """What installing the lint lock on top of the dev lock would change."""
+    under = pinned(dev)
+    return [
+        f"{one}: requirements-lint.lock holds {version}, requirements-dev.lock {under[one]}"
+        for one, version in pinned(lint).items()
+        if one in under and under[one] != version
+    ]
+
+
 def main() -> int:
-    found = problems((ROOT / "pyproject.toml").read_text(encoding="utf-8"),
-                     (ROOT / "requirements-dev.lock").read_text(encoding="utf-8"))
+    pyproject, dev, lint = (
+        (ROOT / file).read_text(encoding="utf-8")
+        for file in ("pyproject.toml", "requirements-dev.lock", "requirements-lint.lock")
+    )
+    found = [*problems(pyproject, dev), *problems(pyproject, lint, "lint"), *moved(dev, lint)]
     for line in found:
         print(f"error: {line}", file=sys.stderr)
     if found:
-        print("Rebuild the lock with the command in its header.", file=sys.stderr)
+        print("Rebuild the locks, the dev lock first, as their headers say.", file=sys.stderr)
         return 1
-    print("requirements-dev.lock satisfies pyproject.toml")
+    print("requirements-dev.lock and requirements-lint.lock satisfy pyproject.toml")
     return 0
 
 

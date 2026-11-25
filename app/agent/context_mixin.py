@@ -599,7 +599,7 @@ def _taken_from(before: Agent | None, lead: Agent | None) -> str | None:
     def named(agent: Agent) -> str | None:
         known = agent.model_id and agent.model_from is None and agent.model_id not in NOT_A_MODEL
         # (Whatever a server named itself: one plain line of it, as `who_line` shows it.)
-        return kept.one_line(agent.model_id)[:200] if known else None
+        return kept.one_line(agent.model_id)[:200] if known else None  # pyrefly: ignore[bad-argument-type]  # (`known`: a str)
 
     was, now_on = named(before), named(lead)
     if before.provider_name == lead.provider_name and (
@@ -1987,7 +1987,7 @@ class ContextMixin:
         turn_before: str | None = None
         for row in rows:
             messages.extend({"role": "user", "content": words} for words in nudged.pop(before, ()))
-            if turn_before not in (None, row.run_id) and (said := records.get(turn_before)):
+            if turn_before not in (None, row.run_id) and (said := records.get(turn_before)):  # pyrefly: ignore[bad-argument-type]  # (None tested first)
                 messages.append(_Record(role="user", content=said))
             before, turn_before = row.id, row.run_id
             made = calls.get(row.id, [])
@@ -2230,7 +2230,7 @@ class ContextMixin:
                 if shot
                 else "(An earlier image, not shown again: view it again if you need to.)",
             }
-        if turn_before not in (None, ctx.run_id) and (said := records.get(turn_before)):
+        if turn_before not in (None, ctx.run_id) and (said := records.get(turn_before)):  # pyrefly: ignore[bad-argument-type]  # (None tested first)
             messages.append(_Record(role="user", content=said))
         # (After its last message, or - one it never wrote - at the end.)
         messages.extend(
