@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { errorText } from '../api/client'
 import type { Decision, DecisionLog } from '../api/types'
 import { OPEN_TODO } from '../chat/TodoCards'
-import { WHO, decisionsAsked, fineLine, markdown, stamp, weekStart } from './decisionLog'
+import { WHO, fineLine, markdown, newestLine, stamp, weekStart } from './decisionLog'
 import { since } from './period'
 
 type Chip = 'today' | 'week' | 'left'
@@ -31,6 +31,9 @@ interface Props {
   leftAt: string | null
   /** Opens a chat: where a decision's card, command or agent is. */
   onOpenChat?: (conversationId: string) => void
+  /** The chat's "All decisions on Today" asked for it open; `onOpened` once it is. */
+  asked?: boolean
+  onOpened?: () => void
 }
 
 /**
@@ -38,7 +41,7 @@ interface Props {
  * judge or Check what I said first - with why, from the record; folded, and open when the chat's "All decisions on
  * Today" asked. Read only: OK and Change are the chat's Decided for you. Copy as Markdown copies it as masked as shown.
  */
-export function Decisions({ onLoad, leftAt, onOpenChat }: Props) {
+export function Decisions({ onLoad, leftAt, onOpenChat, asked = false, onOpened }: Props) {
   const [chip, setChip] = useState<Chip>('today')
   const [log, setLog] = useState<DecisionLog | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -47,13 +50,17 @@ export function Decisions({ onLoad, leftAt, onOpenChat }: Props) {
   const from = chip === 'left' && leftAt ? leftAt : chip === 'week' ? weekStart() : since('today')!
 
   useEffect(() => {
-    if (!decisionsAsked()) return
+    if (!asked) return
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpen(true)
     box.current?.scrollIntoView?.({ block: 'start' })
-  }, [])
+    onOpened?.()
+  }, [asked, onOpened])
   useEffect(() => {
     let live = true
+    // (Not the last period's rows under this one's chip, nor copied as its.)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLog(null)
     onLoad(from).then(
       read => live && (setLog(read), setError(null)),
       err => live && (setLog(null), setError(errorText(err))),
@@ -70,7 +77,7 @@ export function Decisions({ onLoad, leftAt, onOpenChat }: Props) {
         <summary>
           <h3>Decisions</h3>
           <span className="muted">
-            {log && `· ${log.rows.length}`}
+            {log && `· ${log.rows.length}${log.more ? '+' : ''}`}
             {unseen > 0 && ` (${unseen} not seen)`}
           </span>
         </summary>
@@ -118,6 +125,7 @@ function Body({ log, chip, onOpenChat }: { log: DecisionLog; chip: Chip; onOpenC
           <Row key={row.id} row={row} onOpenChat={onOpenChat} />
         ))}
       </ul>
+      {log.more && <p className="muted memory-hint">{newestLine(log.rows.length)}</p>}
       {fine}
       <p className="decisions-foot">
         {!all && log.rows.length > MOST && (
@@ -157,7 +165,12 @@ function Row({ row, onOpenChat }: { row: Decision; onOpenChat?: (id: string) => 
             <b className="decided-a">{row.answer}</b>
           </>
         )}
-        {row.why && <span className="muted"> · “{row.why}”</span>}
+        {row.why && (
+          <>
+            {' · '}
+            <span className="muted decision-why">“{row.why}”</span>
+          </>
+        )}
         {row.seen === false && <span className="tag decision-unseen">not seen</span>}
       </span>
       <RowLink row={row} onOpenChat={onOpenChat} />

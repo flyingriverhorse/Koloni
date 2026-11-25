@@ -377,17 +377,25 @@ export function App() {
     window.addEventListener(OPEN_TODO, open)
     return () => window.removeEventListener(OPEN_TODO, open)
   }, [])
-  // The chat's "All decisions on Today": Usage made anew, at Today (its own period, this project), Decisions open.
+  // The chat's "All decisions on Today": Usage made anew, at Today (its own period, this project), Decisions open -
+  // asked until Decisions opens, or the page is left before it could (then a later visit is folded, as any).
   const [usageAgain, setUsageAgain] = useState(0)
+  const [decisionsAsked, setDecisionsAsked] = useState(false)
   useEffect(() => {
     const open = () => {
       setView('usage')
       setSettingsOpen(false)
       setUsageAgain(n => n + 1)
+      setDecisionsAsked(true)
     }
     window.addEventListener(OPEN_DECISIONS, open)
     return () => window.removeEventListener(OPEN_DECISIONS, open)
   }, [])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (view !== 'usage') setDecisionsAsked(false)
+  }, [view])
+  const decisionsOpened = useCallback(() => setDecisionsAsked(false), [])
   // (One for the project: Decisions reads again only for another period.)
   const decisionsOf = useCallback((from: string) => readDecisions(projectId ?? '', from), [projectId])
   const morning = useRef(false)
@@ -898,6 +906,8 @@ export function App() {
               <Decisions
                 onLoad={decisionsOf}
                 leftAt={away?.started_at ?? null}
+                asked={decisionsAsked}
+                onOpened={decisionsOpened}
                 onOpenChat={id => {
                   void useApp.getState().openConversation(id)
                   setView('canvas')

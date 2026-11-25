@@ -7,7 +7,7 @@ import { useApp } from '../state/store'
 import { agent, command, conversation, convState, question, run } from '../test-fixtures'
 import { WaitingList } from './MessageList'
 import { decidedOf, waitingOf } from './waiting'
-import { decisionsAsked } from '../usage/decisionLog'
+import { OPEN_DECISIONS } from '../usage/decisionLog'
 
 /** K-vekil-karar: "When you're away" in the chat's settings, and "Decided for you" in Ready for you. */
 
@@ -93,7 +93,7 @@ test('Decided for you: what was asked, what the Lead chose and why, with its cou
   expect(screen.queryByText('Nothing waits for you.')).toBeNull()
 })
 
-test('each says who decided it, as Today’s Decisions does; the heading opens them all there', async () => {
+test('each says who decided it, as Today’s Decisions does; beside the heading, a link opens them all there', async () => {
   render(<WaitingList state={state} on={on} onDecidePlan={vi.fn()} known={known} />)
   const section = screen.getByRole('region', { name: /Decided for you while you were away/ })
   expect(
@@ -101,9 +101,14 @@ test('each says who decided it, as Today’s Decisions does; the heading opens t
       .getAllByText('Orchestrator')
       .map(who => who.className),
   ).toEqual(['decided-who', 'decided-who', 'decided-who'])
+  // (not in the heading, which names the section)
+  expect(section).not.toHaveAccessibleName(/All decisions/)
+  const asked = vi.fn()
+  window.addEventListener(OPEN_DECISIONS, asked)
   await userEvent.click(within(section).getByRole('button', { name: 'All decisions on Today' }))
-  // (the page's App opens Usage's Today; Decisions there takes the ask)
-  expect(decisionsAsked()).toBe(true)
+  window.removeEventListener(OPEN_DECISIONS, asked)
+  // (the page's App opens Usage's Today, Decisions open)
+  expect(asked).toHaveBeenCalledTimes(1)
 })
 
 test('a chat with no folder has no Today to open', () => {

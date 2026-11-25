@@ -25,19 +25,9 @@ export function stamp(iso: string, now = new Date()): string {
     : at.toLocaleString([], { weekday: 'short', ...time })
 }
 
-// The chat's "All decisions on Today": App opens Usage's Today, and Decisions there opens itself - once.
+// The chat's "All decisions on Today": App opens Usage's Today, with Decisions open (its own state, cleared once opened).
 export const OPEN_DECISIONS = 'koloni:open-decisions'
-let asked = false
-export function openDecisions() {
-  asked = true
-  window.dispatchEvent(new CustomEvent(OPEN_DECISIONS))
-}
-/** Whether Decisions was asked to open, since it last looked. */
-export function decisionsAsked(): boolean {
-  const was = asked
-  asked = false
-  return was
-}
+export const openDecisions = () => window.dispatchEvent(new CustomEvent(OPEN_DECISIONS))
 
 /** An agent's or a model's words in Markdown, inert: on one line in a code span - no link, image, heading, HTML or
  *  @mention is made of them - fenced longer than any run of backticks in them. */
@@ -47,12 +37,13 @@ function inert(text: string): string {
   return `${fence} ${line} ${fence}`
 }
 
+/** `before`, then the words inert - or nothing, where there are none to show. */
+const said = (before: string, text: string | null | undefined) => (text?.trim() ? `${before}${inert(text)}` : '')
+
 /** One row as a line of Markdown: when, who, KOLONİ's sentence, then the words it is of, each inert. */
 export function markdownRow(row: Decision, now = new Date()): string {
-  const quote = row.quote ? `: ${inert(row.quote)}` : ''
-  const answer = row.answer ? ` → ${inert(row.answer)}` : ''
-  const why = row.why ? ` · why: ${inert(row.why)}` : ''
-  return `- ${stamp(row.at, now)} · ${WHO[row.who]} · ${row.what}${quote}${answer}${why}`
+  const words = said(': ', row.quote) + said(' → ', row.answer) + said(' · why: ', row.why)
+  return `- ${stamp(row.at, now)} · ${WHO[row.who]} · ${row.what}${words}`
 }
 
 /** Copy as Markdown: a plain list to paste into a PR's body, as masked as the screen shows it. */
@@ -61,8 +52,11 @@ export function markdown(log: DecisionLog, period: string, now = new Date()): st
     `Decided for you (${period}):`,
     '',
     ...log.rows.map(row => markdownRow(row, now)),
+    ...(log.more ? ['', newestLine(log.rows.length)] : []),
     ...(log.judge_fine ? ['', fineLine(log.judge_fine)] : []),
   ].join('\n')
 }
 
 export const fineLine = (n: number) => `The judge let ${n} ${n === 1 ? 'command' : 'commands'} run.`
+/** Where the period had more than the log gives (`DecisionLog.more`). */
+export const newestLine = (n: number) => `Showing the newest ${n}.`

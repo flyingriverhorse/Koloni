@@ -597,10 +597,14 @@ test('"All decisions on Today" opens Usage at Today, made anew from another peri
     '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] },
   })
   const day = { turns: 0, agents: [], changed_files: [], waiting: 0, failed: 0, conversations: [] }
+  let dayDown = false
   const read = vi.fn(async (url: string) => {
-    if (url.startsWith('/api/projects/p/day')) return new Response(JSON.stringify(day), { status: 200 })
+    if (url.startsWith('/api/projects/p/day'))
+      return dayDown
+        ? new Response('{"detail":"down"}', { status: 500 })
+        : new Response(JSON.stringify(day), { status: 200 })
     if (url.startsWith('/api/projects/p/decisions?since='))
-      return new Response(JSON.stringify({ rows: [], judge_fine: 2 }), { status: 200 })
+      return new Response(JSON.stringify({ rows: [], judge_fine: 2, more: false }), { status: 200 })
     return pages(url)
   })
   vi.stubGlobal('fetch', read)
@@ -616,6 +620,23 @@ test('"All decisions on Today" opens Usage at Today, made anew from another peri
   expect(decisions.querySelector('details')).toHaveAttribute('open')
   expect(decisions).toHaveTextContent('The judge let 2 commands run.')
   expect(screen.getByRole('combobox', { name: 'Period' })).toHaveValue('today')
+  // The ask was taken: a later visit of Usage's own is folded, as any.
+  const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
+  await userEvent.click(rail('Canvas'))
+  await userEvent.click(rail('Usage'))
+  const again = await screen.findByRole('region', { name: 'Decisions' })
+  expect(again.querySelector('details')).not.toHaveAttribute('open')
+  // Asked where the day could not be read - Decisions never shown -, then the page left: not asked any more.
+  dayDown = true
+  if (!document.getElementById('ready-panel')) await userEvent.click(pill)
+  const link = within(document.getElementById('ready-panel')!).getByRole('button', { name: 'All decisions on Today' })
+  await userEvent.click(link)
+  expect(await screen.findByText(/^The day could not be read/)).toBeInTheDocument()
+  await userEvent.click(rail('Canvas'))
+  dayDown = false
+  await userEvent.click(rail('Usage'))
+  const later = await screen.findByRole('region', { name: 'Decisions' })
+  expect(later.querySelector('details')).not.toHaveAttribute('open')
 })
 
 test("an agent's window and a discussion's open over the canvas only with a chat; selecting a node opens the inspector", async () => {

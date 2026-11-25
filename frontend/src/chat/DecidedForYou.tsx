@@ -43,20 +43,23 @@ export function DecidedForYou({ state }: { state: ConvState }) {
   const span = from === to ? from : `${from}–${to}`
   return (
     <section aria-labelledby={id} className="cmd-approval card-tell decided">
-      <h3 id={id} className="kicker cmd-approval-kicker decided-head">
-        {/* shortcut: at Full auto the Lead decides in a watched turn too (K-fullauto-sorma); say
-            "at Full auto" here by the chat's level if the heading is seen to mislead. */}
-        Decided for you while you were away
-        <span className="decided-count">
-          {count}
-          {span && ` · ${span}`}
-        </span>
+      {/* (The link beside the heading, not in it: the heading names the section.) */}
+      <div className="decided-top">
+        <h3 id={id} className="kicker cmd-approval-kicker decided-head">
+          {/* shortcut: at Full auto the Lead decides in a watched turn too (K-fullauto-sorma); say
+              "at Full auto" here by the chat's level if the heading is seen to mislead. */}
+          Decided for you while you were away
+          <span className="decided-count">
+            {count}
+            {span && ` · ${span}`}
+          </span>
+        </h3>
         {state.conversation.project_id && (
           <button type="button" className="usage-open decided-all" onClick={openDecisions}>
             All decisions on Today
           </button>
         )}
-      </h3>
+      </div>
       {items.map(q => (
         <Decided key={q.id} question={q} state={state} onSent={setSent} />
       ))}

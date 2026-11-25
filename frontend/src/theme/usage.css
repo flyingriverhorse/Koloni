@@ -277,6 +277,12 @@ th[aria-sort='descending'] > .sort-head::after {
   margin-left: 6px;
 }
 
+/* An agent's or a model's words: no direction mark in them turns the rest of the row around. */
+.decision q,
+.decision-why {
+  unicode-bidi: isolate;
+}
+
 .decisions-foot {
   display: flex;
   flex-wrap: wrap;

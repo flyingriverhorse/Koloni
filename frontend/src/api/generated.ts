@@ -7079,6 +7079,11 @@ export interface components {
         DecisionLog: {
             /** Judge Fine */
             judge_fine: number;
+            /**
+             * More
+             * @default false
+             */
+            more: boolean;
             /** Rows */
             rows: components["schemas"]["Decision"][];
         };
