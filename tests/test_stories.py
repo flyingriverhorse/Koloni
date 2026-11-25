@@ -7,7 +7,7 @@ from datetime import datetime
 import pytest
 
 from app import backlog, stories
-from app.db.models import BacklogTask, Story
+from app.db.models import BacklogTask, Goal, Story
 from app.stories import goal_progress, story_state
 from tests.test_backlog import ORIGIN, agent, setup
 
@@ -302,17 +302,24 @@ def test_a_name_two_stories_of_an_older_store_share_is_the_exact_ones_or_refused
 def test_a_goal_name_nobody_can_see_is_refused(client, project_dir):
     """S1: as a story's (K3) - wherever a goal is named: added, renamed, drafted, an agent's."""
     pid, _ = setup(client, project_dir)
-    for title in ("​", "⠀​", " ️ "):
+    for title in ("\u200b", "\u2800\u200b", " \ufe0f "):
         made = client.post(f"/api/projects/{pid}/goals", json={"title": title})
         assert made.status_code == 422 and made.json()["detail"] == stories.NO_GOAL_NAME, title
     gid = client.post(f"/api/projects/{pid}/goals", json={"title": "Seen"}).json()["id"]
-    renamed = client.patch(f"/api/goals/{gid}", json={"title": "​"})
+    renamed = client.patch(f"/api/goals/{gid}", json={"title": "\u200b"})
     assert renamed.status_code == 422 and renamed.json()["detail"] == stories.NO_GOAL_NAME
-    drawn = {"goal": "​", "stories": [{"title": "S", "tasks": [{"title": "t"}]}], "tasks": []}
+    drawn = {"goal": "\u200b", "stories": [{"title": "S", "tasks": [{"title": "t"}]}], "tasks": []}
     added = client.post(f"/api/projects/{pid}/backlog/tree", json=drawn)
     assert added.status_code == 422 and added.json()["detail"] == stories.NO_GOAL_NAME
     with pytest.raises(backlog.Refused, match=stories.NO_GOAL_NAME):
-        agent(client, pid, "add_task", title="t", story="New", goal="⠀")
+        agent(client, pid, "add_task", title="t", story="New", goal="\u2800")
     assert [goal["title"] for goal in tree(client, pid)["goals"]] == ["Seen"]
     assert tree(client, pid)["stories"] == []
     assert client.get(f"/api/projects/{pid}/backlog").json() == []
+    # (nor is it one such goal an older store held: the agent's new story goes under none)
+    with client.app.state.session_factory() as session:
+        session.add(Goal(project_id=pid, title="​", position=1, created_by="user"))
+        session.commit()
+    with pytest.raises(backlog.Refused, match=stories.NO_GOAL_NAME):
+        agent(client, pid, "add_task", title="t", story="New", goal="⠀")
+    assert tree(client, pid)["stories"] == []
