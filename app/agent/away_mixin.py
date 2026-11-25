@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app import away, away_branch, copies, parked
+from app import away, away_branch, backlog, copies, parked
 from app.agent.away_branch_mixin import AwayBranchMixin
 from app.agent.ctx import TERMINAL, Ctx, announce, to_its_end
 from app.agent.risk_judge_mixin import (
@@ -710,7 +710,9 @@ class AwayMixin(AwayBranchMixin):
     ) -> None:
         """The going-on turn does not start: its run is over (`status`); its job waits where the
         month's budget stopped it (`why`), else - a Stop, KOLONİ closing - it is stopped, with why
-        (Try again works it in its chat; what was Run and did not run then is not run again)."""
+        (Try again works it in its chat; what was Run and did not run then is not run again). Its
+        task is out of "doing" and a message queued behind the turn goes on, as after any turn
+        (`_finish`)."""
         stopped = parked.CLOSED_MEANWHILE if self._closing else parked.STOPPED
         with contextlib.suppress(Exception), self._factory() as session:
             run = session.get_one(Run, run_id)
@@ -721,9 +723,13 @@ class AwayMixin(AwayBranchMixin):
                 task.away_state, task.away_why = (
                     ("waits", f"The project is {why}.") if why else ("stopped", stopped)
                 )
+            # (not `away.turn_ended`: the job's state is set above - it would say "failed")
+            backlog.turn_ended(session, run, run.status)
             session.commit()
             payload = run_out(run)
             self.bus.emit(cid, run_id, "run.updated", payload)
+        with contextlib.suppress(Exception):  # (in `CancelledError`'s handler: nothing raises)
+            self.start_next(cid)
         announce(self._factory, self.bus, project_id, "backlog.changed")
 
     async def _morning(self: "AgentRunner", task_id: str, run_id: str, cid: str) -> str | None:

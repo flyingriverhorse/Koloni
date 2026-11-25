@@ -300,7 +300,8 @@ of all), on the summary, on the To-do page and on the report.
   exception. A program an agent wrote is still
   refused, and so is a line naming a place you kept out. A Take in or Discard under way is waited for;
   while the lines run, the copy can be neither taken in nor discarded. **Stop** in the job's chat, or
-  **Stop everything**, stops a line that runs, and the task.
+  **Stop everything**, stops a line that runs, and the task (**Try again** works it); a message of
+  yours waiting behind it then goes ahead.
 - Then the same Orchestrator goes on in the same chat, in one turn, on KOLONİ's message: "KOLONİ: the
   user decided: ran "npm test" ("…"); rejected "git push"; answered "Which database?": "Postgres". Go on
   with the task." - what a line printed, and your answer, in quotes; a line that timed out or was
