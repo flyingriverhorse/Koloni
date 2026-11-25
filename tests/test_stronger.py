@@ -79,14 +79,14 @@ def test_a_looks_merge_keeps_out_work_a_kind_or_fewer_tests_still_fail(make_clie
 
     fewer = proof.row("tests", "failed", "Tests went from 48 to 45 (3 removed)", "pytest -q")
     for rows, kept in ((_page(),), s11.KINDS_FAILING), ((fewer,), s11.TESTS_REMOVED):
-        held = Proof()
+        held = Proof(gated=True)  # (the turn's end gate ran)
         held.verdict, held.rows = "MERGE", list(rows)  # (a later look let it go)
         runner, readied = _held_at(make_client, monkeypatch, held)
         runner._held_back["r"] = s11.ON_HOLD  # (an earlier pass's look held it)
         asyncio.run(runner._stronger_at_end(_lead(), "completed"))
         assert (runner._held_back.get("r"), readied) == (kept, []), rows
     # (nothing else failing: the look's MERGE lets it go, Ready for you asks)
-    held = Proof()
+    held = Proof(gated=True)
     held.verdict = "MERGE"
     runner, readied = _held_at(make_client, monkeypatch, held)
     runner._held_back["r"] = s11.ON_HOLD
