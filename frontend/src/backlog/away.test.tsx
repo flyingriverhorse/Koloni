@@ -26,6 +26,7 @@ const job = (over: Partial<AwayJob>): AwayJob => ({
   kept_out: [],
   asks: [],
   checks: [],
+  decisions: [],
   now: null,
   spent: null,
   ...over,

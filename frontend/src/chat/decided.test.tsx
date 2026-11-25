@@ -123,13 +123,21 @@ test('a project’s chat says it in one line - no box -, and Ready for you opens
   expect(asked).toHaveBeenCalledTimes(1)
 })
 
-test('the line counts what was decided and what waits, and is not there for neither', () => {
+test('the line counts what was decided and what waits besides, and is not there where nothing was decided', () => {
   expect(decidedSentence(3, 2)).toBe('While you were away, 3 things were decided for you and 2 wait for you.')
   expect(decidedSentence(1, 1)).toBe('While you were away, 1 thing was decided for you and 1 waits for you.')
-  expect(decidedSentence(0, 2)).toBe('While you were away, 2 wait for you.')
-  const quiet = convState({ runs: [run('r', 'running')] })
+  const quiet = convState({ conversation, runs: [run('r', 'running')] })
   const { container } = render(<DecidedLine conv={quiet} />)
   expect(container).toBeEmptyDOMElement()
+  // (E1, K5: a watched chat's card alone is no "while you were away" - it has its own count and card)
+  const asks = convState({
+    conversation,
+    runs: [run('r', 'waiting_approval')],
+    commands: [command('k', 'r', { status: 'proposed' })],
+  })
+  expect(waitingOf(asks)).toHaveLength(1)
+  const { container: one } = render(<DecidedLine conv={asks} />)
+  expect(one).toBeEmptyDOMElement()
 })
 
 test('OK takes it off; Change sends your choice while the agent is at work; else it cannot be undone', async () => {

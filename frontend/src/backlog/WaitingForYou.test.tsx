@@ -31,6 +31,8 @@ const row = (over: Partial<Waiting>): Waiting => ({
   danger: null,
   wrote: null,
   ...over,
+  // (as the page shows it: the server masks it - here, as it is)
+  what_shown: over.what_shown ?? over.what ?? 'npm run build',
 })
 
 const away = { id: 'a1', status: 'ended' } as Away

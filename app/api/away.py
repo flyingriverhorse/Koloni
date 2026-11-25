@@ -36,6 +36,8 @@ class WaitingOut(BaseModel):
     task: str
     conversation_id: str | None
     what: str  # the line or the question, whole: data
+    # ...as the page shows it, and its Markdown copies it: secrets masked (`OutputMask`).
+    what_shown: str
     cwd: str | None
     why: str
     warn: str | None  # (`injection.NOTE` where it reads like orders)
@@ -47,6 +49,7 @@ class WaitingOut(BaseModel):
     held: bool  # (closed for every word, Reject too)
     seq: int
     tip: str | None = None  # (a push's: the commit it pushes - its Run sends it back)
+    opens_pr: bool | None = None  # (a push's: its Run opens a pull request too)
     place: Literal["copy", "project", "gone"] | None  # (a command's: where it would run)
     danger: str | None  # (its card's sentence)
     wrote: str | None  # (the file an agent wrote that it runs, by its path)
@@ -73,8 +76,10 @@ def _told(request: Request, project_id: str) -> None:
     )
 
 
+# (Not async, these two: a report reads the night's records - each job's turns, checks and
+# decisions - in a worker thread, not on the event loop; the chat's reads every night it had.)
 @router.get("/projects/{project_id}/away", response_model=AwayOut | None)
-async def read_night(project_id: str, session: Session = Depends(get_session)):
+def read_night(project_id: str, session: Session = Depends(get_session)):
     """The project's night that runs, else its last one; null: it never had one."""
     if session.get(Project, project_id) is None:
         raise HTTPException(404, "project not found")
@@ -88,7 +93,7 @@ async def read_night(project_id: str, session: Session = Depends(get_session)):
 
 
 @router.get("/conversations/{cid}/away", response_model=list[AwayOut])
-async def read_cards(cid: str, session: Session = Depends(get_session)):
+def read_cards(cid: str, session: Session = Depends(get_session)):
     """The cards the Lead put in this chat, oldest first - with their nights."""
     if session.get(Conversation, cid) is None:
         raise HTTPException(404, "conversation not found")

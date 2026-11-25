@@ -69,7 +69,7 @@ PUSH_LINE = (
     "at {tip7}"
 )
 PUSH_PR = " · opens a pull request into {into}"
-PUSH_WHY = "A push leaves this machine: it waits for your Run"
+PUSH_WHY = "A push leaves this machine: nothing goes up before you say so"
 MARKS = {"green": "✓", "red": "✗"}
 
 

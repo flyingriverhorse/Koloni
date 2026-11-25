@@ -1,12 +1,11 @@
 """The decision log (`app.decisions`) as the API gives it - beside `app.schemas`, which is at its
-size limit. Read only: nothing adds, changes or deletes a row of it."""
+size limit, and imports nothing of it: a night's job carries its rows (`AwayJobOut.decisions`).
+Read only: nothing adds, changes or deletes a row of it."""
 
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
-
-from app.schemas import BacklogDecideIn
 
 
 class DecisionLink(BaseModel):
@@ -43,8 +42,13 @@ class Decision(BaseModel):
     source: Literal["preferences", "rules", "message"] | None = None
     link: DecisionLink
     # "change": today's Change still works (an answer while its agent works; a To-do choice).
-    undo: Literal["change", "none"]
+    # "change_and_redo": an answer whose agent has finished, its work still there to go on with -
+    # the user's answer in its place and a new turn of its chat (`app.redo`).
+    undo: Literal["change", "change_and_redo", "none"]
     undo_reason: str | None  # (where it is "none": why, in plain words)
+    # What Change and redo would add to, where it says more than "a new turn": the branch of a job
+    # you pushed ("adds to the branch koloni/… that you pushed"). None: nothing more.
+    undo_note: str | None = None
     # Whether the user said OK to it: a card's answer, a sub-agent opened or not, a command run or
     # not run on their words or refused by the judge, a To-do choice; None for one with no OK (a
     # command the judge asked about on its card).
@@ -56,11 +60,3 @@ class DecisionLog(BaseModel):
     # The judge's "fine" in the period: a count, not rows (a night can have hundreds).
     judge_fine: int
     more: bool = False  # there were more rows than `rows` holds
-
-
-class TaskDecideIn(BacklogDecideIn):
-    """The user's word on a task an agent proposed - and, from the decision log's Change, the
-    state its row showed the Orchestrator's word in (`decisions.as_shown`): None from
-    the To-do page and the chat, which decide what waits now."""
-
-    expect: Literal["proposed", "added"] | None = None

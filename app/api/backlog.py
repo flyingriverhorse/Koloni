@@ -4,6 +4,8 @@ user's own, from
 the app's own page (`require_own_origin`): an agent's command against the app's address
 neither writes a task nor approves its own proposal. Reading is open."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
@@ -14,6 +16,7 @@ from app.api.recipes import Asked, ask_in_turn, askers, chat_of
 from app.api.usage import over_budget, over_month
 from app.db.models import BacklogTask, Conversation, Project, Story, new_chat, now
 from app.schemas import (
+    BacklogDecideIn,
     BacklogDoIn,
     BacklogDoOut,
     BacklogDrafter,
@@ -25,11 +28,19 @@ from app.schemas import (
     TodoTreeAdded,
     TodoTreeIn,
 )
-from app.schemas_decisions import TaskDecideIn
 from app.serialize import conversation_out
 
 router = APIRouter(prefix="/api", tags=["backlog"])
 OWN = [Depends(require_own_origin)]
+
+
+class TaskDecideIn(BacklogDecideIn):
+    """The user's word on a task an agent proposed - and, from the decision log's Change, the
+    state its row showed the Orchestrator's word in (`decisions.as_shown`): None from
+    the To-do page and the chat, which decide what waits now. (Here, not beside the log's shapes
+    in `app.schemas_decisions`: those are in `AwayJobOut`, which `app.schemas` imports.)"""
+
+    expect: Literal["proposed", "added"] | None = None
 
 
 def _project(session: Session, project_id: str) -> Project:
