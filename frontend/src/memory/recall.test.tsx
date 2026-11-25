@@ -180,7 +180,7 @@ test('a closed backlog task and a trigger’s turn are said as what they are, wi
   const said = within(await within(search()).findByRole('list', { name: 'In earlier messages' })).getAllByRole(
     'listitem',
   )
-  expect(said[0]).toHaveTextContent('a backlog task closed by you · a day not on record')
+  expect(said[0]).toHaveTextContent('a To-do task closed by you · a day not on record')
   expect(said[0]).not.toHaveTextContent('· ·')
   expect(said[1]).toHaveTextContent(`Lead · spin · ${moment('2026-10-13T10:01:00Z')} · in a trigger’s turn`)
   // the box emptied, what was found deeper goes with it

@@ -98,8 +98,8 @@ class Refused(ValueError):
     """What is wrong with an agent's call, said back to it."""
 
 
-# Stop everything (`app.api.hold`): what starts by itself waits until Resume - this backlog
-# working itself, a night, a trigger. Its value is when it began. Not the user's own messages.
+# Stop everything (`app.api.hold`): what starts by itself waits until Resume - a chat's queue of
+# To-do tasks, a night, a trigger. Its value is when it began. Not the user's own messages.
 HOLD = "everything_held"
 
 

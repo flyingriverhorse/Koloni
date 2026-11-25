@@ -43,8 +43,8 @@ the project, so it has none. What stops it:
 - it goes round in circles (below);
 - a limit you set: the **Lead** role's **At most this many steps**, a trigger's **Model steps a run**
   for the whole turn;
-- in a turn nobody watches (a To-do task's, a job while you're away, a trigger's whose **Minutes
-  a run** are longer): nothing has moved
+- in a To-do task's turn, and in a turn nobody watches (a job while you're away, a trigger's whose
+  **Minutes a run** are longer): nothing has moved
   for Settings › The app › **Stuck after this many minutes with no progress** (30 unless you change
   it) - no file of the turn changed, no agent finished its work, no failing command passed. Each of
   those starts the minutes again, so honest work runs as long as it needs. They do not run out while
@@ -54,7 +54,7 @@ the project, so it has none. What stops it:
   at most (hours)** (8 unless you change it; empty: no limit), however they go. A trigger's
   **Minutes a run** and a night's stop time hold as before;
 - either way the turn fails with the reason, its work kept - never cancelled: a To-do task gets its
-  fix round, then is blocked, and the run goes on; a night tries the job once more, then goes on;
+  fix round, then is stuck, and its chat's queue goes on; a night tries the job once more, then goes on;
 - money and tokens, where you set them: the project's token limit for a message, its monthly
   budget, a night's money;
 - **Stop**.
@@ -92,7 +92,7 @@ round in circles again, a card under the call asks you:
 - **No answer in 10 minutes**: the turn ends by itself. What is in the project stays, and work in
   agents' copies stays behind its cards, as at **Stop**. KOLONİ's line in the chat says how many
   agents it had opened, how many files it had changed in the project, and which call it repeated.
-  A message you sent meanwhile, the To-do run or the night then goes on.
+  A message you sent meanwhile, the chat's To-do queue or the night then goes on.
 
 Either way the turn ends there: nothing more is waited for, and no other card comes. Where this
 turn's work is already in the project, it ends **completed**, not red, with KOLONİ's line saying why
@@ -102,10 +102,10 @@ The card waits for you at every level, **Full auto** too. As it goes up, KOLONİ
 desktop and at the project's notification address, where you set them (Settings › This project):
 "The Orchestrator seems stuck: it repeated list_dir with the same result…".
 
-In a turn nobody watches (a trigger's, a job while you're away, a To-do task) there is no card: the
-Orchestrator fails with the reason on record, also where it had written something - so a To-do task
-gets its fix round, then is blocked with why - and a night or the To-do run goes on with the next
-job or task.
+In a turn nobody watches (a trigger's, a job while you're away) there is no card: the Orchestrator
+fails with the reason on record, also where it had written something, and a night goes on with the
+next job. A To-do task's turn is its chat's, so the card comes there too; where the turn fails, the
+task gets its fix round, then is stuck with why, and the chat's queue goes on with the next task.
 
 ### When the Orchestrator's model is slow to answer
 
@@ -214,7 +214,6 @@ is left:
 - a job of [work while you're away](../automation/overnight.md#step-limits-while-away);
 - a turn a trigger started: the trigger's **Model steps a run** holds for the whole turn, and it ends
   with "budget: stopped after {steps} model steps, the most this trigger gives a turn";
-- a To-do task's chat;
 - a room's members, and a room's sharing step (which has one step of its own);
 - an agent answering another agent's question, or working on another agent's message, a go on
   included: the sender waits for its reply;

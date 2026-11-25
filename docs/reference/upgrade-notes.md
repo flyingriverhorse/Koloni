@@ -20,10 +20,23 @@ Only what needs your attention after an update; everything else is in the [Chang
 
 ### 0.1.8
 
-- **The database** is upgraded at the first start (migrations from 0176 on), after KOLONİ copies it to
-  `runtime/data/backups/`. Nothing of yours is deleted: To-do tasks become tasks of no story, and a Qoder
-  provider is switched off, not removed. To go back to 0.1.7, stop KOLONİ and put that copy back in place
-  of `runtime/data/koloni.db`.
+- **The database** is upgraded at the first start (migrations 0176 to 0182), after KOLONİ copies it to
+  `runtime/data/backups/`. Your chats and tasks are kept: To-do tasks become tasks of no story, a task
+  left at work goes back to todo, and a Qoder provider is switched off, not removed. Only To-do's six
+  Run settings are dropped (below). To go back to 0.1.7, stop KOLONİ and put that copy back in place of
+  `runtime/data/koloni.db`.
+- **To-do: Run the backlog, Runs by itself and Run settings are gone.** Tick tasks on To-do and press
+  **Do in chat**: they wait in that chat's queue and run there one by one, your own messages first. A
+  project whose To-do ran by itself stops; the Run settings (level, model, who changes the files) are
+  not kept anywhere. See [Doing tasks in a chat](../automation/todo.md#doing-tasks-in-a-chat).
+- **A To-do task's turn is its chat's**: at that chat's permission level and on its model (a CLI with
+  tools of its own too), asking on its cards there - no longer under a night's rules. Look at the level
+  of a chat before you give it tasks.
+- **A story works on its own git branch** (`koloni/…`) in a project in git: nothing of it is in your
+  project until **Close the story** checks the branch and merges it or opens a pull request. See
+  [A story's branch](../automation/todo.md#a-storys-branch).
+- **☾ Away** runs its jobs at the level of the chat you go away from, no longer the lower of it and the
+  To-do page's. See [Work while you're away](../automation/overnight.md).
 - **Copilot on your GitHub account**: once the Models page or the chat's model panel opens, KOLONİ asks
   your account what it offers and switches off the models your plan does not list ("not on your Copilot
   plan now"). Look at the Copilot provider's **Models** tab. See

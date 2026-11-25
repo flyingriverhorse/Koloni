@@ -16,7 +16,7 @@ smallest that fits: every extra agent is more model calls, so more tokens, money
 | two models' answers side by side | **Compare** | one message goes to two models, and you keep one's work | two runs of the message |
 | several jobs done while you are away | **☾ Away** | your To-do tasks run one at a time, each in its own copy, and you decide when you're back what comes in | each job, within the spend limit you set, if any |
 | the same job by the clock, or when files change | **a trigger** | it starts a turn by itself, with only the permissions you ticked | each run, within the trigger's budget |
-| a list of tasks worked through in order | **To-do** | each task runs in a chat of its own, one after another | each task's turn |
+| a list of tasks worked through in order | **To-do** | ticked tasks wait in a chat's queue and run there one by one, each story in a topic of its own | each task's turn |
 
 ## Examples
 

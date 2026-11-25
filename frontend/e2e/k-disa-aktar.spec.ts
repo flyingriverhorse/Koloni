@@ -38,7 +38,7 @@ for (const theme of ['light', 'dark'] as const)
     await expect(said).toContainText(
       'Ready to restore. It replaces your data the next time KOLONİ starts: close KOLONİ and start it again. Until then nothing changes, and anything you do meanwhile is set aside with your current data in runtime/before-restore/.',
     )
-    await expect(said).toContainText('Triggers and backlogs wait until you press Resume.')
+    await expect(said).toContainText('Triggers wait until you press Resume.')
     expect((await panel.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     await panel.screenshot({ path: path.join(SHOTS, `restore-staged-${theme}.png`) })
     await said.getByRole('button', { name: 'Cancel' }).click()

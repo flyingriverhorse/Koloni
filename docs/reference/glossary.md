@@ -179,8 +179,8 @@ KOLONİ's own words, as they appear on screen.
   Tools page and give them to roles.
 
 **Stop everything**
-: The button in the top bar that stops every turn in every chat and holds triggers, To-do lists that run
-  by themselves, and work while you're away. While it holds, it reads **Held · Resume**. See
+: The button in the top bar that stops every turn in every chat and holds triggers, the To-do tasks
+  waiting in a chat's queue, and work while you're away. While it holds, it reads **Held · Resume**. See
   [Chat and canvas](../use/chat-and-canvas.md#writing-a-message).
 
 **Story**
@@ -217,8 +217,9 @@ KOLONİ's own words, as they appear on screen.
   the Models page. A model with no tier is never picked by itself.
 
 **To-do**
-: A project's tasks, in your order: goals hold stories, stories hold tasks and bugs. Agents, and the
-  Scout after a turn, propose tasks; you decide.
+: A project's tasks, in your order: goals hold stories, stories hold tasks and bugs. Ticked tasks run
+  in a chat you give them to (**Do in chat**), one by one, at that chat's level and on its model. Agents,
+  and the Scout after a turn, propose tasks; you decide. See [To-do](../automation/todo.md).
 
 **Topic**
 : The turns of a chat that go on with one piece of work. The Orchestrator is sent its own topic's

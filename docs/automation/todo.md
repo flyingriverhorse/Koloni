@@ -182,7 +182,10 @@ Tick the tasks you want done - a story's tick ticks its open tasks - and the bar
 it is a chat of this project) or to **A new chat**, named by the first of them. "Each story goes into its
 own topic; a task without a story gets a topic of its own. They wait in the chat's queue." KOLONİ checks
 your ticks as they stand when you press it: a task done meanwhile, one waiting in another chat's queue,
-a proposal, a night's job or a task of another project is refused, and nothing is queued.
+a proposal, one the Orchestrator added for you that waits for your **OK**, a night's job or a task of
+another project is refused, and so is a story's task while another task of that story waits or works in
+another chat ("do the story there") - then nothing is queued. Over the project's monthly budget nothing
+is queued either.
 
 ![A new chat running a story's tasks: each task's message "From To-do · task 2 / 3" with its title and the brief folded under, the Orchestrator's answer, and a "Done?" card with Yes, done and Not yet](../images/todo-in-chat.png)
 
@@ -197,9 +200,9 @@ task goes first.
 A task's turn is an ordinary turn of that chat: at the chat's level, on the chat's model (Claude Code and
 the other CLIs included), and what needs your word asks on its cards there. Its first message is the
 task - in the chat as **From To-do · task 2 / 3**, its title and what makes it done, the whole brief folded
-under. A story's tasks go on in one topic - a line **Topic · Story · … · 📓 notes** over it, its 📓
-opening the story's [notebook](#the-storys-notebook) - so the Orchestrator and a CLI that goes on in its
-session remember the task before; after a task that ended badly, or a day later, the story's next task
+under. A story's tasks go on in one topic - a line **Topic · Story · … · 📓 notes** over it, its 📓 a
+button that opens the story's [notebook](#the-storys-notebook) once the notebook has a note - so the
+Orchestrator and a CLI that goes on in its session remember the task before; after a task that ended badly, or a day later, the story's next task
 starts in a new topic, told the story so far ([A story's session](#a-storys-session)). A task of no story
 has a topic of its own; given to a chat again, it starts in a new one - only a fix round, or a turn Stop
 everything cut, goes on in the topic it had.
@@ -222,8 +225,9 @@ as a last resort, after **An unattended turn runs at most (hours)** (8 unless yo
 no limit). A task's turn also waits for its checks before it ends, so a check that failed gives it its
 fix round.
 
-**Stop** on a task's turn, a restart of KOLONİ, or the project's monthly budget stops the queue: the task
-and those waiting go back to To-do, and one line in the chat says why ("The To-do queue stopped: …").
+**Stop** on a task's turn, a restart of KOLONİ, the project's monthly budget, a task's turn stopped by
+the project's token limit or its provider's limit, or archiving the chat stops the queue: the task and
+those waiting go back to To-do, and one line in the chat says why ("The To-do queue stopped: …").
 **Stop everything** and **☾ Away** only hold it: the stopped task goes back to the head of the queue, and
 **Resume** - or your coming back - goes on.
 
@@ -250,8 +254,8 @@ Orchestrator is told the names of the chat's other topics, with how a story's or
 
 ### A story's branch
 
-In a project that is a git repository, a story's tasks run on the story's own branch (`koloni/…`), one
-after another - each turn in a worktree of it, so nothing of the story is in your project until you close
+In a project that is a git repository, a story's tasks run on the story's own branch
+(`koloni/<its name>-<4 characters of its id>`), one after another - each turn in a worktree of it, so nothing of the story is in your project until you close
 it. **Close the story** runs KOLONİ's check on the branch - the tests its tasks wrote: it passes, the branch
 is merged into yours, or sent as a pull request where the project's finished work goes so
 ([Branches](../use/workspace.md#branches)); it fails, the branch waits and the story's last task
@@ -262,7 +266,8 @@ holding a secret KOLONİ knows is held too, its last task stuck with why (KOLON�
 your folder on no branch, or on the story's branch itself - nothing goes in and the story stays open; only a
 branch deleted from git counts as gone. A chat holding a story's branch is not deleted until the story is
 closed or deleted; a deleted story's branch stays in git, and its chat says so. A task added to a closed
-story opens it again. A task of no story has a small
+story opens it again. A message of your own in the story's topic works in the project, not on the
+story's branch. A task of no story has a small
 branch of its own, merged at the end of its turn as a team's branch is (at **Ask before changes**, on a card).
 A project with no git has no branch: the tasks work in the project, agents holding the files they change
 as in any chat. Where the chat's Orchestrator is a CLI that works with its own tools in the project, its

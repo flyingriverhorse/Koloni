@@ -32,7 +32,7 @@ unread and how many things wait for you.
   A queued message can be removed. **Stop**, on the line over the message, stops the work. If KOLONİ restarts before a queued message
   runs, it stays in the chat as "Not sent: KOLONİ restarted", with **Send** to send it now.
 - **Stop everything**, in the top bar on every page, stops every turn in every chat and holds what
-  starts by itself: triggers, To-do lists that run by themselves, and work while you're away. It asks first, saying
+  starts by itself: triggers, the To-do tasks waiting in a chat's queue, and work while you're away. It asks first, saying
   what runs and what will be held. Then the button reads **Held · Resume**; its panel lists the chats it
   stopped and what is held, with **Resume**. Your own messages still run while it holds. After
   **Resume**, a trigger waits for its next time: the times missed meanwhile are skipped.
@@ -92,7 +92,8 @@ unread and how many things wait for you.
 - A To-do task given to the chat (**Do in chat**, [To-do](../automation/todo.md#doing-tasks-in-a-chat))
   shows as the task: **From To-do · task 2 / 3** (of its story; **task** or **bug** for one of no story), its
   title and "Done when: …", its whole brief under **The whole brief**. A story's topic has the line
-  **Topic · Story · … · 📓 notes**. Under a task's last turn the chat asks **Done? - "…"** (**Yes, done** /
+  **Topic · Story · … · 📓 notes**; once the story's notebook has a note, its 📓 is a button that opens
+  it. Under a task's last turn the chat asks **Done? - "…"** (**Yes, done** /
   **Not yet**) or, stuck, **Stuck - "…"** with why (**Fix it** / **Open it in To-do** / **Leave it**); once
   every task of a story is done, **Story done? - "…"** (**Close the story** / **Add a task**). Above the
   message box, **N wait** lists the chat's queue - the task at work, those waiting with **Remove** - and
@@ -106,8 +107,8 @@ unread and how many things wait for you.
   canvas**. The **↺** button on a message whose work changed files is **Undo these changes**.
 - While a story of To-do works in the chat, one line over the messages says so: **Story · Login · 2 / 3 ·
   next: Add a test · 📓 notes** - the story, the place of its task at work among its tasks, and its next
-  task while one waits in the chat's queue. **📓 notes** opens the story's
-  [notebook](../automation/todo.md#the-storys-notebook). In a narrow chat only the story and its place stay.
+  task while one waits in the chat's queue. **📓 notes**, there once the notebook has a note, opens the
+  story's [notebook](../automation/todo.md#the-storys-notebook). In a narrow chat only the story and its place stay.
 
 ### Undo and restore
 
