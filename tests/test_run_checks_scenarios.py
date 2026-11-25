@@ -4,19 +4,23 @@ end still sends the work back -, and a green one whose work is the same at the e
 there: a `git commit` after it runs the tests no second time. Offered to the Orchestrator at its
 own work in a project only - an API model's, a CLI's over KOLONİ's bridge."""
 
+import asyncio
 import sys
 import time
+from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import select
 
 from app import proof
 from app.agent import AgentRunner
 from app.agent.checks_tool_mixin import NOT_HERE, READYING, RUN_CHECKS_SCHEMA
-from app.agent.proof_mixin import AWAY_GUESS, PROOF_CALL
+from app.agent.proof_mixin import AWAY_GUESS, PROOF_CALL, Proof
 from app.agent.review_mixin import REVIEWERS, ReviewMixin
 from app.agent.test_ask_mixin import TestAskMixin
 from app.agent.words import RUN_CHECKS_LEAD, TEST_ASKED
 from app.checks_now import CAPPED_ASKED, NOTHING_TO_CHECK, UNCHANGED_ASKED
+from app.db.models import Project
 from app.model_client import StepResult, ToolCallRequest
 from tests.conftest import scaled
 from tests.fakes import Script, ScriptedExecutor
@@ -717,3 +721,103 @@ def test_stop_during_an_asked_pass_ends_the_turn(make_client, wait_run, project_
     (asked_call,) = [one for one in snap["tool_calls"] if one["name"] == "run_checks"]
     assert asked_call["status"] != "succeeded"
     assert texts(snap) == ["Tests not finished: stopped"]
+
+
+# (H1's other channel: a command that writes a file git ignores leaves no change record)
+MAKES = (
+    "import os\n"
+    "os.makedirs('x', exist_ok=True)\n"
+    "open('x/.gitignore', 'w').write('*\\n')\n"
+    "open('x/test_bad.py', 'w').write('def test_bad():\\n    assert False\\n')\n"
+)
+
+
+@needs_git
+def test_a_command_after_green_that_may_write_still_gets_the_ends_pass(
+    make_client,
+    wait_run,
+    repo,  # noqa: F811
+):
+    project = checked_repo(repo)
+    client, _model = make_client(
+        [
+            step(
+                call("write_file", {"path": "a.py", "content": "OK = True\n"}, "w1"),
+                call("write_file", {"path": "test_a.py", "content": TEST}, "w2"),
+                call("write_file", {"path": "mk.py", "content": MAKES}, "w3"),
+            ),
+            asked(),
+            run(f"{sys.executable} mk.py", "c1"),
+            text("done"),
+        ]
+    )
+    cid, run_id = begin(client, repo, **project)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (made,) = [one for one in snap["commands"] if one["command"].endswith("mk.py")]
+    assert made["exit_code"] == 0 and (repo / "x" / "test_bad.py").exists(), made["output"]
+    assert "x/" not in git(repo, "status", "--porcelain")  # (git shows nothing of it)
+    assert answers(snap)[0].startswith("CHECKS: green\n")
+    assert passes(snap) == ["asked", "check"], passes(snap)
+
+
+@needs_git
+def test_the_same_work_under_other_checks_is_checked_afresh(
+    make_client,
+    wait_run,
+    repo,  # noqa: F811
+):
+    # (L2: an answer stands for its checks too - switched to Tests only between two calls, the
+    # second is no "unchanged")
+    project = checked_repo(repo)
+    runner: list = []
+
+    async def switched(_on_delta):
+        with runner[0]._factory() as session:
+            for one in session.scalars(select(Project)):
+                one.after_change = "tests"
+            session.commit()
+        return asked("k2")
+
+    client, _model = make_client(
+        [
+            step(
+                call("write_file", {"path": "a.py", "content": "OK = True\n"}, "w1"),
+                call("write_file", {"path": "test_a.py", "content": TEST}, "w2"),
+            ),
+            asked("k1"),
+            switched,
+            text("done"),
+        ]
+    )
+    runner.append(client.app.state.runner)
+    cid, run_id = begin(client, repo, **project)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    first, second = answers(snap)
+    assert first.startswith("CHECKS: green\n") and second.startswith("CHECKS: green\n")
+    assert not second.endswith(UNCHANGED_ASKED) and passes(snap) == ["asked", "asked"]
+
+
+def test_the_ends_hand_off_never_takes_run_checks_record_for_its_own(make_client, monkeypatch):
+    # (L3: an answer that ends the turn after a word of KOLONİ's hands a stronger model only
+    # what the end gate itself found - never a run_checks pass's failures)
+    client, _model = make_client([])
+    runner, handed = client.app.state.runner, []
+
+    async def stronger(_self, _ctx, held):
+        handed.append(held)
+
+    async def no_hold(_self, _ctx, _held):
+        return None
+
+    monkeypatch.setattr(AgentRunner, "_stronger", stronger)
+    monkeypatch.setattr(AgentRunner, "_on_hold", no_hold)
+    ctx = SimpleNamespace(run_id="r1", depth=0, cid="c1", agent_id="a1")
+    runner._proofs["r1"] = Proof(left_failing=[(None, "1 failed")])  # (run_checks' alone)
+    asyncio.run(runner._stronger_at_end(ctx, "completed"))
+    assert handed == []
+    runner._proofs["r1"].gated = True  # (the control: the end gate's own)
+    asyncio.run(runner._stronger_at_end(ctx, "completed"))
+    assert len(handed) == 1
+    runner._proofs.pop("r1")

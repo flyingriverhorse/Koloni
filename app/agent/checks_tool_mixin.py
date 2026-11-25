@@ -18,7 +18,7 @@ from app import checks_now, proof
 from app.agent.ctx import Ctx
 from app.agent.proof_mixin import Proof, Work
 from app.agent.words import PROOF_LEAD, RUN_CHECKS_LEAD
-from app.db.models import Conversation, FileChange, Message, Run, ToolCall
+from app.db.models import Command, Conversation, FileChange, Message, Run, ToolCall
 from app.tools import ToolError, _fn
 
 if TYPE_CHECKING:
@@ -115,8 +115,11 @@ class ChecksToolMixin:
         """What a run_checks answer stands for (`Work`): the content identity of the Lead's work
         where it is (`checks_now.identity`: the project from the turn's first commit, its branch's
         worktree from where the branch began, or its plain copy - with the paths of the turn's
-        change records, whatever git ignores), the checks on, and the turn's change records, each
-        with its status: a record made or decided since is other work, whatever git shows."""
+        change records, whatever git ignores), the checks on, the turn's change records, each with
+        its status, and its commands that may have written (`checks_now.writes`: one that wrote a
+        file git ignores leaves no record) - by the Lead and the agents where it works, never
+        KOLONİ's own: a record or such a command since is other work, whatever git shows."""
+        mine = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(proof.PROOF_CALL))
         with self._factory() as session:
             on = proof.checks_of(
                 session, session.get_one(Conversation, ctx.cid), session.get(Run, ctx.run_id)
@@ -126,7 +129,16 @@ class ChecksToolMixin:
                     FileChange.run_id == ctx.run_id
                 )
             ).all()
+            ran = session.execute(
+                select(Command.id, Command.command).where(
+                    Command.run_id == ctx.run_id,
+                    Command.agent_id.in_({ctx.agent_id, *self._sharing(ctx)}),
+                    Command.tool_call_id.is_not(None),
+                    Command.tool_call_id.not_in(mine),
+                )
+            ).all()
         also = {path for _id, _status, path in made}
+        wrote = frozenset(one for one, line in ran if checks_now.writes(line))
         copy = self._copies.get(self._works_in(ctx) or "")
         if copy is None:
             start, folder = (self._git_at.get(ctx.run_id) or {}).get("head"), Path(ctx.folder)
@@ -139,7 +151,7 @@ class ChecksToolMixin:
             folder = copy.root
         plain = copy if copy is not None and not copy.branch else None
         identity = await asyncio.to_thread(checks_now.identity, folder, start, plain, also)
-        return identity, on, frozenset((one, status) for one, status, _path in made)
+        return identity, on, frozenset((one, status) for one, status, _path in made), wrote
 
     async def _checked_as_is(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether run_checks found this very work green (`Proof.checked_as`) - the same content,

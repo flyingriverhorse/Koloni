@@ -11,8 +11,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app import git, injection
-from app.proof import ICONS, Row
+from app import commands, git, injection, ledger
+from app.proof import ICONS, Row, may_write
 
 if TYPE_CHECKING:
     from app.copies import Copy
@@ -36,6 +36,26 @@ STAGED = ("diff", "--cached", "--name-only", "-z", "--no-renames", "--no-ext-dif
 # ...and the folder against the index: changed, and new where git does not ignore them.
 CHANGED = ("ls-files", "-z", "--modified", "--others", "--exclude-standard")
 SUBMODULE = "160000"  # (a gitlink's mode, in `ls-files -s`)
+# git's own that change no file of the folder: they stage, commit or send what is there. (A hook
+# of the user's that writes one: a tracked file is read again, `identity`.)
+STILL = frozenset({"add", "commit", "push"})
+
+
+def writes(line: str) -> bool:
+    """Whether a command line may have changed the work's files (`proof.may_write`) - a file git
+    ignores too, which no identity reads - but for a line of git's alone that only stages,
+    commits or pushes (`git add -A && git commit -m x`): run after a green answer, the work is
+    the one checked. Anything git runs before its subcommand (`git -c …`), a substitution, a
+    redirection, a line not read: a write."""
+    if not may_write(line):
+        return False
+    if "$(" in line or "`" in line or ledger.written_to(line):
+        return True
+    parts = commands._parts(line)
+    return not parts or any(
+        len(words) < 2 or commands._program(words[0]) != "git" or words[1] not in STILL
+        for words in parts
+    )
 
 
 def verdict(

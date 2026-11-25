@@ -8,7 +8,17 @@ import sys
 import pytest
 
 from app import copies, git, injection, proof
-from app.checks_now import DATA, GREEN, NOT_COMPLETE, RED, answer, git_line, identity, verdict
+from app.checks_now import (
+    DATA,
+    GREEN,
+    NOT_COMPLETE,
+    RED,
+    answer,
+    git_line,
+    identity,
+    verdict,
+    writes,
+)
 from tests.test_dal_takim import repo  # noqa: F401  (a fixture)
 from tests.test_git_view import run
 from tests.test_take_in_scenarios import needs_git
@@ -229,3 +239,38 @@ def test_no_filter_the_repositorys_settings_name_runs(repo, tmp_path):  # noqa: 
     marker.unlink()
     assert identity(repo, start) is not None and git_line(repo) is not None
     assert not marker.exists()
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "python mk.py",
+        "echo X=2 > .env",
+        "git log > a.py",
+        'git commit -m "$(rm -f x)"',
+        "git -c core.fsmonitor=x commit -m y",
+        "cd x && git commit -m y",
+        'bash -c "git commit -m y"',
+        "git add -A && python mk.py",
+        "git clean -fdx",
+        "git stash",
+    ],
+)
+def test_a_line_that_may_write_is_other_work(line):
+    # (H1: a command may write what no record and no identity holds - a file git ignores)
+    assert writes(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "git add -A && git commit -qm done",
+        "git commit -qam x",
+        "git push origin HEAD",
+        "git status",
+        "pytest -q",
+        "cat a.py",
+    ],
+)
+def test_git_that_only_stages_commits_or_pushes_is_the_same_work(line):
+    assert not writes(line)

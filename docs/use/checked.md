@@ -880,17 +880,18 @@ work or tells you. It never assumes the condition holds.
 - **Not twice:** where the work is the same at the turn's end as when a green answer checked it,
   the end does not run the checks again: a `git commit` after a green answer is the same work. The
   same means: the files git shows as changed since the turn began, and every file the turn's agents
-  wrote on record - one git ignores too -, with the same content; the same checks on; and no change
-  of the turn recorded, or decided on a card, since. Anything else runs them again: any edit, a new
-  file, one deleted. Asked again on the same work, whatever it answered - green, red or not
-  complete -, it answers so again, nothing run, with "Unchanged since KOLONİ's last check: its
-  result stands."
+  wrote on record - one git ignores too -, with the same content; the same checks on; no change of
+  the turn recorded, or decided on a card, since; and no command of the Orchestrator's since that
+  may have written a file - a script, a redirection, `git -c …`; git's own `add`, `commit` and
+  `push` alone are the same work. Anything else runs them again: any edit, a new file, one deleted.
+  Asked again on the same work, whatever it answered - green, red or not complete -, it answers so
+  again, nothing run, with "Unchanged since KOLONİ's last check: its result stands." (That answer
+  is the one it gave: its line of where the work stands in git is as it was then.)
 - **What "the same" cannot see:** KOLONİ reads the files as they are in the folder, as the tests
   do - not git's index: a staged version that differs from the file, or a mode set only in the
-  index (`git update-index --chmod`), is not compared. A file git ignores that a command changed
-  (not one of the agents' own writes, which are on record) is not either. A project with a
-  submodule is never the same: what is in a submodule is not read, so its checks always run again.
-  Without git, in the project itself, nothing is the same either.
+  index (`git update-index --chmod`), is not compared. A project with a submodule is never the
+  same: what is in a submodule is not read, so its checks always run again. Without git, in the
+  project itself, nothing is the same either - each call runs the checks, Reviewer and all.
 - **How long:** each test command to its own limit - not the 2 minutes a turn you watch waits at
   its end, and no whole suite goes on after the answer.
 - **How often:** at most **Fix rounds** + 1 times a turn - 3 at 2 rounds; under **Until it passes**

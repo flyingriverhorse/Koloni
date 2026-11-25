@@ -98,8 +98,9 @@ NOT_REACHED = {
 }
 ENDED_FIRST = "the turn ended before KOLONİ's check"
 # What a run_checks answer stands for (`ChecksToolMixin._work_now`): the work's content identity
-# (None: not known), the checks on, and the turn's change records with their statuses.
-type Work = tuple[str | None, frozenset[str], frozenset[tuple[str, str]]]
+# (None: not known), the checks on, the turn's change records with their statuses, and its
+# commands that may have written.
+type Work = tuple[str | None, frozenset[str], frozenset[tuple[str, str]], frozenset[str]]
 
 
 @dataclass
