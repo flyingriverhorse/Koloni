@@ -128,6 +128,11 @@ STORY_STATES = ("todo", "running", "stuck", "done?", "done")
 # Said where a story's name is of what nobody sees alone (`name_key` "", K3): a story nobody sees
 # on the page, nor can name.
 NO_NAME = "a story needs a name you can see"
+NO_GOAL_NAME = "a goal needs a name you can see"  # (and a goal's: S1)
+
+
+class Refused(ValueError):
+    """What is wrong with an agent's call, said back to it (`backlog.Refused`)."""
 
 
 def story_state(story: Story, tasks: Sequence[BacklogTask]) -> str:
@@ -173,6 +178,8 @@ def _next_position(session: Session, model: type[Goal] | type[Story], project_id
 
 
 def add_goal(session: Session, project_id: str, title: str, created_by: str) -> Goal:
+    if not name_key(title):
+        raise Refused(NO_GOAL_NAME)
     goal = Goal(
         project_id=project_id,
         title=title,
@@ -341,34 +348,33 @@ def not_closable(session: Session, story: Story) -> int:
     return sum(task.status not in ("done", "proposed") for task in tasks_of(session, story.id))
 
 
-def story_named(session: Session, project_id: str, title: str) -> Story | None:
-    """The project's open story of this title, whatever its case; None if it has none."""
+def _the_one[T: (Goal, Story)](rows: Sequence[T], title: str, what: str) -> T | None:
+    """Of `rows` in their order, the one of this name: of exactly this title, else the one whose
+    name is this title's (`name_key`) - refused where several are and none is exactly it (two
+    that a store of before 0.1.9 told apart, "Batch  Alpha" and "Batch Alpha": which one is meant
+    is the agent's to say, never the first's by chance; Codex P2-1)."""
+    if exact := [row for row in rows if row.title == title]:
+        return exact[0]
     key = name_key(title)
-    return next(
-        (
-            story
-            for story in session.scalars(
-                select(Story)
-                .where(Story.project_id == project_id, Story.closed_at.is_(None))
-                .order_by(Story.position)
-            )
-            if name_key(story.title) == key
-        ),
-        None,
-    )
+    if len(near := [row for row in rows if name_key(row.title) == key]) > 1:
+        names = ", ".join(quoted(row.title) for row in near)
+        raise Refused(f"{len(near)} {what} match this name: {names} - give the exact one")
+    return near[0] if near else None
+
+
+def story_named(session: Session, project_id: str, title: str) -> Story | None:
+    """The project's open story of this title, whatever its case (`_the_one`); None if none."""
+    query = select(Story).where(Story.project_id == project_id, Story.closed_at.is_(None))
+    return _the_one(list(session.scalars(query.order_by(Story.position))), title, "stories")
 
 
 def goal_named(session: Session, project_id: str, title: str) -> Goal | None:
-    """The project's goal of this title, whatever its case; None if it has none."""
-    key = name_key(title)
-    return next(
-        (
-            goal
-            for goal in session.scalars(select(Goal).where(Goal.project_id == project_id))
-            if name_key(goal.title) == key
-        ),
-        None,
-    )
+    """The project's goal of this title, whatever its case (`_the_one`); None if it has none.
+    Refused for a name of what nobody sees: never one such goal an older store held (S1)."""
+    if not name_key(title):
+        raise Refused(NO_GOAL_NAME)
+    query = select(Goal).where(Goal.project_id == project_id).order_by(Goal.position)
+    return _the_one(list(session.scalars(query)), title, "goals")
 
 
 def story_of(session: Session, story_id: str | None, project_id: str | None) -> Story | None:

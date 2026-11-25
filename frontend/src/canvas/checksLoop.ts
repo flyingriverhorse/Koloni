@@ -346,7 +346,14 @@ const stopOf = (rows: Row[]) =>
 function dotsOf(box: Box, running: boolean, tone: Tone): Loop['dots'] {
   const last: Loop['dots'][number] = running ? 'running' : tone === 'ok' ? 'passed' : 'held'
   if (!box.passes) return running ? [last] : []
-  return box.passes.map((pass, at) => (at === box.passes!.length - 1 ? last : pass.sent === 'ask' ? 'asked' : 'held'))
+  return box.passes.map((pass, at) => (at === box.passes!.length - 1 ? last : doneDot(pass)))
+}
+
+/** A pass before the last: it went back - asked for a test (neutral) -, or, one the Orchestrator asked for (0.1.9's run_checks, which sends nothing back), as its tests and looks came out. */
+function doneDot(pass: Pass): Loop['dots'][number] {
+  if (pass.sent === 'ask') return 'asked'
+  const green = pass.tests === 'passed' && !pass.looks.some(look => look.verdict === 'HOLD')
+  return pass.kind === 'asked' && green ? 'passed' : 'held'
 }
 
 /** Whether the box says its rounds - its status in its tag, a dot a pass at its foot: sent back at least once, or at work. */

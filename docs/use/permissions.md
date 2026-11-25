@@ -406,21 +406,24 @@ file. Everything but your own words is marked as
 data an agent wrote, not instructions. It never sees an agent's messages, a tool's result or a file an
 agent read, and the secrets KOLONİ knows are masked first.
 
-**What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - as **When the judge finds a command risky** says:
+**What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - as
+**When the judge finds a command risky** says:
 
 - **Refuse and go on** (the default) - as Claude Code's auto mode does: the command does not run, no card
   opens and nothing waits. Its agent is told `KOLONİ's judge refused this: {why}. Do it another way, or ask
   the user.` and goes on; the command's row says **refused**, with **KOLONİ's judge refused: …** under it,
   and the chat's **Decided for you** - the top bar's pill says "1 decided", and opens it in Ready for you
-  - lists it with the judge's sentence until you click OK. Where KOLONİ keeps the line (see **Its card** below for which lines it keeps), the same line is
-  refused again in that turn without asking the model; any other line is asked about each time it runs.
+  - lists it with the judge's sentence until you click OK. Where KOLONİ keeps the line (see **Its card**
+  below for which lines it keeps), the same line is refused again in that turn without asking the model;
+  any other line is asked about each time it runs.
 - **Ask me** - it waits for you on a card that says **KOLONİ's judge: …**, the model's one sentence; once
   answered, that sentence stays under the command's row.
 
-In a job while you're away a risky command always waits, whichever you chose: the job waits there, as at
-any card, and the next one starts. Only the judge's own **risky** is refused - every card below stays a
-card at either choice: when the judge gave no verdict, the decision is yours, never a silent refusal.
-A command over 4,000 characters, or one that - or the program an agent wrote that
+In a job while you're away a risky command is always parked for you, whichever you chose, as any card
+there is, and the job goes on ([Waiting for you](../automation/overnight.md#waiting-for-you)). Only the
+judge's own **risky** is refused - every card below stays a card at either choice: when the judge gave no
+verdict, the decision is yours, never a silent refusal. A command over 4,000 characters, or one that - or
+the program an agent wrote that
 it runs, or one of the earlier commands it would be shown - reads like orders to a model, is a card without
 asking. So is one the judge gave no answer for in 20 seconds (90 for a model on a CLI), gave an answer it
 could not read for, or could not be asked about now - no room on its model's provider (its limit, this
@@ -440,9 +443,14 @@ KOLONİ knows all the line runs, as it is:
   more - `python x.py`, `node x.js`, `make` or `make target` (its Makefile), `make -f F`, `npm test` or
   `npm run <script>` (that folder's `package.json`), `docker build [-f F] [-t T] .` (its Dockerfile). Once
   the file changes, it is another line, asked again;
-- or one plain command of a few that run none of the project's code, kept by its words: `curl` and `wget`
-  (where no word names a path in the folder), and the file commands `rm`, `rmdir`, `del`, `mkdir`, `md`,
-  `cp`, `copy`, `mv`, `move`, `ren`, `chmod`, `touch`.
+- or one plain command of a few that run none of the project's code, kept by its words: the file
+  commands `rm`, `rmdir`, `del`, `mkdir`, `md`, `cp`, `copy`, `mv`, `move`, `ren`, `chmod`, `touch`; and
+  `curl` and `wget` only where every word after them is an `http://` or `https://` address, a flag that
+  takes no value (curl: `-s`, `-S`, `-f`, `-L`, `-I`, `-v`, `-sS`, `-fsS`, `-fsSL`, `-sSL`, `-fL`,
+  `--silent`, `--show-error`, `--fail`, `--location`, `--head`, `--verbose`, `--compressed`; wget: `-q`,
+  `-nv`, `--quiet`, `--no-verbose`, `-S`, `--server-response`, `--spider`) or the output file `curl -o
+  NAME` / `wget -O NAME` (a plain file name) - any other word (a config, a file to send, a value glued
+  to a flag, a quote, `file://`) and the line is asked each time.
 
 Every other line is asked about each time it runs, and its card has no box: a chain, a pipe, a
 redirection or a substitution - `python k.py && python e.py`, `… ; …`, `… | …`, `… || …`, `… > out.txt`,
@@ -463,7 +471,8 @@ the Fast tier. It says once in the chat "Full auto's judge is off for this turn:
 turn runs as Full auto did before.
 
 **Which model:** Settings › The app › Agents › **Judge model** - **Fast tier's first (now: …)** unless you
-choose one of the models listed (those of every tier that answer with no tools). A choice that cannot be
+choose one of the models listed (those of every tier that answer with no tools - a CLI with tools of its
+own among them, such as GitHub Copilot CLI run **Native**, asked with them off). A choice that cannot be
 asked now (its provider gone, closed to agents or down) stays chosen and the list says so; the Fast tier's
 first is asked meanwhile. On a CLI each such command waits for it to start. [Check what I said
 first](#check-what-i-said-first) asks the same model. Each command it looks at is one request, on your plan or your bill, shown on
@@ -530,7 +539,12 @@ messages in the chat - never anything an agent wrote - and then:
   before. Its card then says "Nothing you said covers this."
 - Two lines of yours that disagree about a delete: a line that names what the delete takes and forbids
   it or sets a condition - "Never delete ./x." beside "You may delete ./x.", or an item under "Never delete
-  these:" - keeps its card, whichever line the model quoted, as KOLONİ reads such a line: some wordings
+  these:" - keeps its card, whichever line the model quoted, as KOLONİ reads such a line. A heading covers
+  the lines right under it, up to a blank line, and a list or code under it until a line of prose; a
+  heading right under another is read with it ("Never delete:" over "Outputs:" forbids what Outputs
+  lists), unless a blank line came after the other's own lines. So "Never delete these:" over
+  `./archive` says nothing of a "You may delete ./build." in a section of its own after a blank line.
+  Some wordings
   ("Keep build.", "Leave build alone.", "…but check with me first.") are not caught, and the measurement
   decides the rest. Two lines about a push, a branch or a remote are left to the model.
 

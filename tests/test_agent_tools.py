@@ -38,8 +38,9 @@ def test_tool_result_reaches_the_next_model_step(make_client, wait_run, project_
     # backlog's four, the lead's; and ask_secret, with run_command; and offer_away, slice 106;
     # and recall_output, every agent's at its own work: K-gecmis-zengin; and the eight browser
     # tools, slice 51; and view_image, 28e; and diagram_image, K-drawio; and command_output and
-    # stop_command, every agent's at its own work: k-araclar-018)
-    assert model.tool_args[0] is not None and len(model.tool_args[0]) == 40
+    # stop_command, every agent's at its own work: k-araclar-018; and run_checks, the
+    # Orchestrator's at its own work in a project: 0.1.9)
+    assert model.tool_args[0] is not None and len(model.tool_args[0]) == 41
 
 
 def test_tool_calls_are_kept_in_history_for_later_turns(make_client, wait_run, project_dir):
@@ -143,7 +144,7 @@ def test_old_tool_output_is_trimmed_when_history_exceeds_the_budget(
         TEAM_PROMPT,
     )
     from app.agent.context_mixin import ASKED_IN_WORDS
-    from app.agent.words import PROOF_LEAD
+    from app.agent.words import PROOF_LEAD, RUN_CHECKS_LEAD
     from app.executors.host import SHELL_WRITES
     from app.roles import WHO_SPLITS
 
@@ -151,7 +152,7 @@ def test_old_tool_output_is_trimmed_when_history_exceeds_the_budget(
     # and the blanked read is said in a line, with its id: K-gecmis-zengin. The system
     # prompt's line on a refusal grew 77 characters, B-321, and the shell line, B-324 - counted
     # with Windows PowerShell's, whichever shell this machine has - and its rule on asking, B-204;
-    # and S2's line on what KOLONİ checks at the turn's end, `PROOF_LEAD`.)
+    # and S2's line on what KOLONİ checks at the turn's end, `PROOF_LEAD`, with run_checks' (0.1.9).)
     monkeypatch.setattr("app.executors.host._pwsh", lambda: None)
     settings_env["KOLONI_CONTEXT_CHARS"] = str(
         1620
@@ -171,7 +172,7 @@ def test_old_tool_output_is_trimmed_when_history_exceeds_the_budget(
                 AWAY_PROMPT,
                 BRIEF_PROMPT,
                 REPORT_ONCE,
-                PROOF_LEAD,
+                PROOF_LEAD + " " + RUN_CHECKS_LEAD,
             )
         )
         + len(" read big.txt (1 lines) (full: recall_output id=)")

@@ -50,7 +50,10 @@ export function commandStatus(
 type Status = { label: string; tone: Tone }
 
 /** The words of a command that ended with no exit code of its own (a state missing here fails the type check). */
-const ENDED: Record<'timed_out' | 'killed' | 'rejected' | 'refused' | 'failed_to_start' | 'blocked', Status> = {
+const ENDED: Record<
+  'timed_out' | 'killed' | 'rejected' | 'refused' | 'failed_to_start' | 'blocked' | 'parked',
+  Status
+> = {
   timed_out: { label: 'timed out', tone: 'del' },
   killed: { label: 'killed', tone: 'muted' },
   rejected: { label: 'rejected', tone: 'muted' },
@@ -59,6 +62,8 @@ const ENDED: Record<'timed_out' | 'killed' | 'rejected' | 'refused' | 'failed_to
   failed_to_start: { label: 'did not start', tone: 'del' },
   // K-48: its CLI called it done (exit 0), and its sandbox had refused the write.
   blocked: { label: 'blocked: its read-only sandbox refused a write', tone: 'del' },
+  // ☾ Away (§10): a job's card while you were away - not run; yours under Waiting for you.
+  parked: { label: 'parked for the morning', tone: 'warn' },
 }
 
 /** A server's own words for its state (`keep_running`); null where it reads as any command's, and for a command that is none. */

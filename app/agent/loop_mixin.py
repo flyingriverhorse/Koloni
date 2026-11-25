@@ -839,7 +839,7 @@ class LoopMixin:
             # round on half of it would go to an Orchestrator its step keeps from fixing it.
             answered = calls == self._calls_of(ctx)
             if status != "completed" or (
-                answered and (ctx.run_id in self._proofs or self._recipe_at_work(ctx))
+                answered and (self._gate_ran(ctx.run_id) or self._recipe_at_work(ctx))
             ):
                 await self._stronger_at_end(ctx, status)  # (S11: as at the gate's end)
                 return status, error

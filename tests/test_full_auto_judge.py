@@ -1,8 +1,8 @@
 """Full auto's judge (0.1.9): at Full auto, before a command the list does not stop runs, a small
 model is asked once whether it is risky - "fine" runs it unasked, "risky" is refused and its agent
 goes on (Refuse and go on, the project's default) or is put on a card (Ask me; in an Away job always:
-the job waits, the next starts). Whatever goes wrong is a card, never a run nor a refusal; where no
-model can be asked it stands aside for the turn and says so once."""
+parked for the user, the job goes on - §10). Whatever goes wrong is a card, never a run nor a
+refusal; where no model can be asked it stands aside for the turn and says so once."""
 
 import asyncio
 import functools
@@ -40,6 +40,13 @@ from tests.test_spawn import call, step
 pytestmark = [pytest.mark.judge, pytest.mark.no_po]
 OFF = ASIDE.split("{")[0]  # "Full auto's judge is off for this turn: "
 JUDGE_ASKED = "should this command run without asking the user, at Full auto?"
+
+
+@pytest.fixture(autouse=True)
+def _no_python_path(monkeypatch):
+    """W4: a PYTHONPATH in the shell the tests run from makes every Python line one that reads it
+    (`risk_judge_mixin._sees_python_path`); a test that wants one sets it."""
+    monkeypatch.delenv("PYTHONPATH", raising=False)
 
 
 def said(verdict, why="It runs the user's script."):
@@ -603,14 +610,19 @@ def test_a_to_do_tasks_turn_in_a_chat_at_full_auto_is_judged(judging, wait_run, 
     assert task(client, task_id)["conversation_id"] == cid
 
 
-def test_while_away_a_risky_command_makes_its_job_wait_and_the_next_goes_on(
-    judging, wait_run, project_dir
-):
+def test_the_judges_risky_in_a_job_is_parked(judging, wait_run, project_dir):
+    from app.db.away_models import Parked
     from tests.test_away_scenarios import ended, proposed_in, to_do
 
     jobs = {"jobs": [{"title": "one"}, {"title": "two"}]}
     client, _lead, judge, executor = judging(
-        [to_do(jobs), text("on your To-do"), cmd("python gen.py"), text("two done")],
+        [
+            to_do(jobs),
+            text("on your To-do"),
+            cmd("python gen.py"),
+            text("one done, gen.py waits"),
+            text("two done"),
+        ],
         [said("risky", "It mails the logs.")],
         [],
     )
@@ -624,9 +636,14 @@ def test_while_away_a_risky_command_makes_its_job_wait_and_the_next_goes_on(
     )
     assert gone.status_code == 200, gone.text
     one, two = ended(client, pid)["jobs"]
-    assert (one["state"], two["state"]) == ("waits", "done") and executor.started == []
+    # (§10: parked for the user, never run; the job went on, and waits for the morning)
+    assert (one["state"], one["why"], two["state"]) == ("waits", "1 parked", "done")
+    assert executor.started == []
     with client.app.state.session_factory() as session:
         assert session.get_one(BacklogTask, one["task_id"]).away_state == "waits"
+        (row,) = session.scalars(select(Parked)).all()
+        assert (row.what, row.data["reason"]) == ("python gen.py", "judge")
+        assert row.data["judge"] == "KOLONİ's judge: It mails the logs."
     # (it read the words of the chat the user went away from)
     assert "do one and two while I sleep" in judge.calls[0][0]["content"]
 
@@ -1013,7 +1030,6 @@ def test_a_python_line_in_a_copy_is_kept_only_isolated(
     other.mkdir()
     for at in (project_dir, other):
         (at / "gen.py").write_text(BENIGN, encoding="utf-8")
-    monkeypatch.delenv("PYTHONPATH", raising=False)
     client, _lead, judge, _executor = judging(
         [cmd("python gen.py"), gate.step(text("done"))],
         [said("risky")] + [said("fine")] * 3,

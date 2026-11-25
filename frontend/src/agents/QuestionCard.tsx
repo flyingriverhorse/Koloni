@@ -184,6 +184,8 @@ const ENDED: Record<Exclude<Question['status'], 'pending' | 'answered'>, string>
   interrupted: 'not answered',
   // (G5.4: its files changed after your answer - the card was asked again.)
   superseded: 'asked again: its files changed since',
+  // (☾ Away: a job's question parked for you while you were away)
+  parked: 'Parked for you: answer it under Waiting for you',
 }
 
 /**

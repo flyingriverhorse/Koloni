@@ -284,6 +284,7 @@ const ENDED: Partial<Record<Question['status'], string>> = {
   cancelled: 'not answered',
   interrupted: 'not answered',
   superseded: 'asked again: its files changed since',
+  parked: 'Parked for you: answer it under Waiting for you',
 }
 
 /** In its turn, the Orchestrator's question once it is over: "Question: … / Answered: …"; opened, its options, the one given ticked. */

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import literal_column, select
 from sqlalchemy.orm import object_session
 
-from app import away, memory, observer, raw, signs, topics
+from app import away, memory, observer, parked, raw, signs, topics
 from app.agent.cards import _answer, lead_pick
 from app.agent.ctx import Ctx, _NobodyToAsk
 from app.agent.words import AGENT_TERMINAL, ANSWER_PREFIX, KOLONIS, READY_FOR_YOU
@@ -50,9 +50,12 @@ DELEGABLE = frozenset({"ask_user", "ask_me", "spawn"})
 # ("checker"), a "card" - kept work before a recipe starts again, an expert's "Add this to the
 # guide?" - and a sub-agent's Continue / Stop here at its step limit ("steps").
 FULL_AUTO_CARDS = frozenset({"card", "checker", "steps"})
-# ☾ Away: the kinds its one rule decides (`_decide_after`) - at Full auto or not: those, and the
-# step limit's card. "card" and "checker" are never decided while away nor after the minutes.
-DECIDES = DELEGABLE | {"steps"}
+# §10: the Orchestrator's own ask_user, in a job whose night runs (else B-181: the user's).
+OWN = "own"
+# ☾ Away: the kinds its one rule decides (`_decide_after`) - at Full auto or not: those, the
+# step limit's card and the Orchestrator's own question in a job (`OWN`). "card" and "checker" are
+# never decided while away nor after the minutes.
+DECIDES = DELEGABLE | {"steps", OWN}
 # A question whose answer the user types is not decided for them until this long after their
 # last keystroke (`AwayMixin.typing`).
 TYPING_HOLD_SECONDS = 120.0
@@ -87,6 +90,17 @@ LEAD_WRITES = "Give a short answer, one line."
 LEAD_COULD_NOT = "The Orchestrator could not answer for you: {why}"
 # K-cli-vekil: a CLI's one-shot answers in a turn, each a request of the user's plan.
 LEAD_CLI_MOST = 10
+# §10, in a job whose night runs: what the Orchestrator is told of its own question - and, of a
+# sub-agent's, the second sentence alone. `park` is an answer it may give; the word decides
+# nothing by itself - the question's record does (`_lead_said_it`).
+PARK = "park"
+PARK_TOO = (
+    "Only if the answer is something only the user can know (a password, an account, a personal "
+    "fact), answer `park`."
+)
+ORCHESTRATOR_AWAY = (
+    f"The user is away. Decide yourself and say what you assumed in one sentence. {PARK_TOO}"
+)
 
 # The Lead's answer for the user, in words (`how`: `HOW_AWAY`...).
 LEAD_ANSWERED = (
@@ -168,8 +182,10 @@ class QuestionsMixin:
                 self._stopped_by_koloni(ctx)
             return "failed", ASKED_AGAIN.format(count=count, answer=quoted(answer[:300]))
         ids: list[str] = []
+        # (§10: the Orchestrator's own, in a job whose night runs, is its own to decide - `OWN`)
+        own = OWN if self._parker(ctx, None) else None
         status, output = await self._ask_user(
-            ctx, call_id, args, ids=ids, kind="ask_user" if ctx.depth else None
+            ctx, call_id, args, ids=ids, kind="ask_user" if ctx.depth else own
         )
         with self._factory() as session:
             given = session.get_one(Question, ids[0]).answer
@@ -222,9 +238,11 @@ class QuestionsMixin:
 
         def heard(answer: str, _waits: bool) -> None:
             # On record the moment it is given, however long the agent then stands in
-            # line for a place: an answer is not asked for twice.
+            # line for a place: an answer is not asked for twice. (Parked: the user's, later.)
             with self._factory() as session:
                 question = session.get_one(Question, question_id)
+                if question.status == "parked":
+                    return
                 question.status, question.answer, question.answered_at = ("answered", answer, now())
                 session.commit()
                 payload = question_out(question)
@@ -232,9 +250,14 @@ class QuestionsMixin:
 
         again: list[str | None] = []  # (given before: its reason then, not the record's wrap)
 
-        def lead_says(answer: str, why: str | None, given_before: bool = False) -> None:
+        def lead_says(
+            answer: str, why: str | None, given_before: bool = False, parks: bool = False
+        ) -> None:
             if given_before:
                 again.append(why)
+            if parks:  # (§10: parked for the user, the job goes on - or, not now, left to them)
+                now_parked = self._park_question(ctx, question_id, offered, why)
+                return future.set_result("") if now_parked else None
             with self._factory() as session:
                 question = session.get_one(Question, question_id)
                 question.answer, question.lead_why = (
@@ -268,7 +291,10 @@ class QuestionsMixin:
             self._update_run(ctx.run_id, ctx.cid, status="running")
         if not leave:
             with self._factory() as session:
-                why = session.get_one(Question, question_id).lead_why
+                question = session.get_one(Question, question_id)
+                why, was_parked = question.lead_why, question.status == "parked"
+            if was_parked:
+                return "denied", parked.PARKED_ASKED.format(what=quoted(text))
             if again:
                 return "succeeded", USER_AGAIN.format(answer=quoted(answer)) if again[
                     0
@@ -278,6 +304,27 @@ class QuestionsMixin:
                     how=self._how_lead(ctx), answer=quoted(answer), why=quoted(why)
                 )
         return "succeeded", ANSWER_PREFIX + answer
+
+    def _park_question(
+        self: "AgentRunner", ctx: Ctx, question_id: str, options: list[str], why: str | None
+    ) -> bool:
+        """§10: an agent's question in a job, parked for the user (`parked.park`) with why - the
+        Orchestrator's, or that it gave no answer that counts. False for no job's question - nor
+        where its night runs no more (the user back meanwhile, L5): it waits for them."""
+        if self._parker(ctx, None) is None:
+            return False
+        with self._factory() as session:
+            task = away.job_of(session, ctx.cid)
+            if task is None:
+                return False
+            question = session.get_one(Question, question_id)
+            question.status = "parked"
+            data = {"options": options, "why": why}
+            parked.park(session, task, "question", question_id, question.question, data)
+            session.commit()
+            payload = question_out(question)
+        self.bus.emit(ctx.cid, ctx.run_id, "question.updated", payload)
+        return True
 
     async def _heard_aside(
         self: "AgentRunner",
@@ -363,7 +410,9 @@ class QuestionsMixin:
         `DECIDES`: at once while the project is away (`night`), after its minutes where it lets
         the Lead (`when_away`). The kind is set by KOLONİ where it asks, never read from what
         is asked: a command, a change, the web, a secret, a folder, another model never come
-        here."""
+        here. §10: the Orchestrator's own (`OWN`) at once in a job whose night runs, else never."""
+        if kind == OWN:
+            return 0.0 if night and self._parker(ctx, None) else None
         if kind != "spawn" and kind in DECIDES | FULL_AUTO_CARDS and self._full_auto(ctx):
             return 0.0
         if kind not in DECIDES:
@@ -484,14 +533,19 @@ class QuestionsMixin:
             except asyncio.CancelledError:
                 return
         who = ctx.name or ctx.role
-        shown = "".join(f"\n- {quoted(raw.hidden(option))}" for option in options)
+        # §10: in a job whose night runs, `park` is one more answer (the record decides, not it)
+        parks = kind in ("ask_user", OWN) and self._parker(ctx, None) is not None
+        how = LEAD_PICKS if options else LEAD_WRITES
+        how = f"{ORCHESTRATOR_AWAY if kind == OWN else PARK_TOO} {how}" if parks else how
+        offered = [*options, PARK] if parks and options else options
+        shown = "".join(f"\n- {quoted(raw.hidden(option))}" for option in offered)
         asked_now = [
             {
                 "role": "user",
                 "content": LEAD_ASKED.format(
                     lets=LETS_FULL_AUTO if self._full_auto(ctx) else LETS_AWAY,
                     who=who,
-                    how=LEAD_PICKS if options else LEAD_WRITES,
+                    how=how,
                 )
                 + f"\n\n{who} asked: {quoted(raw.hidden(text))}"
                 + (f"\nThe options:{shown}" if options else "")
@@ -537,7 +591,7 @@ class QuestionsMixin:
                     ),
                 )
             return
-        self._lead_said_it(ctx, said, options, asked, says, key)
+        self._lead_said_it(ctx, said, offered, asked, says, None if parks else key, parks)
 
     def _lead_goes_on(
         self: "AgentRunner",
@@ -588,8 +642,10 @@ class QuestionsMixin:
         asked: asyncio.Future,
         says: Callable[..., None],
         key: tuple | None,
+        parks: bool = False,
     ) -> None:
-        """`_lead_answers`'s end: what the Lead said, taken as its answer or said not to count."""
+        """`_lead_answers`'s end: what the Lead said, taken as its answer or said not to count -
+        or, where it may (`parks`), `park` (an option so spelled too): the question is parked."""
         picked = lead_pick(_answer(said), options)
         if asked.done():
             return
@@ -597,6 +653,8 @@ class QuestionsMixin:
             self._koloni_line(
                 ctx.cid, ctx.run_id, LEAD_COULD_NOT.format(why="no answer it could read")
             )
+        elif parks and picked[0].casefold() == PARK:
+            says("", picked[1], parks=True)
         else:
             if key is not None:
                 self._lead_said.setdefault(ctx.run_id, {})[key] = picked
@@ -774,7 +832,7 @@ class _Decision:
             )
         )
         self.going.append(task)
-        task.add_done_callback(lambda _task: self.let_go(True))
+        task.add_done_callback(lambda done: self.let_go(True, parks=not done.cancelled()))
         return None
 
     def now(self) -> None:
@@ -783,11 +841,23 @@ class _Decision:
             self.timer.cancel()
         self.go(forced=True)
 
-    def let_go(self, tried: bool) -> None:
+    def let_go(self, tried: bool, parks: bool = False) -> None:
         """The Lead is done with it: where more waits than the Lead still answers - this
         question too, once the Lead was `tried` and did not answer - the job waits for the
-        user. Stood down (answered, or no longer asked), this one is on its way out."""
+        user. Stood down (answered, or no longer asked), this one is on its way out. §10:
+        tried and not answered, an agent's question in a job whose night runs is parked first
+        (`parks`: the Lead's answer was not cut off - Stop) - nothing waits, nothing is told -
+        unless the job's turn is being cut (its ceiling)."""
         runner, run_id = self.runner, self.ctx.run_id
+        if (
+            parks
+            and tried
+            and not self.asked.done()
+            and self.kind in ("ask_user", OWN)
+            and run_id not in runner._away_cut
+            and runner._parker(self.ctx, None) is not None
+        ):
+            self.says("", parked.COULD_NOT_ANSWER, parks=True)
         runner._lead_takes_no_more(self.ctx, self.asked, tried)
         if self.held:
             self.held, runner._lead_asked[run_id] = False, runner._lead_asked[run_id] - 1

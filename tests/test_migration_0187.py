@@ -12,7 +12,7 @@ from tests.test_migration_0177 import AT, columns
 def test_every_project_refuses_and_the_choice_goes_back(tmp_path):
     db = tmp_path / "old.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0185")
+    command.upgrade(cfg, "0186")
     with sqlite3.connect(db) as conn:
         conn.execute(
             "INSERT INTO projects (id, name, root_path, created_at) VALUES ('p', 'p', 'C:/p', ?)",
@@ -30,7 +30,7 @@ def test_every_project_refuses_and_the_choice_goes_back(tmp_path):
             "refuse",
         )
 
-    command.downgrade(cfg, "0185")
+    command.downgrade(cfg, "0186")
     with sqlite3.connect(db) as conn:
         assert "judge_risky" not in columns(conn, "projects")
         assert conn.execute("SELECT id FROM projects ORDER BY id").fetchall() == [("n",), ("p",)]

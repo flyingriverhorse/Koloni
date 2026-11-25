@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app import copies, disposable, mcp_client
+from app import copies, disposable, mcp_client, parked
 from app.agent.cards import _glob_could_take, _shared
 from app.agent.ctx import Ctx, _NobodyToAsk, _Transcript, _Watch
 from app.agent.merge import _planned_edit
@@ -617,10 +617,16 @@ class ApprovalsMixin:
             judgement=judged,
             disposable=found,
             why=why or "",
+            park=self._parker(ctx, None),
         )
         if not allowed:
+            with self._factory() as session:  # (☾ Away: parked for the user - §10)
+                row = session.get_one(Command, command_id)
+                was_parked, at = row.status == "parked", row.cwd
             said = (
-                refused_by_rule(judged)
+                parked.said(command, at)
+                if was_parked
+                else refused_by_rule(judged)
                 if judged and judged["verdict"] == "refuse"
                 else rejected(command)
             )

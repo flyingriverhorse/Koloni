@@ -230,12 +230,12 @@ def test_a_turn_slow_to_stop_is_stopped_once_and_its_cleanup_ends(
 def test_a_nights_job_that_waits_for_the_users_word_is_stopped_too_not_failed(
     make_client, wait_run, project_dir, gate
 ):
-    # At "ask" job one waits for its command; job two works on, held open
-    run = step(call("run_command", {"command": "echo hi"}))
+    # Job one waits for its POST (a command's card is parked, §10); job two works on, held open
+    post = {"method": "POST", "url": "https://example.com/x", "body": "a"}
     client, _model, pid, cid, run_id = evening(
         make_client,
         project_dir,
-        [edit(), run, edit(id="w2"), gate.step(text("two done"))],
+        [edit(), step(call("http_request", post, "h")), edit(id="w2"), gate.step(text("two done"))],
         mode="ask",
     )
     wait_run(client, cid, run_id)

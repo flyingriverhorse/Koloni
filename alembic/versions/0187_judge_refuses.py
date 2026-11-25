@@ -3,15 +3,16 @@ and let the agent go on, as Claude Code's auto mode does ("refuse") - the defaul
 too -, or put it on a card as before ("ask"). Going back, the choice goes.
 
 Revision ID: 0187
-Revises: 0185
+Revises: 0186
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "0187"
-# (Written on the k-judge-ret branch beside 0184 (k-away-park) and 0186: re-chained at its merge.)
-down_revision = "0185"
+# (Written on the k-judge-ret branch on 0185; re-chained after 0186, k-away-park's, at its merge of
+# 0.1.9.)
+down_revision = "0186"
 branch_labels = None
 depends_on = None
 

@@ -4,11 +4,13 @@ CLI waits as long as Full auto's judge's does."""
 
 import asyncio
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
 from app import risk_judge
 from app.agent.tiers_mixin import TiersMixin
+from app.db.models import Conversation, Project, Provider
 from app.roles import LEAD, find_role
 from app.team import judge_choices, judge_pick, would_run
 from tests.keyed import OWN
@@ -80,6 +82,42 @@ def test_a_chosen_model_its_provider_down_closed_or_gone_is_the_fast_tiers_first
 
 def test_nobody_to_ask_with_no_tier(client):
     assert pick(client, None) is None
+
+
+def test_settings_offer_the_judge_full_auto_asks(client, project_dir, monkeypatch):
+    """Codex P2-2: the one Fast model a Native Copilot - a CLI with tools of its own, which an
+    agent may be picked on only at Full auto. Its judge answers with every tool off, so Settings
+    (no chat: Ask) lists it, may choose it, and says it is asked - as a Full auto turn asks it."""
+    talker = SimpleNamespace(native=False)  # (no CLI starts: nothing here asks a model)
+    native = SimpleNamespace(native=True, talker=lambda: talker)
+    monkeypatch.setattr(client.app.state.providers, "client", lambda provider, model=None: native)
+    with client.app.state.session_factory() as session:
+        copilot = Provider(
+            name="Copilot",
+            kind="copilot_cli",
+            mode="native",
+            for_agents=True,
+            default_model="quick",
+            models=[{"name": "quick", "tier": "fast", "agents": True}],
+        )
+        project = Project(name="p", root_path=str(project_dir))
+        session.add_all([copilot, project])
+        session.flush()
+        chat = Conversation(project_id=project.id, permission_mode="full_auto")
+        session.add(chat)
+        session.commit()
+        ids = copilot.id, chat.id
+    shown = {"provider_id": ids[0], "provider_name": "Copilot", "model_id": "quick", "cli": True}
+    said = client.get("/api/judge").json()
+    assert (said["now"], said["choices"]) == (shown, [{**shown, "tier": "fast"}]), said
+    chosen = {"provider_id": ids[0], "model_id": "quick"}
+    assert client.put("/api/judge", json=chosen, headers=OWN).json()["now"] == shown
+    with client.app.state.session_factory() as session:
+        lead, chat = find_role(session, LEAD), session.get_one(Conversation, ids[1])
+        for at in (None, chat):  # (Settings', and a Full auto turn's)
+            would = would_run(session, lead, at)
+            found = judge_pick(session, would, client.app.state.providers, (ids[0], "quick"))
+            assert found and (found[0].provider_id, found[1]) == (ids[0], "quick"), at
 
 
 @pytest.mark.no_po

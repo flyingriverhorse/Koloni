@@ -114,6 +114,7 @@ from app.agent.cards import lead_pick as lead_pick
 from app.agent.cards import needs_full_auto as needs_full_auto
 from app.agent.cards import outside_a_copy as outside_a_copy
 from app.agent.cards import sandbox_denied as sandbox_denied
+from app.agent.checks_tool_mixin import ChecksToolMixin
 from app.agent.claims_mixin import ClaimsMixin
 from app.agent.context_mixin import ASK_NOT_REPORT as ASK_NOT_REPORT
 from app.agent.context_mixin import AWAY_CUES as AWAY_CUES
@@ -1218,6 +1219,7 @@ class AgentRunner(
     StrongerMixin,
     TryMixin,
     StoryBranchMixin,
+    ChecksToolMixin,
 ):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
@@ -1992,8 +1994,9 @@ class AgentRunner(
             lead, t.lead_tools, instructions, t.planning = self._lead_tools(
                 session, run, project, part_gone
             )
-            # (Only while its night runs: a turn of its chat in the morning is the user's.)
-            t.job = not t.run_compare and away.night_job(session, cid) is not None
+            # (Only while its night runs: a turn of its chat in the morning is the user's - but the
+            # going-on turn after their decisions, §10.)
+            t.job = not t.run_compare and away.job_turn(session, run)
             # (0.1.8: a To-do task's own turn - its brief, its fix round - not the user's
             # message in its chat.)
             t.todo_turn = not t.run_compare and not t.job and run.task_id is not None
@@ -3055,35 +3058,6 @@ class AgentRunner(
             if merge is not None:
                 self.bus.emit(known.cid, known.run_id, "merge.updated", merge_out(merge))
         self._release(owner)
-
-    def _set_aside(
-        self,
-        owner: str,
-        why: str = "one side of a comparison, waiting for your choice",
-        found: tuple[copies.Copy, list] | None = None,
-    ) -> None:
-        """A side of a comparison is over - or a turn whose recipe was not taken in: what it
-        changed stays in its copy, kept as a kept copy is (`_keep_copy`), for the user's
-        choice to take in or throw away (`decide_kept`). A copy that changed nothing goes
-        with its turn. `found`: its changes, from a look made off the event loop
-        (`_look_aside`) - for the copy that look was at."""
-        copy = self._copies.get(owner)
-        if copy is None:
-            return
-        changed = found[1] if found is not None and found[0] is copy else copy.changes()
-        if any(not copy.ignored(one[0]) for one in changed):
-            self._keep_copy(owner, why)  # (B-189: not for a new file git ignores alone)
-
-    async def _look_aside(self, owner: str) -> tuple[copies.Copy, list] | None:
-        """`_set_aside`'s look at an agent's copy, from a coroutine: a walk of every file of
-        it, in a thread - the server goes on meanwhile - to its end (`to_its_end`)."""
-        copy = self._copies.get(owner)
-        if copy is None:
-            return None
-        # (Against its records as they are now: a `refresh` meanwhile is no change of its own.)
-        return copy, await to_its_end(
-            asyncio.to_thread(copy.changes, dict(copy.base), dict(copy.names))
-        )
 
     async def decide_kept(
         self, merge_id: str, decision: str, choices: dict[str, str] | None = None
@@ -6245,6 +6219,7 @@ class AgentRunner(
                     once=once,
                     judgement=judged,
                     disposable=found,
+                    park=self._parker(ctx, in_copy if owner else None),
                 )
             ran = True
         finally:
@@ -6376,6 +6351,8 @@ class AgentRunner(
         """`_tool_call`, its part 4."""
         if request.name == "recall_output":
             status, output = "succeeded", self._recall_output(ctx, args)
+        elif request.name == "run_checks":
+            status, output = "succeeded", await self._run_checks(ctx, call_id)
         elif request.name in SERVING_TOOLS:
             status, output = "succeeded", await self._serving_call(ctx, request.name, args)
         elif request.name in BROWSER_TOOLS:
@@ -7141,17 +7118,6 @@ class AgentRunner(
             )
             is not None
         )
-
-    def _calls_of(self, ctx: Ctx) -> int:
-        with self._factory() as session:
-            return (
-                session.scalar(
-                    select(func.count())
-                    .select_from(ToolCall)
-                    .where(ToolCall.agent_id == ctx.agent_id)
-                )
-                or 0
-            )
 
     def _nudge(self, ctx: Ctx, words: str) -> None:
         """`words` follow the agent's last message in what it sees from its next step on."""

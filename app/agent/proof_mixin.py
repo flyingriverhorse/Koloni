@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from sqlalchemy import literal_column, or_, select
+from sqlalchemy import func, literal_column, or_, select
 
 from app import injection, ledger, proof, proof_before, proof_related, recipe_run
 from app.agent import merge
@@ -227,6 +227,12 @@ class Proof:
     changed_row: Row | None = None
     changed_files: list[str] = field(default_factory=list)
     changed_by: list[str] = field(default_factory=list)
+    # run_checks (`ChecksToolMixin`): the call a pass runs for now (no round counted, no wait
+    # cut short, none gone on after it), and the passes it ran; and whether the end gate itself
+    # ran, not run_checks alone (`ChecksToolMixin._gate_ran`).
+    asked_call: str | None = None
+    asked_runs: int = 0
+    gated: bool = False
 
 
 class ProofMixin:
@@ -246,9 +252,27 @@ class ProofMixin:
         return self._left_to_do(ctx) or await self._proof_left(ctx)
 
     async def _proof_left(self: "AgentRunner", ctx: Ctx) -> str | None:
-        """The end gate: only for a Lead's own work in a project (not an answer, a discussion, a
-        side of a comparison), with After a change not Nothing - nor off for this chat
-        (`proof.after_change_of`) -, after a turn whose changes are where the tests run."""
+        """The end gate (`_proof_pass`) - its own pass always, whatever run_checks answered -, then
+        the stronger models' rounds and a hold that stands."""
+        held, said = await self._proof_pass(ctx)
+        if held is None or said is not None:
+            return said
+        try:  # (S11: the rounds spent, a stronger model next - nothing sent to the Orchestrator)
+            await self._stronger(ctx, held)
+        except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
+            log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
+        await self._on_hold(ctx, held)  # (P: a hold that stands keeps the work out)
+        return None
+
+    async def _proof_pass(
+        self: "AgentRunner", ctx: Ctx, asked: bool = False
+    ) -> tuple[Proof | None, str | None]:
+        """One pass of the gate's steps, and what its first nudge says (None: none): only for a
+        Lead's own work in a project (not an answer, a discussion, a side of a comparison), with
+        After a change not Nothing - nor off for this chat (`proof.after_change_of`) -, after a
+        turn whose changes are where the tests run; (None, None) where no pass is due. `asked`
+        (run_checks): a pass of its own kind, with no ask for a test - its nudge is the answer's,
+        never sent."""
         if (
             ctx.depth
             or ctx.answering
@@ -256,9 +280,9 @@ class ProofMixin:
             or ctx.root is None
             or (ctx.run_id in self._sides)
         ):
-            return None
+            return None, None
         if self._checked_at_ready(ctx):
-            return None
+            return None, None
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             conversation = session.get_one(Conversation, ctx.cid)
@@ -270,7 +294,7 @@ class ProofMixin:
                     checks, proof.checks_of(session, conversation, session.get(Run, was))
                 )
             if project is None or not checks.on:  # (S5c: a recipe's Checks step may turn all off)
-                return None
+                return None, None
             found = proof.changes(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
             # (CL-321 Bulgu D: a change a command made is on no record - the gate opens for it.)
             ran = proof.unrecorded(
@@ -284,7 +308,7 @@ class ProofMixin:
                 one for one, _diff in await asyncio.to_thread(merge.kept_work, copy, ctx.agent_id)
             ]
         if not any(one.in_project for one in found) and unrecorded is None:
-            return None
+            return None, None
         until = checks.rounds is None  # (k-canli-016: until it passes, to its ceiling)
         most = proof.UNTIL_CEILING if checks.rounds is None else checks.rounds
         held = self._proofs.setdefault(ctx.run_id, Proof(most=most))
@@ -292,11 +316,14 @@ class ProofMixin:
         held.unrecorded, held.gone_tests = unrecorded, gone
         held.recipe_spent = held.recipe_spent or self._recipe_spent(ctx)
         held.style_set_up = await self._style_seen(ctx, found)
+        held.gated = held.gated or not asked
         opened = self._lead_opened(ctx.run_id, ctx.agent_id)
         self._fixed_by(held, opened)  # (the last pass's send-back: what it opened, now known)
         rounds = held.rounds
-        proof.new_pass(held.passes, "check")
+        proof.new_pass(held.passes, "asked" if asked else "check")
         for name in self.PROOF_STEPS:
+            if asked and name == "_proof_test_ask":  # (asked for at the end only)
+                continue
             try:
                 said = await getattr(self, name)(ctx, held)
             except Exception as exc:  # (a check that broke fails nothing of the turn: it says so)
@@ -310,15 +337,21 @@ class ProofMixin:
                 )
                 said = None
             if said is not None:
-                self._pass_ended(held, rounds, opened)
-                return said
+                self._pass_ended(held, rounds, None if asked else opened)
+                return held, said
         self._pass_ended(held, rounds, None)
-        try:  # (S11: the rounds spent, a stronger model next - nothing sent to the Orchestrator)
-            await self._stronger(ctx, held)
-        except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
-            log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
-        await self._on_hold(ctx, held)  # (P: a hold that stands keeps the work out)
-        return None
+        return held, None
+
+    def _calls_of(self: "AgentRunner", ctx: Ctx) -> int:
+        with self._factory() as session:
+            return (
+                session.scalar(
+                    select(func.count())
+                    .select_from(ToolCall)
+                    .where(ToolCall.agent_id == ctx.agent_id)
+                )
+                or 0
+            )
 
     def _lead_opened(self: "AgentRunner", run_id: str, lead_id: str) -> list[str]:
         """The agents the turn's Lead opened by a call of its own, oldest first - a spawn, or a
@@ -637,7 +670,7 @@ class ProofMixin:
             held.seen = proof.last_change(session, ctx.run_id) or NO_CHANGE_SEEN
         held.until = (
             time.monotonic() + END_WAIT_SECONDS
-            if self._answer_waits(ctx) and (not held.judging)
+            if self._answer_waits(ctx) and not (held.judging or held.asked_call)
             else None
         )
         found = await self._map_made(ctx, root) if root else None
@@ -681,7 +714,10 @@ class ProofMixin:
         progress - not a failing set of its `kind` it was sent back for before (A, B, A
         stops) -, within the turn's token limit and the project's budget, and at most `most`
         (the ceiling). Once the
-        rounds stop short of a pass they stay stopped: `held.halted`, said under the answer."""
+        rounds stop short of a pass they stay stopped: `held.halted`, said under the answer.
+        run_checks' pass (`asked_call`) says what would go back, and counts nothing."""
+        if held.asked_call:
+            return True
         held.failing_now = failing
         if held.halted is not None or held.recipe_spent:
             return False
@@ -863,19 +899,11 @@ class ProofMixin:
         later: float | None = None,
     ) -> tuple[Row, str]:
         """Run one test command where the Lead's work is (`_ws`: the project, or its own copy),
-        on record as KOLONİ's call on the Lead's last answer - the user sees it run, and its card
-        where one is asked. `later` (S6): it goes on after the answer past that many seconds."""
+        on record as KOLONİ's call on the Lead's last answer (`_proof_message`: run_checks' own,
+        while it asks) - the user sees it run, and its card where one is asked. `later` (S6): it
+        goes on after the answer past that many seconds."""
         with self._factory() as session:
-            message_id = session.scalar(
-                select(Message.id)
-                .where(
-                    Message.agent_id == ctx.agent_id,
-                    Message.run_id == ctx.run_id,
-                    Message.role == "assistant",
-                )
-                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
-                .limit(1)
-            )
+            message_id = self._proof_message(session, ctx)
             runs, workers = proof.load_of(session)
         if message_id is None:
             return proof.row(

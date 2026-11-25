@@ -59,7 +59,6 @@ from app.agent.words import (
     IMAGE_MIME,
     IMAGE_SHOWN,
     NEAR_TESTS,
-    PROOF_LEAD,
     UNFINISHED,
 )
 from app.commands import recallable
@@ -1689,7 +1688,7 @@ class ContextMixin:
         if not (ctx.answering or ctx.discussion or ctx.run_id in self._sides) and (
             self._checks_told(session, ctx)
         ):
-            system += "\n\n" + PROOF_LEAD  # (S2: what the end gate checks - its agent only)
+            system += "\n\n" + self._proof_lead(ctx)  # (S2: what the end gate checks)
         return system
 
     def _checks_told(self: "AgentRunner", session: Session, ctx: Ctx) -> bool:

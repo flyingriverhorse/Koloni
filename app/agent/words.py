@@ -325,6 +325,14 @@ PROOF_LEAD = (
     "security-touching change read by a Reviewer. Do not run the whole test suite yourself at "
     "the end; its result comes to you."
 )
+# 0.1.9: ...and, where it has run_checks (`ChecksToolMixin._proof_lead`), that a step the user
+# tied to a condition waits for its green.
+RUN_CHECKS_LEAD = (
+    'When the user ties a step to a condition ("if the tests pass / no problems are found / it '
+    'is clean, commit / push / merge"), call run_checks, wait for its answer, and take that step '
+    "only on `CHECKS: green`; otherwise fix the work or tell the user - never assume the "
+    "condition holds."
+)
 # R4: what the agent of a recipe's step with the id "reproduce" (the ready Bugfix's) is told
 # under its task (`AgentRunner._step_says`).
 # shortcut: told, not held - a step that wrote its test and ran none passes (CL-305); S7 holds it

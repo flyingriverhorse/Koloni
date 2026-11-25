@@ -366,6 +366,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/away/{away_id}/jobs/{task_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Task
+         * @description Stop this task: what it parked is closed, it is stopped - no going-on turn; one under way
+         *     is cut (what was Run and runs now is killed).
+         */
+        post: operations["stop_task_api_away__away_id__jobs__task_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/away/{away_id}/seen": {
         parameters: {
             query?: never;
@@ -401,6 +422,46 @@ export interface paths {
          *     the user's word too, and the chat gone from's turn.
          */
         post: operations["stop_all_api_away__away_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/away/{away_id}/waiting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Waiting
+         * @description Waiting for you: what the card's jobs parked, its jobs in order, each in the order parked.
+         */
+        get: operations["read_waiting_api_away__away_id__waiting_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/away/{away_id}/waiting/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Waiting
+         * @description The user's Run, Reject or answer of a parked row - only from the app's own page.
+         */
+        post: operations["decide_waiting_api_away__away_id__waiting__item_id__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6246,7 +6307,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "check" | "stronger";
+            kind: "check" | "stronger" | "asked";
             /** Looks */
             looks: components["schemas"]["CheckedLook"][];
             /** N */
@@ -6373,7 +6434,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "proposed" | "approved" | "running" | "exited" | "timed_out" | "killed" | "rejected" | "failed_to_start" | "interrupted" | "blocked" | "refused";
+            status: "proposed" | "approved" | "running" | "exited" | "timed_out" | "killed" | "rejected" | "failed_to_start" | "interrupted" | "blocked" | "refused" | "parked";
             /** Suggested Prefix */
             suggested_prefix: string;
             /** Timeout Seconds */
@@ -6923,6 +6984,16 @@ export interface components {
             provider_name: string;
             /** Text */
             text: string;
+        };
+        /** DecideIn */
+        DecideIn: {
+            /** Answer */
+            answer?: string | null;
+            /**
+             * Word
+             * @enum {string}
+             */
+            word: "run" | "reject" | "answer";
         };
         /**
          * DiagramPictureIn
@@ -9981,7 +10052,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "pending" | "answered" | "cancelled" | "interrupted" | "superseded";
+            status: "pending" | "answered" | "cancelled" | "interrupted" | "superseded" | "parked";
             /** Tool Call Id */
             tool_call_id: string | null;
         };
@@ -12362,6 +12433,51 @@ export interface components {
             path: string;
         };
         /**
+         * WaitingOut
+         * @description A row of Waiting for you (`parked.waiting`): what a job parked, why in KOLONİ's words alone,
+         *     and - not decided yet - why it cannot be now (`closed`; None: it can).
+         */
+        WaitingOut: {
+            /** Answer */
+            answer: string | null;
+            /** Closed */
+            closed: string | null;
+            /** Conversation Id */
+            conversation_id: string | null;
+            /** Cwd */
+            cwd: string | null;
+            /** Danger */
+            danger: string | null;
+            /** Decision */
+            decision: string | null;
+            /** Held */
+            held: boolean;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Options */
+            options: string[];
+            /** Place */
+            place: ("copy" | "project" | "gone") | null;
+            /** Result */
+            result: string | null;
+            /** Seq */
+            seq: number;
+            /** Task */
+            task: string;
+            /** Task Id */
+            task_id: string;
+            /** Warn */
+            warn: string | null;
+            /** What */
+            what: string;
+            /** Why */
+            why: string;
+            /** Wrote */
+            wrote: string | null;
+        };
+        /**
          * WarningOut
          * @description Text from outside that read like orders to an agent (`app.injection`): the rule and
          *     where it came from, never the text.
@@ -13084,6 +13200,38 @@ export interface operations {
             };
         };
     };
+    stop_task_api_away__away_id__jobs__task_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                away_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     seen_api_away__away_id__seen_post: {
         parameters: {
             query?: never;
@@ -13131,6 +13279,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AwayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_waiting_api_away__away_id__waiting_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                away_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_waiting_api_away__away_id__waiting__item_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                away_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitingOut"][];
                 };
             };
             /** @description Validation Error */

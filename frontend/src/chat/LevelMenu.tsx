@@ -62,7 +62,7 @@ type JudgeRisky = 'refuse' | 'ask'
 const JUDGE =
   'Before a command runs at Full auto or while you’re away, a small model looks at it first: one the list doesn’t stop '
 const RISKY: Record<JudgeRisky, string> = {
-  refuse: 'is refused if it looks risky (while you’re away, it waits for you)',
+  refuse: 'is refused if it looks risky (while you’re away, it is parked for you)',
   ask: 'waits for you if it looks risky',
 }
 const JUDGE_WORDS = '; a harmful-looking one runs without a card only where a line of yours names it'

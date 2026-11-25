@@ -132,7 +132,10 @@ plain list with no story has no such heading.
   above of its own); so does a name in another Unicode form, with a character nobody sees in it, or
   with two spaces or a tab where the page shows one space. A name another story has, open or closed,
   is refused; an agent naming a closed story is told so. A name of what nobody sees alone - a
-  zero-width space, a braille blank - is refused too: "a story needs a name you can see".
+  zero-width space, a braille blank - is refused too: "a story needs a name you can see", and a
+  goal's: "a goal needs a name you can see". Two open stories made before 0.1.9 whose names are now
+  one ("Batch  Alpha" and "Batch Alpha") both stay: an agent naming one gets the story of exactly that
+  name, and where neither is, it is told both names and asked for the exact one.
 
 The filters on the bar show **All**, what is **Todo** (to do, or stuck), what is **Running** (at work, or
 done? and waiting for your word - a story at done? too) or what is **Done** (a story only once you closed

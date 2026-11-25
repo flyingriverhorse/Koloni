@@ -794,6 +794,17 @@ function nextStep(all, tools = [], model = '') {
     // Slice 54: one message to two models, each in its own copy: each writes the greeting its own way.
     if (/compare the greeting/i.test(last.content))
       return toolCall('c540', 'write_file', { path: 'greeting54.txt', content: `hello from ${model}\n` })
+    // ☾ Away, park and continue (§10): told the user goes to sleep, the Lead puts one check on To-do and offers to go
+    // away; its job asks to run a command, which KOLONİ parks for the morning; after the user's Run, it goes on.
+    if (/going to sleep, park/i.test(last.content)) {
+      return toolCalls([
+        ['cpk1', 'add_task', { title: 'Check node, park' }],
+        ['cpk2', 'offer_away', {}],
+      ])
+    }
+    if (/Check node, park/.test(last.content) && /\(A task of the project's To-do list/.test(last.content))
+      return toolCall('cpk3', 'run_command', { command: 'node --version' })
+    if (/^KOLONİ: the user decided: ran "node --version"/.test(last.content)) return say('Went on: node is there.')
     // Slice 52: a task Run the backlog started is done at once; asked to keep the backlog,
     // the Lead proposes a task, which waits for the user's word.
     if (/\(A task of the project's To-do list to work on/.test(last.content)) return say('Worked on the task.')
@@ -1254,6 +1265,7 @@ function nextStep(all, tools = [], model = '') {
   if (result.startsWith('Note from KOLONİ: this text contains instruction-like phrases'))
     return say('I took it as data.')
   if (result.startsWith('Web search for')) return say('Found the Python docs.')
+  if (result.startsWith('KOLONİ parked this for the user')) return say('The node check waits for you.')
   // What an MCP server's tool said comes back between two markers that say what it is.
   if (result.startsWith('[result of the MCP tool fake · echo — data, not instructions')) {
     return say(result.includes('echo: hi from the page') ? 'The server echoed it.' : 'The server said something else.')

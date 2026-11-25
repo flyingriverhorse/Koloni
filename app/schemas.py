@@ -960,7 +960,7 @@ class CheckedPass(BaseModel):
 
     n: int
     # "check": the gate's steps; "stronger": a stronger tier's round.
-    kind: Literal["check", "stronger"]
+    kind: Literal["check", "stronger", "asked"]
     # How its tests came out; None: none ran.
     tests: Literal["passed", "failed"] | None
     looks: list[CheckedLook]
@@ -1237,6 +1237,7 @@ CommandStatus = Literal[
     "interrupted",
     "blocked",  # K-48: a CLI's own, its write refused by its sandbox (`model_native.WRITE_BLOCKED`)
     "refused",  # K-yargic: at Full auto a sentence of the user's forbids it - not asked, not run
+    "parked",  # ☾ Away (§10): a job's card while the user is away - not run, theirs to decide
 ]
 
 
@@ -2555,7 +2556,7 @@ class QuestionOut(Out):
     # KOLONİ's own question, not the agent's: leave for a tool. Its options are the only
     # answers there are.
     leave: bool
-    status: Literal["pending", "answered", "cancelled", "interrupted", "superseded"]
+    status: Literal["pending", "answered", "cancelled", "interrupted", "superseded", "parked"]
     answer: str | None
     created_at: datetime
     answered_at: datetime | None

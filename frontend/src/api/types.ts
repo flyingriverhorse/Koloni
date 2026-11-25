@@ -151,6 +151,8 @@ export type AwayJob = Schemas['AwayJobOut']
 export type AwayAsk = Schemas['AwayAsk']
 /** Your Go away: the To-do tasks ticked, the panel's order, the places kept out and the limits. */
 export type AwayGo = Schemas['AwayGoIn']
+/** ☾ Away (§10): a row of Waiting for you - what a job parked for you, and your word on it. */
+export type Waiting = Schemas['WaitingOut']
 export type Day = Schemas['DayOut']
 export type DayWords = Schemas['DayWordsOut']
 export type PendingRole = Schemas['PendingRoleOut']
