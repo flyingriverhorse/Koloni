@@ -69,6 +69,19 @@ def project(tmp_path):
         pytest.param(".\\run.cmd", "run.cmd", marks=WINDOWS),  # (a backslash is Windows' alone)
         ("& ./run.ps1", "run.ps1"),
         ('node "my tools/gen.js"', "my tools/gen.js"),
+        # (review H1: as the runner finds it - a module, a folder, a name with no ending)
+        ("python -m gen", "gen.py"),
+        ("python -u -m tools.gen", "tools/gen.py"),
+        ("python -m pkg", "pkg/__main__.py"),
+        ("python pkg", "pkg/__main__.py"),
+        ("node gen", "gen.js"),
+        ("node lib", "lib/index.js"),
+        ("./run", "run.ps1"),
+        # (review H2: a shell's -e, -r, -p, -m are no code of the line's)
+        ("bash -e run.sh", "run.sh"),
+        ("zsh -e run.sh", "run.sh"),
+        ("bash -r run.sh", "run.sh"),
+        ("powershell -mta -File run.ps1", "run.ps1"),
     ],
 )
 def test_the_script_an_agent_wrote(project, line, rel):
@@ -84,7 +97,7 @@ def test_in_a_folder_below_with_options_before_the_script(project):
 
 
 @pytest.mark.parametrize(
-    "line", ["python -m gen", 'python -c "print(1)"', 'node -e "1"', "bash -c 'x'", "pytest -q"]
+    "line", ['python -c "print(1)"', 'node -e "1"', "bash -c 'x'", "pytest -q", "gen.py"]
 )
 def test_no_file_where_the_line_holds_its_code_or_runs_none_of_its_own(project, line):
     factory, root, wrote = project

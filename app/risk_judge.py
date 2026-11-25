@@ -6,6 +6,7 @@ is `app.agent.risk_judge_mixin.RiskJudgeMixin`; it only ever adds a card."""
 
 import json
 import re
+from collections.abc import Sequence
 
 from app import injection, judge
 from app.commands import _in_a_shell, _program, _words, is_plain, is_wrapped
@@ -14,8 +15,9 @@ from app.commands import _in_a_shell, _program, _words, is_plain, is_wrapped
 MOST_COMMAND_CHARS = 4000
 # Of the program a command runs that an agent wrote, what the judge reads, from its start.
 PROGRAM_BYTES = 4096
-# The same agent's commands before it in the turn the judge reads, newest last.
-EARLIER = 5
+# The same agent's commands before it in the turn the judge reads (those that ran), oldest first,
+# each cut to EARLIER_CHARS.
+EARLIER, EARLIER_CHARS = 5, 300
 # How long its one request may take: a model by its API, and a CLI's one-shot start.
 # shortcut: a CLI's start is not measured (`_lead_answers`' 90 s) - set it from the measurement.
 API_SECONDS, CLI_SECONDS = 20.0, 90.0
@@ -97,6 +99,9 @@ def prompt(
     the text of its first PROGRAM_BYTES, the bytes not shown) and the command
     ({"command", "where", "by"}) - each as JSON, so that no line of theirs reads as the prompt's."""
     shown = "(none)"
+    earlier = [
+        one if len(one) <= EARLIER_CHARS else f"{one[:EARLIER_CHARS]} …cut" for one in earlier
+    ]
     if program is not None:
         path, text, left = program
         shown = json.dumps({"path": path, "text": text}, ensure_ascii=False)
@@ -109,11 +114,19 @@ def prompt(
     )
 
 
+def _once(pairs: list[tuple[str, object]]) -> dict:
+    """A JSON object whose every key is there once: `{"verdict": "risky", "verdict": "fine"}`
+    says two things, and is read as neither (ValueError)."""
+    if len({key for key, _value in pairs}) != len(pairs):
+        raise ValueError("a key said twice")
+    return dict(pairs)
+
+
 def verdict(answer: str) -> dict | None:
     """The judge's word from its JSON line (the first "{" to the last "}"): {"verdict": "fine" |
     "risky", "why"} - its sentence on one line, at most WHY_CHARS; None for anything else."""
     try:
-        got = json.loads(answer[answer.find("{") : answer.rfind("}") + 1])
+        got = json.loads(answer[answer.find("{") : answer.rfind("}") + 1], object_pairs_hook=_once)
     except ValueError:
         return None
     if not isinstance(got, dict) or got.get("verdict") not in VERDICTS:
@@ -129,7 +142,11 @@ def ordinary(command: str, npm_run: bool = False) -> bool:
     checker, local git -, each option of it in the program's allow-set and no other word climbing
     out of the folder (`_OUT`). `npm_run`: `npm run <script>` too, where the caller found no
     package.json of an agent's. Whether an agent wrote what it runs is the caller's to ask too
-    (`_planted`)."""
+    (`_planted`).
+    shortcut: test runners and build tools load the project's test and settings code by design -
+    a `conftest.py`, an eslint or mypy setting that names a plugin, `build.rs`, a cargo runner, a
+    git hook - and run it with no judge where an agent wrote it (the design's known limit "a
+    program that imports another file"); look at those writes too if one is seen used so."""
     if (
         len(command) > MOST_COMMAND_CHARS
         or not is_plain(command)
@@ -158,14 +175,17 @@ def ordinary(command: str, npm_run: bool = False) -> bool:
     )
 
 
-def risky_unasked(command: str, program_text: str | None) -> str:
+def risky_unasked(command: str, program_text: str | None, earlier: Sequence[str] = ()) -> str:
     """Why a command is a card before the judge is asked, "" for none: it is longer than
-    MOST_COMMAND_CHARS, or it or the program text shown reads like orders to a model
-    (`injection.scan`) - each a way of an agent's to the judge, never of the user's."""
+    MOST_COMMAND_CHARS, or it, the program text shown or an earlier command of the turn the judge
+    would read (`earlier`, whole) reads like orders to a model (`injection.scan`) - each a way of
+    an agent's to the judge, never of the user's."""
     if len(command) > MOST_COMMAND_CHARS:
         return f"the command is longer than {MOST_COMMAND_CHARS} characters, too long to look at"
     if injection.scan(command, "command"):
         return "the command reads like orders to a model"
     if program_text and injection.scan(program_text, "program"):
         return "the program it runs reads like orders to a model"
+    if any(injection.scan(one, "command") for one in earlier):
+        return "an earlier command of this turn carries words aimed at its judge"
     return ""
