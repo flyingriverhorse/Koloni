@@ -189,8 +189,9 @@ What is not framed:
   model decide whether a harmful-looking command at Full auto runs: it reads only your own words, never
   an agent's, and asks on a card when anything is unclear, but a model can misread a line. Leave it on
   **Ask me** where a wrong delete would cost you.
-- [Full auto's judge](../use/permissions.md#full-autos-judge) only adds cards - an error, a slow answer,
-  an unreadable one, a model it may not ask now (no room, the turn's token limit) is a card, never a run;
+- [Full auto's judge](../use/permissions.md#full-autos-judge) never lets a command run that asks, and
+  refuses only on its own "risky" - an error, a slow answer, an unreadable one, a model it may not ask
+  now (no room, the turn's token limit) is a card, never a run nor a refusal;
   it stands aside only with no model to ask - but what it lets by runs as Full auto ran before it: a
   model's "fine" can be wrong; it reads the first 4 KB of a program an agent wrote, not a file that
   program imports, a tool an agent changed without writing it, nor a file an agent made by copying
