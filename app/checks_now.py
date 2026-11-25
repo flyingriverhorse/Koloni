@@ -1,0 +1,141 @@
+"""run_checks (0.1.9): KOLONİ's checks asked for by the Orchestrator mid-turn - what they say
+(`verdict`: green, red or not complete, read the strictest way, for a step the user tied to "if
+the tests pass" is taken on green alone), the tool's answer (`answer`: its first line is the
+verdict, whatever the output says), where the checked work stands in git (`git_line`), and the
+work's content identity (`identity`): a green answer whose work is the same at the turn's end
+stands for it there - no second run. Only reads: git's looks and the work's files."""
+
+import hashlib
+import os
+from collections.abc import Iterable
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from app import git, proof
+from app.proof import Row
+
+if TYPE_CHECKING:
+    from app.copies import Copy
+
+GREEN, RED, NOT_COMPLETE = "green", "red", "not complete"
+NOTHING_TO_CHECK = (
+    "KOLONİ found nothing of this turn to check: no change of it is in the project, or its "
+    "checks are off (After a change)."
+)
+UNCHANGED_ASKED = "Unchanged since KOLONİ's last check: its result stands."
+CAPPED_ASKED = (
+    "KOLONİ ran its checks {n} times this turn, the most it runs on asking: this is the last "
+    "result."
+)
+SENT_BACK = "What KOLONİ would send back at the end of the turn:"
+MOST_NAMED = 5  # files not committed named, then "+N more"
+# The index against the turn's start: what is staged, or committed since. (Never the folder's
+# files: no filter of the repository's runs.)
+STAGED = ("diff", "--cached", "--name-only", "-z", "--no-renames", "--no-ext-diff")
+
+
+def verdict(
+    rows: list[Row],
+    said: str | None,
+    *,
+    review: str | None,
+    gone_tests: list[str],
+    loosened: list[str],
+    halted: str | None,
+) -> str:
+    """What a pass says. Red: it would send the work back (`said`), a row failed (one failing
+    before this turn too), the Reviewer holds, a test was deleted or loosened. Green: none of
+    that, a test command of the user's or one KOLONİ saved passed (never a guess), and no row
+    is not run or still running, nor were the rounds halted. Anything else is not complete: only
+    documents changed, no test command, a guess, a run that did not end or could not start."""
+    states = {one["state"] for one in rows}
+    if said is not None or "failed" in states or review == "HOLD" or gone_tests or loosened:
+        return RED
+    passed = any(
+        one["kind"] == "tests" and one["state"] == "passed" and not one["guessed"] for one in rows
+    )
+    if passed and not states & {"not_run", "running"} and halted is None:
+        return GREEN
+    return NOT_COMPLETE
+
+
+def answer(
+    verdict: str, rows: list[Row], said: str | None, where: str | None, note: str = ""
+) -> str:
+    """run_checks' answer: `CHECKS: <verdict>` first - KOLONİ's own line, never the output's -,
+    the Checked lines, where the work stands in git, what red would send back at the turn's end
+    (its output and findings already marked as data), and a `note`."""
+    sent = f"{SENT_BACK}\n{said}" if verdict == RED and said else ""
+    parts = (f"CHECKS: {verdict}", proof.checked_text(rows), where, sent, note)
+    return "\n".join(part for part in parts if part)
+
+
+def git_line(folder: Path) -> str | None:
+    """The commit the checked work is at and what of it is not committed ("At commit abc1234 on
+    main; nothing uncommitted."); None where git shows none of that."""
+    seen = git.where(folder)
+    left = git.not_committed(folder) if seen is not None and seen["head"] else None
+    if seen is None or left is None:
+        return None
+    files = [one for one in left if one != "HEAD"]
+    at = f"At commit {seen['head'][:7]} on {seen['branch'] or 'no branch'}"
+    if not files:
+        return f"{at}; nothing uncommitted."
+    more = f" +{len(files) - MOST_NAMED} more" if len(files) > MOST_NAMED else ""
+    return f"{at}; not committed: {', '.join(files[:MOST_NAMED])}{more}."
+
+
+def identity(folder: Path, start: str | None, copy: "Copy | None" = None) -> str | None:
+    """The work's content identity: in a git tree, `start` (the commit the turn's work is
+    measured from) and each path that may differ from it - staged or committed since, or what
+    git's own look says is not committed (`git.not_committed`: changed, new, hidden by a flag) -
+    with its file's bytes as they are now. A commit changes neither the paths nor the bytes: the
+    same before and after it. A plain `copy` (no git): its changed files (`Copy.changes`). None
+    where it cannot be known - no git and no copy, no `start`, git or a file that does not
+    answer: never the same as another, so the checks run again."""
+    if copy is not None:
+        return _digest("copy", copy.root, (path for path, _kind, _state in copy.changes()))
+    if start is None:
+        return None
+    paths = _changed_since(folder, start)
+    return None if paths is None else _digest(start, folder, paths)
+
+
+def _changed_since(folder: Path, start: str) -> set[str] | None:
+    """The paths whose content may differ from `start`'s: the index against it (staged, or
+    committed since - a commit leaves the index as it was) and what is not committed; None where
+    git does not answer."""
+    try:
+        found, until = git._looking(folder)
+    except git.Refused:
+        return None
+    staged = git._said(folder, found, until, *STAGED, start)
+    left = git.not_committed(folder)
+    if staged is None or left is None:
+        return None
+    return {one for one in staged.split("\0") if one} | (set(left) - {"HEAD"})
+
+
+def _digest(start: str, root: Path, paths: Iterable[str]) -> str | None:
+    whole = hashlib.sha256(start.encode())
+    try:
+        for path in sorted(paths):
+            whole.update(f"\0{path}\0{_file(root / path)}".encode("utf-8", "surrogateescape"))
+    except OSError:  # (a file it cannot read: not known)
+        return None
+    return whole.hexdigest()
+
+
+def _file(path: Path) -> str:
+    """A file's bytes' sha256, read as a stream; a link by where it leads (never followed), a
+    folder (a submodule's) as one, "gone" where there is none."""
+    if path.is_symlink():
+        return f"link:{os.readlink(path)}"
+    if path.is_dir():
+        # shortcut: a submodule's own changes are not seen; hash its HEAD if one is met.
+        return "folder"
+    try:
+        with path.open("rb") as read:
+            return hashlib.file_digest(read, "sha256").hexdigest()
+    except FileNotFoundError:
+        return "gone"
