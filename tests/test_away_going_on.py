@@ -87,7 +87,12 @@ def test_runs_go_in_the_order_parked(make_client, wait_run, project_dir):  # RF3
     first, second = waiting(client, done["id"])
     assert decide(client, done["id"], second["id"], "run").status_code == 200
     assert decide(client, done["id"], first["id"], "run").status_code == 200
-    ran = until(lambda: len(r := ran_in_the_morning(client, cid)) == 2 and r)
+    ran = until(
+        lambda: (
+            len(r := [c for c in ran_in_the_morning(client, cid) if c["status"] == "exited"]) == 2
+            and r
+        )
+    )
     assert [c["command"] for c in sorted(ran, key=lambda c: c["started_at"])] == [
         first["what"],
         second["what"],
@@ -247,7 +252,14 @@ def test_the_going_on_turn_is_a_jobs_turn(make_client, wait_run, project_dir, ga
         make_client,
         wait_run,
         project_dir,
-        [run("rm -rf notes"), text("one done"), gate.step(text("never"))],
+        [
+            spawn("Coder", "make hello say hello"),
+            edit(),
+            text("edited"),
+            run("rm -rf notes"),
+            text("one done"),
+            gate.step(text("never")),
+        ],
         mode="full_auto",
     )
     (row,) = waiting(client, done["id"])
@@ -264,7 +276,48 @@ def test_the_going_on_turn_is_a_jobs_turn(make_client, wait_run, project_dir, ga
     until(lambda: chat(client, cid)["runs"][1]["status"] == "cancelled")
     assert away.too_long(1) in chat(client, cid)["runs"][1]["error"]
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"  # nothing went in
-    assert night(client, pid)["jobs"][0]["kept"]  # kept for Take in
+    job = night(client, pid)["jobs"][0]
+    assert job["kept"] and job["files"] == ["hello.py"]  # kept for Take in
+
+
+def test_at_full_auto_the_going_on_turns_work_is_kept_for_take_in(
+    make_client, wait_run, project_dir
+):  # RF4
+    # (a going-on turn is also a turn in a kept copy given back: at its end it is kept, never merged)
+    client, pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            run("rm -rf notes"),
+            text("one done"),
+            spawn("Coder", "make hello say hello"),
+            edit(),
+            text("edited"),
+            text("went on"),
+        ],
+        mode="full_auto",
+    )
+    (row,) = waiting(client, done["id"])
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    _msg, going = going_on_turn(client, cid)
+    assert going["status"] == "completed"
+    job = until(lambda: (j := night(client, pid)["jobs"][0])["state"] == "done" and j)
+    assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"  # nothing went in
+    assert job["files"] == ["hello.py"] and job["kept"] and job["taken"] == []
+
+
+def test_a_job_that_changed_nothing_leaves_no_empty_card_after_it_went_on(
+    make_client, wait_run, project_dir
+):
+    client, pid, done, cid = morning(
+        make_client, wait_run, project_dir, [run("echo a"), text("one done"), text("went on")]
+    )
+    assert done["jobs"][0]["kept"]  # (kept for the morning's Run)
+    (row,) = waiting(client, done["id"])
+    assert decide(client, done["id"], row["id"], "reject").status_code == 200
+    job = until(lambda: (j := night(client, pid)["jobs"][0])["state"] == "done" and j)
+    assert job["kept"] == []  # (gone on: the copy that changed nothing went with its turn)
 
 
 def test_over_the_months_budget_no_going_on_turn_starts(

@@ -209,8 +209,9 @@ class AwayMixin:
         return park
 
     def _parked_here(self: "AgentRunner", owner: str) -> bool:
-        """Whether something of a job was parked in this agent's copy: kept for the morning's Run,
-        changed or not."""
+        """Whether something of a job parked in this agent's copy still waits for the morning
+        (no going-on turn for it yet): the copy is kept for its Run, changed or not. Once gone on,
+        an unchanged copy goes as any does - no empty card to take in."""
         copy = self._copies.get(owner)
         if copy is None:
             return False
@@ -218,7 +219,10 @@ class AwayMixin:
             return (
                 session.scalar(
                     select(Parked.id)
-                    .where(Parked.data["copy"].as_string() == str(copy.root))
+                    .where(
+                        Parked.data["copy"].as_string() == str(copy.root),
+                        Parked.went_on.is_(None),
+                    )
                     .limit(1)
                 )
                 is not None

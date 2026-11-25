@@ -172,6 +172,9 @@ def test_a_restart_leaves_a_job_waiting_only_for_parked_items_waiting(
     # its turn was over: what it parked waits for the morning; the job cut at work could not be done
     assert (one["state"], one["why"]) == ("waits", "1 parked")
     assert (two["state"], two["why"]) == ("failed", away.CLOSED)
+    # (and what it parked is still on record as parked, for the morning)
+    assert [c["status"] for c in commands_in(client, one["conversation_id"])] == ["parked"]
+    assert [row.decision for row in parked_rows(client)] == [None]
     gate.release()
 
 
