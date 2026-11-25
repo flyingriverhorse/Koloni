@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app import away, backlog, injection
 from app.away_branch import PUSH_WHY
 from app.cards import REASONS
-from app.commands import _BLOCKS, OutputMask, _parts, _program
+from app.commands import _BLOCKS, _parts, _program
 from app.copies import NOT_COPIED
 from app.db.away_models import Parked
 from app.db.models import (
@@ -319,6 +319,8 @@ def _why(row: Parked) -> str:
 def waiting(session: Session, night: AwayRun) -> list[dict]:
     """Waiting for you (`WaitingOut`): what an Away parked, its jobs in the card's order, each
     job's in the order parked - not a task's whose chat was deleted."""
+    from app import decisions  # (here: `app.decisions` reaches this module through `app.agent`)
+
     order = {job["task_id"]: at for at, job in enumerate(night.jobs) if job.get("task_id")}
     # (Not a Change and redo's record, `app.redo`: the user's own word, no row of theirs to decide.)
     rows = list(
@@ -338,6 +340,7 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
         task = tasks.get(row.task_id)
         if task is None or session.get(Conversation, task.conversation_id or "") is None:
             continue
+        what_shown, hid = decisions.shown(row.what)
         found.append(
             {
                 "id": row.id,
@@ -348,10 +351,11 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
                 "what": row.what,
                 # (as it is shown and copied: every secret KOLONİ knows, and those known by
                 # their shape, masked - `what` whole stays for what runs, KOLONİ's alone)
-                "what_shown": OutputMask(()).hide(row.what),
+                "what_shown": what_shown,
                 "cwd": row.data.get("cwd"),
                 "why": _why(row),
-                "warn": injection.NOTE if injection.scan(row.what) else None,
+                # (and where what nobody sees was taken out of what is shown: it runs as recorded)
+                "warn": injection.NOTE if hid or injection.scan(row.what) else None,
                 "options": row.data.get("options") or [],
                 "decision": row.decision,
                 "answer": row.answer,

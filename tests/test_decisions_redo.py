@@ -460,3 +460,22 @@ def test_a_second_click_between_the_look_and_the_write_starts_no_second_turn(
             )
         ).all()
     assert len(said) == 1
+
+
+def test_a_bare_word_among_its_files_fails_no_row(client, tmp_path, started):
+    # (A Merge's files are objects; one that is not - a bare string, a number - is no state to
+    # read, and never makes the whole log fail.)
+    pid, _cid, ids = finished(client, tmp_path)
+    kept = merge_of(client, ids["answer"], "interrupted", "C:/kept/one", ["refused"])
+    with client.app.state.session_factory() as session:
+        merge = session.get_one(Merge, kept)
+        merge.files = ["a.py", 3, *merge.files]
+        session.commit()
+    (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
+    assert (row["undo"], row["undo_reason"]) == ("change_and_redo", None)
+    with client.app.state.session_factory() as session:
+        merge = session.get_one(Merge, kept)
+        merge.files = ["applied", {"path": "a.py", "state": "applied"}]
+        session.commit()
+    (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
+    assert (row["undo"], row["undo_reason"]) == ("none", decisions.TAKEN_IN)

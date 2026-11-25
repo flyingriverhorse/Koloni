@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Literal
 
-from sqlalchemy import ColumnElement, exists, func, select
+from sqlalchemy import ColumnElement, case, exists, func, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app import injection
@@ -69,6 +69,16 @@ def _shows(ch: str) -> bool:
     return not (kind == "Cf" or kind == "Cc" and not ch.isspace() or ch in UNSEEN)
 
 
+def shown(text: str) -> tuple[str, bool]:
+    """A line as a page shows it whole - neither cut nor folded, as `said` does: what nobody sees
+    taken out first (a secret split by a zero-width space, a soft hyphen, an isolate or a Hangul
+    filler is one again), then every secret masked - and whether anything was taken out (what runs
+    still holds it: the row warns, as `said` marks)."""
+    text = whole(text)
+    seen = "".join(ch for ch in text if _shows(ch))
+    return _masked(seen), seen != text
+
+
 def said(text: str | None) -> str | None:
     """An agent's or a model's words as a row shows them: a lone surrogate the replacement
     character (`judge.whole`: else the reply fails whole), what nobody sees taken out (a secret
@@ -113,10 +123,10 @@ def work(session: Session, question: Question) -> tuple[str | None, str | None]:
     the project itself - a fresh turn goes on there. Its state alone is read, never its files'
     diffs: whether one of them was taken in is asked of the database."""
     turn = session.get_one(Run, question.run_id)
-    each = func.json_each(Merge.files).table_valued("value")
-    taken = (
-        exists().select_from(each).where(func.json_extract(each.c.value, "$.state") == "applied")
-    )
+    each = func.json_each(Merge.files).table_valued("value", "type")
+    # (an object's state alone: a bare string among the files would make json_extract raise)
+    state = case((each.c.type == "object", func.json_extract(each.c.value, "$.state")))
+    taken = exists().select_from(each).where(each.c.type == "object", state == "applied")
     found = session.execute(
         select(Merge.id, Merge.status, Merge.kept_in, taken)
         .join(Run, Run.id == Merge.run_id)

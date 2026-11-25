@@ -5,9 +5,10 @@ what was not checked where no Checked note says."""
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import event
 
-from app import away_night, decisions, proof, raw
+from app import away_night, decisions, injection, proof, raw
 from app.agent.kinds_mixin import NOT_REACHED
 from app.agent.proof_mixin import AWAY_GUESS
 from app.agent.try_mixin import NO_DEV, NOT_TRIED
@@ -368,3 +369,37 @@ def test_a_parked_line_is_shown_and_copied_masked(client, tmp_path, monkeypatch)
     assert shown.startswith('curl -H "Authorization: ') and raw.HIDDEN in shown
     (push,) = [one for one in rows if one["kind"] == "push"]
     assert push["opens_pr"] is False  # (the project's way is no pull request)
+
+
+@pytest.mark.parametrize(
+    "unseen",
+    [
+        "\N{ZERO WIDTH SPACE}",
+        "\N{SOFT HYPHEN}",
+        "\N{LEFT-TO-RIGHT ISOLATE}",
+        "\N{HANGUL FILLER}",
+    ],
+)
+def test_a_secret_split_by_what_nobody_sees_is_masked_and_warned(
+    client, tmp_path, monkeypatch, unseen
+):
+    # (A secret KOLONİ knows, split by a character nobody sees, is one again before the mask - on
+    # the page and in the night's Markdown; what runs keeps the line as recorded, and the row warns.)
+    monkeypatch.setattr(raw, "_known", lambda fresh=False: raw.spellings([SECRET]))
+    pid, _ids = night(client, tmp_path)
+    away_id = client.get(f"/api/projects/{pid}/away").json()["id"]
+    line = f"deploy --key {SECRET[:6]}{unseen}{SECRET[6:]} --now"
+    with client.app.state.session_factory() as session:
+        task_id = session.query(Parked).filter(Parked.away_run_id == away_id).one().task_id
+        session.add(
+            Parked(away_run_id=away_id, task_id=task_id, seq=2, kind="command", what=line, data={})
+        )
+        session.commit()
+    (command,) = [
+        one for one in client.get(f"/api/away/{away_id}/waiting").json() if one["kind"] == "command"
+    ]
+    assert command["what"] == line
+    assert command["what_shown"] == f"deploy --key {raw.HIDDEN} --now", ascii(command["what_shown"])
+    assert command["warn"] == injection.NOTE
+    # (a line with nothing unseen in it: no warning of that)
+    assert decisions.shown("npm  test\n--watch") == ("npm  test\n--watch", False)  # (not folded)
