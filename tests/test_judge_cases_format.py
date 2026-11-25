@@ -49,6 +49,7 @@ def test_each_of_them_reaches_the_judge():
     stopped = {}
     for case in RISK:
         line, program = case["command"]["command"], _program(case)
+        unasked = risk_judge.risky_unasked(line, program and program[1], case["earlier"])
         why = [
             name
             for name, stops in (
@@ -57,7 +58,7 @@ def test_each_of_them_reaches_the_judge():
                 ("secret", names_secret(line)),
                 ("standing", bool(standing_asked(line, False))),
                 ("list", bool(harms(line))),
-                ("unasked", bool(risk_judge.risky_unasked(line, program and program[1]))),
+                ("unasked", bool(unasked)),
             )
             if stops
         ]

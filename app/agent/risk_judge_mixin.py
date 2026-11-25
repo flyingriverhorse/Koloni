@@ -528,16 +528,11 @@ class RiskJudgeMixin:
         digest of the program it ran as the judge saw it and where it ran (a copy, say) - is not
         asked again this turn, and with `remember` (its card's "Don't ask about this line again
         here") nor in this project again, in any copy. Nothing for another card, nor for one
-        with no key (`_risk_judged`'s `known`, or no program file found)."""
+        with no key (`_risk_judged`'s `known`, or no program file found: `risk_judge.kept`)."""
         with self._factory() as session:
             row = session.get(Command, command_id)
             record = row.judged if row is not None else None
-            if (
-                row is None
-                or not isinstance(record, dict)
-                or record.get("kind") != "risk"
-                or record.get("program") is None
-            ):
+            if row is None or not risk_judge.kept(record):
                 return
             key = (row.command.strip(), row.cwd or "", record["program"], record.get("root", ""))
             self._risk_cache.setdefault(row.run_id, {})[key] = "approved"

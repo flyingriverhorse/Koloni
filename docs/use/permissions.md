@@ -381,17 +381,20 @@ It is not asked about:
   `cargo build`, `go build`), local git (`status`, `add`, `commit`, `diff`, `log`, `switch`, `branch`) and
   `npm run <script>` - but not where an agent wrote what it runs (the program, or the project's
   `package.json`);
-- your own test command (the project map's), a skill's script you let run, and a delete KOLONİ found
-  disposable where you allowed [such deletes](#disposable-deletes);
+- your own test command (the project map's) - but it is, where the line runs a program an agent wrote -,
+  a skill's script you let run, and a delete KOLONİ found disposable where you allowed [such
+  deletes](#disposable-deletes);
 - a command KOLONİ already asks about for a reason of its own - the list, a secret, `.koloni`, a file that
   steers agents, a working copy's reason: that card stays as it was. The judge only ever adds a card; it
   never runs a command that asks, and never refuses one.
 
 **What it reads:** your preferences, this project's rules as saved on the [Memory](../memory.md) page and
 your messages in the chat (in a job while you're away, in the chat you went away from); the command, its
-folder and who runs it (the Orchestrator or a sub-agent's role); the same agent's last 5 commands in the
-turn; and, where the command runs a file an agent wrote (`node x.js`, `python x.py`, `./x.sh`, `x.ps1`,
-`powershell -File x.ps1`, `x.cmd`), the first 4 KB of that file. Everything but your own words is marked as
+folder and who runs it (the Orchestrator or a sub-agent's role); the last 5 commands the same agent ran in
+the turn (only ones that started, each cut to 300 characters); and, where the line runs or reads a file an
+agent wrote - a script (`node x.js`, `python x.py`, `python -m x`, `./x.sh`, `x.ps1`, `powershell -File
+x.ps1`, `x.cmd`), make's Makefile, a Dockerfile or compose file, a `package.json` -, the first 4 KB of that
+file. Everything but your own words is marked as
 data an agent wrote, not instructions. It never sees an agent's messages, a tool's result or a file an
 agent read, and the secrets KOLONİ knows are masked first.
 
@@ -399,21 +402,27 @@ agent read, and the secrets KOLONİ knows are masked first.
 waits for you on a card that says **KOLONİ's judge: …**, the model's one sentence; once answered, that
 sentence stays under the command's row. In a job while you're away the job waits there, as at any card,
 and the next one starts. A command over 4,000 characters, or one that - or the program an agent wrote that
-it runs - reads like orders to a model, is a card without asking. So is one the judge gave no answer for
-in 20 seconds (90 for a model on a CLI), gave an answer it could not read for, or could not be asked about:
-every time - an agent can write a command that slows or confuses the judge, so none of these lets a
-command run.
+it runs, or one of the earlier commands it would be shown - reads like orders to a model, is a card without
+asking. So is one the judge gave no answer for in 20 seconds (90 for a model on a CLI), gave an answer it
+could not read for, or could not be asked about now - no room on its model's provider (its limit, this
+month's budget) or the turn past its token limit: "it could not be asked: …" -, and one whose program
+changed while the judge looked: every time - an agent can write a command that slows, confuses or spends
+the judge, so none of these lets a command run.
 
 **Its card** offers **Run once** and **Reject**, and a box, **Don't ask about this line again here**.
-Run once runs the line - the command, its folder and the program it runs, as it is - and the judge does not
-ask about it again in that turn; with the box ticked, not in this project either, until that program
-changes. Where KOLONİ does not know the folder a CLI's command runs in, nothing is kept and the box is not
-offered. No **Always run** is offered, and an Always run rule does not let a command past the judge: a
-rule matches by its first words, and `python` would cover `python -c …`.
+Run once runs the line, and the judge does not ask about it again in that turn; with the box ticked, not in
+this project either. A line is kept with its folder and, where it runs or reads a file of the project's (a
+script, a module, a Makefile, a Dockerfile, a `package.json`), with that file as it was: once the file
+changes, it is another line, asked again. A line that runs no file of the folder's (`curl …`, `git push …`,
+`pip install …`) is its words alone. Nothing is kept - the card has no box, and the line is asked about each
+time - where KOLONİ does not know the folder the line runs in (a CLI that does not say), or where the line
+runs a file KOLONİ did not find (`python -m x` with no `x.py`, `make` with no Makefile, `docker build` with
+no Dockerfile in its context). No **Always run** is offered, and an Always run rule does not let a command
+past the judge: a rule matches by its first words, and `python` would cover `python -c …`.
 
-**Where it stands aside:** with no model to ask, no room on its model's provider, or the turn past its
-token limit - none of it the agent's doing - it says once in the chat "Full auto's judge is off for this
-turn: …" and the rest of the turn runs as Full auto did before.
+**Where it stands aside:** only with no model to ask - no Judge model chosen that can be asked, and none in
+the Fast tier. It says once in the chat "Full auto's judge is off for this turn: …" and the rest of the
+turn runs as Full auto did before.
 
 **Which model:** Settings › The app › Agents › **Judge model** - **Fast tier's first (now: …)** unless you
 choose one of the models listed (those of every tier that answer with no tools). A choice that cannot be
@@ -426,12 +435,21 @@ make none. Usage › Cards counts its cards on a row of their own.
 ### The judge is not a wall
 
 - It is a model's decision: it can call a risky command fine, and then that command runs - as it did
-  at Full auto before the judge.
+  at Full auto before the judge. Text written to steer it, in a command or a program an agent wrote, is
+  marked as data, but can still sway a model.
 - Hidden work may not be seen: a tool an agent changed but did not write, a program past its first 4 KB,
-  a program that imports another file.
+  a program that imports another file. A file an agent made by copying (`cp x.txt x.py`) is not known as
+  the agent's, and is not shown.
+- Test runners and build tools load the project's test and settings code by design - a `conftest.py`,
+  test files, an eslint or mypy plugin a setting names, `build.rs`, a cargo runner - and an ordinary line
+  (`pytest -q`, `cargo build`) runs what an agent wrote there with no judge.
 - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
 - Each command it looks at waits for a model request, a few seconds; with only a CLI to ask, from that
   CLI's quota.
+- **Don't ask about this line again here** cannot be listed or undone in the app yet: what it keeps goes
+  with the project. A changed file makes its line another one.
+
+See [Known limits](../reference/known-limits.md#commands) for the rest.
 
 ## Check what I said first
 

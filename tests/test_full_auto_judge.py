@@ -121,7 +121,9 @@ def test_risky_is_a_card_with_the_judges_sentence_and_no_rule(judging, wait_run,
     assert asked["danger"] == "KOLONİ's judge: It sends .env away."
     assert asked["suggested_prefix"] == "" and executor.started == []
     assert (asked["judged"]["kind"], asked["judged"]["verdict"]) == ("risk", "risky")
-    assert asked["keeps_line"] is True  # (its card offers "Don't ask about this line again here")
+    # (no gen.py in the folder: nothing would be kept for the line, so its card offers no "Don't ask
+    # about this line again here" - one that is kept: `..._keeps_its_run_and_dont_ask_again`)
+    assert asked["keeps_line"] is False
     with client.app.state.session_factory() as session:
         assert session.get_one(Command, asked["id"]).asked_reason == "judge"
 
@@ -730,7 +732,8 @@ def test_a_line_whose_program_was_not_found_keeps_nothing(judging, wait_run, pro
         [Script([])] * 3,
     )
     _, cid, first = go(client, project_dir)
-    card(client, cid, "approve", remember_line=True)
+    # (so its card does not offer "Don't ask about this line again here")
+    assert card(client, cid, "approve", remember_line=True)["keeps_line"] is False
     wait_run(client, cid, first)
     sent = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}, headers=OWN)
     wait_run(client, cid, sent.json()["run"]["id"])
@@ -887,7 +890,8 @@ def test_a_line_that_runs_no_file_of_the_folders_keeps_its_run_and_dont_ask_agai
         [Script([])] * 3,
     )
     pid, cid, first = go(client, project_dir)
-    card(client, cid, "approve", remember_line=True)
+    # (its card offers "Don't ask about this line again here")
+    assert card(client, cid, "approve", remember_line=True)["keeps_line"] is True
     wait_run(client, cid, first)
     sent = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}, headers=OWN)
     snap = wait_run(client, cid, sent.json()["run"]["id"])
@@ -907,7 +911,8 @@ def test_make_is_keyed_by_its_makefile(judging, wait_run, project_dir):
         [Script([])] * 3,
     )
     _, cid, first = go(client, project_dir)
-    card(client, cid, "approve", remember_line=True)
+    # (its Makefile found and hashed: its card offers "Don't ask about this line again here")
+    assert card(client, cid, "approve", remember_line=True)["keeps_line"] is True
     wait_run(client, cid, first)
 
     def again(content):

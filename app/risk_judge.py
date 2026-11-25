@@ -7,6 +7,7 @@ is `app.agent.risk_judge_mixin.RiskJudgeMixin`; it only ever adds a card."""
 import json
 import re
 from collections.abc import Sequence
+from typing import TypeGuard
 
 from app import injection, judge
 from app.commands import _in_a_shell, _program, _words, is_plain, is_wrapped
@@ -189,3 +190,15 @@ def risky_unasked(command: str, program_text: str | None, earlier: Sequence[str]
     if any(injection.scan(one, "command") for one in earlier):
         return "an earlier command of this turn carries words aimed at its judge"
     return ""
+
+
+def kept(record: object) -> TypeGuard[dict]:
+    """Whether a command's record of the judge holds its line's key, so a Run on its card is kept
+    for the turn and "Don't ask about this line again here" in the project: the gate's `key` -
+    its folder a fact, and the file it runs found and hashed, or none run at all - as the
+    record's "program" (None: no key)."""
+    return (
+        isinstance(record, dict)
+        and record.get("kind") == "risk"
+        and record.get("program") is not None
+    )

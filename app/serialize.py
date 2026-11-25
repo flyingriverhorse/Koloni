@@ -5,6 +5,7 @@ from pathlib import PurePath
 from sqlalchemy import select
 from sqlalchemy.orm import object_session
 
+from app import risk_judge
 from app.commands import PLANTED_SAYS, SEARCHES_FOLDER, danger, harms, suggest_prefix, with_cwd
 from app.db.models import (
     FOLLOWED,
@@ -158,9 +159,7 @@ def command_out(command: Command, live_output: str | None = None, held: bool = F
             "preview_url": command.preview_url,
             "judged": command.judged,
             # (as `RiskJudgeMixin._risk_approved` keeps one: a record with its line's key)
-            "keeps_line": command.asked_reason == "judge"
-            and isinstance(command.judged, dict)
-            and command.judged.get("program") is not None,
+            "keeps_line": command.asked_reason == "judge" and risk_judge.kept(command.judged),
             "disposable": command.disposable,
             "created_at": command.created_at,
             "started_at": command.started_at,

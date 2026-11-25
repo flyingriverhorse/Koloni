@@ -38,7 +38,8 @@ function useOffersDisposable(command: Command): boolean {
 }
 
 /** Full auto's judge's card (0.1.9): its box - ticked, Run once also keeps the line from being asked again here. None
- *  where the server keeps nothing for it (the judge did not look, or the line's folder is not known). */
+ *  where the server keeps nothing for it (`keeps_line`: the judge did not look, the line's folder is not known, or
+ *  the file it runs was not found). */
 function KeepLine({ command, keep, onKeep }: { command: Command; keep: boolean; onKeep: (on: boolean) => void }) {
   if (!command.keeps_line) return null
   return (

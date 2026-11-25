@@ -47,7 +47,7 @@ const CHECK_WHY =
 const JUDGE_SHOWN =
   'A small model looks at each command the list does not stop. One request of your Judge model (Settings › The app › Agents) for each such command, on your plan or your bill.'
 const JUDGE_REST =
-  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky waits for you on a card, “KOLONİ’s judge: …”. Reads, ordinary work (tests, compilers and checkers, local git), your own test command and a trigger’s turn are not asked about. It only adds cards; where no model can be asked it stands aside for the turn and says so in the chat. Off: Full auto as before.'
+  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky waits for you on a card, “KOLONİ’s judge: …”. Reads, ordinary work (tests, compilers and checkers, local git), your own test command (unless it runs a program an agent wrote) and a trigger’s turn are not asked about. It only adds cards - one it cannot get an answer for waits for you too; only where there is no model to ask does it stand aside for the turn, and it says so in the chat. Off: Full auto as before.'
 
 /** What a look over each report costs, and what is sent to which model, in sight under its box; the rest behind ⓘ. */
 const OBSERVE_SHOWN =

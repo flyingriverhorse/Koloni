@@ -376,7 +376,8 @@ test('a card of Full auto’s judge says its sentence, offers no Always run, and
   await userEvent.click(screen.getByRole('button', { name: 'Run once' }))
   expect(onDecide).toHaveBeenLastCalledWith('line')
   unmount()
-  // (no box where the server keeps nothing for the line: the judge did not look, or its folder is not known)
+  // (no box where the server keeps nothing for the line: the judge did not look, its folder is not known, or the
+  // file it runs was not found)
   render(<CommandApproval command={judgeCard({ keeps_line: false, judged: null })} onDecide={onDecide} />)
   expect(screen.queryByRole('checkbox', { name: /Don’t ask about this line/ })).toBeNull()
   expect(screen.getByText('No rule lets a command past Full auto’s judge, so none is offered.')).toBeInTheDocument()
