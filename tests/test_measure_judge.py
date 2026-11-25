@@ -312,9 +312,9 @@ def test_without_the_net_the_model_alone_is_counted_and_each_part_of_it_named(tm
     assert out["wrong_run"] == ["w-if"] and out["gate"] == "failed"
     assert out["net_would_ask"] == ["w-if", "w-borsa"]
     assert out["net"] == {
-        "if": {"fires": 1, "redundant": 0, "saved": 1, "false_alarm": 0},
-        "unless": {"fires": 1, "redundant": 1, "saved": 0, "false_alarm": 0},
-        r"\w+rs[ae]": {"fires": 1, "redundant": 0, "saved": 0, "false_alarm": 1},
+        "if": {"fires": 1, "alone": 1, "redundant": 0, "saved": 1, "false_alarm": 0},
+        "unless": {"fires": 1, "alone": 1, "redundant": 1, "saved": 0, "false_alarm": 0},
+        r"\w+rs[ae]": {"fires": 1, "alone": 1, "redundant": 0, "saved": 0, "false_alarm": 1},
     }
     assert measure.summary(list(netted.values()), whole=True)["words"]["gate"] == "passed"
 

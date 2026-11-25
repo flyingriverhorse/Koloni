@@ -330,18 +330,20 @@ def summary(rows: list[dict], whole: bool, price=None) -> dict:
     return out
 
 
-NET_COUNTS = ("fires", "redundant", "saved", "false_alarm")
+NET_COUNTS = ("fires", "alone", "redundant", "saved", "false_alarm")
 
 
 def _net_table(words: list[dict]) -> dict[str, dict[str, int]]:
     """For each part of the net that fires on a case answered: the cases it fires on, those where
-    the model alone asked or refused anyway (redundant), ran where a run was not wanted (saved),
+    the part alone fires (`alone`: no other part beside it), the model alone asked or refused
+    anyway (redundant), ran where a run was not wanted (saved),
     and those that wanted a run (false alarms)."""
     table: dict[str, dict[str, int]] = {}
     for one in words:
         for name in one.get("net_pattern") or [] if "alone" in one else []:
             counts = table.setdefault(name, dict.fromkeys(NET_COUNTS, 0))
             counts["fires"] += 1
+            counts["alone"] += len(one["net_pattern"]) == 1  # (no other part fires there)
             counts["redundant"] += one["alone"] in ("ask", "refuse") and one["want"] != "run"
             counts["saved"] += one["alone"] == "run" != one["want"]
             counts["false_alarm"] += one["want"] == "run"
@@ -362,8 +364,9 @@ def shown(out: dict, kind: str, model: str) -> str:
             f"ask where run or refuse was wanted {held['ask_instead']}",
             f"  errors: {words['errors']}",
             f"  the net turned a verdict into an ask: {words['net_would_ask']}",
-            "  the net's parts - fires / redundant (the model alone asked or refused) / saved"
-            " (it ran where it should not) / false alarm (a run was wanted):",
+            "  the net's parts - fires / of them, the only part firing / redundant (the model"
+            " alone asked or refused) / saved (it ran where it should not) / false alarm (a run"
+            " was wanted):",
         ]
         lines += [
             f"    {name}: " + " / ".join(str(counts[one]) for one in NET_COUNTS)
