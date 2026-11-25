@@ -785,7 +785,7 @@ def _worktrees(listed: str) -> list[dict]:
     none; locked whoever locked it (KOLONİ's: `LOCK_REASON`)."""
     found: list[dict] = []
     for block in listed.replace("\r\n", "\n").split("\n\n"):
-        lines = dict(line.partition(" ")[::2] for line in block.splitlines() if line)
+        lines = {key: value for key, _, value in (one.partition(" ") for one in block.splitlines())}
         if "worktree" in lines and "bare" not in lines:
             branch = lines.get("branch", "")
             found.append(
@@ -815,7 +815,7 @@ def _where(project: Path, git: str, until: float) -> dict | None:
         return None
     # (Nothing of the commit is read: a signature on it is never checked here.)
     head = _said(project, git, until, "rev-parse", "--verify", "-q", "HEAD")  # None: no commit
-    dates = dict(row.partition("\t")[::2] for row in rows.splitlines() if row)
+    dates = {key: value for key, _, value in (row.partition("\t") for row in rows.splitlines())}
     return {
         "branch": branch.strip(),
         "head": (head or "").strip() or None,

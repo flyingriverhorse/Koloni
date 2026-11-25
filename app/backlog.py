@@ -1248,8 +1248,8 @@ def lead_decided(said: str, count: int) -> dict[int, tuple[bool, str]]:
         if not isinstance(one, dict):
             continue
         # (masked before the cut: a secret cut in half would no longer be known to hide)
-        said = one.get("why")
-        shown = masked(said) if isinstance(said, str) else None
+        given = one.get("why")
+        shown = masked(given) if isinstance(given, str) else None
         why = _cut(shown, MAX_WHY)
         n, add = one.get("task"), one.get("add")
         if type(n) is int and 1 <= n <= count and isinstance(add, bool) and why:

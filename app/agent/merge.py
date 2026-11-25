@@ -254,7 +254,7 @@ def _merge_file(
     }
     # Why such a file waits on the card at every level (nobody watching: refused instead).
     standing = stands_over_later_turns(Workspace(copy.project), path)
-    one = {
+    one: dict = {
         "path": path,
         "kind": kind,
         "state": state,

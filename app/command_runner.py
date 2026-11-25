@@ -355,14 +355,14 @@ def _runner_places(words: list[str], cwd: str) -> _Reach | None:
         )
     python = next((at for at, word in enumerate(words) if _PYTHON.fullmatch(_program(word))), None)
     module = _python_module(words[python:]) if python is not None else None
-    led = module is not None and module[0] in _PY_RUNNER_MODULES  # (`python -m uv`, `-m pip`)
-    runner = name if name in _PY_RUNNERS or not led else module[0]
+    ran, flags = (module[0], set(module[1])) if module is not None else (None, set())
+    led = ran in _PY_RUNNER_MODULES  # (`python -m uv`, `-m pip`)
+    runner = name if name in _PY_RUNNERS or not led or ran is None else ran
     if runner not in _PY_RUNNERS and module is None:
         return None
-    flags = set(module[1]) if module else set()
-    skip = ("run", module[0] if led else "run")
+    skip = ("run", ran if led and ran is not None else "run")
     rest = (w for w in words[1:] if w[:1] != "-" and w not in skip)
-    tool = module[0] if module and not led else next(rest, "")
+    tool = ran if ran is not None and not led else next(rest, "")
     safe_path = bool(os.environ.get("PYTHONSAFEPATH")) and "E" not in flags
     tests = _program(tool.split(".")[0]) in _RUNS_THE_PROJECT
     own = _PY_MANIFESTS if runner in _PY_RUNNER_MODULES and not tests else ()

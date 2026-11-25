@@ -105,7 +105,8 @@ def _parked(session: Session, project_id: str) -> list[str]:
         select(Parked.kind, Parked.what, BacklogTask.title)
         .join(AwayRun, AwayRun.id == Parked.away_run_id)
         .join(BacklogTask, BacklogTask.id == Parked.task_id)
-        .where(AwayRun.project_id == project_id, Parked.decision.is_(None))
+        # (not a Change and redo's record, `app.redo`: the user's own word, nothing to decide)
+        .where(AwayRun.project_id == project_id, Parked.decision.is_(None), Parked.kind != "redo")
         .order_by(Parked.created_at)
     )
     return [

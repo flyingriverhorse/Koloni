@@ -2015,7 +2015,7 @@ def test_the_first_finished_branch_on_github_asks_which_way_and_a_pull_request_i
     assert "--head=koloni/fix" in create and "--base=main" in create
     assert "--title=fix two" in create and "--repo=owner/repo" in create
     body = log.with_name("gh.log.body").read_text(encoding="utf-8")
-    assert "`lines.txt` (M)" in body and "A done" in body
+    assert "```\nlines.txt (M)\n```" in body and "```\nA done\n```" in body  # (L-3: fenced)
     assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
     project = client.get("/api/projects").json()[0]
     assert project["finish_way"] == "pull_request"
