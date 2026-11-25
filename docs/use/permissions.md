@@ -419,15 +419,18 @@ is known and KOLONİ knows all the line runs, as it is:
   more - `python x.py`, `node x.js`, `make` or `make target` (its Makefile), `make -f F`, `npm test` or
   `npm run <script>` (that folder's `package.json`), `docker build [-f F] [-t T] .` (its Dockerfile). Once
   the file changes, it is another line, asked again;
-- or one plain command of a few that run none of the project's code, kept by its words: `curl`, `wget`,
-  `git`, `gh` (where no word names a path in the folder), and the file commands `rm`, `rmdir`, `del`,
-  `mkdir`, `md`, `cp`, `copy`, `mv`, `move`, `ren`, `chmod`, `touch`.
+- or one plain command of a few that run none of the project's code, kept by its words: `curl` and `wget`
+  (where no word names a path in the folder), and the file commands `rm`, `rmdir`, `del`, `mkdir`, `md`,
+  `cp`, `copy`, `mv`, `move`, `ren`, `chmod`, `touch`.
 
-Every other line is asked about each time it runs, and its card has no box: a wrapped line (`env …`, `uv
-run …`, `timeout …`), a shell's code (`bash -lc …`, `cmd /c …`), `npx …`, a line sent to another folder
-(`-C`, `--prefix`, `-w`, `--cwd`), an option that loads more code (`node -r x`), a runner KOLONİ does not
-know, a file it did not find (`python -m x` with no `x.py`), or a line whose folder is not known (a CLI
-that does not say). No **Always run** is offered, and an Always run rule does not let a command past the
+Every other line is asked about each time it runs, and its card has no box: `git` and `gh` (they may run
+the project's own aliases and settings), a wrapped line (`env …`, `uv run …`, `timeout …`), a shell's code
+(`bash -lc …`, `cmd /c …`), `npx …`, a line sent to another folder (`-C`, `--prefix`, `-w`, `--cwd`), an
+option that loads more code (`node -r x`; PowerShell with any option but `-NoProfile`, `-NonInteractive`,
+`-NoLogo`, `-ExecutionPolicy`, `-WindowStyle` and `-File`), a variable set on make's line (`make CC=x`), a
+package run by its `__main__.py` (`python -m pkg`, `python pkg`), `bun`, `Rscript`, any other runner
+KOLONİ does not know, a file it did not find (`python -m x` with no `x.py`), or a line whose folder is not
+known (a CLI that does not say). No **Always run** is offered, and an Always run rule does not let a command past the
 judge: a rule matches by its first words, and `python` would cover `python -c …`.
 
 **Where it stands aside:** only with no model to ask - no Judge model chosen that can be asked, and none in

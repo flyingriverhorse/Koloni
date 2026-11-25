@@ -175,7 +175,10 @@ def test_earlier_commands_are_cut_and_one_with_orders_is_a_card_unasked():
     "record, want",
     [
         ({"kind": "risk", "verdict": "risky", "program": "ab" * 32}, True),  # its file, all it runs
-        ({"kind": "risk", "verdict": "risky", "program": ""}, True),  # `curl`, `git`: no local code
+        (
+            {"kind": "risk", "verdict": "risky", "program": ""},
+            True,
+        ),  # `curl`, `wget`: no local code
         # (no key: wrapped - `env`, `uv run` -, a shell's code, not found, its folder not known)
         ({"kind": "risk", "verdict": "risky", "program": None}, False),
         ({"kind": "risk", "verdict": "risky"}, False),

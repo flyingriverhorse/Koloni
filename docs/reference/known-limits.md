@@ -144,12 +144,14 @@ messages.
     - **Don't ask about this line again here** cannot be listed or undone in the app yet; what it keeps
       goes with the project.
     - A Run on its card, and **Don't ask about this line again here**, keep only a line whose whole run
-      KOLONİ knows - a project file it runs in a plain form, hashed, or one plain `curl`, `wget`, `git`,
-      `gh` or file command. Any other form - a wrapper, a shell's code, `npx`, a line sent to another
-      folder, a runner KOLONİ does not know, a file it did not find, a folder it does not know - is
-      asked about every time, and its card has no box: it fails closed, at the cost of more questions.
-    - A kept `git` line can still run the project's own git aliases and settings (git hooks are off
-      for agents); `git` is kept by its words, as its subcommand is not the project's code.
+      KOLONİ knows - a project file it runs in a plain form, hashed, or one plain `curl`, `wget` or file
+      command. Any other form - `git`, a wrapper, a shell's code, `npx`, a line sent to another folder,
+      a variable set on make's line, a package's `__main__.py`, a runner KOLONİ does not know, a file it
+      did not find, a folder it does not know - is asked about every time, and its card has no box: it
+      fails closed, at the cost of more questions.
+    - What a kept program imports in turn is not looked at - not even a file in its folder that shadows
+      a standard module (a `json.py` beside `x.py`): a changed import does not make `python x.py`
+      another line.
     - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
     - Each command it looks at waits for one model request and a few seconds; where only a CLI can be
       asked, from that CLI's quota, and each such command waits for the CLI to start.

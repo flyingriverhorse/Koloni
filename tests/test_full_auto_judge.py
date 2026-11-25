@@ -998,7 +998,9 @@ def test_dont_ask_again_keeps_nothing_for_a_wrapped_line(judging, wait_run, proj
     "line, offered",
     [
         ("curl https://example.com/x", True),
-        ("git fetch origin", True),
+        ("wget https://example.com/x", True),
+        ("python exfil.py", True),
+        ("git fetch origin", False),  # (git may run the project's own aliases and settings)
         ("env python exfil.py", False),
         ("uv run exfil.py", False),
         ("bash -lc 'python exfil.py'", False),
@@ -1008,7 +1010,8 @@ def test_the_cards_box_is_offered_only_where_the_line_is_kept(
     judging, wait_run, project_dir, line, offered
 ):
     # (the box goes by `risk_judge.kept`, as `_risk_approved` does: a plain command of the few
-    # that run none of the folder's code keeps its words; a wrapped line or a shell's code nothing)
+    # that run none of the folder's code keeps its words, a file it runs in a plain form its digest;
+    # a wrapped line, a shell's code or git nothing)
     client, *_ = judging(
         [write("exfil.py", BENIGN), cmd(line, id="k1"), text("left")], [said("risky")], [Script([])]
     )
