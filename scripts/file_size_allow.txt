@@ -4,7 +4,7 @@
 # list only gets shorter: never add a file to it - split the file.
 
 # app/, frontend/src/, scripts/
-10519 app/agent/__init__.py
+10508 app/agent/__init__.py
 2297 app/agent/context_mixin.py
 1670 app/agent/loop_mixin.py
 1611 app/agent/merge.py
@@ -13,12 +13,12 @@
 1696 app/browser.py
 6772 app/commands.py
 1963 app/db/models.py
-4305 app/git.py
+4153 app/git.py
 2950 app/knowledge.py
 2038 app/memory.py
 5736 app/model_native.py
 1984 app/proof_kinds.py
-5252 app/schemas.py
+5196 app/schemas.py
 1875 app/tools.py
 1827 app/triggers.py
 1564 frontend/src/agents/RecipesTab.tsx
