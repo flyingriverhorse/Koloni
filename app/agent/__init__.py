@@ -59,6 +59,7 @@ from sqlalchemy.orm import Session
 
 from app import (
     away,
+    away_branch,
     browser,
     copies,
     diagram,
@@ -2653,6 +2654,9 @@ class AgentRunner(
                 self._git_at_start[ctx.run_id] = _git_parts(
                     await asyncio.to_thread(standing_files, str(made.project)), made.project
                 )
+            # (...in every scope: a global one, a worktree's - L-D)
+            mine = await asyncio.to_thread(away_branch.config_digest, made.project)
+            self._git_at_start[ctx.run_id].setdefault("all", mine or "")
         elif left:
             # Its branch not opened again, and still there: a later go-on tries it again
             # (not `on_branch`: the git map would name this copy's agent its team).
@@ -3719,15 +3723,13 @@ class AgentRunner(
             # A push runs what git's config names (an address, a credential helper, an ssh
             # command): not unasked where it changed during the turn, as Take in's commit asks.
             config = (
-                _git_parts(
-                    await asyncio.to_thread(standing_files, str(copy.project)), copy.project
-                )["config"]
+                await asyncio.to_thread(away_branch.config_digest, copy.project)
                 if way == "pull_request"
                 else None
             )
             config_moved = config is not None and config != (
                 self._git_at_start.get(ctx.run_id) or {}
-            ).get("config")
+            ).get("all")
             # (A pull request while the user's branches hold commits origin does not: asked.)
             pr_asks = await self._pr_asks(copy) if way == "pull_request" or ask_way else None
             async with lock:  # (looked at again right before: two teams finish at once)
@@ -4157,9 +4159,7 @@ class AgentRunner(
                 way = session.get_one(
                     Project, session.get_one(Conversation, ctx.cid).project_id
                 ).finish_way
-            config = _git_parts(
-                await asyncio.to_thread(standing_files, str(copy.project)), copy.project
-            )["config"]
+            config = await asyncio.to_thread(away_branch.config_digest, copy.project)
             if config != seen[0] or seen[1] is not None and way != seen[1]:
                 raise git.Refused(
                     "git's config or the project's way changed just now: look at the card again"

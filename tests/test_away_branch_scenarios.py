@@ -18,7 +18,7 @@ from app.agent import AgentRunner
 from app.agent.story_branch_mixin import BRANCH_SECRET_GONE
 from app.away_branch import AWAY_BRANCH_JOB, NOT_ON_BRANCH_NOW, PUSH_REFUSED
 from app.db.away_models import Parked
-from app.db.models import Agent, Merge
+from app.db.models import Agent, AwayRun, Merge
 from app.model_client import ModelUnavailable
 from tests.conftest import Gate
 from tests.test_agent_writes import edit, write
@@ -282,8 +282,13 @@ def test_the_report_never_shows_origins_password(make_client, wait_run, repo):
         make_client, wait_run, repo, [edit(), text("one done")]
     )
     assert job["branch"]["origin"] == "https://***@example.invalid/x.git"
-    shown = json.dumps([done, waiting(client, done["id"])])
+    shown = json.dumps([done, waiting(client, done["id"]), client.get("/api/board").json()])
     assert "tok3n" not in shown and "https://***@example.invalid/x.git" in shown
+    # (L-B: nor on any record - an agent's copy, the card's jobs - which the page may read)
+    with client.app.state.session_factory() as session:
+        kept = [agent.copy for agent in session.scalars(select(Agent))]
+        kept += [night.jobs for night in session.scalars(select(AwayRun))]
+    assert "tok3n" not in json.dumps(kept, default=str)
 
 
 # --- park and continue on a branch (§10): its lines run in the worktree; it goes on there ------
@@ -445,11 +450,13 @@ def test_fix_it_on_a_jobs_kept_branch_never_merges_and_pushes_nothing_after_a_re
 # --- L7: after some of its work was taken in, a branch job's git line never runs in the project ---
 
 
+@pytest.mark.parametrize("line", [MORNING, 'cmd /c "git stash"'])
 def test_a_branch_jobs_git_line_never_runs_in_the_project_after_a_take_in(
-    make_client, wait_run, repo
+    make_client, wait_run, repo, line
 ):
+    # (L-A: any line of the job's worktree - a git in a wrapper too, which no reading finds)
     client, _model, _pid, done, job = branch_night(
-        make_client, wait_run, repo, [edit(), run(MORNING, "c1"), text("one done")]
+        make_client, wait_run, repo, [edit(), run(line, "c1"), text("one done")]
     )
     (line,) = [one for one in waiting(client, done["id"]) if one["kind"] == "command"]
     assert line["closed"] is None and line["place"] == "copy"

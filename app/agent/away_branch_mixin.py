@@ -7,6 +7,7 @@ the morning's push itself (`push_away_branch`). Never into the project: that is 
 H1 (`copies.no_push`), H2 (`away_branch.refs`), H3 (the push held to what was checked)."""
 
 import asyncio
+import hashlib
 import logging
 import os
 import re
@@ -75,12 +76,43 @@ def _fenced(text: str) -> str:
     return f"{fence}\n{text}\n{fence}"
 
 
+# What of the repository a night's jobs are compared with: taken once, at Go away (`night_base`).
+BASE = ("refs", "config", "hooks", "push_to", "push_shown")
+
+
+def git_state(project: Path) -> dict:
+    """What of git runs, or says where a push goes, as it is now (H2, H3): its config in every
+    scope (`away_branch.config_digest`), its hooks (`_git_parts`) and the address a push to origin
+    goes to (`git.push_address`) - by its digest, and as it is shown (`web.kept_url`: never a
+    password - it is kept on records the page reads). Blocking: git is asked, the hooks read."""
+    url = git.push_address(project)
+    return {
+        "config": away_branch.config_digest(project),
+        "hooks": _git_parts(standing_files(str(project)), project)["hooks"],
+        "push_to": hashlib.sha256(url.encode()).hexdigest() if url else "",
+        "push_shown": web.kept_url(url),
+    }
+
+
+def night_base(project: Path) -> dict:
+    """M-B: what every job of a night is compared with, taken once as the user goes away - the
+    repository's refs and `git_state` - so what an earlier job planted is seen by a later one's
+    push too. Blocking."""
+    return {"refs": away_branch.refs(project), **git_state(project)}
+
+
+def _nothing(why: object) -> str:
+    """Why nothing was pushed, said once."""
+    said = str(why)
+    return said if said.rstrip(".").endswith("nothing was pushed") else NOT_NOW.format(why=said)
+
+
 def _elsewhere(held: dict, state: dict) -> list[str]:
-    """The note where a push to origin goes elsewhere now than as the job began (MEDIUM-2)."""
-    then, there = held.get("push_to") or "", state["push_to"]
-    if there == then:
+    """The note where a push to origin goes elsewhere now than as the night began (MEDIUM-2)."""
+    if state["push_to"] == (held.get("push_to") or ""):
         return []
-    return [PUSH_ELSEWHERE.format(now=web.kept_url(there), then=web.kept_url(then))]
+    then, now = held.get("push_shown") or "none", state["push_shown"] or "none"
+    return [PUSH_ELSEWHERE.format(now=now, then=then)]
 
 
 class AwayBranchMixin:
@@ -136,27 +168,15 @@ class AwayBranchMixin:
                 session.commit()
             return
         copies.no_push(copy.root)
-        refs = await asyncio.to_thread(away_branch.refs, Path(t.root))
-        state = await asyncio.to_thread(self._git_state, Path(t.root))
         with self._factory() as session:
             record = session.get_one(Agent, ctx.agent_id).copy or {}
         was = record.get("away") or {}
-        # (git's config, hooks and push address as the job first began: a later turn's push note
-        # is "since the job began"; the refs are this turn's start's - H2 is of each turn)
-        began = {key: was.get(key, value) for key, value in state.items()}
-        now_away = {**was, "mode": job["mode"], "refs": refs, **began}
+        # (M-B: the night's, taken at Go away - what an earlier job planted is seen by this one's
+        # push too; a card from before that: as this job first began)
+        base = job.get("base") or {key: was[key] for key in BASE if key in was}
+        base = base or await asyncio.to_thread(night_base, Path(t.root))
+        now_away = {**was, "mode": job["mode"], **base}
         self._set_agent(ctx.cid, ctx.agent_id, copy={**record, "away": now_away})
-
-    @staticmethod
-    def _git_state(project: Path) -> dict:
-        """What of git runs, or says where a push goes, as it is now (H2, H3): its config in every
-        scope (`away_branch.config_digest`), its hooks (`_git_parts`) and the address a push to
-        origin goes to (`git.push_address`). Blocking: git is asked, and the hooks read."""
-        return {
-            "config": away_branch.config_digest(project),
-            "hooks": _git_parts(standing_files(str(project)), project)["hooks"],
-            "push_to": git.push_address(project),
-        }
 
     def _no_push_if_away(self: "AgentRunner", merge: Merge, copy: copies.Copy) -> None:
         """H1 where a kept copy opened again (a morning's Run line) is a job's branch: whatever
@@ -243,7 +263,7 @@ class AwayBranchMixin:
         """What the morning says of a job's branch (`away_branch.row`), as its turn ends."""
         project, tip = copy.project, look["tip"]
         after = await asyncio.to_thread(away_branch.refs, project)
-        state = await asyncio.to_thread(self._git_state, project)
+        state = await asyncio.to_thread(git_state, project)
         proof = self._proofs.get(ctx.run_id)
         start = copy.snapshot_sha or (copy.start or ("", ""))[1]
         moved = (
@@ -273,7 +293,7 @@ class AwayBranchMixin:
             "config_moved": state["config"] != held.get("config"),
             "hooks_moved": state["hooks"] != held.get("hooks"),
             # (where a push goes, as the job began: the row names it; Run asks where it moved)
-            "origin": web.kept_url(held.get("push_to") or state["push_to"]),
+            "origin": held.get("push_shown") or state["push_shown"],
         }
 
     def _push_row(
@@ -394,13 +414,13 @@ class AwayBranchMixin:
         if look["into"] != held.get("into"):
             why = INTO_MOVED.format(now=look["into"], into=held.get("into"))
             return {"state": "refused", "why": why}
-        state = await asyncio.to_thread(self._git_state, copy.project)
+        state = await asyncio.to_thread(git_state, copy.project)
         if (there := _elsewhere(held, state)) and there[0] not in seen:
             return {"state": "asks", "notes": there}  # (named before origin is asked there)
         try:  # (HIGH-1: origin's branches here are origin's, before what is unpushed is counted)
-            await asyncio.to_thread(away_branch.origin_checked, copy.project, state["push_to"])
+            await asyncio.to_thread(away_branch.origin_checked, copy.project)
         except git.Refused as exc:
-            return {"state": "refused", "why": NOT_NOW.format(why=exc)}
+            return {"state": "refused", "why": _nothing(exc)}
         notes = await self._push_notes(copy, look, held, night, state)
         if any(note not in seen for note in notes):
             return {"state": "asks", "notes": notes}
@@ -425,7 +445,7 @@ class AwayBranchMixin:
                 under=copies.folders(self.settings.runtime_root),
             )
         except git.Refused as exc:
-            return {"state": "refused", "why": NOT_NOW.format(why=exc)}
+            return {"state": "refused", "why": _nothing(exc)}
         if what["way"] != "pull_request":
             return {"state": "pushed", "sha": sha}
         return await self._push_pr(copy, look, held, what, sha)
@@ -476,7 +496,7 @@ class AwayBranchMixin:
         (`_pr_asks`, first: origin's branches were checked against origin), where a push goes now
         if not where it went as the job began, git's config or hooks changed since then, what
         moved outside its branch from the job's start to now (H2, looked at again now), a place
-        kept out it changed. `state`: `_git_state`'s, now."""
+        kept out it changed. `state`: `git_state`'s, now."""
         now = await asyncio.to_thread(away_branch.refs, copy.project)
         moved = (
             away_branch.moved(held["refs"], now, copy.branch or "")

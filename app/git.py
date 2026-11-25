@@ -18,7 +18,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from pathlib import Path, PureWindowsPath
 
 from app.executors.winjob import Job
@@ -3497,10 +3497,17 @@ def _made_on(project: Path, git: str, branch: str) -> set[str]:
 
 
 def _taken_in_unpushed(
-    project: Path, git: str, source: str, start: str, branch: str, snapshot: str | None
+    project: Path,
+    git: str,
+    source: str,
+    start: str,
+    branch: str,
+    snapshot: str | None,
+    origin: Collection[str],
 ) -> list[str]:
     """Of the commits on the branch since it was made (`start..source`) that no branch of origin's
-    holds, as git last fetched it, those not made on it (`_made_on`; the snapshot it began from,
+    holds (`origin`: as origin itself says, `_origin_holds`), those not made on it (`_made_on`; the
+    snapshot it began from,
     KOLONİ's, aside): what came in from elsewhere - the user's branch or another merged in (by D2
     or by its agent's own merge: a parent of it), fast-forwarded to, rebased onto, cherry-picked.
     Their ids; Refused where git does not say (fails closed).
@@ -3509,20 +3516,8 @@ def _taken_in_unpushed(
     some of those run unasked at Full auto: `_users_content` reads the pushed files themselves,
     and a pull request is asked about while the user has commits not on origin
     (`unpushed_count`)."""
-    code, out, said = _in(
-        project,
-        git,
-        *UNASKED,
-        "rev-list",
-        source,
-        f"^{start}",
-        "--not",
-        "--remotes=origin",
-        seconds=SHORT_SECONDS,
-        **UNASKED_ENV,
-    )
-    if code != 0:
-        raise Refused(f"git rev-list failed: {_text(out, said)[-TAIL:]}")
+    lines = [source.encode(), f"^{start}".encode(), *_origin_nots(origin)]
+    out = _said_or_refused(project, git, b"\n".join(lines) + b"\n", "rev-list", "--stdin")
     made = _made_on(project, git, branch) | ({snapshot} if snapshot else set())
     return [sha for sha in out.decode("ascii", "replace").split() if sha not in made]
 
@@ -3543,7 +3538,10 @@ def unpushed_count(
     index, its untracked files) are one stash, not commits. Refused as `repository`, and where git
     does not say."""
     git, _folder = repository(project)
-    found = set(_users_unpushed(project, git, under, branch).decode("ascii", "replace").split())
+    origin = _origin_held(project, git)
+    found = set(
+        _users_unpushed(project, git, under, branch, origin).decode("ascii", "replace").split()
+    )
     stashes = (
         [
             line.split()
@@ -3568,11 +3566,12 @@ def unpushed_places(
     each its folder, and whether that is still there (git keeps a worktree whose folder was deleted
     until `git worktree prune`). Refused as `unpushed_count`."""
     git, _folder = repository(project)
-    found = set(_users_unpushed(project, git, under, branch).split())
+    origin = _origin_held(project, git)
+    found = set(_users_unpushed(project, git, under, branch, origin).split())
     nots = [
         b"^HEAD",
         *(b"^" + head.encode() for head in _users_heads(project, git)),
-        *_origin_nots(project, git),
+        *_origin_nots(origin),
     ]
     places = []
     for tip, tree, log, drop in _users_worktrees(project, git, under) if found else []:
@@ -3607,11 +3606,10 @@ def _users_heads(project: Path, git: str) -> list[str]:
     ]
 
 
-def _origin_nots(project: Path, git: str) -> list[bytes]:
-    """What origin's branches hold, as rev-list's --stdin takes it away (`^<commit>`)."""
-    return _said_or_refused(
-        project, git, None, "for-each-ref", "--format=^%(objectname)", "refs/remotes/origin/"
-    ).split()
+def _origin_nots(origin: Iterable[str]) -> list[bytes]:
+    """What origin's branches hold (`origin`: their commits, as origin itself says them -
+    `_origin_holds`), as rev-list's --stdin takes it away (`^<commit>`)."""
+    return [b"^" + sha.encode() for sha in origin]
 
 
 def _users_worktrees(
@@ -3710,10 +3708,16 @@ def _logged(project: Path, git: str, ref: str) -> list[tuple[str, str]]:
 
 
 def _users_unpushed(
-    project: Path, git: str, under: Iterable[Path], branch: str | None = None
+    project: Path,
+    git: str,
+    under: Iterable[Path],
+    branch: str | None = None,
+    origin: Collection[str] = (),
 ) -> bytes:
-    """The commits of the user's that no branch of origin's holds: what every ref of theirs reaches
-    (`--all`: branches, tags, other remotes, the stash, this worktree's HEAD - KOLONİ's branches
+    """The commits of the user's that no branch of origin's holds (`origin`: their commits, as
+    origin itself says them - `_origin_holds`; never a remote-tracking ref of the repository's,
+    which anything there may write: such a ref is one of the user's): what every ref of theirs
+    reaches (`--all`: branches, tags, remotes, the stash, this worktree's HEAD - KOLONİ's branches
     aside - and the HEADs of their other worktrees: `_users_worktrees`, KOLONİ's aside)
     and what their branches', the stash's and those HEADs' reflogs do (an amended one, a stash below
     the top, a commit on a detached HEAD, on a branch deleted since) - with the commits stashes keep
@@ -3736,7 +3740,7 @@ def _users_unpushed(
         tip.encode() for tip, _tree, _log, _drop in others if tip and _verified(project, git, tip)
     ]
     # (No empty line: rev-list's --stdin stops reading at one, and the ^origin ones would be lost.)
-    lines = [*(sha.encode() for sha, _says in entries), *tops, *_origin_nots(project, git)]
+    lines = [*(sha.encode() for sha, _says in entries), *tops, *_origin_nots(origin)]
     out = _said_or_refused(
         project,
         git,
@@ -3758,7 +3762,7 @@ def _users_unpushed(
             _said_or_refused(
                 project,
                 git,
-                b"\n".join(_origin_nots(project, git)) + b"\n",
+                b"\n".join(_origin_nots(origin)) + b"\n",
                 "rev-list",
                 # (--branches' and --remotes' patterns are their refs' short names)
                 "--ignore-missing",
@@ -3804,6 +3808,7 @@ def _users_content(
     under: Iterable[Path],
     snapshot: str | None = None,
     branch: str | None = None,
+    origin: Collection[str] = (),
 ) -> list[str]:
     """The files a push would add or change (`tip` against `base`) that hold exactly what a commit
     of the user's not on origin introduced (`_users_unpushed`: their branches, stashes, a detached
@@ -3811,7 +3816,7 @@ def _users_content(
     was made on it) - or what the branch's `snapshot` took of their folder, not committed: their
     work copied onto the branch. An empty file is no one's. Refused where git does not say (fails
     closed)."""
-    commits = _users_unpushed(project, git, under, branch)
+    commits = _users_unpushed(project, git, under, branch, origin)
     held: set[str] = set()
     if commits.strip():
         held |= set(
@@ -3873,8 +3878,8 @@ def push_one(
     """Push the branch's commit `tip` to the remote "origin", as `branch` there, as ONE commit
     by KOLONİ - its tree, on where it left the project's branch `into`: what `merge_branch`
     would bring in, not the agents' own steps (a secret committed and taken out). Only where
-    origin has that place already (`refs/remotes/origin/<into>` holds it - and each of origin's
-    branches here is what origin itself says it holds, `_origin_is_origin`): the user's own
+    origin has that place already (origin's own `<into>`, as origin itself says it - fetched: no
+    remote-tracking ref of the repository's is read, `_origin_holds`): the user's own
     commits not pushed yet do not go up under it - nor, `start`, the commit the branch was made
     from (a local branch of theirs it left since) - nor what the branch took in that origin does not
     hold (`_taken_in_unpushed`, of `source`: the branch's own tip, where `tip` is its share - W-1,
@@ -3882,7 +3887,7 @@ def push_one(
     once the user rewrote or dropped such a commit, where the branch left theirs is its start,
     and the commit's content would go up under it. Never forced: a branch of that name there
     already refuses it. No hook, tag, push option or signing of the repository's; git's own
-    receive-pack; to the one address those branches were checked at (`push_address`).
+    receive-pack; to the one address origin was asked at (`push_address`), never rewritten.
     `under`: KOLONİ's copies folders - its worktrees there are not the user's (`_users_unpushed`).
     Returns the commit pushed. Refused, with why."""
     if not branch.startswith(BRANCH_PREFIX):
@@ -3890,7 +3895,10 @@ def push_one(
     git, _folder = repository(project)
     if not (url := push_address(project)):
         raise Refused(NO_ADDRESS)
-    _origin_is_origin(project, git, url)  # (what follows reads origin's branches as here)
+    # (what origin holds, as origin says it - never a remote-tracking ref of the repository's)
+    listed, origin = _origin_holds(project, git, url)
+    if into in listed and listed[into] not in origin:
+        raise Refused(FETCH_FIRST.format(into=into))
     code, out, said = _in(
         project,
         git,
@@ -3904,18 +3912,20 @@ def push_one(
     if code != 0:
         raise Refused(f"git merge-base failed: {_text(out, said)[-TAIL:]}")
     base = out.decode("ascii", "replace").strip()
-    if any(
-        _in(project, git, "merge-base", "--is-ancestor", one, f"refs/remotes/origin/{into}")[0]
+    if into not in listed or any(
+        _in(project, git, "merge-base", "--is-ancestor", one, listed[into])[0]
         for one in (base, start)
     ):
         raise Refused(
             f"push {into} first: commits of yours not on origin yet would go up with "
             "the pull request"
         )
-    if taken := _taken_in_unpushed(project, git, source or tip, start, branch, snapshot):
+    if taken := _taken_in_unpushed(project, git, source or tip, start, branch, snapshot, origin):
         # (Named as the user's only those their own refs hold - what they can push; a reflog of
         # the branch's expired or cut by gc leaves the agents' own commits not made on it to git.)
-        yours = set(_users_unpushed(project, git, under, branch).decode("ascii", "replace").split())
+        yours = set(
+            _users_unpushed(project, git, under, branch, origin).decode("ascii", "replace").split()
+        )
         mine = [sha for sha in taken if sha in yours]
         said, named = (TAKEN_IN_UNPUSHED, mine) if mine else (TAKEN_IN_UNKNOWN, taken)
         more = len(named) - NAMED_COMMITS
@@ -3925,7 +3935,7 @@ def push_one(
                 + (f" and {more} more" if more > 0 else "")
             )
         )
-    if copied := _users_content(project, git, base, tip, under, snapshot, branch):
+    if copied := _users_content(project, git, base, tip, under, snapshot, branch, origin):
         raise Refused(
             USERS_CONTENT.format(
                 files=", ".join(copied[:NAMED_COMMITS])
@@ -3969,7 +3979,7 @@ def push_one(
             "--no-verify",
             "--quiet",
             "--receive-pack=git-receive-pack",
-            url,  # (where origin's branches were checked: `_origin_is_origin`)
+            url,  # (where origin was asked what it holds: `_origin_holds`)
             f"{sha}:refs/heads/{branch}",
             seconds=PUSH_SECONDS,
             **UNASKED_ENV,
@@ -3979,18 +3989,20 @@ def push_one(
     return sha
 
 
-# Why nothing is pushed: no one address of origin's, or its branches here are not origin's.
-NO_ADDRESS = "origin has no one address a push goes to: nothing was pushed"
-NOT_ORIGINS = (
-    "{ref} here is not what origin holds ({why}): fetch from origin (git fetch --prune origin), "
-    "then Run again - nothing was pushed"
+# Why nothing is pushed: no one address of origin's; one git's config rewrites (an insteadOf: what
+# origin is asked and where the push goes could be two repositories); origin's own branch not here.
+NO_ADDRESS = "origin has no one address a push goes to"
+REWRITTEN = (
+    "git's config rewrites the address a push to origin goes to ({key}): what origin is asked and "
+    "where the push goes could be two repositories - take that rule off, then Run again"
 )
+FETCH_FIRST = "origin's {into} holds commits this repository has not fetched: fetch first"
 
 
 def push_address(project: Path) -> str:
     """Where a push to origin goes, as git resolves it now - its pushurl, and a pushInsteadOf or
-    insteadOf of any scope of the user's config, applied (`git remote get-url --push`). "" where
-    there is none, more than one (a push goes to each) or one git would read as an option."""
+    insteadOf of any scope of the user's config, applied (`git remote get-url --push --all`). ""
+    where there is none, more than one (a push goes to each) or one git would read as an option."""
     try:
         git, _folder = repository(project)
     except Refused:
@@ -4002,6 +4014,7 @@ def push_address(project: Path) -> str:
         "remote",
         "get-url",
         "--push",
+        "--all",
         "origin",
         seconds=SHORT_SECONDS,
         **UNASKED_ENV,
@@ -4010,40 +4023,70 @@ def push_address(project: Path) -> str:
     return found[0] if code == 0 and len(found) == 1 and not found[0].startswith("-") else ""
 
 
-def _origin_is_origin(project: Path, git: str, url: str) -> None:
-    """Origin's branches as this repository has them (`refs/remotes/origin/*`: what says which of
-    the user's commits are not pushed yet - `push_one`, `_origin_nots`), each checked against
-    origin itself: the commit origin's branch of that name is at, or one it holds (fetched
-    earlier). A ref anything in the repository wrote (a script's `update-ref`) cannot pass for
-    origin's. Asked at `url`, where the push goes, by the transports a push may use (`PUSH_OWN`).
-    Refused where one is not, or origin does not answer (fails closed)."""
+def _not_rewritten(project: Path, git: str, url: str) -> None:
+    """Refused where git would rewrite `url` itself - an `insteadOf` (what `ls-remote` applies)
+    or `pushInsteadOf` (what `push` applies) of any scope whose prefix it starts with: the look
+    at origin and the push could reach two repositories. And where `ls-remote` would not ask `url`
+    as it is."""
+    code, out, _said = _in(
+        project,
+        git,
+        *UNASKED,
+        "config",
+        "-z",
+        "--get-regexp",
+        r"^url\..*\.(push)?insteadof$",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
+    for entry in out.decode("utf-8", "replace").split("\0") if code == 0 else []:
+        key, _newline, value = entry.partition("\n")
+        if value and url.startswith(value):
+            raise Refused(REWRITTEN.format(key=re.sub(r"//[^/@]*@", "//***@", key)))
+    got = _in(
+        project, git, *UNASKED, "ls-remote", "--get-url", url, seconds=SHORT_SECONDS, **UNASKED_ENV
+    )[1]
+    if got.decode("utf-8", "replace").strip() != url:
+        raise Refused(REWRITTEN.format(key="ls-remote"))
+
+
+def _origin_holds(project: Path, git: str, url: str) -> tuple[dict[str, str], set[str]]:
+    """What origin at `url` holds, as origin itself says (`ls-remote --heads`, by the transports a
+    push may use - `PUSH_OWN`): each branch's commit, by its name - and of those the commits this
+    repository has (fetched). Never a remote-tracking ref of the repository's (`refs/remotes/
+    origin/*`, which anything there may write: a symbolic one too): a commit only such a ref says
+    is pushed counts as the user's. Refused where `url` is one git rewrites (`_not_rewritten`) or
+    origin does not answer (fails closed)."""
+    _not_rewritten(project, git, url)
     code, out, said = _in(
         project, git, *PUSH_OWN, "ls-remote", "--heads", url, seconds=PUSH_SECONDS, **UNASKED_ENV
     )
     if code != 0:
         raise Refused(f"origin did not say what it holds: {_text(out, said)[-TAIL:]}")
-    theirs = {
+    listed = {
         ref.removeprefix("refs/heads/"): sha
         for sha, _tab, ref in (
             line.partition("\t") for line in out.decode("utf-8", "replace").splitlines()
         )
+        if sha
     }
-    listed = _said_or_refused(
-        project,
-        git,
-        None,
-        "for-each-ref",
-        "--format=%(objectname) %(symref) %(refname)",
-        "refs/remotes/origin/",
+    shas = sorted(set(listed.values()))
+    said = _said_or_refused(
+        project, git, "".join(f"{sha}\n" for sha in shas).encode(), "cat-file", "--batch-check"
     )
-    for line in listed.decode("utf-8", "surrogateescape").splitlines():
-        sha, symref, ref = line.split(" ", 2)
-        real = theirs.get(ref.removeprefix("refs/remotes/origin/"))
-        if symref or real == sha:
-            continue
-        why = f"origin's is at {real[:10]}" if real else "origin has no such branch"
-        if real is None or _in(project, git, "merge-base", "--is-ancestor", sha, real)[0]:
-            raise Refused(NOT_ORIGINS.format(ref=ref, why=why))
+    here = {
+        words[0]
+        for words in (line.split() for line in said.decode("ascii", "replace").splitlines())
+        if len(words) == 3 and words[1] == "commit"
+    }
+    return listed, here
+
+
+def _origin_held(project: Path, git: str) -> set[str]:
+    """`_origin_holds`' commits this repository has - none where the project has no origin to
+    push to (every commit of the user's is then theirs alone). Refused as `_origin_holds`."""
+    url = push_address(project)
+    return _origin_holds(project, git, url)[1] if url else set()
 
 
 def open_pr(

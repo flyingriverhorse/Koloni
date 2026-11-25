@@ -245,3 +245,65 @@ def test_git_reads_no_replace_object_for_koloni(repo):
     run(repo, "replace", head, run(repo, "commit-tree", "HEAD^{tree}", "-m", "other"))
     code, out, _said = git._in(repo, git.find(), "log", "-1", "--format=%s", "HEAD")
     assert code == 0 and out.decode().strip() == "as it was"
+
+
+# --- a team's pull request (push_one): origin's branches as origin says, never as refs here ----------
+
+
+def _branch_on(repo, runtime):
+    """KOLONİ's branch made from the project's main as it is, with an agent's commit on it."""
+    copy = copies.make_branch(repo, runtime, "agent1", "pr")
+    (copy.root / "agent.txt").write_text("agent\n")
+    assert git.commit_branch(copy.root, copy.branch, ["agent.txt"], "agent", runtime / "no-hooks")
+    return copy
+
+
+def _push_pr(repo, runtime, copy):
+    return git.push_one(
+        repo,
+        run(repo, "rev-parse", copy.branch),
+        copy.branch,
+        "main",
+        copy.start[1],
+        "m",
+        runtime / "no-hooks",
+        under=copies.folders(runtime),
+    )
+
+
+def test_a_symbolic_remote_tracking_ref_never_sends_your_unpushed_commit(repo, tmp_path):
+    # (H-A: refs/remotes/origin/main -> refs/heads/main once "proved" your commit pushed)
+    origin, runtime = with_origin(repo), tmp_path / "runtime"
+    (repo / "u.txt").write_text("yours, not pushed\n")
+    run(repo, "add", "u.txt")
+    run(repo, "commit", "-qm", "U")
+    users = run(repo, "rev-parse", "HEAD")
+    run(repo, "symbolic-ref", "refs/remotes/origin/main", "refs/heads/main")
+    copy = _branch_on(repo, runtime)
+    with pytest.raises(git.Refused, match="push main first"):
+        _push_pr(repo, runtime, copy)
+    assert subprocess.run(["git", "cat-file", "-e", users], cwd=origin).returncode != 0
+    assert git.unpushed_count(repo, copies.folders(runtime)) == (1, 0)  # (yours: noted)
+
+
+def test_a_branch_deleted_on_origin_and_not_pruned_stops_no_pull_request(repo, tmp_path):
+    # (M-A: a stale remote-tracking ref is no ref of origin's - it is not read, nor refused)
+    origin, runtime = with_origin(repo), tmp_path / "runtime"
+    run(repo, "push", "-q", "origin", "main:refs/heads/old-feature")
+    run(repo, "fetch", "-q", "origin")
+    run(origin, "update-ref", "-d", "refs/heads/old-feature")
+    copy = _branch_on(repo, runtime)
+    sha = _push_pr(repo, runtime, copy)
+    assert run(origin, "rev-parse", f"refs/heads/{copy.branch}") == sha
+    assert git.unpushed_count(repo, copies.folders(runtime)) == (0, 0)
+
+
+def test_an_address_git_rewrites_pushes_nothing(repo, tmp_path):
+    # (H-B: ls-remote takes insteadOf, push takes pushInsteadOf - two repositories)
+    origin, runtime = with_origin(repo), tmp_path / "runtime"
+    url = run(repo, "config", "remote.origin.url")
+    run(repo, "config", f"url.{url}.pushInsteadOf", url)
+    copy = _branch_on(repo, runtime)
+    with pytest.raises(git.Refused, match="git's config rewrites the address"):
+        _push_pr(repo, runtime, copy)
+    assert run(origin, "branch", "--list", copy.branch) == ""

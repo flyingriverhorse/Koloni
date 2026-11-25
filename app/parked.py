@@ -77,11 +77,6 @@ def needs_project(line: str, git: bool = False) -> bool:
     return False
 
 
-def runs_git(line: str) -> bool:
-    """Whether a stage of a command runs git (as `needs_project` reads it)."""
-    return any(words and _program(words[0]) == "git" for words in _parts(line, _BLOCKS))
-
-
 def park(
     session: Session, task: BacklogTask, kind: str, ref_id: str | None, what: str, data: dict
 ) -> Parked:
@@ -122,8 +117,9 @@ LAST = "Waits for this task's other decisions and its going-on turn"
 # ...and a command's Run (its Reject stays open).
 GONE = "Its copy is gone: there is nothing to run it in"
 NEEDS = "Needs the project itself: Take in first"
-# (L7: a git line of a job on its branch, its work taken in since: it would run on your checkout)
-BRANCH_GIT = "A git line of its branch's worktree: it never runs in your project - run it yourself"
+# (L7: a line of a job on its branch, its work taken in since: it would run on your checkout - a git
+# line in a wrapper or a variable too, which no reading of it finds)
+BRANCH_GIT = "A line of its branch's worktree: it never runs in your project - run it yourself"
 NOWHERE = "Where it would run is not known: Reject it, or run it yourself"
 ELSEWHERE = "The project runs commands elsewhere now: Reject it, or set that back"
 # ...a line a CLI ran in its own shell (bash's quoting is not PowerShell's), and a server.
@@ -197,7 +193,7 @@ def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | N
         return SERVER
     if row.data.get("needs_project") and place != "project":
         return NEEDS
-    if place == "project" and row.data.get("branch") and runs_git(row.what):
+    if place == "project" and row.data.get("branch"):
         return BRANCH_GIT
     if row.data.get("cwd") is None:  # (a CLI that did not say where its shell stood)
         return NOWHERE

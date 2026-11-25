@@ -285,8 +285,9 @@ like orders to a model. It is on the summary, on the report and at the top of ea
   decisions and its going-on turn"), and is made again with the branch's new commit after that turn: a
   yes is never for a commit you did not see. Just before it pushes, KOLONİ looks again: a branch
   deleted or moved since the job ended, a secret KOLONİ knows in what would go up, a branch of that
-  name on origin, commits of yours on `main` not on origin ("push main first"), origin's branches in
-  your repository not what origin itself holds ("fetch from origin"), the project on another branch
+  name on origin, commits of yours on `main` not on origin ("push main first"; KOLONİ asks origin
+  itself, never your remote-tracking branches), origin's `main` ahead of what you fetched ("fetch
+  first"), an address git's config rewrites, the project on another branch
   than the one the job ended on, a branch changed since you read the row - nothing goes up, the row
   says why and waits, to try again once that is set right. Where a push to origin goes elsewhere now
   than when the job began, git's config or hooks changed since then, something changed outside the

@@ -237,11 +237,13 @@ def go(
     given: dict,
     runner,
     mode: tuple[str, str | None] = ("copy", None),
+    base: dict | None = None,
 ) -> AwayRun:
     """The user's Go away from chat `conversation` - the only start: the tasks ticked (`given`
     task_ids, in its order; a proposed one is approved and held for Away), the places kept out
     and the limits; how its jobs work on the project (`mode`, `away_branch.mode_of`: in a copy, on
-    a branch, and pushed in the morning), and why not on a branch. The chat's turn finishes first
+    a branch, and pushed in the morning), and why not on a branch; on a branch, what each job's push
+    is compared with (`base`: the repository as it is now). The chat's turn finishes first
     (`go_on`); the cards waiting are decided now (`AgentRunner.away_now`)."""
     project_id = conversation.project_id
     if project_id is None:
@@ -298,6 +300,7 @@ def go(
                 "was_todo": was_todo,
                 "mode": mode[0],
                 "mode_why": mode[1],
+                **({"base": base} if base else {}),
             }
         )
     night.jobs = jobs

@@ -47,6 +47,17 @@ def night_with_origin(make_client, wait_run, repo, steps=STEPS, before=None, **p
     return client, done, job, (rows or [None])[0], origin
 
 
+def push_through(client, done, row):
+    """Run, and Run anyway with each round of notes KOLONİ shows: what the last answer was."""
+    answered, seen = push(client, done, row), []
+    while answered.status_code == 409 and isinstance(answered.json()["detail"], dict):
+        notes = answered.json()["detail"]["notes"]
+        assert set(notes) - set(seen), notes  # (each 409 shows something new)
+        seen = [*seen, *notes]
+        answered = push(client, done, row, seen=seen)
+    return answered
+
+
 def push(client, done, row, word="run", seen=(), tip=None):
     """The user's Run (Reject) of a push row - of the commit the row shows, as the page sends it,
     or `tip`."""
@@ -252,27 +263,144 @@ FORGE = (
 )
 
 
-@pytest.mark.parametrize("by", ["after_the_job", "the_jobs_own_script"])
+SYMREF = (
+    "import subprocess\n"
+    "subprocess.run(['git', 'symbolic-ref', 'refs/remotes/origin/main', 'refs/heads/main'],"
+    " check=True)\n"
+)
+
+
+def symref_before(repo):
+    """An earlier job of the night's leaves origin/main a symbolic ref to your main (H-A)."""
+    main_unpushed(repo)
+    git_run(repo, "symbolic-ref", "refs/remotes/origin/main", "refs/heads/main")
+
+
+@pytest.mark.parametrize(
+    "by", ["after_the_job", "the_jobs_own_script", "a_symref_by_the_jobs_script", "a_symref_before"]
+)
 def test_a_forged_remote_tracking_branch_never_sends_your_unpushed_commit(
     make_client, wait_run, repo, by
 ):
-    steps = STEPS
-    if by == "the_jobs_own_script":
-        steps = [write("forge.py", FORGE, "w1"), run(f"{sys.executable} forge.py", "c1"), *STEPS]
+    # (no push decision reads refs/remotes/origin/*: what origin holds is what origin says)
+    steps, before = STEPS, main_unpushed
+    if by in ("the_jobs_own_script", "a_symref_by_the_jobs_script"):
+        script = FORGE if by == "the_jobs_own_script" else SYMREF
+        steps = [write("forge.py", script, "w1"), run(f"{sys.executable} forge.py", "c1"), *STEPS]
+    if by == "a_symref_before":
+        before = symref_before
     client, done, job, row, origin = night_with_origin(
-        make_client, wait_run, repo, steps=steps, before=main_unpushed
+        make_client, wait_run, repo, steps=steps, before=before
     )
     users = git_run(repo, "rev-parse", "main")
     if by == "after_the_job":
         forge_origin_main(repo, name_of(job))
-    answered = push(client, done, row)
-    if answered.status_code == 409:  # (a note seen: Run anyway - still nothing of yours goes up)
-        answered = push(client, done, row, seen=answered.json()["detail"]["notes"])
+    first = push(client, done, row)
+    assert first.status_code == 409  # (your unpushed commit, noted first - whatever the refs say)
+    assert first.json()["detail"]["notes"][0].startswith("you have 1 commit not on GitHub")
+    answered = push_through(client, done, row)
     assert answered.status_code == 200, answered.text
     now = row_now(client, done)
-    assert now["decision"] is None and "here is not what origin holds" in now["result"]
+    assert now["decision"] is None and "push main first" in now["result"]
+    assert now["result"].count("nothing was pushed") == 1  # (said once: L-E)
     assert on_origin(origin, name_of(job)) == ""
     assert subprocess.run(["git", "cat-file", "-e", users], cwd=origin).returncode != 0
+
+
+def split_rewrite(repo):
+    """H-B: ls-remote is sent to another repository (insteadOf) that holds your U as main, the
+    push to the real origin (an identity pushInsteadOf) - and origin/main forged to agree."""
+    main_unpushed(repo)
+    url = git_run(repo, "config", "remote.origin.url")
+    evil = repo.parent / "evil.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(evil)], check=True, capture_output=True)
+    git_run(repo, "push", "-q", str(evil), "main:refs/heads/main")
+    git_run(repo, "update-ref", "refs/remotes/origin/main", "refs/heads/main")
+    git_run(repo, "config", "--global", f"url.{evil}.insteadOf", url)
+    git_run(repo, "config", "--global", f"url.{url}.pushInsteadOf", url)
+
+
+def test_an_address_git_rewrites_is_refused_and_the_rule_named(make_client, wait_run, repo):
+    client, done, job, row, origin = night_with_origin(
+        make_client, wait_run, repo, before=split_rewrite
+    )
+    users = git_run(repo, "rev-parse", "main")
+    assert push_through(client, done, row).status_code == 200
+    now = row_now(client, done)
+    assert now["decision"] is None and "git's config rewrites the address" in now["result"]
+    assert "insteadof" in now["result"] and on_origin(origin, name_of(job)) == ""
+    assert subprocess.run(["git", "cat-file", "-e", users], cwd=origin).returncode != 0
+
+
+def deleted_on_origin(repo):
+    """Honest: a branch merged and deleted on GitHub, its remote-tracking ref not pruned here."""
+    git_run(repo, "push", "-q", "origin", "main:refs/heads/old-feature")
+    git_run(repo, "fetch", "-q", "origin")
+    git_run(repo.parent / "origin.git", "update-ref", "-d", "refs/heads/old-feature")
+
+
+def mate(repo, *pushes, amend=False):
+    """A teammate's clone of origin's main, a commit of theirs on it (or, `amend`, main's last
+    commit made anew), pushing `pushes` (refspecs) to origin - not fetched here."""
+    other = repo.parent / "mate"
+    subprocess.run(
+        ["git", "clone", "-q", "-b", "main", str(repo.parent / "origin.git"), str(other)],
+        check=True,
+        capture_output=True,
+    )
+    (other / "m.txt").write_text("mate\n")
+    git_run(other, "add", "m.txt")
+    made = ["commit", "-q", *(["--amend"] if amend else []), "-m", "mate"]
+    git_run(other, "-c", "user.email=m@x", "-c", "user.name=m", *made)
+    for spec in pushes:
+        git_run(other, "push", "-q", "-f", "origin", spec)
+
+
+def mates_new_branch(repo):
+    mate(repo, "HEAD:refs/heads/mates-branch")
+
+
+def force_pushed_feature(repo):
+    git_run(repo, "push", "-q", "origin", "main:refs/heads/feature")
+    git_run(repo, "fetch", "-q", "origin")
+    mate(repo, "HEAD:refs/heads/feature", amend=True)  # (a PR branch rewritten, force-pushed)
+
+
+@pytest.mark.parametrize(
+    "before",
+    [deleted_on_origin, mates_new_branch, force_pushed_feature],
+    ids=lambda one: one.__name__,
+)
+def test_an_honest_repository_pushes_whatever_its_remote_tracking_refs_say(
+    make_client, wait_run, repo, before
+):
+    # (M-A: a stale or unfetched remote-tracking ref stops no push - none is read)
+    client, done, job, row, origin = night_with_origin(make_client, wait_run, repo, before=before)
+    assert push(client, done, row).status_code == 200  # (no note: nothing of yours unpushed)
+    assert row_now(client, done)["decision"] == "run" and on_origin(origin, name_of(job))
+
+
+def test_origins_main_moved_on_and_not_fetched_asks_for_a_fetch_first(make_client, wait_run, repo):
+    client, done, job, row, origin = night_with_origin(make_client, wait_run, repo)
+    mate(repo, "HEAD:refs/heads/main")
+    push_through(client, done, row)
+    now = row_now(client, done)
+    assert now["decision"] is None and "fetch first" in now["result"]
+    git_run(repo, "fetch", "-q", "origin")
+    assert push_through(client, done, row).status_code == 200
+    assert row_now(client, done)["decision"] == "run" and on_origin(origin, name_of(job))
+
+
+def test_two_push_addresses_push_nowhere(make_client, wait_run, repo):
+    # (L-C: a push goes to each pushurl - `get-url --push --all`)
+    client, done, job, row, origin = night_with_origin(make_client, wait_run, repo)
+    url = git_run(repo, "config", "remote.origin.url")
+    git_run(repo, "config", "--add", "remote.origin.pushurl", url)
+    git_run(repo, "config", "--add", "remote.origin.pushurl", str(repo.parent / "else.git"))
+    push_through(client, done, row)
+    now = row_now(client, done)
+    assert now["decision"] is None and "origin has no one address" in now["result"]
+    assert on_origin(origin, name_of(job)) == ""
 
 
 def test_a_replace_ref_changes_nothing_that_is_pushed(make_client, wait_run, repo):
@@ -324,9 +452,9 @@ def test_a_push_that_goes_elsewhere_now_names_where_first(make_client, wait_run,
     (moved,) = asked.json()["detail"]["notes"]  # (first of all: before origin is asked there)
     assert moved.startswith("A push to origin goes to ") and "elsewhere.git" in moved
     assert on_origin(origin, name_of(job)) == "" and on_origin(elsewhere, name_of(job)) == ""
-    # (Run anyway: origin's branches here are asked of that address - it holds none of them)
-    assert push(client, done, row, seen=[moved]).status_code == 200
-    assert "here is not what origin holds" in row_now(client, done)["result"]
+    # (Run anyway: what origin holds is asked of that address - it holds no main)
+    assert push_through(client, done, row).status_code == 200
+    assert "push main first" in row_now(client, done)["result"]
     assert on_origin(elsewhere, name_of(job)) == ""
 
 
@@ -409,3 +537,42 @@ def test_the_record_outlives_a_restart(make_client, wait_run, repo):
     assert found["branch"] == job["branch"] and found["kept"] == job["kept"]
     assert push(again, done, row).status_code == 200
     assert row_now(again, done)["decision"] == "run" and on_origin(origin, name_of(job))
+
+
+def test_a_later_jobs_push_sees_what_an_earlier_job_planted(make_client, wait_run, repo):
+    # (M-B: every job's push is compared with the repository as the user went away)
+    from tests.test_away_branch_scenarios import ONE
+    from tests.test_away_scenarios import ended, evening, go_away
+
+    origin_of(repo)
+    plant = "import subprocess\nsubprocess.run(['git', 'update-ref', 'refs/anyone/x', 'HEAD'])\n"
+    plan = {**ONE, "jobs": [{"title": "one"}, {"title": "two"}]}
+    client, _model, pid, cid, run_id = evening(
+        make_client,
+        repo,
+        [
+            write("plant.py", plant, "w1"),
+            run(f"{sys.executable} plant.py", "c1"),
+            text("one done"),
+            write("two.txt", "two\n", "w2"),
+            text("two done"),
+        ],
+        plan=plan,
+        check_command=f"{sys.executable} check.py",
+        lead_work="itself",
+    )
+    wait_run(client, cid, run_id)
+    assert go_away(client, cid).status_code == 200
+    done = ended(client, pid)
+    second = done["jobs"][1]
+    (row,) = [
+        one
+        for one in waiting(client, done["id"])
+        if one["kind"] == "push" and one["task_id"] == second["task_id"]
+    ]
+    asked = push(client, done, row)
+    assert asked.status_code == 409
+    assert (
+        "Changed outside its branch: other refs (replace objects, notes, ...)"
+        in (asked.json()["detail"]["notes"])
+    )

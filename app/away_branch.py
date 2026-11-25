@@ -177,13 +177,15 @@ def refs(project: Path) -> dict[str, str] | None:
     return found | {kind: digest.hexdigest() for kind, digest in digests.items()}
 
 
-def origin_checked(project: Path, url: str) -> None:
-    """HIGH-1: origin's branches as the repository has them are what origin at `url` - where a
-    push goes - holds (`git._origin_is_origin`). Refused where not, or with no such address."""
+def origin_checked(project: Path) -> None:
+    """HIGH-1: origin, where a push goes, answers what it holds - at one address git does not
+    rewrite (`git._origin_holds`): what is unpushed is then counted against origin itself, never
+    a remote-tracking ref of the repository's. Refused where not, or with no such address."""
+    url = git.push_address(project)
     if not url:
         raise git.Refused(git.NO_ADDRESS)
     exe, _folder = git.repository(project)
-    git._origin_is_origin(project, exe, url)
+    git._origin_holds(project, exe, url)
 
 
 def config_digest(project: Path) -> str | None:
@@ -217,10 +219,12 @@ def _short(value: str | None) -> str:
 
 def moved(before: dict, after: dict, own: str) -> list[str]:
     """H2: what changed in the repository between `before` and `after` (`refs`) but the job's own
-    branch `own`, in KOLONİ's lines - at most `MOST_MOVED`, then how many more."""
+    branch `own` and KOLONİ's other branches (`koloni/`: the night's other jobs', each pushed as
+    its own), in KOLONİ's lines - at most `MOST_MOVED`, then how many more."""
     lines = []
     for ref in sorted(set(before) | set(after)):
-        if ref == f"refs/heads/{own}" or before.get(ref) == after.get(ref):
+        ours = ref == f"refs/heads/{own}" or ref.startswith(f"refs/heads/{git.BRANCH_PREFIX}")
+        if ours or before.get(ref) == after.get(ref):
             continue
         if ref in MOVED_ALL:
             lines.append(f"Changed outside its branch: {MOVED_ALL[ref]}")

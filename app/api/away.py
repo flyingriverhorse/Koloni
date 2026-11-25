@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app import away, away_branch, backlog, parked
 from app.agent import announce
+from app.agent.away_branch_mixin import night_base
 from app.api.deps import get_session, require_own_origin
 from app.db.models import AwayRun, BacklogTask, Conversation, Project, Run, now
 from app.schemas import AwayOut
@@ -108,9 +109,12 @@ async def go_away(
     if conversation is None:
         raise HTTPException(404, "conversation not found")
     project = session.get(Project, conversation.project_id or "")
-    # (0.1.9: how its jobs work on the project - a copy, a branch, a branch pushed in the morning)
-    mode = (
-        await asyncio.to_thread(away_branch.mode_of, Path(project.root_path)) if project else None
+    # (0.1.9: how its jobs work on the project - a copy, a branch, a branch pushed in the morning -
+    # and, on a branch, what every job's push is compared with: the repository as it is now, M-B)
+    root = Path(project.root_path) if project else None
+    mode = await asyncio.to_thread(away_branch.mode_of, root) if root else None
+    base = (
+        await asyncio.to_thread(night_base, root) if root and mode and mode[0] != "copy" else None
     )
     try:
         night = away.go(
@@ -119,6 +123,7 @@ async def go_away(
             body.model_dump(),
             request.app.state.runner,
             mode or ("copy", None),
+            base,
         )
     except away.Refused as exc:
         raise HTTPException(409, str(exc)) from None
