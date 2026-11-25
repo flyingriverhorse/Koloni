@@ -38,7 +38,7 @@ from app import memory as kept
 from app import room as rooms
 from app.agent.cards import _at_a_step_limit, _goes_on, _in_its_chat, _role_asked
 from app.agent.context_mixin import _koloni_compacts, _older
-from app.agent.ctx import FLUSH_SECONDS, TERMINAL, Ctx, _Transcript, sent_effort
+from app.agent.ctx import FLUSH_SECONDS, TERMINAL, Ctx, _Transcript, joined, sent_effort
 from app.agent.summary import _size, compact_at
 from app.agent.words import AGENT_TERMINAL, NATIVE_NEEDS_A_FOLDER
 from app.db.models import (
@@ -1277,7 +1277,7 @@ class LoopMixin:
         async def on_delta(text: str) -> None:
             nonlocal last_flush
             self._slow(ctx)
-            content = self._live[message_id][1] + text
+            content = joined(self._live[message_id][1], text)
             self._live[message_id] = (cid, content)
             self.bus.emit_transient(cid, "message.delta", {"message_id": message_id, "text": text})
             if time.monotonic() - last_flush >= FLUSH_SECONDS:
