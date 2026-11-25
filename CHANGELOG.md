@@ -21,6 +21,10 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Removed
+
+- **CLIs**: an Orchestrator run **Native** on Claude Code, Codex or Copilot no longer proposes triggers: its **Make this trigger?** card's **Approve** was always refused in that chat, since a trigger's turn never starts a CLI that works with its own tools. **Notify you** stays. A card left from 0.1.8 is still refused at Approve, saying why ([docs](docs/automation/triggers.md#triggers-proposed-by-agents)).
+
 ## [0.1.8] - 2026-11-25
 
 ### Added
