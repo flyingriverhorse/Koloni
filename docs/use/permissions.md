@@ -543,6 +543,10 @@ messages in the chat - never anything an agent wrote - and then:
   "-dığı zaman", "sonra", "-ene kadar", "dek", "madem", "yeter ki" and "sürece"; an apostrophe written as
   ’, ‘, ´ or ʼ is read as one, so "OK’se" counts too), or nothing of yours that covers it: the card, as
   before. Its card then says "Nothing you said covers this."
+- A line limited in time or in how many times it may be used ("once", "this time", "today", "on
+  weekdays", "until Friday", "bir kereliğine"): the card too - KOLONİ cannot tell whether it was used up
+  or its time has passed. The model is told to ask here; KOLONİ's own reading of your line does not
+  catch every such word, so the measurement decides how well this holds.
 - Two lines of yours that disagree about a delete: a line that names what the delete takes and forbids
   it or sets a condition - "Never delete ./x." beside "You may delete ./x.", or an item under "Never delete
   these:" - keeps its card, whichever line the model quoted, as KOLONİ reads such a line. A heading covers

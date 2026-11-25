@@ -5,8 +5,8 @@ Each case of `tests/data/check_what_i_said_cases.json` ("words": Check what I sa
 with the prompt KOLONİ's gate builds (`judge.prompt`, `risk_judge.prompt`, each part masked as the
 gate masks it), through KOLONİ's own client for that provider (`Providers.client`, `ask_once`,
 the gate's time limits) and read with KOLONİ's own parsers (`judge.verdict` with the gate's
-`cards.mentioned`, `risk_judge.verdict`). It spends one model call per case: 56 words + 78 risk =
-134 for a whole run (`--only` one set, `--limit N` the first N of each). Nothing of the user's
+`cards.mentioned`, `risk_judge.verdict`). It spends one model call per case: 70 words + 78 risk =
+148 for a whole run (`--only` one set, `--limit N` the first N of each). Nothing of the user's
 KOLONİ is read: the clients get a runtime folder of their own under the temp folder.
 
   # Claude Code (its own sign-in, ~/.claude), the haiku model

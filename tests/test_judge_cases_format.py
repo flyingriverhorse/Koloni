@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from app import judge, risk_judge
-from app.commands import harm_class, harms, names_secret, only_reads, standing_asked
+from app.commands import harm_class, harms, names_secret, only_reads, standing_asked, with_cwd
 
 DATA = Path(__file__).parent / "data"
 RISK = json.loads((DATA / "full_auto_judge_cases.json").read_text(encoding="utf-8"))["cases"]
@@ -126,8 +126,9 @@ def test_check_what_i_said_cases_hold_each_trap():
 @pytest.mark.parametrize("case", WORDS, ids=[case["id"] for case in WORDS])
 def test_a_words_case_reaches_the_check_and_its_quote_is_the_users(case):
     said, line = _said(case), case["command"]["command"]
-    # (the check is asked only of a command the list stops softly: a delete, a push, a send)
-    assert harm_class(line) == "soft", line
+    # (the check is asked only of a command the list stops softly - a delete, a push, a send -
+    # in its folder, at a watched Full auto turn: `JudgeMixin._judging`)
+    assert harm_class(with_cwd(line, case["command"]["where"]), False) == "soft", line
     # A run or a refuse rests on a whole line of the user's, as the check's code finds one.
     assert ("quote" in case) == (case["want"] != "ask")
     if "quote" in case:
@@ -138,3 +139,16 @@ def test_a_words_case_reaches_the_check_and_its_quote_is_the_users(case):
     answer = {"verdict": case["want"], "quote": case.get("quote", ""), "why": "The stand-in's."}
     # (its code may still say "ask" where the case wants run: what a live run measures)
     assert judge.verdict(json.dumps(answer, ensure_ascii=False), said) is not None
+
+
+def test_the_held_out_words_cases_measure_the_model_not_the_code():
+    # (25 Nov: added after the prompt's change for the first live run, in phrasings it does not
+    # name - a time or count limit wants ask, a folder named wants run; on each the code lets a
+    # model's run stand, so what is measured is the model's own word)
+    held = [case for case in WORDS if case.get("held_out")]
+    wants = Counter(case["want"] for case in held)
+    assert wants["ask"] >= 6 and wants["run"] >= 4, wants
+    for case in held:
+        (rule,) = case["said"]["rules"]
+        answer = json.dumps({"verdict": "run", "quote": rule, "why": "The stand-in's."})
+        assert judge.verdict(answer, case["said"])["verdict"] == "run", case["id"]
