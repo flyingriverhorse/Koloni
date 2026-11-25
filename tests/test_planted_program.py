@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from app.agent.risk_judge_mixin import planted_program
+from app.agent.risk_judge_mixin import _named_file, planted_program
 from app.db.models import Agent, Conversation, FileChange, Project
 from app.db.models import Run as RunRow
 from app.db.session import make_engine, make_session_factory
@@ -69,6 +69,30 @@ def project(tmp_path):
         pytest.param(".\\run.cmd", "run.cmd", marks=WINDOWS),  # (a backslash is Windows' alone)
         ("& ./run.ps1", "run.ps1"),
         ('node "my tools/gen.js"', "my tools/gen.js"),
+        # (review H1: as the runner finds it - a module, a folder, a name with no ending)
+        ("python -m gen", "gen.py"),
+        ("python -u -m tools.gen", "tools/gen.py"),
+        ("python -m pkg", "pkg/__main__.py"),
+        ("python pkg", "pkg/__main__.py"),
+        ("node gen", "gen.js"),
+        ("node lib", "lib/index.js"),
+        ("./run", "run.ps1"),
+        # (review H2: a shell's -e, -r, -p, -m are no code of the line's)
+        ("bash -e run.sh", "run.sh"),
+        ("zsh -e run.sh", "run.sh"),
+        ("bash -r run.sh", "run.sh"),
+        ("powershell -mta -File run.ps1", "run.ps1"),
+        # (a shell's -c code by its first word, where that is a file of the folder's)
+        ("bash -c ./run.sh", "run.sh"),
+        ("powershell -c ./run.ps1", "run.ps1"),
+        # (what make, docker and Node's runners read for what they run)
+        ("make all", "Makefile"),
+        ("make -f build.mk all", "build.mk"),
+        ("make -C sub all", "sub/Makefile"),
+        ("docker build -t x .", "Dockerfile"),
+        ("docker build -f ci/Dockerfile .", "ci/Dockerfile"),
+        ("docker compose up", "compose.yaml"),
+        ("npm run build", "package.json"),
     ],
 )
 def test_the_script_an_agent_wrote(project, line, rel):
@@ -84,7 +108,7 @@ def test_in_a_folder_below_with_options_before_the_script(project):
 
 
 @pytest.mark.parametrize(
-    "line", ["python -m gen", 'python -c "print(1)"', 'node -e "1"', "bash -c 'x'", "pytest -q"]
+    "line", ['python -c "print(1)"', 'node -e "1"', "bash -c 'x'", "pytest -q", "gen"]
 )
 def test_no_file_where_the_line_holds_its_code_or_runs_none_of_its_own(project, line):
     factory, root, wrote = project
@@ -107,3 +131,28 @@ def test_never_a_file_out_of_the_project(project, tmp_path):
     assert (tmp_path / "x.js").is_file()
     assert planted_program(factory, "c", root, "node ../x.js", ".") is None
     assert planted_program(factory, "c", root, f"node {tmp_path / 'x.js'}", ".") is None
+
+
+@pytest.mark.parametrize(
+    "line, expects",
+    [
+        # (no file of the folder's: the line is its words alone)
+        ("curl https://example.com", False),
+        ("pip install requests", False),
+        ('python -c "print(1)"', False),
+        ("bash -c 'curl https://x'", False),
+        ("docker run alpine", False),
+        # (one is run that was not found: nothing is kept for the line)
+        ("make all", True),
+        ("python -m missing", True),
+        ("node missing", True),
+        ("bash -c ./missing.sh", True),
+        ("powershell -EncodedCommand ZQBjAGgAbwA=", True),
+        ("docker build .", True),
+        ("npm run build", True),
+        ("missing.ps1", True),
+    ],
+)
+def test_whether_a_line_runs_a_file_of_the_folders(project, line, expects):
+    _factory, root, _wrote = project
+    assert _named_file(root, line, ".") == (None, expects)
