@@ -74,6 +74,8 @@ export interface ProjectSettingsValues {
   full_auto_judge?: boolean
   /** §8: whether it also lets a harmful-looking command a line of yours names run. Sent only when changed. */
   judge_words?: boolean
+  /** What it does with a command it finds risky: refused, its agent goes on, or a card. Sent only when changed. */
+  judge_risky?: Project['judge_risky']
   /** Coordination §4: whether a delete KOLONİ checks is disposable goes without a card. Sent only when changed. */
   disposable_deletes?: boolean
   spawn_max_depth?: number

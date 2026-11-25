@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import func, literal_column, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
-from app import ledger, project_map, proof, proof_style
+from app import ledger, project_map, proof, proof_style, risk_judge
 from app.cards import card_reason
 from app.commands import (
     _INTERPRETER,
@@ -142,7 +142,10 @@ def refused_by_rule(judgement: dict) -> str:
     """What an agent is told of a command the check of the user's words refused: the sentence
     where it is one of their saved texts, which every agent is given (`REFUSED`); of a message of
     theirs in the chat, only that one forbids it (`REFUSED_BY_A_MESSAGE`) - a sub-agent or a CLI
-    never saw the chat, and a token nothing masks may stand beside the sentence."""
+    never saw the chat, and a token nothing masks may stand beside the sentence. Full auto's
+    judge's own refusal (`kind` "risk"): a general reason, never its sentence (`REFUSED`)."""
+    if judgement.get("kind") == "risk":
+        return risk_judge.REFUSED
     if judgement.get("source") in ("preferences", "rules"):
         return REFUSED.format(quote=judgement["quote"])
     return REFUSED_BY_A_MESSAGE
@@ -153,7 +156,8 @@ def _gate_open(mode: str, check: bool, judgement: dict | None) -> bool:
     chat is at Full auto and the project's check is on (`check`: its judge and the judge's box,
     §8) - a run or a refusal that comes back after either changed is its card, as if never checked
     (the security review of K-yargic's slice 2). Full auto's judge's own (`kind` "risk") has no
-    gate: it only ever adds a card - its "risky" by `always` and its call's `why_asked`."""
+    gate: it never lets a command run - its "risky" a card (`always`, its call's `why_asked`) or a
+    refusal ("refuse")."""
     risk = judgement is not None and judgement.get("kind") == "risk"
     return risk or mode == "full_auto" and check
 

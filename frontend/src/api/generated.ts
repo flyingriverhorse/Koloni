@@ -7769,8 +7769,9 @@ export interface components {
          *     it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
          *     (Decided for you). Full auto's judge's (`kind` "risk"): "fine", it ran; "risky", its card -
          *     `why`, the judge's sentence, or KOLONİ's where it was not asked or gave no answer to go by
-         *     (`model` then "" where none was asked). Since §8 the check of the user's words is the judge's
-         *     too, `kind` "words" ("" on a record from before 0.1.9).
+         *     (`model` then "" where none was asked); "refuse", not run, its agent told the judge's sentence
+         *     (the project's Refuse and go on; `seen` as above). Since §8 the check of the user's words is
+         *     the judge's too, `kind` "words" ("" on a record from before 0.1.9).
          */
         Judged: {
             /**
@@ -9609,6 +9610,11 @@ export interface components {
             hide_secrets: boolean;
             /** Id */
             id: string;
+            /**
+             * Judge Risky
+             * @enum {string}
+             */
+            judge_risky: "refuse" | "ask";
             /** Judge Words */
             judge_words: boolean;
             /** @description What the folder's `.koloni/` holds, read now. */
@@ -9789,6 +9795,8 @@ export interface components {
             git_commit?: boolean | null;
             /** Hide Secrets */
             hide_secrets?: boolean | null;
+            /** Judge Risky */
+            judge_risky?: ("refuse" | "ask") | null;
             /** Judge Words */
             judge_words?: boolean | null;
             /** Lead Work */

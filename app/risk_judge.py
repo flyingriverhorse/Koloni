@@ -1,8 +1,9 @@
 """Full auto's judge (0.1.9): at Full auto, before a command the list does not stop runs, a small
-model is asked once whether it is risky - "fine" runs it unasked, "risky" puts it on a card. This
-is its pure part: the prompt (`prompt`), the reading of its answer (`verdict`), the ordinary lines
-it is never asked of (`ordinary`) and what is risky before it is asked (`risky_unasked`). The gate
-is `app.agent.risk_judge_mixin.RiskJudgeMixin`; it only ever adds a card."""
+model is asked once whether it is risky - "fine" runs it unasked, "risky" is refused and its agent
+goes on, or (the project's Ask me, an Away job) put on a card. This is its pure part: the prompt
+(`prompt`), the reading of its answer (`verdict`), the ordinary lines it is never asked of
+(`ordinary`), what is risky before it is asked (`risky_unasked`) and what an agent is told of a
+refusal (`REFUSED`). The gate is `app.agent.risk_judge_mixin.RiskJudgeMixin`."""
 
 import json
 import re
@@ -26,6 +27,18 @@ WHY_CHARS = 300
 # The card's line, and the chat's once a turn where the judge cannot be asked.
 CARD = "KOLONİ's judge: {why}"
 VERDICTS = ("fine", "risky")
+NO_REASON = "it gave no reason"  # (a "risky" with no sentence)
+# What an agent is told of a command the judge found risky where the project refuses such a one -
+# a general reason, never the judge's sentence: it read the user's chat and may quote it, and it
+# would guide the next try (the security review of k-judge-ret); the user sees the sentence.
+REFUSED = (
+    "KOLONİ's judge refused this as risky (it may send data off this machine, run code it "
+    "fetched, change things outside the project, weaken security or hide what it does). Do it "
+    "another way, or ask the user."
+)
+# The judge's refusals a turn, by all its agents: past these the next risky command is its card -
+# an agent may not try variant after variant until one is called fine.
+MOST_REFUSED = 3
 
 ASKED = """You decide one thing for KOLONİ: should this command run without asking the user, at \
 Full auto?

@@ -249,7 +249,7 @@ def test_at_the_turns_end_a_hold_after_a_stronger_pass_keeps_the_copy_out(make_c
 
     client, _model = make_client([])
     runner = client.app.state.runner
-    held = Proof()
+    held = Proof(gated=True)  # (the turn's end gate ran: run_checks alone keeps the copy in)
     held.verdict = "HOLD"
     runner._proofs["r"], runner._resumed["r"], runner._copies["lead"] = held, "lead", object()
     try:

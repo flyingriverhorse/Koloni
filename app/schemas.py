@@ -15,6 +15,7 @@ from pydantic import (
 
 from app import copies
 from app.commands import held_back
+from app.judge_schemas import Judged
 from app.raw import MIN_SECRET
 from app.roles import CORE
 from app.schemas_away import AwayJobOut, AwayTried
@@ -84,6 +85,8 @@ WhenAway = Literal["waits", "lead"]
 # K-yargic: at Full auto a harmful-looking command waits for the user, or is first checked
 # against what they wrote.
 FullAutoCheck = Literal["ask", "judge"]
+# Full auto's judge's "risky": refused, its agent goes on (as Claude Code's auto mode), or a card.
+JudgeRisky = Literal["refuse", "ask"]
 # Kanıtlı bitiş (`app.proof.AFTER_CHANGE`): shown as Test and review, Tests only, Nothing.
 AfterChange = Literal["check", "tests", "nothing"]
 # S10: Test and review changes, for one chat; None (not sent as such) the project's.
@@ -301,6 +304,7 @@ class ProjectOut(Out):
     # with its box `judge_words` (§8), lets a harmful-looking one a line of the user's names run.
     full_auto_judge: bool
     judge_words: bool
+    judge_risky: JudgeRisky
     # Coordination §4: whether a disposable delete goes without a card at Auto-edit and Full
     # auto in a watched turn.
     disposable_deletes: bool
@@ -403,6 +407,7 @@ class ProjectPatch(BaseModel):
     forget_tests_found: bool | None = None
     full_auto_judge: bool | None = None
     judge_words: bool | None = None
+    judge_risky: JudgeRisky | None = None
     disposable_deletes: bool | None = None
 
 
@@ -1236,25 +1241,6 @@ CommandStatus = Literal[
     "refused",  # K-yargic: at Full auto a sentence of the user's forbids it - not asked, not run
     "parked",  # ☾ Away (§10): a job's card while the user is away - not run, theirs to decide
 ]
-
-
-class Judged(BaseModel):
-    """K-yargic: what the check of the user's words said of a command at Full auto: it ran with
-    no card ("run": on `quote`, a line of the user's found in `source`), it was not run and its
-    agent told that line ("refuse"), or it was asked ("ask"; `why`, the check's own sentence where
-    it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
-    (Decided for you). Full auto's judge's (`kind` "risk"): "fine", it ran; "risky", its card -
-    `why`, the judge's sentence, or KOLONİ's where it was not asked or gave no answer to go by
-    (`model` then "" where none was asked). Since §8 the check of the user's words is the judge's
-    too, `kind` "words" ("" on a record from before 0.1.9)."""
-
-    kind: Literal["", "risk", "words"] = ""
-    verdict: Literal["run", "ask", "refuse", "fine", "risky"]
-    quote: str = ""
-    source: Literal["preferences", "rules", "message", ""] = ""
-    why: str = ""
-    model: str = ""
-    seen: bool = False
 
 
 class DisposableOut(BaseModel):

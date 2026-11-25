@@ -77,8 +77,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Control**: cards for changes, commands, web and HTTP; a delete or a send off the machine asks at
   every level, unless at Full auto **Check what I said first** finds a line of yours that allows it, or
   you let agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); at
-  Full auto, **Full auto's judge** (a small model, on by default) puts any other command it finds risky on a
-  card; secret files open only on your word; a key an agent needs comes through `ask_secret` on a hidden card and
+  Full auto, **Full auto's judge** (a small model, on by default) refuses any other command it finds risky -
+  the agent goes on another way - or, with **Ask me**, puts it on a card; secret files open only on your word; a key an agent needs comes through `ask_secret` on a hidden card and
   reaches only that command. [Permissions](docs/use/permissions.md) · [Security model](docs/security/model.md)
 - **Agents side by side**: each sub-agent in its own copy; a command that reaches another agent's copy,
   your linked `node_modules` or `.venv`, or stops programs by name asks at every level.

@@ -39,6 +39,7 @@ const project: Project = {
   full_auto_check: 'ask',
   full_auto_judge: true,
   judge_words: false,
+  judge_risky: 'refuse',
   disposable_deletes: false,
   memory_links: [],
   embedding_provider_id: null,

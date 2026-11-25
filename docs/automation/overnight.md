@@ -146,7 +146,8 @@ its jobs started, with a link back to their report.
 - At **Full auto**, with [Full auto's judge](../use/permissions.md#full-autos-judge) on (the default), a
   command the list does not stop is first looked at by a small model, reading the chat you went away
   from: one it finds risky is parked for you with its sentence, "KOLONİ's judge: …", and the job goes
-  on.
+  on. (In a chat you watch it is refused unless you chose **Ask me**; while you're away it is always
+  parked.)
 
 ## Questions and approvals
 

@@ -1104,7 +1104,13 @@ function nextStep(all, tools = [], model = '') {
   }
   const result = String(last.content)
   if (/^Judge 109: run /.test(String(messages.findLast(m => m.role === 'user')?.content)))
-    return say(result.startsWith('rejected') ? 'Left it alone, 109.' : 'Ran it, 109.')
+    return say(
+      result.startsWith('rejected')
+        ? 'Left it alone, 109.'
+        : result.startsWith("KOLONİ's judge refused this")
+          ? 'Went another way, 109.'
+          : 'Ran it, 109.',
+    )
   if (messages.some(m => m.role === 'user' && /split it by the recipe, rc/i.test(String(m.content))))
     return say('Both parts are done.')
   if (messages.some(m => m.role === 'user' && /quality check it, qc/i.test(String(m.content)))) {

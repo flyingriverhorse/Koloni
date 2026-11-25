@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App } from './App'
 import { resetStoreForTests, useApp } from './state/store'
 import type { Discussion } from './api/types'
-import { agent, conversation, question, run } from './test-fixtures'
+import { agent, command, conversation, question, run } from './test-fixtures'
 
 const project = {
   id: 'p',
@@ -568,6 +568,22 @@ test("the top bar's pill says what the Lead decided for you when nothing waits; 
   await userEvent.click(pill)
   expect(useApp.getState().readyPanel.open).toBe(true)
   expect(document.getElementById('ready-panel')).toBeNull()
+})
+
+test("the pill counts a command Full auto's judge refused, so that Decided for you can be reached", async () => {
+  const judged = { kind: 'risk' as const, verdict: 'refuse' as const, quote: '', source: '' as const }
+  const refused = command('k', 'r', {
+    status: 'refused',
+    judged: { ...judged, why: 'It sends .env away.', model: 'Fast · quick', seen: false },
+  })
+  vi.stubGlobal(
+    'fetch',
+    emptyPages({ '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] } }),
+  )
+  render(<App />)
+  await userEvent.click(await screen.findByRole('button', { name: '1 decided for you' }))
+  const decided = within(document.getElementById('ready-panel')!).getByRole('region', { name: /Decided for you/ })
+  expect(decided).toHaveTextContent("KOLONİ's judge: It sends .env away.")
 })
 
 test("an agent's window and a discussion's open over the canvas only with a chat; selecting a node opens the inspector", async () => {

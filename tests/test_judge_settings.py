@@ -8,7 +8,8 @@ from sqlalchemy import select
 
 from app import cards
 from app.config import load_settings
-from app.db.models import JudgeAllowed, OwnRequest
+from app.db.judge_models import JudgeAllowed
+from app.db.models import OwnRequest
 from app.main import create_app
 from tests.fakes import ScriptedModel
 from tests.keyed import NO_ORIGIN, OWN, TestClient
@@ -28,6 +29,18 @@ def test_a_project_has_the_judge_on_until_the_user_turns_it_off(client, project_
         is False
     )
     assert client.get(f"/api/projects/{pid}").json()["full_auto_judge"] is False
+
+
+def test_a_risky_command_is_refused_until_the_user_says_ask_me(client, project_dir):
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.get(f"/api/projects/{pid}").json()["judge_risky"] == "refuse"
+    ask = {"judge_risky": "ask"}
+    assert client.patch(f"/api/projects/{pid}", json=ask, headers=NO_ORIGIN).status_code == 403
+    wrong = {"judge_risky": "run"}
+    assert client.patch(f"/api/projects/{pid}", json=wrong, headers=OWN).status_code == 422
+    said = client.patch(f"/api/projects/{pid}", json=ask, headers=OWN).json()
+    assert said["judge_risky"] == "ask"
+    assert client.get(f"/api/projects/{pid}").json()["judge_risky"] == "ask"
 
 
 def test_the_judge_model_is_the_fast_tiers_first_until_the_user_chooses(client):
