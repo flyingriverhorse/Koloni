@@ -625,6 +625,8 @@ def test_not_seen_finds_one_of_any_age_and_ok_takes_it_off(client, tmp_path, mon
     assert {f"answer:{old['answer']}", f"answer:{late['answer']}"} <= ids
     assert all(row["seen"] is False for row in unseen["rows"])
     assert f"answer:{old['seen']}" not in ids and f"command:{old['risky']}" not in ids
+    # (Part A's review: the judge's "fine" of all time is no count of what waits for your OK.)
+    assert unseen["judge_fine"] == 0 and log(client, pid)["judge_fine"] == 2
     ask_ok(client, old["answer"])
     again = client.get(f"/api/projects/{pid}/decisions", params={"unseen": "true"}).json()
     assert f"answer:{old['answer']}" not in {row["id"] for row in again["rows"]}

@@ -1,13 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { api, errorText } from '../api/client'
-import type { BacklogTask, Decision, DecisionLog } from '../api/types'
+import type { Decision, DecisionLog } from '../api/types'
 import { OPEN_TODO } from '../chat/TodoCards'
-import { decidedOf, judgedCommands } from '../chat/waiting'
 import { useAsk } from '../memory/useAsk'
-import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { since } from '../usage/period'
-import { fineLine, markdown, newestLine, stamp, weekStart, whoOf } from './decisionLog'
+import { fineLine, heardOf, markdown, newestLine, stamp, weekStart, whoOf } from './decisionLog'
 
 type Chip = 'left' | 'today' | 'week' | 'unseen'
 const CHIPS: [Chip, string][] = [
@@ -80,14 +78,6 @@ export function Decisions({ onLoad, leftAt, onOpenChat, asked = null, onOpened, 
     </section>
   )
 }
-
-/** What the store hears that changes the log: the To-do list's tasks and, of the open chat, what was decided and waits
- *  for your OK - as one text, so that only a change of it reads the log again. */
-const heardOf = (backlog: BacklogTask[] | null, conv: ConvState | null) =>
-  [
-    ...(backlog ?? []).map(task => `${task.id}:${task.status}:${task.po?.lead ?? ''}:${task.po?.seen ?? ''}`),
-    ...(conv ? [...decidedOf(conv), ...judgedCommands(conv)].map(one => one.id) : []),
-  ].join(',')
 
 /**
  * The log as its chip asks it: read again after your OK or Change, on what the store hears change it (a task decided, a

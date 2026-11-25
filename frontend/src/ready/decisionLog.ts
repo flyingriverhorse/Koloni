@@ -1,5 +1,29 @@
 import { api } from '../api/client'
-import type { Decision, DecisionLog } from '../api/types'
+import type { BacklogTask, Decision, DecisionLog } from '../api/types'
+import { decidedOf, judgedCommands } from '../chat/waiting'
+import type { ConvState } from '../state/applyEvent'
+
+/** `heardOf`'s last text, by the arrays it was made of. */
+let heard: [BacklogTask[] | null, ConvState['questions'] | undefined, ConvState['commands'] | undefined, string] = [
+  null,
+  undefined,
+  undefined,
+  '',
+]
+
+/** What the store hears that changes the log: the To-do list's tasks and, of the open chat, what was decided and waits
+ *  for your OK - as one text, so that only a change of it reads the log again. The store's selector runs it on every
+ *  update - a token streamed too -: made again only where one of the arrays it reads is another. */
+export function heardOf(backlog: BacklogTask[] | null, conv: ConvState | null): string {
+  const [was, questions, commands, text] = heard
+  if (was === backlog && questions === conv?.questions && commands === conv?.commands) return text
+  const made = [
+    ...(backlog ?? []).map(task => `${task.id}:${task.status}:${task.po?.lead ?? ''}:${task.po?.seen ?? ''}`),
+    ...(conv ? [...decidedOf(conv), ...judgedCommands(conv)].map(one => one.id) : []),
+  ].join(',')
+  heard = [backlog, conv?.questions, conv?.commands, made]
+  return made
+}
 
 /** Who decided, as every place that shows a decision says it: Ready for you's Decided for you, and a plain chat's box. */
 export const WHO: Record<Decision['who'], string> = {

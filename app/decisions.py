@@ -431,5 +431,8 @@ def of(
         rows = [row for row in rows if row[1] is False]
     rows.sort(key=lambda row: row[0], reverse=True)
     return DecisionLog(
-        rows=[build() for _at, _seen, build in rows[:MOST]], judge_fine=fine, more=len(rows) > MOST
+        rows=[build() for _at, _seen, build in rows[:MOST]],
+        # (Not seen has no period: the judge's "fine" of all time is no count of it - nor waits.)
+        judge_fine=0 if unseen else fine,
+        more=len(rows) > MOST,
     )

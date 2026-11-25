@@ -5,9 +5,9 @@ import remarkGfm from 'remark-gfm'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { Decision, DecisionLog } from '../api/types'
 import { Decisions } from './Decisions'
-import { markdown, markdownRow, weekStart } from './decisionLog'
+import { heardOf, markdown, markdownRow, weekStart } from './decisionLog'
 import { useApp } from '../state/store'
-import { conversation, convState } from '../test-fixtures'
+import { conversation, convState, question } from '../test-fixtures'
 import { since } from '../usage/period'
 
 type Log = Omit<DecisionLog, 'more'> & { more?: boolean }
@@ -402,4 +402,16 @@ test('a line of your own message is "Your words"; another rule of yours "Your ru
   expect(within(words).getByText('Your words')).toHaveClass('who-your_words')
   expect(within(rule).getByText('Your rule')).toBeInTheDocument()
   expect(markdownRow({ ...ran, source: 'message' })).toContain(' · Your words · ')
+})
+
+test('what the store hears is made again only where an array it reads is another - a token streamed is none', () => {
+  const questions = [question('q1', 'r1')]
+  const filter = vi.spyOn(questions, 'filter')
+  const conv = convState({ questions })
+  const first = heardOf(null, conv)
+  // (a token streamed: another state, the same arrays)
+  expect(heardOf(null, { ...conv, messages: [] })).toBe(first)
+  expect(filter).toHaveBeenCalledTimes(1)
+  const decided = question('q2', 'r1', { status: 'answered', answer: 'Yes', lead_why: 'it is safe' })
+  expect(heardOf(null, { ...conv, questions: [...questions, decided] })).toBe('q2')
 })
