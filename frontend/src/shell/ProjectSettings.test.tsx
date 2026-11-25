@@ -39,6 +39,7 @@ const project: Project = {
   test_commands: {},
   full_auto_check: 'ask',
   full_auto_judge: true,
+  judge_words: false,
   disposable_deletes: false,
   memory_links: [],
   embedding_provider_id: null,
@@ -599,7 +600,7 @@ test('a chosen section alone is shown, each field under its label as before', as
   const fields: [RegExp, (string | RegExp)[]][] = [
     [/^Commands/, [/This machine/, /Docker container/]],
     [/^Agents/, ['Who changes the files']],
-    [/^Asking and away/, ['Opening a sub-agent', 'When you’re away', 'A harmful-looking command at Full auto']],
+    [/^Asking and away/, ['Opening a sub-agent', 'When you’re away', /^It also lets a delete or a push run/]],
     [/^New chats start with/, ['New chats’ teams', 'Posts, at most', 'Minutes, at most', 'Tokens, at most']],
     [/^Checks/, ['After a change', /^Save each sub-agent’s work as a git commit/]],
     [
@@ -967,18 +968,25 @@ test('who answers while you are away is every chat’s, said in sight to use you
   expect(onSave).toHaveBeenCalledWith({ when_away: 'lead', away_minutes: 30 })
 })
 
-test('a harmful-looking command at Full auto asks you, or first checks what you said; sent only when changed', async () => {
+test('§8: under the judge, its box for your words - closed until its measurement, ticked and closable where Check what I said first was on', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  render(<ProjectSettings {...base} onSave={onSave} />)
+  const label = 'It also lets a delete or a push run when a line you saved names it'
+  const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Asking and away/)
-  const check = screen.getByLabelText('A harmful-looking command at Full auto')
-  expect(check).toHaveValue('ask')
-  const costs = 'Each such command is one request of your Judge model (on a CLI, of your plan).'
-  expect(screen.queryByText(costs)).toBeNull()
-  await userEvent.selectOptions(check, 'Check what I said first')
-  expect(screen.getByText(costs)).toBeVisible()
+  expect(screen.queryByLabelText('A harmful-looking command at Full auto')).toBeNull()
+  const unmeasured = screen.getByRole('checkbox', { name: `${label} (after its measurement)` })
+  expect(unmeasured).not.toBeChecked()
+  expect(unmeasured).toBeDisabled()
+  unmount()
+  render(
+    <ProjectSettings {...base} project={{ ...project, full_auto_check: 'judge', judge_words: true }} onSave={onSave} />,
+  )
+  await choose(/^Asking and away/)
+  const words = screen.getByRole('checkbox', { name: label })
+  expect(words).toBeChecked()
+  await userEvent.click(words)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenCalledWith({ full_auto_check: 'judge' })
+  expect(onSave).toHaveBeenCalledWith({ judge_words: false })
 })
 
 test('Full auto’s judge is on as a project comes, says what it costs, and only its change is sent', async () => {

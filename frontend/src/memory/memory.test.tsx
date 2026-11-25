@@ -899,8 +899,8 @@ test('a folder’s rules.md that differs from the saved rules is said; the box k
 test('the Told tab says what Full auto’s check reads there', async () => {
   render(<MemoryPage memory={projectMemory()} {...handlers()} />)
   const told = await tab('Told')
-  expect(within(told).getByText(/Check what I said first/)).toHaveTextContent(
-    'At Full auto, with Check what I said first on (Settings › This project › Asking and away), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”',
+  expect(within(told).getByText(/box for your words/)).toHaveTextContent(
+    'At Full auto, with Full auto’s judge’s box for your words on (Settings › This project › Asking and away - once its measurement has passed), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”',
   )
   expect(within(told).queryByText(/differs from what you saved here/)).not.toBeInTheDocument()
 })

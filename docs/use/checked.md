@@ -95,7 +95,7 @@ test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads
 
 ### For one chat
 
-![The permission level's menu: Ask before changes, Auto-edit files, Full auto, Full auto's judge (on), Check what I said first, Plan first, and Test and review changes switched on with its line, As the project: failing work goes back until it passes](../images/level-menu-checks.png)
+![The permission level's menu: Ask before changes, Auto-edit files, Full auto, Full auto's judge (on), Plan first, and Test and review changes switched on with its line, As the project: failing work goes back until it passes](../images/level-menu-checks.png)
 
 **Test and review changes**, in the permission level's menu beside **Plan first**, turns it on
 or off for this chat only. Its line says what this chat's changes get: "As the project: runs

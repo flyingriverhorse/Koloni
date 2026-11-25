@@ -49,6 +49,7 @@ export const GUIDE = {
   roomWindow: 'agents/rooms/#the-room-window',
   checked: 'use/checked/',
   fullAutoJudge: 'use/permissions/#full-autos-judge',
+  checkWhatISaid: 'use/permissions/#check-what-i-said-first',
 } as const
 
 export type GuidePlace = (typeof GUIDE)[keyof typeof GUIDE]

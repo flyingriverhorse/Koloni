@@ -106,4 +106,4 @@ def test_the_check_of_the_users_words_waits_longer_for_a_cli(
     )
     _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
     carded(client, cid, run_id, wait_run)
-    assert (risk_judge.CLI_SECONDS if cli else 30.0) in seen
+    assert (risk_judge.CLI_SECONDS if cli else risk_judge.API_SECONDS) in seen

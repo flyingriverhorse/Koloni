@@ -69,9 +69,9 @@ works in a copy of the project of its own.
 
 - **Level and model:** the job's chat has the model and the permission level of the chat you went away
   from (the Away panel says which). Its other settings are the project's, as in any chat:
-  who changes the files, opening sub-agents, and the rest. Where that chat is at **Full auto** and the
-  project's Full auto check is **Check what I said first**, the Orchestrator may run, by your own
-  written words, a command the night would otherwise wait for you on.
+  who changes the files, opening sub-agents, and the rest. Where that chat is at **Full auto** and
+  **Check what I said first** works in the project (Full auto's judge's box for your words), the
+  Orchestrator may run, by your own written words, a command the night would otherwise wait for you on.
 - **Team and recipe:** where you picked the teams in that chat (**Manual**), the job's chat has
   them, with their recipes.
 - **The copy** leaves out `.git/`, `build/`, `dist/` and caches, and shares `node_modules/`, `.venv/`
@@ -101,7 +101,7 @@ its jobs started, with a link back to their report.
 - **CLIs:** a CLI working with its own tools that is not started in the job's copy, or not held to
   it (Copilot working Native, agy when it may write), cannot work on a job: "… cannot work on a job
   while you're away".
-- At **Full auto**, with **Check what I said first** on, a command that deletes is first checked
+- At **Full auto**, where **Check what I said first** works, a command that deletes is first checked
   against your own words - your preferences, the project's saved rules and your messages in the chat
   you went away from, never the task's words - and runs in the job's copy without a card where a line
   of yours names it. Only a delete in the folder, on one line: a command of more than one line or
