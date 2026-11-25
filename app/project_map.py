@@ -388,7 +388,7 @@ def told(part: str, found: dict | None, watched: bool = True) -> str:
 
 
 @functools.lru_cache(maxsize=512)
-def _heading(path: str, mtime_ns: int) -> str:
+def _heading(path: str, _mtime_ns: int) -> str:
     """A document's first `# ` heading in its first lines, else its first line that says
     anything, cut to `MOST_HEADING`; read again only once its mtime moves."""
     try:

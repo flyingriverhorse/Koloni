@@ -110,13 +110,16 @@ jobs:
         run: |
           uv venv .venv --python 3.12
           uv pip install --python .venv/bin/python -r requirements-dev.lock
+          uv pip install --python .venv/bin/python -r requirements-lint.lock  # (vulture, Pyrefly)
           uv pip install --python .venv/bin/python --no-deps -e .
       # The quick checks; the full suite ran on the pull request, and publish waits for main's run.
-      - name: ruff and ty
+      - name: ruff, ty, vulture and Pyrefly
         run: |
           .venv/bin/python -m ruff check app tests scripts alembic
           .venv/bin/python -m ruff format --check app tests scripts alembic
           .venv/bin/python -m ty check app
+          .venv/bin/python -m vulture
+          .venv/bin/python -m pyrefly check --python-interpreter-path .venv/bin/python --min-severity warn
       - uses: actions/setup-node@v7
         with:
           node-version: '24'

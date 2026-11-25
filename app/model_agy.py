@@ -419,7 +419,7 @@ def _quotable(path: str) -> str:
     if QUOTABLE.fullmatch(path) or sys.platform != "win32":
         return path  # (only Windows writes a .cmd file to quote it in)
     buffer = ctypes.create_unicode_buffer(32768)
-    if ctypes.windll.kernel32.GetShortPathNameW(path, buffer, len(buffer)) and (
+    if ctypes.windll.kernel32.GetShortPathNameW(path, buffer, len(buffer)) and (  # pyrefly: ignore[missing-attribute]  # (Windows only)
         QUOTABLE.fullmatch(buffer.value)
     ):
         return buffer.value
@@ -985,7 +985,7 @@ class AgyClient(CodexNativeClient):
                     with contextlib.suppress(Exception):
                         await on_item("completed", left)
 
-    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None, effort=None):
+    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None, effort=None):  # pyrefly: ignore[bad-override]  # (Codex's only raises)
         """One answer with no project to work in: how the provider is tried out. It runs
         in an empty folder and reading only, whatever way the provider is set to run, and
         is not told that the folder is a project - in a home of KOLONİ's, as its runs are, so
@@ -1178,7 +1178,7 @@ class AgyClient(CodexNativeClient):
             # with it, so that one outside that folder - the project itself, from a copy -
             # is on record too. (What a step that failed names is only looked for.)
             named = _named(given, *AGY_PATHS)
-            let = hooked.steps.get(str(step_id)) if hooked is not None else None
+            let = hooked.steps.get(step_id) if hooked is not None else None
             if failed and let is False:
                 return []  # refused by KOLONİ before it ran: on record as KOLONİ's no
             look: dict = {

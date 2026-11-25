@@ -904,7 +904,7 @@ class Providers:
                 context=None if provider.base_url else row.get("context"),
                 routing=None if provider.base_url else row.get("routing"),
                 # 0.1.8: natively its session is kept for the topic's next turn, in a home there.
-                **(
+                **(  # pyrefly: ignore[bad-argument-type]  # (Copilot's own keywords)
                     {
                         "sessions": settings.runtime_root / CLI_HOMES / COPILOT_SESSIONS,
                         "provider": provider.id,

@@ -962,7 +962,7 @@ class StrongerMixin:
             for one in proof_before.failed_ids(run.command, output)
         ]
         by = " and ".join(
-            filter(None, [held.first_by if held else "", *(held.handed if held else [])])
+            filter(None, [held.first_by if held else "", *(held.handed if held else [])])  # pyrefly: ignore[no-matching-overload]  # (filter(None, ...))
         )
         what = (
             f"{len(ids)} test" + ("s still fail" if len(ids) != 1 else " still fails")

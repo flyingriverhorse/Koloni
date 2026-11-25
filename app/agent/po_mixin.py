@@ -288,7 +288,7 @@ class PoMixin:
                 task = backlog.add(
                     session, project_id, {**fields, "story_id": story and story.id}, "agent"
                 )
-                rules = injection.scan("\n".join(filter(None, [*fields.values(), one["why"]])))
+                rules = injection.scan("\n".join(filter(None, [*fields.values(), one["why"]])))  # pyrefly: ignore[no-matching-overload]  # (filter(None, ...))
                 task.po = {
                     "chat": ctx.cid,
                     "why": one["why"],

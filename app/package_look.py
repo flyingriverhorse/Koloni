@@ -359,7 +359,7 @@ def _listed(registry: str, name: str, version: str | None) -> dict:
         }
         doc = info
     licence = _label((str(found["license"] or "").strip().splitlines() or [""])[0][:100]) or None
-    if not isinstance(found["url"], str) or not found["digest"][1]:
+    if not isinstance(found["url"], str) or not found["digest"][1]:  # pyrefly: ignore[bad-index, unsupported-operation]  # (a pair)
         raise LookError(f"{_registry(registry)} lists no file and checksum of {name}")
     return {
         **found,
@@ -441,8 +441,7 @@ def members(data: bytes, filename: str) -> tuple[dict[str, bytes], list[str]]:
         EOFError,
         OSError,
         ValueError,
-        RuntimeError,
-        NotImplementedError,
+        RuntimeError,  # (NotImplementedError too)
     ) as exc:
         raise LookError(f"the package could not be read: {exc}") from None
     unread = (

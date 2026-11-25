@@ -1,0 +1,12 @@
+# Pyrefly, a second type checker next to ty (CI lint part: `python -m pyrefly check`).
+project-includes = ["app"]
+python-version = "3.12"
+preset = "default"
+# shortcut: findings in files other open branches change, held till those branches are in; fix
+# them and empty this file (`--update-baseline`) then.
+baseline = "pyrefly-baseline.json"
+
+[errors]
+# The mixins of AgentRunner annotate `self: "AgentRunner"` to see the whole runner; ty accepts it,
+# Pyrefly calls each one an invalid annotation (~800 of them), so this kind alone is off.
+invalid-annotation = false

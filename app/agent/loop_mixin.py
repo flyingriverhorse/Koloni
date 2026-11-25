@@ -1152,7 +1152,7 @@ class LoopMixin:
             told_near.add(near)
             return (
                 status == "succeeded",
-                "\n\n".join(filter(None, [output, *notes, stands, near])),
+                "\n\n".join(filter(None, [output, *notes, stands, near])),  # pyrefly: ignore[no-matching-overload]  # (filter(None, ...))
                 images,
             )
 

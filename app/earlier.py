@@ -123,7 +123,7 @@ def said_in(session: Session, run_id: str) -> list[tuple[str | None, datetime, s
     """What was said in a turn: who (an agent's name; None for the user), when, the words.
     A trigger's message is not the user's word of that moment and is not among them.
     (Also what a fast model is given of a turn: `AgentRunner._note_what_it_found`.)"""
-    said = [
+    said: list[tuple[str | None, datetime, str]] = [
         (None, at, words)
         for at, words in session.execute(
             select(Message.created_at, Message.content)
@@ -575,7 +575,7 @@ def how_hard_facts(
             + ")"
         )
     if shown := [
-        f"{quoted(part)} ({parts[part]['files']}{'+' if parts[part]['more'] else ''} files)"
+        f"{quoted(part)} ({parts[part]['files']}{'+' if parts[part]['more'] else ''} files)"  # pyrefly: ignore[bad-argument-type]  # (a str)
         for part in dict.fromkeys(touched)
         if part in parts
     ]:

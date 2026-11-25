@@ -625,7 +625,7 @@ def spawn_schema(roles, team=()) -> dict:
         f"you write, not this conversation. You wait while it works. {OPENED_TOGETHER}\n"
         f"Available roles:\n{listed}"
     )
-    properties = {
+    properties: dict[str, dict] = {
         "role": {"type": "string", "description": "Name of one of the available roles."},
         # K-brief-kalitesi: the five things a task carries (OpenAI / Anthropic multi-agent
         # research, 2 Nov): a thin one is said to its opener with the result (`thin_task`).

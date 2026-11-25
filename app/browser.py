@@ -1206,7 +1206,7 @@ class Browser:
     async def _heard(self, message: dict) -> None:
         """One message of the browser's: an answer to who waits for it, or what it says of
         the page (`_read`)."""
-        if (future := self._waiting.pop(message.get("id"), None)) is not None:
+        if (future := self._waiting.pop(message.get("id"), None)) is not None:  # pyrefly: ignore[no-matching-overload]  # (no id finds none)
             if not future.done():
                 future.set_result(message)
         elif message.get("method") == "Fetch.requestPaused":

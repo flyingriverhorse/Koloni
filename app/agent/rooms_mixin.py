@@ -968,9 +968,9 @@ class RoomsMixin:
                 await member.wake.wait()
                 member.wake.clear()
                 continue
-            last = self._last_text(ctx.agent_id, final_only=status == "completed")
+            last = self._last_text(ctx.agent_id, final_only=status == "completed")  # pyrefly: ignore[unbound-name]  # (set when asked)
             if status != "completed":
-                self._member_left(room, member, error, last)
+                self._member_left(room, member, error, last)  # pyrefly: ignore[unbound-name]  # (set when asked)
                 return
             self._set_agent(
                 ctx.cid, ctx.agent_id, status="completed", report=last or None, ended_at=now()

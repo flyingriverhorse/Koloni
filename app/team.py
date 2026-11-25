@@ -167,7 +167,7 @@ def guide(providers: Iterable[Provider], copy: dict | None = None) -> list[Entry
         off = [m["name"] for m in provider.models or [] if m not in mine]
         held = (
             (
-                bool(provider.only_listed)
+                bool(provider.only_listed)  # pyrefly: ignore[unnecessary-type-conversion]  # (a row's value, kept as it was)
                 and provider.default_model not in [name for name, _note in models]
             )
             or provider.default_model in off

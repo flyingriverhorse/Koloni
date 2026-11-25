@@ -481,12 +481,12 @@ class AnthropicClient:
         at = len(to_anthropic(messages[:kept])[1]) - 1 if kept < len(messages) else len(history) - 1
         if cache and at >= 0 and history[at]["content"]:
             # Copies: a block is never marked in place, where a later step would find it.
-            last = history[at]
-            blocks = last["content"]
+            ending = history[at]
+            blocks = ending["content"]
             if isinstance(blocks, str):
                 blocks = [{"type": "text", "text": blocks}]
             if blocks[-1].get("type") not in THOUGHT:  # (thinking takes no mark)
-                history[at] = {**last, "content": [*blocks[:-1], {**blocks[-1], **CACHE_MARK}]}
+                history[at] = {**ending, "content": [*blocks[:-1], {**blocks[-1], **CACHE_MARK}]}
         # The most it may write, asked of the Models API where not known yet (a step that
         # comes before any `info()`, a model other than the provider's own).
         # shortcut: a failed asking is asked again at every step (a fast 404 where a
@@ -583,7 +583,7 @@ class AnthropicClient:
                     elif kind == "content_block_start":
                         last = event.get("index", 0)
                         block = event.get("content_block") or {}
-                        raw[last] = dict(block)  # (redacted thinking comes whole)
+                        raw[last] = dict(block)  # pyrefly: ignore[unsupported-operation]  # (an int) redacted thinking comes whole
                         if block.get("type") == "tool_use":
                             calls[event.get("index", 0)] = {
                                 "id": block.get("id") or "",

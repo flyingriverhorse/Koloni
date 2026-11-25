@@ -3932,7 +3932,7 @@ def _groups(command: str, quotes: bool = True) -> tuple[list[str], bool]:
     )
     for mark in re.finditer(r"""[(){}'"]""" if quotes else r"[(){}]", command):
         char, at = mark[0], mark.start()
-        if quote:
+        if quote:  # pyrefly: ignore[redundant-condition]  # (set in the loop)
             quote = "" if char == quote else quote
         elif char in "'\"":
             quote = char
@@ -6721,7 +6721,7 @@ def _folder_targets(words: list[str], shell: str | None) -> list[tuple[str, str,
     if shell not in _DELETE_FORMS:
         return None
     deleters, recursions, others, forcings, most = _DELETE_FORMS[shell]
-    read = str.casefold if shell == POWERSHELL else str
+    read: Callable[[str], str] = str.casefold if shell == POWERSHELL else str
     flags = {read(word) for word in words[1:] if word.startswith("-")}
     paths = [word for word in words[1:] if not word.startswith("-")]
     if (

@@ -15,7 +15,7 @@ from collections.abc import Iterator
 from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
-import yaml
+import yaml  # pyrefly: ignore[untyped-import]  # (no stubs here)
 
 from app import ledger
 from app.commands import is_plain
