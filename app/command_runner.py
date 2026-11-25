@@ -562,6 +562,15 @@ HELD_BACK = (
     "(secret variables held back from this command: {names} - the user can pass one "
     "in Settings › This project › Commands and secrets)"
 )
+
+
+def _held_note(names: list[str], into: list[str] | None) -> str:
+    """The note of the secrets held back - or none, where they go `into` a list (`run`)."""
+    if into is not None:
+        into.extend(names)
+    return f"\n{HELD_BACK.format(names=', '.join(names))}" if names and into is None else ""
+
+
 # A command that keeps running (a dev server, slice 42b): the tool answers once it printed
 # its address, or its output went quiet for SERVE_QUIET after it began, or SERVE_AT_MOST is up.
 SERVE_QUIET = 1.0
@@ -673,6 +682,7 @@ class CommandRunner:
         disposable: dict | None = None,
         env: Mapping[str, str] | None = None,
         park: Callable[[str], Awaitable[str]] | None = None,
+        held_into: list[str] | None = None,
     ) -> tuple[str, str]:
         """Returns the tool call's final status and the result text for the model.
         `ask` is False where the command has its leave already and nobody can be asked
@@ -691,7 +701,8 @@ class CommandRunner:
         `allowed` lifts the level's own ask only (`_free`), and its card offers "Allow such
         deletes in this project" where it is asked. `env`: what its environment gets besides
         (KOLONİ's own test runs: their processes, S6) - never an agent's command. `park` (☾ Away):
-        one asked is parked, not waited on - what it returns, the model is told."""
+        one asked is parked, not waited on - what it returns, the model is told. `held_into` (☾
+        Away's morning): the secrets held back go into it by name, not into the result (F411 P4)."""
         cap = self.longest(cid)
         planned = plan_command(ws, args, cap)
         searched = await asyncio.to_thread(search_reason, planned.command, ws.root, planned.cwd_rel)
@@ -871,7 +882,7 @@ class CommandRunner:
             if location == "host"
             else []
         )
-        note = f"\n{HELD_BACK.format(names=', '.join(held))}" if held else ""
+        note = _held_note(held, held_into)
         started = time.monotonic()
         if not planned.keep_running:
             ended = await self._through(cid, command_id, running, ws.root, planned.timeout)

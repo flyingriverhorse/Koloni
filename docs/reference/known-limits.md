@@ -174,7 +174,9 @@ messages.
 - In the morning **Run** does not look at what the job changed in its copy: you see that at Take in.
 - A line that runs a program an agent wrote is refused after **Run** too. A script given to an
   interpreter (`python tool.py`, `node x.js`) is not read so: it runs on your **Run** - but only as it
-  was when the line was parked (the list says "Runs a file an agent wrote").
+  was when the line was parked (the list says "Runs a file an agent wrote", of any part of a chained,
+  piped, wrapped or grouped line too - `python hello.py && python q.py`, `cmd /c "python q.py"` - and
+  "maybe" where it cannot read all of the line).
 - If anything in the job's copy changed after a line was parked, **Run** does not run it - so a test
   line parked early in a job is usually closed by the work after it: run it yourself. What stays out
   of that look: the dependency folders a copy links to the project's own (`node_modules`, `.venv`,

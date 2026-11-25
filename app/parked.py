@@ -134,6 +134,8 @@ WROTE_SINCE = "the job changed files after this was parked: run it yourself"
 TAKEN_IN = "its work was taken in after this was parked: run it yourself"
 STOPPED = "Stopped by you."
 CLOSED_MEANWHILE = away.CLOSED_MEANWHILE
+# What the list's "Runs a file an agent wrote: ..." says of a line not read whole (F411 P1).
+UNREAD_FILES = "maybe - KOLONİ could not read all of this line"
 
 
 class Refused(ValueError):
@@ -445,12 +447,18 @@ GO_ON = "KOLONİ: the user decided: {decided}. Go on with the task."
 # How a line you said Run ended, as the going-on message says it (`AwayMixin._run_parked`).
 ENDED = {"ran": "ran {what} ({said})", "timed_out": "ran {what}, which timed out ({said})"}
 ENDED["stopped"] = "ran {what}, which was stopped ({said})"
+# ...and, once for all of them (F411 P4), the secrets held back from them (`AwayMixin._morning`).
+HELD = (
+    "(secret variables held back from these commands: {names} - the user can pass one in "
+    "Settings › This project › Commands and secrets)"
+)
 
 
 def told(rows: list[Parked]) -> str:
     """The going-on turn's message: each decision of its rows, in the order parked - what a Run
     printed, why one could not run and your answer all quoted, as data (a line of its own in
-    them cannot pass for KOLONİ's); what reads like orders behind KOLONİ's note."""
+    them cannot pass for KOLONİ's); what reads like orders behind KOLONİ's note. The secrets held
+    back from what ran, once (`HELD`)."""
     said = []
     for row in rows:
         what = quoted(row.what)
@@ -462,7 +470,9 @@ def told(rows: list[Parked]) -> str:
             out = quoted(injection.noted(row.result or GONE, "command"))
             shape = ENDED.get(row.data.get("ended") or "", "could not run {what}: {said}")
             said.append(shape.format(what=what, said=out))
-    return GO_ON.format(decided="; ".join(said))
+    held = next((row.data["held"] for row in rows if row.data.get("held")), None)
+    note = f" {HELD.format(names=', '.join(held))}" if held else ""
+    return GO_ON.format(decided="; ".join(said)) + note
 
 
 def stale(session: Session, row: Parked, task: BacklogTask) -> str | None:

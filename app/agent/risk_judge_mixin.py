@@ -13,13 +13,15 @@ from typing import TYPE_CHECKING, NamedTuple
 from sqlalchemy import func, literal_column, select
 from sqlalchemy.exc import IntegrityError
 
-from app import away, ledger, project_map, proof, proof_style, raw, risk_judge
+from app import away, commands, ledger, project_map, proof, proof_style, raw, risk_judge
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
 from app.command_runner import _planted
 from app.commands import (
+    _BLOCKS,
     _INTERPRETER,
     _SHELLS,
+    _commands_in,
     _in_a_shell,
     _program,
     _words,
@@ -296,6 +298,33 @@ def _named_file(root: Path, command: str, cwd: str) -> tuple[Path | None, bool]:
         except (OSError, ValueError):
             continue
     return None, False
+
+
+# What moves a line's later parts to another folder (`named_files`), and the most parts it reads.
+_CDS = frozenset({"cd", "chdir", "pushd", "set-location", "sl"})
+MOST_PARTS = 32
+
+
+def named_files(root: Path, command: str, cwd: str) -> list[Path] | None:
+    """Every file `command` runs as a program (`_named_file`), not its first alone (F411 P1): each
+    part of a chain, a pipe, a group, a shell's or a wrapper's (`_commands_in`, cut as harm is),
+    looked for in `cwd` and in each folder a `cd` of the line goes to. None - fails closed: a part
+    not read (`commands.UNREAD`), a `cd` not plainly to a folder, or past MOST_PARTS parts."""
+    parts = [words for words in _commands_in(command, at=_BLOCKS) if any(words)]
+    if len(parts) > MOST_PARTS or [commands.UNREAD] in parts:
+        return None
+    places = [cwd]
+    for words in (words for words in parts if _program(words[0]) in _CDS):
+        if len(words) != 2 or words[1] == "-" or re.search(r"[$%~`]", words[1]):
+            return None
+        places += [str(Path(places[-1], words[1])), str(Path(cwd, words[1]))]
+    found = []
+    for words in (words for words in parts if _program(words[0]) not in _CDS):
+        line = " ".join(f'"{word}"' if re.search(r"\s", word) else word for word in words)
+        for place in dict.fromkeys(places):
+            if (path := _named_file(root, line, place)[0]) is not None and path not in found:
+                found.append(path)
+    return found
 
 
 def _no_local_code(root: Path, command: str, cwd: str) -> bool:

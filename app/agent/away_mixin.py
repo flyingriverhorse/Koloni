@@ -20,11 +20,12 @@ from app.agent.ctx import TERMINAL, Ctx, announce, to_its_end
 from app.agent.risk_judge_mixin import (
     _agents,
     _digest,
-    _named_file,
     _no_local_code,
+    named_files,
 )
 from app.agent.words import AGENT_TERMINAL
 from app.api.usage import over_budget
+from app.command_runner import HELD_BACK
 from app.commands import (
     harms,
     installs,
@@ -225,7 +226,7 @@ class AwayMixin(AwayBranchMixin):
             copy = self._copies.get(self._works_in(ctx) or "")
             with self._factory() as session:
                 line, cwd = (one := session.get_one(Command, command_id)).command, one.cwd
-            # (H3: the file it runs by its name, as it is now - in the copy it would run in)
+            # (H3: the files it runs by their names, as they are now - in the copy it would run in)
             root = copy.root if copy is not None else Path(ctx.folder)
             program = await asyncio.to_thread(self._program_of, ctx.cid, root, line, cwd or ".")
             # (H3: the copy's work as the line is parked - compared at Run: anything changed since,
@@ -277,14 +278,20 @@ class AwayMixin(AwayBranchMixin):
         return park
 
     def _program_of(self: "AgentRunner", cid: str, root: Path, line: str, cwd: str) -> dict | None:
-        """The file a parked line runs by its name (`_named_file`, as Full auto's judge finds it)
-        and whether an agent wrote it - for the list's "Runs a file an agent wrote". None: none it
+        """The files a parked line runs by their names, each part of it (`named_files`, as Full
+        auto's judge finds one) that an agent wrote - for the list's "Runs a file an agent wrote":
+        their paths; a line not read whole, `parked.UNREAD_FILES` (F411 P1). None: none such it
         can see. Blocking."""
-        path = _named_file(root, line, cwd)[0]
-        if path is None:
-            return None
-        rel = path.relative_to(root.resolve()).as_posix()
-        return {"rel": rel, "agents": _agents(self._factory, cid, root, path)}
+        paths = named_files(root, line, cwd)
+        if paths is None:
+            return {"rel": parked.UNREAD_FILES, "agents": True}
+        home = root.resolve()
+        wrote = [
+            path.relative_to(home).as_posix()
+            for path in paths
+            if _agents(self._factory, cid, root, path)
+        ]
+        return {"rel": ", ".join(wrote), "agents": True} if wrote else None
 
     @staticmethod
     def _copy_work(copy: copies.Copy, changed: list | None = None) -> dict[str, str]:
@@ -756,15 +763,24 @@ class AwayMixin(AwayBranchMixin):
             )
             places = {row.id: parked.where(session, row) for row in rows}
         opened: dict[str, copies.Copy] = {}
+        common: list[str] | None = None  # (F411 P4: the secrets held back, said once - `told`)
         try:
             for row in rows:
                 if not self._still_queued(run_id):
                     break
                 place, merge = places[row.id]
-                said, ended = await self._run_parked(row, place, merge, night, root, cid, opened)
+                names: list[str] = []
+                said, ended = await self._run_parked(
+                    row, place, merge, night, root, cid, opened, names
+                )
+                common = common or names or None
+                same = bool(names) and names == common
+                if names and not same:  # (a list of its own: in its own result, as any command's)
+                    said += f"\n{HELD_BACK.format(names=', '.join(names))}"
                 with self._factory() as session:
                     one = session.get_one(Parked, row.id)
-                    one.result, one.data = said, {**one.data, "ended": ended}
+                    kept = {"held": names} if same else {}
+                    one.result, one.data = said, {**one.data, "ended": ended, **kept}
                     session.commit()
         finally:
             for copy in opened.values():
@@ -800,10 +816,12 @@ class AwayMixin(AwayBranchMixin):
         root: str,
         cid: str,
         opened: dict[str, copies.Copy],
+        names: list[str],
     ) -> tuple[str, str]:
         """One Run of the morning: what it said, and how it ended - "ran", "timed_out",
         "stopped", or "not_run": its Run closed now, or where it would run moved since (L1, H2),
-        a place kept out, the file it runs changed since it was parked (H3)."""
+        a place kept out, the file it runs changed since it was parked (H3). The secrets held
+        back from it go into `names`, not into what it said."""
         cwd = row.data.get("cwd") or "."
         if place == "gone" or merge is None and place == "copy":
             return parked.GONE, "not_run"
@@ -860,6 +878,7 @@ class AwayMixin(AwayBranchMixin):
                     args,
                     ask=False,
                     env={"PYTHONPYCACHEPREFIX": pyc},
+                    held_into=names,
                 )
         except ToolError as exc:
             return f"error: {exc}", "not_run"
