@@ -223,8 +223,11 @@ like orders to a model. It is on the summary, on the report and at the top of ea
   as it was recorded - the same line, its folder, the job's kept copy (or, where you took some of that
   copy in before your **Run**, the project itself), its time limit - with no card. Just before each, it
   looks again: a line whose copy was taken in or discarded after your **Run** ("its copy was taken in
-  after your Run - run it yourself"), or whose file it runs by its name is not what it was when it was
-  parked ("changed since it was parked: run it yourself"), does not run. A program an agent wrote is still
+  after your Run - run it yourself") does not run; nor does a line that is one plain command whose file
+  is all it runs where that file is not what it was when it was parked ("changed since it was parked:
+  run it yourself"), nor any other line - a chain, a `cd`, a shell, `python go.py` in a copy, `pytest` -
+  once the job wrote any file after it was parked ("the job changed files after this was parked: run it
+  yourself", said on the list already). A program an agent wrote is still
   refused, and so is a line naming a place you kept out. A Take in or Discard under way is waited for;
   while the lines run, the copy can be neither taken in nor discarded. **Stop** in the job's chat, or
   **Stop everything**, stops a line that runs, and the task.

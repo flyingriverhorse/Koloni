@@ -8,7 +8,7 @@ import time
 
 from sqlalchemy import select
 
-from app import injection, parked
+from app import away, injection, parked
 from app.agent import recover_interrupted
 from app.db.away_models import Parked
 from app.db.models import BacklogTask
@@ -78,7 +78,9 @@ def test_run_then_take_in_before_the_last_decision_runs_nothing_in_the_project(
     assert parked.MOVED in msg
 
 
-def test_a_file_rewritten_after_it_was_parked_is_not_run(make_client, wait_run, project_dir):  # H3
+def rewritten(make_client, wait_run, project_dir, line, rewrite="go.py"):
+    """The Coder writes go.py, the Lead parks `line`, a Coder writes `rewrite` after it: (client,
+    the night, the job's chat)."""
     client, _pid, done, cid = morning(
         make_client,
         wait_run,
@@ -87,21 +89,92 @@ def test_a_file_rewritten_after_it_was_parked_is_not_run(make_client, wait_run, 
             spawn("Coder", "write it"),
             write("go.py", "print('EVENING-VERSION')\n"),
             text("written"),
-            run("python go.py"),
-            spawn("Coder", "rewrite it", "s2"),
-            write("go.py", "print('SWAPPED-AFTER-PARK')\n", "w2"),
+            run(line),
+            spawn("Coder", "write again", "s2"),
+            write(rewrite, "print('SWAPPED-AFTER-PARK')\n", "w2"),
             text("rewritten"),
             text("one done"),
             text("went on"),
         ],
         mode="auto_edit",
     )
+    return client, done, cid
+
+
+def test_a_file_rewritten_after_it_was_parked_is_not_run(make_client, wait_run, project_dir):  # H3
+    # (a pinned line - one plain command, its file all it runs: `-I` reads no copy's path - is held
+    # to its file's digest in the morning)
+    client, done, cid = rewritten(make_client, wait_run, project_dir, "python -I go.py")
     (row,) = waiting(client, done["id"])
-    assert row["wrote"] == "go.py"  # (the list says it runs a file an agent wrote)
+    assert row["wrote"] == "go.py" and row["closed"] is None  # (it runs a file an agent wrote)
     assert decide(client, done["id"], row["id"], "run").status_code == 200
     msg, _going = going_on_turn(client, cid)
     assert "SWAPPED-AFTER-PARK" not in msg and parked.CHANGED in msg
     assert ran_in_the_morning(client, cid) == []
+
+
+def test_a_pinned_line_runs_though_the_job_wrote_other_files_after(
+    make_client, wait_run, project_dir
+):  # H3
+    client, done, cid = rewritten(make_client, wait_run, project_dir, "python -I go.py", "x.py")
+    (row,) = waiting(client, done["id"])
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    msg, _going = going_on_turn(client, cid)
+    assert "EVENING-VERSION" in msg and parked.CHANGED not in msg
+
+
+def test_a_line_its_file_does_not_hold_is_closed_once_the_job_wrote_after_it(
+    make_client, wait_run, project_dir
+):  # H3, round 2: a Python reading the copy's path, a chain, a `cd`
+    client, _pid, done, _cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "write them"),
+            write("ok.py", "print('ok')\n"),
+            write("go.py", "print('EVENING-GO')\n", "w2"),
+            write("tools/go.py", "print('EVENING-TOOLS')\n", "w3"),
+            text("written"),
+            run("python go.py"),
+            run("python ok.py; python go.py", "c2"),
+            run("cd tools && python go.py", "c3"),
+            spawn("Coder", "rewrite them", "s2"),
+            write("go.py", "print('SWAPPED-GO')\n", "w4"),
+            write("tools/go.py", "print('SWAPPED-TOOLS')\n", "w5"),
+            text("rewritten"),
+            text("one done"),
+        ],
+        mode="auto_edit",
+    )
+    rows = waiting(client, done["id"])
+    assert [row["closed"] for row in rows] == [parked.WROTE_SINCE] * 3
+    for row in rows:
+        assert decide(client, done["id"], row["id"], "run").status_code == 409
+    assert decide(client, done["id"], rows[0]["id"], "reject").status_code == 200
+
+
+def test_a_chained_line_with_no_write_after_it_was_parked_runs(make_client, wait_run, project_dir):
+    client, _pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "write them"),
+            write("ok.py", "print('OK-RAN')\n"),
+            write("go.py", "print('GO-RAN')\n", "w2"),
+            text("written"),
+            run("python ok.py && python go.py"),
+            text("one done"),
+            text("went on"),
+        ],
+        mode="auto_edit",
+    )
+    (row,) = waiting(client, done["id"])
+    assert row["closed"] is None
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    msg, _going = going_on_turn(client, cid)
+    assert "OK-RAN" in msg and "GO-RAN" in msg
 
 
 def test_a_file_as_it_was_parked_runs(make_client, wait_run, project_dir):  # H3
@@ -318,3 +391,21 @@ def test_a_park_answer_after_im_back_parks_nothing_and_answers_nobody_empty(
     until(lambda: night(client, pid)["jobs"][0]["state"] == "done")
     (call,) = [t for t in chat(client, job_cid)["tool_calls"] if t["name"] == "ask_user"]
     assert "the team's" in call["result"]
+
+
+def test_a_hard_kill_in_the_going_on_turn_says_so(make_client, wait_run, project_dir, gate):
+    # (M3, its wording: the turn itself had started - not "while what you said Run ran")
+    client, pid, done, cid, _executor = held_morning(
+        make_client,
+        wait_run,
+        project_dir,
+        None,
+        [run("echo hi"), text("one done"), gate.step(text("went on"))],
+    )
+    (row,) = waiting(client, done["id"])
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    gate.wait_partial()  # (the going-on turn is at its model step)
+    recover_interrupted(client.app.state.session_factory)
+    job = night(client, pid)["jobs"][0]
+    assert (job["state"], job["why"]) == ("stopped", away.CLOSED_GOING_ON)
+    gate.release()

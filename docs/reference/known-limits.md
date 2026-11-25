@@ -175,12 +175,16 @@ messages.
 - A line that runs a program an agent wrote is refused after **Run** too. A script given to an
   interpreter (`python tool.py`, `node x.js`) is not read so: it runs on your **Run** - but only as it
   was when the line was parked (the list says "Runs a file an agent wrote").
-- What a parked line's file imports, and what a line that names no file runs (`pytest`, `make`'s
-  targets, `python -m`), is not compared with what it was at park time.
+- A line that is one plain command, its file all it runs, is held to that file's digest alone: what
+  that file imports is not compared. Any other parked line is held to its job having written no file
+  after it was parked - a write no agent of the job made (another program, the user) is not seen.
+- Between that last look and the line's start there is a moment - under a second - in which a process
+  an earlier **Run** left behind (on Linux or macOS), or another task's going-on turn, could still
+  change a file: that gap is not closed.
 - A line a CLI ran in its own shell is not run in the morning (**Reject** it, or run it yourself), nor
   is a server line.
-- KOLONİ hard-stopped (killed, not closed) while the morning's lines run: at the next start the task
-  is stopped; what had not run is not run again.
+- KOLONİ hard-stopped (killed, not closed) while the morning's lines run, or in the turn that went on
+  after them: at the next start the task is stopped, and says which; what had not run is not run again.
 - A line whose folder its CLI did not say does not run: **Reject** it, or run it yourself.
 - Where you took some of a job's copy in, its going-on turn works in a fresh copy, and the lines you
   said **Run** run in the project itself.

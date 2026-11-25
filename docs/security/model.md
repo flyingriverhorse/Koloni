@@ -89,14 +89,17 @@ can.
 
 **Run** runs the line as it was recorded - its words, its folder, where commands run, its time limit -
 with no card, and only while that still holds: it is looked at again just before it runs. It does not
-run where its job's copy was taken in or discarded after your **Run**; where the file it runs by its
-name (`python go.py`, `./x.sh`, `node x.js`, `npm run`'s package.json) is not, byte for byte, what it was
-when the line was parked; in KOLONİ's shell when a CLI asked for it in its own (another shell reads the
-same words otherwise); nor for a server. A program an agent wrote and a place you kept out are still
-refused. What that file imports, and what a line that names no file runs (`pytest`, `make`, `python -m`)
-is not compared: the list says where it would run and which file an agent wrote that it runs. Nothing
-goes into your project without your Take in: the going-on turn's work, at Full auto too, is kept in its
-copy.
+run where its job's copy was taken in or discarded after your **Run**; in KOLONİ's shell when a CLI
+asked for it in its own (another shell reads the same words otherwise); nor for a server. A line that is
+one plain command whose file is all it runs (`python -I go.py`, `./x.sh`, `node x.js` - not wrapped, not
+handed to a shell, no Python that reads a copy's path first) runs only where that file is, byte for
+byte, what it was when the line was parked. Any other line - a chain (`&&`, `;`, a pipe), a `cd`, a
+shell or a runner (`cmd /c`, `pwsh -c`, `uv run`), `python go.py` in a copy, a line that names no file
+(`pytest`, `make`, `python -m`) - does not run once an agent of its job wrote any file after it was
+parked: "the job changed files after this was parked: run it yourself", on the list. A program an agent
+wrote and a place you kept out are still refused. The list says where a line would run and which file
+an agent wrote that it runs. Nothing goes into your project without your Take in: the going-on turn's
+work, at Full auto too, is kept in its copy.
 
 ## Places agents never open
 

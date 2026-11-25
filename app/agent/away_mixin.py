@@ -14,12 +14,15 @@ from sqlalchemy.orm import Session
 
 from app import away, copies, parked
 from app.agent.ctx import TERMINAL, Ctx, announce
-from app.agent.risk_judge_mixin import _agents, _digest, _named_file
+from app.agent.risk_judge_mixin import _agents, _digest, _named_file, _sees_python_path
 from app.agent.words import AGENT_TERMINAL
 from app.api.usage import over_budget
 from app.commands import (
+    _in_a_shell,
     harms,
     installs,
+    is_plain,
+    is_wrapped,
     reaches_shared_git,
     runs_another,
     scratch_delete_only,
@@ -184,7 +187,9 @@ class AwayMixin:
                 line, cwd = (one := session.get_one(Command, command_id)).command, one.cwd
             # (H3: the file it runs by its name, as it is now - in the copy it would run in)
             root = copy.root if copy is not None else Path(ctx.folder)
-            program = await asyncio.to_thread(self._program_of, ctx.cid, root, line, cwd or ".")
+            program = await asyncio.to_thread(
+                self._program_of, ctx.cid, root, line, cwd or ".", copy is not None
+            )
             with self._factory() as session:
                 command = session.get_one(Command, command_id)
                 call = session.get(ToolCall, command.tool_call_id or "")
@@ -219,18 +224,32 @@ class AwayMixin:
 
         return park
 
-    def _program_of(self: "AgentRunner", cid: str, root: Path, line: str, cwd: str) -> dict | None:
+    def _program_of(
+        self: "AgentRunner", cid: str, root: Path, line: str, cwd: str, in_copy: bool
+    ) -> dict | None:
         """H3: the file a parked line runs by its name (`_named_file`, as Full auto's judge finds
-        it) as it is in `root` now - its path, its digest, whether an agent wrote it - or None:
-        none it can see (`pytest`, `make`'s targets, `-m`'s modules - known limits). Blocking."""
-        path = _named_file(root, line, cwd)[0]
+        it) as it is in `root` now - its path, its digest, whether an agent wrote it, and whether
+        that file is all the line runs (`pinned`: one plain command, not wrapped nor handed to a
+        shell, its file all of it - no Python that reads a copy's PYTHONPATH first). Only a
+        pinned line is held to its digest in the morning; any other is closed where the job
+        wrote anything after it was parked (`parked.WROTE_SINCE`). None: no file it can see
+        (`pytest`, `make`'s targets, `-m`'s modules). Blocking."""
+        path, exact = _named_file(root, line, cwd)
         if path is None:
             return None
         rel = path.relative_to(root.resolve()).as_posix()
+        pinned = (
+            exact
+            and is_plain(line)
+            and not is_wrapped(line)
+            and not _in_a_shell(line)
+            and not _sees_python_path(line, in_copy)
+        )
         return {
             "rel": rel,
             "digest": _digest(path),
             "agents": _agents(self._factory, cid, root, path),
+            "pinned": pinned,
         }
 
     def _program_changed(self, file: dict | None, root: Path, line: str, cwd: str) -> bool:
@@ -694,8 +713,11 @@ class AwayMixin:
                     return f"its copy could not be opened ({exc})", "not_run"
                 opened[merge.kept_in] = copy
             ws = opened[merge.kept_in].workspace()
-        if await asyncio.to_thread(
-            self._program_changed, row.data.get("file"), ws.root, row.what, cwd
+        # (a pinned line by its file's digest; any other was closed above where the job wrote
+        # anything after it was parked - `parked.stale`)
+        file = row.data.get("file")
+        if parked.pinned(row) and await asyncio.to_thread(
+            self._program_changed, file, ws.root, row.what, cwd
         ):
             return parked.CHANGED, "not_run"
         with self._factory() as session:

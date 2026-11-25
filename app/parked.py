@@ -13,7 +13,7 @@ from typing import Literal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import away, backlog, injection
+from app import away, backlog, injection, ledger, proof
 from app.cards import REASONS
 from app.commands import _BLOCKS, _parts, _program
 from app.copies import NOT_COPIED
@@ -23,6 +23,7 @@ from app.db.models import (
     BacklogTask,
     Command,
     Conversation,
+    FileChange,
     Merge,
     Project,
     Question,
@@ -122,6 +123,9 @@ SERVER = "A server line: run it yourself"
 # runs, is not what it was when you decided (H2, H3).
 MOVED = "its copy was taken in after your Run - run it yourself"
 CHANGED = "changed since it was parked: run it yourself"
+# ...and, for a line the digest of one file does not hold (a chain, a `cd`, a shell, a runner, a
+# Python reading a copy's path, a test runner), its job wrote any file after it was parked.
+WROTE_SINCE = "the job changed files after this was parked: run it yourself"
 STOPPED = "Stopped by you."
 CLOSED_MEANWHILE = away.CLOSED_MEANWHILE
 
@@ -184,12 +188,37 @@ def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | N
         return NEEDS
     if row.data.get("cwd") is None:  # (a CLI that did not say where its shell stood)
         return NOWHERE
+    if not pinned(row) and _written_since(session, row, task):
+        return WROTE_SINCE
     project = session.get(Project, task.project_id)
     image = project.docker_image if project and project.exec_location == "docker" else None
     recorded = (row.data.get("location"), row.data.get("image"))
     if project is None or (project.exec_location, image) != recorded:
         return ELSEWHERE
     return None
+
+
+def pinned(row: Parked) -> bool:
+    """Whether a parked line is all one file it was hashed with (`AwayMixin._program_of`)."""
+    return bool((row.data.get("file") or {}).get("pinned"))
+
+
+def _written_since(session: Session, row: Parked, task: BacklogTask) -> bool:
+    """Whether an agent of the job's chat wrote a file - kept, in its copy or taken in - at or
+    after the moment the line was parked (fails closed: the same moment counts)."""
+    return (
+        session.scalar(
+            select(FileChange.id)
+            .join(Run, Run.id == FileChange.run_id)
+            .where(
+                Run.conversation_id == (task.conversation_id or ""),
+                FileChange.status.in_((*ledger.KEPT, proof.MERGED)),
+                FileChange.created_at >= row.created_at,
+            )
+            .limit(1)
+        )
+        is not None
+    )
 
 
 KINDS: dict[str, Kind] = {
