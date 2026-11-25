@@ -399,6 +399,13 @@ def test_a_secret_split_by_a_character_nobody_sees_is_masked_whole(monkeypatch, 
     assert "A1b2C3d4" not in both and "456789ab" not in both, both
 
 
+def test_half_a_split_secret_in_a_word_another_mask_cut_into_is_hidden_too():
+    # (review F1: the URL's password masked first, its word no longer equal to the split's half)
+    said = "see https://user:pw123456@db.example/app?key=sk-live-0123​456789abcdef ok"
+    out = stories._said(said, None)
+    assert "sk-live-0123" not in out and "456789abcdef" not in out and "pw123456" not in out
+
+
 def test_a_word_next_to_an_invisible_character_is_hidden_whole():
     # (an emoji family's joiners and a Persian word's are such characters too: the rule is plain)
     said = "the \U0001f468\u200d\U0001f469\u200d\U0001f467 icon, \u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645"

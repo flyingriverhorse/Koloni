@@ -457,7 +457,10 @@ def _masked_line(text: str, pass_env: str | None) -> str:
     spaced = "".join(" " if _unseen(ch) else ch for ch in cut)
     beside = {word[0] for word in WORD.finditer(spaced) if _beside_unseen(cut, word)}
     out = masked(topics.one_line(spaced), pass_env)
-    return WORD.sub(lambda word: raw.HIDDEN if word[0] in beside else word[0], out)
+    # (a word another mask already cut into - `***` in it - may hold a split secret's half: whole)
+    return WORD.sub(
+        lambda word: raw.HIDDEN if word[0] in beside or raw.HIDDEN in word[0] else word[0], out
+    )
 
 
 def cut_note(text: object) -> str | None:
