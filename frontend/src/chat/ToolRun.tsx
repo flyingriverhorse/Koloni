@@ -2,14 +2,8 @@ import { CaretDown, CaretRight } from '@phosphor-icons/react'
 import { type ReactNode, useState } from 'react'
 import type { Command, FileChange, ToolCall } from '../api/types'
 import { StatusLabel } from '../shell/StatusLabel'
-import { TOOL_STATUS } from './ToolRow'
-import { type End, runHead } from './toolRuns'
-
-const ENDED: Record<End, [label: string, color: string]> = {
-  ...TOOL_STATUS,
-  parked: ['parked', 'var(--warn)'],
-  judged: ['refused by the judge', 'var(--warn)'],
-}
+import { RUN_MARKS } from './ToolRow'
+import { runHead } from './toolRuns'
 
 // Calls whose line was left open, kept while the page is open (a reload closes them): by every
 // call of the line, so a line a card splits stays open on both sides, and one joined to an open one opens.
@@ -31,9 +25,9 @@ export function ToolRun({ calls, state, children, live = false }: Props) {
   const [, redraw] = useState(0)
   const open = calls.some(call => opened.has(call.id)) || (live && !shut.has(calls[0].id))
   const { what, marks, status } = runHead(calls, state)
-  const [label, color] = ENDED[status]
+  const [label, color] = RUN_MARKS[status]
   // "1 failed", "2 rejected", "3 refused by the judge", "4 parked": what did not end well is never folded away.
-  const marked = marks.map(([end, count]) => `${count} ${ENDED[end][0]}`)
+  const marked = marks.map(([end, count]) => `${count} ${RUN_MARKS[end][0]}`)
   return (
     <div className="tool-run">
       <button
