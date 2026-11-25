@@ -18,6 +18,7 @@ from sqlalchemy import literal_column, select
 from app import checks_now
 from app.agent.ctx import Ctx
 from app.agent.proof_mixin import Proof
+from app.agent.status_tool_mixin import StatusToolMixin
 from app.agent.words import PROOF_LEAD, RUN_CHECKS_LEAD
 from app.db.models import Message, ToolCall
 from app.tools import ToolError, _fn
@@ -61,7 +62,14 @@ KEPT = (
 )
 
 
-class ChecksToolMixin:
+class ChecksToolMixin(StatusToolMixin):
+    async def _own_tool(self: "AgentRunner", ctx: Ctx, call_id: str, name: str) -> str:
+        """run_checks or read_status (0.1.9), the Orchestrator's own: one line of `AgentRunner`'s
+        calls for both."""
+        if name == "read_status":
+            return await self._read_status(ctx)
+        return await self._run_checks(ctx, call_id)
+
     def _checks_offered(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether this agent is offered run_checks: the Orchestrator at its own work in a
         project - not a sub-agent, a plan (no commands there), an answer, a discussion, a side of

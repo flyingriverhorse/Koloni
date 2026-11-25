@@ -6340,8 +6340,8 @@ class AgentRunner(
         """`_tool_call`, its part 4."""
         if request.name == "recall_output":
             status, output = "succeeded", self._recall_output(ctx, args)
-        elif request.name == "run_checks":
-            status, output = "succeeded", await self._run_checks(ctx, call_id)
+        elif request.name in ("run_checks", "read_status"):  # (0.1.9: the Orchestrator's own)
+            status, output = "succeeded", await self._own_tool(ctx, call_id, request.name)
         elif request.name in SERVING_TOOLS:
             status, output = "succeeded", await self._serving_call(ctx, request.name, args)
         elif request.name in BROWSER_TOOLS:
