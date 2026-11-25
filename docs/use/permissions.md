@@ -393,7 +393,7 @@ your messages in the chat (in a job while you're away, in the chat you went away
 folder and who runs it (the Orchestrator or a sub-agent's role); the last 5 commands the same agent ran in
 the turn (only ones that started, each cut to 300 characters); and, where the line runs or reads a file an
 agent wrote - a script (`node x.js`, `python x.py`, `python -m x`, `./x.sh`, `x.ps1`, `powershell -File
-x.ps1`, `x.cmd`), make's Makefile, a Dockerfile or compose file, a `package.json` -, the first 4 KB of that
+x.ps1`, `x.cmd`), make's Makefile, a Dockerfile, a `package.json` -, the first 4 KB of that
 file. Everything but your own words is marked as
 data an agent wrote, not instructions. It never sees an agent's messages, a tool's result or a file an
 agent read, and the secrets KOLONİ knows are masked first.
@@ -412,8 +412,10 @@ can write a command that slows, confuses or spends the judge, so none of these l
 
 **Its card** offers **Run once** and **Reject**, and, where KOLONİ can keep the line, a box, **Don't ask
 about this line again here**. Run once runs the line, and the judge does not ask about it again in that
-turn; with the box ticked, not in this project either. Both are kept only where the folder the line runs in
-is known and KOLONİ knows all the line runs, as it is:
+turn; with the box ticked, not in this project either. Both are kept only where the judge itself looked at
+the line - never on a card it gave no verdict for (too long, orders in it, no room to ask, no answer in
+time or none it could read, its program changed meanwhile) -, the folder the line runs in is known and
+KOLONİ knows all the line runs, as it is:
 
 - a file of the project's it runs, found and unchanged, in a plain form that runs that file and nothing
   more - `python x.py`, `node x.js`, `make` or `make target` (its Makefile), `make -f F`, `npm test` or
@@ -428,7 +430,9 @@ the project's own aliases and settings), a wrapped line (`env …`, `uv run …`
 (`bash -lc …`, `cmd /c …`), `npx …`, a line sent to another folder (`-C`, `--prefix`, `-w`, `--cwd`), an
 option that loads more code (`node -r x`; PowerShell with any option but `-NoProfile`, `-NonInteractive`,
 `-NoLogo`, `-ExecutionPolicy`, `-WindowStyle` and `-File`), a variable set on make's line (`make CC=x`), a
-package run by its `__main__.py` (`python -m pkg`, `python pkg`), `bun`, `Rscript`, any other runner
+package run by its `__main__.py` (`python -m pkg`, `python pkg`), a Python line without `-I` or `-E` in a
+working copy (its commands get the copy first on `PYTHONPATH`, so a `sitecustomize.py` there runs before
+the script) or where KOLONİ's own environment sets `PYTHONPATH`, `bun`, `Rscript`, any other runner
 KOLONİ does not know, a file it did not find (`python -m x` with no `x.py`), or a line whose folder is not
 known (a CLI that does not say). No **Always run** is offered, and an Always run rule does not let a command past the
 judge: a rule matches by its first words, and `python` would cover `python -c …`.

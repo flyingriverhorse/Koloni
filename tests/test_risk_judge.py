@@ -174,15 +174,16 @@ def test_earlier_commands_are_cut_and_one_with_orders_is_a_card_unasked():
 @pytest.mark.parametrize(
     "record, want",
     [
-        ({"kind": "risk", "verdict": "risky", "program": "ab" * 32}, True),  # its file, all it runs
-        (
-            {"kind": "risk", "verdict": "risky", "program": ""},
-            True,
-        ),  # `curl`, `wget`: no local code
+        # (its file, all it runs; `curl`, `wget`: no local code - each with the model's verdict)
+        ({"kind": "risk", "verdict": "risky", "program": "ab" * 32, "looked": True}, True),
+        ({"kind": "risk", "verdict": "risky", "program": "", "looked": True}, True),
         # (no key: wrapped - `env`, `uv run` -, a shell's code, not found, its folder not known)
-        ({"kind": "risk", "verdict": "risky", "program": None}, False),
-        ({"kind": "risk", "verdict": "risky"}, False),
-        ({"kind": "", "verdict": "ask", "program": ""}, False),  # the check of the user's words
+        ({"kind": "risk", "verdict": "risky", "program": None, "looked": True}, False),
+        ({"kind": "risk", "verdict": "risky", "looked": True}, False),
+        # (a key, but no model looked: too long, orders in it, no room, late, unreadable, changed)
+        ({"kind": "risk", "verdict": "risky", "program": "", "looked": False}, False),
+        ({"kind": "risk", "verdict": "risky", "program": ""}, False),
+        ({"kind": "", "verdict": "ask", "program": "", "looked": True}, False),  # the user's words
         (None, False),  # the judge did not look
     ],
 )

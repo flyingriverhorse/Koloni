@@ -146,9 +146,13 @@ messages.
     - A Run on its card, and **Don't ask about this line again here**, keep only a line whose whole run
       KOLONİ knows - a project file it runs in a plain form, hashed, or one plain `curl`, `wget` or file
       command. Any other form - `git`, a wrapper, a shell's code, `npx`, a line sent to another folder,
-      a variable set on make's line, a package's `__main__.py`, a runner KOLONİ does not know, a file it
-      did not find, a folder it does not know - is asked about every time, and its card has no box: it
-      fails closed, at the cost of more questions.
+      a variable set on make's line, a package's `__main__.py`, a Python line without `-I` or `-E` in a
+      working copy (or with `PYTHONPATH` set), a runner KOLONİ does not know, a file it did not find, a
+      folder it does not know - is asked about every time, and its card has no box: it fails closed, at
+      the cost of more questions.
+    - A command the judge could not look at - too long, orders in it, no room to ask, no answer in time
+      or none it could read, its program changed while it looked - is never kept: a Run on its card
+      runs it once, and its card has no box.
     - What a kept program imports in turn is not looked at - not even a file in its folder that shadows
       a standard module (a `json.py` beside `x.py`): a changed import does not make `python x.py`
       another line.

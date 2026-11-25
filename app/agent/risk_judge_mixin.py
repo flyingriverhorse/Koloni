@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, NamedTuple
@@ -91,6 +92,8 @@ _VALUED = frozenset(
 # whole program it runs (`_Files.exact`); any other (`node --require x`, `ruby -I x`, `bash
 # --rcfile x`) may load more, and nothing is kept for the line.
 _PYTHON_PLAIN = re.compile(r"-[uBOEsSIPqbdvi]+|-OO|-bb|-[XW]\S*")
+# Python's options that keep a PYTHONPATH it is given out (-I, -E), alone or in a bundle.
+_PYTHON_ISOLATED = re.compile(r"-[uBOEsSIPqbdvi]*[IE][uBOEsSIPqbdvi]*")
 _NODE_PLAIN = frozenset({"--no-warnings", "--enable-source-maps", "--trace-warnings"})
 # PowerShell's, as it takes them cut short (`-nop`, `-ep`): any other (`-SettingsFile`,
 # `-PSConsoleFile`) may load more.
@@ -248,6 +251,26 @@ def _files(words: list[str]) -> _Files:
     if _pathlike(words[0]):
         return _Files(_endings(words[0], _RUN_ENDINGS), True)
     return _plain_tool(words)
+
+
+def _sees_python_path(command: str, in_copy: bool) -> bool:
+    """Whether a Python's line imports what a PYTHONPATH it is given holds before its script: a
+    working copy's commands get the copy and its src first (`host.copy_python_path`), and KOLONİ's
+    own environment may set one - there a `sitecustomize.py` or `usercustomize.py` an agent wrote
+    runs first, so the script found is not all the line runs. Not with -I or -E (alone or in a
+    bundle, `-IB`) before what it runs; an option it cannot read leaves it seeing one."""
+    words = [word.strip("'\"") for word in _words(command)]
+    words = words[1:] if words[:1] in (["&"], ["."]) else words  # (PowerShell's call)
+    if not words or not _PYTHON.fullmatch(_program(words[0])):
+        return False
+    if not (in_copy or os.environ.get("PYTHONPATH")):
+        return False
+    for word in words[1:]:
+        if not word.startswith("-") or word.startswith(("-m", "-c")):
+            break
+        if _PYTHON_ISOLATED.fullmatch(word):
+            return False
+    return True
 
 
 def _named_file(root: Path, command: str, cwd: str) -> tuple[Path | None, bool]:
@@ -450,9 +473,12 @@ class RiskJudgeMixin:
             project_id = project.id
             own = project_map.own_test(project.test_commands, command, cwd)
             earlier = self._risk_earlier(session, ctx)
+            # (anywhere but the project itself - a working copy, a branch's worktree - is a copy)
+            in_copy = root.resolve() != Path(project.root_path).resolve()
         plain, path, program, digest, exact = await asyncio.to_thread(
             self._risk_line, ctx, command, cwd or ".", root, known
         )
+        exact = exact and not _sees_python_path(command, in_copy)
         # (the user's own test command is theirs - but not where it runs a program an agent wrote)
         if plain or own and program is None:
             return "", None
@@ -467,9 +493,9 @@ class RiskJudgeMixin:
             or self._risk_allowed(project_id, key)
         ):
             return "", None
-        # ("program", "root": the line's key, for `_risk_approved` - "program" None: none; no
-        # fields of `schemas.Judged`)
-        record: dict = {"kind": "risk", "verdict": "risky", "why": "", "model": ""}
+        # ("program", "root": the line's key, for `_risk_approved` - "program" None: none;
+        # "looked": False until the model's verdict is had - no fields of `schemas.Judged`)
+        record: dict = {"kind": "risk", "verdict": "risky", "why": "", "model": "", "looked": False}
         record |= {"program": digest if key else None, "root": str(root)}
         if why := risk_judge.risky_unasked(command, program[1] if program else None, earlier):
             return CARD.format(why=why), {**record, "why": why}
@@ -575,9 +601,12 @@ class RiskJudgeMixin:
         got, failed = await self._risk_asks(ctx, asking, mode, asked)
         if got is None:
             return CARD.format(why=failed), {**record, "why": failed}
-        record = {**record, **got, "why": raw.hidden(got["why"])}
+        # ("looked": the model's own verdict on the line as it is - the one record a Run on its card
+        # may keep the line for: `risk_judge.kept`)
+        record = {**record, **got, "why": raw.hidden(got["why"]), "looked": True}
         if await asyncio.to_thread(self._risk_moved, command, seen):
-            return CARD.format(why=CHANGED), {**record, "verdict": "risky", "why": CHANGED}
+            changed = {"verdict": "risky", "why": CHANGED, "looked": False}
+            return CARD.format(why=CHANGED), {**record, **changed}
         if full:
             cache[full] = record
         why = record["why"] or NO_REASON

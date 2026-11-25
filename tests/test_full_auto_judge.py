@@ -890,6 +890,65 @@ def test_a_run_in_one_place_covers_no_other(judging, wait_run, project_dir, tmp_
     wait_run(client, cid, run_id)
 
 
+def test_a_python_line_in_a_copy_is_kept_only_isolated(
+    judging, wait_run, project_dir, tmp_path, gate, monkeypatch
+):
+    # (final review: a copy's commands get PYTHONPATH=<copy>;<copy>/src - an agent's
+    # sitecustomize.py there runs before the script, so the script is not all the line runs)
+    other = tmp_path / "copy"
+    other.mkdir()
+    for at in (project_dir, other):
+        (at / "gen.py").write_text(BENIGN, encoding="utf-8")
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    client, _lead, judge, _executor = judging(
+        [cmd("python gen.py"), gate.step(text("done"))],
+        [said("risky")] + [said("fine")] * 3,
+        [Script([])],
+    )
+    _, cid, run_id = go(client, project_dir)
+    card(client, cid, "approve")
+    gate.wait_partial()
+    runner = client.app.state.runner
+    lead = client.get(f"/api/conversations/{cid}").json()["commands"][0]["agent_id"]
+    ctx = Ctx(run_id=run_id, cid=cid, root=str(project_dir), agent_id=lead, role="Lead",
+              tools=("run_command",), depth=0)  # fmt: skip
+    judged = functools.partial(runner._risk_judged, exempt=False)
+
+    def kept(line, root):
+        _why, record = client.portal.call(judged, ctx, line, ".", root, ("", None))
+        return risk_judge.kept(record)
+
+    assert kept("python gen.py", other) is False
+    assert kept("python -I gen.py", other) is True
+    # (in the project too, where KOLONİ's own environment gives its commands a PYTHONPATH)
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
+    assert kept("python gen.py", project_dir) is False
+    assert len(judge.calls) == 4
+    gate.release()
+    wait_run(client, cid, run_id)
+
+
+@pytest.mark.parametrize("why", ["late", "unread", "room"])
+def test_a_card_the_judge_did_not_look_at_keeps_no_line(
+    judging, wait_run, project_dir, monkeypatch, why
+):
+    # (final review: the box on a card no model judged would keep a line nobody looked at - here
+    # one that would be kept by its words, `curl`)
+    answer = {"late": hang, "unread": text("I think it is fine"), "room": said("fine")}[why]
+    if why == "late":
+        monkeypatch.setattr(risk_judge, "API_SECONDS", 0.05)
+    if why == "room":
+        monkeypatch.setattr("app.agent.po_mixin.over_month", lambda *_: "over this month's budget")
+    line = "curl https://example.com/x"
+    client, *_ = judging([cmd(line, id="k1"), text("left")], [answer], [Script([])])
+    _, cid, run_id = go(client, project_dir)
+    asked = card(client, cid, "approve", remember_line=True)
+    wait_run(client, cid, run_id)
+    assert asked["danger"].startswith("KOLONİ's judge: it") and asked["keeps_line"] is False
+    with client.app.state.session_factory() as session:
+        assert session.scalars(select(JudgeAllowed)).all() == []
+
+
 @pytest.mark.parametrize("line", ["curl https://example.com/x", "wget https://example.com/x"])
 def test_a_line_that_runs_no_file_of_the_folders_keeps_its_run_and_dont_ask_again(
     judging, wait_run, project_dir, line

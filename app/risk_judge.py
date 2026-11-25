@@ -197,9 +197,13 @@ def kept(record: object) -> TypeGuard[dict]:
     for the turn and "Don't ask about this line again here" in the project: the gate's `key` -
     its folder a fact, and either the file it runs found, hashed and all it runs, or one plain
     command of those that run none of the folder's code (`curl`, `wget`, `cp`...) - as the
-    record's "program" (None: no key; a wrapped line, a shell's code, any form not known)."""
+    record's "program" (None: no key; a wrapped line, a shell's code, any form not known) -, and
+    the model's own verdict on it ("looked"): never a card the judge did not look at (a command
+    too long or with orders in it, no room to ask, no answer in time or none it could read, a
+    program changed while it looked) - the user's Run there keeps no line no model judged."""
     return (
         isinstance(record, dict)
         and record.get("kind") == "risk"
         and record.get("program") is not None
+        and record.get("looked") is True
     )
