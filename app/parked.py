@@ -347,3 +347,66 @@ def stop(session: Session, night: AwayRun, task: BacklogTask) -> None:
     close_rows(session, task)
     task.away_state, task.away_why = "stopped", STOPPED
     session.commit()
+
+
+# --- the morning: what ran, and the going-on turn (`AwayMixin._go_on_parked`) ---------------------
+
+# The going-on turn's message: KOLONİ's, never the user's (`KOLONIS`; `Run.by_user` False).
+GO_ON = "KOLONİ: the user decided: {decided}. Go on with the task."
+
+
+def told(rows: list[Parked]) -> str:
+    """The going-on turn's message: each decision of its rows, in the order parked - what a Run
+    printed handed on as data (`injection.noted`), why one could not run."""
+    said = []
+    for row in rows:
+        what = quoted(row.what)
+        if row.decision == "reject":
+            said.append(f"rejected {what}")
+        elif row.decision == "answer":
+            said.append(f"answered {what}: {row.answer}")
+        elif row.decision == "run" and row.data.get("ran"):
+            said.append(f"ran {what} ({injection.noted(row.result or '', 'command')})")
+        elif row.decision == "run":
+            said.append(f"could not run {what}: {row.result or GONE}")
+    return GO_ON.format(decided="; ".join(said))
+
+
+def begin(session: Session, task_id: str) -> tuple[str, str, str] | None:
+    """The going-on turn on record, "queued" - its rows' `went_on` - where it may start: every
+    decision in, the user not away, its job's chat not at work, none started for them yet. Its
+    run id, chat and project; None: not now. Committed."""
+    task = session.get(BacklogTask, task_id)
+    if (
+        task is None
+        or task.conversation_id is None
+        or away.running(session, task.project_id) is not None
+        or at_work(session, task)
+        or not ready(session, task)
+    ):
+        return None
+    cid = task.conversation_id
+    last = session.scalar(
+        select(Run).where(Run.conversation_id == cid).order_by(Run.created_at.desc()).limit(1)
+    )
+    run = Run(
+        conversation_id=cid,
+        topic_id=last.topic_id if last is not None else None,
+        status="queued",
+        task_id=task.id,
+    )
+    session.add(run)
+    session.flush()
+    for row in session.scalars(
+        select(Parked).where(
+            Parked.task_id == task.id,
+            Parked.went_on.is_(None),
+            Parked.decision.is_not(None),
+            Parked.decision != "stop",
+        )
+    ):
+        if (kind := KINDS.get(row.kind)) is not None and kind.act is None:
+            row.went_on = run.id
+    task.status, task.away_state, task.away_why = "doing", None, None
+    session.commit()
+    return run.id, cid, task.project_id

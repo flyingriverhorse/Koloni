@@ -708,6 +708,16 @@ def night_job(session: Session, cid: str) -> BacklogTask | None:
     return job_of(session, cid) if night_of(session, cid) else None
 
 
+def going_on(session: Session, run: Run) -> bool:
+    """§10: whether a turn is a job's going-on turn after the user's decisions (`app.parked`)."""
+    return session.scalar(select(Parked.id).where(Parked.went_on == run.id).limit(1)) is not None
+
+
+def job_turn(session: Session, run: Run) -> bool:
+    """A job's turn: of its night while it runs, or the going-on turn after it (§10)."""
+    return night_job(session, run.conversation_id) is not None or going_on(session, run)
+
+
 def turn_ended(session: Session, run: Run, status: str) -> bool:
     """A turn of a job's chat ended (`run.status` set): done, to be tried once more where it
     failed while the night goes on, or could not be done, with why. Whether a job moved;
@@ -754,12 +764,16 @@ def after_the_night(session: Session, run: Run) -> Message | None:
     ("0 done, 2 wait"). The line changed, or None. Not committed."""
     task = job_of(session, run.conversation_id)
     away = session.get(AwayRun, task.away_run_id) if task and task.away_run_id else None
-    # (Only the night's own turn, gone on after it: a later message in the job's chat is not its.)
+    # (Only the night's own turn, gone on after it - or its going-on turn, §10: a later message in
+    # the job's chat is not its.)
     if (
         away is None
         or away.status != "ended"
         or away.ended_at is None
-        or (run.created_at.replace(tzinfo=None) > away.ended_at.replace(tzinfo=None))
+        or (
+            run.created_at.replace(tzinfo=None) > away.ended_at.replace(tzinfo=None)
+            and not going_on(session, run)
+        )
     ):
         return None
     away.ended_at = now()

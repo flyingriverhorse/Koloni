@@ -196,9 +196,11 @@ async def decide_waiting(
     """The user's Run, Reject or answer of a parked row - only from the app's own page."""
     card = _away(session, away_id)
     try:
-        await parked.decide(session, card, item_id, body.word, body.answer)
+        task = await parked.decide(session, card, item_id, body.word, body.answer)
     except parked.Refused as exc:
         raise HTTPException(exc.status, str(exc)) from None
+    if task is not None:  # (its last decision: what was Run runs, and its job goes on)
+        request.app.state.runner.go_on_parked(task.id)
     _told(request, card.project_id)
     return parked.waiting(session, card)
 
@@ -207,15 +209,26 @@ async def decide_waiting(
 async def stop_task(
     away_id: str, task_id: str, request: Request, session: Session = Depends(get_session)
 ):
-    """Stop this task: what it parked is closed, it is stopped - no going-on turn."""
+    """Stop this task: what it parked is closed, it is stopped - no going-on turn; one under way
+    is cut (what was Run and runs now is killed)."""
     card = _away(session, away_id)
     if card.status == "running":
         raise HTTPException(409, away.AWAY_NOW)
     task = session.get(BacklogTask, task_id)
     if task is None or task.away_run_id != card.id:
         raise HTTPException(404, "no such job of this card")
-    if task.away_state != "waits":
+    going = [
+        run.id
+        for run in session.scalars(
+            select(Run).where(Run.task_id == task.id, Run.status.not_in(backlog.ENDED))
+        )
+        if away.going_on(session, run)
+    ]
+    if task.away_state != "waits" and not going:
         raise HTTPException(409, "only a job that waits for you")
+    for run_id in going:
+        request.app.state.runner.cancel(run_id)
+    session.expire_all()
     parked.stop(session, card, task)
     _told(request, card.project_id)
     return away.report(session, card)

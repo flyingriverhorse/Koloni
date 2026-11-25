@@ -6,6 +6,7 @@ ends - `AwayMixin`.
 import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, or_, select
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 from app import away, copies, parked
 from app.agent.ctx import TERMINAL, Ctx, announce
 from app.agent.words import AGENT_TERMINAL
+from app.api.usage import over_budget
 from app.commands import (
     harms,
     installs,
@@ -24,10 +26,23 @@ from app.commands import (
     with_cwd,
 )
 from app.db.away_models import Parked
-from app.db.models import Agent, AwayRun, Command, Conversation, Merge, Run, ToolCall, now
+from app.db.models import (
+    Agent,
+    AwayRun,
+    BacklogTask,
+    Command,
+    Conversation,
+    Merge,
+    Message,
+    Project,
+    Run,
+    ToolCall,
+    now,
+)
 from app.model_cli import CliStepClient
 from app.model_native import ClaudeNativeClient
 from app.roles import LEAD
+from app.serialize import message_out, run_out
 from app.tools import ToolError
 from app.workspace import Workspace
 
@@ -134,15 +149,15 @@ class AwayMixin:
             self._nudge(lead, AWAY_TOLD)
 
     def _away_full_auto(self: "AgentRunner", ctx: Ctx) -> bool:
-        """K-yargıç while away (call 9): a job whose Away runs, its chat at Full auto - as the
-        chat the user went away from was."""
+        """K-yargıç while away (call 9): a job whose Away runs - or its going-on turn after the
+        user's decisions (§10) -, its chat at Full auto - as the chat the user went away from."""
         if ctx.run_id not in self._away_jobs:
             return False
         with self._factory() as session:
             return (
                 away.night_of(session, ctx.cid) is not None
-                and session.get_one(Conversation, ctx.cid).permission_mode == "full_auto"
-            )
+                or away.going_on(session, session.get_one(Run, ctx.run_id))
+            ) and session.get_one(Conversation, ctx.cid).permission_mode == "full_auto"
 
     def _parker(
         self: "AgentRunner", ctx: Ctx, make: Callable[[], Awaitable[Workspace]] | None
@@ -250,9 +265,11 @@ class AwayMixin:
         with self._factory() as session:
             night = away.night_of(session, ctx.cid)
             why = away.over(session, night) if night is not None else None
+            # (§10: a going-on turn after the night is held to the job's ceiling alone)
+            going = night is not None or away.going_on(session, session.get_one(Run, ctx.run_id))
             if night is not None and why:
                 away.stop(session, night, why, self)
-            elif night is not None and (why := away.job_over(session, ctx.cid)):
+            elif going and (why := away.job_over(session, ctx.cid)):
                 self.cut(ctx.run_id, why)  # (this job only: the next one goes on)
         if why:
             raise asyncio.CancelledError
@@ -340,9 +357,12 @@ class AwayMixin:
         is cut, its copy kept - not one that waits for the user's word."""
         with contextlib.suppress(Exception), self._factory() as session:
             night, task = away.night_of(session, cid), away.job_of(session, cid)
-            if night is None or task is None or task.away_state == "waits":
+            run = session.get(Run, run_id)
+            # (§10: a going-on turn after the night has the job's ceiling alone)
+            going = night is None and run is not None and away.going_on(session, run)
+            if (night is None and not going) or task is None or task.away_state == "waits":
                 return
-            if why := away.over(session, night):
+            if night is not None and (why := away.over(session, night)):
                 away.stop(session, night, why, self)
             else:
                 self.cut(run_id, away.too_long(away.unattended(session)[1] or 0))
@@ -441,3 +461,191 @@ class AwayMixin:
             # the turn itself from ending; it is settled when the app next starts.
             with contextlib.suppress(Exception):
                 self.unattended_ended(run_id, status, error)
+
+    # --- §10: what the user decided runs, and the same agent goes on -------------------------
+
+    def go_on_parked(self: "AgentRunner", task_id: str) -> None:
+        """§10: every decision of a job's parked rows is in - what was Run runs in the order parked,
+        where it was recorded to, then one going-on turn of the job's chat (`_go_on_parked`). Not
+        awaited: the click that gave the last decision is answered at once."""
+        if not self._closing:
+            asyncio.get_running_loop().create_task(
+                self._go_on_parked(task_id), name=f"parked-{task_id}"
+            )
+
+    async def _go_on_parked(self: "AgentRunner", task_id: str) -> str | None:
+        """`go_on_parked`'s work: the going-on turn's run id, or None where it does not start -
+        not every decision in, the user away again, its chat at work (looked at again here), a
+        Stop meanwhile, or the month's budget spent. Its run is on record "queued" from the
+        start - the job is at work, nothing else of it starts, a message in its chat waits behind
+        it - and while what was Run runs, Stop of its chat or of the task cancels it here
+        (`cancel`: it stands in `_tasks` under that run)."""
+        with self._factory() as session:
+            begun = parked.begin(session, task_id)
+        if begun is None:
+            return None
+        run_id, cid, project_id = begun
+        self.bus.emit(cid, run_id, "run.started", self._run_payload(run_id))
+        announce(self._factory, self.bus, project_id, "backlog.changed")
+        me = asyncio.current_task()
+        if me is not None:
+            self._tasks[run_id] = me
+        try:
+            merge_id = await self._morning(task_id, run_id, cid)
+        except asyncio.CancelledError:
+            self._morning_over(run_id, cid, project_id, "cancelled")
+            raise
+        finally:
+            if self._tasks.get(run_id) is me:
+                del self._tasks[run_id]
+        with self._factory() as session:
+            run = session.get_one(Run, run_id)
+            chat = session.get_one(Conversation, cid)
+            why = over_budget(session, session.get(Project, project_id), chat)
+            if run.status != "queued" or why:
+                self._morning_over(run_id, cid, project_id, "cancelled", why)
+                return None
+            rows = list(
+                session.scalars(select(Parked).where(Parked.went_on == run_id).order_by(Parked.seq))
+            )
+            message = Message(
+                conversation_id=cid, run_id=run_id, role="user", content=parked.told(rows)
+            )
+            session.add(message)
+            run.status, run.started_at = "running", now()
+            session.commit()
+            said, payload = message_out(message), run_out(run)
+        self.bus.emit(cid, run_id, "message.created", said)
+        self.bus.emit(cid, run_id, "run.updated", payload)
+        if merge_id is not None:
+            self.resume_on(run_id, merge_id)
+        self.start(run_id)
+        return run_id
+
+    def _run_payload(self: "AgentRunner", run_id: str) -> dict:
+        with self._factory() as session:
+            return run_out(session.get_one(Run, run_id))
+
+    def _morning_over(
+        self: "AgentRunner",
+        run_id: str,
+        cid: str,
+        project_id: str,
+        status: str,
+        why: str | None = None,
+    ) -> None:
+        """The going-on turn does not start: its run is over (`status`); its job waits where the
+        month's budget stopped it (`why`), else - a Stop - it is stopped."""
+        with contextlib.suppress(Exception), self._factory() as session:
+            run = session.get_one(Run, run_id)
+            if run.status in ("queued", "running"):
+                run.status, run.ended_at = status, now()
+            task = session.get(BacklogTask, run.task_id or "")
+            if task is not None and task.away_state is None:
+                task.away_state, task.away_why = (
+                    ("waits", f"The project is {why}.") if why else ("stopped", parked.STOPPED)
+                )
+            session.commit()
+            payload = run_out(run)
+            self.bus.emit(cid, run_id, "run.updated", payload)
+        announce(self._factory, self.bus, project_id, "backlog.changed")
+
+    async def _morning(self: "AgentRunner", task_id: str, run_id: str, cid: str) -> str | None:
+        """What the user said Run, run in the order parked as it was recorded - its line, its
+        folder, its copy or (some of that copy taken in) the project, its time limit - with no
+        card (`ask=False`: what the user's Run is leave for; an agent's own program is still
+        refused, W2, and a place kept out still is). The copies held off Take in and Discard
+        meanwhile (`_deciding`). The kept copy the going-on turn goes on in - untouched - or
+        None: a fresh one."""
+        with self._factory() as session:
+            task = session.get_one(BacklogTask, task_id)
+            night = session.get(AwayRun, task.away_run_id or "")
+            root = session.get_one(Project, task.project_id).root_path
+            rows = list(
+                session.scalars(
+                    select(Parked)
+                    .where(Parked.went_on == run_id, Parked.kind == "command")
+                    .where(Parked.decision == "run")
+                    .order_by(Parked.seq)
+                )
+            )
+            kept = away.kept_copies(session, cid)
+            last = kept[-1] if kept and self._undecided(kept[-1]) else None
+            places = {row.id: parked.where(session, row) for row in rows}
+        held = {merge.id for _place, merge in places.values() if merge is not None}
+        held |= {last.id} if last is not None else set()
+        held -= self._deciding
+        self._deciding |= held
+        opened: dict[str, copies.Copy] = {}
+        try:
+            for row in rows:
+                if not self._still_queued(run_id):
+                    break
+                place, merge = places[row.id]
+                said, ran = await self._run_parked(row, place, merge, night, root, cid, opened)
+                with self._factory() as session:
+                    one = session.get_one(Parked, row.id)
+                    one.result, one.data = said, {**one.data, "ran": ran}
+                    session.commit()
+        finally:
+            for copy in opened.values():
+                with contextlib.suppress(OSError, ValueError):
+                    copies.unlink(self.settings.runtime_root, copy.name)
+            self._deciding -= held
+        return last.id if last is not None else None
+
+    def _still_queued(self: "AgentRunner", run_id: str) -> bool:
+        """The going-on turn is still to start: no Stop of its chat meanwhile."""
+        with self._factory() as session:
+            return session.get_one(Run, run_id).status == "queued"
+
+    async def _run_parked(
+        self: "AgentRunner",
+        row: Parked,
+        place: str,
+        merge: Merge | None,
+        night: AwayRun | None,
+        root: str,
+        cid: str,
+        opened: dict[str, copies.Copy],
+    ) -> tuple[str, bool]:
+        """One Run of the morning: what it said, and whether it ran (False: could not)."""
+        cwd = row.data.get("cwd") or "."
+        if place == "gone" or merge is None and place == "copy":
+            return parked.GONE, False
+        if night is not None and (
+            kept := away.kept_out(night, command=row.what, root=root, cwd=cwd)
+        ):
+            return away.KEPT_OUT.format(path=kept), False
+        ws = Workspace(Path(root).resolve())
+        if place == "copy" and merge is not None and merge.kept_in:
+            if merge.kept_in not in opened:
+                try:
+                    copy = copies.load(
+                        Path(root),
+                        self.settings.runtime_root,
+                        copies.named(self.settings.runtime_root, merge.kept_in),
+                    )
+                    copies.relink(copy)
+                except (OSError, ValueError) as exc:
+                    return f"its copy could not be opened ({exc})", False
+                opened[merge.kept_in] = copy
+            ws = opened[merge.kept_in].workspace()
+        with self._factory() as session:
+            command = session.get(Command, row.ref_id or "")
+            if command is None or command.tool_call_id is None:
+                return parked.GONE, False
+            run_id, agent_id, call_id = command.run_id, command.agent_id, command.tool_call_id
+        seconds = row.data.get("timeout")
+        args = {
+            "command": row.what,
+            "cwd": cwd,
+            **({"timeout_seconds": seconds} if isinstance(seconds, int) and seconds > 0 else {}),
+        }
+        try:
+            status, said = await self.commands.run(
+                run_id, cid, agent_id, ws, call_id, args, ask=False
+            )
+        except ToolError as exc:
+            return f"error: {exc}", False
+        return said, status not in ("denied", "failed")

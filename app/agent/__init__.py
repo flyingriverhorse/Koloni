@@ -1992,8 +1992,9 @@ class AgentRunner(
             lead, t.lead_tools, instructions, t.planning = self._lead_tools(
                 session, run, project, part_gone
             )
-            # (Only while its night runs: a turn of its chat in the morning is the user's.)
-            t.job = not t.run_compare and away.night_job(session, cid) is not None
+            # (Only while its night runs: a turn of its chat in the morning is the user's - but the
+            # going-on turn after their decisions, §10.)
+            t.job = not t.run_compare and away.job_turn(session, run)
             # (0.1.8: a To-do task's own turn - its brief, its fix round - not the user's
             # message in its chat.)
             t.todo_turn = not t.run_compare and not t.job and run.task_id is not None
