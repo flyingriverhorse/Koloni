@@ -12,6 +12,7 @@ import {
   OWN,
   openFreshConversation,
   projectSettings,
+  rail,
   saveSettings,
   setProject,
 } from './helpers'
@@ -68,7 +69,7 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   await level(page, 'full_auto')
   await flipJudge(page, pid, true)
   // Refuse and go on, as a project comes: no card - the row says refused, with the judge's sentence, and the agent goes
-  // on; Decided for you, from the top bar's pill, lists it until OK.
+  // on; Ready for you's Decided for you, from the chat's line, lists it - not seen until OK.
   const refused = "KOLONİ's judge refused: The stand-in judge was told it is risky."
   await page.getByLabel('Message').fill(`Judge 109: run ${COMMAND}`)
   await page.getByRole('button', { name: 'Send' }).click()
@@ -76,17 +77,19 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   await expect(chat.getByText('Run this command?')).toHaveCount(0)
   await expect(chat.locator('.tool-row-note', { hasText: refused })).toHaveCount(1)
   await expect(chat.locator('.tool-row', { hasText: refused })).toContainText('refused')
-  // (other chats of the run may wait too: the panel's This chat is this one's)
+  // (other chats of the run may wait too: the pill counts them)
   const pill = page.locator('.ready-pill')
   await expect(pill).toHaveText(/^(1 decided|\d+ waits?)$/)
-  await pill.click()
-  const panel = page.getByRole('complementary', { name: /^Ready for you/ })
-  const decided = panel.getByRole('region', { name: /Decided for you/ })
-  await expect(decided).toContainText(`KOLONİ did not run ${COMMAND}`)
-  await expect(decided).toContainText("KOLONİ's judge: The stand-in judge was told it is risky.")
-  await decided.getByRole('button', { name: 'OK' }).click()
-  await expect(decided).toHaveCount(0)
-  await panel.getByRole('button', { name: 'Close Ready for you' }).click()
+  await chat.locator('.decided-line').getByRole('button', { name: 'Open in Ready for you' }).click()
+  const decided = page.getByRole('region', { name: /^Decided for you/ })
+  const row = decided.getByRole('listitem').filter({ hasText: COMMAND }).first()
+  await expect(row).toContainText("KOLONİ's judge did not run a command; the agent went on")
+  await expect(row.locator('.decision-who')).toHaveText("KOLONİ's judge")
+  await expect(row.locator('.decision-why')).toHaveText('The stand-in judge was told it is risky.')
+  await expect(row).toContainText("can't be undone: it did not run")
+  await row.getByRole('button', { name: 'OK' }).click()
+  await expect(row.getByRole('button', { name: 'OK' })).toHaveCount(0)
+  await rail(page, 'Canvas').click()
 
   // Ask me, chosen in Settings › This project › Asking and away: its card.
   const settings = await projectSettings(page, /^Asking and away/)

@@ -10,7 +10,7 @@ import re
 from collections.abc import Sequence
 from typing import TypeGuard
 
-from app import injection, judge
+from app import injection, judge, raw
 from app.commands import _in_a_shell, _program, _words, is_plain, is_wrapped
 
 # A command longer than this is a card unasked: what the judge reads is cut nowhere.
@@ -145,8 +145,9 @@ def verdict(answer: str) -> dict | None:
         return None
     if not isinstance(got, dict) or got.get("verdict") not in VERDICTS:
         return None
-    why = got.get("why")
-    return {"verdict": got["verdict"], "why": " ".join(str(why or "").split())[:WHY_CHARS]}
+    # (masked before the cut: a secret cut in half would no longer be known to hide)
+    why = raw.hidden(judge.whole(" ".join(str(got.get("why") or "").split())))[:WHY_CHARS]
+    return {"verdict": got["verdict"], "why": why}
 
 
 def ordinary(command: str, npm_run: bool = False) -> bool:

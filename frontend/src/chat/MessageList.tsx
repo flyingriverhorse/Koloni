@@ -91,7 +91,7 @@ import { answerLast, isLeadAsk } from './chatLine'
 import { AskedRow, AskLine } from './AskCard'
 import { asksOutside } from './toolSummary'
 import { PARTS, type Waiting, decidedOf, waitingId, waitingOf } from './waiting'
-import { DecidedForYou } from './DecidedForYou'
+import { Decided } from './DecidedLine'
 import { type Group, type Piece, splitTurn } from './splitTurn'
 import { TurnSteps } from './TurnSteps'
 import { took } from '../canvas/timeline'
@@ -605,7 +605,7 @@ export function WaitingList({ state, on, onDecidePlan, known }: WaitingProps) {
     return (
       <div className="msg-list msg-empty muted">
         Nothing waits for you.
-        <DecidedForYou state={state} />
+        <Decided state={state} />
       </div>
     )
   return (
@@ -633,7 +633,7 @@ export function WaitingList({ state, on, onDecidePlan, known }: WaitingProps) {
       })}
       {/* What only told you, last and not counted: Decided for you is its own card, under its own title. (Second child
           here as in the empty list: B-183.) */}
-      <DecidedForYou state={state} />
+      <Decided state={state} />
     </div>
   )
 }
