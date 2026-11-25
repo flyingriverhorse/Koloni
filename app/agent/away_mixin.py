@@ -19,16 +19,12 @@ from app.agent.risk_judge_mixin import (
     _digest,
     _named_file,
     _no_local_code,
-    _sees_python_path,
 )
 from app.agent.words import AGENT_TERMINAL
 from app.api.usage import over_budget
 from app.commands import (
-    _in_a_shell,
     harms,
     installs,
-    is_plain,
-    is_wrapped,
     reaches_shared_git,
     runs_another,
     scratch_delete_only,
@@ -193,9 +189,10 @@ class AwayMixin:
                 line, cwd = (one := session.get_one(Command, command_id)).command, one.cwd
             # (H3: the file it runs by its name, as it is now - in the copy it would run in)
             root = copy.root if copy is not None else Path(ctx.folder)
-            program = await asyncio.to_thread(
-                self._program_of, ctx.cid, root, line, cwd or ".", copy is not None
-            )
+            program = await asyncio.to_thread(self._program_of, ctx.cid, root, line, cwd or ".")
+            # (H3: the copy's work as the line is parked - compared at Run: anything changed since,
+            # and it does not run)
+            work = await asyncio.to_thread(self._copy_work, copy) if copy is not None else None
             # (a line that runs none of the project's code - curl, a file command - as the judge
             # reads it: no later write of the job's closes it)
             no_code = await asyncio.to_thread(_no_local_code, root, line, cwd or ".")
@@ -227,6 +224,7 @@ class AwayMixin:
                             "danger": command_out(command)["danger"] or None,
                             "file": program,
                             "no_code": no_code,
+                            "work": work,
                         },
                     )
                     session.commit()
@@ -234,60 +232,77 @@ class AwayMixin:
 
         return park
 
-    def _program_of(
-        self: "AgentRunner", cid: str, root: Path, line: str, cwd: str, in_copy: bool
-    ) -> dict | None:
-        """H3: the file a parked line runs by its name (`_named_file`, as Full auto's judge finds
-        it) as it is in `root` now - its path, its digest, whether an agent wrote it, and whether
-        that file is all the line runs (`pinned`: one plain command, not wrapped nor handed to a
-        shell, its file all of it - no Python that reads a copy's PYTHONPATH first). Only a
-        pinned line is held to its digest in the morning; any other is closed where the job
-        wrote anything after it was parked (`parked.WROTE_SINCE`). None: no file it can see
-        (`pytest`, `make`'s targets, `-m`'s modules). Blocking."""
-        path, exact = _named_file(root, line, cwd)
+    def _program_of(self: "AgentRunner", cid: str, root: Path, line: str, cwd: str) -> dict | None:
+        """The file a parked line runs by its name (`_named_file`, as Full auto's judge finds it)
+        and whether an agent wrote it - for the list's "Runs a file an agent wrote". None: none it
+        can see. Blocking."""
+        path = _named_file(root, line, cwd)[0]
         if path is None:
             return None
         rel = path.relative_to(root.resolve()).as_posix()
-        pinned = (
-            exact
-            and is_plain(line)
-            and not is_wrapped(line)
-            and not _in_a_shell(line)
-            and not _sees_python_path(line, in_copy)
-        )
-        return {
-            "rel": rel,
-            "digest": _digest(path),
-            "agents": _agents(self._factory, cid, root, path),
-            "pinned": pinned,
+        return {"rel": rel, "agents": _agents(self._factory, cid, root, path)}
+
+    @staticmethod
+    def _copy_work(copy: copies.Copy, changed: list | None = None) -> dict[str, str]:
+        """H3: the copy's work - every file it changed from what it was made of (`changes`: new,
+        changed, deleted), by its path, with its digest ("": gone). Compared at Run with what it
+        was as a line was parked: anything else in it means the job changed files since.
+        Blocking: it reads the copy (a walk of its files, and the changed ones read whole).
+        `changed`: its changes, looked at already."""
+        found = copy.changes(dict(copy.base), dict(copy.names)) if changed is None else changed
+        return {path: _digest(copy.root / path) for path, *_rest in found}
+
+    def _work_moved(
+        self, work: dict | None, root: Path, copy: copies.Copy | None, merge: Merge | None
+    ) -> bool:
+        """Whether the work a line was parked with is not what it is in the root it would run
+        in now: the copy's own (`_copy_work`), or - some of the copy taken in - the project's at
+        those paths, and nothing taken in besides them. No record of it: moved (fails closed).
+        Blocking."""
+        if work is None:
+            return True
+        if copy is not None:
+            return self._copy_work(copy) != work
+        taken = {
+            one["path"] for one in (merge.files if merge else []) if one.get("state") == "applied"
         }
+        return bool(taken - set(work)) or any(
+            _digest(root / path) != digest for path, digest in work.items()
+        )
 
-    async def _file_moved(self: "AgentRunner", row: Parked, root: Path, cwd: str) -> str | None:
-        """H3, just before a line runs in `root`: a pinned line by its file's digest (`CHANGED`);
-        one that ran none of the project's code when parked, where it now names a file of the
-        folder - curl's to send, say - and the job wrote after it (`WROTE_SINCE`). Any other line
-        was closed already where the job wrote after it (`parked.stale`). None: it may run."""
-        if parked.pinned(row) and await asyncio.to_thread(
-            self._program_changed, row.data.get("file"), root, row.what, cwd
-        ):
-            return parked.CHANGED
-        if row.data.get("no_code") and not await asyncio.to_thread(
-            _no_local_code, root, row.what, cwd
-        ):
-            with self._factory() as session:
-                task = session.get_one(BacklogTask, row.task_id)
-                if parked.written_since(session, row, task):
-                    return parked.WROTE_SINCE
-        return None
+    async def _file_moved(
+        self: "AgentRunner",
+        row: Parked,
+        root: Path,
+        cwd: str,
+        copy: copies.Copy | None,
+        merge: Merge | None,
+    ) -> str | None:
+        """H3, just before a line runs in `root`: anything of the job's copy changed since it was
+        parked - by an agent, a command, a line of this morning - closes it (`WROTE_SINCE`); but
+        one that runs none of the project's code (`no_code`, as Full auto's judge reads it - read
+        again here: curl's file to send, say, may name the folder now). None: it may run."""
+        if row.data.get("no_code") and await asyncio.to_thread(_no_local_code, root, row.what, cwd):
+            return None
+        moved = await asyncio.to_thread(self._work_moved, row.data.get("work"), root, copy, merge)
+        return parked.WROTE_SINCE if moved else None
 
-    def _program_changed(self, file: dict | None, root: Path, line: str, cwd: str) -> bool:
-        """H3: whether the file a line runs by its name is not as it was parked, in the root it
-        would run in now: another file, changed, gone - or one where none was (fails closed)."""
-        path = _named_file(root, line, cwd)[0]
-        if file is None or path is None:
-            return path is not None or file is not None
-        rel = path.relative_to(root.resolve()).as_posix()
-        return rel != file.get("rel") or _digest(path) != file.get("digest")
+    def _mark_moved(self: "AgentRunner", copy: copies.Copy, changed: list) -> None:
+        """The job's turn is over (`_set_aside`): each row parked in its copy whose work is not
+        what it is now is marked so - the list says `WROTE_SINCE` before Run is clicked.
+        shortcut: the changed files are read on the loop, as `_keep_copy` reads them next."""
+        now_work = self._copy_work(copy, changed)
+        with self._factory() as session:
+            for row in session.scalars(
+                select(Parked).where(
+                    Parked.data["copy"].as_string() == str(copy.root),
+                    Parked.decision.is_(None),
+                    Parked.went_on.is_(None),
+                )
+            ):
+                if row.data.get("work") != now_work:
+                    row.data = {**row.data, "moved": True}
+            session.commit()
 
     def _parked_here(self: "AgentRunner", owner: str) -> bool:
         """Whether something of a job parked in this agent's copy still waits for the morning
@@ -325,6 +340,8 @@ class AwayMixin:
         if copy is None:
             return
         changed = found[1] if found is not None and found[0] is copy else copy.changes()
+        if self._parked_here(owner):
+            self._mark_moved(copy, changed)  # (H3: what the list says of each, from now)
         if any(not copy.ignored(one[0]) for one in changed) or self._parked_here(owner):
             self._keep_copy(owner, why)  # (B-189: not for a new file git ignores alone)
 
@@ -741,7 +758,8 @@ class AwayMixin:
                     return f"its copy could not be opened ({exc})", "not_run"
                 opened[merge.kept_in] = copy
             ws = opened[merge.kept_in].workspace()
-        if why := await self._file_moved(row, ws.root, cwd):
+        held = opened.get(merge.kept_in or "") if merge is not None and place == "copy" else None
+        if why := await self._file_moved(row, ws.root, cwd, held, merge):
             return why, "not_run"
         with self._factory() as session:
             command = session.get(Command, row.ref_id or "")

@@ -12,6 +12,7 @@ from app import away, injection, parked
 from app.agent import recover_interrupted
 from app.db.away_models import Parked
 from app.db.models import BacklogTask
+from app.team import quoted
 from tests.test_agent_writes import edit, write
 from tests.test_away_going_on import (
     chat,
@@ -102,25 +103,106 @@ def rewritten(make_client, wait_run, project_dir, line, rewrite="go.py"):
 
 
 def test_a_file_rewritten_after_it_was_parked_is_not_run(make_client, wait_run, project_dir):  # H3
-    # (a pinned line - one plain command, its file all it runs: `-I` reads no copy's path - is held
-    # to its file's digest in the morning)
+    # (anything of the job's copy changed after a line was parked closes it - on the list too)
     client, done, cid = rewritten(make_client, wait_run, project_dir, "python -I go.py")
     (row,) = waiting(client, done["id"])
-    assert row["wrote"] == "go.py" and row["closed"] is None  # (it runs a file an agent wrote)
-    assert decide(client, done["id"], row["id"], "run").status_code == 200
-    msg, _going = going_on_turn(client, cid)
-    assert "SWAPPED-AFTER-PARK" not in msg and parked.CHANGED in msg
-    assert ran_in_the_morning(client, cid) == []
+    assert row["wrote"] == "go.py"  # (it runs a file an agent wrote)
+    assert row["closed"] == parked.WROTE_SINCE
+    assert decide(client, done["id"], row["id"], "run").status_code == 409
 
 
-def test_a_pinned_line_runs_though_the_job_wrote_other_files_after(
+def test_a_line_is_closed_where_the_job_wrote_another_file_after_it(
     make_client, wait_run, project_dir
-):  # H3
-    client, done, cid = rewritten(make_client, wait_run, project_dir, "python -I go.py", "x.py")
+):  # H3: no file of it is trusted alone - what it imports, a test runner's conftest
+    client, done, _cid = rewritten(make_client, wait_run, project_dir, "python -I go.py", "x.py")
     (row,) = waiting(client, done["id"])
+    assert row["closed"] == parked.WROTE_SINCE
+
+
+REWRITE = (
+    "import pathlib\npathlib.Path('tools/go.py').write_text(\"print('SWAPPED-BY-COMMAND')\\n\")\n"
+)
+
+
+def test_a_command_that_rewrites_the_file_after_parking_closes_the_line(
+    make_client, wait_run, project_dir
+):  # round 3: at Full auto a command's own write leaves no change on record - the copy says it
+    client, _pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "write them"),
+            write("tools/go.py", "print('EVENING')\n"),
+            write("swap.py", REWRITE, "w2"),
+            text("written"),
+            run("cd tools && python go.py && rm -rf notes"),
+            run("python swap.py", "c2"),
+            text("one done"),
+            text("went on"),
+        ],
+        mode="full_auto",
+    )
+    (row,) = waiting(client, done["id"])
+    assert row["closed"] == parked.WROTE_SINCE
+    assert decide(client, done["id"], row["id"], "run").status_code == 409
+    assert "SWAPPED-BY-COMMAND" not in str(chat(client, cid)["messages"])
+
+
+def test_a_file_changed_on_disk_after_the_night_is_not_run(make_client, wait_run, project_dir):
+    # (round 3: a write the list could not see yet - the look just before the line runs sees it)
+    from pathlib import Path
+
+    client, _pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "write it"),
+            write("go.py", "print('EVENING')\n"),
+            text("written"),
+            run("python go.py"),
+            text("one done"),
+            text("went on"),
+        ],
+        mode="auto_edit",
+    )
+    (row,) = waiting(client, done["id"])
+    assert row["closed"] is None  # (nothing changed after it, as the night ended)
+    with client.app.state.session_factory() as session:
+        found = session.get_one(Parked, row["id"])
+        (Path(found.data["copy"]) / "go.py").write_text("print('SWAPPED-BY-COMMAND')\n")
     assert decide(client, done["id"], row["id"], "run").status_code == 200
     msg, _going = going_on_turn(client, cid)
-    assert "EVENING-VERSION" in msg and parked.CHANGED not in msg
+    assert "SWAPPED-BY-COMMAND" not in msg and parked.WROTE_SINCE in msg
+
+
+def test_a_morning_line_that_changes_the_copy_closes_a_later_one(
+    make_client, wait_run, project_dir
+):
+    client, _pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [
+            spawn("Coder", "write it"),
+            write("go.py", "print('EVENING')\n"),
+            text("written"),
+            run("cp go.py go2.py"),
+            run("python go.py", "c2"),
+            text("one done"),
+            text("went on"),
+        ],
+        mode="auto_edit",
+    )
+    first, second = waiting(client, done["id"])
+    assert (first["closed"], second["closed"]) == (None, None)
+    assert decide(client, done["id"], first["id"], "run").status_code == 200
+    assert decide(client, done["id"], second["id"], "run").status_code == 200
+    msg, _going = going_on_turn(client, cid)
+    assert msg.startswith('KOLONİ: the user decided: ran "cp go.py go2.py"')
+    assert f'could not run "python go.py": {quoted(parked.WROTE_SINCE)}' in msg
+    assert "EVENING" not in msg
 
 
 def test_a_line_its_file_does_not_hold_is_closed_once_the_job_wrote_after_it(
@@ -195,7 +277,7 @@ def test_a_file_as_it_was_parked_runs(make_client, wait_run, project_dir):  # H3
     (row,) = waiting(client, done["id"])
     assert decide(client, done["id"], row["id"], "run").status_code == 200
     msg, _going = going_on_turn(client, cid)
-    assert "EVENING-VERSION" in msg and parked.CHANGED not in msg
+    assert "EVENING-VERSION" in msg and parked.WROTE_SINCE not in msg
 
 
 FORGED = (

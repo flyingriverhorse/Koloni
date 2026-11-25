@@ -90,15 +90,13 @@ can.
 **Run** runs the line as it was recorded - its words, its folder, where commands run, its time limit -
 with no card, and only while that still holds: it is looked at again just before it runs. It does not
 run where its job's copy was taken in or discarded after your **Run**; in KOLONİ's shell when a CLI
-asked for it in its own (another shell reads the same words otherwise); nor for a server. A line that is
-one plain command whose file is all it runs (`python -I go.py`, `./x.sh`, `node x.js` - not wrapped, not
-handed to a shell, no Python that reads a copy's path first) runs only where that file is, byte for
-byte, what it was when the line was parked. Any other line - a chain (`&&`, `;`, a pipe), a `cd`, a
-shell or a runner (`cmd /c`, `pwsh -c`, `uv run`), `python go.py` in a copy, a line that names no file
-(`pytest`, `make`, `python -m`) - does not run once an agent of its job wrote any file after it was
-parked: "the job changed files after this was parked: run it yourself", on the list. A command that
-runs none of the project's code - `curl`, `wget`, a file command (`rm`, `mkdir`, `cp`, `mv`…), as Full
-auto's judge reads it - is not closed by later writes. A program an agent
+asked for it in its own (another shell reads the same words otherwise); nor for a server. If anything
+in the job's copy changed after a line was parked - a file an agent wrote, one a command wrote, one an
+earlier line of the same morning wrote - **Run** does not run it: "the job changed files after this was
+parked: run it yourself" (KOLONİ keeps what the copy's work was as the line was parked, and looks again
+just before it runs; the list says so as soon as the job's turn is over). A command that runs none of
+the project's code - `curl`, `wget`, a file command (`rm`, `mkdir`, `cp`, `mv`…), as Full auto's judge
+reads it - is the exception. A program an agent
 wrote and a place you kept out are still refused. The list says where a line would run and which file
 an agent wrote that it runs. Nothing goes into your project without your Take in: the going-on turn's
 work, at Full auto too, is kept in its copy.

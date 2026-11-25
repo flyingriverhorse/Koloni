@@ -13,7 +13,7 @@ from typing import Literal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import away, backlog, injection, ledger, proof
+from app import away, backlog, injection
 from app.cards import REASONS
 from app.commands import _BLOCKS, _parts, _program
 from app.copies import NOT_COPIED
@@ -23,7 +23,6 @@ from app.db.models import (
     BacklogTask,
     Command,
     Conversation,
-    FileChange,
     Merge,
     Project,
     Question,
@@ -90,6 +89,8 @@ def park(
         )
     ):
         if (one.data.get("cwd"), one.data.get("copy")) == (data.get("cwd"), data.get("copy")):
+            # (asked again: the Run in the morning is of this card - its record, the copy's work)
+            one.ref_id, one.data = ref_id, data
             return one
     seq = session.scalar(select(func.max(Parked.seq)).where(Parked.away_run_id == task.away_run_id))
     row = Parked(
@@ -119,12 +120,10 @@ ELSEWHERE = "The project runs commands elsewhere now: Reject it, or set that bac
 # ...a line a CLI ran in its own shell (bash's quoting is not PowerShell's), and a server.
 CLI_SHELL = "Its CLI's own shell would run it: Reject it, or run it yourself"
 SERVER = "A server line: run it yourself"
-# Why a line you said Run did not run in the morning, though: where it would run, or the file it
-# runs, is not what it was when you decided (H2, H3).
+# Why a line you said Run did not run in the morning, though: where it would run moved since you
+# decided (H2) - or anything of its job's copy changed after it was parked (H3: an agent's write, a
+# command's, a line of this morning's; not for a line that runs none of the project's code).
 MOVED = "its copy was taken in after your Run - run it yourself"
-CHANGED = "changed since it was parked: run it yourself"
-# ...and, for a line the digest of one file does not hold (a chain, a `cd`, a shell, a runner, a
-# Python reading a copy's path, a test runner), its job wrote any file after it was parked.
 WROTE_SINCE = "the job changed files after this was parked: run it yourself"
 STOPPED = "Stopped by you."
 CLOSED_MEANWHILE = away.CLOSED_MEANWHILE
@@ -188,7 +187,7 @@ def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | N
         return NEEDS
     if row.data.get("cwd") is None:  # (a CLI that did not say where its shell stood)
         return NOWHERE
-    if not pinned(row) and not row.data.get("no_code") and written_since(session, row, task):
+    if row.data.get("moved") and not row.data.get("no_code"):  # (`AwayMixin._mark_moved`)
         return WROTE_SINCE
     project = session.get(Project, task.project_id)
     image = project.docker_image if project and project.exec_location == "docker" else None
@@ -196,29 +195,6 @@ def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | N
     if project is None or (project.exec_location, image) != recorded:
         return ELSEWHERE
     return None
-
-
-def pinned(row: Parked) -> bool:
-    """Whether a parked line is all one file it was hashed with (`AwayMixin._program_of`)."""
-    return bool((row.data.get("file") or {}).get("pinned"))
-
-
-def written_since(session: Session, row: Parked, task: BacklogTask) -> bool:
-    """Whether an agent of the job's chat wrote a file - kept, in its copy or taken in - at or
-    after the moment the line was parked (fails closed: the same moment counts)."""
-    return (
-        session.scalar(
-            select(FileChange.id)
-            .join(Run, Run.id == FileChange.run_id)
-            .where(
-                Run.conversation_id == (task.conversation_id or ""),
-                FileChange.status.in_((*ledger.KEPT, proof.MERGED)),
-                FileChange.created_at >= row.created_at,
-            )
-            .limit(1)
-        )
-        is not None
-    )
 
 
 KINDS: dict[str, Kind] = {
