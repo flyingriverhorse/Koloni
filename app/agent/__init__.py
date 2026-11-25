@@ -114,6 +114,7 @@ from app.agent.cards import lead_pick as lead_pick
 from app.agent.cards import needs_full_auto as needs_full_auto
 from app.agent.cards import outside_a_copy as outside_a_copy
 from app.agent.cards import sandbox_denied as sandbox_denied
+from app.agent.checks_tool_mixin import ChecksToolMixin
 from app.agent.claims_mixin import ClaimsMixin
 from app.agent.context_mixin import ASK_NOT_REPORT as ASK_NOT_REPORT
 from app.agent.context_mixin import AWAY_CUES as AWAY_CUES
@@ -1218,6 +1219,7 @@ class AgentRunner(
     StrongerMixin,
     TryMixin,
     StoryBranchMixin,
+    ChecksToolMixin,
 ):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
@@ -6349,6 +6351,8 @@ class AgentRunner(
         """`_tool_call`, its part 4."""
         if request.name == "recall_output":
             status, output = "succeeded", self._recall_output(ctx, args)
+        elif request.name == "run_checks":
+            status, output = "succeeded", await self._run_checks(ctx, call_id)
         elif request.name in SERVING_TOOLS:
             status, output = "succeeded", await self._serving_call(ctx, request.name, args)
         elif request.name in BROWSER_TOOLS:
@@ -7114,17 +7118,6 @@ class AgentRunner(
             )
             is not None
         )
-
-    def _calls_of(self, ctx: Ctx) -> int:
-        with self._factory() as session:
-            return (
-                session.scalar(
-                    select(func.count())
-                    .select_from(ToolCall)
-                    .where(ToolCall.agent_id == ctx.agent_id)
-                )
-                or 0
-            )
 
     def _nudge(self, ctx: Ctx, words: str) -> None:
         """`words` follow the agent's last message in what it sees from its next step on."""
