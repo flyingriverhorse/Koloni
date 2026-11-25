@@ -535,15 +535,17 @@ class AwayMixin:
         why: str | None = None,
     ) -> None:
         """The going-on turn does not start: its run is over (`status`); its job waits where the
-        month's budget stopped it (`why`), else - a Stop - it is stopped."""
+        month's budget stopped it (`why`), else - a Stop, KOLONİ closing - it is stopped, with why
+        (Try again works it in its chat; what was Run and did not run then is not run again)."""
+        stopped = parked.CLOSED_MEANWHILE if self._closing else parked.STOPPED
         with contextlib.suppress(Exception), self._factory() as session:
             run = session.get_one(Run, run_id)
             if run.status in ("queued", "running"):
-                run.status, run.ended_at = status, now()
+                run.status, run.ended_at = "interrupted" if self._closing else status, now()
             task = session.get(BacklogTask, run.task_id or "")
             if task is not None and task.away_state is None:
                 task.away_state, task.away_why = (
-                    ("waits", f"The project is {why}.") if why else ("stopped", parked.STOPPED)
+                    ("waits", f"The project is {why}.") if why else ("stopped", stopped)
                 )
             session.commit()
             payload = run_out(run)

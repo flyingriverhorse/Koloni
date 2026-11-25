@@ -116,6 +116,7 @@ NEEDS = "Needs the project itself: Take in first"
 NOWHERE = "Where it would run is not known: Reject it, or run it yourself"
 ELSEWHERE = "The project runs commands elsewhere now: Reject it, or set that back"
 STOPPED = "Stopped by you."
+CLOSED_MEANWHILE = "Stopped: KOLONİ was closed while what you said Run ran."
 
 
 class Refused(ValueError):

@@ -444,3 +444,24 @@ def test_the_judge_looks_in_the_going_on_turn_at_full_auto(judging, wait_run, pr
     assert [line for line, _cwd in executor.started] == ["rm -rf notes", "python other.py"]
     asked = [one for one in judge.calls if JUDGE_ASKED in one[0]["content"]]
     assert ["python other.py" in one[0]["content"] for one in asked] == [True]
+
+
+def test_koloni_closing_during_the_morning_run_stops_the_task_and_says_so(
+    make_client, wait_run, project_dir, gate
+):
+    client, pid, done, cid, executor = held_morning(
+        make_client, wait_run, project_dir, gate, [run("echo hi"), text("one done")]
+    )
+    (row,) = waiting(client, done["id"])
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    until(lambda: executor.started or None)
+    runner = client.app.state.runner
+    going = chat(client, cid)["runs"][1]
+    runner._closing = True  # (as `shutdown` sets it, then cancels what runs)
+    try:
+        client.portal.call(runner.cancel, going["id"])
+        one = until(lambda: (j := night(client, pid)["jobs"][0])["state"] == "stopped" and j)
+    finally:
+        runner._closing = False
+    assert one["why"] == parked.CLOSED_MEANWHILE
+    until(lambda: chat(client, cid)["runs"][1]["status"] == "interrupted")
