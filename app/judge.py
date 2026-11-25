@@ -7,8 +7,15 @@ those words: never in the command, an agent's text or a file. The gate is
 
 import json
 import re
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-JUDGE_SECONDS = 30.0
+if TYPE_CHECKING:
+    from app.db.models import Project
+
+# §8 (0.1.9): the judge models (provider kind, model id) whose measurement of the check passed - no
+# wrong run in `tests/data/check_what_i_said_cases.json`; none has been run yet (the user's leave).
+MEASURED_MODELS: frozenset[tuple[str, str]] = frozenset()
 MOST_MESSAGES, MOST_CHARS, LEAST_QUOTE, WHY_CHARS = 6, 4000, 12, 300
 # Refusals in a turn, in a row and in all, after which the check stands aside until it ends.
 MOST_REFUSED_IN_A_ROW, MOST_REFUSED_IN_A_TURN = 3, 10
@@ -135,6 +142,13 @@ Reply with one line of JSON and nothing else:
 "why": "<one sentence>"}}"""
 
 
+def words_on(project: "Project", model: tuple[str, str]) -> bool:
+    """§8: whether Full auto's judge also asks this question of a harmful-looking command - the
+    project's box on (`Project.judge_words`), and `model` (the judge's: its provider's kind and
+    the model) measured, or the project's old choice "judge", taken knowingly before 0.1.9."""
+    return project.judge_words and (model in MEASURED_MODELS or project.full_auto_check == "judge")
+
+
 def said(preferences: str | None, rules: str | None, messages: list[str]) -> dict[str, list[str]]:
     """What of the user's words the judge reads, by source: `messages` newest first, at most
     MOST_MESSAGES and MOST_CHARS together - the last one taken cut where a line or a sentence of
@@ -258,11 +272,29 @@ def _forbids(plain: str) -> bool:
     return _says_no(plain) or _conditional(plain)
 
 
-def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
+def set_against(said: dict[str, list[str]], names: Callable[[str], bool]) -> bool:
+    """§8 (CL-352): whether a line of the user's words that `names` the command's target - code
+    and quotes too - forbids it or sets a condition (`_forbids`), itself or by a heading above it
+    ("Never delete these:"): a run does not stand beside it, whatever line allowed it.
+    shortcut: only a delete's targets are read (`cards.mentioned`); a push's, a branch's or a
+    remote's two lines are left to the model and its measurement set (design §8)."""
+    for text in (one for source in SOURCES for one in said.get(source, [])):
+        heads = ""
+        for line in text.split("\n"):
+            if names(line) and _forbids(_plain(f"{line} {heads}")):
+                return True
+            heads += f" {line}" if line.rstrip().endswith(":") else ""
+    return False
+
+
+def verdict(
+    answer: str, said: dict[str, list[str]], names: Callable[[str], bool] | None = None
+) -> dict | None:
     """The judge's word, from its JSON line (the first "{" to the last "}"); None for no JSON
     object. "run" and "refuse" hold only with a whole sentence of the user's (`source_of`) - a
     run never on a line with a question, nor on one whose line or heading forbids or sets a
-    condition (`_forbids`); a refuse only on a sentence, no question and no heading (one that
+    condition (`_forbids`), nor beside another that forbids its target (`set_against`, where
+    `names` reads one); a refuse only on a sentence, no question and no heading (one that
     ends in ":" says nothing of what it forbids: the agent would be told no item), that says no
     and sets no condition (its line's other sentences and its heading aside) - kept as they
     wrote it; anything else is "ask", with the judge's one line only where it said ask itself."""
@@ -280,6 +312,7 @@ def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
     holds = (
         word == "run"
         and not ("?" in context.partition("\n")[0] or _forbids(_plain(context)))
+        and not (names and set_against(said, names))
         or (
             word == "refuse"
             and "?" not in shown

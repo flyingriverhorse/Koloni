@@ -148,13 +148,14 @@ def refused_by_rule(judgement: dict) -> str:
     return REFUSED_BY_A_MESSAGE
 
 
-def _gate_open(mode: str, check: str, judgement: dict | None) -> bool:
+def _gate_open(mode: str, check: bool, judgement: dict | None) -> bool:
     """Whether what the check of the user's words said of a command still holds: only while the
-    chat is at Full auto and the project's check is on - a run or a refusal that comes back after
-    either changed is its card, as if never checked (the security review of K-yargic's slice 2).
-    Full auto's judge's (`kind` "risk") has no gate: it only ever adds a card."""
+    chat is at Full auto and the project's check is on (`check`: its judge and the judge's box,
+    §8) - a run or a refusal that comes back after either changed is its card, as if never checked
+    (the security review of K-yargic's slice 2). Full auto's judge's own (`kind` "risk") has no
+    gate: it only ever adds a card - its "risky" by `always` and its call's `why_asked`."""
     risk = judgement is not None and judgement.get("kind") == "risk"
-    return risk or mode == "full_auto" and check == "judge"
+    return risk or mode == "full_auto" and check
 
 
 def _refuses(judgement: dict | None, gate: bool) -> bool:
@@ -697,7 +698,8 @@ class CommandRunner:
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
-            gate = _gate_open(conversation.permission_mode, project.full_auto_check, judgement)
+            check = project.full_auto_judge and project.judge_words
+            gate = _gate_open(conversation.permission_mode, check, judgement)
             forbidden = _refuses(judgement, gate)
             if planned.keep_running and not forbidden:
                 self._may_serve(
@@ -1185,12 +1187,15 @@ class CommandRunner:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
-            tests, check, allows = session.execute(
+            tests, judge, words, allows = session.execute(
                 select(
-                    Project.test_commands, Project.full_auto_check, Project.disposable_deletes
+                    Project.test_commands,
+                    Project.full_auto_judge,
+                    Project.judge_words,
+                    Project.disposable_deletes,
                 ).where(Project.id == conversation.project_id)
             ).one()
-            gate = _gate_open(mode, check, judgement)
+            gate = _gate_open(mode, judge and words, judgement)
             forbidden = _refuses(judgement, gate)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
             own = project_map.own_test(tests, command, cwd)

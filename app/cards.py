@@ -213,7 +213,8 @@ def _targets(command: str, cwd: str | None) -> list[str] | None:
     plain = _DELETERS[program]
     if any((w if program in _CASED else w.casefold()) not in plain for w in switches):
         return None
-    named = [w for w in words[1:] if not w.startswith(("-", "/"))]
+    # (`./build` is `build`: §8's two lines that disagree name it so - "Never delete ./build.")
+    named = [w.removeprefix("./") for w in words[1:] if not w.startswith(("-", "/"))]
     if not named or len(named) > MOST_TARGETS:
         return None
     # The path as joined, never resolved, is what must be plain - its folder is on record as the
