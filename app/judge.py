@@ -14,8 +14,10 @@ if TYPE_CHECKING:
     from app.db.models import Project
 
 # §8 (0.1.9): the judge models (provider kind, model id) whose measurement of the check passed - no
-# wrong run in `tests/data/check_what_i_said_cases.json`; none has been run yet (the user's leave).
-MEASURED_MODELS: frozenset[tuple[str, str]] = frozenset()
+# wrong run in `tests/data/check_what_i_said_cases.json` (`scripts/measure_judge.py`). Claude Code's
+# haiku, 25 Nov 2026: 70 cases, 0 wrong runs (run as a session, its default; it said it was
+# claude-haiku-5-5). shortcut: by the name the provider's list gives the model - "haiku" alone.
+MEASURED_MODELS: frozenset[tuple[str, str]] = frozenset({("claude_cli", "haiku")})
 MOST_MESSAGES, MOST_CHARS, LEAST_QUOTE, WHY_CHARS = 6, 4000, 12, 300
 # A lone surrogate: a model's JSON "\ud83d" with no pair (`json.loads` makes a pair one character)
 # - no UTF-8 can hold it, and a reply with it in fails whole (the chat, To-do, the decision log).
