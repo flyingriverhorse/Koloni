@@ -83,6 +83,8 @@ _PYTHON = re.compile(r"python[\d.]*w?|pyw?")
 _VALUED = frozenset(
     {"-X", "-W", "--require", "--import", "--loader", *("-executionpolicy", "-ep", "-ex")}
     | {"-windowstyle", "-version", "-workingdirectory", "-wd", "-configurationname", "-o"}
+    | {"-settingsfile", "-psconsolefile", "-configurationfile", "-inputformat", "-outputformat"}
+    | {"-custompipename"}
 )
 # The options of a Python's, a Node's or a POSIX shell's that load no code but the file it is
 # handed: with only these (and any of PowerShell's or cmd's but their code) the file found is the
@@ -90,6 +92,15 @@ _VALUED = frozenset(
 # --rcfile x`) may load more, and nothing is kept for the line.
 _PYTHON_PLAIN = re.compile(r"-[uBOEsSIPqbdvi]+|-OO|-bb|-[XW]\S*")
 _NODE_PLAIN = frozenset({"--no-warnings", "--enable-source-maps", "--trace-warnings"})
+# PowerShell's, as it takes them cut short (`-nop`, `-ep`): any other (`-SettingsFile`,
+# `-PSConsoleFile`) may load more.
+_POWERSHELL_PLAIN = frozenset(
+    {"-noprofile", "-nop", "-noninteractive", "-noni", "-nologo", "-executionpolicy", "-ep"}
+    | {"-ex", "-exec", "-windowstyle"}
+)
+# Interpreters that load the folder's own settings or code before the file they are handed
+# (bun's bunfig.toml preload, R's .Rprofile): the file is never all they run.
+_LOADS_THE_FOLDERS = frozenset({"bun", "rscript"})
 _POSIX_PLAIN = re.compile(r"-[abd-zA-Z]+|-o")
 # What a name with no ending may be, as its runner looks: Node's, a Python's folder, and a
 # program by its path on Windows (PowerShell's `.\x` runs x.ps1, cmd's x.cmd).
@@ -101,21 +112,26 @@ _SCRIPT_ENDINGS = frozenset({".ps1", ".cmd", ".bat", ".sh", ".py", ".js", ".mjs"
 _MAKEFILES = ["GNUmakefile", "makefile", "Makefile"]
 # The programs a line keeps a key for by its words alone, with no file of the folder's hashed:
 # one plain command of one of these - and, for those told a file to read their settings or
-# commands from (`curl -K x`, `git -c core.hooksPath=x`), no word of it naming a path in the
-# folder (`_READS_NAMED`).
+# commands from (`curl -K x`, `wget -i x`), no word of it naming a path in the folder
+# (`_READS_NAMED`).
 # shortcut: deliberately small - a program goes in only if it never runs the project's code or
-# settings (no hooks, plugins, build or config it executes); grow it one measured program at a
-# time, else a line with no file hashed is judged at every run.
+# settings (no hooks, plugins, build, pager, ssh command or config it executes: not git, whose
+# `-c core.pager=…`, hooks, `submodule foreach` and filters run what they are told, nor gh, which
+# runs git); grow it one measured program at a time, else a line with no file hashed is judged
+# at every run (git's ordinary lines are never judged: `risk_judge.ordinary`).
 RUNS_NO_LOCAL_CODE = frozenset(
-    {"curl", "wget", "git", "gh", "rm", "rmdir", "del", "mkdir", "md", "cp", "copy", "mv"}
-    | {"move", "ren", "chmod", "touch"}
+    {"curl", "wget", "rm", "rmdir", "del", "mkdir", "md", "cp", "copy", "mv", "move", "ren"}
+    | {"chmod", "touch"}
 )
-_READS_NAMED = frozenset({"curl", "wget", "git", "gh"})
+_READS_NAMED = frozenset({"curl", "wget"})
 
 
 class _Files(NamedTuple):
     """The files a line may run as its program, in the order its runner looks, and whether one
-    found is all of it (`exact`: no option that loads more, no shell's code around it)."""
+    found is all the line runs *by name* (`exact`: no option that loads more, no shell's code
+    around it, no settings of the folder's its runner loads first). What that program imports in
+    turn - even a file of the folder's beside it shadowing a standard module (`json.py` beside
+    `x.py`) - is not hashed: the design's known limit "a program that imports another file"."""
 
     names: list[str]
     exact: bool
@@ -151,7 +167,9 @@ def _loads_nothing(program: str, word: str) -> bool:
         return bool(_PYTHON_PLAIN.fullmatch(word))
     if program.startswith(("node", "bun", "deno")):
         return word in _NODE_PLAIN
-    if program in ("powershell", "pwsh", "cmd"):
+    if program in ("powershell", "pwsh"):
+        return word.lower() in _POWERSHELL_PLAIN
+    if program == "cmd":
         return True
     return program in _SHELLS and bool(_POSIX_PLAIN.fullmatch(word))
 
@@ -175,7 +193,7 @@ def _script(words: list[str]) -> _Files:
     program = _program(words[0])
     interpreter = bool(_INTERPRETER.fullmatch(program))
     python, node = bool(_PYTHON.fullmatch(program)), program.startswith(("node", "bun", "deno"))
-    exact, rest = True, iter(words[1:])
+    exact, rest = program not in _LOADS_THE_FOLDERS, iter(words[1:])
     for word in rest:
         if python and word.startswith("-m"):
             module = (word[2:] or next(rest, "")).replace(".", "/")
@@ -207,7 +225,8 @@ def _plain_tool(words: list[str]) -> _Files:
     if program == "make":
         named = rest[1:2] if rest[:1] == ["-f"] else []
         targets = rest[2:] if named else rest
-        if all(not word.startswith("-") for word in targets):
+        # (`make SHELL=./x`, `CC=./x`: a variable set on the line runs what it names - none)
+        if all(not word.startswith("-") and "=" not in word for word in targets):
             return _Files(named or list(_MAKEFILES), True)
     if program == "npm" and (rest in (["test"], ["t"]) or len(rest) == 2 and rest[0] == "run"):
         return _Files(["package.json"], not rest[-1].startswith("-"))
@@ -245,7 +264,8 @@ def _named_file(root: Path, command: str, cwd: str) -> tuple[Path | None, bool]:
         try:
             path = (root / cwd / name).resolve()
             if name and path.is_relative_to(home) and path.is_file():
-                return path, exact
+                # (a package's __main__.py: its __init__.py runs first - `python -m pkg`)
+                return path, exact and path.name != "__main__.py"
         except (OSError, ValueError):
             continue
     return None, False

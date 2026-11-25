@@ -149,14 +149,24 @@ def test_never_a_file_out_of_the_project(project, tmp_path):
         ("/bin/bash -lc './run.sh'", "run.sh", False),
         ('powershell -Command "& ./x.ps1"', "x.ps1", False),
         ("cmd /c ./run.sh", "run.sh", False),
+        ("pwsh -NoProfile -ExecutionPolicy Bypass -File x.ps1", "x.ps1", True),
+        # (round 3: a package's __init__.py runs first; bun and R load the folder's settings;
+        # PowerShell's -SettingsFile and -PSConsoleFile, whose values are no script)
+        ("python -m pkg", "pkg/__main__.py", False),
+        ("python pkg", "pkg/__main__.py", False),
+        ("bun app.js", "app.js", False),
+        ("Rscript x.R", "x.R", False),
+        ("pwsh -SettingsFile s.json -File x.ps1", "x.ps1", False),
+        ("pwsh -PSConsoleFile c.psc1 -File x.ps1", "x.ps1", False),
     ],
 )
 def test_the_file_found_and_whether_it_is_all_a_line_runs(project, line, rel, exact):
     _factory, root, _wrote = project
-    for name in ("x.py", "app.js", "run.sh", "Makefile", "Dockerfile", "package.json"):
+    (root / "pkg").mkdir()
+    for name in ("x.py", "app.js", "run.sh", "Makefile", "Dockerfile", "package.json", "x.R"):
         (root / name).write_text("x\n", encoding="utf-8")
-    (root / "x.rb").write_text("x\n", encoding="utf-8")
-    (root / "x.ps1").write_text("x\n", encoding="utf-8")
+    for name in ("x.rb", "x.ps1", "pkg/__main__.py", "pkg/__init__.py", "s.json", "c.psc1"):
+        (root / name).write_text("x\n", encoding="utf-8")
     assert _named_file(root, line, ".") == ((root / rel).resolve(), exact)
 
 
@@ -180,6 +190,9 @@ def test_the_file_found_and_whether_it_is_all_a_line_runs(project, line, rel, ex
         "docker buildx build sub",
         "powershell -EncodedCommand ZQBjAGgAbwA=",
         "bash -c 'python x.py'",
+        # (round 3: a variable set on make's line runs what it names)
+        "make SHELL=./evil.sh",
+        "make CC=./evil.sh all",
     ],
 )
 def test_no_file_where_the_one_found_would_not_be_the_one_run(project, line):
@@ -195,11 +208,14 @@ def test_no_file_where_the_one_found_would_not_be_the_one_run(project, line):
     [
         ("curl https://example.com/x", True),
         ("wget https://example.com/x", True),
-        ("git push origin k-x", True),
         ("rm -rf build", True),
         ("cp a.txt b.txt", True),
         ("curl.exe https://example.com/x", True),
-        ("GIT status", True),
+        ("RM -rf build", True),
+        # (round 3: git runs what its settings name - a pager, hooks, an ssh command; gh runs git)
+        ("git push origin k-x", False),
+        ("git -c 'core.pager=sh evil.sh' log", False),
+        ("gh pr list", False),
         # (not plain, wrapped, by its path, or a program that may run the folder's code)
         ("curl https://x && python x.py", False),
         ("env python x.py", False),
