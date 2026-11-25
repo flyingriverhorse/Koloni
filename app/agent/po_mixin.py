@@ -370,7 +370,9 @@ class PoMixin:
                     continue
                 add, why = decided[n]
                 task.status = "todo" if add else task.status
-                task.po = {**(task.po or {}), "lead": "add" if add else "no", "lead_why": why}
+                # (its why masked as it is kept, as the judge's is: Decided for you shows it)
+                lead = {"lead": "add" if add else "no", "lead_why": raw.hidden(why)}
+                task.po = {**(task.po or {}), **lead}
                 added += add
             session.commit()
         if decided:
