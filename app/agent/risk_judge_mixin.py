@@ -166,6 +166,7 @@ class RiskJudgeMixin:
         found: tuple[str, dict | None],
         *,
         exempt: bool,
+        known: bool = True,
     ) -> tuple[str, dict | None]:
         """Full auto's judge: why `command` (run in `cwd` of `root`, the project or the copy it
         works in) waits for the user on a card though KOLONİ found no reason of its own - asked
@@ -180,13 +181,16 @@ class RiskJudgeMixin:
         ordinary line (`risk_judge.ordinary`, what it runs not an agent's: `_planted`, W7), one
         they said Run to on its card this turn - or not to ask about again here (`JudgeAllowed`),
         or the judge stood aside for the turn. A card unasked: `risk_judge.risky_unasked`.
+        `known`: False where `cwd` is no fact (a CLI's folder not known, or its model's word):
+        then no program is read and nothing is kept for the line - neither its verdict, nor a Run
+        on its card - the same words in another folder being another line.
         Whatever goes wrong in it but a Stop is its card, never a run."""
         if exempt or found != ("", None):
             return found
         try:
             if not (self._full_auto(ctx) or self._away_full_auto(ctx)):
                 return "", None
-            return await self._risk_judging(ctx, command, cwd, root)
+            return await self._risk_judging(ctx, command, cwd, root, known)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -194,7 +198,7 @@ class RiskJudgeMixin:
             return CARD.format(why=NOT_LOOKED), None
 
     def _risk_line(
-        self: "AgentRunner", ctx: Ctx, command: str, cwd: str, root: Path
+        self: "AgentRunner", ctx: Ctx, command: str, cwd: str, root: Path, known: bool
     ) -> tuple[bool, tuple[str, str, int] | None, str]:
         """Whether a line is ordinary (`risk_judge.ordinary`, nothing it runs an agent's); the
         program it runs as the judge is shown it where an agent wrote it (`_agents`), and that
@@ -207,14 +211,14 @@ class RiskJudgeMixin:
             # its writes of one (or of a lock, a runner's setting) still stands: as npx's reads
             and not (npm and _planted(self._factory, ctx.cid, root, "npx -", cwd))
         )
-        path = None if plain else _named_file(root, command, cwd)
+        path = None if plain or not known else _named_file(root, command, cwd)
         if path is None:
             return plain, None, ""
         shown, digest = _program_read(path, root)
         return plain, shown if _agents(self._factory, ctx.cid, root, path) else None, digest
 
     async def _risk_judging(
-        self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, root: Path
+        self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, root: Path, known: bool
     ) -> tuple[str, dict | None]:
         """`_risk_judged`'s work, which may raise."""
         line = with_cwd(command, cwd)
@@ -231,17 +235,25 @@ class RiskJudgeMixin:
                 return "", None
             project_id = project.id
         plain, program, digest = await asyncio.to_thread(
-            self._risk_line, ctx, command, cwd or ".", root
+            self._risk_line, ctx, command, cwd or ".", root, known
         )
         if plain:
             return "", None
-        key = (command.strip(), cwd or "", digest)
-        if self._risk_cache.get(ctx.run_id, {}).get(key) == "approved" or self._risk_allowed(
-            project_id, key
+        key = (command.strip(), cwd or "", digest) if known else None
+        if key and (
+            self._risk_cache.get(ctx.run_id, {}).get(key) == "approved"
+            or self._risk_allowed(project_id, key)
         ):
             return "", None
-        # ("program": the line's key's digest, for `_risk_approved` - no field of `schemas.Judged`)
-        record = {"kind": "risk", "verdict": "risky", "why": "", "model": "", "program": digest}
+        # ("program": the line's key's digest, for `_risk_approved` - None: no key; no field of
+        # `schemas.Judged`)
+        record = {
+            "kind": "risk",
+            "verdict": "risky",
+            "why": "",
+            "model": "",
+            "program": key and digest,
+        }
         if why := risk_judge.risky_unasked(command, program[1] if program else None):
             return CARD.format(why=why), {**record, "why": why}
         if ctx.run_id in self._risk_aside:
@@ -283,7 +295,7 @@ class RiskJudgeMixin:
         command: str,
         cwd: str | None,
         program: tuple[str, str, int] | None,
-        key: tuple[str, str, str],
+        key: tuple[str, str, str] | None,
         record: dict,
     ) -> tuple[str, dict | None]:
         """The judge asked (`_risk_asks`) - once a turn for the line and the user's words as they
@@ -298,9 +310,10 @@ class RiskJudgeMixin:
             said = self._users_words(
                 session, night.conversation_id if night else ctx.cid, project.rules
             )
-            full = (*key, hashlib.sha256(json.dumps(said, sort_keys=True).encode()).hexdigest())
+            digest = hashlib.sha256(json.dumps(said, sort_keys=True).encode()).hexdigest()
+            full = (*key, digest) if key else None
             cache = self._risk_cache.setdefault(ctx.run_id, {})
-            if isinstance(found := cache.get(full), dict):
+            if full and isinstance(found := cache.get(full), dict):
                 why = found["why"] or NO_REASON
                 return ("" if found["verdict"] == "fine" else CARD.format(why=why)), found
             would = would_run(session, find_role(session, LEAD), conversation)
@@ -331,7 +344,9 @@ class RiskJudgeMixin:
         got, failed = await self._risk_asks(ctx, asking, mode, asked)
         if got is None:
             return CARD.format(why=failed), {**record, "why": failed}
-        cache[full] = record = {**record, **got, "why": raw.hidden(got["why"])}
+        record = {**record, **got, "why": raw.hidden(got["why"])}
+        if full:
+            cache[full] = record
         why = record["why"] or NO_REASON
         return ("" if got["verdict"] == "fine" else CARD.format(why=why)), record
 
@@ -370,7 +385,12 @@ class RiskJudgeMixin:
         with self._factory() as session:
             row = session.get(Command, command_id)
             record = row.judged if row is not None else None
-            if row is None or not isinstance(record, dict) or record.get("kind") != "risk":
+            if (
+                row is None
+                or not isinstance(record, dict)
+                or record.get("kind") != "risk"
+                or record.get("program") is None  # (its folder no fact: `known`)
+            ):
                 return
             key = (row.command.strip(), row.cwd or "", record.get("program") or "")
             self._risk_cache.setdefault(row.run_id, {})[key] = "approved"

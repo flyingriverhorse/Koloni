@@ -461,6 +461,9 @@ def test_while_away_a_risky_command_makes_its_job_wait_and_the_next_goes_on(
         [],
     )
     pid, cid, run_id = go(client, project_dir, "do one and two while I sleep")
+    # (the Orchestrator answers what it may for the user while they are away - never a command's
+    # card: the judge's waits for them)
+    assert client.get(f"/api/projects/{pid}").json()["when_away"] == "lead"
     wait_run(client, cid, run_id)
     gone = client.post(
         f"/api/conversations/{cid}/away", json={"task_ids": proposed_in(client, cid)}, headers=OWN
@@ -629,3 +632,25 @@ def test_a_line_the_check_of_your_words_let_run_is_not_judged_again(judging, wai
     (ran,) = wait_run(client, cid, run_id)["commands"]
     assert ran["status"] == "exited" and ran["judged"]["verdict"] == "run"
     assert len(judge.calls) == 1 and executor.started[0][0] == "rm -rf build"
+
+
+def test_where_a_clis_folder_is_not_known_nothing_is_kept_for_the_line(
+    agy_app,  # noqa: F811
+    wait_run,
+    project_dir,
+):
+    # (agy's run_command names no folder: the same words may run elsewhere next time)
+    ask = {"tool": "run_command", "asks": True, "parameters": {"CommandLine": "python gen.py"}}
+    client, cli, default = agy_app(
+        [{**ask, "output": ""}, {**ask, "output": ""}, {"say": "done"}],
+        mode="native",
+        default_steps=RISKY * 2,
+    )
+    judged_by_local(client, cli)
+    _, cid, run_id = go(client, project_dir, provider=cli)
+    card(client, cid, "approve", remember_line=True)
+    card(client, cid, "approve")
+    wait_run(client, cid, run_id, 30)
+    assert len(default.calls) == 2
+    with client.app.state.session_factory() as session:
+        assert session.scalars(select(JudgeAllowed)).all() == []

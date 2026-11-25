@@ -548,6 +548,7 @@ class ApprovalsMixin:
             copy.root if copy is not None else root,
             (night, judged),
             exempt=bool(before or free or always) or "run_command" not in ctx.tools,
+            known=at is not None and not claimed,
         )
         reason = before or night
         if not reason and given.get("urls") and level != "full_auto":
