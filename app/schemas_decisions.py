@@ -1,0 +1,45 @@
+"""The decision log (`app.decisions`) as the API gives it - beside `app.schemas`, which is at its
+size limit. Read only: nothing adds, changes or deletes a row of it."""
+
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel
+
+
+class DecisionLink(BaseModel):
+    """What a row is of: the card, the command, the To-do task or the agent opened."""
+
+    kind: Literal["question", "command", "task", "agent"]
+    id: str
+
+
+class Decision(BaseModel):
+    """One thing decided for the user. `what` is KOLONİ's own sentence; `quote`, `answer` and `why`
+    are agents' and models' words (and, of Check what I said first, the user's own line): every
+    secret KOLONİ knows masked, on one line, cut, and after `injection.NOTE` where they read like
+    orders."""
+
+    id: str  # "<kind>:<record id>"
+    at: datetime
+    kind: Literal["answer", "command", "task", "spawn"]
+    who: Literal["orchestrator", "judge", "your_words"]
+    what: str
+    # The question, the command or the task's title.
+    quote: str | None
+    # The answer the Orchestrator gave, on an answer's row; None on the others.
+    answer: str | None = None
+    # The model's reason - of Check what I said first, the line of yours it rested on; None: none.
+    why: str | None
+    conversation_id: str | None
+    link: DecisionLink
+    # "change": today's Change still works (an answer while its agent works; a To-do choice).
+    undo: Literal["change", "none"]
+    undo_reason: str | None  # (where it is "none": why, in plain words)
+    seen: bool | None  # a card's answer only: whether the user said OK to it
+
+
+class DecisionLog(BaseModel):
+    rows: list[Decision]  # newest first
+    # The judge's "fine" in the period: a count, not rows (a night can have hundreds).
+    judge_fine: int

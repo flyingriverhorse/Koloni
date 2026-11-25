@@ -2842,6 +2842,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read
+         * @description What was decided for the user in the project from `since` until `until` (each where
+         *     given), newest first, and how many commands the judge found fine meanwhile.
+         */
+        get: operations["read_api_projects__project_id__decisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/delete-preview": {
         parameters: {
             query?: never;
@@ -6994,6 +7015,72 @@ export interface components {
              * @enum {string}
              */
             word: "run" | "reject" | "answer";
+        };
+        /**
+         * Decision
+         * @description One thing decided for the user. `what` is KOLONİ's own sentence; `quote`, `answer` and `why`
+         *     are agents' and models' words (and, of Check what I said first, the user's own line): every
+         *     secret KOLONİ knows masked, on one line, cut, and after `injection.NOTE` where they read like
+         *     orders.
+         */
+        Decision: {
+            /** Answer */
+            answer?: string | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Conversation Id */
+            conversation_id: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "answer" | "command" | "task" | "spawn";
+            link: components["schemas"]["DecisionLink"];
+            /** Quote */
+            quote: string | null;
+            /** Seen */
+            seen: boolean | null;
+            /**
+             * Undo
+             * @enum {string}
+             */
+            undo: "change" | "none";
+            /** Undo Reason */
+            undo_reason: string | null;
+            /** What */
+            what: string;
+            /**
+             * Who
+             * @enum {string}
+             */
+            who: "orchestrator" | "judge" | "your_words";
+            /** Why */
+            why: string | null;
+        };
+        /**
+         * DecisionLink
+         * @description What a row is of: the card, the command, the To-do task or the agent opened.
+         */
+        DecisionLink: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "question" | "command" | "task" | "agent";
+        };
+        /** DecisionLog */
+        DecisionLog: {
+            /** Judge Fine */
+            judge_fine: number;
+            /** Rows */
+            rows: components["schemas"]["Decision"][];
         };
         /**
          * DiagramPictureIn
@@ -17770,6 +17857,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DayWordsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_api_projects__project_id__decisions_get: {
+        parameters: {
+            query?: {
+                since?: string | null;
+                until?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionLog"];
                 };
             };
             /** @description Validation Error */
