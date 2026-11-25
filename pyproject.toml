@@ -43,7 +43,8 @@ packages = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["live: needs a running local model; excluded from verify",
-           "no_po: counts model calls the Assistant PO's own request would add to"]
+           "no_po: counts model calls the Assistant PO's own request would add to",
+           "judge: Full auto's judge is asked (off in every other test: tests/conftest.py)"]
 addopts = "-m 'not live' -p no:cacheprovider"
 
 [tool.ruff]

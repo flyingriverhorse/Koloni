@@ -540,6 +540,15 @@ class ApprovalsMixin:
             or (self._night_asks(ctx, command, None) if claimed else ""),
             asked_anyway=always or claimed or at is None or "run_command" not in ctx.tools,
         )
+        # Full auto's judge: it only adds a card (where it runs: its copy, else the project)
+        night, judged = await self._risk_judged(
+            ctx,
+            command,
+            at,
+            copy.root if copy is not None else root,
+            (night, judged),
+            exempt=bool(before or free or always) or "run_command" not in ctx.tools,
+        )
         reason = before or night
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)

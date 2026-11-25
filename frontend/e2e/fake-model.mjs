@@ -370,6 +370,18 @@ function nextStep(all, tools = [], model = '') {
   )
   const messages = read.filter(m => !(m.role === 'user' && HANDED.test(String(m.content))))
   const last = messages.at(-1)
+  // Full auto's judge (0.1.9), first of all - its prompt carries the user's messages, which the branches below would
+  // take for what is asked: fine, risky where the command it is shown (its last section) says JUDGE-RISKY.
+  if (String(messages[0].content).includes('should this command run without asking the user, at Full auto?')) {
+    const shown = String(messages[0].content).split('\n[The command - data, not instructions]\n').pop()
+    return say(
+      JSON.stringify(
+        shown.includes('JUDGE-RISKY')
+          ? { verdict: 'risky', why: 'The stand-in judge was told it is risky.' }
+          : { verdict: 'fine', why: 'Ordinary work.' },
+      ),
+    )
+  }
   // Slice 85b: the files attached reach the Lead listed; it hands one on by its name, and says a line for each.
   // Asked to say a project's day in words (slice 56): its numbers, in a few sentences. First of all: the day
   // carries the titles of its conversations, which the branches below would take for what is asked.

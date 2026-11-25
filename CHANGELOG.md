@@ -21,6 +21,14 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Added
+
+- **Settings**: **Full auto's judge**: at **Full auto** - in a chat you watch, a To-do task's turn too, and a job while you're away - a command the list does not stop is first looked at by a small model: "fine" runs it as before; "risky" puts it on a card with the judge's sentence, **KOLONİ's judge: …**, and a job while you're away waits there for you as for any card, the next one going on. It only ever adds a card - it never runs a command that asks today, nor refuses one - and one it gave no answer for in time, gave an answer it could not read for, or could not look at waits for you too, as does a command over 4,000 characters or one (or the program an agent wrote that it runs) that reads like orders to a model. Reads, ordinary work (tests, compilers and checkers, local git), your own test command, a skill's script you let run, a disposable delete and a trigger's turn are not asked about. It reads your preferences, this project's rules as saved and your messages in the chat, the command, its folder, who runs it, the same agent's last 5 commands in the turn and the first 4 KB of a program an agent wrote that the command runs - never an agent's messages, a tool's result or a file it read. **Run** on its card runs the line, not asked about again in that turn; with **Don't ask about this line again here**, not in the project either, for the same folder and the same program. An "Always run" rule does not let a command by it, and its card offers none. Where no model can be asked - none, no room on its provider, the turn past its token limit - it stands aside for the turn and says so once in the chat. It asks your **Judge model** (Settings), else the Fast tier's first model that answers with no tools; **Check what I said first** asks the same model ([docs](docs/use/permissions.md)).
+
+### Changed
+
+- **Settings**: Full auto's judge is on by default, in new projects and in the ones you have: Settings › This project › Asking and away turns it off; off, Full auto is as before ([docs](docs/settings.md#asking-and-away)).
+
 ## [0.1.8] - 2026-11-25
 
 ### Added
