@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app import away, backlog, injection
 from app.away_branch import PUSH_WHY
 from app.cards import REASONS
-from app.commands import _BLOCKS, _parts, _program
+from app.commands import _BLOCKS, OutputMask, _parts, _program
 from app.copies import NOT_COPIED
 from app.db.away_models import Parked
 from app.db.models import (
@@ -330,6 +330,9 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
             select(BacklogTask).where(BacklogTask.id.in_({row.task_id for row in rows}))
         )
     }
+    project = session.get(Project, night.project_id)
+    # (a push's: whether its Run opens a pull request too - the project's way now, as it pushes)
+    opens_pr = project is not None and project.finish_way == "pull_request"
     found = []
     for row in sorted(rows, key=lambda one: (order.get(one.task_id, len(order)), one.seq)):
         task = tasks.get(row.task_id)
@@ -343,6 +346,9 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
                 "task": task.title,
                 "conversation_id": task.conversation_id,
                 "what": row.what,
+                # (as it is shown and copied: every secret KOLONİ knows, and those known by
+                # their shape, masked - `what` whole stays for what runs, KOLONİ's alone)
+                "what_shown": OutputMask(()).hide(row.what),
                 "cwd": row.data.get("cwd"),
                 "why": _why(row),
                 "warn": injection.NOTE if injection.scan(row.what) else None,
@@ -356,6 +362,7 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
                 "seq": row.seq,
                 # (a push's: the commit it pushes, sent back with its Run - L9)
                 "tip": row.data.get("tip") if row.kind == "push" else None,
+                "opens_pr": opens_pr if row.kind == "push" else None,
                 # (L6: where it would run, the card's own sentence, a file an agent wrote it runs)
                 "place": where(session, row)[0] if row.kind == "command" else None,
                 "danger": row.data.get("danger") or None,

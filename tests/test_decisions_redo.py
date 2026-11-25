@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app import away, decisions, injection, parked, raw, redo
 from app.agent.words import KOLONIS
 from app.db.away_models import Parked
-from app.db.models import Agent, AwayRun, BacklogTask, Merge, Message, Question, Run
+from app.db.models import Agent, AwayRun, BacklogTask, Conversation, Merge, Message, Question, Run
 from tests.test_agent_writes import edit, write
 from tests.test_away_going_on import chat as snapshot
 from tests.test_away_going_on import morning
@@ -162,6 +162,8 @@ def merge_of(client, question_id, status, kept_in=None, files=()):
         # (a kept copy some of which was taken in since)
         ("interrupted", "C:/kept/one", ["applied", "refused"], decisions.TAKEN_IN),
         ("discarded", None, [], decisions.DISCARDED),
+        # (broken off with no copy kept: nothing to go on with)
+        ("interrupted", None, [], decisions.DISCARDED),
         ("rejected", None, ["rejected"], decisions.DISCARDED),
         ("pending", None, ["pending"], decisions.WAITS_TAKE_IN),
     ],
@@ -261,6 +263,10 @@ def test_in_a_jobs_chat_the_turn_is_a_jobs_turn_its_work_kept_for_take_in(
     )
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"  # nothing went in
     assert job["files"] == ["hello.py"] and job["kept"] and job["taken"] == []
+    # A word of yours after the night, not of it: its end, and its job's on the strip, stay.
+    after = client.get(f"/api/projects/{pid}/away").json()
+    assert after["ended_at"] == done["ended_at"]
+    assert job["ended_at"] == done["jobs"][0]["ended_at"]
 
 
 def test_an_option_on_the_card_not_offered_is_refused(client, tmp_path, started, monkeypatch):
@@ -327,3 +333,130 @@ def test_in_a_jobs_chat_it_goes_on_in_the_jobs_kept_work(make_client, wait_run, 
     assert (job["files"], len(job["kept"]), job["taken"]) == (["b.txt", "hello.py"], 1, [])
     assert not (project_dir / "b.txt").exists()
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"
+
+
+def test_not_while_its_job_waits_for_what_it_parked(client, tmp_path, started):
+    # (The review's M3: a going-on turn now would cut across the turn that goes on after what the
+    # job parked - its command's Run would find the copy changed. Decide those first.)
+    pid, cid, ids = finished(client, tmp_path)
+    with client.app.state.session_factory() as session:
+        night = AwayRun(
+            project_id=pid,
+            conversation_id=cid,
+            run_id="r",
+            status="ended",
+            started_at=datetime(2026, 11, 24, 1, tzinfo=UTC),
+            ended_at=datetime(2026, 11, 24, 8, tzinfo=UTC),
+        )
+        session.add(night)
+        session.flush()
+        task = BacklogTask(
+            project_id=pid,
+            title="job",
+            status="doing",
+            position=1,
+            created_by="user",
+            conversation_id=cid,
+            away_run_id=night.id,
+            away_state="waits",
+        )
+        session.add(task)
+        session.flush()
+        night.jobs = [{"title": "job", "task_id": task.id, "was_todo": True}]
+        row = Parked(
+            away_run_id=night.id, task_id=task.id, seq=1, kind="command", what="npm i x", data={}
+        )
+        session.add(row)
+        session.commit()
+        task_id, row_id = task.id, row.id
+    got = redo_it(client, pid, ids["answer"])
+    assert (got.status_code, got.json()["detail"]) == (409, redo.PARKED_FIRST)
+    with client.app.state.session_factory() as session:
+        assert session.get_one(BacklogTask, task_id).away_state == "waits"  # (as it was)
+        assert session.get_one(Parked, row_id).decision is None
+        session.get_one(Parked, row_id).decision = "reject"
+        session.commit()
+    # (decided: Change and redo goes on)
+    assert redo_it(client, pid, ids["answer"]).status_code == 204
+    assert len(started["start"]) == 1
+
+
+def test_an_archived_chat_is_back(client, tmp_path, started):
+    pid, cid, ids = finished(client, tmp_path)
+    with client.app.state.session_factory() as session:
+        session.get_one(Conversation, cid).archived_at = datetime.now(UTC)
+        session.commit()
+    assert redo_it(client, pid, ids["answer"]).status_code == 204
+    with client.app.state.session_factory() as session:
+        assert session.get_one(Conversation, cid).archived_at is None
+
+
+def test_its_row_says_it_adds_to_a_branch_you_pushed(client, tmp_path, started):
+    pid, cid, ids = finished(client, tmp_path)
+
+    def row():
+        (one,) = [r for r in log(client, pid)["rows"] if r["id"] == f"answer:{ids['answer']}"]
+        return one
+
+    assert (row()["undo"], row()["undo_note"]) == ("change_and_redo", None)
+    with client.app.state.session_factory() as session:
+        night = AwayRun(project_id=pid, conversation_id=cid, run_id="r", status="ended")
+        session.add(night)
+        session.flush()
+        task = BacklogTask(
+            project_id=pid,
+            title="job",
+            status="doing",
+            position=1,
+            created_by="user",
+            conversation_id=cid,
+            away_run_id=night.id,
+            away_state="done",
+        )
+        session.add(task)
+        session.flush()
+        session.add(
+            Parked(
+                away_run_id=night.id,
+                task_id=task.id,
+                seq=1,
+                kind="push",
+                what="Push koloni/fix-login",
+                data={"branch": "koloni/fix-login", "tip": "abc"},
+                decision="run",
+                decided_at=datetime.now(UTC),
+            )
+        )
+        session.commit()
+    assert row()["undo_note"] == "adds to the branch koloni/fix-login that you pushed"
+
+
+def test_a_second_click_between_the_look_and_the_write_starts_no_second_turn(
+    client, tmp_path, started, monkeypatch
+):
+    # (The review's probe: a whole second Change and redo between the first's look and its write -
+    # the record's own condition refuses the later of the two; one turn, one message.)
+    pid, cid, ids = finished(client, tmp_path)
+    runner, factory = client.app.state.runner, client.app.state.session_factory
+    real, inner = redo._allowed, {}
+
+    def allowed(session, project_id, question, chat_id, new):
+        kept = real(session, project_id, question, chat_id, new)
+        if not inner:
+            inner["run"] = None  # (once: the second click's own look runs this too)
+            with factory() as other:
+                inner["run"] = redo.redo(other, project_id, question.id, "Postgres", runner)
+        return kept
+
+    monkeypatch.setattr(redo, "_allowed", allowed)
+    with factory() as session, pytest.raises(redo.Refused) as refused:
+        redo.redo(session, pid, ids["answer"], "Postgres", runner)
+    assert (refused.value.status, str(refused.value)) == (409, redo.CHANGED)
+    assert started["start"] == [inner["run"]]
+    with factory() as session:
+        said = session.scalars(
+            select(Message.content).where(
+                Message.conversation_id == cid, Message.content.contains("changed your answer")
+            )
+        ).all()
+    assert len(said) == 1

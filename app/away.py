@@ -806,7 +806,14 @@ def after_the_night(session: Session, run: Run) -> Message | None:
         )
     ):
         return None
-    away.ended_at = now()
+    # (Not by Change and redo's turn, `app.redo`: a word of the user's after the night, not of it.)
+    if (
+        session.scalar(
+            select(Parked.id).where(Parked.went_on == run.id, Parked.kind == "redo").limit(1)
+        )
+        is None
+    ):
+        away.ended_at = now()
     # Its own line: written at its end, before a later night of the chat started (one runs at a
     # time) - not the newest, which may be that later night's.
     later = session.scalar(

@@ -18,13 +18,14 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Literal
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, exists, func, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app import injection
 from app.agent.spawn_mixin import SPAWN_WORDS
 from app.agent.words import AGENT_TERMINAL
 from app.commands import OutputMask
+from app.db.away_models import Parked
 from app.db.models import Agent, BacklogTask, Command, Conversation, Merge, Question, Run
 from app.judge import whole
 from app.schemas_decisions import Decision, DecisionLink, DecisionLog
@@ -104,15 +105,20 @@ DISCARDED = "its work was discarded"
 WAITS_TAKE_IN = "its work waits for your Take in in its chat"
 
 
-def work(session: Session, question: Question) -> tuple[Merge | None, str | None]:
+def work(session: Session, question: Question) -> tuple[str | None, str | None]:
     """The work of the turn a card was answered in, as it stands: the newest Merge of its chat
     from that turn on (a Take in or a Discard keeps its Merge: `parked.where`'s by-turn record) -
-    and why Change and redo cannot go on with it, None where it can (a kept copy none of which was
-    taken in). None, None where none is on record: the turn changed nothing, or worked in the
-    project itself - a fresh turn goes on there."""
+    its id, and why Change and redo cannot go on with it, None where it can (a kept copy none of
+    which was taken in). None, None where none is on record: the turn changed nothing, or worked in
+    the project itself - a fresh turn goes on there. Its state alone is read, never its files'
+    diffs: whether one of them was taken in is asked of the database."""
     turn = session.get_one(Run, question.run_id)
-    merge = session.scalar(
-        select(Merge)
+    each = func.json_each(Merge.files).table_valued("value")
+    taken = (
+        exists().select_from(each).where(func.json_extract(each.c.value, "$.state") == "applied")
+    )
+    found = session.execute(
+        select(Merge.id, Merge.status, Merge.kept_in, taken)
         .join(Run, Run.id == Merge.run_id)
         .where(
             Run.conversation_id == turn.conversation_id,
@@ -120,14 +126,15 @@ def work(session: Session, question: Question) -> tuple[Merge | None, str | None
         )
         .order_by(Merge.created_at.desc())
         .limit(1)
-    )
-    if merge is None:
+    ).first()
+    if found is None:
         return None, None
-    if merge.status == "applied" or any(one.get("state") == "applied" for one in merge.files):
-        return merge, TAKEN_IN
-    if merge.status == "pending":
-        return merge, WAITS_TAKE_IN
-    return merge, None if merge.status == "interrupted" and merge.kept_in else DISCARDED
+    merge_id, status, kept_in, some_taken = found
+    if status == "applied" or some_taken:
+        return merge_id, TAKEN_IN
+    if status == "pending":
+        return merge_id, WAITS_TAKE_IN
+    return merge_id, None if status == "interrupted" and kept_in else DISCARDED
 
 
 Undo = Literal["change", "change_and_redo", "none"]
@@ -156,8 +163,9 @@ def card_undo(
     return ("none", why) if why else ("change_and_redo", None)
 
 
-def _cards(session: Session, project_id: str, window: Window) -> list[Later]:
-    """The cards the Orchestrator answered for the user - a sub-agent to open among them."""
+def _cards(session: Session, project_id: str, window: Window, undo: bool) -> list[Later]:
+    """The cards the Orchestrator answered for the user - a sub-agent to open among them. `undo`:
+    what still undoes an answer is asked (`card_undo`)."""
     at = func.coalesce(Question.answered_at, Question.created_at)
     found = session.execute(
         select(Question, at, Run.conversation_id, Conversation.title, Agent.status)
@@ -186,17 +194,23 @@ def _cards(session: Session, project_id: str, window: Window) -> list[Later]:
             child = opened.get((question.agent_id, question.tool_call_id))
             build = partial(_spawn, question, utc(when), cid, title, child)
         else:
-            build = partial(_answer, session, question, utc(when), cid, title, status)
+            asked = session if undo else None
+            build = partial(_answer, asked, question, utc(when), cid, title, status)
         rows.append((utc(when), question.seen_at is not None, build))
     return rows
 
 
 def _answer(
-    session: Session, question: Question, at: datetime, cid: str, title: str, status: str
+    session: Session | None, question: Question, at: datetime, cid: str, title: str, status: str
 ) -> Decision:
-    undo, why_not = card_undo(
-        question, status not in AGENT_TERMINAL, lambda: work(session, question)[1]
+    """An answer's row - what still undoes it asked of `session`; None: not asked (the night's
+    report, `away_night`: none, no reason)."""
+    undo, why_not = (
+        card_undo(question, status not in AGENT_TERMINAL, lambda: work(session, question)[1])
+        if session is not None
+        else ("none", None)
     )
+    note = _pushed(session, cid) if session is not None and undo == "change_and_redo" else None
     return Decision(
         id=f"answer:{question.id}",
         at=at,
@@ -214,8 +228,23 @@ def _answer(
         link=DecisionLink(kind="question", id=question.id),
         undo=undo,
         undo_reason=why_not,
+        undo_note=note,
         seen=question.seen_at is not None,
     )
+
+
+def _pushed(session: Session, cid: str) -> str | None:
+    """What Change and redo adds to in a job's chat whose branch went to origin (its push row you
+    said Run): that branch - KOLONİ's name for it, not an agent's word."""
+    data = session.scalar(
+        select(Parked.data)
+        .join(BacklogTask, BacklogTask.id == Parked.task_id)
+        .where(BacklogTask.conversation_id == cid, Parked.kind == "push", Parked.decision == "run")
+        .order_by(Parked.decided_at.desc())
+        .limit(1)
+    )
+    branch = (data or {}).get("branch")
+    return f"adds to the branch {branch} that you pushed" if branch else None
 
 
 def _spawn(question: Question, at: datetime, cid: str, title: str, child: str | None) -> Decision:
@@ -411,10 +440,13 @@ def of(
     since: datetime | None = None,
     until: datetime | None = None,
     unseen: bool = False,
+    undo: bool = True,
 ) -> DecisionLog:
     """What was decided for the user in project `project_id` at or after `since` and before
     `until` (each where given; a time with no zone is UTC's), newest first - the newest `MOST`,
-    `more` where there were more. `unseen`: only those that wait for your OK."""
+    `more` where there were more. `unseen`: only those that wait for your OK. `undo` False: what
+    still undoes an answer is not asked - "none", no reason (the night's report, which shows no
+    undo: `decisions.work` reads each chat's work)."""
 
     def window(at: When) -> list[ColumnElement[bool]]:
         return [
@@ -423,7 +455,8 @@ def of(
         ]
 
     commands, fine = _commands(session, project_id, window)
-    rows = [*_cards(session, project_id, window), *commands, *_tasks(session, project_id, window)]
+    cards = _cards(session, project_id, window, undo)
+    rows = [*cards, *commands, *_tasks(session, project_id, window)]
     if unseen:  # (only what waits for your OK - before the cut: one of any age is found)
         rows = [row for row in rows if row[1] is False]
     rows.sort(key=lambda row: row[0], reverse=True)

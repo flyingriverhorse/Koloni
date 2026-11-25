@@ -46,6 +46,9 @@ class Decision(BaseModel):
     # the user's answer in its place and a new turn of its chat (`app.redo`).
     undo: Literal["change", "change_and_redo", "none"]
     undo_reason: str | None  # (where it is "none": why, in plain words)
+    # What Change and redo would add to, where it says more than "a new turn": the branch of a job
+    # you pushed ("adds to the branch koloni/… that you pushed"). None: nothing more.
+    undo_note: str | None = None
     # Whether the user said OK to it: a card's answer, a sub-agent opened or not, a command run or
     # not run on their words or refused by the judge, a To-do choice; None for one with no OK (a
     # command the judge asked about on its card).

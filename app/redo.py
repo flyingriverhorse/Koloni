@@ -16,8 +16,8 @@ from app import away, backlog, decisions
 from app.agent.words import AGENT_TERMINAL, KOLONIS
 from app.api.usage import over_budget
 from app.db.away_models import Parked
-from app.db.models import Agent, Conversation, Merge, Message, Project, Question, Run, now
-from app.serialize import message_out, question_out, run_out
+from app.db.models import Agent, Conversation, Message, Project, Question, Run, now
+from app.serialize import conversation_out, message_out, question_out, run_out
 from app.team import quoted
 
 REDO = (
@@ -29,6 +29,9 @@ CHANGED = "you changed this decision already"
 AGENT_AT_WORK = "the agent that asked is at work: Change it instead"
 CHAT_AT_WORK = "a turn of its chat is at work: try again once it is over"
 NOT_AN_OPTION = "change it to another of its options"
+# (§10: a going-on turn now would be its job's second one - what it parked waits for it, then the
+# rows' own turn; once decided, Change and redo goes on after it.)
+PARKED_FIRST = "decide what its job parked first"
 
 
 class Refused(ValueError):
@@ -71,9 +74,9 @@ def _decision(session: Session, project_id: str, question_id: str) -> tuple[Ques
 
 def _allowed(
     session: Session, project_id: str, question: Question, chat: str, new: str
-) -> Merge | None:
-    """The kept copy the going-on turn goes on in (None: a fresh one), where Change and redo may
-    be done now - else `Refused`, why not."""
+) -> str | None:
+    """The kept copy the going-on turn goes on in, by its Merge's id (None: a fresh one), where
+    Change and redo may be done now - else `Refused`, why not."""
     if away.running(session, project_id) is not None:
         raise Refused(409, away.AWAY_NOW)
     if new not in decisions.offered(question):
@@ -88,6 +91,8 @@ def _allowed(
         select(Run.id).where(Run.conversation_id == chat, Run.status.not_in(backlog.ENDED)).limit(1)
     ):
         raise Refused(409, CHAT_AT_WORK)
+    if (job := away.job_of(session, chat)) is not None and away.parked_left(session, job.id):
+        raise Refused(409, PARKED_FIRST)
     if over := over_budget(
         session, session.get(Project, project_id), session.get(Conversation, chat)
     ):
@@ -130,6 +135,10 @@ def redo(session: Session, project_id: str, question_id: str, answer: str, runne
         conversation_id=cid, run_id=run.id, role="user", content=told(question.question, old, new)
     )
     session.add(message)
+    chat = session.get_one(Conversation, cid)
+    chat.archived_at = (
+        None  # (written in again, by the user's own click: it is back, as on a message)
+    )
     if task is not None and task.away_run_id is not None:  # (a job's chat: a job's turn, §10)
         seq = session.scalar(
             select(func.max(Parked.seq)).where(Parked.away_run_id == task.away_run_id)
@@ -154,7 +163,8 @@ def redo(session: Session, project_id: str, question_id: str, answer: str, runne
     runner.bus.emit(cid, question.run_id, "question.updated", question_out(question))
     runner.bus.emit(cid, run.id, "run.started", run_out(run))
     runner.bus.emit(cid, run.id, "message.created", message_out(message))
+    runner.bus.emit(cid, None, "conversation.updated", conversation_out(chat))
     if merge is not None:  # (its kept copy, none of it taken in: `decisions.work`)
-        runner.resume_on(run.id, merge.id)
+        runner.resume_on(run.id, merge)
     runner.start(run.id)
     return run.id

@@ -5,13 +5,16 @@ what was not checked where no Checked note says."""
 
 from datetime import UTC, datetime, timedelta
 
-from app import away_night, proof
+from sqlalchemy import event
+
+from app import away_night, decisions, proof, raw
 from app.agent.kinds_mixin import NOT_REACHED
 from app.agent.proof_mixin import AWAY_GUESS
 from app.agent.try_mixin import NO_DEV, NOT_TRIED
 from app.db.away_models import Parked
-from app.db.models import Agent, AwayRun, BacklogTask, Message, Question, Run
+from app.db.models import Agent, AwayRun, BacklogTask, Merge, Message, Question, Run
 from tests.test_decisions import chat
+from tests.test_team import SECRET
 
 T0 = datetime(2026, 11, 24, 2, 0, tzinfo=UTC)
 
@@ -208,6 +211,8 @@ def test_the_nights_decisions_go_on_their_jobs_lane_by_its_chat(client, tmp_path
         False,
         "Which database?",
     )
+    # (what undoes it is not asked here: the strip shows none - Ready's log says it)
+    assert (decision["undo"], decision["undo_reason"]) == ("none", None)
 
 
 def test_not_checked_is_read_from_the_last_checked_note_by_kind_and_state(client, tmp_path):
@@ -243,3 +248,123 @@ def test_a_checked_note_with_nothing_skipped_is_an_empty_list(client, tmp_path):
         session.commit()
     still = jobs(client, pid)["Docs pass"]
     assert still["not_checked"] == [] and same_time(still["ended_at"], at(120))
+
+
+def nights_of_answers(client, root, answers, nights=3):
+    """A chat whose job worked `nights` nights, each with `answers` cards the Orchestrator answered
+    for the user, its agent finished, and a kept copy whose files hold diffs: (pid, cid)."""
+    root.mkdir(parents=True, exist_ok=True)
+    pid, evening = chat(client, root / "a")
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    files = [
+        {"path": f"f{i}.py", "kind": "modified", "state": "refused", "diff": "+x" * 50}
+        for i in range(20)
+    ]
+    with client.app.state.session_factory() as session:
+        for n in range(nights):
+            base = n * 1440
+            card = AwayRun(
+                project_id=pid,
+                conversation_id=cid if n else evening,
+                run_id="r",
+                status="ended",
+                started_at=at(base),
+                ended_at=at(base + 600),
+            )
+            session.add(card)
+            session.flush()
+            task = BacklogTask(
+                project_id=pid,
+                title=f"job {n}",
+                status="doing",
+                position=n,
+                created_by="user",
+                conversation_id=cid,
+                away_run_id=card.id,
+                away_state="done",
+            )
+            session.add(task)
+            session.flush()
+            card.jobs = [{"title": task.title, "task_id": task.id, "was_todo": True}]
+            run = turn(session, cid, base + 10, base + 500)
+            for q in range(answers):
+                answered(session, run, base + 20 + q, f"q{q}?")
+            lead = session.query(Agent).filter(Agent.run_id == run.id).first()
+            session.add(
+                Merge(
+                    run_id=run.id,
+                    agent_id=lead.id,
+                    status="interrupted",
+                    files=files,
+                    kept_in=f"C:/kept/{n}",
+                )
+            )
+        session.commit()
+    return pid, cid
+
+
+def test_a_report_asks_nothing_of_what_undoes_its_decisions(client, tmp_path, monkeypatch):
+    # (The review's M1: every night of a chat is reported after each decision of the morning; its
+    # answers' Change and redo read each chat's work - 9.7 s for 30 nights of 10 answers.)
+    asked = []
+    real = decisions.work
+    monkeypatch.setattr(decisions, "work", lambda *one: asked.append(one) or real(*one))
+    engine = client.app.state.session_factory.kw["bind"]
+
+    def queries(url: str) -> int:
+        count = [0]
+
+        def one(*_args, **_kw):
+            count[0] += 1
+
+        event.listen(engine, "before_cursor_execute", one)
+        try:
+            got = client.get(url)
+        finally:
+            event.remove(engine, "before_cursor_execute", one)
+        assert got.status_code == 200, got.text
+        return count[0]
+
+    few, cid_few = nights_of_answers(client, tmp_path / "few", answers=1)
+    many, cid_many = nights_of_answers(client, tmp_path / "many", answers=10)
+    for cid in (cid_few, cid_many):
+        assert all(
+            len(job["decisions"])
+            for one in client.get(f"/api/conversations/{cid}/away").json()
+            for job in one["jobs"]
+        )
+    assert asked == []
+    # No query an answer more: ten answers a night read as one does.
+    assert queries(f"/api/conversations/{cid_many}/away") == queries(
+        f"/api/conversations/{cid_few}/away"
+    )
+    assert queries(f"/api/projects/{many}/away") == queries(f"/api/projects/{few}/away")
+    # (Ready's log still asks it: its rows' Change and redo.)
+    client.get(f"/api/projects/{many}/decisions", params={"unseen": "true"})
+    assert asked
+
+
+def test_a_parked_line_is_shown_and_copied_masked(client, tmp_path, monkeypatch):
+    # (The review's M2: the night's Copy as Markdown copies what the page shows of a parked line.)
+    monkeypatch.setattr(raw, "_known", lambda fresh=False: raw.spellings([SECRET]))
+    pid, _ids = night(client, tmp_path)
+    away_id = client.get(f"/api/projects/{pid}/away").json()["id"]
+    line = (
+        'curl -H "Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz0123456789" '
+        f"https://user:hunter2@example.com/x --data {SECRET}"
+    )
+    with client.app.state.session_factory() as session:
+        task_id = session.query(Parked).filter(Parked.away_run_id == away_id).one().task_id
+        session.add(
+            Parked(away_run_id=away_id, task_id=task_id, seq=2, kind="command", what=line, data={})
+        )
+        session.commit()
+    rows = client.get(f"/api/away/{away_id}/waiting").json()
+    (command,) = [one for one in rows if one["kind"] == "command"]
+    assert command["what"] == line  # (whole: what runs, as recorded)
+    shown = command["what_shown"]
+    for secret in ("ghp_abcdefghijklmnopqrstuvwxyz0123456789", "hunter2", SECRET):
+        assert secret not in shown, shown
+    assert shown.startswith('curl -H "Authorization: ') and raw.HIDDEN in shown
+    (push,) = [one for one in rows if one["kind"] == "push"]
+    assert push["opens_pr"] is False  # (the project's way is no pull request)

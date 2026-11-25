@@ -38,9 +38,9 @@ def times(
 ) -> tuple[datetime | None, datetime | None]:
     """When a job's turns of the night began - the first's start - and ended - the last's end; no
     end while one of them is still open.
-    shortcut: one span - a going-on turn of the morning (§10, Change and redo) moves the night's
-    end to its own (`away.after_the_night`), and the bar runs over the hours between; give each
-    turn its span if that misleads."""
+    shortcut: one span - a going-on turn of the morning after your decisions (§10) moves the
+    night's end to its own (`away.after_the_night`; Change and redo's does not), and the bar runs
+    over the hours between; give each turn its span if that misleads."""
     found = session.execute(
         select(Run.created_at, Run.started_at, Run.ended_at).where(
             Run.conversation_id == cid, *_night(away, ended)
@@ -101,9 +101,9 @@ def add(session: Session, away: AwayRun, jobs: list[dict], tasks: dict[str, Back
     ended = away.ended_at
     if away.status != "ended" or away.started_at is None or ended is None:
         return
-    # shortcut: an answer's row whose agent finished reads its chat's newest Merge, files and all
-    # (`decisions.work`); read its state alone if a night of many such answers is seen slow.
-    log = decisions.of(session, away.project_id, away.started_at, ended)
+    # (Nothing of what undoes a row is asked: the strip and its Markdown show none - and a report
+    # is read for every night of a chat, after each decision of the morning.)
+    log = decisions.of(session, away.project_id, away.started_at, ended, undo=False)
     by_chat: dict[str, list[Decision]] = {}
     for row in log.rows:
         if row.conversation_id is not None:
