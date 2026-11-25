@@ -116,35 +116,37 @@ WAITS_TAKE_IN = "its work waits for your Take in in its chat"
 
 
 def work(session: Session, question: Question) -> tuple[str | None, str | None]:
-    """The work of the turn a card was answered in, as it stands: the newest Merge of the agent
-    that asked's copy line in that turn - its own, an agent's above it whose copy it worked in, or
-    one's it opened (never a sibling's copy) - or of a turn that went on with that work since:
-    KOLONİ's own (Change and redo's, the morning's, Fix it's), in its topic, of its To-do task or
-    of none - never another topic's, a message of the user's, nor a To-do story's next task (a Take
-    in or a Discard keeps its Merge: `parked.where`'s by-turn record) - its id, and why Change and
-    redo cannot go on with it, None where it can (a kept copy none of which was taken in). None,
-    None where none is on record: the turn changed nothing, or worked in the project itself - a
-    fresh turn goes on there. Its state alone is read, never its files' diffs: whether one of them
-    was taken in is asked of the database.
-    shortcut: a turn that went on is known by its topic - which copy it took up is on no record;
-    a morning's going-on turn put in another topic (`parked.begin`: the chat's last turn's) is
-    not read, and the card's own copy, given to it, reads as discarded: refused, never another's
-    work. Keep the copy a turn went on in on its record if that is seen."""
+    """The work of the turn a card was answered in, as it stands: the newest Merge of the copy the
+    agent that asked worked in, in that turn - its own, or, where it worked in the copy of the
+    agent it works for, that one's, up the line (`merge._line_on_record`'s way, upward; never a
+    sibling's copy, nor an agent's above it with a copy of its own) - or of a turn that went on
+    with that work since, as its record says (`Parked.went_on`: the morning's going-on turn, Change
+    and redo's in a job's chat), in its topic; never another topic's, a message of the user's, a
+    To-do story's next task, a plan's work, a rerun, a comparison's side or a room's (a Take in or
+    a Discard keeps its Merge: `parked.where`'s by-turn record) - its id, and why Change and redo
+    cannot go on with it, None where it can (a kept copy none of which was taken in). None, None
+    where none is on record: the turn changed nothing, or worked in the project itself - a fresh
+    turn goes on there. Its state alone is read, never its files' diffs: whether one of them was
+    taken in is asked of the database.
+    shortcut: a turn that went on with a kept copy is known by its record alone - Fix it's, and
+    Change and redo's outside a job's chat, leave none: the card's own copy, given to it, reads as
+    discarded (refused, never another's work); so does a morning's going-on turn put in another
+    topic (`parked.begin`: the chat's last turn's). Keep the copy a turn went on in on its record if
+    that is seen.
+    shortcut: an agent's own card is its own copy's alone - a Lead that works in the project, its
+    sub-agents each in a copy of their own, has none: a fresh turn, none of theirs taken for its
+    work; read the line down too if a Lead's own card is seen to want one of them."""
     turn = session.get_one(Run, question.run_id)
-    above = {
-        one: parent
-        for one, parent in session.execute(
-            select(Agent.id, Agent.parent_agent_id).where(Agent.run_id == turn.id)
+    agents = {
+        one: (parent, (copy or {}).get("state"))
+        for one, parent, copy in session.execute(
+            select(Agent.id, Agent.parent_agent_id, Agent.copy).where(Agent.run_id == turn.id)
         )
     }
-
-    def up(agent: str | None) -> list[str]:  # (an agent, and those above it)
-        chain: list[str] = []
-        while agent is not None and agent not in chain:
-            chain, agent = [*chain, agent], above.get(agent)
-        return chain
-
-    line = {*up(question.agent_id), *(one for one in above if question.agent_id in up(one))}
+    owner, seen = question.agent_id, set()  # (up the line while it worked in its parent's copy)
+    while owner not in seen and (found := agents.get(owner)) and found[1] == "parent" and found[0]:
+        seen.add(owner)
+        owner = found[0]
     each = func.json_each(Merge.files).table_valued("value", "type")
     # (an object's state alone: a bare string among the files would make json_extract raise)
     state = case((each.c.type == "object", func.json_extract(each.c.value, "$.state")))
@@ -157,12 +159,8 @@ def work(session: Session, question: Question) -> tuple[str | None, str | None]:
             Run.topic_id == turn.topic_id,  # (none: IS NULL - a turn on record with no topic)
             Run.created_at >= utc(turn.created_at).replace(tzinfo=None),
             or_(
-                and_(Run.id == turn.id, Merge.agent_id.in_(line)),
-                and_(
-                    Run.id != turn.id,
-                    Run.by_user.is_(False),
-                    or_(Run.task_id.is_(None), Run.task_id == turn.task_id),
-                ),
+                and_(Run.id == turn.id, Merge.agent_id == owner),
+                and_(Run.id != turn.id, exists().where(Parked.went_on == Run.id)),
             ),
         )
         .order_by(Merge.created_at.desc())
