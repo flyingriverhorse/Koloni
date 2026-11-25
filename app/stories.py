@@ -51,6 +51,8 @@ UNSEEN = frozenset(
             *range(0xE0100, 0xE01F0),
             0x034F,
             *range(0x180B, 0x180E),
+            0x180F,
+            0x16FE4,
             0x17B4,
             0x17B5,
             0x115F,
@@ -64,13 +66,14 @@ UNSEEN = frozenset(
         ],
     )
 )
-# A word as `_whole` hides one: what no blank anybody sees parts - an UNSEEN blank is in it.
-WORD = re.compile("(?:\\S|[" + "".join(sorted(ch for ch in UNSEEN if ch.isspace())) + "])+")
+# A word, as `_masked_line` hides one whole: what blanks part.
+WORD = re.compile(r"\S+")
 # A code fence's opening (or closing) line, as CommonMark reads it: three or more ` or ~ after up
 # to 3 spaces (4 are code).
 FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
-# A setext heading's underline: the line above it is a heading's.
+# A setext heading's underline: the line above it is a heading's - but for a list's item.
 SETEXT = re.compile(r" {0,3}(?:=+|-+)[ \t]*\Z")
+LIST_ITEM = re.compile(r" {0,3}[-*+][ \t]")
 STORY_NOTE = "Story note:"
 # A note's line: STORY_NOTE after up to 3 spaces (4 are code to Markdown), maybe as a list's item
 # (`- `, `* `, `+ `), maybe in bold or italics, maybe the marker alone in backticks (as 0.1.8 read
@@ -435,49 +438,26 @@ def _first_cut(text: str) -> str:
     return text[:keep]
 
 
-def _seen(text: str) -> str:
-    """The text without what nobody sees in it (`_unseen`): a run of it with ASCII beside it, as
-    in a key, goes; one between two other characters (an emoji's joiner, a Persian word's) stays."""
-    out, at = [], 0
-    for unseen, chars in itertools.groupby(text, _unseen):
-        run = "".join(chars)
-        end = at + len(run)
-        if not unseen or not (text[at - 1 : at].isascii() or text[end : end + 1].isascii()):
-            out.append(run)
-        at = end
-    return "".join(out)
-
-
-def _whole(word: re.Match) -> str:
-    """A word hidden whole where a part of it was and what nobody sees is in it: a key's head
-    has its shape alone, and its tail, past such a character, would be left."""
-    return raw.HIDDEN if raw.HIDDEN in word[0] and _seen(word[0]) != word[0] else word[0]
+def _beside_unseen(cut: str, word: re.Match) -> bool:
+    """Whether a word of the text spaced (`_masked_line`) stood right next to what nobody sees."""
+    return any(map(_unseen, cut[max(word.start() - 1, 0) : word.start()] + cut[word.end() :][:1]))
 
 
 def _masked_line(text: str, pass_env: str | None) -> str:
-    """The text (`_first_cut`) on one line, masked. one_line makes what nobody sees a space (a
-    joiner it keeps), so a secret split by one came in as two parts, neither one a secret (S1):
-    the text is masked as it came, a word of it with such a character and a part hidden is
-    hidden whole (`_whole`), what nobody sees is taken out (`_seen`) and it is masked again -
-    where that hides more, the line is made of it, masked once more on one line (M1: `Bearer`
-    and `password:` need a plain blank beside them), no part of the secret left. Else it is as
-    ever. shortcut: a secret split by a blank anybody sees (a space, a line's end) or written
-    with letters that only look like its own is not found - masking knows a secret's letters."""
+    """The text (`_first_cut`) on one line, masked. Where what nobody sees (`_unseen`) is in it,
+    a secret may be split by it into parts that are each no secret (S1): the text is masked with
+    each such character a plain space - `Bearer`, a private key's lines and `password:` are seen
+    as ever - and a word next to one is hidden whole, so no part of a split secret is kept. An
+    emoji family, or a Persian word, joined by one shows as `***` so.
+    shortcut: a secret split by a blank anybody sees (a space, a line's end) or written with
+    letters that only look like its own is not found - masking knows a secret's letters."""
     cut = _first_cut(text)
-    line = masked(topics.one_line(cut), pass_env)
-    if _seen(cut) == cut:
-        return line
-    # (as it came: a secret's edge may be such a character - a Hangul filler, a letter to `\b`,
-    # as a zero width)
-    first = masked(
-        "".join("\u200b" if ch.isalnum() and _unseen(ch) else ch for ch in cut), pass_env
-    )
-    worded = WORD.sub(_whole, first)
-    joined = _seen(worded)
-    again = masked(joined, pass_env)
-    if again == joined and worded == first:
-        return line
-    return masked(topics.one_line(again), pass_env)
+    if not any(map(_unseen, cut)):
+        return masked(topics.one_line(cut), pass_env)
+    spaced = "".join(" " if _unseen(ch) else ch for ch in cut)
+    beside = {word[0] for word in WORD.finditer(spaced) if _beside_unseen(cut, word)}
+    out = masked(topics.one_line(spaced), pass_env)
+    return WORD.sub(lambda word: raw.HIDDEN if word[0] in beside else word[0], out)
 
 
 def cut_note(text: object) -> str | None:
@@ -527,7 +507,7 @@ def _comment_after(line: str, open_: str) -> str:
             if (start := line.find("<!--", at)) < 0:
                 return ""
             open_ = "block" if start <= 3 and not line[:start].strip(" ") else "inline"
-            at = start + 4
+            at = start + 2  # (`<!-->` and `<!--->` are whole comments: CommonMark 0.31)
 
 
 def _own_lines(said: str) -> Iterator[tuple[str, str]]:
@@ -544,6 +524,8 @@ def _own_lines(said: str) -> Iterator[tuple[str, str]]:
             fence = "" if closes and not one[mark.end() :].strip() else fence
         elif comment == "inline" and not one.strip(" \t"):
             comment = ""
+        elif comment == "inline" and mark:  # (a fence ends the paragraph: no comment was in it)
+            comment, fence = "", mark[1]
         elif comment:
             comment = _comment_after(one, comment)
         elif mark:
@@ -561,7 +543,7 @@ def note_lines(said: str) -> list[tuple[str, str]]:
     a heading's (a setext one: `SETEXT` under it) - a file or a page it shows is not its word."""
     found: list[tuple[str, str]] = []
     for one, after in _own_lines(said):
-        if SETEXT.match(after):
+        if SETEXT.match(after) and not LIST_ITEM.match(one):  # (under a list's item: a rule)
             continue
         if (match := NOTE_LINE.match(one)) and (note := match["note"].strip(" \t*`")):
             kind, _, text = note.partition(":")

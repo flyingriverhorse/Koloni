@@ -166,11 +166,13 @@ buried in a long log): the notebook is what is not lost. Long content - a file, 
 again when it is needed.
 
 What agents write there goes to models at every turn, so KOLONİ holds it to a few rules: the secrets
-KOLONİ knows, and the variables the project passes to its commands, are masked - also one split by a
-character nobody sees, such as a zero-width space; a line that reads like orders is left out (in
-`runtime/logs/koloni.log`); each note is one line of at most 200 characters, and the newest 20 are
-kept. Notes kept before these rules are checked again as they are given. Masking knows a secret by its
-own characters: one split by a space or a line's end, or written with look-alike letters, is not found.
+KOLONİ knows, and the variables the project passes to its commands, are masked, and a word next to a
+character nobody sees - a zero-width space, a joiner - is hidden whole (`***`), so a secret split by
+one is not kept in parts (an emoji family or a Persian word joined by one shows as `***` too); a line
+that reads like orders is left out (in `runtime/logs/koloni.log`); each note is one line of at most 200
+characters, and the newest 20 are kept. Notes kept before these rules are checked again as they are
+given. Masking knows a secret by its own characters: one split by a space or a line's end, or written
+with look-alike letters, is not found.
 
 ## Your tasks
 
