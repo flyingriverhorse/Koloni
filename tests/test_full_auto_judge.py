@@ -1028,3 +1028,33 @@ def test_a_link_set_elsewhere_while_the_judge_looked_is_a_card(judging, wait_run
     wait_run(client, cid, run_id)
     assert asked["danger"] == "KOLONİ's judge: the program it runs changed while it was looked at"
     assert executor.started == []
+
+
+# --- review round 3: spellings that kept a key on a file that is not all they run ----------------
+
+
+@pytest.mark.parametrize(
+    "line, fixed, changed",
+    [
+        ("make SHELL=./evil.sh", ("Makefile", "all:\n\techo hi\n"), "evil.sh"),
+        ("make CC=./evil.sh all", ("Makefile", "all:\n\techo hi\n"), "evil.sh"),
+        ("git -c 'core.pager=sh evil.sh' log", None, "evil.sh"),
+        ("pwsh -SettingsFile s.json -File x.ps1", ("s.json", "{}\n"), "x.ps1"),
+        ("python -m pkg", ("pkg/__main__.py", "print(1)\n"), "pkg/__init__.py"),
+    ],
+)
+def test_a_line_whose_file_is_not_all_it_runs_is_asked_again(
+    judging, wait_run, project_dir, line, fixed, changed
+):
+    if fixed:
+        (project_dir / fixed[0]).parent.mkdir(exist_ok=True)
+        (project_dir / fixed[0]).write_text(fixed[1], encoding="utf-8")
+    client, _lead, judge, _executor = judging(
+        [write(changed, BENIGN), cmd(line, id="k1"), write(changed, EVIL, id="w2")]
+        + [cmd(line, id="k2"), text("done")],
+        [said("fine"), said("fine")],
+        [Script([])] * 2,
+    )
+    _, cid, run_id = go(client, project_dir)
+    wait_run(client, cid, run_id)
+    assert len(judge.calls) == 2
