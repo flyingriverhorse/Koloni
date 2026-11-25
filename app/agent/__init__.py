@@ -6227,6 +6227,7 @@ class AgentRunner(
                     once=once,
                     judgement=judged,
                     disposable=found,
+                    park=self._parker(ctx, in_copy if owner else None),
                 )
             ran = True
         finally:

@@ -39,6 +39,13 @@ def run(command, id="k", **more):
     return step(call("run_command", {"command": command, **more}, id))
 
 
+def post(id="h"):
+    """A POST the user is asked about (§10: a web request is not parked - its job waits)."""
+    return step(
+        call("http_request", {"method": "POST", "url": "https://example.com/x", "body": "a"}, id)
+    )
+
+
 def job_chat(client, pid, at=0):
     return client.get(
         f"/api/conversations/{night(client, pid)['jobs'][at]['conversation_id']}"
@@ -128,7 +135,9 @@ def test_at_full_auto_a_job_runs_its_tests_but_a_push_a_delete_and_a_post_wait(
         [
             run("echo tests pass"),
             run("git push origin main", "k2"),
+            text("one done, the push waits"),
             run("rm -rf build", "k3"),
+            text("two done, the delete waits"),
             step(
                 call(
                     "http_request",
@@ -144,12 +153,13 @@ def test_at_full_auto_a_job_runs_its_tests_but_a_push_a_delete_and_a_post_wait(
     done = ended(client, pid)
     assert [job["state"] for job in done["jobs"]] == ["waits", "waits", "waits"]
     one = job_chat(client, pid)
+    # (§10: a command's card is parked for the morning, the job goes on; a POST waits)
     assert [(c["command"], c["status"]) for c in one["commands"]] == [
         ("echo tests pass", "exited"),
-        ("git push origin main", "proposed"),
+        ("git push origin main", "parked"),
     ]
-    assert done["jobs"][0]["asks"][0]["text"] == 'Lead asks to run "git push origin main"'
-    assert [c["status"] for c in job_chat(client, pid, 1)["commands"]] == ["proposed"]
+    assert [job["why"] for job in done["jobs"][:2]] == ["1 parked", "1 parked"]
+    assert [c["status"] for c in job_chat(client, pid, 1)["commands"]] == ["parked"]
     assert [r["status"] for r in job_chat(client, pid, 2)["web_requests"]] == ["proposed"]
 
 
@@ -586,14 +596,21 @@ def test_at_night_a_wrapped_command_waits_and_an_install_waits_where_the_copy_li
     (project_dir / "node_modules").mkdir()
     (project_dir / "node_modules" / "x.js").write_bytes(b"1\n")
     client, _model, pid, cid, run_id = evening(
-        make_client, project_dir, [run("cmd /c echo hi"), run("npm install left-pad", "k2")]
+        make_client,
+        project_dir,
+        [
+            run("cmd /c echo hi"),
+            text("one done"),
+            run("npm install left-pad", "k2"),
+            text("two done"),
+        ],
     )
     wait_run(client, cid, run_id)
     start(client, cid)
     done = ended(client, pid)
-    assert [job["state"] for job in done["jobs"]] == ["waits", "waits"]
-    assert [c["status"] for c in job_chat(client, pid)["commands"]] == ["proposed"]
-    assert [c["status"] for c in job_chat(client, pid, 1)["commands"]] == ["proposed"]
+    assert [(job["state"], job["why"]) for job in done["jobs"]] == [("waits", "1 parked")] * 2
+    assert [c["status"] for c in job_chat(client, pid)["commands"]] == ["parked"]
+    assert [c["status"] for c in job_chat(client, pid, 1)["commands"]] == ["parked"]
 
 
 # K-r147 (live): agents run their tests piped into a filter - REA's lines.
@@ -678,6 +695,7 @@ def test_at_night_a_test_piped_into_a_filter_runs_and_one_piped_into_python_wait
             run("echo tests pass 2>&1 | Select-Object -Last 8"),
             text("one done"),
             run("echo print(1) | python", "k2"),
+            text("two done"),
         ],
     )
     wait_run(client, cid, run_id)
@@ -685,7 +703,7 @@ def test_at_night_a_test_piped_into_a_filter_runs_and_one_piped_into_python_wait
     done = ended(client, pid)
     assert [job["state"] for job in done["jobs"]] == ["done", "waits"]
     assert [c["status"] for c in job_chat(client, pid)["commands"]] == ["exited"]
-    assert [c["status"] for c in job_chat(client, pid, 1)["commands"]] == ["proposed"]
+    assert [c["status"] for c in job_chat(client, pid, 1)["commands"]] == ["parked"]
 
 
 def test_kept_out_words_from_the_cwd_the_copy_s_full_paths_redirects_and_patterns():
@@ -811,7 +829,7 @@ def test_a_job_that_waited_keeps_its_places_kept_out_after_the_night(
         make_client,
         project_dir,
         [
-            run("git push origin main"),
+            post(),
             text("two done"),
             edit("secret/pay.py", "1", "2", "w9"),
             text("one done"),
@@ -822,7 +840,7 @@ def test_a_job_that_waited_keeps_its_places_kept_out_after_the_night(
     one = ended(client, pid)["jobs"][0]
     assert one["state"] == "waits"
     (ask,) = one["asks"]
-    client.post(f"/api/commands/{ask['id']}/reject")  # the morning: it goes on
+    client.post(f"/api/web-requests/{ask['id']}/reject")  # the morning: it goes on
     until(lambda: night(client, pid)["jobs"][0]["state"] == "done")
     edits = [t for t in job_chat(client, pid)["tool_calls"] if t["name"] == "edit_file"]
     assert "secret is kept out:" in edits[0]["result"]

@@ -28,6 +28,14 @@ PLAN = {
     "kept_out": ["secret/"],
 }
 OFFER = {"kept_out": ["secret/"]}
+REACH = "Lead asks to reach https://example.com/x"
+
+
+def post(id="h"):
+    """A POST the user is asked about (§10: a web request is not parked - its job waits)."""
+    return step(
+        call("http_request", {"method": "POST", "url": "https://example.com/x", "body": "a"}, id)
+    )
 
 
 def to_do(plan=PLAN):
@@ -194,12 +202,12 @@ def test_nothing_starts_before_go_away_and_go_away_works_the_to_do_in_copies(
 
 
 def test_a_job_that_waits_for_the_users_word_holds_up_no_other(make_client, wait_run, project_dir):
-    # At "ask" a command waits: job one waits holding hello.py, job two edits it all the same
-    run = step(call("run_command", {"command": "echo hi"}))
+    # A POST waits (a command's card is parked, §10): job one waits holding hello.py, job two
+    # edits it all the same
     client, _model, pid, cid, run_id = evening(
         make_client,
         project_dir,
-        [edit(), run, edit(id="w2"), text("two done"), text("one done")],
+        [edit(), post(), edit(id="w2"), text("two done"), text("one done")],
         mode="ask",
     )
     wait_run(client, cid, run_id)
@@ -207,16 +215,13 @@ def test_a_job_that_waits_for_the_users_word_holds_up_no_other(make_client, wait
     done = ended(client, pid)
     one, two = done["jobs"]
     assert (one["state"], two["state"]) == ("waits", "done")
-    assert done["counts"]["waits"] == 1 and one["why"] == 'Lead asks to run "echo hi"'
+    assert done["counts"]["waits"] == 1 and one["why"] == REACH
     ((ask),) = one["asks"]
-    assert ask["kind"] == "commands"
+    assert ask["kind"] == "web-requests"
     said = client.get(f"/api/conversations/{cid}").json()["messages"][-1]["content"]
     assert summary(said) == "1 of 2 To-do done · 1 waits"
-    # Allow and go on: the job's turn goes on where it stopped, and is done
-    assert (
-        client.post(f"/api/commands/{ask['id']}/approve", json={"remember": False}).status_code
-        == 200
-    )
+    # Its no, and it goes on: the job's turn goes on where it stopped, and is done
+    assert client.post(f"/api/web-requests/{ask['id']}/reject").status_code == 200
     until(lambda: night(client, pid)["jobs"][0]["state"] == "done")
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"
     # (Live: the morning's line stayed "0 done, 2 wait", and the night's end its old time.)
@@ -772,13 +777,12 @@ def test_each_job_is_assessed_on_its_copys_changes_and_the_report_follows_take_i
     # on record"; the job allowed in the morning had no view; after Take in its row said "nothing changed".
     from tests.test_tier_scenarios import tiered
 
-    run = step(call("run_command", {"command": "echo hi"}))
     client, _default, fast = team(
         [
             to_do(),
             text("on your To-do"),
             edit(),
-            run,
+            post(),
             edit(id="w2"),
             text("two done"),
             text("one done"),
@@ -805,7 +809,7 @@ def test_each_job_is_assessed_on_its_copys_changes_and_the_report_follows_take_i
     assert "No change of a file is on record" not in given
     # the job that waited, allowed in the morning, is assessed too
     ((ask),) = one["asks"]
-    client.post(f"/api/commands/{ask['id']}/approve", json={"remember": False})
+    client.post(f"/api/web-requests/{ask['id']}/reject")
     until(lambda: night(client, pid)["jobs"][0]["assessment"] == "One looks met.")
     # Take in: its row says what went in, and nothing is left in its copy
     (kept,) = two["kept"]
@@ -890,20 +894,19 @@ def test_a_job_that_waits_for_a_question_after_a_refused_command_says_so_and_hol
     # ("... is being worked on: the jobs start once nothing else of the To-do list is at work"); its
     # command refused, the job asked a question in its chat - in neither the report nor anywhere else.
 
-    run = step(call("run_command", {"command": "echo hi"}))
     question = step(
         call("ask_user", {"question": "Fix the old tests too?", "options": ["Yes", "No"]}, "q1")
     )
     client, _model, pid, cid, run_id = evening(
         make_client,
         project_dir,
-        [edit(), run, edit(id="w2"), text("two done"), question, text("one done")],
+        [edit(), post(), edit(id="w2"), text("two done"), question, text("one done")],
         mode="ask",
     )
     wait_run(client, cid, run_id)
     go_away(client, cid)
     ((ask),) = ended(client, pid)["jobs"][0]["asks"]
-    assert client.post(f"/api/commands/{ask['id']}/reject", json={}).status_code == 200
+    assert client.post(f"/api/web-requests/{ask['id']}/reject").status_code == 200
     one = until(
         lambda: (j := night(client, pid)["jobs"][0])["asks"] and j["asks"][0]["kind"] is None and j
     )
@@ -920,11 +923,10 @@ def test_a_night_job_done_later_changes_its_own_nights_line_not_a_later_nights(
     make_client, wait_run, project_dir
 ):
     # (The review, M2: the newest morning line was changed - a second night's, started from the same chat.)
-    run = step(call("run_command", {"command": "echo hi"}))
     client, _model, pid, cid, run_id = evening(
         make_client,
         project_dir,
-        [edit(), run, edit(id="w2"), text("two done"), text("three done"), text("one done")],
+        [edit(), post(), edit(id="w2"), text("two done"), text("three done"), text("one done")],
         mode="ask",
     )
     wait_run(client, cid, run_id)
@@ -936,10 +938,7 @@ def test_a_night_job_done_later_changes_its_own_nights_line_not_a_later_nights(
     )
     ended(client, pid)
     assert lines(client, cid) == ["1 of 2 To-do done · 1 waits", "1 of 1 To-do done"]
-    assert (
-        client.post(f"/api/commands/{ask['id']}/approve", json={"remember": False}).status_code
-        == 200
-    )
+    assert client.post(f"/api/web-requests/{ask['id']}/reject").status_code == 200
     until(lambda: lines(client, cid)[0] == "2 of 2 To-do done")
     assert lines(client, cid)[1] == "1 of 1 To-do done"
 
@@ -1120,9 +1119,8 @@ def test_the_spend_limit_counts_only_what_was_spent_after_go_away_and_cuts_the_c
 
 def test_stop_all_stops_a_job_that_waits_for_your_word_too(make_client, wait_run, project_dir):
     # (The review: Stop all cut only the job at work; one waiting on a card stayed open.)
-    run = step(call("run_command", {"command": "echo hi"}))
     client, _model, pid, cid, run_id = evening(
-        make_client, project_dir, [run, text("two done")], mode="ask"
+        make_client, project_dir, [post(), text("two done")], mode="ask"
     )
     wait_run(client, cid, run_id)
     started = go_away(client, cid).json()

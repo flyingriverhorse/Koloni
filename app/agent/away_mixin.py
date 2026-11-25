@@ -5,12 +5,13 @@ ends - `AwayMixin`.
 
 import asyncio
 import contextlib
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app import away, copies
+from app import away, copies, parked
 from app.agent.ctx import TERMINAL, Ctx, announce
 from app.agent.words import AGENT_TERMINAL
 from app.commands import (
@@ -22,11 +23,13 @@ from app.commands import (
     switches_branch,
     with_cwd,
 )
-from app.db.models import Agent, AwayRun, Conversation, Merge, Run, now
+from app.db.away_models import Parked
+from app.db.models import Agent, AwayRun, Command, Conversation, Merge, Run, ToolCall, now
 from app.model_cli import CliStepClient
 from app.model_native import ClaudeNativeClient
 from app.roles import LEAD
 from app.tools import ToolError
+from app.workspace import Workspace
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -141,6 +144,71 @@ class AwayMixin:
                 and session.get_one(Conversation, ctx.cid).permission_mode == "full_auto"
             )
 
+    def _parker(
+        self: "AgentRunner", ctx: Ctx, make: Callable[[], Awaitable[Workspace]] | None
+    ) -> Callable[[str], Awaitable[str]] | None:
+        """☾ Away (§10): how a command's card of a job is parked while its night runs - read at each
+        card, so I'm back, Stop all or the night's end make the next card the user's again. None
+        elsewhere: a turn they watch, a trigger's, a To-do task's, KOLONİ's own commands. Parking
+        makes the job's copy first (`make`: the command's own `where`; a CLI's is made), which is
+        kept for the morning (`_set_aside`), writes the record (`parked.park`) and says what the
+        agent is told."""
+        if ctx.run_id not in self._away_jobs:
+            return None
+        with self._factory() as session:
+            if away.night_of(session, ctx.cid) is None:
+                return None
+
+        async def park(command_id: str) -> str:
+            if make is not None:
+                with contextlib.suppress(ToolError):  # (its folder not in the copy: none to keep)
+                    await make()
+            copy = self._copies.get(self._works_in(ctx) or "")
+            with self._factory() as session:
+                command = session.get_one(Command, command_id)
+                call = session.get(ToolCall, command.tool_call_id or "")
+                task = away.job_of(session, ctx.cid)
+                if task is not None:
+                    parked.park(
+                        session,
+                        task,
+                        "command",
+                        command.id,
+                        command.command,
+                        {
+                            "cwd": command.cwd,
+                            "copy": str(copy.root) if copy is not None else None,
+                            "location": command.location,
+                            "image": command.image,
+                            "timeout": command.timeout_seconds,
+                            "reason": command.asked_reason,
+                            "judge": call.why_asked
+                            if call is not None and command.asked_reason == "judge"
+                            else None,
+                            "needs_project": parked.needs_project(command.command),
+                        },
+                    )
+                    session.commit()
+                return parked.said(command.command, command.cwd)
+
+        return park
+
+    def _parked_here(self: "AgentRunner", owner: str) -> bool:
+        """Whether something of a job was parked in this agent's copy: kept for the morning's Run,
+        changed or not."""
+        copy = self._copies.get(owner)
+        if copy is None:
+            return False
+        with self._factory() as session:
+            return (
+                session.scalar(
+                    select(Parked.id)
+                    .where(Parked.data["copy"].as_string() == str(copy.root))
+                    .limit(1)
+                )
+                is not None
+            )
+
     def _set_aside(
         self: "AgentRunner",
         owner: str,
@@ -150,13 +218,14 @@ class AwayMixin:
         """A side of a comparison is over - or a turn whose recipe was not taken in: what it
         changed stays in its copy, kept as a kept copy is (`_keep_copy`), for the user's
         choice to take in or throw away (`decide_kept`). A copy that changed nothing goes
-        with its turn. `found`: its changes, from a look made off the event loop
-        (`_look_aside`) - for the copy that look was at."""
+        with its turn - but one a job parked a command in (`_parked_here`). `found`: its
+        changes, from a look made off the event loop (`_look_aside`) - for the copy that look
+        was at."""
         copy = self._copies.get(owner)
         if copy is None:
             return
         changed = found[1] if found is not None and found[0] is copy else copy.changes()
-        if any(not copy.ignored(one[0]) for one in changed):
+        if any(not copy.ignored(one[0]) for one in changed) or self._parked_here(owner):
             self._keep_copy(owner, why)  # (B-189: not for a new file git ignores alone)
 
     def typing(self: "AgentRunner", question_id: str) -> None:

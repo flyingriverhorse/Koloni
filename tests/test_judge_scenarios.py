@@ -974,6 +974,11 @@ def away_with(client, project_dir, wait_run, mode, rules=RULE, todo=None):
 TIDY = {"jobs": [{"title": "tidy", "line": "delete every file in sight"}]}
 
 
+def checked(judge):
+    """What the check of the user's words was asked - not the Scout's look at a finished job."""
+    return [one for one in judge.calls if "You are the Scout" not in str(one[0]["content"])]
+
+
 @pytest.mark.no_po
 def test_while_away_a_jobs_delete_your_words_allow_runs_in_its_copy_without_a_card(
     judging, wait_run, project_dir
@@ -1003,11 +1008,13 @@ def test_while_away_below_full_auto_a_jobs_delete_still_waits(judging, wait_run,
     from tests.test_away_scenarios import ended, to_do
 
     client, _lead, judge, executor = judging(
-        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("never")], [], []
+        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("left it")], [], []
     )
     pid, _night = away_with(client, project_dir, wait_run, "auto_edit")
     (job,) = ended(client, pid)["jobs"]
-    assert job["state"] == "waits" and judge.calls == [] and executor.started == []
+    # (§10: its card parked for the morning, the job waits on it)
+    assert (job["state"], job["why"]) == ("waits", "1 parked")
+    assert checked(judge) == [] and executor.started == []
 
 
 # Spec §6 / plan Task 5: in a job, only a delete in the folder is the check's. A send, a git
@@ -1056,7 +1063,7 @@ def test_while_away_a_jobs_send_remote_push_or_instruction_file_keeps_its_card(
     from tests.test_away_scenarios import ended, to_do
 
     client, _lead, judge, executor = judging(
-        [to_do(TIDY), text("on your To-do"), cmd(line), text("never")],
+        [to_do(TIDY), text("on your To-do"), cmd(line), text("left it")],
         [verdict_line("run", SENDS)],
         [],
     )
@@ -1065,8 +1072,9 @@ def test_while_away_a_jobs_send_remote_push_or_instruction_file_keeps_its_card(
     )
     (job,) = ended(client, pid)["jobs"]
     (asked,) = client.get(f"/api/conversations/{job['conversation_id']}").json()["commands"]
-    assert (job["state"], asked["status"], asked["judged"]) == ("waits", "proposed", None)
-    assert judge.calls == [] and executor.started == []
+    # (§10: its card parked for the morning)
+    assert (job["state"], asked["status"], asked["judged"]) == ("waits", "parked", None)
+    assert checked(judge) == [] and executor.started == []
 
 
 @pytest.mark.no_po
@@ -1075,7 +1083,7 @@ def test_while_away_a_job_runs_at_the_level_of_the_chat_gone_from(judging, wait_
     from tests.test_away_scenarios import ended, to_do
 
     client, _lead, judge, executor = judging(
-        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("never")],
+        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("left it")],
         [verdict_line("run", RULE)],
         [],
     )
@@ -1083,7 +1091,7 @@ def test_while_away_a_job_runs_at_the_level_of_the_chat_gone_from(judging, wait_
     (job,) = ended(client, pid)["jobs"]
     chat = client.get(f"/api/conversations/{job['conversation_id']}").json()
     assert chat["conversation"]["permission_mode"] == "ask"
-    assert job["state"] == "waits" and judge.calls == [] and executor.started == []
+    assert job["state"] == "waits" and checked(judge) == [] and executor.started == []
 
 
 @pytest.mark.no_po

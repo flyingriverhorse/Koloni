@@ -48,6 +48,7 @@ from tests.test_triggers import HeldClock
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 SORT = ["by date", "by name"]
+POST = {"method": "POST", "url": "https://example.com/x", "body": "a"}  # (a card never parked)
 
 
 def ask(question="Sort the list by date or by name?", options=SORT, id="q1"):
@@ -1081,13 +1082,8 @@ def test_at_night_the_lead_answers_a_question_and_a_delete_the_web_and_a_secret_
             text("sorted"),
             text("one done"),
             step(call("run_command", {"command": "rm -rf build"}, "k")),
-            step(
-                call(
-                    "http_request",
-                    {"method": "POST", "url": "https://example.com/x", "body": "a"},
-                    "h",
-                )
-            ),
+            text("two done, the delete waits"),
+            step(call("http_request", POST, "h")),
             step(
                 call(
                     "ask_secret",
@@ -1116,8 +1112,9 @@ def test_at_night_the_lead_answers_a_question_and_a_delete_the_web_and_a_secret_
     with client.app.state.session_factory() as session:
         assert (
             session.scalar(select(Command.status).where(Command.command == "rm -rf build"))
-            == "proposed"
+            == "parked"  # (§10: parked for the morning, its job waits "1 parked")
         )
+    assert done["jobs"][1]["why"] == "1 parked"
 
 
 def test_whatever_a_question_says_the_install_after_it_still_waits(
@@ -1707,13 +1704,13 @@ def test_at_night_a_card_beside_the_leads_still_lets_the_next_job_start(
                 text("on your To-do"),
                 step(
                     call("spawn_agent", {"role": "Coder", "task": "ask"}, "a"),
-                    call("spawn_agent", {"role": "Tester", "task": "clean"}, "b"),
+                    call("spawn_agent", {"role": "Researcher", "task": "post it"}, "b"),
                 ),
                 gate.step(says("by date")),
                 text("two done"),
             ],
             "Coder": [ask(), text("asked")],
-            "Tester": [deleting.step(step(call("run_command", {"command": "rm -rf build"}, "k")))],
+            "Researcher": [deleting.step(step(call("http_request", POST, "k")))],
         }
     )
     client.headers.update(ORIGIN)
@@ -1729,7 +1726,7 @@ def test_at_night_a_card_beside_the_leads_still_lets_the_next_job_start(
     wait_run(client, cid, run_id)
     start(client, cid)
     gate.wait_partial()  # (the Lead is being asked the Coder's question)
-    deleting.release()  # (and beside it the Tester's delete waits for the user)
+    deleting.release()  # (and beside it the Tester's POST waits for the user)
     # the job waits for the user anyway: the next one starts, the Lead still asked
     until(lambda: night(client, pid)["jobs"][1]["state"] == "done")
     assert night(client, pid)["jobs"][0]["state"] == "waits" and not gate.released

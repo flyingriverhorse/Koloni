@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app import backlog, web
 from app.api.usage import money, month_spend, over_budget, spend
 from app.commands import _words
+from app.db.away_models import Parked
 from app.db.models import (
     Agent,
     AwayRun,
@@ -718,9 +719,12 @@ def turn_ended(session: Session, run: Run, status: str) -> bool:
     if status == "completed":
         # B-122: one its Lead says needs the project itself (what its copy leaves out) waits.
         needs = needs_project(backlog.last_word(session, run))
-        task.away_state, task.away_why = (
-            ("waits", f"{backlog.NEEDS_PROJECT} {needs}") if (needs) else ("done", None)
+        # §10: ...and so does one that parked something for the user, "{n} parked".
+        why = "; ".join(
+            ([f"{n} parked"] if (n := parked_left(session, task.id)) else [])
+            + ([f"{backlog.NEEDS_PROJECT} {needs}"] if needs else [])
         )
+        task.away_state, task.away_why = ("waits", why) if why else ("done", None)
     elif (
         status == "failed"
         and away is not None
@@ -1127,10 +1131,35 @@ def settle(session: Session, notes: list | None = None) -> None:
     for away in session.scalars(select(AwayRun).where(AwayRun.status == "running")).all():
         for task in tasks_of(session, away):
             if task.conversation_id is not None and task.away_state in (None, "waits"):
+                if task.away_state == "waits" and _waits_parked(session, task):
+                    continue  # (§10: its turn was over - what it parked waits for the morning)
                 task.away_state, task.away_why = "failed", CLOSED
         _message, note = _close(session, away, CLOSED)
         if note and notes is not None:
             notes.append(note)
+
+
+def parked_left(session: Session, task_id: str) -> int:
+    """§10: what of a job is parked for the user and not decided yet (`app.parked`)."""
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(Parked)
+            .where(Parked.task_id == task_id, Parked.decision.is_(None))
+        )
+        or 0
+    )
+
+
+def _waits_parked(session: Session, task: BacklogTask) -> bool:
+    """A job that waits only for what it parked: its last turn completed, and some is parked."""
+    last = session.scalar(
+        select(Run.status)
+        .where(Run.conversation_id == task.conversation_id)
+        .order_by(Run.created_at.desc())
+        .limit(1)
+    )
+    return last == "completed" and parked_left(session, task.id) > 0
 
 
 def kept_copies(session: Session, cid: str) -> list[Merge]:

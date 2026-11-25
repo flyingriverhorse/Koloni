@@ -369,7 +369,7 @@ class BeforeMixin:
                     Command.run_id.in_(runs),
                     Command.tool_call_id.is_not(None),
                     Command.tool_call_id.not_in(mine),
-                    Command.status.not_in(("proposed", "rejected")),
+                    Command.status.not_in(("proposed", "rejected", "parked")),
                 )
             )
         )
