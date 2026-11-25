@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from app.agent.risk_judge_mixin import _named_file, planted_program
+from app.agent.risk_judge_mixin import _named_file, _no_local_code, planted_program
 from app.db.models import Agent, Conversation, FileChange, Project
 from app.db.models import Run as RunRow
 from app.db.session import make_engine, make_session_factory
@@ -88,10 +88,8 @@ def project(tmp_path):
         # (what make, docker and Node's runners read for what they run)
         ("make all", "Makefile"),
         ("make -f build.mk all", "build.mk"),
-        ("make -C sub all", "sub/Makefile"),
         ("docker build -t x .", "Dockerfile"),
         ("docker build -f ci/Dockerfile .", "ci/Dockerfile"),
-        ("docker compose up", "compose.yaml"),
         ("npm run build", "package.json"),
     ],
 )
@@ -134,25 +132,93 @@ def test_never_a_file_out_of_the_project(project, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "line, expects",
+    "line, rel, exact",
     [
-        # (no file of the folder's: the line is its words alone)
-        ("curl https://example.com", False),
-        ("pip install requests", False),
-        ('python -c "print(1)"', False),
-        ("bash -c 'curl https://x'", False),
-        ("docker run alpine", False),
-        # (one is run that was not found: nothing is kept for the line)
-        ("make all", True),
-        ("python -m missing", True),
-        ("node missing", True),
-        ("bash -c ./missing.sh", True),
-        ("powershell -EncodedCommand ZQBjAGgAbwA=", True),
-        ("docker build .", True),
-        ("npm run build", True),
-        ("missing.ps1", True),
+        ("python -X dev x.py", "x.py", True),
+        ("python -m x", "x.py", True),
+        ("node app.js", "app.js", True),
+        ("bash -e run.sh", "run.sh", True),
+        ("make all", "Makefile", True),
+        ("docker build -t img .", "Dockerfile", True),
+        ("npm run build", "package.json", True),
+        # (shown, never all it runs: an option that loads more, a shell's code around it)
+        ("node --require ./evil.js app.js", "app.js", False),
+        ("ruby -Ilib x.rb", "x.rb", False),
+        ("bash --norc run.sh", "run.sh", False),
+        ("bash -lc ./run.sh", "run.sh", False),
+        ("/bin/bash -lc './run.sh'", "run.sh", False),
+        ('powershell -Command "& ./x.ps1"', "x.ps1", False),
+        ("cmd /c ./run.sh", "run.sh", False),
     ],
 )
-def test_whether_a_line_runs_a_file_of_the_folders(project, line, expects):
+def test_the_file_found_and_whether_it_is_all_a_line_runs(project, line, rel, exact):
     _factory, root, _wrote = project
-    assert _named_file(root, line, ".") == (None, expects)
+    for name in ("x.py", "app.js", "run.sh", "Makefile", "Dockerfile", "package.json"):
+        (root / name).write_text("x\n", encoding="utf-8")
+    (root / "x.rb").write_text("x\n", encoding="utf-8")
+    (root / "x.ps1").write_text("x\n", encoding="utf-8")
+    assert _named_file(root, line, ".") == ((root / rel).resolve(), exact)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # (review round 2: the forms whose file is not the one they run, or not plain - none)
+        "make -C sub all",
+        "make -Csub",
+        "npm --prefix sub run x",
+        "npm run x -w sub",
+        "npx tsx x.ts",
+        "npm exec -- tsx x.ts",
+        "pnpm exec node x.js",
+        "yarn node x.js",
+        "pnpm -C sub run x",
+        "yarn --cwd sub x",
+        "docker compose --project-directory sub up",
+        "docker compose up",
+        "docker build sub --no-cache",
+        "docker buildx build sub",
+        "powershell -EncodedCommand ZQBjAGgAbwA=",
+        "bash -c 'python x.py'",
+    ],
+)
+def test_no_file_where_the_one_found_would_not_be_the_one_run(project, line):
+    _factory, root, _wrote = project
+    for name in ("Makefile", "sub/Makefile", "package.json", "sub/package.json", "compose.yaml"):
+        (root / name).parent.mkdir(exist_ok=True)
+        (root / name).write_text("x\n", encoding="utf-8")
+    assert _named_file(root, line, ".") == (None, False)
+
+
+@pytest.mark.parametrize(
+    "line, none",
+    [
+        ("curl https://example.com/x", True),
+        ("wget https://example.com/x", True),
+        ("git push origin k-x", True),
+        ("rm -rf build", True),
+        ("cp a.txt b.txt", True),
+        ("curl.exe https://example.com/x", True),
+        ("GIT status", True),
+        # (not plain, wrapped, by its path, or a program that may run the folder's code)
+        ("curl https://x && python x.py", False),
+        ("env python x.py", False),
+        ("timeout 10 curl https://x", False),
+        ("./curl https://x", False),
+        ("uv run x.py", False),
+        ("pip install requests", False),
+        ("pip install -r requirements.txt", False),
+        ("go run x.go", False),
+        ("node x.js", False),
+        ("bash -lc 'curl https://x'", False),
+        # (told a file of the folder's to read its settings or commands from)
+        ("curl -K cfg https://example.com/x", False),
+        ("curl -d @cfg https://example.com/x", False),
+        ("git -c core.hooksPath=hooks commit -m x", False),
+    ],
+)
+def test_the_lines_that_run_none_of_the_folders_code(project, line, none):
+    _factory, root, _wrote = project
+    (root / "cfg").write_text("x\n", encoding="utf-8")
+    (root / "hooks").mkdir()
+    assert _no_local_code(root, line, ".") is none
