@@ -28,6 +28,9 @@ test('the day of the project on Usage › Today: the files changed and what fail
   const box = (label: string) => today.locator('.usage-stats > div', { has: page.locator('dt', { hasText: label }) })
   await expect(box('Files changed').locator('.usage-stat')).toHaveText(/^[1-9]\d*$/)
   await expect(box('Failed').locator('.usage-stat')).toHaveText(/^\d+$/)
+  // The day's decisions in one line - Ready for you says each.
+  await expect(today.locator('.decided-today')).toContainText(/made for you today/)
+  await expect(today.getByRole('button', { name: 'Open in Ready for you' })).toBeVisible()
   // The usage's own boxes are there too: messages, tokens and cost.
   await expect(page.locator('.usage-stats dt', { hasText: 'Messages' })).toBeVisible()
   expect((await today.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])

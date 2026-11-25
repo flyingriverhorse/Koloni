@@ -9,9 +9,9 @@ Open **Usage** on the left rail. Choose **This project** or **All projects**, an
 
 *The Usage page, counted from the record: no model is asked.*
 
-With **This project** and **Today**, the day's numbers come first, and under them the folded
-**Decisions** section: what the Orchestrator, KOLONİ's judge and Check what I said first decided for
-you, and why. See [Decisions](../use/decisions.md).
+With **This project** and **Today**, the day's numbers come first, and under them one line on the
+day's decisions: "12 decisions were made for you today, 2 of them you haven't seen.", with **Open in
+Ready for you**, where **Decided for you** lists each. See [Decisions](../use/decisions.md).
 
 At the top: **Messages**, **Tokens sent**, **Tokens written** and **Cost**. Below:
 
