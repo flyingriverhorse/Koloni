@@ -45,7 +45,9 @@ class Ruled:
         answer = next(said for key, said in self.answers.items() if key in asked)
         if isinstance(answer, Exception):
             raise answer
-        return StepResult(answer if isinstance(answer, str) else json.dumps(answer), [], 30, 10)
+        return StepResult(
+            answer if isinstance(answer, str) else json.dumps(answer), [], 30, 10, model="quick-1"
+        )
 
 
 def provider(kind="openai_compat", mode=None):
@@ -151,13 +153,22 @@ def test_the_gate_passes_only_with_every_case_answered_and_no_wrong_run():
 
 
 def test_a_run_writes_its_report_and_says_the_pair_measured(tmp_path, capsys):
-    out = tmp_path / "report.json"
+    out = tmp_path / "not yet" / "report.json"
     model = Ruled({"Reply with one line": {"verdict": "ask", "quote": "", "why": "Unsure."}})
-    argv = ["--kind", "openai_compat", "--model", "quick", "--base-url", "http://127.0.0.1:9/v1"]
+    # (a service's address: its price is looked up - the stand-in answers, nothing is reached)
+    argv = [
+        "--kind",
+        "openai_compat",
+        "--model",
+        "quick",
+        "--base-url",
+        "https://api.openai.com/v1",
+    ]
     assert measure.main([*argv, "--only", "words", "--limit", "2", "--out", str(out)], model) == 0
     report = json.loads(out.read_text(encoding="utf-8"))
     assert (report["kind"], report["model"], report["mode"]) == ("openai_compat", "quick", None)
     assert [one["id"] for one in report["cases"]] == ["words-01", "words-02"]
+    assert report["cases"][0]["answered_by"] == "quick-1"  # (the model that said it answered)
     assert report["summary"]["words"]["gate"] == "not decided"  # (--limit decides nothing)
     shown = capsys.readouterr().out
     assert "Measured: ('openai_compat', 'quick')" in shown and "wrong run: 0" in shown

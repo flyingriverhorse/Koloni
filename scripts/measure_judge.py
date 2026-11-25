@@ -160,6 +160,7 @@ async def ask(which: str, case: dict, client, model: str, mode: str | None) -> d
         "seconds": round(time.monotonic() - started, 2),
         "input_tokens": getattr(result, "input_tokens", None),
         "output_tokens": getattr(result, "output_tokens", None),
+        "answered_by": getattr(result, "model", None),  # (where it says: an alias's own)
     }
     got = verdict(which, case, _answer(text))
     if got is None:
@@ -291,6 +292,11 @@ def main(argv: list[str] | None = None, override=None) -> int:
     provider = provider_of(args)
     if provider.api_key:
         raw.use(lambda: [provider.api_key])  # (masked wherever it is written)
+    # (before the calls are spent: neither may fail after them)
+    price = None
+    if per_token(provider):
+        price = _catalogue_price(provider, args.model, models_dev.load(None))
+    args.out.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="koloni-measure-", ignore_cleanup_errors=True) as tmp:
         try:
             client = client_of(provider, args.model, Path(tmp), override)
@@ -298,9 +304,6 @@ def main(argv: list[str] | None = None, override=None) -> int:
             print(exc, file=sys.stderr)
             return 2
         rows = asyncio.run(measure(asked, client, args.model, mode_of(provider), args.concurrency))
-    price = None
-    if per_token(provider):
-        price = _catalogue_price(provider, args.model, models_dev.load(None))
     out = summary(rows, whole=not args.limit, price=price)
     report = {"kind": args.kind, "model": args.model, "mode": mode_of(provider)}
     args.out.write_text(
