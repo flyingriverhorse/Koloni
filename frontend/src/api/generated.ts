@@ -1673,6 +1673,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/judge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Judge */
+        get: operations["get_judge_api_judge_get"];
+        /**
+         * Put Judge
+         * @description The user's Judge model: one of `choices` now, or none (both null: the Fast tier's first).
+         */
+        put: operations["put_judge_api_judge_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/knowledge-limits": {
         parameters: {
             query?: never;
@@ -7574,15 +7595,63 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** JudgeChoice */
+        JudgeChoice: {
+            /** Cli */
+            cli: boolean;
+            /** Model Id */
+            model_id: string;
+            /** Provider Id */
+            provider_id: string;
+            /** Provider Name */
+            provider_name: string;
+            /** Tier */
+            tier: string;
+        };
+        /** JudgeIn */
+        JudgeIn: {
+            /** Model Id */
+            model_id?: string | null;
+            /** Provider Id */
+            provider_id?: string | null;
+        };
+        /** JudgeModel */
+        JudgeModel: {
+            /** Cli */
+            cli: boolean;
+            /** Model Id */
+            model_id: string;
+            /** Provider Id */
+            provider_id: string;
+            /** Provider Name */
+            provider_name: string;
+        };
+        /** JudgeOut */
+        JudgeOut: {
+            /** Choices */
+            choices: components["schemas"]["JudgeChoice"][];
+            /** Model Id */
+            model_id: string | null;
+            now: components["schemas"]["JudgeModel"] | null;
+            /** Provider Id */
+            provider_id: string | null;
+        };
         /**
          * Judged
          * @description K-yargic: what the check of the user's words said of a command at Full auto: it ran with
          *     no card ("run": on `quote`, a line of the user's found in `source`), it was not run and its
          *     agent told that line ("refuse"), or it was asked ("ask"; `why`, the check's own sentence where
          *     it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
-         *     (Decided for you).
+         *     (Decided for you). Full auto's judge's (`kind` "risk"): "fine", it ran; "risky", its card -
+         *     `why`, the judge's own sentence.
          */
         Judged: {
+            /**
+             * Kind
+             * @default
+             * @enum {string}
+             */
+            kind: "" | "risk";
             /**
              * Model
              * @default
@@ -7608,7 +7677,7 @@ export interface components {
              * Verdict
              * @enum {string}
              */
-            verdict: "run" | "ask" | "refuse";
+            verdict: "run" | "ask" | "refuse" | "fine" | "risky";
             /**
              * Why
              * @default
@@ -9397,6 +9466,8 @@ export interface components {
              * @enum {string}
              */
             full_auto_check: "ask" | "judge";
+            /** Full Auto Judge */
+            full_auto_judge: boolean;
             /** Git Commit */
             git_commit: boolean;
             /** Has Notify Url */
@@ -9585,6 +9656,8 @@ export interface components {
             forget_tests_found?: boolean | null;
             /** Full Auto Check */
             full_auto_check?: ("ask" | "judge") | null;
+            /** Full Auto Judge */
+            full_auto_judge?: boolean | null;
             /** Git Commit */
             git_commit?: boolean | null;
             /** Hide Secrets */
@@ -15261,6 +15334,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TriggerStartedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_judge_api_judge_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JudgeOut"];
+                };
+            };
+        };
+    };
+    put_judge_api_judge_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JudgeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JudgeOut"];
                 };
             };
             /** @description Validation Error */

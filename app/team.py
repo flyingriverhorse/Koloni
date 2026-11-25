@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app import catalog
 from app.api.usage import over_limit
-from app.db.models import Conversation, Provider, Role
+from app.db.models import Conversation, Provider, Role, UserPreferences
 from app.limits import plan_used
 from app.model_native import CopilotNativeClient
 from app.providers import (
@@ -756,6 +756,14 @@ def judge_choices(
     return [
         (one, name, tier) for tier in TIERS for one, name in askable(session, would, clients, tier)
     ]
+
+
+def judge_chosen(session: Session) -> tuple[str, str] | None:
+    """The user's Judge model (Settings): its provider's id and the model; None: none chosen."""
+    row = session.get(UserPreferences, 1)
+    if row is None or not row.judge_provider_id or not row.judge_model_id:
+        return None
+    return row.judge_provider_id, row.judge_model_id
 
 
 def judge_pick(

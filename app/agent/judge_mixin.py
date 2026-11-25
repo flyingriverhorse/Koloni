@@ -18,7 +18,7 @@ from app.commands import _reasons, harm_class, with_cwd
 from app.db.models import Conversation, Message, Provider, Run, project_of
 from app.providers import ask_once
 from app.roles import LEAD, find_role
-from app.team import judge_pick, would_run
+from app.team import judge_chosen, judge_pick, would_run
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -132,7 +132,7 @@ class JudgeMixin:
                 session,
                 would_run(session, find_role(session, LEAD), conversation),
                 self.providers,
-                None,
+                judge_chosen(session),
             )
             if (
                 limit

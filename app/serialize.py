@@ -139,10 +139,12 @@ def command_out(command: Command, live_output: str | None = None, held: bool = F
             "output": command.output if live_output is None else live_output,
             "output_truncated": command.output_truncated,
             "timeout_seconds": command.timeout_seconds,
-            # (Y2: none where an agent wrote its program - it would not cover it, and runs once)
+            # (Y2: none where an agent wrote its program - it would not cover it, and runs once;
+            # nor on Full auto's judge's card: a rule would not let it by the judge)
             "suggested_prefix": ""
             if command.keep_running
             or command.web_off
+            or command.asked_reason == "judge"
             or _why_asked(command).startswith(PLANTED_SAYS)
             else suggest_prefix(command.command),
             "web_off": command.web_off,

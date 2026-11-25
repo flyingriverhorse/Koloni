@@ -63,6 +63,7 @@ from app.api import (
     folders,
     health,
     hold,
+    judge,
     knowledge_page,
     local_server,
     mcp_servers,
@@ -515,6 +516,7 @@ def create_app(
         backup,
         knowledge_page,
         cards,
+        judge,
     ):
         app.include_router(module.router)
     app.include_router(providers.catalogue_router)

@@ -254,6 +254,7 @@ test('a CLI’s own command whose call failed reads as failed, not "exit code no
 // K-yargıç: at Full auto a harmful-looking command is first checked against what the user wrote.
 const RULE = 'You may delete build/ and dist/.'
 const judged = (over: Partial<NonNullable<Command['judged']>>) => ({
+  kind: '' as const,
   verdict: 'run' as const,
   quote: '',
   source: '' as const,
