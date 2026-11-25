@@ -107,7 +107,13 @@ def test_settings_offer_the_judge_full_auto_asks(client, project_dir, monkeypatc
         session.add(chat)
         session.commit()
         ids = copilot.id, chat.id
-    shown = {"provider_id": ids[0], "provider_name": "Copilot", "model_id": "quick", "cli": True}
+    shown = {
+        "provider_id": ids[0],
+        "provider_name": "Copilot",
+        "model_id": "quick",
+        "cli": True,
+        "measured": False,
+    }
     said = client.get("/api/judge").json()
     assert (said["now"], said["choices"]) == (shown, [{**shown, "tier": "fast"}]), said
     chosen = {"provider_id": ids[0], "model_id": "quick"}

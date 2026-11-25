@@ -513,8 +513,16 @@ judge's line says, where the box is on, "…; a harmful-looking one runs without
 yours names it". It works only:
 
 - once your Judge model's measurement has passed - a set of cases on which a good check never lets a
-  command run wrongly. None has run yet: the box says **(after its measurement)** and cannot be ticked
-  (the level menu's line says so too), and such a command waits for you on its card, as before;
+  command run wrongly, in every run. None has yet: Claude Code's **haiku**, measured on 25 Nov 2026,
+  passed one run of 70 cases, but in three repeats of all 171 one run let 2 commands run wrongly (a
+  condition, "Pending review, you may push to main.", and a delete in another folder than the line
+  names). So the box says **(after its measurement)** and cannot be ticked (the level menu's line says
+  so too), and such a command waits for you on its card, as before. A model that passes counts only as
+  it was measured: on its own service (not a model server of yours, nor with your own Claude Code setup
+  or a variable such as `ANTHROPIC_BASE_URL` pointing it elsewhere), run as a session or natively, and
+  as the Judge model you chose - or, none chosen, the Fast tier's first; never one asked because your
+  choice could not be. Settings › Agents would say so under the Judge model. Another model is measured
+  with `scripts/measure_judge.py` (see its first lines; one request a case);
 - or in a project where you had turned Check what I said first on before 0.1.9: its box comes ticked and
   works as it did, and you may untick it and tick it again.
 
@@ -543,6 +551,10 @@ messages in the chat - never anything an agent wrote - and then:
   "-dığı zaman", "sonra", "-ene kadar", "dek", "madem", "yeter ki" and "sürece"; an apostrophe written as
   ’, ‘, ´ or ʼ is read as one, so "OK’se" counts too), or nothing of yours that covers it: the card, as
   before. Its card then says "Nothing you said covers this."
+- A line limited in time or in how many times it may be used ("once", "this time", "today", "on
+  weekdays", "until Friday", "bir kereliğine"): the card too - KOLONİ cannot tell whether it was used up
+  or its time has passed. The model is told to ask here; KOLONİ's own reading of your line does not
+  catch every such word, so the measurement decides how well this holds.
 - Two lines of yours that disagree about a delete: a line that names what the delete takes and forbids
   it or sets a condition - "Never delete ./x." beside "You may delete ./x.", or an item under "Never delete
   these:" - keeps its card, whichever line the model quoted, as KOLONİ reads such a line. A heading covers

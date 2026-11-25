@@ -1,11 +1,3 @@
 {
-  "errors": [
-    {
-      "column": 30,
-      "path": "app/judge.py",
-      "name": "bad-argument-type",
-      "concise_description": "Argument `dict[LiteralString, str]` is not assignable to parameter `x` with type `dict[int | str, @_] | dict[int, @_] | dict[str, @_]` in function `str.maketrans`",
-      "severity": "error"
-    }
-  ]
+  "errors": []
 }
