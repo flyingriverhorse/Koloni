@@ -307,3 +307,37 @@ def test_an_address_git_rewrites_pushes_nothing(repo, tmp_path):
     with pytest.raises(git.Refused, match="git's config rewrites the address"):
         _push_pr(repo, runtime, copy)
     assert run(origin, "branch", "--list", copy.branch) == ""
+
+
+def test_an_empty_rewrite_rule_rewrites_every_address_and_pushes_nothing(repo, tmp_path):
+    # (L-1: `url.<x>.pushInsteadOf=` - an empty prefix - is a rule like any)
+    origin, runtime = with_origin(repo), tmp_path / "runtime"
+    copy = _branch_on(repo, runtime)
+    run(repo, "config", "url.elsewhere:.pushInsteadOf", "")
+    with pytest.raises(git.Refused, match="git's config rewrites the address"):
+        _push_pr(repo, runtime, copy)
+    assert run(origin, "branch", "--list", copy.branch) == ""
+
+
+def test_a_graft_never_makes_your_commit_look_pushed(repo, tmp_path):
+    # (L-2: info/grafts once made U an ancestor of origin's main - KOLONİ's git reads none)
+    origin, runtime = with_origin(repo), tmp_path / "runtime"
+    pushed = run(repo, "rev-parse", "HEAD")
+    (repo / "u.txt").write_text("yours, not pushed\n")
+    run(repo, "add", "u.txt")
+    run(repo, "commit", "-qm", "U")
+    users = run(repo, "rev-parse", "HEAD")
+    (repo / ".git" / "info" / "grafts").write_text(f"{pushed} {users}\n")
+    copy = _branch_on(repo, runtime)
+    with pytest.raises(git.Refused, match="push main first"):
+        _push_pr(repo, runtime, copy)
+    assert subprocess.run(["git", "cat-file", "-e", users], cwd=origin).returncode != 0
+
+
+def test_moved_counts_a_kolonis_branch_of_another_day():
+    # (L-3: only the night's own jobs' branches are left out)
+    before = {"refs/heads/koloni/old-1a2b": "1111111", "refs/heads/koloni/x": "2222222"}
+    after = {"refs/heads/koloni/old-1a2b": "3333333", "refs/heads/koloni/x": "4444444"}
+    assert moved(before, after, {"koloni/x"}) == [
+        "Changed outside its branch: koloni/old-1a2b 1111111 → 3333333"
+    ]

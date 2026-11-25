@@ -1069,6 +1069,11 @@ PR_HELD_GONE = (
 )
 # ... and where the branch began from the user's folder with work not committed (W-1's snapshot): an
 # agent's copy of a file of it, under another name, is its own work to git.
+# ...or where origin did not answer what it holds: nothing of that could be looked at.
+PR_NO_ORIGIN = (
+    "origin did not answer, so KOLONİ could not check what it holds ({why}): before a pull "
+    "request, check its files are the agent's work"
+)
 PR_SNAPSHOT = (
     "it began from your folder with work not committed: before a pull request, check "
     "its files are the agent's work"
@@ -3702,7 +3707,7 @@ class AgentRunner(
         # (A pull request's branch pushed already, for a `gh pr create` that failed after it; and
         # git's config as the card last showed it.)
         sent: dict[str, str] = {}
-        config_shown = None
+        config_shown = asks_shown = None
         # (One way in, `_way_in`: no Take in writes between git's look and its merge.)
         lock = self._way_in(copy.project)
         while True:
@@ -3730,8 +3735,9 @@ class AgentRunner(
             config_moved = config is not None and config != (
                 self._git_at_start.get(ctx.run_id) or {}
             ).get("all")
-            # (A pull request while the user's branches hold commits origin does not: asked.)
-            pr_asks = await self._pr_asks(copy) if way == "pull_request" or ask_way else None
+            # (A pull request while the user's branches hold commits origin does not: asked - once
+            # the way is one: origin is asked nothing at a turn's end that may be a merge.)
+            pr_asks = await self._pr_asks(copy) if way == "pull_request" else None
             async with lock:  # (looked at again right before: two teams finish at once)
                 look = await self._branch_look(copy)
                 # W-1: what is scanned and merged - of a branch that began from the user's folder,
@@ -3816,7 +3822,7 @@ class AgentRunner(
                         state["note"] = pr_blocked
                     elif named and merge_id is None:
                         state["note"] = PR_NAMED_SECRET.format(files=_few(named))
-                    elif pr_asks and merge_id is None:  # (pushed on a click with this said)
+                    elif pr_asks and pr_asks != asks_shown:  # (pushed on a click with it said)
                         state["note"] = pr_asks
                     elif config_moved and (merge_id is None or config != config_shown):
                         state["note"] = PR_CONFIG  # (pushed on a click with this said)
@@ -3891,6 +3897,7 @@ class AgentRunner(
             else:
                 merge_id = self._record_merge(ctx, merge_id, "pending", files, check, state)
                 config_shown = config if state["note"] == PR_CONFIG else None
+                asks_shown = pr_asks if state["note"] == pr_asks else asks_shown
                 ended()
                 future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
                 self._merge_decisions[merge_id] = future
@@ -4210,12 +4217,18 @@ class AgentRunner(
         commit) - not the agent's own commits a worktree of theirs holds as they look at its branch
         -, or the branch began from their uncommitted work (`PR_SNAPSHOT`). None where neither."""
         under = copies.folders(self.settings.runtime_root)
+        try:  # (origin asked once, for both)
+            origin = await asyncio.to_thread(git.origin_held, copy.project)
+        except git.Refused as exc:
+            return PR_NO_ORIGIN.format(why=exc)
         try:
             commits, stashes = await asyncio.to_thread(
-                git.unpushed_count, copy.project, under, copy.branch
+                git.unpushed_count, copy.project, under, copy.branch, origin
             )
             places = (
-                await asyncio.to_thread(git.unpushed_places, copy.project, under, copy.branch)
+                await asyncio.to_thread(
+                    git.unpushed_places, copy.project, under, copy.branch, origin
+                )
                 if commits
                 else []
             )

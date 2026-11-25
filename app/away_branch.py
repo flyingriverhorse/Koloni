@@ -12,6 +12,7 @@ the repository's refs before and after a job (`refs`, `moved`: H2) and the morni
 import contextlib
 import hashlib
 import os
+from collections.abc import Iterable
 from pathlib import Path
 
 from sqlalchemy import select
@@ -217,14 +218,14 @@ def _short(value: str | None) -> str:
     return value.removeprefix("refs/heads/") if value.startswith("refs/") else value[:7]
 
 
-def moved(before: dict, after: dict, own: str) -> list[str]:
+def moved(before: dict, after: dict, own: str | Iterable[str]) -> list[str]:
     """H2: what changed in the repository between `before` and `after` (`refs`) but the job's own
-    branch `own` and KOLONİ's other branches (`koloni/`: the night's other jobs', each pushed as
-    its own), in KOLONİ's lines - at most `MOST_MOVED`, then how many more."""
+    branch `own` - or, a night's jobs, each of theirs (made, each pushed as its own) - in KOLONİ's
+    lines - at most `MOST_MOVED`, then how many more."""
+    ours = {f"refs/heads/{one}" for one in ([own] if isinstance(own, str) else own)}
     lines = []
     for ref in sorted(set(before) | set(after)):
-        ours = ref == f"refs/heads/{own}" or ref.startswith(f"refs/heads/{git.BRANCH_PREFIX}")
-        if ours or before.get(ref) == after.get(ref):
+        if ref in ours or before.get(ref) == after.get(ref):
             continue
         if ref in MOVED_ALL:
             lines.append(f"Changed outside its branch: {MOVED_ALL[ref]}")

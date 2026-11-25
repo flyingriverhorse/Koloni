@@ -113,14 +113,17 @@ def _started(
     # (Windows looks for a program in the folder it is started in first: not here. And
     # a look at the user's repository takes no lock it could do without: it neither
     # rewrites their index nor stands in the way of a git command of their own. And no object
-    # is read as another (`git replace`: a ref anything in the repository may write) - what is
-    # looked at, committed and pushed is what its id names.)
+    # is read as another (`git replace`: a ref anything in the repository may write; a graft of
+    # `info/grafts`, read from a file that is never there) - what is looked at, committed and
+    # pushed is what its id names. No sign-in window opens (Git Credential Manager's).)
     env.update(
         {
             "NoDefaultCurrentDirectoryInExePath": "1",
             "GIT_TERMINAL_PROMPT": "0",
+            "GCM_INTERACTIVE": "never",
             "GIT_OPTIONAL_LOCKS": "0",
             "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_GRAFT_FILE": os.path.join(os.devnull, "koloni-no-grafts"),
             **more,
         }
     )
@@ -716,6 +719,9 @@ FILTER_KEYS = ("clean", "smudge", "process")
 # .git/hooks are put back after the command (K-yazma-denetimi), but objects/info/alternates is
 # not looked at; look at those files first if that changes.
 UNASKED = ("-c", "protocol.allow=never")
+# What the push's ancestry is read without: a commit-graph file anything in the repository may write
+# (its parents are taken from it as they are) - `push_one`, `_said_or_refused`.
+NO_GRAPH = ("-c", "core.commitGraph=false")
 UNASKED_ENV = {"GIT_NO_LAZY_FETCH": "1"}
 
 
@@ -3529,8 +3535,17 @@ USERS_CONTENT = (
 )
 
 
+def origin_held(project: Path) -> set[str]:
+    """`_origin_held`, asked once for a caller's `unpushed_count` and `unpushed_places`."""
+    git, _folder = repository(project)
+    return _origin_held(project, git)
+
+
 def unpushed_count(
-    project: Path, under: Iterable[Path], branch: str | None = None
+    project: Path,
+    under: Iterable[Path],
+    branch: str | None = None,
+    origin: Collection[str] | None = None,
 ) -> tuple[int, int]:
     """How many commits of the user's no branch of origin's holds, as git last fetched it
     (`_users_unpushed`, `under` KOLONİ's copies folders, `branch` the pull request's) - all of
@@ -3538,7 +3553,7 @@ def unpushed_count(
     index, its untracked files) are one stash, not commits. Refused as `repository`, and where git
     does not say."""
     git, _folder = repository(project)
-    origin = _origin_held(project, git)
+    origin = _origin_held(project, git) if origin is None else origin
     found = set(
         _users_unpushed(project, git, under, branch, origin).decode("ascii", "replace").split()
     )
@@ -3559,14 +3574,17 @@ def unpushed_count(
 
 
 def unpushed_places(
-    project: Path, under: Iterable[Path], branch: str | None = None
+    project: Path,
+    under: Iterable[Path],
+    branch: str | None = None,
+    origin: Collection[str] | None = None,
 ) -> list[tuple[Path, bool]]:
     """The user's other worktrees whose HEAD, or its reflog, holds a commit of theirs no branch of
     origin's holds (`unpushed_count`) that neither a branch of theirs nor the project's HEAD does:
     each its folder, and whether that is still there (git keeps a worktree whose folder was deleted
     until `git worktree prune`). Refused as `unpushed_count`."""
     git, _folder = repository(project)
-    origin = _origin_held(project, git)
+    origin = _origin_held(project, git) if origin is None else origin
     found = set(_users_unpushed(project, git, under, branch, origin).split())
     nots = [
         b"^HEAD",
@@ -3783,7 +3801,7 @@ def _users_unpushed(
 
 def _said_or_refused(project: Path, git: str, stdin: bytes | None, *args: str) -> bytes:
     code, out, said = _fed(
-        project, git, stdin, *UNASKED, *args, seconds=SHORT_SECONDS, **UNASKED_ENV
+        project, git, stdin, *UNASKED, *NO_GRAPH, *args, seconds=SHORT_SECONDS, **UNASKED_ENV
     )
     if code != 0:
         raise Refused(f"git {args[0]} failed: {_text(out, said)[-TAIL:]}")
@@ -3903,6 +3921,7 @@ def push_one(
         project,
         git,
         *UNASKED,
+        *NO_GRAPH,
         "merge-base",
         f"refs/heads/{into}",
         tip,
@@ -3913,7 +3932,7 @@ def push_one(
         raise Refused(f"git merge-base failed: {_text(out, said)[-TAIL:]}")
     base = out.decode("ascii", "replace").strip()
     if into not in listed or any(
-        _in(project, git, "merge-base", "--is-ancestor", one, listed[into])[0]
+        _in(project, git, *NO_GRAPH, "merge-base", "--is-ancestor", one, listed[into])[0]
         for one in (base, start)
     ):
         raise Refused(
@@ -4041,7 +4060,7 @@ def _not_rewritten(project: Path, git: str, url: str) -> None:
     )
     for entry in out.decode("utf-8", "replace").split("\0") if code == 0 else []:
         key, _newline, value = entry.partition("\n")
-        if value and url.startswith(value):
+        if key and url.startswith(value):  # (an empty one rewrites every address)
             raise Refused(REWRITTEN.format(key=re.sub(r"//[^/@]*@", "//***@", key)))
     got = _in(
         project, git, *UNASKED, "ls-remote", "--get-url", url, seconds=SHORT_SECONDS, **UNASKED_ENV

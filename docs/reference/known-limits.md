@@ -224,11 +224,15 @@ messages.
   fetch first; where git's config rewrites the address the push goes to (an `insteadOf` or
   `pushInsteadOf` rule that matches it - what origin is asked and where the push goes could be two
   repositories), or origin has more than one push address, nothing is pushed. No KOLONİ git call reads
-  an object through `git replace`. Between that look and the push itself there is a moment in which
+  an object through `git replace` or a graft of `info/grafts`, and the push's ancestry is read without
+  the commit-graph file. Origin is asked only once a branch's way is a pull request, never at the end
+  of a turn that may still be a merge. Between that look and the push itself there is a moment in which
   another process could still change your repository: that gap is not closed.
 - ☾ Away compares every job's push with the repository as you went away (its refs, git's config in
   every scope, its hooks, where a push goes): what an earlier job of the night changed is noted on a
-  later one's push too. KOLONİ's own branches (`koloni/…`) are not counted.
+  later one's push too. The branches of that night's own jobs are not counted.
+- **Try again** on a job a day later still compares its push with the night's repository: what you
+  changed since is noted on it too, to be seen and Run anyway.
 - The worktree holds what git tracks; what it ignores (`.env`, data, build output) is not there, and a
   test that reads such a file may fail. A project with a git submodule or Git LFS works in a copy.
 - The commits of a branch that was deleted, or of a job's first try, stay in git's objects until git

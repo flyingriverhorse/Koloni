@@ -185,6 +185,19 @@ class AwayBranchMixin:
             if "away" in (session.get_one(Agent, merge.agent_id).copy or {}):
                 copies.no_push(copy.root)
 
+    @staticmethod
+    def _night_branches(session: Session, night: AwayRun | None, copy: copies.Copy) -> set[str]:
+        """L-3: the branches of a night's own jobs (each its own push) - this one's, and those its
+        other jobs' records name: what H2 does not count as changed outside a job's branch. A
+        `koloni/` branch of another day's is the user's to count."""
+        found = {copy.branch or ""}
+        for task in away.tasks_of(session, night) if night is not None else []:
+            mine = (
+                away_branch.record(session, task.conversation_id) if task.conversation_id else None
+            )
+            found.add(str(((mine[0].copy or {}).get("on_branch") if mine else None) or ""))
+        return found - {""}
+
     def _git_section(self: "AgentRunner", ctx: Ctx, seen: dict, copy: copies.Copy | None) -> str:
         """A CLI's git section (slice 70): in a job on its branch, that branch's (`AWAY_GIT`)."""
         if copy is not None and copy.branch and ctx.run_id in self._away_jobs:
@@ -266,11 +279,11 @@ class AwayBranchMixin:
         state = await asyncio.to_thread(git_state, project)
         proof = self._proofs.get(ctx.run_id)
         start = copy.snapshot_sha or (copy.start or ("", ""))[1]
-        moved = (
-            away_branch.moved(held["refs"], after, copy.branch or "")
-            if held.get("refs") and after
-            else []
-        )
+        with self._factory() as session:
+            task = away.job_of(session, ctx.cid)
+            night = session.get(AwayRun, task.away_run_id or "") if task else None
+            ours = self._night_branches(session, night, copy)
+        moved = away_branch.moved(held["refs"], after, ours) if held.get("refs") and after else []
         return {
             "tip": tip,
             "into": look["into"],
@@ -498,11 +511,10 @@ class AwayBranchMixin:
         moved outside its branch from the job's start to now (H2, looked at again now), a place
         kept out it changed. `state`: `git_state`'s, now."""
         now = await asyncio.to_thread(away_branch.refs, copy.project)
-        moved = (
-            away_branch.moved(held["refs"], now, copy.branch or "")
-            if held.get("refs") and now
-            else [REFS_UNKNOWN]
-        )
+        with self._factory() as session:
+            ours = self._night_branches(session, night, copy)
+        known = held.get("refs") and now
+        moved = away_branch.moved(held["refs"], now, ours) if known else [REFS_UNKNOWN]
         kept = [
             path for path in look["files"] if away.kept_out(night, path, root=str(copy.project))
         ]
