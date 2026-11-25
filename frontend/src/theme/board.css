@@ -583,7 +583,7 @@
 .night-bar {
   display: inline-block;
   box-sizing: border-box;
-  min-width: 4px;
+  min-width: 8px;
   height: 8px;
   border: 1px solid;
   border-radius: 4px;
@@ -655,6 +655,31 @@
   flex-basis: 100%;
   margin: 0;
   padding-left: 18px;
+}
+
+/* On a narrow screen a lane takes the width, its job's title above it. */
+@media (max-width: 640px) {
+  .night-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .night-axis-row > span:first-child {
+    display: none;
+  }
+}
+
+/* A row the night parked, on Ready for you: its line whole, wrapped - never past the card. */
+.ready-item .waiting-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ready-item .waiting-what {
+  margin: 6px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* Decided for you: the period's chips; a row a decision - when, then who (in its colour, and in words), where, what,
