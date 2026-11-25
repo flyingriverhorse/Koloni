@@ -92,11 +92,7 @@ FIX = (
 # being fixed - a fix round would only meet the same limit.
 OVER_LIMIT = "this turn used "
 USED_UP = ("rate_limited", "credits_exhausted")
-
-
-class Refused(ValueError):
-    """What is wrong with an agent's call, said back to it."""
-
+Refused = stories.Refused  # (what is wrong with an agent's call, said back to it)
 
 # Stop everything (`app.api.hold`): what starts by itself waits until Resume - a chat's queue of
 # To-do tasks, a night, a trigger. Its value is when it began. Not the user's own messages.

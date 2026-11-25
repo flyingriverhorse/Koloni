@@ -450,7 +450,8 @@ the Fast tier. It says once in the chat "Full auto's judge is off for this turn:
 turn runs as Full auto did before.
 
 **Which model:** Settings › The app › Agents › **Judge model** - **Fast tier's first (now: …)** unless you
-choose one of the models listed (those of every tier that answer with no tools). A choice that cannot be
+choose one of the models listed (those of every tier that answer with no tools - a CLI with tools of its
+own among them, such as GitHub Copilot CLI run **Native**, asked with them off). A choice that cannot be
 asked now (its provider gone, closed to agents or down) stays chosen and the list says so; the Fast tier's
 first is asked meanwhile. On a CLI each such command waits for it to start. [Check what I said
 first](#check-what-i-said-first) asks the same model. Each command it looks at is one request, on your plan or your bill, shown on
@@ -517,7 +518,12 @@ messages in the chat - never anything an agent wrote - and then:
   before. Its card then says "Nothing you said covers this."
 - Two lines of yours that disagree about a delete: a line that names what the delete takes and forbids
   it or sets a condition - "Never delete ./x." beside "You may delete ./x.", or an item under "Never delete
-  these:" - keeps its card, whichever line the model quoted, as KOLONİ reads such a line: some wordings
+  these:" - keeps its card, whichever line the model quoted, as KOLONİ reads such a line. A heading covers
+  the lines right under it, up to a blank line, and a list or code under it until a line of prose; a
+  heading right under another is read with it ("Never delete:" over "Outputs:" forbids what Outputs
+  lists), unless a blank line came after the other's own lines. So "Never delete these:" over
+  `./archive` says nothing of a "You may delete ./build." in a section of its own after a blank line.
+  Some wordings
   ("Keep build.", "Leave build alone.", "…but check with me first.") are not caught, and the measurement
   decides the rest. Two lines about a push, a branch or a remote are left to the model.
 

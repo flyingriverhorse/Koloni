@@ -7,7 +7,7 @@ those words: never in the command, an agent's text or a file. The gate is
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -209,28 +209,43 @@ def _prose(text: str) -> list[str | None]:
     return lines
 
 
+def _headed(text: str) -> Iterator[tuple[str, bool, str]]:
+    """A source's lines that hold words, each with whether it is prose (not code nor a quote,
+    `_prose`) and the heading it is read under: the nearest line above it that ends in `:`
+    ("Never delete these:") - in its block (no blank line between), or for a list's item, code
+    or a quote across blank lines and other items too (`listed`: a line of prose ends that). A
+    heading right under another is read with it ("Never delete:" over "Outputs:"); one after the
+    other's lines and a blank line (`parted`) starts a section of its own, which the other's words
+    do not reach (Codex P2-3)."""
+    head = listed = top = ""
+    under = parted = False  # (lines under the heading `top` yet; a blank line after them)
+    for raw, line in zip(text.split("\n"), _prose(text), strict=True):
+        if line is None:
+            under = True
+            yield raw, False, head or listed
+        elif not line.strip():
+            head, parted = "", parted or under
+        else:
+            item = bool(LIST_MARK.match(line.strip()))
+            yield line, True, head or (listed if item else "")
+            if line.rstrip().endswith(":"):
+                top = f"{top} {line}" if top and not parted else line
+                head = listed = top
+                under = parted = False
+            else:
+                under, listed = True, listed if item else ""
+
+
 def _units(text: str) -> list[tuple[str, str, str]]:
     """A source's sentences (`SENTENCE`), each as written (its list's mark off) and `_plain` -
-    with what it is read with: its whole line, and the nearest line above it that ends in `:`,
-    a heading ("Never delete these:") - in its block (no blank line between), or for a list's
-    item across blank lines and other items too (`listed`: a line of prose ends that)."""
-    found: list[tuple[str, str, str]] = []
-    head = listed = ""
-    for line in _prose(text):
-        if line is None or not line.strip():
-            head = "" if line is not None else head
-            continue
-        item = bool(LIST_MARK.match(line.strip()))
-        found += [
-            (one.strip().rstrip(";"), plain, f"{line}\n{head or (listed if item else '')}")
-            for one in SENTENCE.split(LIST_MARK.sub("", line.strip()))
-            if "`" not in one and (plain := _plain(one))
-        ]
-        if line.rstrip().endswith(":"):
-            head = listed = line
-        elif not item:
-            listed = ""
-    return found
+    with what it is read with: its whole line, and its heading (`_headed`)."""
+    return [
+        (one.strip().rstrip(";"), plain, f"{line}\n{head}")
+        for line, prose, head in _headed(text)
+        if prose
+        for one in SENTENCE.split(LIST_MARK.sub("", line.strip()))
+        if "`" not in one and (plain := _plain(one))
+    ]
 
 
 def source_of(quote: str, said: dict[str, list[str]]) -> tuple[str, str, str]:
@@ -274,17 +289,16 @@ def _forbids(plain: str) -> bool:
 
 def set_against(said: dict[str, list[str]], names: Callable[[str], bool]) -> bool:
     """§8 (CL-352): whether a line of the user's words that `names` the command's target - code
-    and quotes too - forbids it or sets a condition (`_forbids`), itself or by a heading above it
-    ("Never delete these:"): a run does not stand beside it, whatever line allowed it.
+    and quotes too - forbids it or sets a condition (`_forbids`), itself or by its heading
+    (`_headed`: "Never delete these:" over its own list): a run does not stand beside it, whatever
+    line allowed it.
     shortcut: only a delete's targets are read (`cards.mentioned`); a push's, a branch's or a
     remote's two lines are left to the model and its measurement set (design §8)."""
-    for text in (one for source in SOURCES for one in said.get(source, [])):
-        heads = ""
-        for line in text.split("\n"):
-            if names(line) and _forbids(_plain(f"{line} {heads}")):
-                return True
-            heads += f" {line}" if line.rstrip().endswith(":") else ""
-    return False
+    return any(
+        names(line) and _forbids(_plain(f"{line} {head}"))
+        for text in (one for source in SOURCES for one in said.get(source, []))
+        for line, _is_prose, head in _headed(text)
+    )
 
 
 def verdict(

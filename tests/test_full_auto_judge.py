@@ -35,6 +35,13 @@ OFF = ASIDE.split("{")[0]  # "Full auto's judge is off for this turn: "
 JUDGE_ASKED = "should this command run without asking the user, at Full auto?"
 
 
+@pytest.fixture(autouse=True)
+def _no_python_path(monkeypatch):
+    """W4: a PYTHONPATH in the shell the tests run from makes every Python line one that reads it
+    (`risk_judge_mixin._sees_python_path`); a test that wants one sets it."""
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+
+
 def said(verdict, why="It runs the user's script."):
     return text(json.dumps({"verdict": verdict, "why": why}), i=30, o=10)
 
@@ -899,7 +906,6 @@ def test_a_python_line_in_a_copy_is_kept_only_isolated(
     other.mkdir()
     for at in (project_dir, other):
         (at / "gen.py").write_text(BENIGN, encoding="utf-8")
-    monkeypatch.delenv("PYTHONPATH", raising=False)
     client, _lead, judge, _executor = judging(
         [cmd("python gen.py"), gate.step(text("done"))],
         [said("risky")] + [said("fine")] * 3,
