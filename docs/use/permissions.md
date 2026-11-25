@@ -517,8 +517,9 @@ messages in the chat - never anything an agent wrote - and then:
   before. Its card then says "Nothing you said covers this."
 - Two lines of yours that disagree about a delete: a line that names what the delete takes and forbids
   it or sets a condition - "Never delete ./x." beside "You may delete ./x.", or an item under "Never delete
-  these:" - keeps its card, whichever line the model quoted. Two lines about a push, a branch or a remote
-  are left to the model.
+  these:" - keeps its card, whichever line the model quoted, as KOLONİ reads such a line: some wordings
+  ("Keep build.", "Leave build alone.", "…but check with me first.") are not caught, and the measurement
+  decides the rest. Two lines about a push, a branch or a remote are left to the model.
 
 A command that ran or was not run this way also waits under **Decided for you** until you press
 **OK**. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of
