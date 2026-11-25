@@ -41,8 +41,8 @@ from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 from xml.parsers import expat
 
-import yaml
-import yaml.reader
+import yaml  # pyrefly: ignore[untyped-import]  # (no stubs here)
+import yaml.reader  # pyrefly: ignore[untyped-import]  # (no stubs here)
 
 from app import browser, ci_commands
 from app.executors.host import SUSPENDED, _pwsh
@@ -200,7 +200,7 @@ def _each(
             continue
         old = _old_problems(check, rel, before.get(rel))
         lines = data.decode("utf-8-sig", "replace").split("\n") if old else []
-        said = [
+        said: list[Row] = [
             {**one, "state": "note", "text": one["text"] + BEFORE}
             if one["state"] == "failed" and _problem(one["text"], rel, lines) in old
             else one
@@ -560,7 +560,7 @@ def _drawio(data: bytes, rel: str) -> list[Row]:
         for model in _models(_xml(data)):  # (each page checked as it comes: its tree let go of)
             more = _page(model, rel, rows)
             edges, shapes, lonely = edges + more[0], shapes + more[1], lonely + more[2]
-    except (ElementTree.ParseError, ValueError, zlib.error, UnicodeDecodeError) as exc:
+    except (ElementTree.ParseError, ValueError, zlib.error) as exc:  # (UnicodeDecodeError too)
         return [row("diagram", "failed", f"{rel}: does not parse ({_said(str(exc))})")]
     if lonely:
         rows.append(row("diagram", "note", f"{rel}: {lonely} shapes are not connected"))

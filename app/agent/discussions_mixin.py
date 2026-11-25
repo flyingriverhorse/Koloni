@@ -686,68 +686,67 @@ class DiscussionsMixin:
     async def _speech(
         self: "AgentRunner", member: Ctx, discussion_id: str, ending: asyncio.Event
     ) -> tuple[bool, str] | None:
-        if True:
-            with self._factory() as session:
-                previous = session.get_one(Agent, member.agent_id).status
-            if previous not in ("completed", "failed", "waiting"):
-                # It was invited while it waited, and has taken its own work up again:
-                # it cannot be held to reading now, and one agent does not run twice.
-                return False, "it went back to its own work"
-            model = member.model
-            if getattr(model, "native", False):
-                # It cannot be held to reading with its own tools on: it speaks step by step.
-                model = cast(CodexNativeClient, model).talker()
-            turn = replace(
-                member,
-                answering=True,
-                in_turn=True,
-                own_calls=set(),
-                speech_ids=[],
-                discussion=discussion_id,
-                max_steps=SPEECH_STEPS,
-                model=model,
-                tools=tuple(t for t in member.tools if t in ANSWER_TOOLS),
-            )
-            self._answering[member.agent_id] = previous
-            cut = False
+        with self._factory() as session:
+            previous = session.get_one(Agent, member.agent_id).status
+        if previous not in ("completed", "failed", "waiting"):
+            # It was invited while it waited, and has taken its own work up again:
+            # it cannot be held to reading now, and one agent does not run twice.
+            return False, "it went back to its own work"
+        model = member.model
+        if getattr(model, "native", False):
+            # It cannot be held to reading with its own tools on: it speaks step by step.
+            model = cast(CodexNativeClient, model).talker()
+        turn = replace(
+            member,
+            answering=True,
+            in_turn=True,
+            own_calls=set(),
+            speech_ids=[],
+            discussion=discussion_id,
+            max_steps=SPEECH_STEPS,
+            model=model,
+            tools=tuple(t for t in member.tools if t in ANSWER_TOOLS),
+        )
+        self._answering[member.agent_id] = previous
+        cut = False
 
-            async def speak() -> tuple[str, str | None]:
-                # The wait for a place is part of the speech: the user ending the
-                # discussion ends that too, and is not kept waiting for a place.
-                async with self._working(turn):
-                    self._set_agent(member.cid, member.agent_id, status="running")
-                    return await self._run_child(turn)
+        async def speak() -> tuple[str, str | None]:
+            # The wait for a place is part of the speech: the user ending the
+            # discussion ends that too, and is not kept waiting for a place.
+            async with self._working(turn):
+                self._set_agent(member.cid, member.agent_id, status="running")
+                return await self._run_child(turn)
 
+        try:
+            work = asyncio.ensure_future(speak())
+            stop = asyncio.ensure_future(ending.wait())
             try:
-                work = asyncio.ensure_future(speak())
-                stop = asyncio.ensure_future(ending.wait())
-                try:
-                    await asyncio.wait({work, stop}, return_when=asyncio.FIRST_COMPLETED)
-                finally:
-                    stop.cancel()
-                    if not work.done():
-                        cut = True
-                        work.cancel()
-                        await asyncio.gather(work, return_exceptions=True)
-                        # Here, not after: cut off from above too (its opener's call given up
-                        # on), when nothing else closes them in a turn that completes.
-                        with contextlib.suppress(Exception):
-                            self._interrupt_open_calls(
-                                member.run_id, member.cid, member.agent_id, only=turn.own_calls
-                            )
+                await asyncio.wait({work, stop}, return_when=asyncio.FIRST_COMPLETED)
             finally:
-                # It only spoke: it is what it was, also when it was cut off.
-                self._answering.pop(member.agent_id, None)
-                self._set_agent(member.cid, member.agent_id, status=previous)
-            if cut:
-                return None
-            status, error = work.result()
-            with self._factory() as session:
-                words = session.scalars(
-                    select(Message.content)
-                    .where(Message.id.in_(turn.speech_ids or []), Message.content != "")
-                    .order_by(literal_column("messages.rowid").desc())
-                ).first()
+                stop.cancel()
+                if not work.done():
+                    cut = True
+                    work.cancel()
+                    await asyncio.gather(work, return_exceptions=True)
+                    # Here, not after: cut off from above too (its opener's call given up
+                    # on), when nothing else closes them in a turn that completes.
+                    with contextlib.suppress(Exception):
+                        self._interrupt_open_calls(
+                            member.run_id, member.cid, member.agent_id, only=turn.own_calls
+                        )
+        finally:
+            # It only spoke: it is what it was, also when it was cut off.
+            self._answering.pop(member.agent_id, None)
+            self._set_agent(member.cid, member.agent_id, status=previous)
+        if cut:
+            return None
+        status, error = work.result()
+        with self._factory() as session:
+            words = session.scalars(
+                select(Message.content)
+                .where(Message.id.in_(turn.speech_ids or []), Message.content != "")
+                .order_by(literal_column("messages.rowid").desc())
+            ).first()
         if status != "completed":
             if error == "step_limit":
                 return False, "it did not get to the point"

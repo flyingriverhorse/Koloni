@@ -159,7 +159,7 @@ def copilot_since(result: SessionResult, spent: dict | None) -> tuple[SessionRes
     return (
         replace(
             result,
-            **{name: less(getattr(result, name), (spent or {}).get(name)) for name in COUNTED},
+            **{name: less(getattr(result, name), (spent or {}).get(name)) for name in COUNTED},  # pyrefly: ignore[bad-argument-type]  # (the counted fields)
         ),
         totals,
     )

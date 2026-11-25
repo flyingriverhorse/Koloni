@@ -69,7 +69,7 @@ def kinds_held(message: Message) -> str | None:
     ):
         return None
     found = [
-        str(one.get("text", ""))
+        str(one.get("text", ""))  # pyrefly: ignore[unnecessary-type-conversion]  # (stored JSON)
         for one in rows
         if one.get("kind") in proof_kinds.WRITTEN and one.get("state") == "failed"
     ]

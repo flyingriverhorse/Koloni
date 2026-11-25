@@ -307,10 +307,10 @@ def _job_for(process: asyncio.subprocess.Process) -> Job | None:
             process.kill()  # (started suspended, nothing here could let it run)
         return None
     try:
-        return Job.for_process(handle)
+        return Job.for_process(handle)  # pyrefly: ignore[unbound-name]  # (Linux: never reached)
     except Exception:
         return None
     finally:
-        if not resume(handle):
+        if not resume(handle):  # pyrefly: ignore[unbound-name]  # (Linux: never reached)
             with contextlib.suppress(OSError):
-                popen.kill()  # never left suspended: it is seen to end instead
+                popen.kill()  # pyrefly: ignore[unbound-name]  # (Linux: never reached) never left suspended: it is seen to end instead
