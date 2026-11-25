@@ -62,6 +62,7 @@ def test_a_discarded_copy_closes_run(make_client, wait_run, project_dir):  # RF2
     assert client.post(f"/api/merges/{kept}/reject").status_code == 200
     (row,) = waiting(client, done["id"])
     assert row["closed"] == "Its copy is gone: there is nothing to run it in"
+    assert row["held"] is False  # (Reject is open)
     assert decide(client, done["id"], row["id"], "run").status_code == 409
     assert decide(client, done["id"], row["id"], "reject").status_code == 200
 
@@ -119,7 +120,7 @@ def test_nothing_is_decided_while_away_runs(make_client, wait_run, project_dir, 
     gate.wait_partial()
     found = night(client, pid)
     (row,) = waiting(client, found["id"])
-    assert row["closed"] == away.AWAY_NOW
+    assert (row["closed"], row["held"]) == (away.AWAY_NOW, True)
     said = decide(client, found["id"], row["id"], "reject")
     assert (said.status_code, said.json()["detail"]) == (409, away.AWAY_NOW)
     stop = client.post(f"/api/away/{found['id']}/jobs/{row['task_id']}/stop", headers=ORIGIN)

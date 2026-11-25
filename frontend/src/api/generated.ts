@@ -377,7 +377,8 @@ export interface paths {
         put?: never;
         /**
          * Stop Task
-         * @description Stop this task: what it parked is closed, it is stopped - no going-on turn.
+         * @description Stop this task: what it parked is closed, it is stopped - no going-on turn; one under way
+         *     is cut (what was Run and runs now is killed).
          */
         post: operations["stop_task_api_away__away_id__jobs__task_id__stop_post"];
         delete?: never;
@@ -12437,6 +12438,8 @@ export interface components {
             cwd: string | null;
             /** Decision */
             decision: string | null;
+            /** Held */
+            held: boolean;
             /** Id */
             id: string;
             /** Kind */

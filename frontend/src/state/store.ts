@@ -272,7 +272,7 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** I'm back: Away ends, its summary in the chat; the job at work finishes. Throws ApiError. */
   comeBack(awayId: string): Promise<void>
   /** Stop all, or Try again for a job once Away is over. Away is read again. Throws ApiError. */
-  awayDo(awayId: string, action: 'stop' | `jobs/${string}/again`): Promise<void>
+  awayDo(awayId: string, action: 'stop' | `${'jobs' | 'waiting'}/${string}`, body?: unknown): Promise<void>
   /** You type an answer to a question: the Orchestrator does not decide it for you meanwhile (at most once in 30 s). */
   typing(questionId: string): void
   /** Yes or no to what a waiting job asks, at its own endpoint (Allow and go on, Refuse). Throws ApiError. */
@@ -1295,8 +1295,8 @@ export const useApp = create<AppStore>()((set, get) => {
       await Promise.all([get().loadAway(), readCards(), get().loadBacklog(), refreshConversations()])
     },
 
-    async awayDo(awayId, action) {
-      await api.post('/away/' + awayId + '/' + action)
+    async awayDo(awayId, action, body) {
+      await api.post('/away/' + awayId + '/' + action, body)
       await Promise.all([get().loadAway(), readCards(), get().loadBacklog(), refreshConversations()])
     },
 

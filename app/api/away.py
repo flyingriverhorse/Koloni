@@ -40,6 +40,7 @@ class WaitingOut(BaseModel):
     answer: str | None
     result: str | None
     closed: str | None
+    held: bool  # (closed for every word, Reject too)
     seq: int
 
 

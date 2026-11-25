@@ -6,6 +6,7 @@ import { useAsk } from '../memory/useAsk'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { amount, clock, doneSaid } from './awayText'
+import { WaitingForYou } from './WaitingForYou'
 
 const STATE_WORD: Record<AwayJob['state'], string> = {
   planned: '',
@@ -121,6 +122,7 @@ export function AwaySummary({ line, conv }: { line: string; conv: ConvState }) {
           <span className="away-k">decided</span> {away.decided.join(' · ')}
         </p>
       )}
+      <WaitingForYou away={away} />
       <ol className="away-jobs">
         {away.jobs
           .filter(job => job.state === 'waits')
@@ -361,6 +363,7 @@ export function AwayNight({ away, onOpen }: { away: Away; onOpen: (cid: string) 
   const night = (
     <>
       <Strip away={away} />
+      <WaitingForYou away={away} />
       <ol className="away-jobs">
         {away.jobs.map(job => (
           <JobRow key={job.task_id ?? job.title} away={away} job={job} onOpen={onOpen} />
@@ -488,6 +491,7 @@ export function AwayReport({ away, onOpen }: { away: Away; onOpen: (cid: string)
         </button>
       )}
       {section('Done', done)}
+      <WaitingForYou away={away} />
       {section('Waits for your word', of('waits'))}
       {section('Could not be done', of('failed'))}
       {section('Stopped', of('stopped'))}

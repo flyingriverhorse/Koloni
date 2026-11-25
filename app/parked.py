@@ -273,6 +273,8 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
                 "answer": row.answer,
                 "result": row.result,
                 "closed": None if row.decision else closed(session, night, row, task),
+                # (no word of it is taken now - Reject too: away, its job at work, or a last kind's)
+                "held": not row.decision and _held(session, night, row, task) is not None,
                 "seq": row.seq,
             }
         )
