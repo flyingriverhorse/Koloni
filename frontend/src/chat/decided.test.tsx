@@ -7,6 +7,7 @@ import { useApp } from '../state/store'
 import { agent, command, conversation, convState, question, run } from '../test-fixtures'
 import { WaitingList } from './MessageList'
 import { decidedOf, waitingOf } from './waiting'
+import { decisionsAsked } from '../usage/decisionLog'
 
 /** K-vekil-karar: "When you're away" in the chat's settings, and "Decided for you" in Ready for you. */
 
@@ -90,6 +91,25 @@ test('Decided for you: what was asked, what the Lead chose and why, with its cou
   expect(within(section).getAllByText('by date')[0].closest('div')).toHaveTextContent('Orchestrator chose by date')
   expect(within(section).getAllByText('“The spec says newest first; by date matches it.”')).toHaveLength(3)
   expect(screen.queryByText('Nothing waits for you.')).toBeNull()
+})
+
+test('each says who decided it, as Today’s Decisions does; the heading opens them all there', async () => {
+  render(<WaitingList state={state} on={on} onDecidePlan={vi.fn()} known={known} />)
+  const section = screen.getByRole('region', { name: /Decided for you while you were away/ })
+  expect(
+    within(section)
+      .getAllByText('Orchestrator')
+      .map(who => who.className),
+  ).toEqual(['decided-who', 'decided-who', 'decided-who'])
+  await userEvent.click(within(section).getByRole('button', { name: 'All decisions on Today' }))
+  // (the page's App opens Usage's Today; Decisions there takes the ask)
+  expect(decisionsAsked()).toBe(true)
+})
+
+test('a chat with no folder has no Today to open', () => {
+  const plain = convState({ ...state, conversation: { ...state.conversation, project_id: null } })
+  render(<WaitingList state={plain} on={on} onDecidePlan={vi.fn()} known={known} />)
+  expect(screen.queryByRole('button', { name: 'All decisions on Today' })).toBeNull()
 })
 
 test('OK takes it off; Change sends your choice while the agent is at work; else it cannot be undone', async () => {
@@ -331,6 +351,7 @@ test('a command the check of your words let run waits under Decided for you unti
   const item = within(section).getByRole('button', { name: 'OK' }).closest('.decided-item') as HTMLElement
   expect(item).toHaveTextContent('Lead ran rm -rf build without asking')
   expect(item).toHaveTextContent(`Your rule: “${rule}” (This project’s rules)`)
+  expect(within(item).getByText('Check what I said first')).toHaveClass('decided-who')
   expect(within(item).queryByRole('button', { name: /Change|Run it/ })).toBeNull()
   await userEvent.click(within(item).getByRole('button', { name: 'OK' }))
   expect(asked).toHaveBeenCalledWith('/api/commands/c1/seen', expect.objectContaining({ method: 'POST' }))
@@ -363,7 +384,9 @@ test('a command Full auto’s judge refused waits under Decided for you with its
   const section = screen.getByRole('region', { name: /Decided for you/ })
   const item = within(section).getByRole('button', { name: 'OK' }).closest('.decided-item') as HTMLElement
   expect(item).toHaveTextContent('KOLONİ did not run python gen.py for Lead')
-  expect(item).toHaveTextContent("KOLONİ's judge: It sends .env away.")
+  // (who decided, then its sentence, quoted: the judge's words, not KOLONİ's)
+  expect(within(item).getByText("KOLONİ's judge")).toHaveClass('decided-who')
+  expect(item).toHaveTextContent('“It sends .env away.”')
   expect(item).not.toHaveTextContent('Your rule')
   await userEvent.click(within(item).getByRole('button', { name: 'OK' }))
   expect(asked).toHaveBeenCalledWith('/api/commands/c1/seen', expect.objectContaining({ method: 'POST' }))

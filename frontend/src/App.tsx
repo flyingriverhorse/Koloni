@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { download, keyRefused } from './api/client'
 import type { Board } from './api/types'
 import { AgentsPage } from './agents/AgentsPage'
@@ -57,6 +57,8 @@ import { continuesFrom } from './topics/topics'
 import { UsagePage } from './usage/UsagePage'
 import { BudgetPill } from './usage/Budget'
 import { TodayView } from './usage/TodayView'
+import { Decisions } from './usage/Decisions'
+import { OPEN_DECISIONS, readDecisions } from './usage/decisionLog'
 import type { Near } from './usage/limitsText'
 import { PlanUse } from './usage/PlanUse'
 import { ReadyPage, ReadyPanel } from './ready/ReadyViews'
@@ -375,6 +377,19 @@ export function App() {
     window.addEventListener(OPEN_TODO, open)
     return () => window.removeEventListener(OPEN_TODO, open)
   }, [])
+  // The chat's "All decisions on Today": Usage made anew, at Today (its own period, this project), Decisions open.
+  const [usageAgain, setUsageAgain] = useState(0)
+  useEffect(() => {
+    const open = () => {
+      setView('usage')
+      setSettingsOpen(false)
+      setUsageAgain(n => n + 1)
+    }
+    window.addEventListener(OPEN_DECISIONS, open)
+    return () => window.removeEventListener(OPEN_DECISIONS, open)
+  }, [])
+  // (One for the project: Decisions reads again only for another period.)
+  const decisionsOf = useCallback((from: string) => readDecisions(projectId ?? '', from), [projectId])
   const morning = useRef(false)
   useEffect(() => {
     if (!away || morning.current) return
@@ -850,6 +865,7 @@ export function App() {
     )
   const usagePage = () => (
     <UsagePage
+      key={usageAgain}
       project={project}
       projects={projects}
       onLoad={useApp.getState().usage}
@@ -878,6 +894,16 @@ export function App() {
               await useApp.getState().openTurn(id, runId)
               setView('canvas')
             }}
+            decisions={
+              <Decisions
+                onLoad={decisionsOf}
+                leftAt={away?.started_at ?? null}
+                onOpenChat={id => {
+                  void useApp.getState().openConversation(id)
+                  setView('canvas')
+                }}
+              />
+            }
           />
         )
       }

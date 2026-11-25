@@ -4773,6 +4773,18 @@ fieldset.choice > label .choice-note,
   font-style: italic;
 }
 
+.decided-all {
+  font-size: var(--text-meta);
+  font-weight: var(--weight-body);
+}
+
+/* Who decided (karar defteri): the Orchestrator, KOLONİ's judge or Check what I said first. */
+.decided-who {
+  color: var(--accent);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-title);
+}
+
 .decided-a {
   /* (Toward the text colour: --cat-blue alone is under 4.5:1 on the light surface.) */
   color: color-mix(in srgb, var(--cat-blue) 75%, var(--text));

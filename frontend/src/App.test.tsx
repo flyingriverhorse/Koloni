@@ -583,7 +583,39 @@ test("the pill counts a command Full auto's judge refused, so that Decided for y
   render(<App />)
   await userEvent.click(await screen.findByRole('button', { name: '1 decided for you' }))
   const decided = within(document.getElementById('ready-panel')!).getByRole('region', { name: /Decided for you/ })
-  expect(decided).toHaveTextContent("KOLONİ's judge: It sends .env away.")
+  expect(decided).toHaveTextContent("KOLONİ's judge")
+  expect(decided).toHaveTextContent('“It sends .env away.”')
+})
+
+test('"All decisions on Today" opens Usage at Today, made anew from another period, with Decisions open', async () => {
+  const judged = { kind: 'risk' as const, verdict: 'refuse' as const, quote: '', source: '' as const }
+  const refused = command('k', 'r', {
+    status: 'refused',
+    judged: { ...judged, why: 'It sends .env away.', model: 'Fast · quick', seen: false },
+  })
+  const pages = emptyPages({
+    '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] },
+  })
+  const day = { turns: 0, agents: [], changed_files: [], waiting: 0, failed: 0, conversations: [] }
+  const read = vi.fn(async (url: string) => {
+    if (url.startsWith('/api/projects/p/day')) return new Response(JSON.stringify(day), { status: 200 })
+    if (url.startsWith('/api/projects/p/decisions?since='))
+      return new Response(JSON.stringify({ rows: [], judge_fine: 2 }), { status: 200 })
+    return pages(url)
+  })
+  vi.stubGlobal('fetch', read)
+  render(<App />)
+  const pill = await screen.findByRole('button', { name: '1 decided for you' })
+  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Usage' }))
+  await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Period' }), '7')
+  expect(screen.queryByRole('region', { name: 'Decisions' })).toBeNull()
+  await userEvent.click(pill)
+  const decided = within(document.getElementById('ready-panel')!).getByRole('region', { name: /Decided for you/ })
+  await userEvent.click(within(decided).getByRole('button', { name: 'All decisions on Today' }))
+  const decisions = await screen.findByRole('region', { name: 'Decisions' })
+  expect(decisions.querySelector('details')).toHaveAttribute('open')
+  expect(decisions).toHaveTextContent('The judge let 2 commands run.')
+  expect(screen.getByRole('combobox', { name: 'Period' })).toHaveValue('today')
 })
 
 test("an agent's window and a discussion's open over the canvas only with a chat; selecting a node opens the inspector", async () => {

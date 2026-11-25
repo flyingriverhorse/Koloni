@@ -83,7 +83,7 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   const panel = page.getByRole('complementary', { name: /^Ready for you/ })
   const decided = panel.getByRole('region', { name: /Decided for you/ })
   await expect(decided).toContainText(`KOLONİ did not run ${COMMAND}`)
-  await expect(decided).toContainText("KOLONİ's judge: The stand-in judge was told it is risky.")
+  await expect(decided).toContainText('“The stand-in judge was told it is risky.”')
   await decided.getByRole('button', { name: 'OK' }).click()
   await expect(decided).toHaveCount(0)
   await panel.getByRole('button', { name: 'Close Ready for you' }).click()
