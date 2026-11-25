@@ -502,6 +502,19 @@ def test_a_line_that_forbids_the_same_delete_sets_a_run_against_it():
     )
 
 
+def test_a_heading_forbids_only_its_own_list():
+    """Codex P2-3 (W1): a heading's scope ends at a blank line or the next heading - for a list's
+    items, at a line of prose (as `judge._units` reads it) - not at the end of the words."""
+    for elsewhere in ("Never delete these:\n- ./archive", "Do not commit secrets:\n- .env"):
+        for allowed in ("Disposable outputs:\nYou may delete ./build.", "You may delete ./build."):
+            assert not _against(f"{elsewhere}\n\n{allowed}", "rm -rf ./build"), (elsewhere, allowed)
+    # (its own list, and a line right under it, as before - a blank line between a heading and
+    # its list, or between the list's items, parts neither)
+    assert _against("Never delete these:\n- ./build\nYou may delete ./build.", "rm -rf ./build")
+    assert _against("Never delete these:\n\n- ./a\n\n- ./build", "rm -rf ./build")
+    assert not _against("Never delete these:\n- ./a\n\nKeep it tidy.\n- ./build", "rm -rf ./build")
+
+
 def test_a_delete_of_dot_slash_x_names_x():
     assert cards._targets("rm -rf ./x", ".") == ["x"]
     assert cards._targets("rm -rf ./", ".") is None and cards._targets("rm -rf ./*", ".") is None
