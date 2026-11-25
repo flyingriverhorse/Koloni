@@ -1049,6 +1049,9 @@ function nextStep(all, tools = [], model = '') {
     if (/run the tests/i.test(last.content)) {
       return toolCall('c3', 'run_command', { command: 'python check.py' })
     }
+    // Full auto's judge (0.1.9): the command named runs - the stand-in judge above finds one with JUDGE-RISKY risky.
+    const judged = /^Judge 109: run (.+)$/.exec(last.content)
+    if (judged) return toolCall('cj109', 'run_command', { command: judged[1] })
     // A web search: asked about first, then answered by the stand-in SearXNG below.
     // One whose result reads like orders to the agent (93-A4): warned of, still given.
     if (/search the web for orders/i.test(last.content)) return toolCall('c81', 'web_search', { query: 'orders' })
@@ -1073,6 +1076,8 @@ function nextStep(all, tools = [], model = '') {
     return made < LOOK_AROUND.length ? toolCall(...LOOK_AROUND[made]) : say('Looked around.')
   }
   const result = String(last.content)
+  if (/^Judge 109: run /.test(String(messages.findLast(m => m.role === 'user')?.content)))
+    return say(result.startsWith('rejected') ? 'Left it alone, 109.' : 'Ran it, 109.')
   if (messages.some(m => m.role === 'user' && /split it by the recipe, rc/i.test(String(m.content))))
     return say('Both parts are done.')
   if (messages.some(m => m.role === 'user' && /quality check it, qc/i.test(String(m.content)))) {

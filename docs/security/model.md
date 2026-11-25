@@ -14,7 +14,10 @@ way, and where that ends.
   simple commands.
 - **Full auto** runs commands without asking. Its check for harmful commands (deleting, force-pushing,
   sending data off the machine) is a courtesy for honest commands, not a wall: a command written to hide
-  what it does is not seen. Use Full auto only for work you are ready to let run.
+  what it does is not seen. [Full auto's judge](../use/permissions.md#full-autos-judge), on by default,
+  also asks a small model about each command that list does not stop, and puts one it finds risky on a
+  card. It catches more, and it is a net, not a wall either: a model can call a risky command fine, and
+  then it runs. Use Full auto only for work you are ready to let run.
 - For a wall against a deliberate attacker on your own account, run agents' commands in Docker, or run
   KOLONİ as another user.
 
@@ -186,6 +189,12 @@ What is not framed:
   model decide whether a harmful-looking command at Full auto runs: it reads only your own words, never
   an agent's, and asks on a card when anything is unclear, but a model can misread a line. Leave it on
   **Ask me** where a wrong delete would cost you.
+- [Full auto's judge](../use/permissions.md#full-autos-judge) only adds cards - an error, a slow answer
+  or an unreadable one is a card, never a run - but what it lets by runs as Full auto ran before it: a
+  model's "fine" can be wrong; it reads the first 4 KB of a program an agent wrote, not a file that
+  program imports nor a tool an agent changed without writing it; and for a CLI run **Native** it sees
+  only the command the CLI reports. Everything but your own words reaches it marked as an agent's data,
+  but text written to steer a model can still sway one.
 - A command that names a secret file, or searches the whole folder when the folder holds one, is asked
   about at every level. Exceptions: when it runs **Native**, Codex runs commands its own rules count as
   safe (a read of `.env` or of a file outside the project) without asking KOLONİ; agy reading with its

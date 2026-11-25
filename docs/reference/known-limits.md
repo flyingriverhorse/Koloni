@@ -128,6 +128,17 @@ messages.
   `rsync --delete`, `robocopy /MIR`, `mail`, `ssh host 'command'`.
 - At Full auto, the harm check sees honest commands only; a command written to hide what it does is not
   seen. See [Security model](../security/model.md).
+- [Full auto's judge](../use/permissions.md#full-autos-judge) is a net, not a wall:
+    - It is a model's decision: it can call a risky command fine, and then the command runs, as it did
+      at Full auto before the judge.
+    - Hidden work may not be seen: a tool an agent changed but did not write, a program past its first
+      4 KB, a program that imports another file.
+    - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
+    - Each command it looks at waits for one model request and a few seconds; where only a CLI can be
+      asked, from that CLI's quota, and each such command waits for the CLI to start.
+    - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
+      git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
+      asked about.
 - Commands cannot be given input while they run.
 - In Docker on Linux and macOS, commands run as your user, not as root. A command that needs root in
   the container, such as `apt-get install`, fails. On Linux, files an older version of KOLONİ made as
