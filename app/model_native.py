@@ -568,13 +568,13 @@ def _as_exec(method: str, params: dict, asked: _Asked, read_only: bool = False) 
         status = "failed"
     told = {**item, "type": what, "id": item_id, "status": status}
     if what == "command_execution":
+        command = _unwrapped(str(item.get("command") or ""))
         told |= {
-            "command": _unwrapped(str(item.get("command") or "")),
+            "command": command,
             "aggregated_output": item.get("aggregatedOutput"),
             "exit_code": item.get("exitCode"),
             "unasked": item_id not in asked.items,
         }
-        command = told["command"]
         if (
             read_only
             and WRITE_REFUSED.search(" ".join(str(item.get("aggregatedOutput") or "").split()))
@@ -925,10 +925,8 @@ class CodexNativeClient(CliStepClient):
     ) -> list[str]:
         # (Not `linked`: a copy's dependency folders, which would be made writable.)
         for path in (sys.executable, mcp_bridge.__file__, str(bridge_config)):
-            if "'" in str(path):
-                raise OwnStop(
-                    f"a path with an apostrophe ({str(path)[:60]}) cannot be given to Codex"
-                )
+            if "'" in path:
+                raise OwnStop(f"a path with an apostrophe ({path[:60]}) cannot be given to Codex")
         # Its folder, model and the folders it also works in go in thread/start and
         # turn/start (`_converse`). The user's own MCP servers are off: a tool of theirs is
         # not one Codex asks KOLONİ about (as `limits._AppServer` has them).
@@ -1122,7 +1120,7 @@ class CodexNativeClient(CliStepClient):
                 skills_told = (
                     SKILLS_OWN + "".join(f"\n- {PLUGIN}:{name}" for name in held) if held else ""
                 )
-                for name, why in left.items():
+                for name, why in left.items():  # pyrefly: ignore[missing-attribute]  # (`given` is reused below)
                     await on_item(
                         "completed", {"type": "skill_not_given", "name": name, "why": why}
                     )
@@ -1135,7 +1133,7 @@ class CodexNativeClient(CliStepClient):
                 try:
                     # Before it, a tool of one is not known to name its role to the hook: it
                     # would be held to its Lead's rights only.
-                    if not await self._from(INSIDE_FROM):
+                    if not await self._from(INSIDE_FROM):  # pyrefly: ignore[missing-attribute]  # (`claude`: Claude's)
                         raise OwnStop(
                             f"{self.label} is older than {'.'.join(map(str, INSIDE_FROM))}"
                         )
@@ -1924,7 +1922,7 @@ class CodexNativeClient(CliStepClient):
                 stderr.cancel()
             if not_resumed is not None and broke is None and not server.ended:
                 raise NotResumed(not_resumed)
-            if commentary and not spoke:
+            if commentary and not spoke:  # pyrefly: ignore[redundant-condition]  # (set in `read`)
                 await on_text(commentary)
 
             # Codex L2: a call of KOLONİ's still running when its turn completed is waited for -
@@ -1935,7 +1933,7 @@ class CodexNativeClient(CliStepClient):
             waited = usage is not None and broke is None and not server.ended and outlived()
             if waited:
                 note = CALLS_OUTLIVED.format(label=self.label)
-                await on_text(("\n\n" if spoke or commentary else "") + note)
+                await on_text(("\n\n" if spoke or commentary else "") + note)  # pyrefly: ignore[redundant-condition]  # (set in `read`)
             while waited and outlived() and not server.ended:
                 await asyncio.sleep(0.1)
             result = await self._turn_outcome(
@@ -4813,7 +4811,7 @@ class CopilotNativeClient(CodexNativeClient):
                 return [
                     {
                         "type": "error",
-                        "message": self._hide(str(copilot_error(data) or "it failed")),
+                        "message": self._hide(str(copilot_error(data) or "it failed")),  # pyrefly: ignore[unnecessary-type-conversion]  # (Copilot's JSON)
                     }
                 ]
             return []
@@ -5424,7 +5422,7 @@ class CopilotNativeClient(CodexNativeClient):
             # choose ...' - is the routing's, not the model's (its row stays on: `_refused`).
             tier = re.search(r'Auto preference "[^"]+" is disabled: ([^;]+)', unasked)
             if tier:
-                routing = str(self._session._routing or "its routing").capitalize()
+                routing = (self._session._routing or "its routing").capitalize()
                 raise OwnStop(
                     f"Copilot refused {self._model} at {routing} ({tier[1].strip().rstrip('.')}): "
                     "pick another routing for it on the Models page or in the chat's model panel"
@@ -5586,7 +5584,7 @@ class CopilotNativeClient(CodexNativeClient):
                         "urls": urls,
                         # (KOLONİ's own word, last: nothing it was sent can be it.
                         # `_approve_command`; Codex's `_decide` sends none.)
-                        "new_shell": bool(new_shell and not where),
+                        "new_shell": new_shell and not where,
                     },
                 )
         elif named and what == "write":
@@ -5698,12 +5696,12 @@ class CopilotNativeClient(CodexNativeClient):
         command = given.get("command")
         if name in ("powershell", "bash") and isinstance(command, str):
             prefix = _at_root(root) if name == "powershell" else None
-            new_shell = bool(prefix) and command.startswith(str(prefix))
+            new_shell = bool(prefix) and command.startswith(prefix)
             return {
                 "kind": "shell",
                 "toolCallId": call,
                 "shellType": name,
-                "fullCommandText": command[len(str(prefix)) :] if new_shell else command,
+                "fullCommandText": command[len(str(prefix)) :] if new_shell else command,  # pyrefly: ignore[unnecessary-type-conversion]  # (None without `new_shell`)
                 **_bypass(given),
             }, new_shell
         if name == COPILOT_PATCH and isinstance(args, str):

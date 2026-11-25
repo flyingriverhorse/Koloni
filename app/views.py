@@ -367,7 +367,7 @@ def list_views(session: Session, cid: str, root: str, copy_of: CopyOf) -> list[d
                 + PurePosixPath(line["path"]).name,
             }
         )
-    return sorted(out, key=lambda line: line["at"], reverse=True)
+    return sorted(out, key=lambda line: line["at"], reverse=True)  # pyrefly: ignore[no-matching-overload]  # (`at`: a time on each)
 
 
 def _vetted(name: str) -> str:

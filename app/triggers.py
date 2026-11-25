@@ -1505,7 +1505,7 @@ class Triggers:
         if why:
             if record and (record_busy or why != "skipped_busy"):
                 session.add(
-                    TriggerRun(trigger_id=trigger.id, at=at, outcome=why, late=late, note=note)
+                    TriggerRun(trigger_id=trigger.id, at=at, outcome=why, late=late, note=note)  # pyrefly: ignore[unbound-name]  # (set with `why`)
                 )
                 self._forget_old(session, trigger.id, at)
             session.commit()

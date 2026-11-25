@@ -611,7 +611,7 @@ def go_on(session: Session, project_id: str, runner, at: datetime | None = None)
             backlog.say(
                 session,
                 session.get_one(Conversation, task.conversation_id),
-                RETRY.format(why=ENDED.get(error, error) or "no reason given"),
+                RETRY.format(why=ENDED.get(error, error) or "no reason given"),  # pyrefly: ignore[no-matching-overload]  # (a None key finds none)
                 runner.bus,
                 runner.start,
                 task_id=task.id,
@@ -783,7 +783,7 @@ def turn_ended(session: Session, run: Run, status: str) -> bool:
     elif task.away_state != "stopped":  # (cut by the night's stop: `stop`)
         task.away_state = "failed"
         task.away_why = (
-            ENDED.get(run.error, run.error) or backlog.HOW.get(status, "was stopped").capitalize()
+            ENDED.get(run.error, run.error) or backlog.HOW.get(status, "was stopped").capitalize()  # pyrefly: ignore[no-matching-overload]  # (a None key finds none)
         )
     return True
 

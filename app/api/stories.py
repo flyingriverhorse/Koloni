@@ -240,6 +240,6 @@ async def delete_story(story_id: str, request: Request, session: Session = Depen
     stories.renumber(session, Story, story.project_id)
     session.commit()
     if found is not None:  # (once committed: the event is written by a session of its own)
-        request.app.state.bus.emit(said.conversation_id, None, "message.created", message_out(said))
+        request.app.state.bus.emit(said.conversation_id, None, "message.created", message_out(said))  # pyrefly: ignore[unbound-name]  # (set when found)
     _told(request, story.project_id)
     return Response(status_code=204)

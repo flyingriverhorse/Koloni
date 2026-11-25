@@ -141,7 +141,7 @@ class FoundMixin:
                 "commands": listed,
                 "said": got.said,
             }
-            self._ci_offered(ctx, offered)
+            self._ci_offered(ctx, offered)  # pyrefly: ignore[bad-argument-type]  # (set just above)
         if (approved or {}).get("hash") != mark:
             approved = None
         if not ((approved or offered or {}).get("commands")):

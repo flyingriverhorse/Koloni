@@ -1227,7 +1227,7 @@ async def model_facts(
             if (fact == "efforts" and value and said.get(fact) != "you") or (
                 value is not None and told[fact] is None
             ):
-                told[fact], said[fact] = list(value) if fact == "efforts" else value, "server"
+                told[fact], said[fact] = list(value) if fact == "efforts" else value, "server"  # pyrefly: ignore[bad-argument-type]  # (efforts: not None here)
     look_up = getattr(client, "_look_up", None)
     if provider.kind == "anthropic" and look_up is None:
         # No model its runs could use (`allowed`): a name being picked is looked up all the same.
