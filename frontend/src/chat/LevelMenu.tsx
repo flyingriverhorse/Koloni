@@ -52,16 +52,24 @@ interface Props {
   onJudge?: (on: boolean) => void
   /** §8: what the judge does with your words - its box off, on, or on but not until its measurement. */
   judgeWords?: JudgeWords
+  /** What it does with a command it finds risky, the project's (Settings › This project › Asking and away). */
+  judgeRisky?: JudgeRisky
   /** S10: Check after a change for this chat; without it (a plain chat, nothing to check) no switch. */
   checks?: Checks
 }
 
+type JudgeRisky = 'refuse' | 'ask'
 const JUDGE =
-  'Before a command runs at Full auto or while you’re away, a small model looks at it first: one the list doesn’t stop waits for you if it looks risky'
+  'Before a command runs at Full auto or while you’re away, a small model looks at it first: one the list doesn’t stop '
+const RISKY: Record<JudgeRisky, string> = {
+  refuse: 'is refused if it looks risky (while you’re away, it waits for you)',
+  ask: 'waits for you if it looks risky',
+}
 const JUDGE_WORDS = '; a harmful-looking one runs without a card only where a line of yours names it'
-/** The judge's line: its part for your words only where its box is on, and " (after its measurement)" until then. */
-const judgeSays = (words: JudgeWords) =>
-  `${JUDGE}${words === 'off' ? '' : JUDGE_WORDS}${words === 'unmeasured' ? ' (after its measurement)' : ''}.`
+/** The judge's line: what it does with a risky command, its part for your words only where its box is on, and " (after
+ *  its measurement)" until then. */
+const judgeSays = (words: JudgeWords, risky: JudgeRisky) =>
+  `${JUDGE}${RISKY[risky]}${words === 'off' ? '' : JUDGE_WORDS}${words === 'unmeasured' ? ' (after its measurement)' : ''}.`
 
 /** A switch row of the panel: its name and what it does. */
 function SwitchRow({
@@ -126,13 +134,19 @@ function ChecksRow({ id, mode, checks }: { id: string; mode: PermissionMode; che
 
 /** Under the levels, the project's own switch at Full auto: its judge (0.1.9; Check what I said first is its question
  *  since §8) - none without its setter (a plain chat). */
-function ProjectSwitches(p: { id: string; judge: boolean; onJudge?: (on: boolean) => void; words: JudgeWords }) {
+function ProjectSwitches(p: {
+  id: string
+  judge: boolean
+  onJudge?: (on: boolean) => void
+  words: JudgeWords
+  risky: JudgeRisky
+}) {
   if (!p.onJudge) return null
   return (
     <SwitchRow
       id={`${p.id}-judge`}
       name="Full auto’s judge"
-      says={judgeSays(p.words)}
+      says={judgeSays(p.words, p.risky)}
       on={p.judge}
       onChange={p.onJudge}
     />
@@ -152,6 +166,7 @@ export function LevelMenu({
   judge = true,
   onJudge,
   judgeWords = 'off',
+  judgeRisky = 'refuse',
   checks,
 }: Props) {
   const { open, setOpen, close, button, panel } = usePanel()
@@ -223,7 +238,7 @@ export function LevelMenu({
               </button>
             ))}
           </div>
-          <ProjectSwitches id={id} judge={judge} onJudge={onJudge} words={judgeWords} />
+          <ProjectSwitches id={id} judge={judge} onJudge={onJudge} words={judgeWords} risky={judgeRisky} />
           {onPlanFirst && (
             <>
               <hr className="level-sep" />

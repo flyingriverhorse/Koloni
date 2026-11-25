@@ -540,7 +540,7 @@ class ApprovalsMixin:
             or (self._night_asks(ctx, command, None) if claimed else ""),
             asked_anyway=always or claimed or at is None or "run_command" not in ctx.tools,
         )
-        # Full auto's judge: it only adds a card (where it runs: its copy, else the project)
+        # Full auto's judge: a card, or its refusal (where it runs: its copy, else the project)
         night, judged = await self._risk_judged(
             ctx,
             command,

@@ -688,6 +688,7 @@ export function ChatPanel() {
         onPlanFirst={on => void useApp.getState().setPlanFirst(on)}
         judge={project?.full_auto_judge}
         judgeWords={judgeWordsOf(project)}
+        judgeRisky={project?.judge_risky}
         onJudge={
           conv?.conversation.project_id
             ? on => void useApp.getState().saveProjectSettings({ full_auto_judge: on })

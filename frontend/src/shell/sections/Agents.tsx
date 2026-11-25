@@ -44,7 +44,14 @@ const WORDS_WHY =
 const JUDGE_SHOWN =
   'A small model looks at each command the list does not stop. One request of your Judge model (Settings › The app › Agents) for each such command, on your plan or your bill.'
 const JUDGE_REST =
-  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky waits for you on a card, “KOLONİ’s judge: …”. Reads, ordinary work (tests, compilers and checkers, local git), your own test command (unless it runs a program an agent wrote) and a trigger’s turn are not asked about. It only adds cards - one it cannot get an answer for waits for you too; only where there is no model to ask does it stand aside for the turn, and it says so in the chat. Off: Full auto as before.'
+  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky is refused, or waits for you on a card, as you choose below. Reads, ordinary work (tests, compilers and checkers, local git), your own test command (unless it runs a program an agent wrote) and a trigger’s turn are not asked about. One it cannot get an answer for waits for you on a card, whichever you choose; only where there is no model to ask does it stand aside for the turn, and it says so in the chat. Off: Full auto as before.'
+/** What the judge does with a command it finds risky (25 Nov): refused, as Claude Code's auto mode does, or a card. */
+const JUDGE_RISKY: [value: Project['judge_risky'], label: string][] = [
+  ['refuse', 'Refuse and go on'],
+  ['ask', 'Ask me'],
+]
+const RISKY_WHY =
+  'Refuse and go on: the command does not run - its agent is told the judge’s reason and goes on another way, with no card and nothing waiting; the command’s row and Decided for you show it. Ask me: it waits for you on a card, “KOLONİ’s judge: …”. A job while you’re away always waits, and a card the judge could not answer for (no answer in time, none it could read, no room to ask) waits at either.'
 
 /** What a look over each report costs, and what is sent to which model, in sight under its box; the rest behind ⓘ. */
 const OBSERVE_SHOWN =
@@ -242,16 +249,19 @@ export function useAsking(project: Project) {
 }
 
 /** `useAsking`'s switch for Full auto's judge (0.1.9), on unless turned off; what it costs in sight, the rest behind ⓘ -
- *  and under it its box for your words (§8), which may be ticked only once measured, and always unticked. */
+ *  under it what it does with a command it finds risky (refused unless you say Ask me; not while it is off), and its box
+ *  for your words (§8), which may be ticked only once measured, and always unticked. */
 function useFullAutoJudge(project: Project) {
   const [on, setOn] = useState(project.full_auto_judge)
   const [words, setWords] = useState(project.judge_words)
+  const [risky, setRisky] = useState(project.judge_risky)
   const measured = wordsMeasured(project)
   const locked = !measured && !words
   return {
     patch: {
       ...(on !== project.full_auto_judge && { full_auto_judge: on }),
       ...(words !== project.judge_words && { judge_words: words }),
+      ...(risky !== project.judge_risky && { judge_risky: risky }),
     },
     row: (
       <>
@@ -264,6 +274,26 @@ function useFullAutoJudge(project: Project) {
             </span>
           </span>
         </label>
+        <Row
+          label="When the judge finds a command risky"
+          htmlFor="judge-risky"
+          doc={GUIDE.fullAutoJudge}
+          why={RISKY_WHY}
+        >
+          <select
+            id="judge-risky"
+            className="input"
+            value={risky}
+            disabled={!on}
+            onChange={e => setRisky(e.target.value as Project['judge_risky'])}
+          >
+            {JUDGE_RISKY.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Row>
         <label className={`choice${locked ? ' choice-disabled' : ''}`}>
           <input type="checkbox" checked={words} disabled={locked} onChange={e => setWords(e.target.checked)} />
           <span>

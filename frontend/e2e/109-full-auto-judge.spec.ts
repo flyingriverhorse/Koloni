@@ -1,9 +1,20 @@
 // Full auto's judge (0.1.9) in the browser: the Judge model chosen in Settings › The app › Agents, the project's switch
 // turned on in the level menu - a command the list does not stop is first sent to the stand-in judge, which finds one
-// with JUDGE-RISKY risky: it waits on a card that says so, with no Always run and the box to keep its line. With the
-// switch turned off there, the same command runs with no card. Nothing leaves the machine: the fake model is the judge.
+// with JUDGE-RISKY risky: as a project comes it is refused with no card, its row says why, and the agent goes on; with
+// Ask me chosen in Settings › This project it waits on a card that says so, with no Always run and the box to keep its
+// line. With the switch turned off, the same command runs with no card. Nothing leaves the machine: the fake model is
+// the judge.
 import { expect, test, type Page } from './fixtures'
-import { appSettings, e2eProject, level, OWN, openFreshConversation, setProject } from './helpers'
+import {
+  appSettings,
+  e2eProject,
+  level,
+  OWN,
+  openFreshConversation,
+  projectSettings,
+  saveSettings,
+  setProject,
+} from './helpers'
 
 type Model = { name: string; tier: string | null }
 let local: { id: string; models: Model[] }
@@ -21,7 +32,7 @@ test.afterEach(async ({ page, request }) => {
   expect((await request.put('/api/judge', { headers: OWN, data: none })).ok()).toBe(true)
   const models = local.models
   expect((await request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { models } })).ok()).toBe(true)
-  await setProject(page, { full_auto_judge: false })
+  await setProject(page, { full_auto_judge: false, judge_risky: 'refuse' })
 })
 
 /** The level menu's switch for Full auto's judge, clicked; the project's setting then, as the server has it. */
@@ -37,11 +48,11 @@ async function flipJudge(page: Page, pid: string, now: boolean) {
   await page.keyboard.press('Escape')
 }
 
-test('a command the judge finds risky waits on its card; with the switch off, the same command runs with no card', async ({
+test('a command the judge finds risky is refused and the agent goes on; with Ask me it waits on its card; with the switch off, it runs with no card', async ({
   page,
   request,
 }) => {
-  test.setTimeout(90_000)
+  test.setTimeout(120_000)
   await openFreshConversation(page)
   const pid = await e2eProject(page)
   const chat = page.getByRole('region', { name: 'Chat' })
@@ -56,9 +67,24 @@ test('a command the judge finds risky waits on its card; with the switch off, th
 
   await level(page, 'full_auto')
   await flipJudge(page, pid, true)
+  // Refuse and go on, as a project comes: no card - the row says refused, with the judge's sentence, and the agent goes
+  // on. (Decided for you lists it too: `decided.test.tsx`.)
+  const refused = "KOLONİ's judge refused: The stand-in judge was told it is risky."
   await page.getByLabel('Message').fill(`Judge 109: run ${COMMAND}`)
   await page.getByRole('button', { name: 'Send' }).click()
-  const card = chat.locator('.cmd-approval').filter({ hasText: COMMAND })
+  await expect(chat.getByText('Went another way, 109.')).toBeVisible({ timeout: 20_000 })
+  await expect(chat.getByText('Run this command?')).toHaveCount(0)
+  await expect(chat.locator('.tool-row-note', { hasText: refused })).toHaveCount(1)
+  await expect(chat.locator('.tool-row', { hasText: refused })).toContainText('refused')
+
+  // Ask me, chosen in Settings › This project › Asking and away: its card.
+  const settings = await projectSettings(page, /^Asking and away/)
+  await settings.getByLabel('When the judge finds a command risky').selectOption('ask')
+  await saveSettings(page)
+  await expect.poll(async () => (await (await request.get(`/api/projects/${pid}`)).json()).judge_risky).toBe('ask')
+  await page.getByLabel('Message').fill(`Judge 109: run ${COMMAND}`)
+  await page.getByRole('button', { name: 'Send' }).click()
+  const card = chat.locator('.cmd-approval:not(.decided)').filter({ hasText: COMMAND })
   await expect(card).toContainText("KOLONİ's judge: The stand-in judge was told it is risky.", { timeout: 20_000 })
   await expect(card.getByRole('button', { name: /Always run/ })).toHaveCount(0)
   // (Its box is not ticked here: a kept line would outlive a retry of this spec.)
@@ -73,5 +99,6 @@ test('a command the judge finds risky waits on its card; with the switch off, th
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('Ran it, 109.')).toBeVisible({ timeout: 20_000 })
   await expect(chat.getByText('Run this command?')).toHaveCount(0)
-  await expect(chat.locator('.tool-row-note', { hasText: "KOLONİ's judge" })).toHaveCount(1)
+  // (the refused one's line and the card's: none for the one that ran)
+  await expect(chat.locator('.tool-row-note', { hasText: "KOLONİ's judge" })).toHaveCount(2)
 })

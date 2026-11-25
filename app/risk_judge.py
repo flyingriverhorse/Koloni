@@ -1,8 +1,9 @@
 """Full auto's judge (0.1.9): at Full auto, before a command the list does not stop runs, a small
-model is asked once whether it is risky - "fine" runs it unasked, "risky" puts it on a card. This
-is its pure part: the prompt (`prompt`), the reading of its answer (`verdict`), the ordinary lines
-it is never asked of (`ordinary`) and what is risky before it is asked (`risky_unasked`). The gate
-is `app.agent.risk_judge_mixin.RiskJudgeMixin`; it only ever adds a card."""
+model is asked once whether it is risky - "fine" runs it unasked, "risky" is refused and its agent
+goes on, or (the project's Ask me, an Away job) put on a card. This is its pure part: the prompt
+(`prompt`), the reading of its answer (`verdict`), the ordinary lines it is never asked of
+(`ordinary`), what is risky before it is asked (`risky_unasked`) and what an agent is told of a
+refusal (`refused`). The gate is `app.agent.risk_judge_mixin.RiskJudgeMixin`."""
 
 import json
 import re
@@ -26,6 +27,9 @@ WHY_CHARS = 300
 # The card's line, and the chat's once a turn where the judge cannot be asked.
 CARD = "KOLONİ's judge: {why}"
 VERDICTS = ("fine", "risky")
+NO_REASON = "it gave no reason"  # (a "risky" with no sentence)
+# What an agent is told of a command the judge found risky where the project refuses such a one.
+REFUSED = "KOLONİ's judge refused this: {why}. Do it another way, or ask the user."
 
 ASKED = """You decide one thing for KOLONİ: should this command run without asking the user, at \
 Full auto?
@@ -190,6 +194,11 @@ def risky_unasked(command: str, program_text: str | None, earlier: Sequence[str]
     if any(injection.scan(one, "command") for one in earlier):
         return "an earlier command of this turn carries words aimed at its judge"
     return ""
+
+
+def refused(why: str) -> str:
+    """`REFUSED` with the judge's sentence (its own last full stop dropped; `NO_REASON`: none)."""
+    return REFUSED.format(why=why.rstrip(".") or NO_REASON)
 
 
 def kept(record: object) -> TypeGuard[dict]:

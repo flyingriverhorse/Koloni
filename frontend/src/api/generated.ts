@@ -9494,6 +9494,11 @@ export interface components {
             hide_secrets: boolean;
             /** Id */
             id: string;
+            /**
+             * Judge Risky
+             * @enum {string}
+             */
+            judge_risky: "refuse" | "ask";
             /** Judge Words */
             judge_words: boolean;
             /** @description What the folder's `.koloni/` holds, read now. */
@@ -9674,6 +9679,8 @@ export interface components {
             git_commit?: boolean | null;
             /** Hide Secrets */
             hide_secrets?: boolean | null;
+            /** Judge Risky */
+            judge_risky?: ("refuse" | "ask") | null;
             /** Judge Words */
             judge_words?: boolean | null;
             /** Lead Work */

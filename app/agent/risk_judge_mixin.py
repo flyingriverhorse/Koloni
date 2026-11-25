@@ -68,7 +68,7 @@ LATE = "it did not answer in time"
 UNREAD = "its answer could not be read"
 FAILED = "it could not be asked"
 NOT_LOOKED = "it could not look at this command"
-NO_REASON = "it gave no reason"  # (a "risky" with no sentence)
+NO_REASON = risk_judge.NO_REASON
 
 # An option word of an interpreter's after which the line holds its code itself (`python -c`,
 # `node -e`, `-p`, `-r`): no file of its own runs (`python -m x` is read as its module's file). A
@@ -405,7 +405,8 @@ class RiskJudgeMixin:
         works in) waits for the user on a card though KOLONİ found no reason of its own - asked
         only where none was found, nor any by the check of the user's words (`found`, their
         reason and record: given back as they are). ("", record) - it runs, its record "fine";
-        ("", None) - not judged; (`CARD`, record "risky") - its card.
+        ("", None) - not judged; (`CARD`, record "risky") - its card; ("", record "refuse") - not
+        run, its agent told so (`risk_judge.refused`).
         Not judged: not a watched Full auto turn nor a job's at Full auto (a trigger's never), a
         line the user lets run or KOLONİ asks of anyway (`exempt`: a skill's script they allowed,
         a disposable delete, a reason in a working copy, a role that runs no command),
@@ -420,13 +421,16 @@ class RiskJudgeMixin:
         on its card -, nor for one but where the file it runs was found, hashed, and is all it
         runs (`_named_file`), or it runs none of the folder's code (`_no_local_code`): what it
         runs may change unseen, the same words in another folder be another line.
-        Whatever goes wrong in it but a Stop is its card, never a run."""
+        In a watched turn its own "risky" may be refused instead (`_risk_refuses`).
+        Whatever goes wrong in it but a Stop is its card, never a run nor a refusal."""
         if exempt or found != ("", None):
             return found
         try:
-            if not (self._full_auto(ctx) or self._away_full_auto(ctx)):
+            watched = self._full_auto(ctx)
+            if not (watched or self._away_full_auto(ctx)):
                 return "", None
-            return await self._risk_judging(ctx, command, cwd, root, known)
+            judged = await self._risk_judging(ctx, command, cwd, root, known)
+            return self._risk_refuses(ctx, *judged) if watched else judged
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -538,6 +542,22 @@ class RiskJudgeMixin:
                 )
             )
         return found is not None
+
+    def _risk_refuses(
+        self: "AgentRunner", ctx: Ctx, why: str, record: dict | None
+    ) -> tuple[str, dict | None]:
+        """The judge's own "risky" (its model looked at the line: `looked`), where the project
+        refuses such a one (`Project.judge_risky`, read at each command): no card, its record's
+        verdict "refuse" - the command is not run and its agent is told why. Any other card stays
+        one - KOLONİ's own before it was asked, or one the model gave no verdict for (fails
+        closed: the user decides). The turn's kept verdict stays "risky" (a new record)."""
+        if not (record and record["looked"] and record["verdict"] == "risky"):
+            return why, record
+        with self._factory() as session:
+            project = project_of(session, session.get_one(Conversation, ctx.cid))
+            if project is None or project.judge_risky != "refuse":
+                return why, record
+        return "", {**record, "verdict": "refuse"}
 
     def _risk_no_room(self: "AgentRunner", session, ctx: Ctx, picked, project) -> str:
         """Why the judge's model may not be asked now: the turn past its token limit, no room on

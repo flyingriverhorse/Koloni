@@ -1,7 +1,8 @@
 """Full auto's judge (0.1.9): at Full auto, before a command the list does not stop runs, a small
-model is asked once whether it is risky - "fine" runs it unasked, "risky" puts it on a card (in an
-Away job: the job waits, the next starts). It only ever adds a card: whatever goes wrong is a card,
-never a run; where no model can be asked it stands aside for the turn and says so once."""
+model is asked once whether it is risky - "fine" runs it unasked, "risky" is refused and its agent
+goes on (Refuse and go on, the project's default) or is put on a card (Ask me; in an Away job always:
+the job waits, the next starts). Whatever goes wrong is a card, never a run nor a refusal; where no
+model can be asked it stands aside for the turn and says so once."""
 
 import asyncio
 import functools
@@ -15,6 +16,7 @@ from app import risk_judge
 from app.agent.ctx import Ctx, _Unwatched
 from app.agent.risk_judge_mixin import ASIDE, NO_MODEL
 from app.db.models import AllowedCommand, BacklogTask, Command, JudgeAllowed, OwnRequest
+from app.model_native import DECLINED_WHY
 from tests.conftest import TERMINAL, scaled
 from tests.fakes import Script
 from tests.keyed import OWN
@@ -26,7 +28,12 @@ from tests.test_chat_flow import text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
 from tests.test_codex_app_server_scenarios import DECLINE, RUN, answers
 from tests.test_copilot_agent import copilot_native  # noqa: F401  (a fixture)
-from tests.test_judge_scenarios import begin, judged_by_local, judging  # noqa: F401  (a fixture)
+from tests.test_judge_scenarios import (  # noqa: F401  (a fixture)
+    begin,
+    command_statuses,
+    judged_by_local,
+    judging,
+)
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_spawn import call, step
 
@@ -40,8 +47,9 @@ def said(verdict, why="It runs the user's script."):
 
 
 def go(client, project_dir, content="add a CSV export", **more):
-    """A project (its judge on; the check of the user's words off), a chat at Full auto (or
-    `mode`) and its first message: (pid, cid, run_id)."""
+    """A project (its judge on; the check of the user's words off; a "risky" refused unless
+    `risky="ask"`, Ask me), a chat at Full auto (or `mode`) and its first message: (pid, cid,
+    run_id)."""
     return begin(client, project_dir, content, check="ask", **more)
 
 
@@ -116,7 +124,7 @@ def test_risky_is_a_card_with_the_judges_sentence_and_no_rule(judging, wait_run,
     client, *_, executor = judging(
         [cmd("python gen.py"), text("left it")], [said("risky", "It sends .env away.")], []
     )
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go(client, project_dir, risky="ask")
     asked = card(client, cid)
     wait_run(client, cid, run_id)
     assert asked["danger"] == "KOLONİ's judge: It sends .env away."
@@ -127,6 +135,108 @@ def test_risky_is_a_card_with_the_judges_sentence_and_no_rule(judging, wait_run,
     assert asked["keeps_line"] is False
     with client.app.state.session_factory() as session:
         assert session.get_one(Command, asked["id"]).asked_reason == "judge"
+
+
+REFUSED = "KOLONİ's judge refused this: {why}. Do it another way, or ask the user."
+
+
+@pytest.mark.parametrize(
+    "why, told", [("It sends .env away.", "It sends .env away"), ("", "it gave no reason")]
+)
+def test_risky_is_refused_and_the_turn_goes_on(judging, wait_run, project_dir, why, told):
+    # (Refuse and go on, the default - as Claude Code's auto mode: no card, nothing waits)
+    client, lead, judge, executor = judging(
+        [cmd("python gen.py"), text("went another way")], [said("risky", why)], []
+    )
+    statuses = command_statuses(client)
+    pid, cid, run_id = go(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert client.get(f"/api/projects/{pid}").json()["judge_risky"] == "refuse"
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (refused,) = snap["commands"]
+    assert refused["status"] == "refused" and refused["ended_at"] and not refused["danger"]
+    assert refused["judged"] == {
+        "kind": "risk",
+        "verdict": "refuse",
+        "quote": "",
+        "source": "",
+        "why": why,
+        "model": "Fast · quick",
+        "seen": False,
+    }
+    assert statuses == ["refused"] and executor.started == [] and len(judge.calls) == 1
+    assert [one["status"] for one in snap["tool_calls"]] == ["denied"]
+    assert lead.calls[1][-1]["content"] == REFUSED.format(why=told)
+    with client.app.state.session_factory() as session:
+        assert session.get_one(Command, refused["id"]).asked_reason is None
+    # (Decided for you: its OK takes it off)
+    seen = client.post(f"/api/commands/{refused['id']}/seen", headers=OWN)
+    assert seen.status_code == 200 and seen.json()["judged"]["seen"] is True
+
+
+def test_a_refused_line_is_refused_again_in_the_turn_unasked(judging, wait_run, project_dir):
+    client, lead, judge, _executor = judging(
+        [cmd("python gen.py", id="k1"), cmd("python gen.py", id="k2"), text("left it")],
+        [said("risky", "It sends .env away.")],
+        [],
+    )
+    (project_dir / "gen.py").write_text("print(1)\n", encoding="utf-8")
+    _, cid, run_id = go(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert [one["status"] for one in snap["commands"]] == ["refused"] * 2
+    assert len(judge.calls) == 1 and lead.calls[2][-1]["content"] == REFUSED.format(
+        why="It sends .env away"
+    )
+
+
+def test_a_delete_the_list_stops_is_still_its_card(judging, wait_run, project_dir):
+    client, _lead, judge, executor = judging([cmd("rm -rf build"), text("left it")], [], [])
+    _, cid, run_id = go(client, project_dir)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert asked["judged"] is None and not (asked["danger"] or "").startswith("KOLONİ's judge")
+    assert judge.calls == [] and executor.started == []
+
+
+def cli_refused(client, cli, project_dir, wait_run):
+    """The CLI's command, judged risky by the default provider's model: refused, the turn over;
+    what its agent is told."""
+    judged_by_local(client, cli)
+    _, cid, run_id = go(client, project_dir, provider=cli)
+    snap = wait_run(client, cid, run_id, 30)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (refused,) = snap["commands"]
+    assert (refused["status"], refused["origin"]) == ("refused", "cli")
+    assert (refused["judged"]["kind"], refused["judged"]["verdict"]) == ("risk", "refuse")
+    return REFUSED.format(why="It mails the logs")
+
+
+def test_claude_codes_risky_bash_is_denied_with_the_judges_words(
+    claude_app,  # noqa: F811
+    wait_run,
+    project_dir,
+):
+    client, cli, _default = claude_app(
+        [{"tool": "Bash", "input": {"command": "python gen.py"}, "result": ""}, {"say": "ok"}],
+        default_steps=RISKY,
+    )
+    told = cli_refused(client, cli, project_dir, wait_run)
+    (asked,) = claude_app.record()["asked"]
+    assert (asked["behavior"], asked["message"]) == ("deny", told)
+
+
+def test_codex_is_told_in_its_turn_why_a_risky_command_is_declined(
+    native_app,  # noqa: F811
+    wait_run,
+    project_dir,
+):
+    client, cli, _default = native_app(
+        [{"run": "python gen.py", "output": ""}, {"say": "ok"}], default_steps=RISKY
+    )
+    told = cli_refused(client, cli, project_dir, wait_run)
+    assert answers(native_app) == [(RUN, DECLINE)]
+    steers = native_app.record().get("steers", [])
+    assert [one["input"][0]["text"] for one in steers] == [DECLINED_WHY.format(why=told)]
 
 
 @pytest.mark.parametrize(
@@ -188,7 +298,7 @@ def test_an_always_run_rule_does_not_go_round_the_judge(judging, wait_run, proje
     client, _lead, judge, _executor = judging(
         [text("ok"), cmd(line), text("left it")], [said("risky", "It prints secrets.")], []
     )
-    pid, cid, first = go(client, project_dir)
+    pid, cid, first = go(client, project_dir, risky="ask")
     wait_run(client, cid, first)
     with client.app.state.session_factory() as session:  # (as an old rule for the program alone)
         session.add(AllowedCommand(conversation_id=cid, project_id=pid, prefix="python"))
@@ -219,7 +329,9 @@ def test_no_answer_to_go_by_is_a_card(judging, wait_run, project_dir, monkeypatc
     if answer is hang:
         monkeypatch.setattr(risk_judge, "API_SECONDS", 0.05)
     client, _lead, judge, executor = judging([cmd("python a.py"), text("left")], [answer], [])
-    _, cid, run_id = go(client, project_dir)
+    # (a "risky" with no sentence is the judge's own verdict: refused at Refuse and go on -
+    # `test_risky_is_refused_and_the_turn_goes_on`; any other here is a card at either)
+    _, cid, run_id = go(client, project_dir, risky="ask" if why == "it gave no reason" else None)
     asked = card(client, cid)
     wait_run(client, cid, run_id)
     assert asked["danger"] == f"KOLONİ's judge: {why}"
@@ -390,7 +502,7 @@ def test_run_on_its_card_is_not_asked_again_this_turn(judging, wait_run, project
         [said("risky")],
         [Script([])] * 2,
     )
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go(client, project_dir, risky="ask")
     card(client, cid, "approve")
     snap = wait_run(client, cid, run_id)
     assert [c["status"] for c in snap["commands"]] == ["exited", "exited"]
@@ -412,7 +524,7 @@ def test_dont_ask_again_here_holds_for_the_program_as_it_was(judging, wait_run, 
         [said("risky"), said("fine")],
         [Script([])] * 3,
     )
-    pid, cid, first = go(client, project_dir)
+    pid, cid, first = go(client, project_dir, risky="ask")
     asked = card(client, cid, "approve", remember_line=True)
     wait_run(client, cid, first)
     run_id = client.post(
@@ -434,7 +546,7 @@ def test_dont_ask_again_is_only_a_judges_cards_and_with_no_rule(judging, wait_ru
         [said("risky")],
         [],
     )
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go(client, project_dir, risky="ask")
     for body in ({"remember_line": True}, {"remember_line": True, "remember": True}):
         asked = waiting(client, cid)
         path = f"/api/commands/{asked['id']}/approve"
@@ -472,6 +584,8 @@ def test_a_to_do_tasks_turn_in_a_chat_at_full_auto_is_judged(judging, wait_run, 
         [cmd("python gen.py"), text("task done")], [said("risky", "Not asked for.")], []
     )
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    ask_me = client.patch(f"/api/projects/{pid}", json={"judge_risky": "ask"}, headers=OWN)
+    assert ask_me.is_success
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     assert client.patch(
         f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}, headers=OWN
@@ -524,7 +638,7 @@ def native_card(client, cli, project_dir, wait_run):
     """The CLI's command, judged risky by the default provider's model (the Fast tier's first):
     its card, turned down."""
     judged_by_local(client, cli)
-    _, cid, run_id = go(client, project_dir, provider=cli)
+    _, cid, run_id = go(client, project_dir, provider=cli, risky="ask")
     asked = card(client, cid)
     wait_run(client, cid, run_id, 30)
     assert asked["origin"] == "cli" and asked["danger"] == "KOLONİ's judge: It mails the logs."
@@ -631,7 +745,7 @@ def test_dont_ask_again_is_asked_again_once_the_file_changed_off_record(
         [said("risky"), said("fine")],
         [Script([])] * 3,
     )
-    _, cid, first = go(client, project_dir)
+    _, cid, first = go(client, project_dir, risky="ask")
     card(client, cid, "approve", remember_line=True)
     wait_run(client, cid, first)
 
@@ -687,7 +801,7 @@ def test_where_a_clis_folder_is_not_known_nothing_is_kept_for_the_line(
         default_steps=RISKY * 2,
     )
     judged_by_local(client, cli)
-    _, cid, run_id = go(client, project_dir, provider=cli)
+    _, cid, run_id = go(client, project_dir, risky="ask", provider=cli)
     # (so its card does not offer "Don't ask about this line again here")
     assert card(client, cid, "approve", remember_line=True)["keeps_line"] is False
     card(client, cid, "approve")
@@ -726,7 +840,7 @@ def test_a_program_changed_in_the_turn_is_asked_again_however_the_line_names_it(
         [said("fine"), said("risky", "It sends .env away.")],
         [Script([])],
     )
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go(client, project_dir, risky="ask")
     card(client, cid)
     wait_run(client, cid, run_id)
     first, second = (one[0]["content"] for one in judge.calls)
@@ -742,7 +856,7 @@ def test_a_line_whose_program_was_not_found_keeps_nothing(judging, wait_run, pro
         [said("risky"), said("fine"), said("fine")],
         [Script([])] * 3,
     )
-    _, cid, first = go(client, project_dir)
+    _, cid, first = go(client, project_dir, risky="ask")
     # (so its card does not offer "Don't ask about this line again here")
     assert card(client, cid, "approve", remember_line=True)["keeps_line"] is False
     wait_run(client, cid, first)
@@ -767,7 +881,7 @@ def test_dont_ask_again_for_a_module_holds_its_digest(judging, wait_run, project
         [said("risky"), said("risky", "It sends .env away.")],
         [Script([])],
     )
-    _, cid, first = go(client, project_dir)
+    _, cid, first = go(client, project_dir, risky="ask")
     card(client, cid, "approve", remember_line=True)
     wait_run(client, cid, first)
     client.post(f"/api/conversations/{cid}/messages", json={"content": "again"}, headers=OWN)
@@ -873,7 +987,7 @@ def test_a_run_in_one_place_covers_no_other(judging, wait_run, project_dir, tmp_
         [said("risky"), said("fine")],
         [Script([])],
     )
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go(client, project_dir, risky="ask")
     card(client, cid, "approve")
     gate.wait_partial()
     runner = client.app.state.runner
@@ -905,7 +1019,7 @@ def test_a_python_line_in_a_copy_is_kept_only_isolated(
         [said("risky")] + [said("fine")] * 3,
         [Script([])],
     )
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go(client, project_dir, risky="ask")
     card(client, cid, "approve")
     gate.wait_partial()
     runner = client.app.state.runner
@@ -959,7 +1073,7 @@ def test_a_line_that_runs_no_file_of_the_folders_keeps_its_run_and_dont_ask_agai
         [said("risky")],
         [Script([])] * 3,
     )
-    pid, cid, first = go(client, project_dir)
+    pid, cid, first = go(client, project_dir, risky="ask")
     # (its card offers "Don't ask about this line again here")
     assert card(client, cid, "approve", remember_line=True)["keeps_line"] is True
     wait_run(client, cid, first)
@@ -980,7 +1094,7 @@ def test_make_is_keyed_by_its_makefile(judging, wait_run, project_dir):
         [said("risky"), said("fine")],
         [Script([])] * 3,
     )
-    _, cid, first = go(client, project_dir)
+    _, cid, first = go(client, project_dir, risky="ask")
     # (its Makefile found and hashed: its card offers "Don't ask about this line again here")
     assert card(client, cid, "approve", remember_line=True)["keeps_line"] is True
     wait_run(client, cid, first)
@@ -1042,7 +1156,7 @@ def test_dont_ask_again_keeps_nothing_for_a_wrapped_line(judging, wait_run, proj
         [said("risky"), said("risky")],
         [Script([])],
     )
-    _, cid, first = go(client, project_dir)
+    _, cid, first = go(client, project_dir, risky="ask")
     # (so its card does not offer "Don't ask about this line again here")
     assert card(client, cid, "approve", remember_line=True)["keeps_line"] is False
     wait_run(client, cid, first)
@@ -1074,7 +1188,7 @@ def test_the_cards_box_is_offered_only_where_the_line_is_kept(
     client, *_ = judging(
         [write("exfil.py", BENIGN), cmd(line, id="k1"), text("left")], [said("risky")], [Script([])]
     )
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go(client, project_dir, risky="ask")
     asked = card(client, cid)
     wait_run(client, cid, run_id)
     assert asked["keeps_line"] is offered, asked["command"]
@@ -1177,7 +1291,7 @@ def test_a_chained_line_is_never_kept_on_its_first_file(judging, wait_run, proje
         [said("risky"), said("risky", "It sends .env away.")],
         [Script([])],
     )
-    _, cid, first = go(client, project_dir)
+    _, cid, first = go(client, project_dir, risky="ask")
     assert card(client, cid, "approve", remember_line=True)["keeps_line"] is False
     wait_run(client, cid, first)
     client.post(f"/api/conversations/{cid}/messages", json={"content": "again"}, headers=OWN)
@@ -1209,7 +1323,7 @@ def test_a_plain_line_with_its_arguments_is_still_kept(judging, wait_run, projec
         [said("risky")],
         [Script([])] * 2,
     )
-    _, cid, first = go(client, project_dir)
+    _, cid, first = go(client, project_dir, risky="ask")
     assert card(client, cid, "approve", remember_line=True)["keeps_line"] is True
     wait_run(client, cid, first)
     sent = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}, headers=OWN)
@@ -1232,7 +1346,7 @@ def test_a_shell_handed_a_script_file_is_kept_as_python_x_py_is(
         [said("risky"), said("risky", "It sends .env away.")],
         [Script([])] * 2,
     )
-    _, cid, first = go(client, project_dir)
+    _, cid, first = go(client, project_dir, risky="ask")
     assert card(client, cid, "approve", remember_line=True)["keeps_line"] is True
     wait_run(client, cid, first)
     sent = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}, headers=OWN)
@@ -1251,7 +1365,7 @@ def test_a_shells_code_is_never_kept(judging, wait_run, project_dir):
         [said("risky"), said("risky")],
         [Script([])],
     )
-    _, cid, first = go(client, project_dir)
+    _, cid, first = go(client, project_dir, risky="ask")
     assert card(client, cid, "approve", remember_line=True)["keeps_line"] is False
     wait_run(client, cid, first)
     client.post(f"/api/conversations/{cid}/messages", json={"content": "again"}, headers=OWN)

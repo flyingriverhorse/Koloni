@@ -176,8 +176,10 @@ def stats(session: Session, project_id: str | None, since: datetime | None) -> d
         since,
     )
     verdict = Command.judged["verdict"].as_string()
+    # (Full auto's judge's own refusal, `kind` "risk", is none of them; none before 0.1.9 has one)
+    words = func.coalesce(Command.judged["kind"].as_string(), "") != "risk"
     judged = _in_period(
-        select(verdict, func.count()).where(verdict.in_(_VERDICTS)).group_by(verdict),
+        select(verdict, func.count()).where(verdict.in_(_VERDICTS), words).group_by(verdict),
         project_id,
         since,
     )

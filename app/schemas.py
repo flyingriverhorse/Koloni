@@ -83,6 +83,8 @@ WhenAway = Literal["waits", "lead"]
 # K-yargic: at Full auto a harmful-looking command waits for the user, or is first checked
 # against what they wrote.
 FullAutoCheck = Literal["ask", "judge"]
+# Full auto's judge's "risky": refused, its agent goes on (as Claude Code's auto mode), or a card.
+JudgeRisky = Literal["refuse", "ask"]
 # Kanıtlı bitiş (`app.proof.AFTER_CHANGE`): shown as Test and review, Tests only, Nothing.
 AfterChange = Literal["check", "tests", "nothing"]
 # S10: Test and review changes, for one chat; None (not sent as such) the project's.
@@ -300,6 +302,7 @@ class ProjectOut(Out):
     # with its box `judge_words` (§8), lets a harmful-looking one a line of the user's names run.
     full_auto_judge: bool
     judge_words: bool
+    judge_risky: JudgeRisky
     # Coordination §4: whether a disposable delete goes without a card at Auto-edit and Full
     # auto in a watched turn.
     disposable_deletes: bool
@@ -402,6 +405,7 @@ class ProjectPatch(BaseModel):
     forget_tests_found: bool | None = None
     full_auto_judge: bool | None = None
     judge_words: bool | None = None
+    judge_risky: JudgeRisky | None = None
     disposable_deletes: bool | None = None
 
 

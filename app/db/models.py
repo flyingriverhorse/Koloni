@@ -235,9 +235,10 @@ class Project(Base):
     tests_look: Mapped[dict | None] = mapped_column(JSON, default=None)
     # K-yargic's old choice, "ask" / "judge" - a carrier only since 0.1.9 §8 (`judge.words_on`).
     full_auto_check: Mapped[str] = mapped_column(String(5), default="ask", server_default="ask")
-    # Full auto's judge (0.1.9, `RiskJudgeMixin`); its box for the user's words (§8, `_judged`).
+    # Full auto's judge (`RiskJudgeMixin`), its box for words (§8), its "risky" refused or asked.
     full_auto_judge: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     judge_words: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    judge_risky: Mapped[str] = mapped_column(String(6), default="refuse", server_default="refuse")
     # Coordination §4: whether agents delete what KOLONİ checked is disposable (a build or cache
     # folder, a clean worktree, a merged branch) without a card, at Auto-edit and Full auto in a
     # watched turn. The user's own setting, off until they allow it.
