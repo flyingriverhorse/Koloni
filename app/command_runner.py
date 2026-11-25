@@ -143,9 +143,9 @@ def refused_by_rule(judgement: dict) -> str:
     where it is one of their saved texts, which every agent is given (`REFUSED`); of a message of
     theirs in the chat, only that one forbids it (`REFUSED_BY_A_MESSAGE`) - a sub-agent or a CLI
     never saw the chat, and a token nothing masks may stand beside the sentence. Full auto's
-    judge's own refusal (`kind` "risk"): its sentence (`risk_judge.refused`)."""
+    judge's own refusal (`kind` "risk"): a general reason, never its sentence (`REFUSED`)."""
     if judgement.get("kind") == "risk":
-        return risk_judge.refused(judgement["why"])
+        return risk_judge.REFUSED
     if judgement.get("source") in ("preferences", "rules"):
         return REFUSED.format(quote=judgement["quote"])
     return REFUSED_BY_A_MESSAGE

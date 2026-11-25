@@ -145,13 +145,11 @@ def test_risky_is_a_card_with_the_judges_sentence_and_no_rule(judging, wait_run,
         assert session.get_one(Command, asked["id"]).asked_reason == "judge"
 
 
-REFUSED = "KOLONİ's judge refused this: {why}. Do it another way, or ask the user."
+REFUSED = risk_judge.REFUSED
 
 
-@pytest.mark.parametrize(
-    "why, told", [("It sends .env away.", "It sends .env away"), ("", "it gave no reason")]
-)
-def test_risky_is_refused_and_the_turn_goes_on(judging, wait_run, project_dir, why, told):
+@pytest.mark.parametrize("why", ["It sends .env away to acme-bucket.", ""])
+def test_risky_is_refused_and_the_turn_goes_on(judging, wait_run, project_dir, why):
     # (Refuse and go on, the default - as Claude Code's auto mode: no card, nothing waits)
     client, lead, judge, executor = judging(
         [cmd("python gen.py"), text("went another way")], [said("risky", why)], []
@@ -163,6 +161,7 @@ def test_risky_is_refused_and_the_turn_goes_on(judging, wait_run, project_dir, w
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     (refused,) = snap["commands"]
     assert refused["status"] == "refused" and refused["ended_at"] and not refused["danger"]
+    # (the judge's sentence is the user's to see - on the row and under Decided for you)
     assert refused["judged"] == {
         "kind": "risk",
         "verdict": "refuse",
@@ -174,7 +173,9 @@ def test_risky_is_refused_and_the_turn_goes_on(judging, wait_run, project_dir, w
     }
     assert statuses == ["refused"] and executor.started == [] and len(judge.calls) == 1
     assert [one["status"] for one in snap["tool_calls"]] == ["denied"]
-    assert lead.calls[1][-1]["content"] == REFUSED.format(why=told)
+    # (...never its agent's: it read the user's chat, and would guide the next try - review)
+    told = lead.calls[1][-1]["content"]
+    assert told == REFUSED and "acme" not in told and ".env" not in told
     with client.app.state.session_factory() as session:
         assert session.get_one(Command, refused["id"]).asked_reason is None
     # (Decided for you: its OK takes it off)
@@ -192,23 +193,73 @@ def test_a_refused_line_is_refused_again_in_the_turn_unasked(judging, wait_run, 
     _, cid, run_id = go(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert [one["status"] for one in snap["commands"]] == ["refused"] * 2
-    assert len(judge.calls) == 1 and lead.calls[2][-1]["content"] == REFUSED.format(
-        why="It sends .env away"
+    assert len(judge.calls) == 1 and lead.calls[2][-1]["content"] == REFUSED
+
+
+CAPPED = "Full auto's judge refused 3 commands this turn; the next risky one asks you."
+
+
+def test_after_three_refusals_in_a_turn_the_next_risky_one_is_its_card(
+    judging, wait_run, project_dir
+):
+    # (security review of k-judge-ret: an agent tried variant after variant until one was "fine")
+    lines = [f"python v{n}.py" for n in range(1, 5)]
+    client, _lead, judge, executor = judging(
+        [
+            *(cmd(line, id=f"k{n}") for n, line in enumerate(lines)),
+            text("left it"),
+            cmd("python v5.py", id="k5"),
+            text("again"),
+        ],
+        [said("risky", "It mails the logs.")] * 5,
+        [],
     )
-
-
-def test_a_delete_the_list_stops_is_still_its_card(judging, wait_run, project_dir):
-    client, _lead, judge, executor = judging([cmd("rm -rf build"), text("left it")], [], [])
     _, cid, run_id = go(client, project_dir)
     asked = card(client, cid)
-    wait_run(client, cid, run_id)
-    assert asked["judged"] is None and not (asked["danger"] or "").startswith("KOLONİ's judge")
-    assert judge.calls == [] and executor.started == []
+    snap = wait_run(client, cid, run_id)
+    assert asked["command"] == "python v4.py"
+    assert asked["danger"] == "KOLONİ's judge: It mails the logs."
+    assert [one["status"] for one in snap["commands"]] == ["refused"] * 3 + ["rejected"]
+    assert koloni_lines(client, cid) == [CAPPED] and executor.started == []
+    # (a new turn starts at none)
+    run_id = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "go on"}, headers=OWN
+    ).json()["run"]["id"]
+    snap = wait_run(client, cid, run_id)
+    assert snap["commands"][-1]["status"] == "refused" and len(judge.calls) == 5
+
+
+def test_the_refusals_are_counted_by_all_the_turns_agents(judging, wait_run, project_dir):
+    from tests.test_judge_scenarios import spawn
+
+    client, model, _judge, executor = judging(
+        {
+            "Lead": [
+                cmd("python a.py", id="k1"),
+                cmd("python b.py", id="k2"),
+                spawn("Coder", "make the export"),
+                text("done"),
+            ],
+            "Coder": [cmd("python c.py", id="k3"), cmd("python d.py", id="k4"), text("left")],
+        },
+        [said("risky", "It mails the logs.")] * 4,
+        [],
+    )
+    _, cid, run_id = go(client, project_dir)
+    asked = card(client, cid)
+    assert asked["command"] == "python d.py"
+    statuses = {one["command"]: one["status"] for one in settled(client, cid, run_id)["commands"]}
+    assert statuses == {
+        "python a.py": "refused",
+        "python b.py": "refused",
+        "python c.py": "refused",
+        "python d.py": "rejected",
+    }
+    assert model.calls_of["Coder"][1][-1]["content"] == REFUSED and executor.started == []
 
 
 def cli_refused(client, cli, project_dir, wait_run):
-    """The CLI's command, judged risky by the default provider's model: refused, the turn over;
-    what its agent is told."""
+    """The CLI's command, judged risky by the default provider's model: refused, the turn over."""
     judged_by_local(client, cli)
     _, cid, run_id = go(client, project_dir, provider=cli)
     snap = wait_run(client, cid, run_id, 30)
@@ -216,10 +267,10 @@ def cli_refused(client, cli, project_dir, wait_run):
     (refused,) = snap["commands"]
     assert (refused["status"], refused["origin"]) == ("refused", "cli")
     assert (refused["judged"]["kind"], refused["judged"]["verdict"]) == ("risk", "refuse")
-    return REFUSED.format(why="It mails the logs")
+    assert refused["judged"]["why"] == "It mails the logs."
 
 
-def test_claude_codes_risky_bash_is_denied_with_the_judges_words(
+def test_claude_codes_risky_bash_is_denied_with_a_general_reason(
     claude_app,  # noqa: F811
     wait_run,
     project_dir,
@@ -228,9 +279,10 @@ def test_claude_codes_risky_bash_is_denied_with_the_judges_words(
         [{"tool": "Bash", "input": {"command": "python gen.py"}, "result": ""}, {"say": "ok"}],
         default_steps=RISKY,
     )
-    told = cli_refused(client, cli, project_dir, wait_run)
+    cli_refused(client, cli, project_dir, wait_run)
     (asked,) = claude_app.record()["asked"]
-    assert (asked["behavior"], asked["message"]) == ("deny", told)
+    assert (asked["behavior"], asked["message"]) == ("deny", REFUSED)
+    assert "mails" not in json.dumps(claude_app.record())
 
 
 def test_codex_is_told_in_its_turn_why_a_risky_command_is_declined(
@@ -241,10 +293,37 @@ def test_codex_is_told_in_its_turn_why_a_risky_command_is_declined(
     client, cli, _default = native_app(
         [{"run": "python gen.py", "output": ""}, {"say": "ok"}], default_steps=RISKY
     )
-    told = cli_refused(client, cli, project_dir, wait_run)
+    cli_refused(client, cli, project_dir, wait_run)
     assert answers(native_app) == [(RUN, DECLINE)]
     steers = native_app.record().get("steers", [])
-    assert [one["input"][0]["text"] for one in steers] == [DECLINED_WHY.format(why=told)]
+    assert [one["input"][0]["text"] for one in steers] == [DECLINED_WHY.format(why=REFUSED)]
+
+
+def test_copilots_risky_shell_is_refused(copilot_native, wait_run, project_dir):  # noqa: F811
+    client, cli = copilot_native(
+        [{"shell": "python gen.py", "output": ""}, {"say": "ok"}],
+        default_steps=RISKY,
+        version="1.0.105",
+    )
+    cli_refused(client, cli, project_dir, wait_run)
+    assert "mails" not in json.dumps(copilot_native.record())
+
+
+def test_agys_risky_run_command_is_refused(agy_app, wait_run, project_dir):  # noqa: F811
+    client, cli, _default = agy_app(
+        [
+            {
+                "tool": "run_command",
+                "asks": True,
+                "parameters": {"CommandLine": "python gen.py"},
+                "output": "",
+            },
+            {"say": "ok"},
+        ],
+        mode="native",
+        default_steps=RISKY,
+    )
+    cli_refused(client, cli, project_dir, wait_run)
 
 
 @pytest.mark.parametrize(

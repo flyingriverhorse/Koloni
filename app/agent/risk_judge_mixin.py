@@ -69,6 +69,10 @@ UNREAD = "its answer could not be read"
 FAILED = "it could not be asked"
 NOT_LOOKED = "it could not look at this command"
 NO_REASON = risk_judge.NO_REASON
+# Said once a turn where the judge refused `risk_judge.MOST_REFUSED`: the next risky one is a card.
+CAPPED = "Full auto's judge refused {count} commands this turn; the next risky one asks you."
+# The key of the turn's count of them in its `_risk_cache` - no line's key is one word long.
+_REFUSED_COUNT = ("refused",)
 
 # An option word of an interpreter's after which the line holds its code itself (`python -c`,
 # `node -e`, `-p`, `-r`): no file of its own runs (`python -m x` is read as its module's file). A
@@ -432,7 +436,7 @@ class RiskJudgeMixin:
         only where none was found, nor any by the check of the user's words (`found`, their
         reason and record: given back as they are). ("", record) - it runs, its record "fine";
         ("", None) - not judged; (`CARD`, record "risky") - its card; ("", record "refuse") - not
-        run, its agent told so (`risk_judge.refused`).
+        run, its agent told so (`risk_judge.REFUSED`).
         Not judged: not a watched Full auto turn nor a job's at Full auto (a trigger's never), a
         line the user lets run or KOLONİ asks of anyway (`exempt`: a skill's script they allowed,
         a disposable delete, a reason in a working copy, a role that runs no command),
@@ -574,15 +578,25 @@ class RiskJudgeMixin:
     ) -> tuple[str, dict | None]:
         """The judge's own "risky" (its model looked at the line: `looked`), where the project
         refuses such a one (`Project.judge_risky`, read at each command): no card, its record's
-        verdict "refuse" - the command is not run and its agent is told why. Any other card stays
+        verdict "refuse" - the command is not run and its agent is told so. Any other card stays
         one - KOLONİ's own before it was asked, or one the model gave no verdict for (fails
-        closed: the user decides). The turn's kept verdict stays "risky" (a new record)."""
+        closed: the user decides) -, and so does each after `risk_judge.MOST_REFUSED` in the turn,
+        counted by all its agents (said once in the chat: `CAPPED`). The turn's kept verdict
+        stays "risky" (a new record)."""
         if not (record and record["looked"] and record["verdict"] == "risky"):
             return why, record
         with self._factory() as session:
             project = project_of(session, session.get_one(Conversation, ctx.cid))
             if project is None or project.judge_risky != "refuse":
                 return why, record
+        cache = self._risk_cache.setdefault(ctx.run_id, {})
+        counted = cache.get(_REFUSED_COUNT)
+        count = counted["count"] if isinstance(counted, dict) else 0
+        if count >= risk_judge.MOST_REFUSED:
+            return why, record
+        cache[_REFUSED_COUNT] = {"count": count + 1}
+        if count + 1 == risk_judge.MOST_REFUSED:
+            self._koloni_line(ctx.cid, ctx.run_id, CAPPED.format(count=count + 1))
         return "", {**record, "verdict": "refuse"}
 
     def _risk_no_room(self: "AgentRunner", session, ctx: Ctx, picked, project) -> str:

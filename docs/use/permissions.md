@@ -410,12 +410,18 @@ agent read, and the secrets KOLONİ knows are masked first.
 **When the judge finds a command risky** says:
 
 - **Refuse and go on** (the default) - as Claude Code's auto mode does: the command does not run, no card
-  opens and nothing waits. Its agent is told `KOLONİ's judge refused this: {why}. Do it another way, or ask
-  the user.` and goes on; the command's row says **refused**, with **KOLONİ's judge refused: …** under it,
-  and the chat's **Decided for you** - the top bar's pill says "1 decided", and opens it in Ready for you
-  - lists it with the judge's sentence until you click OK. Where KOLONİ keeps the line (see **Its card**
+  opens and nothing waits. Its agent is told a general reason, never the judge's sentence - the judge read
+  your messages and may quote them, and its sentence would guide the next try: "KOLONİ's judge refused
+  this as risky (it may send data off this machine, run code it fetched, change things outside the
+  project, weaken security or hide what it does). Do it another way, or ask the user." - and goes on. You
+  see the sentence: the command's row says **refused**, with **KOLONİ's judge refused: …** under it, and
+  the chat's **Decided for you** - the top bar's pill says "1 decided", and opens it in Ready for you -
+  lists it with the judge's sentence until you click OK. Where KOLONİ keeps the line (see **Its card**
   below for which lines it keeps), the same line is refused again in that turn without asking the model;
-  any other line is asked about each time it runs.
+  any other line is asked about each time it runs. After **3** refusals in a turn - counted for all its
+  agents, sub-agents too - the next risky command waits for you on its card, and the chat says once
+  "Full auto's judge refused 3 commands this turn; the next risky one asks you.": an agent cannot try
+  variant after variant until one is called fine.
 - **Ask me** - it waits for you on a card that says **KOLONİ's judge: …**, the model's one sentence; once
   answered, that sentence stays under the command's row.
 
