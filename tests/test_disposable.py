@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import disposable, koloni
+from app import disposable, git_looks, koloni
 from app import git as git_
 from app.agent.ctx import Ctx
 from app.command_runner import CommandRunner
@@ -483,10 +483,10 @@ def test_a_clean_worktree_of_the_users_is_disposable_and_none_of_koloni_s_locked
 
 @needs_git
 def test_a_merged_local_branch_no_one_stands_on_is_disposable(repo, tmp_path):
-    assert git_.default_branch(repo) == "main"
+    assert git_looks.default_branch(repo) == "main"
     assert judged(repo, "git branch -d old") == "branch old"
     assert judged(repo, "git branch -D old") == "branch old"
-    assert git_.ahead(repo, "main", "ahead") == 1
+    assert git_looks.ahead(repo, "main", "ahead") == 1
     assert judged(repo, "git branch -D ahead") is None  # (commits only it holds)
     assert judged(repo, "git branch -d ahead") == "branch ahead"  # (git's own -d refuses it)
     assert judged(repo, "git branch -D old ahead") is None
@@ -509,20 +509,20 @@ def test_a_merged_local_branch_no_one_stands_on_is_disposable(repo, tmp_path):
     git(repo, "branch", "develop")
     git(repo, "update-ref", "refs/remotes/origin/develop", "HEAD")
     git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/develop")
-    assert git_.default_branch(repo) == "develop"
+    assert git_looks.default_branch(repo) == "develop"
     assert judged(repo, "git branch -d develop") is None
     assert judged(repo, "git branch -d main") is None
 
 
 @needs_git
 def test_what_git_tracks_under_a_folder(repo):
-    assert git_.kept_under(repo, "build") is False
+    assert git_looks.kept_under(repo, "build") is False
     (repo / "src").mkdir()
     (repo / "src" / "x.py").write_text("x\n")
     git(repo, "add", "src/x.py")
-    assert git_.kept_under(repo, "src") is True
-    assert git_.kept_under(repo, "sr") is False
-    assert git_.kept_under(repo, "SRC") is True  # (any case: NTFS and APFS open it so)
+    assert git_looks.kept_under(repo, "src") is True
+    assert git_looks.kept_under(repo, "sr") is False
+    assert git_looks.kept_under(repo, "SRC") is True  # (any case: NTFS and APFS open it so)
 
 
 # --- the agent runner hands it in: where the user allowed it, at Auto-edit and Full auto (3.5) -
@@ -861,7 +861,7 @@ def test_a_build_folder_spelt_in_another_case_than_it_is_or_than_git_tracks_it_i
     (repo / "Build").mkdir(exist_ok=True)
     (repo / "Build" / "make.ps1").write_text("make\n")
     git(repo, "add", "-f", "Build/make.ps1")
-    assert git_.kept_under(repo, "build") is True
+    assert git_looks.kept_under(repo, "build") is True
     assert judged(repo, "rm -rf build") is None
     # (nothing tracked there, but the folder on disk is not spelt as the line spells it)
     (repo / "Dist").mkdir()
@@ -874,7 +874,7 @@ def test_a_build_folder_holding_a_file_git_does_not_ignore_is_no_disposable(repo
     (repo / "coverage").mkdir()
     (repo / "coverage" / "report.html").write_text("made\n")
     (repo / "coverage" / "keep.txt").write_text("the user's own\n")
-    assert git_.kept_under(repo, "coverage") is True
+    assert git_looks.kept_under(repo, "coverage") is True
     assert judged(repo, "rm -rf coverage") is None
 
 
@@ -1012,7 +1012,7 @@ def test_a_detached_worktree_or_one_whose_head_no_ref_holds_is_no_disposable(rep
     git(tree, "add", "c.txt")
     git(tree, "commit", "-q", "-m", "only here")
     assert judged(repo, "git worktree remove ../wt/d") is None
-    assert git_.not_committed(tree) == ["HEAD"]  # (its reflog goes with the worktree)
+    assert git_looks.not_committed(tree) == ["HEAD"]  # (its reflog goes with the worktree)
 
 
 @needs_git
@@ -1099,8 +1099,8 @@ def test_a_branch_delete_run_in_a_bare_repository_in_the_project_is_no_disposabl
     assert judged(repo, "git worktree remove ../wt/x", cwd="mirror.git") is None
     (repo / "plain").mkdir()
     assert judged(repo, "git branch -D old", cwd="plain") == "branch old"
-    assert git_.same_repository(repo, repo / "plain") is True
-    assert git_.same_repository(repo, repo / "mirror.git") is False
+    assert git_looks.same_repository(repo, repo / "plain") is True
+    assert git_looks.same_repository(repo, repo / "mirror.git") is False
 
 
 # --- each shell's own forms: KOLONİ's command in its shell, a CLI's in the one it says ----------

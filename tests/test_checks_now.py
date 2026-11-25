@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from app import git, injection, proof
+from app import git_looks, injection, proof
 from app.checks_now import (
     DATA,
     GREEN,
@@ -121,6 +121,6 @@ def test_no_filter_the_repositorys_settings_name_runs(repo, tmp_path):  # noqa: 
     (repo / ".gitattributes").write_text("*.txt filter=evil\n")
     (repo / "a.txt").write_text("one\nTWO\n")  # (the same size, another time: content compared)
     os.utime(repo / "a.txt", (1_000_000_000, 1_000_000_000))
-    assert git.not_committed(repo) is not None and marker.exists()  # (the control: git's own)
+    assert git_looks.not_committed(repo) is not None and marker.exists()  # (the control: git's own)
     marker.unlink()
     assert git_line(repo) is not None and not marker.exists()
