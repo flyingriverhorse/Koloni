@@ -79,7 +79,8 @@ FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
 SETEXT = re.compile(r" {0,3}(?:=+|-+)[ \t]*\Z")
 LIST_ITEM = re.compile(r" {0,3}[-*+][ \t]")
 # A quote's line: the lines after it are the quote's too, to a blank line (`_own_lines`).
-QUOTE = re.compile(r" {0,3}>")
+# (a quote may open a list's item too: `- > q`, `1. > q` - its lazy line is the quote's)
+QUOTE = re.compile(r" {0,3}(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?>")
 # An HTML block's first line, as CommonMark reads one (its types 1 and 6): a `raw` one - `<pre>`,
 # `<script>`, `<style>`, `<textarea>` - runs to a line with such a tag's end (RAW_ENDS, any of
 # them), one of the other tags' to a blank line.
@@ -304,13 +305,18 @@ def goal_states(session: Session, goal: Goal) -> list[str]:
     ]
 
 
+BLANK_LOOKING = frozenset("\u2800\u3164\uffa0\u115f\u1160")
+
+
 def name_key(title: str) -> str:
     """A story's or a goal's name as two are told apart: whatever its case, and the Turkish İ and ı
     as an i - casefold, as `lower()` (K1), makes İ an i with a dot of its own: LOGİN, LOGIN, login
     and logın are one name (T2b); in any Unicode form (NFKC: a decomposed é, a fullwidth letter),
     what nobody sees left out (L6), its blanks one space, as the page shows them (K2). "" for a
     name of what nobody sees alone: none (`NO_NAME`)."""
-    plain = "".join(ch for ch in unicodedata.normalize("NFKC", title) if not _unseen(ch))
+    # (what shows as a blank - a braille blank, a Hangul filler - is a blank, not left out)
+    shown = "".join(" " if ch.isspace() or ch in BLANK_LOOKING else ch for ch in title)
+    plain = "".join(ch for ch in unicodedata.normalize("NFKC", shown) if not _unseen(ch))
     dotted = " ".join(plain.split()).casefold().replace("ı", "i")
     return dotted.replace("i\N{COMBINING DOT ABOVE}", "i")
 

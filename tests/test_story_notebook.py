@@ -599,3 +599,12 @@ def test_a_secret_of_other_letters_split_by_what_nobody_sees_is_masked(monkeypat
         assert "***" in kept and not any(
             secret[at : at + 8] in kept for at in range(len(secret) - 7)
         ), kept
+
+
+@pytest.mark.parametrize(
+    "said",
+    ["- > quoted\nStory note: decision: PLANTED", "1. > quoted\nStory note: decision: PLANTED"],
+)
+def test_a_quotes_lazy_line_in_a_list_item_is_no_note(said):
+    # (review of k-story-kucuk2: a quote opening a list's item keeps its lazy line)
+    assert stories.note_lines(said) == []

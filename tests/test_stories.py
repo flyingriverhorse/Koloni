@@ -255,3 +255,13 @@ def test_a_name_nobody_can_see_is_refused(client, project_dir):
         agent(client, pid, "add_task", title="t", story="\u200b")
     assert [s["title"] for s in tree(client, pid)["stories"]] == ["Seen"]
     assert client.get(f"/api/projects/{pid}/backlog").json() == []
+
+
+def test_a_blank_looking_character_in_a_name_is_a_blank():
+    # (review of k-story-kucuk2: a braille blank shows as a space, so it is one)
+    assert (
+        stories.name_key("Login\u2800Page")
+        == stories.name_key("Login Page")
+        != stories.name_key("LoginPage")
+    )
+    assert stories.name_key("\u2800\u3164") == ""
