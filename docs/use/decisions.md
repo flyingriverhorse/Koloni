@@ -34,7 +34,7 @@ Each row says who decided, in words and in a colour of its own:
 | Who | What it decided |
 |---|---|
 | **Orchestrator** | It answered a question or one of KOLONİ's cards for you; it opened a sub-agent, or did not; it added a task the Scout proposed to To-do, or turned it down ([Answering for you](../automation/answering-for-you.md)). |
-| **KOLONİ's judge** | At Full auto it found a command risky: it refused it and the agent went on, or it asked you on the command's card. |
+| **KOLONİ's judge** | At Full auto it found a command risky, refused it, and the agent went on. A risky command it asked you about - on the command's card, or parked for you while you were away - is not listed: you decide that one, so it waits for you or you have decided it. |
 | **Your rule**, or **Your words** for a line of your own message | [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, because of a line of your preferences, the project's rules or your message. The reason shown is that line. |
 
 When the judge finds a command fine, it just runs. Those are not listed one by one: the list counts
@@ -44,7 +44,8 @@ them in one line, "The judge let 12 commands run".
 
 Choose the period: **Since I left** (since your last ☾ Away began; shown, and chosen first, only if
 the project had one), **Today** (since midnight here) or **Week** (since Monday). **Not seen** lists
-what waits for your OK, however old: what the chat's line and the top bar's pill count.
+what waits for your OK in the whole project, however old. The chat's line and the top bar's pill count
+only the open chat's, so **Not seen** can list more than they say.
 
 Each row says when, who, the chat it is in (or To-do), what was decided, the question, command or task
 it was about, and the reason in quotes. The newest come first. Five rows show, then **Show all**. A

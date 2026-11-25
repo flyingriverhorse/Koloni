@@ -1,15 +1,16 @@
 """The decision log (karar defteri, Part A): what was decided for the user in one project, by whom
 and why - by the Orchestrator (the cards it answered, the sub-agents it opened or not, the Scout's
-To-do proposals it took or turned down), by KOLONİ's judge (a command refused, or found risky) and
-by the user's own words (Check what I said first). Read from the records that keep each of them: no
-table of its own, no model asked, and nothing writes here - no row is added, changed or hidden by an
-agent. The judge's "fine" is counted, not listed. Agents' and models' words are masked, cut and
-marked where they read like orders (`said`); they are shown, never given to an agent as orders.
+To-do proposals it took or turned down), by KOLONİ's judge (a command it refused, the agent going
+on) and by the user's own words (Check what I said first). Read from the records that keep each of
+them: no table of its own, no model asked, and nothing writes here - no row is added, changed or
+hidden by an agent. The judge's "fine" is counted, not listed. Agents' and models' words are
+masked, cut and marked where they read like orders (`said`); they are shown, never given to an
+agent as orders.
 shortcut: read from the records, a row leaves the log where its record changes - the user's own
 Change, and Change and redo, clear the Orchestrator's why (`api.questions.change`, `app.redo`),
-and a task you turned down - one it
-added, by its row's Change; one it turned down, rejected on To-do - is deleted (`backlog.decide`);
-give decisions a table of their own (approach B) if the log must keep those."""
+and a task you turned down - one it added, by its row's Change; one it turned down, rejected on
+To-do - is deleted (`backlog.decide`); give decisions a table of their own (approach B) if the log
+must keep those."""
 
 import unicodedata
 from collections.abc import Callable
@@ -240,14 +241,11 @@ def _spawn(question: Question, at: datetime, cid: str, title: str, child: str | 
 
 # What a command's record of the judges says, as a row: (who, what, why it cannot be undone). The
 # check of the user's words is kind "words" ("" on a record from before 0.1.9); its "ask" was the
-# user's card, not a decision. The judge's "fine" is counted (`of`); its "risky" and "refuse" are
-# rows only where its model looked ("looked", `risk_judge_mixin._risk_asked`).
+# user's card, not a decision. The judge's "fine" is counted (`of`); its "refuse" is a row only
+# where its model looked ("looked", `risk_judge_mixin._risk_asked`). Its "risky" is none: the user
+# was asked - its card, or its row parked at night, waits for them or they decided it - nothing
+# was decided for them.
 COMMANDS: dict[tuple[str, str], tuple[Literal["judge", "your_words"], str, str]] = {
-    ("risk", "risky"): (
-        "judge",
-        "KOLONİ's judge found a command risky and asked you",
-        "it was asked on its card",
-    ),
     ("risk", "refuse"): (
         "judge",
         "KOLONİ's judge did not run a command; the agent went on",
@@ -335,10 +333,9 @@ def _command(
     )
 
 
-def _command_seen(judged: dict) -> bool | None:
-    """One it ran or did not run waits for your OK, as a card's answer; one it asked you about on
-    its card ("risky") has none."""
-    return None if judged.get("verdict") == "risky" else bool(judged.get("seen"))
+def _command_seen(judged: dict) -> bool:
+    """One it ran or did not run waits for your OK, as a card's answer."""
+    return bool(judged.get("seen"))
 
 
 def _task_undo(task: BacklogTask, added: bool) -> str | None:
