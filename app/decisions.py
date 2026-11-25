@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Literal
 
-from sqlalchemy import ColumnElement, case, exists, func, select
+from sqlalchemy import ColumnElement, case, exists, func, or_, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app import injection
@@ -116,12 +116,16 @@ WAITS_TAKE_IN = "its work waits for your Take in in its chat"
 
 
 def work(session: Session, question: Question) -> tuple[str | None, str | None]:
-    """The work of the turn a card was answered in, as it stands: the newest Merge of its chat
-    from that turn on (a Take in or a Discard keeps its Merge: `parked.where`'s by-turn record) -
-    its id, and why Change and redo cannot go on with it, None where it can (a kept copy none of
-    which was taken in). None, None where none is on record: the turn changed nothing, or worked in
-    the project itself - a fresh turn goes on there. Its state alone is read, never its files'
-    diffs: whether one of them was taken in is asked of the database."""
+    """The work of the turn a card was answered in, as it stands: the newest Merge of that turn,
+    or of a turn that went on with its work since - KOLONİ's own (Change and redo's, the morning's,
+    Fix it's), in its topic, which each keeps; never another topic's, nor a message of the user's
+    (a Take in or a Discard keeps its Merge: `parked.where`'s by-turn record) - its id, and why
+    Change and redo cannot go on with it, None where it can (a kept copy none of which was taken
+    in). None, None where none is on record: the turn changed nothing, or worked in the project
+    itself - a fresh turn goes on there. Its state alone is read, never its files' diffs: whether
+    one of them was taken in is asked of the database.
+    shortcut: by its topic - a To-do story's next task's turn shares it, and is taken for this
+    work; keep which copy a turn went on in on its record if a story's card is seen to redo so."""
     turn = session.get_one(Run, question.run_id)
     each = func.json_each(Merge.files).table_valued("value", "type")
     # (an object's state alone: a bare string among the files would make json_extract raise)
@@ -132,7 +136,9 @@ def work(session: Session, question: Question) -> tuple[str | None, str | None]:
         .join(Run, Run.id == Merge.run_id)
         .where(
             Run.conversation_id == turn.conversation_id,
+            Run.topic_id == turn.topic_id,  # (none: IS NULL - a turn on record with no topic)
             Run.created_at >= utc(turn.created_at).replace(tzinfo=None),
+            or_(Run.id == turn.id, Run.by_user.is_(False)),
         )
         .order_by(Merge.created_at.desc())
         .limit(1)

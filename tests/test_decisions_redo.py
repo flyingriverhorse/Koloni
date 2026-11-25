@@ -3,7 +3,7 @@ whose agent has finished, the user's own answer in its place and a going-on turn
 KOLONİ's message - only from the app's own page, not while away, not twice, not where its work was
 taken in or discarded, never another project's; every word of the card's quoted and masked."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -187,6 +187,87 @@ def test_a_kept_copy_is_gone_on_in(client, tmp_path, started):
     assert row["undo"] == "change_and_redo"
     assert redo_it(client, pid, ids["answer"]).status_code == 204
     assert started["resume"] == [(started["start"][0], kept)]
+
+
+def in_topic(client, question_id, topic):
+    """The turn the card was answered in, put in topic `topic` of its chat."""
+    with client.app.state.session_factory() as session:
+        session.get_one(Run, session.get_one(Question, question_id).run_id).topic_id = topic
+        session.commit()
+
+
+def later(client, cid, topic, status, kept_in=None, files=(), by_user=False):
+    """A later turn of chat `cid` in topic `topic` - a message of the user's own, or one of KOLONİ's
+    that went on - whose work is a Merge: its id."""
+    when = datetime.now(UTC) + timedelta(minutes=1)  # (never the same instant as the card's turn)
+    with client.app.state.session_factory() as session:
+        run = Run(
+            conversation_id=cid,
+            topic_id=topic,
+            status="completed",
+            by_user=by_user,
+            created_at=when,
+        )
+        session.add(run)
+        session.flush()
+        lead = Agent(run_id=run.id, role_name="Lead", name="Lead", tools=[], status="completed")
+        session.add(lead)
+        session.flush()
+        merge = Merge(
+            run_id=run.id,
+            agent_id=lead.id,
+            status=status,
+            files=[{"path": "b.py", "state": state} for state in files],
+            kept_in=kept_in,
+            created_at=when,
+        )
+        session.add(merge)
+        session.commit()
+        return merge.id
+
+
+@pytest.mark.parametrize(
+    ("topic", "status", "kept_in", "files", "by_user"),
+    [
+        # (Codex, 0.1.9: another topic's kept copy - its help page's work - was gone on in)
+        ("help", "interrupted", "C:/kept/help", ["refused"], False),
+        ("help", "applied", None, ["applied"], False),  # (another topic's, taken in)
+        ("db", "interrupted", "C:/kept/yours", ["refused"], True),  # (a message of yours)
+    ],
+)
+def test_it_goes_on_in_its_own_works_copy_not_a_later_one_of_the_chat(
+    client, tmp_path, started, topic, status, kept_in, files, by_user
+):
+    pid, cid, ids = finished(client, tmp_path)
+    in_topic(client, ids["answer"], "db")
+    mine = merge_of(client, ids["answer"], "interrupted", "C:/kept/db", ["refused"])
+    later(client, cid, topic, status, kept_in, files, by_user)
+    (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
+    assert (row["undo"], row["undo_reason"]) == ("change_and_redo", None)
+    assert redo_it(client, pid, ids["answer"]).status_code == 204
+    assert started["resume"] == [(started["start"][0], mine)]
+
+
+@pytest.mark.parametrize(
+    ("status", "kept_in", "files", "why"),
+    [("applied", None, ["applied"], decisions.TAKEN_IN), ("interrupted", "C:/kept/on", [], None)],
+)
+def test_a_turn_that_went_on_with_its_work_is_its_work(
+    client, tmp_path, started, status, kept_in, files, why
+):
+    # (Change and redo's turn, the morning's: KOLONİ's, in its topic - the copy it went on in is
+    # given back to it, `_resume_held`: the card's own turn's Merge is left empty)
+    pid, cid, ids = finished(client, tmp_path)
+    in_topic(client, ids["answer"], "db")
+    merge_of(client, ids["answer"], "discarded")
+    on = later(client, cid, "db", status, kept_in, files)
+    (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
+    got = redo_it(client, pid, ids["answer"])
+    if why:  # (taken in: as the card's own turn's work)
+        assert (row["undo"], row["undo_reason"]) == ("none", why)
+        assert (got.status_code, got.json()["detail"]) == (409, why)
+    else:
+        assert got.status_code == 204 and started["resume"] == [(started["start"][0], on)]
 
 
 def test_hostile_words_arrive_quoted_and_masked(client, tmp_path, started, monkeypatch):
