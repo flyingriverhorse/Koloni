@@ -3652,7 +3652,7 @@ class AgentRunner(
                     .order_by(Message.created_at)
                     .limit(1)
                 )
-        first = ((task or "").strip().splitlines() or [branch])[0][:COMMIT_LINE]
+        first = away_branch.titled(((task or "").strip().splitlines() or [branch])[0])[:COMMIT_LINE]
         for one in copy.every_secret():  # (no secret KOLONİ checks goes into a commit's message)
             first = first.replace(one, "***") if one else first
         try:
@@ -5593,6 +5593,7 @@ class AgentRunner(
                 session.commit()
                 payloads = [("file_change.updated", file_change_out(row)) for row in rows]
             else:
+                before, after = copy.ends_kept(before, after, rows)  # (T1: the project's line ends)
                 failure, payloads = self._apply_text(
                     session, ctx, ws, path, rows, (before, after), (here, there), together
                 )

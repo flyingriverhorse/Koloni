@@ -26,7 +26,14 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from app.workspace import SCRATCH, Workspace, WorkspaceError, is_kept_code, write_bytes
+from app.workspace import (
+    SCRATCH,
+    Workspace,
+    WorkspaceError,
+    is_kept_code,
+    sha256_text,
+    write_bytes,
+)
 
 # More than this is not copied: the agent works in the project, as before.
 MAX_FILES = 20_000
@@ -738,12 +745,46 @@ class Copy:
             return ("changed", "refused") if was is not None else None
         if here == was:
             return None
+        if there not in (was, here, None, OUTSIDE) and self._ends_alone(path):
+            there = was  # (T1: as git stores it, the project's file is what the copy began from)
         kind = "deleted" if here is None else "new" if was is None else "changed"
         if there == OUTSIDE:
             return kind, "refused"
         if kind == "new" and (there is None or not self.git) and self.ignored(path):
             return kind, "left_out"  # (B-189: `changes`; `git`: one the project has, a conflict)
         return kind, "ready" if there in (was, here) else "conflict"
+
+    def _ends_alone(self, path: str) -> bool:
+        """T1: whether a branch copy's file was made from what the project holds but for its line
+        ends - a worktree git checked out with `core.autocrlf=true` (Windows' default) holds CRLF
+        where the project's file is LF, and git stores the two alike. Text alone (no NUL byte), as
+        git's own autocrlf reads it; never of a plain copy, which is made byte for byte."""
+        place = self.there(path) if self.branch else None
+        try:
+            project = place.read_bytes() if place is not None and place.is_file() else None
+        except OSError:
+            return False
+        base = self.started_from(path) if project is not None else None
+        if base is None or project is None or b"\0" in base or b"\0" in project:
+            return False
+        return base.replace(b"\r\n", b"\n") == project.replace(b"\r\n", b"\n")
+
+    def ends_kept(
+        self, before: str | None, after: str | None, rows: Sequence
+    ) -> tuple[str | None, str | None]:
+        """T1: the project's text of a file and this branch copy's (`before`, `after`), the copy's -
+        and its agent's records of it (`rows`, their after-texts) - turned to the project's own line
+        ends where the two hold one kind each and not the same (a worktree git checked out with
+        `core.autocrlf=true` holds CRLF where the project's file is LF): Take in never turns a whole
+        file's line ends. As they are for a plain copy, made byte for byte, or a mixed file."""
+        to, was = (_ends(before), _ends(after)) if self.branch else (None, None)
+        if to is None or was is None or to == was:
+            return before, after
+        for row in rows:
+            if row.kind != "delete" and row.after_content and _ends(row.after_content) == was:
+                row.after_content = _ended(row.after_content, to)
+                row.after_sha = sha256_text(row.after_content)
+        return before, _ended(after or "", to)
 
     def every_secret(self) -> list[str]:
         """MEDIUM-2: the secrets given in its turn (`secrets`) and all KOLONİ checks a branch's
@@ -1063,6 +1104,19 @@ def _carry(
         except OSError:
             failed.append(path)
     return failed
+
+
+def _ends(text: str | None) -> str | None:
+    """A text's one kind of line end, "\\r\\n" or "\\n"; None for none, both, or no text."""
+    if not text or "\n" not in text:
+        return None
+    crlf = text.count("\r\n")
+    return "\r\n" if crlf == text.count("\n") else "\n" if crlf == 0 else None
+
+
+def _ended(text: str, ends: str) -> str:
+    """`text` with each line end `ends` (T1)."""
+    return text.replace("\r\n", "\n").replace("\n", ends)
 
 
 def make_branch(
