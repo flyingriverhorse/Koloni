@@ -9,6 +9,7 @@ H1 (`copies.no_push`), H2 (`away_branch.refs`), H3 (the push held to what was ch
 import asyncio
 import logging
 import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -47,11 +48,39 @@ PUSH_CONFIG = (
     "credential helper, an ssh command): look at it, then Run again"
 )
 PUSH_KEPT_OUT = "It changed {files}, where you said nothing may change while you were away"
+# (git resolves origin's push address in every scope of its config: one added since moves it)
+PUSH_ELSEWHERE = (
+    "A push to origin goes to {now} now, not to {then} as when the job began: Run anyway pushes "
+    "it there"
+)
+REFS_UNKNOWN = "git did not say what the repository's refs are now: what moved is not known"
+# ...and why nothing is pushed where the project moved off the branch its push goes into (L5).
+INTO_MOVED = (
+    "the project is on {now} now, not on {into} as when the job ended: switch back to {into}, "
+    "then Run again - nothing was pushed"
+)
+# A pull request's body: what an agent wrote (its notes, the files' names) in a code block, so
+# that no @mention, closing keyword or link of it is read by GitHub (`_fenced`).
 PUSH_BODY = (
     "{task}\n\nMade by KOLONİ's agents ({name}) while you were away, on the branch `{branch}`, "
     "pushed as one commit.\n\n### Changed files\n{files}\n\n### KOLONİ's checks\n{checks}\n\n"
     "### {name}'s notes\n{notes}\n"
 )
+
+
+def _fenced(text: str) -> str:
+    """`text` as a code block whose fence is longer than any run of backticks in it."""
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}\n{text}\n{fence}"
+
+
+def _elsewhere(held: dict, state: dict) -> list[str]:
+    """The note where a push to origin goes elsewhere now than as the job began (MEDIUM-2)."""
+    then, there = held.get("push_to") or "", state["push_to"]
+    if there == then:
+        return []
+    return [PUSH_ELSEWHERE.format(now=web.kept_url(there), then=web.kept_url(then))]
 
 
 class AwayBranchMixin:
@@ -108,13 +137,26 @@ class AwayBranchMixin:
             return
         copies.no_push(copy.root)
         refs = await asyncio.to_thread(away_branch.refs, Path(t.root))
-        config = _git_parts(await asyncio.to_thread(standing_files, t.root), Path(t.root))["config"]
+        state = await asyncio.to_thread(self._git_state, Path(t.root))
         with self._factory() as session:
             record = session.get_one(Agent, ctx.agent_id).copy or {}
         was = record.get("away") or {}
-        # (git's config as the job first began: a later turn's push note is "since the job began")
-        now_away = {**was, "mode": job["mode"], "refs": refs, "config": was.get("config", config)}
+        # (git's config, hooks and push address as the job first began: a later turn's push note
+        # is "since the job began"; the refs are this turn's start's - H2 is of each turn)
+        began = {key: was.get(key, value) for key, value in state.items()}
+        now_away = {**was, "mode": job["mode"], "refs": refs, **began}
         self._set_agent(ctx.cid, ctx.agent_id, copy={**record, "away": now_away})
+
+    @staticmethod
+    def _git_state(project: Path) -> dict:
+        """What of git runs, or says where a push goes, as it is now (H2, H3): its config in every
+        scope (`away_branch.config_digest`), its hooks (`_git_parts`) and the address a push to
+        origin goes to (`git.push_address`). Blocking: git is asked, and the hooks read."""
+        return {
+            "config": away_branch.config_digest(project),
+            "hooks": _git_parts(standing_files(str(project)), project)["hooks"],
+            "push_to": git.push_address(project),
+        }
 
     def _no_push_if_away(self: "AgentRunner", merge: Merge, copy: copies.Copy) -> None:
         """H1 where a kept copy opened again (a morning's Run line) is a job's branch: whatever
@@ -140,11 +182,11 @@ class AwayBranchMixin:
         found = _kept_branch(session, merge.agent_id, copy.root.parent)
         if found is None or "away" not in record:
             return copy
+        copies.no_push(copy.root)  # (H1 in any turn there - a Fix it's too, after a restart)
         if not away.job_turn(session, session.get_one(Run, ctx.run_id)):
             return copy
         copy = _as_branch(copy, found)
         copy.secrets = lambda run_id=ctx.run_id: self.given_spellings(run_id)
-        copies.no_push(copy.root)
         carried = {key: record[key] for key in CARRIED if key in record}
         session.get_one(Agent, ctx.agent_id).copy = {
             "state": "own",
@@ -201,7 +243,7 @@ class AwayBranchMixin:
         """What the morning says of a job's branch (`away_branch.row`), as its turn ends."""
         project, tip = copy.project, look["tip"]
         after = await asyncio.to_thread(away_branch.refs, project)
-        config = _git_parts(await asyncio.to_thread(standing_files, str(project)), project)
+        state = await asyncio.to_thread(self._git_state, project)
         proof = self._proofs.get(ctx.run_id)
         start = copy.snapshot_sha or (copy.start or ("", ""))[1]
         moved = (
@@ -228,8 +270,10 @@ class AwayBranchMixin:
             if proof is not None
             else checks_now.NOT_COMPLETE,
             "moved": list(dict.fromkeys([*held.get("moved", []), *moved])),
-            "config_moved": config["config"] != held.get("config"),
-            "origin": web.kept_url(await asyncio.to_thread(git._origin, project)),
+            "config_moved": state["config"] != held.get("config"),
+            "hooks_moved": state["hooks"] != held.get("hooks"),
+            # (where a push goes, as the job began: the row names it; Run asks where it moved)
+            "origin": web.kept_url(held.get("push_to") or state["push_to"]),
         }
 
     def _push_row(
@@ -299,7 +343,8 @@ class AwayBranchMixin:
             what = {
                 "root": project.root_path,
                 "way": project.finish_way,
-                "title": task.title,
+                # (its first line: nothing past it - a trailer - goes into the commit or the PR)
+                "title": (task.title.strip().splitlines() or ["?"])[0][:72],
                 "name": agent.name or agent.role_name,
                 "notes": (agent.report or "").strip(),
             }
@@ -346,7 +391,17 @@ class AwayBranchMixin:
         if look["tip"] != held.get("tip"):
             old, new = (held.get("tip") or "none")[:7], look["tip"][:7]
             return {"state": "refused", "why": MOVED_SINCE.format(name=name, old=old, new=new)}
-        notes = await self._push_notes(copy, look, held, night)
+        if look["into"] != held.get("into"):
+            why = INTO_MOVED.format(now=look["into"], into=held.get("into"))
+            return {"state": "refused", "why": why}
+        state = await asyncio.to_thread(self._git_state, copy.project)
+        if (there := _elsewhere(held, state)) and there[0] not in seen:
+            return {"state": "asks", "notes": there}  # (named before origin is asked there)
+        try:  # (HIGH-1: origin's branches here are origin's, before what is unpushed is counted)
+            await asyncio.to_thread(away_branch.origin_checked, copy.project, state["push_to"])
+        except git.Refused as exc:
+            return {"state": "refused", "why": NOT_NOW.format(why=exc)}
+        notes = await self._push_notes(copy, look, held, night, state)
         if any(note not in seen for note in notes):
             return {"state": "asks", "notes": notes}
         try:
@@ -381,14 +436,16 @@ class AwayBranchMixin:
         """The pull request of a branch just pushed, where the project's way is one."""
         repo, off = await asyncio.to_thread(git.pr_ready, copy.project)
         body = PUSH_BODY.format(
-            task=what["title"],
+            task=_fenced(what["title"]),
             name=what["name"],
             branch=copy.branch,
-            files="\n".join(
-                f"- `{path}` ({letter})" for path, letter in list(look["files"].items())[:200]
+            files=_fenced(
+                "\n".join(
+                    f"{path} ({letter})" for path, letter in list(look["files"].items())[:200]
+                )
             ),
             checks=held.get("checks") or checks_now.NOT_COMPLETE,
-            notes=what["notes"][:4000] or "(none)",
+            notes=_fenced(what["notes"][:4000] or "(none)"),
         )
         try:
             if repo is None:
@@ -408,22 +465,34 @@ class AwayBranchMixin:
         return {"state": "pull_request", "sha": sha, "url": url}
 
     async def _push_notes(
-        self: "AgentRunner", copy: copies.Copy, look: dict, held: dict, night: AwayRun | None
+        self: "AgentRunner",
+        copy: copies.Copy,
+        look: dict,
+        held: dict,
+        night: AwayRun | None,
+        state: dict,
     ) -> list[str]:
-        """What a push asks a second Run for (H3): git's config changed since the job began, what
-        moved outside its branch (H2), a place kept out it changed, the user's own work that may
-        go up with it (`_pr_asks`)."""
-        config = _git_parts(
-            await asyncio.to_thread(standing_files, str(copy.project)), copy.project
+        """What a push asks a second Run for (H3): the user's own work that may go up with it
+        (`_pr_asks`, first: origin's branches were checked against origin), where a push goes now
+        if not where it went as the job began, git's config or hooks changed since then, what
+        moved outside its branch from the job's start to now (H2, looked at again now), a place
+        kept out it changed. `state`: `_git_state`'s, now."""
+        now = await asyncio.to_thread(away_branch.refs, copy.project)
+        moved = (
+            away_branch.moved(held["refs"], now, copy.branch or "")
+            if held.get("refs") and now
+            else [REFS_UNKNOWN]
         )
         kept = [
             path for path in look["files"] if away.kept_out(night, path, root=str(copy.project))
         ]
         return [
-            *([PUSH_CONFIG] if config["config"] != held.get("config") else []),
-            *(held.get("moved") or []),
-            *([PUSH_KEPT_OUT.format(files=_few(kept))] if kept else []),
             *([asks] if (asks := await self._pr_asks(copy)) else []),
+            *_elsewhere(held, state),
+            *([PUSH_CONFIG] if state["config"] != held.get("config") else []),
+            *([away_branch.HOOKS_MOVED] if state["hooks"] != held.get("hooks") else []),
+            *dict.fromkeys([*(held.get("moved") or []), *moved]),
+            *([PUSH_KEPT_OUT.format(files=_few(kept))] if kept else []),
         ]
 
     def _pushed(self: "AgentRunner", agent_id: str, done: dict) -> dict:

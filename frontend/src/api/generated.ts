@@ -7031,6 +7031,8 @@ export interface components {
              * @default []
              */
             seen: string[];
+            /** Tip */
+            tip?: string | null;
             /**
              * Word
              * @enum {string}
@@ -12503,6 +12505,8 @@ export interface components {
             task: string;
             /** Task Id */
             task_id: string;
+            /** Tip */
+            tip?: string | null;
             /** Warn */
             warn: string | null;
             /** What */

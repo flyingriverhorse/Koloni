@@ -208,10 +208,19 @@ messages.
   test that runs git there can reach your branches, tags, stash and config - KOLONİ reads only the
   git lines the agent itself writes. Your branches, stash, tags, remotes and git's config are compared
   as the job starts and ends, and what changed is on its row; nothing is undone.
-- A push from a script fails there because KOLONİ sets git's `pushInsteadOf` for the job's commands.
-  Measured with git 2.53: a push to the remote's name, a path or a `file://` address fails, a fetch
-  works. It does not stop a remote that has its own `pushurl`, a longer `pushInsteadOf` of your own,
-  or a script that clears git's environment.
+- A plain push from a script fails there because KOLONİ sets git's `pushInsteadOf` for the job's
+  commands. Measured with git 2.53: `git push` to the remote's name, a path or a `file://` address
+  fails, a fetch works. It is no wall, and the job's own script can get past it: `git send-pack`, its
+  own `-c url.<x>.pushInsteadOf=...`, a `remote.origin.pushurl` it sets first, or git's environment
+  replaced (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`) all push - and so does a `pushurl` or a longer
+  `pushInsteadOf` of your own. Each of these the agent types itself is refused or asked on a card;
+  what a script it runs does is not read.
+- In the morning KOLONİ asks origin itself what its branches hold before it pushes, so a
+  remote-tracking branch written in your repository (a script's `git update-ref`) cannot make your
+  own unpushed commits look pushed; and no KOLONİ git call reads an object through `git replace`. If
+  your remote-tracking branches are behind or hold a branch origin deleted, the push asks you to
+  `git fetch --prune origin` first. Between that look and the push itself there is a moment in which
+  another process could still change your repository: that gap is not closed.
 - The worktree holds what git tracks; what it ignores (`.env`, data, build output) is not there, and a
   test that reads such a file may fail. A project with a git submodule or Git LFS works in a copy.
 - The commits of a branch that was deleted, or of a job's first try, stay in git's objects until git

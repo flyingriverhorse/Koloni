@@ -200,3 +200,48 @@ def test_moved():
     found = moved(main, {**main, **many}, "koloni/x")
     assert len(found) == 11 and found[-1] == "and 5 more"
     assert found[0] == "Changed outside its branch: b00 none → abcdef0"
+
+
+def test_h2_sees_every_ref_the_stash_list_and_gits_own_files(repo):
+    # (the fix round's probe: replace, notes, a namespace of anyone's, an older stash dropped,
+    # info/exclude - none of them seen before)
+    from app.away_branch import refs
+
+    (repo / "a.txt").write_text("two\n")
+    run(repo, "stash", "-q")
+    (repo / "a.txt").write_text("three\n")
+    run(repo, "stash", "-q")
+    before = refs(repo)
+    head = run(repo, "rev-parse", "HEAD")
+    other = run(repo, "commit-tree", "HEAD^{tree}", "-m", "other")
+    run(repo, "replace", head, other)
+    run(repo, "notes", "add", "-m", "n", head)
+    run(repo, "update-ref", "refs/anyone/x", other)
+    run(repo, "stash", "drop", "-q", "stash@{1}")
+    (repo / ".git" / "info" / "exclude").write_text("*.secret\n")
+    found = moved(before, refs(repo), "koloni/x")
+    assert set(found) == {
+        "Changed outside its branch: other refs (replace objects, notes, ...)",
+        "Changed outside its branch: the stash list",
+        "Changed outside its branch: git's own files (info/attributes, info/exclude, info/grafts, "
+        "alternates)",
+    }
+
+
+def test_the_config_digest_reads_every_scope_a_worktrees_config_too(repo, tmp_path):
+    from app.away_branch import config_digest
+
+    run(repo, "config", "extensions.worktreeConfig", "true")
+    before = config_digest(repo)
+    (repo / ".git" / "config.worktree").write_text('[remote "origin"]\n\tpushurl = /elsewhere\n')
+    assert before is not None and config_digest(repo) != before
+    later = config_digest(repo)
+    (repo.parent / "gitconfig").write_text('[url "/elsewhere"]\n\tpushInsteadOf = /x\n')
+    assert config_digest(repo) != later  # (the user's global one)
+
+
+def test_git_reads_no_replace_object_for_koloni(repo):
+    head = run(repo, "rev-parse", "HEAD")
+    run(repo, "replace", head, run(repo, "commit-tree", "HEAD^{tree}", "-m", "other"))
+    code, out, _said = git._in(repo, git.find(), "log", "-1", "--format=%s", "HEAD")
+    assert code == 0 and out.decode().strip() == "as it was"

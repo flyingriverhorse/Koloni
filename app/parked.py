@@ -77,6 +77,11 @@ def needs_project(line: str, git: bool = False) -> bool:
     return False
 
 
+def runs_git(line: str) -> bool:
+    """Whether a stage of a command runs git (as `needs_project` reads it)."""
+    return any(words and _program(words[0]) == "git" for words in _parts(line, _BLOCKS))
+
+
 def park(
     session: Session, task: BacklogTask, kind: str, ref_id: str | None, what: str, data: dict
 ) -> Parked:
@@ -117,6 +122,8 @@ LAST = "Waits for this task's other decisions and its going-on turn"
 # ...and a command's Run (its Reject stays open).
 GONE = "Its copy is gone: there is nothing to run it in"
 NEEDS = "Needs the project itself: Take in first"
+# (L7: a git line of a job on its branch, its work taken in since: it would run on your checkout)
+BRANCH_GIT = "A git line of its branch's worktree: it never runs in your project - run it yourself"
 NOWHERE = "Where it would run is not known: Reject it, or run it yourself"
 ELSEWHERE = "The project runs commands elsewhere now: Reject it, or set that back"
 # ...a line a CLI ran in its own shell (bash's quoting is not PowerShell's), and a server.
@@ -190,6 +197,8 @@ def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | N
         return SERVER
     if row.data.get("needs_project") and place != "project":
         return NEEDS
+    if place == "project" and row.data.get("branch") and runs_git(row.what):
+        return BRANCH_GIT
     if row.data.get("cwd") is None:  # (a CLI that did not say where its shell stood)
         return NOWHERE
     if row.data.get("moved") and not row.data.get("no_code"):  # (`AwayMixin._mark_moved`)
@@ -205,6 +214,8 @@ def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | N
 # A job's push (0.1.9, `AwayBranchMixin._push_row`): KOLONİ's own row - why its Run is closed.
 PUSH_TAKEN = "Its work was taken in or discarded: nothing to push"
 NOTES_FIRST = "Look at what KOLONİ notes, then Run again"
+# (L9: a Run is of the commit the row showed - never a later one made since it was read)
+SEEN_MOVED = "Its branch moved since you looked: look at the row again"
 
 
 def _push_closed(session: Session, row: Parked, _task: BacklogTask) -> str | None:
@@ -217,11 +228,20 @@ def _push_closed(session: Session, row: Parked, _task: BacklogTask) -> str | Non
 
 
 async def _push_now(
-    _session: Session, row: Parked, task: BacklogTask, *, runner, seen: list[str] | None = None
+    _session: Session,
+    row: Parked,
+    task: BacklogTask,
+    *,
+    runner,
+    seen: list[str] | None = None,
+    tip: str | None = None,
 ) -> str:
-    """A push row's Run or Reject (`AgentRunner.push_away_branch`): what came of it. Where it
-    pushed nothing (`refused`) the row waits again; where it notes something not seen yet, nothing
-    is decided (`Refused` 409 with its `notes`)."""
+    """A push row's Run or Reject (`AgentRunner.push_away_branch`): what came of it. A Run is of
+    the commit the row showed (`tip`: the page's; `SEEN_MOVED` else). Where it pushed nothing
+    (`refused`) the row waits again; where it notes something not seen yet, nothing is decided
+    (`Refused` 409 with its `notes`)."""
+    if row.decision == "run" and tip != row.data.get("tip"):
+        raise Refused(409, SEEN_MOVED)
     done = await runner.push_away_branch(row.away_run_id, task.id, row.decision, seen or [])
     if done["state"] == "asks":
         raise Refused(409, NOTES_FIRST, done["notes"])
@@ -335,6 +355,8 @@ def waiting(session: Session, night: AwayRun) -> list[dict]:
                 # (no word of it is taken now - Reject too: away, its job at work, or a last kind's)
                 "held": not row.decision and _held(session, night, row, task) is not None,
                 "seq": row.seq,
+                # (a push's: the commit it pushes, sent back with its Run - L9)
+                "tip": row.data.get("tip") if row.kind == "push" else None,
                 # (L6: where it would run, the card's own sentence, a file an agent wrote it runs)
                 "place": where(session, row)[0] if row.kind == "command" else None,
                 "danger": row.data.get("danger") or None,

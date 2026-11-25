@@ -284,10 +284,14 @@ like orders to a model. It is on the summary, on the report and at the top of ea
   decisions and its going-on turn"), and is made again with the branch's new commit after that turn: a
   yes is never for a commit you did not see. Just before it pushes, KOLONİ looks again: a branch
   deleted or moved since the job ended, a secret KOLONİ knows in what would go up, a branch of that
-  name on origin, commits of yours on `main` not on origin ("push main first") - nothing goes up, the
-  row says why and waits, to try again once that is set right. Where git's config changed since the
-  job began, something changed outside the branch, it changed a place you kept out, or it began from
-  your work not committed, the row shows that first: **Run anyway** pushes. Take in or Discard of the
+  name on origin, commits of yours on `main` not on origin ("push main first"), origin's branches in
+  your repository not what origin itself holds ("fetch from origin"), the project on another branch
+  than the one the job ended on, a branch changed since you read the row - nothing goes up, the row
+  says why and waits, to try again once that is set right. Where a push to origin goes elsewhere now
+  than when the job began, git's config or hooks changed since then, something changed outside the
+  branch (its branches, stash, tags, remote-tracking branches, any other ref, git's own files), it
+  changed a place you kept out, or it began from your work not committed, the row shows that first:
+  **Run anyway** pushes. The row names the address a push went to as the job began. Take in or Discard of the
   job closes the row ("Its work was taken in or discarded: nothing to push"); taking all of it in
   deletes the branch.
 

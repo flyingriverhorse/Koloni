@@ -155,6 +155,7 @@ test('0.1.9: a job’s push - Run; KOLONİ’s notes first, then Run anyway with
     place: null,
     cwd: null,
     result: 'koloni/x-ab12 moved since the job ended (abc1234 → def5678): nothing was pushed',
+    tip: 'abc1234def',
   })
   const notes = ['git’s config changed since the job began']
   const awayDo = vi.fn(async (_id: string, _action: string, body?: { seen?: string[] }) => {
@@ -167,13 +168,13 @@ test('0.1.9: a job’s push - Run; KOLONİ’s notes first, then Run anyway with
   expect(screen.getByText(/moved since the job ended/)).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Stop this task' })).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Run' }))
-  expect(awayDo).toHaveBeenLastCalledWith('a1', 'waiting/p1', { word: 'run', seen: [] })
+  expect(awayDo).toHaveBeenLastCalledWith('a1', 'waiting/p1', { word: 'run', seen: [], tip: 'abc1234def' })
   expect(screen.getByRole('note').textContent).toBe(notes[0])
   expect(screen.queryByRole('alert')).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Run anyway' }))
-  expect(awayDo).toHaveBeenLastCalledWith('a1', 'waiting/p1', { word: 'run', seen: notes })
+  expect(awayDo).toHaveBeenLastCalledWith('a1', 'waiting/p1', { word: 'run', seen: notes, tip: 'abc1234def' })
   await userEvent.click(screen.getByRole('button', { name: 'Reject' }))
-  expect(awayDo).toHaveBeenLastCalledWith('a1', 'waiting/p1', { word: 'reject', seen: notes })
+  expect(awayDo).toHaveBeenLastCalledWith('a1', 'waiting/p1', { word: 'reject', seen: notes, tip: 'abc1234def' })
 })
 
 test('0.1.9: a push decided says what came of it, never “You said Run”', async () => {
@@ -181,4 +182,21 @@ test('0.1.9: a push decided says what came of it, never “You said Run”', asy
   expect(await screen.findByText('Pushed koloni/x-ab12 to origin as 1234567')).toBeTruthy()
   expect(screen.queryByText('You said Run')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Run' })).toBeNull()
+})
+
+test('0.1.9: a push row made again with a new commit forgets the notes seen of the old one', async () => {
+  const push = row({ id: 'p1', kind: 'push', what: 'Push koloni/x-ab12 to origin', place: null, tip: 'aaa1111' })
+  const notes = ['git’s config changed since the job began']
+  const awayDo = vi.fn(async (_id: string, _action: string, body?: { seen?: string[] }) => {
+    if (!body?.seen?.length) throw new ApiError(409, '409 Conflict', { notes })
+  })
+  const get = vi.spyOn(api, 'get').mockResolvedValue([push])
+  useApp.setState({ awayDo: awayDo as never })
+  const { rerender } = render(<WaitingForYou away={away} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Run' }))
+  expect(screen.getByRole('button', { name: 'Run anyway' })).toBeTruthy()
+  get.mockResolvedValue([{ ...push, tip: 'bbb2222' }])
+  rerender(<WaitingForYou away={{ ...away }} />)
+  expect(await screen.findByRole('button', { name: 'Run' })).toBeTruthy()
+  expect(screen.queryByRole('note')).toBeNull()
 })

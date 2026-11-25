@@ -112,12 +112,15 @@ def _started(
     }
     # (Windows looks for a program in the folder it is started in first: not here. And
     # a look at the user's repository takes no lock it could do without: it neither
-    # rewrites their index nor stands in the way of a git command of their own.)
+    # rewrites their index nor stands in the way of a git command of their own. And no object
+    # is read as another (`git replace`: a ref anything in the repository may write) - what is
+    # looked at, committed and pushed is what its id names.)
     env.update(
         {
             "NoDefaultCurrentDirectoryInExePath": "1",
             "GIT_TERMINAL_PROMPT": "0",
             "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_NO_REPLACE_OBJECTS": "1",
             **more,
         }
     )
@@ -3325,7 +3328,8 @@ GH_ENV = {
 PUSH_SECONDS = 120.0
 # How a push may reach the remote: no protocol that runs a program (`ext::`), nor plain http;
 # a local one (file) for a remote on this machine.
-# No tag goes along (`followTags`), nothing is signed, no submodule pushed.
+# No tag goes along (`followTags`), nothing is signed, no submodule pushed, no push option of the
+# config's sent (an empty `push.pushOption` resets its list).
 PUSH_OWN = (
     "-c",
     "protocol.allow=never",
@@ -3341,6 +3345,8 @@ PUSH_OWN = (
     "push.followTags=false",
     "-c",
     "push.gpgSign=false",
+    "-c",
+    "push.pushOption=",
 )
 NO_GH = "gh (GitHub's CLI) is not installed"
 NOT_IN = "gh is not logged in: run gh auth login"
@@ -3867,19 +3873,24 @@ def push_one(
     """Push the branch's commit `tip` to the remote "origin", as `branch` there, as ONE commit
     by KOLONİ - its tree, on where it left the project's branch `into`: what `merge_branch`
     would bring in, not the agents' own steps (a secret committed and taken out). Only where
-    origin has that place already (`refs/remotes/origin/<into>` holds it): the user's own
+    origin has that place already (`refs/remotes/origin/<into>` holds it - and each of origin's
+    branches here is what origin itself says it holds, `_origin_is_origin`): the user's own
     commits not pushed yet do not go up under it - nor, `start`, the commit the branch was made
     from (a local branch of theirs it left since) - nor what the branch took in that origin does not
     hold (`_taken_in_unpushed`, of `source`: the branch's own tip, where `tip` is its share - W-1,
     `snapshot` the commit it began from):
     once the user rewrote or dropped such a commit, where the branch left theirs is its start,
     and the commit's content would go up under it. Never forced: a branch of that name there
-    already refuses it. No hook, tag or signing of the repository's; git's own receive-pack.
+    already refuses it. No hook, tag, push option or signing of the repository's; git's own
+    receive-pack; to the one address those branches were checked at (`push_address`).
     `under`: KOLONİ's copies folders - its worktrees there are not the user's (`_users_unpushed`).
     Returns the commit pushed. Refused, with why."""
     if not branch.startswith(BRANCH_PREFIX):
         raise Refused(f"{branch} is not a branch KOLONİ made")
     git, _folder = repository(project)
+    if not (url := push_address(project)):
+        raise Refused(NO_ADDRESS)
+    _origin_is_origin(project, git, url)  # (what follows reads origin's branches as here)
     code, out, said = _in(
         project,
         git,
@@ -3958,7 +3969,7 @@ def push_one(
             "--no-verify",
             "--quiet",
             "--receive-pack=git-receive-pack",
-            "origin",
+            url,  # (where origin's branches were checked: `_origin_is_origin`)
             f"{sha}:refs/heads/{branch}",
             seconds=PUSH_SECONDS,
             **UNASKED_ENV,
@@ -3966,6 +3977,73 @@ def push_one(
     if code != 0:
         raise Refused(f"git push failed: {_text(out, said)[-TAIL:]}")
     return sha
+
+
+# Why nothing is pushed: no one address of origin's, or its branches here are not origin's.
+NO_ADDRESS = "origin has no one address a push goes to: nothing was pushed"
+NOT_ORIGINS = (
+    "{ref} here is not what origin holds ({why}): fetch from origin (git fetch --prune origin), "
+    "then Run again - nothing was pushed"
+)
+
+
+def push_address(project: Path) -> str:
+    """Where a push to origin goes, as git resolves it now - its pushurl, and a pushInsteadOf or
+    insteadOf of any scope of the user's config, applied (`git remote get-url --push`). "" where
+    there is none, more than one (a push goes to each) or one git would read as an option."""
+    try:
+        git, _folder = repository(project)
+    except Refused:
+        return ""
+    code, out, _said = _in(
+        project,
+        git,
+        *UNASKED,
+        "remote",
+        "get-url",
+        "--push",
+        "origin",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
+    found = out.decode("utf-8", "replace").splitlines()
+    return found[0] if code == 0 and len(found) == 1 and not found[0].startswith("-") else ""
+
+
+def _origin_is_origin(project: Path, git: str, url: str) -> None:
+    """Origin's branches as this repository has them (`refs/remotes/origin/*`: what says which of
+    the user's commits are not pushed yet - `push_one`, `_origin_nots`), each checked against
+    origin itself: the commit origin's branch of that name is at, or one it holds (fetched
+    earlier). A ref anything in the repository wrote (a script's `update-ref`) cannot pass for
+    origin's. Asked at `url`, where the push goes, by the transports a push may use (`PUSH_OWN`).
+    Refused where one is not, or origin does not answer (fails closed)."""
+    code, out, said = _in(
+        project, git, *PUSH_OWN, "ls-remote", "--heads", url, seconds=PUSH_SECONDS, **UNASKED_ENV
+    )
+    if code != 0:
+        raise Refused(f"origin did not say what it holds: {_text(out, said)[-TAIL:]}")
+    theirs = {
+        ref.removeprefix("refs/heads/"): sha
+        for sha, _tab, ref in (
+            line.partition("\t") for line in out.decode("utf-8", "replace").splitlines()
+        )
+    }
+    listed = _said_or_refused(
+        project,
+        git,
+        None,
+        "for-each-ref",
+        "--format=%(objectname) %(symref) %(refname)",
+        "refs/remotes/origin/",
+    )
+    for line in listed.decode("utf-8", "surrogateescape").splitlines():
+        sha, symref, ref = line.split(" ", 2)
+        real = theirs.get(ref.removeprefix("refs/remotes/origin/"))
+        if symref or real == sha:
+            continue
+        why = f"origin's is at {real[:10]}" if real else "origin has no such branch"
+        if real is None or _in(project, git, "merge-base", "--is-ancestor", sha, real)[0]:
+            raise Refused(NOT_ORIGINS.format(ref=ref, why=why))
 
 
 def open_pr(

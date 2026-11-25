@@ -9,6 +9,7 @@ What is here only reads: which way a job works (`mode_of`), whether a line pushe
 the repository's refs before and after a job (`refs`, `moved`: H2) and the morning's row of it
 (`row`). Every word here is KOLONİ's."""
 
+import contextlib
 import hashlib
 import os
 from pathlib import Path
@@ -48,8 +49,18 @@ SUBMODULE = "the project has a git submodule, which a worktree does not fill"
 LFS = "the project keeps files in Git LFS, whose filter a worktree is checked out without"
 # H2: what moved in the repository outside the job's branch while it worked.
 MOVED = "Changed outside its branch: {ref} {old} → {new}"
-MOVED_ALL = {"tags": "tags", "remotes": "remote-tracking branches"}
+MOVED_ALL = {
+    "tags": "tags",
+    "remotes": "remote-tracking branches",
+    # (every other ref: replace objects, notes, a namespace of anyone's)
+    "other": "other refs (replace objects, notes, ...)",
+    "stash-list": "the stash list",
+    "git-files": "git's own files (info/attributes, info/exclude, info/grafts, alternates)",
+}
 CONFIG_MOVED = "git's config changed during the job"
+HOOKS_MOVED = "git's hooks changed during the job"
+# What of git's folder changes how the repository is read, beside its config and hooks (H2).
+GIT_FILES = ("info/attributes", "info/exclude", "info/grafts", "objects/info/alternates")
 MOST_MOVED = 10
 # The morning's row of a job's push (Waiting for you, `parked.KINDS["push"]`).
 PUSH_LINE = (
@@ -125,10 +136,12 @@ def pushes(command: str) -> bool:
 
 def refs(project: Path) -> dict[str, str] | None:
     """H2: the repository's refs as they are - each branch and the stash by its commit, the
-    project's HEAD (the branch it is on, or its commit), the tags and the remote-tracking
-    branches each as one digest. None where git does not answer."""
+    project's HEAD (the branch it is on, or its commit); the tags, the remote-tracking branches
+    and every other ref (replace objects, notes, any namespace) each as one digest; the stash's
+    whole list (a drop of an older one); and git's own files that change how the repository is
+    read (`GIT_FILES`). None where git does not answer."""
     try:
-        exe, _folder = git.repository(project)
+        exe, folder = git.repository(project)
     except git.Refused:
         return None
     code, out, _said = git._in(
@@ -147,15 +160,53 @@ def refs(project: Path) -> dict[str, str] | None:
     for line in out.decode("utf-8", "replace").splitlines():
         sha, _, ref = line.partition(" ")
         kind = ref.split("/")[1] if ref.count("/") >= 2 else ""
-        if kind in digests:
-            digests[kind].update(f"{ref} {sha}\n".encode())
-        elif ref.startswith("refs/heads/") or ref == "refs/stash":
+        if ref.startswith("refs/heads/") or ref == "refs/stash":
             found[ref] = sha
+        else:
+            group = kind if kind in ("tags", "remotes") else "other"
+            digests[group].update(f"{ref} {sha}\n".encode())
+    stashes = git._in(project, exe, "reflog", "show", "--format=%H", "refs/stash")[1]
+    digests["stash-list"].update(stashes)
+    for name in GIT_FILES:
+        with contextlib.suppress(OSError):
+            digests["git-files"].update(name.encode() + b"\0" + (folder / name).read_bytes())
     code, out, _said = git._in(project, exe, "symbolic-ref", "-q", "HEAD")
     if code != 0:
         code, out, _said = git._in(project, exe, "rev-parse", "-q", "--verify", "HEAD")
     found["HEAD"] = out.decode("utf-8", "replace").strip() if code == 0 else ""
     return found | {kind: digest.hexdigest() for kind, digest in digests.items()}
+
+
+def origin_checked(project: Path, url: str) -> None:
+    """HIGH-1: origin's branches as the repository has them are what origin at `url` - where a
+    push goes - holds (`git._origin_is_origin`). Refused where not, or with no such address."""
+    if not url:
+        raise git.Refused(git.NO_ADDRESS)
+    exe, _folder = git.repository(project)
+    git._origin_is_origin(project, exe, url)
+
+
+def config_digest(project: Path) -> str | None:
+    """What git's config is for the project, in every scope it reads - system, the user's global
+    one, the repository's, a worktree's `config.worktree`, and what they include - as one digest
+    (`git config --list --show-origin`: a push runs what it names, an address, a credential
+    helper, an ssh command). None where git does not answer."""
+    try:
+        exe, _folder = git.repository(project)
+    except git.Refused:
+        return None
+    code, out, _said = git._in(
+        project,
+        exe,
+        *git.UNASKED,
+        "config",
+        "--list",
+        "--show-origin",
+        "-z",
+        seconds=git.SHORT_SECONDS,
+        **git.UNASKED_ENV,
+    )
+    return hashlib.sha256(out).hexdigest() if code == 0 else None
 
 
 def _short(value: str | None) -> str:
@@ -243,5 +294,6 @@ def row(session: Session, cid: str) -> dict | None:
         "moved": [
             *(away.get("moved") or []),
             *([CONFIG_MOVED] if away.get("config_moved") else []),
+            *([HOOKS_MOVED] if away.get("hooks_moved") else []),
         ],
     }

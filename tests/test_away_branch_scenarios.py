@@ -8,6 +8,7 @@ Every repository here is made by the test, in its folder."""
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
@@ -388,3 +389,74 @@ def test_a_morning_line_in_a_jobs_worktree_pushes_nothing_after_a_restart_too(
     assert decide(client, done["id"], row["id"], "run").status_code == 200
     ran = until(lambda: (one := waiting(client, done["id"])[0])["result"] and one)
     assert ran["result"].startswith("exit code 0"), ran["result"]  # (set: the line found H1's)
+
+
+# --- L6, L10: a Fix it turn on a job's kept worktree, back from Away ---------------------------
+
+FAILS = "print('===== 1 failed in 0.01s ====='); raise SystemExit(1)\n"
+
+
+def test_fix_it_on_a_jobs_kept_branch_never_merges_and_pushes_nothing_after_a_restart(
+    make_client, wait_run, repo, monkeypatch
+):
+    from app import copies
+
+    (repo / "check.py").write_text(FAILS)
+    git_run(repo, "add", "check.py")
+    git_run(repo, "commit", "-qm", "a failing check")
+    main = git_run(repo, "rev-parse", "main")
+    merged = []
+
+    def merge_branch(*_args, **_kwargs):
+        merged.append(True)
+        never()
+
+    monkeypatch.setattr(AgentRunner, "_merge_branch", merge_branch)
+    client, _model, _pid, _done, job = branch_night(
+        make_client,
+        wait_run,
+        repo,
+        [edit(), text("one done"), *(text(f"done {n}") for n in range(12))],
+        fix_rounds=1,
+    )
+    cid = job["conversation_id"]
+    snap = chat(client, cid)
+    rows = [one for m in snap["messages"] if m["role"] == "checked" for one in m["checked"] or []]
+    (held,) = [one for one in rows if one.get("kind") == "not_taken"]
+    tree = lead_record(client, cid)["tree"]
+    copies._NO_PUSH.clear()  # (a restart: this process's trees forgotten)
+    went = client.post(
+        f"/api/runs/{snap['runs'][0]['id']}/held/fix",
+        json={"merge_id": held["merge_id"], "reply": "fix it"},
+    )
+    assert went.status_code == 202, went.text
+    second = went.json()["run_id"]
+    until(
+        lambda: (
+            next(r for r in chat(client, cid)["runs"] if r["id"] == second)["status"]
+            in ("completed", "failed", "cancelled")
+        )
+    )
+    # (a plain copy there, never merged by itself; whatever runs there pushes nothing - H1)
+    assert copies._tree_key(Path(tree)) in copies._NO_PUSH
+    assert merged == [] and git_run(repo, "rev-parse", "main") == main
+
+
+# --- L7: after some of its work was taken in, a branch job's git line never runs in the project ---
+
+
+def test_a_branch_jobs_git_line_never_runs_in_the_project_after_a_take_in(
+    make_client, wait_run, repo
+):
+    client, _model, _pid, done, job = branch_night(
+        make_client, wait_run, repo, [edit(), run(MORNING, "c1"), text("one done")]
+    )
+    (line,) = [one for one in waiting(client, done["id"]) if one["kind"] == "command"]
+    assert line["closed"] is None and line["place"] == "copy"
+    with client.app.state.session_factory() as session:  # (some of it taken in: hello.py)
+        merge = session.get_one(Merge, job["kept"][0])
+        merge.files = [{**one, "state": "applied"} for one in merge.files]
+        session.commit()
+    (line,) = [one for one in waiting(client, done["id"]) if one["kind"] == "command"]
+    assert (line["place"], line["closed"]) == ("project", parked.BRANCH_GIT)
+    assert decide(client, done["id"], line["id"], "run").status_code == 409

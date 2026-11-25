@@ -260,6 +260,7 @@ class AwayMixin(AwayBranchMixin):
                             "needs_project": parked.needs_project(
                                 command.command, git=bool(copy is not None and copy.branch)
                             ),
+                            "branch": copy.branch if copy is not None else None,
                             # (M2, L4, L6: a CLI's own shell's line, a server, its card's words)
                             "origin": command.origin,
                             "server": command.keep_running,

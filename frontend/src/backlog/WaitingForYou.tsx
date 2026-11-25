@@ -68,7 +68,8 @@ export function WaitingForYou({ away }: { away: Away }) {
             <ol className="waiting-rows">
               {own.map(row =>
                 row.kind === 'push' ? (
-                  <PushRow key={row.id} row={row} awayId={away.id} />
+                  // (made again with a new commit: a new row - the notes seen of the old one go)
+                  <PushRow key={`${row.id}:${row.tip}`} row={row} awayId={away.id} />
                 ) : (
                   <WaitingRow key={row.id} row={row} busy={busy} decide={decide} />
                 ),
@@ -206,7 +207,8 @@ function PushRow({ row, awayId }: { row: Waiting; awayId: string }) {
   const go = (word: string) =>
     void ask(async () => {
       try {
-        await useApp.getState().awayDo(awayId, `waiting/${row.id}`, { word, seen: notes })
+        // (the commit the row shows: a Run is of that one, never of one made since)
+        await useApp.getState().awayDo(awayId, `waiting/${row.id}`, { word, seen: notes, tip: row.tip })
       } catch (err) {
         const noted = notesOf(err)
         if (!noted) throw err

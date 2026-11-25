@@ -45,6 +45,7 @@ class WaitingOut(BaseModel):
     closed: str | None
     held: bool  # (closed for every word, Reject too)
     seq: int
+    tip: str | None = None  # (a push's: the commit it pushes - its Run sends it back)
     place: Literal["copy", "project", "gone"] | None  # (a command's: where it would run)
     danger: str | None  # (its card's sentence)
     wrote: str | None  # (the file an agent wrote that it runs, by its path)
@@ -53,8 +54,9 @@ class WaitingOut(BaseModel):
 class DecideIn(BaseModel):
     word: Literal["run", "reject", "answer"]
     answer: str | None = Field(default=None, max_length=4000)
-    # A push's notes the user saw (its 409's): its second Run (0.1.9).
+    # A push's notes the user saw (its 409's): its second Run (0.1.9); the commit its row showed.
     seen: list[str] = Field(default=[], max_length=50)
+    tip: str | None = Field(default=None, max_length=64)
 
 
 def _away(session: Session, away_id: str) -> AwayRun:
@@ -224,6 +226,7 @@ async def decide_waiting(
             body.answer,
             runner=request.app.state.runner,
             seen=body.seen,
+            tip=body.tip,
         )
     except parked.Refused as exc:
         raise HTTPException(exc.status, {"notes": exc.notes} if exc.notes else str(exc)) from None

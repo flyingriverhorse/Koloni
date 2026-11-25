@@ -190,9 +190,12 @@ def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
     that use a bare repository by its folder (`git -C remote.git log`) would fail in a copy
     (measured), and what such a repository's config could run (hooks, fsmonitor) is off here.
     H1, in a ☾ Away job's worktree (`no_push`): no push (`NO_PUSH`), and no prompt for a login.
-    shortcut: H1 is no wall - measured with git 2.53, a remote with its own `pushurl`, a longer
-    `pushInsteadOf` of the user's and a script that drops this environment push all the same
-    (H2 says what moved in the morning; the agent's own `git push` is refused by its line)."""
+    shortcut: H1 is no wall - measured with git 2.53, a script of the job's own pushes all the same
+    with `git send-pack`, its own `-c url.<x>.pushInsteadOf=...`, a `remote.origin.pushurl` it
+    sets first, or this environment replaced (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`); so
+    does a pushurl or a longer pushInsteadOf of the user's. Each such line the agent types itself
+    is refused or asked on a card; what a script it runs does is not read. H2 says what moved
+    outside the branch in the morning, and the morning's push checks origin itself (H3)."""
     # shortcut: an empty core.hooksPath stops the hooks git finds in a folder, not hooks set in its
     # config (`hook.<name>.command` / `.event`: git 2.53 ran none, probed 21 Nov); turn those off
     # here too once a git that runs them is seen.
