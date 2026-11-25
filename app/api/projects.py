@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app import (
     diagram,
     git,
+    git_issues,
     handoff,
     knowledge,
     knows,
@@ -373,7 +374,7 @@ def github_issues(project_id: str, session: Session = Depends(get_session)) -> d
     """Item 57, "From a GitHub issue…": the open issues of the project's GitHub repository, read
     with the user's own gh - or none, and why (gh not installed or logged in, no GitHub remote).
     A POST from the app's own page only: it reads GitHub as the user."""
-    found, why = git.issues(Path(_project(session, project_id).root_path))
+    found, why = git_issues.issues(Path(_project(session, project_id).root_path))
     return {"why_not": why, "issues": found}
 
 
