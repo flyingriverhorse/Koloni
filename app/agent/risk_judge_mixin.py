@@ -483,9 +483,12 @@ class RiskJudgeMixin:
         if plain or own and program is None:
             return "", None
         # (fails closed: a key - its verdict kept for the turn, a Run on its card, "don't ask again
-        # here" - only where all it runs is known as it is: the file found, hashed, is all of it,
-        # or it runs none of the folder's code; else what it runs may change unseen)
-        hashed = bool(digest) and exact
+        # here" - only where all it runs is known as it is: one plain command, the file found,
+        # hashed, all of it - never a chain, pipe, redirection or substitution after it (F408 J1:
+        # `python k.py && python e.py` was kept on k.py) -, or it runs none of the folder's code;
+        # else what it runs may change unseen)
+        one = is_plain(command) and not is_wrapped(command) and not _in_a_shell(command)
+        hashed = bool(digest) and exact and one
         kept = known and (hashed or _no_local_code(root, command, cwd or "."))
         key = (command.strip(), cwd or "", digest if hashed else "", str(root)) if kept else None
         if key and (

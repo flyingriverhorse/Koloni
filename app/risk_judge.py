@@ -195,8 +195,9 @@ def risky_unasked(command: str, program_text: str | None, earlier: Sequence[str]
 def kept(record: object) -> TypeGuard[dict]:
     """Whether a command's record of the judge holds its line's key, so a Run on its card is kept
     for the turn and "Don't ask about this line again here" in the project: the gate's `key` -
-    its folder a fact, and either the file it runs found, hashed and all it runs, or one plain
-    command of those that run none of the folder's code (`curl`, `wget`, `cp`...) - as the
+    its folder a fact, and either one plain command (never a chain, a pipe, a redirection) whose
+    file is found, hashed and all it runs, or one plain command of those that run none of the
+    folder's code (`curl`, `wget`, `cp`...) - as the
     record's "program" (None: no key; a wrapped line, a shell's code, any form not known) -, and
     the model's own verdict on it ("looked"): never a card the judge did not look at (a command
     too long or with orders in it, no room to ask, no answer in time or none it could read, a
