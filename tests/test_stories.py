@@ -298,3 +298,21 @@ def test_a_name_two_stories_of_an_older_store_share_is_the_exact_ones_or_refused
         with pytest.raises(backlog.Refused, match="3 goals match this name"):
             stories.goal_named(session, pid, "RELEASE")
 
+
+def test_a_goal_name_nobody_can_see_is_refused(client, project_dir):
+    """S1: as a story's (K3) - wherever a goal is named: added, renamed, drafted, an agent's."""
+    pid, _ = setup(client, project_dir)
+    for title in ("​", "⠀​", " ️ "):
+        made = client.post(f"/api/projects/{pid}/goals", json={"title": title})
+        assert made.status_code == 422 and made.json()["detail"] == stories.NO_GOAL_NAME, title
+    gid = client.post(f"/api/projects/{pid}/goals", json={"title": "Seen"}).json()["id"]
+    renamed = client.patch(f"/api/goals/{gid}", json={"title": "​"})
+    assert renamed.status_code == 422 and renamed.json()["detail"] == stories.NO_GOAL_NAME
+    drawn = {"goal": "​", "stories": [{"title": "S", "tasks": [{"title": "t"}]}], "tasks": []}
+    added = client.post(f"/api/projects/{pid}/backlog/tree", json=drawn)
+    assert added.status_code == 422 and added.json()["detail"] == stories.NO_GOAL_NAME
+    with pytest.raises(backlog.Refused, match=stories.NO_GOAL_NAME):
+        agent(client, pid, "add_task", title="t", story="New", goal="⠀")
+    assert [goal["title"] for goal in tree(client, pid)["goals"]] == ["Seen"]
+    assert tree(client, pid)["stories"] == []
+    assert client.get(f"/api/projects/{pid}/backlog").json() == []

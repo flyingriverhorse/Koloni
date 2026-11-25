@@ -64,9 +64,10 @@ def _title(title: str) -> str:
     return title
 
 
-def _story_title(title: str) -> str:
+def _seen_title(title: str, no_name: str = stories.NO_NAME) -> str:
+    """A story's or a goal's title, refused where it is of what nobody sees alone (K3, S1)."""
     if not stories.name_key(title := _title(title)):
-        raise HTTPException(422, stories.NO_NAME)
+        raise HTTPException(422, no_name)
     return title
 
 
@@ -85,7 +86,8 @@ async def read_tree(project_id: str, session: Session = Depends(get_session)):
 async def add_goal(
     project_id: str, body: GoalIn, request: Request, session: Session = Depends(get_session)
 ):
-    goal = stories.add_goal(session, _project(session, project_id).id, _title(body.title), "user")
+    title = _seen_title(body.title, stories.NO_GOAL_NAME)
+    goal = stories.add_goal(session, _project(session, project_id).id, title, "user")
     session.commit()
     _told(request, project_id)
     return stories.goal_row(goal, [])
@@ -97,7 +99,7 @@ async def change_goal(
 ):
     goal = _goal(session, goal_id)
     if body.title is not None:
-        goal.title = _title(body.title)
+        goal.title = _seen_title(body.title, stories.NO_GOAL_NAME)
     if body.position is not None:
         stories.renumber(session, Goal, goal.project_id, goal, body.position)
     session.commit()
@@ -126,7 +128,7 @@ async def add_story(
     project = _project(session, project_id)
     if body.goal_id is not None and not stories.of_project(session, Goal, project.id, body.goal_id):
         raise HTTPException(422, OTHER_GOAL)
-    title = _story_title(body.title)
+    title = _seen_title(body.title)
     if found := stories.taken(session, project.id, title):
         raise HTTPException(422, TAKEN.format(title=found.title))
     story = stories.add_story(session, project.id, title, body.goal_id, "user")
@@ -142,7 +144,7 @@ async def change_story(
     story = _story(session, story_id)
     changes = body.model_dump(exclude_unset=True)
     if changes.get("title") is not None:
-        title = _story_title(changes["title"])
+        title = _seen_title(changes["title"])
         if found := stories.taken(session, story.project_id, title, but=story.id):
             raise HTTPException(422, TAKEN.format(title=found.title))
         story.title = title

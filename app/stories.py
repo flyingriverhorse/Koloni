@@ -128,6 +128,7 @@ STORY_STATES = ("todo", "running", "stuck", "done?", "done")
 # Said where a story's name is of what nobody sees alone (`name_key` "", K3): a story nobody sees
 # on the page, nor can name.
 NO_NAME = "a story needs a name you can see"
+NO_GOAL_NAME = "a goal needs a name you can see"  # (and a goal's: S1)
 
 
 class Refused(ValueError):
@@ -177,6 +178,8 @@ def _next_position(session: Session, model: type[Goal] | type[Story], project_id
 
 
 def add_goal(session: Session, project_id: str, title: str, created_by: str) -> Goal:
+    if not name_key(title):
+        raise Refused(NO_GOAL_NAME)
     goal = Goal(
         project_id=project_id,
         title=title,
