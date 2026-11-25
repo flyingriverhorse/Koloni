@@ -82,9 +82,11 @@ def test_ordinary_values_of_an_mcp_server_stop_and_delete_nothing(make_client, w
         "HOME": home,
         "API_URL": "https://api.github.com",
         "OPENAI_API_KEY": "not-needed",
+        "GOOGLE_APPLICATION_CREDENTIALS": "C:/keys/gcp-service.json",
     }
     said = (
         f"ENV = 'production'\nLOGS = {home!r}\nAPI = 'https://api.github.com'\nKEY = 'not-needed'\n"
+        "CREDS = 'C:/keys/gcp-service.json'\n"
     )
     steps = [write("config.py", said, "w1"), text("one done")]
     client, done, job, row, origin = night(make_client, wait_run, repo, steps, env)

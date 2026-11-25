@@ -196,12 +196,15 @@ def origin_checked(project: Path) -> None:
 _MENTION = re.compile(r"@(?=[\w-])")
 
 
-def titled(text: str) -> str:
+def titled(text: str, secrets: Iterable[str] = ()) -> str:
     """R2: a To-do task's line - which an agent may have written (the Scout) - as a commit's subject
     or a pull request's title says it: no control or format character (a line break, a bidi
-    override), and a zero-width joiner after each `@` that would mention someone. The rest as
-    written: a link's or code's marks there are only text."""
+    override), each of `secrets` masked - before the joiner could split one - and a zero-width
+    joiner after each `@` that would mention someone. The rest as written: a link's or code's
+    marks there are only text."""
     shown = "".join(ch for ch in text if unicodedata.category(ch) not in ("Cc", "Cf"))
+    for one in filter(None, secrets):
+        shown = shown.replace(one, "***")
     return _MENTION.sub("@\u200d", shown)
 
 

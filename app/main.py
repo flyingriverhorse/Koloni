@@ -92,7 +92,6 @@ from app.api import (
 )
 from app.api.deps import carries_key, require_own_origin
 from app.away import send as send_night
-from app.commands import secret_values
 from app.config import Settings, load_settings
 from app.db.models import Agent, Flag, McpServer, Project, Provider, now
 from app.db.session import (
@@ -321,14 +320,18 @@ def known_secrets(factory, settings: Settings) -> list[str | None]:
 
 
 def loose_values(factory) -> list[str]:
-    """HIGH-1: the MCP servers' values no secret's name holds (`NODE_ENV=production`, `HOME`) -
-    masked where text is shown, but no secret a branch's look stops on, nor one a kept reason is
-    masked of (`raw.known`); not one a secret's name holds too, nor a provider's key."""
+    """HIGH-1: what KOLONİ keeps that is masked where text is shown, but no secret a branch's look
+    stops on, nor one a kept reason is masked of (`raw.known`): an MCP server's value no secret's
+    name holds (`NODE_ENV=production`, `HOME`, a credentials file's path) - and a saved value that
+    reads as a word (`raw.WORDISH`: a provider's key or `OPENAI_API_KEY` of `not-needed`)."""
     with factory() as session:
         envs = [server.env for server in session.scalars(select(McpServer))]
-        keys = set(session.scalars(select(Provider.api_key)))
-    named = {value for env in envs for value in secret_values(env)} | keys
-    return [value for env in envs for value in env.values() if value not in named]
+        keys = [one for one in session.scalars(select(Provider.api_key)) if one]
+    named = [*(value for env in envs for value in secret_set.values(env)), *keys]
+    return [
+        *(value for env in envs for value in env.values() if value not in named),
+        *(value for value in named if raw.WORDISH.fullmatch(value)),
+    ]
 
 
 def passed_values(factory) -> list[str]:

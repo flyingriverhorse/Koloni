@@ -3652,9 +3652,9 @@ class AgentRunner(
                     .order_by(Message.created_at)
                     .limit(1)
                 )
-        first = away_branch.titled(((task or "").strip().splitlines() or [branch])[0])[:COMMIT_LINE]
-        for one in copy.every_secret():  # (no secret KOLONİ checks goes into a commit's message)
-            first = first.replace(one, "***") if one else first
+        first = ((task or "").strip().splitlines() or [branch])[0]
+        # (no secret KOLONİ checks, nor a mention, goes into its commit's message or title: R2)
+        first = away_branch.titled(first, copy.every_secret())[:COMMIT_LINE]
         try:
             held = await self._commit_line(ctx, copy, first)
             look = await self._branch_look(copy)

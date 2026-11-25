@@ -60,10 +60,10 @@ _read_at = 0.0
 _loose_source: Callable[[], Iterable[str | None]] = tuple
 _loose: frozenset[str] = frozenset()
 _loose_at = 0.0
-# HIGH-1: a value that reads as a word - "production", "not-needed", "localhost" - is no secret a
-# look at a branch may stop work on, wherever it is kept.
-# shortcut: a real secret of lowercase words alone ("correcthorse") is not looked for there - it is
-# still masked where text is shown (`hidden`); look for one if such a password is met.
+# HIGH-1: a value KOLONİ keeps that reads as a word - a provider's key "not-needed" - is no secret a
+# look at a branch may stop work on (`app.main.loose_values`).
+# shortcut: a real saved key of lowercase words alone ("correcthorse") is not looked for there - it
+# is still masked where text is shown (`hidden`); look for one if such a key is met.
 WORDISH = re.compile(r"[a-z]+(?:[-_. ][a-z]+)*")
 
 
@@ -110,13 +110,13 @@ def _known(fresh: bool = False) -> list[str]:
 
 def known() -> list[str]:
     """The secrets KOLONİ knows that a branch's commit, merge and push look for (S1) and a kept
-    reason is masked of (K3), as they are looked for: not `use`'s `loose` ones - an MCP server's
-    value no secret's name holds (HIGH-1) -, nor one that reads as a word (`WORDISH`)."""
+    reason is masked of (K3), as they are looked for: not `use`'s `loose` ones (HIGH-1: an MCP
+    server's value no secret's name holds, a kept value that reads as a word - `WORDISH`)."""
     global _loose, _loose_at
     if time.monotonic() - _loose_at >= FRESH_SECONDS:
         _loose_at = time.monotonic()  # (also when the read fails, as `_known`)
         _loose = frozenset(spellings(_loose_source()))
-    return [one for one in _known() if one not in _loose and not WORDISH.fullmatch(one)]
+    return [one for one in _known() if one not in _loose]
 
 
 def hide(text: str, secrets: Iterable[str]) -> str:

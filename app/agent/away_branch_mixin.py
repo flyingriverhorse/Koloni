@@ -393,7 +393,7 @@ class AwayBranchMixin:
                 "root": project.root_path,
                 "way": project.finish_way,
                 # (its first line: nothing past it - a trailer - goes into the commit or the PR)
-                "title": away_branch.titled((task.title.strip().splitlines() or ["?"])[0])[:72],
+                "title": (task.title.strip().splitlines() or ["?"])[0],
                 "name": agent.name or agent.role_name,
                 "notes": (agent.report or "").strip(),
             }
@@ -401,10 +401,10 @@ class AwayBranchMixin:
         if on_branch is None:
             return {"state": "refused", "why": TAKEN}
         known = secret_set.checked()  # (S1, MEDIUM-2: the set a branch's merge and push look for)
-        for one in known:  # (no secret KOLONİ knows goes up in a commit's message or a PR's words)
-            what["title"], what["notes"] = (
-                what[key].replace(one, "***") for key in ("title", "notes")
-            )
+        # (no secret KOLONİ knows, nor a mention, goes up in a commit's message or a PR's words: R2)
+        what["title"] = away_branch.titled(what["title"], known)[:72]
+        for one in known:
+            what["notes"] = what["notes"].replace(one, "***")
         self._deciding.add(merge_id)
         try:
             copy = _as_branch(
