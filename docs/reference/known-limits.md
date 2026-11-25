@@ -169,6 +169,22 @@ messages.
   [Troubleshooting](../troubleshooting.md#commands-and-docker). Under rootless Docker, the files a
   command makes belong to another user id on the host.
 
+## Work while you're away
+
+- In the morning **Run** does not look at what the job changed in its copy: you see that at Take in.
+- A line that runs a program an agent wrote is refused after **Run** too. A script given to an
+  interpreter (`python tool.py`, `node x.js`) is not read so: it runs on your **Run**.
+- A line whose folder its CLI did not say does not run: **Reject** it, or run it yourself.
+- Where you took some of a job's copy in, its going-on turn works in a fresh copy, and the lines you
+  said **Run** run in the project itself.
+- A job tried twice parked its lines in two copies: each line runs in its own, the going-on turn in the
+  newest.
+- KOLONİ closed while the morning's lines run: the task is stopped, and what has not run is not run
+  again - **Try again** works it in its chat.
+- **Usage › Cards** counts a parked card as not answered.
+- `git` in the middle of a line - `cd sub && git push` - needs the project: Take in first; in a copy
+  there is no git.
+
 ## Recipes
 
 - Recipes do not run in triggers' turns.

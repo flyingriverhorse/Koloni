@@ -400,8 +400,8 @@ agent read, and the secrets KOLONİ knows are masked first.
 
 **What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - it
 waits for you on a card that says **KOLONİ's judge: …**, the model's one sentence; once answered, that
-sentence stays under the command's row. In a job while you're away the job waits there, as at any card,
-and the next one starts. A command over 4,000 characters, or one that - or the program an agent wrote that
+sentence stays under the command's row. In a job while you're away it is parked for you, as any card
+there is, and the job goes on ([Waiting for you](../automation/overnight.md#waiting-for-you)). A command over 4,000 characters, or one that - or the program an agent wrote that
 it runs, or one of the earlier commands it would be shown - reads like orders to a model, is a card without
 asking. So is one the judge gave no answer for in 20 seconds (90 for a model on a CLI), gave an answer it
 could not read for, or could not be asked about now - no room on its model's provider (its limit, this

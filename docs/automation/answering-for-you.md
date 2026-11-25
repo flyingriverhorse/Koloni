@@ -35,7 +35,14 @@ Discard, Commit, a different model that may cost money, and Stop. It also does n
 is over its token limit, the project is over its monthly budget, or the provider is over its limit.
 
 The same rule holds in To-do task chats and while you're away. Your Orchestrator's own questions to
-you always wait for you.
+you wait for you - but in a job while you're away (☾ Away), where it decides them itself: "The user is
+away. Decide yourself and say what you assumed in one sentence. Only if the answer is something only
+the user can know (a password, an account, a personal fact), answer `park`." Its answer and reason are
+under **Decided for you**. What it answers `park` is parked for you under **Waiting for you**, and so is
+a question it could not answer (no answer it could read, a CLI past its most or with tools of its own);
+the job goes on. A sub-agent's question there is asked with the second sentence alone. `park` decides
+nothing by itself - an option spelled "Park" is parked, not picked. See [Work while you're
+away](overnight.md#questions-and-approvals).
 
 ## Decided for you
 

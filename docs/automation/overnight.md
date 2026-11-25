@@ -88,8 +88,9 @@ its jobs started, with a link back to their report.
 
 ### Stricter rules while you're away
 
-- **Commands** follow the job chat's level. Below **Full auto**, a command no rule covers waits for you,
-  and the job with it. At every level these wait too: a command that deletes, overwrites or sends
+- **Commands** follow the job chat's level. Below **Full auto**, a command no rule covers is parked
+  for you (see [Questions and approvals](#questions-and-approvals)): it does not run, and the job goes
+  on without it. At every level these are parked too: a command that deletes, overwrites or sends
   something off the machine; one that hands a command to a shell or another program; and one that
   installs into the project's shared dependency folders.
 - **Ordinary file changes** in the job's copy never ask: they are kept for your Take in. Files that
@@ -110,22 +111,38 @@ its jobs started, with a link back to their report.
   (`AGENTS.md`, `CLAUDE.md`) keep their card - in the chat you went away from as in a task's. See [Permissions](../use/permissions.md).
 - At **Full auto**, with [Full auto's judge](../use/permissions.md#full-autos-judge) on (the default), a
   command the list does not stop is first looked at by a small model, reading the chat you went away
-  from: one it finds risky waits for you on its card, "KOLONİ's judge: …", and the job with it - the
-  next one starts.
+  from: one it finds risky is parked for you with its sentence, "KOLONİ's judge: …", and the job goes
+  on.
 
 ## Questions and approvals
 
-What needs your word waits for you, and the job waits with it. The next job goes on meanwhile.
+A card no longer stops a job while you're away. A command's card - whatever its reason: no rule
+covers it, it deletes or sends something off the machine, its copy asks for it, Full auto's judge finds
+it risky - is **parked**: it does not run, the agent is told "KOLONİ parked this for the user, who is
+away: run "…". It did not run. Do what you can without it, and say in your summary what waits.", and
+the job goes on. A command a CLI run **Native** asks for with a tool of its own is parked the same
+way. The job's copy is kept for the morning even where it changed nothing. When the job has done what
+it can, it **waits** - "2 parked" - and the next job starts.
 
 While you're away the Orchestrator decides at once, in the chat you went away from and in the
-tasks' chats, what it may decide for you (another chat of the project keeps its own minutes): an agent's question, a recipe's "Ask me", opening a sub-agent on its role's own model,
-and going on or stopping at a step limit. The cards already waiting when you press Go away are decided
-then. Its own questions to you wait for your return. It does not answer once the project is over its
-monthly budget or a provider is over its limit. Everything else always waits: commands and changes
-that ask, the web, secrets, folders, another model that may cost money, new roles and skills, Take in,
-Discard, Commit. See [Answering for you](answering-for-you.md).
+tasks' chats, what it may decide for you (another chat of the project keeps its own minutes): an
+agent's question, a recipe's "Ask me", opening a sub-agent on its role's own model, and going on or
+stopping at a step limit. The cards already waiting when you press Go away are decided then. In a job,
+its **own questions** go to it too: "The user is away. Decide yourself and say what you assumed in one
+sentence. Only if the answer is something only the user can know (a password, an account, a personal
+fact), answer `park`." Its answer is under **Decided for you**. What it answers `park` - and a
+question it could not answer - is parked for you, and the job goes on. In the chat you went away from,
+its own questions wait for your return. It does not answer once the project is over its monthly budget
+or a provider is over its limit.
 
-A job that waits is shown under **Waits for your word**, on the report and in **Ready for you**.
+These still wait for you, and the job with them (the next job goes on): changes of files that steer
+agents or are secret, the web, secrets, folders, another model that may cost money, new roles and
+skills, Take in, Discard, Commit. See [Answering for you](answering-for-you.md).
+
+Only a job of an Away that runs parks: after **I'm back**, **Stop all** or the Away's end, the next
+card of a job still at work waits for you as before. KOLONİ's own commands (its checks) are never
+parked. A job that waits is shown under **Waits for your word**, on the report and in **Ready for
+you**.
 
 ## Step limits while away
 
@@ -180,8 +197,36 @@ at, and one when a limit or Stop all ends Away - none when you come back yoursel
 
 The chat you went away from has one summary: "While you were away (23:10 – 07:42): 2 of 2 To-do
 done · 3 decided for you · 1 waits · 0.84 USD", what was done (waiting in Ready to take in), what was
-decided for you, what waits (with **Allow and go on** / **Refuse**), **Review and take in** and **On the
-canvas**. KOLONİ opens on the report on the canvas until you have seen it.
+decided for you, **Waiting for you**, what waits (with **Allow and go on** / **Refuse**), **Review and
+take in** and **On the canvas**. KOLONİ opens on the report on the canvas until you have seen it.
+
+### Waiting for you
+
+One list of everything the jobs parked, task by task in the night's order, each in the order it was
+parked: the command whole (never cut, in a fixed font), or the question; why, in KOLONİ's words (the
+card's reason, the judge's sentence, the Orchestrator's reason in quotes); and a warning where it reads
+like orders to a model. It is on the summary, on the report and at the top of each job's chat.
+
+- **Run** or **Reject** a command; a question takes one of its options, or a line and **Answer**.
+- **Stop this task**, on the task's line: what waits of it is closed, the task is stopped, and nothing
+  of it runs.
+- You decide only once you are back (I'm back), and only while the task's job is not at work. A row
+  that cannot be decided now says why: "Needs the project itself: Take in first" (a `git` line, or one
+  naming `build/`, `dist/` or another folder a copy leaves out - a copy has no `.git`), "Its copy is gone:
+  there is nothing to run it in" (you discarded it - **Reject** still works), "Where it would run is not
+  known: Reject it, or run it yourself" (a CLI that did not say its folder), "The project runs commands
+  elsewhere now: Reject it, or set that back" (Docker or this machine, changed since).
+- Once every row of a task is decided, KOLONİ runs what you said **Run**, in the order it was parked,
+  exactly as it was recorded - the same line, its folder, the job's kept copy (or, where you took some
+  of that copy in, the project itself), its time limit - with no card. A program an agent wrote is still
+  refused, and so is a line naming a place you kept out. While it runs, the copy can be neither taken in
+  nor discarded.
+- Then the same Orchestrator goes on in the same chat, in one turn, on KOLONİ's message: "KOLONİ: the
+  user decided: ran "npm test" (…); rejected "git push"; answered "Which database?": Postgres. Go on
+  with the task." It is a job's turn: held to a job's hours, in the kept copy (a fresh one where you
+  took some of it in), its work kept for your Take in - at Full auto too - and the judge looks at its
+  commands. It does not start where the project is over its monthly budget: the job then waits with
+  why. A message of yours in that chat meanwhile waits behind it.
 
 ![Back from Away: the chat's summary, While you were away, 2 of 2 To-do done, with Review and take in and On the canvas; on the canvas the two jobs and their report](../images/away-summary.png)
 
@@ -196,9 +241,9 @@ places, refused).
 Each job row says what its reviews found, and warns where its copy changed a place you kept out, or a
 file another job changed too. A job that changed nothing is "Done, nothing changed". For each job:
 
-- **Allow and go on** or **Refuse**, when it waits for a command, a change, a web request or an agent
-  to open. A question, a folder or a secret is answered in its chat: **Open its chat**. The job then
-  goes on in its copy.
+- **Allow and go on** or **Refuse**, when it waits for a change, a web request or an agent to open. A
+  folder or a secret is answered in its chat: **Open its chat**. The job then goes on in its copy. What
+  it parked is under [Waiting for you](#waiting-for-you).
 - **Take in** brings its work into the project; **Take in all** takes in every done job's work. Where
   two jobs changed one file, the two are joined line by line where their lines do not clash. A
   clashing line is not taken: the card of the job's kept copy, in its chat, decides it.
