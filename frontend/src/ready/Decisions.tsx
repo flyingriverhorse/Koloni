@@ -310,6 +310,8 @@ function Changes({ row, busy, act }: { row: Decision; busy: boolean; act: Act })
   const [word, what, said] = again
     ? (['Change and redo', redo, 'A new turn of its chat started'] as const)
     : (['Change', change, sent] as const)
+  // (what it costs, and - a job's branch you pushed - what it adds to: on the row, and on its buttons)
+  const costs = ['starts a new turn', row.undo_note].filter(Boolean).join('; ')
   return (
     <>
       {choicesOf(row).map(choice => (
@@ -318,12 +320,13 @@ function Changes({ row, busy, act }: { row: Decision; busy: boolean; act: Act })
           type="button"
           className="btn btn-small"
           disabled={busy}
+          title={again ? costs : undefined}
           onClick={() => act(() => what(row, choice), said)}
         >
           {word} → {choice}
         </button>
       ))}
-      {again && <span className="muted decided-note">starts a new turn</span>}
+      {again && <span className="muted decided-note">{costs}</span>}
     </>
   )
 }

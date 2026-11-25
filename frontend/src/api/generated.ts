@@ -7126,6 +7126,8 @@ export interface components {
              * @enum {string}
              */
             undo: "change" | "change_and_redo" | "none";
+            /** Undo Note */
+            undo_note?: string | null;
             /** Undo Reason */
             undo_reason: string | null;
             /** What */
@@ -12641,6 +12643,8 @@ export interface components {
             id: string;
             /** Kind */
             kind: string;
+            /** Opens Pr */
+            opens_pr?: boolean | null;
             /** Options */
             options: string[];
             /** Place */
@@ -12659,6 +12663,8 @@ export interface components {
             warn: string | null;
             /** What */
             what: string;
+            /** What Shown */
+            what_shown: string;
             /** Why */
             why: string;
             /** Wrote */

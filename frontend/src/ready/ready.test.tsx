@@ -410,6 +410,7 @@ const parkedRow = (over: Partial<Waiting>): Waiting => ({
   danger: null,
   wrote: null,
   ...over,
+  what_shown: over.what_shown ?? over.what ?? 'curl -o data/sample.csv https://example.com/sample.csv',
 })
 const ended = (jobs: unknown[] = []) =>
   ({ id: 'a', status: 'ended', started_at: '2026-10-05T08:00:00Z', jobs }) as unknown as Away
@@ -447,17 +448,25 @@ test('what the night parked joins the list first, its push first of all; a decid
 
 test('a parked row on the page: Run or Reject, its push Push and open PR or Not now, Last night shows them', async () => {
   const awayDo = vi.fn(async () => {})
+  const push = { kind: 'push', task_id: 'j2', task: 'Fix the login', what: 'Push koloni/fix', tip: 'abc' } as const
   const rows = [
-    parkedRow({ id: 'p1', kind: 'push', task_id: 'j2', task: 'Fix the login', what: 'Push koloni/fix', tip: 'abc' }),
-    parkedRow({}),
+    parkedRow({ id: 'p1', ...push, opens_pr: true }),
+    parkedRow({ what: 'curl -H "Authorization: Bearer ghp_x"', what_shown: 'curl -H "Authorization: ***"' }),
+    parkedRow({ id: 'p2', ...push, task_id: 'j3', task: 'Docs', opens_pr: false }),
   ]
   const get = vi.fn(async () => new Response(JSON.stringify(rows), { status: 200 }))
   vi.stubGlobal('fetch', get)
   useApp.setState({ awayDo, away: ended() })
   render(<Shown page />)
   const shows = screen.getByRole('group', { name: 'Show' })
-  await userEvent.click(await within(shows).findByRole('button', { name: 'Last night · 2' }))
-  const [first, second] = screen.getAllByRole('group', { name: /^while away/ })
+  await userEvent.click(await within(shows).findByRole('button', { name: 'Last night · 3' }))
+  const [first, plain, second] = screen.getAllByRole('group', { name: /^while away/ })
+  // (where the project's way is no pull request, its Push says no more than that)
+  expect(within(plain).getByRole('button', { name: 'Push' })).toBeInTheDocument()
+  expect(within(plain).queryByRole('button', { name: /open PR/ })).toBeNull()
+  // (the line as the server shows it: masked)
+  expect(second).toHaveTextContent('curl -H "Authorization: ***"')
+  expect(second).not.toHaveTextContent('ghp_x')
   expect(first).toHaveAccessibleName('while away: Fix the login')
   await userEvent.click(within(first).getByRole('button', { name: 'Push and open PR' }))
   expect(awayDo).toHaveBeenCalledWith('a', 'waiting/p1', { word: 'run', seen: [], tip: 'abc' })

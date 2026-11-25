@@ -3,6 +3,7 @@ import { STATE_WORD, amount, clock } from '../backlog/awayText'
 import { inert, markdownRow } from './decisionLog'
 
 const HOUR = 3_600_000
+const DAY = 24 * HOUR
 
 /** The hour a time is in, on this machine's clock. */
 function hourOf(time: number): number {
@@ -31,6 +32,18 @@ export function axisOf(away: Away): Axis | null {
   const to = Math.max(from + HOUR, hourOf(last) === last ? last : hourOf(last) + HOUR)
   const step = Math.ceil((to - from) / HOUR / 8) * HOUR
   return { from, to, ticks: Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step) }
+}
+
+/** The day a night began, on this machine's calendar: "Tue 24 Nov". */
+const dayOf = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) : ''
+
+/** The night as the strip names it: "Last night, 02:10 to 06:40" within a day of its end, else by its day - "Night of
+ *  Tue 24 Nov, …"; the Markdown, pasted later, always by its day. */
+export function nightTitle(away: Away, now = new Date(), dated = false): string {
+  const recent = !dated && away.ended_at != null && now.getTime() - Date.parse(away.ended_at) <= DAY
+  const name = recent ? 'Last night' : `Night of ${dayOf(away.started_at)}`
+  return `${name}, ${clock(away.started_at)} to ${clock(away.ended_at)}`
 }
 
 /** Where a time is on the axis, in % of it. */
@@ -64,7 +77,7 @@ export function nightMarkdown(away: Away, parked: Waiting[], now = new Date()): 
   const done = away.jobs.filter(job => job.state === 'done').length
   const waiting = parked
     .filter(row => !row.decision)
-    .map(row => `- ${inert(row.task)} · ${row.kind}: ${inert(row.what)}`)
+    .map(row => `- ${inert(row.task)} · ${row.kind}: ${inert(row.what_shown)}`)
   const decided = away.jobs
     .flatMap(job => job.decisions)
     .sort((a, b) => b.at.localeCompare(a.at))
@@ -74,7 +87,7 @@ export function nightMarkdown(away: Away, parked: Waiting[], now = new Date()): 
   )
   const part = (head: string, lines: string[]) => (lines.length ? ['', `${head}:`, ...lines] : [])
   return [
-    `Last night, ${clock(away.started_at)} to ${clock(away.ended_at)}: ${done} of ${away.jobs.length} jobs done.`,
+    `${nightTitle(away, now, true)}: ${done} of ${away.jobs.length} jobs done.`,
     '',
     'Jobs:',
     ...away.jobs.map(jobLine),

@@ -307,6 +307,20 @@ test('an answer whose agent finished: Change and redo, what it costs, to the pro
   expect(taken).toHaveTextContent("can't be undone: its work was taken in")
 })
 
+test('Change and redo on a job whose branch you pushed says it adds to that branch', async () => {
+  const pushed: Decision = {
+    ...answer,
+    undo: 'change_and_redo',
+    undo_note: 'adds to the branch koloni/fix-login that you pushed',
+  }
+  view({ rows: [pushed], judge_fine: 0 })
+  const button = await screen.findByRole('button', { name: 'Change and redo → Postgres' })
+  expect(button).toHaveAttribute('title', 'starts a new turn; adds to the branch koloni/fix-login that you pushed')
+  expect(button.closest('li')).toHaveTextContent(
+    'starts a new turn; adds to the branch koloni/fix-login that you pushed',
+  )
+})
+
 test('a row of the open chat tells its store at once, as the chat’s own box did', async () => {
   const ok = vi.spyOn(useApp.getState(), 'decidedOk').mockResolvedValue()
   const changed = vi.spyOn(useApp.getState(), 'decidedChange').mockResolvedValue()

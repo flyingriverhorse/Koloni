@@ -3,7 +3,7 @@ import { errorText } from '../api/client'
 import type { Away, AwayJob, Decision, Waiting } from '../api/types'
 import { STATE_WORD, clock } from '../backlog/awayText'
 import { stamp, whoOf } from './decisionLog'
-import { type Axis, axisOf, nightMarkdown, place, spentLine, uncheckedOf } from './nightText'
+import { type Axis, axisOf, nightMarkdown, nightTitle, place, spentLine, uncheckedOf } from './nightText'
 
 const HEX = '8,1 15,5 15,13 8,17 1,13 1,5'
 /** A job's bar, by how it came out: finished; waits for you (on a card, or on what it parked); stopped or could not be
@@ -145,9 +145,7 @@ function Head({ id, away, parked, onReport }: { id: string; away: Away; parked: 
   }
   return (
     <div className="night-head">
-      <h2 id={id}>
-        Last night, {clock(away.started_at)} to {clock(away.ended_at)}
-      </h2>
+      <h2 id={id}>{nightTitle(away)}</h2>
       <div className="night-tools">
         {onReport && (
           <button type="button" className="link-btn" onClick={onReport}>

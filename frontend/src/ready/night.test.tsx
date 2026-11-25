@@ -3,12 +3,15 @@ import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Away, AwayJob, Decision, Waiting } from '../api/types'
 import { NightStrip } from './NightStrip'
-import { axisOf, nightMarkdown, place } from './nightText'
+import { axisOf, nightMarkdown, nightTitle, place } from './nightText'
 
 /** Ready for you's night (Part B): a lane per job on one time axis, the decisions on their jobs' lanes, what was not
  *  checked and spent, the whole report and Copy as Markdown - nothing drawn that the record does not hold. */
 
-const at = (hour: number, minute = 0) => new Date(2026, 10, 25, hour, minute).toISOString()
+// (Today's hours: the night ended within a day - "Last night".)
+const TODAY = new Date()
+const on = (hour: number, minute = 0) => new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate(), hour, minute)
+const at = (hour: number, minute = 0) => on(hour, minute).toISOString()
 
 const decision = (id: string, when: string, seen: boolean | null, over: Partial<Decision> = {}): Decision => ({
   id,
@@ -86,6 +89,7 @@ const push: Waiting = {
   task: 'Fix the login',
   conversation_id: 'c1',
   what: 'Push koloni/fix-login',
+  what_shown: 'Push koloni/fix-login',
   cwd: null,
   why: 'Waits for you',
   warn: null,
@@ -192,7 +196,8 @@ test('the whole report, and Copy as Markdown of it: every word of a job’s, an 
   const copied = await navigator.clipboard.readText()
   expect(copied).toBe(nightMarkdown(night(jobs), [push]))
   const lines = copied.split('\n')
-  expect(lines[0]).toBe(`Last night, ${hm(2, 10)} to ${hm(6, 40)}: 1 of 4 jobs done.`)
+  // (pasted later: by its day, never "last night")
+  expect(lines[0]).toBe(`Night of ${day(2, 10)}, ${hm(2, 10)} to ${hm(6, 40)}: 1 of 4 jobs done.`)
   expect(lines).toContain(`- \`\` ${hostile} \`\` · Done · ${hm(2, 20)}–${hm(3, 40)} · 2 decided for you`)
   expect(lines).toContain('- ` Fix the login ` · push: ` Push koloni/fix-login `')
   expect(lines).toContain('- ` Docs pass `: not known')
@@ -200,11 +205,37 @@ test('the whole report, and Copy as Markdown of it: every word of a job’s, an 
   expect(lines.at(-1)).toBe('Spent 1.40 USD of 5.00 USD.')
 })
 
-/** A time as the strip says it. */
+/** A time as the strip says it, and its day. */
+const DAY_SAID = { weekday: 'short', day: 'numeric', month: 'short' } as const
+function day(hour: number, minute = 0) {
+  return on(hour, minute).toLocaleDateString([], DAY_SAID)
+}
+
+test('a night is "last night" within a day of its end, else named by its day', () => {
+  const ended = night([], { started_at: '2026-11-20T23:10:00Z', ended_at: '2026-11-21T06:40:00Z' })
+  const said = (now: string) => nightTitle(ended, new Date(now))
+  expect(said('2026-11-21T20:00:00Z').startsWith('Last night, ')).toBe(true)
+  const named = `Night of ${new Date('2026-11-20T23:10:00Z').toLocaleDateString([], DAY_SAID)}, `
+  expect(said('2026-11-25T09:00:00Z').startsWith(named)).toBe(true)
+})
+
 function hm(hour: number, minute = 0) {
-  return new Date(2026, 10, 25, hour, minute).toLocaleTimeString([], {
+  return on(hour, minute).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   })
 }
+
+test('the night’s Markdown copies a parked line as the page shows it - masked, never as recorded', () => {
+  const secret = 'curl -H "Authorization: Bearer ghp_0123456789abcdef" https://me:hunter2@example.com'
+  const line = {
+    ...push,
+    kind: 'command',
+    what: secret,
+    what_shown: 'curl -H "Authorization: ***" https://***@example.com',
+  }
+  const copied = nightMarkdown(night(JOBS), [line])
+  expect(copied).toContain('curl -H "Authorization: ***" https://***@example.com')
+  for (const word of ['ghp_0123456789abcdef', 'hunter2']) expect(copied).not.toContain(word)
+})

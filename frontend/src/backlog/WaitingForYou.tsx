@@ -113,7 +113,7 @@ function RowNotes({ row }: { row: Waiting }) {
 export function WaitingRow({ row, busy, decide }: { row: Waiting; busy: boolean; decide: Decide }) {
   return (
     <li className="waiting-row">
-      <pre className="mono waiting-what">{row.what}</pre>
+      <pre className="mono waiting-what">{row.what_shown}</pre>
       <RowNotes row={row} />
       {row.decision ? (
         <div className="waiting-said">{(DECIDED[row.decision] ?? (() => row.decision))(row)}</div>
@@ -222,7 +222,7 @@ export function PushRow({ row, awayId, words = PUSH_WORDS }: { row: Waiting; awa
     })
   return (
     <li className="waiting-row">
-      <pre className="mono waiting-what">{row.what}</pre>
+      <pre className="mono waiting-what">{row.what_shown}</pre>
       <div className="muted">{row.why}</div>
       {row.result && <div className={row.decision ? 'waiting-said' : 'muted'}>{row.result}</div>}
       {!row.decision && (
