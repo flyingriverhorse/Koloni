@@ -270,6 +270,32 @@ test('the panel: the way to the Checked section only once it is written - a turn
   expect(within(panel).getByRole('button', { name: 'Open the Checked section' })).toBeInTheDocument()
 })
 
+test('0.1.9: a pass the Orchestrator asked for (run_checks) says so in the panel - no fix round', () => {
+  const look = opened('rv', 'Reviewer', 'review', { role_name: 'Reviewer' })
+  const passes = [
+    pass(1, { kind: 'asked', looks: [looked('rv', 'MERGE')] }),
+    pass(2, { tests: 'failed', why: 'tests fail', sent: 'fix' }),
+    pass(3),
+  ]
+  render(
+    <Inspector
+      state={turn([look], [passed], passes)}
+      selectedId="checks:r"
+      onClose={() => {}}
+      onOpenAgent={() => {}}
+    />,
+  )
+  const panel = screen.getByRole('complementary', { name: 'Inspector' })
+  expect(within(panel).getByRole('region', { name: 'Round 1' })).toHaveTextContent(
+    'Round 1 · asked by the Orchestrator',
+  )
+  expect(within(panel).getByRole('region', { name: 'Round 2' })).not.toHaveTextContent('asked by the Orchestrator')
+  // (its dot is as it came out - green: it sent nothing back; one that failed or held, red)
+  expect(loopIn(graphOf(turn([look], [passed], passes)))!.dots).toEqual(['passed', 'held', 'passed'])
+  const held = [pass(1, { kind: 'asked', looks: [looked('rv', 'HOLD')] }), pass(2, { sent: 'fix' }), pass(3)]
+  expect(loopIn(graphOf(turn([look], [passed], held)))!.dots).toEqual(['held', 'held', 'passed'])
+})
+
 test('live, before its section: the box draws its “● looking…” and its one amber dot - not only in its data', () => {
   const look = opened('rv', 'Reviewer', 'review', {
     role_name: 'Reviewer',

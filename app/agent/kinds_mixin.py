@@ -262,16 +262,7 @@ class KindsMixin:
         the turn changed, its first before and last after (`proof.turn_texts`) - compared only for
         a file a tool said a problem in (`proof_style.Changed`)."""
         with self._factory() as session:
-            message_id = session.scalar(
-                select(Message.id)
-                .where(
-                    Message.agent_id == ctx.agent_id,
-                    Message.run_id == ctx.run_id,
-                    Message.role == "assistant",
-                )
-                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
-                .limit(1)
-            )
+            message_id = self._proof_message(session, ctx)
             return message_id, proof.turn_texts(
                 session, ctx.run_id, ctx.agent_id, self._sharing(ctx)
             )

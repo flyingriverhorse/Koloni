@@ -852,6 +852,54 @@ a user would:
 On the canvas the Tester is drawn in the Checks box ([On the canvas](#on-the-canvas)); KOLONİ's own
 runs of the try (the `--help`, the dev server) are not counted as test runs there.
 
+## Checks on asking
+
+The Orchestrator can ask for these checks in the middle of its turn, with its `run_checks` tool, and
+wait for them. You use it in words: tie a step to a condition - "if the tests pass, commit it",
+"testler geçerse commit et", "if no problems are found, commit the branch". The Orchestrator is told
+to call `run_checks` first and take that step only when the answer is green; otherwise it fixes the
+work or tells you. It never assumes the condition holds.
+
+- **What runs:** the same pass as at the turn's end - the tests, the type and style checks, the
+  Reviewer's look and the live try -, on the work as it is then. The ask for a test comes at the
+  end only.
+- **The end runs its own checks too:** asking is an extra pass, never the end's. Whatever an answer
+  said, the turn's end runs its own checks - a test run KOLONİ made after the last change may
+  stand for it, as at any end ([Which tests](#which-tests)); after a command that may have
+  written, such as a commit, they run again. What it found on asking stands for that answer only:
+  the end looks again for itself (a Reviewer's MERGE, the reviewers taken, the live try made on
+  asking are not the end's). Asking costs one more pass - its test runs and, where the change is
+  big, one more Reviewer. A call stopped half way counts toward the most below.
+- **The answer's first line** is KOLONİ's own: `CHECKS: green`, `CHECKS: red` or `CHECKS: not
+  complete`, whatever the tests printed. The Checked lines and where the work stands in git ("At
+  commit 3c4d5e6 on main; not committed: a.py.") follow fenced, as data - a test's summary or a
+  file's name says what it likes, each on one line of its own. A red answer adds what KOLONİ would
+  send back at the end, the failing output marked as data.
+- **Green is strict:** a test command of yours, or one KOLONİ saved, passed - never a guess -; no
+  line failed, even one failing before this turn; none was not run or still running; the Reviewer
+  does not hold; no test was deleted or loosened. Anything else that is not red is not complete:
+  only documents changed, no test command, a guessed command while you're away, a check that broke.
+  A turn that changed nothing - or whose checks are off - gets "KOLONİ found nothing of this turn to
+  check" and no test runs.
+- **No fix round:** a red answer is the tool's answer, not a round of **Fix rounds** - the turn's
+  end checks again and sends the work back as ever.
+- **How long:** each test command to its own limit - not the 2 minutes a turn you watch waits at
+  its end, and no whole suite goes on after the answer.
+- **How often:** each call runs a pass, at most **Fix rounds** + 1 times a turn - 3 at 2 rounds;
+  under **Until it passes** (the default) its ceiling of 20 rounds + 1, so 21. Asked again after
+  that, it runs nothing and answers `CHECKS: not complete`, saying "KOLONİ ran its checks 3 times
+  this turn, the most it runs on asking" - the turn's end checks the work.
+- **One at a time:** a second call while one runs is refused, and so is one while Ready for you's
+  own checks or its card are open; Ready for you does not start in the middle of one.
+- **Who has it:** the Orchestrator at its own work in a project - an API model's, and a CLI's
+  working with its own tools, over KOLONİ's bridge, as its other KOLONİ tools. Not a sub-agent, a
+  plan, a side of a comparison, an answer to a message, nor a chat with no folder.
+
+At **Full auto** a commit in the project runs without a card; a push still asks as the level says
+([Permission levels](permissions.md)). In the Checks box's panel such a pass is "Round 1 · asked by
+the Orchestrator" ([On the canvas](#on-the-canvas)). Looking at your folder for it, KOLONİ runs no
+program your repository's settings name (a filter of `.gitattributes`).
+
 ## How long it waits
 
 A long test suite does not hold up the answer. In a turn you watch, whose work is in the project
