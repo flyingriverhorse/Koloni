@@ -175,7 +175,7 @@ test('a turn that ends elsewhere says so; nothing is said of the conversation on
 })
 
 test('a turn that ends as the one queued after it starts is told too (K-38f2)', () => {
-  // (the queued turn is the last one on the Board from the moment it is sent)
+  // (the queued turn is its chat's turn in the board reading from the moment it is sent)
   const queued = boardOf(talk('a', 'Docs', { turn: boardTurn('r2', 'queued', null) }))
   const { rerender, container } = render(<Toasts board={queued} shownId={null} onOpen={() => {}} />)
   const started = boardOf(talk('a', 'Docs', { turn: boardTurn('r2', 'running', null, { started_at: 't' }) }))

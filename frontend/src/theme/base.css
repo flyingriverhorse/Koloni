@@ -180,7 +180,7 @@ textarea {
 }
 
 /* A state, said the same way wherever it is said - in the chat, the turn list, on the canvas
-   and on the Board (shell/StatusLabel.tsx): a dot and the word, in the state's colour. The
+   and on the Chats list (shell/StatusLabel.tsx): a dot and the word, in the state's colour. The
    dot is drawn here, so that the word is all that is read out. */
 .status {
   flex: none;
