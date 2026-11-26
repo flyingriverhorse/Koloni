@@ -950,7 +950,9 @@ class Workspace:
                     matches.append((self.rel(path), number, line.strip()[:300]))
         return matches, False, secrets, big
 
-    def _walk(self, folder: Path) -> Iterator[Path]:
+    def _walk(self, folder: Path, trees: bool = False) -> Iterator[Path]:
+        """Every file below `folder` - not KOLONİ's worktrees and copies in `.koloni/` (`TREES`:
+        whole checkouts) but where `trees` (a look for secret files)."""
         for child in sorted(folder.iterdir(), key=lambda p: p.name.lower()):
             # Links and junctions are not followed: they may lead out of the project. Out
             # of it, a place KOLONİ never opens is not walked into either.
@@ -961,11 +963,15 @@ class Workspace:
                 or (not self.is_own(child) and (_kept_out(child) or is_secret(str(child))))
                 or self.koloni_s(child)
                 or self.is_own(child)
-                and is_kept_code(child.relative_to(self.root).parts)
+                and (
+                    is_kept_code(parts := child.relative_to(self.root).parts)
+                    or not trees
+                    and in_tree(parts)
+                )
             ):
                 continue
             if child.is_dir():
-                yield from self._walk(child)
+                yield from self._walk(child, trees)
             elif child.is_file():
                 yield child
 
@@ -1186,13 +1192,29 @@ def secret_named(given: str, rel: str) -> bool:
 
 # The agents' scratch in a project (K-koloni-klasor, `koloni.scratch`).
 SCRATCH = ".koloni/tmp"
+# K-koloni-alan: the folders of `.koloni/` that are no settings, by their names there - named in a
+# command or written with no card of `.koloni`'s, at every level, what is in them judged as any
+# path (`standing_names`, `commands._path_parts`): the agents' scratch, and where KOLONİ keeps its
+# worktrees and a project's copies where it has no git (`copies.in_project`). Not the teams'
+# shared folder: who writes there is `shared.may`'s to say, and each file's header names them.
+FREE = ("tmp", "worktrees", "copies")
+# ... and of those, the ones that hold whole checkouts: no look of the project walks, copies,
+# lists or searches them (as Claude Code's own `.claude/worktrees/` is not walked).
+TREES = ("worktrees", "copies")
+
+
+def in_tree(parts: Sequence[str]) -> bool:
+    """Whether a path of the project, by its parts, is one of `.koloni`'s `TREES` or in one."""
+    return len(parts) >= 2 and _name(parts[0]) == ".koloni" and _name(parts[1]) in TREES
 
 
 def in_scratch(rel: str) -> bool:
     """Whether a path in the project (as KOLONİ records it: posix, from its root) is in the
-    agents' scratch. Its changes stay on record for their card and undo, but no list of what a
-    turn changed shows them - to the user or to an agent."""
-    return rel.replace("\\", "/").removeprefix("./").casefold().startswith(f"{SCRATCH}/")
+    agents' scratch - or in a worktree or copy KOLONİ keeps in `.koloni/` (`FREE`). Its changes
+    stay on record for their card and undo, but no list of what a turn changed shows them - to
+    the user or to an agent."""
+    path = rel.replace("\\", "/").removeprefix("./").casefold()
+    return any(path.startswith(f".koloni/{name}/") for name in FREE)
 
 
 def is_kept_code(parts: Sequence[str]) -> bool:
@@ -1231,13 +1253,14 @@ def stray_in_koloni(rel: str) -> bool:
 
 def standing_names(parts: Sequence[str]) -> list[str]:
     """The names of `NOT_WRITTEN_UNATTENDED` among a path's parts (as `_name` gives them), in
-    order - but not `.koloni` where `tmp` follows it: `.koloni/tmp/` is the agents' scratch in
-    the project (K-koloni-klasor), no standing name; what is under it is judged as any path."""
+    order - but not `.koloni` where one of its free folders follows it (`FREE`: `.koloni/tmp/`,
+    the agents' scratch, K-koloni-klasor; KOLONİ's worktrees and copies, K-koloni-alan), no
+    standing name; what is under it is judged as any path."""
     return [
         _name(part)
         for at, part in enumerate(parts)
         if _name(part) in NOT_WRITTEN_UNATTENDED
-        and not (_name(part) == ".koloni" and at + 1 < len(parts) and _name(parts[at + 1]) == "tmp")
+        and not (_name(part) == ".koloni" and at + 1 < len(parts) and _name(parts[at + 1]) in FREE)
     ]
 
 

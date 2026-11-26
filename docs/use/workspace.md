@@ -23,8 +23,8 @@ wrote or showed, and what waits for you". Its number is what waits for you in th
 
 ## Working copies
 
-Each sub-agent changes files in its own copy of the project, outside your folder. Your folder does not
-change until its work is taken in.
+Each sub-agent changes files in its own copy of the project (where it is, [below](#where-copies-and-worktrees-are)).
+Your folder does not change until its work is taken in.
 
 - `.git` and caches are not copied. `node_modules`, `.venv` and `venv` are linked, not copied.
 - A project over 20,000 files or 500 MB gets no copy: the agent works in the project itself.
@@ -54,6 +54,29 @@ runs in its copy is asked at every level, Full auto too, when it:
   filter, a wildcard, `kill -1` or `kill 0`, or a process looked up).
 
 KOLONİ reads the command as written: a path built in a script is not seen.
+
+### Where copies and worktrees are
+
+| Your project | A sub-agent's copy | A branch's worktree (a ☾ Away job's, a team's on a branch) |
+|---|---|---|
+| In git | Outside it: `runtime/copies/`, or your data folder (`%LOCALAPPDATA%\KOLONI\copies\` on Windows, `~/.local/share/KOLONI/copies/` elsewhere) where the runtime folder sits in a repository or beside an `AGENTS.md` / `CLAUDE.md` | In the project: `.koloni/worktrees/<id>/<agent>/tree` |
+| Not in git | In the project: `.koloni/copies/<id>/<agent>/tree` | - (no git, no branch) |
+
+- `<id>` is this KOLONİ's own folder there: two KOLONİs on one project (yours and a test copy) never
+  clear away each other's.
+- A copy inside a project in git would have no `.git` of its own, so `git` in it would answer with your
+  repository: that is why such copies stay outside. A worktree has its own `.git`, so git in it answers
+  with its branch. Whether your project is in git is looked at each time a copy is made: once you
+  `git init`, the next copy is made outside.
+- The first time a worktree is made, KOLONİ adds `/.koloni/worktrees/` and `/.koloni/copies/` to your
+  repository's own `.git/info/exclude` (in a linked worktree of yours, the main repository's), so
+  `git status` stays clean. Your `.gitignore` is not touched.
+- Neither is copied into another copy, shown in the Files window, searched by an agent's search, nor
+  listed as a change of your project. When you delete the project from KOLONİ, they go with it (your
+  branches stay).
+- A CLI started in a copy or worktree in `.koloni/` reads your project's `AGENTS.md` / `CLAUDE.md`
+  from the folders above it, and the copy's own as well: the same words, read twice.
+- Copies and worktrees made before 0.1.10 stay where they were made, and are found and decided there.
 
 [![A working copy's life: the copy is made, the agent works in it, a card in Ready for you, Run the test, then Take in, Merge or Open pull request, or Discard; clashes, commits, and what is removed or kept; and a lane for an agent on a branch: a locked worktree made from your folder as it is, its work committed when it stops, go on on the same branch or in a copy, a merge that waits for your commit, a pull request that never sends your unpushed commits, and a branch holding a secret never kept](../diagrams/working-copy.svg)](../diagrams/working-copy.svg)
 
@@ -180,7 +203,7 @@ could not take your folder as it is (a file another program holds open, a path t
 folder it may not read, or longer than three minutes), the branch starts from your last commit as
 before, and its card says so in one line under its heading: your uncommitted changes were not in it.
 
-Its worktree, in KOLONİ's copies folder, is locked while the agent works (`git worktree list -v` says
+Its worktree, in your project's `.koloni/worktrees/` ([where](#where-copies-and-worktrees-are)), is locked while the agent works (`git worktree list -v` says
 "KOLONİ: an agent works here; KOLONİ removes it"), so your own `git worktree prune`, `remove` or `move`
 leaves it alone. KOLONİ unlocks it before it removes it. When KOLONİ starts, it removes git's records of
 its own worktrees whose folder is gone (after a crash, say), and nothing else: never your worktrees,

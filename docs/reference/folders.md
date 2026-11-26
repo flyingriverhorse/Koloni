@@ -23,9 +23,10 @@ In KOLONİ's folder, or wherever `KOLONI_RUNTIME_ROOT` says.
 
 ## Outside `runtime/`
 
-- **Working copies**: if `runtime/copies` would be inside a git repository (as it is in KOLONİ's own
-  folder), copies go to `%LOCALAPPDATA%\KOLONI\copies` on Windows, or `~/.local/share/KOLONI/copies`
-  elsewhere.
+- **Working copies** of a project in git: if `runtime/copies` would be inside a git repository (as it
+  is in KOLONİ's own folder), copies go to `%LOCALAPPDATA%\KOLONI\copies` on Windows, or `~/.local/share/KOLONI/copies`
+  elsewhere. A project with no git has its copies in its own `.koloni/copies/`, and a branch's worktree
+  is in the project's `.koloni/worktrees/` ([where](../use/workspace.md#where-copies-and-worktrees-are)).
 - **GitHub Copilot CLI** run as a session gets an empty settings folder inside each run's temporary
   folder, removed when the run ends; run **Native**, its session's home is under
   `runtime/cli-homes/copilot-sessions/`. It never uses your own `~/.copilot`. It signs in with the provider's token, or else with your own `gh` login.

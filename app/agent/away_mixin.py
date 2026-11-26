@@ -30,7 +30,6 @@ from app.commands import (
     installs,
     reaches_shared_git,
     runs_another,
-    scratch_delete_only,
     switches_branch,
     with_cwd,
 )
@@ -51,6 +50,7 @@ from app.db.models import (
 from app.model_cli import CliStepClient
 from app.model_native import ClaudeNativeClient
 from app.roles import LEAD
+from app.scratch_delete import scratch_delete_only
 from app.serialize import command_out, message_out, run_out
 from app.tools import ToolError
 from app.workspace import Workspace

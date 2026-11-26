@@ -20,14 +20,23 @@ import hashlib
 import json
 import os
 import stat
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
+from app.copy_git import _NO_PUSH as _NO_PUSH
+from app.copy_git import NO_HOOKS as NO_HOOKS
+from app.copy_git import NO_PUSH as NO_PUSH
+from app.copy_git import _tree_key as _tree_key
+from app.copy_git import ceiling as ceiling
+from app.copy_git import exclude
+from app.copy_git import git_env as git_env
+from app.copy_git import no_push as no_push
 from app.workspace import (
     SCRATCH,
+    TREES,
     Workspace,
     WorkspaceError,
     is_kept_code,
@@ -58,9 +67,19 @@ LINKED = frozenset({"node_modules", ".venv", "venv"})
 # own `shared/` folders are copied as any other. It is written and read in the project alone.
 SHARED = ".koloni/shared"
 # The agents' scratch (`workspace.SCRATCH`, K-koloni-klasor) is left out the same way, so what
-# an agent puts there is never offered at Take in.
+# an agent puts there is never offered at Take in - and so are KOLONİ's worktrees and copies in
+# the project's `.koloni/` (`workspace.TREES`, K-koloni-alan): no copy holds another.
 # The folder that holds every copy, each in a folder of its own (`folder`).
 FOLDER = "copies"
+# K-koloni-alan: a branch's worktree (`make_branch`), and a git-less project's copy (`folder`), in
+# its own `.koloni/` - each runtime root's apart (`in_project`), ignored by `.git/info/exclude`.
+WORKTREES = "worktrees"
+EXCLUDED = (f"/.koloni/{WORKTREES}/", f"/.koloni/{FOLDER}/")
+# What of the project's `.koloni/` no copy holds or takes back (`_scan`, `_apart`), by its path.
+_LEFT_OUT = frozenset({SHARED, SCRATCH, *(f".koloni/{name}" for name in TREES)})
+# The projects, by runtime root (`_runtime_key`), whose `.koloni/` `folders` looks in (`register`:
+# each one a copy is made in, and at the start every one on record, `main.py`).
+_PROJECTS: dict[str, set[str]] = {}
 # What makes a folder, and every folder below it, no place for a copy: git's own (git
 # in a copy would answer with that repository) and what Codex, Claude Code and Gemini
 # read as their instructions from the folders above the one they are started in.
@@ -75,8 +94,6 @@ NO_PLACE = (
 # or rewrites its working folder reaches it.
 TREE = "tree"
 BASE_FILE = "base.json"
-# Beside it too: an empty folder that git is told holds the hooks (`git_env`).
-NO_HOOKS = "no-hooks"
 # More than a copy of `MAX_FILES` files ever writes there (a path and a digest each).
 MAX_BASE_BYTES = MAX_FILES * 2048
 # Beside the tree too: the bytes of each file as it was copied, at the same path, for a
@@ -129,104 +146,63 @@ def _clear(place: Path) -> bool:
     )
 
 
-def folder(runtime_root: Path) -> Path | None:
-    """Where copies are made: `<runtime root>/copies` - or, where that is inside a
-    repository or below a CLI's instructions (KOLONİ's own checkout is both), a folder
-    of this runtime root's in the user's data folder. None where that is no better:
-    then no copy is made."""
+def folder(runtime_root: Path, project: Path | None = None) -> Path | None:
+    """Where copies are made: K-koloni-alan, for a `project` in no git repository (looked at
+    each time), in its own `.koloni/copies/` - no repository there answers a git in the copy;
+    the instruction files above it are its own (read twice). Else `<runtime root>/copies` - or,
+    where that is inside a repository or below a CLI's instructions (KOLONİ's own checkout is
+    both), this runtime root's folder in the user's data one. None where that is no better."""
+    if project is not None and not _in_git(Path(project).resolve()):
+        held = in_project(project, runtime_root, FOLDER)
+        if held is not None:
+            register(runtime_root, project)
+            return held
     return next((held for held in _both(runtime_root) if _clear(held)), None)
 
 
-def _both(runtime_root: Path) -> tuple[Path, Path]:
-    """The two folders a copy is ever in: the runtime root's own, and this runtime
-    root's in the user's data folder."""
+def _in_git(project: Path) -> bool:
+    """Whether a folder is in a git repository: a `.git` in it or in a folder above it."""
+    return any(os.path.lexists(above / ".git") for above in (project, *project.parents))
+
+
+def _runtime_key(runtime_root: Path) -> str:
+    """This runtime root's own name for its folders elsewhere (`_both`, `in_project`)."""
     of_root = os.path.normcase(str(Path(runtime_root).resolve())).encode("utf-8")
+    return hashlib.sha256(of_root).hexdigest()[:12]
+
+
+def in_project(project: Path, runtime_root: Path, area: str) -> Path | None:
+    """K-koloni-alan: this runtime root's folder of `area` (`WORKTREES`, `FOLDER`) in the project's
+    `.koloni/` - None where a link on the way leads elsewhere: nothing is made or deleted there."""
+    place = Path(os.path.realpath(project)) / ".koloni" / area / _runtime_key(runtime_root)
+    return place if os.path.normcase(os.path.realpath(place)) == os.path.normcase(place) else None
+
+
+def register(runtime_root: Path, *projects: str | Path) -> None:
+    """K-koloni-alan: these projects' `.koloni/` may hold this runtime root's copies (`folders`)."""
+    _PROJECTS.setdefault(_runtime_key(runtime_root), set()).update(
+        os.path.realpath(one) for one in projects
+    )
+
+
+def _both(runtime_root: Path) -> tuple[Path, Path]:
+    """The two folders outside every project a copy is ever in: the runtime root's own, and
+    this runtime root's in the user's data folder."""
     return (
         Path(os.path.abspath(runtime_root)) / FOLDER,
-        _user_data() / "KOLONI" / FOLDER / hashlib.sha256(of_root).hexdigest()[:12],
+        _user_data() / "KOLONI" / FOLDER / _runtime_key(runtime_root),
     )
 
 
 def folders(runtime_root: Path) -> list[Path]:
     """Every folder a copy may be in: where they are made first, then the other of the
     two (`_both`) - a copy that was kept is still where it was made, whatever has been
-    put above either folder, or taken away, since. Nothing is deleted anywhere else."""
-    return list(
-        dict.fromkeys(held for held in (folder(runtime_root), *_both(runtime_root)) if held)
-    )
-
-
-def ceiling(tree: Path) -> str:
-    """GIT_CEILING_DIRECTORIES for whatever is started in a copy's tree: git looks for
-    a repository no higher than the copies folder - never in one that folder is in."""
-    return os.pathsep.join(
-        [str(tree.parent.parent), *filter(None, [os.environ.get("GIT_CEILING_DIRECTORIES")])]
-    )
-
-
-def _tree_key(tree: Path) -> str:
-    return os.path.normcase(os.path.realpath(tree))
-
-
-# H1: the trees of ☾ Away jobs on their branch (`no_push`), by `_tree_key` - this process's.
-_NO_PUSH: set[str] = set()
-# Every push URL starts with "": rewritten to a scheme git has no helper for, it fails; a fetch is
-# not rewritten (`pushInsteadOf` is push's alone). Measured with git 2.53 (25 Nov): a push to a
-# remote's name, a path and a file:// URL fail; a fetch works.
-NO_PUSH = "'url.koloni-no-push://.pushInsteadOf='"
-
-
-def no_push(tree: Path) -> None:
-    """H1: whatever is started in `tree` - a ☾ Away job's worktree - pushes nothing: `git_env`
-    adds `NO_PUSH` there. For this process: set again wherever such a tree is opened."""
-    _NO_PUSH.add(_tree_key(tree))
-
-
-def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
-    """What git is given for whatever is started in a copy's tree, `env` being the environment it
-    is started with: it looks no higher than the copies folder (`ceiling`), and runs no hook of the
-    repository it finds - its hooks folder is an empty one beside the tree (`NO_HOOKS`) -, nor its
-    fsmonitor, nor asks for a signature (a key's prompt), after the config `env` gives git already -
-    and keeps a branch's reflog, what a pull request's push reads its own commits by
-    (`git._made_on`).
-    A branch's worktree is the user's own repository: its hooks and settings, and a
-    `core.hooksPath` in the tree (husky's), which the agent can write.
-    GIT_CONFIG_PARAMETERS, not GIT_CONFIG_COUNT/KEY/VALUE: GIT_CONFIG_KEY_0 is a secret by its
-    name (`commands.secret_name`), held back where its count is not - and git stops at a count
-    with no key. Not `safe.bareRepository=explicit`, as KOLONİ's own git has it: a project's tests
-    that use a bare repository by its folder (`git -C remote.git log`) would fail in a copy
-    (measured), and what such a repository's config could run (hooks, fsmonitor) is off here.
-    H1, in a ☾ Away job's worktree (`no_push`): no push (`NO_PUSH`), and no prompt for a login.
-    shortcut: H1 is no wall - measured with git 2.53, a script of the job's own pushes all the same
-    with `git send-pack`, its own `-c url.<x>.pushInsteadOf=...`, a `remote.origin.pushurl` it
-    sets first, or this environment replaced (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`); so
-    does a pushurl or a longer pushInsteadOf of the user's. Each such line the agent types itself
-    is refused or asked on a card; what a script it runs does is not read. H2 says what moved
-    outside the branch in the morning, and the morning's push checks origin itself (H3)."""
-    # shortcut: an empty core.hooksPath stops the hooks git finds in a folder, not hooks set in its
-    # config (`hook.<name>.command` / `.event`: git 2.53 ran none, probed 21 Nov); turn those off
-    # here too once a git that runs them is seen.
-    empty = tree.parent / NO_HOOKS
-    empty.mkdir(exist_ok=True)
-    ours = "'" + f"core.hooksPath={empty}".replace("'", "'\\''") + "'"  # (git's own quoting)
-    away = _tree_key(tree) in _NO_PUSH
-    return {
-        **({"GIT_TERMINAL_PROMPT": "0"} if away else {}),
-        "GIT_CEILING_DIRECTORIES": ceiling(tree),
-        "GIT_CONFIG_PARAMETERS": " ".join(
-            filter(
-                None,
-                [
-                    env.get("GIT_CONFIG_PARAMETERS"),
-                    ours,
-                    "'core.fsmonitor=false'",
-                    "'commit.gpgsign=false'",
-                    "'core.logAllRefUpdates=true'",
-                    NO_PUSH if away else None,
-                ],
-            )
-        ),
-    }
+    put above either folder, or taken away, since - and this runtime root's worktrees and copies
+    in each project's `.koloni/` it knows of (`register`). Nothing is deleted anywhere else."""
+    known = sorted(_PROJECTS.get(_runtime_key(runtime_root), ()))
+    inside = [in_project(Path(one), runtime_root, area) for one in known for area in TREES]
+    found = (folder(runtime_root), *_both(runtime_root), *inside)
+    return list(dict.fromkeys(held for held in found if held))
 
 
 def _key(path: str) -> str:
@@ -347,7 +323,7 @@ def _apart(path: str, project: Workspace | None = None, tops: tuple[Path, ...] =
         with contextlib.suppress(WorkspaceError, ValueError, OSError):
             chains.append(list(project.resolve(path).relative_to(project.root).parts))
     names = NOT_COPIED | LINKED
-    if any(under(chain, names) or "/".join(chain[:2]).casefold() == SHARED for chain in chains):
+    if any(under(chain, names) or "/".join(chain[:2]).casefold() in _LEFT_OUT for chain in chains):
         return True
     return any(chain[-1].rstrip(" .").casefold() in names for chain in chains) and any(
         _is_link(top / path) or (top / path).is_dir() for top in tops
@@ -424,7 +400,7 @@ def _scan(
             # other (a `build` script), but for git's own.
             if (
                 name.casefold() == ".git"
-                or relative.casefold() in (SHARED, SCRATCH)
+                or relative.casefold() in _LEFT_OUT
                 or (name.casefold() in NOT_COPIED and (link or entry.is_dir(follow_symlinks=False)))
             ):
                 continue
@@ -1025,8 +1001,9 @@ def make(
     unasked. The dependency folders (`LINKED`) are linked all the same. The agent is told, and
     reads what was left out in the project (`AgentRunner._reads_left_out`). Where git does not
     answer, no copy, as before. `part` (K-buyuk-proje, "core/"): only that folder and the root's
-    own files are copied - to the caps, and by git's list, as a whole project is (`Copy.part`)."""
-    held = folder(runtime_root)
+    own files are copied - to the caps, and by git's list, as a whole project is (`Copy.part`).
+    K-koloni-alan: in the project's own `.koloni/copies/` where it has no git (`folder`)."""
+    held = folder(runtime_root, project)
     if held is None:
         raise OSError(NO_PLACE)
     project, root = Path(project).resolve(), held / _plain(name) / TREE
@@ -1179,10 +1156,18 @@ def make_branch(
     `short` a branch of KOLONİ's own (`koloni/x`): that branch as it is, opened again for an agent
     that goes on (`git.reopen_worktree`, held to the `start` and `tip` on its record; `snapshot`,
     the one it began from, as its record has it) - and never deleted here, which would take its
-    work."""
+    work.
+    K-koloni-alan: in the project's `.koloni/worktrees/` (a link there: where copies are made),
+    told to `.git/info/exclude` first (`EXCLUDED`) - no `git status` or snapshot sees it. Its own
+    `.git` answers a git in it; the instruction files above it are the project's (read twice)."""
     from app import git  # (here: git's executors import commands, which imports this)
 
-    held = folder(runtime_root)
+    held = in_project(project, runtime_root, WORKTREES)
+    if held is not None:
+        exclude(Path(project), EXCLUDED)
+        register(runtime_root, project)
+    else:
+        held = folder(runtime_root)
     if held is None:
         raise OSError(NO_PLACE)
     project, root = Path(project).resolve(), held / _plain(name) / TREE
@@ -1486,3 +1471,27 @@ def clear(runtime_root: Path, keep: Callable[[str], bool] = lambda name: False) 
                     _remove(Path(entry.path))
                 else:
                     _unlink_links(Path(entry.path))
+
+
+def drop_project(project: Path, runtime_root: Path) -> None:
+    """K-koloni-alan: a project's record is gone (its delete waited for no work of it to be
+    left): this runtime root's worktrees and copies in its `.koloni/` go with it - each as
+    `remove` deletes one, its links as links - and git's records of those worktrees; their
+    folders too where nothing else is left in them, and it is no longer looked in (`folders`).
+    What cannot be deleted stays. The branches stay: they are the repository's."""
+    from app import git  # (here: git's executors import commands, which imports this)
+
+    for area in (WORKTREES, FOLDER):
+        held = in_project(project, runtime_root, area)
+        if held is None or not held.is_dir():
+            continue
+        for entry in _entries(held):
+            with contextlib.suppress(OSError, ValueError):
+                _remove(Path(entry.path))
+        for empty in (held, held.parent, held.parent.parent):
+            with contextlib.suppress(OSError):
+                empty.rmdir()
+        if area == WORKTREES:
+            with contextlib.suppress(git.Refused, OSError):
+                git.forget_worktrees(Path(project), [held], Path(runtime_root) / "no-hooks")
+    _PROJECTS.get(_runtime_key(runtime_root), set()).discard(os.path.realpath(project))

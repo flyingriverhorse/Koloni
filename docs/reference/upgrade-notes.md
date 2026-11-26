@@ -20,6 +20,13 @@ Only what needs your attention after an update; everything else is in the [Chang
 
 ### 0.1.10
 
+- **New worktrees and copies go into your project's `.koloni/`.** A branch's worktree (a ☾ Away job's,
+  a team's on a branch) is made in `.koloni/worktrees/`, and in a project with no git a sub-agent's copy
+  in `.koloni/copies/`; in a project in git copies stay outside it, as before. The first worktree adds
+  `/.koloni/worktrees/` and `/.koloni/copies/` to the repository's `.git/info/exclude`, so `git status`
+  stays clean. Copies and worktrees kept from before stay where they were made and are decided there
+  (see [Where copies and worktrees are](../use/workspace.md#where-copies-and-worktrees-are)). Nothing
+  in the database changes.
 - **`KOLONI_TRIGGER_CLOCK` is now `KOLONI_CLOCK`.** A `.env` that sets the old name keeps working for
   one more release; rename it to `KOLONI_CLOCK` (see [Environment variables](environment.md)).
 - **Native is experimental.** Claude Code, Codex and Copilot offer **Native** under **Experimental**

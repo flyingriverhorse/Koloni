@@ -37,7 +37,7 @@ level says "· no checks"). Each chat has its own level.
 | A command that names a secret file, or searches a folder that holds one | Card | Card | Card |
 | Writing a file that steers agents' later turns (`.claude/`, `.codex/`, `.git/`, `.github/`, `.vscode/`, `.mcp.json`, …) | Card | Card | Card |
 | Writing `AGENTS.md`, `CLAUDE.md` or `GEMINI.md` | Card | Card | Runs |
-| Writing in the folder's `.koloni/` | Card | Card | Card |
+| Writing in the folder's `.koloni/` - or a command that names it - but in its free folders `tmp/`, `worktrees/`, `copies/` ([which](#the-folders-koloni)) | Card | Card | Card |
 | A web search | Card, unless you allowed searching in this chat | Card, unless you allowed searching in this chat | Runs |
 | A web request that only fetches a page (a plain GET) | Card, unless you allowed that site | Card, unless you allowed that site | Runs |
 | Any other web request (one that sends data) | Card | Card | Card |
@@ -54,6 +54,28 @@ project holds no secret file.
 
 The secret-file rows have exceptions for CLIs run with their own tools (Codex's own safe commands,
 agy's reads): see [Known limits](../reference/known-limits.md#secrets).
+
+### The folder's `.koloni/`
+
+| In `.koloni/` | A command naming it, or a write there |
+|---|---|
+| `tmp/` - the agents' scratch | Judged as any path: no card of `.koloni`'s, at every level |
+| `worktrees/`, `copies/` - KOLONİ's worktrees and copies ([where](workspace.md#where-copies-and-worktrees-are)) | Judged as any path: no card of `.koloni`'s, at every level |
+| Everything else: `rules.md`, `settings.json`, `recipes/`, `knowledge/`, the teams' `shared/` folder | Card at every level, Full auto too |
+
+- What is inside a free folder is still judged as any path: a `.claude/settings.json` or a `.git` in a
+  worktree's tree asks as it does anywhere, and a `git` line that names a free folder (`git add -f
+  .koloni/tmp/x`) asks.
+- A line that climbs from a free folder into the rest - `cat .koloni/tmp/../rules.md`, `cd
+  .koloni/worktrees; echo x > ../rules.md`, a path built from where it stands - asks at every level, its
+  card saying "Climbs out of .koloni/tmp…".
+- A delete is a card at Ask and Auto-edit as any delete is; at Full auto a plain delete inside `tmp/`, or
+  inside a copy's or worktree's own tree (`.koloni/worktrees/<id>/<agent>/tree/…`), runs with no card. A
+  delete of a whole copy or worktree, of what KOLONİ keeps beside its tree, or of a folder that holds a
+  link (a copy's linked `node_modules`) is still a card.
+- The teams' `shared/` folder is not free: who writes where there is the teams' own rule (`write_shared`
+  writes a team's folder only, and each file says who wrote it); agents read and write it with their
+  `read_shared` and `write_shared` tools.
 
 ## The cards
 

@@ -22,6 +22,7 @@ from app import raw
 from app.copies import LINKED, folders
 from app.db.models import AllowedCommand, AllowedWeb
 from app.workspace import (
+    FREE,
     INSTRUCTION_FILES,
     NOT_WRITTEN_UNATTENDED,
     SECRET_FOLDERS,
@@ -3331,12 +3332,16 @@ def _copy_reason(
     shortcut: a line PowerShell is handed encoded (`-EncodedCommand`), a name spliced by
     backticks (`ki`ll`), and what code handed to `python -c` / `node -e` does are not read;
     `runs_another` and `runs_inline` ask of those where a night's rules hold."""
+    own = str(own) if own is not None else None
+    # (K-koloni-alan: the copy's own tree is taken out first too - it is in the project's
+    # `.koloni/` where that has no git, and a worktree always is: `copies.in_project`)
     if any(
-        _spellings(project).search(_spellings(str(runtime)).sub("", line))
+        _spellings(project).search(
+            _spellings(str(runtime)).sub("", _spellings(own).sub("", line) if own else line)
+        )
         for line in _path_lines(command)
     ):
         return NAMES_PROJECT.format(root=project)
-    own = str(own) if own is not None else None
     if elsewhere := _names_elsewhere(command, project, runtime, own, cwd, worktrees):
         return OUT_OF_COPY.format(path=elsewhere)
     if _stops_by_name(command):
@@ -3366,7 +3371,8 @@ KOLONI_FILES = (
 )
 # B-339: said where the line climbs out of the scratch (`_CLIMBS`) rather than naming `.koloni`.
 CLIMBS_OUT = (
-    "Climbs out of .koloni/tmp, the agents' scratch, into .koloni - the folder's KOLONİ rules "
+    "Climbs out of .koloni/tmp, the agents' scratch (or KOLONİ's .koloni/worktrees/, "
+    ".koloni/copies/), into .koloni - the folder's KOLONİ rules "
     "and settings, which agents do not change (by `..`, a change of folder other than one "
     "`cd .koloni/tmp/...` at the line's start, or a path built or looked up): asked at every "
     "level. Stay inside .koloni/tmp/ and run again."
@@ -3486,6 +3492,8 @@ def _path_parts(command: str) -> list[str]:
     # (Live: `ls .koloni/tmp; git status --short` asked. A git that only reads - `_git_looks`,
     # by its bare name - is no such line; but one run inside the scratch, `_ENTERS`: a
     # repository shaped there could set what git runs, as `reads_here` has it.)
+    # K-koloni-alan: so are KOLONİ's worktrees and copies there (`FREE`) - an agent's own tree is
+    # in one.
     entered = bool(_ENTERS.match(command))
     scratch = not _climbs(command) and not any(
         _git_sub(words)[0]
@@ -3499,12 +3507,13 @@ def _path_parts(command: str) -> list[str]:
             pieces = [
                 piece
                 for at, piece in enumerate(pieces)
-                if not (piece == ".koloni" and pieces[at + 1 : at + 2] == ["tmp"])
+                if not (piece == ".koloni" and (pieces[at + 1 : at + 2] or [""])[0] in FREE)
             ]
         parts += pieces
     return parts
 
 
+_FREE = "(?:" + "|".join(FREE) + ")"  # (`workspace.FREE`, in a pattern)
 # What can climb out of the scratch or reach `.koloni` from it: `..`, a change of folder, a
 # path built or resolved, `-C <dir>` (git's, tar's).
 _CLIMBS = re.compile(
@@ -3514,9 +3523,15 @@ _CLIMBS = re.compile(
 # One change of folder into the scratch at the line's start, plainly spelt (no quote, variable,
 # wildcard, `..` or dot-name), then `;`, `&&` or a newline: run_command's `cwd` there
 # (`with_cwd`) and an agent's own `cd .koloni/tmp/work; pytest` - no climb by itself.
+# K-koloni-alan: or into another of `.koloni`'s free folders (`FREE`) - and, by its full path
+# plainly spelt, into a tree of KOLONİ's worktrees or copies there (`copies.in_project`: an
+# agent's own, `cd C:/p/.koloni/worktrees/<12 hex>/<name>/tree; pytest`) - never the scratch.
 _ENTERS = re.compile(
-    r"\s*(?:cd|chdir|pushd|sl|set-location|push-location)[ \t]+(?:\./)?\.koloni[/\\]tmp"
-    r"(?:[/\\][\w-][\w.-]*)*[/\\]?[ \t]*(?:;|&&|\r?\n)",
+    r"\s*(?:cd|chdir|pushd|sl|set-location|push-location)[ \t]+(?:(?:\./)?\.koloni[/\\]"
+    + _FREE
+    + r"|(?:[A-Za-z]:)?(?:[/\\][\w-][\w.-]*)*[/\\]\.koloni[/\\](?:worktrees|copies)[/\\]"
+    r"[0-9a-f]{12}[/\\][\w-][\w.-]*[/\\]tree)(?![\w.-])(?:[/\\][\w-][\w.-]*)*[/\\]?[ \t]*"
+    r"(?:;|&&|\r?\n)",
     re.IGNORECASE,
 )
 # ...but from inside it `.koloni` is the folder above, reached with no `..` by a line that
@@ -4437,73 +4452,11 @@ def _deletes_basetemp(command: str) -> bool:
     )
 
 
-# B-336: the one card-free delete - a deleter alone on its line, by its bare name; plain forcing
-# and recursion (`_RECURSES`: a folder of the scratch, no link anywhere below it) its only
-# flags; its paths each spelt plainly under `.koloni/tmp/` (no part starting with ".", no
-# wildcard); and nothing in the line that joins, wraps, quotes, expands or redirects (`_NOT_PLAIN`:
-# `|;&`, a newline, `<>`, a comma or `=` list, any quote - smart ones too -, `^`, a backtick,
-# brackets, `$ % ~`, `* ?`).
-_SCRATCH_DELETERS = frozenset({"remove-item", "ri", "rm", "del", "erase", "unlink"})
-_RECURSES = frozenset({"-r", "-rf", "-fr", "-recurse"})  # (`-R`, `-Rf`: by `casefold`)
-_SCRATCH_FLAGS = _RECURSES | {"-f", "--force", "-force", "-fo", "-q", "-path", "-literalpath"}
-_SCRATCH = re.compile(r"\.koloni[\\/]tmp\b", re.IGNORECASE)
-_IN_SCRATCH = re.compile(r"(?:\./)?\.koloni[/\\]tmp(?:[/\\][\w-][\w.-]*)+", re.IGNORECASE)
-_NOT_PLAIN = re.compile(r"[|;&\n\r<>,=`^'\"()\[\]{}$%~*?‘-„]")
-# Live (Codex 0.164.0): `Remove-Item -LiteralPath '.koloni/tmp/cs' -Recurse -Force` asked. A
-# word that is one plain scratch path in one pair of plain quotes is that path, to sh and to
-# PowerShell: read without them. Any other quote - around a flag, a space, two pieces glued,
-# a pair left open - is still no plain line.
-_QUOTED_SCRATCH = re.compile(r"(?<!\S)(['\"])(" + _IN_SCRATCH.pattern + r")\1(?!\S)", re.IGNORECASE)
-
-
-def scratch_delete_only(command: str, root: str | None) -> bool:
-    """B-336: whether a line is one delete of files in `.koloni/tmp/`, the agents' scratch of
-    `root` (the folder it runs in), and nothing else - no card at Full auto, as writing there has
-    none. Judged where the card is decided (`AgentRunner._night_asks`): `danger` stays as strict
-    as ever, so no rule is offered for such a delete nor covers one. As narrow as it can be
-    (`_SCRATCH_DELETERS`, `_SCRATCH_FLAGS`, `_IN_SCRATCH`, `_NOT_PLAIN`), not climbing out
-    (`_CLIMBS`, the line read as the shell reads it), and each path, links resolved, inside the
-    project's own scratch - which is no link itself. A recursive one (`_RECURSES`) of a folder
-    that holds no link (`_holds_link`: Windows PowerShell's `Remove-Item -Recurse` deletes
-    through a junction). Not `rmdir /s /q`: `/s` is a path to sh and pwsh. Nor a delete after a
-    `cd` into the scratch (run_command's `cwd` there): a `cd` that fails leaves it in the project.
-    shortcut: only the links there when it is asked are checked; one made after that by a script
-    (python's `_winapi.CreateJunction`: a `mklink` line is a card, a script that makes a link is
-    not) is not seen, and Windows PowerShell 5.1's `Remove-Item -Recurse` follows it. Not given
-    to Copilot's new shell for that (`_approve_command`); check again as it runs if it is."""
-    command = _QUOTED_SCRATCH.sub(r"\2", command)
-    if root is None or _NOT_PLAIN.search(command) or _CLIMBS.search(_as_read(command)):
-        return False
-    words = command.split()
-    if not words or words[0].casefold() not in _SCRATCH_DELETERS:
-        return False
-    flags = [word for word in words[1:] if word.startswith("-")]
-    paths = [word for word in words[1:] if not word.startswith("-")]
-    if (
-        not paths
-        or any(flag.casefold() not in _SCRATCH_FLAGS for flag in flags)
-        or not all(_IN_SCRATCH.fullmatch(path) for path in paths)
-    ):
-        return False
-    where = os.path.normcase(os.path.join(os.path.realpath(root), ".koloni", "tmp"))
-    scratch = os.path.normcase(os.path.realpath(where))
-    if scratch != where:  # (the scratch, or .koloni, a link itself: where it leads is not it)
-        return False
-    real = [os.path.realpath(os.path.join(root, path)) for path in paths]
-    recursive = any(flag.casefold() in _RECURSES for flag in flags)
-    # (What KOLONİ itself keeps there - the browser's profile, the user's screenshots, the
-    # images shown - is not an agent's to empty unasked: `_KOLONIS_OWN`.)
-    # (`browser.`: Windows opens a name without its last dots.)
-    own = recursive and any(
-        re.split(r"[/\\]", path.removeprefix("./"))[2].rstrip(".").casefold() in _KOLONIS_OWN
-        for path in paths
-    )
-    return all(os.path.normcase(path).startswith(scratch + os.sep) for path in real) and not (
-        own or names_secret(command) or recursive and _holds_link(real)
-    )
-
-
-_KOLONIS_OWN = frozenset({"browser", "images"})  # (`AgentRunner._scratch_folder`'s)
+# K-koloni-alan: `.koloni/tmp/` or another of `.koloni`'s free folders (`FREE`).
+_SCRATCH = re.compile(r"\.koloni[\\/]" + _FREE + r"\b", re.IGNORECASE)
+_IN_SCRATCH = re.compile(
+    r"(?:\./)?\.koloni[/\\]" + _FREE + r"(?:[/\\][\w-][\w.-]*)+", re.IGNORECASE
+)
 
 
 def _holds_link(tops: list[str], left: int = 10_000) -> bool:
@@ -5536,7 +5489,9 @@ def secret_files(root: Path) -> list[str]:
     if time.monotonic() - at >= HELD_SECONDS:
         folder, found = Workspace(root), []
         with contextlib.suppress(OSError):  # a folder it may not open: what it holds is not known
-            for path in folder._walk(folder.root):
+            # (KOLONİ's worktrees and copies in `.koloni/` too: a search of the whole folder
+            # reads them, and a secret an agent made in its copy is there alone)
+            for path in folder._walk(folder.root, trees=True):
                 if secret_in_project(rel := folder.rel(path)):
                     parts = rel.split("/")
                     inside = next(

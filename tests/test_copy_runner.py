@@ -456,11 +456,9 @@ def test_in_a_copy_file_tools_read_what_is_shared_and_do_not_write_what_is_left_
     assert hooked[0] == "failed" and not (project_dir / ".git").exists()
     # its commands find the copy's own code first
     out = calls(snap, "Coder", "run_command")[0][1]
-    here = str(copies.folder(client.app.state.settings.runtime_root) / agent(snap, "Coder")["id"])
-    assert here in out
-    assert not (
-        copies.folder(client.app.state.settings.runtime_root) / agent(snap, "Coder")["id"]
-    ).exists()  # and the copy is gone
+    held = copies.folder(client.app.state.settings.runtime_root, project_dir)
+    assert str(held / agent(snap, "Coder")["id"]) in out  # (in .koloni/copies/: no git)
+    assert not (held / agent(snap, "Coder")["id"]).exists()  # and the copy is gone
 
 
 def test_the_copys_own_code_comes_first_on_the_python_path(tmp_path):
@@ -573,9 +571,9 @@ def test_a_decision_on_changes_is_the_users_own_and_is_taken_once(
 
 
 def here(client, snap, name="Coder"):
-    """Where the named agent's working copy is."""
-    held = copies.folder(client.app.state.settings.runtime_root)
-    return held / agent(snap, name)["id"] / copies.TREE
+    """Where the named agent's working copy is, wherever it was made (K-koloni-alan)."""
+    held = copies.place(client.app.state.settings.runtime_root, agent(snap, name)["id"])
+    return held / copies.TREE
 
 
 OUT = (
@@ -1145,7 +1143,7 @@ def test_a_command_that_is_asked_about_gets_the_agent_its_copy_when_it_may_run(
     assert client.post(f"/api/commands/{snap['commands'][0]['id']}/reject").status_code == 200
     snap = until(client, cid, lambda s: [st for _c, st in commands(s)] == ["rejected", "proposed"])
     assert agent(snap, "Coder")["copy"] is None  # refused: no copy for nothing
-    assert not copies.folder(client.app.state.settings.runtime_root).exists()
+    assert not copies.folder(client.app.state.settings.runtime_root, project_dir).exists()
     assert (
         client.post(f"/api/commands/{snap['commands'][1]['id']}/approve", json={}).status_code
         == 200
@@ -1449,7 +1447,9 @@ def card_of(client, cid):
 
 
 def kept_folders(settings_env):
-    return list(copies.folder(load_settings(settings_env).runtime_root).iterdir())
+    """Every copy's folder on disk, wherever it was made (K-koloni-alan)."""
+    held = copies.folders(load_settings(settings_env).runtime_root)
+    return [entry for one in held if one.is_dir() for entry in one.iterdir()]
 
 
 def test_after_a_restart_what_only_a_command_made_is_kept_and_can_be_taken(

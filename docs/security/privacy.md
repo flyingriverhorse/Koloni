@@ -18,7 +18,9 @@ Everything KOLONİ keeps is under `runtime/` in its folder, or under `KOLONI_RUN
 | `server-homes/` | Empty homes for Claude Code or Codex run on your own model server, so that none of your own sign-in or settings is used. They are not removed. |
 | `agy-home/` | agy's home for one run, removed after it and at each start. |
 
-If `runtime/` is inside a git repository, working copies go to `%LOCALAPPDATA%\KOLONI\copies` on
+Working copies of a project with no git, and every branch's worktree, are in the project's own
+`.koloni/` ([where](../use/workspace.md#where-copies-and-worktrees-are)). If `runtime/` is inside a git
+repository, the other working copies go to `%LOCALAPPDATA%\KOLONI\copies` on
 Windows, or `~/.local/share/KOLONI/copies` elsewhere. MCP servers start in KOLONİ's own folder in your
 cache (`%LOCALAPPDATA%\KOLONI\mcp` on Windows).
 

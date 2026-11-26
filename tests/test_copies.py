@@ -537,7 +537,9 @@ def test_a_copy_that_is_kept_at_the_start_loses_its_links_and_nothing_else(proje
     copies.clear(runtime, keep=lambda name: name == "a1")
     assert not gone.root.exists()
     assert sorted(tree(kept.root)) == ["hello.py", "mine.txt", "src/app.py"]
-    assert not (kept.root / "node_modules").exists() and tree(project) == before
+    # (K-koloni-alan: the kept copy is in the project's own .koloni/copies/, which has no git)
+    own = {path: data for path, data in tree(project).items() if not path.startswith(".koloni/")}
+    assert not (kept.root / "node_modules").exists() and own == before
 
 
 def test_what_a_copy_was_made_from_is_kept_beside_its_tree_and_read_again(project, runtime):

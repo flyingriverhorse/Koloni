@@ -11,7 +11,7 @@ import os
 import re
 from pathlib import Path
 
-from app.workspace import PTH_GLOBS, _name, is_kept_code, standing_names
+from app.workspace import FREE, PTH_GLOBS, _name, is_kept_code, standing_names
 
 # Folders that are not looked into: other people's code and build output.
 UNREAD_FOLDERS = frozenset(
@@ -110,8 +110,10 @@ def _runtime_in(root: Path) -> tuple[str, ...] | None:
 def _scratch(parts: tuple[str, ...], name: str) -> bool:
     """Whether a folder `name` in the project folder at `parts` is the agents' scratch,
     `.koloni/tmp/` (K-koloni-klasor): thousands of files a browser profile rewrites each run -
-    no look of "what changed" reads it (`standing`, `ProjectView.changes`)."""
-    return len(parts) == 1 and _name(parts[0]) == ".koloni" and _name(name) == "tmp"
+    no look of "what changed" reads it (`standing`, `ProjectView.changes`). K-koloni-alan: nor
+    KOLONİ's worktrees and copies there (`FREE`): whole checkouts, each its own agent's - their
+    standing files theirs, not the project's (as a copy kept in the runtime is not walked)."""
+    return len(parts) == 1 and _name(parts[0]) == ".koloni" and _name(name) in FREE
 
 
 def _take(root: Path, found: dict[str, bytes], path: Path) -> None:

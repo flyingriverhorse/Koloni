@@ -154,8 +154,8 @@ def save_rules(root: str, rules: str | None) -> None:
 
 # What `.koloni/.gitignore` holds for the scratch: the scratch, and the file itself - so that
 # neither shows in `git status` (`?? .koloni/`) where the user keeps no other `.koloni` file.
-# (Not `.git/info/exclude`: KOLONİ would write into the user's `.git`, which in a linked
-# worktree is a file pointing elsewhere.)
+# (Not `.git/info/exclude`: a folder with no git gets a scratch too. KOLONİ's worktrees and
+# copies in `.koloni/` are told to the repository's own, where git is: `git.exclude`.)
 IGNORED = ("tmp/", ".gitignore")
 
 
