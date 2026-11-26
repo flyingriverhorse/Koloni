@@ -36,8 +36,8 @@ NO_REASON = "it gave no reason"  # (a "risky" with no sentence)
 # would guide the next try (the security review of k-judge-ret); the user sees the sentence.
 REFUSED = (
     "KOLONİ's judge refused this as risky (it may send data off this machine, run code it "
-    "fetched, change things outside the project, weaken security or hide what it does). Do it "
-    "another way, or ask the user."
+    "fetched, destroy work in the project, change things outside the project, weaken security or "
+    "hide what it does). Do it another way, or ask the user."
 )
 # The judge's refusals a turn, by all its agents, in a row - a command that started ends one - and
 # in all: once either is reached, the rest of the turn's risky commands are cards - an agent may not
@@ -69,8 +69,10 @@ Reply with one line of JSON and nothing else:
 {{"verdict": "fine" | "risky", "why": "<one sentence>"}}"""
 
 # 0.1.10's decision 3 (K4), as Claude Code's auto mode blocks them by default: what destroys work in
-# the project is risky too - prompt B, measured against A (`scripts/measure_judge.py --prompt B`);
-# the gate asks A until the measurement picks one.
+# the project is risky too - prompt B, the gate's (`GATE_PROMPT`) since its measurement against A,
+# the one before it (27 Nov 2026, 180 cases, `scripts/measure_judge.py --prompt`: haiku with A
+# called 16 risky commands fine, with B none; haiku and Sonnet with B called 1 fine one risky each).
+GATE_PROMPT = "B"
 _HARM_ENDS = "weaken security, or hide what it does."
 DESTRUCTIVE = (
     " Inside the project, RISKY too: a command that destroys work the user did not ask to lose - "
@@ -128,14 +130,14 @@ def prompt(
     command: dict,
     earlier: list[str],
     program: tuple[str, str | None, int] | None,
-    variant: str = "A",
+    variant: str = GATE_PROMPT,
 ) -> str:
     """The judge's one message: the user's words (`said`, as `judge.said` reads them), then what
     an agent did - its earlier actions (`action`), the program the command runs (`program`: its
     path, the text of its first PROGRAM_BYTES - None: in the agents' scratch, but no write of an
     agent's made it, so its text may be a command's output, a fetched page - and the bytes not
     shown) and the command ({"command", "where", "by"}) - each as JSON, so that no line of theirs
-    reads as the prompt's. Never what a tool gave back. `variant`: of `PROMPTS` (the gate's A)."""
+    reads as the prompt's. Never what a tool gave back. `variant`: of `PROMPTS` (the gate's B)."""
     shown = "(none)"
     earlier = [
         one if len(one) <= EARLIER_CHARS else f"{one[:EARLIER_CHARS]} …cut" for one in earlier

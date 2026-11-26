@@ -8,9 +8,9 @@ the gate's time limits) and read with KOLONİ's own parsers (`judge.verdict` wit
 `cards.mentioned`, `risk_judge.verdict`). It spends one model call per case: 171 words + 180 risk =
 351 for a whole run (`--only` one set, `--limit N` the first N of each) - a risk case KOLONİ's
 list stops before the judge today (its `stopped`) is not asked. Nothing of the user's KOLONİ is
-read: the clients get a runtime folder of their own under the temp folder. `--prompt B` asks
-Full auto's judge with its prompt B (`risk_judge.PROMPTS`: in-project destructive commands are
-risky too, K4) - the gate asks A until the measurement picks one.
+read: the clients get a runtime folder of their own under the temp folder. Full auto's judge is
+asked with the gate's prompt (`risk_judge.GATE_PROMPT`, B: in-project destructive commands are
+risky too, since K4's measurement on 27 Nov 2026), or with `--prompt A`, the one before it.
 
   # Claude Code (its own sign-in, ~/.claude), the haiku model
   python scripts/measure_judge.py --kind claude_cli --model haiku --out judge-haiku.json
@@ -25,10 +25,10 @@ risky too, K4) - the gate asks A until the measurement picks one.
   # Cheap smoke run, and the prompts alone (no model call)
   python scripts/measure_judge.py --kind claude_cli --model haiku --limit 2 --out smoke.json
   python scripts/measure_judge.py --dry-run
-  # Full auto's judge alone, with its prompt B (and its dry run: B's text)
-  python scripts/measure_judge.py --kind claude_cli --model haiku --only risk --prompt B \
-      --out judge-haiku-b.json
-  python scripts/measure_judge.py --dry-run --only risk --prompt B
+  # Full auto's judge alone, with its prompt A, the one before the gate's (and its dry run)
+  python scripts/measure_judge.py --kind claude_cli --model haiku --only risk --prompt A \
+      --out judge-haiku-a.json
+  python scripts/measure_judge.py --dry-run --only risk --prompt A
   # Check what I said first's model alone, without KOLONİ's net for conditions
   python scripts/measure_judge.py --kind claude_cli --model haiku --only words --no-net \
       --out net.json
@@ -110,10 +110,10 @@ def _where(command: dict) -> str:
     return raw.hidden(command["where"]) if command["where"] else "not known"
 
 
-def prompt(which: str, case: dict, variant: str = "A") -> str:
+def prompt(which: str, case: dict, variant: str = risk_judge.GATE_PROMPT) -> str:
     """The prompt the gate builds for a case: `JudgeMixin._judging`'s (the reason as `_night_asks`
     gives it in a watched Full auto turn) or `RiskJudgeMixin._risk_asked`'s - with its prompt
-    `variant` (`risk_judge.PROMPTS`; the gate's A)."""
+    `variant` (`risk_judge.PROMPTS`; the gate's `GATE_PROMPT`)."""
     command = case["command"]
     line, cwd = command["command"], command["where"]
     if which == "words":
@@ -241,7 +241,7 @@ async def ask(
     model: str,
     mode: str | None,
     net: bool = True,
-    variant: str = "A",
+    variant: str = risk_judge.GATE_PROMPT,
 ) -> dict:
     """One case asked as the gate asks (`_risk_asks`, `_judge_asks`): its row of the report - a
     words verdict read without the net where `net` is False; a risk case with prompt `variant`."""
@@ -289,7 +289,7 @@ async def measure(
     mode,
     at_once: int,
     net: bool = True,
-    variant: str = "A",
+    variant: str = risk_judge.GATE_PROMPT,
 ):
     gate = asyncio.Semaphore(at_once)
 
@@ -406,9 +406,8 @@ def shown(out: dict, kind: str, model: str) -> str:
             for name, counts in words["net"].items()
         ]
     if risk := out.get("risk"):
-        variant = out.get("prompt", "A")
         lines.append(
-            f"Full auto's judge ({risk['cases']} cases, prompt {variant}), kind: want -> got:"
+            f"Full auto's judge ({risk['cases']} cases, prompt {out['prompt']}), kind: want -> got:"
         )
         lines += [f"  {name}: {count}" for name, count in risk["matrix"].items()]
         called, alarms = risk["risky_called_fine"], risk["fine_called_risky"]
@@ -444,8 +443,8 @@ def arguments(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--prompt",
         choices=tuple(risk_judge.PROMPTS),
-        default="A",
-        help="risk: Full auto's judge's prompt (A: the gate's; B: in-project destructive is risky)",
+        default=risk_judge.GATE_PROMPT,
+        help="risk: the judge's prompt (B, the gate's: in-project destructive is risky; A: before)",
     )
     args = parser.parse_args(argv)
     if not args.dry_run and not (args.kind and args.model and args.out):
