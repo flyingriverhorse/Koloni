@@ -435,8 +435,8 @@ verdict, the decision is yours, never a silent refusal. A command over 4,000 cha
 the program an agent wrote that
 it runs, or one of the earlier commands it would be shown - reads like orders to a model, is a card without
 asking. So is one the judge gave no answer for in 20 seconds (90 for a model on a CLI), gave an answer it
-could not read for, or could not be asked about now - no room on its model's provider (its limit, this
-month's budget) or the turn past its token limit: "it could not be asked: …", and the chat says once in
+could not read for, or could not be asked about now - no model to ask, no room on its model's provider (its
+limit, this month's budget) or the turn past its token limit: "it could not be asked: …", and the chat says once in
 the turn `Full auto's judge could not be asked this turn: {why}. Each command it would look at asks you.` -,
 and one whose program changed while the judge looked (a link pointed elsewhere too): every time - an agent
 can write a command that slows, confuses or spends the judge, so none of these lets a command run.
@@ -475,9 +475,12 @@ KOLONİ does not know, a file it did not find (`python -m x` with no `x.py`), or
 known (a CLI that does not say). No **Always run** is offered, and an Always run rule does not let a command past the
 judge: a rule matches by its first words, and `python` would cover `python -c …`.
 
-**Where it stands aside:** only with no model to ask - no Judge model chosen that can be asked, and none in
-the Fast tier. It says once in the chat "Full auto's judge is off for this turn: …" and the rest of the
-turn runs as Full auto did before.
+**With no model to ask** - no Judge model chosen that can be asked, and none in the Fast tier - it does
+not step aside (since 0.1.10; as Claude Code's auto mode, it fails closed): each command it would look at
+waits for you on a card, "KOLONİ's judge: it could not be asked: no judge model answered - …", and the chat
+says once in the turn `Full auto's judge could not be asked this turn: no judge model answered - choose a
+Judge model in Settings › The app › Agents, or give a model the Fast tier. Each command it would look at
+asks you.` To have Full auto as it was before the judge, turn the judge's switch off for the project.
 
 **Which model:** Settings › The app › Agents › **Judge model** - **Fast tier's first (now: …)** unless you
 choose one of the models listed (those of every tier that answer with no tools - a CLI with tools of its

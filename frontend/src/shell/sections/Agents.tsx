@@ -45,7 +45,7 @@ const WORDS_WHY =
 const JUDGE_SHOWN =
   'A small model looks at each command the list does not stop. One request of your Judge model (Settings › The app › Agents) for each such command, on your plan or your bill.'
 const JUDGE_REST =
-  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky is refused, or waits for you on a card, as you choose below. Reads, ordinary work (tests, compilers and checkers, local git), and your own test command (unless it runs a program an agent wrote) are not asked about. One it cannot get an answer for waits for you on a card, whichever you choose; only where there is no model to ask does it stand aside for the turn, and it says so in the chat. Off: Full auto as before.'
+  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky is refused, or waits for you on a card, as you choose below. Reads, ordinary work (tests, compilers and checkers, local git), and your own test command (unless it runs a program an agent wrote) are not asked about. One it cannot get an answer for - no model to ask among them - waits for you on a card, whichever you choose, and the chat says why. Off: Full auto as before.'
 /** What the judge does with a command it finds risky (25 Nov): refused, as Claude Code's auto mode does, or a card. */
 const JUDGE_RISKY: [value: Project['judge_risky'], label: string][] = [
   ['refuse', 'Refuse and go on'],

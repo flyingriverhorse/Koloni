@@ -167,9 +167,10 @@ messages.
       working copy (or with `PYTHONPATH` set), a runner KOLONİ does not know, a file it did not find, a
       folder it does not know - is asked about every time, and its card has no box: it fails closed, at
       the cost of more questions.
-    - A command the judge could not look at - too long, orders in it, no room to ask, no answer in time
-      or none it could read, its program changed while it looked - is never kept: a Run on its card
-      runs it once, and its card has no box.
+    - A command the judge could not look at - too long, orders in it, no model to ask or no room to ask,
+      no answer in time or none it could read, its program changed while it looked - is never kept: a
+      Run on its card runs it once, and its card has no box. With no model to ask at all, every command
+      it would look at is such a card (it fails closed): pick a Judge model, or turn the judge off.
     - What a kept program imports in turn is not looked at - not even a file in its folder that shadows
       a standard module (a `json.py` beside `x.py`): a changed import does not make `python x.py`
       another line.

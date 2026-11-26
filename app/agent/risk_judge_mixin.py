@@ -53,12 +53,13 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("app.agent")
 CARD = risk_judge.CARD
-# Said once in the chat where the judge cannot be asked for the rest of a turn: no model to ask -
-# nothing an agent can bring about (one that slows the judge, spends its turn's tokens or its
-# provider's room, or writes what it cannot read, gets a card).
-ASIDE = "Full auto's judge is off for this turn: {why}."
-NO_MODEL = "no model to ask - choose a Judge model in Settings, or give a model the Fast tier"
-# Its card where it may not be asked now, or was asked and gave no answer to go by: never a run.
+# Its card where it may not be asked now - no model to ask (0.1.10: fails closed, as Claude Code's
+# auto mode does where its classifier cannot answer) or none with room -, or was asked and gave no
+# answer to go by: never a run.
+NO_MODEL = (
+    "no judge model answered - choose a Judge model in Settings › The app › Agents, or give a "
+    "model the Fast tier"
+)
 NO_ROOM = "{name} has no room for it now"
 OVER_LIMIT = "the turn is past its token limit"
 NOT_ASKED = "it could not be asked: {why}"
@@ -507,8 +508,8 @@ class RiskJudgeMixin:
         command (but where an agent wrote the program it runs), one asked at every level anyway
         (a secret, a file that steers later turns), an ordinary line (`risk_judge.ordinary`, what
         it runs not an agent's: `_planted`, W7), one they said Run to on its card this turn - or
-        not to ask about again here (`JudgeAllowed`) -, or where it stood aside for the turn (no
-        model to ask). A card unasked: `risk_judge.risky_unasked`.
+        not to ask about again here (`JudgeAllowed`). A card unasked: `risk_judge.risky_unasked`;
+        one with no model to ask, `_risk_asked`.
         `known`: False where `cwd` is no fact (a CLI's folder not known, or its model's word):
         then no program is read. Nothing is kept for such a line - neither its verdict, nor a Run
         on its card -, nor for one but where the file it runs was found, hashed, and is all it
@@ -600,8 +601,6 @@ class RiskJudgeMixin:
         record |= {"program": digest if key else None, "root": str(root)}
         if why := risk_judge.risky_unasked(command, program[1] if program else None, earlier):
             return CARD.format(why=why), {**record, "why": why}
-        if ctx.run_id in self._risk_aside:
-            return "", None
         seen = _Seen(root, (cwd or ".") if known else None, path, program, digest, earlier)
         return await self._risk_asked(ctx, command, cwd, seen, key, record)
 
@@ -685,9 +684,8 @@ class RiskJudgeMixin:
     ) -> tuple[str, dict | None]:
         """The judge asked (`_risk_asks`) - once a turn for a line with a key and the user's words
         as they are -, what it reads masked (`raw.hidden`); a "fine" whose program changed while
-        it was asked is a card. Where no model can be asked it stands aside for the turn, said
-        once in the chat (`ASIDE`), and the line runs as Full auto runs it; where one may not be
-        asked now (`_risk_no_room`), its card."""
+        it was asked is a card. Where no model can be asked (`NO_MODEL`: fails closed) or one may
+        not be asked now (`_risk_no_room`), its card - said once a turn in the chat."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             project = session.get_one(Project, conversation.project_id)
@@ -704,11 +702,8 @@ class RiskJudgeMixin:
                 return ("" if found["verdict"] == "fine" else CARD.format(why=why)), found
             would = would_run(session, find_role(session, LEAD), conversation)
             picked = judge_pick(session, would, self.providers, judge_chosen(session))
-            if picked is None:
-                self._risk_aside[ctx.run_id] = NO_MODEL
-                self._koloni_line(ctx.cid, ctx.run_id, ASIDE.format(why=NO_MODEL))
-                return "", None
-            if why := self._risk_no_room(session, ctx, picked, project):
+            why = NO_MODEL if picked is None else self._risk_no_room(session, ctx, picked, project)
+            if picked is None or why:
                 self._koloni_line(ctx.cid, ctx.run_id, NOT_ASKED_LINE.format(why=why))
                 why = NOT_ASKED.format(why=why)
                 return CARD.format(why=why), {**record, "why": why}

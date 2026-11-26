@@ -201,7 +201,7 @@ test('The app › Agents: the Judge model is the Fast tier’s first, named, unt
   expect(screen.queryByText(MEASURED)).toBeNull()
 })
 
-test('a chosen Judge model that cannot be asked now stays chosen and says so; with none to ask, the judge stands aside', async () => {
+test('a chosen Judge model that cannot be asked now stays chosen and says so; with none to ask, each command asks', async () => {
   server([], { ...JUDGE, provider_id: 'gone', model_id: 'old' })
   const { unmount } = render(<Settings {...base} project={null} onSave={vi.fn()} />)
   const judge = screen.getByLabelText('Judge model')
@@ -217,7 +217,7 @@ test('a chosen Judge model that cannot be asked now stays chosen and says so; wi
   render(<Settings {...base} project={null} onSave={vi.fn()} />)
   await waitFor(() => expect(screen.getByLabelText('Judge model')).toHaveDisplayValue('Fast tier’s first (now: none)'))
   expect(
-    screen.getByText(/^No model can be asked: Full auto’s judge stands aside and says so in the chat\./),
+    screen.getByText(/^No model can be asked: each command Full auto’s judge would look at waits for you on a card/),
   ).toBeVisible()
 })
 

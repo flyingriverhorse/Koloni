@@ -26,8 +26,8 @@ function JudgeNotes({ judge, stale }: { judge: JudgeOut; stale: boolean }) {
       )}
       {judge.now === null && (
         <span className="choice-note">
-          No model can be asked: Full auto’s judge stands aside and says so in the chat. Give a model a tier on the
-          Models page.
+          No model can be asked: each command Full auto’s judge would look at waits for you on a card, and the chat says
+          why. Give a model a tier on the Models page.
         </span>
       )}
       {judge.now?.cli && <span className="choice-note">On a CLI each such command waits for it to start.</span>}

@@ -1503,7 +1503,6 @@ class AgentRunner(
         self._judge_refused: dict[str, tuple[int, int]] = {}
         # Full auto's judge: run -> a line's key -> its record or "approved"; -> why it stood aside
         self._risk_cache: dict[str, dict[tuple, dict | str]] = {}
-        self._risk_aside: dict[str, str] = {}
         # K-fullauto-sorma: run -> how often a failing check went back to the Lead (`_merge`).
         self._check_rounds: dict[str, int] = {}
         self._away_cut: dict[str, str] = {}
@@ -2286,7 +2285,6 @@ class AgentRunner(
         self._judge_cache.pop(run_id, None)
         self._judge_refused.pop(run_id, None)
         self._risk_cache.pop(run_id, None)
-        self._risk_aside.pop(run_id, None)
         self._check_rounds.pop(run_id, None)
         self._away_cut.pop(run_id, None)
         if (timer := self._away_timers.pop(run_id, None)) is not None:
