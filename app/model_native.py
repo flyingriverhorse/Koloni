@@ -2613,8 +2613,7 @@ def claude_without(withheld: tuple[str, ...]) -> list[str]:
     if "agents" in withheld:  # (B-385: its model is closed to agents)
         without += CLAUDE_AGENTS
     if "unasked" in withheld:
-        # A turn nobody is watching, where nobody could be asked: none of its tools that reach
-        # out.
+        # A turn nobody is watching, where nobody could be asked: none of its tools that reach out.
         without += CLAUDE_REACHES
     # Slice 61: KOLONİ's web_search or http_request switched off on the Tools page.
     return without + [
@@ -4430,6 +4429,7 @@ class CopilotNativeClient(CodexNativeClient):
     looks_by_running = False  # it has a view tool of its own
     session_cap = COPILOT_SESSION_CAP
     own_copy = False  # not measured in a copy: it works in the project
+    commands_held = False  # (C2's twin: until its own session says it has a sandbox, `talk`)
     # Read-only (B-301) it is given only its view tool; its commands have no read-only
     # sandbox here, so a role that runs them is not had read-only.
     read_only_commands = False
@@ -5213,7 +5213,7 @@ class CopilotNativeClient(CodexNativeClient):
                 sandbox: dict = {}
                 if no is None and denied is not None:
                     sandbox = await self._sandbox(ask, denied, also, on_item)
-                self.commands_held = bool(sandbox)  # (C2's twin: `_Watch.unheld`)
+                await on_item("completed", {"type": "commands_held", "held": bool(sandbox)})
                 if no is None:
                     flat = {
                         **sandbox,

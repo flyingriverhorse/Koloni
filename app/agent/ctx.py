@@ -286,8 +286,11 @@ class _Watch:
         # there all the same, by a path outside its copy, is seen with what was before.
         self.project: ProjectView | None = None
         self.straight: set[str] = set()  # the project's files it was found to have changed
-        # Its CLI is held to no folder (`_sandboxed`: native agy), as set at its start (`unheld`).
+        # Its CLI is held to no folder (`_sandboxed`: native agy), as set at its start; and whether
+        # something holds its commands' writes (`commands_held`; Copilot's own session says so,
+        # `_observe`'s "commands_held"): `unheld`.
         self.unboxed = False
+        self.held = True
         # B-310: its CLI (agy) never took KOLONİ's bridge, so it runs the old way: with none of
         # KOLONİ's tools, a Lead that hands code on cannot, and writes itself.
         self.unbridged = False
@@ -336,17 +339,11 @@ class _Watch:
     @property
     def unheld(self) -> bool:
         """For a CLI in a copy: its CLI is held to no folder (`unboxed`), or its commands are not
-        (`commands_held`: Claude Code's never, C2; Copilot's where its session has no sandbox -
-        this machine has none, or secrets are not hidden -, set as that session starts, after this
-        watch was made: so read at each look): a command of it can write in the project without a
-        path being named, so the project is looked at after each.
-        shortcut: one Copilot client serves a provider's model in every chat - two of its sessions
-        at once, in a project that hides secrets and one that does not, share its `commands_held`;
-        keep it per run if that is seen."""
-        model = self.ctx.model if self.ctx is not None else None
-        return self.project is not None and (
-            self.unboxed or not getattr(model, "commands_held", True)
-        )
+        (`held`: Claude Code's never, C2; Copilot's not until its own session says it has a
+        sandbox - none where this machine has none, or secrets are not hidden; said for this watch
+        alone, never on the client every chat shares): a command of it can write in the project
+        without a path being named, so the project is looked at after each."""
+        return self.project is not None and (self.unboxed or not self.held)
 
     def under(self, use_id: str) -> str | None:
         """The call of the sub-agent this tool use was made in, if it was made in one."""
