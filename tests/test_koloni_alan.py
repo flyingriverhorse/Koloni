@@ -209,6 +209,33 @@ def test_a_project_given_git_later_has_its_next_copy_outside(tmp_path, project_d
     assert files_of(outside.root) == {"hello.py"}
 
 
+def test_a_copy_made_outside_before_is_still_found_and_kept_or_cleared(tmp_path, project_dir):
+    """Upgrade: a copy kept in `runtime/copies` stays found there once the project's copies
+    are made in its own .koloni/ (here: the project had git then, and has none now)."""
+    run_root = tmp_path / "runtime"
+    (project_dir / ".git").mkdir()
+    old = copies.make(project_dir, run_root, "old")
+    (project_dir / ".git").rmdir()
+    new = copies.make(project_dir, run_root, "new")
+    assert ".koloni" not in old.root.parts and ".koloni" in new.root.parts
+    assert copies.place(run_root, "old") == old.root.parent
+    assert copies.load(project_dir, run_root, "old").root == old.root
+    copies.clear(run_root, keep=lambda name: name == "old")
+    assert old.root.is_dir() and not os.path.lexists(new.root.parent)
+
+
+def test_a_projects_own_instruction_files_above_keep_no_copy_or_worktree_out_of_it(tmp_path):
+    """MARKS: a CLI's instruction files above a place keep copies out of it - but not out of the
+    project's own .koloni/, below the project's own AGENTS.md (read twice: known limits)."""
+    (tmp_path / "AGENTS.md").write_text("above")
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / "AGENTS.md").write_text("mine")
+    copy = copies.make(project, tmp_path / "runtime", "a1")
+    assert ".koloni" in copy.root.parts and (copy.root / "AGENTS.md").read_text() == "mine"
+    assert project_files.others_instructions(str(project))["paths"] == []
+
+
 def test_a_project_below_a_repository_has_its_copies_outside(tmp_path):
     (tmp_path / "repo" / ".git").mkdir(parents=True)
     project = tmp_path / "repo" / "proj"
@@ -252,9 +279,13 @@ def test_a_branchs_worktree_is_in_the_projects_koloni_and_git_status_stays_clean
     runtime,  # noqa: F811
 ):
     gitignore = (repo / ".gitignore").read_bytes()
+    (repo / "AGENTS.md").write_text("mine")  # (above the worktree: no bar to it, MARKS)
+    run(repo, "add", "AGENTS.md")
+    run(repo, "commit", "-qm", "agents")
     copy = copies.make_branch(repo, runtime, "agent1", "x")
     held = copies.in_project(repo, runtime, copies.WORKTREES)
     assert held is not None and copy.root == held / "agent1" / copies.TREE
+    assert (copy.root / "AGENTS.md").read_text() == "mine"
     assert run(repo, "status", "--porcelain") == ""
     exclude = (repo / ".git" / "info" / "exclude").read_text().splitlines()
     assert [line for line in exclude if line in copies.EXCLUDED] == list(copies.EXCLUDED)

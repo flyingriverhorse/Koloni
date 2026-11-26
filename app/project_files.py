@@ -296,7 +296,8 @@ def others_instructions(root_path: str) -> dict:
                 and depth < MOST_DEEP
                 and name not in skipped
                 and not _hidden(root, Path(entry.path))
-                and not is_kept_code(path.split("/"))
+                and not is_kept_code(parts := path.split("/"))
+                and not in_tree(parts)  # (KOLONİ's worktrees and copies: the project's own files)
             ):
                 todo.append((f"{path}/", depth + 1))
     return {

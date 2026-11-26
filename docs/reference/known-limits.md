@@ -132,8 +132,10 @@ messages.
   ([where](../use/workspace.md#where-copies-and-worktrees-are)): a CLI started there reads your
   project's `AGENTS.md`, `CLAUDE.md` or `GEMINI.md` from the folders above it as well as the copy's own -
   the same words twice (a `.claude/` folder of the project's above it is not measured). A copy of a
-  project that gets git after the copy was made has no `.git` of its own: `git` in it answers with the
-  new repository. The next copy is made outside the project.
+  project that gets git after the copy was made has no `.git` of its own: git started there as KOLONİ
+  starts it finds no repository (it looks no higher than the copies folder; measured with git 2.53),
+  but a command that clears git's environment would reach the new one. The next copy is made outside
+  the project.
 - A command a script runs in your project's root (`rg x`, `grep -r x .`) reads KOLONİ's copies and
   worktrees in `.koloni/` too, where your search tools do not: a secret file in one counts as the
   project's for such a search's card.

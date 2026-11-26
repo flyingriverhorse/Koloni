@@ -2,7 +2,8 @@
 
 A copy is a plain copy of the project's files in a folder under the runtime root - or in
 the user's data folder, where the runtime root is inside a repository (`folder`) - outside
-the project, so that neither the file watch, nor a search, nor git sees it. `.git` and the
+the project, so that neither the file watch, nor a search, nor git sees it; of a project with
+no git, in its own `.koloni/copies/`, where none of those looks (`workspace.TREES`). `.git` and the
 caches are left out; the folders of installed dependencies are not copied but linked to the
 project's own (a directory junction on Windows, a symlink elsewhere): they are shared, not
 kept apart. What every file held when it was copied is kept (`base`), so that taking the
