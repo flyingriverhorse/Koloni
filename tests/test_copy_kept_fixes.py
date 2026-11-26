@@ -29,6 +29,7 @@ from tests.test_copy_runner import (
     at_work,
     card_of,
     kept_folders,
+    nobody_watched,
     on_record,
     short_name,
     unreadable_once,
@@ -97,6 +98,31 @@ def test_after_a_restart_a_card_apply_took_nothing_of_is_as_it_was_shown_again(
         assert (project_dir / "a.txt").read_text(encoding="utf-8") == "A"
         assert (project_dir / "b.txt").read_text(encoding="utf-8") == "THE USER'S OWN"
         assert kept_folders(settings_env) == []
+
+
+def test_apply_for_a_turn_nobody_watched_looks_again_at_where_each_path_leads(
+    settings_env, project_dir
+):
+    """A folder of the project became a link into a protected one after the card was shown:
+    the file is refused, and its copy is not thrown away with an Apply that took nothing."""
+    cid = at_work(settings_env, project_dir, [step(write("sub/new.txt", "x"))])
+    nobody_watched(settings_env, cid)
+    (folder,) = kept_folders(settings_env)
+    with again(settings_env) as client:
+        card = card_of(client, cid)
+        assert files(card) == {"sub/new.txt": "ready"}
+        (project_dir / ".claude").mkdir()
+        copies._link(project_dir / "sub", project_dir / ".claude")
+        said = client.post(f"/api/merges/{card['id']}/approve")
+        assert said.status_code == 409 and said.json()["detail"].startswith("sub/new.txt changed")
+        said = card_of(client, cid)
+        assert said["status"] == "kept" and files(said) == {"sub/new.txt": "refused"}
+        assert "no trigger allows" in said["files"][0]["note"]
+        assert list((project_dir / ".claude").iterdir()) == []
+        assert (folder / "tree" / "sub" / "new.txt").read_text(encoding="utf-8") == "x"
+        # nothing of it is left to apply: only to discard
+        assert client.post(f"/api/merges/{card['id']}/approve").status_code == 409
+        assert (folder / "tree" / "sub" / "new.txt").is_file()
 
 
 def test_a_decision_on_one_kept_folder_leaves_the_records_of_the_agents_other_one(
@@ -484,6 +510,24 @@ def test_apply_on_a_two_way_card_writes_what_it_showed_and_discard_touches_nothi
         assert client.post(f"/api/merges/{card['id']}/reject").json()["status"] == "rejected"
         assert not (project_dir / "a.txt").exists() and kept_folders(settings_env) == []
         assert (project_dir / "hello.py").read_text(encoding="utf-8") == "print('hi')\n"
+
+
+def test_a_two_way_card_of_a_turn_nobody_watched_still_does_not_give_its_protected_paths(
+    settings_env, project_dir
+):
+    cid = at_work(settings_env, project_dir, [step(write("notes.txt", "seen"))])
+    nobody_watched(settings_env, cid)
+    (folder,) = kept_folders(settings_env)
+    (folder / "tree" / ".claude").mkdir()
+    (folder / "tree" / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
+    lose_the_base(folder, None)
+    with again(settings_env) as client:
+        card = card_of(client, cid)
+        assert files(card) == {".claude/settings.json": "refused", "notes.txt": "conflict"}
+        assert "no trigger allows" in card["files"][0]["note"]
+        assert client.post(f"/api/merges/{card['id']}/approve").status_code == 200
+        assert (project_dir / "notes.txt").read_text(encoding="utf-8") == "seen"
+        assert not (project_dir / ".claude").exists()
 
 
 def test_a_watched_turns_kept_card_says_why_its_protected_path_is_asked_about(

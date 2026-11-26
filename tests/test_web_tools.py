@@ -403,6 +403,30 @@ def test_a_yes_for_one_host_is_not_a_yes_for_where_it_redirects(
     assert len(net.asked) == 1
 
 
+def test_a_name_is_not_even_looked_up_before_the_request_may_go_out(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    """Looking a name up already tells somebody outside: a name can carry data."""
+    Net(monkeypatch, {"example.com": (200, "text/plain", "ok")})
+    looked_up = []
+    monkeypatch.setattr(
+        app.web, "resolve", lambda host: looked_up.append(host) or ["93.184.216.34"]
+    )
+    steps = [step(get("https://data.example.com/a")), text("done")]
+    client, model, pid, cid = setup(make_client, project_dir, steps * 2, permission_mode="ask")
+    run_id = go(client, cid)["id"]
+    snap, asked = asked_of(client, cid)
+    assert looked_up == []  # the card is up, and nothing has left
+    decide(client, asked, "reject")
+    wait_run(client, cid, run_id)
+    assert looked_up == []
+    run_id = go(client, cid)["id"]
+    snap, asked = asked_of(client, cid, 2)
+    decide(client, asked)
+    wait_run(client, cid, run_id)
+    assert looked_up == ["data.example.com"]
+
+
 def test_no_more_than_so_many_searches_go_out_in_a_minute(
     make_client, wait_run, project_dir, monkeypatch
 ):

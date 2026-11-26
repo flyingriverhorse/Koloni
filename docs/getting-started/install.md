@@ -184,7 +184,7 @@ docker run -it --name koloni -p 127.0.0.1:8790:8790 \
   machine.
 
 The image has no Node.js, `npx` or `uv`, so MCP servers started with `npx` or `uvx` do not run in
-it. Webhooks, which call KOLONİ from your machine, are refused by the image.
+it.
 
 ## Settings from the environment
 

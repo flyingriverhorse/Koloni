@@ -127,6 +127,8 @@ def test_the_key_in_the_address_serves_where_a_header_cannot_go(bare):
 def test_what_has_a_door_of_its_own_needs_no_page_key(bare):
     _, client = bare
     assert client.get("/api/health").status_code == 200
+    # (A trigger's webhook had a door of its own until 0.1.10: there is none now.)
+    assert client.post("/api/hooks/anything", content=b"{}").status_code == 401
     # The status line's own key is asked for, not the page's.
     assert client.post("/api/limits/claude-session", json={}).status_code == 403
     assert client.get("/api/conversations/nope/views/v/index.html").status_code == 404

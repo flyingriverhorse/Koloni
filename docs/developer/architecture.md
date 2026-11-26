@@ -49,8 +49,8 @@ React, Vite, React Flow (the canvas) and Zustand (the store, `src/state/store.ts
 
 Every `/api` request carries the page key in the `X-KOLONI-Key` header (or `?key=` for event streams and
 downloads). The page takes the key from the link KOLONİ prints, or swaps a one-time code for it, and keeps
-it in the browser's local storage. A few doors need no key: the health check, webhooks, Claude Code's
-status line, and the one-time code exchange.
+it in the browser's local storage. A few doors need no key: the health check, Claude Code's status line, and
+the one-time code exchange.
 
 Events reach the page over server-sent events, per conversation.
 
