@@ -141,7 +141,6 @@ export interface CardsProps {
   uses: Uses
   pick: (one: Uses) => void
   isLead: boolean
-  observer: boolean
   teamLead: boolean
   providers: Provider[]
   onModels?: LoadModels
@@ -196,19 +195,16 @@ export function ModelCards(props: CardsProps) {
     <>
       {role && runs && <RunsOn role={role} row={runs} />}
       <WhichModel {...props} />
-      {/* Not for the Observer: its one question is asked with no level. */}
-      {!props.observer && (
-        <ThinkingCard
-          lead={props.isLead}
-          values={values}
-          set={props.set}
-          takes={takes}
-          known={known}
-          levelsFrom={levelsFrom}
-          named={named}
-          retiring={retiring}
-        />
-      )}
+      <ThinkingCard
+        lead={props.isLead}
+        values={values}
+        set={props.set}
+        takes={takes}
+        known={known}
+        levelsFrom={levelsFrom}
+        named={named}
+        retiring={retiring}
+      />
       <WindowCard
         known={known}
         found={found}
@@ -218,8 +214,8 @@ export function ModelCards(props: CardsProps) {
         at={props.at}
       />
       {providers.length > 0 && <PicksCard values={values} set={props.set} from={props.from} providers={providers} />}
-      {/* 89g: not for the Lead, the Observer or a team's lead - none is opened by a Lead. */}
-      {!props.isLead && !props.observer && !props.teamLead && <InsideCard values={values} set={props.set} />}
+      {/* 89g: not for the Lead or a team's lead - neither is opened by a Lead. */}
+      {!props.isLead && !props.teamLead && <InsideCard values={values} set={props.set} />}
     </>
   )
 }
@@ -1037,8 +1033,7 @@ export function ModelAnswers({
   teamLead: boolean
   onEdit: (part: Part) => void
 }) {
-  const observer = role.builtin && role.name === 'Observer'
-  const inside = !teamLead && !observer && !leadRole(role)
+  const inside = !teamLead && !leadRole(role)
   const [think, thinkLine] = thinkingSaid(
     role.effort,
     role.max_effort,
@@ -1074,9 +1069,7 @@ export function ModelAnswers({
           }
           onOpen={() => onEdit('model')}
         />
-        {!observer && (
-          <Answer question="How hard it thinks" answer={think} line={thinkLine} onOpen={() => onEdit('thinking')} />
-        )}
+        <Answer question="How hard it thinks" answer={think} line={thinkLine} onOpen={() => onEdit('thinking')} />
         <Answer question="How much it reads" answer={win} line={winLine} onOpen={() => onEdit('window')} />
         <Answer question="Who may move it" answer={picks} line={picksLine} onOpen={() => onEdit('picks')} />
         {inside && (

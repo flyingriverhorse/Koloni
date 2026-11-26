@@ -185,7 +185,6 @@ export function RoleEditor({
     const next = on ? [...values.tools, ...tools] : values.tools.filter(name => !tools.includes(name))
     set({ tools: ROLE_TOOLS.map(t => t.name).filter(name => next.includes(name)) })
   }
-  const observer = !!role?.builtin && role.name === 'Observer'
   // The form opens at the section an Edit link names (decision 5).
   useEffect(() => {
     if (!at) return
@@ -240,7 +239,6 @@ export function RoleEditor({
           uses={uses}
           pick={pick}
           isLead={isLead}
-          observer={observer}
           teamLead={teamLead}
           providers={providers}
           onModels={onModels}
@@ -254,11 +252,9 @@ export function RoleEditor({
           at={at}
         />
       </Section>
-      {!observer && (
-        <Section title="It may" id="role-part-tools">
-          <RoleTools values={values} pack={pack} toggle={toggle} at={at} off={off} />
-        </Section>
-      )}
+      <Section title="It may" id="role-part-tools">
+        <RoleTools values={values} pack={pack} toggle={toggle} at={at} off={off} />
+      </Section>
       <RoleLimits
         at={at}
         lead={isLead}
@@ -276,7 +272,6 @@ export function RoleEditor({
           categories={categories}
           uses={uses}
           providers={providers}
-          observer={observer}
           maxSteps={maxSteps}
           maxTokens={maxTokens}
         />
@@ -530,7 +525,6 @@ function RoleSummary({
   categories,
   uses,
   providers,
-  observer,
   maxSteps,
   maxTokens,
 }: {
@@ -539,7 +533,6 @@ function RoleSummary({
   categories: NonNullable<EditorProps['categories']>
   uses: Uses
   providers: Provider[]
-  observer: boolean
   maxSteps: number | null | undefined
   maxTokens: number | null | undefined
 }) {
@@ -561,19 +554,13 @@ function RoleSummary({
         run on <b>{where}</b>
       </p>
       <p>
-        {observer
-          ? 'answer one question about a report, with no tools'
-          : values.tools.length
-            ? `${mayDo(values.tools)}; nothing else`
-            : 'do nothing yet: give it at least one tool'}
+        {values.tools.length ? `${mayDo(values.tools)}; nothing else` : 'do nothing yet: give it at least one tool'}
       </p>
-      {!observer && (
-        <p>
-          {asks.length
-            ? `ask you first before it may ${asks.join(', ')}, as the chat’s permission level says`
-            : 'never wait for your yes'}
-        </p>
-      )}
+      <p>
+        {asks.length
+          ? `ask you first before it may ${asks.join(', ')}, as the chat’s permission level says`
+          : 'never wait for your yes'}
+      </p>
       {(maxSteps || maxTokens) && (
         <p>
           stop one agent at{' '}

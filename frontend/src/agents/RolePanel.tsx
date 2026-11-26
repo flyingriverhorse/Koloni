@@ -142,7 +142,6 @@ export function RolePanel({
     return () => clearTimeout(gone)
   }, [said])
   const has = tools ?? role.tools
-  const observer = role.builtin && role.name === 'Observer'
   const saveAtOnce = (change: RoleChange, done: string, undo: () => void) => {
     setError(null)
     setSaid(null)
@@ -297,7 +296,7 @@ export function RolePanel({
     </>
   )
 
-  /** The Tools tab: how many it may use, its tools as tiles by group (the Observer has none), its servers and skills. */
+  /** The Tools tab: how many it may use, its tools as tiles by group, its servers and skills. */
   const toolsTab = () => (
     <>
       <p className="muted tool-sum">
@@ -313,77 +312,69 @@ export function RolePanel({
           “asks”: it waits for your yes first, as the conversation’s permission level says.
         </Hint>
       </p>
-      {observer ? (
-        // No agent is opened in it: what it is asked is one question, with no tools (the server refuses any).
-        <p className="muted provider-note">
-          Tools: none. Where a project has it on (Sub-agents’ work), KOLONİ asks this role’s model one question about
-          each sub-agent’s report; no agent is opened in this role.
-        </p>
-      ) : (
-        TOOL_GROUPS.map(group => {
-          const all = ROLE_TOOLS.filter(tool => tool.group === group)
-          return (
-            <div
-              key={group}
-              className="tool-block"
-              style={{ '--c': `var(--tool-${group.toLowerCase()})` } as CSSProperties}
-            >
-              <h4>
-                <span className="tool-mark" aria-hidden="true">
-                  {group[0]}
-                </span>
-                {group}
-                <span className="muted">
-                  {all.filter(tool => has.includes(tool.name)).length} of {all.length}
-                </span>
-              </h4>
-              <div className="tool-tiles">
-                {all.map(tool => {
-                  const on = has.includes(tool.name)
-                  // The server keeps a role with at least one tool: the last one stays on; and a core role's
-                  // locked tools (Karar 5).
-                  const locked = role.locked_tools?.includes(tool.name) ?? false
-                  const keep = on && (locked || has.length === 1)
-                  return (
-                    <button
-                      key={tool.name}
-                      type="button"
-                      className={`tool-tile${on ? ' tool-tile-on' : ''}`}
-                      aria-pressed={on}
-                      aria-label={tool.label}
-                      aria-describedby={`tool-${tool.name}-line`}
-                      disabled={keep}
-                      title={
-                        locked
-                          ? "Kept: KOLONİ's checks and recipes need it"
-                          : keep
-                            ? 'A role needs at least one tool: turn another on first'
-                            : `${tool.name}: ${tool.hint}`
-                      }
-                      onClick={() => flip(tool)}
-                    >
-                      <span className="tool-tile-name">
-                        {tool.label}
-                        <span className="tool-tile-check" aria-hidden="true">
-                          {on && <Check size={10} weight="bold" />}
-                        </span>
+      {TOOL_GROUPS.map(group => {
+        const all = ROLE_TOOLS.filter(tool => tool.group === group)
+        return (
+          <div
+            key={group}
+            className="tool-block"
+            style={{ '--c': `var(--tool-${group.toLowerCase()})` } as CSSProperties}
+          >
+            <h4>
+              <span className="tool-mark" aria-hidden="true">
+                {group[0]}
+              </span>
+              {group}
+              <span className="muted">
+                {all.filter(tool => has.includes(tool.name)).length} of {all.length}
+              </span>
+            </h4>
+            <div className="tool-tiles">
+              {all.map(tool => {
+                const on = has.includes(tool.name)
+                // The server keeps a role with at least one tool: the last one stays on; and a core role's
+                // locked tools (Karar 5).
+                const locked = role.locked_tools?.includes(tool.name) ?? false
+                const keep = on && (locked || has.length === 1)
+                return (
+                  <button
+                    key={tool.name}
+                    type="button"
+                    className={`tool-tile${on ? ' tool-tile-on' : ''}`}
+                    aria-pressed={on}
+                    aria-label={tool.label}
+                    aria-describedby={`tool-${tool.name}-line`}
+                    disabled={keep}
+                    title={
+                      locked
+                        ? "Kept: KOLONİ's checks and recipes need it"
+                        : keep
+                          ? 'A role needs at least one tool: turn another on first'
+                          : `${tool.name}: ${tool.hint}`
+                    }
+                    onClick={() => flip(tool)}
+                  >
+                    <span className="tool-tile-name">
+                      {tool.label}
+                      <span className="tool-tile-check" aria-hidden="true">
+                        {on && <Check size={10} weight="bold" />}
                       </span>
-                      <span id={`tool-${tool.name}-line`} className="tool-tile-line">
-                        {tool.line}
-                        {off.includes(tool.name) ? (
-                          <span className="tool-tile-asks">off on the Tools page</span>
-                        ) : (
-                          on && tool.asks && <span className="tool-tile-asks">asks</span>
-                        )}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
+                    </span>
+                    <span id={`tool-${tool.name}-line`} className="tool-tile-line">
+                      {tool.line}
+                      {off.includes(tool.name) ? (
+                        <span className="tool-tile-asks">off on the Tools page</span>
+                      ) : (
+                        on && tool.asks && <span className="tool-tile-asks">asks</span>
+                      )}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
-          )
-        })
-      )}
+          </div>
+        )
+      })}
       {/* 0.1.0-ui: a role is given a server or a skill on the Tools page; here it is listed, each a way there. */}
       <div className="tool-extra">
         <h4 className="tool-extra-head">

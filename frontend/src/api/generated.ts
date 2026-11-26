@@ -2579,7 +2579,9 @@ export interface paths {
         };
         /**
          * Read Night
-         * @description The project's night that runs, else its last one; null: it never had one.
+         * @description The project's night that runs, else its last one; null: it never had one. With its strip
+         *     on Ready for you (Part B, `away_night`): read here alone - every decision of the night is
+         *     built, and a chat's snapshot, on the event loop, reads every night it had.
          */
         get: operations["read_night_api_projects__project_id__away_get"];
         put?: never;
@@ -5174,11 +5176,6 @@ export interface components {
             name: string;
             /** Nano Aiu */
             nano_aiu: number | null;
-            /** Observation */
-            observation: string | null;
-            /** Observation Note */
-            observation_note: string | null;
-            observed_by: components["schemas"]["AskedModel"] | null;
             /** Output Tokens */
             output_tokens: number | null;
             /** Parent Agent Id */
@@ -9773,8 +9770,6 @@ export interface components {
              * @enum {string}
              */
             notify_format: "slack" | "discord" | "text";
-            /** Observe Reports */
-            observe_reports: boolean;
             /** Pass Env */
             pass_env: string | null;
             /** Read In */
@@ -9947,8 +9942,6 @@ export interface components {
             notify_format?: ("slack" | "discord" | "text") | null;
             /** Notify Url */
             notify_url?: string | null;
-            /** Observe Reports */
-            observe_reports?: boolean | null;
             /** Pass Env */
             pass_env?: string | null;
             /** Read In */

@@ -186,56 +186,53 @@ export function SkillWindow({ skill, roles, off, serversOff, onRecord, onPatchRo
         )}
         <dt>Roles that may use it</dt>
         <dd className="skill-roles">
-          {/* (Not the Observer: no agent is opened in it, so it has no skills, as its panel shows none.) */}
-          {roles
-            .filter(role => !(role.builtin && role.name === 'Observer'))
-            .map(role => {
-              // As the role's tile had it (K-skill-uyum): one it cannot run there is not given, and says why.
-              const not = cannotRun(skill, role, off, serversOff)
-              const has = role.skills.includes(skill.name)
-              const missing = lacking(skill, role, off, serversOff)
-              return (
-                <span key={role.id} className="skill-role">
-                  <label className="choice">
-                    <input
-                      type="checkbox"
-                      checked={has}
-                      disabled={!onPatchRole || (!!not && !has)}
-                      onChange={() =>
-                        patch(role, {
-                          skills: has ? role.skills.filter(name => name !== skill.name) : [...role.skills, skill.name],
-                        })
-                      }
-                    />
-                    <span>
-                      {not ? <span className="no">✗</span> : has && <span className="ok">✓</span>} {role.name}
-                      {not && <span className="muted"> ({not})</span>}
-                    </span>
-                  </label>
-                  {onPatchRole &&
-                    skill.enabled &&
-                    skill.needs.groups
-                      .filter(group => missing.includes(group))
-                      .map(group => (
-                        <button
-                          key={group}
-                          type="button"
-                          className="btn btn-small"
-                          onClick={() =>
-                            patch(role, {
-                              tools: [
-                                ...role.tools,
-                                ...skill.needs.tools[group].filter(tool => !role.tools.includes(tool)),
-                              ],
-                            })
-                          }
-                        >
-                          Give {role.name} {group}
-                        </button>
-                      ))}
-                </span>
-              )
-            })}
+          {roles.map(role => {
+            // As the role's tile had it (K-skill-uyum): one it cannot run there is not given, and says why.
+            const not = cannotRun(skill, role, off, serversOff)
+            const has = role.skills.includes(skill.name)
+            const missing = lacking(skill, role, off, serversOff)
+            return (
+              <span key={role.id} className="skill-role">
+                <label className="choice">
+                  <input
+                    type="checkbox"
+                    checked={has}
+                    disabled={!onPatchRole || (!!not && !has)}
+                    onChange={() =>
+                      patch(role, {
+                        skills: has ? role.skills.filter(name => name !== skill.name) : [...role.skills, skill.name],
+                      })
+                    }
+                  />
+                  <span>
+                    {not ? <span className="no">✗</span> : has && <span className="ok">✓</span>} {role.name}
+                    {not && <span className="muted"> ({not})</span>}
+                  </span>
+                </label>
+                {onPatchRole &&
+                  skill.enabled &&
+                  skill.needs.groups
+                    .filter(group => missing.includes(group))
+                    .map(group => (
+                      <button
+                        key={group}
+                        type="button"
+                        className="btn btn-small"
+                        onClick={() =>
+                          patch(role, {
+                            tools: [
+                              ...role.tools,
+                              ...skill.needs.tools[group].filter(tool => !role.tools.includes(tool)),
+                            ],
+                          })
+                        }
+                      >
+                        Give {role.name} {group}
+                      </button>
+                    ))}
+              </span>
+            )
+          })}
         </dd>
         <dt>Did lately</dt>
         <dd>

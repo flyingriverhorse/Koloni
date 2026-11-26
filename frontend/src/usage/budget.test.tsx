@@ -134,7 +134,6 @@ test('the monthly budget is set and taken away in Limits and money, an amount ab
       auto_notes: false,
     },
     ...{
-      observe_reports: false,
       suggest_tasks: true,
       suggest_tier: 'fast',
       day_note_at: null,

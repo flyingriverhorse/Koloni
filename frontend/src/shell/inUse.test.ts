@@ -20,7 +20,6 @@ const known = (roles: Role[], over: Partial<Known> = {}): Known => ({
   teams: [],
   providers,
   tiers: null,
-  observes: false,
   ...over,
 })
 const ids = (c: Conversation, rows: RoleModel[], k: Known) => inUseBy(c, rows, k).ids
@@ -77,11 +76,10 @@ test("a team's lead runs only beside another team, and only on: as the server op
   expect(ids(of('t-ops', 't-docs'), rows, known(roles, { teams }))).toEqual(['p-copilot'])
 })
 
-test("the Observer counts only where the chat's project looks over reports; the Planner, which the Lead may open any time, always", () => {
-  const roles = [lead, role('Planner', { builtin: true }), role('Observer', { builtin: true })]
-  const rows = [row('Lead', 'Copilot'), row('Planner', 'Claude Code'), row('Observer', 'Local')]
+test('the Planner, which the Lead may open any time, always counts', () => {
+  const roles = [lead, role('Planner', { builtin: true, enabled: false })]
+  const rows = [row('Lead', 'Copilot'), row('Planner', 'Claude Code')]
   expect(ids(chat(), rows, known(roles))).toEqual(['p-copilot', 'p-claude'])
-  expect(ids(chat(), rows, known(roles, { observes: true }))).toEqual(['p-local', 'p-copilot', 'p-claude'])
 })
 
 test('the model a lead that follows the message asks how hard it is counts too', () => {

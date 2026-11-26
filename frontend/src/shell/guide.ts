@@ -15,7 +15,6 @@ export const GUIDE = {
   settingsNotifications: 'settings/#notifications',
   answeringForYou: 'automation/answering-for-you/#switching-it-on',
   discussionsEnd: 'agents/discussions/#when-it-ends',
-  observer: 'agents/observer/#what-it-does',
   secrets: 'security/model/#secrets',
   providerModels: 'models/providers/#the-models-of-a-provider',
   cliRuns: 'models/setup-cli/#how-it-runs',
