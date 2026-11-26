@@ -907,11 +907,12 @@ class StrongerMixin:
         `_round_left` granted, counted there alone (Fix rounds or until it passes; none once
         `held.halted`) - sends the rows back to work, as a wordless Ask for changes: at their end
         no role is opened, and the Lead may not write (delegates) - the recipe's own roles fix
-        it, in its copy."""
+        it, in its copy. Unlike the user's Ask for changes it gives their loops no rounds again
+        (T3a): a review whose loop ran out runs once more, its findings then the user's."""
         rounds = was.rounds if (was := self._proofs.get(ctx.run_id)) else 0
         if (said := await self._proof_left(ctx)) is not None:
             fixing = (was := self._proofs.get(ctx.run_id)) is not None and was.rounds > rounds
-            back = self._rows_to(ctx, "Ask for changes", "") if fixing else ""
+            back = self._rows_to(ctx, "Ask for changes", "", anew=False) if fixing else ""
             return f"\n\n{said}" + (FIX_IN_RECIPE.format(back=back) if back else "")
         if was := self._proofs.get(ctx.run_id):  # (not again at the Lead's end, `_proof_left`)
             self._mark_ready(ctx, was)

@@ -22,7 +22,7 @@ def test_the_ready_feature_recipe_has_no_approve_step_and_gets_it_back_going_bac
     before = feature(db)
     assert "approve" in [step["id"] for step in before["steps"]]
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0084")  # (0195 draws Feature again: its end arrow is then UI review's)
 
     after = feature(db)
     assert "approve" not in [step["id"] for step in after["steps"]]

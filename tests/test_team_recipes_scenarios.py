@@ -241,9 +241,11 @@ def in_waves(names, *sizes):
     return waves + [names[at:]]
 
 
-def test_model_change_plans_has_the_learned_expert_review_builds_checks_twice_and_reviews(
+def test_model_change_plans_has_the_learned_expert_review_builds_and_compares_twice(
     make_client, project_dir
 ):
+    # (T3, 0195: no Tester or Reviewer of its own - KOLONİ's Checks run the tests and look at a big
+    # change. One round back: 6 agents; before, 9.)
     learned(project_dir, "MLflow")
     snap = ran(
         make_client,
@@ -253,72 +255,71 @@ def test_model_change_plans_has_the_learned_expert_review_builds_checks_twice_an
             spawn("Data scientist", "plan it", "p"),
             spawn("MLflow expert", "review the plan", "x"),
             spawn("ML engineer", "build it", "b"),
-            both("Tester", "Model evaluator", "c"),
+            spawn("Model evaluator", "compare the metrics", "c"),
             fix("ML engineer", "Model evaluator", "f"),
-            both("Tester", "Model evaluator", "d"),
-            spawn("Reviewer", "review it", "r"),
+            spawn("Model evaluator", "compare them again", "d"),
         ],
         {
             "Data scientist": [text("Hypothesis: a smaller learning rate; metric: AUC.")],
             "MLflow expert": [text(NONE)],
             "ML engineer": [step(write("made.txt", "x")), text("built")],
-            "Tester": checked(),
             "Model evaluator": [text(FOUND)],
             "ML engineer 2": [text("fixed")],
-            "Tester 2": checked(),
             "Model evaluator 2": [text(NONE)],
-            "Reviewer": [text(NONE)],
         },
     )
-    assert in_waves(opened(snap), 1, 1, 1, 2, 1, 2) == in_waves(
-        [
-            "Data scientist",
-            "MLflow expert",
-            "ML engineer",
-            "Tester",
-            "Model evaluator",
-            "ML engineer",
-            "Tester",
-            "Model evaluator",
-            "Reviewer",
-        ],
-        1,
-        1,
-        1,
-        2,
-        1,
-        2,
-    )
-    # (R116: the checks that sent it back ran again - the loop's round is theirs too)
+    assert opened(snap) == [
+        "Data scientist",
+        "MLflow expert",
+        "ML engineer",
+        "Model evaluator",
+        "ML engineer",
+        "Model evaluator",
+    ]
+    # (R116: the review that sent it back ran again - the loop's round is its too)
     assert strip(row(snap)) == [
         ("plan", "done", 0),
         ("experts", "done", 0),
         ("build", "done", 1),
-        ("checks", "done", 1),
-        ("review", "done", 0),
+        ("metrics", "done", 1),
         ("end", "now", 0),
     ]
 
 
-@pytest.mark.parametrize(
-    ("team", "writer", "first", "second"),
-    [
-        ("DataOps", "Data engineer", "Tester", "Data analyst"),
-        ("DevOps", "DevOps", "Security reviewer", "Performance engineer"),
-    ],
-)
-def test_a_change_is_checked_by_two_at_once_fixed_once_and_reviewed(
-    make_client, project_dir, team, writer, first, second
-):
-    # (Kanıtlı bitiş R3: a Tester runs a check to pass; a Data analyst or a Performance engineer
-    # reading the change passes on its word - review of S4.)
-    def checks(role):
-        return checked() if role == "Tester" else [text(NONE)]
-
+def test_a_pipeline_change_is_checked_for_its_data_and_fixed_once(make_client, project_dir):
+    # (T3, 0195: the Data analyst alone - 4 agents with one round back; before, with a Tester beside
+    # it and a Reviewer after, 7.)
     snap = ran(
         make_client,
         project_dir,
-        team,
+        "DataOps",
+        [
+            spawn("Data engineer", "change it", "b"),
+            spawn("Data analyst", "check the data", "c"),
+            fix("Data engineer", "Data analyst", "f"),
+            spawn("Data analyst", "check it again", "d"),
+        ],
+        {
+            "Data engineer": [step(write("made.txt", "x")), text("changed")],
+            "Data analyst": [text(FOUND)],
+            "Data engineer 2": [text("fixed")],
+            "Data analyst 2": [text(NONE)],
+        },
+    )
+    assert opened(snap) == ["Data engineer", "Data analyst", "Data engineer", "Data analyst"]
+    assert strip(row(snap)) == [("build", "done", 1), ("quality", "done", 1), ("end", "now", 0)]
+
+
+def test_an_infra_change_is_checked_by_two_at_once_fixed_once_and_reviewed(
+    make_client, project_dir
+):
+    # (Left as it was by T3: KOLONİ's own security look does not read Terraform or k8s. A
+    # Performance engineer reading the change passes on its word - review of S4.)
+    writer, first, second = "DevOps", "Security reviewer", "Performance engineer"
+    snap = ran(
+        make_client,
+        project_dir,
+        "DevOps",
         [
             spawn(writer, "change it", "b"),
             both(first, second, "c"),
@@ -328,10 +329,10 @@ def test_a_change_is_checked_by_two_at_once_fixed_once_and_reviewed(
         ],
         {
             writer: [step(write("made.txt", "x")), text("changed")],
-            first: checks(first),
+            first: [text(NONE)],
             second: [text(FOUND)],
             f"{writer} 2": [text("fixed")],
-            f"{first} 2": checks(first),
+            f"{first} 2": [text(NONE)],
             f"{second} 2": [text(NONE)],
             "Reviewer": [text(NONE)],
         },
@@ -339,10 +340,9 @@ def test_a_change_is_checked_by_two_at_once_fixed_once_and_reviewed(
     assert in_waves(opened(snap), 1, 2, 1, 2) == in_waves(
         [writer, first, second, writer, first, second, "Reviewer"], 1, 2, 1, 2
     )
-    group = "checks" if team == "DataOps" else "reviews"
     assert strip(row(snap)) == [
         ("build", "done", 1),
-        (group, "done", 1),
+        ("reviews", "done", 1),
         ("review", "done", 0),
         ("end", "now", 0),
     ]

@@ -511,23 +511,18 @@ function nextStep(all, tools = [], model = '') {
     if (!did.includes('browser_read')) return toolCall('c51c', 'browser_read', {})
     return say(/Hello from 51/.test(String(last.content)) ? 'The page says Hello from 51.' : 'Could not read the page.')
   }
-  // K-takim-duzen: the ML team's Model change - the Lead opens each step's roles as the one before finishes (its experts'
-  // step is passed: none has learned), and each of them reports at once, finding nothing.
+  // K-takim-duzen: the ML team's Model change - the Lead opens each step's role as the one before finishes (its experts'
+  // step is passed: none has learned), and each of them reports at once, finding nothing. (T3: no Tester or Reviewer step
+  // of its own since 0195 - KOLONİ's Checks run the tests.)
   if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content))) {
-    // (Its task's first line: what a step adds goes under it - a Tester's "passes only on a command", R3.)
+    // (Its task's first line: what a step adds goes under it.)
     if (/, mc$/m.test(String(messages[1]?.content)))
       return ranFirst('cmcr', 'Done.\n\nChecked: ran it\n\nFindings: none')
   } else if (messages.some(m => m.role === 'user' && /model change it, mc/i.test(String(m.content)))) {
-    const checks = [['Reviewer', 'Review it, mc']]
     const next = {
       user: [['Data scientist', 'Plan the experiment, mc']],
       'Data scientist': [['ML engineer', 'Build it, mc']],
-      'ML engineer': [
-        ['Tester', 'Run the tests, mc'],
-        ['Model evaluator', 'Compare the metrics, mc'],
-      ],
-      Tester: checks,
-      'Model evaluator': checks,
+      'ML engineer': [['Model evaluator', 'Compare the metrics, mc']],
     }[last.role === 'user' ? 'user' : (/^(.+?) finished\./.exec(String(last.content))?.[1] ?? '')]
     return next
       ? toolCalls(next.map(([role, task], at) => [`cmc-${role}-${at}`, 'spawn_agent', { role, task }]))

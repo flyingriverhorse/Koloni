@@ -912,49 +912,33 @@ def test_a_recipes_kept_work_outlives_a_restart_and_take_in_puts_its_rows_in(
         assert row(client.get(f"/api/conversations/{cid}").json())["status"] == "in"
 
 
-REVIEWS = ("Reviewer", "Security reviewer", "UI designer", "Tester")
-
-
-def reviews(at):
-    return step(
-        *(
-            call("spawn_agent", {"role": role, "task": "review"}, f"{role[:2]}{at}")
-            for role in REVIEWS
-        )
-    )
-
-
 def test_the_ready_feature_recipe_runs_to_its_end_on_a_default_chat(
     make_client, wait_run, project_dir
 ):
-    # 11 agents in a turn on a chat that lets 6: while a recipe runs, the limit counts per step. (The
-    # Lead approves itself: no "Reviewer 3" for an Approve step, batch-16.)
+    # (T3, 0195: Write the spec, Build it, UI review - its loop back once: 5 agents. Before, its
+    # four reviews at once each round opened 11. The Lead approves itself: no "Reviewer 3" for an
+    # Approve step, batch-16.)
     client, _model = make_client(
         {
             "Lead": [
                 spawn("Spec writer", "write the spec", "s1"),
                 spawn("Coder", "build", "c1"),
-                reviews(1),
+                spawn("UI designer", "review", "u1"),
                 step(
                     call(
                         "spawn_agent",
-                        {"role": "Coder", "task": "fix", "findings_from": "Reviewer"},
+                        {"role": "Coder", "task": "fix", "findings_from": "UI designer"},
                         "c2",
                     )
                 ),
-                reviews(2),
+                spawn("UI designer", "review", "u2"),
                 text("all done"),
             ],
             "Spec writer": [text("the spec")],
             "Coder": [step(write("greet.py", "print('Helo')\n")), text("built")],
             "Coder 2": [step(write("greet.py", "print('Hello')\n", id="w2")), text("fixed")],
-            "Reviewer": [text(FOUND)],
-            "Reviewer 2": [text(NONE)],
-            **{
-                f"{role}{n}": checked() if role == "Tester" else [text(NONE)]
-                for role in REVIEWS[1:]
-                for n in ("", " 2")
-            },
+            "UI designer": [text(FOUND)],
+            "UI designer 2": [text(NONE)],
         }
     )
     web, feature = teams_of(client)["Web app"], recipe_named(client, "Feature")
@@ -970,8 +954,8 @@ def test_the_ready_feature_recipe_runs_to_its_end_on_a_default_chat(
     assert client.get(f"/api/conversations/{cid}").json()["conversation"]["spawn_max_agents"] == 6
     answer(client, asked(until(client, cid, asked)), "Go on")
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=10)
-    assert len(snap["agents"]) == 12 and not [c for c in by_call(snap) if c[0] == "failed"]
-    assert [s["id"] for s in row(snap)["steps"]] == ["spec", "build", "reviews", "end"]
+    assert len(snap["agents"]) == 6 and not [c for c in by_call(snap) if c[0] == "failed"]
+    assert [s["id"] for s in row(snap)["steps"]] == ["spec", "build", "ui", "end"]
     answer(client, asked(snap), "Take in")
     snap = wait_run(client, cid, run_id)
     assert (project_dir / "greet.py").read_bytes() == b"print('Hello')\n" and row(snap)[
@@ -981,7 +965,7 @@ def test_the_ready_feature_recipe_runs_to_its_end_on_a_default_chat(
     assert [(s["id"], s["round"]) for s in row(snap)["steps"]] == [
         ("spec", 0),
         ("build", 1),
-        ("reviews", 1),
+        ("ui", 1),
         ("end", 0),
     ]
 

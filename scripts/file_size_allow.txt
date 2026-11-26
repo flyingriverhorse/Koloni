@@ -39,5 +39,5 @@
 1602 tests/test_proof_pages.py
 2010 tests/test_proof_style.py
 2701 tests/test_recipe_checks_scenarios.py
-2018 tests/test_recipe_run_scenarios.py
+2002 tests/test_recipe_run_scenarios.py
 1538 tests/test_take_in.py

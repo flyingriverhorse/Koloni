@@ -9314,10 +9314,10 @@ class AgentRunner(
         self._users_card(ctx, READY_FOR_YOU, word, role=child.role)
         return f"\n\nAsk for changes at {READY_FOR_YOU}. {back}"
 
-    def _rows_to(self, ctx: Ctx, word: str | None, left: str, done: bool = False) -> str:
+    def _rows_to(self, ctx: Ctx, word: str | None, left: str, done=False, anew=True) -> str:
         """The rows waiting at "Ready for you", after the user's word: in (`done`: done, with
         nothing to take in) - or, where Take in left something out (`left`), stopped saying so;
-        stopped, nobody asked; or back to work from their loop's step."""
+        stopped, nobody asked; or back to work from their loop's step (`anew`: `back_to`'s)."""
         said = []
         taken = self._taken(ctx.run_id) if word == "Take in" else set()
 
@@ -9335,7 +9335,7 @@ class AgentRunner(
             else:
                 words = word.removeprefix("Ask for changes").lstrip(":").strip()
                 said.append(
-                    f"{team.name} goes on from {recipe_run.back_to(state)}"
+                    f"{team.name} goes on from {recipe_run.back_to(state, anew)}"
                     f"{WORDS_TOLD if words else ''}."
                 )
                 # (Handed to its next agent, `_spawn_one`: this answer's alone.)
