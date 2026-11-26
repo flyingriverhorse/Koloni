@@ -42,6 +42,8 @@ def _lines(root: str) -> list[str]:
     not there, is a link, is too big or does not parse."""
     try:
         where = Path(root) / LEARNED
+        if not where.resolve().is_relative_to(Path(root).resolve()):  # (a link on its way)
+            return []
         if where.is_symlink() or not where.is_file() or where.stat().st_size > BIGGEST:
             return []
         read = json.loads(where.read_text(encoding="utf-8").removeprefix("﻿"))

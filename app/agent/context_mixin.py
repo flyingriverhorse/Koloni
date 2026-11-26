@@ -1822,10 +1822,10 @@ class ContextMixin:
         """For the lead: of the notebook of the turn before this one, one short block (G7)."""
         cid = ctx.cid
         carried = None
-        turn = session.get(Run, ctx.run_id)  # (0.1.10: a job's turn is given its notebook instead)
-        if ctx.depth == 0 and (turn is None or stories.notebook_of_run(session, turn) is None):
+        if ctx.depth == 0:
             try:
-                before = self._notes_before(session, ctx)
+                job = stories.notebook_of_run(session, session.get_one(Run, ctx.run_id))  # 0.1.10
+                before = [] if job else self._notes_before(session, ctx)  # (a job's: its notebook)
                 carried = board.pushed(
                     before,
                     {agent_id: name for agent_id, (name, _parent) in family.items()},
