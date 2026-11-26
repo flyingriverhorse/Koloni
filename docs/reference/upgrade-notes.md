@@ -53,6 +53,10 @@ Only what needs your attention after an update; everything else is in the [Chang
   **Ready for you**, and a file two chats want still shows above both of them. Its **Re-run the ones
   that failed** button went with it: ask the chat's Orchestrator to open those sub-agents again. Nothing
   in the database changes.
+- **To-do is on Ready for you.** The rail's **To-do** is gone: press **Ready** - To-do is the page's
+  right half, each story a card that opens in a panel (Ctrl+K's **To-do** and a chat's **Open it in To-do**
+  bring you there). What waits for your word on To-do is in the page's one list on the left; the rough note's
+  button is **Split into tasks**. Nothing in the database changes (see [To-do](../automation/todo.md)).
 - **To-do has no goal level.** Your stories stand at the top of the tree, those a goal held too; a
   story's **⋯** no longer offers **Goal**, and the Hive keeper writes a note as stories and tasks only.
   Your goals are not deleted: they stay in the database, and nothing in it changes.

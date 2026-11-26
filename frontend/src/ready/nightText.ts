@@ -98,3 +98,35 @@ export function nightMarkdown(away: Away, parked: Waiting[], now = new Date()): 
     `${spentLine(away)}.`,
   ].join('\n')
 }
+
+/** The page's greeting, by this machine's hour. */
+export function greeting(now = new Date()): string {
+  const hour = now.getHours()
+  return hour >= 5 && hour < 12 ? 'Good morning' : hour >= 12 && hour < 18 ? 'Good afternoon' : 'Good evening'
+}
+
+const jobs = (n: number) => `${n} ${n === 1 ? 'job' : 'jobs'}`
+
+/**
+ * The report's one sentence, from the night's counts: how many of its jobs are done, then what waits for your word,
+ * what could not be done and what was stopped - only those there are. One at work says so first.
+ */
+export function nightLede(away: Away): string {
+  const count = (state: AwayJob['state']) => away.jobs.filter(job => job.state === state).length
+  const [waits, failed, stopped] = [count('waits'), count('failed'), count('stopped')]
+  const rest = [
+    waits > 0 && `${waits} ${waits === 1 ? 'waits' : 'wait'} for your word`,
+    failed > 0 && `${failed} could not be done`,
+    stopped > 0 && `${stopped} ${stopped === 1 ? 'was' : 'were'} stopped`,
+  ].filter(Boolean)
+  const done = `${count('done')} of ${jobs(away.jobs.length)} done`
+  const said = [away.status === 'running' ? `At work while you're away: ${done}` : done, ...rest].join(', ')
+  return `${said}.`
+}
+
+/** Whether a night is news on Ready for you: at work, or ended and not looked at yet or within a day ("Last night"). */
+export const isNews = (away: Away | null, now = new Date()): away is Away =>
+  away !== null &&
+  (away.status === 'running' ||
+    (away.status === 'ended' &&
+      (!away.seen_at || (away.ended_at != null && now.getTime() - Date.parse(away.ended_at) <= DAY))))

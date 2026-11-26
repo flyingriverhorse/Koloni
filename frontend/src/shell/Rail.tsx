@@ -5,7 +5,6 @@ import {
   Cpu,
   GearSix,
   Graph,
-  ListChecks,
   Moon,
   Plugs,
   Robot,
@@ -15,8 +14,9 @@ import {
 import type { Ref } from 'react'
 import type { Theme } from '../theme/theme'
 
+// (0.1.10: To-do is Ready for you's right half - no page of its own.)
 export type View =
-  'canvas' | 'conversations' | 'ready' | 'backlog' | 'agents' | 'models' | 'tools' | 'memory' | 'knowledge' | 'usage'
+  'canvas' | 'conversations' | 'ready' | 'agents' | 'models' | 'tools' | 'memory' | 'knowledge' | 'usage'
 
 interface Props {
   /** The page shown; null while none of these is (Settings is). */
@@ -82,17 +82,6 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
             <span id="rail-waiting" className="visually-hidden">{`${waiting} waiting`}</span>
           </>
         )}
-      </button>
-      <button
-        className="icon-btn"
-        aria-pressed={view === 'backlog'}
-        aria-label="To-do"
-        onClick={() => onView('backlog')}
-      >
-        <ListChecks size={19} />
-        <span className="rail-label" aria-hidden="true">
-          To-do
-        </span>
       </button>
       <button
         className="icon-btn"

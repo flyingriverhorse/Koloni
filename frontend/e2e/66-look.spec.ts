@@ -14,7 +14,7 @@ const inside = (inner: Box, outer: Box) =>
 const apart = (a: Box, b: Box) =>
   a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
 
-const NAMES = ['Canvas', 'Chats', 'Ready', 'To-do', 'Agents', 'Models', 'Tools', 'Memory', 'Usage', 'Settings', 'Theme']
+const NAMES = ['Canvas', 'Chats', 'Ready', 'Agents', 'Models', 'Tools', 'Memory', 'Usage', 'Settings', 'Theme']
 
 for (const theme of ['light', 'dark'] as const)
   test(`the rail's buttons say their names under their icons, at 4.5 or more, in the ${theme} theme`, async ({
@@ -47,7 +47,7 @@ for (const theme of ['light', 'dark'] as const)
       await settled(page)
       if (process.env.KOLONI_SHOTS) await shot(page, `66-main-${theme}`)
       // (one pressed: its colours are the accent's)
-      await rail(page, 'To-do').click()
+      await rail(page, 'Ready').click()
       for (const name of NAMES) {
         const label = nav.locator('.rail-label', { hasText: name })
         await expect(label).toBeVisible()

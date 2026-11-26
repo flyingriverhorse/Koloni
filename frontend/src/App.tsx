@@ -5,7 +5,7 @@ import { AgentsPage } from './agents/AgentsPage'
 import { type AgentAsks, AgentWindow } from './agents/AgentWindow'
 import { ChatTeams } from './agents/ChatTeams'
 import { AwayStatus } from './backlog/Away'
-import { BacklogPage } from './backlog/BacklogPage'
+import { BacklogPage, type TodoAsked } from './backlog/BacklogPage'
 import { OPEN_TODO } from './chat/TodoCards'
 import { doInChat } from './chat/todoActions'
 import { ConflictStrip } from './board/ConflictStrip'
@@ -115,12 +115,12 @@ const makeDefaultAndRead = async (providerId: string) => {
   await useApp.getState().loadHealth()
 }
 
-/** The rail's pages, by their pages' names and the rail's word where it is another: what Ctrl+K finds. */
+/** The rail's pages, by their pages' names and the rail's word where it is another: what Ctrl+K finds (and To-do, Ready
+ *  for you's right half: `openTodo`). */
 const PAGES: [View, string][] = [
   ['canvas', 'Canvas'],
   ['conversations', 'Chats (Conversations)'],
   ['ready', 'Ready for you'],
-  ['backlog', 'To-do'],
   ['agents', 'Agents'],
   ['models', 'Models'],
   ['tools', 'Tools'],
@@ -223,6 +223,12 @@ export function App() {
   const go = (where: View, id: string) => {
     show(where)
     setPick(was => ({ view: where, id, n: (was?.n ?? 0) + 1 }))
+  }
+  // To-do (0.1.10), Ready for you's right half: the page, its To-do in view - at a task's row, where one is asked.
+  const [todoAsked, setTodoAsked] = useState<TodoAsked | null>(null)
+  const openTodo = (task?: string) => {
+    show('ready')
+    setTodoAsked(was => ({ task, n: (was?.n ?? 0) + 1 }))
   }
   // "Open chat" on Ready for you: the chat on the canvas, open - and, for a card of it (`key`), the panel at that card,
   // now under This chat; a To-do, Memory or night row has no card in the chat: the panel closes.
@@ -358,17 +364,16 @@ export function App() {
         .getState()
         .loadBuiltinTools()
         .catch(() => {})
-    // And the backlog: its events read it again too.
-    if (projectId && view === 'backlog') void useApp.getState().loadBacklog()
+    // And the backlog, To-do on Ready for you: its events read it again too.
+    if (projectId && view === 'ready') void useApp.getState().loadBacklog()
   }, [view, projectId])
-  // 0.1.8: a To-do card in a chat (Open it in To-do): the To-do page, at that task's row.
+  // 0.1.8: a To-do card in a chat (Open it in To-do), a To-do row of Decided for you: To-do, at that task's row.
+  const openTodoAt = useRef(openTodo)
   useEffect(() => {
-    const open = (event: Event) => {
-      setView('backlog')
-      setSettingsOpen(false)
-      const row = `task-${(event as CustomEvent<string>).detail}-title`
-      window.setTimeout(() => document.getElementById(row)?.scrollIntoView?.({ block: 'center' }), 300)
-    }
+    openTodoAt.current = openTodo
+  })
+  useEffect(() => {
+    const open = (event: Event) => openTodoAt.current((event as CustomEvent<string>).detail)
     window.addEventListener(OPEN_TODO, open)
     return () => window.removeEventListener(OPEN_TODO, open)
   }, [])
@@ -386,8 +391,11 @@ export function App() {
     return () => window.removeEventListener(OPEN_DECISIONS, open)
   }, [])
   useEffect(() => {
+    if (view === 'ready') return
+    // (Left, the page asked for is as any when it opens again: To-do, too, not opened at the task once asked.)
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (view !== 'ready') setDecisionsAsked(null)
+    setDecisionsAsked(null)
+    setTodoAsked(null)
   }, [view])
   const decisionsOpened = useCallback(() => setDecisionsAsked(null), [])
   // (One for the project: Decisions reads again only for another period.)
@@ -587,7 +595,8 @@ export function App() {
         onNear={setNear}
       />
       <BudgetPill budget={budget} onOpen={() => show('usage')} />
-      <AwayStatus away={away} onOpen={() => show('backlog')} />
+      {/* (The night at work: its report, on Ready for you.) */}
+      <AwayStatus away={away} onOpen={() => show('ready')} />
       <HoldStatus
         every={BOARD_POLL_MS}
         onOpen={async id => {
@@ -804,14 +813,27 @@ export function App() {
             }
           : undefined
       }
+      todo={todoHalf()}
     />
   )
-  const backlogPage = () =>
+  // The tasks whose push the night parked for you and you have not decided: their cells on To-do say so.
+  const pushes = new Set(
+    waiting.flatMap(item => (item.what === 'parked' && item.row.kind === 'push' ? [item.row.task_id] : [])),
+  )
+  /** To-do, Ready for you's right half (0.1.10). */
+  const todoHalf = () =>
     !project ? (
-      noFolder('To-do')
+      <section className="todo-half" aria-labelledby="todo-head">
+        <h2 id="todo-head" tabIndex={-1}>
+          To-do
+        </h2>
+        {noFolder('To-do')}
+      </section>
     ) : (
       <BacklogPage
         key={project.id}
+        asked={todoAsked}
+        pushes={pushes}
         backlog={backlog}
         error={backlogError}
         drafter={drafter}
@@ -1032,7 +1054,7 @@ export function App() {
             if (kind === 'discussion') useApp.getState().openDiscussion(refId)
             if (kind === 'memory') setView('memory')
             // (The Scout's node, opened, or its To-do →.)
-            if (kind === 'po' || kind === 'backlog') setView('backlog')
+            if (kind === 'po' || kind === 'backlog') openTodo()
           }}
           onOpenList={() => useApp.getState().showReady(true)}
           onStopTeam={useApp.getState().stopTeam}
@@ -1092,7 +1114,6 @@ export function App() {
     models: modelsPage,
     tools: toolsPage,
     ready: readyPage,
-    backlog: backlogPage,
     usage: usagePage,
     memory: memoryPage,
     knowledge: knowledgePage,
@@ -1135,6 +1156,7 @@ export function App() {
   const palette = () => {
     const places: Place[] = [
       ...PAGES.map(([page, name]) => ({ kind: 'Page', name, go: () => show(page) })),
+      { kind: 'Page', name: 'To-do (on Ready for you)', go: () => openTodo() },
       { kind: 'Page', name: 'Settings', go: () => setSettingsOpen(true) },
       ...conversations.map(c => ({
         kind: 'Conversation',

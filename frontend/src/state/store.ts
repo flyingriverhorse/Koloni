@@ -104,7 +104,7 @@ import { chatOf, closing, kept, opened, remember, rememberChat, remembered, tabO
 import { keyOf } from '../views/views'
 import { waitCount } from '../board/waiting'
 import { activeRun, applyEvent, fromSnapshot, type ConvState } from './applyEvent'
-import { earlierPage, reachTurn, turnsOf, withEarlier } from './earlier'
+import { TURNS_PAGE, earlierPage, reachTurn, turnsOf, withEarlier } from './earlier'
 
 /** K-dal-takim D2: what else Merge says on a branch's card - keep the branch after it, and which way finished work goes. */
 export interface BranchSaid {
@@ -831,8 +831,8 @@ export const useApp = create<AppStore>()((set, get) => {
       const fresh = new Set(again === true ? readyRows.keys() : again ? [again] : [])
       for (const id of fresh) readyRows.delete(id)
       const open = get().conv?.conversation.id
-      // Each other chat the Board says waits; read again only when what of its row says it waits changed (no events
-      // come from it) - not each step its other agents take meanwhile.
+      // Each other chat the Board says waits, by its newest page (older turns that wait come too); read again only when
+      // what of its row says it waits changed (no events come from it) - not each step its other agents take meanwhile.
       // shortcut: a chat whose only waiting cards are ones the Board does not count (a Project notes offer, a
       // night to start) is not read; they show in their own chat. Count them in app/api/board.py if missed.
       const rows = new Map(
@@ -858,7 +858,7 @@ export const useApp = create<AppStore>()((set, get) => {
             const mark = fresh.has(id) ? `read ${++readyReads}` : row
             readyRows.set(id, mark)
             try {
-              const read = fromSnapshot(await api.get<Snapshot>(`/conversations/${id}`))
+              const read = fromSnapshot(await api.get<Snapshot>(`/conversations/${id}?turns=${TURNS_PAGE}`))
               // (Not over a later read's answer.)
               set(s => (readyRows.get(id) === mark ? { readyChats: { ...s.readyChats, [id]: read } } : s))
             } catch {

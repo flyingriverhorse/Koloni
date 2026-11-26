@@ -66,7 +66,7 @@ The sections are listed on the left, in this order.
 | Setting | What it does |
 |---|---|
 | **Who changes the files** | **Orchestrator delegates the work**: it plans, asks and checks; sub-agents change the files. **Orchestrator decides**: a small change (one or two files, a few lines) it makes itself, bigger work goes to a sub-agent. **Orchestrator does it itself**: it changes the files itself, and may still hand a part to a sub-agent. |
-| **Suggest follow-up tasks after each turn** | On by default. After a turn that did something, the Scout - the role that looks for what is left - proposes at most three [follow-up tasks](automation/todo.md#follow-up-tasks) for the To-do list; they wait for your **Add**, **Edit** or **Reject**. One small model request per such turn, made once the turn is over, and at Full auto in a turn you started one more for the Orchestrator's decision. **Follow-up tasks from** picks the tier: **Fast tier** (the default), **Balanced tier** or **Strongest tier**. |
+| **Suggest follow-up tasks after each turn** | On by default. After a turn that did something, the Scout - the role that looks for what is left - proposes at most three [follow-up tasks](automation/todo.md#follow-up-tasks) for the To-do list; they wait for your **Add to To-do**, **Edit** or **Not wanted**. One small model request per such turn, made once the turn is over, and at Full auto in a turn you started one more for the Orchestrator's decision. **Follow-up tasks from** picks the tier: **Fast tier** (the default), **Balanced tier** or **Strongest tier**. |
 
 ### Asking and away
 

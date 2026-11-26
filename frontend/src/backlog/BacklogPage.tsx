@@ -1,7 +1,6 @@
 import { DotsSixVertical } from '@phosphor-icons/react'
-import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { type SpawnDecision } from '../agents/SpawnApproval'
-import { errorText } from '../api/client'
 import type {
   Away,
   BacklogDrafter,
@@ -14,18 +13,19 @@ import type {
   TodoTreeAdded,
   TodoTreeIn,
 } from '../api/types'
+import { count } from '../board/columns'
 import { useAsk } from '../memory/useAsk'
 import { paidOf, type Paid } from '../models/cards'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { usePanel } from '../shell/usePanel'
-import { AwayNight } from './Away'
 import { TodoDock } from './Dock'
 import { DraftTree } from './DraftTree'
 import { NotebookButton } from './Notebook'
 import { StoryPicker } from './StoryPicker'
-import { TaskMarks, TodoBar, TodoTree, type TreeActions } from './TodoTree'
-import { useTreeView } from './tree'
+import { CellLegend, StoryCards, StoryPanel } from './StoryCards'
+import { TaskMarks, TodoBar, type TreeActions } from './TodoParts'
+import { type Card, cardId, cardsOf, useTreeView, wholeOf } from './tree'
 
 type Priority = BacklogTask['priority']
 type Status = BacklogTask['status']
@@ -286,24 +286,17 @@ function AddTask({ onAdd, stories, onNewStory }: AddProps) {
 
 type NoteProps = Pick<Props, 'onDraft' | 'onPlan' | 'onAddTree' | 'providers'> & {
   drafter: BacklogDrafter | null | undefined
-  /** Its box shown; closed, a draft written stays under the bar until it is added or dropped. */
-  open: boolean
-  onClose: () => void
 }
 
 /**
- * "Write it with the Hive keeper" (6 Nov; 0.1.8 as a tree): a rough note, written by a model asked once as stories
- * and their tasks - shown under it to change, each part added by your word; or planned in a chat.
+ * The rough note (6 Nov; 0.1.8 as a tree; 0.1.10 always in sight, under the cards): what you type is split by the Hive
+ * keeper, a model asked once, into stories and their tasks - shown under it to change, each part added by your word;
+ * or planned in a chat.
  */
-function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, open, onClose }: NoteProps) {
+function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter }: NoteProps) {
   const drafting = useAsk()
   const [note, setNote] = useState('')
   const [draft, setDraft] = useState<BacklogDraft | null>(null)
-  const box = useRef<HTMLTextAreaElement>(null)
-  // (Opened, the note takes the focus; the box stays mounted closed, so that a draft is not lost.)
-  useEffect(() => {
-    if (open) box.current?.focus()
-  }, [open])
   const asked = providers.find(one => one.id === drafter?.provider_id)
   const text = note.trim()
   const write = (event: FormEvent) => {
@@ -312,20 +305,14 @@ function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, open, onClos
   }
   return (
     <>
-      <form
-        hidden={!open}
-        className="backlog-add"
-        aria-label="Write it with the Hive keeper"
-        onSubmit={write}
-        onKeyDown={e => e.key === 'Escape' && onClose()}
-      >
+      <form className="backlog-add hive-note" aria-label="Your rough note" onSubmit={write}>
         <div className="field">
-          <label htmlFor="hive-note">Your note</label>
+          <label htmlFor="hive-note">Your rough note</label>
           <textarea
-            ref={box}
             id="hive-note"
             className="input"
             rows={3}
+            placeholder="Write what you have in mind, roughly: “reports as PDF too, and not stuck on a big file”"
             maxLength={4201}
             value={note}
             onChange={e => setNote(e.target.value)}
@@ -339,7 +326,7 @@ function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, open, onClos
               aria-describedby="draft-who"
               disabled={!text || !asked || !!drafter?.why || drafting.busy}
             >
-              {drafting.busy ? 'Writing…' : 'Write it'}
+              {drafting.busy ? 'Splitting…' : 'Split into tasks'}
             </button>
           )}
           {onPlan && (
@@ -374,34 +361,6 @@ function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, open, onClos
           taskFields={(id, task, onTask) => <MoreFields id={id} task={task} onTask={onTask} />}
         />
       )}
-    </>
-  )
-}
-
-type HeadProps = Omit<NoteProps, 'open' | 'onClose'> &
-  Pick<Props, 'onAdd' | 'projectId'> & { view: ReturnType<typeof useTreeView> }
-
-/** Over the list: its bar, the Hive keeper's note once its button is pressed, and where a task is added. */
-function TodoHead({ view, projectId, onAdd, ...note }: HeadProps) {
-  const [noting, setNoting] = useState(false)
-  return (
-    <>
-      <TodoBar
-        filter={view.filter}
-        onFilter={view.setFilter}
-        projectId={projectId}
-        onHive={note.onDraft || note.onPlan ? () => setNoting(!noting) : undefined}
-        noting={noting}
-      />
-      <HiveNote
-        {...note}
-        open={noting}
-        onClose={() => {
-          setNoting(false)
-          document.getElementById('todo-hive')?.focus() // (back to the button that opened it)
-        }}
-      />
-      <AddTask onAdd={onAdd} {...view.choice} />
     </>
   )
 }
@@ -448,7 +407,7 @@ const waitsFor = (task: BacklogTask, listed: BacklogTask[]) =>
   listed.filter(one => task.after.includes(one.id) && one.status !== 'done')
 // B-349: one at "done?" moves on only by your word, so it says so - Done on its row, or first Take in.
 const reviewWaits = (one: BacklogTask) =>
-  one.not_in ? 'waiting for you - Take in' : 'done? - press Done above to go on'
+  one.not_in ? 'waiting for you - Take in' : 'done? - its Done under Waiting for your word'
 const waitWords = (waits: BacklogTask[]) =>
   waits.map(one => (one.status === 'review' ? `${one.title} (${reviewWaits(one)})` : one.title)).join(', ')
 
@@ -460,7 +419,7 @@ const shown = (field: string, value: unknown) =>
 interface Wait {
   key: string
   task: BacklogTask
-  kind: 'new task' | 'done?' | 'change' | 'added'
+  kind: 'new task' | 'done?' | 'change'
   name: string
   line: string
   buttons: [label: string, run: () => Promise<void>][]
@@ -470,27 +429,11 @@ interface Wait {
 
 /** A task the Scout proposed and the Orchestrator said no to at Full auto: under "Decided for you" in its chat, not waiting here. */
 const declined = (task: BacklogTask) => task.status === 'proposed' && task.po?.lead === 'no'
-/** One the Orchestrator added at Full auto that you have not OK'd: it starts by your OK only. */
-const unseen = (task: BacklogTask) => task.status === 'todo' && task.po?.lead === 'add' && !task.po.seen
 
 /** What waits for your word, one row each, in the page's order: proposed tasks, then "done?", then changes. */
 function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Props['onChange']): Wait[] {
   const of = (kind: Wait['kind'], task: BacklogTask): Wait => {
     const decide = (decision: SpawnDecision) => () => onDecide(task.id, decision)
-    if (kind === 'added')
-      return {
-        key: `${task.id}:added`,
-        task,
-        kind,
-        name: `Added for you: ${task.title}`,
-        line: ['Added by the Orchestrator at Full auto, not seen by you', task.po?.lead_why && `“${task.po.lead_why}”`]
-          .filter(Boolean)
-          .join(' · '),
-        buttons: [
-          ['OK', decide('approve')],
-          ['Reject', decide('reject')],
-        ],
-      }
     if (kind === 'new task')
       return {
         key: `${task.id}:new`,
@@ -512,8 +455,9 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
           .filter(Boolean)
           .join(' · '),
         buttons: [
-          ['Add', decide('approve')],
-          ['Reject', decide('reject')],
+          // (The spec's verbs, 0.1.10: what it does to To-do, and that you do not want it.)
+          ['Add to To-do', decide('approve')],
+          ['Not wanted', decide('reject')],
         ],
         edit: async fields => {
           await onChange(task.id, fields)
@@ -557,7 +501,6 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
   }
   return [
     ...tasks.filter(task => task.status === 'proposed' && !declined(task)).map(task => of('new task', task)),
-    ...tasks.filter(unseen).map(task => of('added', task)),
     // One whose work is not in the project yet is not asked "done?": it says so on its row in the list.
     ...tasks.filter(task => task.status === 'review' && !task.not_in).map(task => of('done?', task)),
     ...tasks.filter(task => task.pending).map(task => of('change', task)),
@@ -691,7 +634,7 @@ function Decision({
   )
 }
 
-/** A proposed task's Edit (6 Nov): its title and detail as you want them, then Add. */
+/** A proposed task's Edit (6 Nov): its title and detail as you want them, then Add to To-do. */
 function ProposalEdit({
   task,
   busy,
@@ -738,7 +681,7 @@ function ProposalEdit({
         />
       </div>
       <button type="submit" className="btn btn-small btn-primary" disabled={busy || !title.trim()}>
-        Add
+        Add to To-do
       </button>{' '}
       <button type="button" className="btn btn-small" disabled={busy} onClick={onCancel}>
         Cancel
@@ -770,60 +713,6 @@ export function WaitRow({ task, onDecide, onChange, onOpen, only, off, failed }:
     .map(wait => <Decision key={wait.key} wait={wait} off={off} failed={failed} onOpen={onOpen} />)
 }
 
-/** What waits for your word, one row each, in the page's order. The proposed tasks may be added all at once. */
-function Waiting({
-  waits,
-  onDecide,
-  onChange,
-  onOpen,
-}: { waits: Wait[] } & Pick<Props, 'onDecide' | 'onChange' | 'onOpen'>) {
-  const [bulk, setBulk] = useState(false)
-  // A refusal of Approve all's stays on the row it was of.
-  const [failed, setFailed] = useState<Record<string, string>>({})
-  const proposals = waits.filter(wait => wait.kind === 'new task')
-  async function approveAll() {
-    setBulk(true)
-    setFailed({})
-    // One after another, each the single decision; one refused, the next goes on.
-    for (const { task } of proposals) {
-      try {
-        await onDecide(task.id, 'approve')
-      } catch (err) {
-        setFailed(now => ({ ...now, [task.id]: errorText(err) }))
-      }
-    }
-    setBulk(false)
-  }
-  return (
-    <section className="memory-section" aria-label="Waiting for you">
-      <div className="memory-head">
-        <h3 className="kicker">
-          Waiting for you <span className="tag tag-warn">{waits.length}</span>
-        </h3>
-        {proposals.length > 1 && (
-          <button type="button" className="btn btn-small" disabled={bulk} onClick={() => void approveAll()}>
-            Approve all {proposals.length} proposals
-          </button>
-        )}
-      </div>
-      <div className="backlog-rows">
-        {waits.map(wait => (
-          <WaitRow
-            key={wait.key}
-            task={wait.task}
-            only={wait.kind}
-            off={bulk}
-            failed={wait.kind === 'new task' ? failed[wait.task.id] : undefined}
-            onDecide={onDecide}
-            onChange={onChange}
-            onOpen={onOpen}
-          />
-        ))}
-      </div>
-    </section>
-  )
-}
-
 interface RowProps {
   task: BacklogTask
   /** The tasks on the list: what it may wait for, and what it waits for. */
@@ -837,8 +726,7 @@ interface RowProps {
   onChange: Props['onChange']
   onDelete: Props['onDelete']
   onOpen: Props['onOpen']
-  /** 0.1.8: how deep in the tree it stands, whether it is ticked, and its story to choose. */
-  depth: 0 | 1
+  /** 0.1.8: whether it is ticked, and its story to choose. */
   ticked: boolean
   onTick: (on: boolean) => void
   choice: StoryChoice
@@ -850,7 +738,7 @@ const dropsOn = (dragged: BacklogTask | null, task: BacklogTask): dragged is Bac
 
 /** A task's second line: how it stands, where its tag does not say that already, and that a change to it waits. */
 const subLine = (state: ReturnType<typeof runState>, tag: string, pending: BacklogTask['pending']) =>
-  [state !== tag && state, pending && 'A change to it waits for you above'].filter(Boolean).join(' · ')
+  [state !== tag && state, pending && 'A change to it waits under Waiting for your word'].filter(Boolean).join(' · ')
 
 function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDelete, onOpen, ...tree }: RowProps) {
   const { busy, error, ask } = useAsk()
@@ -897,6 +785,8 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
     <form
       className="memory-edit"
       aria-label={`Edit ${task.title}`}
+      // (Esc leaves it as it was, as Cancel does.)
+      onKeyDown={event => event.key === 'Escape' && setEditing(null)}
       onSubmit={event => {
         event.preventDefault()
         void ask(() => onChange(task.id, { ...cleaned(editing), after: waits })).then(done => done && setEditing(null))
@@ -967,7 +857,7 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
 
   return (
     <li
-      className={`backlog-task todo-depth-${tree.depth}${open ? ' backlog-open' : ''}`}
+      className={`backlog-task${open ? ' backlog-open' : ''}`}
       aria-labelledby={`${id}-title`}
       onDragOver={event => dropHere && event.preventDefault()}
       onDrop={event => {
@@ -1095,9 +985,92 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
   )
 }
 
+/** Where To-do was asked to open (0.1.10): at a task's row - its card's panel open at it -, else at its own heading. */
+export interface TodoAsked {
+  task?: string
+  n: number
+}
+
+/** An ask to open To-do, taken once its list is read: the card of the task asked opens at its row; else the heading
+ *  takes the focus, in view. */
+function useAsked(asked: TodoAsked | null | undefined, cards: Card[] | null, open: (key: string, at: string) => void) {
+  const [taken, setTaken] = useState(0)
+  useEffect(() => {
+    if (!asked || asked.n === taken || !cards) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTaken(asked.n)
+    const card = asked.task ? cards.find(one => one.tasks.some(task => task.id === asked.task)) : undefined
+    if (card && asked.task) return open(card.key, asked.task)
+    const head = document.getElementById('todo-head')
+    head?.scrollIntoView?.({ block: 'start' })
+    head?.focus()
+  }, [asked, taken, cards, open])
+}
+
 /**
- * The project's To-do, kept like a Hive keeper would: what waits for your word on top, one row each; your stories
- * and tasks as a tree (priority first, then the order you give); ticked ones go to a chat's queue (Do in chat).
+ * The card whose panel is open, and where the focus goes as it closes: back on its card - or, the card gone from under
+ * it (its story deleted, closed under a filter), on To-do's heading; the panel does not open again of itself. `read`:
+ * the list is read, so a card not found is gone. (The focus moves once the panel is gone: what it lay over is inert
+ * until then.)
+ */
+function useOpened(cards: Card[], read: boolean) {
+  const [opened, setOpened] = useState<{ key: string; at?: string } | null>(null)
+  const [back, setBack] = useState<string | null>(null)
+  const card = cards.find(one => one.key === opened?.key)
+  const gone = !!opened && read && !card
+  useEffect(() => {
+    if (!gone) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOpened(null)
+    setBack('todo-head')
+  }, [gone])
+  useEffect(() => {
+    if (!back || card) return
+    document.getElementById(back)?.focus()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setBack(null)
+  }, [back, card])
+  const open = useCallback((key: string, at?: string) => setOpened({ key, at }), [])
+  const close = () => {
+    if (opened) setBack(cardId(opened.key))
+    setOpened(null)
+  }
+  return { card, at: opened?.at, open, close }
+}
+
+/** How the ticked tasks run, and what it runs and spends: in sight, never behind an ⓘ. */
+function TodoNotes() {
+  return (
+    <>
+      <div className="muted memory-hint">
+        Open a story, tick its tasks and press Do in chat: they run in that chat, one by one; you decide when each is
+        done.{' '}
+        <Hint doc={GUIDE.todoInChat}>
+          The ticked tasks wait in the chat’s queue, above its message box, and run there one by one - your own message
+          still goes first. Each story goes into a topic of its own, where its tasks go on in one session; a task of no
+          story gets a topic of its own. A task runs at its chat’s level, on its chat’s model, and asks on cards there.
+          A task that waits for others (⋯, Waits for) starts once they are done. When its work ends, the chat asks
+          “Done?”. The Hive keeper and the Scout can propose tasks and changes; they wait under Waiting for your word.
+          Going away? ☾ Away works through the tasks you tick, each in a copy of its own, until you are back.
+        </Hint>
+      </div>
+      <div id="backlog-rules" className="muted memory-hint">
+        A task not finished gets one fix round; still not, it is stuck and the next goes on. A stop, a restart or the
+        month’s budget stops the chat’s queue and says why there. When a task’s work ends, a fast model, if you have
+        one, writes the Scout’s view of it - what of what makes it done looks met: one more request, and only an
+        opinion. None is written for work that failed, was stopped, only made a plan or went over its turn’s token
+        limit.
+      </div>
+    </>
+  )
+}
+
+/**
+ * The project's To-do (0.1.10: Ready for you's right half), kept like a Hive keeper would: each story a card - a cell for
+ * each task - and the tasks of no story one more; a card opens its story's panel, with its tasks and all they can do;
+ * ticked ones go to a chat's queue (Do in chat). Under the cards, a rough note the Hive keeper splits into tasks. What
+ * waits for your word on To-do is on the left, with the rest of Ready for you. `pushes`: the tasks whose push the night
+ * parked for you.
  */
 export function BacklogPage({
   backlog,
@@ -1118,105 +1091,119 @@ export function BacklogPage({
   chats = {},
   projectId,
   tree = NO_TREE,
-}: Props) {
+  asked,
+  pushes = NO_PUSH,
+}: Props & { asked?: TodoAsked | null; pushes?: Set<string> }) {
   const [dragged, setDragged] = useState<BacklogTask | null>(null)
-  const waits = waitsOf(backlog ?? [], onDecide, onChange)
   const listed = backlog?.filter(task => task.status !== 'proposed') ?? []
   const view = useTreeView(listed, stories, tree.onNewStory)
-
-  /** Your tasks: being read, none yet, or as a tree. */
-  const tasks = () =>
-    !backlog ? (
-      !error && <p className="muted">Reading the To-do list…</p>
-    ) : view.empty ? (
-      <p className="muted hive-empty">
-        No task yet. A task is work for later: type its title in “Add a task” above, tick it, and Do in chat gives it to
-        a chat.
-      </p>
-    ) : (
-      <section className="memory-section" aria-label="Your tasks">
-        <h3 className="kicker">
-          Your tasks <span className="muted">· {listed.length}</span>
-        </h3>
-        <TodoTree
-          rows={view.rows}
-          tasks={listed}
-          selected={view.selected}
-          onSelect={view.select}
-          chats={chats}
-          {...tree}
-          taskRow={(task, depth) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              listed={listed}
-              above={view.beside(task, -1)}
-              below={view.beside(task, 1)}
-              dragged={dragged}
-              onDrag={setDragged}
-              onChange={onChange}
-              onDelete={onDelete}
-              onOpen={onOpen}
-              depth={depth}
-              ticked={view.selected.has(task.id)}
-              onTick={on => view.select([task.id], on)}
-              choice={view.choice}
-            />
-          )}
+  const cards = cardsOf(view.rows)
+  const { card, at, open, close } = useOpened(cards, backlog !== null)
+  useAsked(asked, backlog ? cards : null, open)
+  /** All of a card's tasks, whatever the filter shows. */
+  const whole = (one: Card) => wholeOf(one, listed, view.stories)
+  const dock = (
+    <TodoDock listed={listed} selected={view.selected} onSelect={view.select} projectId={projectId} onDo={onDoInChat} />
+  )
+  /** A card's tasks, each with all it can do: its tick, its place, its notebook, its chat and ⋯. */
+  const rows = (one: Card) => (
+    <ol className="backlog-rows todo-tree" aria-label="Tasks">
+      {one.tasks.map(task => (
+        <TaskRow
+          key={task.id}
+          task={task}
+          listed={listed}
+          above={view.beside(task, -1)}
+          below={view.beside(task, 1)}
+          dragged={dragged}
+          onDrag={setDragged}
+          onChange={onChange}
+          onDelete={onDelete}
+          onOpen={onOpen}
+          ticked={view.selected.has(task.id)}
+          onTick={on => view.select([task.id], on)}
+          choice={view.choice}
         />
-      </section>
-    )
-
+      ))}
+    </ol>
+  )
   return (
-    <div className="memory-page">
-      <div className="conv-head">
-        <h2>To-do</h2>
-      </div>
-      <div className="muted memory-hint">
-        Tick tasks and press Do in chat: they run in that chat, one by one; you decide when each is done.{' '}
-        <Hint doc={GUIDE.todoInChat}>
-          The ticked tasks wait in the chat’s queue, above its message box, and run there one by one - your own message
-          still goes first. Each story goes into a topic of its own, where its tasks go on in one session; a task of no
-          story gets a topic of its own. A task runs at its chat’s level, on its chat’s model, and asks on cards there.
-          A task that waits for others (⋯, Waits for) starts once they are done. When its work ends, the chat asks
-          “Done?”. The Hive keeper and the Scout can propose tasks and changes; they wait here for your word. Going
-          away? ☾ Away works through the tasks you tick, each in a copy of its own, until you are back.
-        </Hint>
-      </div>
-      {/* What it runs and spends stays in sight, never behind an ⓘ. */}
-      <div id="backlog-rules" className="muted memory-hint">
-        A task not finished gets one fix round; still not, it is stuck and the next goes on. A stop, a restart or the
-        month’s budget stops the chat’s queue and says why there. When a task’s work ends, a fast model, if you have
-        one, writes the Scout’s view of it - what of what makes it done looks met: one more request, and only an
-        opinion. None is written for work that failed, was stopped, only made a plan or went over its turn’s token
-        limit.
-      </div>
-      {away && <AwayNight away={away} onOpen={onOpen} />}
+    <section className="todo-half" aria-labelledby="todo-head">
+      <h2 id="todo-head" tabIndex={-1}>
+        To-do{' '}
+        <span className="muted ready-count">
+          {view.stories.length > 0 && `${count(view.stories.length, 'story', 'stories')}, `}
+          {count(listed.length, 'task')}
+        </span>
+      </h2>
       {error && (
         <div role="alert" className="alert">
           The To-do list could not be read: {error}
         </div>
       )}
-      <TodoHead
-        view={view}
-        projectId={projectId}
-        onAdd={onAdd}
-        onDraft={onDraft}
-        onPlan={onPlan}
-        onAddTree={onAddTree}
-        providers={providers}
-        drafter={drafter}
-      />
-      {waits.length > 0 && <Waiting waits={waits} onDecide={onDecide} onChange={onChange} onOpen={onOpen} />}
+      <TodoBar filter={view.filter} onFilter={view.setFilter} projectId={projectId} />
+      <AddTask onAdd={onAdd} {...view.choice} />
+      <Cards backlog={backlog} error={error} empty={view.empty}>
+        <StoryCards
+          cards={cards}
+          whole={whole}
+          openKey={card?.key ?? null}
+          onOpen={key => (key ? open(key) : close())}
+          pushes={pushes}
+        />
+      </Cards>
       <Declined backlog={backlog} onDecide={onDecide} />
-      {tasks()}
-      <TodoDock
-        listed={listed}
-        selected={view.selected}
-        onSelect={view.select}
-        projectId={projectId}
-        onDo={onDoInChat}
-      />
-    </div>
+      {(onDraft || onPlan) && (
+        <HiveNote onDraft={onDraft} onPlan={onPlan} onAddTree={onAddTree} providers={providers} drafter={drafter} />
+      )}
+      {cards.length > 0 && <CellLegend />}
+      <TodoNotes />
+      {!card && dock}
+      {card && (
+        <StoryPanel
+          key={card.key}
+          card={card}
+          all={whole(card)}
+          at={at}
+          listed={listed}
+          chats={chats}
+          away={away}
+          projectId={projectId}
+          actions={tree}
+          selected={view.selected}
+          onSelect={view.select}
+          onOpenChat={onOpen}
+          onClose={close}
+        >
+          {rows(card)}
+          {dock}
+        </StoryPanel>
+      )}
+    </section>
   )
+}
+
+const NO_PUSH = new Set<string>()
+
+/** The cards once the list is read; before, that it is being read; with nothing on it, how to start. */
+function Cards({
+  backlog,
+  error,
+  empty,
+  children,
+}: {
+  backlog: BacklogTask[] | null
+  error: string | null
+  empty: boolean
+  children: ReactNode
+}) {
+  if (!backlog) return !error && <p className="muted">Reading the To-do list…</p>
+  if (empty)
+    return (
+      <p className="muted hive-empty">
+        No task yet. A task is work for later: type its title in “Add a task” above, or write a rough note below and the
+        Hive keeper splits it into stories and tasks.
+      </p>
+    )
+  return children
 }

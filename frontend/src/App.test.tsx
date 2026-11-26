@@ -2,6 +2,8 @@ import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App } from './App'
+import { OPEN_TODO } from './chat/TodoCards'
+import { greeting } from './ready/nightText'
 import { resetStoreForTests, useApp } from './state/store'
 import type { Discussion } from './api/types'
 import { agent, command, conversation, question, run } from './test-fixtures'
@@ -175,7 +177,8 @@ test('with no folder and no chat KOLONİ opens on the canvas, not on a setup pag
   expect(screen.queryByRole('button', { name: /^Project settings for/ })).toBeNull()
   // Nothing is made at the start: the first message makes a plain chat.
   expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'To-do' }))
+  // (To-do is Ready for you's right half, 0.1.10.)
+  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Ready' }))
   const none = screen.getByText('This chat has no folder - pick one with the folder button to use the To-do.')
   // ...with the way to one beside it: the folder button's own panel.
   expect(screen.queryByRole('button', { name: 'Open a folder…' })).toBeNull()
@@ -503,8 +506,7 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Agents', 'paged', 'Agents'],
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
-    ['Ready', 'memory-page ready-page', 'Ready for you · 0, oldest first'],
-    ['To-do', 'memory-page', 'To-do'],
+    ['Ready', 'ready-page', `Ready for you ${greeting()}`],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', 'Reading the project’s memory…'],
     ['Chats', 'conv-page', 'Conversations'],
@@ -520,13 +522,15 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Agents', 'paged', 'Agents'],
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
-    ['Ready', 'memory-page ready-page', 'Ready for you · 0, oldest first'],
-    ['To-do', 'memory-page', noFolder('To-do')],
+    ['Ready', 'ready-page', `Ready for you ${greeting()}`],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', noFolder('Memory')],
     ['Chats', 'conv-page', 'Conversations'],
     ['Canvas', 'stage', 'First steps'],
   ])
+  // (To-do, Ready for you's right half since 0.1.10, asks for one there.)
+  await visit([['Ready', 'ready-page', `Ready for you ${greeting()}`]])
+  expect(screen.getByRole('region', { name: 'To-do' })).toHaveTextContent(noFolder('To-do'))
   // (The day of a folder says it is read as soon as it is drawn: here there is none.)
   await visit([['Usage', 'memory-page', 'Usage']])
   expect(screen.queryByText(/^Reading the day…$|^The day could not be read/)).toBeNull()
@@ -716,11 +720,11 @@ test('a page you opened before the night was read is never taken from you: the m
   render(<App />)
   const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
   await screen.findByText('this machine')
-  await userEvent.click(rail('To-do'))
+  await userEvent.click(rail('Agents'))
   release()
   await vi.waitFor(() => expect(useApp.getState().away?.id).toBe('a1'))
   await act(async () => {})
-  expect(rail('To-do')).toHaveAttribute('aria-pressed', 'true')
+  expect(rail('Agents')).toHaveAttribute('aria-pressed', 'true')
   expect(screen.queryByRole('heading', { name: /^Ready for you/ })).toBeNull()
 })
 
@@ -783,4 +787,76 @@ test("an agent's window and a discussion's open over the canvas only with a chat
   expect(screen.queryByRole('region', { name: 'Agent window' })).toBeNull()
   expect(screen.queryByRole('region', { name: 'Discussion' })).toBeNull()
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
+})
+
+test('To-do is Ready for you’s right half (0.1.10): no rail button of its own; a chat’s Open it in To-do lands there, at its task', async () => {
+  const stuck = {
+    id: 't1',
+    title: 'Fix the login',
+    detail: null,
+    criteria: null,
+    priority: 'normal',
+    status: 'blocked',
+    position: 0,
+    conversation_id: null,
+    created_by: 'user',
+    pending: null,
+    assessment: null,
+    not_in: false,
+    after: [],
+    stuck: 'two tests fail',
+    waiting: false,
+    kind: 'task',
+    created_at: '2026-10-05T10:00:00Z',
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => answer(url, { '/api/projects/p/backlog': [stuck] })),
+  )
+  render(<App />)
+  const rail = (name: string) =>
+    within(screen.getByRole('navigation', { name: 'Main' })).queryByRole('button', { name })
+  await screen.findByText('this machine')
+  expect(rail('To-do')).toBeNull()
+  act(() => void window.dispatchEvent(new CustomEvent(OPEN_TODO, { detail: 't1' })))
+  const panel = await screen.findByRole('complementary', { name: 'Without a story' })
+  expect(rail('Ready')).toHaveAttribute('aria-pressed', 'true')
+  await vi.waitFor(() => expect(within(panel).getByRole('button', { name: 'Fix the login' })).toHaveFocus())
+  // Its card says how it stands, in a word beside its cell.
+  expect(screen.getByRole('button', { name: 'Without a story: 0 of 1 done' })).toHaveTextContent('Fix the login: stuck')
+})
+
+test('To-do asked at a task opens there once: Ready for you opened again from the rail is as any', async () => {
+  const task = {
+    id: 't1',
+    title: 'Fix the login',
+    detail: null,
+    criteria: null,
+    priority: 'normal',
+    status: 'todo',
+    position: 0,
+    conversation_id: null,
+    created_by: 'user',
+    pending: null,
+    assessment: null,
+    not_in: false,
+    after: [],
+    stuck: null,
+    waiting: false,
+    kind: 'task',
+    created_at: '2026-10-05T10:00:00Z',
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => answer(url, { '/api/projects/p/backlog': [task] })),
+  )
+  render(<App />)
+  const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
+  await screen.findByText('this machine')
+  act(() => void window.dispatchEvent(new CustomEvent(OPEN_TODO, { detail: 't1' })))
+  expect(await screen.findByRole('complementary', { name: 'Without a story' })).toBeInTheDocument()
+  await userEvent.click(rail('Usage'))
+  await userEvent.click(rail('Ready'))
+  await screen.findByRole('button', { name: 'Without a story: 0 of 1 done' })
+  expect(screen.queryByRole('complementary', { name: 'Without a story' })).toBeNull()
 })

@@ -13,6 +13,8 @@ import {
   say,
   setProject,
   settled,
+  story,
+  todo,
 } from './helpers'
 import { APP_URL, PROJECT_DIR, REPO_ROOT } from './paths.mjs'
 
@@ -184,20 +186,15 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
   await picture(page, 'knowledge')
 })
 
-test('the To-do page with the Hive keeper’s draft', async ({ page }) => {
+test('To-do’s rough note, split into tasks by the Hive keeper', async ({ page }) => {
   await openFreshConversation(page)
-  await rail(page, 'To-do').click()
-  await page
-    .getByRole('toolbar', { name: 'To-do' })
-    .getByRole('button', { name: 'Write it with the Hive keeper' })
-    .click()
-  const box = page.getByRole('form', { name: 'Write it with the Hive keeper' })
-  await box.getByLabel('Your note').fill('the login page breaks on mobile, and we need a password reset')
-  await box.getByRole('button', { name: 'Write it', exact: true }).click()
+  const half = await todo(page)
+  const box = half.getByRole('form', { name: 'Your rough note' })
+  await box.getByLabel('Your rough note').fill('the login page breaks on mobile, and we need a password reset')
+  await box.getByRole('button', { name: 'Split into tasks', exact: true }).click()
   const drafts = page.getByRole('region', { name: 'Drafted tasks' })
   await expect(drafts.getByRole('group', { name: 'Draft 2' }).getByLabel('Title')).toHaveValue('Add a password reset')
   await box.scrollIntoViewIfNeeded()
-  await page.mouse.wheel(0, 120)
   await picture(page, 'todo-draft')
 })
 
@@ -235,15 +232,16 @@ test('the To-do tree', async ({ page }) => {
       await page.request.patch(`/api/backlog/${id}`, { headers: OWN, data: { status: 'done' } })
     await page.request.patch(`/api/stories/${login}`, { headers: OWN, data: { closed: true } })
     await page.request.patch(`/api/backlog/${mail}`, { headers: OWN, data: { status: 'doing' } })
-    await rail(page, 'To-do').click()
-    const list = page.getByRole('list', { name: 'Tasks' })
-    await expect(list.getByRole('listitem', { name: 'Password reset' })).toContainText('● running')
-    await expect(list.getByRole('listitem', { name: 'Login works on mobile' })).toContainText('✓ done')
-    // (0.1.8: two ticked - the dock under the tree says what Do in chat does.)
-    for (const name of ['Rate-limit the reset form', 'The footer shows last year'])
-      await list.getByRole('listitem', { name }).getByRole('checkbox').first().check()
-    await expect(page.getByRole('region', { name: 'Selected tasks' })).toContainText('2 selected')
-    await list.scrollIntoViewIfNeeded()
+    const half = await todo(page)
+    await expect(half.getByRole('button', { name: 'Password reset: 0 of 2 done' })).toContainText('at work')
+    await expect(half.getByRole('button', { name: 'Login works on mobile: 2 of 2 done' })).toBeVisible()
+    // (0.1.10: the page whole - what was done and what waits on the left, To-do's cards on the right.)
+    await picture(page, 'ready-todo')
+    // (A story opened: its panel over To-do - its facts, its notebook, its tasks; one ticked, the dock says what Do in
+    // chat does.)
+    const panel = await story(page, 'Password reset')
+    await panel.getByRole('checkbox', { name: 'Tick Rate-limit the reset form' }).check()
+    await expect(panel.getByRole('region', { name: 'Selected tasks' })).toContainText('1 selected')
     await picture(page, 'todo-tree')
   } finally {
     // (Gone again, whatever happened: the pictures after it show their own To-do.)
@@ -274,10 +272,10 @@ test('To-do in a chat', async ({ page }) => {
     await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })
   ).json()
   try {
-    await rail(page, 'To-do').click()
-    const list = page.getByRole('list', { name: 'Tasks' })
-    await list.getByRole('checkbox', { name: 'Tick the story Two-step sign-in' }).check()
-    await page
+    await todo(page)
+    const panel = await story(page, 'Two-step sign-in')
+    await panel.getByRole('checkbox', { name: 'Tick the story Two-step sign-in' }).check()
+    await panel
       .getByRole('region', { name: 'Selected tasks' })
       .getByRole('button', { name: /Do in chat/ })
       .click()
@@ -318,12 +316,10 @@ test('a story’s strip and notebook', async ({ page }) => {
     // (The two after the first wait for it: once it waits at "done?", the strip says the next.)
     const [first, ...later] = added.task_ids
     for (const id of later) await page.request.patch(`/api/backlog/${id}`, { headers: OWN, data: { after: [first] } })
-    await rail(page, 'To-do').click()
-    await page
-      .getByRole('list', { name: 'Tasks' })
-      .getByRole('checkbox', { name: 'Tick the story Two-step sign-in' })
-      .check()
-    await page
+    await todo(page)
+    const panel = await story(page, 'Two-step sign-in')
+    await panel.getByRole('checkbox', { name: 'Tick the story Two-step sign-in' }).check()
+    await panel
       .getByRole('region', { name: 'Selected tasks' })
       .getByRole('button', { name: /Do in chat/ })
       .click()
@@ -502,6 +498,11 @@ test('☾ Away: the Away panel, and the summary when you are back', async ({ pag
   const summary = chat.getByRole('region', { name: 'While you were away' })
   await expect(summary).toContainText('2 of 2 To-do done', { timeout: 10_000 })
   await picture(page, 'away-summary')
+  // (0.1.10: the morning's Ready for you - the night's report on the left, To-do's cards on the right.)
+  await rail(page, 'Ready').click()
+  await expect(page.getByRole('region', { name: /^Last night, / })).toContainText('2 of 2 jobs done.')
+  await picture(page, 'ready-morning')
+  await rail(page, 'Canvas').click()
   // (Seen: KOLONİ goes to the report once, and not again in the tests after this one.)
   await summary.getByRole('button', { name: 'On the canvas' }).click()
   await expect(page.locator('.away-node')).toBeVisible()

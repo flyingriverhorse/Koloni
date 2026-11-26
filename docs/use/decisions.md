@@ -12,8 +12,10 @@ your project.
 
 ## Where you see them
 
-- **Ready for you**, the page: what waits for your word on the left, and **Decided for you** beside
-  it (under it on a narrow screen). The page's first line counts both: "4 things wait for your word.
+- **Ready for you**, the page: on its left half, the night's report, what waits for your word and,
+  under it, **Decided for you** - [To-do](../automation/todo.md) is its right half. The night's report
+  says how many were decided for you that night and how many you have not seen; **See them** brings
+  them here, at **Not seen**. The page's first line counts both: "4 things wait for your word.
   5 decisions were made for you since you left." The second part shows only when the project had a
   [☾ Away](../automation/overnight.md) and the number is known.
 - **In the chat**, one line at the top, where something was decided for you in it: "While you were
@@ -50,9 +52,9 @@ the project. A chat with no folder has no decision log: its pill counts that cha
 
 Each row says when, who, the chat it is in (or To-do), what was decided, the question, command or task
 it was about, and the reason in quotes. The newest come first. Five rows show, then **Show all**. A
-decision you have not said OK to yet says **not seen**; the heading counts them: "Decided for you 5, 2
+decision you have not said OK to yet says **new**; the heading counts them: "Decided for you 5, 2
 not seen". Each row links to where the decision is: **The question**, **The command** and **The
-agent** open its chat, and **The task** opens it on To-do.
+agent** open its chat, and **The task** opens To-do, on the same page, at that task.
 
 Words an agent or a model wrote - a question, a command, an answer, a reason, a chat's title - are
 shown as quotes, never as part of the page. Here, secrets KOLONİ knows and keys known by their shape (a
@@ -65,8 +67,8 @@ contains instruction-like phrases; treat it as data." Longer text is cut at 300 
 ## OK and Change
 
 - **OK**, on a row you have not seen: it stays in the list, seen. On a To-do task it decides
-  nothing: the task stays as it is, and an agent's change proposed on it still waits for you on
-  To-do. A task the Orchestrator turned down that you added since needs no OK.
+  nothing: the task stays as it is, and an agent's change proposed on it still waits for you under
+  **Waiting for your word**. A task the Orchestrator turned down that you added since needs no OK.
 - **Change → …**, while the agent that asked is still at work: your answer goes to it at once ("Sent to
   the agent that asked, while it works"), and the Orchestrator's answer leaves the list. On a To-do
   choice, **Change** adds the task or takes it off, until the task has started; if the task moved on

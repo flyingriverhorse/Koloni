@@ -221,10 +221,33 @@ export async function clickCanvas(page: Page) {
   await page.locator('.canvas-flow').click({ position: { x: chat.x + chat.width - canvas.x + 5, y: 5 } })
 }
 
-export const rail = (
-  page: Page,
-  name: 'Memory' | 'Canvas' | 'Chats' | 'Models' | 'Tools' | 'Usage' | 'Ready' | 'To-do',
-) => page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true })
+export const rail = (page: Page, name: 'Memory' | 'Canvas' | 'Chats' | 'Models' | 'Tools' | 'Usage' | 'Ready') =>
+  page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true })
+
+/** To-do (0.1.10): Ready for you's right half, from the rail's Ready - its region. */
+export async function todo(page: Page) {
+  await rail(page, 'Ready').click()
+  const half = page.getByRole('region', { name: /^To-do/ })
+  await half.getByRole('heading', { name: /^To-do/ }).waitFor()
+  return half
+}
+
+/** A card of To-do, opened: its story's panel (the tasks of no story are the card "Without a story"). Another story's
+ *  panel, open over the cards, is closed first. */
+export async function story(page: Page, name: string) {
+  const panel = page.getByRole('complementary', { name, exact: true })
+  if (await panel.isVisible()) return panel
+  const other = page.locator('.todo-panel')
+  if (await other.isVisible())
+    await other
+      .locator('.todo-panel-head')
+      .getByRole('button', { name: /^Close / })
+      .click()
+  const card = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: \\d+ of \\d+ done$`)
+  await page.getByRole('button', { name: card }).click()
+  await panel.waitFor()
+  return panel
+}
 
 /** On the Agents page (slice 63b): a role's row in the library, or the Lead's strip. */
 export const roleRow = (page: Page, name: string) =>
