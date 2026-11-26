@@ -40,6 +40,10 @@ Only what needs your attention after an update; everything else is in the [Chang
   started stay in their chats as they were. What still starts by itself: ☾ Away's jobs, a chat's queue of
   To-do tasks and the day's summary. To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and put that
   copy back in place of `runtime/data/koloni.db`; your triggers come back with it.
+- **Codex's One run per model step is gone.** A Codex provider saved so runs as **One session per agent**,
+  and its window shows that. On a model server of your own a Codex session is not yet measured: try it
+  there knowing that, or set **How it runs** to **Native**. See
+  [Set up a CLI](../models/setup-cli.md#how-it-runs).
 
 ### 0.1.8
 

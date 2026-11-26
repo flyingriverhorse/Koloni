@@ -5,7 +5,6 @@ import { modelName } from '../shell/modelName'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { ModelNameInput } from './ModelNameInput'
-import { Choices, modesShown } from './experimental'
 import { factsText, levelsKnown, namedLevel, takesOf } from './levels'
 import type { GuideRow } from './ModelRow'
 import type { CopilotOptions, ListedModel, Mode, Props as PageProps, ProviderKind, SignIn } from './ModelsPage'
@@ -98,8 +97,6 @@ interface CliProps extends CopilotProps {
   ownServer: boolean
   copilot: boolean
   agy: boolean
-  /** Settings › The app › Agents, Show experimental CLIs: Codex's One run per model step is offered only then, or in use. */
-  experimental: boolean
 }
 
 /** A CLI's connection: its command, how it runs, whose sign-in, and what each way of running does. */
@@ -120,10 +117,7 @@ export function CliFields(props: CliProps) {
     address,
     setAddress,
     copilot,
-    experimental,
   } = props
-  const [usual, tried] = modesShown(kind, modes, runs, experimental)
-  const named = (shown: Mode[]) => shown.map((mode): [Mode, string] => [mode, modeLabel(kind, mode)])
   return (
     <>
       <div className="field">
@@ -136,7 +130,7 @@ export function CliFields(props: CliProps) {
           onChange={e => setExecutable(e.target.value)}
         />
       </div>
-      {usual.length + tried.length > 1 && (
+      {modes.length > 1 && (
         <div className="field">
           <label htmlFor="provider-mode">How it runs</label>
           <select
@@ -145,7 +139,11 @@ export function CliFields(props: CliProps) {
             value={runs ?? ''}
             onChange={e => setMode(e.target.value as Mode)}
           >
-            <Choices usual={named(usual)} experimental={named(tried)} />
+            {modes.map(mode => (
+              <option key={mode} value={mode}>
+                {modeLabel(kind, mode)}
+              </option>
+            ))}
           </select>
         </div>
       )}

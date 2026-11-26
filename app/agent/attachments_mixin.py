@@ -8,7 +8,6 @@ import contextlib
 import hashlib
 import os
 import re
-import tempfile
 import threading
 from datetime import date
 from pathlib import Path
@@ -36,7 +35,7 @@ from app.db.models import (
     now,
 )
 from app.model_client import REFUSES_FILES, TOO_BIG, ModelUnavailable, StepResult
-from app.providers import CLI_NAMES, HTTP_KINDS, IMAGE_CLIS, mode_of
+from app.providers import CLI_NAMES, HTTP_KINDS, IMAGE_CLIS
 from app.serialize import attachment_out, file_change_out
 from app.team import quoted
 from app.tools import MAX_LINE_CHARS, ToolError
@@ -162,20 +161,6 @@ class AttachmentsMixin:
             return set(), None, attachments.MAX_SENT
         if provider.kind not in (*HTTP_KINDS, *IMAGE_CLIS) and not in_result:
             return set(), CLI_NAMES.get(provider.kind, provider.kind), attachments.MAX_SENT
-        if (
-            provider.kind == "codex_cli"
-            and mode_of(provider) == "step"
-            and "," in tempfile.gettempdir()
-        ):
-            # Its --image splits a path at each comma, and the copies are in that folder.
-            return (
-                set(),
-                (
-                    "Codex, whose --image cannot take a path with a comma as this "
-                    "machine's temporary folder has,"
-                ),
-                attachments.MAX_SENT,
-            )
         # Claude Code sends a picture as base64, a third larger, and has no retry without it
         # in a session or natively: none is sent whose base64 would pass Anthropic's limit.
         most = (

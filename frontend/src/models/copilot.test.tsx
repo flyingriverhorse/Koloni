@@ -128,9 +128,9 @@ test('Claude Code and Codex take a model server of your own, and send it only wh
   await userEvent.type(screen.getByLabelText('Model server address'), 'http://127.0.0.1:8080/v1')
   expect(screen.getByText(/Runs the codex command on this machine, on your model server/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Add provider' }))
-  // A step there: its session on a model server of the user's is not measured (without one it is a session).
+  // A session there too (0.1.10: its step by step is cut).
   expect(onCreate).toHaveBeenCalledWith(
-    expect.objectContaining({ kind: 'codex_cli', base_url: 'http://127.0.0.1:8080/v1', mode: 'step' }),
+    expect.objectContaining({ kind: 'codex_cli', base_url: 'http://127.0.0.1:8080/v1', mode: 'session' }),
   )
   expect(onCreate.mock.calls[0]).not.toHaveProperty('0.api_key')
   unmount()
@@ -259,7 +259,7 @@ test('a CLI that did not say which model it used is shown as just that', () => {
 })
 
 test('a real run of a CLI that did not name its model says so instead of a made-up name', async () => {
-  const codex = provider({ id: 'cx', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'step' })
+  const codex = provider({ id: 'cx', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'session' })
   const onTest = vi.fn(async () => ({
     ok: true,
     model_id: 'codex default',

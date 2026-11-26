@@ -76,8 +76,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("app.agent")
 
-# B-387 (live): in step mode Codex's own tools are off (`CodexCliClient.DISABLED`); a model that
-# tries one anyway is refused with these words, and may end saying it could not read a file.
+# B-387 (live): Codex one step at a time (`talker`, `cli_surface.checked`) has its own tools off; a
+# model that tries one anyway is refused with these words, and may end saying it could not read.
 CODEX_OWN_TOOLS = "code-mode host is disabled"
 CODEX_TOOLS_OFF = (
     'Codex\'s own tools are off here ("code-mode host is disabled"): do not try them. Use the '
@@ -86,8 +86,8 @@ CODEX_TOOLS_OFF = (
     "task."
 )
 CODEX_TOOLS_FAILED = (
-    "could not {work}: Codex kept trying its own tools, which are off in step mode. Try running "
-    "Codex as One session per agent (Models › Codex › How it runs)."
+    "could not {work}: Codex kept trying its own tools, which are off when it runs one step at a "
+    "time (in a discussion, or on a Codex version not measured with KOLONİ)."
 )
 # shortcut: 3 from three measured gpt-6-luna steps (6 Nov 2026: one in three tried its own tool
 # first); raise it if live runs show longer streaks.
