@@ -263,8 +263,14 @@ const recordOf = (row: Decision) => row.id.slice(row.id.indexOf(':') + 1)
 const here = (row: Decision) =>
   row.conversation_id !== null && useApp.getState().conv?.conversation.id === row.conversation_id
 
-/** Your OK on a row: it stays, seen. On a To-do task it decides nothing - the Orchestrator's word seen, the task as it is. */
+/** Your OK on a row: it stays, seen. On a To-do task it decides nothing - the Orchestrator's word seen, the task as it is.
+ *  The project's board is read again with it: the pill and the chat's line say its count (K1). */
 async function ok(row: Decision): Promise<void> {
+  await okOnly(row)
+  await useApp.getState().loadBoard()
+}
+
+async function okOnly(row: Decision): Promise<void> {
   const s = useApp.getState()
   const id = recordOf(row)
   if (row.kind === 'task') return s.seenTask(id)

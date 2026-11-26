@@ -276,7 +276,9 @@ test('OK on a row not seen, and Change while its agent works: to the server, the
   await userEvent.click(within(card).getByRole('button', { name: 'Change → Postgres' }))
   expect(await screen.findByRole('status')).toHaveTextContent('Sent to the agent that asked, while it works')
   await userEvent.click(within(command).getByRole('button', { name: 'OK' }))
-  expect(calls()).toEqual([
+  // (each OK reads the project's board again too: the pill's and the chat's line's count, K1)
+  await vi.waitFor(() => expect(calls().filter(([url]) => url === '/api/board')).toHaveLength(2))
+  expect(calls().filter(([, method]) => method !== 'GET')).toEqual([
     ['/api/questions/q1/ok', 'POST', '{}'],
     ['/api/questions/q1/change', 'POST', JSON.stringify({ answer: 'Postgres' })],
     ['/api/commands/k2/seen', 'POST', '{}'],

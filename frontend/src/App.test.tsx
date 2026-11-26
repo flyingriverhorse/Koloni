@@ -67,6 +67,7 @@ const snapshot = {
   last_event_id: 0,
 }
 /** What the server answers: the project, the model, one chat in the project (opened at the start) - or what `over` says of a path. */
+const BOARD = { limit: null, running: 0, conversations: [], conflicts: [], backlog_waiting: 0 }
 const answer = (url: string, over: Record<string, unknown> = {}) => {
   const said: Record<string, unknown> = {
     '/api/projects': [project],
@@ -542,10 +543,14 @@ test("the top bar's pill says what the Lead decided for you when nothing waits; 
   })
   vi.stubGlobal(
     'fetch',
-    emptyPages({ '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], questions: [decided] } }),
+    emptyPages({
+      '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], questions: [decided] },
+      // (K1: the project's count - Not seen's, every chat's - not the open chat's)
+      '/api/projects/p/board': { ...BOARD, decided: 1 },
+    }),
   )
   render(<App />)
-  const pill = await screen.findByRole('button', { name: '1 decided for you' })
+  const pill = await screen.findByRole('button', { name: '1 decided for you in this project' })
   expect(pill).toHaveTextContent(/^1 decided$/)
   expect(pill).toHaveAttribute('aria-expanded', 'false')
   expect(document.getElementById('ready-panel')).toBeNull()
@@ -593,16 +598,27 @@ function refusedByTheJudge() {
 
 test("the pill counts a command Full auto's judge refused; the chat says it in one line, and Ready for you has its OK", async () => {
   const { refused, log } = refusedByTheJudge()
-  const read = emptyPages({
+  let seen = false
+  const pages = emptyPages({
     '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] },
     '/api/projects/p/decisions': log,
     '/api/commands/k/seen': { ...refused, judged: { ...refused.judged, seen: true } },
+    // (K1: the pill, the chat's line and Not seen say the project's one count)
+    get '/api/projects/p/board'() {
+      return { ...BOARD, decided: seen ? 0 : 1 }
+    },
+  })
+  const read = vi.fn(async (url: string, _init?: RequestInit) => {
+    if (url === '/api/commands/k/seen') seen = true
+    return pages(url)
   })
   vi.stubGlobal('fetch', read)
   render(<App />)
-  await userEvent.click(await screen.findByRole('button', { name: '1 decided for you' }))
+  await userEvent.click(await screen.findByRole('button', { name: '1 decided for you in this project' }))
   const panel = document.getElementById('ready-panel')!
-  expect(within(panel).getByText('While you were away, 1 thing was decided for you.')).toBeInTheDocument()
+  expect(
+    within(panel).getByText('While you were away, 1 thing was decided for you in this project.'),
+  ).toBeInTheDocument()
   await userEvent.click(within(panel).getByRole('button', { name: 'Open in Ready for you' }))
   const decided = await screen.findByRole('region', { name: /^Decided for you 1, 1 not seen/ })
   await vi.waitFor(() => expect(decided).toHaveFocus())
@@ -617,8 +633,8 @@ test("the pill counts a command Full auto's judge refused; the chat says it in o
   const calls = read.mock.calls as unknown as [string, RequestInit | undefined][]
   const asked = calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)
   expect(asked).toContain('POST /api/commands/k/seen')
-  // (the open chat's: told at once - the pill has nothing more)
-  await vi.waitFor(() => expect(screen.queryByRole('button', { name: '1 decided for you' })).toBeNull())
+  // (the project's board is read again after the OK - the pill has nothing more)
+  await vi.waitFor(() => expect(screen.queryByRole('button', { name: /decided for you/ })).toBeNull())
 })
 
 test("Usage's Today says the day's decisions in one line; Open in Ready for you brings its Decided for you in view, once", async () => {
@@ -626,6 +642,7 @@ test("Usage's Today says the day's decisions in one line; Open in Ready for you 
   const pages = emptyPages({
     '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] },
     '/api/projects/p/decisions': log,
+    '/api/projects/p/board': { ...BOARD, decided: 1 },
   })
   const day = { turns: 0, agents: [], changed_files: [], waiting: 0, failed: 0, conversations: [] }
   const read = vi.fn(async (url: string) =>
@@ -633,7 +650,7 @@ test("Usage's Today says the day's decisions in one line; Open in Ready for you 
   )
   vi.stubGlobal('fetch', read)
   render(<App />)
-  await screen.findByRole('button', { name: '1 decided for you' })
+  await screen.findByRole('button', { name: '1 decided for you in this project' })
   const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
   await userEvent.click(rail('Usage'))
   expect(await screen.findByText("1 decision was made for you today, 1 of them you haven't seen.")).toBeInTheDocument()

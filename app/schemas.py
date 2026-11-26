@@ -2011,8 +2011,7 @@ class BoardConversation(BaseModel):
     # Its agents' changes that wait for the user's decision (a merge card in its chat), and its
     # copies kept for Take in that hold a file.
     merges_pending: int
-    # Its last turn; None before its first.
-    turn: BoardTurn | None
+    turn: BoardTurn | None  # its last turn; None before its first
     # The folder it is in (None: a chat with none): every chat's board tags another's (B-72).
     project_id: str | None = None
 
@@ -2041,6 +2040,7 @@ class BoardOut(BaseModel):
     # What waits for the user on the project's backlog: tasks and changes agents proposed,
     # and tasks whose turn ended and wait for review (slice 52).
     backlog_waiting: int
+    decided: int | None = None  # decisions not OK'd yet: Not seen's (`decisions.unseen_count`)
 
 
 class ChannelMessageOut(Out):

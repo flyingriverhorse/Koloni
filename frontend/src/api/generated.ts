@@ -5436,6 +5436,8 @@ export interface components {
             conflicts: components["schemas"]["BoardConflict"][];
             /** Conversations */
             conversations: components["schemas"]["BoardConversation"][];
+            /** Decided */
+            decided?: number | null;
             /** Limit */
             limit: number | null;
             /** Running */

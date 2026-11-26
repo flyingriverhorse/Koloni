@@ -267,6 +267,10 @@ const chat = convState({
 })
 
 test('Ready for you in three parts: what needs your answer, what is ready to take in, and what only told you', () => {
+  // (K1: the line says the project's count, as the pill and Not seen do)
+  useApp.setState({
+    board: { limit: null, running: 0, conversations: [], conflicts: [], backlog_waiting: 0, decided: 1 },
+  })
   render(<WaitingList state={chat} on={on} onDecidePlan={vi.fn()} known={{ roles: [], providers: [] }} />)
   const needs = screen.getByRole('region', { name: 'Needs your answer' })
   expect(within(needs).getByText('Which greeting?')).toBeInTheDocument()
@@ -275,7 +279,9 @@ test('Ready for you in three parts: what needs your answer, what is ready to tak
     within(screen.getByRole('region', { name: 'Ready to take in' })).getByText("Teams' work is ready"),
   ).toBeInTheDocument()
   // what only told you comes last, in one line (a project's chat: its decisions are on the Ready for you page)
-  const told = screen.getByText(/^While you were away, 1 thing was decided for you and \d+ wait for you\.$/)
+  const told = screen.getByText(
+    /^While you were away, 1 thing was decided for you in this project and \d+ wait for you here\.$/,
+  )
   expect(
     screen.getByRole('region', { name: 'Ready to take in' }).compareDocumentPosition(told) &
       Node.DOCUMENT_POSITION_FOLLOWING,
