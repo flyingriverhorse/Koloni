@@ -39,10 +39,10 @@ READY = {
 
 
 def _seeded(tmp_path):
-    """A database at 0192 whose ready teams hold their built-in roles, as after a start."""
+    """A database at 0193 whose ready teams hold their built-in roles, as after a start."""
     db = tmp_path / "old.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0192")
+    command.upgrade(cfg, "0193")
     with sqlite3.connect(db) as conn:
         teams = dict(conn.execute("SELECT name, id FROM teams"))
         names = sorted({name for held in READY.values() for name in held})
@@ -154,7 +154,7 @@ def test_only_the_ready_teams_as_they_came_go_and_their_roles_stay(tmp_path):
             "SELECT COUNT(*) FROM role_teams WHERE team_id = ?", (teams["Data"],)
         ).fetchone() == (5,)
 
-    command.downgrade(cfg, "0192")
+    command.downgrade(cfg, "0193")
     with sqlite3.connect(db) as conn:
         assert "Backend / API" not in _left(conn)  # (put back the copy made before, to go back)
 
@@ -219,7 +219,7 @@ def test_where_a_role_sits_and_an_expert_taken_out_tell_a_changed_team(tmp_path,
     before 0103 moved a role's kind (the Dependency keeper in Write & keep up) is not."""
     db = tmp_path / "seeded.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0192")
+    command.upgrade(cfg, "0193")
     eleven = dict(roles.READY_TEAMS) | {
         name: tuple(one for one in held if not one.endswith(" expert"))
         for name, (held, _recipe) in FORMER.items()

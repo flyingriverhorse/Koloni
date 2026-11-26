@@ -35,7 +35,7 @@ def tools_of(conn) -> dict:
 def test_rooms_go_and_what_was_said_in_them_stays(tmp_path):
     db = tmp_path / "old.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0190")
+    command.upgrade(cfg, "0192")
     with sqlite3.connect(db) as conn:
         conn.execute("DELETE FROM role_teams")
         conn.execute("DELETE FROM roles")
@@ -102,7 +102,7 @@ def test_rooms_go_and_what_was_said_in_them_stays(tmp_path):
             ("Done: the page is built.",)
         ]
 
-    command.downgrade(cfg, "0190")
+    command.downgrade(cfg, "0192")
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT id FROM messages").fetchall() == []
         assert tools_of(conn) == {

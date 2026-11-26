@@ -16,7 +16,7 @@ shortcut: the line says a room was there, not what was said in it (`room_posts` 
 an old room's posts read-only in its chat if that is missed.
 
 Revision ID: 0193
-Revises: 0190
+Revises: 0192
 """
 
 import json
@@ -28,8 +28,8 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0193"
-# (Written on the k-oda-sil branch on 0190, 0.1.10's head then; 0191 and 0192 are other branches'.)
-down_revision = "0190"
+# (Written on the k-oda-sil branch on 0190; chained after 0.1.10's 0192 at merge, before 0194.)
+down_revision = "0192"
 branch_labels = None
 depends_on = None
 
