@@ -120,7 +120,7 @@ test('no test command to fill in for added work: what runs is said - the sub-age
     /none written: no test before adding, and the card says so\. KOLONİ’s check at the turn’s end still runs every test\./,
   )
   expect(said).toHaveTextContent(
-    /they run by themselves in Full auto, or where the part’s test command is yours .*; with KOLONİ’s guess the card waits for your Run the test, and while you are away or in a trigger’s run a guess never runs them./,
+    /they run by themselves in Full auto, or where the part’s test command is yours .*; with KOLONİ’s guess the card waits for your Run the test, and while you are away a guess never runs them./,
   )
   const commit = screen.getByLabelText(/^Save each sub-agent’s work as a git commit/)
   expect(commit).not.toBeChecked()
@@ -128,9 +128,7 @@ test('no test command to fill in for added work: what runs is said - the sub-age
   const offered = screen.getByText(
     /^One commit per piece of work\. Offered on the card .* top folder of a git repository\.$/,
   )
-  expect(
-    within(offered).getByText(/^Always your click: never made by itself, never in a trigger’s turn/),
-  ).not.toBeVisible()
+  expect(within(offered).getByText(/^Always your click: never made by itself\. It commits/)).not.toBeVisible()
   // The box is named as it was - by all of its note, word for word what the page shows - and not by the
   // button that opens it. It says so in its own label: a browser leaves a closed hint out of a name.
   expect(commit).toHaveAccessibleName(

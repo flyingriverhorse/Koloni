@@ -206,7 +206,7 @@
   overflow-wrap: anywhere;
 }
 
-/* A conversation's row and its Archive button side by side; its trigger's line under them. */
+/* A conversation's row and its Archive button side by side. */
 .conv-item {
   display: flex;
   flex-wrap: wrap;
@@ -231,11 +231,6 @@
   flex: 1;
   min-width: 0;
   width: auto;
-}
-
-.conv-trigger {
-  flex-basis: 100%;
-  padding-left: 12px;
 }
 
 /* Under an answer whose message did work (slice 107): one quiet line, the summary under "details". */

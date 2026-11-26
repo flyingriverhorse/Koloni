@@ -25,7 +25,6 @@ from tests.test_claim_scenarios import agent, calls, setup, two, waits, write  #
 from tests.test_parallel import until  # noqa: E402
 from tests.test_spawn import call, role_id, step  # noqa: E402
 from tests.test_topic_scenarios import calls_of  # noqa: E402
-from tests.test_trigger_scenarios import run_now, trigger  # noqa: E402
 
 ORIGIN = "http://127.0.0.1:8790"
 
@@ -1039,34 +1038,6 @@ def test_a_copy_holding_a_file_that_stands_over_later_turns_is_asked_about(
     assert client.post(f"/api/merges/{snap['merges'][0]['id']}/approve").status_code == 200
     wait_run(client, cid, run_id)
     assert (project_dir / ".claude" / "x").read_text(encoding="utf-8") == "{}"
-
-
-def test_a_turn_nobody_watches_never_waits_and_keeps_its_protected_paths(
-    make_client, wait_run, project_dir
-):
-    client, model = make_client(
-        {
-            "Lead": [
-                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                text("done"),
-            ],
-            "Coder": [
-                step(write("notes.txt", "seen")),
-                step(write(".claude/settings.json", "{}", "w2")),
-                text("A done"),
-            ],
-        }
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": [], "agents": 1})
-    run_id = run_now(client, made["id"])
-    snap = wait_run(client, cid, run_id, timeout=10)
-    assert next(r for r in snap["runs"] if r["id"] == run_id)["status"] == "completed"
-    assert (project_dir / "notes.txt").read_text(encoding="utf-8") == "seen"
-    assert not (project_dir / ".claude").exists()
-    assert not [m for m in snap["merges"] if m["status"] == "pending"]
 
 
 def test_a_linked_folder_is_the_projects_own_and_outlives_the_copy(

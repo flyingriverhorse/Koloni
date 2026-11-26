@@ -11,6 +11,7 @@ from alembic import command
 from app.roles import BROWSER, BUILTIN_ROLES
 from tests.test_migration_0002 import _config
 from tests.test_migration_0109 import _role
+from tests.test_migration_0189 import before_0189
 
 GAIN = {"Lead", "Coder", "Tester", "Researcher", "Debugger", "UI designer"}
 
@@ -64,7 +65,7 @@ def test_stock_ones_gain_the_browser_where_app_roles_has_it_and_going_back_is_ex
     for name in GAIN:
         # (28e's view_image comes with 0125, K-drawio's diagram_image with 0128)
         assert after[name] == [
-            t for t in BUILTIN_ROLES[name].tools if t not in ("view_image", "diagram_image")
+            t for t in before_0189(name) if t not in ("view_image", "diagram_image")
         ], name
     command.downgrade(cfg, M.down_revision)
     with sqlite3.connect(db) as conn:
@@ -88,7 +89,7 @@ def test_the_same_tools_in_another_order_still_gain_the_browser(tmp_path):
     with sqlite3.connect(db) as conn:
         after = _held(conn)
     for name in GAIN:
-        assert set(after[name]) == set(BUILTIN_ROLES[name].tools) - {
+        assert set(after[name]) == set(before_0189(name)) - {
             "view_image",
             "diagram_image",
         }, name

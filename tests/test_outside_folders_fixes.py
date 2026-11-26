@@ -17,7 +17,6 @@ from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_outside_folders_scenarios import conversation, converse, project, read
 from tests.test_spawn import spawn
-from tests.test_trigger_scenarios import finished, results, run_now, setup, trigger
 
 ORIGIN = "http://127.0.0.1:8790"
 
@@ -142,31 +141,6 @@ def test_the_card_names_the_folder_and_a_new_folder_is_allowed_once_only(
 
 
 # --- M4: an unattended write outside goes by where it really is ------------------------------
-
-
-@pytest.mark.skipif(sys.platform != "win32", reason="junctions are Windows'")
-def test_an_unattended_write_through_a_link_into_a_listed_folders_git_is_refused(
-    make_client, wait_run, project_dir, other
-):
-    """By its name an ordinary file; where it really is, one of git's hooks."""
-    (other / ".git" / "hooks").mkdir(parents=True)
-    made = subprocess.run(
-        ["cmd", "/c", "mklink", "/J", str(other / "door"), str(other / ".git")],
-        capture_output=True,
-        text=True,
-    )
-    if made.returncode != 0:
-        pytest.skip(made.stderr)
-    client, _model, pid, cid = setup(
-        make_client,
-        project_dir,
-        {"Lead": [write(str(other / "door" / "hooks" / "pre-commit"), "x", "w"), text("ok")]},
-    )
-    assert client.patch(f"/api/projects/{pid}", json={"also_in": [str(other)]}).status_code == 200
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": [], "agents": 0})
-    snap = finished(client, wait_run, cid, run_now(client, made["id"]))
-    ((_name, status, _said),) = results(snap, snap["runs"][-1]["id"])
-    assert status == "denied" and not (other / ".git" / "hooks" / "pre-commit").exists()
 
 
 # --- I7: an agent is told where else it works -----------------------------------------------

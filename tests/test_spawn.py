@@ -337,7 +337,6 @@ def test_a_grandchild_has_its_roles_tools_capped_by_the_orchestrators_not_its_op
         "ask_folder",
         "message_agent",
         "discuss",
-        "propose_trigger",
         *NOTEBOOK,
         *MEMORY,
     ]

@@ -34,6 +34,12 @@ Only what needs your attention after an update; everything else is in the [Chang
   "Observer" stays as it is. What a sub-agent's record shows is in **Checked** and **No file changed**
   (see [What KOLONİ checked](../use/checked.md)). To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and
   put that copy back in place of `runtime/data/koloni.db`.
+- **Triggers are gone.** At the first start the database is upgraded (migration 0189), after KOLONİ
+  copies it to `runtime/data/backups/`: your triggers, their runs, their record and the triggers agents
+  proposed are deleted, and **Propose triggers** is taken off every role, your own too. The turns triggers
+  started stay in their chats as they were. What still starts by itself: ☾ Away's jobs, a chat's queue of
+  To-do tasks and the day's summary. To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and put that
+  copy back in place of `runtime/data/koloni.db`; your triggers come back with it.
 
 ### 0.1.8
 

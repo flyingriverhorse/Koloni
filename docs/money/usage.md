@@ -17,7 +17,7 @@ At the top: **Messages**, **Tokens sent**, **Tokens written** and **Cost**. Belo
 
 - **By provider and model**: messages, agents, tokens and cost for each model.
 - **By conversation**.
-- **Who started it**: **You**, **A trigger, with nobody watching**, or **KOLONİ itself** (requests
+- **Who started it**: **You**, **A trigger, with nobody watching** (a turn before 0.1.10, when triggers were removed), or **KOLONİ itself** (requests
   KOLONİ makes outside a message, such as a real run of a CLI from the Models page).
 
 "Nothing is estimated": tokens are only what the models reported, and what was not reported shows as
@@ -83,7 +83,7 @@ USD). It covers this calendar month, by this machine's clock.
 
 - At 80%, KOLONİ tells you once, and the top bar shows it.
 - At 100%, a new message asks first: "Over this month's budget. Send it anyway?" Press **Go on anyway**
-  or **Cancel**. Triggers start none.
+  or **Cancel**.
 - Work on a model with no price is not counted.
 - If your prices are in more than one currency, the budget is not enforced, and the page says so.
 - A plain chat (no folder) belongs to no budget.

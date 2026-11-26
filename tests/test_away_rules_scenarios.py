@@ -32,7 +32,7 @@ from tests.test_chat_flow import text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
 from tests.test_mcp_scenarios import give, server
 from tests.test_spawn import call, step
-from tests.test_triggers import zone_with_summer_time
+from tests.turn_helpers import zone_with_summer_time
 
 
 def run(command, id="k", **more):
@@ -760,7 +760,7 @@ def test_at_night_a_command_naming_another_folder_of_the_chat_waits(
 def test_a_job_is_cut_by_the_loop_s_clock_while_no_step_of_it_comes(
     make_client, wait_run, project_dir, gate
 ):
-    from tests.test_triggers import HeldClock
+    from tests.turn_helpers import HeldClock
 
     client, _model, pid, cid, run_id = evening(
         make_client, project_dir, [edit(), gate.step(text("never")), text("two done")]

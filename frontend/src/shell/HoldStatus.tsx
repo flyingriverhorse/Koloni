@@ -15,18 +15,14 @@ const shaped = (found: unknown) =>
   ['stopped', 'backlogs', 'nights'].every(key => Array.isArray((found as Record<string, unknown>)[key]))
     ? (found as Hold)
     : null
-const MISSED =
-  'After Resume a trigger waits for its next time: times missed while held are skipped, also for triggers that catch up, and files changed meanwhile start nothing.'
-
-/** What Stop everything would hold: the triggers that are on, the chats’ To-do queues (by project), the nights. */
+/** What Stop everything would hold: the chats’ To-do queues (by project), the nights. */
 function heldNow(hold: Hold): string {
   const counts: [number, string][] = [
-    [hold.triggers, many(hold.triggers, 'trigger')],
     [hold.backlogs.length, queues(hold.backlogs.length)],
     [hold.nights.length, `${many(hold.nights.length, 'project')} working while you’re away`],
   ]
   const parts = counts.filter(([n]) => n > 0).map(([, said]) => said)
-  if (parts.length === 0) return 'Triggers and To-do queues are held until you resume.'
+  if (parts.length === 0) return 'To-do queues are held until you resume.'
   const named = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0]
   return `${named} ${counts.reduce((sum, [n]) => sum + n, 0) === 1 ? 'is' : 'are'} held until you resume.`
 }
@@ -46,18 +42,8 @@ function chatsOf(stopped: Hold['stopped']) {
  * In the top bar, on every page: one Stop for every turn of every chat. It asks first, saying what runs and what will
  * be held; then lists what it stopped and what it holds, with Resume. While held, the bar says so.
  */
-export function HoldStatus({
-  every,
-  onOpen,
-  onHeld,
-}: {
-  every: number
-  onOpen: (conversationId: string) => void
-  onHeld?: (held: boolean) => void
-}) {
+export function HoldStatus({ every, onOpen }: { every: number; onOpen: (conversationId: string) => void }) {
   const [hold, setHold] = useState<Hold | null>(null)
-  const held = Boolean(hold?.held)
-  useEffect(() => onHeld?.(held), [held, onHeld])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { open, setOpen, close, button, panel } = usePanel()
@@ -141,7 +127,6 @@ export function HoldStatus({
         <section aria-label="Held">
           <div className="kicker">Held</div>
           <ul className="hold-list">
-            <li>{hold.triggers > 0 ? `${many(hold.triggers, 'trigger')} on` : 'Triggers'}</li>
             {hold.backlogs.map(name => (
               <li key={name}>To-do queue of {name}: its next task waits</li>
             ))}
@@ -151,7 +136,6 @@ export function HoldStatus({
             <li>New work while you’re away</li>
           </ul>
         </section>
-        <p className="muted">{MISSED}</p>
         <p className="muted">{OWN}</p>
         {/* R147: Resume lets go of what starts by itself only - in the server's words. */}
         {hold.stays_stopped && <p>Resume: {hold.stays_stopped}</p>}
@@ -180,7 +164,6 @@ export function HoldStatus({
           : `${many(hold.running, 'turn')} running in your chats will stop.`}{' '}
         {heldNow(hold)}
       </p>
-      <p className="muted">{MISSED}</p>
       <p className="muted">{OWN} Previews left serving keep running.</p>
       <div className="change-actions">
         <button type="button" className="btn btn-small btn-danger" disabled={busy} onClick={() => void ask('/hold')}>
@@ -206,7 +189,7 @@ export function HoldStatus({
         title={
           hold.held
             ? 'Held: what was stopped and what is held, and Resume'
-            : 'Stop every turn in every chat, and hold triggers and To-do queues'
+            : 'Stop every turn in every chat, and hold To-do queues'
         }
         onClick={() => (open ? close() : setOpen(true))}
       >

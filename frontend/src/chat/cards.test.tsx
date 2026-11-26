@@ -11,7 +11,6 @@ import { ReadyPage } from '../ready/ReadyViews'
 import { useReady } from '../ready/useReady'
 import { resetStoreForTests, useApp } from '../state/store'
 import { agent, command, convState, fileChange, question, run, toolCall } from '../test-fixtures'
-import { WouldHaveAsked } from '../triggers/WouldHaveAsked'
 import { DecidedForYou } from './DecidedForYou'
 import { waitingOf } from './waiting'
 import { InjectionWarning } from './InjectionWarning'
@@ -218,7 +217,6 @@ test('cards that only tell are quiet - no honey edge - and those that ask are no
         })}
         name="Coder"
       />
-      <WouldHaveAsked refused={[{ id: 'x', what: 'npm publish', allow: null }]} />
       <DecidedForYou state={decided} />
       <CommandApproval command={command('c', 'r', { status: 'proposed' })} onDecide={vi.fn()} />
     </>,
@@ -226,7 +224,6 @@ test('cards that only tell are quiet - no honey edge - and those that ask are no
   for (const title of [
     'Text tried to give orders',
     "Not all of Coder's work reached the project",
-    'Nobody was here to ask',
     'Decided for you while you were away',
   ])
     expect(card(title)).toHaveClass('card-tell')

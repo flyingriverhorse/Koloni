@@ -637,11 +637,6 @@ for (const theme of ['light', 'dark'] as const)
       await page.getByRole('searchbox', { name: 'Find a tool' }).fill('contract')
       await expect(page.getByRole('table', { name: 'Tools of many' }).getByRole('row')).toHaveCount(19)
       await check(page.locator('.tools-page'), 60)
-      // The Triggers page with none yet: its line, its ⓘ, and where it says there is none (slice 38c).
-      await rail(page, 'Triggers').click()
-      await expect(page.locator('.trigger-empty').getByRole('button', { name: 'New trigger' })).toBeVisible()
-      // (Its how-it-works is behind the one ⓘ now, a piece of its own: fewer pieces than when it had two paragraphs.)
-      await check(page.locator('.triggers-page'), 4)
       // The table pages and Memory (slice 38d): their line on top, what is folded, a table sorted; and none scrolls
       // sideways at 1024 px - Usage's tables scroll in a box of their own, a long conversation name is cut.
       const narrow = async (root: Locator) => {
@@ -699,7 +694,7 @@ test('as the browser itself reads it out: a box named by a note with a hint keep
   await expect(chat.getByRole('form', { name: 'Model for this conversation' })).toBeVisible()
   const [auto] = await readOut(page, /^Orchestrator model: automatic/)
   expect(auto.name).toMatch(
-    /^Orchestrator model: automatic One more request for each message you send: .* asked how hard it is\. It overrides .* does not use it\. The Orchestrator then runs .* else the model above\.$/,
+    /^Orchestrator model: automatic One more request for each message you send: .* asked how hard it is\. It overrides the Orchestrator role’s own model and tier\. The Orchestrator then runs .* else the model above\.$/,
   )
   expect(auto.name).not.toContain('About this')
   await page.keyboard.press('Escape')

@@ -16,7 +16,6 @@ if importlib.util.find_spec("app.api.usage") is None:  # skipped until the code 
 from app.model_client import StepResult  # noqa: E402
 from tests.test_chat_flow import text  # noqa: E402
 from tests.test_spawn import call, step  # noqa: E402
-from tests.test_trigger_scenarios import finished, run_now, trigger  # noqa: E402
 
 ORIGIN = "http://127.0.0.1:8790"
 LOOK = "list_dir"
@@ -109,17 +108,6 @@ def test_a_period_leaves_out_what_was_before_it(make_client, wait_run, project_d
     assert usage(client, project_id=pid, since="2020-01-01T00:00:00Z")["by_model"]
     later = usage(client, project_id=pid, since="2999-01-01T00:00:00Z")
     assert later["by_model"] == [] and later["by_conversation"] == []
-
-
-def test_a_triggers_turns_are_told_apart_from_the_users(make_client, wait_run, project_dir):
-    client, model, pid, cid = began(
-        make_client, project_dir, [text("mine", 5, 3), text("its own", 11, 2)]
-    )
-    turn(client, wait_run, cid)
-    finished(client, wait_run, cid, run_now(client, trigger(client, pid, cid)["id"]))
-    by_start = {row["started_by"]: row for row in usage(client, project_id=pid)["by_start"]}
-    assert (by_start["user"]["runs"], by_start["user"]["input_tokens"]) == (1, 5)
-    assert (by_start["trigger"]["runs"], by_start["trigger"]["input_tokens"]) == (1, 11)
 
 
 def test_money_is_shown_only_for_a_model_the_user_gave_a_price(make_client, wait_run, project_dir):

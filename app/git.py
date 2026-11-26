@@ -986,47 +986,6 @@ def look(project: Path) -> dict | None:
     }
 
 
-def state(project: Path) -> str | None:
-    """How the project's repository stands, as one text that changes when anything in it
-    does (K-tetik-degismedi): its HEAD, what `git status` lists, and the size and time of
-    each file listed (a file changed again is listed the same). A look as `look` takes one:
-    one look's time for all of it, read only, and no program of the repository's runs (no
-    filter, no fetch). None where it shows no git (`where`).
-    shortcut: a submodule counts by its commit (`--ignore-submodules=dirty`, which also
-    keeps git out of its folder): an edit inside one that is not committed there changes
-    nothing here; look into submodules, with their own filters off, if that is missed."""
-    try:
-        git, until = _looking(project)
-        head = _said(project, git, until, "rev-parse", "--verify", "-q", "HEAD")  # None: none
-        off = _no_filters(project, git, _left(until))
-        listed = _said(
-            project,
-            git,
-            until,
-            "status",
-            "--porcelain=v1",
-            "-z",
-            "--no-renames",
-            "--untracked-files=all",
-            "--ignore-submodules=dirty",
-            **off,
-        )
-    except (Refused, OSError, ValueError):
-        return None
-    if listed is None:
-        return None
-    lines = [(head or "").strip()]
-    for entry in listed.split("\0"):
-        if len(entry) < 4 or in_scratch(entry[3:]):
-            continue
-        try:
-            info = os.lstat(project / entry[3:])
-            lines.append(f"{entry}\t{info.st_size}\t{info.st_mtime_ns}")
-        except (OSError, ValueError):
-            lines.append(f"{entry}\tgone")
-    return "\n".join(lines)
-
-
 def _letter(xy: str) -> str:
     """One letter for a `status --porcelain` entry's two columns, as the Workspace marks a
     change: D over the rest, R by its new path, A (a copy too), ? untracked, else M."""

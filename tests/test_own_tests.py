@@ -17,7 +17,7 @@ from tests.test_chat_flow import text
 from tests.test_claim_scenarios import write
 from tests.test_migration_0002 import _config
 from tests.test_parallel import until
-from tests.test_spawn import call, step
+from tests.test_spawn import step
 from tests.test_take_in_scenarios import LONG
 
 PYTEST = Run("python -m pytest -q", ".", True)
@@ -148,53 +148,6 @@ def test_at_full_auto_a_guess_runs_by_itself_and_the_users_own_command_at_every_
     (merge,) = wait_run(client, cid, run_id, timeout=LONG)["merges"]
     assert merge["check"]["state"] == "passed" and merge["status"] == "applied"
     assert marker.exists()
-
-
-@pytest.mark.parametrize("ticked", [True, False])
-def test_a_ticked_leave_for_a_saved_command_covers_its_narrowed_line(
-    make_client, wait_run, project_dir, ticked
-):
-    """B3: a trigger's turn - a saved command an Always rule covers is the user's own; the
-    trigger's tick for it (the line they can know) covers the line narrowed to the Coder's
-    test, which only adds the file to it."""
-    from app.db.models import Project
-    from tests.test_take_in_scenarios import (
-        CHECK,
-        LINES,
-        ORIGIN,
-        RUNS,
-        own_test,
-    )
-    from tests.test_trigger_scenarios import allow, run_now, trigger
-
-    (project_dir / "lines.txt").write_bytes(LINES.encode())
-    (project_dir / "check.py").write_bytes(CHECK.encode())
-    client, _model = make_client(
-        {
-            "Lead": [
-                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                text("done"),
-            ],
-            "Coder": [step(write("a.txt", "A")), own_test("NEVER-THERE"), text("A done")],
-        }
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    patched = client.patch(f"/api/projects/{pid}", json={"after_change": "nothing"})
-    assert patched.status_code == 200
-    with client.app.state.session_factory() as session:  # (saved by KOLONİ, and Always)
-        session.get_one(Project, pid).tests_found = {".": {"command": RUNS, "always": True}}
-        session.commit()
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    rules = [allow(client, cid, RUNS)] if ticked else []
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": rules, "agents": 1})
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=LONG)
-    (merge,) = snap["merges"]
-    if ticked:  # (it ran, failed: nothing taken, the copy kept for the user)
-        assert merge["check"]["state"] == "failed" and merge["status"] == "kept", merge["check"]
-    else:
-        assert merge["check"]["state"] == "not_run" and merge["status"] == "applied"
-        assert "does not let this command run" in merge["check"]["note"]
 
 
 def test_a_command_that_cannot_run_just_its_files_is_said_on_the_card_and_in_checked(

@@ -123,8 +123,7 @@ install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in - fo
 holds what the agent wrote: below Full auto it asks on a card that says so ("an agent wrote its
 program (web/node_modules): no rule covers a program an agent wrote, so none is offered - run it
 once or reject it"), with **Run once** and **Reject** alone - an **Always run** rule would not
-cover it either while that write stands -, and in a turn nobody can be asked in - a trigger's,
-whatever its leave - it is not run at any level. A rule matches by its
+cover it either while that write stands -. A rule matches by its
 words in any folder, so the same line in another folder, or after an agent's write over the
 project's own install, would otherwise run what the agent wrote. Once your own install writes
 over it, the rule covers it again. A package runner finds its program by itself, so its rule
@@ -190,8 +189,7 @@ npm's own (`npx.ps1 tsc` is `npx tsc`). A runner's line sent to another package 
 monorepo - npm's and npx's `-w` / `--workspace` / `--workspaces` / `--ws` / `--prefix` / `-C`,
 pnpm's `--filter` / `-F` / `-r` / `--dir` / `-C` / `-w`, yarn's `workspace x` / `workspaces
 foreach` / `--cwd`, bun's `--filter` / `--cwd` - runs that package's own `bin` and scripts, which
-the folder's checks do not read: no rule covers it, none is offered, and a trigger's turn does not
-run it. Nor does a rule for `npm exec tsc` cover `npm exec tsc -c x` (`--call`: a shell line). `python -m x` (any Python: `python3.12`, `pythonw`, one
+the folder's checks do not read: no rule covers it, and none is offered. Nor does a rule for `npm exec tsc` cover `npm exec tsc -c x` (`--call`: a shell line). `python -m x` (any Python: `python3.12`, `pythonw`, one
 named by its path) also imports what its folder holds before the standard library and the tool's
 own - so an agent's `.py` file, or package `__init__.py`, there stops its rule too, unless it runs
 with `-I` or `-P` (or `PYTHONSAFEPATH`); `python -m pytest` is the exception, since its tests
@@ -354,7 +352,7 @@ get a card, at any level. You decide once, when their work comes back:
   card waits for your **Run the test** first. Otherwise a card asks.
 - At **Full auto**, if the test fails, the work goes back to the Orchestrator a few times before the card
   asks you.
-- While you are away, or in a trigger's turn, KOLONİ's guess never runs a sub-agent's tests: the
+- While you are away, KOLONİ's guess never runs a sub-agent's tests: the
   work comes in as one with no test would, said "not run". Your own command runs there.
 
 Files that steer agents are held for your card at every level.
@@ -376,7 +374,7 @@ it says** below. And a box lets it also run a harmful-looking command a line of 
 what I said first](#check-what-i-said-first).
 
 It looks at Full auto's commands in a chat you watch (a To-do task done in a chat too) and in a job while
-you're away (☾ Away) - not at **Ask before changes** or **Auto-edit files**, and not in a trigger's turn.
+you're away (☾ Away) - not at **Ask before changes** or **Auto-edit files**.
 It is not asked about:
 
 - a command that only reads;
@@ -599,18 +597,10 @@ works on its own `koloni/<task>` branch in a worktree. Its git there - `status`,
 this branch when the user says yes: go on" - the push waits for your **Run** in the morning. Anything
 else of git (switching branches, reset, stash, fetch, config) is parked for you.
 
-## Turns nobody watches
-
-A turn started by a trigger has nobody to ask. There the permission level and your rules do not
-count. The trigger's own permissions decide, and anything they do not allow is refused, not
-asked - except a test command you set for a part on the project map, which runs, exactly as written in its part's folder, even when it is not ticked. Secret files, files that steer agents, files outside the project and MCP tools are always
-refused in such a turn. See [Triggers](../automation/triggers.md).
-
 KOLONİ's own check of [code style and types](checked.md#documents-diagrams-data-and-slides) runs
 the project's ruff, eslint, tsc or mypy as it runs the test command: at Ask and Auto-edit it asks
 on a card - a yes is that line in that folder for the turn, and **Always** keeps that line, never
-the bare program; while you are away, or in a turn nobody watches without its trigger's leave for
-the line, it is not run, and says so. A program an agent wrote - this turn, or an earlier turn in an
+the bare program; while you are away it is not run, and says so. A program an agent wrote - this turn, or an earlier turn in an
 install folder, while the file still holds it - is never run.
 
 ## Choosing a level

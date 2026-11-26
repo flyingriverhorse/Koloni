@@ -226,7 +226,7 @@ export async function clickCanvas(page: Page) {
 
 export const rail = (
   page: Page,
-  name: 'Memory' | 'Canvas' | 'Chats' | 'Triggers' | 'Models' | 'Tools' | 'Usage' | 'Ready' | 'Board' | 'To-do',
+  name: 'Memory' | 'Canvas' | 'Chats' | 'Models' | 'Tools' | 'Usage' | 'Ready' | 'Board' | 'To-do',
 ) => page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true })
 
 /** On the Agents page (slice 63b): a role's row in the library, or the Lead's strip. */

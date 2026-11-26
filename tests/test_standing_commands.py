@@ -20,15 +20,12 @@ from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import start_in_mode, text
 from tests.test_claude_native import (
     claude_app,  # noqa: F401  (a fixture)
-    unattended,
 )
 from tests.test_claude_native import start as start_claude
 from tests.test_codex_app_server_scenarios import ACCEPT, RUN, answers
 from tests.test_command_safety_scenarios import waiting
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_native_agent import start as start_native
-from tests.test_spawn import call, step
-from tests.test_trigger_scenarios import NOBODY, allow, finished, results, run_now, setup, trigger
 
 LIVE = (
     "New-Item -ItemType Directory -Force C:\\p\\.claude; Set-Content -Path "
@@ -690,24 +687,6 @@ def test_below_full_auto_a_read_of_agents_md_runs_unasked_as_any_read(
     assert snap["commands"][0]["status"] == "exited" and snap["commands"][0]["danger"] == ""
 
 
-def test_with_nobody_watching_a_ticked_read_of_agents_md_runs(make_client, wait_run, project_dir):
-    line = "cat AGENTS.md"
-    executor = ScriptedExecutor([Script(["x\n"])])
-    client, _, pid, cid = setup(
-        lambda scripts: make_client(scripts, executor=executor),
-        project_dir,
-        {"Lead": [step(call("run_command", {"command": line}, "c")), text("done")]},
-    )
-    made = trigger(
-        client,
-        pid,
-        cid,
-        permissions={"write": False, "commands": [allow(client, cid, line)], "agents": 0},
-    )
-    snap = finished(client, wait_run, cid, run_now(client, made["id"]))
-    assert [c["status"] for c in snap["commands"]] == ["exited"]
-
-
 def test_at_full_auto_a_native_clis_command_writing_claude_settings_is_a_card(
     claude_app, wait_run, project_dir
 ):  # noqa: F811
@@ -725,39 +704,6 @@ def test_at_full_auto_a_native_clis_command_writing_claude_settings_is_a_card(
 def rule_from_before(monkeypatch):
     """A rule for such a line, made before B-79 (no new one can be: `danger` names it)."""
     monkeypatch.setattr("app.api.commands.tidy_rule", lambda prefix: prefix)
-
-
-def test_with_nobody_watching_koloni_s_command_naming_github_is_refused_though_ticked(
-    make_client, wait_run, project_dir, rule_from_before
-):
-    line = "Set-Content .github\\canli.yml x"
-    client, _, pid, cid = setup(
-        make_client,
-        project_dir,
-        {"Lead": [step(call("run_command", {"command": line}, "c")), text("done")]},
-    )
-    rule = allow(client, cid, line)
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": [rule], "agents": 0})
-    run_id = run_now(client, made["id"])
-    snap = finished(client, wait_run, cid, run_id)
-    ((name, status, said),) = results(snap, run_id)
-    assert (name, status) == ("run_command", "denied") and NOBODY in said
-    assert [c for c in snap["commands"] if c["run_id"] == run_id] == []
-    assert not (project_dir / ".github").exists()
-
-
-def test_with_nobody_watching_a_native_clis_command_naming_claude_is_refused_though_ticked(
-    claude_app, wait_run, project_dir, rule_from_before
-):  # noqa: F811
-    line = "Set-Content .claude\\settings.json x"
-    bash = {"tool": "Bash", "input": {"command": line}, "write": [".claude/settings.json", "x"]}
-    client, provider, _ = claude_app([bash, {"say": "done"}])
-    snap, run, _ = unattended(
-        client, project_dir, provider, "full_auto", wait_run, write=True, commands=[line]
-    )
-    verdicts = claude_app.record()["asked"]
-    assert [v["behavior"] for v in verdicts] == ["deny"] and NOBODY in verdicts[0]["message"]
-    assert not (project_dir / ".claude").exists()
 
 
 # B-336 (live): a delete in the scratch had "Deletes files or disks." at Full auto. `danger` stays

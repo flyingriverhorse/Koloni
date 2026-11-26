@@ -40,7 +40,7 @@ def test_tool_result_reaches_the_next_model_step(make_client, wait_run, project_
     # tools, slice 51; and view_image, 28e; and diagram_image, K-drawio; and command_output and
     # stop_command, every agent's at its own work: k-araclar-018; and run_checks and read_status,
     # the Orchestrator's at its own work in a project: 0.1.9)
-    assert model.tool_args[0] is not None and len(model.tool_args[0]) == 42
+    assert model.tool_args[0] is not None and len(model.tool_args[0]) == 41
 
 
 def test_tool_calls_are_kept_in_history_for_later_turns(make_client, wait_run, project_dir):

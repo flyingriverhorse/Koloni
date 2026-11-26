@@ -54,7 +54,7 @@ interface Props {
 const AUTO_COSTS =
   'One more request for each message you send: a fast model of your team guide is sent your message and asked how hard it is.'
 /** In sight too: the one thing "A role with its own model keeps it", above it, does not hold for. */
-const AUTO_OVERRIDES = 'It overrides the Orchestrator role’s own model and tier. A trigger’s message does not use it.'
+const AUTO_OVERRIDES = 'It overrides the Orchestrator role’s own model and tier.'
 const AUTO_REST =
   'The Orchestrator then runs on your first fast, balanced or strongest model, and shows the answer as that model’s guess. With no answer to go by, or no model of that tier, the Orchestrator runs where it otherwise would: its role’s model, else its tier, else the model above.'
 

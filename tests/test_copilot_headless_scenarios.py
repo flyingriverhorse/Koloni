@@ -16,7 +16,7 @@ from app.workspace import SECRET_CARD
 from tests.test_agent_writes import wait_status
 from tests.test_agents_teams_scenarios import patch_role, spawn
 from tests.test_chat_flow import text
-from tests.test_claude_native import NOBODY, nothing_was_asked, unattended
+from tests.test_claude_native import nothing_was_asked
 from tests.test_codex_app_server_scenarios import ADD_B, card_for, heredoc, proposed, watched
 from tests.test_copilot_agent import copilot_native, start  # noqa: F401  (a fixture)
 from tests.test_secret_read import next_pending
@@ -270,34 +270,6 @@ def test_a_rejected_tool_it_never_says_is_done_does_not_hold_off_the_silence_lim
 
 
 # --- 5. A turn nobody is watching ----------------------------------------------------------
-
-
-def test_unattended_copilot_is_refused_what_its_trigger_does_not_allow_and_nobody_is_asked(
-    copilot_native,
-    wait_run,
-    project_dir,  # noqa: F811
-):
-    client, provider = copilot_native(
-        [
-            {"shell": "pytest -q", "output": "ok"},
-            {"shell": "pytest -q && echo x", "touches": {"ran.txt": "x"}},
-            {"write": "hello.py", "content": "changed\n"},
-            {"say": "done"},
-        ]
-    )
-    snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
-    )
-    assert run["status"] == "completed", run
-    assert answers(copilot_native) == [("shell", APPROVE), ("shell", REJECT), ("write", REJECT)]
-    assert hello(project_dir) == "print('hi')\n" and not (project_dir / "ran.txt").exists()
-    assert [(t["name"], t["status"]) for t in snap["tool_calls"]] == [
-        ("run_command", "succeeded"),
-        ("run_command", "denied"),
-        ("edit_file", "denied"),
-    ]
-    assert all(NOBODY in t["result"] for t in snap["tool_calls"][1:])
-    nothing_was_asked(snap, statuses)
 
 
 # --- 6. What it did is on record as before; whose account it is, nowhere ---------------------
@@ -791,21 +763,6 @@ def test_a_command_naming_only_ordinary_paths_runs_unasked_at_full_auto(
     nothing_was_asked(snap, statuses)
 
 
-def test_unattended_a_command_naming_a_secret_is_refused_though_its_trigger_allows_it(
-    copilot_native,
-    wait_run,
-    project_dir,  # noqa: F811
-):
-    (project_dir / ".env").write_text("TOKEN=x\n", encoding="utf-8")
-    client, provider = copilot_native([{"shell": "pytest -q", "paths": [".env"]}, {"say": "done"}])
-    snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
-    )
-    assert answers(copilot_native) == [("shell", REJECT)]
-    assert NOBODY in snap["tool_calls"][0]["result"]
-    nothing_was_asked(snap, statuses)
-
-
 # --- 12. Asking to go outside its sandbox is a card at every level (K-sandbox-disari) -----------
 
 
@@ -832,26 +789,6 @@ def test_at_full_auto_a_command_or_a_read_asking_to_leave_its_sandbox_is_a_card(
     assert answers(copilot_native) == [("shell", REJECT), ("read", REJECT)]
     call = json.loads(snap["tool_calls"][0]["arguments"])
     assert call["reason"] == "the sandbox blocked it"
-
-
-def test_unattended_asking_to_leave_its_sandbox_is_refused_though_its_trigger_allows_it(
-    copilot_native,
-    wait_run,
-    project_dir,  # noqa: F811
-):
-    client, provider = copilot_native(
-        [
-            {"shell": "pytest -q", "bypass": "the sandbox blocked it"},
-            {"read": "hello.py", "bypass": "outside the readable paths"},
-            {"say": "done"},
-        ]
-    )
-    snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
-    )
-    assert answers(copilot_native) == [("shell", REJECT), ("read", REJECT)]
-    assert all(NOBODY in call["result"] for call in snap["tool_calls"])
-    nothing_was_asked(snap, statuses)
 
 
 def test_a_command_with_no_exit_code_is_no_success_and_a_python_its_sandbox_kept_is_blocked(

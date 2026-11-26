@@ -39,8 +39,6 @@ const AGY_TOOLS =
 // Since slice 19b: where a native sub-agent works.
 const NATIVE_COPY =
   'A sub-agent works in a copy of the project of its own, and what it changed is taken into the project when it is done; the Orchestrator works in the project folder itself.'
-const NOT_BY_TRIGGER =
-  'It is not started by a trigger: with nobody watching, only an agent that works with KOLONİ’s tools runs.'
 const modeLabel = (kind: ProviderKind, mode: Mode) =>
   mode !== 'native' || !NATIVE_ASKS[kind] ? MODE_LABEL[mode] : `${MODE_LABEL.native}; ${NATIVE_ASKS[kind]}`
 
@@ -372,7 +370,7 @@ function ToolsHint({ kind, runs }: Pick<CliProps, 'kind' | 'runs'>) {
         'Each model step is a separate run of the CLI, so it is slower and the answer arrives all at once.'}
       {kind === 'codex_cli' &&
         runs === 'session' &&
-        " Codex's own patch tool cannot be switched off, so KOLONİ refuses every patch it asks to make and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. Tried on short work so far."}
+        " Codex's own patch tool cannot be switched off, so KOLONİ refuses every patch it asks to make and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: To-do, While you're away, recipe steps and comparisons. Tried on short work so far."}
     </Hint>
   )
 }
@@ -393,8 +391,7 @@ function CliNotes(props: CliProps) {
           settings. Skills, commands, your personal plugins, hooks and MCP servers come in only with “Use my own Claude
           Code setup” on. It asks KOLONİ before every tool of its own, its reads too. A change shows as a diff to
           approve and a command as a command to approve, as the permission level says. A secret file is asked about at
-          every level; an ordinary read in the project is not. A read-only role stays read-only. {NATIVE_COPY}{' '}
-          {NOT_BY_TRIGGER}
+          every level; an ordinary read in the project is not. A read-only role stays read-only. {NATIVE_COPY}
         </p>
       )}
       <AgyNotes agy={agy} runs={runs} />
@@ -405,7 +402,7 @@ function CliNotes(props: CliProps) {
           KOLONİ&apos;s own rules: a new file shows as a diff to approve, an edit of an existing file as a sentence with
           its diff, and a command as a command to approve. It reads files by running commands, so its role has to be
           allowed to write and run them. What its own Codex rules let it do unasked is marked so on the record. It can
-          open sub-agents and ask you questions through KOLONİ. {NOT_BY_TRIGGER}
+          open sub-agents and ask you questions through KOLONİ.
         </p>
       )}
       {runs === 'native' && kind === 'copilot_cli' && (
@@ -419,7 +416,7 @@ function CliNotes(props: CliProps) {
           the project’s secret files (Settings › This project › Commands and secrets); where it cannot, the run says so.
           It can open sub-agents and ask you questions through KOLONİ. Copilot (native) runs its sub-agents one at a
           time here; session mode runs them at once. Copilot’s own sandbox cannot start Python here (measured): tests
-          run only through a sub-agent or in session mode. {NOT_BY_TRIGGER}
+          run only through a sub-agent or in session mode.
         </p>
       )}
     </>
@@ -436,7 +433,7 @@ function AgyNotes({ agy, runs }: Pick<CliProps, 'agy' | 'runs'>) {
           more, so agy itself refuses to write a file or run a command; KOLONİ records such a step as refused, and its
           reads as its own tools. With nothing to ask, it runs at every permission level and for every role; a role’s
           write and command tools do not apply here. KOLONİ does not enforce this itself: permission rules in your own
-          agy settings can allow more. {NOT_BY_TRIGGER} {AGY_TOOLS}
+          agy settings can allow more. {AGY_TOOLS}
         </p>
       )}
       {agy && runs === 'native' && (
@@ -447,7 +444,7 @@ function AgyNotes({ agy, runs }: Pick<CliProps, 'agy' | 'runs'>) {
           permission level, by KOLONİ&apos;s own rules. A read-only role stays read-only. If agy does not load that
           hook, or uses a tool without it, the run is stopped. As a sub-agent it works in its own copy of the project,
           without the project&apos;s dependency folders (node_modules, .venv), so what needs them does not run there;
-          what it changed is taken into the project when it is done. {AGY_TOOLS} {NOT_BY_TRIGGER}
+          what it changed is taken into the project when it is done. {AGY_TOOLS}
         </p>
       )}
     </>

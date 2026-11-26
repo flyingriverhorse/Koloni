@@ -78,7 +78,7 @@ Under **Roles that may use it**, tick the roles whose agents get its tools. Ever
 sent to the model at every step, so a server with many tools makes each step bigger: the page says by
 about how much.
 
-Servers are not offered to CLIs that work with their own tools, to a trigger's turn, or to projects
+Servers are not offered to CLIs that work with their own tools, or to projects
 whose commands run in Docker.
 
 ## Switching off and deleting

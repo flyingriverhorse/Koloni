@@ -58,9 +58,6 @@ export const EVENT_TYPES = [
   // A task of the project's backlog was added, changed, decided on, started or ended its turn:
   // the backlog is read again (slice 52).
   'backlog.changed',
-  // A trigger of the project was made, changed, paused, came due or saw its turn end:
-  // the triggers are read again.
-  'triggers.changed',
   // Who holds which file of the project now. From an agent of this conversation it comes
   // with an id, from one of another without: it says everything each time, so it is taken
   // as it arrives either way.
@@ -92,7 +89,6 @@ const TRANSIENT: ReadonlySet<string> = new Set([
   'command.output',
   'command.sync',
   'agent.live',
-  'triggers.changed',
   'backlog.changed',
   'claims.changed',
   'notes.offered',

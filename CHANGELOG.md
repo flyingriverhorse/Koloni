@@ -11,7 +11,7 @@ How to write an entry (every release looks the same):
   ### Added · ### Changed · ### Fixed · ### Security · ### Removed · ### Deprecated
 - One line per entry: `- **Area**: what the user can now do or will notice, in plain words.`
   Area is the page or part the user knows: Canvas, Chat, Ready, To-do, Agents, Models, Tools, Memory,
-  Knowledge, Triggers, Usage, Settings, CLIs, Workspace, Install, Docs.
+  Knowledge, Usage, Settings, CLIs, Workspace, Install, Docs.
 - Say what changed for the user, not how it was built. No commit hashes, no internal names
   (K-…, B-…, train-…). A breaking change starts with **Breaking:**.
 - A migration that changes saved data says so in the entry ("existing settings keep their value").
@@ -26,6 +26,7 @@ How to write an entry (every release looks the same):
 - **Workspace**: the Word, Excel and PowerPoint previews and the 3D model preview (STL, OBJ, glTF, GLB, 3MF) are gone. Such a file opens in the Workspace as any other file that is not a page or a picture: its text where it is text of 256 KB at most (an OBJ, a text STL, a glTF), else a line that says why not ("Not text: there is no code to show.", "Too large to show: over 256 KB."), and one only in an agent's working copy so far is read once its work is taken in ("It could not be read." till then); open it in its own program. A Word, Excel or PowerPoint file an agent made is still listed among its outputs and still checked; a 3D model is no longer an output, and an agent can no longer `show` one ([docs](docs/reference/upgrade-notes.md#0110)).
 - For contributors: `docx-preview`, `pptx-preview`, SheetJS (`xlsx`) and three.js are no longer dependencies, and `npm run build` no longer builds the document viewer (`dist/office/`, about 1.8 MB).
 - **Agents**: **Breaking:** the **Observer** is gone: the built-in role whose model, once a sub-agent handed in its report, said in a few sentences which of the report's claims the record shows, and its switch **Have a model look over each sub-agent's report** in Settings › This project › Agents. **Checked** and **No file changed** already say what a sub-agent's record shows, from KOLONİ's own records, with no model request. When the database is upgraded the built-in Observer role and the observations kept on agents are deleted (an agent's window no longer shows one); a role of your own named "Observer" stays as it is ([docs](docs/reference/upgrade-notes.md#0110)).
+- **Triggers**: **Breaking:** triggers are gone: the Triggers page, the turns that started by themselves by the clock, when files changed or on a request from outside (webhooks), **Pause all** in the top bar, and the agents' **Propose triggers** with its **Make this trigger?** card. KOLONİ is about agents working together, and triggers were scheduled automation nobody used. When the database is upgraded your triggers and their records are deleted; the turns they started stay in their chats. ☾ Away, To-do in a chat and the day's summary work as before ([docs](docs/reference/upgrade-notes.md#0110)).
 
 ## [0.1.9] - 2026-11-26
 
@@ -76,7 +77,7 @@ How to write an entry (every release looks the same):
 
 ### Removed
 
-- **CLIs**: an agent run **Native** on a CLI (Claude Code, Codex, Copilot, agy) - the Orchestrator or a sub-agent - no longer proposes triggers: for an Orchestrator there, its **Make this trigger?** card's **Approve** was always refused in that chat, since a trigger's turn never starts a CLI that works with its own tools. **Notify you** stays. A card left from 0.1.8 is still refused at Approve, saying why ([docs](docs/automation/triggers.md#triggers-proposed-by-agents)).
+- **CLIs**: an agent run **Native** on a CLI (Claude Code, Codex, Copilot, agy) - the Orchestrator or a sub-agent - no longer proposes triggers: for an Orchestrator there, its **Make this trigger?** card's **Approve** was always refused in that chat, since a trigger's turn never starts a CLI that works with its own tools. **Notify you** stays. A card left from 0.1.8 is still refused at Approve, saying why ([docs](https://github.com/flyingriverhorse/Koloni/blob/v0.1.7/docs/automation/triggers.md#triggers-proposed-by-agents)).
 
 ## [0.1.8] - 2026-11-25
 
@@ -470,8 +471,8 @@ How to write an entry (every release looks the same):
 - **To-do**: a project's tasks in your order, each run in a chat of its own, by hand or one after another with **Run the backlog**; you decide when a task is done ([docs](docs/automation/todo.md)).
 - **To-do**: **Write it with the Product owner** turns a rough note into draft tasks, saved only when you add them.
 - **To-do**: after a turn that did something, the Assistant PO suggests at most three follow-up tasks to **Add**, **Edit** or **Reject**; a task added for you never runs without your OK ([docs](docs/automation/todo.md#follow-up-tasks)).
-- **Triggers**: start work by the clock, when files change, or from a webhook, each with its own permissions and budget ([docs](docs/automation/triggers.md)).
-- **Triggers**: a trigger is not saved on a chat whose Orchestrator would run on a CLI working with its own tools, and the form says why ([docs](docs/automation/triggers.md#what-a-triggers-run-never-does)).
+- **Triggers**: start work by the clock, when files change, or from a webhook, each with its own permissions and budget ([docs](https://github.com/flyingriverhorse/Koloni/blob/v0.1.7/docs/automation/triggers.md)).
+- **Triggers**: a trigger is not saved on a chat whose Orchestrator would run on a CLI working with its own tools, and the form says why ([docs](https://github.com/flyingriverhorse/Koloni/blob/v0.1.7/docs/automation/triggers.md#what-a-triggers-run-never-does)).
 - **Memory**: facts that rest on lines of files and are checked again each time, proposals you approve, your preferences, and search by meaning ([docs](docs/memory.md)).
 - **Knowledge**: experts that learn a source, such as docs or the project's code, and that agents ask; learning again reads only what changed ([docs](docs/knowledge.md)).
 - **Knowledge**: a role is Full in one knowledge of a project; choosing another turns the first to Map, and an expert asked about a topic it does not use looks in all its knowledge instead ([docs](docs/knowledge.md#giving-knowledge-to-a-role)).
@@ -510,7 +511,7 @@ How to write an entry (every release looks the same):
 - **Settings**: secret files open only on your **Allow once** and searches skip them (at Full auto a command that doesn't name the file can still read it); keys in command output show as `***`; variables with secret names are kept from commands and CLIs unless you name them ([docs](docs/security/model.md#secrets)).
 - **Settings**: a planted test key stops a command, web request, browser or MCP call that would send it out.
 - **Chat**: an agent asks for a key on a **Give a secret to its commands?** card; the value never reaches the model or the record, and never leaves on a branch ([docs](docs/security/model.md#a-secret-you-give-on-a-card)).
-- **Triggers**: turns nobody watches may do only what the trigger allows, and never start a CLI that works with its own tools ([docs](docs/use/permissions.md#turns-nobody-watches)).
+- **Triggers**: turns nobody watches may do only what the trigger allows, and never start a CLI that works with its own tools ([docs](https://github.com/flyingriverhorse/Koloni/blob/v0.1.7/docs/use/permissions.md#turns-nobody-watches)).
 - **Tools**: commands can run in a fresh Docker container, with the network off unless you allow it ([docs](docs/security/model.md#other-walls)).
 - **Tools**: MCP servers get only their own variables and what programs need to run, none of KOLONİ's or a CLI's sign-in; one you have not trusted asks before every call ([docs](docs/tools/mcp.md)).
 - **Tools**: web searches and requests reach only public addresses; the agents' browser opens only previews and the sites you allow.

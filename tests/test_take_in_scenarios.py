@@ -23,7 +23,6 @@ from tests.test_claim_scenarios import write  # noqa: E402
 from tests.test_copy_scenarios import seen  # noqa: E402
 from tests.test_parallel import until  # noqa: E402
 from tests.test_spawn import call, step  # noqa: E402
-from tests.test_trigger_scenarios import allow, run_now, trigger  # noqa: E402
 
 ORIGIN = "http://127.0.0.1:8790"
 LINES = "one\ntwo\nthree\nfour\nfive\nsix\nseven\n"
@@ -452,45 +451,6 @@ def guessed(monkeypatch, project_dir):
     monkeypatch.setattr(proof.finish_tests, "command_of", lambda _root, _check: RUNS)
 
 
-@pytest.mark.parametrize("yours, taken", [(True, False), (False, True)])
-def test_in_a_turn_nobody_watches_a_failed_check_takes_nothing_and_keeps_the_copy(
-    make_client, wait_run, project_dir, monkeypatch, yours, taken
-):
-    """0.1.7 round 2: in a turn nobody watches the user's own test command - theirs on the map,
-    which such a turn runs unticked (K-buyuk-proje) - runs on the Coder's tests; KOLONİ's guess
-    never runs there (B1): the work is taken as before, said unchecked."""
-    (project_dir / "lines.txt").write_bytes(LINES.encode())
-    (project_dir / "check.py").write_bytes(CHECK.encode())
-    client, _model = make_client(
-        {
-            "Lead": [
-                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                text("done"),
-            ],
-            "Coder": [step(write("a.txt", "A")), own_test("NEVER-THERE"), text("A done")],
-        }
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    if not yours:
-        guessed(monkeypatch, project_dir)
-    project = root_runs() if yours else {"after_change": "nothing"}
-    assert client.patch(f"/api/projects/{pid}", json=project).status_code == 200
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": [], "agents": 1})
-    run_id = run_now(client, made["id"])
-    snap = wait_run(client, cid, run_id, timeout=LONG)
-    (merge,) = snap["merges"]
-    assert (project_dir / "a.txt").exists() is taken
-    if yours:  # it ran, failed, and nothing is taken
-        assert merge["check"]["state"] == "failed"
-        assert merge["status"] == "kept" and merge["kept_in"]  # there for the user
-    else:  # it may not run here: taken as before, and said to be unchecked
-        assert merge["check"]["state"] == "not_run" and merge["status"] == "applied"
-        assert "not run in a turn nobody watches" in merge["check"]["note"], merge["check"]
-    assert merge["commit"] is None  # and nothing is ever committed here
-
-
 # --- K-evrim review: a check the gates ask about (it deletes) -----------------------------------
 
 # pytest empties its --basetemp folder first: what `harms` sees (0.1.7: a check is a pytest line
@@ -558,43 +518,6 @@ def test_at_full_auto_a_check_declined_on_its_card_sends_no_work_back(
     assert [c["status"] for c in snap["commands"]] == ["rejected"]
     spawned = next(t for t in snap["tool_calls"] if t["name"] == "spawn_agent")
     assert "did not pass" not in spawned["result"] and (project_dir / "a.txt").exists()
-
-
-def test_a_triggers_leave_for_the_very_check_still_runs_it_nobody_watching(
-    make_client, wait_run, project_dir
-):
-    (project_dir / "lines.txt").write_bytes(LINES.encode())
-    (project_dir / "check.py").write_bytes(CHECK.encode())
-    client, _model = make_client(
-        {
-            "Lead": [
-                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                text("done"),
-            ],
-            "Coder": [step(write("a.txt", "A")), own_test("one"), text("A done")],
-        }
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    # (Nobody watching, harm is the trigger's to judge, `_night_asks`; one naming a place outside
-    # its copy - the project folder, `..` - is asked at every level, `copy_reason` - a rule is one
-    # plain command. 0.1.7: `..`, as a rule of the narrowed line naming the project's full path
-    # went past 200 characters.)
-    runs = f"{RUNS} --confcutdir=.."
-    named = f"{runs} {OWN}"
-    assert client.patch(f"/api/projects/{pid}", json=root_runs(runs)).status_code == 200
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(
-        client,
-        pid,
-        cid,
-        permissions={"write": True, "commands": [allow(client, cid, named)], "agents": 1},
-    )
-    run_id = run_now(client, made["id"])
-    snap = wait_run(client, cid, run_id, timeout=LONG)
-    (merge,) = snap["merges"]
-    assert merge["check"]["state"] == "passed" and merge["status"] == "applied"
-    assert [c["status"] for c in snap["commands"]] == ["exited"]
 
 
 # --- the commit: the user's own click, of the files that were taken ---------------------------

@@ -82,10 +82,10 @@ const page = (over: object = {}) => {
   return props
 }
 
-test('the rail has Knowledge between Memory and Triggers', () => {
+test('the rail has Knowledge between Memory and Usage', () => {
   render(<Rail view="knowledge" onView={vi.fn()} theme="dark" onToggleTheme={vi.fn()} waiting={0} />)
   const names = screen.getAllByRole('button').map(one => one.getAttribute('aria-label'))
-  expect(names.slice(names.indexOf('Memory'), names.indexOf('Memory') + 3)).toEqual(['Memory', 'Knowledge', 'Triggers'])
+  expect(names.slice(names.indexOf('Memory'), names.indexOf('Memory') + 3)).toEqual(['Memory', 'Knowledge', 'Usage'])
   expect(screen.getByRole('button', { name: 'Knowledge' })).toHaveAttribute('aria-pressed', 'true')
 })
 

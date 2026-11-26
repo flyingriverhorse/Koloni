@@ -14,7 +14,7 @@ the code it was drawn from and the day it was checked against it.
 | `topics.drawio` | [Memory › Topics](../memory.md#topics) |
 | `models.drawio` | [Providers](../models/providers.md) |
 | `teams.drawio` | [Recipes and candidates](../agents/recipes.md) |
-| `night.drawio` | [Triggers](../automation/triggers.md), [Work while you're away](../automation/overnight.md) |
+| `night.drawio` | [Work while you're away](../automation/overnight.md) |
 | `security.drawio` | [Security model](../security/model.md) |
 | `message-flow.drawio` | [Architecture](../developer/architecture.md) |
 | `data-model.drawio` | [Architecture](../developer/architecture.md) |

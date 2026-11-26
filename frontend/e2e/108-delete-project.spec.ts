@@ -48,9 +48,7 @@ test('Delete project: counted, exported first if wished, deleted once its name i
   await expect(strip).toContainText('Its folder on disk is not touched')
   await strip.getByRole('button', { name: 'Delete project…' }).click()
   const dialog = page.getByRole('alertdialog', { name: `Delete ${name} from KOLONİ?` })
-  await expect(dialog).toContainText(
-    'This deletes 1 chat, 0 memory records, 0 To-do tasks, 0 triggers, 0 knowledge topics',
-  )
+  await expect(dialog).toContainText('This deletes 1 chat, 0 memory records, 0 To-do tasks, 0 knowledge topics')
   await expect(dialog).toContainText('It cannot be undone.')
   await expect(dialog.getByRole('button', { name: 'Export first' })).toBeVisible()
   await shot(page, '108-delete-project')

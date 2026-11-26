@@ -17,7 +17,7 @@ from tests.test_away_scenarios import ORIGIN, ended, evening, go_away, night
 from tests.test_backlog_auto import until
 from tests.test_chat_flow import text
 from tests.test_spawn import call, spawn, step
-from tests.test_triggers import HeldClock
+from tests.turn_helpers import HeldClock
 
 DB = ["Postgres", "SQLite"]
 ONE = {"jobs": [{"title": "one"}], "kept_out": []}

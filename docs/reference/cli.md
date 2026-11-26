@@ -27,7 +27,6 @@ know, runs the old way, and the provider's card on the Models page says why. See
 
 - You install it and sign in yourself, in your own terminal.
 - Its use counts against your plan with that vendor; KOLONİ shows no money for it.
-- Triggers do not start a CLI that works with its own tools.
 - When a CLI runs **Native**, its model reads its commands' raw output; KOLONİ masks keys only in what it
   records and shows.
 

@@ -98,7 +98,7 @@ ones, so they do not pick these up unless set to read Markdown. Files under hidd
 most 4 MB a file and 64 MB in all. Agents read the code there with `read_file`, at the file and
 line lookup names; what they read there is marked as data, not instructions.
 
-What the knowledge keeps is kept out of git, **Take in**, search, the list of changes and triggers.
+What the knowledge keeps is kept out of git, **Take in**, search and the list of changes.
 A working copy links to it rather than copying it, so an agent there reads it too.
 
 Each **Learn** clones the repository again and reads its docs, the code files already in the guide,

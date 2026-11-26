@@ -80,7 +80,7 @@ of the fast tier, or of the tier you chose. It skips a provider that is down, at
 plan, or whose pay-per-token use you refused in that turn. With no such model nothing is suggested.
 The model is sent what was said in the turn, the files it changed, the steps that failed and the open
 tasks' titles. The secrets KOLONİ knows, and the variables the project passes to its commands, are
-masked. Jobs while you're away, triggers and To-do tasks' turns get suggestions too; rooms and discussions get
+masked. Jobs while you're away and To-do tasks' turns get suggestions too; rooms and discussions get
 none. Nothing is asked while the project is over its monthly budget.
 
 After a turn of a story - one of its tasks' turns, or yours in its topic - a suggestion goes into that story,
@@ -103,8 +103,8 @@ under **Waiting for you** on the To-do page. One it rejected stays on the To-do 
 **Rejected by the Orchestrator**, with **Add**. It is not
 asked when the provider has no room left on its plan. Nor is
 it asked when the Orchestrator runs on a CLI and the project does not let it answer while you're away.
-It never adds a suggestion whose words look like orders. Suggestions from jobs while you're away and from
-triggers always wait for you.
+It never adds a suggestion whose words look like orders. Suggestions from jobs while you're away always
+wait for you.
 
 Turn it off, or choose the tier, in [Settings › This project › Agents](../settings.md#agents).
 

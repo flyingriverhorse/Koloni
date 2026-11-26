@@ -16,7 +16,6 @@ from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import text
 from tests.test_skill_scenarios import ORIGIN, SKILL_MD, add, give
 from tests.test_spawn import begin, call, role_id, step
-from tests.test_trigger_scenarios import allow, run_now, trigger
 
 
 def folder_of(tmp_path, files: dict[str, str | bytes]) -> Path:
@@ -287,44 +286,6 @@ def test_python_scripts_run_without_writing_bytecode_into_the_store(tmp_path):
     assert skills.script_line(str(tmp_path), "check.py").startswith("python -B ")
 
 
-def test_a_trigger_s_turn_runs_a_listed_unchanged_script_and_nothing_else_unasked(
-    make_client, wait_run, project_dir, tmp_path
-):
-    executor = ScriptedExecutor([Script(["ok\n"])])
-    where = {}
-
-    async def changed_meanwhile(on_delta):  # the skill changes after its first script ran
-        Path(where["folder"], "two.py").write_text("changed", encoding="utf-8")
-        return step(call("run_skill_script", {"skill": "tidy", "script": "two.py"}, "changed"))
-
-    client, _model = make_client(
-        {
-            "Lead": [
-                step(call("run_skill_script", {"skill": "tidy", "script": "check.py"}, "ok")),
-                step(call("run_skill_script", {"skill": "tidy", "script": "other.py"}, "unlisted")),
-                changed_meanwhile,
-                text("done"),
-            ]
-        },
-        executor=executor,
-    )
-    client.headers["Origin"] = "http://127.0.0.1:8790"
-    skill = add(
-        client, folder_of(tmp_path / "tidy", {"SKILL.md": SKILL_MD, "check.py": "1", "two.py": "2"})
-    )
-    where["folder"] = skill["folder"]
-    give(client, "Lead", "tidy")
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    rule = allow(client, cid, "python hello.py")
-    made = trigger(client, pid, cid, permissions={"write": False, "commands": [rule], "agents": 0})
-    run_id = run_now(client, made["id"])
-    snap = wait_run(client, cid, run_id, timeout=20)
-    said = {t["provider_call_id"]: t["status"] for t in snap["tool_calls"]}
-    assert said == {"ok": "succeeded", "unlisted": "failed", "changed": "denied"}
-    assert len(executor.started) == 1
-
-
 def test_a_script_does_not_run_in_a_project_that_runs_in_docker(
     make_client, wait_run, project_dir, tmp_path
 ):
@@ -401,21 +362,6 @@ def test_yes_without_leave_for_its_scripts_adds_it_asking_for_them(
     wait_run(client, cid, run_id)
     (kept,) = client.get("/api/skills").json()
     assert kept["scripts_run_unasked"] is False
-
-
-def test_nobody_watching_no_skill_is_proposed(make_client, wait_run, project_dir, tmp_path):
-    folder = folder_of(tmp_path / "tidy", {"SKILL.md": SKILL_MD})
-    client, _model = make_client(
-        {"Lead": [step(call("add_skill", {"folder": str(folder)}, "k")), text("no")]}
-    )
-    client.headers["Origin"] = "http://127.0.0.1:8790"
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(client, pid, cid, permissions={"write": False, "commands": [], "agents": 0})
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=20)
-    (tried,) = [t for t in snap["tool_calls"] if t["name"] == "add_skill"]
-    assert tried["status"] == "denied"
-    assert client.get("/api/skills").json() == []
 
 
 # --- what an agent is told and reads --------------------------------------------------------

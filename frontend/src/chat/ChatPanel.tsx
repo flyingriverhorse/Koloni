@@ -506,7 +506,6 @@ function ChatPane({ conv, tab }: { conv: ConvState | null; tab: ChatTab }) {
       onDecidePlan={app.decidePlan}
       onOpenDiscussion={id => useApp.getState().openDiscussion(id)}
       onOpenRoom={app.showRoom}
-      onAllowInTrigger={app.allowInTrigger}
       roles={roles}
       providers={providers}
       onUsage={turnUsage}

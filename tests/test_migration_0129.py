@@ -6,9 +6,9 @@ import sqlite3
 
 from alembic import command
 
-from app.roles import BUILTIN_ROLES
 from tests.test_migration_0002 import _config
 from tests.test_migration_0109 import _role
+from tests.test_migration_0189 import before_0189
 
 # An upgraded install's Lead before 0122: 0097 put propose_trigger last, 0125 gave view_image.
 LEAD = [
@@ -81,7 +81,7 @@ def test_an_upgraded_lead_and_debugger_get_what_they_missed_in_their_own_order(t
     held = _upgraded(tmp_path, [("Lead", LEAD), ("Debugger", DEBUGGER)])
     for name in ("Lead", "Debugger"):
         # (its list is written after 0128, so diagram_image, which 0128 would have given it, is not there)
-        assert set(held[name]) == set(BUILTIN_ROLES[name].tools) - {"diagram_image"}, name
+        assert set(held[name]) == set(before_0189(name)) - {"diagram_image"}, name
     assert held["Lead"][-1] == "propose_trigger"
     assert held["Lead"][held["Lead"].index("http_request") + 1] == "browser_open"
 

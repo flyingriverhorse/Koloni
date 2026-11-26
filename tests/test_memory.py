@@ -178,8 +178,8 @@ def without_memory(tools):
     """Tool schemas (or their names) as they were before `remember` and `recall` - and
     before the web tools, which came later still (slice 18c), show (slice 39),
     open_room (slice 29b-2), add_skill (slice 45), the backlog's tools (slice 52),
-    ask_folder (slice 75), ask_secret (slice 91), offer_away (slice 106), propose_trigger
-    (slice 69), recall_output (K-gecmis-zengin) and command_output / stop_command (0.1.8)."""
+    ask_folder (slice 75), ask_secret (slice 91), offer_away (slice 106), recall_output
+    (K-gecmis-zengin) and command_output / stop_command (0.1.8)."""
     later = (
         *NEW_TOOLS,
         "web_search",
@@ -195,7 +195,6 @@ def without_memory(tools):
         "ask_folder",
         "ask_secret",
         "offer_away",
-        "propose_trigger",
         "recall_output",
         *SERVING_TOOLS,
         *("run_checks", "read_status"),  # (0.1.9)

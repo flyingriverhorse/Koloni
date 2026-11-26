@@ -118,7 +118,7 @@ Click a role to open its panel. It has four tabs:
 
   **Run inside the CLI**: only when the agent that opens it runs in Claude Code. Cheaper, and counts toward
   no turn or role limit; it is not its own agent on the canvas, stops with the agent that opened it, and
-  is never used while you're away or for a trigger. Not for the Orchestrator or a team's lead.
+  is never used while you're away. Not for the Orchestrator or a team's lead.
 - **It may**: **Read and search**, **Write code**, **Run commands**, **Use the web**, or
   **Pick tools one by one**.
 - **This role will** sums up what the role will do, as you change the form.

@@ -70,7 +70,7 @@ already longer (`scaled` in `tests/conftest.py`): a ceiling for something that d
 passing test waits no longer, and a real failure still fails as itself before the part's limit.
 
 **Known failures on Linux.** The last run of the old `ci.yml` on Ubuntu (3.12) had 15 failed tests
-of 8,140, for example `tests/test_triggers.py::test_the_servers_access_log_never_holds_a_webhooks_key`
+of 8,140, for example a test of the server's access log that has since been removed
 (`httpx.ReadTimeout`). Until they are fixed, the backend job is red on every push.
 
 **Windows runs Python 3.12 only.** No job runs Windows on 3.13 or 3.14, where `os.path.isabs`

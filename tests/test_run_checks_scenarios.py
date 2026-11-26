@@ -26,7 +26,7 @@ from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import write
 from tests.test_chat_flow import text
 from tests.test_claude_native import WRITE, claude_app  # noqa: F401  (a fixture)
-from tests.test_cli_notify_trigger import start as start_cli
+from tests.test_cli_notify import start as start_cli
 from tests.test_compare_scenarios import compared, ready, two  # noqa: F401  (a fixture)
 from tests.test_dal_takim import repo  # noqa: F401  (a fixture)
 from tests.test_git_view import run as git

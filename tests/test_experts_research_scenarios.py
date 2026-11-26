@@ -39,8 +39,6 @@ from tests.test_experts_scenarios import (
 from tests.test_experts_work_scenarios import offered_to
 from tests.test_knowledge_page import expert
 from tests.test_spawn import begin, call, spawn, step
-from tests.test_trigger_scenarios import NOBODY, run_now, trigger
-from tests.test_web_tool_scenarios import setup
 
 A, B = "https://a.test", "https://b.test"
 RESEARCH = "research: pay webhooks"
@@ -262,47 +260,6 @@ def test_a_project_with_no_network_researches_nothing(make_client, project_dir, 
     clicked = client.post(f"/api/roles/{role['id']}/learn", json={"project_id": pid}, headers=OWN)
     assert clicked.status_code == 409 and "network access is off" in clicked.text
     assert searched == []
-
-
-def test_unwatched_it_researches_only_where_the_trigger_lets_it_search_and_names_the_site(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    site = Site(monkeypatch, PAGES)
-    searched = fake_search(monkeypatch, f"{B}/forum/t/2", f"{A}/docs/hooks")
-    client, _model, pid, cid = setup(
-        make_client,
-        project_dir,
-        {
-            "Lead": [
-                spawn("Pay expert", "learn", "e"),
-                text("done"),
-                spawn("Pay expert", "learn", "f"),
-                text("## Hooks\nRetried."),
-                text("done"),
-            ],
-            "Pay expert": [
-                step(call("learn", {}, "l1")),
-                text("could not"),
-                step(call("learn", {}, "l2")),
-                text("learned"),
-            ],
-        },
-    )
-    expert(client, project_dir, RESEARCHER)
-    leave = {"write": True, "commands": [], "agents": 1}
-    made = trigger(client, pid, cid, permissions=leave)
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=10)
-    refused = next(t for t in snap["tool_calls"] if t["provider_call_id"] == "l1")
-    assert refused["status"] == "failed" and NOBODY in refused["result"]
-    assert searched == []
-
-    again = trigger(client, pid, cid, permissions={**leave, "web": True, "hosts": ["a.test"]})
-    snap = wait_run(client, cid, run_now(client, again["id"]), timeout=10)
-    learned = next(t for t in snap["tool_calls"] if t["provider_call_id"] == "l2")
-    assert learned["status"] == "succeeded", learned["result"]
-    record = knowledge.learned(str(project_dir), known(RESEARCH))
-    assert skipped(record) == {f"{B}/forum/t/2": "the trigger does not name this site"}
-    assert f"{B}/forum/t/2" not in site.asked and read(record)[0] == f"{A}/docs/hooks"
 
 
 # --- learned again weekly -------------------------------------------------------------------

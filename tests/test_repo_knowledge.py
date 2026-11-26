@@ -4,7 +4,7 @@ before it is written out; its code is scanned with no model (lookup answers wher
 defined and who calls it) and kept in the knowledge's folder as text - each file `<path>.md`, line
 for line - and its guide written from its docs, then from its most central code files: at most
 `max_code_files` new ones a learning, each Learn going on after the last. Nothing runnable of it is
-in the project, and no working copy, look, git status, search, map or trigger goes into what is
+in the project, and no working copy, look, git status, search or map goes into what is
 kept; removing the knowledge deletes it.
 
 No test reaches the network: the clone is stood in for, or made by git from a local folder with
@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from app import copies, git, knowledge, knows, project_files, project_view, schemas, triggers
+from app import copies, git, knowledge, knows, project_files, project_view, schemas
 from app.agent import _kept_framed
 from app.workspace import Workspace, stray_in_koloni
 from tests.test_chat_teams_scenarios import OWN
@@ -503,7 +503,7 @@ def _with_kept_code(project_dir) -> Path:
     return files
 
 
-def test_no_copy_look_search_trigger_or_git_status_goes_into_its_kept_code(project_dir):
+def test_no_copy_look_search_or_git_status_goes_into_its_kept_code(project_dir):
     files = _with_kept_code(project_dir)
     at = KEPT.as_posix()
     copied, links, _size = copies._scan(project_dir)
@@ -512,7 +512,6 @@ def test_no_copy_look_search_trigger_or_git_status_goes_into_its_kept_code(proje
     view = project_view.ProjectView(project_dir)
     assert not [one for one in view.paths() if one.startswith(at)]
     assert not [one for one in project_view.standing(project_dir) if one.startswith(at)]
-    assert not [one for one in triggers.listing(project_dir, "**/*.md") if one.startswith(at)]
     assert not project_files.others_instructions(str(project_dir))["paths"]
     ws = Workspace(project_dir)
     found, *_rest = ws.search("needle")

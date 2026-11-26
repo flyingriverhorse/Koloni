@@ -72,12 +72,11 @@ test('a role can be given the two notebook tools', () => {
   const hints = Object.fromEntries(ROLE_TOOLS.map(tool => [tool.name, tool.hint]))
   expect(hints.post_note).toBe('leave notes on the shared notebook')
   expect(hints.read_notes).toBe('read the shared notebook')
-  // in the order the server keeps them: the backlog's tiles (63b) and the trigger's before the notebook, the two memory tools after (slice 17)
-  expect(ROLE_TOOLS.map(tool => tool.name).slice(-8)).toEqual([
+  // in the order the server keeps them: the backlog's tiles (63b) before the notebook, the two memory tools after (slice 17)
+  expect(ROLE_TOOLS.map(tool => tool.name).slice(-7)).toEqual([
     'read_backlog',
     'add_task',
     'change_task',
-    'propose_trigger',
     'post_note',
     'read_notes',
     'remember',

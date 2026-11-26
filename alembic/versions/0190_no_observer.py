@@ -6,16 +6,15 @@ role of the user's own named "Observer" is theirs and stays. Going back, the col
 that is missing at its start (`seed_builtin_roles`).
 
 Revision ID: 0190
-Revises: 0187
+Revises: 0189
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "0190"
-# (Written on the k-observer-sil branch on 0187, 0.1.9's head; 0189 is k-tetik-sil's - the two
-# are chained one after the other at their merge.)
-down_revision = "0187"
+# (Written on 0187, 0.1.9's head; chained after k-tetik-sil's 0189 when both went into 0.1.10.)
+down_revision = "0189"
 branch_labels = None
 depends_on = None
 

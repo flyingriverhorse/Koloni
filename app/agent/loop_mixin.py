@@ -677,8 +677,6 @@ class LoopMixin:
                     away.turn_ended(session, run, "failed")
                     session.commit()
                 cid, payload = run.conversation_id, run_out(run)
-                ended, why = run.status, run.error
-            self._unattended_over(run_id, ended, why)
             self.bus.emit(cid, run_id, "run.finished", payload)
             self._close_agents(run_id, cid, "failed", error)
             return cid

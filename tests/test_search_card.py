@@ -17,8 +17,6 @@ from tests.test_chat_flow import start, start_in_mode, text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
 from tests.test_claude_native import start as start_claude
 from tests.test_command_safety_scenarios import waiting
-from tests.test_spawn import call, step
-from tests.test_trigger_scenarios import NOBODY, allow, finished, results, run_now, setup, trigger
 
 AGY = 'Get-ChildItem -Path . -Force -Recurse -File | Select-String -Pattern "FAKE"'
 
@@ -199,25 +197,6 @@ def test_a_native_clis_search_is_asked_in_full_auto_where_the_project_holds_a_se
     assert [v["behavior"] for v in claude_app.record()["asked"]] == ["deny"]
     noted = json.loads(snap["tool_calls"][0]["arguments"])
     assert "searches the whole folder" in noted["reason"] and ".env" in noted["reason"]
-
-
-def test_with_nobody_watching_a_search_is_refused_though_its_rule_is_ticked(
-    make_client, wait_run, project_dir
-):
-    (project_dir / ".env").write_text("KEY=FAKE\n", encoding="utf-8")
-    client, _, pid, cid = setup(
-        make_client,
-        project_dir,
-        {"Lead": [step(call("run_command", {"command": "rg KEY"}, "c")), text("done")]},
-    )
-    rule = allow(client, cid, "rg KEY")
-    made = trigger(client, pid, cid, permissions={"write": False, "commands": [rule], "agents": 0})
-    run_id = run_now(client, made["id"])
-    snap = finished(client, wait_run, cid, run_id)
-    ((name, status, said),) = results(snap, run_id)
-    assert (name, status) == ("run_command", "denied") and NOBODY in said
-    assert "searches the whole folder" in said
-    assert [c for c in snap["commands"] if c["run_id"] == run_id] == []
 
 
 def test_a_secret_installed_in_node_modules_or_venv_or_in_git_is_not_counted(tmp_path):

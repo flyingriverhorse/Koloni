@@ -61,7 +61,6 @@ nav = [
   { "Memory" = "memory.md" },
   { "Knowledge and experts" = "knowledge.md" },
   { "Automation" = [
-    { "Triggers" = "automation/triggers.md" },
     { "To-do" = "automation/todo.md" },
     { "Work while you're away" = "automation/overnight.md" },
     { "Answering for you" = "automation/answering-for-you.md" },

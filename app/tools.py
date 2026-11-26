@@ -314,37 +314,6 @@ CREATE_ROLE_SCHEMA = _fn(
     ["name", "tools"],
 )
 
-# Slice 69: a trigger the user approves on a card; its leave is never the agent's to give.
-PROPOSE_TRIGGER_SCHEMA = _fn(
-    "propose_trigger",
-    "Propose a trigger: work that starts by itself in this chat, by the clock or when files "
-    "of the project change, with a message you write for each run. The user sees it on a "
-    "card and approves, edits or rejects it; nothing starts before that. It always starts "
-    "reading only, with no sub-agents and the usual budget: anything more is the user's to "
-    "give. Give it an end; left out, it ends after 10 runs.",
-    {
-        "name": {"type": "string", "description": "A short name, at most 80 characters."},
-        "kind": {"type": "string", "enum": ["schedule", "files"]},
-        "config": {
-            "type": "object",
-            "description": 'schedule: {"every_minutes": N} (5 to '
-            '10080) or {"at": "HH:MM", "days": "daily" | "weekdays" | ["mon", ..., '
-            '"sun"]}; files: {"glob": "src/**/*.py"}, a pattern of paths in the project.',
-        },
-        "message": {
-            "type": "string",
-            "description": "What the agent is told at each run, as "
-            "if the user had written it; at most 4000 characters.",
-        },
-        "ends": {
-            "type": "object",
-            "description": 'Optional: {"runs": N} (1 to 1000) or '
-            '{"until": "YYYY-MM-DD"}, the last day it runs on.',
-        },
-    },
-    ["name", "kind", "config", "message"],
-)
-
 ADD_SKILL_SCHEMA = _fn(
     "add_skill",
     "Propose a skill for the user to add, and the roles to give it: a folder on this "
@@ -1294,7 +1263,6 @@ def tool_schemas_for(
     schemas += [
         schema
         for name, schema in (
-            ("propose_trigger", PROPOSE_TRIGGER_SCHEMA),
             ("post_note", POST_NOTE_SCHEMA),
             ("read_notes", READ_NOTES_SCHEMA),
             ("remember", REMEMBER_SCHEMA),

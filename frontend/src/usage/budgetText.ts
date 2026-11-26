@@ -12,5 +12,5 @@ export const UNENFORCED = 'This budget is not enforced: prices are in more than 
 export function budgetWarning(budget: Budget) {
   if (unenforced(budget)) return UNENFORCED
   const used = `This project has used ${budget.at_least ? 'at least ' : ''}${usedPercent(budget)}% of its monthly budget`
-  return budget.over ? `${used}: a new message asks before its work starts, and triggers start none` : used
+  return budget.over ? `${used}: a new message asks before its work starts` : used
 }

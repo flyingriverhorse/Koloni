@@ -200,19 +200,15 @@ def test_a_secret_is_hidden_as_it_is_and_as_json_writes_it_and_a_short_one_is_no
         raw.feed("stdout", json.dumps({"output": f"token: {odd}"}))
         raw.feed("stdout", json.dumps({"output": odd}, ensure_ascii=False))
         raw.feed("stdout", json.dumps({"o": odd}).replace("&", "\\u0026"))  # as Go writes it
-        raw.feed("stderr", "POST http://127.0.0.1:8790/api/hooks/AbC_123-xyz failed")
         raw.feed("stdout", "the session's key is abcdefgh12345678", ("abcdefgh12345678",))
-        # as a JSON writer that escapes the slashes puts them: a hook's address, and a secret
-        raw.feed("stdout", r'{"url": "http:\/\/127.0.0.1:8790\/api\/hooks\/AbC_123-xyz"}')
+        # as a JSON writer that escapes the slashes puts them: a secret
         raw.feed("stdout", r'{"notify": "https:\/\/hooks.example\/T0\/B1"}')
     assert texts(agent) == [
         "ANTHROPIC_API_KEY=*** and a short word",
         '{"output": "token: ***"}',
         '{"output": "***"}',
         '{"o": "***"}',
-        "POST http://127.0.0.1:8790/api/hooks/*** failed",
         "the session's key is ***",
-        r'{"url": "http:\/\/127.0.0.1:8790\/api\/hooks\/***"}',
         '{"notify": "***"}',
     ]
 

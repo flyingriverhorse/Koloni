@@ -34,11 +34,11 @@ are grouped like this. "Asks" means it waits for your card, as the chat's permis
 | **Commands** | Run commands (asks) |
 | **Web** | Search the web (asks) · Web requests (asks) |
 | **Browser** | Open a page · Screenshots · Click · Type · Press keys · Scroll · Read the page · Console |
-| **Team** | Notify you · Open sub-agents · New roles (asks) · New skills · Ask you · Message agents · Open rooms · Discussions · Propose triggers · Leave notes · Read notes |
+| **Team** | Notify you · Open sub-agents · New roles (asks) · New skills · Ask you · Message agents · Open rooms · Discussions · Leave notes · Read notes |
 | **To-do** | Read the To-do list · Add tasks (asks) · Change tasks (asks) |
 | **Memory** | Remember · Recall |
 
-New skills, Ask for a folder and Propose triggers always go to a card too.
+New skills and Ask for a folder always go to a card too.
 
 A role with **Run commands** also gets two tools for a command that keeps running in the chat (a dev
 server), in a turn you watch: one reads what it printed since, the other stops it - only one the agent

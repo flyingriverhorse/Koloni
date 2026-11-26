@@ -55,8 +55,7 @@ export function CopyRaw({ agentId }: { agentId: string }) {
       )}
       <p className="muted">
         What its CLI wrote itself, line by line. Kept in memory only: it is gone when KOLONİ restarts. Secrets KOLONİ
-        knows (of 8 characters or more) are hidden, and whatever follows /api/hooks/ in a line; anything else the CLI
-        printed is copied as it is.
+        knows (of 8 characters or more) are hidden; anything else the CLI printed is copied as it is.
       </p>
     </div>
   )

@@ -13,7 +13,6 @@ import type {
   Question,
   Run,
   ToolCall,
-  TriggerProposal,
   WebRequest,
 } from '../api/types'
 import { keptToTake } from '../changes/copies'
@@ -36,7 +35,6 @@ export type Waiting = { kind: WaitingKind; key: string; agentId: string | null; 
   | { what: 'plan'; item: Run }
   | { what: 'merge'; item: Merge }
   | { what: 'night'; item: { away: Away; job: AwayJob } }
-  | { what: 'trigger'; item: TriggerProposal }
   | { what: 'notes'; item: NotesOffer }
 )
 
@@ -141,10 +139,6 @@ export function waitingOf(conv: ConvState): Waiting[] {
               item: { away: a, job },
             })),
     ),
-    // Slice 69: a trigger an agent proposed, until your Approve, Edit or Reject.
-    ...conv.triggerProposals
-      .filter(p => p.status === 'proposed')
-      .map(p => ({ ...decision, key: p.id, agentId: null, what: 'trigger' as const, item: p })),
     // K-bilgi 6: what turns found for the Project notes, until your Add or Not now - it holds no turn.
     ...conv.notesOffers
       .filter(o => o.status === 'waiting')
@@ -199,7 +193,6 @@ const WORDS: Record<Exclude<Waiting['what'], 'question'>, [string, string]> = {
   plan: ['plan', 'plans'],
   merge: ['Take in to finish', 'Take ins to finish'],
   night: ['away job waiting', 'away jobs waiting'],
-  trigger: ['trigger to approve', 'triggers to approve'],
   notes: ['offer for Project notes', 'offers for Project notes'],
 }
 

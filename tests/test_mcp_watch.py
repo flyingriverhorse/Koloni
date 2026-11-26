@@ -9,12 +9,11 @@ import pytest
 from alembic import command
 
 from app.tools import MAX_QUESTION_CHARS
-from tests import test_trigger_scenarios as unattended
 from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import text
 from tests.test_mcp_scenarios import LONG, NOTHING, ORIGIN, calls, events, give, mark, server
 from tests.test_migration_0002 import _config
-from tests.test_spawn import begin, call, names, step
+from tests.test_spawn import begin, call, step
 
 
 def trust(client, made):
@@ -146,26 +145,6 @@ def test_the_question_fits_with_a_long_description_and_long_arguments(
     cid, _run_id = begin(client, project_dir, mode="full_auto")
     said = wait_status(client, cid, "waiting_approval")["questions"][0]["question"]
     assert len(said) <= MAX_QUESTION_CHARS and "Does a great many things." in said
-
-
-def test_a_watched_server_in_a_turn_nobody_watches_is_refused_and_not_started(
-    make_client, wait_run, project_dir, tmp_path
-):
-    client, model, pid, cid = unattended.setup(
-        make_client,
-        project_dir,
-        [step(call("fake__echo", {"text": "hi"})), text("I could not.")],
-        permission_mode="full_auto",
-    )
-    made, record, _ = server(client, tmp_path, trusted=False)
-    mark(client, made, echo="free")
-    give(client, "Lead", "fake")
-    run_id = unattended.run_now(client, unattended.trigger(client, pid, cid)["id"])
-    snap = unattended.finished(client, wait_run, cid, run_id, timeout=LONG)
-    # (as for every server there: none is offered in a turn nobody watches)
-    assert not [n for n in names(model.tool_args[0]) if n.startswith("fake__")]
-    assert calls(snap)["fake__echo"][0] != "succeeded"
-    assert events(record, "start") == [] and events(record, "call") == []
 
 
 def test_migration_0113_keeps_the_servers_there_were_trusted_and_back(tmp_path):

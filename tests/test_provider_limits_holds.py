@@ -3,8 +3,6 @@ sub-agent and a room's member, each side of a comparison, the model asked for th
 words, a trigger's turn - and is read once a request; a limit in dollars is not kept against
 prices in another currency; a Lead moved by a limit says why from the start."""
 
-from datetime import UTC, datetime, timedelta
-
 import pytest
 from sqlalchemy import select
 
@@ -19,7 +17,6 @@ from tests.test_spawn import step
 from tests.test_team import results, team  # noqa: F401  (a fixture)
 from tests.test_tier_order_scenarios import both_strongest
 from tests.test_tier_scenarios import ORIGIN, role_tier, tiered
-from tests.test_trigger_scenarios import one, tick, trigger
 from tests.test_usage_scenarios import began, turn
 
 
@@ -140,18 +137,6 @@ def test_the_days_words_hold_the_model_asked_to_its_limit(make_client, wait_run,
         json={"since": MIDNIGHT.isoformat(), "conversation_id": cid, "over_budget": True},
     )
     assert going.status_code == 200, going.text
-
-
-def test_a_trigger_past_its_leads_limit_starts_nothing_and_says_so(
-    make_client, wait_run, project_dir
-):
-    client, _model, pid, cid, _run = past(make_client, wait_run, project_dir, [text("b", 1, 1)])
-    made = trigger(client, pid, cid)
-    assert tick(client, datetime.now(UTC) + timedelta(hours=2)) == []
-    seen = one(client, made["id"])["runs"][0]
-    assert seen["outcome"] == "skipped_limit" and "over Local's limit" in seen["note"]
-    refused = client.post(f"/api/triggers/{made['id']}/run")
-    assert refused.status_code == 409 and "over its limit" in refused.text
 
 
 def test_going_on_past_a_providers_limit_is_the_users_word(make_client, wait_run, project_dir):

@@ -22,7 +22,6 @@ from tests.test_recall_scenarios import NOTES, memory, project, turn
 from tests.test_spawn import call, role_id, step
 from tests.test_team import pick, team  # noqa: F401  (a fixture)
 from tests.test_tier_scenarios import tiered
-from tests.test_trigger_scenarios import MESSAGE, run_now, trigger
 
 BY = {"provider_name": "Fast", "model_id": "quick"}
 GREETING = {"text": "The greeting is spelled merhaba.", "about": "greeting"}
@@ -604,40 +603,6 @@ def test_a_turn_at_the_projects_limit_on_tokens_asks_nobody(team, wait_run, proj
         "skipped": 0,
         "note": runner.TURN_AT_ITS_LIMIT,
     }
-
-
-def test_a_turn_nobody_watched_is_asked_about_too_and_its_notes_say_so(
-    team,
-    wait_run,
-    project_dir,  # noqa: F811
-):
-    client, _default, fast = team(
-        [text("TRIGGER-TURN-ANSWER the greeting is merhaba.")],
-        # two on one subject in one answer: the first stands
-        [text(json.dumps([GREETING, {**GREETING, "text": "The greeting may be hello."}]))],
-    )
-    pid = on(team, client, project_dir)
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    watch = trigger(client, pid, cid)
-    run_id = run_now(client, watch["id"])
-    assert wait_run(client, cid, run_id)["runs"][-1]["status"] == "completed"
-    (asked,) = fast.calls
-    assert asked[1]["content"].endswith(
-        "\n".join(
-            [
-                f'The message of the trigger that started it: "{MESSAGE}"',
-                'The Orchestrator\'s answer: "TRIGGER-TURN-ANSWER the greeting is merhaba."',
-            ]
-        )
-    )
-    kept_ = memory(client, pid)
-    assert kept_["last_auto"] == {"run_id": run_id, "noted": 1, "skipped": 1, "note": None}
-    (note,) = kept_["journal"]
-    assert (note["origin"], note["unattended"], note["noted_by"]) == ("auto", True, BY)
-    assert kept_["proposals"] == []
-    # the trigger's turn ended as it did, whatever came after it
-    assert client.get(f"/api/triggers/{watch['id']}").json()["last_result"] == "completed"
-    assert client.get("/api/usage").json()["by_start"][0]["started_by"] == "trigger"
 
 
 @pytest.mark.no_po

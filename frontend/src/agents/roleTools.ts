@@ -237,13 +237,6 @@ export const ROLE_TOOLS: RoleTool[] = [
     asks: true,
   },
   {
-    name: 'propose_trigger',
-    group: 'Team',
-    label: 'Propose triggers',
-    line: 'on a card',
-    hint: 'propose a trigger for you to approve, on a card: it reads only until you give it more',
-  },
-  {
     name: 'post_note',
     group: 'Team',
     label: 'Leave notes',

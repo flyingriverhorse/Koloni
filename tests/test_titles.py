@@ -7,7 +7,6 @@ import pytest
 from app.topics import one_line, title_from
 from tests.test_chat_flow import text
 from tests.test_room_scenarios import start
-from tests.test_triggers import run_now, setup, trigger
 
 ZWSP, BOM, LRM, ZWJ, ZWNJ = "​", "﻿", "‎", "‍", "‌"
 LINK = "https://example.com/" + "a" * 60
@@ -119,11 +118,3 @@ def test_a_rooms_goal_names_its_conversation_cut_at_a_words_end(make_client, wai
         "make the calculator page together…"
     )  # (not inside the bracket it opened)
     wait_run(client, cid, run_id)
-
-
-def test_a_triggers_name_names_its_conversation_whole(make_client, wait_run, project_dir):
-    name = "Look the whole project over every hour and say what changed since"  # 65 characters
-    client, _model, pid, cid = setup(make_client, project_dir, {"Lead": [text("Looked.")]})
-    made = trigger(client, pid, cid, name=name)
-    wait_run(client, cid, run_now(client, made["id"]))
-    assert client.get(f"/api/conversations/{cid}").json()["conversation"]["title"] == name

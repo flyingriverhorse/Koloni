@@ -33,7 +33,7 @@ def shape(conn, table: str) -> tuple:
 def test_the_switch_the_observations_and_the_built_in_role_go_and_come_back(tmp_path):
     db = tmp_path / "old.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0187")
+    command.upgrade(cfg, "0189")
     with sqlite3.connect(db) as conn:
         conn.execute("DELETE FROM role_teams")
         conn.execute("DELETE FROM roles")
@@ -68,7 +68,7 @@ def test_the_switch_the_observations_and_the_built_in_role_go_and_come_back(tmp_
         assert conn.execute("SELECT id, status FROM agents").fetchall() == [("a", "completed")]
         assert conn.execute("SELECT id, name FROM projects").fetchall() == [("p", "p")]
 
-    command.downgrade(cfg, "0187")
+    command.downgrade(cfg, "0189")
     with sqlite3.connect(db) as conn:
         assert {table: shape(conn, table) for table in GONE} == before
         assert conn.execute(
@@ -81,7 +81,7 @@ def test_the_switch_the_observations_and_the_built_in_role_go_and_come_back(tmp_
 def test_a_role_of_the_users_own_named_observer_stays(tmp_path):
     db = tmp_path / "mine.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0187")
+    command.upgrade(cfg, "0189")
     with sqlite3.connect(db) as conn:
         conn.execute("DELETE FROM role_teams")
         conn.execute("DELETE FROM roles")

@@ -44,7 +44,6 @@ from app.db.models import (
     Role,
     Run,
     ToolCall,
-    Trigger,
     now,
 )
 from app.schemas import (
@@ -127,7 +126,6 @@ def delete_preview(project_id: str, session: Session = Depends(get_session)):
         "chats": count(Conversation),
         "memory": count(Memory),
         "tasks": count(BacklogTask),
-        "triggers": count(Trigger),
         "knowledge": count(ProjectKnowledge),
     }
 
@@ -137,11 +135,11 @@ async def delete_project(
     project_id: str, request: Request, session: Session = Depends(get_session)
 ):
     """KOLONİ's record of the project gone for good, in one transaction: its chats with all
-    of their turns, its memory, knowledge, To-do, triggers, nights, usage and vectors. Not
+    of their turns, its memory, knowledge, To-do, nights, usage and vectors. Not
     while anything of it is at work (409, why in words). Its folder, files, git and .koloni/
     are never touched; KOLONİ's own files of its chats go as a chat's delete takes them
     (`_forget_files`: CLI sessions, attachments, kept sides of a commit). On the loop, as the
-    trigger clock is.
+    app's clock is.
     shortcut: KOLONİ's own model call after a turn that ended (the note of what it found) is
     not waited for; a row of the project it writes after the delete is refused by the foreign
     key, and a vector stays until the next start's `tidy_db`. Wait for it here if that bites."""
@@ -161,7 +159,6 @@ async def delete_project(
     )
     if why := _at_work(session, project, chats, request.app.state.runner):
         raise HTTPException(409, why)
-    triggers = list(session.scalars(select(Trigger.id).where(Trigger.project_id == project_id)))
     learned = set(
         session.scalars(
             select(ProjectKnowledge.id).where(ProjectKnowledge.project_id == project_id)
@@ -171,7 +168,7 @@ async def delete_project(
     if chats:
         _delete_for_good(session, chats)
     session.execute(text("DELETE FROM said_in_turns WHERE project_id = :p"), {"p": project_id})
-    # Rows kept by the project's id alone (its vectors, its triggers' record, ...).
+    # Rows kept by the project's id alone (its vectors, ...).
     for table in Base.metadata.sorted_tables:
         column = table.c.get("project_id")
         if column is not None and not column.foreign_keys:
@@ -187,8 +184,6 @@ async def delete_project(
     _remove(session, Project.__table__, Project.id == project_id)
     session.commit()
     _forget_files(request, session, chats, kept)
-    for trigger_id in triggers:
-        request.app.state.triggers.removed(trigger_id, [])
     return Response(status_code=204)
 
 

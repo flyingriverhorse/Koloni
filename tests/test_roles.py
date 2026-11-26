@@ -81,10 +81,9 @@ def test_built_in_roles_match_the_design():
         "ask_folder",
         "message_agent",
         "discuss",
-        "propose_trigger",
         *NOTEBOOK,
         *MEMORY,
-    ]  # (slice 69: it proposes, the user approves)
+    ]
     # (slice 51: the roles that try a page get the browser after their commands or web)
     # (K-drawio: who writes documents, designs or code draws diagrams, after its file tools)
     assert tools["Coder"] == READ + [

@@ -13,7 +13,6 @@ from tests.test_copilot_agent import copilot_native  # noqa: F401  (a fixture)
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_parallel import until
 from tests.test_spawn import begin, call, role_id, spawn, step
-from tests.test_trigger_scenarios import finished, results, run_now, setup, trigger
 
 WRITE = step(call("write_file", {"path": "made.txt", "content": "x"}, "w"))
 
@@ -50,20 +49,6 @@ def test_only_the_apps_own_page_switches_it_off(make_client, project_dir):
         == 200
     )
     assert client.get(url).json()["conversation"]["lead_hands_code"] is False
-
-
-def test_a_trigger_that_may_open_no_agent_has_its_lead_write(make_client, wait_run, project_dir):
-    """A trigger from before the setting (write, no agents) still gets its job done."""
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [WRITE, text("done")]})
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": [], "agents": 0})
-    run_id = run_now(client, made["id"])
-    snap = finished(client, wait_run, cid, run_id, timeout=20)
-    assert snap["conversation"]["lead_hands_code"] is True
-    assert [(name, status) for name, status, _ in results(snap, run_id)] == [
-        ("write_file", "succeeded")
-    ]
-    assert "hand every change to files" not in model.calls[0][0]["content"].lower()
-    assert (project_dir / "made.txt").read_text(encoding="utf-8") == "x"
 
 
 def test_a_lead_that_may_open_no_sub_agent_writes(make_client, wait_run, project_dir):

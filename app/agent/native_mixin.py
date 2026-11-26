@@ -64,9 +64,7 @@ if TYPE_CHECKING:
 # shortcut: not add_skill - a native CLI's Lead proposes no skill; add it here (and to its
 # rules' words) when one should.
 # notify (0.1.8) as an API model's Lead has it, over the same call (`_run_call`): only where the
-# project has somewhere to send it (`_lead_tools`), at its limits. Not propose_trigger (0.1.9):
-# a trigger's turn never starts a CLI with its own tools, so in a chat whose Orchestrator runs
-# on one, its card's Approve is always refused (`triggers.check_starts`).
+# project has somewhere to send it (`_lead_tools`), at its limits.
 COLLABORATION_TOOLS = (
     "spawn_agent",
     "create_role",

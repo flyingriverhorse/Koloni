@@ -44,7 +44,7 @@ from tests.test_session_agent import (
 )
 from tests.test_spawn import begin, call, role_id, spawn, step
 from tests.test_team import team  # noqa: F401  (a fixture)
-from tests.test_triggers import HeldClock
+from tests.turn_helpers import HeldClock
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 SORT = ["by date", "by name"]

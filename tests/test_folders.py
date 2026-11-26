@@ -453,29 +453,6 @@ def test_a_native_lead_is_refused_a_folder_never_opened_without_a_card(
     assert conversation(client, cid)["read_in"] == []
 
 
-def test_a_native_lead_nobody_watches_is_refused_a_folder(
-    claude_app,
-    wait_run,
-    project_dir,
-    shelf,  # noqa: F811
-):
-    from tests.test_claude_native import NOBODY, unattended
-
-    client, provider, _ = claude_app(
-        [
-            {
-                "koloni": "ask_folder",
-                "args": {"path": str(shelf), "access": "read", "why": "notes"},
-            },
-            {"say": "done"},
-        ]
-    )
-    snap, _run, statuses = unattended(client, project_dir, provider, "full_auto", wait_run)
-    (tool,) = snap["tool_calls"]
-    assert tool["name"] == "ask_folder" and tool["status"] != "succeeded"
-    assert NOBODY in said(claude_app.record()) and "waiting_approval" not in statuses
-
-
 def test_a_native_agent_in_a_working_copy_is_told_no_folder_can_reach_it(
     claude_app,
     wait_run,

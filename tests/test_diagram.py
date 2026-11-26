@@ -21,7 +21,6 @@ from app.workspace import Workspace, WorkspaceError
 from tests.test_browser import FAKE, _calls
 from tests.test_chat_flow import start_in_mode, text
 from tests.test_spawn import begin, call, step
-from tests.test_trigger_scenarios import finished, results, run_now, setup, trigger
 
 FLOW = (
     '<mxfile><diagram id="a" name="P"><mxGraphModel><root><mxCell id="0"/>'
@@ -156,7 +155,7 @@ def test_no_chrome_or_edge_is_said_with_what_the_user_can_do(
     assert _calls(client, cid)["diagram_image"]["result"] == f"error: {diagram.NO_BROWSER}"
 
 
-def test_an_orchestrator_that_hands_code_on_is_not_given_it_and_a_trigger_writes_only_if_let(
+def test_an_orchestrator_that_hands_code_on_is_not_given_it(
     monkeypatch, make_client, wait_run, project_dir
 ):
     monkeypatch.setenv("KOLONI_BROWSER_FAKE", FAKE)
@@ -169,17 +168,6 @@ def test_an_orchestrator_that_hands_code_on_is_not_given_it_and_a_trigger_writes
     assert "diagram_image" not in [t["function"]["name"] for t in model.tool_args[0]]
     assert _calls(client, cid)["diagram_image"]["status"] == "failed"
     assert not (project_dir / "docs" / "flow.png").exists()
-    # A trigger's turn: refused where the trigger may not write, drawn where it may.
-    for may, drawn in ((False, False), (True, True)):
-        client, _model, pid, cid = setup(make_client, project_dir, {"Lead": [draw, text("done")]})
-        made = trigger(client, pid, cid, permissions={"write": may, "commands": [], "agents": 0})
-        run_id = run_now(client, made["id"])
-        snap = finished(client, wait_run, cid, run_id, timeout=20)
-        ((_name, status, said),) = [
-            one for one in results(snap, run_id) if one[0] == "diagram_image"
-        ]
-        assert (status == "succeeded") is drawn, said
-        assert (project_dir / "docs" / "flow.png").exists() is drawn
 
 
 def test_the_users_save_writes_beside_the_diagram_from_the_apps_own_page_only(client, project_dir):

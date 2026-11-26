@@ -44,9 +44,9 @@ from tests.test_migration_0002 import _config
 from tests.test_parallel import until
 from tests.test_recovery import seed
 from tests.test_spawn import call, new_role, step
-from tests.test_triggers import NOT_SLOW, HeldClock, on_loop, run_now, trigger
-from tests.test_triggers import until as until_true
 from tests.test_web_tool_scenarios import Net, get
+from tests.turn_helpers import on_loop
+from tests.turn_helpers import until as until_true
 
 AGENT_OVER = {"completed", "failed", "cancelled", "rejected", "interrupted"}
 FILES = ("a.txt", "b.txt", "docs/c.md")
@@ -990,78 +990,6 @@ def test_a_place_another_call_of_the_agent_gave_up_is_not_given_back_a_second_ti
 
 
 # --- an unattended turn's minutes ----------------------------------------------------------
-
-
-def test_the_minutes_of_an_unattended_turn_do_not_run_while_it_stands_in_line(
-    make_client, wait_run, project_dir
-):
-    """A trigger's turn behind a full project is not stopped as over its minutes before
-    its model was asked anything: the clock is put away while none of its agents has a
-    place and one stands in line, and goes on with what was left when one has."""
-    first = Gate()
-    client, model, pid = project(
-        make_client, project_dir, [first.step(text("A done")), text("looked")], max_agents=1
-    )
-    a, b = talk(client, pid), talk(client, pid)
-    run_a = go(client, a)
-    first.wait_partial()
-    clock = client.app.state.runner.call_later = HeldClock(but=NOT_SLOW)
-    made = trigger(client, pid, b, budget={"steps": 15, "minutes": 7, "per_day": 24})
-    run_b = run_now(client, made["id"])
-    queued(client, b)
-    until_true(
-        lambda: clock.set and all(t.cancelled for t in clock.set),
-        "the clock is put away while the turn stands in line",
-    )
-    assert [t.delay for t in clock.set] == [7 * 60] and len(model.calls) == 1
-    first.release()
-    assert wait_run(client, a, run_a)["runs"][0]["status"] == "completed"
-    snap = wait_run(client, b, run_b)
-    assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == ("completed", None)
-    again = clock.set[1]
-    assert len(clock.set) == 2 and 7 * 60 - 30 < again.delay <= 7 * 60  # what was left
-    until_true(lambda: again.cancelled, "the clock is put away with the turn")
-
-
-def test_the_minutes_run_on_while_another_agent_of_the_turn_waits_for_a_file(
-    make_client, wait_run, project_dir
-):
-    """The clock is put away only while the turn is kept waiting for room and nothing
-    else: with one of its agents in line and another waiting for a file, the minutes
-    run - they are what ends a wait for a file in a turn nobody watches (slice 19a)."""
-    first = Gate()
-    client, model, pid = project(
-        make_client, project_dir, [first.step(text("A done")), text("looked")], max_agents=1
-    )
-    a, b = talk(client, pid), talk(client, pid)
-    run_a = go(client, a)
-    first.wait_partial()
-    runner = client.app.state.runner
-    clock = runner.call_later = HeldClock(but=NOT_SLOW)
-    run_b = run_now(
-        client, trigger(client, pid, b, budget={"steps": 15, "minutes": 7, "per_day": 24})["id"]
-    )
-    queued(client, b)
-    until_true(lambda: clock.set and clock.set[-1].cancelled, "put away: it stands in line")
-
-    def held_up(files: int):
-        # Another agent of the turn, as `_claim` leaves it while it waits for a file.
-        if files:
-            runner._ctxs["other"] = SimpleNamespace(run_id=run_b)
-            runner._held_up["other"] = files
-        else:
-            del runner._ctxs["other"], runner._held_up["other"]
-        runner._clock(run_b)
-
-    on_loop(client, lambda: held_up(1))
-    until_true(lambda: len(clock.set) == 2, "the minutes run: an agent waits for a file")
-    assert not clock.set[1].cancelled and clock.set[1].delay <= 7 * 60
-    on_loop(client, lambda: held_up(0))
-    until_true(lambda: clock.set[1].cancelled, "put away again: only the line is left")
-    first.release()
-    assert wait_run(client, a, run_a)["runs"][0]["status"] == "completed"
-    snap = wait_run(client, b, run_b)
-    assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == ("completed", None)
 
 
 # --- the user's word is on record at once ---------------------------------------------------

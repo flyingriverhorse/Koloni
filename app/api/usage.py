@@ -330,7 +330,7 @@ def _coster(session: Session):
 def month_start(at: datetime | None = None) -> datetime:
     """The first moment of `at`'s calendar month (now's without it) by this machine's
     clock - KOLONİ runs on the user's own - in UTC without a zone, as times are kept."""
-    # shortcut: the machine's zone, as triggers count days; a page in another zone sees the
+    # shortcut: the machine's zone, as the app's clock counts days; a page in another zone sees the
     # server's month, take a `tz` when KOLONİ is reached from elsewhere.
     local = (at or datetime.now(UTC)).astimezone()
     first = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None)

@@ -45,7 +45,7 @@ const WORDS_WHY =
 const JUDGE_SHOWN =
   'A small model looks at each command the list does not stop. One request of your Judge model (Settings › The app › Agents) for each such command, on your plan or your bill.'
 const JUDGE_REST =
-  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky is refused, or waits for you on a card, as you choose below. Reads, ordinary work (tests, compilers and checkers, local git), your own test command (unless it runs a program an agent wrote) and a trigger’s turn are not asked about. One it cannot get an answer for waits for you on a card, whichever you choose; only where there is no model to ask does it stand aside for the turn, and it says so in the chat. Off: Full auto as before.'
+  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky is refused, or waits for you on a card, as you choose below. Reads, ordinary work (tests, compilers and checkers, local git), and your own test command (unless it runs a program an agent wrote) are not asked about. One it cannot get an answer for waits for you on a card, whichever you choose; only where there is no model to ask does it stand aside for the turn, and it says so in the chat. Off: Full auto as before.'
 /** What the judge does with a command it finds risky (25 Nov): refused, as Claude Code's auto mode does, or a card. */
 const JUDGE_RISKY: [value: Project['judge_risky'], label: string][] = [
   ['refuse', 'Refuse and go on'],
@@ -58,7 +58,7 @@ const RISKY_WHY =
 const SUGGEST_SHOWN =
   'The Scout looks for what is left after each turn that did something (changed a file, ran a command, handed work on or had a step fail): one small model request, on your plan or your bill; Usage shows it under that model. At Full auto the Orchestrator’s model decides them with one more.'
 const SUGGEST_REST =
-  'The first model of the tier you choose is sent what was said in the turn, the files it changed and the steps that failed, with the secrets KOLONİ knows masked, and the open tasks’ titles. It proposes at most three follow-up tasks, each from words of the turn; they wait on the To-do list for your Add, Edit or Reject. An added task runs once you tick it and give it to a chat (Do in chat). After a turn of a To-do story - one of its tasks’ or yours in its topic - they go into that story while it is open, one from a step that failed as a bug. Proposals made while you’re away or by a trigger always wait for you; rooms and discussions get none.'
+  'The first model of the tier you choose is sent what was said in the turn, the files it changed and the steps that failed, with the secrets KOLONİ knows masked, and the open tasks’ titles. It proposes at most three follow-up tasks, each from words of the turn; they wait on the To-do list for your Add, Edit or Reject. An added task runs once you tick it and give it to a chat (Do in chat). After a turn of a To-do story - one of its tasks’ or yours in its topic - they go into that story while it is open, one from a step that failed as a bug. Proposals made while you’re away always wait for you; rooms and discussions get none.'
 const SUGGEST_TIERS: [value: Project['suggest_tier'], label: string][] = [
   ['fast', 'Fast tier'],
   ['balanced', 'Balanced tier'],

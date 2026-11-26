@@ -35,10 +35,6 @@ HIDDEN = "***"
 MIN_SECRET = 8
 # How old the secrets a line is kept without may be; when it is read they are read anew.
 FRESH_SECONDS = 1.0
-# A webhook's key is kept nowhere (only its hash), so it is known by where it stands: in
-# the hook's address, as in the server's own log (`app.main.NoWebhookKeys`) - also as a
-# JSON writer that escapes the slashes puts it (`\/api\/hooks\/`).
-HOOK = re.compile(r"(\\?/api\\?/hooks\\?/)[^/?#\s\"'\\]+", re.IGNORECASE)
 
 
 @dataclass
@@ -122,7 +118,7 @@ def known() -> list[str]:
 def hide(text: str, secrets: Iterable[str]) -> str:
     for secret in secrets:
         text = text.replace(secret, HIDDEN)
-    return HOOK.sub(rf"\1{HIDDEN}", text)
+    return text
 
 
 def hidden(text: str) -> str:

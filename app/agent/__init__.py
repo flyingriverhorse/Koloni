@@ -50,7 +50,7 @@ import uuid
 from collections import Counter
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -711,7 +711,7 @@ KEPT_AWAY = "kept for the user's Take in: the user is away"
 # Not given to a side of a comparison's Lead (slice 54), and so to nobody under it: each
 # model does the work itself (no sub-agent, discussion or room on another model - a room's
 # copy is taken in when it ends), and nothing of it outlives the choice (no memory, role,
-# skill, folder, backlog task or trigger).
+# skill, folder or backlog task).
 NOT_IN_A_SIDE = frozenset(
     {
         "spawn_agent",
@@ -725,7 +725,6 @@ NOT_IN_A_SIDE = frozenset(
         "add_task",
         "change_task",
         "assess_task",
-        "propose_trigger",
     }
 )
 # A plan turn's Lead (slice 49) may only read and look things up: a list of what it may
@@ -1525,11 +1524,6 @@ class AgentRunner(
         # merge id -> what the user chose with that word, for each file whose two sides
         # clash (by its path): "agent" or "project"
         self._merge_choices: dict[str, dict[str, str]] = {}
-        # Called with (run id, status, error) when an unattended turn is over.
-        self.unattended_ended: Callable[[str, str, str | None], None] | None = None
-        # Today by the triggers' clock (`app.triggers.Triggers` sets it): a proposed
-        # trigger's last day is checked by it.
-        self.trigger_day: Callable[[], date] | None = None
         # The clock a turn's minutes are counted by: the event loop's `call_later`,
         # unless another is put here (a test holds the clock instead of waiting).
         self.call_later: Callable[..., asyncio.TimerHandle] | None = None
@@ -6253,9 +6247,7 @@ class AgentRunner(
         self, ctx: Ctx, call_id: str, ws: Workspace, request: ToolCallRequest, args: dict
     ) -> tuple[str, str]:
         """`_tool_call`, its part 2."""
-        if request.name == "propose_trigger":
-            status, output = "succeeded", self._propose_trigger(ctx, args)
-        elif request.name == "ask_user" and (unread := self._unread_messages(ctx)):
+        if request.name == "ask_user" and (unread := self._unread_messages(ctx)):
             # (Denied, not failed: asked again once it has read them, it is no failure.)
             status, output = "denied", USER_WROTE.format(words="\n".join(map(quoted, unread)))
         elif request.name == "ask_user" and not ctx.depth and self._card_decides(ctx, args):

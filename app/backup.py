@@ -389,7 +389,7 @@ def apply_staged(runtime_root: Path, upgrade: Callable[[], None]) -> bool:
 def _settle(runtime_root: Path) -> None:
     """The restored database made this machine's: each skill's folder is the store's here,
     whatever folder the file named; and everything is held until the user says Resume, so
-    the restored triggers, backlogs and nights do not start by themselves."""
+    the restored backlogs and nights do not start by themselves."""
     with closing(sqlite3.connect(runtime_root / DB)) as conn:
         for skill_id, folder in conn.execute("SELECT id, folder FROM skills").fetchall():
             name = folder.replace("\\", "/").rstrip("/").rpartition("/")[2]

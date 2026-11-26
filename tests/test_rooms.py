@@ -54,10 +54,10 @@ from tests.test_take_in_scenarios import (
     own_test,
     root_runs,
 )
-from tests.test_triggers import (  # noqa: F401 (cli_app: a fixture)
+from tests.turn_helpers import (
     NOT_SLOW,
     HeldClock,
-    cli_app,
+    cli_app,  # noqa: F401  (a fixture)
     on_loop,
 )
 

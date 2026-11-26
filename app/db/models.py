@@ -1655,118 +1655,6 @@ class OwnCommand(Base):
     created_at: Mapped[datetime] = mapped_column(default=now)
 
 
-class Trigger(Base):
-    """Something that starts a turn by itself in one conversation: the clock, a change to
-    the project's files, or a request from outside. Such a turn is unattended, and what
-    it may do without asking is written here - not taken from the conversation."""
-
-    __tablename__ = "triggers"
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
-    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"))
-    name: Mapped[str] = mapped_column(String(80))
-    kind: Mapped[str] = mapped_column(String(8))  # "schedule" | "files" | "webhook"
-    config: Mapped[dict] = mapped_column(JSON)
-    message: Mapped[str] = mapped_column(Text)
-    # {"write": bool, "commands": [ids of rules on its conversation's allow list],
-    #  "agents": 0-4}. Which of those rules count is read off that list each time
-    # (`app.commands.ticked`): a rule taken off it is gone from here too.
-    permissions: Mapped[dict] = mapped_column(JSON)
-    # {"steps": a turn's model steps, "minutes": its length, "per_day": turns in a day}
-    budget: Mapped[dict] = mapped_column(JSON)
-    # Run once when KOLONİ starts if a due time passed while it was off.
-    catch_up: Mapped[bool] = mapped_column(Boolean, default=True)
-    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Turns that failed one after another; at three the trigger is switched off, and
-    # `off_because` says why. Both are cleared when the user switches it on again.
-    failures: Mapped[int] = mapped_column(Integer, default=0)
-    off_because: Mapped[str | None] = mapped_column(Text, default=None)
-    last_run_at: Mapped[datetime | None] = mapped_column(default=None)
-    last_result: Mapped[str | None] = mapped_column(String(16), default=None)
-    # A schedule: the moment its times are counted from, and the next one. None until
-    # the scheduler has looked at it once.
-    anchor_at: Mapped[datetime | None] = mapped_column(default=None)
-    next_at: Mapped[datetime | None] = mapped_column(default=None)
-    # A webhook: the SHA-256 of its key. The key itself is shown once and kept nowhere.
-    key_hash: Mapped[str | None] = mapped_column(String(64), default=None)
-    # How its agent ended its last unattended turn, in the agent's words (cut to a size).
-    last_words: Mapped[str | None] = mapped_column(Text, default=None)
-    # When it ends by itself (K-tetik-bitis): {"until": "YYYY-MM-DD"}, the last local day it
-    # runs on, or {"runs": N}; None: it runs until it is switched off. `ran`: the turns it
-    # started since its end was set (or it was switched on again).
-    ends: Mapped[dict | None] = mapped_column(JSON, default=None)
-    ran: Mapped[int] = mapped_column(Integer, default=0)
-    # A schedule whose project's repository stands as it did when its last completed turn
-    # started is skipped (K-tetik-degismedi): that key (`app.triggers.job_key`), unless
-    # `run_unchanged` says to run even so.
-    last_key: Mapped[str | None] = mapped_column(String(64), default=None)
-    run_unchanged: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Its last runs in a row that found nothing (93-B2, `app.triggers.slowed`): from three on,
-    # its times are spaced out. Back to 0 when one finds something or the user touches it.
-    idle: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    created_at: Mapped[datetime] = mapped_column(default=now)
-    # When it was last made, changed or switched (the newest of its `TriggerChange`s).
-    updated_at: Mapped[datetime] = mapped_column(default=now)
-
-
-class TriggerProposal(Base):
-    """A trigger an agent proposed (slice 69, `propose_trigger`): on a card in its chat until
-    the user approves it, makes it their own in the form, or rejects it. Only the user's word
-    on the app's own page makes the trigger - with the safest leave, whatever was proposed."""
-
-    __tablename__ = "trigger_proposals"
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True)
-    run_id: Mapped[str] = mapped_column(String(32))
-    name: Mapped[str] = mapped_column(String(80))
-    kind: Mapped[str] = mapped_column(String(8))  # "schedule" | "files": never a webhook
-    config: Mapped[dict] = mapped_column(JSON)
-    message: Mapped[str] = mapped_column(Text)
-    ends: Mapped[dict] = mapped_column(JSON)
-    # "proposed" | "approved" | "rejected"; approved: the trigger it became.
-    status: Mapped[str] = mapped_column(String(10), default="proposed")
-    trigger_id: Mapped[str | None] = mapped_column(String(32), default=None)
-    created_at: Mapped[datetime] = mapped_column(default=now)
-
-
-class TriggerChange(Base):
-    """One thing that was done to a trigger: made, changed, switched, deleted. A trigger
-    is a standing leave to act with nobody watching, so this stays - also after the
-    trigger itself is gone, which is why it names the trigger without belonging to it."""
-
-    __tablename__ = "trigger_changes"
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    project_id: Mapped[str] = mapped_column(String(32), index=True)
-    trigger_id: Mapped[str] = mapped_column(String(32), index=True)
-    # The trigger's name at that moment.
-    name: Mapped[str] = mapped_column(String(80))
-    at: Mapped[datetime] = mapped_column(default=now)
-    # "created" | "renamed" | "message changed" | "settings changed" |
-    # "permissions changed" | "budget changed" | "switched on" | "switched off" | "deleted"
-    what: Mapped[str] = mapped_column(String(24))
-    # How it stands after the change, in words (what it may do now; why it was
-    # switched off); None where `what` says it all.
-    detail: Mapped[str | None] = mapped_column(Text, default=None)
-
-
-class TriggerRun(Base):
-    """One time a trigger came due: the turn it started, or why it started none."""
-
-    __tablename__ = "trigger_runs"
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    trigger_id: Mapped[str] = mapped_column(ForeignKey("triggers.id"), index=True)
-    run_id: Mapped[str | None] = mapped_column(String(32), default=None)
-    at: Mapped[datetime] = mapped_column(default=now)
-    # "completed" | "failed" | "budget" | "stopped" | "skipped_busy" | "skipped_budget" |
-    # "skipped_month" (the project was over this month's budget), "skipped_limit" (its
-    # Lead's provider was over its limit of spend, 81c), "skipped_same" (nothing changed
-    # since its last completed turn, K-tetik-degismedi); None while it runs.
-    outcome: Mapped[str | None] = mapped_column(String(16), default=None)
-    # Started after its time: KOLONİ was off, or asleep, when it came due.
-    late: Mapped[bool] = mapped_column(Boolean, default=False)
-    note: Mapped[str | None] = mapped_column(Text, default=None)
-
-
 class Price(Base):
     """What the user says a model costs, for a million tokens sent and a million written.
     KOLONİ knows no price of its own: money is shown only from these."""
@@ -1795,7 +1683,7 @@ class LimitReading(Base):
 
 
 class Flag(Base):
-    """A switch of the whole app that outlives a restart ("triggers_paused"), or one of its
+    """A switch of the whole app that outlives a restart, or one of its
     settings (Gemini's voice: its key, which no answer carries, model and voice; app.api.voice)."""
 
     __tablename__ = "flags"

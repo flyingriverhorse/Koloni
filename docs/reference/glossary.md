@@ -177,7 +177,7 @@ KOLONİ's own words, as they appear on screen.
   Tools page and give them to roles.
 
 **Stop everything**
-: The button in the top bar that stops every turn in every chat and holds triggers, the To-do tasks
+: The button in the top bar that stops every turn in every chat and holds the To-do tasks
   waiting in a chat's queue, and work while you're away. While it holds, it reads **Held · Resume**. See
   [Chat and canvas](../use/chat-and-canvas.md#writing-a-message).
 
@@ -225,10 +225,6 @@ KOLONİ's own words, as they appear on screen.
   inside its topic. **New topic**, under the message box, starts one with your next message. A To-do
   story given to a chat goes on in a topic of its own, its tasks one after another. See
   [Topics](../memory.md#topics) and [Doing tasks in a chat](../automation/todo.md#doing-tasks-in-a-chat).
-
-**Trigger**
-: Something that starts a turn by itself: the clock, a change to the project's files, or a request
-  from outside (a webhook). Nobody watches such a turn, so it may do only what the trigger allows.
 
 **Turn**
 : Everything that happens for one message: the Orchestrator's answer, the agents it opened, their
