@@ -24,6 +24,7 @@ from app.agent.words import SECRET_IN_COPY
 from app.db.away_models import Parked
 from app.db.models import Agent, AwayRun, BacklogTask, Merge, Project, Run, now
 from app.project_view import standing as standing_files
+from app.workspace import secret_in_branch
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner, _LeadTurn
@@ -41,11 +42,14 @@ NOT_NOW = "{why}: nothing was pushed"
 TAKEN = "its work was taken in or discarded: nothing to push"
 UNDER_WAY = "its push or its Take in is under way"
 PUSH_SECRET = "{files} on the branch holds a secret KOLONİ knows - take it off the branch first"
-# A file of a job's branch KOLONİ's commit left out (HIGH-1): it stays in the job's worktree.
+# A file of a job's branch KOLONİ's commit left out (HIGH-1; W-1: one named as a secret too): it
+# stays in the job's worktree.
 LEFT_OUT = (
-    "KOLONİ: {files} left out of the branch's commit - it holds a secret KOLONİ knows. It stays in "
-    "the job's worktree only; the rest of the work is on the branch."
+    "KOLONİ: {files} left out of the branch's commit - it holds a secret KOLONİ knows, or is named "
+    "as one. It stays in the job's worktree only; the rest of the work is on the branch."
 )
+# Why one named as a secret is not committed (`_named_out`).
+NAMED_IN_COPY = "named as a secret: written in the job's worktree only, not committed"
 # (D1: a branch of that name made on origin between its look and the push - git's own words name
 # this machine's folders)
 ON_ORIGIN = "origin already has a branch named {name}: nothing was pushed"
@@ -55,6 +59,10 @@ PUSH_CONFIG = (
     "credential helper, an ssh command): look at it, then Run again"
 )
 PUSH_KEPT_OUT = "It changed {files}, where you said nothing may change while you were away"
+# W-1: ...and one named as a secret that its agent committed on the branch itself.
+PUSH_NAMED = (
+    "{files} on the branch is named as a secret (its agent committed it): Run anyway pushes it"
+)
 # (git resolves origin's push address in every scope of its config: one added since moves it)
 PUSH_ELSEWHERE = (
     "A push to origin goes to {now} now, not to {then} as when the job began: Run anyway pushes "
@@ -178,6 +186,21 @@ class AwayBranchMixin:
         now_away = {**was, "mode": job["mode"], **base}
         self._set_agent(ctx.cid, ctx.agent_id, copy={**record, "away": now_away})
 
+    def _named_out(
+        self: "AgentRunner", ctx: Ctx, copy: copies.Copy, changed: list[str]
+    ) -> dict[str, str]:
+        """W-1: what a job's commit on its branch leaves out for its name alone - a file there named
+        as a secret (`workspace.secret_in_branch`: .env.sample, api_keys.json; its deletion goes
+        in), its push going to origin. Nothing in another turn's: a team's branch's pull request
+        asks first (`PR_NAMED_SECRET`)."""
+        if ctx.run_id not in self._away_jobs:
+            return {}
+        return {
+            path: NAMED_IN_COPY
+            for path in changed
+            if secret_in_branch(path) and (place := copy.here(path)) and place.is_file()
+        }
+
     def _no_push_if_away(self: "AgentRunner", merge: Merge, copy: copies.Copy) -> None:
         """H1 where a kept copy opened again (a morning's Run line) is a job's branch: whatever
         runs there pushes nothing - after a restart too, which forgot this process's trees."""
@@ -267,6 +290,9 @@ class AwayBranchMixin:
             self._koloni_line(ctx.cid, ctx.run_id, gone)
             return
         secret = [path for path, why in left.items() if why == SECRET_IN_COPY]
+        # (W-1: one named as a secret its agent committed itself is on the branch - its push asks)
+        by_name = [path for path, why in left.items() if why == NAMED_IN_COPY]
+        secret += [path for path in by_name if look["files"].get(path, "D") == "D"]
         # (one its agent committed itself is on the branch with it: the push's refusal alone names
         # it, PUSH_SECRET - asked of the branch's own files, as `holding` counts one it lacks)
         if mine := [path for path in secret if look["files"].get(path, "D") != "D"]:
@@ -537,6 +563,9 @@ class AwayBranchMixin:
         kept = [
             path for path in look["files"] if away.kept_out(night, path, root=str(copy.project))
         ]
+        named = [
+            path for path, one in look["files"].items() if one != "D" and secret_in_branch(path)
+        ]
         return [
             *([asks] if (asks := await self._pr_asks(copy)) else []),
             *_elsewhere(held, state),
@@ -544,6 +573,7 @@ class AwayBranchMixin:
             *([away_branch.HOOKS_MOVED] if state["hooks"] != held.get("hooks") else []),
             *dict.fromkeys([*(held.get("moved") or []), *moved]),
             *([PUSH_KEPT_OUT.format(files=_few(kept))] if kept else []),
+            *([PUSH_NAMED.format(files=_few(named))] if named else []),
         ]
 
     def _pushed(self: "AgentRunner", agent_id: str, done: dict) -> dict:

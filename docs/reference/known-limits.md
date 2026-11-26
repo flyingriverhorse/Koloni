@@ -109,6 +109,16 @@ messages.
   repository's. A submodule's own changes are not taken into a branch.
 - A junction deep inside a new folder is not taken, but git reads through it while the branch is made;
   one that leads to a large folder can make the branch start from your last commit instead.
+- A branch's start from your folder, and a ☾ Away job's commit on its branch, leave a file out by its
+  name alone: a secret's name (`.env`, `.env.local`, a key file, `credentials.json`), a data file
+  named `credentials`, `api_keys` or `token` (`.json`, `.yaml`, `.toml`, `.txt`), a copy of a `.env`
+  but `.env.example` (`.env.sample`, `.env.template`, `.env.local.example`), and what is in a folder
+  named `credentials` or `secrets` but source code and Markdown. Code and Markdown so named go in
+  (`credentials.py`, `api_keys.ts`, `tokens.py`), and so does `tokens.json` (design tokens). A secret
+  under any other name is left out only where it holds one KOLONİ knows. A team's branch commits what
+  its agents wrote under such a name: its merge stays on this machine, and its pull request asks first
+  where a part of the path is a secret's name (`.env.sample`, `credentials/…` - not `secrets/db.txt`).
+  A file left out is never deleted.
 
 ## GitHub
 
@@ -254,8 +264,8 @@ messages.
   cleans them up (`git gc`).
 - Your own `pre-commit` and `pre-push` hooks run neither for the job's commits nor for KOLONİ's push.
 - KOLONİ's checks run before its last commit at the job's end; that commit holds the same files,
-  apart from one holding a secret KOLONİ knows (left out, and its push row says so) or a new file your
-  project already has.
+  apart from one holding a secret KOLONİ knows or named as one (left out, and its push row says so) or
+  a new file your project already has.
 - The branch's name is told to the job before its worktree is made: where a branch of that name was
   there already, the worktree is on the next free name, and its row says which.
 

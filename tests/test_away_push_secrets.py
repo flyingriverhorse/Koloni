@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from app import raw
+from app.agent.away_branch_mixin import PUSH_NAMED
 from app.away_branch import titled
 from app.db.models import BacklogTask, McpServer
 from tests.test_agent_writes import write
@@ -188,6 +189,37 @@ def test_a_file_left_out_then_committed_by_its_agent_is_not_left_out_any_more(
     until(lambda: chat(client, cid)["runs"][1]["status"] == "completed")
     after = row_now(client, done)
     assert after["tip"] != row["tip"] and "left out" not in after["what"], after
+
+
+def test_files_named_as_secrets_are_left_out_and_one_its_agent_committed_asks_a_second_run(
+    make_client, wait_run, repo, settings_env
+):
+    # (W-1's review, 0.1.10: .env.sample and api_keys.json went up, no secret KOLONİ knows in them)
+    steps = [
+        write(".env.sample", "API_KEY=a-real-looking-value\n", "w1"),
+        write("api_keys.json", '{"k": "v"}\n', "w2"),
+        write("tokens.py", "x = 1\n", "w3"),
+        write("credentials.yaml", "k: v\n", "w4"),
+        command("git add credentials.yaml", "c1"),
+        command("git commit -m creds", "c2"),
+        text("one done"),
+    ]
+    client, done, job, row, origin = night(make_client, wait_run, repo, steps, {})
+    assert row is not None and "left out: .env.sample, api_keys.json (" in row["what"], job
+    assert "credentials.yaml" not in row["what"], row
+    snap = client.get(f"/api/conversations/{job['conversation_id']}").json()
+    lines = [m["content"] or "" for m in snap["messages"]]
+    assert any(".env.sample, api_keys.json left out" in line for line in lines), lines
+    asked = push(client, done, row)
+    named = PUSH_NAMED.format(files="credentials.yaml")
+    assert asked.status_code == 409 and named in asked.json()["detail"]["notes"], asked.text
+    assert ran(client, done, row)["decision"] == "run"
+    pushed = at_origin(origin, job)
+    assert "tokens.py" in pushed and "credentials.yaml" in pushed, pushed
+    assert ".env.sample" not in pushed and "api_keys.json" not in pushed, pushed
+    # (never deleted: in the job's worktree still)
+    kept = Path(settings_env["KOLONI_RUNTIME_ROOT"]).rglob(".env.sample")
+    assert [one.read_text() for one in kept] == ["API_KEY=a-real-looking-value\n"]
 
 
 def test_a_secret_in_a_files_name_never_goes_up(make_client, wait_run, repo):

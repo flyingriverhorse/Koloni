@@ -20,6 +20,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 - **Workspace**: in ☾ Away, a file holding a secret KOLONİ knows that a job's agent committed on the branch itself is no longer said to be left out - its chat said "left out of the branch's commit … the rest of the work is on the branch" and its push row "· left out", though the file was on the branch. **Run** refuses that push, naming the file ("… on the branch holds a secret KOLONİ knows - take it off the branch first"), as before; "left out" is said only of a file KOLONİ's own commit left out ([docs](automation/overnight.md#in-a-git-repository-each-job-on-its-own-branch)).
 
+### Security
+
+- **Workspace**: a file named as a secret no longer goes into a branch's start from your folder, nor into a ☾ Away job's commit on its branch, whatever it holds: `token.txt`, `credentials.yaml`, `api_keys.json`, a `.env` copy but `.env.example` (`.env.sample`, `.env.template`, `.env.local.example`), and a data file in a folder named `credentials` or `secrets`; until now only `credentials.json` and `token.json` were left out beside the secret's names KOLONİ always knew. Code and Markdown named so still go in (`credentials.py`, `tokens.py`), and so does `tokens.json`. Nothing is deleted: your own file stays in your folder, a job's in its worktree, and the job's chat and push row say "left out" ("· left out: .env.sample (a secret KOLONİ knows, or named as one)"); one its agent committed on the branch itself goes up only on **Run anyway** ([docs](reference/known-limits.md#git)).
+
 ### Removed
 
 - **Board**: the Board page is gone from the rail and from Ctrl+K - every chat of the project in columns (at work, ended today), its line to Ready for you and its strip of two chats that want one file. How each chat stands is on the **Chats** list, what waits for you on **Ready for you**, and two chats that want one file still show it above each of them. Its **Re-run the ones that failed** button is gone with it: ask the Orchestrator in the chat to open those sub-agents again ([docs](reference/upgrade-notes.md#0110)).

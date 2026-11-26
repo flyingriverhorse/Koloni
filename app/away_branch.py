@@ -71,7 +71,7 @@ PUSH_LINE = (
     "at {tip7}"
 )
 PUSH_PR = " · opens a pull request into {into}"
-PUSH_LEFT = " · left out: {files} (holds a secret KOLONİ knows)"  # (HIGH-1)
+PUSH_LEFT = " · left out: {files} (a secret KOLONİ knows, or named as one)"  # (HIGH-1, W-1)
 PUSH_WHY = "A push leaves this machine: nothing goes up before you say so"
 MARKS = {"green": "✓", "red": "✗"}
 

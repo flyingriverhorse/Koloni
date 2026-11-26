@@ -22,7 +22,7 @@ from collections.abc import Callable, Collection, Iterable, Sequence
 from pathlib import Path, PureWindowsPath
 
 from app.executors.winjob import Job
-from app.workspace import in_scratch, is_secret, secret_in_project, stray_in_koloni
+from app.workspace import in_scratch, is_secret, secret_in_branch, stray_in_koloni
 
 # A merge of one file of at most 1 MiB; a look at a repository.
 SHORT_SECONDS = 15.0
@@ -1556,9 +1556,6 @@ TOO_LONG = "it took longer than {seconds:.0f} seconds"
 SNAPSHOT_SECONDS = 180.0
 # Of what git says, as much as a card's line holds: its start and its end.
 WHY_CHARS = 300
-# Secrets a snapshot leaves out besides those the project's own rules name (`secret_in_project`,
-# which take a credentials.json for code): Google's OAuth quickstart's two files.
-SNAPSHOT_SECRETS = frozenset({"credentials.json", "token.json"})
 # How many links and junctions at the top of the new files a snapshot steps round, at most.
 MOST_LINKS = 200
 # A snapshot's own index is written whole: no shared index of the user's is split off or expired
@@ -1611,14 +1608,6 @@ def _ours(path: str) -> bool:
     )
 
 
-def _secret_named(path: str) -> bool:
-    """A secret by its name, as the project's own rules have one (`secret_in_project`: a .env, a
-    key file - not code named like one, a credentials.py), or Google's OAuth files
-    (`SNAPSHOT_SECRETS`), which those rules take for code: never an object in the user's .git,
-    reachable from a branch of KOLONİ's."""
-    return secret_in_project(path) or path.rsplit("/", 1)[-1].casefold() in SNAPSHOT_SECRETS
-
-
 def _through_link(project: Path, path: str, seen: dict[str, bool]) -> str | None:
     """The link or junction a path of the folder is, or is in - what git would follow out of the
     folder (Git for Windows walks a junction as a folder); None where none is. Each place looked
@@ -1648,7 +1637,7 @@ def _taker(project: Path) -> tuple[Callable[..., bool], set[str]]:
         if not _ours(path):
             return False
         through = path if link else _through_link(project, path, seen)
-        if through or _secret_named(path):
+        if through or secret_in_branch(path):
             left.add(through or path)
             return False
         return True

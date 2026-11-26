@@ -1115,11 +1115,19 @@ def is_secret(rel: str) -> bool:
 # In the project a file is a secret by its own name and the folder it is in, not by any part
 # of its path: these hold work there.
 SECRET_FOLDERS = frozenset({".ssh", ".aws", ".gnupg"})
+CODE = r"py|ts|tsx|js|jsx|mjs|cjs|go|rs|java|cs|rb|php|md"  # (source, and Markdown)
 NOT_SECRET_IN_PROJECT = re.compile(
     r".+\.(example|sample|template)"  # .env.example: a file to copy, with no values
-    r"|(credentials|api_?keys?|token)"
-    r"\.(py|ts|tsx|js|jsx|mjs|cjs|go|rs|java|cs|rb|php|md|txt|json|ya?ml|toml)"
+    rf"|(credentials|api_?keys?|token)\.({CODE}|txt|json|ya?ml|toml)"
 )
+# W-1: what a branch's snapshot of the user's folder and a job's commit while you're away leave
+# out besides `secret_in_project` - of what those rules take for text: a data file named
+# credentials, api_keys or token (not tokens.json: design tokens), a .env's copy but
+# .env.example (.env.sample, .env.local.example may hold its values), and, in a folder named
+# credentials or secrets, all but source and Markdown (`CODE`).
+BRANCH_SECRET_NAMES = re.compile(r"(credentials|api_?keys?|token)\.(txt|json|ya?ml|toml)|\.env\..+")
+BRANCH_SECRET_FOLDERS = frozenset({"credentials", ".credentials", "secrets", ".secrets"})
+CODE_FILE = re.compile(rf".+\.({CODE})")
 # What a package manager put there: a venv by any name has its site-packages.
 INSTALLED = frozenset({".venv", "venv", "node_modules", "site-packages"})
 
@@ -1137,6 +1145,19 @@ def secret_in_project(rel: str) -> bool:
     return not NOT_SECRET_IN_PROJECT.fullmatch(parts[-1]) and bool(
         SECRET_NAMES.fullmatch(parts[-1])
     )
+
+
+def secret_in_branch(rel: str) -> bool:
+    """W-1: whether a file of the project stays out of what KOLONİ commits on a branch - a
+    snapshot's, a job's while you're away (`BRANCH_SECRET_NAMES`): never an object in the user's
+    .git a branch of KOLONİ's reaches, nor one pushed. Never deleted for it."""
+    parts = [_name(part) for part in re.split(r"[\\/]", rel)]
+    if INSTALLED.intersection(parts[:-1]):
+        return False
+    name, folders = parts[-1], parts[:-1]
+    if secret_in_project(rel) or name != ".env.example" and BRANCH_SECRET_NAMES.fullmatch(name):
+        return True
+    return bool(BRANCH_SECRET_FOLDERS.intersection(folders)) and not CODE_FILE.fullmatch(name)
 
 
 def secret_named(given: str, rel: str) -> bool:

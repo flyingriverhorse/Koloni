@@ -3859,13 +3859,13 @@ class AgentRunner(
                 if not copies.under(path.split("/"), copies.LINKED | copies.NOT_COPIED)
             }
         )
-        # Not committed: a file holding a secret KOLONİ checks, and a new one where the project
-        # has its own file (git ignores it there - the merge would write over the user's).
+        # Not committed: a secret KOLONİ checks (a job's: by name too), BRANCH_THEIRS's new file.
         held = {path: SECRET_IN_COPY for path in changed if _secret_in(copy, path, True)} | {
             path: BRANCH_THEIRS
             for path, kind, state in found
             if kind == "new" and state == "conflict"
         }
+        held = self._named_out(ctx, copy, changed) | held
         await asyncio.to_thread(
             git.commit_branch,
             copy.root,

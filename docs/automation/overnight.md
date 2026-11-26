@@ -110,12 +110,17 @@ there as it goes. How Go away finds the project decides it, once for every job:
   too. A file that holds a secret KOLONİ knows - in its content or its name: a provider key you saved,
   an MCP server's variable a secret's name holds, the page's key, one of the environment's, one given
   on a card, or any value with a secret's shape (`ghp_…`, `sk-…`, a password in an address) and the
-  token or password it holds alone - is left out of that commit and stays in the job's worktree only; the job's chat and its push row say which
-  ("· left out: conf.txt (holds a secret KOLONİ knows)"), and the rest of the work goes on. A file an
-  agent committed on the branch itself is on the branch, not left out: the chat and the row do not call
-  it left out, and **Run** refuses the push ("prov.txt on the branch holds a secret KOLONİ knows - take
-  it off the branch first"). Such a secret never deletes the job's work: only a secret given on a card during the
-  job, which an agent committed on the branch itself, has the branch deleted, and the chat says so.
+  token or password it holds alone - is left out of that commit and stays in the job's worktree only;
+  so is a file named as a secret, whatever it holds: `.env.sample`, `api_keys.json`, `token.txt`, a
+  data file in a `credentials` or `secrets` folder ([which names](../reference/known-limits.md#git)).
+  The job's chat and its push row say which ("· left out: conf.txt (a secret KOLONİ knows, or named as
+  one)"), and the rest of the work goes on. A file an agent committed on the branch itself is on the
+  branch, not left out: the chat and the row do not call it left out, and **Run** refuses the push
+  ("prov.txt on the branch holds a secret KOLONİ knows - take it off the branch first") - or, for one
+  only named as a secret, asks first ("credentials.yaml on the branch is named as a secret (its agent
+  committed it): Run anyway pushes it"). Such a secret never deletes the job's work: only a secret
+  given on a card during the job, which an agent committed on the branch itself, has the branch
+  deleted, and the chat says so.
 - **Its second try** after a failure, and the turn that goes on after your decisions in the morning,
   work in the same worktree, on the same branch.
 - KOLONİ also notes your repository's branches, stash, tags and remotes as the job starts and ends:

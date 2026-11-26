@@ -408,6 +408,37 @@ def test_secrets_by_their_names_stay_out_and_code_named_like_one_is_taken(repo, 
 
 
 @needs_merge_base
+def test_data_files_named_as_secrets_and_a_secrets_folder_stay_out_code_goes_in(repo, runtime):
+    # (W-1's review, 0.1.10: these went into the snapshot - the project's rules take them for text)
+    for path in ("credentials/README.md", "config/secrets/loader.py"):
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text("committed\n")
+    run(repo, "add", "credentials/README.md", "config/secrets/loader.py")
+    run(repo, "commit", "-qm", "a tracked credentials folder")
+    out = (
+        "token.txt",
+        "credentials.yaml",
+        "api_keys.json",
+        ".env.sample",
+        ".env.template",
+        ".env.local.example",
+        "credentials/prod.json",
+        "config/secrets/db.txt",
+    )
+    taken = ("tokens.py", "tokens.json", "src/api_keys.ts", "src/.env.example")
+    for path in (*out, *taken, "config/secrets/loader.py", "credentials/README.md"):
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text(f"SECRET {path}\n")
+    snapshot, why, left = left_of(repo, runtime)
+    assert why is None and left == sorted(out), left
+    held_now = set(held(repo, snapshot))
+    assert {*taken, "config/secrets/loader.py", "credentials/README.md"} <= held_now
+    assert not set(out) & held_now
+    assert not has_object(repo, run(repo, "hash-object", "credentials/prod.json"))
+    assert (repo / ".env.sample").read_text() == "SECRET .env.sample\n"  # (never deleted)
+
+
+@needs_merge_base
 def test_the_card_says_what_of_yours_is_not_in_the_branch(make_client, wait_run, repo):
     client, cid, run_id = on_branch(
         make_client,
