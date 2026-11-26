@@ -1505,25 +1505,31 @@ KOLONI_ID = {
 LOCK_REASON = "KOLONİ: an agent works here; KOLONİ removes it"
 
 
+def _slugged(said: str) -> str:
+    """Small letters, digits and dashes of `said`, as a branch's name has them."""
+    return "-".join(re.findall(r"[a-z0-9]+", said.lower()))
+
+
 def branch_name(said: str) -> str:
     """The short name an Orchestrator gave (`login form`) as a branch's (`login-form`): small
     letters, digits and dashes. ValueError for one with none of those."""
-    name = "-".join(
-        "".join(c if c.isascii() and c.isalnum() else " " for c in said.lower()).split()
-    )[:BRANCH_CHARS].strip("-")
+    name = _slugged(said)[:BRANCH_CHARS].strip("-")
     if not name:
         raise ValueError("on_branch: give a short name of letters and digits, as login-form")
     return name
 
 
 def task_branch(title: str, task_id: str) -> str:
-    """A backlog task's branch name: its title's and 4 of its id's - two tasks of one title get
-    two names (R165). Short enough that `branch_name` leaves it as it is. A title that holds a
-    secret KOLONİ checks, or one's shape (`ghp_…`), gives none of it: a branch's name is pushed."""
+    """A task's branch name: its title's and 4 of its id's (R165), as `branch_name` leaves it -
+    "task" where the title holds a secret KOLONİ checks (any case, or spelt as a name) or one's
+    shape: a name is pushed. shortcut: a secret's head alone is not seen; look if titles hold it."""
     from app import secret_set  # (here: it reads app.commands, which reads this module)
 
+    said, slug = title.casefold(), _slugged(title)
+    known = [(one.casefold(), _slugged(one)) for one in secret_set.checked()]
+    held = secret_set.shaped(title) or any(one in said or bit and bit in slug for one, bit in known)
     try:
-        if secret_set.shaped(title) or any(one in title for one in secret_set.checked()):
+        if held:
             raise ValueError(title)
         name = branch_name(title)[: BRANCH_CHARS - 5].strip("-")
     except ValueError:

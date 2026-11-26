@@ -277,5 +277,8 @@ def test_a_branch_never_takes_its_name_from_a_title_that_holds_a_secret(monkeypa
     monkeypatch.setenv("NIGHT_TOKEN", TOKEN)
     assert git.task_branch(f"{TOKEN} rotate it", "c0ffee00") == "task-c0ff"
     assert git.task_branch(f"rotate {TOKEN}", "c0ffee00") == "task-c0ff"
+    # (W-1's re-review: in another case, or spelt as a branch's name spells it)
+    assert git.task_branch(f"{TOKEN.upper()} now", "c0ffee00") == "task-c0ff"
+    assert git.task_branch(TOKEN.replace("-", " ") + " now", "c0ffee00") == "task-c0ff"
     assert git.task_branch("ghp_" + "A1" * 18 + " leaked", "c0ffee00") == "task-c0ff"
     assert git.task_branch("Rotate the key", "c0ffee00") == "rotate-the-key-c0ff"
