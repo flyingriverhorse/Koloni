@@ -3,7 +3,9 @@ report, with when its turns of the night began and ended, the decisions in its c
 what KOLONİ's checks did not do - from the records alone: a time no record holds is None, and so is
 what was not checked where no Checked note says."""
 
+from collections import Counter
 from datetime import UTC, datetime, timedelta
+from unittest import mock
 
 import pytest
 from sqlalchemy import event
@@ -304,21 +306,31 @@ def nights_of_answers(client, root, answers, nights=3):
     return pid, cid
 
 
-def queries(client, url: str) -> int:
-    """How many queries the GET of `url` makes."""
+def queries(client, url: str) -> Counter[str]:
+    """The queries the GET of `url` makes, by their statement's first line. The secrets KOLONİ
+    knows are read before it, not within it: kept a second (`raw.FRESH_SECONDS`), they were read
+    anew in one of two GETs a second apart under load (50 == 46, 3 queries, `-n 4`)."""
     engine = client.app.state.session_factory.kw["bind"]
-    count = [0]
+    found = Counter[str]()
 
-    def one(*_args, **_kw):
-        count[0] += 1
+    def one(_conn, _cursor, statement, *_rest):
+        found[statement.split("\n", 1)[0]] += 1
 
-    event.listen(engine, "before_cursor_execute", one)
-    try:
-        got = client.get(url)
-    finally:
-        event.remove(engine, "before_cursor_execute", one)
+    raw.known()
+    with mock.patch.object(raw, "FRESH_SECONDS", float("inf")):
+        event.listen(engine, "before_cursor_execute", one)
+        try:
+            got = client.get(url)
+        finally:
+            event.remove(engine, "before_cursor_execute", one)
     assert got.status_code == 200, got.text
-    return count[0]
+    return found
+
+
+def as_many_queries(client, url: str, other: str) -> None:
+    """The GETs of `url` and `other` make as many queries; else the ones that differ are said."""
+    one, two = queries(client, url), queries(client, other)
+    assert one.total() == two.total(), (one - two, two - one)
 
 
 def test_a_report_asks_nothing_of_what_undoes_its_decisions(client, tmp_path, monkeypatch):
@@ -333,12 +345,10 @@ def test_a_report_asks_nothing_of_what_undoes_its_decisions(client, tmp_path, mo
         assert all(len(job["decisions"]) for job in jobs(client, pid).values())
     assert asked == []
     # No query an answer more: ten answers a night read as one does.
-    assert queries(client, f"/api/conversations/{cid_many}/away") == queries(
-        client, f"/api/conversations/{cid_few}/away"
+    as_many_queries(
+        client, f"/api/conversations/{cid_many}/away", f"/api/conversations/{cid_few}/away"
     )
-    assert queries(client, f"/api/projects/{many}/away") == queries(
-        client, f"/api/projects/{few}/away"
-    )
+    as_many_queries(client, f"/api/projects/{many}/away", f"/api/projects/{few}/away")
     # (Ready's log still asks it: its rows' Change and redo.)
     client.get(f"/api/projects/{many}/decisions", params={"unseen": "true"})
     assert asked
@@ -367,8 +377,7 @@ def test_only_readys_night_builds_the_strip(client, tmp_path, monkeypatch):
     assert built == ["add"]
     # (as many queries for 300 answers a night as for one)
     monkeypatch.undo()
-    snapshot = queries(client, f"/api/conversations/{cid}")
-    assert snapshot == queries(client, f"/api/conversations/{cid_few}")
+    as_many_queries(client, f"/api/conversations/{cid}", f"/api/conversations/{cid_few}")
 
 
 def two_jobs(client, root, later: int) -> str:
@@ -433,9 +442,7 @@ def test_every_decision_of_the_night_is_on_its_job_however_many(client, tmp_path
     assert [len(found[f"job {n}"]["decisions"]) for n in (0, 1)] == [1, 500]
     # (read at once, as before: no query a decision or a job's decision more)
     few = two_jobs(client, tmp_path / "few", 1)
-    assert queries(client, f"/api/projects/{pid}/away") == queries(
-        client, f"/api/projects/{few}/away"
-    )
+    as_many_queries(client, f"/api/projects/{pid}/away", f"/api/projects/{few}/away")
 
 
 def test_a_parked_line_is_shown_and_copied_masked(client, tmp_path, monkeypatch):
