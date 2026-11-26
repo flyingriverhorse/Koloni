@@ -60,7 +60,7 @@ topic**, **Chat settings** (this chat's sheet) and **More** (**Compare…**). Se
 | **Agents** | Each role's model, tools, knowledge, on / off; teams' stages and default recipe; recipes. See [Roles](../agents/roles.md). |
 | **Tools** | Built-in tools on / off; each MCP server's trust, tools and roles; each skill's roles and scripts. See [Built-in tools](../tools/built-in.md). |
 | **Memory** | Your preferences · This project's rules. See [Memory](../memory.md). |
-| **Knowledge** | Each topic's sources, money limit, model and page cap. See [Knowledge](../knowledge.md). |
+| **Knowledge** | Memory's sources part: each topic's sources, money limit, model and page cap. See [Sources](../knowledge.md). |
 | **Usage** | Prices. See [Usage and budgets](../money/usage.md). |
 
 ## Before the start

@@ -76,8 +76,9 @@ KOLONİ's own words, as they appear on screen.
   when they look.
 
 **Knowledge**
-: A page of expert topics, each read once from web pages or project files into pages and a guide.
-  Roles that know a topic use it while they work.
+: The Memory page's second part, **Sources to look things up in**: expert topics, each read once from
+  web pages or project files into pages and a guide. Roles that know a topic use it while they work,
+  and an agent's **Recall** looks in its role's. See [Sources](../knowledge.md).
 
 **MCP server**
 : A program on your machine that gives agents more tools. You add it on the Tools page, under

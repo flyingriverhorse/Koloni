@@ -1,19 +1,21 @@
-# Knowledge and experts
+# Sources to look things up in
 
 Knowledge is "what agents can look things up in": documentation, files or a topic that KOLONİ reads
-once and turns into a short guide. A role uses a knowledge only if you give it to the role. Open
-**Knowledge** on the left rail.
+once and turns into a short guide. A role uses a knowledge only if you give it to the role. Since
+0.1.10 it is the second part of the [Memory](memory.md) page: open **Memory** on the left rail and
+press **Sources to look things up in** (Ctrl+K: **Knowledge**). Its first part, **What the project
+knows**, is the project's rules, facts and notes.
 
-## The Knowledge page
+## The sources part {#the-knowledge-page}
 
 Each knowledge is a card. Its header shows its first source, and buttons to **Try it** and to
 **Learn** (later **Learn more** or **Learn again**), with what learning may cost beside it. The card
 also says when it was last read (**Fresh:**), how much it spent (**Spent:**), which model it learns
 with (**Learns with:**) and which roles use it (**Used by:**).
 
-![The Knowledge page: the Databricks and MLflow cards, and the lines offering This project's code and KOLONİ's own guide](images/knowledge.png)
+![The Memory page's sources part: the Databricks and MLflow cards, and the lines offering This project's code and KOLONİ's own guide](images/knowledge.png)
 
-*The Knowledge page, with this project's code and KOLONİ's own guide offered below the cards.*
+*Memory's sources, with this project's code and KOLONİ's own guide offered below the cards.*
 
 Click the topic to open the card. Its tabs are **Guide**, **Pages**, **Not known yet**, **Settings**
 and **Copy**.
@@ -94,7 +96,7 @@ guide, its pages, and its code under `code/`: the code map, and each code file t
 `code/files/<path>.md`, line for line. Test runners and builds look for code files, not `.md`
 ones, so they do not pick these up unless set to read Markdown. Files under hidden folders (`.github/`, `.claude/` and the like) are not kept. The code map reads at
 most 4 MB a file and 64 MB in all. Agents read the code there with `read_file`, at the file and
-line lookup names; what they read there is marked as data, not instructions.
+line **Recall** names; what they read there is marked as data, not instructions.
 
 What the knowledge keeps is kept out of git, **Take in**, search and the list of changes.
 A working copy links to it rather than copying it, so an agent there reads it too.
@@ -128,7 +130,7 @@ Learn.
 Nothing is copied into your project but the same text a repository leaves, and nothing is ever
 written into the folder. Nothing in it is run, not even git: its `.git` folder is not read.
 
-Only you add one, on the Knowledge page: an agent cannot add or change a folder source, and its
+Only you add one, on Memory's sources part: an agent cannot add or change a folder source, and its
 expert never learns it by itself. A path is refused if it is not a full path, not a folder, a link
 or a junction, a drive's root, your home folder or a folder holding it, a hidden folder of your home
 (`.ssh`, `.claude`, `.config`…), its `AppData` (on a Mac, its `Library`), a folder named as secrets are (`.ssh`),
@@ -164,6 +166,15 @@ On the Agents page, open a role and its **Knowledge** tab. Switch a knowledge on
   its name stays. Copying a knowledge to a project where the role is already Full gives it Map.
 
 A role with knowledge can look things up in it while it works.
+
+## How agents look things up
+
+An agent has one tool to look things up: **Recall**. It looks in the project's
+[memory](memory.md#searching-memory) and earlier messages, and - for a role that uses knowledge here -
+in that knowledge's pages too: the parts that hold most of the question's words, each under its
+topic, page and line, as data. A role whose agent may not read the memory (KOLONİ's own Reviewer)
+looks in its knowledge's pages alone. Until 0.1.10 the pages had a tool of their own, `lookup`: a
+role, a prompt or a guide that still names it keeps working for one release, as it did.
 
 ## Experts
 

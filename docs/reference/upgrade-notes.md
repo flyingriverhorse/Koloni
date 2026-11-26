@@ -42,6 +42,11 @@ Only what needs your attention after an update; everything else is in the [Chang
   its own (empty). Going back to 0.1.9 drops both, and 0.1.9 has its Project notes knowledge as it was:
   Project notes you keep and tasks' notebooks written after the upgrade go with them (the copy in
   `runtime/data/backups/` is the database as it was before the upgrade, without them).
+- **Knowledge is the Memory page's second part.** The rail's **Knowledge** is gone: press **Memory**,
+  then **Sources to look things up in** (or Ctrl+K, **Knowledge**). Agents look things up with
+  **Recall**, which also reads the pages of a role's knowledge; a role, recipe or prompt of yours that
+  names `lookup` keeps working in 0.1.10 - name **recall** instead before the next release. Nothing in
+  the database changes.
 - **The Board page is gone.** How each chat stands is on the **Chats** list, what waits for you on
   **Ready for you**, and a file two chats want still shows above both of them. Its **Re-run the ones
   that failed** button went with it: ask the chat's Orchestrator to open those sub-agents again. Nothing
