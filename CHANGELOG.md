@@ -21,6 +21,10 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Removed
+
+- **CLIs**: Codex's **One run per model step** is gone (it was under Experimental): Codex runs as **One session per agent** or **Native**. A Codex provider saved so runs as One session per agent from now on, on a model server of your own too, where a Codex session is not yet measured; **Show experimental CLIs** now offers agy alone. Claude Code keeps its One run per model step ([docs](docs/models/setup-cli.md#how-it-runs)).
+
 ## [0.1.9] - 2026-11-26
 
 ### Added

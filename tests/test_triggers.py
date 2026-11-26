@@ -43,7 +43,7 @@ from app.db.models import AllowedCommand, Project, Provider, Trigger
 from app.db.session import make_engine, make_session_factory
 from app.main import NoWebhookKeys, create_app
 from app.model_agy import AgyClient
-from app.model_cli import ClaudeCliClient, CodexCliClient
+from app.model_cli import ClaudeCliClient
 from app.model_client import ModelUnavailable
 from app.model_native import CodexNativeClient, CopilotNativeClient
 from app.model_session import ClaudeSessionClient
@@ -193,7 +193,6 @@ IN_AN_UNATTENDED_TURN = {
     ("claude_cli", "session"): "koloni",
     ("claude_cli", "step"): "koloni",
     ("claude_cli", "native"): "refused",
-    ("codex_cli", "step"): "koloni",
     ("codex_cli", "session"): "koloni",
     ("codex_cli", "native"): "refused",
     ("copilot_cli", "session"): "koloni",
@@ -259,12 +258,6 @@ CLIS = {
     "claude step": (
         {"kind": "claude_cli", "mode": "step"},
         lambda plan: ClaudeCliClient(
-            model=None, timeout=20, launcher=_fake("step"), env={"FAKE_CLI_PLAN": plan}
-        ),
-    ),
-    "codex step": (
-        {"kind": "codex_cli", "mode": "step"},
-        lambda plan: CodexCliClient(
             model=None, timeout=20, launcher=_fake("step"), env={"FAKE_CLI_PLAN": plan}
         ),
     ),
@@ -442,7 +435,7 @@ def test_a_provider_set_up_to_work_with_its_own_tools_is_refused_whatever_stands
     assert run["status"] == "failed" and NOT_THIS in run["error"], run
     assert model.calls == [] and snap["tool_calls"] == []
     # the same provider, one way of working further: it runs
-    session = client.patch(f"/api/providers/{own}", json={"mode": "step"})
+    session = client.patch(f"/api/providers/{own}", json={"mode": "session"})
     assert session.status_code == 200, session.text
     snap = wait_run(client, cid, run_now(client, made["id"]))
     assert snap["runs"][-1]["status"] == "completed", snap["runs"][-1]
@@ -484,7 +477,7 @@ def test_a_session_cli_in_an_unattended_turn_is_held_by_the_gate(
     assert NOBODY in told
 
 
-@pytest.mark.parametrize("which", ["claude step", "codex step"])
+@pytest.mark.parametrize("which", ["claude step"])
 def test_a_cli_run_one_step_at_a_time_in_an_unattended_turn_is_held_by_the_gate(
     cli_app, wait_run, project_dir, which
 ):

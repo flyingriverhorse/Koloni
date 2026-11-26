@@ -8,7 +8,6 @@ import contextlib
 import json
 import os
 import sys
-import tempfile
 import time
 from datetime import date
 from pathlib import Path
@@ -706,31 +705,6 @@ def test_claude_code_is_sent_no_picture_whose_base64_would_pass_anthropic_s_limi
     said = told_of_files(cli.calls[0])
     assert "files" not in said and "It is over 30 B, too big to be shown" in said["content"]
     assert cards(snap) == {shot["id"]: ["not shown to sonnet on Claude: over 30 B"]}
-
-
-def test_codex_step_is_given_no_picture_where_its_temporary_folder_has_a_comma(
-    settings_env, project_dir, wait_run, tmp_path, monkeypatch
-):
-    from tests.fakes import ScriptedModel
-
-    comma = tmp_path / "a,b"
-    comma.mkdir()
-    monkeypatch.setattr(tempfile, "tempdir", str(comma))
-    cli = ScriptedModel([text("seen")])
-    with chat_on(
-        settings_env,
-        project_dir,
-        {"Codex": cli},
-        name="Codex",
-        kind="codex_cli",
-        mode="step",
-        models=[{"name": "gpt", "inputs": ["image"]}],
-    ) as (client, cid):
-        shot = attach(client, cid, "shot.png", PNG).json()
-        snap = wait_run(client, cid, send(client, cid, "look", shot["id"]))
-    said = told_of_files(cli.calls[0])
-    assert "files" not in said and "--image cannot take a path with a comma" in said["content"]
-    assert cards(snap)[shot["id"]][0].startswith("not shown to gpt on Codex: Codex, whose --image")
 
 
 def test_a_card_is_written_and_said_again_only_when_it_changed(

@@ -157,7 +157,7 @@ test.each([
 test.each([
   ['claude_cli', 'session'],
   ['claude_cli', 'step'],
-  ['codex_cli', 'step'],
+  ['codex_cli', 'session'],
   ['copilot_cli', 'session'],
 ] as const)('%s run as %s works with KOLONİ’s tools, and nothing is said about triggers', (kind, mode) => {
   render(

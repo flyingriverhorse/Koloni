@@ -49,14 +49,10 @@ const limitChange = (most: number | null | undefined, provider: Provider | null)
 /** How each CLI can be run; the first is its default. */
 const MODES: Partial<Record<ProviderKind, Mode[]>> = {
   claude_cli: ['session', 'step', 'native'],
-  codex_cli: ['session', 'step', 'native'],
+  codex_cli: ['session', 'native'],
   copilot_cli: ['session', 'native'],
   agy_cli: ['reads', 'native'],
 }
-// shortcut: Codex on a model server of the user's starts as a step, its session there not measured
-// (app/api/providers.py `_mode`); drop this once it is.
-const firstMode = (kind: ProviderKind, server: string): Mode | null =>
-  kind === 'codex_cli' && server.trim() ? 'step' : (MODES[kind]?.[0] ?? null)
 
 export type Tab = 'models' | 'connection' | 'limits' | 'server'
 const TABS: [Tab, string][] = [
@@ -142,10 +138,10 @@ const reportedOf = (tested: ProviderTest | null) =>
   tested?.ok && tested.reply != null && tested.model_id && !/ default$/.test(tested.model_id) ? tested.model_id : null
 
 /** The ways a kind can be run, and the one it runs in. */
-function runsOf(kind: ProviderKind, mode: Mode | null, address: string) {
+function runsOf(kind: ProviderKind, mode: Mode | null) {
   const modes = MODES[kind] ?? []
-  // A kind runs in its default way unless another of its ways was chosen.
-  const runs = mode && modes.includes(mode) ? mode : firstMode(kind, address)
+  // A kind runs in its default way unless another of its ways was chosen (a Codex saved step by step: a session).
+  const runs = mode && modes.includes(mode) ? mode : (modes[0] ?? null)
   return { modes, runs }
 }
 
@@ -178,7 +174,7 @@ export function ProviderEditor({
   const start = startOf(provider)
   const [name, setName] = useState(start.name)
   const [kind, setKind] = useState<ProviderKind>(start.kind)
-  // 0.1.8: agy and Codex run one step at a time are offered only with experimental CLIs shown (or where in use).
+  // 0.1.8: agy is offered only with experimental CLIs shown (or where in use).
   const experimental = useExperimentalClis()
   const [usualKinds, experimentalKinds] = kindsShown(KINDS, kind, experimental)
   const [address, setAddress] = useState(start.address)
@@ -383,7 +379,7 @@ export function ProviderEditor({
   const reported = reportedOf(tested)
   const canAdd = reported !== null && !listed.some(m => m.name === reported) && rows.length < MAX_MODELS
   const cli = isCli(kind)
-  const { modes, runs } = runsOf(kind, mode, address)
+  const { modes, runs } = runsOf(kind, mode)
   /** Claude Code's own setup and whose sign-in a CLI runs on, and the options that say them where they are not what is saved. */
   const signOf = () => {
     const claudeNative = kind === 'claude_cli' && runs === 'native'
@@ -553,7 +549,6 @@ export function ProviderEditor({
           ownServer={ownServer}
           copilot={copilot}
           agy={agy}
-          experimental={experimental}
           apiKey={key}
           setKey={setKey}
           address={address}

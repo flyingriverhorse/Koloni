@@ -324,15 +324,13 @@ async def served_models(base_url: str, key: str | None) -> list[str]:
     return await OpenAICompatClient(base_url, key).models()
 
 
-def _mode(kind: str, mode: str | None, server: str | None = None) -> str | None:
+def _mode(kind: str, mode: str | None) -> str | None:
     """How a CLI provider is run; only the ways that kind can safely run are accepted."""
     allowed = MODES.get(kind)
     if allowed is None:
         return None
     if not mode:
-        # shortcut: Codex as a session on a model server of the user's is not measured
-        # (`CodexSessionClient`), so there it starts as a step; drop this once it is.
-        return "step" if kind == "codex_cli" and server else allowed[0]
+        return allowed[0]
     if mode not in allowed:
         name = CLI_NAMES[kind]
         if kind == "agy_cli":
@@ -482,7 +480,7 @@ def create_provider(body: ProviderIn, request: Request, session: Session = Depen
         api_key=_key(body.api_key) if body.kind in SERVED else None,
         default_model=_model(body.default_model),
         executable=_text(body.executable) if body.kind not in HTTP_KINDS else None,
-        mode=_mode(body.kind, body.mode, address),
+        mode=_mode(body.kind, body.mode),
         options=_options(body.kind, body.options, address),
         position=len(list_providers(session)),
         for_agents=body.for_agents,

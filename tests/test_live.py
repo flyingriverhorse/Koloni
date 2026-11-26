@@ -380,7 +380,6 @@ EDIT = "Read hello.py and change the greeting it prints from hi to hello. Do not
     [
         ("claude_cli", "haiku", "session"),
         ("claude_cli", "haiku", "step"),
-        ("codex_cli", None, "step"),
     ],
 )
 def test_a_cli_provider_reads_and_edits_through_koloni_tools(tmp_path, kind, model, mode):

@@ -17,7 +17,7 @@ from app.limits import account
 from app.main import create_app
 from app.model_cli import ClaudeCliClient, CodexCliClient
 from app.model_client import OwnStop
-from app.model_native import ClaudeNativeClient, CodexNativeClient
+from app.model_native import ClaudeNativeClient, CodexNativeClient, CodexSessionClient
 from app.model_session import ClaudeSessionClient
 from app.providers import Providers
 from tests.fakes import ScriptedModel
@@ -197,7 +197,7 @@ async def test_a_server_that_is_not_running_is_refused_before_the_cli_starts(tmp
         ("claude_cli", "session", ClaudeSessionClient),
         ("claude_cli", "step", ClaudeCliClient),
         ("claude_cli", "native", ClaudeNativeClient),
-        ("codex_cli", "step", CodexCliClient),
+        ("codex_cli", "session", CodexSessionClient),
         ("codex_cli", "native", CodexNativeClient),
     ],
 )

@@ -18,6 +18,13 @@ put one back in place of `runtime/data/koloni.db`.
 
 Only what needs your attention after an update; everything else is in the [Changelog](../changelog.md).
 
+### 0.1.10
+
+- **Codex's One run per model step is gone.** A Codex provider saved so runs as **One session per agent**,
+  and its window shows that. On a model server of your own a Codex session is not yet measured: try it
+  there knowing that, or set **How it runs** to **Native**. See
+  [Set up a CLI](../models/setup-cli.md#how-it-runs).
+
 ### 0.1.8
 
 - **The database** is upgraded at the first start (migrations 0176 to 0182), after KOLONİ copies it to

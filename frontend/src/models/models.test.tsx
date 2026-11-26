@@ -437,7 +437,7 @@ test('a Qoder provider from before says why it stays off and can only be deleted
   expect(screen.queryByRole('option', { name: /Qoder/ })).not.toBeInTheDocument()
 })
 
-test('Codex runs the ways it safely can; one run per model step only under Experimental, or in use', async () => {
+test('Codex runs the ways it safely can: a session or Native (0.1.10: one run per model step is cut)', async () => {
   const h = handlers()
   const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: null })
   render(<ModelsPage providers={[codex, provider({})]} {...h} />)
@@ -451,31 +451,37 @@ test('Codex runs the ways it safely can; one run per model step only under Exper
   await close()
   showExperimental()
   await open('Codex', 'Connection')
-  const step = await screen.findByRole('option', { name: /One run per model step/ })
-  expect(step.closest('optgroup')).toHaveAttribute('label', 'Experimental')
-  await userEvent.selectOptions(screen.getByLabelText('How it runs'), 'step')
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(h.onSave).toHaveBeenCalledWith('p5', expect.objectContaining({ mode: 'step' }))
+  expect(screen.queryByRole('option', { name: /One run per model step/ })).not.toBeInTheDocument()
 })
 
-test('agy and Codex run step by step, already set up, keep their card tagged Experimental', () => {
-  const agy = provider({ id: 'p6', name: 'agy', kind: 'agy_cli', base_url: null, mode: 'reads' })
+test('a Codex saved step by step shows, and is saved, as a session', async () => {
+  const h = handlers()
   const step = provider({ id: 'p7', name: 'Codex steps', kind: 'codex_cli', base_url: null, mode: 'step' })
+  render(<ModelsPage providers={[step, provider({})]} {...h} />)
+  expect(screen.getByRole('button', { name: /^Codex steps/ })).not.toHaveTextContent('Experimental')
+  await open('Codex steps', 'Connection')
+  expect(screen.getByLabelText('How it runs')).toHaveValue('session')
+  await userEvent.type(screen.getByLabelText('Path to the command'), 'x')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(h.onSave).toHaveBeenCalledWith('p7', expect.objectContaining({ mode: 'session' }))
+})
+
+test('agy, already set up, keeps its card tagged Experimental', () => {
+  const agy = provider({ id: 'p6', name: 'agy', kind: 'agy_cli', base_url: null, mode: 'reads' })
   const codex = provider({ id: 'p8', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'session' })
-  render(<ModelsPage providers={[provider({}), agy, step, codex]} {...handlers()} />)
+  render(<ModelsPage providers={[provider({}), agy, codex]} {...handlers()} />)
   const card = (name: RegExp) => screen.getByRole('button', { name })
   expect(card(/^agy/)).toHaveTextContent('Experimental')
-  expect(card(/^Codex steps/)).toHaveTextContent('Experimental')
-  expect(card(/^Codex(?! steps)/)).not.toHaveTextContent('Experimental')
+  expect(card(/^Codex/)).not.toHaveTextContent('Experimental')
   expect(card(/^Local/)).not.toHaveTextContent('Experimental')
 })
 
 test('Codex can run natively, and the page says plainly how it is asked first', async () => {
   const h = handlers()
-  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'step' })
+  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'session' })
   render(<ModelsPage providers={[codex, provider({})]} {...h} />)
   await open('Codex', 'Connection')
-  expect(screen.getByLabelText('How it runs')).toHaveValue('step')
+  expect(screen.getByLabelText('How it runs')).toHaveValue('session')
   await userEvent.selectOptions(screen.getByLabelText('How it runs'), 'native')
   const warning = screen.getByRole('note')
   // Since slice 89a it asks KOLONİ before each command and patch, at any permission level.

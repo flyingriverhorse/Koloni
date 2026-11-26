@@ -259,6 +259,6 @@ A CLI provider has a setting **How it runs**:
 | On screen | What it means |
 |---|---|
 | One session per agent, with KOLONİ's tools (recommended) | One CLI session per agent, using KOLONİ's tools. |
-| One run per model step, with KOLONİ's tools | The CLI runs once for each model step: slower, and the answer arrives all at once. |
+| One run per model step, with KOLONİ's tools | Claude Code only: the CLI runs once for each model step, slower, and the answer arrives all at once. |
 | Native: its own tools, in the project | The CLI uses its own tools in your folder and asks KOLONİ before each one. |
 | Reads with its own tools; started without leave to write or run | agy only: it reads with its own tools and cannot change anything. |
