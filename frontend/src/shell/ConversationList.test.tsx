@@ -824,3 +824,31 @@ test('Now before the Board is read: what waits is counted, how the chats stand i
   // Its row has no cell to say what is not known.
   expect(within(screen.getByRole('button', { name: /^Docs/ }).closest('li')!).queryByRole('img')).toBeNull()
 })
+
+test('a chat Ready for you has read waits only for what it lists: the Board, read before your answer, is not believed', () => {
+  const board: Board = {
+    backlog_waiting: 0,
+    limit: null,
+    running: 0,
+    conflicts: [],
+    conversations: [
+      onBoard('a', { merges_pending: 1, turn: boardTurn('r1', 'completed', '2026-10-16T12:30:00Z') }),
+      onBoard('b', { merges_pending: 1, turn: boardTurn('r2', 'completed', '2026-10-16T12:30:00Z') }),
+    ],
+  }
+  render(
+    <ConversationList
+      conversations={[listed('a', 'Answered', false), listed('b', 'Not read yet', false)]}
+      board={board}
+      readChats={['a']}
+      currentId={null}
+      onOpen={() => {}}
+      onNew={() => {}}
+      onArchive={async () => {}}
+    />,
+  )
+  const cell = (name: string) =>
+    within(screen.getByRole('button', { name: new RegExp(`^${name}`) }).closest('li')!).getByRole('img')
+  expect(cell('Answered')).toHaveAccessibleName('done')
+  expect(cell('Not read yet')).toHaveAccessibleName('waits for your word')
+})

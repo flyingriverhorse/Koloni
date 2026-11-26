@@ -35,6 +35,8 @@ interface Props {
   onRefresh?: () => Promise<void>
   /** What waits for your word anywhere - Ready for you's rows, the top bar's pill's number: each chat's own on its row. */
   waiting?: ReadyItem[]
+  /** The chats Ready for you has read: what it does not list of them does not wait, whatever the Board still says. */
+  readChats?: string[]
   /** Now's way to Ready for you. */
   onReady?: () => void
 }
@@ -169,13 +171,20 @@ const ChatCell = ({ said }: { said: ChatSaid | null }) =>
   said ? <Cell {...CELL[said[0]]} label={CHAT_WORD[said[0]]} /> : <span className="conv-cell-none" aria-hidden />
 
 /** How each chat stands (`chatStands`), by its id: what of Ready for you's rows is its own, and its row on the Board. */
-function saidOf(conversations: ListedConversation[], on: Map<string, BoardConversation>, waiting: ReadyItem[]) {
+function saidOf(
+  conversations: ListedConversation[],
+  on: Map<string, BoardConversation>,
+  waiting: ReadyItem[],
+  read: string[],
+) {
   const mine = new Map<string, ReadyItem[]>()
   for (const item of waiting) {
     const id = chatOf(item)
     if (id) mine.set(id, [...(mine.get(id) ?? []), item])
   }
-  return new Map(conversations.map(c => [c.id, chatStands(on.get(c.id), mine.get(c.id) ?? [], c.backlog_task)]))
+  return new Map(
+    conversations.map(c => [c.id, chatStands(on.get(c.id), mine.get(c.id) ?? [], c.backlog_task, read.includes(c.id))]),
+  )
 }
 
 /** Now's chats, by name: those at work, and those stuck or done today (not archived ones). */
@@ -214,6 +223,7 @@ export function ConversationList({
   board,
   onRefresh,
   waiting = [],
+  readChats = [],
   onReady,
 }: Props) {
   const [by, setBy] = useState<'date' | 'name'>('date')
@@ -226,7 +236,7 @@ export function ConversationList({
   const [refused, setRefused] = useState<string | null>(null)
   const [stale, setStale] = useState<string | null>(null)
   const on = new Map(board?.conversations.map(c => [c.conversation_id, c]))
-  const said = saidOf(conversations, on, waiting)
+  const said = saidOf(conversations, on, waiting, readChats)
   // It waits for your word: Ready for you has a row of it, or the Board says so while its chat is not read yet.
   const waits = (id: string) => said.get(id)?.[0] === 'yours'
   const words = query.trim().toLowerCase()

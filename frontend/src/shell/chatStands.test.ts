@@ -50,6 +50,12 @@ test('a chat stands as its cell says: at work with who and on which branch; stuc
   ])
   // What waits for your word, as the Board says it before the chat is read.
   expect(chatStands(onBoard({ merges_pending: 1 }), [])).toEqual(['yours', 'Waits for your word', ''])
+  // Read by Ready for you, which lists nothing of it (the Board read before your answer): it does not wait - it goes on
+  // as its turn says, at work while its agents are, or as its turn ended.
+  const answered = { ...ended('completed'), merges_pending: 1 }
+  expect(chatStands(answered, [], null, true)?.slice(0, 2)).toEqual(['done', 'Done'])
+  expect(chatStands({ ...answered, agents: [agent('Lead', 'waiting_approval')] }, [], null, true)?.[0]).toBe('running')
+  expect(chatStands(onBoard({ merges_pending: 1 }), [], null, true)).toEqual(['queued', 'No turn yet', ''])
   // No row on the Board yet: nothing is said.
   expect(chatStands(undefined, [])).toBeNull()
 })

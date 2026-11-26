@@ -2,6 +2,7 @@ import { AGENT_STATUS, titleOf } from '../agents/agentStatus'
 import type { Board, ListedConversation } from '../api/types'
 import { count } from '../board/columns'
 import { standingOf } from '../board/waiting'
+import { TERMINAL } from '../state/applyEvent'
 import type { Stands } from '../ready/cells'
 import type { ReadyItem } from '../ready/ready'
 import { kindWord } from '../ready/ReadyViews'
@@ -53,24 +54,31 @@ function atWork(on: BoardConversation): ChatSaid {
   return ['running', who.join(', ') || 'At work', line(where, ...ranOf(on.turn))]
 }
 
+/** How it goes on, what waits left out (`standingOf` past its first question): at work, or how its last turn ended. */
+const goingOn = (on: BoardConversation) =>
+  on.agents.length > 0 || (on.turn && !TERMINAL.has(on.turn.status)) ? 'working' : (on.turn?.status ?? null)
+
 /**
  * How a chat stands, as its cell and one line say it on the Chats page (0.1.10): what waits for your word in it - Ready
  * for you's own rows of it (`mine`), the top bar's pill counts each, else what the Board says waits there -, what is at
- * work, a last turn stuck (or its To-do task blocked), done, stopped, or no turn yet. Null: the Board has no row of it
- * yet - nothing is said.
+ * work, a last turn stuck (or its To-do task blocked), done, stopped, or no turn yet. `read`: Ready for you has read the
+ * chat - what it does not list does not wait, whatever the Board, read before a decision, still says. Null: the Board
+ * has no row of it yet - nothing is said.
  */
 export function chatStands(
   on: BoardConversation | undefined,
   mine: ReadyItem[],
   task: ListedConversation['backlog_task'] = null,
+  read = false,
 ): ChatSaid | null {
-  const standing = standingOf(on)
   if (mine.length > 0) {
     const kinds = [...new Set(mine.map(kindWord))].join(', ')
     return ['yours', mine.length === 1 ? 'Waits for your word' : `${mine.length} wait for your word`, kinds]
   }
-  if (standing === 'waits') return ['yours', 'Waits for your word', '']
   if (!on) return null
+  const board = standingOf(on)
+  if (board === 'waits' && !read) return ['yours', 'Waits for your word', '']
+  const standing = board === 'waits' ? goingOn(on) : board
   if (standing === 'working') return atWork(on)
   const ended = standing ? ENDED[standing] : undefined
   const ran = line(...ranOf(on.turn))
