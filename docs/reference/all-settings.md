@@ -14,7 +14,7 @@ message box. See [Settings](../settings.md#this-chat).
 |---|---|
 | **Agents** | Who changes the files · Suggest follow-up tasks after each turn · Follow-up tasks from |
 | **Asking and away** | Opening a sub-agent · When you're away · Full auto's judge · When the judge finds a command risky · It also lets a delete or a push run when a line you saved names it · Agents may delete what is disposable without asking |
-| **New chats start with** | New chats' teams · Other folders · Posts, at most · Minutes, at most · Tokens, at most · Tokens, at least |
+| **New chats start with** | New chats' teams · Other folders |
 | **Limits and money** | At most this many agents at work in this project · Agents at the same time · Sub-agent levels · Sub-agents per request · Continue gives this many more steps · Stop the work on a message over this many tokens · A discussion's tokens, at most · Monthly budget |
 | **Commands and secrets** | This machine / Docker container · Image · Allow network access · Longest command (minutes) · Hide secret files from commands · Secret variables commands may see · Planted test key (canary) |
 | **Runs without asking** | Sites agents open · Commands and requests, by chat |
@@ -41,7 +41,7 @@ On the line over the box: the model button (**Provider**, **Model name**, **Thin
 Copilot's `auto` and `fusion` **Routing**, **Orchestrator model: automatic**) and **☾ Away** (a chat with
 a folder). Under the message: **Attach**, the permission level (its menu holds **Full auto's judge**,
 **Plan first** and **Test and review changes**), **Auto-read**, **Dictate** and **Send**. Under the box: **Workspace**, **New
-topic**, **Chat settings** (this chat's sheet) and **More** (**Work together…**, **Compare…**). See
+topic**, **Chat settings** (this chat's sheet) and **More** (**Compare…**). See
 [Chat and canvas](../use/chat-and-canvas.md).
 
 ## Models page

@@ -34,7 +34,7 @@ are grouped like this. "Asks" means it waits for your card, as the chat's permis
 | **Commands** | Run commands (asks) |
 | **Web** | Search the web (asks) · Web requests (asks) |
 | **Browser** | Open a page · Screenshots · Click · Type · Press keys · Scroll · Read the page · Console |
-| **Team** | Notify you · Open sub-agents · New roles (asks) · New skills · Ask you · Message agents · Open rooms · Discussions · Leave notes · Read notes |
+| **Team** | Notify you · Open sub-agents · New roles (asks) · New skills · Ask you · Message agents · Discussions · Leave notes · Read notes |
 | **To-do** | Read the To-do list · Add tasks (asks) · Change tasks (asks) |
 | **Memory** | Remember · Recall |
 

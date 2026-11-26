@@ -34,7 +34,7 @@ up to 49 steps. A role's own lower limit still holds over these.
 
 ### The Orchestrator: no step count
 
-The Orchestrator runs the whole turn: it opens the teams, follows its rooms, passes messages on and
+The Orchestrator runs the whole turn: it opens the teams, passes messages on and
 writes the answer. A fixed count of its steps ran out on honest work, after the work was already in
 the project, so it has none. What stops it:
 
@@ -70,10 +70,8 @@ KOLONİ watches the Orchestrator's tool calls. It stops it when:
 
 Something moves when a file of the turn changes, it opens an agent, or it sends a message to one it
 had not written to among its last three. A command that succeeds is judged by what it said, like any
-call. A call with other arguments, or one that gets a new result (a room's new post, a team's
-report), is new; the same call made several times in one step counts once. A wait in a room it
-follows counts as neither while it waits, however often it says the same; one back at once with the
-same words is a repeat. From the third repeat on, the Orchestrator is told what is repeating.
+call. A call with other arguments, or one that gets a new result (a team's report), is new; the same
+call made several times in one step counts once. From the third repeat on, the Orchestrator is told what is repeating.
 
 In a turn you started, the first time it is told, in its next step, to try a different approach or
 to report what it did and end. Its counts start again and it goes on; you see nothing. If it goes
@@ -209,7 +207,6 @@ is left:
 
 - the Orchestrator itself, at a limit you set (its loop guard asks: see above);
 - a job of [work while you're away](../automation/overnight.md#step-limits-while-away);
-- a room's members, and a room's sharing step (which has one step of its own);
 - an agent answering another agent's question, or working on another agent's message, a go on
   included: the sender waits for its reply;
 - an agent whose work is kept on a card with Continue;

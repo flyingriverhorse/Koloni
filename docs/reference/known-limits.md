@@ -263,7 +263,6 @@ messages.
 
 ## Recipes
 
-- A chat cannot open a room while a recipe runs.
 - A team as a step's "Who" runs its stages as slots of one step, not one after another.
 
 ## The page

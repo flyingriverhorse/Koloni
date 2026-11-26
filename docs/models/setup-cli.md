@@ -102,7 +102,7 @@ saying so; **Stop** stops that too, and what the summary costs counts in the tur
 no tokens). If its context fills again, the turn fails and says so: use **Compact now** or set a smaller context
 window on the role. Where nothing of its earlier work is left to summarise - a single message larger than its
 model takes, say - nothing is started again, and the failure says that after the CLI's own line: send a shorter
-message, or use a model with a larger context window. Where the lead had opened sub-agents, a room or a team's recipe, the turn is not started
+message, or use a model with a larger context window. Where the lead had opened sub-agents or a team's recipe, the turn is not started
 again: KOLONİ summarises its earlier work after it and the failure says so - send your message again and it goes
 on from the summary. A plan, a To-do task's turn and a night's job are neither started again nor
 summarised this way. (A lead on an API model is summarised and asked once more inside its step, as before.)

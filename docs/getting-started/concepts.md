@@ -3,7 +3,7 @@
 KOLONİ's words, each in two or three sentences, with a link to the page that goes deeper. The map shows
 how they hang together.
 
-[![Concept map: project, chat, turn, Orchestrator, sub-agent, role, team, recipe, room, discussion, memory, knowledge, To-do (goal, story, task or bug: ticked tasks run in a chat's queue), ☾ Away and card](../diagrams/concept-map.svg)](../diagrams/concept-map.svg)
+[![Concept map: project, chat, turn, Orchestrator, sub-agent, role, team, recipe, discussion, memory, knowledge, To-do (goal, story, task or bug: ticked tasks run in a chat's queue), ☾ Away and card](../diagrams/concept-map.svg)](../diagrams/concept-map.svg)
 
 *KOLONİ's words and how they hang together.*
 
@@ -59,11 +59,6 @@ how they hang together.
   how it ends. A team runs by a recipe, such as **Feature**, **Bugfix** or **Evolve**. See
   [Recipes and candidates](../agents/recipes.md) and the [Recipe cookbook](../agents/recipe-cookbook.md).
 
-**Room**
-: Two to six agents working on one goal at the same time, in one working copy. They share the work out
-  first, each file has one holder, and the room has a budget. Open one with **Work together…** under
-  **More**. See [Rooms](../agents/rooms.md).
-
 **Discussion**
 : Several agents talking one question through in rounds, while nobody changes anything. An agent with
   the `discuss` tool starts it (the Orchestrator has it); you can join in or end it. See
@@ -116,5 +111,5 @@ how they hang together.
 
 ## Next
 
-- [Which way to work](../agents/which-way.md): a single agent, a team, a room?
+- [Which way to work](../agents/which-way.md): a single agent, a team, a discussion?
 - [Glossary](../reference/glossary.md): every word KOLONİ uses on screen.

@@ -463,8 +463,7 @@ change and the fix, by the same rule (a big or security-touching change gets the
 the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
 That turn keeps the held turn's checks - never fewer than the tests and the review, whatever this
 chat's switch or the project's After a change say since; its old code, for "were failing before",
-is the project's, so the held work's own failure is never excused; and a room its Orchestrator
-opens takes nothing in when it ends. The Reviewer sees the kept work as Take in shows it: what
+is the project's, so the held work's own failure is never excused. The Reviewer sees the kept work as Take in shows it: what
 Take in leaves out is not in it, and a secret file, one holding a secret you gave on a card, or
 one that is not text is named, never shown.
 **Take in anyway** is your word: the work goes in as it is, with no look first.
@@ -1015,7 +1014,7 @@ one of them asks you something: the card says it too); its foot a dot a round (r
 held, green: passed, amber: at work, grey: it only asked for a test - no fix round). One look and nothing sent back is a plain box: no count, no
 shadows, no loop. Who is in it, and each round, is what KOLONİ wrote down as its checks went - each
 pass's tests, its looks and their verdicts, why it went back, and the agents its send-back had the
-Orchestrator open -, never guessed from the order agents were opened in: an agent of a room or a
+Orchestrator open -, never guessed from the order agents were opened in: an agent of a
 discussion, or one written for KOLONİ's ask for a test (which is no fix round), stays the
 Orchestrator's; what a fixer opened under it is in the box with it; a stronger model's diagnosis is
 a card of its own kind, not a look. That record comes with the Checked section at the turn's end:

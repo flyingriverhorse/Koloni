@@ -92,17 +92,6 @@ The sections are listed on the left, in this order.
 | **New chats' teams** | **Orchestrator decides**, **Manual** or **No teams**. With Manual, the teams a chat kept with **Use for new chats in this project**. |
 | **Other folders** | The folders a new chat starts with, besides the project. Remove one here; add one from a chat's folder button with **Keep for this project**. |
 
-**A room's limits**: "What a room opened in any chat of this project may spend, unless you say
-otherwise as you open it. Empty: no limit." This is their one place: **Work together…** sets a room's
-own.
-
-| Setting | What it does |
-|---|---|
-| **Posts, at most** | 1 to 1000. |
-| **Minutes, at most** | 1 to 1440. |
-| **Tokens, at most** | A token budget for the room. |
-| **Tokens, at least** | 60,000 by default. A room an agent opens with a smaller token budget gets this many, because one member's step takes about 8,000 to 9,000 tokens. If it is higher than **Tokens, at most**, the room gets the most. Empty: an agent's room gets what it asks for. |
-
 ### Limits and money
 
 | Setting | What it does |

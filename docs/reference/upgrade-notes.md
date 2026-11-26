@@ -40,6 +40,18 @@ Only what needs your attention after an update; everything else is in the [Chang
   started stay in their chats as they were. What still starts by itself: ☾ Away's jobs, a chat's queue of
   To-do tasks and the day's summary. To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and put that
   copy back in place of `runtime/data/koloni.db`; your triggers come back with it.
+- **Rooms are gone.** At the first start the database is upgraded (migration 0193), after KOLONİ copies
+  it to `runtime/data/backups/`: `open_room` is taken off every role, your own too; what a room may
+  spend is taken off every project and chat; each Room step of your saved recipes becomes an **All at
+  once** group in its place, a step for each of its roles (its arrows and loops kept); a room left
+  running is ended; and each chat that had a room gets one line where it was, "A room was opened here.
+  Rooms were removed in 0.1.10 …". The rooms themselves and what was said in them stay in the database,
+  untouched. A recipe file in a folder's `.koloni/recipes/` is read the same way as it loads, and is
+  written in the new form the next time you save it. A Room step that reviewed with the role that did
+  the work before it among its roles now says that role "would check its own work": take it out of the
+  group. For agents talking a question through, ask for a [discussion](../agents/discussions.md); for
+  work at the same time, sub-agents or a recipe's **All at once** step. To go back to 0.1.9, stop
+  KOLONİ, return to 0.1.9 and put that copy back in place of `runtime/data/koloni.db`.
 
 ### 0.1.8
 

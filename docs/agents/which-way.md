@@ -10,7 +10,7 @@ smallest that fits: every extra agent is more model calls, so more tokens, money
 | a small, clear job done | **just ask**, in a chat | the Orchestrator does small jobs itself, or opens one sub-agent | the fewest calls |
 | to see the plan before anything changes | **Plan first** | each message first gets a plan to approve | one planning pass more |
 | a bigger piece of work, built, reviewed and tested | **a team** with a **recipe** | the recipe runs the steps in order, loops back on findings, and asks you where the recipe says (Feature: the spec, and the work at the end) | one agent per step, more for each loop |
-| two or more agents to build one thing at the same time | **a room** | its members share the work out, each file has one holder, and they read each other's posts | each member's calls, up to the room's budget |
+| two or more agents to build one thing at the same time | **sub-agents**, or a recipe step **All at once** | each works on its own part, then the work is taken in | each agent's calls |
 | agents to think a question through, with nothing changed | **a discussion** | agents talk in rounds and nobody writes anything | each speaker's whole work so far is sent again at each step, so tokens grow faster than the talk |
 | the best of several attempts | **Evolve**, or another recipe with **Candidates** | 2 to 5 agents try the same job, each is scored by your measure command, and the best goes on | each candidate in each round, plus the measure runs |
 | two models' answers side by side | **Compare** | one message goes to two models, and you keep one's work | two runs of the message |
@@ -39,9 +39,10 @@ it, then KOLONİ runs the tests - and has a big or security-touching change revi
 fails goes back to the Coder. Cheaper than Feature: two agents, no spec and no review of a small fix.
 
 **"The backend and frontend teams must agree the API first."**
-A room. Open one with **Work together…** under **More**, or ask the Orchestrator to bring the teams'
-leads together in a room before the teams start. They agree the shape in the room, then each team
-builds its side. See [Rooms](rooms.md).
+Two teams. Ask the Orchestrator for both: each team's coordinator writes the contract into the shared
+folder (`contracts/`) and asks the other team for its part with `request_work`. To have the
+coordinators talk it over first, ask for a [discussion](discussions.md) once they are at work. (Rooms,
+where 2 to 6 agents wrote in one copy at once, are gone since 0.1.10.)
 
 **"Should we keep SQLite or move to Postgres?"**
 A discussion. Ask the Orchestrator to have the Architect and a Database engineer discuss it. Nobody
@@ -73,6 +74,6 @@ one's steps and which team runs it by default.
 - Start small. A single agent that is not enough can still hand work on; a team that was too much has
   already spent.
 - **Review only** and **Research** report what they found and change nothing.
-- A discussion and a room have budgets: set them before you start.
+- A discussion has a budget: set it before you start.
 - Give roles a tier, so easy jobs go to a fast model. See [Tiers and Agents may use](../models/tiers.md)
   and [Keeping costs down](../money/cost.md).
