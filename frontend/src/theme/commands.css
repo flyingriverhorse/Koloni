@@ -2503,6 +2503,25 @@ fieldset.choice > label .choice-note,
     width: auto;
     max-height: none;
   }
+
+  /* "Roles ▸ N" stays at the top however far the page scrolls (0.1.0-ui): the teams' box gives way, so the button
+     sticks in the page's own scroll and does not leave with a short teams list above the role's form. */
+  .paged > .agents-page > .agents-teams {
+    display: contents;
+  }
+
+  .paged > .agents-page > .agents-teams > * {
+    flex: none;
+  }
+
+  .paged > .agents-page > .agents-teams > .role-lib-toggle {
+    align-self: flex-start;
+    margin-top: 16px;
+  }
+
+  .paged > .agents-page > .agents-teams > .teams-board {
+    padding-bottom: 28px;
+  }
 }
 
 /* A role in sections (slice 60d): where it runs on top, then what it does, its model, its tools. */
