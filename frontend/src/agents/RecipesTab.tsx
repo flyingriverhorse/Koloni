@@ -847,7 +847,7 @@ function PartPanel({
             })
           }}
         >
-          <option value="auto">Auto, the Lead picks</option>
+          <option value="auto">Auto, the Orchestrator picks</option>
           <option value="same">Same model</option>
           <option value="each" disabled={guided.length === 0 && !picks}>
             I pick each

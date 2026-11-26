@@ -57,7 +57,7 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   await page.getByRole('button', { name: '● 1 fact waits for your word' }).click()
   await expect(proposal).toHaveCount(1)
   await expect(proposal).toContainText(FACT)
-  await expect(proposal).toContainText('noted by Lead')
+  await expect(proposal).toContainText('noted by Orchestrator')
   await expect(proposal).toContainText('settings.txt:2-2')
   await expect(proposal).toContainText('source unchanged since noted')
   await expect(proposal).toContainText('read by the agent in the turn it was noted')

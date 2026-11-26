@@ -310,16 +310,22 @@ test('the raw steps of an agent leave out what it said in a discussion', async (
   expect(screen.queryByText('Tests first.')).not.toBeInTheDocument()
 })
 
-test('a team’s lead in a discussion is its coordinator in the side panel, as on the discussion’s card', () => {
+test('a team’s lead in a discussion is its coordinator in the side panel and its window, as on the discussion’s card', () => {
   const docs = { id: 'docs', name: 'Docs', roles: [], lead: { name: 'Docs lead' } } as unknown as Team
   const s = { ...state, agents: state.agents.map(a => (a.id === 'coder' ? { ...a, name: 'Docs lead' } : a)) }
   // (The store is reset for each file, not each test: its teams put back.)
   const before = useApp.getState().teams
   useApp.setState({ teams: [docs] })
   try {
-    render(<Inspector state={s} selectedId="discussion:d" onClose={() => {}} />)
+    const { unmount } = render(<Inspector state={s} selectedId="discussion:d" onClose={() => {}} />)
     expect(screen.getByText('Docs coordinator · Reviewer · Orchestrator')).toBeInTheDocument()
     expect(screen.getByText('Docs coordinator:')).toBeInTheDocument()
+    unmount()
+    render(
+      <DiscussionWindow state={s} discussionId="d" onClose={() => {}} onSay={async () => {}} onEnd={async () => {}} />,
+    )
+    expect(screen.getByText('Docs coordinator · Reviewer · Orchestrator')).toBeInTheDocument()
+    expect(screen.queryByText(/Docs lead/)).toBeNull()
   } finally {
     useApp.setState({ teams: before })
   }

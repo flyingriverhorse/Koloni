@@ -34,6 +34,7 @@ How to write an entry (every release looks the same):
 ### Fixed
 
 - **Workspace**: in ☾ Away, a file holding a secret KOLONİ knows that a job's agent committed on the branch itself is no longer said to be left out - its chat said "left out of the branch's commit … the rest of the work is on the branch" and its push row "· left out", though the file was on the branch. **Run** refuses that push, naming the file ("… on the branch holds a secret KOLONİ knows - take it off the branch first"), as before; "left out" is said only of a file KOLONİ's own commit left out ([docs](docs/automation/overnight.md#in-a-git-repository-each-job-on-its-own-branch)).
+- **Agents**: the chat's top agent is the Orchestrator where three places still said Lead: a recipe's candidates offer **Auto, the Orchestrator picks** for their models, Memory's **Written by** filter, its notes and its search say **Orchestrator**, and a discussion's window calls a team's lead its coordinator - it said "Docs lead" - as the canvas and the side panel do ([docs](docs/agents/recipes.md)).
 
 ### Removed
 
