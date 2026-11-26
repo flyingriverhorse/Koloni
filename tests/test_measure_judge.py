@@ -192,6 +192,11 @@ def test_the_dry_run_builds_every_cases_prompt_and_asks_nothing(capsys):
     assert measure.prompt("risk", measure.cases("risk")[0]) in shown and DESTRUCTIVE in shown
     for which, case in every:
         assert json.dumps(case["command"]["command"])[1:-1] in measure.prompt(which, case)
+    # (the words alone: nothing said of Full auto's judge)
+    assert measure.main(["--dry-run", "--only", "words"]) == 0
+    shown = capsys.readouterr().out
+    assert shown.startswith(f"{len(measure.cases('words'))} prompts built\n")
+    assert "Full auto's judge" not in shown and DESTRUCTIVE not in shown
 
 
 def test_prompt_a_is_asked_and_said_and_a_stopped_case_never(tmp_path, capsys):

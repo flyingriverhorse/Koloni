@@ -467,11 +467,14 @@ def main(argv: list[str] | None = None, override=None) -> int:
     ]
     if args.dry_run:
         built = [prompt(which, case, args.prompt) for which, case in asked]
-        left = len(every_case("risk")) - len(cases("risk"))
-        print(
-            f"{len(built)} prompts built, Full auto's judge's with prompt {args.prompt} ({left} "
-            "risk cases the gate stops before it today are not asked)"
-        )
+        said = f"{len(built)} prompts built"
+        if args.only in (None, "risk"):
+            left = len(every_case("risk")) - len(cases("risk"))
+            said += (
+                f", Full auto's judge's with prompt {args.prompt} ({left} risk cases the gate"
+                " stops before it today are not asked)"
+            )
+        print(said)
         firsts: dict[str, int] = {}
         for at, (which, _case) in enumerate(asked):
             firsts.setdefault(which, at)

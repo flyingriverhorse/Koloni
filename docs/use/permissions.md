@@ -424,7 +424,7 @@ Claude Code's auto mode, also one that destroys work in the project you did not 
 emptying a file or folder that was there before the turn, or throwing away uncommitted changes, in the
 forms the list above does not stop - `> file`, `truncate`, `Set-Content`, `New-Item -Force`,
 `find … -exec rm`, `npx rimraf`, `robocopy /MIR`, `git read-tree -u --reset`, a script or a one-liner
-that deletes (`rm`, `del`, `Remove-Item`, `git reset --hard`, `git clean`, `git checkout -- .`,
+that deletes (`rm`, `del`, `Remove-Item`, `git reset --hard`, `git clean -f`, `git checkout -- .`,
 `git restore .` and `git stash drop` are the list's, and ask as before). It stays fine where you asked
 for it, for build output and caches a build makes again (`build/`, `dist/`, `node_modules`,
 `__pycache__`), for files the same agent made earlier in the turn, for the agents' scratch folder
