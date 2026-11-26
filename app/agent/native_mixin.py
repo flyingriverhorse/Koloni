@@ -614,12 +614,12 @@ class NativeMixin:
             # What changes in the project while it works is on record, as by a maker not known
             # (B4-04: a hand change beside a CLI that keeps to its copy was on none). Looked
             # at while it works - after each command, one look over the project - for one whose
-            # commands can write there too: native agy, and Claude Code, whose commands no
-            # sandbox holds (C2; a file tool of its own is refused a write outside - `_approve`).
+            # commands can write there too: native agy, Claude Code, whose commands no sandbox
+            # holds (C2; a file tool of its own is refused a write outside - `_approve`), and
+            # Copilot until its session says it has a sandbox (`_Watch.unheld`).
             watch.project = await asyncio.to_thread(ProjectView, ctx.root)
-            watch.unheld = not _sandboxed(ctx.model) or not getattr(
-                ctx.model, "commands_held", True
-            )
+            watch.unboxed = not _sandboxed(ctx.model)
+            watch.held = getattr(ctx.model, "commands_held", True)
         return view, watch
 
     async def _native_work_call(

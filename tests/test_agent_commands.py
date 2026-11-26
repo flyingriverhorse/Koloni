@@ -76,6 +76,33 @@ def test_always_run_adds_the_rule_and_skips_the_next_ask(make_client, wait_run, 
     assert len(executor.started) == 3
 
 
+def test_a_card_says_why_a_rule_whose_words_begin_its_line_does_not_cover_it(
+    make_client, wait_run, project_dir
+):
+    """F394: the card of a line a rule's words begin, kept off by an option past them, said only
+    "Run once · Reject · Details" - now it says why, in KOLONİ's words (not the line's)."""
+    from app.cards import OPTION_WHY
+
+    executor = ScriptedExecutor([Script(["a"]), Script(["b"])])
+    client, _ = make_client(
+        [cmd("pytest -q", "k1"), cmd("pytest -p evil096 tests", "k2"), text("done")],
+        executor=executor,
+    )
+    cid, run_id = start(client, project_dir)
+    approve(client, wait_status(client, cid, "waiting_approval")["commands"][0]["id"], True)
+    snap = wait_status(client, cid, "waiting_approval")
+    card = snap["commands"][1]
+    assert card["status"] == "proposed" and card["suggested_prefix"] == ""
+    assert card["danger"] == (
+        f"your rule “pytest” does not cover this line: {OPTION_WHY} - run it once or reject it"
+    )
+    assert "evil096" not in card["danger"]
+    with client.app.state.session_factory() as session:
+        assert session.get(Command, card["id"]).asked_reason == "rule"
+    approve(client, card["id"])
+    wait_run(client, cid, run_id)
+
+
 def test_reject_tells_the_model_it_was_the_users_decision(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([])
     client, model = make_client([cmd("rm -rf build"), text("Understood.")], executor=executor)

@@ -15,7 +15,7 @@ from sqlalchemy import func, literal_column, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
 from app import ledger, project_map, proof, proof_style, risk_judge
-from app.cards import card_reason
+from app.cards import card_reason, rule_kept_off
 from app.commands import (
     _INTERPRETER,
     MAX_STORED_OUTPUT,
@@ -819,6 +819,7 @@ class CommandRunner:
                 else None,
             )
             session.add(command)
+            rule_kept_off(session, command, prefixes, conversation.permission_mode != "full_auto")
             session.commit()
             command_id, location = command.id, command.location
             payload = command_out(command, held=bool(searched))
@@ -1260,6 +1261,7 @@ class CommandRunner:
                 else None,
             )
             session.add(row)
+            rule_kept_off(session, row, prefixes, mode != "full_auto")
             session.commit()
             command_id, payload = row.id, command_out(row, held=held)
         self.bus.emit(cid, run_id, "command.created", payload)

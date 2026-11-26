@@ -213,7 +213,7 @@ export function VoiceSettings() {
   // The browser's own languages too: dictation and the Lead's line need no voice to read them.
   const languages = [
     ...new Set([settings.language, 'en-US', ...navigator.languages, ...useVoices().map(voice => voice.lang)]),
-  ].sort()
+  ].sort((a, b) => a.localeCompare(b))
   const voices = useVoices(settings.language)
   // With no voice of this computer's for the language, the browser's own is a service's.
   const online = voices.length > 0 && !voices.some(voice => voice.local)

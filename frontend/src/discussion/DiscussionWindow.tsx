@@ -3,6 +3,7 @@ import { type FormEvent, Fragment, useEffect, useRef, useState } from 'react'
 import { errorText } from '../api/client'
 import { placed } from '../shell/move'
 import type { ConvState } from '../state/applyEvent'
+import { useApp } from '../state/store'
 import { discussionLine, nameIn, speakerOf } from './discussionText'
 
 interface Props {
@@ -22,6 +23,8 @@ export function DiscussionWindow({ state, discussionId, onClose, onSay, onEnd }:
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A team's lead is its coordinator here too, as on the discussion's card.
+  const teams = useApp(s => s.teams)
   useEffect(() => {
     const el = feed.current
     if (el) el.scrollTop = el.scrollHeight
@@ -69,11 +72,13 @@ export function DiscussionWindow({ state, discussionId, onClose, onSay, onEnd }:
       <div className="agent-feed" ref={feed}>
         <div className="agent-feed-task">{discussion.topic}</div>
         <div className="mono muted discussion-members">
-          {discussion.members.map(m => nameIn(state, m.agent_id) + (m.status === 'left' ? ' (left)' : '')).join(' · ')}
+          {discussion.members
+            .map(m => nameIn(state, m.agent_id, teams) + (m.status === 'left' ? ' (left)' : ''))
+            .join(' · ')}
         </div>
         {posts.length === 0 && !speaker && <p className="muted">Nothing said yet.</p>}
         {posts.map((post, index) => {
-          const who = nameIn(state, post.agent_id)
+          const who = nameIn(state, post.agent_id, teams)
           return (
             <Fragment key={post.id}>
               {(index === 0 || posts[index - 1].round !== post.round) && (
@@ -94,7 +99,7 @@ export function DiscussionWindow({ state, discussionId, onClose, onSay, onEnd }:
             </Fragment>
           )
         })}
-        {speaker && <div className="msg-status mono">{nameIn(state, speaker.id)} is speaking…</div>}
+        {speaker && <div className="msg-status mono">{nameIn(state, speaker.id, teams)} is speaking…</div>}
       </div>
       {running && (
         <form className="discussion-say" onSubmit={say}>

@@ -129,7 +129,7 @@ One search box sits above the tabs: "Search everything this project remembers".
   project's memory, in earlier messages, and in the memory of linked projects. Results are grouped
   under "In earlier messages" and "In linked projects".
 
-![The Memory page after Search deeper for zeppelin: two earlier messages found, one by the Lead and one by you](images/memory-search.png)
+![The Memory page after Search deeper for zeppelin: two earlier messages found, one by the Orchestrator and one by you](images/memory-search.png)
 
 ***Search deeper** finds the word in earlier messages, with who said it and when.*
 

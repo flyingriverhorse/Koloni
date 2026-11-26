@@ -48,7 +48,9 @@ const rowsOfChat = (lists: Lists) =>
 /** Whether two pairs of lists hold the same folders, in any order. */
 const same = (a: Lists, b: Lists) =>
   [a.also_in, a.read_in].every(
-    (list, at) => [...list].sort().join('\n') === [...[b.also_in, b.read_in][at]].sort().join('\n'),
+    (list, at) =>
+      [...list].sort((a, b) => a.localeCompare(b)).join('\n') ===
+      [...[b.also_in, b.read_in][at]].sort((a, b) => a.localeCompare(b)).join('\n'),
   )
 
 /** A path by its last two names (`Desktop\Skyulf`); the whole of it is said in its title. */

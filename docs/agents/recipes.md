@@ -164,7 +164,7 @@ At **Full auto**, the work is taken in without the card, unless a team failed or
 ## Candidates
 
 A step whose **Who** is **Candidates (the best one goes on)** gives the same job to 2 to 5 agents.
-Each works in its own working copy. For their models choose **Auto, the Lead picks**, **Same model** or
+Each works in its own working copy. For their models choose **Auto, the Orchestrator picks**, **Same model** or
 **I pick each**.
 
 Each candidate's work is scored by the project's **Measure command** (Settings › This project › Checks and git):

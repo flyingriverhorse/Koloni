@@ -4,9 +4,14 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test } from './fixtures'
-import { appSettings, contrasts, LINK } from './helpers'
+import { appSettings, contrasts, LINK, OWN } from './helpers'
 
 const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'da-shots')
+
+// The backend is shared with the specs after this one: whatever happens here, nothing is left held.
+test.afterEach(async ({ page }) => {
+  expect((await page.request.post('/api/hold/resume', { headers: OWN })).ok()).toBe(true)
+})
 
 for (const theme of ['light', 'dark'] as const)
   test(`in the ${theme} theme Export everything downloads a .zip, and restoring it says it is restored at the next start`, async ({
@@ -33,6 +38,15 @@ for (const theme of ['light', 'dark'] as const)
     expect(readFileSync(file).subarray(0, 2).toString()).toBe('PK') // a .zip
     await expect(panel).toBeVisible() // (the app stayed where it was)
 
+    // A restore is refused while any turn runs, or a working copy is kept: what a spec before this one left (a card
+    // that waits, k-away-dal's kept copy) is stopped as Stop everything stops it - waited for: Stop waits 10 s at most
+    // - and discarded as Settings › Your data's Discard does.
+    expect((await page.request.post('/api/hold', { headers: OWN })).ok()).toBe(true)
+    await expect
+      .poll(async () => (await (await page.request.get('/api/hold')).json()).running, { timeout: 15_000 })
+      .toBe(0)
+    for (const one of (await (await page.request.get('/api/storage')).json()).kept as { merge_id: string }[])
+      expect((await page.request.post(`/api/merges/${one.merge_id}/reject`, { headers: OWN })).ok()).toBe(true)
     await panel.getByLabel('An export to restore').setInputFiles(file)
     const said = panel.getByRole('status')
     await expect(said).toContainText(

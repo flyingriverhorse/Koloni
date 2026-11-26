@@ -1,3 +1,4 @@
+import { titleOf } from '../agents/agentStatus'
 import type { MemoryRecord, ProjectMemory, SaidInTurn, ToolCall } from '../api/types'
 
 /**
@@ -47,7 +48,7 @@ export function moment(iso: string): string {
  * trigger's turn. Never an empty part between the dots (B-329).
  */
 export function saidWhere(said: SaidInTurn): string {
-  const who = said.kind === 'task' ? 'a To-do task closed by you' : said.who
+  const who = said.kind === 'task' ? 'a To-do task closed by you' : titleOf(said.who)
   const when = said.at ? moment(said.at) : 'a day not on record'
   return [who, said.conversation_title, when, said.trigger ? 'in a trigger’s turn' : ''].filter(Boolean).join(' · ')
 }
@@ -71,7 +72,7 @@ export function whoWhen(record: MemoryRecord): string {
         : 'written by you'
       : record.origin === 'auto'
         ? `noted by KOLONİ’s summariser (${summariser(record)}) from what was said on a message`
-        : `noted by ${record.agent_name || 'an agent'}`
+        : `noted by ${titleOf(record.agent_name || 'an agent')}`
   return `${who} · ${day(record.observed_at)}`
 }
 
@@ -118,7 +119,10 @@ export function wouldReplace(memory: ProjectMemory, note: MemoryRecord): MemoryR
 
 /** Whether a record has every word of what was typed, in its text, subject, file or writer. */
 export function matches(record: MemoryRecord, query: string): boolean {
-  return hasWords([record.text, record.about, record.source?.path, record.agent_name].join(' '), query)
+  return hasWords(
+    [record.text, record.about, record.source?.path, record.agent_name && titleOf(record.agent_name)].join(' '),
+    query,
+  )
 }
 
 /** Whether a text has every word of what was typed. */
@@ -154,7 +158,7 @@ export const decisionId = (decision: ProjectMemory['decisions'][number]) =>
 
 /** Who wrote a note, in a word: the Notes tab's filter. */
 export const writerOf = (record: MemoryRecord) =>
-  record.origin === 'auto' ? 'fast model' : record.origin === 'user' ? 'you' : record.agent_name || 'an agent'
+  record.origin === 'auto' ? 'fast model' : record.origin === 'user' ? 'you' : titleOf(record.agent_name || 'an agent')
 
 export interface Topic {
   /** The subject as first written; null for the records without one. */

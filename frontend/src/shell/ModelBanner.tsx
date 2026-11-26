@@ -118,7 +118,7 @@ export function ModelBanner({ readings, cannot = [], quietFor = null, onModels }
     wrong.length > 0
       ? wrong
           .map(one => one.key)
-          .sort()
+          .sort((a, b) => a.localeCompare(b))
           .join('\n')
       : null
   // Well again, it is shown again the next time it is not. (Not while the chat is read, nor while First steps say it.)

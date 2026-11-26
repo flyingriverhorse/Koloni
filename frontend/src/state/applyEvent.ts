@@ -218,12 +218,19 @@ function runEvent(state: ConvState, type: string, payload: unknown): ConvState |
     case 'run.thinking': {
       const { run_id, agent_id, summarising } = payload as { run_id: string; agent_id?: string; summarising?: boolean }
       if (summarising && agent_id)
-        return { ...state, summarisingAgents: [...without(state.summarisingAgents, agent_id), agent_id].sort() }
+        return {
+          ...state,
+          summarisingAgents: [...without(state.summarisingAgents, agent_id), agent_id].sort((a, b) =>
+            a.localeCompare(b),
+          ),
+        }
       return {
         ...state,
         thinkingRunId: run_id,
         thinkingAgentId: agent_id ?? null,
-        thinkingAgents: agent_id ? [...without(state.thinkingAgents, agent_id), agent_id].sort() : state.thinkingAgents,
+        thinkingAgents: agent_id
+          ? [...without(state.thinkingAgents, agent_id), agent_id].sort((a, b) => a.localeCompare(b))
+          : state.thinkingAgents,
       }
     }
     default:

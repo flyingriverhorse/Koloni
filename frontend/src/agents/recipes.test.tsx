@@ -608,7 +608,7 @@ test('K-evrim-model: the candidates’ models are the Lead’s, the same, or you
     within(how)
       .getAllByRole('option')
       .map(one => one.textContent),
-  ).toEqual(['Auto, the Lead picks', 'Same model', 'I pick each'])
+  ).toEqual(['Auto, the Orchestrator picks', 'Same model', 'I pick each'])
   expect(within(panel()).queryByRole('group', { name: 'Each candidate’s model' })).toBeNull()
   fireEvent.change(how, { target: { value: 'each' } })
   const each = () => within(panel()).getByRole('group', { name: 'Each candidate’s model' })
