@@ -741,9 +741,12 @@ async def patch_conversation(
     session: Session = Depends(get_session),
 ):
     conversation = _conversation(session, conversation_id)
-    if conversation.project_id is not None and PROJECT_WIDE & body.model_fields_set:
-        # tek-ev: every chat of a project follows its project's (`settings_of`); a plain chat
-        # keeps its own, here.
+    moved = "project_id" in body.model_fields_set
+    if (body.project_id if moved else conversation.project_id) and (
+        PROJECT_WIDE & body.model_fields_set
+    ):
+        # tek-ev: every chat of a project follows its project's (`settings_of`) - one this very
+        # request moves into one too: its own would be read by nothing. A plain chat keeps its own.
         raise HTTPException(
             422, "set in Settings › This project: every chat of the project follows it"
         )

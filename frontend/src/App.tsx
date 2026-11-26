@@ -177,6 +177,16 @@ export function App() {
   // (and the commands decided on your words, or refused by Full auto's judge: Decided for you is reached by the pill)
   const decided = conv ? decidedOf(conv).length + judgedCommands(conv).length : 0
   const [view, setView] = useState<View>('canvas')
+  // Whether you opened another page since KOLONİ opened: the morning never takes you off it (M1).
+  const opened = useRef(false)
+  useEffect(() => {
+    if (view !== 'canvas') opened.current = true
+  }, [view])
+  // The morning (slice 106): KOLONİ opened after a night while you were away opens Ready for you, where the night's
+  // strip is - until the night has been on screen (the strip, or the report on the canvas, says so). Asked once, of the
+  // first answer about the night after the page opens: never over a page you opened meanwhile, nor later (a first read
+  // that failed, a night that ends while you are here) - M1.
+  const morning = useRef(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
   const [settingsWanted, setSettingsOpen] = useState(false)
   // Where Ctrl+K went on a page - a role, a provider, a server, words to search: the page opens
@@ -305,9 +315,15 @@ export function App() {
         .loadBudget()
         .catch(() => {})
       // ...and the night while you're away (slice 106): the top bar says it on every page.
+      const first = !morning.current
+      morning.current = true
       void useApp
         .getState()
         .loadAway()
+        .then(() => {
+          const night = useApp.getState().away
+          if (first && night?.status === 'ended' && !night.seen_at && !opened.current) setView('ready')
+        })
         .catch(() => {})
     }
     read()
@@ -344,8 +360,6 @@ export function App() {
     // And the backlog: its events read it again too.
     if (projectId && view === 'backlog') void useApp.getState().loadBacklog()
   }, [view, projectId])
-  // The morning (slice 106): KOLONİ opened after a night while you were away goes to that night's report on the
-  // canvas, at the first reading after the page opens - until the report has been on screen (its node says so).
   // 0.1.8: a To-do card in a chat (Open it in To-do): the To-do page, at that task's row.
   useEffect(() => {
     const open = (event: Event) => {
@@ -380,18 +394,6 @@ export function App() {
     (from: string | null, unseen?: boolean) => readDecisions(projectId ?? '', from, unseen),
     [projectId],
   )
-  const morning = useRef(false)
-  useEffect(() => {
-    if (!away || morning.current) return
-    morning.current = true
-    if (away.status !== 'ended' || away.seen_at) return
-    void useApp
-      .getState()
-      .openTurn(away.conversation_id, away.run_id)
-      .then(() => useApp.getState().select('away:' + away.id))
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setView('canvas')
-  }, [away])
   // B-150: the browser's Back (and Forward) opens the chat that was open before (`openConversation` keeps each in its history).
   useEffect(() => {
     const back = (event: PopStateEvent) => {

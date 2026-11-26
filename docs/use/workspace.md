@@ -120,8 +120,11 @@ such a value holds alone (a `DATABASE_URL`'s password in a settings.py) - go up 
 branch, in a file or in its name: KOLONİ's own commit leaves such a file out and its card says so, and
 a branch an agent committed one on itself is neither merged nor pushed ("take it off the branch
 first"). The rest of the work goes on; an ordinary value (`production`, a path) stops nothing. A
+file named as a secret (`.env.local`, `token.json`, a data file in a `secrets` folder -
+[which names](../reference/known-limits.md#git)) goes up with a pull request only on your click, at
+Full auto too: its card says "token.json: named as a secret - it goes to GitHub only on your click". A
 task's name goes up as the commit's subject and the pull request's title mentioning nobody and closing
-no issue: a zero-width joiner follows each `@` and comes before the number a closing keyword names
+no issue, a token by its shape (`ghp_…`, a password in an address) masked: a zero-width joiner follows each `@` and comes before the number a closing keyword names
 (`Fixes #12`, `Fixes GH-9`, an issue's link), and no control character is kept; the pull request's
 body puts what an agent wrote - the task, the files' names, the check, its notes - in code.
 Where git checks your files
@@ -142,7 +145,9 @@ and new files that git does not ignore are in the agent's worktree. KOLONİ make
 ("KOLONİ: your folder as koloni/*name* began") from an index of its own, so your files, your index,
 your branch and HEAD are not touched; it is the branch's first commit and shows in `git log
 koloni/*name*`. Left out, whether you staged them or not: what git ignores (`.env`, build output),
-files named as secrets (`.env.local`, a key file, `credentials.json`, `token.json`), `node_modules`,
+files named as secrets (`.env.local`, `.env.sample`, a key file, `credentials.json`, `token.json`, a
+data file in a `credentials` or `secrets` folder - [which names](../reference/known-limits.md#git)),
+`node_modules`,
 `.venv` and `venv` (linked in instead), a git repository inside your folder, KOLONİ's own `.koloni`
 folder, and every link or junction with what it leads to. Code named like a secret (`credentials.py`,
 `.env.example`) is taken as any file. The card says in one line which of your files were left out as a

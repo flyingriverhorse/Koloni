@@ -84,8 +84,10 @@ works in a copy of the project of its own.
 ### In a git repository: each job on its own branch
 
 Where the project is the top folder of a git repository, a job works on a git branch of its own,
-`koloni/<task>` (for example `koloni/fix-login-3f2a`), in a worktree of your repository, and commits
-there as it goes. How Go away finds the project decides it, once for every job:
+`koloni/<task>` (for example `koloni/fix-login-3f2a`; `koloni/task-3f2a` where the task's title holds
+a secret KOLONİ knows, or one's shape - a branch's name goes to origin with its push), in a worktree
+of your repository, and commits there as it goes. How Go away finds the project decides it, once for
+every job:
 
 | The project | The job | In the morning |
 |---|---|---|
@@ -110,12 +112,17 @@ there as it goes. How Go away finds the project decides it, once for every job:
   too. A file that holds a secret KOLONİ knows - in its content or its name: a provider key you saved,
   an MCP server's variable a secret's name holds, the page's key, one of the environment's, one given
   on a card, or any value with a secret's shape (`ghp_…`, `sk-…`, a password in an address) and the
-  token or password it holds alone - is left out of that commit and stays in the job's worktree only; the job's chat and its push row say which
-  ("· left out: conf.txt (holds a secret KOLONİ knows)"), and the rest of the work goes on. A file an
-  agent committed on the branch itself is on the branch, not left out: the chat and the row do not call
-  it left out, and **Run** refuses the push ("prov.txt on the branch holds a secret KOLONİ knows - take
-  it off the branch first"). Such a secret never deletes the job's work: only a secret given on a card during the
-  job, which an agent committed on the branch itself, has the branch deleted, and the chat says so.
+  token or password it holds alone - is left out of that commit and stays in the job's worktree only;
+  so is a file named as a secret, whatever it holds: `.env.sample`, `api_keys.json`, `token.txt`, a
+  data file in a `credentials` or `secrets` folder ([which names](../reference/known-limits.md#git)).
+  The job's chat and its push row say which ("· left out: conf.txt (a secret KOLONİ knows, or named as
+  one)"), and the rest of the work goes on. A file an agent committed on the branch itself is on the
+  branch, not left out: the chat and the row do not call it left out, and **Run** refuses the push
+  ("prov.txt on the branch holds a secret KOLONİ knows - take it off the branch first") - or, for one
+  only named as a secret, asks first ("credentials.yaml on the branch is named as a secret (its agent
+  committed it): Run anyway pushes it"). Such a secret never deletes the job's work: only a secret
+  given on a card during the job, which an agent committed on the branch itself, has the branch
+  deleted, and the chat says so.
 - **Its second try** after a failure, and the turn that goes on after your decisions in the morning,
   work in the same worktree, on the same branch.
 - KOLONİ also notes your repository's branches, stash, tags and remotes as the job starts and ends:
@@ -240,7 +247,9 @@ at, and one when a limit or Stop all ends Away - none when you come back yoursel
 The chat you went away from has one summary: "While you were away (23:10 – 07:42): 2 of 2 To-do
 done · 3 decided for you · 1 waits · 0.84 USD", what was done (waiting in Ready to take in), what was
 decided for you, **Waiting for you**, what waits (with **Allow and go on** / **Refuse**), **Review and
-take in** and **On the canvas**. KOLONİ opens on the report on the canvas until you have seen it.
+take in** and **On the canvas**. KOLONİ opened again opens on [Ready for you](#the-night-on-ready-for-you),
+on the night, until you have seen it there or its report on the canvas - never over a page you opened
+before the night was read.
 
 ### The night on Ready for you
 
@@ -313,8 +322,9 @@ of all), on the summary, on the To-do page and on the report.
 - Then the same Orchestrator goes on in the same chat, in one turn, on KOLONİ's message: "KOLONİ: the
   user decided: ran "npm test" ("…"); rejected "git push"; answered "Which database?": "Postgres". Go on
   with the task." - what a line printed, and your answer, in quotes; a line that timed out or was
-  stopped says so. It is a job's turn: held to a job's hours, in the kept copy (a fresh one where you
-  took some of it in), its work kept for your Take in - at Full auto too - and the judge looks at its
+  stopped says so. It is a job's turn: held to a job's hours, in the kept copy its rows were parked in
+  - never a later turn's of the chat, a message of yours, say - (a fresh one where you took some of it
+  in), its work kept for your Take in - at Full auto too - and the judge looks at its
   commands. It does not start where the project is over its monthly budget: the job then waits with
   why. A message of yours in that chat meanwhile waits behind it.
 - **A job's push** (a git repository with an `origin`): "Push koloni/fix-login-3f2a to origin

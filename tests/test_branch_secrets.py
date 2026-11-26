@@ -10,14 +10,16 @@ from types import SimpleNamespace
 import pytest
 
 from app import masking, raw, secret_set
-from app.agent import merge
+from app.agent import PR_NAMED_SECRET, merge
 from app.away_branch import team_pr_body, titled
 from app.commands import OutputMask
 from app.db.models import McpServer
+from tests.conftest import Gate
 from tests.test_agent_writes import write
 from tests.test_chat_flow import text
 from tests.test_claim_scenarios import write as write_file  # (as a call: `step`)
 from tests.test_dal_takim import (
+    gh_calls,
     github,  # noqa: F401  (a fixture)
     on_branch,
     own_test,
@@ -28,7 +30,16 @@ from tests.test_dal_takim import (
 )
 from tests.test_parallel import until
 from tests.test_spawn import call, step
-from tests.test_take_in_scenarios import LONG, card, needs_git
+from tests.test_take_in_scenarios import (
+    CHECK,
+    LINES,
+    LONG,
+    card,
+    edit,
+    needs_git,
+    root_runs,
+    start,
+)
 
 pytestmark = needs_git
 KEY = "sk-saved-provider-key-0123456789abcdef"
@@ -266,3 +277,57 @@ def test_a_path_or_a_session_by_a_secrets_name_is_no_secret_a_scan_stops_on():
         "GITHUB_TOKEN": TOKEN,
     }
     assert secret_set.values(env) == [TOKEN]
+
+
+def test_a_file_named_as_a_secret_asks_before_a_teams_pull_request_takes_it(
+    make_client, repo, github
+):
+    # (W-1's review, 0.1.10: token.json - Google's OAuth refresh token - went to GitHub unasked at
+    # Full auto, its checks passed: `is_secret` did not know its name)
+    _bare, log = github
+    client, cid, _run_id = pr_run(
+        make_client,
+        repo,
+        lambda: pushed_main(repo),
+        tests=[write("token.json", '{"refresh_token": "1//0g-x"}\n', "w2"), own_test("TWO-agent")],
+    )
+    named = PR_NAMED_SECRET.format(files="token.json")
+    until(client, cid, lambda s: named in str(s["merges"]), timeout=LONG)
+    assert [one for one in gh_calls(log) if one[:2] == ["pr", "create"]] == []
+
+
+SHAPED = "ghp_" + "A1b2" * 9
+
+
+def test_a_title_masks_a_secret_by_its_shape_alone():
+    # (W-1's review, 0.1.10: a token no record of KOLONİ's holds went up in a commit's subject)
+    assert titled("use ghp_" + "a" * 36) == "use ***"
+    assert titled(f"rotate {SHAPED} now") == "rotate *** now"
+    assert titled("db https://u:hunter2hunter2@h/x") == "db https://u:***@\u200dh/x"
+
+
+def test_a_token_by_its_shape_never_goes_up_in_a_teams_commit_or_its_title(
+    make_client, wait_run, repo, github
+):
+    bare, log = github
+    (repo / "lines.txt").write_bytes(LINES.encode())
+    (repo / "check.py").write_bytes(CHECK.encode())
+    run(repo, "add", "-A")
+    run(repo, "commit", "-qm", "lines")
+    task = {"role": "Coder", "task": f"fix two with {SHAPED}", "on_branch": "fix"}
+    held = Gate()
+    coder = [step(edit("two", "TWO-agent")), own_test("TWO-agent"), held.step(text("A done"))]
+    client, _pid, cid, run_id = start(
+        make_client,
+        repo,
+        coder,
+        lead=[step(call("spawn_agent", task, "s")), text("done")],
+        project=root_runs(finish_way="pull_request"),
+    )
+    held.wait_partial()
+    pushed_main(repo)
+    held.release()
+    wait_run(client, cid, run_id, timeout=LONG)
+    (create,) = [one for one in gh_calls(log) if one[:2] == ["pr", "create"]]
+    assert "--title=fix two with ***" in create and SHAPED not in str(create), create
+    assert SHAPED not in run(bare, "log", "--all", "--format=%B")

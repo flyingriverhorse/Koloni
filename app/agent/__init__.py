@@ -442,8 +442,8 @@ from app.workspace import (
     WorkspaceError,
     home_of,
     is_kept_code,
-    is_secret,
     listed_folder,
+    secret_in_push,
     secret_named,
     sha256_text,
     stands_over_later_turns,
@@ -3698,7 +3698,7 @@ class AgentRunner(
                         or (pr_off and f"a pull request cannot be opened: {pr_off}")
                     )
                     # (A file named as a secret - `.env.local` - goes up only on a click.)
-                    named = [path for path in look["files"] if is_secret(path)]
+                    named = [path for path in look["files"] if secret_in_push(path)]
                     if pr_blocked:
                         state["note"] = pr_blocked
                     elif named and merge_id is None:
@@ -3859,13 +3859,13 @@ class AgentRunner(
                 if not copies.under(path.split("/"), copies.LINKED | copies.NOT_COPIED)
             }
         )
-        # Not committed: a file holding a secret KOLONİ checks, and a new one where the project
-        # has its own file (git ignores it there - the merge would write over the user's).
+        # Not committed: a secret KOLONİ checks (a job's: by name too), BRANCH_THEIRS's new file.
         held = {path: SECRET_IN_COPY for path in changed if _secret_in(copy, path, True)} | {
             path: BRANCH_THEIRS
             for path, kind, state in found
             if kind == "new" and state == "conflict"
         }
+        held = self._named_out(ctx, copy, changed) | held
         await asyncio.to_thread(
             git.commit_branch,
             copy.root,
@@ -4028,7 +4028,7 @@ class AgentRunner(
         body = away_branch.team_pr_body(
             first, ctx.name, branch, look["files"], tested, notes, known
         )
-        title = raw.hide(first, known)
+        title = away_branch.titled(first, known)  # (a secret by its shape alone too: M-2)
         if sent.get("tip") == look["tip"]:
             sha = sent["sha"]  # (pushed already: only the pull request failed - opened again)
         else:

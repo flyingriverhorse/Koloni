@@ -8,7 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from app import raw
+from app import git, raw
+from app.agent.away_branch_mixin import PUSH_NAMED
 from app.away_branch import titled
 from app.db.models import BacklogTask, McpServer
 from tests.test_agent_writes import write
@@ -190,6 +191,37 @@ def test_a_file_left_out_then_committed_by_its_agent_is_not_left_out_any_more(
     assert after["tip"] != row["tip"] and "left out" not in after["what"], after
 
 
+def test_files_named_as_secrets_are_left_out_and_one_its_agent_committed_asks_a_second_run(
+    make_client, wait_run, repo, settings_env
+):
+    # (W-1's review, 0.1.10: .env.sample and api_keys.json went up, no secret KOLONİ knows in them)
+    steps = [
+        write(".env.sample", "API_KEY=a-real-looking-value\n", "w1"),
+        write("api_keys.json", '{"k": "v"}\n', "w2"),
+        write("tokens.py", "x = 1\n", "w3"),
+        write("credentials.yaml", "k: v\n", "w4"),
+        command("git add credentials.yaml", "c1"),
+        command("git commit -m creds", "c2"),
+        text("one done"),
+    ]
+    client, done, job, row, origin = night(make_client, wait_run, repo, steps, {})
+    assert row is not None and "left out: .env.sample, api_keys.json (" in row["what"], job
+    assert "credentials.yaml" not in row["what"], row
+    snap = client.get(f"/api/conversations/{job['conversation_id']}").json()
+    lines = [m["content"] or "" for m in snap["messages"]]
+    assert any(".env.sample, api_keys.json left out" in line for line in lines), lines
+    asked = push(client, done, row)
+    named = PUSH_NAMED.format(files="credentials.yaml")
+    assert asked.status_code == 409 and named in asked.json()["detail"]["notes"], asked.text
+    assert ran(client, done, row)["decision"] == "run"
+    pushed = at_origin(origin, job)
+    assert "tokens.py" in pushed and "credentials.yaml" in pushed, pushed
+    assert ".env.sample" not in pushed and "api_keys.json" not in pushed, pushed
+    # (never deleted: in the job's worktree still)
+    kept = Path(settings_env["KOLONI_RUNTIME_ROOT"]).rglob(".env.sample")
+    assert [one.read_text() for one in kept] == ["API_KEY=a-real-looking-value\n"]
+
+
 def test_a_secret_in_a_files_name_never_goes_up(make_client, wait_run, repo):
     # (MEDIUM-3: known only in the morning, so committed at night - its name holds it)
     steps = [write(f"out-{TOKEN}.txt", "nothing secret inside\n", "w1"), text("one done")]
@@ -237,3 +269,16 @@ def test_a_secret_where_the_jobs_commit_subject_is_cut_is_masked_whole(
     (branch,) = run(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/koloni/").split()
     subject = run(repo, "log", "-1", "--format=%s", branch)
     assert TOKEN[:8] not in subject and "t" * 60 in subject, subject
+
+
+def test_a_branch_never_takes_its_name_from_a_title_that_holds_a_secret(monkeypatch):
+    # (0.1.10: a task's title that began with a secret put its head into the branch's name - and
+    # the name goes to origin with its push)
+    monkeypatch.setenv("NIGHT_TOKEN", TOKEN)
+    assert git.task_branch(f"{TOKEN} rotate it", "c0ffee00") == "task-c0ff"
+    assert git.task_branch(f"rotate {TOKEN}", "c0ffee00") == "task-c0ff"
+    # (W-1's re-review: in another case, or spelt as a branch's name spells it)
+    assert git.task_branch(f"{TOKEN.upper()} now", "c0ffee00") == "task-c0ff"
+    assert git.task_branch(TOKEN.replace("-", " ") + " now", "c0ffee00") == "task-c0ff"
+    assert git.task_branch("ghp_" + "A1" * 18 + " leaked", "c0ffee00") == "task-c0ff"
+    assert git.task_branch("Rotate the key", "c0ffee00") == "rotate-the-key-c0ff"

@@ -650,6 +650,90 @@ test("Usage's Today says the day's decisions in one line; Open in Ready for you 
   expect(again).not.toHaveFocus()
 })
 
+/** A night of project p that ended and is not seen yet. */
+const endedNight = {
+  id: 'a1',
+  project_id: 'p',
+  conversation_id: 'c',
+  run_id: 'r',
+  status: 'ended',
+  jobs: [],
+  kept_out: [],
+  until: null,
+  money: null,
+  started_at: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+  ended_at: new Date(Date.now() - 3600 * 1000).toISOString(),
+  why: null,
+  seen_at: null,
+  tried: [],
+  slipped: [],
+  spent: null,
+  currency: 'USD',
+  job_minutes: null,
+  at_least: false,
+  counts: {},
+  proposed: [],
+  decided: [],
+}
+
+test('after a night while you were away KOLONİ opens on Ready for you, where its strip is, and marks it seen', async () => {
+  const read = vi.fn(async (url: string) =>
+    url === '/api/projects/p/away' ? new Response(JSON.stringify(endedNight), { status: 200 }) : answer(url),
+  )
+  vi.stubGlobal('fetch', read)
+  render(<App />)
+  expect(await screen.findByRole('heading', { name: /^Ready for you/ })).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: /^Last night/ })).toBeInTheDocument()
+  await vi.waitFor(() => expect(read.mock.calls.some(([url]) => url === '/api/away/a1/seen')).toBe(true))
+})
+
+test('a page you opened before the night was read is never taken from you: the morning leaves it (M1)', async () => {
+  let release = () => {}
+  const held = new Promise<void>(go => (release = go))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url !== '/api/projects/p/away') return answer(url)
+      await held
+      return new Response(JSON.stringify(endedNight), { status: 200 })
+    }),
+  )
+  render(<App />)
+  const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
+  await screen.findByText('this machine')
+  await userEvent.click(rail('To-do'))
+  release()
+  await vi.waitFor(() => expect(useApp.getState().away?.id).toBe('a1'))
+  await act(async () => {})
+  expect(rail('To-do')).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.queryByRole('heading', { name: /^Ready for you/ })).toBeNull()
+})
+
+test('the morning is asked of the first answer about the night alone: a later one never moves you (M1)', async () => {
+  // (the first read fails; the next, a minute later, finds the night ended - you may be typing by then)
+  let failed = false
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url !== '/api/projects/p/away') return answer(url)
+      if (!failed) {
+        failed = true
+        return new Response('{"detail":"down"}', { status: 500 })
+      }
+      return new Response(JSON.stringify(endedNight), { status: 200 })
+    }),
+  )
+  render(<App />)
+  await screen.findByText('this machine')
+  await vi.waitFor(() => expect(failed).toBe(true))
+  await act(async () => {
+    await useApp.getState().loadAway()
+  })
+  expect(useApp.getState().away?.id).toBe('a1')
+  expect(screen.queryByRole('heading', { name: /^Ready for you/ })).toBeNull()
+  expect(screen.getByLabelText('Message')).toBeVisible()
+})
+
 test("an agent's window and a discussion's open over the canvas only with a chat; selecting a node opens the inspector", async () => {
   render(<App />)
   await vi.waitFor(() => expect(useApp.getState().conv?.conversation.id).toBe('c'))
