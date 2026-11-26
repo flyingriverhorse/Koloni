@@ -36,6 +36,9 @@ Orchestrator and the Planner are always on. So are the Coder, Tester, Reviewer, 
 reviewer: KOLONİ's checks and recipes use them, so they have no switch (a chat's teams still decide
 whether they are opened there).
 
+In a window narrower than 1280 px the list folds to a **Roles ▸ N** button over the teams, which opens it
+as a drawer; it stays at the top of the page however far you scroll.
+
 ## A role's panel
 
 Click a role to open its panel. It has four tabs:
