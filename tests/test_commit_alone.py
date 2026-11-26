@@ -317,20 +317,28 @@ def test_a_file_that_cannot_be_read_is_no_deletion(tmp_path):
 
 
 def test_what_was_kept_for_a_commit_goes_once_none_is_offered(tmp_path):
-    class Merge:
-        def __init__(self, state):
-            self.commit = {"state": state}
+    class Merge:  # (as the row is: its status is never missing)
+        def __init__(self, state, status="applied"):
+            self.commit = state and {"state": state}
+            self.status = status
 
-    held = {"offered": Merge("offered"), "committed": Merge("committed")}
+    held = {
+        "offered": Merge("offered"),
+        "committed": Merge("committed"),
+        # (k-takip-takein: no commit asked of it yet - one broken off keeps what it took)
+        "interrupted": Merge(None, "interrupted"),
+        "rejected": Merge(None, "rejected"),
+    }
 
     class Session:
         def get(self, _model, merge_id):
             return held.get(merge_id)
 
-    for name in ("offered", "committed", "gone"):
+    for name in (*held, "gone"):
         (tmp_path / "commit-sides" / name).mkdir(parents=True)
     prune_commit_sides(tmp_path, Session())
-    assert [one.name for one in (tmp_path / "commit-sides").iterdir()] == ["offered"]
+    kept = sorted(one.name for one in (tmp_path / "commit-sides").iterdir())
+    assert kept == ["interrupted", "offered"]
     prune_commit_sides(tmp_path / "nothing", Session())  # no folder: nothing to do
 
 
