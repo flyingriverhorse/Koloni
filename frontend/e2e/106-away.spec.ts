@@ -62,6 +62,14 @@ test('the work goes on To-do with a Go away line; Away works it through until Iâ
   await reads(summary, 4)
   if (process.env.KOLONI_SHOTS) await shot(page, '106-summary')
 
+  // The morning (M1): KOLONÄ° opened again opens Ready for you, on the night - and its whole report is on the canvas.
+  await page.reload()
+  const strip = page.getByRole('region', { name: /^Last night/ })
+  await expect(strip).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: /^Ready for you/ })).toBeVisible()
+  await strip.getByRole('button', { name: 'The whole report' }).click()
+  await expect(page.locator('.away-node')).toBeVisible()
+
   // On the canvas: the report, the jobs' frames leading to it.
   await summary.getByRole('button', { name: 'On the canvas' }).click()
   const report = page.locator('.away-node')

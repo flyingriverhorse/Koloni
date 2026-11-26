@@ -247,7 +247,9 @@ at, and one when a limit or Stop all ends Away - none when you come back yoursel
 The chat you went away from has one summary: "While you were away (23:10 – 07:42): 2 of 2 To-do
 done · 3 decided for you · 1 waits · 0.84 USD", what was done (waiting in Ready to take in), what was
 decided for you, **Waiting for you**, what waits (with **Allow and go on** / **Refuse**), **Review and
-take in** and **On the canvas**. KOLONİ opens on the report on the canvas until you have seen it.
+take in** and **On the canvas**. KOLONİ opened again opens on [Ready for you](#the-night-on-ready-for-you),
+on the night, until you have seen it there or its report on the canvas - never over a page you opened
+before the night was read.
 
 ### The night on Ready for you
 

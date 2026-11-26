@@ -46,6 +46,8 @@ made for you since you left. Once a [☾ Away](../automation/overnight.md) of th
 page opens on that night under it: a lane for each job from its start to its end, the decisions made for
 you on its lane at their times, **Not checked**, what it spent, **The whole report** and **Copy as
 Markdown** - see [The night on Ready for you](../automation/overnight.md#the-night-on-ready-for-you).
+KOLONİ opened after that night opens on this page, until the night has been on screen - not where you
+opened another page before it was read.
 It lists everything that waits, oldest first - what the night parked for you first -, under **Needs your answer**
 and **Ready to take in**; beside it (under it on a narrow screen), **Decided for you** lists the
 project's decisions, with **OK** and **Change**: see [Decisions](decisions.md). The buttons at the
