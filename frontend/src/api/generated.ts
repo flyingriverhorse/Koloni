@@ -1435,8 +1435,8 @@ export interface paths {
         get: operations["experimental_clis_api_experimental_clis_get"];
         /**
          * Set Experimental Clis
-         * @description 0.1.8: Show experimental CLIs (Settings › The app › Agents) - the user's, from the app's
-         *     own page.
+         * @description Show experimental features (Settings › The app › Agents; 0.1.8's Show experimental CLIs)
+         *     - the user's, from the app's own page.
          */
         put: operations["set_experimental_clis_api_experimental_clis_put"];
         post?: never;

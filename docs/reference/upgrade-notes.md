@@ -20,6 +20,10 @@ Only what needs your attention after an update; everything else is in the [Chang
 
 ### 0.1.10
 
+- **Native is experimental.** Claude Code, Codex and Copilot offer **Native** under **Experimental**
+  in **How it runs** only with **Show experimental features** on (Settings › The app › Agents; the switch
+  that was **Show experimental CLIs**, kept as you had it). A provider you already run Native keeps working
+  as before, its card tagged **Experimental**. Nothing in the database changes.
 - **Pages and A test for the change are off unless ticked.** In Settings › This project › Checks
   and git › **Check by kind of work**, a project that never changed **Pages** has it off from now
   on, and **A test for the change** is a new box, off. A turn that wrote a page says "Not checked:

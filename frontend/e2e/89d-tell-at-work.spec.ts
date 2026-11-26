@@ -47,6 +47,8 @@ test.describe('telling Claude Code something while it works', () => {
       headers: OWN,
     })
     expect(patched.ok()).toBe(true)
+    // Native is offered only with experimental features shown (0.1.10): on for this spec, off after it.
+    await request.put('/api/experimental-clis', { data: { show: true }, headers: OWN })
     await page.getByRole('button', { name: 'Models', exact: true }).click()
     await page.getByRole('button', { name: /Add a provider/ }).click()
     await page.getByLabel('Name').fill('Claude Code')
@@ -60,6 +62,7 @@ test.describe('telling Claude Code something while it works', () => {
   test.afterEach(async ({ request }) => {
     writeFileSync(PLAN, kept)
     await removeClaudeCode(request)
+    await request.put('/api/experimental-clis', { data: { show: false }, headers: OWN })
   })
 
   test('Tell … under its window while it works; said sent; gone once its work is over', async ({ page }) => {

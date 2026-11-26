@@ -47,6 +47,8 @@ test.describe('a role run inside Claude Code', () => {
         await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
       ).ok(),
     ).toBe(true)
+    // Native is offered only with experimental features shown (0.1.10): on for this spec, off after it.
+    await request.put('/api/experimental-clis', { data: { show: true }, headers: OWN })
     await page.getByRole('button', { name: 'Models', exact: true }).click()
     await page.getByRole('button', { name: /Add a provider/ }).click()
     await page.getByLabel('Name').fill('Claude Code')
@@ -65,6 +67,7 @@ test.describe('a role run inside Claude Code', () => {
 
   test.afterEach(async ({ request }) => {
     await cleanUp(request)
+    await request.put('/api/experimental-clis', { data: { show: false }, headers: OWN })
   })
 
   test('its option says what it costs, and its sub-agent says whose role it runs', async ({ page }) => {
@@ -76,7 +79,7 @@ test.describe('a role run inside Claude Code', () => {
     await option.check()
     // K-rol-model: it depends on the agent that opens it running in Claude Code; its card says what it costs.
     const label = panel.locator('#role-part-inside')
-    await expect(label).toContainText('Only when the agent opening it runs in Claude Code.')
+    await expect(label).toContainText('Only when the agent opening it runs in Claude Code, Native - experimental')
     await expect(label).toContainText('cheaper')
     await label.scrollIntoViewIfNeeded()
     await both(page, label, '89g-option')

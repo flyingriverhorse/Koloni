@@ -62,9 +62,10 @@ IMAGE_CLIS = ("claude_cli", "codex_cli")
 SERVER_CLIS = ("claude_cli", "codex_cli")
 # Agents at work at once on a provider the user set no number for (`Providers.most_at_once`).
 CLI_AT_ONCE, SERVICE_AT_ONCE = 3, 8
-# 0.1.8 (the user, 24 Nov): agy is offered only with Show experimental CLIs on (Settings › The
-# app › Agents; a Flag of this name, which the Models page reads). A provider already set so runs
-# as before, tagged Experimental; nothing here refuses it.
+# 0.1.8 (the user, 24 Nov): agy - and since 0.1.10 Native - are offered only with Show
+# experimental features on (Settings › The app › Agents; a Flag of this name, which the Models
+# page reads). A provider already set so runs as before, tagged Experimental; nothing here
+# refuses it.
 EXPERIMENTAL_FLAG = "experimental_clis"
 # How each CLI can be run, the first being its default. A session needs the CLI's own
 # tools to be really off while KOLONİ's reach it over MCP: Codex's patch tool cannot be

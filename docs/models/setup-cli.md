@@ -36,14 +36,14 @@ Models page is left as it is.
 
 | CLI | Choices (the first is the default) |
 |---|---|
-| Claude Code | One session per agent · One run per model step · Native |
-| Codex | One session per agent · Native. As a session its own patch tool cannot be switched off: KOLONİ refuses every patch it asks to make, and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: While you're away, recipe steps and comparisons. On a model server of your own its session is not yet measured. Codex's One run per model step was cut in 0.1.10: a Codex provider saved so runs as One session per agent. |
-| Copilot | One session per agent · Native |
+| Claude Code | One session per agent · One run per model step · Native ([experimental](#experimental-clis)) |
+| Codex | One session per agent · Native ([experimental](#experimental-clis)). As a session its own patch tool cannot be switched off: KOLONİ refuses every patch it asks to make, and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: While you're away, recipe steps and comparisons. On a model server of your own its session is not yet measured. Codex's One run per model step was cut in 0.1.10: a Codex provider saved so runs as One session per agent. |
+| Copilot | One session per agent · Native ([experimental](#experimental-clis)) |
 | agy ([experimental](#experimental-clis)) | Reads with its own tools · Native |
 
 - **One session per agent** and **One run per model step** use KOLONİ's tools and cards, with the CLI's
   own tools off.
-- **Native** uses the CLI's own tools in your folder. Claude Code and agy ask KOLONİ before every tool
+- **Native** uses the CLI's own tools in your folder; it is [experimental](#experimental-clis) since 0.1.10. Claude Code and agy ask KOLONİ before every tool
   they use; Codex before each command and patch, except the commands its own rules count as safe, which
   it runs without asking; Copilot before every tool it uses (on its newer protocol, 1.0.114 on, through
   KOLONİ's own hook; on the older one, before each command, write and read).
@@ -54,14 +54,16 @@ Models page is left as it is.
 
 ## Experimental CLIs
 
-agy is experimental since 0.1.8: less measured and tested than the rest, so it is not offered unless you
-ask for it. Turn on **Show experimental CLIs** in Settings › The app › Agents (it is kept as you change
-it). Then **Add a provider**'s **Kind** lists **agy (CLI)** under **Experimental**, and This project ›
-Memory and web offers **Let agy search too**.
+agy is experimental since 0.1.8, and a CLI run **Native** since 0.1.10: less measured and tested than the
+rest, so they are not offered unless you ask for them. Turn on **Show experimental features** in Settings ›
+The app › Agents (it is kept as you change it). Then **Add a provider**'s **Kind** lists **agy (CLI)**,
+and Claude Code's, Codex's and Copilot's **How it runs** list **Native**, each under **Experimental**;
+and This project › Memory and web offers **Let agy search too**. (Codex and Copilot, with Native not
+offered, have one way left: **How it runs** is not shown.)
 
-Nothing that already uses it is hidden or stopped: an agy provider keeps working with the switch off, its
-card tagged **Experimental**, and its window still shows the way it runs. A project that already lets agy
-search keeps its box.
+Nothing that already uses them is hidden or stopped: an agy provider, or a CLI run Native, keeps working
+with the switch off, its card tagged **Experimental**, and its window still shows the way it runs; while
+you edit it, **Native** stays offered. A project that already lets agy search keeps its box.
 
 [![How CLIs are driven: one run per model step, one session per agent, native, and agy's reads; KOLONİ's tool bridge (MCP); how each native CLI asks before its tools act; sign-in folders, going on from the last turn, and compaction](../diagrams/cli-modes.svg)](../diagrams/cli-modes.svg)
 

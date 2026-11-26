@@ -116,7 +116,7 @@ Click a role to open its panel. It has four tabs:
   **Who may move it**: **Any provider in the team guide**, **Only these**, or **No one**. An agent that
   moves a sub-agent to another provider must say why.
 
-  **Run inside the CLI**: only when the agent that opens it runs in Claude Code. Cheaper, and counts toward
+  **Run inside the CLI**: only when the agent that opens it runs in Claude Code run **Native** ([experimental](../models/setup-cli.md#experimental-clis)). Cheaper, and counts toward
   no turn or role limit; it is not its own agent on the canvas, stops with the agent that opened it, and
   is never used while you're away. Not for the Orchestrator or a team's lead.
 - **It may**: **Read and search**, **Write code**, **Run commands**, **Use the web**, or

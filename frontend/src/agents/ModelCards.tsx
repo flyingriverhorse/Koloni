@@ -937,7 +937,7 @@ const picksNames = (providers: Provider[], picks: string[]) =>
     .map(p => p.name)
     .join(', ') || 'No one'
 
-/** 89g: run inside the CLI of the agent that opens it, where that is Claude Code. */
+/** 89g: run inside the CLI of the agent that opens it, where that is Claude Code run Native (experimental, 0.1.10). */
 function InsideCard({ values, set }: Pick<CardsProps, 'values' | 'set'>) {
   return (
     <Card id="role-part-inside" title="Run inside the CLI" now={values.inside_cli ? 'On' : 'Off'}>
@@ -950,7 +950,10 @@ function InsideCard({ values, set }: Pick<CardsProps, 'values' | 'set'>) {
         />
         <span>Run inside the CLI of the agent that opens it</span>
       </label>
-      <span className="choice-note">Only when the agent opening it runs in Claude Code.</span>
+      <span className="choice-note">
+        Only when the agent opening it runs in Claude Code, Native - experimental: Show experimental features in
+        Settings › The app › Agents.
+      </span>
       <div className="role-pros">
         <div>
           <b>Good</b>

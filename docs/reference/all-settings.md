@@ -31,7 +31,7 @@ See [Settings](../settings.md).
 **Answer in**, **Steps an agent may take**, **Stuck after this many minutes with no progress**,
 **An unattended turn runs at most (hours)**, **Summarise a long context at (%)**, **Knowledge
 reads at most**, **KOLONİ's test runs at once**, **Test processes per run**, **Show experimental
-CLIs** and **Judge model** (Agents),
+features** and **Judge model** (Agents),
 **Voice** (this browser's), and **Your data** (Export, Restore, kept working copies, Always blocked). See
 [Settings](../settings.md#the-app).
 

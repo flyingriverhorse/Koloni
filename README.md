@@ -106,9 +106,9 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 
 | Provider | How it runs | Sign in |
 |---|---|---|
-| Claude Code | session (KOLONİ's tools over MCP) or native (goes on in its session on its own sign-in) | `claude auth login` |
-| Codex | session (KOLONİ's tools over MCP) or native (goes on in its thread on its own sign-in) | `codex login` |
-| GitHub Copilot CLI | session or native (goes on in its session; asks before its tools; from 1.0.114 on through KOLONİ's own hook); `auto` and `fusion` pick the model, with a routing; on GitHub's plan, only the models your Copilot plan lists | `gh auth login` |
+| Claude Code | session (KOLONİ's tools over MCP) or native (experimental; goes on in its session on its own sign-in) | `claude auth login` |
+| Codex | session (KOLONİ's tools over MCP) or native (experimental; goes on in its thread on its own sign-in) | `codex login` |
+| GitHub Copilot CLI | session or native (experimental; goes on in its session; asks before its tools; from 1.0.114 on through KOLONİ's own hook); `auto` and `fusion` pick the model, with a routing; on GitHub's plan, only the models your Copilot plan lists | `gh auth login` |
 | agy (experimental) | reads (its default) or native | agy's own sign-in |
 | llama.cpp `llama-server` | OpenAI-compatible, started with `--jinja`; the Server tab starts and stops it | — |
 | Anthropic API, any OpenAI-compatible API | per token | your key |

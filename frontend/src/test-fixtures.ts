@@ -440,7 +440,7 @@ export async function openAgentFold(name: string, root: HTMLElement = document.b
   return fold
 }
 
-/** Settings › The app › Agents' Show experimental CLIs on, for this test: agy and Codex step by step offered. Any
+/** Settings › The app › Agents' Show experimental features on, for this test: agy and Native offered. Any
  *  other GET goes where it went: to a stand-in a test set (kept after), else the real one. */
 export function showExperimental() {
   const was = api.get

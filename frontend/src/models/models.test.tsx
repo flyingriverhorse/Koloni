@@ -437,21 +437,23 @@ test('a Qoder provider from before says why it stays off and can only be deleted
   expect(screen.queryByRole('option', { name: /Qoder/ })).not.toBeInTheDocument()
 })
 
-test('Codex runs the ways it safely can: a session or Native (0.1.10: one run per model step is cut)', async () => {
+test('Codex runs the ways it safely can: a session, or Native under Experimental (0.1.10: one run per model step is cut)', async () => {
   const h = handlers()
   const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: null })
   render(<ModelsPage providers={[codex, provider({})]} {...h} />)
   await open('Codex', 'Connection')
   // A session since 7 Nov 2026 and its default since its live test, said plainly: its patch tool stays, and is refused.
-  expect(screen.getByLabelText('How it runs')).toHaveValue('session')
-  const session = screen.getByRole('option', { name: "One session per agent, with KOLONİ's tools (recommended)" })
-  expect(session).toHaveValue('session')
+  // Its only usual way: no choice to make (Native is experimental).
+  expect(screen.queryByLabelText('How it runs')).not.toBeInTheDocument()
   expect(screen.getByText(/KOLONİ refuses every patch it asks to make/)).toBeInTheDocument()
-  expect(screen.queryByRole('option', { name: /One run per model step/ })).not.toBeInTheDocument()
   await close()
   showExperimental()
   await open('Codex', 'Connection')
+  expect(await screen.findByLabelText('How it runs')).toHaveValue('session')
+  const session = screen.getByRole('option', { name: "One session per agent, with KOLONİ's tools (recommended)" })
+  expect(session).toHaveValue('session')
   expect(screen.queryByRole('option', { name: /One run per model step/ })).not.toBeInTheDocument()
+  expect(screen.getByRole('option', { name: /^Native/ }).closest('optgroup')).toHaveAttribute('label', 'Experimental')
 })
 
 test('a Codex saved step by step shows, and is saved, as a session', async () => {
@@ -460,23 +462,37 @@ test('a Codex saved step by step shows, and is saved, as a session', async () =>
   render(<ModelsPage providers={[step, provider({})]} {...h} />)
   expect(screen.getByRole('button', { name: /^Codex steps/ })).not.toHaveTextContent('Experimental')
   await open('Codex steps', 'Connection')
-  expect(screen.getByLabelText('How it runs')).toHaveValue('session')
+  expect(screen.queryByLabelText('How it runs')).not.toBeInTheDocument() // (a session, its one usual way)
   await userEvent.type(screen.getByLabelText('Path to the command'), 'x')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(h.onSave).toHaveBeenCalledWith('p7', expect.objectContaining({ mode: 'session' }))
 })
 
-test('agy, already set up, keeps its card tagged Experimental', () => {
+test('agy, and a CLI run Native, already set up, keep their card tagged Experimental', () => {
   const agy = provider({ id: 'p6', name: 'agy', kind: 'agy_cli', base_url: null, mode: 'reads' })
   const codex = provider({ id: 'p8', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'session' })
-  render(<ModelsPage providers={[provider({}), agy, codex]} {...handlers()} />)
+  const native = provider({ id: 'p9', name: 'Claude native', kind: 'claude_cli', base_url: null, mode: 'native' })
+  render(<ModelsPage providers={[provider({}), agy, codex, native]} {...handlers()} />)
   const card = (name: RegExp) => screen.getByRole('button', { name })
   expect(card(/^agy/)).toHaveTextContent('Experimental')
+  expect(card(/^Claude native/)).toHaveTextContent('Experimental')
   expect(card(/^Codex/)).not.toHaveTextContent('Experimental')
   expect(card(/^Local/)).not.toHaveTextContent('Experimental')
 })
 
+test('a provider saved Native, changed to a session while edited, keeps How it runs with Native under Experimental', async () => {
+  const h = handlers()
+  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'native' })
+  render(<ModelsPage providers={[codex, provider({})]} {...h} />)
+  await open('Codex', 'Connection')
+  expect(screen.getByLabelText('How it runs')).toHaveValue('native')
+  await userEvent.selectOptions(screen.getByLabelText('How it runs'), 'session')
+  expect(screen.getByLabelText('How it runs')).toHaveValue('session')
+  expect(screen.getByRole('option', { name: /^Native/ }).closest('optgroup')).toHaveAttribute('label', 'Experimental')
+})
+
 test('Codex can run natively, and the page says plainly how it is asked first', async () => {
+  showExperimental() // (Native is offered under Experimental since 0.1.10)
   const h = handlers()
   const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'session' })
   render(<ModelsPage providers={[codex, provider({})]} {...h} />)

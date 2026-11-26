@@ -226,7 +226,7 @@ const ONCE: (string | RegExp)[] = [
   'Stuck after this many minutes with no progress',
   'An unattended turn runs at most (hours)',
   'Summarise a long context at (%)',
-  /^Show experimental CLIs/,
+  /^Show experimental features/,
   /^Whole answer/,
   /^Short summary/,
   'Dictation language',
