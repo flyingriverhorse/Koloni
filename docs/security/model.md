@@ -235,9 +235,12 @@ What is not framed:
   may not ask now (no room, the turn's token limit) is a card, never a run nor a refusal (it fails
   closed); a refused agent is told a general reason, never the judge's sentence (it read your messages,
   and would guide the next try), and after 3 refusals in a row (a command that runs ends a row) or 20
-  in a turn, by any of its agents, the rest of the turn's risky commands are cards; what it lets by runs as Full auto ran before it: a model's "fine" can be wrong; it reads the first 4 KB of a program an agent wrote, not a file that
-  program imports, a tool an agent changed without writing it, nor a file an agent made by copying
-  (`cp x.txt x.py`); test runners and build tools run an agent's `conftest.py`, test files, plugins or
+  in a turn, by any of its agents, the rest of the turn's risky commands are cards. It reads your words
+  and the agent's actions - its tool calls by name and arguments, never what they gave back (a file
+  read, a command's output, a page), so text planted in a file or a page does not reach it that way.
+  What it lets by runs as Full auto ran before it: a model's "fine" can be wrong; it reads the first
+  4 KB of a program an agent wrote, not a file that program imports, a tool an agent changed without
+  writing it, nor a file an agent made by copying (`cp x.txt x.py`); test runners and build tools run an agent's `conftest.py`, test files, plugins or
   `build.rs` on an ordinary line it is not asked about; and for a CLI run **Native** it sees only the
   command the CLI reports. Everything but your own words reaches it marked as an agent's data, but text
   written to steer a model can still sway one.

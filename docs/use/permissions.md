@@ -396,18 +396,23 @@ It is not asked about:
   put to [your words](#check-what-i-said-first) instead, where that box works). The judge never runs a
   command that asks, and never takes such a card away: only its own **risky** may be refused.
 
-**What it reads:** your preferences, this project's rules as saved on the [Memory](../memory.md) page and
-your messages in the chat (in a job while you're away, in the chat you went away from) - at most your last
-6, newest first, and 4,000 characters of them together, the last one cut where a line or a sentence ends:
-a newest message longer than that with no line or sentence break in its first 4,000 characters gives
-"(none)" for your messages; the command, its
-folder and who runs it (the Orchestrator or a sub-agent's role); the last 5 commands the same agent ran in
-the turn (only ones that started, each cut to 300 characters); and, where the line runs or reads a file an
-agent wrote - a script (`node x.js`, `python x.py`, `python -m x`, `./x.sh`, `x.ps1`, `powershell -File
-x.ps1`, `x.cmd`), make's Makefile, a Dockerfile, a `package.json` -, the first 4 KB of that
-file. Everything but your own words is marked as
-data an agent wrote, not instructions. It never sees an agent's messages, a tool's result or a file an
-agent read, and the secrets KOLONİ knows are masked first.
+**What it reads** - since 0.1.10 as Claude Code's auto mode's classifier: your words and what the agent
+did, never what came back to it. Your preferences, this project's rules as saved on the
+[Memory](../memory.md) page and your messages in the chat (in a job while you're away, in the chat you went
+away from) - at most your last 6, newest first, and 4,000 characters of them together, the last one cut
+where a line or a sentence ends: a newest message longer than that with no line or sentence break in its
+first 4,000 characters gives "(none)" for your messages; the command, its folder and who runs it (the
+Orchestrator or a sub-agent's role); the same agent's last 8 actions in the turn - its tool calls by
+name and arguments, such as `run_command {"command": "…"}`, `read_file {"path": "notes.md"}` or
+`write_file {"path": "gen.py", "content": "…"}`, only ones that ended and were not refused or turned
+down, each cut to 300 characters; and, where the line runs or reads a file an agent wrote - a script
+(`node x.js`, `python x.py`, `python -m x`, `./x.sh`, `x.ps1`, `powershell -File x.ps1`, `x.cmd`), make's
+Makefile, a Dockerfile, a `package.json` -, the first 4 KB of that file as the agent's write left it. A
+file in the agents' scratch (`.koloni/tmp/`) that no write of an agent's made - `curl -o
+.koloni/tmp/x.py …`, a command's output - is named, its text not shown. Everything but your own words is
+marked as data an agent wrote, not instructions. It never sees an agent's own replies, what a tool gave
+back - a file's text it read, a command's output, a page or a search -, and the secrets KOLONİ knows
+are masked first.
 
 **What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - as
 **When the judge finds a command risky** says:

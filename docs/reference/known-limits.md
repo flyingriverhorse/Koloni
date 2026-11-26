@@ -148,9 +148,13 @@ messages.
 - [Full auto's judge](../use/permissions.md#full-autos-judge) is a net, not a wall:
     - It is a model's decision: it can call a risky command fine, and then the command runs, as it did
       at Full auto before the judge.
-    - Text aimed at the judge inside a command or a program an agent wrote can still sway the model:
-      the judge is told it is an agent's data, and a few known phrases make a card without asking,
-      but other wordings reach it.
+    - Text aimed at the judge inside a command, an agent's earlier action (a file it wrote, the
+      arguments of a tool it called) or a program an agent wrote can still sway the model: the judge
+      is told it is an agent's data, and a few known phrases make a card without asking, but other
+      wordings reach it. What a tool gave back - a file read, a command's output, a page - never
+      reaches it; but an agent can copy such text into what it writes.
+    - It reads the same agent's last 8 actions, each cut to 300 characters: an earlier one, or what an
+      action held past its first 300 characters, is not seen.
     - Hidden work may not be seen: a tool an agent changed but did not write, a program past its first
       4 KB, a program that imports another file.
     - Test runners and build tools load the project's test and settings code by design - a

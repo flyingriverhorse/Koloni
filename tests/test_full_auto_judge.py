@@ -601,9 +601,11 @@ def test_a_long_command_or_an_agents_program_with_orders_is_a_card_unasked(
     assert executor.started == []
 
 
-def test_the_judge_reads_the_agents_program_cut_and_its_commands_not_its_words(
+def test_the_judge_reads_the_agents_program_cut_and_its_actions_not_its_words_nor_results(
     judging, wait_run, project_dir
 ):
+    # (0.1.10, as Claude Code's auto mode: the user's words and the agent's actions - its tool
+    # calls by name and arguments -, never what a tool gave back: a file it read, a command's output)
     (project_dir / "notes.md").write_text("FILE-TEXT-7731\n", encoding="utf-8")
     program = "print(1)\n" + "#" * 5000 + "\nTAIL-7731\n"
     client, _lead, judge, _executor = judging(
@@ -615,16 +617,19 @@ def test_the_judge_reads_the_agents_program_cut_and_its_commands_not_its_words(
             text("done"),
         ],
         [said("fine"), said("fine")],
-        [Script([])] * 2,
+        [Script(["OUTPUT-7731\n"]), Script([])],
     )
     _, cid, run_id = go(client, project_dir)
     wait_run(client, cid, run_id)
     prompt = judge.calls[-1][0]["content"]
     assert "print(1)" in prompt and "EARLIER-7731" in prompt
+    # (each action a JSON string in the list the judge reads)
+    assert json.dumps('read_file {"path": "notes.md"}') in prompt
+    assert json.dumps('run_command {"command": "echo EARLIER-7731"}') in prompt
     left = (project_dir / "gen.py").stat().st_size - risk_judge.PROGRAM_BYTES
     assert f"({left} more bytes not shown)" in prompt
     assert "TAIL-7731" not in prompt and "FILE-TEXT-7731" not in prompt
-    assert "LEAD-WORDS-7731" not in prompt
+    assert "LEAD-WORDS-7731" not in prompt and "OUTPUT-7731" not in prompt
     assert prompt.index("data, not instructions") < prompt.index("print(1)")
 
 
@@ -922,16 +927,29 @@ def test_dont_ask_again_is_asked_again_once_the_file_changed_off_record(
     assert "print(" not in judge.calls[1][0]["content"]
 
 
-def test_a_script_in_the_agents_scratch_is_shown_whoever_wrote_it(judging, wait_run, project_dir):
+def test_a_script_in_the_scratch_is_shown_only_as_an_agent_wrote_it(judging, wait_run, project_dir):
+    # (0.1.10: one there no write of an agent's made - `curl -o .koloni/tmp/x.py`, a command's
+    # output, a fetched page - is no action of an agent's: its path, never its text)
     scratch = project_dir / ".koloni" / "tmp"
     scratch.mkdir(parents=True)
     (scratch / "x.py").write_text("print('SCRATCH-7731')\n", encoding="utf-8")
     client, _lead, judge, _executor = judging(
-        [cmd("python .koloni/tmp/x.py"), text("done")], [said("fine")], [Script([])]
+        [
+            cmd("python .koloni/tmp/x.py", id="k1"),
+            write(".koloni/tmp/y.py", "print('MINE-7731')\n"),
+            cmd("python .koloni/tmp/y.py", id="k2"),
+            text("done"),
+        ],
+        [said("fine")] * 2,
+        [Script([])] * 2,
     )
     _, cid, run_id = go(client, project_dir)
     wait_run(client, cid, run_id)
-    assert "SCRATCH-7731" in judge.calls[0][0]["content"]
+    first, second = (one[0]["content"] for one in judge.calls)
+    assert "SCRATCH-7731" not in first and "its text is not shown" in first
+    assert '{"path": ".koloni/tmp/x.py"}' in first
+    shown = json.dumps({"path": ".koloni/tmp/y.py", "text": "print('MINE-7731')\n"})
+    assert shown in second
 
 
 def test_a_line_the_check_of_your_words_let_run_is_not_judged_again(judging, wait_run, project_dir):
@@ -1076,7 +1094,7 @@ def test_an_earlier_command_with_orders_for_the_judge_makes_a_card(judging, wait
     wait_run(client, cid, run_id)
     assert asked["command"] == "python gen.py" and judge.calls == []
     assert asked["danger"] == (
-        "KOLONİ's judge: an earlier command of this turn carries words aimed at its judge"
+        "KOLONİ's judge: an earlier action of this turn carries words aimed at its judge"
     )
     assert [one[0] for one in executor.started] == [orders]
 

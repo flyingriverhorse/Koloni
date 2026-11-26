@@ -229,7 +229,10 @@ def test_the_risk_prompt_is_the_gates(judging, wait_run, project_dir):  # noqa: 
     case = {
         "said": {"preferences": [PREFERENCES], "rules": [RULE], "message": [MESSAGE]},
         "command": _command("python gen.py"),
-        "earlier": ["echo EARLIER-1"],
+        "earlier": [
+            'run_command {"command": "echo EARLIER-1"}',
+            "write_file " + json.dumps({"path": "gen.py", "content": program}),
+        ],
         "program": {"path": "gen.py", "text": program, "left": 0},
     }
     assert judge.calls[-1][0]["content"] == measure.prompt("risk", case)

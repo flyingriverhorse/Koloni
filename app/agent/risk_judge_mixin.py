@@ -41,6 +41,7 @@ from app.db.models import (
     Project,
     Provider,
     Run,
+    ToolCall,
     project_of,
 )
 from app.providers import ask_once
@@ -413,12 +414,12 @@ def _only_fetches(program: str, words: list[str]) -> bool:
     return True
 
 
-def _agents(factory, cid: str, root: Path, path: Path) -> bool:
+def _agents(factory, cid: str, root: Path, path: Path, scratch: bool = True) -> bool:
     """Whether `path` (in `root`) is as an agent wrote it - its write on record, of any turn of
-    the project's, still stands (`proof_style.still_written`) - or in the agents' scratch, theirs
-    whoever wrote it there (`workspace.in_scratch`)."""
+    the project's, still stands (`proof_style.still_written`) - or, with `scratch`, in the agents'
+    scratch, theirs whoever wrote it there (`workspace.in_scratch`)."""
     rel = path.relative_to(root.resolve()).as_posix()
-    if in_scratch(rel):
+    if scratch and in_scratch(rel):
         return True
     with factory() as session:
         found = session.execute(
@@ -480,13 +481,13 @@ def _refused(judged: object) -> bool:
 class _Seen(NamedTuple):
     """What of a line besides it the judge goes by: where it runs (`root`, `cwd`), the file it
     runs by its name (`_named_file`; None: none found, or its folder no fact), that program as
-    shown where an agent wrote it, its digest ("": none), and what the same agent ran before it in
-    the turn."""
+    shown where an agent wrote it (`_risk_line`), its digest ("": none), and what the same agent
+    did before it in the turn (`_risk_earlier`)."""
 
     root: Path
     cwd: str | None  # (None: no fact - `_risk_judged`'s `known`)
     path: Path | None
-    program: tuple[str, str, int] | None
+    program: tuple[str, str | None, int] | None
     digest: str
     earlier: list[str]
 
@@ -541,11 +542,13 @@ class RiskJudgeMixin:
 
     def _risk_line(
         self: "AgentRunner", ctx: Ctx, command: str, cwd: str, root: Path, known: bool
-    ) -> tuple[bool, Path | None, tuple[str, str, int] | None, str, bool]:
+    ) -> tuple[bool, Path | None, tuple[str, str | None, int] | None, str, bool]:
         """Whether a line is ordinary (`risk_judge.ordinary`, nothing it runs an agent's); the
         file it runs as its program (`_named_file`, where `known`); that program as the judge is
-        shown it where an agent wrote it (`_agents`); its digest whoever wrote it ("": no file
-        found); and whether that file is all the line runs (`_Files.exact`). Blocking."""
+        shown it where an agent wrote it (`_agents`) - its text only where a write of an agent's
+        on record made it, never one in the scratch it did not (0.1.10: a command's output, a
+        fetched page; text None) -; its digest whoever wrote it ("": no file found); and whether
+        that file is all the line runs (`_Files.exact`). Blocking."""
         npm = [_program(word) for word in _words(command.strip())[:1]] == ["npm"]  # (npm.cmd)
         plain = (
             risk_judge.ordinary(command, npm_run=True)
@@ -558,8 +561,10 @@ class RiskJudgeMixin:
         if path is None:
             return plain, None, None, "", False
         shown, digest = _program_read(path, root)
-        agents = _agents(self._factory, ctx.cid, root, path)
-        return plain, path, shown if agents else None, digest, exact
+        written = _agents(self._factory, ctx.cid, root, path, scratch=False)
+        if not (written or in_scratch(shown[0])):
+            return plain, path, None, digest, exact
+        return plain, path, shown if written else (shown[0], None, 0), digest, exact
 
     async def _risk_judging(
         self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, root: Path, known: bool
@@ -614,19 +619,22 @@ class RiskJudgeMixin:
 
     @staticmethod
     def _risk_earlier(session, ctx: Ctx) -> list[str]:
-        """What the same agent ran before in the turn - one that started: not one refused, turned
-        down or never run -, at most `EARLIER`, oldest first, each masked (`raw.hidden`)."""
-        ran = session.scalars(
-            select(Command.command)
+        """What the same agent did before in the turn (0.1.10, as Claude Code's auto mode's
+        classifier reads it): its tool calls that ended and were not refused nor turned down - a
+        command, a file written or read, a page opened, by its name and arguments
+        (`risk_judge.action`), never what it gave back -, at most `EARLIER`, oldest first, each's
+        first `EARLIER_READ` characters masked (`raw.hidden`)."""
+        done = session.execute(
+            select(ToolCall.name, func.substr(ToolCall.arguments, 1, risk_judge.EARLIER_READ))
             .where(
-                Command.run_id == ctx.run_id,
-                Command.agent_id == ctx.agent_id,
-                Command.started_at.is_not(None),
+                ToolCall.run_id == ctx.run_id,
+                ToolCall.agent_id == ctx.agent_id,
+                ToolCall.status.in_(("succeeded", "failed")),
             )
-            .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc())
+            .order_by(literal_column("tool_calls.rowid").desc())
             .limit(risk_judge.EARLIER)
         ).all()
-        return [raw.hidden(one) for one in reversed(ran)]
+        return [raw.hidden(risk_judge.action(*one)) for one in reversed(done)]
 
     def _risk_allowed(self: "AgentRunner", project_id: str, key: tuple[str, ...]) -> bool:
         """Whether the user said on a judge's card not to ask about this line again here: its
@@ -736,7 +744,9 @@ class RiskJudgeMixin:
                 "by": "Orchestrator" if not ctx.depth else raw.hidden(f"sub-agent {ctx.role}"),
             },
             seen.earlier,
-            (raw.hidden(program[0]), raw.hidden(program[1]), program[2]) if program else None,
+            (raw.hidden(program[0]), program[1] and raw.hidden(program[1]), program[2])
+            if program
+            else None,
         )
         record = {**record, "model": f"{asking.provider} · {asking.model_name}"}
         got, failed = await self._risk_asks(ctx, asking, mode, asked)
