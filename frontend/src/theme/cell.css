@@ -1,0 +1,64 @@
+/* The honeycomb cell (0.1.10, shell/Cell.tsx): a hexagon, its rim in its tone and filled by how something stands. Each
+   tone's rim is a text colour of the theme, so it reads at 4.5 on every ground in both themes (contrast.test.ts); what
+   it means is in its label too, never in its colour alone. */
+.cell {
+  --cell-edge: var(--muted);
+  --cell-solid: var(--muted);
+  --cell-fill: var(--surface);
+  --cell-rim: 2px;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  height: 16px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: var(--cell-edge);
+  vertical-align: middle;
+}
+
+.cell::after {
+  content: '';
+  position: absolute;
+  inset: var(--cell-rim);
+  clip-path: inherit;
+  background: var(--cell-fill);
+}
+
+.cell-big {
+  width: 22px;
+  height: 25px;
+}
+
+.cell-ok {
+  --cell-edge: var(--ok);
+  --cell-solid: var(--ok);
+}
+
+.cell-honey {
+  --cell-edge: var(--accent);
+  --cell-solid: var(--accent-fill);
+}
+
+.cell-warn {
+  --cell-edge: var(--warn);
+  --cell-solid: var(--warn);
+}
+
+.cell-full {
+  --cell-fill: var(--cell-solid);
+}
+
+.cell-soft {
+  --cell-fill: color-mix(in srgb, var(--cell-solid) 24%, var(--surface));
+}
+
+.cell-thin {
+  --cell-rim: 1px;
+}
+
+/* (A high-contrast theme drops backgrounds: the cell keeps its own, its label says the rest.) */
+@media (forced-colors: active) {
+  .cell {
+    forced-color-adjust: none;
+  }
+}

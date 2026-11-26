@@ -150,6 +150,37 @@ for (const [name, theme] of [
   })
 }
 
+// The honeycomb cell (0.1.10): each tone's rim, as cell.css gives it - the plain one's from `.cell` itself.
+const cellCss = readFileSync(new URL('./cell.css', import.meta.url), 'utf8')
+const edgeOf = (selector: string) =>
+  cellCss.match(new RegExp(`\\n${selector.replace(/\./g, '\\.')} \\{\\s*--cell-edge: var\\((--[\\w-]+)\\);`))?.[1]
+const cellEdges = {
+  plain: edgeOf('.cell'),
+  ok: edgeOf('.cell-ok'),
+  honey: edgeOf('.cell-honey'),
+  warn: edgeOf('.cell-warn'),
+}
+
+for (const [name, theme] of [
+  ['light', light],
+  ['dark', dark],
+] as const) {
+  test(`a cell's rim reads on every ground, and its three colours are told apart, in the ${name} theme`, () => {
+    for (const [tone, edge] of Object.entries(cellEdges)) {
+      expect(edge, `.cell-${tone}'s --cell-edge`).toBeDefined()
+      for (const bg of flats)
+        expect(ratio(theme[edge!], theme[bg]), `.cell-${tone} (${edge}) on ${bg}`).toBeGreaterThanOrEqual(4.5)
+    }
+    const { ok, honey, warn } = cellEdges
+    for (const [a, b] of [
+      [ok, honey],
+      [ok, warn],
+      [honey, warn],
+    ])
+      expect(distance(theme[a!], theme[b!]), `${a} from ${b}`).toBeGreaterThanOrEqual(25)
+  })
+}
+
 // Coloured code (slice 42a): each colour of it reads on a plain line, an added one and a removed one,
 // with the line numbers and the signs beside it - the tints changes.css lays over the window's ground.
 const changes = readFileSync(new URL('./changes.css', import.meta.url), 'utf8')
