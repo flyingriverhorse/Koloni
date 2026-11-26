@@ -182,6 +182,11 @@ export function App() {
   useEffect(() => {
     if (view !== 'canvas') opened.current = true
   }, [view])
+  // The morning (slice 106): KOLONİ opened after a night while you were away opens Ready for you, where the night's
+  // strip is - until the night has been on screen (the strip, or the report on the canvas, says so). Asked once, of the
+  // first answer about the night after the page opens: never over a page you opened meanwhile, nor later (a first read
+  // that failed, a night that ends while you are here) - M1.
+  const morning = useRef(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
   const [settingsWanted, setSettingsOpen] = useState(false)
   // Where Ctrl+K went on a page - a role, a provider, a server, words to search: the page opens
@@ -310,9 +315,15 @@ export function App() {
         .loadBudget()
         .catch(() => {})
       // ...and the night while you're away (slice 106): the top bar says it on every page.
+      const first = !morning.current
+      morning.current = true
       void useApp
         .getState()
         .loadAway()
+        .then(() => {
+          const night = useApp.getState().away
+          if (first && night?.status === 'ended' && !night.seen_at && !opened.current) setView('ready')
+        })
         .catch(() => {})
     }
     read()
@@ -383,17 +394,6 @@ export function App() {
     (from: string | null, unseen?: boolean) => readDecisions(projectId ?? '', from, unseen),
     [projectId],
   )
-  // The morning (slice 106): KOLONİ opened after a night while you were away opens Ready for you, where the night's
-  // strip is, at the first reading after the page opens - until the night has been on screen (the strip, or the
-  // report on the canvas, says so) - and never over a page you opened meanwhile (M1).
-  const morning = useRef(false)
-  useEffect(() => {
-    if (!away || morning.current) return
-    morning.current = true
-    if (away.status !== 'ended' || away.seen_at || opened.current) return
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setView('ready')
-  }, [away])
   // B-150: the browser's Back (and Forward) opens the chat that was open before (`openConversation` keeps each in its history).
   useEffect(() => {
     const back = (event: PopStateEvent) => {

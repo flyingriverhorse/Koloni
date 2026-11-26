@@ -709,6 +709,31 @@ test('a page you opened before the night was read is never taken from you: the m
   expect(screen.queryByRole('heading', { name: /^Ready for you/ })).toBeNull()
 })
 
+test('the morning is asked of the first answer about the night alone: a later one never moves you (M1)', async () => {
+  // (the first read fails; the next, a minute later, finds the night ended - you may be typing by then)
+  let failed = false
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url !== '/api/projects/p/away') return answer(url)
+      if (!failed) {
+        failed = true
+        return new Response('{"detail":"down"}', { status: 500 })
+      }
+      return new Response(JSON.stringify(endedNight), { status: 200 })
+    }),
+  )
+  render(<App />)
+  await screen.findByText('this machine')
+  await vi.waitFor(() => expect(failed).toBe(true))
+  await act(async () => {
+    await useApp.getState().loadAway()
+  })
+  expect(useApp.getState().away?.id).toBe('a1')
+  expect(screen.queryByRole('heading', { name: /^Ready for you/ })).toBeNull()
+  expect(screen.getByLabelText('Message')).toBeVisible()
+})
+
 test("an agent's window and a discussion's open over the canvas only with a chat; selecting a node opens the inspector", async () => {
   render(<App />)
   await vi.waitFor(() => expect(useApp.getState().conv?.conversation.id).toBe('c'))
