@@ -173,10 +173,14 @@ turns go on from. Each note is one line - a **decision**, a **file**, a **result
 
 *The strip over a chat a story works in, and its notebook opened from it.*
 
-Every turn of the job is given the notebook, quoted as data, not instructions: each task's first message
+Every turn of the job is given the notebook, quoted as data, not instructions - each line saying whose it
+is: KOLONİ's, an agent's or yours, so an agent's note never passes for your word: each task's first message
 and its fix round carry it, and so do the Orchestrator's instructions in a turn of yours in the story's
 (or the task's) topic, as the notebook stood when that turn began. Any agent of the turn reads it with
-`read_notes`; in place of the notebook of the turn before, which a turn of a plain chat is given. A session that summarises itself keeps short notes
+`read_notes`; in place of the notebook of the turn before, which a turn of a plain chat is given. Once
+the job is over - its task done, its story closed - a turn in its topic is a plain chat's again. What a
+search of earlier messages finds (**Search deeper**, an agent's **Recall**) never includes a notebook a
+task's message carried. A session that summarises itself keeps short notes
 it was given and loses details read in passing (in one measured run, 5 of 5 notes against 0 of 5 details
 buried in a long log): the notebook is what is not lost. Long content - a file, an output - is read
 again when it is needed.

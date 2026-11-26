@@ -17,6 +17,7 @@ from app.db.session import make_engine, make_session_factory, upgrade_db
 from app.roles import ALL_TOOLS, BUILTIN_ROLES, check_tools
 from tests.conftest import Gate
 from tests.test_chat_flow import text
+from tests.test_chat_teams_scenarios import OWN
 from tests.test_migration_0002 import _config
 from tests.test_parallel import SPAWN_BOTH, statuses, until
 from tests.test_spawn import begin, call, names, step
@@ -692,7 +693,9 @@ def test_two_agents_writing_and_reading_at_once_each_get_every_note_once(
         until(client, cid, lambda s: len(s["board_posts"]) == 4)
         # the user writes while both are in the middle of a step
         assert (
-            client.post(f"/api/runs/{run_id}/notes", json={"content": "from the user"}).status_code
+            client.post(
+                f"/api/runs/{run_id}/notes", headers=OWN, json={"content": "from the user"}
+            ).status_code
             == 201
         )
         for name in ("Coder", "Tester") if turn % 2 else ("Tester", "Coder"):
@@ -736,7 +739,11 @@ def test_the_user_writes_a_note_and_the_agents_at_work_read_it(make_client, wait
     )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     a.wait_partial()
-    said = client.post(f"/api/runs/{run_id}/notes", json={"content": "  leave check.py alone "})
+    # (0.1.10: it may go into a job's notebook as the user's - from the app's own page alone)
+    assert client.post(f"/api/runs/{run_id}/notes", json={"content": "x"}).status_code == 403
+    said = client.post(
+        f"/api/runs/{run_id}/notes", headers=OWN, json={"content": "  leave check.py alone "}
+    )
     assert said.status_code == 201, said.text
     note = said.json()
     assert (note["agent_id"], note["content"], note["seq"], note["read_by"]) == (
@@ -747,8 +754,13 @@ def test_the_user_writes_a_note_and_the_agents_at_work_read_it(make_client, wait
     )
     assert posted(client, cid) == [note]
     for bad in ("   ", "x" * 1501):
-        assert client.post(f"/api/runs/{run_id}/notes", json={"content": bad}).status_code == 422
-    assert client.post("/api/runs/nope/notes", json={"content": "x"}).status_code == 404
+        assert (
+            client.post(f"/api/runs/{run_id}/notes", headers=OWN, json={"content": bad}).status_code
+            == 422
+        )
+    assert (
+        client.post("/api/runs/nope/notes", headers=OWN, json={"content": "x"}).status_code == 404
+    )
     a.release()
     snap = wait_run(client, cid, run_id)
     assert model.calls_of["Coder"][1][-1]["content"] == (
@@ -759,7 +771,7 @@ def test_the_user_writes_a_note_and_the_agents_at_work_read_it(make_client, wait
     assert snap["board_posts"][0]["read_by"] == [who["Coder"], who["Lead"]]
     assert handed(snap, "Coder")[0]["from_agent_id"] is None
     # the turn is over: its notebook is closed
-    late = client.post(f"/api/runs/{run_id}/notes", json={"content": "too late"})
+    late = client.post(f"/api/runs/{run_id}/notes", headers=OWN, json={"content": "too late"})
     assert late.status_code == 409 and "turn is over" in late.json()["detail"]
     assert len(written(client.get(f"/api/conversations/{cid}").json())) == 1
 
@@ -775,9 +787,9 @@ def test_the_user_cannot_write_on_a_turn_that_has_not_started_or_is_full(
     queued = client.post(f"/api/conversations/{cid}/messages", json={"content": "next"}).json()[
         "run"
     ]
-    waiting = client.post(f"/api/runs/{queued['id']}/notes", json={"content": "early"})
+    waiting = client.post(f"/api/runs/{queued['id']}/notes", headers=OWN, json={"content": "early"})
     assert waiting.status_code == 409 and "has not started" in waiting.json()["detail"]
-    full = client.post(f"/api/runs/{run_id}/notes", json={"content": "one more"})
+    full = client.post(f"/api/runs/{run_id}/notes", headers=OWN, json={"content": "one more"})
     assert full.status_code == 422 and "limit of 40 notes per turn" in full.json()["detail"]
     a.release()
     wait_run(client, cid, queued["id"])
@@ -810,7 +822,9 @@ def test_the_next_turns_lead_gets_a_short_block_of_the_turn_before(
     cid, run_id = begin(client, project_dir, mode="full_auto")
     a.wait_partial()
     assert (
-        client.post(f"/api/runs/{run_id}/notes", json={"content": "mind the tests"}).status_code
+        client.post(
+            f"/api/runs/{run_id}/notes", headers=OWN, json={"content": "mind the tests"}
+        ).status_code
         == 201
     )
     a.release()
@@ -909,7 +923,7 @@ def test_a_turns_notebook_holds_only_what_every_agent_can_be_handed(
     assert "no room left" in second["result"]
     assert sum(len(p["content"]) for p in posted(client, cid)) == 1900
     # the user is held to the same room
-    refused = client.post(f"/api/runs/{run_id}/notes", json={"content": "late"})
+    refused = client.post(f"/api/runs/{run_id}/notes", headers=OWN, json={"content": "late"})
     assert refused.status_code == 409
 
 

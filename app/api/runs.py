@@ -178,7 +178,7 @@ async def send_again(
     "/{run_id}/notes",
     response_model=BoardPostOut,
     status_code=201,
-    dependencies=[Depends(require_origin)],
+    dependencies=[Depends(require_own_origin)],  # (0.1.10: it may go into a job's notebook)
 )
 async def write_note(
     run_id: str, body: BoardPostIn, request: Request, session: Session = Depends(get_session)

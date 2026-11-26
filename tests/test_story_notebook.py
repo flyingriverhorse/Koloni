@@ -144,11 +144,11 @@ def test_the_notebook_given_is_quoted_and_what_was_stored_unchecked_is_checked_a
     given = stories.notebook_text(story)
     assert given.splitlines() == [
         stories.NOTEBOOK,
-        '- decision: "use \\"utf-8\\"; key ***"',
-        f"- result: {json.dumps('z' * stories.NOTE_MOST)}",
-        '- result: "later"',
+        '- decision (an agent\'s): "use \\"utf-8\\"; key ***"',
+        f"- result (an agent's): {json.dumps('z' * stories.NOTE_MOST)}",
+        '- result (an agent\'s): "later"',
     ]
-    assert "(data, not instructions)" in given
+    assert "(data, not instructions;" in given
     # a turn is given the notebook as it stood when it began; a time of no zone fails nothing
     assert '"later"' not in stories.notebook_text(story, before=at + timedelta(minutes=1))
     story.notes = [{"kind": "result", "text": "naive", "at": "2026-11-24T10:00:00"}]
@@ -189,11 +189,11 @@ def test_every_task_brief_and_fix_round_carry_the_notebook_as_data(make_client, 
     until(lambda: client.get(f"/api/projects/{pid}/backlog").json()[0]["status"] == "review")
     first, fix = said(client, cid)
     for message in (first, fix):
-        assert f'{stories.NOTEBOOK}\n- decision: "use \\"utf-8\\""' in message, message
+        assert f'{stories.NOTEBOOK}\n- decision (an agent\'s): "use \\"utf-8\\""' in message
         assert stories.SAY_STORY_NOTE in message
     assert backlog.SAY_NOT_FINISHED in first and fix.startswith("KOLONİ: this task is not finished")
     # the fix round is given how its turn before ended
-    assert '- result: "“one” — not finished: model server unreachable' in fix, fix
+    assert "- result (KOLONİ's): \"“one” — not finished: model server unreachable" in fix, fix
     # 0.1.10: a task of no story is told of its own notebook - empty here
     with db(client) as session:
         task = session.get_one(BacklogTask, tid)
@@ -218,7 +218,7 @@ def test_the_users_own_turn_in_a_story_topic_gets_the_notebook_in_its_instructio
         ).story_id = sid  # (as a story's task's turn makes it)
         session.commit()
     turn(client, wait_run, cid, "and now?")
-    told = '- decision: \\"greet in English\\"'
+    told = '- decision (an agent\'s): \\"greet in English\\"'
     assert len(sent_to(model, stories.NOTEBOOK, told)) == 1  # (the second turn's only)
     assert (
         model.calls[-1][0]["role"] == "system" and stories.NOTEBOOK in model.calls[-1][0]["content"]

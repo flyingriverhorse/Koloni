@@ -2,11 +2,12 @@
 
 - `projects.project_notes`: the Project notes - what the user kept at a turn's end - are the second
   box of the project's rules on Memory's Told tab, no longer a knowledge of their own. What each
-  project's old "Project notes" knowledge holds (`sources == ["notes:"]`) is copied in: the line of
-  each of its pages, as its `learned.json` in the project's folder lists them, `- <line>` each, the
-  newest that fit in MOST characters. The folder is only read - a link, a file over a megabyte or
-  one that does not parse is passed over - and the knowledge, its pages and the roles that use it
-  are left as they are: nothing is deleted.
+  project's old "Project notes" knowledge holds (`sources == ["notes:"]`) is copied in, where the
+  Orchestrator had it on (the Lead role's knows): the line of each of its pages, as its
+  `learned.json` in the project's folder lists them, `- <line>` each, the newest that fit in MOST
+  characters. The folder is only read - a link, a hard link, a file over a megabyte or one that
+  does not parse is passed over - and the knowledge, its pages and the roles that use it are left
+  as they are: nothing is deleted.
 - `backlog_tasks.notes`: a To-do task of no story (a task's chat, a night's job) keeps a notebook
   as a story does.
 
@@ -39,14 +40,18 @@ BIGGEST = 1 << 20
 
 def _lines(root: str) -> list[str]:
     """The notes' lines as the folder's learned.json lists them, oldest first; none where it is
-    not there, is a link, is too big or does not parse."""
+    not there, is a link or a hard link, is too big or does not parse."""
     try:
         where = Path(root) / LEARNED
         if not where.resolve().is_relative_to(Path(root).resolve()):  # (a link on its way)
             return []
-        if where.is_symlink() or not where.is_file() or where.stat().st_size > BIGGEST:
+        if where.is_symlink() or not where.is_file() or where.stat().st_nlink > 1:
             return []
-        read = json.loads(where.read_text(encoding="utf-8").removeprefix("﻿"))
+        with where.open("rb") as file:
+            data = file.read(BIGGEST + 1)
+        if len(data) > BIGGEST:
+            return []
+        read = json.loads(data.decode("utf-8-sig"))
     except (OSError, ValueError, RecursionError):
         return []
     pages = read.get("pages") if isinstance(read, dict) else None
@@ -69,10 +74,15 @@ def _fitting(lines: list[str]) -> str | None:
 
 
 def _is_notes(sources: str | None) -> bool:
+    return _listed(sources) == ["notes:"]
+
+
+def _listed(text: str | None) -> list:
     try:
-        return json.loads(sources or "null") == ["notes:"]
+        found = json.loads(text or "null")
     except (ValueError, RecursionError):
-        return False
+        return []
+    return found if isinstance(found, list) else []
 
 
 def upgrade() -> None:
@@ -81,20 +91,22 @@ def upgrade() -> None:
     with op.batch_alter_table("backlog_tasks") as batch:
         batch.add_column(sa.Column("notes", sa.JSON(), nullable=False, server_default="[]"))
     conn = op.get_bind()
+    # Only notes the Orchestrator had on (its role's knows, the Lead's Knowledge tab): one switched
+    # off - or never on, made before 0.1.9 gave them to it - stays in its folder alone.
+    on = {
+        one.get("knowledge_id")
+        for (knows,) in conn.execute(sa.text("SELECT knows FROM roles WHERE name = 'Lead'"))
+        for one in _listed(knows)
+        if isinstance(one, dict)
+    }
     rows = conn.execute(
         sa.text(
-            "SELECT DISTINCT p.id, p.root_path FROM knowledge k JOIN projects p "
+            "SELECT k.id, k.sources, p.id, p.root_path FROM knowledge k JOIN projects p "
             "ON p.id = k.project_id"
         )
     ).all()
-    for project_id, root in rows:
-        has_notes = any(
-            _is_notes(sources)
-            for (sources,) in conn.execute(
-                sa.text("SELECT sources FROM knowledge WHERE project_id = :p"), {"p": project_id}
-            )
-        )
-        if has_notes and (kept := _fitting(_lines(root))):
+    for knowledge_id, sources, project_id, root in rows:
+        if knowledge_id in on and _is_notes(sources) and (kept := _fitting(_lines(root))):
             conn.execute(
                 sa.text("UPDATE projects SET project_notes = :n WHERE id = :p"),
                 {"n": kept, "p": project_id},

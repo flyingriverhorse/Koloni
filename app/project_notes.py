@@ -19,7 +19,7 @@ import re
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app import injection, memory, project_files, web
+from app import injection, memory, project_files, stories, web
 from app.db.models import Agent, FileChange, NotesOffer, Project, now
 from app.team import quoted
 from app.views import Refused
@@ -273,7 +273,7 @@ def accept(session: Session, project_id: str, chosen: list[dict]) -> Project:
     project = session.get_one(Project, project_id)
     kept = list(map(str, (project.project_notes or "").splitlines()))
     for one in chosen:
-        line = f"- {web._line(str(one['line']), LINE)}"
+        line = f"- {web._line(stories.masked(str(one['line']), project.pass_env), LINE)}"
         if line not in kept:
             kept.append(line)
     text = "\n".join(kept).strip()
@@ -293,10 +293,11 @@ def check(text: object) -> str | None:
 
 def told(project: Project | None) -> str:
     """The Project notes as the Orchestrator is given them every turn: each line in quotes,
-    noted where it reads like orders; "" for none."""
+    masked (the secrets KOLONİ knows, what the project passes its commands), noted where it reads
+    like orders; "" for none."""
     lines = [
-        f"- {quoted(line.strip().removeprefix('- ').strip())}"
+        f"- {quoted(stories.masked(line.strip().removeprefix('- ').strip(), project.pass_env))}"
         for line in ((project.project_notes if project else None) or "").splitlines()
-        if line.strip().removeprefix("- ").strip()
+        if project and line.strip().removeprefix("- ").strip()
     ]
     return injection.noted("\n".join([HEAD, *lines]), "agent") if lines else ""

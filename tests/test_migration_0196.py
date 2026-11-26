@@ -28,6 +28,16 @@ def _project(conn, pid: str, root, sources: list | None) -> None:
         )
 
 
+def _lead(conn, *ids: str) -> None:
+    """The Lead role, using the knowledge `ids` (its Knowledge tab's switches on)."""
+    knows = json.dumps([{"knowledge_id": one, "mode": "map"} for one in ids])
+    conn.execute(
+        "INSERT INTO roles (id, name, description, instructions, tools, builtin, created_by_agent, "
+        "created_at, updated_at, knows) VALUES ('lead', 'Lead', '', '', '[]', 1, 0, ?, ?, ?)",
+        (AT, AT, knows),
+    )
+
+
 def _learned(root, pages) -> None:
     where = root.joinpath(*LEARNED)
     where.parent.mkdir(parents=True)
@@ -38,7 +48,7 @@ def test_the_notes_lines_are_copied_into_memory_and_go_back_with_their_column(tm
     db = tmp_path / "old.db"
     cfg = _config(db)
     command.upgrade(cfg, "0195")
-    roots = {name: tmp_path / name for name in ("kept", "long", "broken", "mine", "none")}
+    roots = {name: tmp_path / name for name in ("kept", "long", "broken", "mine", "none", "off")}
     for root in roots.values():
         root.mkdir()
     _learned(
@@ -54,6 +64,7 @@ def test_the_notes_lines_are_copied_into_memory_and_go_back_with_their_column(tm
     roots["broken"].joinpath(*LEARNED[:-1]).mkdir(parents=True)
     roots["broken"].joinpath(*LEARNED).write_text("{not json", encoding="utf-8")
     _learned(roots["mine"], [{"line": "a knowledge of the user's own, not the notes"}])
+    _learned(roots["off"], [{"line": "switched off on the Lead's Knowledge tab"}])
     with sqlite3.connect(db) as conn:
         _project(conn, "kept", roots["kept"], ["notes:"])
         _project(conn, "long", roots["long"], ["notes:"])
@@ -61,6 +72,9 @@ def test_the_notes_lines_are_copied_into_memory_and_go_back_with_their_column(tm
         _project(conn, "mine", roots["mine"], ["docs"])
         _project(conn, "none", roots["none"], None)
         _project(conn, "gone", tmp_path / "gone", ["notes:"])
+        _project(conn, "off", roots["off"], ["notes:"])
+        # The Orchestrator had them on - but the "off" project's, switched off on its Knowledge tab.
+        _lead(conn, "kkept", "klong", "kbroken", "kgone")
         conn.execute(
             "INSERT INTO backlog_tasks (id, project_id, title, priority, status, position, "
             "created_by, created_at) VALUES ('t', 'kept', 't', 'normal', 'todo', 0, 'user', ?)",
@@ -73,7 +87,7 @@ def test_the_notes_lines_are_copied_into_memory_and_go_back_with_their_column(tm
         assert kept["kept"] == (
             "- Coder's report (its words): the tax - fixed: added it\n- docs/a.md (its words): new words"
         )
-        assert {kept[one] for one in ("broken", "mine", "none", "gone")} == {None}
+        assert {kept[one] for one in ("broken", "mine", "none", "gone", "off")} == {None}
         # The newest that fit, each cut to its line's 200 characters.
         lines = kept["long"].split("\n")
         assert len(kept["long"]) <= 4000 and lines[-1].startswith("- 39 x")
@@ -106,6 +120,25 @@ def test_a_notes_file_reached_through_a_link_is_passed_over(tmp_path):
     command.upgrade(cfg, "0195")
     with sqlite3.connect(db) as conn:
         _project(conn, "linked", root, ["notes:"])
+        _lead(conn, "klinked")
+    command.upgrade(cfg, "0196")
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT project_notes FROM projects").fetchone() == (None,)
+
+
+def test_a_hard_linked_notes_file_is_passed_over(tmp_path):
+    import os
+
+    elsewhere, root = tmp_path / "elsewhere", tmp_path / "hard"
+    _learned(elsewhere, [{"line": "a file of another place, by a second name"}])
+    root.joinpath(*LEARNED[:-1]).mkdir(parents=True)
+    os.link(elsewhere.joinpath(*LEARNED), root.joinpath(*LEARNED))
+    db = tmp_path / "old.db"
+    cfg = _config(db)
+    command.upgrade(cfg, "0195")
+    with sqlite3.connect(db) as conn:
+        _project(conn, "hard", root, ["notes:"])
+        _lead(conn, "khard")
     command.upgrade(cfg, "0196")
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT project_notes FROM projects").fetchone() == (None,)
