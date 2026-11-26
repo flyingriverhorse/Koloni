@@ -571,9 +571,10 @@ def test_a_decision_on_changes_is_the_users_own_and_is_taken_once(
 
 
 def here(client, snap, name="Coder"):
-    """Where the named agent's working copy is, wherever it was made (K-koloni-alan)."""
-    held = copies.place(client.app.state.settings.runtime_root, agent(snap, name)["id"])
-    return held / copies.TREE
+    """Where the named agent's working copy is (K-koloni-alan: in a git-less project's .koloni/)."""
+    (project,) = client.get("/api/projects").json()
+    held = copies.folder(client.app.state.settings.runtime_root, project["root_path"])
+    return held / agent(snap, name)["id"] / copies.TREE
 
 
 OUT = (
@@ -1447,7 +1448,6 @@ def card_of(client, cid):
 
 
 def kept_folders(settings_env):
-    """Every copy's folder on disk, wherever it was made (K-koloni-alan)."""
     held = copies.folders(load_settings(settings_env).runtime_root)
     return [entry for one in held if one.is_dir() for entry in one.iterdir()]
 

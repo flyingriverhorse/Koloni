@@ -208,8 +208,9 @@ def test_what_changed_in_the_project_meanwhile_is_not_written_over(
 
 
 def copies_left(settings_env):
-    held_in = copies.folder(load_settings(settings_env).runtime_root)
-    return list(held_in.iterdir()) if held_in.is_dir() else []
+    # (K-koloni-alan: wherever they were made - a project with no git has them in its .koloni/)
+    held = copies.folders(load_settings(settings_env).runtime_root)
+    return [one for place in held if place.is_dir() for one in place.iterdir()]
 
 
 @pytest.mark.parametrize("how", ["stop", "stop_everything"])

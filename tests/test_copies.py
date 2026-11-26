@@ -53,6 +53,11 @@ def tree(top: Path) -> dict[str, bytes]:
     }
 
 
+def own(project: Path) -> dict[str, bytes]:
+    """`tree` of a project but its `.koloni/`: a project with no git holds its copies there."""
+    return {path: data for path, data in tree(project).items() if not path.startswith(".koloni/")}
+
+
 # --- deleting: what a link leads to is never touched --------------------------------------
 
 
@@ -83,7 +88,7 @@ def test_a_removal_that_fails_half_way_has_taken_the_links_out_first(project, ru
         copies.remove(runtime, "a1")
     # what is left of the copy leads nowhere, and the project has lost nothing
     assert copy.root.is_dir() and not (copy.root / "node_modules").exists()
-    assert tree(project) == before
+    assert own(project) == before
     monkeypatch.setattr(copies, "_unlink_file", real)
     copies.clear(runtime)  # the next start deletes what was left
     assert not copy.root.exists() and tree(project) == before
@@ -97,7 +102,7 @@ def test_a_file_held_open_stops_the_removal_and_nothing_of_the_project_is_lost(p
         with pytest.raises(OSError):
             copies.remove(runtime, "a1")
         assert not (copy.root / "node_modules").exists()
-        assert tree(project) == before
+        assert own(project) == before
     copies.remove(runtime, "a1")
     assert not copy.root.exists() and tree(project) == before
 
@@ -537,9 +542,7 @@ def test_a_copy_that_is_kept_at_the_start_loses_its_links_and_nothing_else(proje
     copies.clear(runtime, keep=lambda name: name == "a1")
     assert not gone.root.exists()
     assert sorted(tree(kept.root)) == ["hello.py", "mine.txt", "src/app.py"]
-    # (K-koloni-alan: the kept copy is in the project's own .koloni/copies/, which has no git)
-    own = {path: data for path, data in tree(project).items() if not path.startswith(".koloni/")}
-    assert not (kept.root / "node_modules").exists() and own == before
+    assert not (kept.root / "node_modules").exists() and own(project) == before
 
 
 def test_what_a_copy_was_made_from_is_kept_beside_its_tree_and_read_again(project, runtime):

@@ -3126,10 +3126,11 @@ class AgentRunner(
         )
         await self._kept_some(merge_id, copy if left else None, files)
         if not left:
+            held = copies.place(runtime, name)  # (K-koloni-alan: once gone, no folder says where)
             copies.forget(runtime, name)
             with contextlib.suppress(OSError, ValueError):
                 copies.remove(runtime, name)
-            self._kept_branch_gone(Path(root), copies.place(runtime, name), on_branch, decision)
+            self._kept_branch_gone(Path(root), held, on_branch, decision)
         applied, payloads = self._kept_closed(ctx, merge_id, decision, files, asked, left)
         self._kept_said(ctx, payloads)  # (N3: its line of where its work is, too)
         if applied:

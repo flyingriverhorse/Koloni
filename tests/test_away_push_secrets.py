@@ -218,7 +218,7 @@ def test_files_named_as_secrets_are_left_out_and_one_its_agent_committed_asks_a_
     assert "tokens.py" in pushed and "credentials.yaml" in pushed, pushed
     assert ".env.sample" not in pushed and "api_keys.json" not in pushed, pushed
     # (never deleted: in the job's worktree still)
-    kept = Path(settings_env["KOLONI_RUNTIME_ROOT"]).rglob(".env.sample")
+    kept = (repo / ".koloni" / "worktrees").rglob(".env.sample")  # (K-koloni-alan)
     assert [one.read_text() for one in kept] == ["API_KEY=a-real-looking-value\n"]
 
 
