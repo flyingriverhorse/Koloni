@@ -15,7 +15,7 @@ from app.commands import (
     names_secret,
 )
 
-# The families of why a card was asked, in the order the Usage page says them.
+# The families of why a card was asked, in KOLONİ's words (a parked card's why: `parked`).
 REASONS = {
     "delete": "Deletes or overwrites",
     "send": "Sends off this machine",
