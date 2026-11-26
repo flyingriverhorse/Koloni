@@ -3,7 +3,7 @@ whose agent has finished, the user's own answer in its place and a going-on turn
 KOLONİ's message - only from the app's own page, not while away, not twice, not where its work was
 taken in or discarded, never another project's; every word of the card's quoted and masked."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -187,6 +187,201 @@ def test_a_kept_copy_is_gone_on_in(client, tmp_path, started):
     assert row["undo"] == "change_and_redo"
     assert redo_it(client, pid, ids["answer"]).status_code == 204
     assert started["resume"] == [(started["start"][0], kept)]
+
+
+def in_topic(client, question_id, topic, task=None):
+    """The turn the card was answered in, put in topic `topic` of its chat (and To-do task `task`'s
+    turn)."""
+    with client.app.state.session_factory() as session:
+        turn = session.get_one(Run, session.get_one(Question, question_id).run_id)
+        turn.topic_id, turn.task_id = topic, task
+        session.commit()
+
+
+def later(client, cid, topic, status, kept_in=None, files=(), by_user=False, went_on=False, **turn):
+    """A later turn of chat `cid` in topic `topic` - a message of the user's own, or one of KOLONİ's
+    (`turn`: its To-do task's, a comparison's side...); `went_on`: one that went on with a job's
+    work, on record (`Parked.went_on`: the morning's, Change and redo's) - whose work is a Merge:
+    its id."""
+    when = datetime.now(UTC) + timedelta(minutes=1)  # (never the same instant as the card's turn)
+    with client.app.state.session_factory() as session:
+        run = Run(
+            conversation_id=cid,
+            topic_id=topic,
+            status="completed",
+            by_user=by_user,
+            created_at=when,
+            **turn,
+        )
+        session.add(run)
+        session.flush()
+        if went_on:
+            pid = session.get_one(Conversation, cid).project_id
+            night = AwayRun(project_id=pid, conversation_id=cid, run_id="r", status="ended")
+            session.add(night)
+            session.flush()
+            session.add(
+                Parked(
+                    away_run_id=night.id,
+                    task_id="job",
+                    seq=1,
+                    kind="redo",
+                    what="Which database for the tests?",
+                    decision="answer",
+                    went_on=run.id,
+                )
+            )
+        lead = Agent(run_id=run.id, role_name="Lead", name="Lead", tools=[], status="completed")
+        session.add(lead)
+        session.flush()
+        merge = Merge(
+            run_id=run.id,
+            agent_id=lead.id,
+            status=status,
+            files=[{"path": "b.py", "state": state} for state in files],
+            kept_in=kept_in,
+            created_at=when,
+        )
+        session.add(merge)
+        session.commit()
+        return merge.id
+
+
+@pytest.mark.parametrize(
+    ("topic", "status", "kept_in", "files", "by_user"),
+    [
+        # (Codex, 0.1.9: another topic's kept copy - its help page's work - was gone on in)
+        ("help", "interrupted", "C:/kept/help", ["refused"], False),
+        ("help", "applied", None, ["applied"], False),  # (another topic's, taken in)
+        ("db", "interrupted", "C:/kept/yours", ["refused"], True),  # (a message of yours)
+    ],
+)
+def test_it_goes_on_in_its_own_works_copy_not_a_later_one_of_the_chat(
+    client, tmp_path, started, topic, status, kept_in, files, by_user
+):
+    pid, cid, ids = finished(client, tmp_path)
+    in_topic(client, ids["answer"], "db")
+    mine = merge_of(client, ids["answer"], "interrupted", "C:/kept/db", ["refused"])
+    later(client, cid, topic, status, kept_in, files, by_user)
+    (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
+    assert (row["undo"], row["undo_reason"]) == ("change_and_redo", None)
+    assert redo_it(client, pid, ids["answer"]).status_code == 204
+    assert started["resume"] == [(started["start"][0], mine)]
+
+
+@pytest.mark.parametrize(
+    ("status", "kept_in", "files", "why"),
+    [("applied", None, ["applied"], decisions.TAKEN_IN), ("interrupted", "C:/kept/on", [], None)],
+)
+def test_a_turn_that_went_on_with_its_work_is_its_work(
+    client, tmp_path, started, status, kept_in, files, why
+):
+    # (Change and redo's turn in a job's chat, the morning's: on record, in its topic - the copy it
+    # went on in is given back to it, `_resume_held`: the card's own turn's Merge is left empty)
+    pid, cid, ids = finished(client, tmp_path)
+    in_topic(client, ids["answer"], "db")
+    merge_of(client, ids["answer"], "discarded")
+    on = later(client, cid, "db", status, kept_in, files, went_on=True)
+    (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
+    got = redo_it(client, pid, ids["answer"])
+    if why:  # (taken in: as the card's own turn's work)
+        assert (row["undo"], row["undo_reason"]) == ("none", why)
+        assert (got.status_code, got.json()["detail"]) == (409, why)
+    else:
+        assert got.status_code == 204 and started["resume"] == [(started["start"][0], on)]
+
+
+@pytest.mark.parametrize(
+    "turn",
+    [
+        {"task_id": "t2"},  # (a To-do story's next task, in the same topic)
+        {},  # (an approved plan's work, a rerun of failed sub-agents, a room's turn - or Fix it)
+        {"compare_id": "c"},  # (a comparison's side)
+    ],
+)
+def test_a_later_turn_with_no_record_of_going_on_is_not_its_work(client, tmp_path, started, turn):
+    # (The review, 0.1.9: KOLONİ's turns of the same topic - none the user's own message - were each
+    # taken for the card's work: task 2's kept copy was gone on in from task 1's card)
+    pid, cid, ids = finished(client, tmp_path)
+    in_topic(client, ids["answer"], "story", task="t1")
+    mine = merge_of(client, ids["answer"], "interrupted", "C:/kept/t1", ["refused"])
+    later(client, cid, "story", "interrupted", "C:/kept/t2", ["refused"], **turn)
+    assert redo_it(client, pid, ids["answer"]).status_code == 204
+    assert started["resume"] == [(started["start"][0], mine)]
+
+
+def kept_by(client, run_id, agent_id, status="interrupted", files=("refused",)):
+    """A newer Merge of agent `agent_id` in turn `run_id`: its id."""
+    with client.app.state.session_factory() as session:
+        merge = Merge(
+            run_id=run_id,
+            agent_id=agent_id,
+            status=status,
+            files=[{"path": "b.py", "state": state} for state in files],
+            kept_in="C:/kept/other" if status == "interrupted" else None,
+            created_at=datetime.now(UTC) + timedelta(minutes=1),
+        )
+        session.add(merge)
+        session.commit()
+        return merge.id
+
+
+@pytest.mark.parametrize(
+    ("status", "files"), [("interrupted", ["refused"]), ("applied", ["applied"])]
+)
+def test_another_sub_agents_copy_of_its_turn_is_not_its_work(
+    client, tmp_path, started, status, files
+):
+    # (The review, 0.1.9: two Coders of one turn, each in a copy of its own - the card is one's,
+    # and the other's newer Merge was taken for its work, gone on in or refusing it)
+    pid, _cid, ids = finished(client, tmp_path)
+    mine = merge_of(client, ids["answer"], "interrupted", "C:/kept/a", ["refused"])
+    with client.app.state.session_factory() as session:
+        asker = session.get_one(Agent, session.get_one(Question, ids["answer"]).agent_id)
+        sibling = Agent(
+            run_id=asker.run_id,
+            parent_agent_id=asker.parent_agent_id,
+            role_name="Coder",
+            name="Coder B",
+            tools=[],
+            depth=1,
+            status="completed",
+        )
+        session.add(sibling)
+        session.commit()
+        run_id, sibling_id = asker.run_id, sibling.id
+    kept_by(client, run_id, sibling_id, status, files)
+    (row,) = [one for one in log(client, pid)["rows"] if one["id"] == f"answer:{ids['answer']}"]
+    assert (row["undo"], row["undo_reason"]) == ("change_and_redo", None)
+    assert redo_it(client, pid, ids["answer"]).status_code == 204
+    assert started["resume"] == [(started["start"][0], mine)]
+
+
+@pytest.mark.parametrize(
+    ("state", "status", "files"),
+    [
+        ("own", "interrupted", ["refused"]),
+        ("own", "applied", ["applied"]),
+        ("parent", "interrupted", ["refused"]),  # (it worked in the Lead's copy: that is its work)
+    ],
+)
+def test_its_work_is_the_copy_its_agent_worked_in(client, tmp_path, started, state, status, files):
+    # (The review, 0.1.9: the Coder worked in a copy of its own, the Lead in another, newer - the
+    # Lead's was taken for the card's work: refused where it was taken in, else gone on in)
+    pid, _cid, ids = finished(client, tmp_path)
+    mine = (
+        merge_of(client, ids["answer"], "interrupted", "C:/kept/a", ["refused"])
+        if state == "own"
+        else None
+    )
+    with client.app.state.session_factory() as session:
+        asker = session.get_one(Agent, session.get_one(Question, ids["answer"]).agent_id)
+        asker.copy = {"state": state}
+        session.commit()
+        run_id, lead_id = asker.run_id, asker.parent_agent_id
+    leads = kept_by(client, run_id, lead_id, status, files)
+    assert redo_it(client, pid, ids["answer"]).status_code == 204
+    assert started["resume"] == [(started["start"][0], mine or leads)]
 
 
 def test_hostile_words_arrive_quoted_and_masked(client, tmp_path, started, monkeypatch):

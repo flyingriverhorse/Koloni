@@ -499,6 +499,83 @@ def test_the_judge_looks_in_the_going_on_turn_at_full_auto(judging, wait_run, pr
     assert ["python other.py" in one[0]["content"] for one in asked] == [True]
 
 
+def stop_the_morning(client, pid, done, cid, executor, gate=None):
+    """The user's Stop on the going-on turn while what was Run runs (`gate`: the turn itself, at
+    its model step)."""
+    (row,) = waiting(client, done["id"])
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    if gate is not None:
+        gate.wait_partial()
+    else:
+        until(lambda: executor.started or None)
+    going = chat(client, cid)["runs"][1]
+    assert client.post(f"/api/runs/{going['id']}/cancel").status_code == 202
+
+
+def free_again(client, pid, done):
+    """Its task out of "doing", the project at work no more: a new Go away is taken."""
+    with client.app.state.session_factory() as session:
+        (task,) = session.query(BacklogTask).filter(BacklogTask.away_run_id == done["id"]).all()
+        assert task.status != "doing"
+        assert away.busy(session, pid, waiting=True) is None
+    again = client.post(f"/api/conversations/{done['conversation_id']}/away", json={"kept_out": []})
+    assert again.status_code == 200, again.text
+
+
+def test_stop_during_the_morning_run_stops_its_task_and_frees_the_project(
+    make_client, wait_run, project_dir, gate
+):
+    # (Codex's probe, 0.1.9: the job stayed "doing" - a new Go away was refused, "is being worked
+    # on", for good)
+    client, pid, done, cid, executor = held_morning(
+        make_client, wait_run, project_dir, gate, [run("echo hi"), text("one done")]
+    )
+    stop_the_morning(client, pid, done, cid, executor)
+    until(lambda: chat(client, cid)["runs"][1]["status"] == "cancelled")
+    one = until(lambda: (j := night(client, pid)["jobs"][0])["state"] == "stopped" and j)
+    assert one["why"] == parked.STOPPED
+    until(lambda: [c["status"] for c in ran_in_the_morning(client, cid)] == ["killed"])
+    free_again(client, pid, done)
+
+
+def test_a_message_queued_behind_a_stopped_morning_goes_ahead(
+    make_client, wait_run, project_dir, gate
+):
+    client, pid, done, cid, executor = held_morning(
+        make_client,
+        wait_run,
+        project_dir,
+        gate,
+        [run("echo hi"), text("one done"), text("hello after stop")],
+    )
+    (row,) = waiting(client, done["id"])
+    assert decide(client, done["id"], row["id"], "run").status_code == 200
+    until(lambda: executor.started or None)
+    going = chat(client, cid)["runs"][1]
+    said = client.post(f"/api/conversations/{cid}/messages", json={"content": "hello"}).json()
+    assert said["run"]["status"] == "queued"
+    assert client.post(f"/api/runs/{going['id']}/cancel").status_code == 202
+    # (as behind any turn that was stopped: `_finish`'s `start_next`)
+    snap = wait_run(client, cid, said["run"]["id"])
+    assert [r["status"] for r in snap["runs"]] == ["completed", "cancelled", "completed"]
+    free_again(client, pid, done)
+
+
+def test_stop_in_the_going_on_turn_itself_frees_the_project(
+    make_client, wait_run, project_dir, gate
+):
+    client, pid, done, cid = morning(
+        make_client,
+        wait_run,
+        project_dir,
+        [run("echo hi"), text("one done"), gate.step(text("never"))],
+    )
+    stop_the_morning(client, pid, done, cid, None, gate)
+    gate.release()
+    until(lambda: chat(client, cid)["runs"][1]["status"] == "cancelled")
+    free_again(client, pid, done)
+
+
 def test_koloni_closing_during_the_morning_run_stops_the_task_and_says_so(
     make_client, wait_run, project_dir, gate
 ):
