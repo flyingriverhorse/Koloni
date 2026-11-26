@@ -92,7 +92,7 @@ function AgentLimits({
         htmlFor="max-agents"
         whyId="max-agents-more"
         doc={GUIDE.settingsLimits}
-        why="When that many are at work, a new agent (a conversation’s Orchestrator too) waits for a slot and starts in its turn when one is free. An agent that waits for you, for a file or for its sub-agents holds no slot. The Board shows who is at work."
+        why="When that many are at work, a new agent (a conversation’s Orchestrator too) waits for a slot and starts in its turn when one is free. An agent that waits for you, for a file or for its sub-agents holds no slot. The Chats list shows which chats are at work."
         warn={
           <span id="max-agents-note" className="choice-note">
             {most.value === undefined ? 'A whole number from 1 to 1000, or empty for no limit. ' : ''}
@@ -246,8 +246,8 @@ function TokenLimits({
             {spend && unenforced(spend) ? `${UNENFORCED}. ` : ''}
             For this calendar month’s messages. In the currency of your prices (Usage, under Prices), else USD, as
             models.dev’s prices are used where you set none{spend?.currency ? ` - now ${spend.currency}` : ''}. At 80%
-            you are told. At 100% a new message asks before its work starts, and triggers start none. Work on a model
-            with no price is not counted: Usage says how many there were.
+            you are told. At 100% a new message asks before its work starts. Work on a model with no price is not
+            counted: Usage says how many there were.
           </span>
         }
       >

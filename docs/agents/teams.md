@@ -5,8 +5,27 @@ the Agents page, tab **Teams & roles**.
 
 ## The ready teams
 
-KOLONİ comes with these teams: Web app, Backend / API, Data, Docs, DevOps, Quality, Research,
-Product, Maintenance, ML and DataOps. You can change them, or make your own with **New team**.
+KOLONİ comes with three teams: **Web app** (with the **Feature** recipe), **Quality** (**Quality
+check**) and **Docs** (**Docs**). You can change them, or make your own with **New team**.
+
+Until 0.1.10 there were eleven. At the first start of 0.1.10 the other eight - Backend / API, Data,
+DevOps, Research, Product, Maintenance, ML and DataOps - are taken away where they are as they came.
+One you changed (renamed it, put a role in or took one out, changed its stages or moved a role to
+another stage, its coordinator, its default recipe or whether the Orchestrator may pick it) stays as
+your own, and so does one you use:
+picked for a chat in **Manual**, kept for a project's new chats, or named by a recipe's step. Their
+roles all stay: put the ones you need in a team with **New team**, and give it the ready recipe of
+your choice (**Bugfix**, **Spec**, **Research**, **Analysis**, **Upkeep**, **Model change**,
+**Pipeline change** or **Infra change**) as its **Default recipe**. A chat the Orchestrator had picked
+one of them for keeps its other teams; with none left, the Orchestrator picks again.
+
+Fourteen built-in roles are in none of the three: Architect, Database engineer, Performance engineer,
+Data analyst, Researcher, DevOps, Dependency keeper, Hive keeper, Scout, Data scientist, ML engineer,
+Model evaluator, MLOps engineer and Data engineer. The Orchestrator still opens any of them when the work
+needs one: with **No teams**, and with **Orchestrator decides** too - the teams it picks are where it
+starts, not a fence (see [Which roles the Orchestrator opens](#which-roles-the-orchestrator-opens)). In
+**Manual** it reaches one only when you name it in your message, when a recipe's step names it, or when
+you put it in one of the chat's teams.
 
 To build a website, the Web app team also has a Copywriter for the site's words and an SEO specialist
 in **Build**, and an Accessibility reviewer in **Check**: the SEO specialist makes the site easy to
@@ -41,6 +60,27 @@ On the canvas, **Teams for this chat** chooses how the chat uses teams:
 project → **New chats start with** shows and changes it). **Plan first** is the switch in the permission level's
 menu under the message box, not here. While a team runs,
 **Stop** stops it and **Finish now** ends it with what it has.
+
+### Which roles the Orchestrator opens
+
+- **Orchestrator decides**: the teams it picks are where it starts, not a fence. It opens their roles,
+  and beside them any built-in role the work needs (an Architect, a Researcher), as the note under its
+  picks says: "Beside its picks it calls any built-in role the work needs, though not while a recipe
+  runs." A role of your own keeps to your teams: outside its picks it does not open. Before it picks,
+  any role opens. Before and after, a role that is only in teams with **The Orchestrator may pick it**
+  off does not.
+- **Manual**: only the roles of the teams you picked.
+- **No teams**: any role.
+
+In every mode:
+
+- A role you name in your message opens, even one switched off.
+- While a team's recipe runs, only the roles of its current step open. The three ready teams each have
+  a default recipe, so a built-in role beside them opens once the recipe has ended in the turn, or beside
+  a team with no **Default recipe**.
+- With two or more teams whose coordinators are on, the Orchestrator opens only the coordinators; each
+  coordinator then opens roles by the rules above.
+- A role the Orchestrator opens beside the chat's teams is drawn on the canvas outside their frames.
 
 ### A team that was not opened
 

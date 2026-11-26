@@ -3,12 +3,8 @@
 A constant only one module reads lives in that module; one read by several lives here, once.
 """
 
-from sqlalchemy import select
-
-from app import observer
 from app.command_runner import CARRY_ON
 from app.commands import CANARY
-from app.db.models import RoomMember
 from app.roles import LOOKUP
 from app.tools import READ_TOOLS, WRITE_TOOLS
 
@@ -171,7 +167,11 @@ NATIVE_NEEDS_A_FOLDER = (
 
 # How a change is on record that is found in the project while a CLI works in a copy: it
 # may be the CLI's, or the user's or another agent's (K-70-kimin; Undo this turn skips it).
-IN_THE_PROJECT = observer.IN_THE_PROJECT  # (which the Observer's record leaves out)
+# Not the agent's work, so not in its record either: what the user wrote goes to no model.
+IN_THE_PROJECT = (
+    "changed in the project itself, outside the CLI's working copy, while it "
+    "worked: by the CLI or by someone else - who changed it is not known"
+)
 
 # How often failing tests send work back in a turn (the Take-in check's own, the end check's -
 # `ProofMixin`), and how much of the end of their output goes with it.
@@ -227,10 +227,7 @@ TURN_ANSWERED = (
 )
 # B-379 (live): told "neither an agent nor a role", a Lead spent ten calls on a room of team
 # leads before any team started. Said where a team's lead is asked for before it is opened.
-LEADS_LATER = (
-    "team leads exist once their team starts: start the teams (spawn their leads); "
-    "they can meet in a room before working"
-)
+LEADS_LATER = "team leads exist once their team starts: start the teams (spawn their leads)"
 
 # B-164: what cannot reach an agent at work in its CLI (Copilot's and agy's own sessions).
 CANT_UNDO = "can't be undone: "  # (a Change's: not said of a message)
@@ -321,7 +318,7 @@ NEAR_TESTS = (
 )
 PROOF_LEAD = (
     "After a turn that changes code KOLONİ runs the project's tests once on the work as it is "
-    "then, asks for a test where none changed, and - under Test and review - has a big or "
+    "then, may ask for a test where none changed, and - under Test and review - has a big or "
     "security-touching change read by a Reviewer. Do not run the whole test suite yourself at "
     "the end; its result comes to you."
 )
@@ -355,9 +352,6 @@ OUTRUN_TOLD = (
     "work is not wanted - do not open it again. It is no failure: no other model, "
     "tier or provider is needed"
 )
-
-# K-oda-takim: the agents a room opened - a team's coordinator among them ran no team.
-IN_A_ROOM = select(RoomMember.agent_id).where(RoomMember.agent_id.is_not(None))
 
 # What every role has: an agent with these and nothing else can do no work.
 NOT_WORK = frozenset(

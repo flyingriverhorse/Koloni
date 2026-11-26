@@ -222,39 +222,3 @@ def test_a_compound_line_is_never_offered_and_says_why(make_client, wait_run, pr
         snap, run_id
     )
     assert ("ci", "CI step Tests: not run: not a plain command") in rows_of(snap, run_id)
-
-
-def test_a_trigger_turn_runs_only_ticked_ci_commands(make_client, wait_run, project_dir):
-    # (an approved CI line is the user's own, as their check command is: a trigger's turn runs
-    # one only with the trigger's own leave for that very line)
-    from tests.test_triggers import allow, leave, run_now, setup, trigger
-
-    workflow(project_dir, FLOW)
-    executor = ScriptedExecutor([PASS])
-    client, _model, pid, cid = setup(
-        make_client,
-        project_dir,
-        [write("a.py", "x = 1\n"), text("done"), write("a.py", "x = 2\n", "w2"), text("done")],
-        executor=executor,
-        permission_mode="full_auto",
-        lead_hands_code=False,
-    )
-    first, snap = again(client, wait_run, cid)
-    assert approve(client, snap, first).json() == {"approved": 2} and executor.started == []
-    made = trigger(
-        client,
-        pid,
-        cid,
-        permissions=leave(write=True, commands=[allow(client, cid, "python -m pytest -q")]),
-    )
-    second = run_now(client, made["id"])
-    snap = wait_run(client, cid, second)
-    rows = [
-        r
-        for m in snap["messages"]
-        if m["role"] == "checked" and m["run_id"] == second
-        for r in m["checked"]
-    ]
-    assert [one for one, _cwd in executor.started] == ["python -m pytest -q"], rows
-    (ruff,) = [r for r in rows if r["command"] == "ruff check app"]
-    assert ruff["state"] == "not_run", rows

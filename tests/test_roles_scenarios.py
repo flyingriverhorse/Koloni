@@ -1,8 +1,8 @@
 """Slice 43's acceptance set: every built-in role has a tier, and nine more built-in roles.
 Written before the code.
 
-A new database has twenty-one built-in roles (the Observer since slice 33b), each asking for the tier the design gives it - the
-lead none: it runs on the conversation's model. On a
+A new database has twenty built-in roles, each asking for the tier the design gives it - the lead
+none: it runs on the conversation's model. On a
 database made before, a built-in role nobody changed takes its tier when the app starts; one the
 user changed, and a role of the user's own that bears a built-in name, stay as they are. A role
 with neither writing nor commands among its tools changes nothing.
@@ -47,8 +47,6 @@ TIERS = {
     # Slice 52: they keep the backlog.
     "Hive keeper": "strongest",
     "Scout": "balanced",
-    # Slice 33b: asked once, without tools, over a sub-agent's report.
-    "Observer": "balanced",
 }
 CHANGES = {*roles.WRITE, "run_command"}
 

@@ -35,8 +35,8 @@ class Settings:
     host: str = "127.0.0.1"
     # Offer the CLIs found on PATH (all but Copilot) as providers on the first start.
     detect_cli: bool = True
-    # Look at the clock by itself, every few seconds, and start the triggers that are
-    # due. Off in tests, which hand the scheduler the time themselves.
+    # Look at the clock by itself, every few seconds: the nights while the user is away
+    # go on, and the day's summary is sent. Off in tests, which hand the clock the time.
     trigger_clock: bool = True
     # At the start, download the catalogue again where it is older than a week, unless the
     # user turned that off (`models_dev.refresh`). Off in tests: they reach no network.

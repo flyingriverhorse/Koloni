@@ -18,7 +18,7 @@
 
 <p align="center">
   <img src="pages/assets/real-run.gif" width="100%"
-       alt="A real run, sped up: one message asks three teams for a small command-line tool; the Orchestrator opens the Backend, Web app and Docs teams on the canvas; the Web app team designs in a room; the work comes back on one card and Take in brings four files into the project. Every role on Claude Code with haiku.">
+       alt="A real run, sped up: one message asks three teams for a small command-line tool; the Orchestrator opens the Web app and Docs teams and a Backend team (a ready team then) on the canvas; the Web app team designs in a room (rooms were removed in 0.1.10); the work comes back on one card and Take in brings four files into the project. Every role on Claude Code with haiku.">
 </p>
 
 KOLONİ runs Claude Code, Codex, GitHub Copilot CLI and agy, plus a local llama.cpp server or
@@ -40,7 +40,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/away-panel.png" alt="The Away panel over the message box: two To-do tasks ticked, what the Orchestrator decides for you and what always waits, a stop time and a spend limit"><br><sub><b>☾ Away.</b> Your To-do tasks worked through one at a time, each in its own copy, until you are back.</sub></td>
-<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model, and Cards - the command cards asked, by why"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
+<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/checked-review.png" alt="The Checked section under an answer: Tests passed: python check.py - 2 passed; Review: Reviewer - MERGE, no findings"><br><sub><b>Checked.</b> Under the answer, what KOLONİ itself ran and found - from its records, never the model's word.</sub></td>
@@ -56,7 +56,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
    API key. Each role can run on a different one; a role on Copilot can take `auto` or `fusion`.
 2. **Open a folder** and write what you want, at one of three levels: **Ask before changes**,
    **Auto-edit files** or **Full auto**. **Plan first** adds a plan to approve before anything moves.
-3. **The Orchestrator works or delegates.** 32 built-in roles (Coder, Reviewer, Tester, Researcher,
+3. **The Orchestrator works or delegates.** 31 built-in roles (Coder, Reviewer, Tester, Researcher,
    UI designer, Security reviewer, …) and your own; teams with stages; recipes you draw.
 4. **Take it in.** Before an answer ends a turn that changed code, KOLONİ tests the work itself and
    says under it what was checked. A sub-agent's changes come back as a card with the diff; the tests it
@@ -67,7 +67,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 ## What is in the box
 
 - **Agents and teams**: roles, teams with stages (Plan → Build → Check → Write & keep up), recipes
-  (draw, copy, or describe in a sentence), discussions and rooms, Compare (one message to two
+  (draw, copy, or describe in a sentence), discussions, Compare (one message to two
   models, each in its own copy). [Roles](docs/agents/roles.md) · [Teams](docs/agents/teams.md) · [Recipes](docs/agents/recipes.md)
 - **Evidence**: the canvas and each agent's window show the tools, commands and real diffs as
   recorded. Undo a turn; Stop or Stop everything keeps half-done work behind a card.
@@ -86,20 +86,18 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Knowledge and memory**: experts learn from docs, a public GitHub repository or a folder on
   this machine (code kept as text, a free symbol map, answers with file:line); notes agents keep
   and you approve. [Knowledge](docs/knowledge.md) · [Memory](docs/memory.md)
-- **Work over time**: a To-do list of goals, stories and their tasks and bugs - a rough note written
+- **Work over time**: a To-do list of stories and their tasks and bugs - a rough note written
   as one by the Hive keeper - ticked tasks done in a chat one by one, at its level and on its model
   (each story in a topic of its own with a short notebook, on a git branch of its own that is checked,
-  then merged or sent as a pull request when you close the story), with suggested tasks, triggers
-  (clock, files, webhook), and
+  then merged or sent as a pull request when you close the story), with suggested tasks, and
   **☾ Away**: your To-do tasks worked through one at a time, each in its own copy - in a git repository
   on a branch of its own, its push waiting for your Run - until you are back, then one summary of what
   is done, decided and waiting.
-  [To-do](docs/automation/todo.md) · [Triggers](docs/automation/triggers.md) · [☾ Away](docs/automation/overnight.md)
+  [To-do](docs/automation/todo.md) · [☾ Away](docs/automation/overnight.md)
 - **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too) and
   merged or sent as a pull request from the card, carrying the agent's work alone; a chat started from
   a GitHub issue with your own `gh`. [Branches](docs/use/workspace.md#branches)
-- **Money**: tokens and credits per run, plan meters for each CLI, a monthly budget per project, and
-  the command cards you were asked, by why.
+- **Money**: tokens and credits per run, plan meters for each CLI, and a monthly budget per project.
   [Usage and budgets](docs/money/usage.md)
 - **More tools**: MCP servers (each asks before it runs unless you say otherwise) and skills from a
   folder or a GitHub repository. [MCP servers](docs/tools/mcp.md) · [Skills](docs/tools/skills.md)
@@ -108,9 +106,9 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 
 | Provider | How it runs | Sign in |
 |---|---|---|
-| Claude Code | session (KOLONİ's tools over MCP) or native (goes on in its session on its own sign-in) | `claude auth login` |
-| Codex | session (KOLONİ's tools over MCP), native (goes on in its thread on its own sign-in), or step (experimental) | `codex login` |
-| GitHub Copilot CLI | session or native (goes on in its session; asks before its tools; from 1.0.114 on through KOLONİ's own hook); `auto` and `fusion` pick the model, with a routing; on GitHub's plan, only the models your Copilot plan lists | `gh auth login` |
+| Claude Code | session (KOLONİ's tools over MCP) or native (experimental; goes on in its session on its own sign-in) | `claude auth login` |
+| Codex | session (KOLONİ's tools over MCP) or native (experimental; goes on in its thread on its own sign-in) | `codex login` |
+| GitHub Copilot CLI | session or native (experimental; goes on in its session; asks before its tools; from 1.0.114 on through KOLONİ's own hook); `auto` and `fusion` pick the model, with a routing; on GitHub's plan, only the models your Copilot plan lists | `gh auth login` |
 | agy (experimental) | reads (its default) or native | agy's own sign-in |
 | llama.cpp `llama-server` | OpenAI-compatible, started with `--jinja`; the Server tab starts and stops it | — |
 | Anthropic API, any OpenAI-compatible API | per token | your key |

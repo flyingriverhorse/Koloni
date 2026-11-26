@@ -20,7 +20,6 @@ from tests.test_spawn import begin, reported, step
 from tests.test_team import NativeStub, pick, team  # noqa: F401  (a fixture)
 from tests.test_tier_order_scenarios import both_strongest, picked
 from tests.test_tier_scenarios import ORIGIN, role_tier, tiered
-from tests.test_triggers import leave, place, run_now, trigger
 
 
 def reading(
@@ -513,38 +512,6 @@ def test_a_next_that_was_not_answering_when_last_looked_at_is_passed_over_for_th
     )
     assert reviewer["chosen_why"].startswith("Reviewer moved from Local to Paid Api, the next")
     assert fast.calls == []
-
-
-def test_an_openers_pick_and_a_turn_nobody_watches_are_not_moved(
-    team,
-    wait_run,
-    project_dir,  # noqa: F811
-):
-    # The opener's pick, with a reason of its own: Fast fails, and Paid Api after it is not taken.
-    client, default, _fast = team(
-        [step(pick("Reviewer", "Fast", "deep", why=WHY)), text("done")],
-        [ModelUnavailable("model server returned 503: busy")],
-    )
-    both_strongest(team, client)
-    gold_too(team, client)
-    role_tier(client, "Reviewer", "strongest")
-    cid, run_id = begin(client, project_dir, spawn_approval="never")
-    reviewer = wait_run(client, cid, run_id)["agents"][1]
-    assert (reviewer["provider_name"], reviewer["status"], reviewer["chosen"]) == (
-        "Fast",
-        "failed",
-        True,
-    )
-    assert "moved" not in default.calls[-1][-1]["content"]
-    # A trigger's turn: nobody is there to be asked, and no model is picked.
-    client, default, _fast = fails_first(team)
-    both_strongest(team, client)
-    role_tier(client, "Reviewer", "strongest")
-    pid, cid = place(client, project_dir, permission_mode="full_auto")
-    run_id = run_now(client, trigger(client, pid, cid, permissions=leave(agents=2))["id"])
-    reviewer = wait_run(client, cid, run_id)["agents"][1]
-    assert (reviewer["provider_name"], reviewer["status"]) == ("Local", "failed")
-    assert "moved" not in default.calls[-1][-1]["content"]
 
 
 @pytest.mark.no_po

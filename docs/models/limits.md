@@ -15,7 +15,7 @@ one tier, or on one model, is never stepped down: your own rule wins."
 - Otherwise, **At most $ … a day** and **At most $ … a month**, spent at your prices, in every
   project. Empty means no limit. Past the limit, a new message whose Orchestrator runs on this
   provider asks you first, a model picked by tier moves to the next one of its tier, and no sub-agent
-  or room member is opened here.
+  is opened here.
 
 Press **Save limits** to keep them.
 

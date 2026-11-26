@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 from sqlalchemy import select
 
-from app import handoff, ledger, observer
+from app import handoff, ledger
 from app.agent import AgentRunner
 from app.db.models import Agent, FileChange, Merge, Message, ToolCall
 from tests.test_agent_writes import edit, read, wait_status, write
@@ -339,8 +339,6 @@ def test_a_write_into_the_scratch_is_undone_but_in_no_list_of_what_the_turn_chan
         ]
         assert "koloni" not in (ledger.of_turn(session, run_id) or "")
         assert handoff.on_file(session, _pid, ".koloni/tmp/a.txt") is None
-        record = observer.on_record(session, lead.id)
-        assert "src/b.py" in record and ".koloni" not in record
     done = client.post(f"/api/runs/{run_id}/undo", headers=ORIGIN).json()
     assert sorted(done["revert"]) == [".koloni/tmp/a.txt", "src/b.py"]
     assert (

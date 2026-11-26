@@ -44,7 +44,7 @@ from tests.test_session_agent import (
 )
 from tests.test_spawn import begin, call, role_id, spawn, step
 from tests.test_team import team  # noqa: F401  (a fixture)
-from tests.test_triggers import HeldClock
+from tests.turn_helpers import HeldClock
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 SORT = ["by date", "by name"]
@@ -607,7 +607,6 @@ def test_the_lead_opens_a_sub_agent_only_on_a_provider_known_to_have_room(
     )
     clock = held(client)
     monkeypatch.setattr(client.app.state.runner.providers.limits, "last", lambda provider: plan)
-    monkeypatch.setattr("app.agent.rooms_mixin.over_month", lambda session, project: over)
     monkeypatch.setattr("app.agent.questions_mixin.over_month", lambda session, project: over)
     monkeypatch.setattr("app.agent.spawn_mixin.over_month", lambda session, project: over)
     if first is None:  # (no turn before: nothing has run on it)

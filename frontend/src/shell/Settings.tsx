@@ -419,7 +419,7 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
         setting={stuck}
         low={5}
         high={1440}
-        why="For every project, in a To-do task’s turn and in work nobody watches - a job while you’re away, a trigger’s run (only where its Minutes a run are longer): the Orchestrator’s turn ends, its work kept, once nothing has moved for this long - no file of the turn changed, no agent finished its work, no failing command passed. A card waiting for you, a command or a model step under way, or an agent below it at work is not nothing."
+        why="For every project, in a To-do task’s turn and in a job while you’re away: the Orchestrator’s turn ends, its work kept, once nothing has moved for this long - no file of the turn changed, no agent finished its work, no failing command passed. A card waiting for you, a command or a model step under way, or an agent below it at work is not nothing."
       />
       <WholeRow
         id="turn-hours"
@@ -428,7 +428,7 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
         low={1}
         high={72}
         placeholder="No limit"
-        why="For every project: a To-do task’s turn or a job while you’re away ends after this many hours however it goes, its work kept - a last resort. Empty: no limit - a turn that keeps working (changes, agents at work, messages between agents) can then run without end. A trigger’s own minutes hold its runs."
+        why="For every project: a To-do task’s turn or a job while you’re away ends after this many hours however it goes, its work kept - a last resort. Empty: no limit - a turn that keeps working (changes, agents at work, messages between agents) can then run without end."
       />
       <WholeRow
         id="compact-at"
@@ -487,8 +487,8 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
   )
 }
 
-/** Settings › The app › Agents, under its Save: whether the Models page offers what is experimental (0.1.8: agy, and
- *  Codex run one step at a time) - kept as it is changed. */
+/** Settings › The app › Agents, under its Save: whether the Models page offers what is experimental (0.1.8: agy;
+ *  0.1.10: a CLI run Native) - kept as it is changed. */
 function ExperimentalChoice() {
   const [show, setShow] = useState<boolean | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
@@ -518,9 +518,9 @@ function ExperimentalChoice() {
           onChange={e => void change(e.target.checked)}
         />
         <span>
-          Show experimental CLIs
+          Show experimental features
           <span className="choice-note">
-            Kept as you change it. Offers agy, and Codex’s One run per model step, under Experimental on the Models
+            Kept as you change it. Offers agy, and Native (a CLI with its own tools), under Experimental on the Models
             page: they are less measured than the rest. A provider already set up so works either way, tagged
             Experimental.
           </span>

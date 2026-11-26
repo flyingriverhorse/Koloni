@@ -34,7 +34,6 @@ from app import (
     topics,
 )
 from app import memory as kept
-from app import room as rooms
 from app.agent.cards import _answer, _hands_back, _unasked, folders_of
 from app.agent.ctx import Ctx, announce, announce_memory
 from app.agent.proof_mixin import PROOF_CALL
@@ -1083,7 +1082,7 @@ class ContextMixin:
 
     def _alone(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether a turn's lead worked alone: no other agent of the turn on record (a
-        sub-agent, a member, one in a discussion - at work or back), no room, no recipe's row.
+        sub-agent, one in a discussion - at work or back), no recipe's row.
         Only such a lead is started again by itself (`_summarised_again`): nothing of its turn
         is left open for a second start to lose or do twice.
         shortcut: the narrow first version - a lead whose sub-agents are all back, say, is
@@ -1094,11 +1093,7 @@ class ContextMixin:
                 .where(Agent.run_id == ctx.run_id, Agent.id != ctx.agent_id)
                 .limit(1)
             )
-        return others is None and not (
-            ctx.run_id in self._rooms
-            or ctx.run_id in self._recipe_copy
-            or ctx.agent_id in self._following
-        )
+        return others is None and ctx.run_id not in self._recipe_copy
 
     async def _summarised_again(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> bool:
         """A lead refused for its size, about to be started again (`_loop_again`): its older
@@ -1412,6 +1407,7 @@ class ContextMixin:
             )
             # For the lead: what it was given of each room of the conversation that is
             # over, by the turn - it stands after that turn's message, which was its goal.
+            # (Rooms are gone since 0.1.10: an old chat's go on being read.)
             told_of_rooms = (
                 dict(
                     session.execute(
@@ -1767,26 +1763,6 @@ class ContextMixin:
                     else ""
                 )
                 + (" " + FIX_AFTER_PROMPT if ctx.agent_id in self._before_fix else "")
-            )
-        room = self._rooms.get(ctx.run_id)
-        if room is not None and ctx.agent_id in room.members and not ctx.answering:
-            # A member of a room is told how a room works, once: where its own
-            # stands is said before each of its steps (below).
-            system += (
-                "\n\n"
-                + rooms.PROMPT.format(
-                    others=", ".join(
-                        other.ctx.name
-                        for other in room.members.values()
-                        if other.ctx.agent_id != ctx.agent_id
-                    )
-                )
-                + (
-                    " " + rooms.BETWEEN.format(teams=", ".join(room.between))
-                    if room.between
-                    else ""
-                )
-                + (" " + rooms.FOLLOWS.format(opener=room.lead.name) if room.reads else "")
             )
         if links:
             # Unless it goes on from an earlier agent: then its history begins
@@ -2261,11 +2237,6 @@ class ContextMixin:
         # send it again, so a cache keeps what is before it.
         if ctx.discussion and not h.prompted:
             messages.append(Transient(role="user", content=self._shared_place(ctx)))
-        # A member of a room is told how the room stands before each step of its own
-        # work - as it is now, and so not kept in its conversation: nothing piles up.
-        stands = "" if ctx.answering or ctx.discussion else self._room_now(ctx)
-        if stands:
-            messages.append(Transient(role="user", content=stands))
         near = (
             ""
             if ctx.answering or ctx.discussion or quiet

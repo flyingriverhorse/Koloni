@@ -23,7 +23,6 @@ from tests.test_outside_folders_scenarios import (
     read,
 )
 from tests.test_plain_chat_scenarios import plain, say
-from tests.test_trigger_scenarios import run_now, trigger
 
 CARD = CLI_HOME_CARD.format(cli="Codex")
 KEY = "sk-e2e1234567890abcdefghij"
@@ -168,17 +167,6 @@ def test_a_write_to_gemini_s_settings_shows_its_change_at_full_auto_and_cannot_b
 @pytest.mark.parametrize("folder", [".gemini", ".copilot"])
 def test_a_command_that_writes_gemini_s_or_copilot_s_settings_is_asked_at_every_level(folder):
     assert names_standing(f"echo x > %USERPROFILE%\\{folder}\\settings.json") == folder
-
-
-def test_nobody_watching_it_is_refused(make_client, wait_run, project_dir, home):
-    client, _model = make_client([read(home / ".codex" / "config.toml"), text("ok")])
-    client.headers["Origin"] = ORIGIN
-    pid = project(client, project_dir)
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    run_id = run_now(client, trigger(client, pid, cid, permissions={"write": True})["id"])
-    (refused,) = wait_run(client, cid, run_id)["tool_calls"]
-    assert refused["status"] != "succeeded", refused
-    assert "outside the project" in refused["result"] and "model" not in refused["result"]
 
 
 def test_a_chat_with_no_folder_reads_it_with_a_tilde_on_the_same_card(make_client, wait_run, home):

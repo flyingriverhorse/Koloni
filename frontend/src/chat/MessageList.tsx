@@ -39,7 +39,6 @@ import type {
   Role,
   Run,
   ToolCall,
-  TriggerProposal,
   Usage,
 } from '../api/types'
 import { todoLabel, useTodo } from './todo'
@@ -64,13 +63,7 @@ import { TERMINAL, type ConvState } from '../state/applyEvent'
 import { discussionLine } from '../discussion/discussionText'
 import { MemoryTold } from '../memory/MemoryTold'
 import { NotesOfferCard } from '../knowledge/NotesOfferCard'
-import { RoomRow } from '../room/RoomRow'
-import { inRoom } from '../room/roomText'
 import { continuesFrom } from '../topics/topics'
-import { refusedIn } from '../triggers/refused'
-import type { Allow } from '../triggers/triggerText'
-import { WouldHaveAsked } from '../triggers/WouldHaveAsked'
-import { TriggerProposalCard } from '../triggers/TriggerProposalCard'
 import { SaidAloud } from '../voice/VoiceControls'
 import { AwayFrom, AwayOffer, AwaySummary } from '../backlog/Away'
 import { NightRow } from '../ready/NightRow'
@@ -133,10 +126,6 @@ interface Props {
   onCommitMerge?: (mergeId: string, message: string, hooks?: 'with' | 'without') => Promise<void>
   onAnswer?: (questionId: string, answer: string) => Promise<void>
   onOpenDiscussion?: (discussionId: string) => void
-  /** Show a turn's room: its window. */
-  onOpenRoom?: (roomId: string) => void
-  /** Open a trigger's form with something its turn was refused allowed in it - not saved. */
-  onAllowInTrigger?: (triggerId: string, allow: Allow) => void
   /**
    * The roles and providers as they stand now: a card that asks before an agent goes on
    * from an earlier turn says where its role would run today. Not known, it does not.
@@ -315,8 +304,6 @@ type Handlers = Required<
     | 'state'
     | 'onRemoveQueued'
     | 'onOpenDiscussion'
-    | 'onOpenRoom'
-    | 'onAllowInTrigger'
     | 'onDecidePlan'
     | 'roles'
     | 'providers'
@@ -340,8 +327,7 @@ const stood = new Set<string>()
 /**
  * Everything the agents under one sub-agent are waiting on you for. Their own
  * conversation is not in the chat, so their questions are brought here, each one
- * saying who asks - a question's card says it itself. (A room's members were opened by no call of the lead's: theirs are
- * brought to the room's window the same way.)
+ * saying who asks - a question's card says it itself.
  */
 export function SubtreeRequests({
   root,
@@ -536,8 +522,7 @@ function ChatQuestion({
 
 /**
  * K-lead-bekliyor (R116): a message sent while a question is open is queued below, with nothing by the question saying
- * why it waits. Said once, under the cards where `asks`' questions are (0.1.4: not once a question) - a room member's
- * only in the room's window, so the chat's turn leaves those out.
+ * why it waits. Said once, under the cards where `asks`' questions are (0.1.4: not once a question).
  */
 export function QueuedNote({ state, asks }: { state: ConvState; asks: (question: Question) => boolean }) {
   if (!state.questions.some(q => q.status === 'pending' && asks(q)) || !state.runs.some(r => r.status === 'queued'))
@@ -559,21 +544,10 @@ function mergeSaid(state: ConvState, merge: Merge): { name: string; unfinished: 
   }
 }
 
-/** A proposed trigger's card, with what Approve, Edit and Reject do (slice 69). */
 /** K-bilgi 6: a Project notes offer's card, answered through the store - whenever you like. */
 function NotesCard({ offer }: { offer: NotesOffer }) {
   return (
     <NotesOfferCard offer={offer} onAnswer={(lines, add) => useApp.getState().answerNotesOffer(offer.id, lines, add)} />
-  )
-}
-
-function ProposalCard({ proposal }: { proposal: TriggerProposal }) {
-  return (
-    <TriggerProposalCard
-      proposal={proposal}
-      onDecide={decision => useApp.getState().decideProposal(proposal.id, decision)}
-      onEdit={() => useApp.getState().editProposal(proposal)}
-    />
   )
 }
 
@@ -706,7 +680,7 @@ export function WaitingCard({ state, row, on, onDecidePlan, known }: WaitingProp
   }
 }
 
-type TurnWaiting = Extract<Waiting, { what: 'plan' | 'merge' | 'trigger' | 'notes' | 'night' }>
+type TurnWaiting = Extract<Waiting, { what: 'plan' | 'merge' | 'notes' | 'night' }>
 
 /** What waits for you that no agent asked leave for: the turn's plan and its work to take in, a night's card and jobs, what was proposed. */
 function turnCard(
@@ -734,8 +708,6 @@ function turnCard(
           }
         />
       )
-    case 'trigger':
-      return <ProposalCard proposal={row.item} />
     case 'notes':
       return <NotesCard offer={row.item} />
     case 'night':
@@ -1023,8 +995,6 @@ export function MessageList({
   onCommitMerge = async () => {},
   onAnswer = async () => {},
   onOpenDiscussion = () => {},
-  onOpenRoom = () => {},
-  onAllowInTrigger,
   roles = NONE,
   providers = NONE,
   onUsage,
@@ -1175,35 +1145,6 @@ export function MessageList({
     )
   }
 
-  /** A call that opens a room: the room, once it is open, with its members asked for under it. */
-  const roomCall = (call: ToolCall, question: ReactNode) => {
-    // Its members are asked for together, under the call; once it is open, it is the room.
-    // (One refused opened none: the turn's room is a later call's.)
-    const room =
-      call.status !== 'failed' && state.rooms.find(r => r.agent_id === call.agent_id && r.run_id === call.run_id)
-    return (
-      <Fragment key={call.id}>
-        {room ? (
-          <RoomRow state={state} room={room} onOpen={() => onOpenRoom(room.id)} />
-        ) : (
-          <ToolRow call={call} waits={callWaits(state, call)} />
-        )}
-        {state.agents
-          .filter(a => a.tool_call_id === call.id && a.status === 'proposed')
-          .map(a => (
-            <SpawnApproval
-              key={a.id}
-              agent={a}
-              openedBy={nameOf(call.agent_id)}
-              stays={staysOn(state, a, roles, providers)}
-              onDecide={decision => onDecideSpawn(a.id, decision)}
-            />
-          ))}
-        {question}
-      </Fragment>
-    )
-  }
-
   /** A call that opened an agent: its row, what it asks, and what the agents under it wait on you for. */
   const agentCall = (call: ToolCall, child: Agent, question: ReactNode) => {
     // A team's lead KOLONİ opened for another team's request (K-takimlar-arasi): the request's card.
@@ -1328,7 +1269,7 @@ export function MessageList({
 
   /**
    * A call as the chat shows it; `stands`: it is more than a row - a card, a row that waits for you, or one of its own kind -
-   * and is never inside a run; `folds`: nothing of it waits for you now, and it is no agent, room or discussion of the turn.
+   * and is never inside a run; `folds`: nothing of it waits for you now, and it is no agent or discussion of the turn.
    */
   const callView = (call: ToolCall): View => {
     const change = state.fileChanges.find(f => f.tool_call_id === call.id)
@@ -1340,7 +1281,6 @@ export function MessageList({
     const asked = asks[0]
     const pending = asks.some(q => q.status === 'pending')
     const question = asked && questionCards(call, asks)
-    if (call.name === 'open_room') return { stands: true, folds: false, node: roomCall(call, question) }
     if (child) return { stands: true, folds: false, node: agentCall(call, child, question) }
     const discussion = state.discussions.find(d => d.tool_call_id === call.id)
     if (discussion) return { stands: true, folds: false, node: discussionCall(call, discussion) }
@@ -1391,10 +1331,6 @@ export function MessageList({
     calls.flatMap(callPiece).map(piece => <Fragment key={piece.key}>{piece.node}</Fragment>)
   // Each turn's answer: its last message of the Lead's with words. It opens with its point, and its foot copies and reads it.
   const answerOf = new Map(ordered.filter(m => m.role === 'assistant' && m.content).map(m => [m.run_id, m]))
-  // (A room's agents' questions are in its window, not in the chat: the room's row says it waits for you.)
-  // shortcut: one the Orchestrator invited into a room asks in the chat too, with the note only in the room's window;
-  // go by the questions the chat draws if that is ever missed.
-  const inRooms = new Set(state.rooms.flatMap(room => [...inRoom(state, room).keys()]))
   // The chat's newest turn: a comparison or a turn with no Lead as the newest leaves no older card "latest".
   const latestRun = newestTurn(state)
   /**
@@ -1444,9 +1380,7 @@ export function MessageList({
           prices={prices}
         />
       ) : null
-    const queued = (
-      <QueuedNote key={`queued:${runId}`} state={state} asks={q => q.run_id === runId && !inRooms.has(q.agent_id)} />
-    )
+    const queued = <QueuedNote key={`queued:${runId}`} state={state} asks={q => q.run_id === runId} />
     if (inside.length === 0 || run.compare_id || !lead) return [...inside.map(drawGroup), queued, summary]
     return [
       // (It waits while the server says the turn does - for a question, a card, a role: as the canvas has it.)
@@ -1468,7 +1402,7 @@ export function MessageList({
     ]
   }
 
-  /** The user's message - a To-do task's own (0.1.8) as the task - with the comparison it started and the room it was the goal of. */
+  /** The user's message - a To-do task's own (0.1.8) as the task - with the comparison it started. */
   const userBody = (message: Message, run: Run | undefined, compare: string | null) => (
     <>
       {todoOf(run) ? (
@@ -1498,12 +1432,6 @@ export function MessageList({
           onCommitMerge={onCommitMerge}
         />
       )}
-      {/* The message was a room's goal: one line here; the room itself is in its own window, with what it asks of you. */}
-      {state.rooms
-        .filter(room => room.run_id === message.run_id && room.agent_id === null)
-        .map(room => (
-          <RoomRow key={room.id} state={state} room={room} onOpen={() => onOpenRoom(room.id)} />
-        ))}
     </>
   )
 
@@ -1660,8 +1588,6 @@ export function MessageList({
         state.away.filter(card => card.status === 'planned'),
         card => <AwayOffer conv={state} offer={card} />,
       ),
-      // A trigger an agent proposed in the turn (slice 69), under it.
-      ...of(state.triggerProposals, proposal => <ProposalCard proposal={proposal} />),
       // K-bilgi 6: what the turn (and turns nobody watched) found for the Project notes, under it.
       ...of(state.notesOffers, offer => <NotesCard offer={offer} />),
       // Text from outside that read like orders to one of the turn's agents (93-A4): the Lead's is not named.
@@ -1680,12 +1606,6 @@ export function MessageList({
           onDecide={(...decision) => onDecidePlan(run.id, ...decision)}
         />,
       ])
-    }
-    if (run?.unattended) {
-      // Under the last message of a turn nobody was watching: what it was refused for want of somebody to ask.
-      const trigger = run.trigger_id
-      const onAllow = trigger && onAllowInTrigger ? (allow: Allow) => onAllowInTrigger(trigger, allow) : undefined
-      cards.push(['refused', <WouldHaveAsked key="refused" refused={refusedIn(state, run.id)} onAllow={onAllow} />])
     }
     if (notice) cards.push(['notice', <RunNotice key="notice" notice={notice} />])
     // 0.1.8: a To-do task's Done?, Stuck or its story's Story done?, under its turn here.

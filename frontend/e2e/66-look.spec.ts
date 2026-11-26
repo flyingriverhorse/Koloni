@@ -18,14 +18,12 @@ const NAMES = [
   'Canvas',
   'Chats',
   'Ready',
-  'Board',
   'To-do',
   'Agents',
   'Models',
   'Tools',
   'Memory',
   'Knowledge',
-  'Triggers',
   'Usage',
   'Settings',
   'Theme',
@@ -62,7 +60,7 @@ for (const theme of ['light', 'dark'] as const)
       await settled(page)
       if (process.env.KOLONI_SHOTS) await shot(page, `66-main-${theme}`)
       // (one pressed: its colours are the accent's)
-      await rail(page, 'Board').click()
+      await rail(page, 'To-do').click()
       for (const name of NAMES) {
         const label = nav.locator('.rail-label', { hasText: name })
         await expect(label).toBeVisible()

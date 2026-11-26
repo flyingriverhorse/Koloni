@@ -40,9 +40,7 @@ nav = [
     { "Step limits" = "agents/step-limits.md" },
     { "Recipes and candidates" = "agents/recipes.md" },
     { "Recipe cookbook" = "agents/recipe-cookbook.md" },
-    { "Rooms" = "agents/rooms.md" },
     { "Discussions" = "agents/discussions.md" },
-    { "Observer" = "agents/observer.md" },
   ] },
   { "Models" = [
     { "Providers" = "models/providers.md" },
@@ -62,7 +60,6 @@ nav = [
   { "Memory" = "memory.md" },
   { "Knowledge and experts" = "knowledge.md" },
   { "Automation" = [
-    { "Triggers" = "automation/triggers.md" },
     { "To-do" = "automation/todo.md" },
     { "Work while you're away" = "automation/overnight.md" },
     { "Answering for you" = "automation/answering-for-you.md" },

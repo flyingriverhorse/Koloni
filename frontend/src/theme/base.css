@@ -180,7 +180,7 @@ textarea {
 }
 
 /* A state, said the same way wherever it is said - in the chat, the turn list, on the canvas
-   and on the Board (shell/StatusLabel.tsx): a dot and the word, in the state's colour. The
+   and on the Chats list (shell/StatusLabel.tsx): a dot and the word, in the state's colour. The
    dot is drawn here, so that the word is all that is read out. */
 .status {
   flex: none;
@@ -461,7 +461,7 @@ textarea {
 }
 
 /* So that the bar keeps to one line while a turn runs, down to 1000 px (B-174), the lesser things give way in steps:
-   under 1400 px Stop everything and Pause all show their icons alone (theme/triggers.css); under 1250 px the turn's
+   under 1400 px Stop everything shows its icon alone (theme/triggers.css); under 1250 px the turn's
    tokens go (they are in its summary in the chat and on the canvas's nodes); under 1100 px the lead's context, and the
    tag that commands run on this machine - never the one that says docker: where commands run is for safety.
    (B-195: 1400 and 1250, as measured with a turn that waits for you and a trigger on.)
@@ -1025,7 +1025,7 @@ p.hive-empty {
 }
 
 /* The chat open, there is no row under the window (Workspace's button is at the chat's foot): beside the
-   column it stands the stage's height, from under the Teams button (as a room's window) - its own buttons at
+   column it stands the stage's height, from under the Teams button (as a discussion's window) - its own buttons at
    its right end are not under that one (moved or expanded, its own rules hold).
    Below 1400px it keeps its own half height at the bottom: full height there left the turn no canvas at all
    (at 1024 its cards ended up past the stage's edge or under the inspector).
@@ -1341,43 +1341,6 @@ a.view-run {
 .view-empty {
   margin: auto;
   padding: 16px;
-}
-
-/* A 3D model (slice 58): its buttons, the view on the theme's ground, its sizes in words. */
-.model-view {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-}
-
-.model-tools {
-  display: flex;
-  gap: 4px;
-  padding: 6px 8px;
-}
-
-.model-tools [aria-pressed='true'] {
-  background: var(--accent-soft);
-}
-
-.model-canvas {
-  flex: 1;
-  min-height: 0;
-  background: var(--bg);
-}
-
-.model-canvas canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.model-view figcaption {
-  padding: 4px 12px;
-  font-size: var(--text-mono);
-  border-top: 1px solid var(--border);
 }
 
 /* --- two panes, as VS Code has them: the files on the left, what is opened on the right (slice 42a) --- */
@@ -3180,11 +3143,6 @@ button.turn-name:hover {
 
 .composer-more-panel[hidden] {
   display: none;
-}
-
-/* Work together in More, wrapped only so that `/room` finds its button (slice 46). */
-.composer-beside {
-  display: contents;
 }
 
 /* The message box, with the chosen role's chip at its start; the `/` menu over it (slice 46),

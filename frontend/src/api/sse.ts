@@ -34,14 +34,6 @@ export const EVENT_TYPES = [
   'discussion.created',
   'discussion.updated',
   'discussion_post.created',
-  // A room the user opened: itself (who is in it, how it stands, what it has spent), its
-  // list of items and what is said in it. A post changes once: a question that is replied to.
-  'room.created',
-  'room.updated',
-  'room_item.created',
-  'room_item.updated',
-  'room_post.created',
-  'room_post.updated',
   'board.posted',
   'role_request.created',
   'role_request.resolved',
@@ -58,9 +50,6 @@ export const EVENT_TYPES = [
   // A task of the project's backlog was added, changed, decided on, started or ended its turn:
   // the backlog is read again (slice 52).
   'backlog.changed',
-  // A trigger of the project was made, changed, paused, came due or saw its turn end:
-  // the triggers are read again.
-  'triggers.changed',
   // Who holds which file of the project now. From an agent of this conversation it comes
   // with an id, from one of another without: it says everything each time, so it is taken
   // as it arrives either way.
@@ -92,7 +81,6 @@ const TRANSIENT: ReadonlySet<string> = new Set([
   'command.output',
   'command.sync',
   'agent.live',
-  'triggers.changed',
   'backlog.changed',
   'claims.changed',
   'notes.offered',

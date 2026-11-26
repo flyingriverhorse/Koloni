@@ -27,7 +27,7 @@ test('the same state has the same word and the same colour whatever it is a stat
   expect(AGENT_STATUS.interrupted).toEqual(TOOL_STATUS.interrupted)
   expect(ENDED_COLOR.interrupted).toBe(AGENT_STATUS.interrupted[1])
   expect(AGENT_STATUS.rejected).toEqual(TOOL_STATUS.denied)
-  // what waits for the user is said in the colour of a warning, on the Board as in the chat
+  // what waits for the user is said in the colour of a warning, on the Chats list as in the chat
   expect(AGENT_STATUS.waiting_approval).toEqual(['waits for you', 'var(--warn)'])
   expect(AGENT_STATUS.proposed[1]).toBe('var(--warn)')
 })

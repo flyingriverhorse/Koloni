@@ -5,7 +5,7 @@
 Open **Usage** on the left rail. Choose **This project** or **All projects**, and a period: **Today**,
 **7 days**, **30 days** or **All**.
 
-![The Usage page for this project today: messages, tokens sent and written, cost, failed and files changed, the table by provider and model, and Cards - one card asked and approved, by why it was asked](../images/usage.png)
+![The Usage page for this project today: messages, tokens sent and written, cost, failed and files changed, and the table by provider and model](../images/usage.png)
 
 *The Usage page, counted from the record: no model is asked.*
 
@@ -17,7 +17,7 @@ At the top: **Messages**, **Tokens sent**, **Tokens written** and **Cost**. Belo
 
 - **By provider and model**: messages, agents, tokens and cost for each model.
 - **By conversation**.
-- **Who started it**: **You**, **A trigger, with nobody watching**, or **KOLONİ itself** (requests
+- **Who started it**: **You**, **A trigger, with nobody watching** (a turn before 0.1.10, when triggers were removed), or **KOLONİ itself** (requests
   KOLONİ makes outside a message, such as a real run of a CLI from the Models page).
 
 "Nothing is estimated": tokens are only what the models reported, and what was not reported shows as
@@ -31,32 +31,9 @@ live session.
 
 ## Cards
 
-Under the tables, **Cards** counts the command cards asked in the period - counted from 0.1.7: "7
-asked: 4 approved, 1 rejected, 2 not answered · 12 s to answer, on average" - and, by why KOLONİ
-asked each one (**Deletes or overwrites**, **Sends off this machine**, **Installs packages**, **Runs a
-command through a shell**, **A secret file**, **A file that steers later turns**, **Stops programs by
-name**, **Out of its working copy**, **The web, with web tools off**, **Starts a server**, **No rule
-covers it**, **Full auto's judge found it risky**), how many were approved and rejected. The reason is
-the one KOLONİ's gate gave as the card opened - a rule you change later does not rewrite it - and an answer is yours from the app's own page:
-a card still open when its turn ended is "not answered". Where [Check what I said
-first](../use/permissions.md#check-what-i-said-first) was asked: "3 ran on a line of yours · 1 not
-run · 2 still asked".
-
-With **This project**, a delete you approved unchanged 5 times in 30 days - the same command, in the
-same folder - is suggested as a rule: "You approved `rm -rf build` 5 times - add “You may delete
-./build.” to this project's rules?" **Add to rules** puts that line at the end of the project's
-rules on the [Memory](../memory.md) page, as if you wrote it there; nothing is ever added by itself.
-The line is KOLONİ's words with the paths of the command you approved, each written from the
-project's root (`rm -rf build dist` in `web`: “You may delete ./web/build and ./web/dist.”) - only
-for a plain delete of plain relative paths in the project (`rm -rf build`, `Remove-Item -Recurse
-build`), never a glob, a variable, `.`, `..`, a dot file or a command chained to another, nor one
-whose folder or command reads as anything else. It spares the card only at Full auto with Check what
-I said first on. A delete whose path a line of your preferences or of the project's rules names
-already - however it says it ("Never delete ./build.", an item `./build` under "Never delete
-these:", "Keep build/", "You may delete ./build, not ./src."), or by a folder it is in ("anything
-under out"), by its own name ("any build folder"), by a full path ending in it or by a pattern that
-takes it in (`out/*`, `**/build`, `*.db`) - is never suggested: a rule beside that line would repeat
-it or set itself against it. **Add to rules** refuses it, naming that line.
+Usage's **Cards** section, which counted the command cards asked by why and suggested a delete rule,
+was taken out in 0.1.10. What was decided for you, and why, is on Ready for you under **Decided for
+you** ([Decisions](../use/decisions.md)).
 
 ## Where the money comes from
 
@@ -83,7 +60,7 @@ USD). It covers this calendar month, by this machine's clock.
 
 - At 80%, KOLONİ tells you once, and the top bar shows it.
 - At 100%, a new message asks first: "Over this month's budget. Send it anyway?" Press **Go on anyway**
-  or **Cancel**. Triggers start none.
+  or **Cancel**.
 - Work on a model with no price is not counted.
 - If your prices are in more than one currency, the budget is not enforced, and the page says so.
 - A plain chat (no folder) belongs to no budget.

@@ -1,7 +1,7 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import type { Board, ListedConversation, Project, Run, Trigger } from '../api/types'
+import type { Board, ListedConversation, Project, Run } from '../api/types'
 import { boardTurn, convState } from '../test-fixtures'
 import { ConversationList, dayOf } from './ConversationList'
 
@@ -181,30 +181,15 @@ test('a To-do list task’s chat has its symbol and its task’s state, unless t
   expect(within(row('Plan sharing')).getByText('done?')).not.toHaveClass('tag-warn')
 })
 
-test('a search finds conversations by name; one is archived, stands under "Archived" with its trigger, and comes back', async () => {
+test('a search finds conversations by name; one is archived, stands under "Archived", and comes back', async () => {
   const onArchive = vi.fn().mockResolvedValue(undefined)
-  const triggers = [{ id: 't', conversation_id: 'b', name: 'nightly check', enabled: true } as Trigger]
   const conversations = [
     listed('a', 'Fix the greeting', false),
     { ...listed('b', 'Watch the build', false), archived_at: '2026-10-17T08:00:00Z' },
   ]
-  const { rerender } = render(
+  render(
     <ConversationList
       conversations={conversations}
-      triggers={triggers}
-      triggersPaused
-      currentId={null}
-      onOpen={() => {}}
-      onNew={() => {}}
-      onArchive={onArchive}
-    />,
-  )
-  // all triggers held back: none runs, and the row says nothing of one
-  expect(screen.queryByText(/still runs/)).toBeNull()
-  rerender(
-    <ConversationList
-      conversations={conversations}
-      triggers={triggers}
       currentId={null}
       onOpen={() => {}}
       onNew={() => {}}
@@ -213,7 +198,6 @@ test('a search finds conversations by name; one is archived, stands under "Archi
   )
   const archived = screen.getByRole('region', { name: 'Archived' })
   expect(within(archived).getByRole('button', { name: /^Watch the build/ })).toBeInTheDocument()
-  expect(within(archived).getByText('Its trigger nightly check still runs')).toBeInTheDocument()
   expect(screen.getAllByRole('listitem')).toHaveLength(2)
 
   await userEvent.click(screen.getByRole('button', { name: 'Archive Fix the greeting' }))
@@ -234,7 +218,7 @@ test('those picked are archived together; only archived ones are deleted, after 
   const onArchive = vi.fn().mockResolvedValue(undefined)
   const onDelete = vi.fn().mockResolvedValue({
     deleted: ['b'],
-    refused: [{ id: 'c', title: 'Nightly', why: 'it has the trigger Nightly: delete it first' }],
+    refused: [{ id: 'c', title: 'Nightly', why: 'a turn of it is at work or waits to start' }],
   })
   const away = (id: string, title: string) => ({ ...listed(id, title, false), archived_at: '2026-10-17T08:00:00Z' })
   const conversations = [
@@ -280,7 +264,7 @@ test('those picked are archived together; only archived ones are deleted, after 
   await userEvent.click(within(asked()).getByRole('button', { name: 'Delete' }))
   expect(onDelete).toHaveBeenCalledWith(['b', 'c'])
   expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Nightly was not deleted: it has the trigger Nightly: delete it first',
+    'Nightly was not deleted: a turn of it is at work or waits to start',
   )
   expect(browser).not.toHaveBeenCalled()
   browser.mockRestore()
@@ -709,13 +693,7 @@ describe('reading the list again', () => {
   })
 })
 
-test('an archived chat with two triggers switched on says both still run; one switched off is not named', () => {
-  const triggers = [
-    { id: 't', conversation_id: 'b', name: 'nightly check', enabled: true },
-    { id: 'u', conversation_id: 'b', name: 'on push', enabled: true },
-    { id: 'v', conversation_id: 'b', name: 'weekly', enabled: false },
-    { id: 'w', conversation_id: 'a', name: 'elsewhere', enabled: true },
-  ] as Trigger[]
+test('the open chat is the current one, and each row’s button says Archive or Unarchive', () => {
   const conversations = [
     listed('a', 'Fix the greeting', false),
     { ...listed('b', 'Watch the build', false), archived_at: '2026-10-17T08:00:00Z' },
@@ -723,16 +701,12 @@ test('an archived chat with two triggers switched on says both still run; one sw
   render(
     <ConversationList
       conversations={conversations}
-      triggers={triggers}
       currentId="a"
       onOpen={() => {}}
       onNew={() => {}}
       onArchive={vi.fn()}
     />,
   )
-  expect(screen.getByText('Its triggers nightly check, on push still run')).toHaveClass('muted', 'conv-trigger')
-  // (a chat not archived says nothing of its trigger)
-  expect(screen.getAllByText(/still runs?$/)).toHaveLength(1)
   expect(screen.getByRole('button', { name: /^Fix the greeting/ })).toHaveAttribute('aria-current', 'true')
   expect(screen.getByRole('button', { name: /^Watch the build/ })).not.toHaveAttribute('aria-current')
   expect(screen.getByRole('button', { name: 'Unarchive Watch the build' })).toHaveTextContent(/^Unarchive$/)

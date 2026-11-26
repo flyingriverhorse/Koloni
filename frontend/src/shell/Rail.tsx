@@ -3,11 +3,9 @@ import {
   Brain,
   ChatsCircle,
   CheckSquare,
-  Clock,
   Cpu,
   GearSix,
   Graph,
-  Kanban,
   ListChecks,
   Moon,
   Plugs,
@@ -19,18 +17,7 @@ import type { Ref } from 'react'
 import type { Theme } from '../theme/theme'
 
 export type View =
-  | 'canvas'
-  | 'conversations'
-  | 'ready'
-  | 'board'
-  | 'backlog'
-  | 'agents'
-  | 'models'
-  | 'tools'
-  | 'memory'
-  | 'knowledge'
-  | 'triggers'
-  | 'usage'
+  'canvas' | 'conversations' | 'ready' | 'backlog' | 'agents' | 'models' | 'tools' | 'memory' | 'knowledge' | 'usage'
 
 interface Props {
   /** The page shown; null while none of these is (Settings is). */
@@ -97,12 +84,6 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
           </>
         )}
       </button>
-      <button className="icon-btn" aria-pressed={view === 'board'} aria-label="Board" onClick={() => onView('board')}>
-        <Kanban size={19} />
-        <span className="rail-label" aria-hidden="true">
-          Board
-        </span>
-      </button>
       <button
         className="icon-btn"
         aria-pressed={view === 'backlog'}
@@ -162,17 +143,6 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         <Books size={19} />
         <span className="rail-label" aria-hidden="true">
           Knowledge
-        </span>
-      </button>
-      <button
-        className="icon-btn"
-        aria-pressed={view === 'triggers'}
-        aria-label="Triggers"
-        onClick={() => onView('triggers')}
-      >
-        <Clock size={19} />
-        <span className="rail-label" aria-hidden="true">
-          Triggers
         </span>
       </button>
       <button className="icon-btn" aria-pressed={view === 'usage'} aria-label="Usage" onClick={() => onView('usage')}>

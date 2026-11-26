@@ -3,7 +3,7 @@
 KOLONİ's words, each in two or three sentences, with a link to the page that goes deeper. The map shows
 how they hang together.
 
-[![Concept map: project, chat, turn, Orchestrator, sub-agent, role, team, recipe, room, discussion, memory, knowledge, To-do (goal, story, task or bug: ticked tasks run in a chat's queue), trigger and card](../diagrams/concept-map.svg)](../diagrams/concept-map.svg)
+[![Concept map: project, chat, turn, Orchestrator, sub-agent, role, team, recipe, discussion, memory, knowledge, To-do (story, task or bug: ticked tasks run in a chat's queue), ☾ Away and card](../diagrams/concept-map.svg)](../diagrams/concept-map.svg)
 
 *KOLONİ's words and how they hang together.*
 
@@ -51,18 +51,13 @@ how they hang together.
 
 **Team**
 : A named group of roles, set out in stages: Plan, Build, Check, and Write & keep up. KOLONİ comes with
-  teams such as Web app, Backend / API, Docs and Quality. **Teams for this chat** on the canvas decides
+  three teams: Web app, Quality and Docs. **Teams for this chat** on the canvas decides
   whether the Orchestrator picks teams, you pick them, or no teams are used. See [Teams](../agents/teams.md).
 
 **Recipe**
 : The drawn steps of a piece of work: who does each step, what runs at once, where it loops back and
   how it ends. A team runs by a recipe, such as **Feature**, **Bugfix** or **Evolve**. See
   [Recipes and candidates](../agents/recipes.md) and the [Recipe cookbook](../agents/recipe-cookbook.md).
-
-**Room**
-: Two to six agents working on one goal at the same time, in one working copy. They share the work out
-  first, each file has one holder, and the room has a budget. Open one with **Work together…** under
-  **More**. See [Rooms](../agents/rooms.md).
 
 **Discussion**
 : Several agents talking one question through in rounds, while nobody changes anything. An agent with
@@ -105,19 +100,16 @@ how they hang together.
 ## Work that starts by itself
 
 **To-do**
-: A project's tasks, in your order: a goal holds stories, a story holds tasks and bugs. Tick tasks and
+: A project's tasks, in your order: a story holds tasks and bugs. Tick tasks and
   give them to a chat (**Do in chat**): they wait in its queue and run there one by one, each story in a
   topic of its own, with a short notebook. Agents can propose tasks, and you decide when a task is done.
   See [To-do](../automation/todo.md).
 
-**Trigger**
-: Starts a turn by itself: by the clock, when files change, or on a request from outside. Nobody watches
-  that turn, so it may do only what the trigger allows; everything else is refused. For work while you are
-  away, press **☾ Away** on a chat's status line: your To-do tasks are worked through until you are
-  back. See [Triggers](../automation/triggers.md) and
-  [Work while you're away](../automation/overnight.md).
+**☾ Away**
+: Press **☾ Away** on a chat's status line: your To-do tasks are worked through, each in its own copy of
+  the project, until you are back. See [Work while you're away](../automation/overnight.md).
 
 ## Next
 
-- [Which way to work](../agents/which-way.md): a single agent, a team, a room, a trigger?
+- [Which way to work](../agents/which-way.md): a single agent, a team, a discussion?
 - [Glossary](../reference/glossary.md): every word KOLONİ uses on screen.

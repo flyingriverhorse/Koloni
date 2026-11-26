@@ -17,15 +17,12 @@ const project = {
   search_url: null,
   search_order: 'builtin',
   search_agy: false,
-  has_notify_url: false,
-  notify_format: 'slack',
   notify_desktop: false,
   turn_token_limit: null,
   max_agents: null,
   monthly_budget: null,
   git_commit: false,
   auto_notes: false,
-  observe_reports: false,
   day_note_at: null,
   also_in: [],
   read_in: [],
@@ -84,7 +81,6 @@ const answer = (url: string, over: Record<string, unknown> = {}) => {
       held: false,
       since: null,
       running: 0,
-      triggers: 0,
       backlogs: [],
       nights: [],
       stopped: [],
@@ -161,7 +157,7 @@ test('⚙ Settings on the rail opens Settings as a page over the canvas and clos
   expect(rail('Chats')).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('with no folder and no chat KOLONİ opens on the canvas, not on a setup page: the folder button says "No folder", there is no gear, and the Board asks for a folder', async () => {
+test('with no folder and no chat KOLONİ opens on the canvas, not on a setup page: the folder button says "No folder", there is no gear, and To-do asks for a folder', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => answer(url, { '/api/projects': [], '/api/conversations': [] })),
@@ -178,8 +174,8 @@ test('with no folder and no chat KOLONİ opens on the canvas, not on a setup pag
   expect(screen.queryByRole('button', { name: /^Project settings for/ })).toBeNull()
   // Nothing is made at the start: the first message makes a plain chat.
   expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Board' }))
-  const none = screen.getByText('This chat has no folder - pick one with the folder button to use the Board.')
+  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'To-do' }))
+  const none = screen.getByText('This chat has no folder - pick one with the folder button to use the To-do.')
   // ...with the way to one beside it: the folder button's own panel.
   expect(screen.queryByRole('button', { name: 'Open a folder…' })).toBeNull()
   await userEvent.click(within(none.parentElement!).getByRole('button', { name: 'Choose a folder' }))
@@ -475,7 +471,7 @@ const emptyPages = (over: Record<string, unknown> = {}) => {
     '/api/projects/p/budget',
     '/api/projects/p/memory',
   ]
-  const refused = ['/api/usage', '/api/cards', '/api/projects/p/day']
+  const refused = ['/api/usage', '/api/projects/p/day']
   return vi.fn(async (url: string) => {
     const path = url.split('?')[0]
     if (none.includes(path)) return new Response('null', { status: 200 })
@@ -507,12 +503,10 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
     ['Ready', 'memory-page ready-page', 'Ready for you · 0, oldest first'],
-    ['Board', 'memory-page', 'Board'],
     ['To-do', 'memory-page', 'To-do'],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', 'Reading the project’s memory…'],
     ['Knowledge', 'triggers-page knowledge-page', 'Knowledge'],
-    ['Triggers', 'triggers-page', 'Triggers'],
     ['Chats', 'conv-page', 'Conversations'],
     ['Canvas', 'stage', 'First steps'],
   ])
@@ -527,12 +521,10 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
     ['Ready', 'memory-page ready-page', 'Ready for you · 0, oldest first'],
-    ['Board', 'memory-page', noFolder('Board')],
     ['To-do', 'memory-page', noFolder('To-do')],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', noFolder('Memory')],
     ['Knowledge', 'memory-page', noFolder('Knowledge page')],
-    ['Triggers', 'memory-page', noFolder('Triggers')],
     ['Chats', 'conv-page', 'Conversations'],
     ['Canvas', 'stage', 'First steps'],
   ])

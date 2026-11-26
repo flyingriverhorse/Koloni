@@ -8,7 +8,6 @@ import type {
   BacklogDraft,
   BacklogTask,
   BacklogTaskChange,
-  Goal,
   NewBacklogTask,
   Provider,
   Story,
@@ -50,11 +49,10 @@ const FIELD_WORD: Record<string, string> = {
   kind: 'Type',
 }
 
-/** Where adding a proposal puts it (review M2): its story and goal, "(new)" where an agent's proposal opened them, and a bug said. */
+/** Where adding a proposal puts it (review M2): its story, "(new)" where an agent's proposal opened it, and a bug said. */
 const placeOf = (task: BacklogTask) =>
   [
     task.story_title && `In story “${task.story_title}”${task.story_by === 'agent' ? ' (new)' : ''}`,
-    task.goal_title && `goal “${task.goal_title}”${task.goal_by === 'agent' ? ' (new)' : ''}`,
     task.kind === 'bug' && 'bug',
   ]
     .filter(Boolean)
@@ -70,9 +68,9 @@ interface Props {
   away?: Away | null
   /** Each throws ApiError; the backlog is read again after it. */
   onAdd: (task: NewBacklogTask) => Promise<void>
-  /** What is typed, written as a goal, stories and tasks by a model asked once; nothing is saved. Throws ApiError. */
+  /** What is typed, written as stories and tasks by a model asked once; nothing is saved. Throws ApiError. */
   onDraft?: (text: string) => Promise<BacklogDraft>
-  /** A draft's goal, stories and tasks (or a part of them) added at once. Throws ApiError. */
+  /** A draft's stories and tasks (or a part of them) added at once. Throws ApiError. */
   onAddTree?: (tree: TodoTreeIn) => Promise<TodoTreeAdded>
   /** A new chat in the project, with this as its first message, opened. Throws ApiError. */
   onPlan?: (message: string) => Promise<void>
@@ -82,25 +80,21 @@ interface Props {
   /** Do in chat: the ticked tasks wait in this chat's queue (null: a new chat's), which opens. Throws ApiError. */
   onDoInChat?: (taskIds: string[], conversationId: string | null) => Promise<void>
   onOpen: (conversationId: string) => void
-  /** 0.1.8: the project's stories and goals (null until read), its chats' titles by id, and its id (☾ Away's chat is of it). */
+  /** 0.1.8: the project's stories (null until read), its chats' titles by id, and its id (☾ Away's chat is of it). */
   stories?: Story[] | null
-  goals?: Goal[] | null
   chats?: Record<string, string>
   projectId?: string
-  /** A goal or a story changed or deleted, or a new one made; each throws ApiError. None: the page changes none. */
+  /** A story changed or deleted, or a new one made; each throws ApiError. None: the page changes none. */
   tree?: TreeTools
 }
 
 type TreeTools = TreeActions & { onNewStory: (title: string) => Promise<Story> }
 const unwired = async (): Promise<never> => {
-  throw new Error('goals and stories are not changed here')
+  throw new Error('stories are not changed here')
 }
 const NO_TREE: TreeTools = {
-  onGoal: unwired,
-  onDeleteGoal: unwired,
   onStory: unwired,
   onDeleteStory: unwired,
-  onNewGoal: unwired,
   onNewStory: unwired,
 }
 
@@ -216,7 +210,7 @@ const cleaned = (task: NewBacklogTask) => ({
 export const PLAN_ASK = 'Have the Hive keeper break this into To-do tasks: '
 /** What the Hive keeper does, under its button: its name does not say it. */
 export const HIVE_KEEPER_DOES =
-  'The Hive keeper keeps the To-do list: it turns your note into a goal, its stories and their tasks, each with what makes it done.'
+  'The Hive keeper keeps the To-do list: it turns your note into stories and their tasks, each with what makes it done.'
 const COSTS: Record<Paid, string> = {
   subscription: 'one request on your plan',
   'API key': 'one request you pay for',
@@ -297,8 +291,8 @@ type NoteProps = Pick<Props, 'onDraft' | 'onPlan' | 'onAddTree' | 'providers'> &
 }
 
 /**
- * "Write it with the Hive keeper" (6 Nov; 0.1.8 as a tree): a rough note, written by a model asked once as a goal, its
- * stories and their tasks - shown under it to change, each part added by your word; or planned in a chat.
+ * "Write it with the Hive keeper" (6 Nov; 0.1.8 as a tree): a rough note, written by a model asked once as stories
+ * and their tasks - shown under it to change, each part added by your word; or planned in a chat.
  */
 function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, open, onClose }: NoteProps) {
   const drafting = useAsk()
@@ -843,7 +837,7 @@ interface RowProps {
   onDelete: Props['onDelete']
   onOpen: Props['onOpen']
   /** 0.1.8: how deep in the tree it stands, whether it is ticked, and its story to choose. */
-  depth: 0 | 1 | 2
+  depth: 0 | 1
   ticked: boolean
   onTick: (on: boolean) => void
   choice: StoryChoice
@@ -1100,8 +1094,8 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
 }
 
 /**
- * The project's To-do, kept like a Hive keeper would: what waits for your word on top, one row each; your goals,
- * stories and tasks as a tree (priority first, then the order you give); ticked ones go to a chat's queue (Do in chat).
+ * The project's To-do, kept like a Hive keeper would: what waits for your word on top, one row each; your stories
+ * and tasks as a tree (priority first, then the order you give); ticked ones go to a chat's queue (Do in chat).
  */
 export function BacklogPage({
   backlog,
@@ -1119,7 +1113,6 @@ export function BacklogPage({
   onDoInChat,
   onOpen,
   stories,
-  goals,
   chats = {},
   projectId,
   tree = NO_TREE,
@@ -1127,7 +1120,7 @@ export function BacklogPage({
   const [dragged, setDragged] = useState<BacklogTask | null>(null)
   const waits = waitsOf(backlog ?? [], onDecide, onChange)
   const listed = backlog?.filter(task => task.status !== 'proposed') ?? []
-  const view = useTreeView(listed, stories, goals, tree.onNewStory)
+  const view = useTreeView(listed, stories, tree.onNewStory)
 
   /** Your tasks: being read, none yet, or as a tree. */
   const tasks = () =>
@@ -1146,7 +1139,6 @@ export function BacklogPage({
         <TodoTree
           rows={view.rows}
           tasks={listed}
-          goals={view.goals}
           selected={view.selected}
           onSelect={view.select}
           chats={chats}

@@ -19,15 +19,12 @@ const project = {
   search_url: null,
   search_order: 'builtin',
   search_agy: false,
-  has_notify_url: false,
-  notify_format: 'slack',
   notify_desktop: false,
   turn_token_limit: null,
   max_agents: null,
   monthly_budget: null,
   git_commit: false,
   auto_notes: false,
-  observe_reports: false,
   day_note_at: null,
   also_in: [],
   read_in: [],
@@ -150,7 +147,6 @@ beforeEach(() => {
       held: false,
       since: null,
       running: 0,
-      triggers: 0,
       backlogs: [],
       nights: [],
       stopped: [],
@@ -221,8 +217,8 @@ test('Enter goes there: a page, a role on its page, a conversation by its name',
     await userEvent.type(within(palette()!).getByRole('combobox'), `${words}{Enter}`)
     expect(palette()).not.toBeInTheDocument()
   }
-  await pick('triggers')
-  expect(await screen.findByRole('heading', { name: 'Triggers' })).toBeInTheDocument()
+  await pick('knowledge')
+  expect(await screen.findByRole('heading', { name: 'Knowledge' })).toBeInTheDocument()
   // the Conversations page by the rail's word for it, too
   await pick('chats')
   expect(await screen.findByRole('heading', { name: 'Conversations' })).toBeInTheDocument()
@@ -480,7 +476,7 @@ test('gone to another page by Enter, the focus is on that page, not lost', async
   const box = await screen.findByLabelText('Message')
   await userEvent.click(box)
   await userEvent.keyboard('{Control>}k{/Control}')
-  await userEvent.type(within(palette()!).getByRole('combobox'), 'triggers{Enter}')
-  await screen.findByRole('heading', { name: 'Triggers' })
+  await userEvent.type(within(palette()!).getByRole('combobox'), 'knowledge{Enter}')
+  await screen.findByRole('heading', { name: 'Knowledge' })
   await waitFor(() => expect(document.querySelector('.main')).toHaveFocus())
 })

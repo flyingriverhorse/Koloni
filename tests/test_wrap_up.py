@@ -3,7 +3,6 @@ that it can end its work and write its report rather than be cut off in the midd
 
 from tests.test_model_choice import ORIGIN, looks
 from tests.test_spawn import begin, role_id, spawn
-from tests.test_trigger_scenarios import finished, run_now, setup, trigger
 
 
 def last(request):
@@ -35,14 +34,3 @@ def test_an_agent_near_its_roles_tokens_is_told_how_far_it_has_gone(
     first, second = (last(request) for request in model.calls_of["Coder"])
     assert "tokens" not in first
     assert "7 of the 7 tokens" in second and "write your report" in second
-
-
-def test_an_unattended_turns_budget_of_steps_is_the_limit_said_when_it_is_nearer(
-    make_client, wait_run, project_dir
-):
-    client, model, pid, cid = setup(make_client, project_dir, [looks(n) for n in range(5)])
-    made = trigger(client, pid, cid, budget={"steps": 3, "minutes": 10, "per_day": 24})
-    finished(client, wait_run, cid, run_now(client, made["id"]))
-    told = [last(request) for request in model.calls]
-    assert len(told) == 3 and "left" not in told[0]
-    assert "2 steps left" in told[1] and "1 step left" in told[2]

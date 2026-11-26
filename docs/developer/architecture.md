@@ -15,7 +15,7 @@ SQLite, and runs agents as asyncio tasks.
   FastAPI's own docs pages are switched off.
 - **`api/`**: the HTTP routes, all under `/api`.
 - **`agent/`**: the agent runner. `AgentRunner` runs one turn per asyncio task. It is split into mixins
-  (spawning sub-agents, cards and approvals, memory, limits, rooms, discussions, work while you're away and more); the
+  (spawning sub-agents, cards and approvals, memory, limits, discussions, work while you're away and more); the
   package docstring lists them.
 - **Model clients**: `model_client.py` (OpenAI-compatible), `model_anthropic.py` (the Anthropic Messages
   API), `model_cli.py` (a CLI as one step per model step), `model_session.py` (a CLI session whose only
@@ -32,10 +32,10 @@ SQLite, and runs agents as asyncio tasks.
   this machine or in Docker. **`judge.py`**: Full auto's check of your words (Check what I said first);
   **`disposable.py`**: whether a delete is disposable.
 - **`backlog.py`**: To-do's tasks and a chat's queue of them (Do in chat), their fix rounds and the
-  Scout's follow-up tasks. **`stories.py`**: goals and stories, a story's topic and its notebook.
+  Scout's follow-up tasks. **`stories.py`**: stories (and the goals over them, hidden since 0.1.10), a story's topic and its notebook.
 - **`away.py`**: ☾ Away, the To-do tasks worked through while you are away.
 - **`cli_surface.py`**: the version and protocol of each CLI KOLONİ runs, and whether it was measured.
-- **`triggers.py`**: clock, file-change and webhook turns.
+- **`triggers.py`**: the app's clock: it looks at each night while you are away, and sends the day's summary.
 - **`mcp_client.py`**: the client for the user's MCP servers. **`mcp_bridge.py`**: the small program a CLI
   starts as its MCP server, which relays to KOLONİ's own tools.
 
@@ -49,8 +49,8 @@ React, Vite, React Flow (the canvas) and Zustand (the store, `src/state/store.ts
 
 Every `/api` request carries the page key in the `X-KOLONI-Key` header (or `?key=` for event streams and
 downloads). The page takes the key from the link KOLONİ prints, or swaps a one-time code for it, and keeps
-it in the browser's local storage. A few doors need no key: the health check, webhooks, Claude Code's
-status line, and the one-time code exchange.
+it in the browser's local storage. A few doors need no key: the health check, Claude Code's status line, and
+the one-time code exchange.
 
 Events reach the page over server-sent events, per conversation.
 
@@ -73,10 +73,10 @@ The same turn, step by step: where it waits for you, and how the page hears of e
 
 The database is SQLite, its tables in `app/db/models.py`. A project has chats; a chat has turns (runs);
 a turn has agents, and an agent has messages, tool calls, file changes, commands and take-ins (merges).
-Memory, knowledge, to-do tasks and triggers belong to a project; providers, roles, teams and recipes are
+Memory, knowledge and to-do tasks belong to a project; providers, roles, teams and recipes are
 the same for every project. Working copies are folders, not rows.
 
-[![The data model: project, chat, turn, agent, message, tool call, file change, command and merge; rooms and discussions; memory, knowledge, to-do tasks and triggers; providers, roles, teams and recipes](../diagrams/data-model.svg)](../diagrams/data-model.svg)
+[![The data model: project, chat, turn, agent, message, tool call, file change, command and merge; discussions; memory, knowledge, to-do tasks and the nights while you're away; providers, roles, teams and recipes](../diagrams/data-model.svg)](../diagrams/data-model.svg)
 
 *The main tables, their keys and how they link. ([full size](../diagrams/data-model.svg))*
 
@@ -87,6 +87,6 @@ loops: in step mode KOLONİ builds the history (compacting it when it is too lon
 runs each tool call it asks for. A CLI in session or native mode keeps the loop itself. Limits, slots,
 observing, recording and the rest work around every step.
 
-[![Inside the agent runner: a turn starts, tiers pick the model, the loop runs context, compaction, the model step and the tool calls; tool calls go to files, commands, outside, spawn, rooms, discussions, questions and talk; limits, slots, observe, record, claims, memory, merge and away work around every step](../diagrams/runner.svg)](../diagrams/runner.svg)
+[![Inside the agent runner: a turn starts, tiers pick the model, the loop runs context, compaction, the model step and the tool calls; tool calls go to files, commands, outside, spawn, discussions, questions and talk; limits, slots, observe, record, claims, memory, merge and away work around every step](../diagrams/runner.svg)](../diagrams/runner.svg)
 
 *The agent runner's parts and how a step flows through them. ([full size](../diagrams/runner.svg))*

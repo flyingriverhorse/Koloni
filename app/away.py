@@ -642,22 +642,14 @@ def _chat_at_work(session: Session, away: AwayRun) -> bool:
 
 
 def _looked_at(session: Session, away: AwayRun) -> None:
-    """Every task was looked at: Away goes on until the user is back - the project's address
-    is told so, once."""
+    """Every task was looked at: Away goes on until the user is back - the user's desktop is
+    told so, once."""
     if away.id in _told_looked_at or not away.jobs:  # (none ticked: nothing to tell)
         return
     _told_looked_at.add(away.id)
     project = session.get_one(Project, away.project_id)
-    if project.notify_url or project.notify_desktop:
-        send(
-            (
-                project.name,
-                project.notify_url,
-                project.notify_format,
-                project.notify_desktop,
-                f"Every To-do task was looked at. {line(session, away)}.",
-            )
-        )
+    if project.notify_desktop:
+        send((project.name, f"Every To-do task was looked at. {line(session, away)}."))
 
 
 # The Aways whose "looked at" was told (`_looked_at`): this process's, as its loop's tasks.
@@ -1105,8 +1097,8 @@ def _close(
     session: Session, away: AwayRun, why: str | None, notify: bool = True
 ) -> tuple[Message, tuple | None]:
     """Away on record as over, with why, and its one summary at the bottom of the chat it was
-    gone from; and the notification for it, where the project has an address (not for the
-    user's own coming back: `notify` False). Not committed."""
+    gone from; and the notification for it, where the project shows them on the desktop (not
+    for the user's own coming back: `notify` False). Not committed."""
     away.status, away.ended_at, away.why = "ended", now(), why
     # (A task of the To-do list's it never started is the list's again: the night held it.)
     made = {job["task_id"] for job in away.jobs if not job.get("was_todo")}  # (by the night)
@@ -1126,20 +1118,14 @@ def _close(
     message = Message(conversation_id=away.conversation_id, run_id=last, role="away", content=said)
     session.add(message)
     project = session.get_one(Project, away.project_id)
-    note = (
-        project.name,
-        project.notify_url,
-        project.notify_format,
-        project.notify_desktop,
-        f"{why or 'You are back.'} {said}.",
-    )
-    return message, note if notify and (project.notify_url or project.notify_desktop) else None
+    note = (project.name, f"{why or 'You are back.'} {said}.")
+    return message, note if notify and project.notify_desktop else None
 
 
 def end(session: Session, away: AwayRun, why: str | None, runner) -> None:
     """Away is over (why: a limit, Stop all, a failure to start): on record with why, its one
-    summary in the chat it was gone from, and one notification where the project has an
-    address."""
+    summary in the chat it was gone from, and one notification where the project shows them
+    on the desktop."""
     message, note = _close(session, away, why)
     session.commit()
     runner.bus.emit(away.conversation_id, None, "message.created", message_out(message))
@@ -1159,20 +1145,15 @@ def send(note: tuple) -> None:
 _sending: set[asyncio.Task] = set()
 
 
-async def _notify(name: str, url: str | None, form: str, on_desktop: bool, text: str) -> None:
-    ways = ([("desktop", web.show(f"KOLONİ — {name}", text))] if on_desktop else []) + (
-        [("address", web.notify(url, text, form))] if url else []
-    )
-    for way, sending in ways:
-        try:
-            await sending
-        except Exception as exc:  # (never the address in the log: it may hold a key)
-            log.warning(
-                "a notification of %s was not sent to the %s: %s",
-                name,
-                way,
-                exc if isinstance(exc, web.WebError) else type(exc).__name__,
-            )
+async def _notify(name: str, text: str) -> None:
+    try:
+        await web.show(f"KOLONİ — {name}", text)
+    except Exception as exc:
+        log.warning(
+            "a notification of %s was not sent to the desktop: %s",
+            name,
+            exc if isinstance(exc, web.WebError) else type(exc).__name__,
+        )
 
 
 def settle(session: Session, notes: list | None = None) -> None:

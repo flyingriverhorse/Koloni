@@ -24,7 +24,7 @@ from app.model_native import (
 )
 from tests.test_agent_writes import wait_status
 from tests.test_attachment_agents import FAKE_CODEX, answered, plan, record
-from tests.test_claude_native import NOBODY, nothing_was_asked, unattended
+from tests.test_claude_native import nothing_was_asked
 from tests.test_native_agent import native_app, start  # noqa: F401  (a fixture)
 
 RUN = "item/commandExecution/requestApproval"
@@ -303,35 +303,6 @@ def test_at_ask_a_change_to_a_file_is_asked_in_words_with_its_diff(
 
 
 # --- 4. A turn nobody is watching ----------------------------------------------------------
-
-
-def test_unattended_codex_is_declined_what_its_trigger_does_not_allow_and_nobody_is_asked(
-    native_app,
-    wait_run,
-    project_dir,  # noqa: F811
-):
-    client, provider, _ = native_app(
-        [
-            {"run": "pytest -q", "output": "ok\n"},
-            {"run": "pytest -q && echo x", "touches": {"ran.txt": "x"}},
-            {"write": "hello.py", "content": "changed\n"},
-            {"say": "done"},
-        ]
-    )
-    # (The first line - no CLI with tools of its own starts unwatched - is switched off.)
-    snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
-    )
-    assert run["status"] == "completed", run
-    assert answers(native_app) == [(RUN, ACCEPT), (RUN, DECLINE), (PATCH, DECLINE)]
-    assert hello(project_dir) == "print('hi')\n" and not (project_dir / "ran.txt").exists()
-    assert [(t["name"], t["status"]) for t in snap["tool_calls"]] == [
-        ("run_command", "succeeded"),
-        ("run_command", "denied"),
-        ("edit_file", "denied"),
-    ]
-    assert all(NOBODY in t["result"] for t in snap["tool_calls"][1:])
-    nothing_was_asked(snap, statuses)
 
 
 # --- 5. Any other request is declined -------------------------------------------------------

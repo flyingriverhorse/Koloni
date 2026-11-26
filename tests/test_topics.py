@@ -120,33 +120,8 @@ def test_a_topic_is_named_by_one_bounded_line():
 
 
 def test_what_a_message_may_name_as_its_topic(make_client, wait_run, project_dir):
-    client, model, pid, cid = setup(
-        make_client,
-        project_dir,
-        {
-            "Lead": [
-                text("one"),
-                text("TRIGGER-FOUND nothing wrong"),
-                text("it found nothing"),
-                text("two"),
-            ]
-        },
-    )
+    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [text("one")]})
     snap, first = turn(client, wait_run, cid, "the first thing")
-    made = client.post(
-        f"/api/projects/{pid}/triggers",
-        json={
-            "name": "watch",
-            "kind": "webhook",
-            "config": {},
-            "conversation_id": cid,
-            "message": "TRIGGER-MESSAGE look it over",
-        },
-    ).json()
-    run_id = client.post(f"/api/triggers/{made['id']}/run").json()["run_id"]
-    snap = wait_run(client, cid, run_id)
-    of_trigger = next(t for t in snap["topics"] if t["trigger_id"] == made["id"])
-    assert of_trigger["title"] == "TRIGGER-MESSAGE look it over"
 
     def refused(**more):
         posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "x", **more})
@@ -156,24 +131,7 @@ def test_what_a_message_may_name_as_its_topic(make_client, wait_run, project_dir
     # exist is not made up
     assert refused(topic_id=first["topic_id"], new_topic=True) == 422
     assert refused(topic_id="0" * 32) == 422
-    assert len(client.get(f"/api/conversations/{cid}").json()["runs"]) == 2  # none started
-    # the user can ask about what a trigger's turn found, by naming its topic: that
-    # turn sees the trigger's turns, and not the user's own topic
-    snap, asked = turn(client, wait_run, cid, "ASK what did it find?", topic_id=of_trigger["id"])
-    assert asked["topic_id"] == of_trigger["id"] and asked["unattended"] is False
-    (request,) = sent_to(model, "ASK what did it find?")
-    assert "TRIGGER-FOUND nothing wrong" in request and "TRIGGER-MESSAGE" in request
-    assert 'the first thing"}' not in request and "Earlier topics" in request
-    # and it does not become the topic the user is in: their next message goes on with
-    # their own work
-    snap, again = turn(client, wait_run, cid, "more of the first thing")
-    assert again["topic_id"] == first["topic_id"]
-    (request,) = sent_to(model, "more of the first thing")
-    assert "TRIGGER-FOUND" not in request and "ASK what did it find?" not in request
-    assert [t["title"] for t in snap["topics"]] == [
-        "the first thing",
-        "TRIGGER-MESSAGE look it over",
-    ]
+    assert len(client.get(f"/api/conversations/{cid}").json()["runs"]) == 1  # none started
 
 
 def test_naming_a_topic(make_client, wait_run, project_dir):
@@ -621,83 +579,6 @@ def test_a_model_the_lead_could_not_choose_today_is_not_gone_on_with(with_fast, 
     )
     ((status, said),) = calls_of(snap, second["id"], "message_agent")
     assert status == "succeeded" and "ON-LOCAL went on" in said
-
-
-def unattended_topic(with_fast, wait_run, reviewer_on=None):
-    """A trigger's first turn, in which its lead opened a Reviewer; then what its
-    second turn's message_agent(to="Reviewer") came to."""
-    client, default, quick, made, pid, cid = with_fast(
-        {
-            "Lead": [
-                step(call("spawn_agent", {"role": "Reviewer", "task": OLD_TASK}, "s1")),
-                text("looked"),
-                step(call("message_agent", {"to": "Reviewer", "message": MORE}, "m1")),
-                text("done"),
-            ],
-            "Reviewer": [*([] if reviewer_on else [text(OLD_WORDS)]), text("ON-LOCAL went on")],
-        },
-        {"Reviewer": [text(OLD_WORDS), text("ON-FAST went on")]},
-    )
-    reviewer = role_of(client, "Reviewer")
-    if reviewer_on:
-        assert (
-            client.patch(
-                f"/api/roles/{reviewer['id']}", json={"provider_id": made[reviewer_on]["id"]}
-            ).status_code
-            == 200
-        )
-    trigger = client.post(
-        f"/api/projects/{pid}/triggers",
-        json={
-            "name": "watch",
-            "kind": "webhook",
-            "config": {},
-            "conversation_id": cid,
-            "message": "TRIGGER-MESSAGE look it over",
-            "permissions": {"write": False, "commands": [], "agents": 1},
-        },
-    ).json()
-
-    def fire():
-        run_id = client.post(f"/api/triggers/{trigger['id']}/run").json()["run_id"]
-        return wait_run(client, cid, run_id), run_id
-
-    snap, one = fire()
-    (old,) = [a for a in agents_of(snap, one) if a["name"] == "Reviewer"]
-    assert old["status"] == "completed"
-    return client, made, reviewer, fire, old
-
-
-def test_nobody_watching_an_agent_on_a_cli_with_its_own_tools_is_not_gone_on_with(
-    with_fast, wait_run
-):
-    client, made, reviewer, fire, old = unattended_topic(with_fast, wait_run)
-    # since then its role was put on a CLI that works with tools of its own
-    assert (
-        client.patch(
-            f"/api/roles/{reviewer['id']}", json={"provider_id": made["Codex"]["id"]}
-        ).status_code
-        == 200
-    )
-    snap, two = fire()
-    ((status, said),) = calls_of(snap, two, "message_agent")
-    assert status == "denied" and "cannot work in a turn nobody is watching" in said
-    assert [a["name"] for a in agents_of(snap, two)] == ["Lead"]  # none was opened
-
-
-def test_nobody_watching_no_model_is_picked_for_the_agent_gone_on_with(with_fast, wait_run):
-    client, made, reviewer, fire, old = unattended_topic(with_fast, wait_run, reviewer_on="Fast")
-    assert old["provider_name"] == "Fast"
-    # its role has no model of its own any more: with the user there the lead could go
-    # on with it on Fast (a pick, asked about); with nobody there it gets its role's
-    assert (
-        client.patch(f"/api/roles/{reviewer['id']}", json={"provider_id": None}).status_code == 200
-    )
-    snap, two = fire()
-    ((status, said),) = calls_of(snap, two, "message_agent")
-    assert status == "succeeded" and "ON-LOCAL went on" in said
-    newest = next(a for a in agents_of(snap, two) if a["name"] == "Reviewer")
-    assert (newest["provider_name"], newest["chosen"]) == ("Local", False)
 
 
 def test_a_role_widened_since_gives_no_more_than_the_lead_has(make_client, wait_run, project_dir):

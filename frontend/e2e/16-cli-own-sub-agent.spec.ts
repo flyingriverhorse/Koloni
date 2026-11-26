@@ -25,6 +25,8 @@ test.describe('with Claude Code working natively as a provider', () => {
       headers: OWN,
     })
     expect(patched.ok()).toBe(true)
+    // Native is offered only with experimental features shown (0.1.10): on for this spec, off after it.
+    await request.put('/api/experimental-clis', { data: { show: true }, headers: OWN })
     await page.getByRole('button', { name: 'Models', exact: true }).click()
     await page.getByRole('button', { name: /Add a provider/ }).click()
     await page.getByLabel('Name').fill('Claude Code')
@@ -37,6 +39,7 @@ test.describe('with Claude Code working natively as a provider', () => {
 
   test.afterEach(async ({ request }) => {
     await removeClaudeCode(request)
+    await request.put('/api/experimental-clis', { data: { show: false }, headers: OWN })
   })
 
   test('a sub-agent of Claude Code’s own is a box inside its agent’s box, and a block in its window', async ({

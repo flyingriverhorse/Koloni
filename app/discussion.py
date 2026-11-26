@@ -16,6 +16,12 @@ SPEECH_STEPS = 6  # a speaker may look a few things up before it speaks
 # where the speakers' models report what they spend.)
 MAX_POST_CHARS = 1500
 CUT = " [the rest was cut]"
+# K-not-oda: who brings teams together.
+NOT_BETWEEN = (
+    "its members come from different teams ({teams}): a discussion between teams is opened "
+    "by the Orchestrator or a team's coordinator. Ask your team's coordinator, or talk within "
+    "your team"
+)
 
 WHY = {
     "agreed": "nobody had anything to add.",

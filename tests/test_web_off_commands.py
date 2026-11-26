@@ -26,7 +26,7 @@ from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_native_agent import start as codex_start
 from tests.test_skill_scenarios import add, give, skill_dir  # noqa: F401  (a fixture)
 from tests.test_spawn import begin, call, step
-from tests.test_trigger_scenarios import allow
+from tests.turn_helpers import allow
 
 LIVE = "Invoke-RestMethod https://api.github.com/repos/koloni/koloni"
 REACHES = [

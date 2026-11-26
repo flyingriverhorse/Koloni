@@ -1,6 +1,6 @@
 """0.1.0-hijyen: what KOLONİ's runtime keeps does not grow for ever - a copy whose card is
-decided goes at the next start, waiting work stays; vectors of what is gone are dropped; the
-database is compacted when much of it is free; the log rotates."""
+decided goes at the next start, waiting work stays; the database is compacted when much of it is
+free; the log rotates."""
 
 import os
 import sqlite3
@@ -53,82 +53,6 @@ def _db(tmp_path):
     return path
 
 
-def test_vectors_of_what_is_gone_are_deleted_at_the_start_the_rest_kept(tmp_path):
-    from sqlalchemy import text
-
-    from app.db.models import Embedding, Memory, Project
-    from app.db.session import make_engine, make_session_factory, tidy_db
-
-    path = _db(tmp_path)
-    engine = make_engine(path)
-    with make_session_factory(engine)() as session:
-        project = Project(name="p", root_path=str(tmp_path / "p"), embedding_model="m1")
-        session.add(project)
-        session.flush()
-        kept = Memory(project_id=project.id, tier="note", text="kept", origin="user")
-        other = Memory(project_id=project.id, tier="note", text="other", origin="user")
-        session.add_all([kept, other])
-        session.flush()
-        row = session.execute(
-            text(
-                "INSERT INTO said_in_turns (words, said, project_id, conversation_id, run_id, agent, "
-                "at) VALUES ('w', 'said', :p, 'c', 'r', 'Lead', '2026-01-01')"
-            ),
-            {"p": project.id},
-        ).lastrowid
-        vector = [1.0, 0.0]
-        session.add_all(
-            [
-                Embedding(
-                    kind="memory",
-                    record_id=kept.id,
-                    project_id=project.id,
-                    model="m1",
-                    vector=vector,
-                ),
-                Embedding(
-                    kind="turn",
-                    record_id=str(row),
-                    project_id=project.id,
-                    model="m1",
-                    vector=vector,
-                ),
-                # gone: its record, its turn's row, its project, its model
-                Embedding(
-                    kind="memory",
-                    record_id="nothere",
-                    project_id=project.id,
-                    model="m1",
-                    vector=vector,
-                ),
-                Embedding(
-                    kind="turn",
-                    record_id=str(row + 99),
-                    project_id=project.id,
-                    model="m1",
-                    vector=vector,
-                ),
-                Embedding(
-                    kind="memory", record_id=other.id, project_id="gone", model="m1", vector=vector
-                ),
-                Embedding(
-                    kind="memory",
-                    record_id=kept.id,
-                    project_id=project.id,
-                    model="old",
-                    vector=vector,
-                ),
-            ]
-        )
-        session.commit()
-        expected = {("memory", kept.id, "m1"), ("turn", str(row), "m1")}
-    engine.dispose()
-    tidy_db(path)
-    with sqlite3.connect(path) as conn:
-        left = set(conn.execute("SELECT kind, record_id, model FROM embeddings"))
-    assert left == expected
-
-
 def _with_free_pages(path, megabytes):
     """A database that had `megabytes` of rows, deleted: its pages are free, the file as big."""
     with sqlite3.connect(path) as conn:
@@ -166,7 +90,7 @@ def test_a_database_that_cannot_be_tidied_does_not_keep_kolonis_start(
     from app.db import session as db
 
     path = _db(tmp_path)
-    monkeypatch.setattr(db, "STALE_VECTORS", ("DELETE FROM no_such_table",))
+    monkeypatch.setattr(db, "OLD_EVENTS", "DELETE FROM no_such_table")
     db.tidy_db(path)
     assert "database not tidied" in caplog.text
 

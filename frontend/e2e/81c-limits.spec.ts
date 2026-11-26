@@ -159,7 +159,7 @@ test('a turn whose Lead runs on a provider past its limit asks first, and goes o
   await expect(card).toHaveCount(0)
   await expect(chat.getByText('one more past the limit')).toBeVisible()
   // The turn goes on to change hello.py: turned down, so its hold on the file goes with it (the backend is shared,
-  // and a later spec's room changes hello.py).
+  // and later specs change hello.py).
   await chat.getByRole('button', { name: 'Reject' }).click()
   await expect(chat.getByText('Okay, I left hello.py unchanged.')).toBeVisible()
 })

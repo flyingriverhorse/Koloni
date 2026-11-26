@@ -23,7 +23,6 @@ from app.db import models
 if not hasattr(models, "McpServer"):  # written before the code: skipped until it exists
     pytest.skip("slice 28b is not built yet", allow_module_level=True)
 
-from tests import test_trigger_scenarios as unattended  # noqa: E402
 from tests.test_agent_writes import wait_status  # noqa: E402
 from tests.test_chat_flow import text  # noqa: E402
 from tests.test_host_executor import alive  # noqa: E402
@@ -513,24 +512,6 @@ def test_stop_ends_a_call_that_does_not_come_back_and_leaves_nothing_running(
 
 
 # --- where no server's tool is to be had ------------------------------------------------------
-
-
-def test_no_servers_tool_in_a_turn_nobody_watches(make_client, wait_run, project_dir, tmp_path):
-    client, model, pid, cid = unattended.setup(
-        make_client,
-        project_dir,
-        [step(call("fake__echo", {"text": "hi"})), text("I could not.")],
-        permission_mode="full_auto",
-    )
-    made, record, _ = server(client, tmp_path)
-    mark(client, made, echo="free")  # not even one that is never asked about
-    give(client, "Lead", "fake")
-    watch = unattended.trigger(client, pid, cid)
-    run_id = unattended.run_now(client, watch["id"])
-    snap = unattended.finished(client, wait_run, cid, run_id, timeout=LONG)
-    assert not [n for n in names(model.tool_args[0]) if n.startswith("fake__")]
-    assert calls(snap)["fake__echo"][0] != "succeeded"
-    assert events(record, "start") == [] and events(record, "call") == []
 
 
 def test_no_servers_tool_in_a_project_that_runs_its_commands_in_docker(

@@ -330,7 +330,7 @@ def _coster(session: Session):
 def month_start(at: datetime | None = None) -> datetime:
     """The first moment of `at`'s calendar month (now's without it) by this machine's
     clock - KOLONİ runs on the user's own - in UTC without a zone, as times are kept."""
-    # shortcut: the machine's zone, as triggers count days; a page in another zone sees the
+    # shortcut: the machine's zone, as the app's clock counts days; a page in another zone sees the
     # server's month, take a `tz` when KOLONİ is reached from elsewhere.
     local = (at or datetime.now(UTC)).astimezone()
     first = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
@@ -464,7 +464,7 @@ def _over_limit(session: Session, provider: Provider) -> str | None:
 
 
 def past_its_limit(session: Session, provider: Provider) -> str | None:
-    """Why no agent is opened on this provider now (a sub-agent, a room's member), in an
+    """Why no agent is opened on this provider now (a sub-agent, a discussion's member), in an
     agent's words; None where it is under its limits."""
     over = over_limit(session, provider)
     return (

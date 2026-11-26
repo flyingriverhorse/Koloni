@@ -12,7 +12,6 @@ from tests.test_max_agents import cancel, queued
 from tests.test_spawn import begin, call, role_id, step
 from tests.test_team import results, team  # noqa: F401  (a fixture)
 from tests.test_tier_scenarios import ORIGIN, WHY, role_tier, spawn, tiered
-from tests.test_trigger_scenarios import run_now, trigger
 
 
 def table(client, cid=None):
@@ -318,39 +317,6 @@ def strongest_on_codex(team, client):  # noqa: F811
     )
 
 
-def test_in_a_turn_nobody_watches_a_tier_does_not_land_on_a_cli_with_its_own_tools(
-    team,
-    wait_run,
-    project_dir,  # noqa: F811
-):
-    client, default, fast = team([step(spawn("Coder")), text("the coder looked"), text("done")])
-    strongest_on_codex(team, client)
-    role_tier(client, "Lead", "strongest")
-    role_tier(client, "Coder", "strongest")
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert (
-        client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}).status_code
-        == 200
-    )
-    # with the user there both run on it, which is what the table says
-    rows = table(client, cid)
-    assert [(rows[role]["provider_name"], rows[role]["source"]) for role in ("Lead", "Coder")] == [
-        ("Codex", "tier")
-    ] * 2
-    made = trigger(client, pid, cid, permissions={"write": False, "commands": [], "agents": 1})
-    snap = wait_run(client, cid, run_now(client, made["id"]))
-    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    lead, coder = snap["agents"]
-    # the tier decided nothing there: the next rule did, for the lead and for whom it opened
-    assert (lead["provider_name"], coder["provider_name"], coder["status"]) == (
-        "Local",
-        "Local",
-        "completed",
-    )
-    assert team.stubs["Codex"].started == 0
-
-
 def test_a_tier_lands_on_codex_for_a_coder_the_opener_leaves_no_commands(
     team,
     wait_run,
@@ -414,14 +380,13 @@ def test_a_reviewer_whose_own_model_is_codex_runs_there_read_only(
     assert reviewer["provider_name"] == "Codex" and team.stubs["Codex"].started == 1
 
 
-def test_the_table_says_before_any_run_where_a_role_could_be_no_recipe_step_and_no_room_member(
+def test_the_table_says_before_any_run_where_a_role_could_be_no_recipe_step(
     team,
     wait_run,
     project_dir,  # noqa: F811
 ):
-    """B-89: an agy Reviewer refused as a recipe's step, a Codex Coder as a room's member -
-    found only as they ran. The table says it with the words the opener would be told."""
-    from app.room import member_model
+    """B-89: an agy Reviewer refused as a recipe's step - found only as it ran. The table says
+    it with the words the opener would be told."""
     from app.team import ONLY_IN_THE_PROJECT
 
     client, default, fast = team([text("done")])
@@ -436,10 +401,7 @@ def test_the_table_says_before_any_run_where_a_role_could_be_no_recipe_step_and_
     rows = table(client)
     # (The stand-in is a CLI of its own tools not started in a copy, as native agy is.)
     assert rows["Coder"]["cannot_step"] == ONLY_IN_THE_PROJECT.format(provider="Codex")
-    with client.app.state.session_factory() as session, pytest.raises(ValueError) as refused:
-        member_model(session, None, "Coder", None, None, by_user=True)
-    assert rows["Coder"]["cannot_room"] == str(refused.value)
-    assert (rows["Tester"]["cannot_step"], rows["Tester"]["cannot_room"]) == (None, None)
+    assert rows["Tester"]["cannot_step"] is None
 
 
 # --- one tier up, said to the opener --------------------------------------------------------
@@ -603,7 +565,7 @@ def test_a_question_an_api_answered_keeps_its_price_when_the_lead_then_runs_on_a
             json={
                 "name": "Plan",
                 "kind": "codex_cli",
-                "mode": "step",
+                "mode": "session",
                 "for_agents": True,
                 "models": [{"name": "cli-strong", "tier": "strongest"}],
             },
@@ -921,17 +883,6 @@ def test_a_turn_stopped_while_it_stands_in_line_for_the_question_leaves_no_recor
     wait_run(client, a, run_a)
 
 
-def test_in_a_turn_nobody_watches_nobody_is_asked_how_hard_it_is(team, wait_run, project_dir):  # noqa: F811
-    client, default, fast = team([text("looked it over")])
-    tiered(team, client)
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={"lead_auto": True}).status_code == 200
-    snap = wait_run(client, cid, run_now(client, trigger(client, pid, cid)["id"]))
-    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert fast.calls == [] and snap["agents"][0]["chosen_why"] is None
-
-
 def test_a_tier_says_why_each_one_before_its_pick_was_passed_over_in_sentences():
     """B-76: Codex, passed over for a role with no commands, was not said; the Lead's reason
     and the tier's were joined with ".;"."""
@@ -1019,13 +970,9 @@ def test_the_table_says_where_a_roles_agents_could_run_instead_and_with_what_mod
     )
     on = {one["provider_id"]: one for one in table(client)["Coder"]["run_on"]}
     assert (on[ids["Paid Api"]]["model_id"], on[ids["Paid Api"]]["step"]) == ("silver", True)
-    assert (on[ids["Fast"]]["model_id"], on[ids["Fast"]]["step"], on[ids["Fast"]]["room"]) == (
-        "quick",
-        True,
-        True,
-    )
+    assert (on[ids["Fast"]]["model_id"], on[ids["Fast"]]["step"]) == ("quick", True)
     # (the stand-in works in the project itself, with tools of its own)
-    assert (on[ids["Codex"]]["step"], on[ids["Codex"]]["room"]) == (False, False)
+    assert on[ids["Codex"]]["step"] is False
 
 
 def test_past_its_plan_share_a_cli_steps_down_on_its_own_plan_or_another_kind_never_another_account():

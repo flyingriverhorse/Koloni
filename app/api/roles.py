@@ -33,10 +33,8 @@ from app.providers import (
     NotListed,
     allowed,
     list_providers,
-    works_with_own_tools,
 )
 from app.roles import BUILTIN_ROLES, shown_name
-from app.room import NO_MEMBER_ON
 from app.schemas import (
     AskedModel,
     ExpertIn,
@@ -149,8 +147,8 @@ def apply_limits(session: Session, request: Request, role: Role, body) -> None:
 def apply_place(session: Session, request: Request, role: Role, body) -> None:
     """Set a role's kind of work, tier rule, on / off and teams from what the request sent.
     All of these are the user's to change from the app's own page (slices 62, 81b) - not a
-    command's an agent runs against the app's address; and the Lead, the Planner and the
-    Observer are never off."""
+    command's an agent runs against the app's address; and the Lead and the Planner are
+    never off."""
     sent = body.model_fields_set
     # A team's lead is its team's (slice 63a): it keeps its kind, is in no team, and is on or off
     # with its team's switch. (Its form sends them unchanged.)
@@ -488,7 +486,6 @@ def _run_on(session: Session, providers) -> list[tuple[str, RunOn, object]]:
                         provider_id=provider.id,
                         model_id=model,
                         step=not only_in_project(client),
-                        room=not works_with_own_tools(provider),
                     ),
                     client,
                 )
@@ -535,9 +532,6 @@ def _who_uses_what(request: Request, conversation_id: str | None) -> tuple[list,
             told.append(
                 RoleModelOut(
                     cannot_step=cannot_step,
-                    cannot_room=NO_MEMBER_ON.format(provider=on, role=shown_name(role.name))
-                    if works_with_own_tools(would.provider)
-                    else None,
                     role=role.name,
                     provider_name=would.provider.name,
                     model_id=would.model_id,
@@ -679,10 +673,6 @@ def patch_role(
     if body.instructions is not None:
         role.instructions = body.instructions.strip()
     if body.tools is not None and body.tools != role.tools:
-        if roles.is_observer(role):
-            # It is asked one question, never with tools: a tool would say otherwise.
-            raise HTTPException(422, "the Observer has no tools: it is asked with none")
-        # (As they were is no change: the Observer has none, and is saved with none.)
         role.tools = clean_tools(body.tools)
     clean_expert(role)
     apply_choice(session, role, body)

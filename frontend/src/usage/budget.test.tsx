@@ -44,7 +44,7 @@ test('the top bar’s pill shows only near the budget: from 80% on, rounded down
   expect(pill()).toHaveTextContent(/^ ?over · 108%$/)
   expect(pill()).toHaveAccessibleName('Budget over · 108%')
   expect(pill()).toHaveAccessibleDescription(
-    /used 108% of its monthly budget: a new message asks before its work starts, and triggers start none/,
+    /used 108% of its monthly budget: a new message asks before its work starts/,
   )
   // A part of it is only the least it cost; 0.29 is 29%, though 0.29 * 100 is 28.999…
   rerender(<BudgetPill budget={spend({ spent: 3.48, share: 0.29, warn: true, at_least: true })} onOpen={onOpen} />)
@@ -66,11 +66,7 @@ test('Usage shows this month’s spend against the budget, a bar and its numbers
   expect(screen.queryByText(/a new message asks/)).toBeNull()
   // Over it, what that means is in sight here, where the top bar's pill leads.
   rerender(<BudgetSection budget={spend({ spent: 13, share: 13 / 12, over: true })} />)
-  expect(
-    screen.getByText(
-      /used 108% of its monthly budget: a new message asks before its work starts, and triggers start none/,
-    ),
-  ).toBeVisible()
+  expect(screen.getByText(/used 108% of its monthly budget: a new message asks before its work starts/)).toBeVisible()
   rerender(<BudgetSection budget={spend({ currency: null, spent: null, share: null, warn: false })} />)
   expect(screen.queryByRole('meter')).toBeNull()
   expect(screen.getByText(/This budget is not enforced: prices are in more than one currency/)).toBeInTheDocument()
@@ -100,8 +96,6 @@ test('the monthly budget is set and taken away in Limits and money, an amount ab
       search_url: null,
       search_order: 'builtin',
       search_agy: false,
-      has_notify_url: false,
-      notify_format: 'slack',
       notify_desktop: false,
     },
     ...{
@@ -127,14 +121,11 @@ test('the monthly budget is set and taken away in Limits and money, an amount ab
       judge_risky: 'refuse',
       disposable_deletes: false,
       memory_links: [],
-      embedding_provider_id: null,
-      embedding_model: 'text-embedding-3-small',
       git_commit: false,
       finish_way: null,
       auto_notes: false,
     },
     ...{
-      observe_reports: false,
       suggest_tasks: true,
       suggest_tier: 'fast',
       day_note_at: null,
@@ -154,10 +145,6 @@ test('the monthly budget is set and taken away in Limits and money, an amount ab
       spawn_max_agents: 6,
       spawn_max_parallel: 2,
       discussion_budget: null,
-      room_posts: 40,
-      room_tokens: null,
-      room_minutes: 30,
-      room_min_tokens: 60000,
       pass_env: null,
       held_env: [],
       koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
@@ -169,7 +156,7 @@ test('the monthly budget is set and taken away in Limits and money, an amount ab
   await userEvent.click(screen.getByRole('button', { name: /^Limits and money/ }))
   const field = screen.getByLabelText('Monthly budget')
   expect(field).toHaveAccessibleDescription(
-    /In the currency of your prices .* At 80% you are told\. At 100% a new message asks before its work starts, and triggers start none/,
+    /In the currency of your prices .* At 80% you are told\. At 100% a new message asks before its work starts/,
   )
   for (const wrong of ['0', '-5', 'ten']) {
     await userEvent.clear(field)

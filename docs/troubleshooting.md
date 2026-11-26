@@ -176,20 +176,15 @@ A failed turn shows **"Run failed: {Provider}: {reason}."** with a next step und
   has **Continue** while the turn runs; otherwise ask for more in your next message. See
   [Step limits](agents/step-limits.md#going-on-by-message).
 
-**"could not work: Codex kept trying its own tools, which are off in step mode. Try running Codex as One session per agent (Models › Codex › How it runs)."**
-: Or "could not review: …" for a reviewer. Run as **One run per model step**, Codex sometimes tries its
-  own tools, which KOLONİ switches off there. KOLONİ tells it to use KOLONİ's tools and tries the step
-  again. A step that asks for any of KOLONİ's tools starts the count anew. The third such step in a row
-  (one that tried Codex's own tools and asked for none of KOLONİ's) ends the agent. Each step tried
-  again counts toward its step limit. Open the Codex provider and set **How it runs** to **One session
-  per agent**, Codex's default for a provider added since 7 Nov 2026 (on a model server of your own it
-  starts as One run per model step: its session there is not yet measured, so try it there knowing
-  that): it keeps working with KOLONİ's tools, triggers included. To let Codex use its own tools instead, set it to **Native**. Triggers never start a Native CLI, so a trigger then no longer runs
-  its turns on Codex (see [FAQ](#faq)). See [Set up a CLI](models/setup-cli.md#how-it-runs).
-
-**"budget: stopped after {steps} model steps, the most this trigger gives a turn"**
-: A trigger's run used its budget. Raise **Model steps a run** on the trigger. See
-  [Triggers](automation/triggers.md).
+**"could not work: Codex kept trying its own tools, which are off when it runs one step at a time (in a discussion, or on a Codex version not measured with KOLONİ)."**
+: Or "could not review: …" for a reviewer. Codex runs one step at a time when it speaks in a discussion,
+  and on a Codex version KOLONİ has not measured whose session did not answer (its card then says
+  "not measured; running the old way"). There its own tools are off, and Codex sometimes tries them.
+  KOLONİ tells it to use KOLONİ's tools and tries the step again. A step that asks for any of KOLONİ's
+  tools starts the count anew. The third such step in a row (one that tried Codex's own tools and asked
+  for none of KOLONİ's) ends the agent. Each step tried again counts toward its step limit. On a version
+  not measured, update Codex, or set **How it runs** to **Native** to let it use its own tools. See
+  [Set up a CLI](models/setup-cli.md#how-it-runs).
 
 ## Money
 
@@ -197,16 +192,6 @@ A failed turn shows **"Run failed: {Provider}: {reason}."** with a next step und
 : The project's monthly budget is used up. Press **Go on anyway** to send it, or **Cancel**. A
   provider's own limit shows the same way, starting "Over {provider}'s limit of …". Change the budget
   under Settings › This project › **Limits and money**, and a provider's limits on its **Limits** tab.
-
-## Triggers
-
-**"It would have asked you:"**
-: A trigger's turn met something it was not allowed to do. "Each was refused, and nothing was done in
-  its place." Press **Allow this in the trigger** to open the trigger's form with it ticked; it is
-  yours to save.
-
-**"this project is over this month's budget: nothing was started"** and **"the provider its Orchestrator runs on is over its limit: nothing was started"**
-: A trigger did not start because of a budget or a limit.
 
 ## Commands and Docker
 
@@ -283,9 +268,6 @@ requests and tools you allow. See [Data and privacy](security/privacy.md).
 
 **Can I give a running command some input?**
 No. Commands cannot be given input while they run.
-
-**Why did my trigger not start on a CLI?**
-Triggers do not start a turn on a CLI that works with its own tools (Native, or agy).
 
 **Why can an agent still read `.env` at Full auto?**
 A script that opens `.env` without naming it (it builds the name, say) is not caught. A command that

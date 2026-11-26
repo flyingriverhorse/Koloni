@@ -56,7 +56,7 @@ export const EFFORTS: Record<Effort, string> = {
 }
 /** What an agent of a role would run on now, where that comes from, and which providers may be picked for it. */
 export type RoleModel = Schemas['RoleModelOut']
-/** A group of roles (slice 62): a chat working with some opens only their roles (84b). */
+/** A group of roles (slice 62): a chat working with some opens only their roles (84b) - where the Orchestrator decides, any built-in role too. */
 export type Team = Schemas['TeamOut']
 /** A label roles are found by on the Agents page (slice 63b): a role's kind is its key. */
 export type Category = Schemas['CategoryOut']
@@ -176,12 +176,6 @@ export type Question = Schemas['QuestionOut']
 export type Discussion = Schemas['DiscussionOut']
 export type DiscussionPost = Schemas['DiscussionPostOut']
 export type BoardPost = Schemas['BoardPostOut']
-/** Two to four agents working on one goal at the same time, in one working copy: opened by the user, as a turn of its own. */
-export type Room = Schemas['RoomOut']
-/** One piece of a room's work: it has one holder, and a file is changed only under an item of one's own. */
-export type RoomItem = Schemas['RoomItemOut']
-/** Something said in a room: by a member, by you ("said"), or by KOLONİ for a member whose work is over or that failed. */
-export type RoomPost = Schemas['RoomPostOut']
 /** A file of the conversation to be seen beside the chat: one an agent wrote, or put before the user with `show`. */
 export type View = Schemas['ViewOut']
 export type ProjectEntry = Schemas['ProjectEntryOut']
@@ -201,8 +195,6 @@ export type ProjectFile = Schemas['ProjectFileOut']
 export type OthersInstructions = Schemas['OthersInstructionsOut']
 export type ProjectMap = Schemas['ProjectMapOut']
 export type Frame = Schemas['FrameOut']
-/** What is sent to open a room: its goal, its members and - where it is not the conversation's own - what it may spend. */
-export type NewRoom = Schemas['RoomIn']
 export type Provider = Schemas['ProviderOut']
 export type ProviderTest = Schemas['ProviderTestOut']
 /** Whether each model of a provider can be used now, and what to run when its CLI is missing or signed out. */
@@ -237,28 +229,12 @@ export type ProjectMemory = Schemas['ProjectMemoryOut']
 /** What an agent's `recall` would find: records of the memory, and what was said in earlier turns. */
 export type MemorySearch = Schemas['MemorySearchOut']
 export type SaidInTurn = Schemas['SaidOut']
-export type Trigger = Schemas['TriggerOut']
 /** Stop everything: whether it holds, what runs and would be held now, and what it stopped. */
 export type Hold = Schemas['HoldOut']
-export type TriggerRun = Schemas['TriggerRunOut']
-/** A trigger an agent proposed (slice 69), on its card until your word. */
-export type TriggerProposal = Schemas['TriggerProposalOut']
 /** K-bilgi 6: what turns found for the project's Project notes, on a card under a turn until your word. */
 export type NotesOffer = Schemas['NotesOfferOut']
-/** One thing that was done to a trigger - made, changed, switched, deleted - as its record keeps it. */
-export type TriggerLogEntry = Schemas['TriggerChangeOut']
-/** A trigger as it is answered once, when it is made: a webhook's key is in it, and nowhere after. */
-export type TriggerCreated = Schemas['TriggerCreatedOut']
-export type TriggerPermissions = Schemas['TriggerPermissions']
-export type TriggerBudget = Schemas['TriggerBudget']
-/** What is sent to make a trigger, with every field said. */
-export type NewTrigger = Required<Schemas['TriggerIn']> & { permissions: Required<TriggerPermissions> }
-/** What is sent to change one: only what is to change. */
-export type TriggerChange = Schemas['TriggerPatch']
 /** What the agents' models reported, added up three ways. A sum is null when nothing is known. */
 export type Usage = Schemas['UsageOut']
-/** Cards measured (0.1.7): the command cards of a period, answered how, by reason; the rules they suggest. */
-export type Cards = Schemas['CardsOut']
 export type Budget = Schemas['BudgetOut']
 /** What is left of the plan a CLI is signed in to, as the CLI says - or why that is not known (`unknown`). */
 export type Limits = Schemas['LimitsOut']

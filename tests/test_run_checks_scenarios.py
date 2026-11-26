@@ -26,7 +26,7 @@ from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import write
 from tests.test_chat_flow import text
 from tests.test_claude_native import WRITE, claude_app  # noqa: F401  (a fixture)
-from tests.test_cli_notify_trigger import start as start_cli
+from tests.test_cli_notify import start as start_cli
 from tests.test_compare_scenarios import compared, ready, two  # noqa: F401  (a fixture)
 from tests.test_dal_takim import repo  # noqa: F401  (a fixture)
 from tests.test_git_view import run as git
@@ -181,7 +181,10 @@ def test_green_then_commit_and_the_end_still_runs_its_own_pass(
 ):
     monkeypatch.setattr(TestAskMixin, "_proof_test_ask", ASK_FOR_A_TEST[0])
     monkeypatch.setattr(TestAskMixin, "_test_rows", ASK_FOR_A_TEST[1])
-    project = checked_repo(repo)
+    project = {
+        **checked_repo(repo),
+        "check_kinds": {"test": True},
+    }  # (0.1.10: off unless ticked)
     client, model = make_client(
         [
             write("a.py", "OK = True\n"),

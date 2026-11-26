@@ -25,8 +25,6 @@ from tests.test_claude_native import start as start_on
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_parallel import until
 from tests.test_spawn import call, step
-from tests.test_trigger_scenarios import run_now, trigger
-from tests.test_triggers import HeldClock, on_loop
 
 ORIGIN = "http://127.0.0.1:8790"
 ROOT = "proj"
@@ -564,92 +562,6 @@ def test_a_lead_holds_its_files_until_its_turn_is_over_and_a_declined_sub_agent_
     assert own_claims(snap) == []
     snap = wait_run(client, second, other)
     assert snap["claims"] == [] and waits(snap, "Writer") is None
-
-
-def test_a_turn_over_its_budget_lets_go_of_its_files(make_client, wait_run, project_dir):
-    """An unattended turn that may change files, stopped for taking more steps than it
-    has: the agent of another conversation that waited for its file goes on."""
-    gate = Gate()
-    client, model, first, second = two_conversations(
-        make_client,
-        project_dir,
-        {
-            "Lead": [
-                step(write("shared.txt", "one")),
-                held(gate, read("hello.py")),
-                spawn("Writer"),
-                text("done"),
-            ],
-            "Writer": [step(write("shared.txt", "two")), text("B done")],
-        },
-    )
-    pid = snapshot(client, first)["conversation"]["project_id"]
-    made = trigger(
-        client,
-        pid,
-        first,
-        permissions={"write": True, "commands": [], "agents": 0},
-        budget={"steps": 2, "minutes": 10, "per_day": 24},
-    )
-    one = run_now(client, made["id"])
-    gate.wait_partial()
-    other = start(client, second)
-    snap = until(client, second, lambda s: waits(s, "Writer") is not None)
-    assert waits(snap, "Writer") == ("Lead", "shared.txt")
-    gate.release()
-    snap = wait_run(client, first, one, timeout=15)
-    run = next(r for r in snap["runs"] if r["id"] == one)
-    assert run["status"] == "failed" and run["error"].startswith("budget: stopped after 2")
-    assert own_claims(snap) == []
-    snap = wait_run(client, second, other, timeout=15)
-    assert calls(snap, "Writer", "write_file")[0][0] == "failed"
-    assert snap["claims"] == [] and waits(snap, "Writer") is None
-
-
-def test_a_wait_in_a_turn_nobody_watches_is_not_a_wait_for_a_person_and_its_minutes_end_it(
-    make_client, wait_run, project_dir
-):
-    gate = Gate()
-    client, model, first, second = two_conversations(
-        make_client,
-        project_dir,
-        {
-            "Lead": [spawn("Coder"), step(write("shared.txt", "two")), text("done"), text("x")],
-            "Coder": [step(write("shared.txt", "one")), gate.step(text("A done"))],
-        },
-    )
-    one = start(client, first)
-    gate.wait_partial()
-    clock = client.app.state.runner.call_later = HeldClock()
-    pid = snapshot(client, second)["conversation"]["project_id"]
-    made = trigger(
-        client,
-        pid,
-        second,
-        permissions={"write": True, "commands": [], "agents": 0},
-        budget={"steps": 15, "minutes": 7, "per_day": 24},
-    )
-    other = run_now(client, made["id"])
-    snap = until(client, second, lambda s: waits(s, "Lead") is not None)
-    assert waits(snap, "Lead") == ("Coder", "shared.txt")
-    # it waits for an agent: not refused as something to ask about, and the turn is not
-    # one that waits for the user
-    assert agent(snap, "Lead")["status"] == "blocked"
-    assert calls(snap, "Lead", "write_file") == [("running", "")]
-    assert snap["runs"][-1]["status"] == "running"
-    (timer,) = clock.set
-    on_loop(client, timer.fire)  # seven minutes are over
-    snap = wait_run(client, second, other, timeout=15)
-    run = snap["runs"][-1]
-    assert run["status"] == "failed" and run["error"].startswith("budget: stopped after 7 min")
-    assert waits(snap, "Lead") is None and agent(snap, "Lead")["status"] == "failed"
-    # nothing was written: the waiter's change was not made, and the Coder's is in its
-    # working copy until its work is over (slice 19b)
-    assert not (project_dir / "shared.txt").exists()
-    # the one it waited for holds the file as before
-    assert [c["path"] for c in snapshot(client, first)["claims"]] == ["shared.txt"]
-    gate.release()
-    wait_run(client, first, one)
 
 
 def test_a_restart_leaves_nobody_waiting_and_nothing_held(tmp_path):

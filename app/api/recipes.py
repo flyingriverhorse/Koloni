@@ -7,6 +7,7 @@ from pathlib import Path as FsPath
 from time import monotonic
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
+from pydantic import ValidationError
 from sqlalchemy import func, literal_column, select, update
 from sqlalchemy.orm import Session
 
@@ -28,7 +29,7 @@ from app.db.models import (
 from app.model_client import UNREACHABLE, ModelUnavailable
 from app.providers import LIST_DOWN_SECONDS, TIERS, ask_own, down_now, looked_down, mode_of
 from app.providers import Refused as RefusedClient
-from app.roles import LEAD, agent_roles, find_role
+from app.roles import LEAD, find_role, list_roles
 from app.schemas import (
     RecipeAgents,
     RecipeDraftIn,
@@ -329,12 +330,19 @@ def list_recipes(
             Recipe.ready.desc(), Recipe.created_at, literal_column("recipes.rowid")
         )
     ).all()
-    found = [_out(recipe) for recipe in kept]
-    broken: list[str] = []
+    found, broken = [], []
+    for recipe in kept:
+        # (One saved before that no longer reads - a Room step of 0.1.9 past the step limit as
+        # a group, say - is said, as a folder's broken file is; the rest are listed all the same.)
+        try:
+            found.append(_out(recipe))
+        except ValidationError as exc:
+            broken.append(f"{recipe.name} is not read - {exc.errors()[0]['msg']}")
     if project_id is not None:
         project = _project(session, project_id)
-        files, broken = recipes.folder_recipes(project.root_path)
+        files, more = recipes.folder_recipes(project.root_path)
         found += [_folder_out(project, file, one) for file, one in files]
+        broken += more
     can = askers(
         session,
         request.app.state.providers,
@@ -495,7 +503,7 @@ async def draft_recipe(
     )
     if isinstance(can, str):
         raise HTTPException(409, can)
-    roles = [role.name for role in agent_roles(session) if not (role.builtin and role.name == LEAD)]
+    roles = [role.name for role in list_roles(session) if not (role.builtin and role.name == LEAD)]
     question = recipes.draw_question(session, body.text, roles)
     provider, said, model_id = await ask_in_turn(
         request,

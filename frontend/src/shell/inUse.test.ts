@@ -20,7 +20,6 @@ const known = (roles: Role[], over: Partial<Known> = {}): Known => ({
   teams: [],
   providers,
   tiers: null,
-  observes: false,
   ...over,
 })
 const ids = (c: Conversation, rows: RoleModel[], k: Known) => inUseBy(c, rows, k).ids
@@ -60,6 +59,21 @@ test("a role that is off, or in none of the chat's teams, is not opened: its pro
   expect(ids(docs, rows, known(roles, { teams }))).toEqual(['p-copilot', 'p-claude'])
 })
 
+test("where the Orchestrator decides, a built-in role beside its picks is opened; one of the user's own is not, nor in Manual", () => {
+  const roles = [lead, role('Architect', { builtin: true }), role('Writer', { teams: ['t-docs'] })]
+  const rows = [row('Lead', 'Copilot'), row('Architect', 'Claude Code'), row('Writer', 'Local')]
+  const teams = [
+    { id: 't-docs', lead: { name: 'Docs lead' }, lead_on: true },
+    { id: 't-web', lead: { name: 'Web lead' }, lead_on: true },
+  ] as Team[]
+  const web = [{ team_id: 't-web' }] as Conversation['teams']
+  expect(ids(chat({ teams_mode: 'lead', teams: web }), rows, known(roles, { teams }))).toEqual([
+    'p-copilot',
+    'p-claude',
+  ])
+  expect(ids(chat({ teams_mode: 'manual', teams: web }), rows, known(roles, { teams }))).toEqual(['p-copilot'])
+})
+
 test("a team's lead runs only beside another team, and only on: as the server opens one", () => {
   const roles = [lead, role('Web lead', { kind: 'lead' }), role('Docs lead', { kind: 'lead', enabled: false })]
   const rows = [row('Lead', 'Copilot'), row('Web lead', 'Local'), row('Docs lead', 'Claude Code')]
@@ -77,11 +91,10 @@ test("a team's lead runs only beside another team, and only on: as the server op
   expect(ids(of('t-ops', 't-docs'), rows, known(roles, { teams }))).toEqual(['p-copilot'])
 })
 
-test("the Observer counts only where the chat's project looks over reports; the Planner, which the Lead may open any time, always", () => {
-  const roles = [lead, role('Planner', { builtin: true }), role('Observer', { builtin: true })]
-  const rows = [row('Lead', 'Copilot'), row('Planner', 'Claude Code'), row('Observer', 'Local')]
+test('the Planner, which the Lead may open any time, always counts', () => {
+  const roles = [lead, role('Planner', { builtin: true, enabled: false })]
+  const rows = [row('Lead', 'Copilot'), row('Planner', 'Claude Code')]
   expect(ids(chat(), rows, known(roles))).toEqual(['p-copilot', 'p-claude'])
-  expect(ids(chat(), rows, known(roles, { observes: true }))).toEqual(['p-local', 'p-copilot', 'p-claude'])
 })
 
 test('the model a lead that follows the message asks how hard it is counts too', () => {

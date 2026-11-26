@@ -30,7 +30,7 @@ from app.agent.words import (
     USER_STOPPED_HERE,
 )
 from app.api.usage import month_spend
-from app.commands import danger, is_exactly, ticked
+from app.commands import is_exactly
 from app.db.models import (
     Agent,
     Command,
@@ -44,7 +44,6 @@ from app.db.models import (
     Question,
     Run,
     ToolCall,
-    Trigger,
     now,
 )
 from app.model_client import ModelClient, OwnStop
@@ -77,7 +76,7 @@ CIRCLING_GO_ON = "Go on"
 # the night goes on. shortcut: a fixed 10 minutes, not a setting; make it one if users ask.
 CIRCLING_WAIT = 600.0
 CIRCLING_NO_ANSWER = "No answer in 10 minutes"
-# Said on the desktop and to the project's notification address as the card goes up.
+# Said on the desktop as the card goes up.
 CIRCLING_TOLD = (
     "The Orchestrator seems stuck: it repeated {tool} with the same result. Go on "
     "or Stop here in the chat; with no answer in 10 minutes its turn ends, its work "
@@ -180,14 +179,9 @@ class LimitsMixin:
 
     def _watch_the_budget(self: "AgentRunner", session, run: Run) -> None:
         """An unattended turn starts: from here on it is one, and its time is counted.
-        A trigger that is gone gives it nothing - no step, and no leave."""
-        trigger = session.get(Trigger, run.trigger_id) if run.trigger_id else None
-        budget = trigger.budget if trigger else {}
+        With triggers gone (0.1.10) nothing gives it a step, or a leave."""
         unwatched = self._unwatched[run.id] = _Unwatched(
-            trigger.id if trigger else None,
-            run.trigger_name or "",
-            steps=int(budget.get("steps") or 0),
-            minutes=int(budget.get("minutes") or 0),
+            None, run.trigger_name or "", steps=0, minutes=0
         )
         unwatched.left = unwatched.minutes * MINUTE
         self._count_minutes(run.id)
@@ -201,8 +195,6 @@ class LimitsMixin:
         through: a place that goes from one of its agents to the next stops no clock."""
         if run_id in self._unwatched:
             asyncio.get_running_loop().call_soon(self._count_minutes, run_id)
-        elif run_id in self._rooms:
-            asyncio.get_running_loop().call_soon(self._room_minutes, run_id)
 
     def _count_minutes(self: "AgentRunner", run_id: str) -> None:
         """An unattended turn's minutes are not counted while it is only kept waiting
@@ -292,12 +284,7 @@ class LimitsMixin:
     def _count_step(self: "AgentRunner", ctx: Ctx) -> None:
         """A model step of an unattended turn is about to be taken, by whichever of its
         agents: one more than its budget has, and the whole turn stops here. So does any
-        turn - watched or not - that is over its project's limit on tokens. And a member
-        of a room that has ended takes none: its work stops here, as the room's end
-        stops it wherever else it is."""
-        found = self._member_of(ctx)
-        if found is not None and found[0].outcome is not None:
-            raise asyncio.CancelledError
+        turn - watched or not - that is over its project's limit on tokens."""
         self._hold_to_limit(ctx)
         unwatched = self._unwatched.get(ctx.run_id)
         if unwatched is None:
@@ -384,14 +371,9 @@ class LimitsMixin:
 
     def _role_counts(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether a job's steps add up with its agent's others against its role's limit. Not
-        one with a limit of its own (a room's sharing step), nor a room member's: each time
-        it is woken counts on its own, as before B-325."""
-        room = self._rooms.get(ctx.run_id)
-        return (
-            _goes_on(ctx)
-            and not ctx.max_steps
-            and not (room is not None and ctx.agent_id in room.members)
-        )
+        one with a limit of its own (a speech): each time it is woken counts on its own, as
+        before B-325."""
+        return _goes_on(ctx) and not ctx.max_steps
 
     def _role_now(self: "AgentRunner", ctx: Ctx) -> Ctx:
         """B-325: an agent with its role's limits as they stand now (the user may have changed
@@ -471,7 +453,7 @@ class LimitsMixin:
         """The most steps one agent takes on a job. In an unattended turn the trigger's
         budget, which counts all its agents together, is what holds. A job on a budget given
         on top (K-devam-butce) takes that many. None: no count of its own - the Orchestrator.
-        B-413: three teams, a room and the messages between them ran its fixed count out
+        B-413: three teams and the messages between them ran its fixed count out
         after the work was in the project, and no Continue card is asked of it. What holds it
         instead: the loop guard (`_counted`, `_circled`), a limit the user set - its role's own
         (the Lead's `max_steps`), a trigger's steps for the whole turn (`_count_step`) - the
@@ -524,7 +506,7 @@ class LimitsMixin:
     ) -> bool | str:
         """`_circled` in a turn the user can be asked in: the first time, the Orchestrator is
         told to try another way or end (CIRCLING_NUDGE) and goes on; then the user is asked on a
-        card, told on the desktop and at the project's address (`_tell_stuck`). True: it goes
+        card, told on the desktop (`_tell_stuck`). True: it goes
         on; else KOLONİ's report where nobody answered in CIRCLING_WAIT, or "".
         shortcut: a native CLI hears the nudge only on a run again (as `steer`)."""
         with self._factory() as session:
@@ -588,23 +570,14 @@ class LimitsMixin:
 
     def _tell_stuck(self: "AgentRunner", ctx: Ctx, tool: str) -> None:
         """B-413: the Orchestrator's card that it seems stuck, told as a night's end is
-        (`away.send`): on the desktop where the project has notices on (within `_toasts`), and
-        at its notification address. Never fails the turn."""
+        (`away.send`): on the desktop where the project has notices on (within `_toasts`).
+        Never fails the turn."""
         with contextlib.suppress(Exception):
             with self._factory() as session:
                 project = self._project(session, ctx.cid)
-                if project is None:
+                if project is None or not (project.notify_desktop and self._toasts.take(ctx.cid)):
                     return
-                desktop = project.notify_desktop and self._toasts.take(ctx.cid)
-                if not (desktop or project.notify_url):
-                    return
-                note = (
-                    project.name,
-                    project.notify_url,
-                    project.notify_format,
-                    desktop,
-                    CIRCLING_TOLD.format(tool=tool),
-                )
+                note = (project.name, CIRCLING_TOLD.format(tool=tool))
             away.send(note)
 
     def _arm_todo_deadline(self: "AgentRunner", run_id: str) -> None:
@@ -868,8 +841,8 @@ class LimitsMixin:
         answers the card for the user (K-fullauto-sorma: a "card"), either way, once for each
         agent in a turn (`_budgeted`, as K-devam-butce): past that it ends. No card where nobody
         would be there to answer - a turn a trigger started, a night's job, a backlog task - nor
-        for a job with a limit of its own (a room's sharing step), an answer, a turn on another's
-        message (its sender waits for the reply), or a room member. Nor where its work is kept
+        for a job with a limit of its own (a speech), an answer, or a turn on another's
+        message (its sender waits for the reply). Nor where its work is kept
         on a card of its own with Continue on it (B-322: that ends at once and holds nobody up).
         Its role's step limit still holds: Continue gives at most what the role has left, and
         none is asked where it has none left. A go on by message (`_go_on_gate`) counts as its
@@ -923,7 +896,6 @@ class LimitsMixin:
             or ctx.agent_id in self._halted
             or not self._watched(ctx.run_id)
             or ctx.run_id in self._away_jobs
-            or self._member_of(ctx) is not None
             or await self._kept_card_comes(ctx)
         ):
             return False
@@ -1011,10 +983,10 @@ class LimitsMixin:
         unwatched = self._unwatched.get(ctx.run_id)
         if unwatched is None:
             return None
+        # (Triggers are gone, 0.1.10: a turn nobody watches has no leave of its own.)
+        leave: dict = {}
+        lines: list[str] = []
         with self._factory() as session:
-            trigger = session.get(Trigger, unwatched.trigger_id) if unwatched.trigger_id else None
-            leave = trigger.permissions if trigger and isinstance(trigger.permissions, dict) else {}
-            lines = [rule.prefix for rule in ticked(session, trigger)] if leave else []
             tests = (
                 session.scalar(
                     select(Project.test_commands)
@@ -1088,17 +1060,8 @@ class LimitsMixin:
         return UNATTENDED_NOT_THIS.format(provider=ctx.provider or "This CLI")
 
     def _leave(self: "AgentRunner", run_id: str) -> dict:
-        """What the trigger of an unattended turn allows, as it stands right now; nothing
-        when the trigger is gone. Its `commands` are the lines themselves: the texts of
-        the rules it has ticked that are still on its conversation's allow list."""
-        unwatched = self._unwatched[run_id]
-        with self._factory() as session:
-            trigger = session.get(Trigger, unwatched.trigger_id) if unwatched.trigger_id else None
-            if trigger is None or not isinstance(trigger.permissions, dict):
-                return {}
-            # (a rule stored before slice 90 for one that deletes covers nothing: not promised)
-            lines = [rule.prefix for rule in ticked(session, trigger) if not danger(rule.prefix)]
-            return {**trigger.permissions, "commands": lines}
+        """What the trigger of an unattended turn allows: nothing, with triggers gone (0.1.10)."""
+        return {}
 
     def _leave_in_words(self: "AgentRunner", run_id: str) -> str:
         """What the trigger of an unattended turn allows, for the agent's instructions."""

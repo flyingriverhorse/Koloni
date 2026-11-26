@@ -22,16 +22,16 @@ checked again:
    ([Not this turn's](#not-this-turns-flaky-tests-and-failures-from-before)).
 2. **What it wrote besides code** - documents, diagrams, data, slides, config files and scripts,
    and the changed code by the project's own ruff, eslint, tsc and mypy
-   ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)), and a changed
-   page opened in KOLONİ's own browser at a phone's, a tablet's and a desktop's width - its
-   console, its width and its accessibility ([Pages](#pages)).
+   ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)), and, where you
+   ticked **Pages**, a changed page opened in KOLONİ's own browser at a phone's, a tablet's and a
+   desktop's width - its console, its width and its accessibility ([Pages](#pages)).
 3. **A Reviewer's look** at a big or security-touching change ([The review](#the-review)); long
    documents are read once against your request
    ([Documents read against your request](#documents-read-against-your-request)).
 4. **The live try**, once a turn: a changed command-line tool is asked for its `--help`, and a big
    change of screens is tried by a Tester on the chat's preview ([The live try](#the-live-try)).
-5. **A test for the change**, asked once where code changed and no test did
-   ([A test for the change](#a-test-for-the-change)).
+5. **A test for the change**, where you ticked it: asked once where code changed and no test
+   did ([A test for the change](#a-test-for-the-change)).
 
 A failure goes back to the Orchestrator until it passes - while each round makes progress - or
 as many times as **Fix rounds** says ([When the tests fail](#when-the-tests-fail)); then a stronger
@@ -135,7 +135,7 @@ A project that had turned off the old **Finish only when the tests pass** switch
    (`Package.swift`), `ctest --test-dir build` (`CMakeLists.txt`), `make test` (a `test:` target
    in the `Makefile`).
 4. Otherwise a test command an agent ran in this turn that really ran tests, in a turn you are
-   there for (not while you're away, not a trigger's).
+   there for (not while you're away).
 5. Otherwise KOLONİ asks the project's **Fast** tier's model once, in a turn you are there for,
    where its tests are. KOLONİ shows it the project's parts and languages, its test files and the
    start of its README, CONTRIBUTING and Makefile (never a secret file, nor one reached through a
@@ -176,8 +176,7 @@ CI)". Until you approve them they are not run - at **Full auto** and while you'r
 change to a workflow file asks again; a workflow changed in the turn itself is not used ("CI
 commands not used: a workflow changed in this turn"). Each still goes through KOLONİ's reading of commands: a harmful one is asked as your
 level says. An approved line runs as your own command does: `make test`, `npm test` or `tox` run
-the project's own Makefile, package scripts or tox file, whatever they hold. A trigger's turn runs
-one only with the trigger's own leave for that line.
+the project's own Makefile, package scripts or tox file, whatever they hold.
 
 A line is offered only in a form that checks. One that changes files (`ruff check --fix`, `ruff
 format`, `eslint --fix`, `tsc --build`, a test run's `-u` or `--junitxml=…`), downloads or installs
@@ -213,8 +212,8 @@ test, or no test tool, is never saved, and a command of yours is never replaced.
 Settings › This project › Checks and git shows each saved command under **Found by KOLONİ** as
 soon as it is saved, where it came from and when. **Forget it** clears them; they are found again
 at the next change. A saved command runs as the project's for this check only, and below **Full
-auto** on a card until you say **Always** on it (see [Asking](#asking)). Agents and triggers do
-not get to run it unasked. To make it yours, set it as a part's test command on the project map.
+auto** on a card until you say **Always** on it (see [Asking](#asking)). Agents do not get to run
+it unasked. To make it yours, set it as a part's test command on the project map.
 
 Where KOLONİ reads a count from the runner's summary (pytest, jest, vitest, go, cargo, dotnet,
 Maven, Gradle, RSpec, PHPUnit), the line gives it. Any other runner is judged by its exit code
@@ -249,8 +248,6 @@ KOLONİ's test run is asked about as the Orchestrator's own command would be:
   job finishes. Nor is a saved command you have not said **Always** to: "Tests not run: a saved
   command no Always rule covers, you were away". Your own command still runs. A To-do task's turn in a
   chat asks as any turn of that chat does (a chat's To-do queue waits while you're away).
-- In a trigger's turn it runs only where the trigger allows that very command. Otherwise the
-  section says "Tests not run" with the trigger's words.
 
 The run shows in the turn like any command, as KOLONİ's own. The Orchestrator does not see it
 in its history: it is told the result when the tests fail.
@@ -289,10 +286,8 @@ narrowed to them (`python -m pytest -q tests/test_new.py`), in its working copy.
 the sub-agent's own code, so they run by themselves only at **Full auto**, or where every part's
 command is yours (yours on the map, or a saved one an **Always** rule covers). Otherwise - KOLONİ's
 guess at **Ask before changes** or **Auto-edit files** - the card shows the command, "not run",
-and waits for your **Run the test**; nothing is taken before. While you are away, or in a
-trigger's turn, a guess never runs them (the work is taken as without a test, said "not run");
-your own command runs there - a trigger's tick for a saved one covers its line with the files
-added. A sub-agent that wrote no test is added with no test before (its card says "No tests of
+and waits for your **Run the test**; nothing is taken before. While you are away a guess never
+runs them (the work is taken as without a test, said "not run"); your own command runs there. A sub-agent that wrote no test is added with no test before (its card says "No tests of
 its own to run before it is added"). A part whose test command cannot run just those files is
 not run, and the card and Checked say which and why ("web/: its test command (npm test) cannot
 run just these files (its test script is not vitest or jest alone) - not run") - beside a pass
@@ -468,8 +463,7 @@ change and the fix, by the same rule (a big or security-touching change gets the
 the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
 That turn keeps the held turn's checks - never fewer than the tests and the review, whatever this
 chat's switch or the project's After a change say since; its old code, for "were failing before",
-is the project's, so the held work's own failure is never excused; and a room its Orchestrator
-opens takes nothing in when it ends. The Reviewer sees the kept work as Take in shows it: what
+is the project's, so the held work's own failure is never excused. The Reviewer sees the kept work as Take in shows it: what
 Take in leaves out is not in it, and a secret file, one holding a secret you gave on a card, or
 one that is not text is named, never shown.
 **Take in anyway** is your word: the work goes in as it is, with no look first.
@@ -512,8 +506,7 @@ the turn, and **Always** keeps that line (the program and its options, never the
 a line that adds another config, a plugin, parser or formatter, a plugin folder, `--fix`, a
 report or trace elsewhere, or tells tsc to build or write (`--incremental`, `--noEmit false`, `-b`)
 asks again); while you are
-away, or in a turn a trigger started without its leave for that line, it is not run and its line
-says "needs your leave once". A program an agent wrote - this turn, or an earlier turn in an install
+away it is not run and its line says "needs your leave once". A program an agent wrote - this turn, or an earlier turn in an install
 folder (`node_modules`, `.venv`, `site-packages`), in the project or in a working copy, taken in or
 not, while the file still holds what it wrote - in any case of its name, or through a link, is never run and
 offers no card, nor one whose real place is outside the project, nor eslint or tsc where the turn wrote in a
@@ -573,7 +566,10 @@ PowerShell, its scripts are said as not checked.
 
 ### Pages
 
-A changed web page (`.html`) is opened in KOLONİ's own headless Chrome or Edge - the browser the
+Off unless you tick **Pages** in **Settings › This project › Checks and git › Check by kind of
+work** (since 0.1.10; a project where you had ticked it keeps it). Unticked, a turn that wrote a
+page says "Not checked: pages switched off for this project". Ticked, a changed web page
+(`.html`) is opened in KOLONİ's own headless Chrome or Edge - the browser the
 agents' browser tools use, on this machine, never out on the internet - at 375, 768 and 1280 px
 (a phone, a tablet, a desktop). Console errors and a page wider than the screen (it scrolls
 sideways) are failed, and go back as a fix round with the first error: "index.html: 2 console
@@ -667,7 +663,10 @@ out. A text's opacity (its own or a parent's), its shadow, an outline drawn by a
 
 ## A test for the change
 
-A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
+Off unless you tick **A test for the change** in **Settings › This project › Checks and git ›
+Check by kind of work** (since 0.1.10). Unticked, a turn that changed code and no test says "Not
+checked: a test for the change switched off for this project". Ticked, it is asked under **Test
+and review** and **Tests only** alike. A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
 is asked, once, for a test: "Not the end yet: `a.py` changed and no test did." The Orchestrator
 has one written - by an agent that writes code, or itself; for a bug fix, first a test that fails
 without the fix - and KOLONİ runs the tests again on it. Where no test fits (documents, settings, a
@@ -846,7 +845,7 @@ a user would:
   runs in the project itself only: where the work waits in a working copy, "Not tried: the work
   waits in a working copy…".
 - Not tried, and said: while the turn's tests still fail (not those failing before it), in a turn
-  nobody watches (Away, a trigger), or where the Tester's role has no browser tools. A To-do task's
+  nobody watches (Away), or where the Tester's role has no browser tools. A To-do task's
   turn is tried as the chat's other turns are.
 
 On the canvas the Tester is drawn in the Checks box ([On the canvas](#on-the-canvas)); KOLONİ's own
@@ -973,7 +972,7 @@ them, the line says "Tests not run: you stopped the check".
   no clock.
 - **Stop everything** and putting the chat away stop it too. If KOLONİ closes while it runs,
   the next start says "Tests not finished: KOLONİ restarted".
-- A job while you're away, a To-do task's turn and a trigger's turn have nobody waiting for
+- A job while you're away and a To-do task's turn have nobody waiting for
   the answer, and their fix rounds need the result: they wait for the whole suite, up to the
   project's **Longest command** (10 minutes unless you raise it), with no related step.
 - A turn whose work is in its own working copy (a team's branch) cannot leave its tests running
@@ -988,7 +987,7 @@ them, the line says "Tests not run: you stopped the check".
 
 ### How many run at once
 
-![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits; under Save, the Show experimental CLIs switch, off, and the Judge model: Fast tier's first (now: fake-qwen)](../images/settings-app-test-runs.png)
+![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits; under Save, the Show experimental features switch, off, and the Judge model: Fast tier's first (now: fake-qwen)](../images/settings-app-test-runs.png)
 
 KOLONİ's own test runs queue: **Settings › The app › KOLONİ's test runs at once** (1 unless you
 change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says
@@ -1021,7 +1020,7 @@ one of them asks you something: the card says it too); its foot a dot a round (r
 held, green: passed, amber: at work, grey: it only asked for a test - no fix round). One look and nothing sent back is a plain box: no count, no
 shadows, no loop. Who is in it, and each round, is what KOLONİ wrote down as its checks went - each
 pass's tests, its looks and their verdicts, why it went back, and the agents its send-back had the
-Orchestrator open -, never guessed from the order agents were opened in: an agent of a room or a
+Orchestrator open -, never guessed from the order agents were opened in: an agent of a
 discussion, or one written for KOLONİ's ask for a test (which is no fix round), stays the
 Orchestrator's; what a fixer opened under it is in the box with it; a stronger model's diagnosis is
 a card of its own kind, not a look. That record comes with the Checked section at the turn's end:
@@ -1075,7 +1074,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Tests ran none: `command` collected no test | The runner found no test: pytest's or unittest's exit code 5, "Ran 0 tests", jest's "No tests found", vitest's "No test files found". This is not a pass. |
 | – Tests skipped only: `command` - `summary` | Every test it found was skipped. This is not a pass. |
 | – Tests could not start: `why` | The program was not found, the command could not start, or KOLONİ's check itself broke. Nothing is sent back. |
-| – Tests not run: `why` | It was declined on its card, a trigger does not allow it, the web is off and it reaches the internet, you stopped it while the answer waited for it, or the turn ended first. |
+| – Tests not run: `why` | It was declined on its card, the web is off and it reaches the internet, you stopped it while the answer waited for it, or the turn ended first. |
 | – Tests timed out / not waited for | It did not end in time. This is neither a pass nor a failure. |
 | ✓ Related tests passed: `command` `files` - `summary` | The tests related to the changed files passed. The whole suite runs after them. |
 | … Full tests running: `command` (2:14) | The whole suite goes on after the answer. Its line is written again when it ends. |

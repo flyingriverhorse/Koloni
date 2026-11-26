@@ -34,7 +34,6 @@ from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_native_agent import start as start_native
 from tests.test_spawn import call, step
 from tests.test_take_in_scenarios import git, needs_git, repository
-from tests.test_trigger_scenarios import run_now, trigger
 
 
 @pytest.mark.parametrize(
@@ -676,26 +675,6 @@ def test_in_a_copy_a_build_folder_goes_without_a_card_but_not_one_holding_a_link
         "exited",
         {"what": "build folder build", "unasked": True},
     )
-
-
-@needs_git
-def test_a_turn_nobody_watches_gets_no_disposable_delete_unasked(make_client, wait_run, at_git):
-    executor = ScriptedExecutor([])
-    client, _ = make_client([cmd("git branch -D old"), text("done")], executor=executor)
-    pid = allowing(client, at_git, True)
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert (
-        client.patch(
-            f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}, headers=OWN
-        ).status_code
-        == 200
-    )
-    client.headers["Origin"] = OWN["Origin"]  # (a trigger is the user's, from their page)
-    run_id = run_now(client, trigger(client, pid, cid)["id"])
-    snap = wait_run(client, cid, run_id)
-    assert snap["commands"] == [] and executor.started == []
-    (refused,) = [t for t in snap["tool_calls"] if t["name"] == "run_command"]
-    assert refused["status"] == "denied", refused
 
 
 @needs_git

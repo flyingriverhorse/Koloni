@@ -24,12 +24,6 @@ STOP_AT = 5  # in a turn nobody watches, the same failure this often ends the ag
 # B-413: the Orchestrator's calls in a row that brought nothing new, which stop it -
 # twice STOP_AT: it is told of a repeat from SIGN_AT on, and has calls left to change course.
 IDLE_STOP = 10
-# ...and what is neither new nor a repeat: a wait in the room the Orchestrator follows that did
-# wait (WAIT_INSTANT seconds or more), which may say the same while its members work. (Only the
-# Orchestrator's count stops anything; wait_for_team, wait_for_post and wait_for_item are tools
-# of the agents below it.) One back at once with the same words is a repeat.
-WAITS = frozenset(("wait_for_room",))
-WAIT_INSTANT = 5.0
 # A message to one of the last this many it wrote to is no move.
 RECENT = 3
 IDLE = (
@@ -122,16 +116,14 @@ class Counts:
             return True
         return False
 
-    def heard(
-        self, tool: str, arguments: str, said: str, step: object = None, waited: bool = False
-    ) -> None:
+    def heard(self, tool: str, arguments: str, said: str, step: object = None) -> None:
         """A call's result: one that repeats a call and its result since something moved adds
-        to `idle`; a wait that waited (`waited`), or a call already heard in this `step`, leaves
-        it as it is; any other sets it back to 0."""
+        to `idle`; a call already heard in this `step` leaves it as it is; any other sets it back
+        to 0."""
         key = (tool, _canonical(arguments), same_error(said))
         if step != self._step:
             self._step, self._in_step = step, set()
-        if waited or step is not None and key in self._in_step:
+        if step is not None and key in self._in_step:
             return
         self._in_step.add(key)
         self.idle = self.idle + 1 if key in self._heard else 0

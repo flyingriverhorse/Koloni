@@ -200,13 +200,6 @@ export const ROLE_TOOLS: RoleTool[] = [
     hint: 'talk to other agents',
   },
   {
-    name: 'open_room',
-    group: 'Team',
-    label: 'Open rooms',
-    line: 'several on one goal',
-    hint: 'open a room in which several agents work on one goal together',
-  },
-  {
     name: 'discuss',
     group: 'Team',
     label: 'Discussions',
@@ -235,13 +228,6 @@ export const ROLE_TOOLS: RoleTool[] = [
     line: 'propose a change, on a card',
     hint: 'propose a change to a task of the To-do list, on a card',
     asks: true,
-  },
-  {
-    name: 'propose_trigger',
-    group: 'Team',
-    label: 'Propose triggers',
-    line: 'on a card',
-    hint: 'propose a trigger for you to approve, on a card: it reads only until you give it more',
   },
   {
     name: 'post_note',

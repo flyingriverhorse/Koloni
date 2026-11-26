@@ -1,16 +1,12 @@
 """Slice 81c, after review: a provider's limit holds wherever its provider would spend - a
-sub-agent and a room's member, each side of a comparison, the model asked for the day's
+sub-agent, each side of a comparison, the model asked for the day's
 words, a trigger's turn - and is read once a request; a limit in dollars is not kept against
 prices in another currency; a Lead moved by a limit says why from the start."""
 
-from datetime import UTC, datetime, timedelta
-
-import pytest
 from sqlalchemy import select
 
 from app.api import usage
-from app.db.models import Agent, Conversation
-from app.room import member_model
+from app.db.models import Agent
 from tests.test_agents_teams_scenarios import patch_role, spawn
 from tests.test_budget_scenarios import PRICE
 from tests.test_chat_flow import text
@@ -19,7 +15,6 @@ from tests.test_spawn import step
 from tests.test_team import results, team  # noqa: F401  (a fixture)
 from tests.test_tier_order_scenarios import both_strongest
 from tests.test_tier_scenarios import ORIGIN, role_tier, tiered
-from tests.test_trigger_scenarios import one, tick, trigger
 from tests.test_usage_scenarios import began, turn
 
 
@@ -142,18 +137,6 @@ def test_the_days_words_hold_the_model_asked_to_its_limit(make_client, wait_run,
     assert going.status_code == 200, going.text
 
 
-def test_a_trigger_past_its_leads_limit_starts_nothing_and_says_so(
-    make_client, wait_run, project_dir
-):
-    client, _model, pid, cid, _run = past(make_client, wait_run, project_dir, [text("b", 1, 1)])
-    made = trigger(client, pid, cid)
-    assert tick(client, datetime.now(UTC) + timedelta(hours=2)) == []
-    seen = one(client, made["id"])["runs"][0]
-    assert seen["outcome"] == "skipped_limit" and "over Local's limit" in seen["note"]
-    refused = client.post(f"/api/triggers/{made['id']}/run")
-    assert refused.status_code == 409 and "over its limit" in refused.text
-
-
 def test_going_on_past_a_providers_limit_is_the_users_word(make_client, wait_run, project_dir):
     client, _model, _pid, cid, _run = past(make_client, wait_run, project_dir, [text("b", 1, 1)])
     del client.headers["Origin"]
@@ -212,24 +195,3 @@ def test_a_lead_moved_by_a_limit_says_why_from_the_start(team, wait_run, project
     assert lead["chosen_why"] == (
         "over Local's limit of 5.00 USD a day (10.50 spent today): the next strongest model"
     )
-
-
-def test_a_rooms_members_are_held_to_their_providers_limits(make_client, wait_run, project_dir):
-    client, _model, _pid, cid = began(make_client, project_dir, [text("a", 10, 10), text("b")])
-    run = turn(client, wait_run, cid)
-    other(client, run, for_agents=True)  # open to agents: this test is about the limit (B-385)
-    # The user's room: asked first, as a message is, of a member's provider too.
-    room = {
-        "goal": "together",
-        "with": [{"role": "Coder", "provider": "Other"}, {"role": "Reviewer"}],
-    }
-    refused = client.post(f"/api/conversations/{cid}/rooms", json=room)
-    assert refused.status_code == 409 and "over Other's limit" in refused.text
-    # An agent's room: a member past its provider's limit is not opened, as a sub-agent is not.
-    with client.app.state.session_factory() as session:
-        conversation = session.get_one(Conversation, cid)
-        conversation.provider_id = next(
-            p["id"] for p in client.get("/api/providers").json() if p["name"] == "Other"
-        )
-        with pytest.raises(ValueError, match="Other is over Other's limit"):
-            member_model(session, conversation, "Coder", None, None)

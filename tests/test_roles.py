@@ -60,8 +60,6 @@ def test_built_in_roles_match_the_design():
         # slice 52
         "Hive keeper",
         "Scout",
-        # slice 33b: asked by KOLONİ itself, with no tools
-        "Observer",
         # K-takim-duzen
         "Data engineer",
         "ML engineer",
@@ -83,10 +81,9 @@ def test_built_in_roles_match_the_design():
         "ask_folder",
         "message_agent",
         "discuss",
-        "propose_trigger",
         *NOTEBOOK,
         *MEMORY,
-    ]  # (slice 69: it proposes, the user approves)
+    ]
     # (slice 51: the roles that try a page get the browser after their commands or web)
     # (K-drawio: who writes documents, designs or code draws diagrams, after its file tools)
     assert tools["Coder"] == READ + [
@@ -163,7 +160,6 @@ def test_built_in_roles_match_the_design():
         *NOTEBOOK,
         *MEMORY,
     ]
-    assert tools["Observer"] == []
 
     # K-takim-duzen: each takes an existing role's tools as they are - slice 51's browser aside,
     # which only the six roles that try a page hold, and K-drawio's diagrams, the five's
@@ -202,7 +198,6 @@ def test_built_in_roles_match_the_design():
         "Summarizer": "write",
         "Hive keeper": "plan",
         "Scout": "plan",
-        "Observer": "check",
         # K-takim-duzen: the Data, ML and Ops categories; the Model evaluator checks
         "Data engineer": "data",
         "ML engineer": "ml",
@@ -224,8 +219,8 @@ def test_built_in_roles_exist_after_startup(client):
     listed = client.get("/api/roles").json()
     # (Then migration 0103's two experts: the user's own roles.)
     assert [r["name"] for r in listed] == [*BUILTIN_ROLES, "MLflow expert", "Databricks expert"]
-    assert len(BUILTIN_ROLES) == 32
-    assert all(r["builtin"] and not r["created_by_agent"] for r in listed[:32])
+    assert len(BUILTIN_ROLES) == 31
+    assert all(r["builtin"] and not r["created_by_agent"] for r in listed[:31])
     assert roles(client)["Reviewer"]["tools"] == [
         *READ,
         "ask_user",
@@ -479,6 +474,45 @@ def test_a_users_role_is_never_locked(client):
         ).status_code
         == 200
     )
+
+
+def test_where_the_lead_decides_its_picks_are_no_fence_for_a_built_in_role():
+    """The user, 26 Nov: in a chat the Orchestrator picks the teams of, any built-in role opens
+    beside them; a role of the user's own keeps to them, none opens only in teams it may not
+    pick, and Manual keeps to the teams as before."""
+    from app.db.models import Role, Team
+    from app.roles import Door, closed
+
+    web, quality = (
+        Team(name="Web app", lead_may_pick=True),
+        Team(name="Quality", lead_may_pick=True),
+    )
+    docs = Team(name="Docs", lead_may_pick=False)
+
+    def role(name, builtin, *teams):
+        return Role(name=name, builtin=builtin, enabled=True, teams=list(teams))
+
+    def why(one, door):
+        said = closed(one, door, frozenset())
+        return said and said.split(" (")[0].split(" role ")[1]
+
+    picked, unpicked, manual = Door([web], lead=True), Door([], lead=True), Door([web])
+    only = "is only in teams the Orchestrator may not pick"
+    outside = "is in none of this chat's teams"
+    cases = [  # (picked, before the pick, Manual)
+        (role("Coder", True, web, quality), [None, None, None]),
+        (role("Architect", True), [None, None, outside]),
+        (role("Security reviewer", True, quality), [None, None, outside]),
+        (role("Translator", True, docs), [only, only, outside]),
+        (role("Forager", False, quality), [outside, None, outside]),
+        (role("Helper", False), [outside, None, outside]),
+        (role("Scribe", False, docs), [only, only, outside]),
+        (role("Pair", False, web), [None, None, None]),
+    ]
+    for one, wanted in cases:
+        assert [why(one, door) for door in (picked, unpicked, manual)] == wanted, one.name
+    # Named in the user's message, any role opens - whatever its teams.
+    assert closed(role("Scribe", False, docs), picked, frozenset({"scribe"})) is None
 
 
 def test_title_of_names_the_lead_and_a_teams_lead_for_people_only():

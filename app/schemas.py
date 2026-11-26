@@ -17,6 +17,7 @@ from app import copies
 from app.commands import held_back
 from app.judge_schemas import Judged
 from app.raw import MIN_SECRET
+from app.recipe_rooms import MOST_STEPS, without_rooms
 from app.roles import CORE
 from app.schemas_away import AwayJobOut, AwayTried
 from app.skills import GROUPS as SKILL_GROUPS
@@ -35,7 +36,6 @@ class ProjectIn(BaseModel):
 
 
 ExecLocation = Literal["host", "docker"]
-NotifyFormat = Literal["slack", "discord", "text"]
 
 
 # An image's name as Docker takes one (registry/name:tag@digest) - never an option of its
@@ -91,15 +91,13 @@ JudgeRisky = Literal["refuse", "ask"]
 AfterChange = Literal["check", "tests", "nothing"]
 # S10: Test and review changes, for one chat; None (not sent as such) the project's.
 ChatAfterChange = Literal["off", "on"]
-# S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`).
-CheckKind = Literal["docs", "slides", "diagram", "data", "ui", "config", "scripts", "style"]
+# S5a: the kinds of work KOLONİ checks after it wrote them (`proof_kinds.KINDS`); "test" asks one.
+CheckKind = Literal["docs", "slides", "diagram", "data", "ui", "config", "scripts", "style", "test"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
 MAX_AWAY_MINUTES = 1440
 SpawnApproval = Literal["auto", "always", "never"]
-# The most a room's budget can be set to: a number, not a way round having one.
-MAX_ROOM_POSTS, MAX_ROOM_TOKENS, MAX_ROOM_MINUTES = 1000, 100_000_000, 24 * 60
 MAX_CHAT_TEAMS = 6
 # 0.1.8: a project's longest command, in minutes - the most the user may raise it to.
 LONGEST_COMMAND = (10, 60)
@@ -131,8 +129,6 @@ class RecipePart(BaseModel):
     state: Literal["done", "now", "next", "skipped"]
     # How many times its loops came back to it.
     round: int
-    # A Room step (slice 84e): its roles meet in one room.
-    room: bool = False
     # A review its writer checks, as the user said, or nobody was there to ask ("Who checks?").
     own_check: bool = False
     # B-173: the names of its steps the user's choice on a card left out.
@@ -207,11 +203,7 @@ class ProjectOut(Out):
     search_order: Literal["builtin", "cli"]
     # Whether a search may be handed to agy too.
     search_agy: bool
-    # Whether a notification address is set. The address itself is never given back.
-    has_notify_url: bool
-    # The body posted there: {"text": …}, {"content": …}, or the text alone.
-    notify_format: NotifyFormat
-    # Whether a notification is also shown on the user's desktop.
+    # Whether an agent's notification is shown on the user's desktop.
     notify_desktop: bool
     # The most tokens a turn's agents may report before it is stopped; None: no limit.
     turn_token_limit: int | None
@@ -232,13 +224,8 @@ class ProjectOut(Out):
     # Whether a fast model is asked, after each turn that completed, what the turn found.
     auto_notes: bool
     # 22c: the other projects whose memory and earlier turns `recall` also looks in (ids),
-    # read only; the provider whose server embeds for a search by meaning (null: off) and
-    # the model name it is asked for.
+    # read only.
     memory_links: list[str]
-    embedding_provider_id: str | None
-    embedding_model: str
-    # Whether the Observer role's model looks over each sub-agent's report.
-    observe_reports: bool
     # Whether the Scout proposes follow-up tasks after a turn, and on which tier.
     suggest_tasks: bool
     suggest_tier: "Tier"
@@ -259,8 +246,7 @@ class ProjectOut(Out):
     canary: bool
     # Its chats' sub-agent settings, every chat's (tek-ev: `models.settings_of`): who changes
     # the files, who answers while the user is away (K-cli-vekil), when opening a sub-agent
-    # asks, how far a turn's tree may grow, a discussion's tokens (None: no limit), and what a
-    # room may spend unless said otherwise as it is opened (None: no limit).
+    # asks, how far a turn's tree may grow, and a discussion's tokens (None: no limit).
     lead_work: LeadWork
     when_away: WhenAway
     away_minutes: int
@@ -269,11 +255,6 @@ class ProjectOut(Out):
     spawn_max_agents: int
     spawn_max_parallel: int
     discussion_budget: int | None
-    room_posts: int | None
-    room_tokens: int | None
-    room_minutes: int | None
-    # B-414: the least tokens an agent's room is given (`room_tokens` wins where lower); None: none.
-    room_min_tokens: int | None
     # Kanıtlı bitiş: what KOLONİ checks after a turn that changed code (`app.proof`).
     after_change: AfterChange
     # S3: how often the end check sends work back a turn - tests and the Reviewer's findings;
@@ -281,7 +262,7 @@ class ProjectOut(Out):
     fix_rounds: int | None
     # S11: then a stronger model tries, the rounds spent.
     stronger_model: bool
-    # S5a: Check by kind of work - {kind: on}; a kind left out is on.
+    # S5a: Check by kind of work - {kind: on}; left out: on, but `proof.OFF_UNLESS_TICKED`.
     check_kinds: dict[str, bool] = {}
     # S3: a change this big is read by the Reviewer (lines added and removed, files: of code,
     # config and screens) - `proof.BIG_LINES` / `BIG_FILES` (app.proof imports what imports this
@@ -337,8 +318,6 @@ class ProjectPatch(BaseModel):
     search_url: str | None = Field(default=None, max_length=500)
     search_order: Literal["builtin", "cli"] | None = None
     search_agy: bool | None = None
-    notify_url: str | None = Field(default=None, max_length=500)
-    notify_format: NotifyFormat | None = None
     notify_desktop: bool | None = None
     # Sent as null to take the limit away; left out to keep it.
     # A whole number as such: not `true`, not "50".
@@ -364,11 +343,6 @@ class ProjectPatch(BaseModel):
     auto_notes: bool | None = None
     # 22c. Left out: kept as it is. The whole list of project ids, as it is to be.
     memory_links: list[str] | None = Field(default=None, max_length=50)
-    # Sent as null to switch the search by meaning off; left out to keep it.
-    embedding_provider_id: str | None = Field(default=None, max_length=32)
-    # Left out: kept as it is. Empty: the default model name.
-    embedding_model: str | None = Field(default=None, max_length=200)
-    observe_reports: bool | None = None
     suggest_tasks: bool | None = None
     suggest_tier: "Tier | None" = None
     # Left out: kept as it is. The whole list, as it is to be.
@@ -393,10 +367,6 @@ class ProjectPatch(BaseModel):
     spawn_max_parallel: int | None = Field(default=None, ge=1, le=32, strict=True)
     # Sent as null to take the limit away; left out to keep it.
     discussion_budget: int | None = Field(default=None, gt=0, le=2**53, strict=True)
-    room_posts: int | None = Field(default=None, ge=1, le=MAX_ROOM_POSTS, strict=True)
-    room_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
-    room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
-    room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     after_change: AfterChange | None = None
     # k-canli-016: 1 to 10, or "until" (null too) - until it passes; left out: kept.
     fix_rounds: Annotated[int, Field(ge=1, le=10, strict=True)] | Literal["until"] | None = None
@@ -551,12 +521,6 @@ class ConversationOut(Out):
     away_minutes: int
     # The Lead's reasoning level here; None: its role's.
     lead_effort: Effort | None
-    # What a room opened here may spend unless the user says otherwise as they open it:
-    # posts by its members, tokens as their models report them, minutes. None: no limit.
-    room_posts: int | None
-    room_tokens: int | None
-    room_minutes: int | None
-    room_min_tokens: int | None  # (B-414: the least tokens an agent's room is given)
     # Folders outside the project it also works in: its folder's at its start, from the
     # user's messages, cards and "This chat's folders" (slice 86b).
     also_in: list[str]
@@ -625,7 +589,6 @@ class ProjectDeletePreviewOut(BaseModel):
     chats: int
     memory: int
     tasks: int
-    triggers: int
     knowledge: int
 
 
@@ -655,11 +618,6 @@ class ConversationPatch(BaseModel):
     away_minutes: int | None = Field(default=None, ge=0, le=MAX_AWAY_MINUTES, strict=True)
     # Sent as null to go back to the Lead role's level; left out to keep it.
     lead_effort: Effort | None = None
-    # Left out: kept as it is. Null: no limit.
-    room_posts: int | None = Field(default=None, ge=1, le=MAX_ROOM_POSTS)
-    room_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS)
-    room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES)
-    room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS)
     # Left out: kept as it is. The whole list, as it is to be: one added only from the app's
     # own page; one in both lists is one to write in.
     also_in: list[FolderPath] | None = Field(default=None, max_length=500)
@@ -1061,7 +1019,7 @@ class FileChangeOut(BaseModel):
     run_id: str
     agent_id: str
     origin: Literal["koloni", "cli"]
-    # None: no agent's call made it - a room's copy brought it into the project.
+    # None: no agent's call made it - a room's copy brought it into the project (before 0.1.10).
     tool_call_id: str | None
     path: str
     kind: Literal["create", "modify", "delete"]
@@ -1256,7 +1214,8 @@ class CommandOut(BaseModel):
     run_id: str
     agent_id: str
     origin: Literal["koloni", "cli"]
-    # None: no agent's call asked for it - the project's check, run on a room's copy.
+    # None: no agent's call asked for it - the project's check, run on a room's copy (before
+    # 0.1.10).
     tool_call_id: str | None
     command: str
     cwd: str | None
@@ -1738,8 +1697,6 @@ class MergeOut(Out):
     commit: MergeCommitOut | None = None
     # None: a copy's, taken in file by file.
     branch: MergeBranchOut | None = None
-    # The room whose one copy this is; None: an agent's own.
-    room_id: str | None = None
     created_at: datetime
     decided_at: datetime | None
 
@@ -1857,12 +1814,6 @@ class AgentOut(Out):
     sign: SignOut | None
     # When it last took a model step or a tool of its started or ended; None: neither yet.
     last_event_at: datetime | None
-    # What the Observer's model said of its report: an opinion, at most three sentences,
-    # signed by `observed_by`. None, with `observation_note` saying why, where it said
-    # nothing; all three None where nobody was asked.
-    observation: str | None
-    observation_note: str | None
-    observed_by: AskedModel | None
     # The reasoning level its model steps were sent; None: none was (the model's own).
     effort: Effort | None
     # Why no level went from some step on: its service refused the one it was sent.
@@ -2037,21 +1988,6 @@ class BoardAgent(BaseModel):
     own_questions: int
 
 
-class BoardOutcome(BaseModel):
-    """How a sub-agent of a turn came out (K-board-sonuc): "nothing" - it finished having done
-    and said nothing; "timed_out", "silent" (its stall timer cut it) or "error"."""
-
-    id: str
-    name: str
-    role: str
-    provider_name: str | None
-    model_id: str | None
-    status: AgentStatus
-    outcome: Literal["nothing", "timed_out", "silent", "error"]
-    # "Re-run the ones that failed" opens it again: it failed, and was not opened again since.
-    rerun: bool
-
-
 class BoardTurn(BaseModel):
     id: str
     status: RunStatus
@@ -2066,8 +2002,6 @@ class BoardTurn(BaseModel):
     tokens: int | None
     # It wrote a plan that waits for the user's yes or no (slice 49).
     plan_waits: bool
-    # Its sub-agents that ended with a class (`app.api.board.outcome`), oldest first.
-    outcomes: list[BoardOutcome] = []
 
 
 class BoardConversation(BaseModel):
@@ -2363,135 +2297,13 @@ class DiscussionPostIn(BaseModel):
     content: str = Field(max_length=1500)
 
 
-class RoomMemberIn(BaseModel):
-    role: str = Field(max_length=60)
-    # The provider (its name) and model the user gives this member; left out: its role's.
-    provider: str | None = Field(default=None, max_length=60)
-    model: str | None = Field(default=None, max_length=200)
-
-
-class RoomBudgetIn(BaseModel):
-    """What one room may spend. Left out: the conversation's own. Null: no limit."""
-
-    posts: int | None = Field(default=None, ge=1, le=MAX_ROOM_POSTS)
-    tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS)
-    minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES)
-
-
-class RoomIn(BaseModel):
-    goal: str = Field(max_length=4000)
-    # (`with` on the wire: the word is taken in Python.)
-    members: list[RoomMemberIn] = Field(alias="with", min_length=2, max_length=6)
-    budget: RoomBudgetIn | None = None
-    # The user's word to open it though the project is over this month's budget.
-    over_budget: bool = False
-
-
-class RoomMoreIn(BaseModel):
-    """What is added to a running room's budget; a limit it does not have stays none."""
-
-    posts: int | None = Field(default=None, ge=1, le=MAX_ROOM_POSTS)
-    tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS)
-    minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES)
-
-
-class RoomBudgetOut(BaseModel):
-    """A room's limits (None: none) - or, as `spent`, how much of each is used."""
-
-    posts: int | None
-    tokens: int | None
-    minutes: float | None
-
-
-class RoomMemberOut(BaseModel):
-    # None until its agent is opened, right after the room is.
-    agent_id: str | None
-    role: str
-    # "waiting": for a post. "done": its work is over. "left": it failed.
-    status: Literal["in", "waiting", "done", "left"]
-
-
-class RoomOut(BaseModel):
-    """Two to six agents working on one goal at the same time, in one working copy."""
-
-    id: str
-    run_id: str
-    goal: str
-    # The agent that opened it; None: the user did.
-    agent_id: str | None
-    # "sharing": its members share the work out, a step each, before they start.
-    status: Literal["sharing", "working", "ended", "cancelled", "interrupted"]
-    # "ended_by_opener": the agent that opened it ended it (K-oda-lead).
-    outcome: Literal["agreed", "budget", "ended_by_user", "ended_by_opener", "too_few"] | None
-    # Which of its reasons: the limit of a room that ended at its budget; "unanswered" for
-    # one that ended "too_few" because a question was left with nobody to answer it.
-    why: Literal["posts", "tokens", "minutes", "unanswered"] | None
-    budget: RoomBudgetOut
-    # Posts by its members; tokens as their models reported them (None: none of them
-    # reported any); the minutes its clock has counted.
-    spent: RoomBudgetOut
-    # What it came to, in a line: the sentence its opener ended it with, else its done items'
-    # first lines (`app.room.summary`); None: none.
-    summary: str | None
-    # 29c: the user paused it - its members take no step and post nothing until Resume.
-    paused: bool
-    # K-oda-izle: whether the turn's Lead follows the room the user opened - or, R178, its agent
-    # opener follows the room it opened (`Room.lead_follows`).
-    lead_follows: Literal["off", "on", "stopped"]
-    members: list[RoomMemberOut]
-    created_at: datetime
-    ended_at: datetime | None
-
-
-class RoomItemOut(Out):
-    id: str
-    room_id: str
-    number: int
-    title: str
-    paths: list[str]
-    # Who has it - or had it when it was finished or dropped. None: nobody's.
-    holder_agent_id: str | None
-    status: Literal["open", "taken", "done", "dropped"]
-    result: str | None
-    created_at: datetime
-
-
-class RoomPostOut(Out):
-    id: str
-    room_id: str
-    number: int
-    # None: the user's.
-    agent_id: str | None
-    # "said": the user's. "done" and "left" are KOLONİ's own, for a member whose work is
-    # over (with its last words) or that failed.
-    # "ended": the opener's sentence of what came of it, as it ended it (K-oda-lead).
-    type: Literal[
-        "result", "review", "question", "answer", "blocked", "said", "done", "left", "ended"
-    ]
-    text: str
-    to_agent_id: str | None
-    reply_to: int | None
-    # A question nobody has replied to yet.
-    open: bool
-    created_at: datetime
-
-
-class RoomPostIn(BaseModel):
-    text: str = Field(max_length=1500)
-
-
-class RoomOpenedOut(BaseModel):
-    run: RunOut
-    room: RoomOut
-
-
 class ViewOut(BaseModel):
     """A file of the conversation to be seen beside the chat (slice 39, `app.views`): one
     an agent wrote, or one it put before the user with `show`."""
 
     id: str
     path: str
-    kind: Literal["html", "svg", "md", "image", "model", "drawio", "pdf", "docx", "xlsx", "pptx"]
+    kind: Literal["html", "svg", "md", "image", "drawio", "pdf", "docx", "xlsx", "pptx"]
     agent_id: str | None
     # The change's own state, or "shown": a file of the project as it now is.
     status: Literal["proposed", "approved", "in_copy", "applied", "shown"]
@@ -2590,9 +2402,6 @@ class SnapshotOut(BaseModel):
     questions: list[QuestionOut]
     discussions: list[DiscussionOut]
     discussion_posts: list[DiscussionPostOut]
-    rooms: list[RoomOut]
-    room_items: list[RoomItemOut]
-    room_posts: list[RoomPostOut]
     board_posts: list[BoardPostOut]
     # The files of the project held right now, by agents of any of its conversations.
     claims: list[ClaimOut]
@@ -2603,8 +2412,6 @@ class SnapshotOut(BaseModel):
     attachments: list[AttachmentOut] = []
     # The "While you're away" cards its Lead put here, with their nights (slice 106).
     away: list["AwayOut"] = []
-    # The triggers its agents proposed, decided or not (slice 69).
-    trigger_proposals: list["TriggerProposalOut"] = []
     # K-bilgi 6: the "Add to Project notes?" offers under its turns, decided or not.
     notes_offers: list["NotesOfferOut"] = []
     warnings: list[WarningOut] = []
@@ -3030,11 +2837,6 @@ class WhoExperts(Shut):
     experts: Literal["all", "stale", "learned"]
 
 
-class WhoRoom(Shut):
-    # Slice 84e: a Room step - its roles meet in one room (2 to 6 of them: `problems` says so).
-    room: list[Annotated[str, Field(max_length=60)]] = Field(max_length=10)
-
-
 # K-tarif-surukle: where the user dragged a part on the board (a group's step: from its group's
 # corner); a whole number or not, never a string, NaN or one far off the board.
 Coord = Annotated[float, Field(strict=True, allow_inf_nan=False, ge=-100_000, le=100_000)]
@@ -3053,7 +2855,7 @@ Pos = Annotated[RecipePos | None, Field(None, exclude_if=lambda value: value is 
 class RecipeStep(Shut):
     id: NodeId
     name: StepName
-    who: WhoRole | WhoTeam | WhoLead | WhoRoom | WhoExperts | WhoCandidates
+    who: WhoRole | WhoTeam | WhoLead | WhoExperts | WhoCandidates
     # "done": its agents say they are; "no_findings": a review that leaves no finding.
     done_when: Literal["done", "no_findings"] = "done"
     if_fails: Literal["ask", "stop"] = "ask"
@@ -3122,8 +2924,9 @@ class RecipeChecks(Shut):
 
 
 class RecipeGraph(Shut):
+    _no_rooms = model_validator(mode="before")(without_rooms)
     version: Literal[1] = 1
-    steps: list[RecipeStep] = Field(max_length=60)
+    steps: list[RecipeStep] = Field(max_length=MOST_STEPS)
     groups: list[RecipeGroup] = Field([], max_length=20)
     ends: list[RecipeEnd] = Field([], max_length=10)
     arrows: list[RecipeArrow] = Field([], max_length=200)
@@ -3521,12 +3324,11 @@ class RolesHistoryOut(BaseModel):
 class RunOn(BaseModel):
     """A provider a role's agents could be given as their own model (the chat's team picker):
     the model they would run with there, and whether such an agent could be a recipe's step
-    and a room's member (B-89)."""
+    (B-89)."""
 
     provider_id: str
     model_id: str | None
     step: bool
-    room: bool
 
 
 class RoleModelOut(BaseModel):
@@ -3555,10 +3357,8 @@ class RoleModelOut(BaseModel):
     # CLI that cannot be opened here now (as `cannot_pick` says it). None: it would.
     cannot_run: str | None
     # Why an agent of the role, where it runs, could not be a recipe's step (a CLI working in
-    # the project itself), and could not be a member of a room (a CLI with its own tools), as
-    # the agent that opens one is told (B-89). None: it could.
+    # the project itself), as the agent that opens one is told (B-89). None: it could.
     cannot_step: str | None = None
-    cannot_room: str | None = None
     # Where its agents could run instead, as their own model; [] where none could.
     run_on: list[RunOn] = []
     # Of the team guide (the role's own list is judged too, so not `pick_from` alone), the
@@ -4050,8 +3850,6 @@ class MemoryOut(BaseModel):
     source_state: Literal["unchanged", "changed", "moved", "none", "elsewhere"]
     # 22c: the name of the linked project a found record is from; null for this project's.
     from_project: str | None = None
-    # 22c: found by the search by meaning, not by its words.
-    by_meaning: bool = False
     found_at: MemoryFoundAt | None
     # The noted lines as they are on disk now, cut to a size; null when there is no file
     # or nothing can be read there.
@@ -4175,7 +3973,6 @@ class SaidOut(Out):
     trigger: bool  # said in a turn nobody watched: a trigger's
     # 22c: the name of the linked project it was said in; null for this project's own.
     project: str | None = None
-    by_meaning: bool = False
 
 
 class MemorySearchOut(BaseModel):
@@ -4184,9 +3981,6 @@ class MemorySearchOut(BaseModel):
 
     memory: list[MemoryOut]
     turns: list[SaidOut]
-    # 22c: why the search by meaning did not run, when a provider is chosen for it and it
-    # did not ("search by meaning is off: …"); null otherwise.
-    meaning_off: str | None = None
 
 
 class MemoryIn(BaseModel):
@@ -4218,51 +4012,6 @@ class RulesOut(BaseModel):
     rules: str | None
 
 
-class CardReasonOut(BaseModel):
-    """Cards measured: the cards asked for one reason (`app.cards.REASONS`), and their answers."""
-
-    reason: str
-    said: str
-    asked: int
-    approved: int
-    rejected: int
-    unanswered: int
-
-
-class CardsCheckedOut(BaseModel):
-    """ "Check what I said first"'s outcomes: ran on a line of the user's, not run, asked."""
-
-    run: int
-    refuse: int
-    ask: int
-
-
-class CardSuggestionOut(BaseModel):
-    """A delete the user approved unchanged `times` times, and the line for the project's rules
-    that would spare its card at Full auto with Check what I said first on - KOLONİ's words."""
-
-    key: str
-    command: str
-    cwd: str
-    times: int
-    rule: str
-
-
-class CardsOut(BaseModel):
-    """Cards measured (0.1.7): the command cards asked in a period, answered how, by reason - only
-    cards from 0.1.7 on carry one - the seconds to an answer on average (None: none answered),
-    the check's outcomes, and, for one project, the rules it suggests."""
-
-    asked: int
-    approved: int
-    rejected: int
-    unanswered: int
-    by_reason: list[CardReasonOut]
-    decide_seconds: float | None
-    checked: CardsCheckedOut
-    suggestions: list[CardSuggestionOut] = []
-
-
 class PreferencesIn(BaseModel):
     text: str
 
@@ -4271,216 +4020,6 @@ class PreferencesOut(BaseModel):
     """The user's own preferences (22b): one text for every project; null when none."""
 
     text: str | None
-
-
-class TriggerPermissions(BaseModel):
-    """What a trigger's turns may do without asking. Nothing, to begin with: such a turn
-    reads, and writes notes. The conversation's own level and allow list do not count."""
-
-    write: bool = False
-    # The ids of rules on the allow list of the trigger's own conversation. With nobody
-    # watching, a ticked rule lets exactly one command run: the one that is its text.
-    commands: list[str] = Field(default_factory=list, max_length=20)
-    # How many sub-agents a turn may open, all told.
-    agents: int = Field(default=0, ge=0, le=4)
-    # Whether a turn may search the web.
-    web: bool = False
-    # The hosts a turn may make HTTP requests to: bare names, matched exactly.
-    hosts: list[str] = Field(default_factory=list, max_length=20)
-    # Whether a turn may send the user a notification.
-    notify: bool = False
-
-
-class TriggerLeave(TypedDict):
-    """A trigger's permissions as they are kept and shown. What it may do on the web is
-    there only where it is allowed: left out, its turns may not."""
-
-    write: bool
-    commands: list[str]
-    agents: int
-    web: NotRequired[bool]
-    hosts: NotRequired[list[str]]
-    notify: NotRequired[bool]
-
-
-class TriggerBudget(BaseModel):
-    """A turn's model steps (all its agents together) and its length in minutes; and how
-    many turns the trigger may start in a day. There is no "unlimited"."""
-
-    steps: int = Field(default=15, ge=1, le=200)
-    minutes: int = Field(default=10, ge=1, le=240)
-    per_day: int = Field(default=24, ge=1, le=500)
-
-
-TriggerKind = Literal["schedule", "files", "webhook"]
-
-
-class TriggerIn(BaseModel):
-    name: str
-    kind: TriggerKind
-    conversation_id: str
-    message: str
-    # schedule: {"every_minutes": N} or {"at": "HH:MM", "days": "daily" | "weekdays" | a list
-    # of "mon".."sun", in week order}; files: {"glob": "src/**/*.py"}; webhook: {}.
-    config: dict = Field(default_factory=dict)
-    permissions: TriggerPermissions = Field(default_factory=TriggerPermissions)
-    budget: TriggerBudget = Field(default_factory=TriggerBudget)
-    catch_up: bool = True
-    enabled: bool = True
-    # {"runs": N} or {"until": "YYYY-MM-DD"}; None: no end (`app.triggers.check_ends`).
-    ends: dict | None = None
-    # A schedule runs even when nothing changed since its last completed run.
-    run_unchanged: bool = False
-    # Made from an agent's proposal, in the form (slice 69): that card is done with.
-    proposal_id: str | None = None
-
-
-class TriggerPatch(BaseModel):
-    """Left out: kept as it is. A trigger's kind does not change. `ends` sent as null: no
-    end."""
-
-    name: str | None = None
-    conversation_id: str | None = None
-    message: str | None = None
-    config: dict | None = None
-    permissions: TriggerPermissions | None = None
-    budget: TriggerBudget | None = None
-    catch_up: bool | None = None
-    enabled: bool | None = None
-    ends: dict | None = None
-    run_unchanged: bool | None = None
-
-
-class TriggerEnds(TypedDict, total=False):
-    """When a trigger ends by itself: after so many runs, or after a day (the last it runs on)."""
-
-    runs: int
-    until: str
-
-
-class TriggerRunOut(Out):
-    """One time a trigger came due."""
-
-    id: str
-    # The turn it started; None when it started none.
-    run_id: str | None
-    at: datetime
-    # None while its turn is still running. "stopped": the user stopped the turn.
-    outcome: (
-        Literal[
-            "completed",
-            "failed",
-            "budget",
-            "stopped",
-            "skipped_busy",
-            "skipped_budget",
-            "skipped_month",
-            "skipped_limit",
-            "skipped_same",
-        ]
-        | None
-    )
-    late: bool
-    note: str | None
-
-
-class TriggerChangeOut(BaseModel):
-    """One thing that was done to a trigger: made, changed, switched or deleted."""
-
-    id: str
-    project_id: str
-    trigger_id: str
-    # The trigger's name at that moment.
-    name: str
-    at: datetime
-    what: Literal[
-        "created",
-        "renamed",
-        "message changed",
-        "settings changed",
-        "permissions changed",
-        "budget changed",
-        "switched on",
-        "switched off",
-        "new key",
-        "deleted",
-    ]
-    # How it stood afterwards, in words: what it may do now, why it was switched off.
-    detail: str | None
-
-
-class TriggerOut(BaseModel):
-    id: str
-    project_id: str
-    conversation_id: str
-    name: str
-    kind: TriggerKind
-    config: dict
-    message: str
-    # Its `commands` are the ticked rules still on its conversation's allow list.
-    permissions: TriggerLeave
-    # The texts of those rules, in the same order: the command lines it may run.
-    command_lines: list[str]
-    budget: TriggerBudget
-    catch_up: bool
-    enabled: bool
-    # Its end, None for none; and the turns it started since that was set.
-    ends: TriggerEnds | None
-    ran: int
-    run_unchanged: bool
-    failures: int
-    # Why KOLONİ switched it off ("ended: 10 runs done" too); None while it is on, or when
-    # the user switched it off.
-    off_because: str | None
-    last_run_at: datetime | None
-    last_result: str | None
-    # A schedule's next time; None for the other kinds, and before the first look.
-    next_at: datetime | None
-    # 93-B2: its last runs in a row that found nothing, where that has spaced its times out;
-    # None while it keeps its own times.
-    slowed: int | None
-    # Its last runs in a row that found nothing, whether or not that has slowed it yet (R125).
-    idle: int
-    last_words: str | None
-    created_at: datetime
-    # When it was last made, changed or switched.
-    updated_at: datetime
-    # The last fifty things done to it, newest first.
-    changes: list[TriggerChangeOut]
-    # The last twenty times it came due, newest first.
-    runs: list[TriggerRunOut]
-
-
-class TriggerCreatedOut(TriggerOut):
-    # A webhook's key, shown this once and kept nowhere; None for the other kinds.
-    key: str | None
-
-
-class TriggerStartedOut(BaseModel):
-    run_id: str
-
-
-class TriggerProposalOut(BaseModel):
-    """A trigger an agent proposed (slice 69), on its card until the user's word. Approved,
-    it reads only, opens no sub-agent and has the usual budget."""
-
-    id: str
-    conversation_id: str
-    # The turn that proposed it: its card is under that turn.
-    run_id: str
-    name: str
-    kind: Literal["schedule", "files"]
-    config: dict
-    message: str
-    ends: TriggerEnds
-    status: Literal["proposed", "approved", "rejected"]
-    # Approved: the trigger it became.
-    trigger_id: str | None
-    created_at: datetime
-
-
-class TriggersPaused(BaseModel):
-    paused: bool
 
 
 class HoldStopped(BaseModel):
@@ -4494,14 +4033,13 @@ class HoldStopped(BaseModel):
 
 class HoldOut(BaseModel):
     """Stop everything (`app.api.hold`): whether it holds, since when, how many turns of every
-    chat have not ended, and what a hold holds (triggers on, the projects with To-do tasks
+    chat have not ended, and what a hold holds (the projects with To-do tasks
     waiting in a chat's queue - `backlogs` - and the projects' nights while the user is away) -
     and, while it holds, the turns it stopped."""
 
     held: bool
     since: datetime | None
     running: int
-    triggers: int
     backlogs: list[str]
     nights: list[str]
     stopped: list[HoldStopped]

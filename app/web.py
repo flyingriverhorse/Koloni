@@ -936,34 +936,6 @@ def note(message: object) -> str:
     return message
 
 
-async def notify(notify_url: str, message: object, form: str = "slack") -> str:
-    """Post a text to the user's own notification address, in the form the user chose
-    for it: `{"text": …}` ("slack"), `{"content": …}` ("discord"), or the text alone
-    ("text"). Where the address is, is a secret of the user's: nothing said here - the
-    answer, or why it failed - names it."""
-    message = note(message)
-    try:
-        ips = await check(notify_url)
-    except NotReachable:
-        raise NotReachable(
-            "the user's notification address is on this machine or its network, or could "
-            "not be looked up"
-        ) from None
-    if form == "text":
-        sent, kind = message.encode("utf-8", "replace"), "text/plain; charset=utf-8"
-    else:
-        named = "content" if form == "discord" else "text"
-        sent, kind = json.dumps({named: message}).encode(), "application/json"
-    try:
-        # No redirect is followed: the text goes where the user said, or nowhere.
-        answer = await _ask("POST", notify_url, {"Content-Type": kind}, sent, ips)
-    except Exception as exc:
-        raise WebError(f"the notification was not sent ({type(exc).__name__})") from None
-    if not 200 <= answer.status < 300:
-        raise WebError(f"the notification was not sent: the address answered HTTP {answer.status}")
-    return "sent to the user's notification address"
-
-
 # The toast, as Windows PowerShell shows one. Fixed: the title and the text are somebody
 # else's words (the project's name, the agent's) and are never part of it - it reads them
 # from its environment and puts them in as text nodes, so nothing in them is markup or

@@ -409,7 +409,7 @@ test('a spawn call is one row with its approval card, and both report back', asy
 })
 
 // B-99: every kind a recipe asks (`_ask_row`), with the choices it carries - whoever opened the step's agent: the Lead
-// (under its call), a team's lead (with what its team asks), or the Lead's room (under the room's row).
+// (under its call), or a team's lead (with what its team asks).
 test.each([
   [
     'an Ask me step',
@@ -776,31 +776,6 @@ test('B-362: an answer KOLONİ hands on as data is folded, with its real line br
   expect(screen.queryByText(/as data/)).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'The answer' }))
   expect(screen.getByText(/One page\./).textContent).toBe('## Spec\n\nOne page.\nTwo parts.')
-})
-
-test('a question a recipe’s Room step puts in the Lead’s room call is answered under the room’s row (B-99)', async () => {
-  const onAnswer = vi.fn().mockResolvedValue(undefined)
-  const asked = 'Web app: Design meeting failed (Coder). Skip it, or stop the Odali recipe?'
-  const state = convState({
-    runs: [run('r', 'waiting_approval')],
-    agents: [
-      agent('r', 'waiting'),
-      agent('r', 'failed', {
-        id: 'kid',
-        parent_agent_id: 'r',
-        tool_call_id: '1',
-        role_name: 'Coder',
-        task: 't',
-        depth: 1,
-      }),
-    ],
-    messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
-    toolCalls: [toolCall('1', 'r', 'open_room', 'running', '{"goal":"Design"}', { message_id: 'm' })],
-    questions: [question('q', 'r', { tool_call_id: '1', question: asked, options: ['Skip', 'Stop'], leave: true })],
-  })
-  render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
-  await userEvent.click(screen.getByRole('button', { name: 'Skip' }))
-  expect(onAnswer).toHaveBeenCalledWith('q', 'Skip')
 })
 
 test('a recipe’s question, put in the call that opened its step’s agent, is answered under that agent’s row (B-99)', async () => {
@@ -1249,56 +1224,6 @@ test('a turn a trigger started begins with a badge that names the trigger and sa
   expect(badge).toHaveTextContent('started by the trigger Nightly look')
   expect(badge).toHaveTextContent('nobody watching')
   expect(screen.getByText('Look the project over.')).toBeInTheDocument()
-})
-
-test('at the end of such a turn, what it would have asked you is listed once, each request with a way to allow it where a trigger can', async () => {
-  const onAllow = vi.fn()
-  render(<MessageList state={unattended()} {...handlers} onAllowInTrigger={onAllow} />)
-  const block = screen.getByRole('group', { name: 'It would have asked you' })
-  const asked = within(block).getAllByRole('listitem')
-  expect(asked.map(item => item.firstChild?.textContent)).toEqual([
-    'write made.txt',
-    'run `python check.py`',
-    'ask the user anything',
-  ])
-  // it stands after the turn's last words, not among them
-  expect(
-    screen.getByText('I could not do everything.').compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING,
-  ).toBeTruthy()
-  // what no trigger can allow has no link
-  expect(within(asked[2]).queryByRole('button')).not.toBeInTheDocument()
-  await userEvent.click(within(asked[0]).getByRole('button', { name: 'Allow this in the trigger' }))
-  expect(onAllow).toHaveBeenLastCalledWith('t1', { write: true })
-  await userEvent.click(within(asked[1]).getByRole('button', { name: 'Allow this in the trigger' }))
-  expect(onAllow).toHaveBeenLastCalledWith('t1', { command: 'python check.py' })
-})
-
-test('a turn that was refused nothing has no such block; nor has a turn of the user’s, whatever its tools said', () => {
-  const { unmount } = render(<MessageList state={unattended({ toolCalls: [] })} {...handlers} />)
-  expect(screen.queryByRole('group', { name: 'It would have asked you' })).not.toBeInTheDocument()
-  unmount()
-  const own = convState({
-    runs: [run('r', 'completed')],
-    messages: [userMessage('r', 'x'), assistantMessage('m1', 'r', 'done')],
-    toolCalls: [
-      toolCall('1', 'r', 'write_file', 'denied', '{"path":"a"}', {
-        message_id: 'm1',
-        result: refusedWith('change files'),
-      }),
-    ],
-  })
-  render(<MessageList state={own} {...handlers} />)
-  expect(screen.queryByRole('group', { name: 'It would have asked you' })).not.toBeInTheDocument()
-})
-
-test('a trigger that is no longer on record cannot be allowed anything: the requests are listed without the link', () => {
-  const state = unattended({
-    runs: [run('n', 'completed', { unattended: true, trigger_id: null, trigger_name: 'Nightly look' })],
-  })
-  render(<MessageList state={state} {...handlers} onAllowInTrigger={vi.fn()} />)
-  const block = screen.getByRole('group', { name: 'It would have asked you' })
-  expect(within(block).getAllByRole('listitem')).toHaveLength(3)
-  expect(within(block).queryByRole('button')).not.toBeInTheDocument()
 })
 
 // --- topics (slice 18b) ------------------------------------------------------------------------
@@ -2108,7 +2033,7 @@ test('while the turn runs the card has no foot; at its end the summary and Copy 
 })
 
 test('a turn that ended with nothing after your message still says what it did, under the message', () => {
-  // (Stopped while a room's members worked: the Lead, waiting for the room, never wrote.)
+  // (Stopped while its sub-agents worked: the Lead, waiting for them, never wrote.)
   render(
     <MessageList
       {...handlers}
@@ -2229,7 +2154,7 @@ test('under two steps before the answer nothing folds', () => {
   expect(screen.getByText('I read it first.')).toBeVisible()
 })
 
-/** A turn whose Lead read two files (one failed), opened a sub-agent whose work waits to be taken in, a room and a discussion, and started a server that still runs. */
+/** A turn whose Lead read two files (one failed), opened a sub-agent whose work waits to be taken in and a discussion, and started a server that still runs. */
 function busyTurn(status: 'running' | 'completed'): ConvState {
   const at = '2026-10-05T10:00:05Z'
   const lead = (id: string, name: string, state: 'succeeded' | 'failed' | 'running', args: string) =>
@@ -2256,7 +2181,6 @@ function busyTurn(status: 'running' | 'completed'): ConvState {
       lead('b1', 'read_file', 'succeeded', '{"path":"a.py"}'),
       lead('b2', 'read_file', 'failed', '{"path":"gone.py"}'),
       lead('b3', 'spawn_agent', 'succeeded', '{"role":"Coder","task":"fix it"}'),
-      lead('b4', 'open_room', 'succeeded', '{"goal":"Meet on it"}'),
       lead('b5', 'start_discussion', 'succeeded', '{"topic":"Keep hi?"}'),
       lead('b6', 'run_command', 'running', '{"command":"python -m http.server"}'),
     ],
@@ -2270,18 +2194,6 @@ function busyTurn(status: 'running' | 'completed'): ConvState {
         ended_at: null,
       }),
     ],
-    rooms: [
-      {
-        id: 'o',
-        run_id: 'r',
-        agent_id: 'r',
-        goal: 'Meet on it',
-        status: 'working',
-        outcome: null,
-        why: null,
-        members: [],
-      },
-    ] as unknown as ConvState['rooms'],
     discussions: [
       {
         id: 't',
@@ -2326,7 +2238,7 @@ function busyTurn(status: 'running' | 'completed'): ConvState {
   })
 }
 
-test('a failed step folds but is counted on the fold’s line; a sub-agent, a room, a discussion, a card that waits and a running server never fold', () => {
+test('a failed step folds but is counted on the fold’s line; a sub-agent, a discussion, a card that waits and a running server never fold', () => {
   const { container } = render(<MessageList {...handlers} state={busyTurn('completed')} />)
   const fold = container.querySelector('details.turn-steps') as HTMLElement
   const summary = fold.querySelector('summary') as HTMLElement
@@ -2334,7 +2246,6 @@ test('a failed step folds but is counted on the fold’s line; a sub-agent, a ro
   expect(within(summary).getByText('1 failed')).toHaveClass('tag-del')
   const kept = [
     screen.getByTitle('Show this agent on the canvas'),
-    container.querySelector('[data-room-line]') as HTMLElement,
     screen.getByTitle('Open the discussion'),
     screen.getByRole('button', { name: 'Take in' }),
     screen.getByRole('button', { name: 'Stop python -m http.server' }),
@@ -2343,7 +2254,6 @@ test('a failed step folds but is counted on the fold’s line; a sub-agent, a ro
     expect(one).toBeInTheDocument()
     expect(fold).not.toContainElement(one)
   }
-  expect(document.querySelector('[data-room-line]')!.closest('details')).toBeNull()
 })
 
 test('a card kept outside the fold is the same element after the turn ends: nothing typed or chosen in it is lost', () => {
@@ -2445,21 +2355,11 @@ the rest`,
   expect(container.querySelector('details.turn-steps')!.nextElementSibling?.textContent ?? '').not.toMatch(/^↳/)
 })
 
-test('a night’s closing line and the room you opened stay plain lines in the new flow: outside the fold, the room’s line its focus target', () => {
+test('a night’s closing line stays a plain line in the new flow: outside the fold', () => {
   const night = {
     ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'),
     role: 'away' as const,
     agent_id: null,
-  }
-  const room = {
-    id: 'o6',
-    run_id: 'r',
-    agent_id: null,
-    goal: 'Meet on the greeting',
-    status: 'done',
-    outcome: null,
-    why: null,
-    members: [],
   }
   const state = convState({
     runs: [run('r', 'completed', { ended_at: ENDED })],
@@ -2471,16 +2371,12 @@ test('a night’s closing line and the room you opened stay plain lines in the n
       assistantMessage('m2', 'r', 'It greets twice.'),
     ],
     toolCalls: [toolCall('61', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
-    rooms: [room] as unknown as ConvState['rooms'],
   })
   const { container } = render(<MessageList {...handlers} state={state} />)
   const fold = container.querySelector('details.turn-steps') as HTMLElement
   expect(fold).not.toBeNull()
   expect(fold).not.toContainElement(screen.getByText('While you were away: 2 done - on the canvas'))
   expect(screen.getByText('While you were away: 2 done - on the canvas').closest('.away-said')).toBeVisible()
-  const line = container.querySelector('[data-room-line]') as HTMLElement
-  expect(line).toHaveTextContent('Meet on the greeting')
-  expect(line.closest('details')).toBeNull()
 })
 
 test('the fold’s line says how the turn ended: completed in its time, or failed, stopped or interrupted after its steps', () => {
@@ -2649,4 +2545,35 @@ test('an older turn that ends with its answer’s words lets its hidden foot sta
   rerender(<MessageList {...handlers} state={state([offer])} />)
   expect(older()).not.toHaveClass('turn-words-end')
   expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
+})
+
+test('0.1.10, rooms are gone: an old chat that held one still draws - its calls as plain rows, its line as KOLONİ’s', () => {
+  const said = (id: string, role: Message['role'], content: string, over: Partial<Message> = {}): Message => ({
+    ...assistantMessage(id, 'r', content),
+    role,
+    agent_id: null,
+    ...over,
+  })
+  const state = convState({
+    runs: [run('r', 'completed', { ended_at: '2026-10-05T10:00:30Z' })],
+    agents: [
+      agent('r', 'completed'),
+      agent('r', 'completed', { id: 'kid', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Coder', depth: 1 }),
+    ],
+    messages: [
+      userMessage('r', 'Fix the greeting together'),
+      assistantMessage('m', 'r', ''),
+      said('k', 'koloni', 'A room was opened here. Rooms were removed in 0.1.10.'),
+      said('p', 'agent', 'Done: hi there.', { agent_id: 'kid', room_post_id: 'post' }),
+      assistantMessage('m2', 'r', 'The room is over: hello.py says hi there.'),
+    ],
+    toolCalls: [
+      toolCall('1', 'r', 'open_room', 'succeeded', '{"goal":"Fix it","with":["Coder","Reviewer"]}'),
+      toolCall('2', 'r', 'open_room', 'failed', '{"goal":"again"}'),
+      toolCall('3', 'kid', 'post_to_room', 'succeeded', '{"type":"result","text":"Done"}', { agent_id: 'kid' }),
+    ],
+  })
+  render(<MessageList {...handlers} state={state} />)
+  expect(screen.getByText('A room was opened here. Rooms were removed in 0.1.10.')).toBeInTheDocument()
+  expect(screen.getByText('The room is over: hello.py says hi there.')).toBeInTheDocument()
 })

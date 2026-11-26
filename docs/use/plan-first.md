@@ -38,5 +38,5 @@ Orchestrator that carries it out". Click a Plan node to read the plan in the Ins
 
 ## When there is no plan
 
-Plan first applies to your own messages in a chat with a folder. A plain chat (no folder), a trigger's
-turn and a room never plan first.
+Plan first applies to your own messages in a chat with a folder. A plain chat (no folder) never plans
+first.

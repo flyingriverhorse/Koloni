@@ -106,24 +106,20 @@ class OutsideMixin:
             )
             if project is None:  # a plain chat: the built-in search, and nowhere to notify
                 search_url, order, search_agy = None, "builtin", False
-                notify_url, form, on_desktop, title = None, "slack", False, "KOLONİ"
+                on_desktop, title = False, "KOLONİ"
                 no_network = False
             else:
                 search_url, order = project.search_url, project.search_order
                 search_agy = project.search_agy
-                notify_url, form = project.notify_url, project.notify_format
                 on_desktop, title = project.notify_desktop, f"KOLONİ — {project.name}"
                 no_network = project.exec_location == "docker" and not project.docker_network
         # The user took the network from this project's commands: an agent's own tools
         # are not a way around that. (The user's own desktop is not the network.)
-        network_off = NETWORK_OFF
-        if no_network and not (name == "notify" and on_desktop):
-            raise ToolError(network_off)
+        if no_network and name != "notify":
+            raise ToolError(NETWORK_OFF)
         try:
             if name == "notify":
-                return await self._web_notify(
-                    ctx, args, notify_url, form, on_desktop, title, no_network, network_off
-                )
+                return await self._web_notify(ctx, args, on_desktop, title)
             if name == "web_search":
                 return await self._web_search(
                     ctx, call_id, args, asks, expert, search_url, order, search_agy
@@ -189,50 +185,21 @@ class OutsideMixin:
             raise ToolError(str(exc)) from None
 
     async def _web_notify(
-        self: "AgentRunner",
-        ctx: Ctx,
-        args: dict,
-        notify_url: str | None,
-        form: str,
-        on_desktop: bool,
-        title: str,
-        no_network: bool,
-        network_off: str,
+        self: "AgentRunner", ctx: Ctx, args: dict, on_desktop: bool, title: str
     ) -> tuple[str, str]:
-        """`_web`'s notification, to where the user said (a `web.WebError` is `_web`'s to turn)."""
-        cid = ctx.cid
+        """`_web`'s notification, on the user's desktop (a `web.WebError` is `_web`'s to turn)."""
         refused = self._nobody_to_ask(ctx, "notify", "send a notification")
         if refused:
             return "failed", refused
-        if not notify_url and not on_desktop:
-            raise ToolError("the user has set no notification address for this project")
+        if not on_desktop:
+            raise ToolError("the user has not switched desktop notifications on for this project")
         message = web.note(args.get("message"))
-        # To the desktop and to the address, where the user set both: each is
-        # tried, and what is said names the one that failed - never the address.
-        went: list[str] = []
-        failed: list[str] = []
-        if on_desktop:
-            try:
-                if not self._toasts.take(cid):
-                    raise ToolError(
-                        "at most 6 desktop notifications a minute are shown for "
-                        "one conversation: wait before the next"
-                    )
-                went.append(await web.show(title, message))
-            except (ToolError, web.WebError) as exc:
-                failed.append(str(exc))
-        if notify_url:
-            try:
-                if no_network:
-                    raise ToolError(f"not sent to the user's notification address: {network_off}")
-                self._within(self._requests, cid, "30 requests")
-                went.append(await web.notify(notify_url, message, form))
-            except (ToolError, web.WebError) as exc:
-                failed.append(str(exc))
-        if not failed:
-            return "succeeded", " and ".join(went)
-        why = "; ".join(failed)
-        return "failed", f"{went[0]}, but: {why}" if went else f"error: {why}"
+        if not self._toasts.take(ctx.cid):
+            raise ToolError(
+                "at most 6 desktop notifications a minute are shown for one conversation: wait "
+                "before the next"
+            )
+        return "succeeded", await web.show(title, message)
 
     async def _web_search(
         self: "AgentRunner",
@@ -639,7 +606,7 @@ class OutsideMixin:
         outside all of them once the user says so, at every level: Full auto is leave
         for the project. The call is `pending` while it waits. What KOLONİ never opens
         is refused by the tool itself, nobody asked. A write of an agent that works in a
-        copy (a sub-agent, a room's member) is asked about every time: the copy has none
+        copy (a sub-agent) is asked about every time: the copy has none
         of these folders, and what is written there goes straight in. So is a command of
         a side of a comparison: before the user's choice nothing of it goes outside its copy."""
         # A change - a command too - goes unasked only into a folder to write in.
@@ -1007,7 +974,8 @@ class OutsideMixin:
             ways = [self._way(session, row, ctx.root) for row in rows]
         self.bus.emit(ctx.cid, None, "conversation.updated", payload)
         return (
-            f"picked {', '.join(said)}: spawn_agent opens only their roles now - with a "
-            "recipe, only its step's, one step after another: KOLONİ moves it on as the "
-            "step's agents finish." + "".join(f"\n{way}" for way in ways if way)
+            f"picked {', '.join(said)}: spawn_agent opens their roles now, and a built-in role "
+            "beside them where the work needs one - with a recipe, only its step's, one step "
+            "after another: KOLONİ moves it on as the step's agents finish."
+            + "".join(f"\n{way}" for way in ways if way)
         )

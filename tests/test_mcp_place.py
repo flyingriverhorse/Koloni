@@ -17,7 +17,6 @@ from app import mcp_client
 from app.config import REPO_ROOT, load_settings, mcp_base
 from app.tools import MAX_QUESTION_CHARS
 from app.workspace import _kept_out, not_a_project
-from tests import test_trigger_scenarios as unattended
 from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import text
 from tests.test_mcp_scenarios import (
@@ -172,25 +171,6 @@ def test_a_no_starts_nothing_and_stands_for_the_rest_of_the_turn(
     echoes = [(t["status"], t["result"]) for t in snap["tool_calls"] if t["name"] == "fake__echo"]
     assert len(echoes) == 2 and all(s == "denied" and "said not to start" in r for s, r in echoes)
     assert len(snap["questions"]) == 1 and events(record, "start") == []  # one card, no start
-
-
-def test_no_project_script_server_starts_in_a_turn_nobody_watches(
-    make_client, wait_run, project_dir, tmp_path
-):
-    client, model, pid, cid = unattended.setup(
-        make_client,
-        project_dir,
-        [step(call("fake__echo", {"text": "hi"})), text("I could not.")],
-        permission_mode="full_auto",
-    )
-    made, record, script, *_ = in_project(client, tmp_path, project_dir)
-    mark(client, made, echo="free")
-    give(client, "Lead", "fake")
-    script.write_text(script.read_text(encoding="utf-8") + "# changed\n", encoding="utf-8")
-    run_id = unattended.run_now(client, unattended.trigger(client, pid, cid)["id"])
-    snap = unattended.finished(client, wait_run, cid, run_id, timeout=LONG)
-    assert calls(snap)["fake__echo"][0] != "succeeded" and snap["questions"] == []
-    assert events(record, "start") == []
 
 
 def test_what_counts_as_a_file_of_a_project(tmp_path):

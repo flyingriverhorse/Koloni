@@ -21,8 +21,10 @@ test.each(Object.entries(GUIDE))('%s: the guide has %s', (_name, place) => {
   // (run from frontend/: docs/ is beside it)
   const text = readFileSync(`../docs/${page.replace(/\/$/, '')}.md`, 'utf8')
   if (!anchor) return
-  const headings = Array.from(text.replace(/```[\s\S]*?```/g, '').matchAll(/^#{2,6}\s+(.*?)\s*$/gm), match =>
-    slug(match[1]),
+  // (a heading's own `{ #id }` is its anchor, as Zensical's attr_list makes it)
+  const headings = Array.from(
+    text.replace(/```[\s\S]*?```/g, '').matchAll(/^#{2,6}\s+(.*?)\s*$/gm),
+    match => /\{\s*#([\w-]+)\s*\}$/.exec(match[1])?.[1] ?? slug(match[1]),
   )
   expect(headings).toContain(anchor)
 })

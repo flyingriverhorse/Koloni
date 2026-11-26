@@ -45,8 +45,8 @@ has **Server**.
 | Option | What it means |
 |---|---|
 | One session per agent, with KOLONİ's tools (recommended) | One CLI session per agent, using KOLONİ's tools and cards. |
-| One run per model step, with KOLONİ's tools | The CLI runs once per model step: slower, and the answer arrives all at once. |
-| Native: its own tools, in the project | The CLI uses its own tools in your folder, and asks KOLONİ before each one. |
+| One run per model step, with KOLONİ's tools | Claude Code only: the CLI runs once per model step, slower, and the answer arrives all at once. |
+| Native: its own tools, in the project | The CLI uses its own tools in your folder, and asks KOLONİ before each one. Under **Experimental**: offered with **Show experimental features** on ([Experimental CLIs](setup-cli.md#experimental-clis)). |
 | Reads with its own tools; started without leave to write or run | agy only: it reads, and cannot change anything. |
 
 - **Sign-in** (Claude Code and Codex): **My own** uses the sign-in in your home folder; **Its own for

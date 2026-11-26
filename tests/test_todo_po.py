@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app import agent, backlog
 from app.agent import po_mixin
-from app.db.models import Agent, BacklogTask, Discussion, Project, Room, Run, Topic
+from app.db.models import Agent, BacklogTask, Discussion, Project, Run, Topic
 from app.team import Entry, quoted
 from tests.test_away_scenarios import ended as night_over
 from tests.test_away_scenarios import go_away, to_do
@@ -26,7 +26,6 @@ from tests.test_spawn import call, step
 from tests.test_team import team  # noqa: F401  (a fixture)
 from tests.test_tier_order_scenarios import _down
 from tests.test_tier_scenarios import ORIGIN, tiered
-from tests.test_trigger_scenarios import run_now, trigger
 
 SECRET = "tok-9d8c7b6a5f4e3d2c"
 PASSED = "build-label-7f6e5d4c"  # (no secret by its name: masked as the project passes it)
@@ -518,21 +517,6 @@ def test_a_nights_jobs_propose_and_nothing_is_added_for_the_user(team, project_d
     assert not any(asked[-1]["content"].startswith(backlog.DECIDE) for asked in default.calls)
 
 
-def test_a_triggers_turn_proposes_and_nothing_is_added_for_the_user(team, project_dir, ended):  # noqa: F811
-    client, default, _fast = team(
-        [FAILED, text(ANSWER)], [po(task("Add CLI help", "the CLI help text"))]
-    )
-    tiered(team, client)
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
-    ended(run_now(client, trigger(client, pid, cid)["id"]))
-    ((one),) = tasks(client, pid)
-    assert (one["status"], one["po"]["lead"]) == ("proposed", None)
-    assert not any(asked[-1]["content"].startswith(backlog.DECIDE) for asked in default.calls)
-
-
 def test_the_turns_that_are_not_asked_about(team, project_dir, ended):  # noqa: F811
     client, _default, _fast = team([FAILED, text(ANSWER)])
     pid, cid, run_id = start(client, project_dir, suggest_tasks=False)
@@ -541,10 +525,6 @@ def test_the_turns_that_are_not_asked_about(team, project_dir, ended):  # noqa: 
     with factory() as session:
         run = session.get_one(Run, run_id)
         assert backlog.po_asked(session, run)  # a step that failed
-        session.add(Room(run_id=run_id, goal="g"))
-        session.flush()
-        assert not backlog.po_asked(session, run)  # a room's
-        session.rollback()
         lead = session.scalar(select(Agent.id).where(Agent.run_id == run_id))
         session.add(
             Discussion(run_id=run_id, agent_id=lead, tool_call_id="c", topic="t", max_rounds=2)

@@ -15,7 +15,7 @@ from app.agent import review_mixin
 from app.schemas import RecipeGraph
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_chat_flow import text
-from tests.test_chat_teams_scenarios import OWN
+from tests.test_chat_teams_scenarios import OWN, former
 from tests.test_claim_scenarios import write
 from tests.test_parallel import until
 from tests.test_proof_end_scenarios import guess, texts
@@ -372,7 +372,6 @@ def test_a_steps_suggestions_reach_no_step_its_arrow_does_not_go_to(
 ):
     # (B-192 outside the handoff: a Reviewer's step before the Debugger's - its suggestions are
     # the user's, never Fix it's, the step after the next)
-    from tests.test_chat_teams_scenarios import teams_of
     from tests.test_recipe_run_scenarios import made
     from tests.test_spawn import begin, call
 
@@ -416,7 +415,7 @@ def test_a_steps_suggestions_reach_no_step_its_arrow_does_not_go_to(
             "checks": {"tests": False, "review": False},
         },
     )
-    backend = teams_of(client)["Backend / API"]
+    backend = former(client, "Backend / API")["Backend / API"]  # (a ready team until 0.1.10)
     cid, run_id = begin(
         client,
         project_dir,

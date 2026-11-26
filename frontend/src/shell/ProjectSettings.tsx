@@ -37,8 +37,6 @@ export interface ProjectSettingsValues {
   search_url?: string
   search_order?: Project['search_order']
   search_agy?: boolean
-  notify_url?: string
-  notify_format?: Project['notify_format']
   notify_desktop?: boolean
   /** "HH:MM": when the day's summary is sent; null: it is not. Sent only when changed. */
   day_note_at?: string | null
@@ -60,8 +58,6 @@ export interface ProjectSettingsValues {
   git_commit?: boolean
   /** K-dal-takim D2: how a team's finished branch reaches yours - merged here, or as a pull request. Sent only when changed. */
   finish_way?: 'merge' | 'pull_request'
-  /** Whether the Observer's model looks over each sub-agent's report. Sent only when changed. */
-  observe_reports?: boolean
   /** Whether the Scout suggests follow-up tasks after each turn, and from which tier. Sent only when changed. */
   suggest_tasks?: boolean
   suggest_tier?: Project['suggest_tier']
@@ -83,18 +79,10 @@ export interface ProjectSettingsValues {
   spawn_max_parallel?: number
   /** null takes the limit away. */
   discussion_budget?: number | null
-  room_posts?: number | null
-  room_tokens?: number | null
-  room_minutes?: number | null
-  /** B-414: the least tokens an agent's room is given; null: none. */
-  room_min_tokens?: number | null
   /** Whether a fast model notes what a finished turn found. Sent only when changed. */
   auto_notes?: boolean
   /** 22c: the other projects whose memory an agent's recall also looks in (ids): the whole list. Sent only when changed. */
   memory_links?: string[]
-  /** 22c, from the Memory page: the provider whose server embeds for the search by meaning (null: off), and the model name. */
-  embedding_provider_id?: string | null
-  embedding_model?: string
   /** The extra folders a new chat in this folder starts with (slice 86b), to work and to read only in: each whole list. */
   also_in?: string[]
   read_in?: string[]
@@ -257,7 +245,6 @@ export function ProjectSettings({
     setKeptBefore(koloni?.settings_kept ?? true)
     try {
       await onSave(shown.patch)
-      shown.saved?.()
       setSaved(saving)
     } catch (err) {
       setError({ section: saving, text: errorText(err) })

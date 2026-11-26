@@ -310,7 +310,7 @@ test('the lead’s model can follow the message: the choice says what it costs, 
   // what it costs, and that the request carries the message
   // and what it overrides, which "A role with its own model keeps" above it does not hold for - both in sight
   const note = screen.getByText(
-    /^One more request for each message you send: a fast model of your team guide is sent your message and asked how hard it is\. It overrides the Orchestrator role’s own model and tier\. A trigger’s message does not use it\.$/,
+    /^One more request for each message you send: a fast model of your team guide is sent your message and asked how hard it is\. It overrides the Orchestrator role’s own model and tier\.$/,
   )
   // (those stand under the box; the rest of the note is behind ⓘ beside it, closed - and opening it is not ticking the box)
   const rest = within(note).getByText(/^The Orchestrator then runs/)
@@ -322,7 +322,7 @@ test('the lead’s model can follow the message: the choice says what it costs, 
   // The box is named as it was - by all of its note, word for word what the page shows - and not by the
   // button that opens it. It says so in its own label: a browser leaves a closed hint out of a name.
   expect(auto).toHaveAccessibleName(
-    /^Orchestrator model: automatic One more request .* asked how hard it is\. It overrides .* does not use it\. The Orchestrator then runs .* else the model above\.$/,
+    /^Orchestrator model: automatic One more request .* asked how hard it is\. It overrides the Orchestrator role’s own model and tier\. The Orchestrator then runs .* else the model above\.$/,
   )
   // (less the hint's "Learn more →": a link to the guide, no part of the note)
   const shown = note.closest('label')!.textContent!.replace('Learn more →', '')
@@ -437,45 +437,67 @@ test('a Qoder provider from before says why it stays off and can only be deleted
   expect(screen.queryByRole('option', { name: /Qoder/ })).not.toBeInTheDocument()
 })
 
-test('Codex runs the ways it safely can; one run per model step only under Experimental, or in use', async () => {
+test('Codex runs the ways it safely can: a session, or Native under Experimental (0.1.10: one run per model step is cut)', async () => {
   const h = handlers()
   const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: null })
   render(<ModelsPage providers={[codex, provider({})]} {...h} />)
   await open('Codex', 'Connection')
   // A session since 7 Nov 2026 and its default since its live test, said plainly: its patch tool stays, and is refused.
-  expect(screen.getByLabelText('How it runs')).toHaveValue('session')
-  const session = screen.getByRole('option', { name: "One session per agent, with KOLONİ's tools (recommended)" })
-  expect(session).toHaveValue('session')
+  // Its only usual way: no choice to make (Native is experimental).
+  expect(screen.queryByLabelText('How it runs')).not.toBeInTheDocument()
   expect(screen.getByText(/KOLONİ refuses every patch it asks to make/)).toBeInTheDocument()
-  expect(screen.queryByRole('option', { name: /One run per model step/ })).not.toBeInTheDocument()
   await close()
   showExperimental()
   await open('Codex', 'Connection')
-  const step = await screen.findByRole('option', { name: /One run per model step/ })
-  expect(step.closest('optgroup')).toHaveAttribute('label', 'Experimental')
-  await userEvent.selectOptions(screen.getByLabelText('How it runs'), 'step')
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(h.onSave).toHaveBeenCalledWith('p5', expect.objectContaining({ mode: 'step' }))
+  expect(await screen.findByLabelText('How it runs')).toHaveValue('session')
+  const session = screen.getByRole('option', { name: "One session per agent, with KOLONİ's tools (recommended)" })
+  expect(session).toHaveValue('session')
+  expect(screen.queryByRole('option', { name: /One run per model step/ })).not.toBeInTheDocument()
+  expect(screen.getByRole('option', { name: /^Native/ }).closest('optgroup')).toHaveAttribute('label', 'Experimental')
 })
 
-test('agy and Codex run step by step, already set up, keep their card tagged Experimental', () => {
-  const agy = provider({ id: 'p6', name: 'agy', kind: 'agy_cli', base_url: null, mode: 'reads' })
+test('a Codex saved step by step shows, and is saved, as a session', async () => {
+  const h = handlers()
   const step = provider({ id: 'p7', name: 'Codex steps', kind: 'codex_cli', base_url: null, mode: 'step' })
+  render(<ModelsPage providers={[step, provider({})]} {...h} />)
+  expect(screen.getByRole('button', { name: /^Codex steps/ })).not.toHaveTextContent('Experimental')
+  await open('Codex steps', 'Connection')
+  expect(screen.queryByLabelText('How it runs')).not.toBeInTheDocument() // (a session, its one usual way)
+  await userEvent.type(screen.getByLabelText('Path to the command'), 'x')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(h.onSave).toHaveBeenCalledWith('p7', expect.objectContaining({ mode: 'session' }))
+})
+
+test('agy, and a CLI run Native, already set up, keep their card tagged Experimental', () => {
+  const agy = provider({ id: 'p6', name: 'agy', kind: 'agy_cli', base_url: null, mode: 'reads' })
   const codex = provider({ id: 'p8', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'session' })
-  render(<ModelsPage providers={[provider({}), agy, step, codex]} {...handlers()} />)
+  const native = provider({ id: 'p9', name: 'Claude native', kind: 'claude_cli', base_url: null, mode: 'native' })
+  render(<ModelsPage providers={[provider({}), agy, codex, native]} {...handlers()} />)
   const card = (name: RegExp) => screen.getByRole('button', { name })
   expect(card(/^agy/)).toHaveTextContent('Experimental')
-  expect(card(/^Codex steps/)).toHaveTextContent('Experimental')
-  expect(card(/^Codex(?! steps)/)).not.toHaveTextContent('Experimental')
+  expect(card(/^Claude native/)).toHaveTextContent('Experimental')
+  expect(card(/^Codex/)).not.toHaveTextContent('Experimental')
   expect(card(/^Local/)).not.toHaveTextContent('Experimental')
 })
 
-test('Codex can run natively, and the page says plainly how it is asked first', async () => {
+test('a provider saved Native, changed to a session while edited, keeps How it runs with Native under Experimental', async () => {
   const h = handlers()
-  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'step' })
+  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'native' })
   render(<ModelsPage providers={[codex, provider({})]} {...h} />)
   await open('Codex', 'Connection')
-  expect(screen.getByLabelText('How it runs')).toHaveValue('step')
+  expect(screen.getByLabelText('How it runs')).toHaveValue('native')
+  await userEvent.selectOptions(screen.getByLabelText('How it runs'), 'session')
+  expect(screen.getByLabelText('How it runs')).toHaveValue('session')
+  expect(screen.getByRole('option', { name: /^Native/ }).closest('optgroup')).toHaveAttribute('label', 'Experimental')
+})
+
+test('Codex can run natively, and the page says plainly how it is asked first', async () => {
+  showExperimental() // (Native is offered under Experimental since 0.1.10)
+  const h = handlers()
+  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'session' })
+  render(<ModelsPage providers={[codex, provider({})]} {...h} />)
+  await open('Codex', 'Connection')
+  expect(screen.getByLabelText('How it runs')).toHaveValue('session')
   await userEvent.selectOptions(screen.getByLabelText('How it runs'), 'native')
   const warning = screen.getByRole('note')
   // Since slice 89a it asks KOLONİ before each command and patch, at any permission level.

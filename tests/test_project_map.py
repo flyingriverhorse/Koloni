@@ -299,14 +299,14 @@ def map_ready(monkeypatch):
     """The Lead's first step comes once the map is made: a turn by itself does not wait."""
     from app.agent import AgentRunner
 
-    real = AgentRunner._hold_room
+    real = AgentRunner._by_how_hard
 
     async def held(self, lead):
         if (making := self._map_tasks.get(lead.run_id)) is not None:
             await asyncio.wait({making})
-        await real(self, lead)
+        return await real(self, lead)
 
-    monkeypatch.setattr(AgentRunner, "_hold_room", held)
+    monkeypatch.setattr(AgentRunner, "_by_how_hard", held)
 
 
 def test_the_lead_is_told_the_map_only_when_the_project_has_more_than_one_part(

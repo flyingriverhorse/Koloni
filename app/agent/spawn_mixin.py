@@ -1,7 +1,6 @@
 """Sub-agents: spawn_agent and the cards before one opens (kept work, candidates, a paid model),
 `_spawn_one` and a sub-agent's whole run (`_run_child`), the leads opened beside each other and
-a recipe's next branch, what a failed agent's opener is told, and its report looked over -
-`SpawnMixin`.
+a recipe's next branch, and what a failed agent's opener is told - `SpawnMixin`.
 """
 
 import asyncio
@@ -27,7 +26,6 @@ from app import (
     knowledge,
     knows,
     ledger,
-    observer,
     project_map,
     project_notes,
     recipe_run,
@@ -35,9 +33,7 @@ from app import (
     topics,
 )
 from app import memory as kept
-from app import room as rooms
 from app.agent.cards import (
-    _answer,
     _asked_about,
     _at_a_step_limit,
     _in_its_chat,
@@ -64,7 +60,6 @@ from app.agent.words import (
     BRANCH_NOT_IN_RECIPE,
     GIVEN_ONCE,
     HOW_RAISE,
-    IN_A_ROOM,
     MAX_WHAT,
     MAX_WHY,
     NO_STEPS_LEFT,
@@ -105,7 +100,6 @@ from app.providers import (
     TIERS,
     NotListed,
     allowed,
-    ask_once,
     is_on,
     list_providers,
     mode_of,
@@ -114,15 +108,13 @@ from app.providers import (
 )
 from app.recipes import model_refused
 from app.roles import (
-    OBSERVER,
-    agent_roles,
     can_change_things,
     chat_teams,
     closed,
     effective_tools,
     find_agent_role,
     find_role,
-    is_observer,
+    list_roles,
     names_said,
     shown_name,
     stage_order,
@@ -795,7 +787,7 @@ class SpawnMixin:
 
     def _names_past(self: "AgentRunner", session, ctx: Ctx) -> frozenset[str]:
         """The roles the user's message names that pass the chat's door (`_named`) - none for
-        the Lead beside teams' leads (B-100: it opened a team's room itself, by the roles the
+        the Lead beside teams' leads (B-100: it opened a team's roles itself, by the roles the
         message named, and that team's lead never ran): their teams' work is their leads' -
         in a turn the teams were picked for (`_teams_of_turn`); a later one opens whom it needs."""
         if (
@@ -840,7 +832,7 @@ class SpawnMixin:
         ]
         return [
             shown_name(r.name)
-            for r in [*agent_roles(session), *leads]
+            for r in [*list_roles(session), *leads]
             if not closed(r, teams, named)
         ]
 
@@ -873,7 +865,7 @@ class SpawnMixin:
                 return {}
             door, named = self._door(session, ctx), self._names_past(session, ctx)
             closed_here = self._closed_here(ctx)
-            for role in agent_roles(session):
+            for role in list_roles(session):
                 name = inside_name(role.name)
                 capped = [t for t in role.tools if t in ctx.tools]
                 tools = claude_tools(capped, withheld)
@@ -1420,8 +1412,6 @@ class SpawnMixin:
                         Agent.run_id == ctx.run_id,
                         Agent.depth == 1,
                         Agent.status != "rejected",
-                        # (K-oda-takim: a room's coordinator ran no team - unless taken up, B-386)
-                        or_(Agent.id.not_in(IN_A_ROOM), Agent.id.in_(self._taken_up)),
                     )
                 )
             }
@@ -1965,7 +1955,6 @@ class SpawnMixin:
                     else (
                         self._outrun_role(session, ctx, role)
                         or closed(role, door, named)
-                        or (self._room_refused(session, ctx, role.name))
                         or untiered
                     )
                 )
@@ -2072,9 +2061,6 @@ class SpawnMixin:
             raise ToolError(TIER_WHY_NEEDED.format(tier=tier))
         if tier is not None and len(why or "") > MAX_WHY:
             raise ToolError(f"why has at most {MAX_WHY} characters: one sentence")
-        if self._member_of(ctx) is not None and self._cannot_be_held(model, provider):
-            # Such a CLI writes with its own tools, where no item of the member's holds it.
-            raise ToolError(rooms.OWN_TOOLS_HERE.format(provider=shown_name(provider.name)))
         if not isinstance(task, str) or not task.strip():
             raise ToolError(
                 "task is required: write everything the sub-agent needs to know, "
@@ -2111,32 +2097,23 @@ class SpawnMixin:
         # opened (`_in_run`): a Stop, or another branch done first, since it was decided.
         if call_id in self._chained and not self._still_next(ctx, call_id, role.name):
             raise ToolError(BRANCH_GONE.format(role=role.name))
-        # B-386 (the user): "the coordinator is the lead" - one that agreed for its team in a
-        # room goes on to run it, with what was said there; no second lead is opened.
-        taken = self._take_up(ctx, call_id, role, task) if led else None
-        child, asks = (
-            taken
-            if taken is not None
-            else self._propose(
-                ctx,
-                call_id,
-                role,
-                task,
-                provider,
-                model_name,
-                model,
-                chosen,
-                not_to_be_had,
-                why=said,
-                effort=effort,
-                tiered=tier is not None or moved is not None,
-                yes=put is not None,
-                tier=tier,
-                users=users if mine is not None else None,
-            )
+        child, asks = self._propose(
+            ctx,
+            call_id,
+            role,
+            task,
+            provider,
+            model_name,
+            model,
+            chosen,
+            not_to_be_had,
+            why=said,
+            effort=effort,
+            tiered=tier is not None or moved is not None,
+            yes=put is not None,
+            tier=tier,
+            users=users if mine is not None else None,
         )
-        if taken is not None and effort:  # (taken up from its room: the level, as a fresh one)
-            child = self._ctxs[child.agent_id] = replace(child, effort=effort)
         if asked and effort:  # (the opener's pick, and its reason, after what its record says)
             self._effort_note(
                 child,
@@ -2202,8 +2179,8 @@ class SpawnMixin:
                 # tasks: as a path relative to wherever the sub-agent works - the project's
                 # own path would lead one working in a copy out of it.
                 # shortcut: the temp folder as Python names it - not its 8.3 short name nor
-                # one reached by a link - and only in a spawn task, not a message, a room's
-                # goal or a discussion's topic; widen it if another spelling is seen there.
+                # one reached by a link - and only in a spawn task, not a message or a
+                # discussion's topic; widen it if another spelling is seen there.
                 folders.append((CLI_TEMP, "the caller's own temp folder"))
             task = _said_from_here(task, folders)
         return task
@@ -2496,9 +2473,7 @@ class SpawnMixin:
             conversation = session.get_one(Conversation, ctx.cid)
             # Going on with an agent opens one: the same door as spawn_agent's (slice 62).
             self._start_runs(session, ctx, None)
-            shut = closed(role, self._door(session, ctx), self._names_past(session, ctx)) or (
-                self._room_refused(session, ctx, role.name)
-            )
+            shut = closed(role, self._door(session, ctx), self._names_past(session, ctx))
             if shut:
                 raise ToolError(f"{earlier.name} cannot be gone on with: {shut}")
             would = would_run(
@@ -2939,8 +2914,8 @@ class SpawnMixin:
                 # known not to be: the user may be asked first.
                 # K-devir-0: its reads before its first write, counted once it is over -
                 # None on a CLI whose reads KOLONİ does not see (`handoff.READS_SEEN`).
-                # shortcut: counted here only, at a spawned sub-agent's end; a room member's
-                # or an orphaned agent's stays None - count it in `_set_agent` if that is missed.
+                # shortcut: counted here only, at a spawned sub-agent's end; an orphaned
+                # agent's stays None - count it in `_set_agent` if that is missed.
                 with self._factory() as session:
                     reads = (
                         handoff.rediscovery(session, child.agent_id)
@@ -2961,12 +2936,7 @@ class SpawnMixin:
                         rediscovery=reads,
                     ),
                 )
-                # Before its opener hears back, and while the opener holds no place.
-                looked = moved + (
-                    await self._look_over(child, report)
-                    if (status == "completed" and report)
-                    else ""
-                )
+                looked = moved
             finally:
                 self.claims.returned(ctx.agent_id, child.agent_id)
         if UNCHECKED in (found or ()):
@@ -3037,13 +3007,7 @@ class SpawnMixin:
         decision, lead_why = await self._spawn_word(ctx, child, went_on=told is not None)
         if decision == "reject":
             # On record at once; the opener then takes its place again to go on.
-            # (B-386: a coordinator taken up from its room ran there - it stays counted.)
-            self._set_agent(
-                ctx.cid,
-                child.agent_id,
-                ended_at=now(),
-                status="completed" if (child.agent_id in self._taken_up) else "rejected",
-            )
+            self._set_agent(ctx.cid, child.agent_id, ended_at=now(), status="rejected")
             await self._settle(ctx)
             if lead_why:
                 declined = LEAD_DECLINED.format(why=lead_why[0])
@@ -3439,109 +3403,6 @@ class SpawnMixin:
         )
         self._ctxs[child.agent_id] = moved
         return moved, note
-
-    async def _look_over(self: "AgentRunner", child: Ctx, report: str) -> str:
-        """Where the project has it on (`observe_reports`): the Observer role's model is
-        asked once, with no tools, what of a sub-agent's report the record of its work
-        shows (`app.observer`). What it said goes on the sub-agent's record, signed, and
-        is returned for its opener, quoted as an opinion; why it said nothing goes on the
-        record instead. Nothing is made up, the sub-agent's state is not touched, and
-        nothing here fails its opener: no retry, only Stop ends it.
-
-        The request holds a place of its own on the provider it goes to, like the
-        summariser's (`_summarised`); what it spent is on a record of its own under the
-        model that was asked (`_own_request`)."""
-        note = None
-        with self._factory() as session:
-            conversation = session.get_one(Conversation, child.cid)
-            project = project_of(session, conversation)
-            if project is None or not project.observe_reports:  # (a project's setting)
-                return ""
-            role = find_role(session, OBSERVER)
-            limit = project.turn_token_limit
-            if limit and self._turn_spent(session, child.run_id)[0] > limit:
-                note = observer.OVER_LIMIT  # what KOLONİ asks for a turn counts in it
-            elif role is None or not is_observer(role):
-                note = observer.NO_OBSERVER  # a role of the user's own by that name is not it
-            else:
-                would = would_run(
-                    session,
-                    role,
-                    conversation,
-                    unattended=self._unwatched_like(child.run_id),
-                    tools=(),
-                )
-                provider = would.provider
-                model: Any = self.providers.client(provider, would.model_id)
-                asking = replace(
-                    child,
-                    model=model,
-                    provider=provider.name,
-                    provider_id=provider.id,
-                    model_name=would.model_id,
-                )
-                # As `asked_how_hard` passes one over: a CLI that keeps tools of its own
-                # when asked to talk is not handed the work.
-                talker = model.talker() if getattr(model, "native", False) else model
-                if would.refused:
-                    note = would.refused.to_agent
-                elif getattr(talker, "native", False):
-                    note = observer.HAS_TOOLS.format(provider=shown_name(provider.name))
-                else:
-                    mode = mode_of(provider)
-                    asked = observer.question(
-                        role.instructions,
-                        child.task or "",
-                        report,
-                        observer.on_record(session, child.agent_id),
-                        kept.write_in(session),
-                    )
-        if note:
-            self._set_agent(child.cid, child.agent_id, observation_note=note)
-            return ""
-        before = self._ctxs[child.agent_id]
-        # While its context stands for the request, nobody else takes the agent up: to the
-        # others it is at work (a note, not a turn of its own; no discussion).
-        self._answering[child.agent_id] = "running"
-        self._ctxs[child.agent_id] = asking  # pyrefly: ignore[unbound-name]  # (set where no note is) its place is counted where the request goes
-        try:
-            async with self._working(asking, shown=False):
-                # Its provider's own default, where none is named: as the model names it.
-                name = asking.model_name or (await model.info()).model_id  # pyrefly: ignore[unbound-name]  # (set where no note is)
-                asking = replace(asking, model_name=name)
-                try:
-                    # A time of its own: the opener waits for this, and nothing else ends it.
-                    async with asyncio.timeout(observer.SECONDS):
-                        said, answer = await ask_once(model, name, asked)  # pyrefly: ignore[unbound-name]  # (set where no note is)
-                except BaseException:
-                    self._own_request(child, asking, mode, None)  # pyrefly: ignore[unbound-name]  # (set where no note is) sent, and not heard out
-                    raise
-                self._own_request(child, asking, mode, answer)  # pyrefly: ignore[unbound-name]  # (set where no note is)
-            opinion = observer.kept_of(_answer(said))
-            note = None if opinion else observer.SAID_NOTHING
-        except TimeoutError:
-            opinion, note = None, observer.TIMED_OUT
-        except asyncio.CancelledError:
-            # Stop: said, and the turn ends as ever.
-            self._set_agent(child.cid, child.agent_id, observation_note=observer.STOPPED)
-            raise
-        except Exception as exc:
-            opinion = None
-            note = observer.FAILED.format(why=str(exc) or observer.FAILED_SILENTLY)
-        finally:
-            self._ctxs[child.agent_id] = before
-            self._answering.pop(child.agent_id, None)
-        self._set_agent(
-            child.cid,
-            child.agent_id,
-            observation=opinion,
-            observation_note=note,
-            observed_by={"provider_name": asking.provider, "model_id": asking.model_name},
-        )
-        if not opinion:
-            return ""
-        signed = f"{shown_name(asking.provider or '')} · {asking.model_name}"
-        return f"\n\nObserver ({signed}), {observer.OPINION}: {quoted(opinion)}"
 
     def _sign_of(self: "AgentRunner", agent_id: str) -> str:
         """What was last counted of an agent's calls, for the one who opened it."""

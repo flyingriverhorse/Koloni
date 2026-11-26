@@ -19,10 +19,6 @@ KOLONİ's own words, as they appear on screen.
 : A button on a command's card. It keeps a rule for that chat, so the same kind of command runs
   without a card next time. See [Permission levels](../use/permissions.md).
 
-**Board**
-: A page with every chat of the project in three columns: at work, waiting for you, and done
-  today.
-
 **Branch (a team's)**
 : A git branch `koloni/<name>` that the Orchestrator can give a team's work. It starts from your folder
   as it is, your uncommitted files too, and its card carries the agent's work alone. Stopped, the
@@ -70,14 +66,10 @@ KOLONİ's own words, as they appear on screen.
 : A short piece of memory that you approved or wrote, usually pointing to lines of a file. It is
   given to an agent whose task names its subject.
 
-**Goal**
-: On the To-do page, what a few stories are for together, with how many of them are done. See
-  [Goals and stories](../automation/todo.md#goals-and-stories).
-
 **Hive keeper**
 : The built-in role that keeps the To-do list: it turns a goal into stories and tasks, each with what
   makes it done, and puts them in order. **Write it with the Hive keeper** on the To-do page asks for its
-  way of writing a note as a goal, its stories and their tasks. See [To-do](../automation/todo.md).
+  way of writing a note as stories and their tasks. See [To-do](../automation/todo.md).
 
 **Journal**
 : The notes in a project's memory: what agents wrote while they worked. Agents find notes only
@@ -101,11 +93,6 @@ KOLONİ's own words, as they appear on screen.
 
 **Note**
 : A piece of memory an agent wrote with its **Remember** tool. See [Memory](../memory.md).
-
-**Observer**
-: A built-in role that never works on its own. If you switch on **Have a model look over each
-  sub-agent's report**, its model reads each sub-agent's report and says what the record shows.
-  Its words are an opinion, not a fact.
 
 **Orchestrator**
 : The agent you talk to in a chat. It plans, asks and checks, and hands changes to files to
@@ -167,8 +154,10 @@ KOLONİ's own words, as they appear on screen.
   Debugger, Architect and Docs writer. You can add your own.
 
 **Room**
-: Two to six agents working on one goal at the same time, in one working copy. They share the work
-  out first, and each file has one holder. You open one with **Work together…** under **More**.
+: Until 0.1.10, two to six agents working on one goal at the same time, in one working copy. Rooms are
+  gone: a [discussion](../agents/discussions.md) lets agents talk a question through, and sub-agents
+  (or a recipe's **All at once** step) work at the same time, each on its own part. An old chat's room
+  is one line where it was; what was said in it is kept in KOLONİ's record.
 
 **Scout**
 : The built-in role that keeps watch on the To-do list: it splits vague tasks, asks what is
@@ -182,7 +171,7 @@ KOLONİ's own words, as they appear on screen.
   Tools page and give them to roles.
 
 **Stop everything**
-: The button in the top bar that stops every turn in every chat and holds triggers, the To-do tasks
+: The button in the top bar that stops every turn in every chat and holds the To-do tasks
   waiting in a chat's queue, and work while you're away. While it holds, it reads **Held · Resume**. See
   [Chat and canvas](../use/chat-and-canvas.md#writing-a-message).
 
@@ -190,7 +179,7 @@ KOLONİ's own words, as they appear on screen.
 : On the To-do page, tasks and bugs that go on together. Its state comes from its tasks; it is done
   only when you close it. It has a short notebook, given to each of its turns as data, and its tasks go
   on in one topic of a chat. A **bug** is a task about something that works wrong. See
-  [Goals and stories](../automation/todo.md#goals-and-stories) and
+  [Stories](../automation/todo.md#goals-and-stories) and
   [The story's notebook](../automation/todo.md#the-storys-notebook).
 
 **Sub-agent**
@@ -220,7 +209,7 @@ KOLONİ's own words, as they appear on screen.
   the Models page. A model with no tier is never picked by itself.
 
 **To-do**
-: A project's tasks, in your order: goals hold stories, stories hold tasks and bugs. Ticked tasks run
+: A project's tasks, in your order: stories hold tasks and bugs. Ticked tasks run
   in a chat you give them to (**Do in chat**), one by one, at that chat's level and on its model. Agents,
   and the Scout after a turn, propose tasks; you decide. See [To-do](../automation/todo.md).
 
@@ -230,10 +219,6 @@ KOLONİ's own words, as they appear on screen.
   inside its topic. **New topic**, under the message box, starts one with your next message. A To-do
   story given to a chat goes on in a topic of its own, its tasks one after another. See
   [Topics](../memory.md#topics) and [Doing tasks in a chat](../automation/todo.md#doing-tasks-in-a-chat).
-
-**Trigger**
-: Something that starts a turn by itself: the clock, a change to the project's files, or a request
-  from outside (a webhook). Nobody watches such a turn, so it may do only what the trigger allows.
 
 **Turn**
 : Everything that happens for one message: the Orchestrator's answer, the agents it opened, their
@@ -259,6 +244,6 @@ A CLI provider has a setting **How it runs**:
 | On screen | What it means |
 |---|---|
 | One session per agent, with KOLONİ's tools (recommended) | One CLI session per agent, using KOLONİ's tools. |
-| One run per model step, with KOLONİ's tools | The CLI runs once for each model step: slower, and the answer arrives all at once. |
-| Native: its own tools, in the project | The CLI uses its own tools in your folder and asks KOLONİ before each one. |
+| One run per model step, with KOLONİ's tools | Claude Code only: the CLI runs once for each model step, slower, and the answer arrives all at once. |
+| Native: its own tools, in the project | The CLI uses its own tools in your folder and asks KOLONİ before each one. Experimental: offered with **Show experimental features** on. |
 | Reads with its own tools; started without leave to write or run | agy only: it reads with its own tools and cannot change anything. |

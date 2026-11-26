@@ -8,8 +8,8 @@ Contract (`tasarim/specs/2026-10-24-dilim-94-sayfa-anahtari-design.md`):
 - Each start makes a key, held in memory only (`app.state.page_key`). Every `/api` request
   carries it - the `X-KOLONI-Key` header, or `?key=` where a header cannot go (EventSource, a
   download link) - or is answered 401 before anything else is looked at.
-- What has a door of its own needs no page key: health, a webhook, the status line, and what a
-  frame loads (a view's files, a project's raw file).
+- What has a door of its own needs no page key: health, the status line, and what a frame
+  loads (a view's files, a project's raw file).
 - The key never reaches a child process (`KOLONI_PAGE_KEY` is taken out of the environment once
   read), the access log or the settings' repr. The window shows the link with the key in place of
   uvicorn's "running on" line.
@@ -89,7 +89,6 @@ def test_the_key_opens_the_api(bare):
         ("post", "/api/file-changes/nope/approve"),
         ("post", "/api/file-changes/nope/revert"),
         ("post", "/api/discussions/nope/posts"),
-        ("post", "/api/rooms/nope/posts"),
         ("post", "/api/providers/nope/default"),
         ("delete", "/api/providers/nope"),
         ("post", "/api/roles"),
@@ -104,8 +103,8 @@ def test_the_key_opens_the_api(bare):
     ],
 )
 def test_an_approval_with_the_key_but_not_from_the_apps_own_page_is_refused(bare, method, path):
-    """Security review 0.1.0, 9: past the key, a card's yes (an "always" too), a revert, a word
-    in a room and a provider's or a role's change say they come from the app's own page."""
+    """Security review 0.1.0, 9: past the key, a card's yes (an "always" too), a revert and a
+    provider's or a role's change say they come from the app's own page."""
     app, client = bare
     key = {HEADER: app.state.page_key}
     body = {"json": {}} if method == "post" else {}
@@ -127,8 +126,8 @@ def test_the_key_in_the_address_serves_where_a_header_cannot_go(bare):
 def test_what_has_a_door_of_its_own_needs_no_page_key(bare):
     _, client = bare
     assert client.get("/api/health").status_code == 200
-    # (A test client is not "this machine", so the webhook says 403 - its own refusal.)
-    assert client.post("/api/hooks/no-such-key", content=b"{}").status_code in (403, 404)
+    # (A trigger's webhook had a door of its own until 0.1.10: there is none now.)
+    assert client.post("/api/hooks/anything", content=b"{}").status_code == 401
     # The status line's own key is asked for, not the page's.
     assert client.post("/api/limits/claude-session", json={}).status_code == 403
     assert client.get("/api/conversations/nope/views/v/index.html").status_code == 404

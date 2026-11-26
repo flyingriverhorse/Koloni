@@ -325,7 +325,7 @@ export function RoleLibrary({
                       {teamsText(role.teams.length)}
                     </span>
                   </button>
-                  {/* The Lead, the Planner and the Observer are always there: no switch. */}
+                  {/* The Lead and the Planner are always there: no switch. */}
                   {hasSwitch(role) && (
                     <input
                       type="checkbox"

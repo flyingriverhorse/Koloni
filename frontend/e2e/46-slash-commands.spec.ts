@@ -25,7 +25,7 @@ for (const theme of ['light', 'dark'] as const)
     const chat = page.getByRole('region', { name: 'Chat' })
     const box = chat.getByRole('textbox', { name: 'Message' })
     const menu = chat.getByRole('listbox', { name: 'Commands' })
-    // /model, /room and /mode open what their buttons open - Work together from under More, closed.
+    // /model and /mode open what their buttons open.
     // (Each once it is on: off till the page has read the providers, or the roles, it opens with.)
     const on = async (name: string) => {
       const option = menu.getByRole('option', { name: new RegExp(`^/${name}`) })
@@ -36,13 +36,6 @@ for (const theme of ['light', 'dark'] as const)
     await on('model')
     await page.keyboard.press('Enter')
     await expect(chat.getByRole('form', { name: 'Model for this conversation' })).toBeFocused()
-    await page.keyboard.press('Escape')
-    await expect(chat.getByRole('button', { name: 'More', exact: true })).toHaveAttribute('aria-expanded', 'false')
-    await box.fill('/room')
-    await on('room')
-    await page.keyboard.press('Enter')
-    await expect(chat.getByRole('form', { name: 'Work together' })).toBeFocused()
-    await page.keyboard.press('Escape')
     await page.keyboard.press('Escape')
     await expect(chat.getByRole('button', { name: 'More', exact: true })).toHaveAttribute('aria-expanded', 'false')
 

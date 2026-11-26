@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import triggers
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.commands import MAX_RULE, rules_here, tidy_rule
 from app.db.models import AllowedCommand, Command, Conversation, Run, now
@@ -196,10 +195,9 @@ async def add_rule(
     session: Session = Depends(get_session),
 ):
     """Put a command on a conversation's allow list by hand, as "Always run" does when a
-    command is approved: the conversation's own turns then run it without asking, and a
-    trigger of that conversation can tick it. It says what may run unasked, so it is
-    taken only from the app's own page. A rule that is already there is answered with
-    (200), not made twice."""
+    command is approved: the conversation's own turns then run it without asking. It says
+    what may run unasked, so it is taken only from the app's own page. A rule that is
+    already there is answered with (200), not made twice."""
     conversation = session.get(Conversation, conversation_id)
     if conversation is None:
         raise HTTPException(404, "conversation not found")
@@ -233,17 +231,12 @@ async def add_rule(
     "/allowed-commands/{rule_id}", status_code=204, dependencies=[Depends(require_own_origin)]
 )
 async def remove_rule(rule_id: str, request: Request, session: Session = Depends(get_session)):
-    """Take a rule off its conversation's allow list. A trigger that had it ticked may
-    no longer run it, from this moment (`commands.ticked` reads the list as it is); that
-    is also written on the trigger, for the user to look over."""
+    """Take a rule off its conversation's allow list."""
     rule = session.get(AllowedCommand, rule_id)
     if rule is None:
         raise HTTPException(404, "rule not found")
     conversation_id = rule.conversation_id
-    projects = triggers.rule_removed(session, rule)
     session.delete(rule)
     session.commit()
     request.app.state.runner.commands.emit_rules(conversation_id)
-    for project_id in projects:
-        request.app.state.triggers.announce(project_id)
     return Response(status_code=204)

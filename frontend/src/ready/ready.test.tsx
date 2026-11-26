@@ -293,10 +293,10 @@ test('the same decision everywhere: answered in Ready, another chat’s card is 
   expect(screen.queryByText('Which greeting?')).toBeNull()
 })
 
-test('the rail: Ready carries the badge, the total; Board none', () => {
+test('the rail: Ready carries the badge, the total; no Board page (0.1.10)', () => {
   render(<Rail view="canvas" onView={vi.fn()} theme="dark" onToggleTheme={vi.fn()} waiting={5} />)
   expect(screen.getByRole('button', { name: 'Ready' })).toHaveAccessibleDescription('5 waiting')
-  expect(screen.getByRole('button', { name: 'Board' })).not.toHaveAccessibleDescription()
+  expect(screen.queryByRole('button', { name: 'Board' })).toBeNull()
   expect(screen.getAllByText('5')).toHaveLength(1)
 })
 

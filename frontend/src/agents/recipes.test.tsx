@@ -5,7 +5,6 @@ import type { Provider, Recipe, RecipeDraft, RecipeGraph, Recipes, Role, RoleMod
 import {
   addEnd,
   addGroup,
-  addRoom,
   addStep,
   boardPlaces,
   checkedEnds,
@@ -387,28 +386,19 @@ test('a ready recipe is drawn read-only and copied to be changed', async () => {
   )
 })
 
-test('a step says, before any run, where its role cannot be a step, and a room where a member cannot be in one (B-89)', () => {
+test('a step says, before any run, where its role cannot be a step (B-89)', () => {
   const models = {
     Reviewer: {
       cannot_run: null,
       cannot_step: 'agy works with tools of its own in the project itself',
-      cannot_room: null,
     },
-    Coder: { cannot_run: null, cannot_step: null, cannot_room: 'Codex works with tools of its own here' },
+    Coder: { cannot_run: null, cannot_step: null },
   } as unknown as Record<string, RoleModel>
-  const talk: Recipe = {
-    ...FEATURE,
-    id: 'talk',
-    graph: {
-      ...FEATURE.graph,
-      steps: [...FEATURE.graph.steps, step('room', 'Talk it over', { who: { room: ['Coder', 'Reviewer'] } })],
-    },
-  }
   render(
     <RecipesTab
       roles={roles}
       teams={teams}
-      list={{ ...list, recipes: [talk] }}
+      list={{ ...list, recipes: [FEATURE] }}
       projectId={null}
       actions={actions()}
       reload={vi.fn()}
@@ -419,9 +409,7 @@ test('a step says, before any run, where its role cannot be a step, and a room w
   fireEvent.click(part(/^Code review/))
   expect(warned()).toBe('⚠ Reviewer: Not as a recipe’s step: agy works with tools of its own in the project itself')
   fireEvent.click(part(/^Build it/))
-  expect(warned()).toBeNull() // (a Coder may be a step; its room's warning is no step's)
-  fireEvent.click(part(/^Talk it over/))
-  expect(warned()).toBe('⚠ Coder: Not in a room: Codex works with tools of its own here')
+  expect(warned()).toBeNull() // (a Coder may be a step)
 })
 
 test('a ready recipe’s parts stay where they are; a copy’s are dragged, and Tidy up is saved like any change', async () => {
@@ -719,10 +707,9 @@ test('B-388: I pick each offers no provider whose agent of the role works in the
     Coder: {
       cannot_run: null,
       cannot_step: null,
-      cannot_room: null,
       run_on: [
-        { provider_id: 'agy', model_id: 'flash', step: false, room: true },
-        { provider_id: 'local', model_id: 'big-model', step: true, room: true },
+        { provider_id: 'agy', model_id: 'flash', step: false },
+        { provider_id: 'local', model_id: 'big-model', step: true },
       ],
     },
   } as unknown as Record<string, RoleModel>
@@ -748,36 +735,6 @@ test('B-388: I pick each offers no provider whose agent of the role works in the
   const [agy, local] = within(first).getAllByRole('option') as HTMLOptionElement[]
   expect([agy.textContent, agy.disabled]).toEqual(['agy (can’t run in a recipe’s copy)', true])
   expect([local.textContent, local.disabled]).toEqual(['Local', false])
-})
-
-test('a room (slice 84e): never in a group, after the chosen part; its roles ticked in its panel, then saved', async () => {
-  let [graph, group] = addGroup(emptyGraph(), START)
-  let room: string
-  ;[graph, room] = addRoom(graph, group)
-  expect(graph.steps.find(one => one.id === room)).toMatchObject({ who: { room: [] }, group: null })
-  expect(graph.arrows).toContainEqual({ from: group, to: room })
-  const given = draw()
-  fireEvent.click(screen.getByRole('button', { name: '+ Draw a new recipe' }))
-  fireEvent.click(part(/^Your message/))
-  fireEvent.click(screen.getByRole('button', { name: '+ Room' }))
-  const who = within(panel()).getByRole('group', { name: 'Who meets in the room' })
-  fireEvent.click(within(who).getByLabelText('Coder'))
-  fireEvent.click(within(who).getByLabelText('Reviewer'))
-  // A room meets on its own; it ends by its own rules.
-  expect(within(panel()).queryByLabelText('At the same time as')).toBeNull()
-  expect(within(panel()).getByLabelText('Done when')).toHaveDisplayValue(
-    'the room ends: all say done, or its time or budget is up',
-  )
-  expect(part(/^Meeting/)).toHaveTextContent('Coder · Reviewer')
-  fireEvent.click(screen.getByRole('button', { name: '+ Ask me' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
-  await waitFor(() => expect(given.saveRecipe).toHaveBeenCalled())
-  const [, body] = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls[0]
-  expect(body.graph.steps).toMatchObject([{ name: 'Meeting', who: { room: ['Coder', 'Reviewer'] } }])
-  expect(body.graph.arrows).toEqual([
-    { from: 'start', to: 's1' },
-    { from: 's1', to: 'end1' },
-  ])
 })
 
 test('K-tarif-kol: a group’s step goes on to another of its group, one line, never round; out of the group its arrows go', () => {
@@ -911,7 +868,6 @@ test('a step whose role cannot be a step there shows ⚠ on its node, with why (
     Reviewer: {
       cannot_run: null,
       cannot_step: 'agy works with tools of its own in the project itself',
-      cannot_room: null,
     },
   } as unknown as Record<string, RoleModel>
   render(

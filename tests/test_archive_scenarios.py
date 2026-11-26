@@ -13,7 +13,7 @@ if "archived_at" not in ConversationOut.model_fields:
     pytest.skip("slice 38f is not built yet", allow_module_level=True)  # written before the code
 
 from tests.test_chat_flow import text  # noqa: E402
-from tests.test_trigger_scenarios import one, run_now, setup, trigger  # noqa: E402
+from tests.turn_helpers import setup
 
 
 def listed(client, pid, cid):
@@ -58,18 +58,6 @@ def test_archiving_is_asked_from_the_apps_own_page(make_client, project_dir):
     assert refused.status_code == 403
     client.headers["Origin"] = "http://evil.example"
     assert client.patch(f"/api/conversations/{cid}", json={"archived": True}).status_code == 403
-
-
-def test_a_trigger_of_an_archived_conversation_still_runs_and_leaves_it_archived(
-    make_client, wait_run, project_dir
-):
-    client, _model, pid, cid = setup(make_client, project_dir, {"Lead": [text("looked")]})
-    made = trigger(client, pid, cid)
-    archive(client, cid)
-    wait_run(client, cid, run_now(client, made["id"]), timeout=10.0)
-    (ran,) = one(client, made["id"])["runs"]
-    assert ran["outcome"] == "completed"
-    assert listed(client, pid, cid)["archived_at"] is not None
 
 
 def test_writing_in_an_archived_conversation_brings_it_back(make_client, wait_run, project_dir):

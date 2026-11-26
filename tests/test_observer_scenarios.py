@@ -23,7 +23,6 @@ from tests.test_agent_commands import cmd  # noqa: E402
 from tests.test_agent_writes import write  # noqa: E402
 from tests.test_chat_flow import text  # noqa: E402
 from tests.test_spawn import begin, call, step  # noqa: E402
-from tests.test_trigger_scenarios import finished, run_now, setup, trigger  # noqa: E402
 
 SAME_FAILURE = "failed {n} times with the same arguments and the same error"
 SAME_RESULT = "returned the same result {n} times with the same arguments"
@@ -194,20 +193,6 @@ def test_the_one_who_opened_a_sub_agent_is_told_what_was_counted_of_it(
     assert "I could not find it." in result and SAME_FAILURE.format(n=3) in result
     assert agent(snap, "Coder")["sign"]["count"] == 3
     assert agent(snap)["sign"] is None  # it is the sub-agent's, not the lead's
-
-
-def test_in_a_turn_nobody_watches_the_fifth_time_ends_the_agents_work_and_says_why(
-    make_client, wait_run, project_dir
-):
-    client, model, pid, cid = setup(
-        make_client, project_dir, {"Lead": [*(miss(str(n)) for n in range(8)), text("never said")]}
-    )
-    run_id = run_now(client, trigger(client, pid, cid)["id"])
-    snap = finished(client, wait_run, cid, run_id)
-    run = next(r for r in snap["runs"] if r["id"] == run_id)
-    assert run["status"] == "failed" and SAME_FAILURE.format(n=5) in run["error"]
-    assert len(model.calls_of["Lead"]) == 5  # no sixth step is taken
-    assert agent(snap)["sign"]["count"] == 5
 
 
 # --- the track record --------------------------------------------------------------------------

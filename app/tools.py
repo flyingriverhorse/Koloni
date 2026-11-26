@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.backlog import LISTED
-from app.db.models import ROOM_MIN_TOKENS
 from app.model_client import EFFORTS
 from app.providers import CLI_COMMANDS, TIERS
 from app.roles import shown_name
@@ -314,37 +313,6 @@ CREATE_ROLE_SCHEMA = _fn(
     ["name", "tools"],
 )
 
-# Slice 69: a trigger the user approves on a card; its leave is never the agent's to give.
-PROPOSE_TRIGGER_SCHEMA = _fn(
-    "propose_trigger",
-    "Propose a trigger: work that starts by itself in this chat, by the clock or when files "
-    "of the project change, with a message you write for each run. The user sees it on a "
-    "card and approves, edits or rejects it; nothing starts before that. It always starts "
-    "reading only, with no sub-agents and the usual budget: anything more is the user's to "
-    "give. Give it an end; left out, it ends after 10 runs.",
-    {
-        "name": {"type": "string", "description": "A short name, at most 80 characters."},
-        "kind": {"type": "string", "enum": ["schedule", "files"]},
-        "config": {
-            "type": "object",
-            "description": 'schedule: {"every_minutes": N} (5 to '
-            '10080) or {"at": "HH:MM", "days": "daily" | "weekdays" | ["mon", ..., '
-            '"sun"]}; files: {"glob": "src/**/*.py"}, a pattern of paths in the project.',
-        },
-        "message": {
-            "type": "string",
-            "description": "What the agent is told at each run, as "
-            "if the user had written it; at most 4000 characters.",
-        },
-        "ends": {
-            "type": "object",
-            "description": 'Optional: {"runs": N} (1 to 1000) or '
-            '{"until": "YYYY-MM-DD"}, the last day it runs on.',
-        },
-    },
-    ["name", "kind", "config", "message"],
-)
-
 ADD_SKILL_SCHEMA = _fn(
     "add_skill",
     "Propose a skill for the user to add, and the roles to give it: a folder on this "
@@ -491,8 +459,8 @@ def pick_schema(teams, recipes) -> dict:
         "call this first, before any spawn_agent. A small change - a few lines in one or two "
         "files - needs no team: make it with one agent (or yourself, where you may write "
         "files), and say in one line why no team; KOLONİ checks the work at the end all the "
-        "same. Pick before you open their roles: once picked, spawn_agent opens only the roles "
-        "of the teams picked; until then, any role but one only in teams you may not pick. A "
+        "same. Pick before you open their roles; the teams are where you start, not a fence: any "
+        "built-in role the work needs opens beside them - none only in teams you may not pick. A "
         "simple question needs no team: answer it yourself. A later pick replaces this one: "
         f"name every team then. Their roles listed are those on. Teams you may pick:\n{listed}"
         + (
@@ -899,16 +867,12 @@ _TASK_FIELDS = {
         "description": "Optional: a bug is something that works wrong; task if left out.",
     },
 }
-# What only add_task takes: the story it goes into, and that story's goal.
+# What only add_task takes: the story it goes into.
 _TASK_STORY = {
     "story": {
         "type": "string",
         "description": "Optional: the title of the To-do story it goes on with - one there now, "
         "whatever its case, or a new one; leave it out for a task that stands alone.",
-    },
-    "goal": {
-        "type": "string",
-        "description": "Optional, with a new story: the title of the goal that story is for.",
     },
 }
 # The project's To-do list (`app.backlog`): what is added or changed waits for the user's word.
@@ -1063,188 +1027,10 @@ WEB_SCHEMAS = {
     ),
     "notify": _fn(
         "notify",
-        "Send the user a short notification, where they have set it to go - their desktop, "
-        "an address of theirs, or both (you do not choose where). Use it for what they "
-        "would want to hear while away: the work is done, or it is stuck.",
+        "Send the user a short notification on their desktop. Use it for what they would "
+        "want to hear while away: the work is done, or it is stuck.",
         {"message": {"type": "string", "description": "The text, at most 2000 characters."}},
         ["message"],
-    ),
-}
-
-
-OPEN_ROOM_SCHEMA = _fn(
-    "open_room",
-    "Call a meeting: open a room in which 2 to 6 agents, each in its role, work on one goal "
-    "at the same time, in one copy of the project, sharing the work out on the room's list "
-    "of items. Use it for work that needs several roles at once (change, review, test), not "
-    "for a job one sub-agent can do. Its members are opened as sub-agents are, and the user "
-    "may be asked for them. While it runs you follow it: you are given what is said in it as "
-    "it comes, and may post to it, ask one more in, or end it with a sentence of what came of "
-    "it. When it is over you are given its record: how it ended and what came of each item. "
-    "One room a turn.",
-    {
-        "goal": {
-            "type": "string",
-            "description": "What the room is to do, with everything "
-            "its members need to know: they see only this.",
-        },
-        "with": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "2 to 6 roles, one member each (e.g. Coder, Reviewer).",
-        },
-        "budget": {
-            "type": "object",
-            "properties": {key: {"type": "integer"} for key in ("posts", "tokens", "minutes")},
-            "description": "Optional: at most how many posts, tokens and minutes it may "
-            "spend (tokens: all its members' steps send and write, each resending its "
-            "context; no token limit unless one is set). Never more than the conversation "
-            "lets a room spend; left out, that. Tokens are never fewer than the least the user "
-            f"gives a room ({ROOM_MIN_TOKENS} unless they changed it): one member's step with its "
-            "context takes some 8000-9000, so a smaller budget is raised to it.",
-        },
-        "follow": {
-            "type": "boolean",
-            "description": "Optional, true when left out: you follow "
-            "the room while it runs. false: you only wait for its record.",
-        },
-    },
-    ["goal", "with"],
-)
-# K-oda-lead: what the agent that opened a room has while it follows it, beside post_to_room and
-# invite_to_room (`app.room.FOLLOW`) - and nobody else has.
-FOLLOW_SCHEMAS = {
-    "wait_for_room": _fn(
-        "wait_for_room",
-        "Wait for what is said next in the room you follow, and be given it with how the room "
-        "stands - or, once it is over, its record. While you wait you hold nobody up.",
-        {},
-        [],
-    ),
-    "end_room": _fn(
-        "end_room",
-        "End the room you follow, now: its members stop, and you are given its record. Say in "
-        "one sentence what came of it; the user reads that as the room's line.",
-        {
-            "summary": {
-                "type": "string",
-                "description": "What came of the room, in one sentence (at most 300 characters).",
-            }
-        },
-        ["summary"],
-    ),
-}
-
-_ITEM = {"type": "integer", "description": "The item's number on the room's list."}
-# What only a member of a room has, for as long as the room lasts (`app.room`): no role
-# lists these.
-ROOM_SCHEMAS = {
-    "add_item": _fn(
-        "add_item",
-        "Put a piece of the room's work on its list: one line saying what is to be done, "
-        "and the files or folders it will change, if any. Work that changes no file (find "
-        "out why a test fails) is an item too. Adding it does not make it yours: take_item "
-        "does. Returns its number.",
-        {
-            "title": {"type": "string", "description": "What is to be done, in one line."},
-            "paths": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Optional: the files or folders it will change, relative to "
-                "the project folder. Only an item's holder changes a file under them.",
-            },
-        },
-        ["title"],
-    ),
-    "take_item": _fn(
-        "take_item",
-        "Make an item of the room's list yours. An item has one holder: one that somebody "
-        "holds, or whose files an item somebody else holds already covers, is refused, and "
-        "you are told who has it.",
-        {"item": _ITEM},
-        ["item"],
-    ),
-    "finish_item": _fn(
-        "finish_item",
-        "Close an item you hold as done, with what came of it: what you did or found, and "
-        "what shows it. The others and the user read that.",
-        {
-            "item": _ITEM,
-            "result": {
-                "type": "string",
-                "description": "What came of it, at most 1500 characters.",
-            },
-        },
-        ["item", "result"],
-    ),
-    "drop_item": _fn(
-        "drop_item",
-        "Give up an item you hold that will not be done, and say why.",
-        {"item": _ITEM, "why": {"type": "string", "description": "Why, in a sentence."}},
-        ["item", "why"],
-    ),
-    "post_to_room": _fn(
-        "post_to_room",
-        "Say something in the room. The other members read it at their next step, the user "
-        "sees it; nobody is interrupted for it. type: result (what you did and checked), "
-        "review (what you found in somebody's work), question (stays open until somebody "
-        "replies to it), answer (with reply_to: the question's number), blocked (you cannot "
-        "go on without the user: they are asked, and you get their answer). A post has at "
-        # (R146, live: a Tester's longer post failed, "too long".)
-        "most 1500 characters: put anything longer in a file - under an item of yours, or "
-        "with write_shared where you have it - and name it in the post.",
-        {
-            "type": {
-                "type": "string",
-                "enum": ["result", "review", "question", "answer", "blocked"],
-            },
-            "text": {"type": "string", "description": "At most 1500 characters."},
-            "to": {
-                "type": "string",
-                "description": "Optional: the member it is for, by name. Everybody still reads it.",
-            },
-            "reply_to": {
-                "type": "integer",
-                "description": "Optional: the number of the "
-                "post this replies to. A reply to a question closes it.",
-            },
-        },
-        ["type", "text"],
-    ),
-    "invite_to_room": _fn(
-        "invite_to_room",
-        "Ask one more agent into the room, in a role the room lacks: it is opened as a "
-        "sub-agent is, and the user may be asked for it. A room has six members at most. "
-        "Not sure which role? Leave role out and say why: the Orchestrator picks one.",
-        {
-            "role": {
-                "type": "string",
-                "description": "The role of the agent to invite; "
-                "left out, the Orchestrator picks it from why.",
-            },
-            "why": {
-                "type": "string",
-                "description": "What it is needed for, in a sentence; "
-                "it reads this with the room's goal. Optional where you name the role.",
-            },
-        },
-        [],
-    ),
-    "wait_for_post": _fn(
-        "wait_for_post",
-        "Wait until somebody says something in the room that you have not read yet; it is "
-        "then handed to you. Use it when you have nothing to do until another member has "
-        "done its part. While you wait you hold nobody up.",
-        {},
-        [],
-    ),
-    "wait_for_item": _fn(
-        "wait_for_item",
-        "Wait until an item another member holds is finished or dropped, and be given what "
-        "came of it - rather than doing the same work yourself. Something said in the room "
-        "meanwhile ends the wait too. While you wait you hold nobody up.",
-        {"item": _ITEM},
-        ["item"],
     ),
 }
 
@@ -1286,15 +1072,12 @@ def tool_schemas_for(
     ]
     if "message_agent" in agent_tools and (reachable or earlier or always):
         schemas.append(message_schema(reachable, earlier))
-    if "open_room" in agent_tools:
-        schemas.append(OPEN_ROOM_SCHEMA)
     if "discuss" in agent_tools:
         schemas.append(discuss_schema(others))
     schemas += [schema for name, schema in BACKLOG_SCHEMAS.items() if name in agent_tools]
     schemas += [
         schema
         for name, schema in (
-            ("propose_trigger", PROPOSE_TRIGGER_SCHEMA),
             ("post_note", POST_NOTE_SCHEMA),
             ("read_notes", READ_NOTES_SCHEMA),
             ("remember", REMEMBER_SCHEMA),
@@ -1304,7 +1087,6 @@ def tool_schemas_for(
         )
         if name in agent_tools
     ]
-    schemas += [schema for name, schema in ROOM_SCHEMAS.items() if name in agent_tools]
     return schemas
 
 
@@ -1355,11 +1137,10 @@ LOOKUP_SCHEMA = _fn(
 SHOW_SCHEMA = _fn(
     "show",
     "Put a file of the project before the user, in the view beside the chat: a page (.html), "
-    "a drawing (.svg), a note (.md), a picture (.png, .jpg, .gif, .webp), a document (.pdf, "
-    ".docx, .xlsx, .pptx) or a 3D model (.stl, .obj, .gltf, .glb, .3mf; what it names beside it "
-    "is read from beside it) - say one a "
-    "command made. A page, a drawing or a note you write with write_file or edit_file is "
-    "shown without this. The page's script runs there, cut off from everything else.",
+    "a drawing (.svg), a note (.md), a picture (.png, .jpg, .gif, .webp) or a document (.pdf; a "
+    ".docx, .xlsx or .pptx is listed among your outputs, not drawn) - say one a command made. A "
+    "page, a drawing or a note you write with write_file or edit_file is shown without this. The "
+    "page's script runs there, cut off from everything else.",
     {
         "path": _PATH,
         "note": {

@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Node, type NodeProps, ReactFlowProvider } from '@xyflow/react'
 import { expect, test, vi } from 'vitest'
-import type { Away, ChatTeamState, Merge, Room } from '../api/types'
+import type { Away, ChatTeamState, Merge } from '../api/types'
 import {
   agent,
   assistantMessage,
@@ -21,7 +21,7 @@ import { copyLine } from '../changes/copies'
 import { chatColours, talkColours, teamColour, teamColours } from '../agents/teamRun'
 import { applyEvent } from '../state/applyEvent'
 import { foldAll, foldGraph } from './foldGraph'
-import { NODE_H, DOOR_PAD, TEAM_HEAD, TEAM_OUT, blockSize, crosses, layoutGraph } from './layout'
+import { DOOR_PAD, TEAM_HEAD, TEAM_OUT, blockSize, crosses, layoutGraph } from './layout'
 import { ReadyNode, TeamNode } from './nodes'
 import type { SharedData } from './sharedColumn'
 import { SharedNode } from './SharedNode'
@@ -38,7 +38,6 @@ const steps = (now: string): ChatTeamState['steps'] =>
       name,
       state: at < index ? 'done' : at === index ? 'now' : 'next',
       round: name === 'Build it' ? 1 : 0,
-      room: false,
       own_check: false,
       left_out: [],
       group: false,
@@ -321,35 +320,6 @@ test('the frame is laid out round its agents, its header above them; folded, it 
   const shut = foldGraph(deriveGraph(team('running', 'Build it')), { 'team:r:web': false })
   const folded = layoutGraph(shut.nodes, shut.edges)
   expect(folded.positions['team:r:web'].x).toBeGreaterThan(folded.positions['agent:r'].x)
-})
-
-test('a room in a recipe’s step (84e) is drawn inside its team’s frame, the frame round it, its step marked Room', () => {
-  const room = {
-    id: 'o',
-    run_id: 'r',
-    agent_id: 'r',
-    goal: 'Meet on it',
-    status: 'working',
-    outcome: null,
-    why: null,
-    members: [
-      { agent_id: 'spec', role: 'Spec writer', status: 'in' },
-      { agent_id: 'coder', role: 'Coder', status: 'in' },
-    ],
-  } as unknown as Room
-  const state = team('running', 'Build it', { rooms: [room] })
-  state.conversation.teams[0].state!.steps[1].room = true
-  const g = foldGraph(deriveGraph(state), {})
-  expect(g.nodes.find(n => n.id === 'room:o')?.team).toBe('team:r:web')
-  const { positions, sizes } = layoutGraph(g.nodes, g.edges)
-  const [frame, met] = [{ ...positions['team:r:web'], ...sizes['team:r:web'] }, positions['room:o']]
-  expect(met.y).toBeGreaterThanOrEqual(frame.y + TEAM_HEAD)
-  expect(met.y + NODE_H).toBeLessThanOrEqual(frame.y + frame.height)
-  const data = g.nodes.find(n => n.id === 'team:r:web')!.data as TeamData
-  draw(<TeamNode {...props('team:r:web', data)} />)
-  expect(
-    within(screen.getByRole('list', { name: 'Feature: its steps' })).getAllByRole('listitem')[1],
-  ).toHaveTextContent('Build itRoom · round 2')
 })
 
 const draw = (
@@ -836,7 +806,7 @@ test('No teams: no frame and no Ready for you - the canvas as before', () => {
   expect(g.nodes.some(n => n.kind === 'team' || n.kind === 'ready')).toBe(false)
 })
 
-test('a recipe turn says its copy is the recipe’s, not a room’s', () => {
+test('a recipe turn says its copy is the recipe’s, not the turn’s', () => {
   const state = team('ready', 'You')
   state.agents[0] = { ...state.agents[0], copy: { state: 'own' } } as (typeof state.agents)[0]
   state.agents[2] = { ...state.agents[2], copy: { state: 'parent' } } as (typeof state.agents)[0]

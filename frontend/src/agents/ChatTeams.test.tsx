@@ -197,6 +197,9 @@ test('the Lead’s picks are shown with why, to be changed only in Manual', asyn
   expect(panel()).toHaveTextContent('Orchestrator’s pick: “new page work”')
   expect(within(panel()).queryByRole('combobox')).toBeNull()
   expect(within(panel()).queryByRole('button', { name: /Add a team/ })).toBeNull()
+  expect(panel()).toHaveTextContent(
+    'Beside its picks it calls any built-in role the work needs, though not while a recipe runs.',
+  )
   expect(panel()).toHaveTextContent('To change them, switch to Manual')
 })
 
@@ -295,21 +298,17 @@ test('a recipe step whose role cannot be a step where it runs says so on its row
     provider_name: 'agy',
     cannot_run: null,
     cannot_step: 'agy works with tools of its own in the project itself',
-    cannot_room: null,
     run_on: [
-      { provider_id: 'agy', model_id: null, step: false, room: false },
-      { provider_id: 'cop', model_id: null, step: false, room: false },
-      { provider_id: 'claude', model_id: 'sonnet', step: true, room: false },
+      { provider_id: 'agy', model_id: null, step: false },
+      { provider_id: 'cop', model_id: null, step: false },
+      { provider_id: 'claude', model_id: 'sonnet', step: true },
     ],
   }
   const { onRunOn, onRoleModels } = show(
     { teams_mode: 'manual', teams: [row('web')] },
     null,
     [],
-    [
-      agy,
-      { role: 'Coder', provider_name: 'Claude', cannot_run: null, cannot_step: null, cannot_room: null, run_on: [] },
-    ],
+    [agy, { role: 'Coder', provider_name: 'Claude', cannot_run: null, cannot_step: null, run_on: [] }],
   )
   // B-337: KOLONİ's own question in the window, never the browser's.
   const confirm = vi.spyOn(window, 'confirm')
@@ -354,7 +353,6 @@ test('who uses what is read again as a role changes elsewhere while the window i
     provider_name: 'agy',
     cannot_run: null,
     cannot_step: 'agy works with tools of its own in the project itself',
-    cannot_room: null,
     run_on: [],
   }
   const props = show({ teams_mode: 'manual', teams: [row('web')] }, null, [], [warned])

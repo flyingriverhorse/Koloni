@@ -41,10 +41,6 @@ export const conversation: Conversation = {
   when_away: 'waits',
   away_minutes: 10,
   lead_effort: null,
-  room_posts: 40,
-  room_tokens: 400000,
-  room_minutes: 30,
-  room_min_tokens: 60000,
   also_in: [],
   read_in: [],
   part: null,
@@ -98,7 +94,6 @@ export function boardTurn(
     model_id: null,
     tokens: null,
     plan_waits: false,
-    outcomes: [],
     ...over,
   }
 }
@@ -270,9 +265,6 @@ export function agent(runId: string, status: Agent['status'] = 'running', over: 
     copy: null,
     sign: null,
     last_event_at: null,
-    observation: null,
-    observation_note: null,
-    observed_by: null,
     effort: null,
     context_window: null,
     summarised: 0,
@@ -352,15 +344,11 @@ export function convState(over: Partial<ConvState> = {}): ConvState {
     questions: [],
     discussions: [],
     discussionPosts: [],
-    rooms: [],
-    roomItems: [],
-    roomPosts: [],
     boardPosts: [],
     claims: [],
     merges: [],
     attachments: [],
     away: [],
-    triggerProposals: [],
     notesOffers: [],
     warnings: [],
     lastEventId: 0,
@@ -406,7 +394,6 @@ export function memoryRecord(id: string, over: Partial<MemoryRecord> = {}): Memo
     unattended: false,
     created_at: '2026-10-05T10:00:00Z',
     last_change: null,
-    by_meaning: false,
     ...over,
   }
 }
@@ -446,7 +433,7 @@ export async function openAgentFold(name: string, root: HTMLElement = document.b
   return fold
 }
 
-/** Settings › The app › Agents' Show experimental CLIs on, for this test: agy and Codex step by step offered. Any
+/** Settings › The app › Agents' Show experimental features on, for this test: agy and Native offered. Any
  *  other GET goes where it went: to a stand-in a test set (kept after), else the real one. */
 export function showExperimental() {
   const was = api.get

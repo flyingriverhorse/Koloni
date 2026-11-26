@@ -1,9 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, onTestFinished, test, vi } from 'vitest'
-import type { Merge, Project, Provider, Room, WebRequest } from '../api/types'
-import type { RequestHandlers } from '../chat/MessageList'
-import { RoomWindow } from '../room/RoomWindow'
+import type { Merge, Project, Provider, WebRequest } from '../api/types'
 import { LimitsTab } from '../models/LimitsTab'
 import { ModelPicker } from '../models/ModelPicker'
 import { BacklogPage } from '../backlog/BacklogPage'
@@ -11,11 +9,9 @@ import { TodayView } from '../usage/TodayView'
 import { OutsideApproval } from '../commands/OutsideApproval'
 import { WebApproval } from '../commands/WebApproval'
 import { MergeCard } from '../changes/MergeCard'
-import { agent, conversation, convState, memoryRecord, projectMemory, run, toolCall } from '../test-fixtures'
+import { memoryRecord, projectMemory, toolCall } from '../test-fixtures'
 import { MemoryPage } from '../memory/MemoryPage'
 import { useApp } from '../state/store'
-import { newTrigger } from '../triggers/fixtures'
-import { TriggersPage } from '../triggers/TriggersPage'
 import { Hint } from './Hint'
 import { ProjectSettings } from './ProjectSettings'
 
@@ -78,8 +74,6 @@ const project: Project = {
   search_url: null,
   search_order: 'builtin',
   search_agy: false,
-  has_notify_url: false,
-  notify_format: 'slack',
   notify_desktop: false,
   turn_token_limit: null,
   max_agents: null,
@@ -103,12 +97,9 @@ const project: Project = {
   judge_risky: 'refuse',
   disposable_deletes: false,
   memory_links: [],
-  embedding_provider_id: null,
-  embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
-  observe_reports: false,
   suggest_tasks: true,
   suggest_tier: 'fast',
   day_note_at: null,
@@ -126,10 +117,6 @@ const project: Project = {
   spawn_max_agents: 6,
   spawn_max_parallel: 2,
   discussion_budget: null,
-  room_posts: 40,
-  room_tokens: null,
-  room_minutes: 30,
-  room_min_tokens: 60000,
   pass_env: null,
   held_env: [],
   koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
@@ -142,14 +129,16 @@ test('a note with a hint loses nothing: its first sentence stands, the rest is b
   await userEvent.click(screen.getByRole('button', { name: /^Limits and money/ }))
   const field = screen.getByLabelText('At most this many agents at work in this project')
   const first = screen.getByText('Counted over all of this project’s conversations together.')
-  const rest = screen.getByText(/^When that many are at work, a new agent .* The Board shows who is at work\.$/)
+  const rest = screen.getByText(
+    /^When that many are at work, a new agent .* The Chats list shows which chats are at work\.$/,
+  )
   expect(first.closest('.hint')).toBeNull()
   expect(rest).not.toBeVisible()
   // The field is described by the first sentence and by the rest, in the order they were written, and not by
   // the button that opens it - closed as well as open (e2e/31 holds the browser to that).
   expect(field).toHaveAttribute('aria-describedby', `${first.id} ${rest.id}`)
   expect(field).toHaveAccessibleDescription(
-    /^Counted over all of this project’s conversations together\. When that many are at work, .* holds no slot\. The Board shows who is at work\.$/,
+    /^Counted over all of this project’s conversations together\. When that many are at work, .* holds no slot\. The Chats list shows which chats are at work\.$/,
   )
   // every hint on this page, section by section: none of them open, each with something in it;
   // and what warns of what a setting runs, spends or does not hold is never behind one: it is read before the field is set
@@ -158,12 +147,10 @@ test('a note with a hint loses nothing: its first sentence stands, the rest is b
     /the tests the sub-agent wrote or changed run in its working copy - only those/,
     /a search with it uses your plan/,
     /a CLI that reports no tokens is not limited by this/,
-    /is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked/,
     /at most 90 seconds\) it holds a place like any model step, so the next message may wait for one/,
-    // tek-ev: what every chat's sub-agents, discussions and rooms spend
+    // tek-ev: what every chat's sub-agents and discussions spend
     /Agents on a CLI that work at the same time spend your subscription at the same time/,
     /Sent and written by its speakers, together; a model that reports no tokens is not limited/,
-    /Sent and written by its members’ models, as billed; a model that reports no tokens is not limited/,
   ]
   const warned = new Set<RegExp>()
   let hinted = 0
@@ -219,8 +206,8 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
   [
     'Memory',
     async () => {
-      // The search by meaning on, and a preference suggested.
-      useApp.setState({ projectId: 'p', projects: [{ ...project, embedding_provider_id: 'p1' }], providers: [local] })
+      // A preference suggested.
+      useApp.setState({ projectId: 'p', projects: [project], providers: [local] })
       onTestFinished(() => useApp.setState({ projectId: null, projects: [], providers: [] }))
       const none = vi.fn(async () => {})
       const suggested = memoryRecord('s1', {
@@ -244,48 +231,11 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
           onAddPreference={none}
           onReload={none}
           onSearch={vi.fn()}
-          onMeaning={none}
         />,
       )
       await userEvent.click(screen.getByRole('tab', { name: /^Told/ }))
     },
-    [
-      /^By meaning: One embeddings request to that provider for each search \(it also reads up to 50 notes, facts or earlier messages not read yet\), on your plan or your bill\.$/,
-      /Added, it is told to every agent in every project as your instruction\./,
-    ],
-  ],
-  [
-    'Triggers',
-    async () => {
-      const none = vi.fn()
-      render(
-        <TriggersPage
-          triggers={[]}
-          conversations={[conversation]}
-          draft={null}
-          origin="http://127.0.0.1:8790"
-          onCreate={none}
-          onSave={none}
-          onDelete={none}
-          onRun={none}
-          onShowTurn={none}
-          onDraftTaken={none}
-          onRules={vi.fn(async () => [])}
-          onAddRule={none}
-        />,
-      )
-      await newTrigger()
-      await userEvent.selectOptions(screen.getByLabelText('Starts'), 'files')
-    },
-    [
-      /Only you make or change a trigger; no agent can\./,
-      /There is nobody to ask when it runs\. Anything not allowed here is refused/,
-      /The conversation’s own permission level does not apply\./,
-      /Without it, nothing a sub-agent or its commands write in its own working copy reaches the project\./,
-      /only “Runs a day” stops that/,
-      /a run that falls due is skipped; a change to its files waits until the conversation is free/,
-      /A run that goes over is stopped\. Three runs in a row that fail or go over switch the trigger off\./,
-    ],
+    [/Added, it is told to every agent in every project as your instruction\./],
   ],
   [
     'The approval cards',
@@ -368,9 +318,7 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
       render(<ModelPicker providers={[local]} providerId={null} modelId={null} onSave={vi.fn()} />)
       await userEvent.click(screen.getByRole('button', { name: /Model: Local/ }))
     },
-    [
-      /One more request for each message you send: .* It overrides the Orchestrator role’s own model and tier\. A trigger’s message does not use it\./,
-    ],
+    [/One more request for each message you send: .* It overrides the Orchestrator role’s own model and tier\./],
   ],
   [
     'Models, Limits',
@@ -384,72 +332,9 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
     },
     [
       /Its runs then show no cost on Usage and count nothing in a project’s budget\./,
-      /Past it, a new message whose Orchestrator runs here asks you first, a model picked by tier is the next one of its tier, and no sub-agent or room member is opened here\./,
+      /Past it, a new message whose Orchestrator runs here asks you first, a model picked by tier is the next one of its tier, and no sub-agent is opened here./,
       /A role that always runs on one tier, or on one model, is never stepped down: your own rule wins\./,
     ],
-  ],
-  [
-    'The room window',
-    async () => {
-      const noop = async () => {}
-      const on = {
-        onOpenChange: () => {},
-        onDecide: noop,
-        onDecideCommand: noop,
-        onDecideWeb: noop,
-        onSelectAgent: () => {},
-        onDecideSpawn: noop,
-        onDecideRole: noop,
-        onDecideMerge: noop,
-        onCheckMerge: noop,
-        onCommitMerge: noop,
-        onAnswer: noop,
-      } as RequestHandlers
-      const room = (id: string, lead_follows: Room['lead_follows']): Room => ({
-        id,
-        run_id: 'r',
-        goal: `Room ${id}`,
-        agent_id: null,
-        status: 'working',
-        outcome: null,
-        why: null,
-        budget: { posts: 40, tokens: 400000, minutes: 30 },
-        spent: { posts: 0, tokens: 0, minutes: 0 },
-        summary: null,
-        paused: false,
-        lead_follows,
-        members: [],
-        created_at: 't',
-        ended_at: null,
-      })
-      const state = convState({
-        runs: [run('r', 'running')],
-        agents: [agent('r', 'waiting', { id: 'lead' })],
-        rooms: [room('o1', 'on'), room('o2', 'stopped')],
-      })
-      render(
-        <>
-          {state.rooms.map(one => (
-            <RoomWindow
-              key={one.id}
-              state={state}
-              room={one}
-              on={on}
-              roles={[]}
-              providers={[]}
-              onSay={noop}
-              onEnd={noop}
-              onMore={noop}
-              onPause={noop}
-              onFollow={noop}
-              onShrink={() => {}}
-              onClose={() => {}}
-            />
-          ))}
-        </>,
-      )
-    },
-    [/^Its steps count toward the room’s tokens\.$/, /^Stopped: answered, few steps left, or a CLI session\.$/],
   ],
   [
     'The approval cards',

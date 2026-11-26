@@ -203,9 +203,7 @@ export interface paths {
         post?: never;
         /**
          * Remove Rule
-         * @description Take a rule off its conversation's allow list. A trigger that had it ticked may
-         *     no longer run it, from this moment (`commands.ticked` reads the list as it is); that
-         *     is also written on the trigger, for the user to look over.
+         * @description Take a rule off its conversation's allow list.
          */
         delete: operations["remove_rule_api_allowed_commands__rule_id__delete"];
         options?: never;
@@ -692,27 +690,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/cards": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read Cards
-         * @description The cards asked since `since` (all without it), in one project's chats or in all; for one
-         *     project, the rules its approvals suggest too.
-         */
-        get: operations["read_cards_api_cards_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/catalog": {
         parameters: {
             query?: never;
@@ -1037,9 +1014,9 @@ export interface paths {
          * @description Archived conversations deleted for good (slice 76): their turns and all that hangs off
          *     them - messages, agents, their calls, changes and notes, events, and recall's index of
          *     what was said. The project's files and git are not touched, nor its memory: a record of
-         *     one only stops pointing at it. One that is not archived, has a turn at work, has a
-         *     trigger, or has changes still the user's to apply or discard is not deleted, and says
-         *     why; the others are.
+         *     one only stops pointing at it. One that is not archived, has a turn at work, or has
+         *     changes still the user's to apply or discard is not deleted, and says why; the others
+         *     are.
          */
         post: operations["delete_conversations_api_conversations_delete_post"];
         delete?: never;
@@ -1114,26 +1091,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/conversations/{cid}/trigger-proposals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read Proposals
-         * @description The triggers this chat's agents proposed, oldest first, decided or not (slice 69).
-         */
-        get: operations["read_proposals_api_conversations__cid__trigger_proposals_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/conversations/{conversation_id}": {
         parameters: {
             query?: never;
@@ -1164,10 +1121,9 @@ export interface paths {
         /**
          * Add Rule
          * @description Put a command on a conversation's allow list by hand, as "Always run" does when a
-         *     command is approved: the conversation's own turns then run it without asking, and a
-         *     trigger of that conversation can tick it. It says what may run unasked, so it is
-         *     taken only from the app's own page. A rule that is already there is answered with
-         *     (200), not made twice.
+         *     command is approved: the conversation's own turns then run it without asking. It says
+         *     what may run unasked, so it is taken only from the app's own page. A rule that is
+         *     already there is answered with (200), not made twice.
          */
         post: operations["add_rule_api_conversations__conversation_id__allowed_commands_post"];
         delete?: never;
@@ -1326,58 +1282,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/conversations/{conversation_id}/rerun-failed": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Rerun Failed
-         * @description K-board-sonuc: "Re-run the ones that failed" on a Board card. The sub-agents of the
-         *     conversation's last turn that failed - timed out, went silent or broke - and were not
-         *     opened again since (`board.outcomes`) are opened again in a new turn of its topic, by its
-         *     Lead, which alone opens agents: the message asks it for exactly those, each with its role
-         *     and task. The turn is made here, not by `post_message`: its words are KOLONİ's and the
-         *     agents', so no folder they name is read in and no role they name is the user's word for it
-         *     (`by_user`); and it is no plan to write first. The budget holds it as any message.
-         *     shortcut: over the month's budget it is refused, and the card only says why (it has no
-         *     "go on over it"); give it one if that is met often.
-         *     shortcut: one a team's lead opened is asked of the turn's Lead too, which opens it
-         *     directly; ask it of its team if a team's work is seen to need its lead.
-         */
-        post: operations["rerun_failed_api_conversations__conversation_id__rerun_failed_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/conversations/{conversation_id}/rooms": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Open Room
-         * @description The user opens a room: a turn of its own, whose message is the room's goal. Its
-         *     members are opened without the card a sub-agent may need, on the models the user
-         *     names here - so it is theirs to open, from the app's own page.
-         */
-        post: operations["open_room_api_conversations__conversation_id__rooms_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/conversations/{conversation_id}/teams/{team_id}/finish": {
         parameters: {
             query?: never;
@@ -1509,8 +1413,8 @@ export interface paths {
         get: operations["experimental_clis_api_experimental_clis_get"];
         /**
          * Set Experimental Clis
-         * @description 0.1.8: Show experimental CLIs (Settings › The app › Agents) - the user's, from the app's
-         *     own page.
+         * @description Show experimental features (Settings › The app › Agents; 0.1.8's Show experimental CLIs)
+         *     - the user's, from the app's own page.
          */
         put: operations["set_experimental_clis_api_experimental_clis_put"];
         post?: never;
@@ -1703,32 +1607,11 @@ export interface paths {
         put?: never;
         /**
          * Resume
-         * @description What was held goes on: each trigger from its next time, each backlog that works
-         *     itself with its next task, each night with its next job. What was stopped stays stopped,
-         *     and the answer says so (`stays_stopped`, read before the hold that lists them goes).
+         * @description What was held goes on: each backlog that works itself with its next task, each night
+         *     with its next job. What was stopped stays stopped, and the answer says so (`stays_stopped`,
+         *     read before the hold that lists them goes).
          */
         post: operations["resume_api_hold_resume_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/hooks/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Webhook
-         * @description Start a webhook trigger's turn. From this machine only; whoever does not have the
-         *     key is told nothing but "not found". The body is handed to the agent as data.
-         */
-        post: operations["webhook_api_hooks__key__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2531,14 +2414,14 @@ export interface paths {
         /**
          * Delete Project
          * @description KOLONİ's record of the project gone for good, in one transaction: its chats with all
-         *     of their turns, its memory, knowledge, To-do, triggers, nights, usage and vectors. Not
+         *     of their turns, its memory, knowledge, To-do, nights and usage. Not
          *     while anything of it is at work (409, why in words). Its folder, files, git and .koloni/
          *     are never touched; KOLONİ's own files of its chats go as a chat's delete takes them
          *     (`_forget_files`: CLI sessions, attachments, kept sides of a commit). On the loop, as the
-         *     trigger clock is.
+         *     app's clock is.
          *     shortcut: KOLONİ's own model call after a turn that ended (the note of what it found) is
          *     not waited for; a row of the project it writes after the delete is refused by the foreign
-         *     key, and a vector stays until the next start's `tidy_db`. Wait for it here if that bites.
+         *     key. Wait for it here if that bites.
          */
         delete: operations["delete_project_api_projects__project_id__delete"];
         options?: never;
@@ -2579,7 +2462,9 @@ export interface paths {
         };
         /**
          * Read Night
-         * @description The project's night that runs, else its last one; null: it never had one.
+         * @description The project's night that runs, else its last one; null: it never had one. With its strip
+         *     on Ready for you (Part B, `away_night`): read here alone - every decision of the night is
+         *     built, and a chat's snapshot, on the event loop, reads every night it had.
          */
         get: operations["read_night_api_projects__project_id__away_get"];
         put?: never;
@@ -2725,29 +2610,6 @@ export interface paths {
         get: operations["project_budget_api_projects__project_id__budget_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/card-suggestions/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Add Suggested Rule
-         * @description Cards measured (0.1.7): the user's click on a rule the Usage page suggests - by its key
-         *     alone, never text: its line, KOLONİ's, found again among what this project's approvals
-         *     suggest (`cards.suggestions`), at the end of the project's rules, saved as `set_rules` saves
-         *     them. Once there, the same click changes nothing.
-         */
-        post: operations["add_suggested_rule_api_projects__project_id__card_suggestions__key__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3214,8 +3076,7 @@ export interface paths {
         /**
          * Search Memory
          * @description What an agent's `recall` would find for these words: the same searches, so the
-         *     user sees what an agent would be shown. Words that say nothing find nothing. (Not
-         *     async: a search by meaning asks a server, 22c.)
+         *     user sees what an agent would be shown. Words that say nothing find nothing.
          */
         get: operations["search_memory_api_projects__project_id__memory_search_get"];
         put?: never;
@@ -3398,45 +3259,6 @@ export interface paths {
         put?: never;
         /** Add Story */
         post: operations["add_story_api_projects__project_id__stories_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/triggers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Triggers */
-        get: operations["list_triggers_api_projects__project_id__triggers_get"];
-        put?: never;
-        /** Create Trigger */
-        post: operations["create_trigger_api_projects__project_id__triggers_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/triggers/changes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Changes
-         * @description The newest fifty things done to the project's triggers, newest first - those of
-         *     triggers that have since been deleted among them.
-         */
-        get: operations["list_changes_api_projects__project_id__triggers_changes_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4176,152 +3998,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/rooms/{room_id}/end": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * End
-         * @description End the room now: its members still at work are stopped, and the turn's lead is
-         *     given what came of it so far.
-         */
-        post: operations["end_api_rooms__room_id__end_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/follow": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Follow
-         * @description K-oda-izle: let the turn's Lead follow the room the user opened, as it follows one it
-         *     opened itself: it is given what is said, and may post, ask one more in or end it.
-         */
-        post: operations["follow_api_rooms__room_id__follow_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/more": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * More
-         * @description Add to a running room's budget. Leave to spend more: the user's to give, from the
-         *     app's own page.
-         */
-        post: operations["more_api_rooms__room_id__more_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/pause": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Pause
-         * @description Pause the room (29c): its members finish the step at hand, then post nothing and ask
-         *     no model, and its clock stands, until Resume. It can still be read and ended.
-         */
-        post: operations["pause_api_rooms__room_id__pause_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/posts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Say
-         * @description The user speaks in the room; every member reads it at its next step.
-         */
-        post: operations["say_api_rooms__room_id__posts_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/resume": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Resume
-         * @description Resume a paused room: its members go on where they stopped. Leave to spend again: the
-         *     user's to give, from the app's own page.
-         */
-        post: operations["resume_api_rooms__room_id__resume_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/unfollow": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Unfollow
-         * @description The Lead follows the room no further: it waits for its record, as before (its step at
-         *     hand may finish).
-         */
-        post: operations["unfollow_api_rooms__room_id__unfollow_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/runs/{run_id}/cancel": {
         parameters: {
             query?: never;
@@ -4861,132 +4537,6 @@ export interface paths {
         patch: operations["patch_topic_api_topics__topic_id__patch"];
         trace?: never;
     };
-    "/api/trigger-proposals/{proposal_id}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Approve Proposal
-         * @description The user's Approve: the trigger is made as proposed, with the safest leave - it reads
-         *     only, opens no sub-agent, has the usual budget. Anything more is the user's, in the form.
-         */
-        post: operations["approve_proposal_api_trigger_proposals__proposal_id__approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/trigger-proposals/{proposal_id}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reject Proposal */
-        post: operations["reject_proposal_api_trigger_proposals__proposal_id__reject_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/triggers/paused": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Paused */
-        get: operations["read_paused_api_triggers_paused_get"];
-        /**
-         * Set Paused
-         * @description Pause every trigger of every project at once, or let them go on. Pausing also
-         *     stops the unattended turns that are running.
-         */
-        put: operations["set_paused_api_triggers_paused_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/triggers/{trigger_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Trigger */
-        get: operations["read_trigger_api_triggers__trigger_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete Trigger
-         * @description Remove a trigger and the list of its runs. The turns it started stay in their
-         *     conversation; one that is running is stopped. What was done to it stays on the
-         *     project's record, and that it was deleted is added to it.
-         */
-        delete: operations["delete_trigger_api_triggers__trigger_id__delete"];
-        options?: never;
-        head?: never;
-        /** Change Trigger */
-        patch: operations["change_trigger_api_triggers__trigger_id__patch"];
-        trace?: never;
-    };
-    "/api/triggers/{trigger_id}/key": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * New Key
-         * @description A webhook's key made anew: the old address stops at once, the new one is shown this
-         *     once (only its digest is kept). For an address that got out.
-         */
-        post: operations["new_key_api_triggers__trigger_id__key_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/triggers/{trigger_id}/run": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Run Trigger
-         * @description "Run now": the trigger's turn, with the trigger's permissions and nobody asked -
-         *     what it would do by itself, for the user to see.
-         */
-        post: operations["run_trigger_api_triggers__trigger_id__run_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/unattended": {
         parameters: {
             query?: never;
@@ -5174,11 +4724,6 @@ export interface components {
             name: string;
             /** Nano Aiu */
             nano_aiu: number | null;
-            /** Observation */
-            observation: string | null;
-            /** Observation Note */
-            observation_note: string | null;
-            observed_by: components["schemas"]["AskedModel"] | null;
             /** Output Tokens */
             output_tokens: number | null;
             /** Parent Agent Id */
@@ -5918,35 +5463,6 @@ export interface components {
             /** Running */
             running: number;
         };
-        /**
-         * BoardOutcome
-         * @description How a sub-agent of a turn came out (K-board-sonuc): "nothing" - it finished having done
-         *     and said nothing; "timed_out", "silent" (its stall timer cut it) or "error".
-         */
-        BoardOutcome: {
-            /** Id */
-            id: string;
-            /** Model Id */
-            model_id: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Outcome
-             * @enum {string}
-             */
-            outcome: "nothing" | "timed_out" | "silent" | "error";
-            /** Provider Name */
-            provider_name: string | null;
-            /** Rerun */
-            rerun: boolean;
-            /** Role */
-            role: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "proposed" | "queued" | "running" | "waiting" | "blocked" | "completed" | "failed" | "cancelled" | "rejected" | "interrupted";
-        };
         /** BoardPostIn */
         BoardPostIn: {
             /** Content */
@@ -5993,11 +5509,6 @@ export interface components {
             id: string;
             /** Model Id */
             model_id: string | null;
-            /**
-             * Outcomes
-             * @default []
-             */
-            outcomes: components["schemas"]["BoardOutcome"][];
             /** Plan Waits */
             plan_waits: boolean;
             /** Provider Name */
@@ -6062,79 +5573,6 @@ export interface components {
             model_id?: string | null;
             /** Provider Id */
             provider_id: string;
-        };
-        /**
-         * CardReasonOut
-         * @description Cards measured: the cards asked for one reason (`app.cards.REASONS`), and their answers.
-         */
-        CardReasonOut: {
-            /** Approved */
-            approved: number;
-            /** Asked */
-            asked: number;
-            /** Reason */
-            reason: string;
-            /** Rejected */
-            rejected: number;
-            /** Said */
-            said: string;
-            /** Unanswered */
-            unanswered: number;
-        };
-        /**
-         * CardSuggestionOut
-         * @description A delete the user approved unchanged `times` times, and the line for the project's rules
-         *     that would spare its card at Full auto with Check what I said first on - KOLONİ's words.
-         */
-        CardSuggestionOut: {
-            /** Command */
-            command: string;
-            /** Cwd */
-            cwd: string;
-            /** Key */
-            key: string;
-            /** Rule */
-            rule: string;
-            /** Times */
-            times: number;
-        };
-        /**
-         * CardsCheckedOut
-         * @description "Check what I said first"'s outcomes: ran on a line of the user's, not run, asked.
-         */
-        CardsCheckedOut: {
-            /** Ask */
-            ask: number;
-            /** Refuse */
-            refuse: number;
-            /** Run */
-            run: number;
-        };
-        /**
-         * CardsOut
-         * @description Cards measured (0.1.7): the command cards asked in a period, answered how, by reason - only
-         *     cards from 0.1.7 on carry one - the seconds to an answer on average (None: none answered),
-         *     the check's outcomes, and, for one project, the rules it suggests.
-         */
-        CardsOut: {
-            /** Approved */
-            approved: number;
-            /** Asked */
-            asked: number;
-            /** By Reason */
-            by_reason: components["schemas"]["CardReasonOut"][];
-            checked: components["schemas"]["CardsCheckedOut"];
-            /** Decide Seconds */
-            decide_seconds: number | null;
-            /** Rejected */
-            rejected: number;
-            /**
-             * Suggestions
-             * @default []
-             */
-            suggestions: components["schemas"]["CardSuggestionOut"][];
-            /** Unanswered */
-            unanswered: number;
         };
         /**
          * CatalogueFillIn
@@ -6681,14 +6119,6 @@ export interface components {
             provider_id: string | null;
             /** Read In */
             read_in: string[];
-            /** Room Min Tokens */
-            room_min_tokens: number | null;
-            /** Room Minutes */
-            room_minutes: number | null;
-            /** Room Posts */
-            room_posts: number | null;
-            /** Room Tokens */
-            room_tokens: number | null;
             /**
              * Spawn Approval
              * @enum {string}
@@ -6771,14 +6201,6 @@ export interface components {
             provider_id: string | null;
             /** Read In */
             read_in: string[];
-            /** Room Min Tokens */
-            room_min_tokens: number | null;
-            /** Room Minutes */
-            room_minutes: number | null;
-            /** Room Posts */
-            room_posts: number | null;
-            /** Room Tokens */
-            room_tokens: number | null;
             /**
              * Spawn Approval
              * @enum {string}
@@ -6846,14 +6268,6 @@ export interface components {
             provider_id?: string | null;
             /** Read In */
             read_in?: string[] | null;
-            /** Room Min Tokens */
-            room_min_tokens?: number | null;
-            /** Room Minutes */
-            room_minutes?: number | null;
-            /** Room Posts */
-            room_posts?: number | null;
-            /** Room Tokens */
-            room_tokens?: number | null;
             /** Spawn Approval */
             spawn_approval?: ("auto" | "always" | "never") | null;
             /** Spawn Max Agents */
@@ -7806,7 +7220,7 @@ export interface components {
         /**
          * HoldOut
          * @description Stop everything (`app.api.hold`): whether it holds, since when, how many turns of every
-         *     chat have not ended, and what a hold holds (triggers on, the projects with To-do tasks
+         *     chat have not ended, and what a hold holds (the projects with To-do tasks
          *     waiting in a chat's queue - `backlogs` - and the projects' nights while the user is away) -
          *     and, while it holds, the turns it stopped.
          */
@@ -7827,8 +7241,6 @@ export interface components {
             stopped: components["schemas"]["HoldStopped"][];
             /** Stopping */
             stopping: number;
-            /** Triggers */
-            triggers: number;
         };
         /** HoldStopped */
         HoldStopped: {
@@ -8596,11 +8008,6 @@ export interface components {
             agent_id: string | null;
             /** Agent Name */
             agent_name: string | null;
-            /**
-             * By Meaning
-             * @default false
-             */
-            by_meaning: boolean;
             /** Checked How */
             checked_how: string | null;
             /** Conversation Id */
@@ -8683,8 +8090,6 @@ export interface components {
          *     and speak to the words, and what was said in earlier turns.
          */
         MemorySearchOut: {
-            /** Meaning Off */
-            meaning_off?: string | null;
             /** Memory */
             memory: components["schemas"]["MemoryOut"][];
             /** Turns */
@@ -8899,8 +8304,6 @@ export interface components {
             id: string;
             /** Kept In */
             kept_in?: string | null;
-            /** Room Id */
-            room_id?: string | null;
             /** Run Id */
             run_id: string;
             /**
@@ -9567,8 +8970,6 @@ export interface components {
             memory: number;
             /** Tasks */
             tasks: number;
-            /** Triggers */
-            triggers: number;
         };
         /**
          * ProjectEntryOut
@@ -9706,10 +9107,6 @@ export interface components {
             docker_image: string | null;
             /** Docker Network */
             docker_network: boolean;
-            /** Embedding Model */
-            embedding_model: string;
-            /** Embedding Provider Id */
-            embedding_provider_id: string | null;
             /**
              * Exec Location
              * @enum {string}
@@ -9728,8 +9125,6 @@ export interface components {
             full_auto_judge: boolean;
             /** Git Commit */
             git_commit: boolean;
-            /** Has Notify Url */
-            has_notify_url: boolean;
             /**
              * Held Env
              * @description The secret variables of KOLONİ's environment its commands are not given: the
@@ -9768,13 +9163,6 @@ export interface components {
             name: string;
             /** Notify Desktop */
             notify_desktop: boolean;
-            /**
-             * Notify Format
-             * @enum {string}
-             */
-            notify_format: "slack" | "discord" | "text";
-            /** Observe Reports */
-            observe_reports: boolean;
             /** Pass Env */
             pass_env: string | null;
             /** Read In */
@@ -9789,14 +9177,6 @@ export interface components {
              * @default 80
              */
             review_lines: number;
-            /** Room Min Tokens */
-            room_min_tokens: number | null;
-            /** Room Minutes */
-            room_minutes: number | null;
-            /** Room Posts */
-            room_posts: number | null;
-            /** Room Tokens */
-            room_tokens: number | null;
             /** Root Path */
             root_path: string;
             /** Search Agy */
@@ -9907,10 +9287,6 @@ export interface components {
             docker_image?: string | null;
             /** Docker Network */
             docker_network?: boolean | null;
-            /** Embedding Model */
-            embedding_model?: string | null;
-            /** Embedding Provider Id */
-            embedding_provider_id?: string | null;
             /** Exec Location */
             exec_location?: ("host" | "docker") | null;
             /** Finish Way */
@@ -9943,24 +9319,10 @@ export interface components {
             monthly_budget?: number | null;
             /** Notify Desktop */
             notify_desktop?: boolean | null;
-            /** Notify Format */
-            notify_format?: ("slack" | "discord" | "text") | null;
-            /** Notify Url */
-            notify_url?: string | null;
-            /** Observe Reports */
-            observe_reports?: boolean | null;
             /** Pass Env */
             pass_env?: string | null;
             /** Read In */
             read_in?: string[] | null;
-            /** Room Min Tokens */
-            room_min_tokens?: number | null;
-            /** Room Minutes */
-            room_minutes?: number | null;
-            /** Room Posts */
-            room_posts?: number | null;
-            /** Room Tokens */
-            room_tokens?: number | null;
             /** Search Agy */
             search_agy?: boolean | null;
             /** Search Order */
@@ -10500,11 +9862,6 @@ export interface components {
              * @default false
              */
             own_check: boolean;
-            /**
-             * Room
-             * @default false
-             */
-            room: boolean;
             /** Round */
             round: number;
             /** Scores */
@@ -10563,7 +9920,7 @@ export interface components {
             /** When */
             when?: "problem" | null;
             /** Who */
-            who: components["schemas"]["WhoRole"] | components["schemas"]["WhoTeam"] | components["schemas"]["WhoLead"] | components["schemas"]["WhoRoom"] | components["schemas"]["WhoExperts"] | components["schemas"]["WhoCandidates"];
+            who: components["schemas"]["WhoRole"] | components["schemas"]["WhoTeam"] | components["schemas"]["WhoLead"] | components["schemas"]["WhoExperts"] | components["schemas"]["WhoCandidates"];
         };
         /** RecipeWriter */
         RecipeWriter: {
@@ -10783,8 +10140,6 @@ export interface components {
             cannot_pick: {
                 [key: string]: string;
             };
-            /** Cannot Room */
-            cannot_room?: string | null;
             /** Cannot Run */
             cannot_run: string | null;
             /** Cannot Step */
@@ -10975,185 +10330,6 @@ export interface components {
             /** Teams */
             teams: components["schemas"]["HistoryCount"][];
         };
-        /**
-         * RoomBudgetIn
-         * @description What one room may spend. Left out: the conversation's own. Null: no limit.
-         */
-        RoomBudgetIn: {
-            /** Minutes */
-            minutes?: number | null;
-            /** Posts */
-            posts?: number | null;
-            /** Tokens */
-            tokens?: number | null;
-        };
-        /**
-         * RoomBudgetOut
-         * @description A room's limits (None: none) - or, as `spent`, how much of each is used.
-         */
-        RoomBudgetOut: {
-            /** Minutes */
-            minutes: number | null;
-            /** Posts */
-            posts: number | null;
-            /** Tokens */
-            tokens: number | null;
-        };
-        /** RoomIn */
-        RoomIn: {
-            budget?: components["schemas"]["RoomBudgetIn"] | null;
-            /** Goal */
-            goal: string;
-            /**
-             * Over Budget
-             * @default false
-             */
-            over_budget: boolean;
-            /** With */
-            with: components["schemas"]["RoomMemberIn"][];
-        };
-        /** RoomItemOut */
-        RoomItemOut: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Holder Agent Id */
-            holder_agent_id: string | null;
-            /** Id */
-            id: string;
-            /** Number */
-            number: number;
-            /** Paths */
-            paths: string[];
-            /** Result */
-            result: string | null;
-            /** Room Id */
-            room_id: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "open" | "taken" | "done" | "dropped";
-            /** Title */
-            title: string;
-        };
-        /** RoomMemberIn */
-        RoomMemberIn: {
-            /** Model */
-            model?: string | null;
-            /** Provider */
-            provider?: string | null;
-            /** Role */
-            role: string;
-        };
-        /** RoomMemberOut */
-        RoomMemberOut: {
-            /** Agent Id */
-            agent_id: string | null;
-            /** Role */
-            role: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "in" | "waiting" | "done" | "left";
-        };
-        /**
-         * RoomMoreIn
-         * @description What is added to a running room's budget; a limit it does not have stays none.
-         */
-        RoomMoreIn: {
-            /** Minutes */
-            minutes?: number | null;
-            /** Posts */
-            posts?: number | null;
-            /** Tokens */
-            tokens?: number | null;
-        };
-        /** RoomOpenedOut */
-        RoomOpenedOut: {
-            room: components["schemas"]["RoomOut"];
-            run: components["schemas"]["RunOut"];
-        };
-        /**
-         * RoomOut
-         * @description Two to six agents working on one goal at the same time, in one working copy.
-         */
-        RoomOut: {
-            /** Agent Id */
-            agent_id: string | null;
-            budget: components["schemas"]["RoomBudgetOut"];
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Ended At */
-            ended_at: string | null;
-            /** Goal */
-            goal: string;
-            /** Id */
-            id: string;
-            /**
-             * Lead Follows
-             * @enum {string}
-             */
-            lead_follows: "off" | "on" | "stopped";
-            /** Members */
-            members: components["schemas"]["RoomMemberOut"][];
-            /** Outcome */
-            outcome: ("agreed" | "budget" | "ended_by_user" | "ended_by_opener" | "too_few") | null;
-            /** Paused */
-            paused: boolean;
-            /** Run Id */
-            run_id: string;
-            spent: components["schemas"]["RoomBudgetOut"];
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "sharing" | "working" | "ended" | "cancelled" | "interrupted";
-            /** Summary */
-            summary: string | null;
-            /** Why */
-            why: ("posts" | "tokens" | "minutes" | "unanswered") | null;
-        };
-        /** RoomPostIn */
-        RoomPostIn: {
-            /** Text */
-            text: string;
-        };
-        /** RoomPostOut */
-        RoomPostOut: {
-            /** Agent Id */
-            agent_id: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: string;
-            /** Number */
-            number: number;
-            /** Open */
-            open: boolean;
-            /** Reply To */
-            reply_to: number | null;
-            /** Room Id */
-            room_id: string;
-            /** Text */
-            text: string;
-            /** To Agent Id */
-            to_agent_id: string | null;
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "result" | "review" | "question" | "answer" | "blocked" | "said" | "done" | "left" | "ended";
-        };
         /** RuleIn */
         RuleIn: {
             /** Prefix */
@@ -11185,15 +10361,13 @@ export interface components {
          * RunOn
          * @description A provider a role's agents could be given as their own model (the chat's team picker):
          *     the model they would run with there, and whether such an agent could be a recipe's step
-         *     and a room's member (B-89).
+         *     (B-89).
          */
         RunOn: {
             /** Model Id */
             model_id: string | null;
             /** Provider Id */
             provider_id: string;
-            /** Room */
-            room: boolean;
             /** Step */
             step: boolean;
         };
@@ -11254,11 +10428,6 @@ export interface components {
         SaidOut: {
             /** At */
             at: string | null;
-            /**
-             * By Meaning
-             * @default false
-             */
-            by_meaning: boolean;
             /** Conversation Id */
             conversation_id: string | null;
             /** Conversation Title */
@@ -11591,23 +10760,12 @@ export interface components {
             pending_skills: components["schemas"]["PendingSkillOut"][];
             /** Questions */
             questions: components["schemas"]["QuestionOut"][];
-            /** Room Items */
-            room_items: components["schemas"]["RoomItemOut"][];
-            /** Room Posts */
-            room_posts: components["schemas"]["RoomPostOut"][];
-            /** Rooms */
-            rooms: components["schemas"]["RoomOut"][];
             /** Runs */
             runs: components["schemas"]["RunOut"][];
             /** Tool Calls */
             tool_calls: components["schemas"]["ToolCallOut"][];
             /** Topics */
             topics: components["schemas"]["TopicOut"][];
-            /**
-             * Trigger Proposals
-             * @default []
-             */
-            trigger_proposals: components["schemas"]["TriggerProposalOut"][];
             /**
              * Warnings
              * @default []
@@ -12083,386 +11241,6 @@ export interface components {
             /** Title */
             title?: string | null;
         };
-        /**
-         * TriggerBudget
-         * @description A turn's model steps (all its agents together) and its length in minutes; and how
-         *     many turns the trigger may start in a day. There is no "unlimited".
-         */
-        TriggerBudget: {
-            /**
-             * Minutes
-             * @default 10
-             */
-            minutes: number;
-            /**
-             * Per Day
-             * @default 24
-             */
-            per_day: number;
-            /**
-             * Steps
-             * @default 15
-             */
-            steps: number;
-        };
-        /**
-         * TriggerChangeOut
-         * @description One thing that was done to a trigger: made, changed, switched or deleted.
-         */
-        TriggerChangeOut: {
-            /**
-             * At
-             * Format: date-time
-             */
-            at: string;
-            /** Detail */
-            detail: string | null;
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /** Project Id */
-            project_id: string;
-            /** Trigger Id */
-            trigger_id: string;
-            /**
-             * What
-             * @enum {string}
-             */
-            what: "created" | "renamed" | "message changed" | "settings changed" | "permissions changed" | "budget changed" | "switched on" | "switched off" | "new key" | "deleted";
-        };
-        /** TriggerCreatedOut */
-        TriggerCreatedOut: {
-            budget: components["schemas"]["TriggerBudget"];
-            /** Catch Up */
-            catch_up: boolean;
-            /** Changes */
-            changes: components["schemas"]["TriggerChangeOut"][];
-            /** Command Lines */
-            command_lines: string[];
-            /** Config */
-            config: {
-                [key: string]: unknown;
-            };
-            /** Conversation Id */
-            conversation_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Enabled */
-            enabled: boolean;
-            ends: components["schemas"]["TriggerEnds"] | null;
-            /** Failures */
-            failures: number;
-            /** Id */
-            id: string;
-            /** Idle */
-            idle: number;
-            /** Key */
-            key: string | null;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "schedule" | "files" | "webhook";
-            /** Last Result */
-            last_result: string | null;
-            /** Last Run At */
-            last_run_at: string | null;
-            /** Last Words */
-            last_words: string | null;
-            /** Message */
-            message: string;
-            /** Name */
-            name: string;
-            /** Next At */
-            next_at: string | null;
-            /** Off Because */
-            off_because: string | null;
-            permissions: components["schemas"]["TriggerLeave"];
-            /** Project Id */
-            project_id: string;
-            /** Ran */
-            ran: number;
-            /** Run Unchanged */
-            run_unchanged: boolean;
-            /** Runs */
-            runs: components["schemas"]["TriggerRunOut"][];
-            /** Slowed */
-            slowed: number | null;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /**
-         * TriggerEnds
-         * @description When a trigger ends by itself: after so many runs, or after a day (the last it runs on).
-         */
-        TriggerEnds: {
-            /** Runs */
-            runs?: number;
-            /** Until */
-            until?: string;
-        };
-        /** TriggerIn */
-        TriggerIn: {
-            budget?: components["schemas"]["TriggerBudget"];
-            /**
-             * Catch Up
-             * @default true
-             */
-            catch_up: boolean;
-            /** Config */
-            config?: {
-                [key: string]: unknown;
-            };
-            /** Conversation Id */
-            conversation_id: string;
-            /**
-             * Enabled
-             * @default true
-             */
-            enabled: boolean;
-            /** Ends */
-            ends?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "schedule" | "files" | "webhook";
-            /** Message */
-            message: string;
-            /** Name */
-            name: string;
-            permissions?: components["schemas"]["TriggerPermissions"];
-            /** Proposal Id */
-            proposal_id?: string | null;
-            /**
-             * Run Unchanged
-             * @default false
-             */
-            run_unchanged: boolean;
-        };
-        /**
-         * TriggerLeave
-         * @description A trigger's permissions as they are kept and shown. What it may do on the web is
-         *     there only where it is allowed: left out, its turns may not.
-         */
-        TriggerLeave: {
-            /** Agents */
-            agents: number;
-            /** Commands */
-            commands: string[];
-            /** Hosts */
-            hosts?: string[];
-            /** Notify */
-            notify?: boolean;
-            /** Web */
-            web?: boolean;
-            /** Write */
-            write: boolean;
-        };
-        /** TriggerOut */
-        TriggerOut: {
-            budget: components["schemas"]["TriggerBudget"];
-            /** Catch Up */
-            catch_up: boolean;
-            /** Changes */
-            changes: components["schemas"]["TriggerChangeOut"][];
-            /** Command Lines */
-            command_lines: string[];
-            /** Config */
-            config: {
-                [key: string]: unknown;
-            };
-            /** Conversation Id */
-            conversation_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Enabled */
-            enabled: boolean;
-            ends: components["schemas"]["TriggerEnds"] | null;
-            /** Failures */
-            failures: number;
-            /** Id */
-            id: string;
-            /** Idle */
-            idle: number;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "schedule" | "files" | "webhook";
-            /** Last Result */
-            last_result: string | null;
-            /** Last Run At */
-            last_run_at: string | null;
-            /** Last Words */
-            last_words: string | null;
-            /** Message */
-            message: string;
-            /** Name */
-            name: string;
-            /** Next At */
-            next_at: string | null;
-            /** Off Because */
-            off_because: string | null;
-            permissions: components["schemas"]["TriggerLeave"];
-            /** Project Id */
-            project_id: string;
-            /** Ran */
-            ran: number;
-            /** Run Unchanged */
-            run_unchanged: boolean;
-            /** Runs */
-            runs: components["schemas"]["TriggerRunOut"][];
-            /** Slowed */
-            slowed: number | null;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /**
-         * TriggerPatch
-         * @description Left out: kept as it is. A trigger's kind does not change. `ends` sent as null: no
-         *     end.
-         */
-        TriggerPatch: {
-            budget?: components["schemas"]["TriggerBudget"] | null;
-            /** Catch Up */
-            catch_up?: boolean | null;
-            /** Config */
-            config?: {
-                [key: string]: unknown;
-            } | null;
-            /** Conversation Id */
-            conversation_id?: string | null;
-            /** Enabled */
-            enabled?: boolean | null;
-            /** Ends */
-            ends?: {
-                [key: string]: unknown;
-            } | null;
-            /** Message */
-            message?: string | null;
-            /** Name */
-            name?: string | null;
-            permissions?: components["schemas"]["TriggerPermissions"] | null;
-            /** Run Unchanged */
-            run_unchanged?: boolean | null;
-        };
-        /**
-         * TriggerPermissions
-         * @description What a trigger's turns may do without asking. Nothing, to begin with: such a turn
-         *     reads, and writes notes. The conversation's own level and allow list do not count.
-         */
-        TriggerPermissions: {
-            /**
-             * Agents
-             * @default 0
-             */
-            agents: number;
-            /** Commands */
-            commands?: string[];
-            /** Hosts */
-            hosts?: string[];
-            /**
-             * Notify
-             * @default false
-             */
-            notify: boolean;
-            /**
-             * Web
-             * @default false
-             */
-            web: boolean;
-            /**
-             * Write
-             * @default false
-             */
-            write: boolean;
-        };
-        /**
-         * TriggerProposalOut
-         * @description A trigger an agent proposed (slice 69), on its card until the user's word. Approved,
-         *     it reads only, opens no sub-agent and has the usual budget.
-         */
-        TriggerProposalOut: {
-            /** Config */
-            config: {
-                [key: string]: unknown;
-            };
-            /** Conversation Id */
-            conversation_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            ends: components["schemas"]["TriggerEnds"];
-            /** Id */
-            id: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "schedule" | "files";
-            /** Message */
-            message: string;
-            /** Name */
-            name: string;
-            /** Run Id */
-            run_id: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "proposed" | "approved" | "rejected";
-            /** Trigger Id */
-            trigger_id: string | null;
-        };
-        /**
-         * TriggerRunOut
-         * @description One time a trigger came due.
-         */
-        TriggerRunOut: {
-            /**
-             * At
-             * Format: date-time
-             */
-            at: string;
-            /** Id */
-            id: string;
-            /** Late */
-            late: boolean;
-            /** Note */
-            note: string | null;
-            /** Outcome */
-            outcome: ("completed" | "failed" | "budget" | "stopped" | "skipped_busy" | "skipped_budget" | "skipped_month" | "skipped_limit" | "skipped_same") | null;
-            /** Run Id */
-            run_id: string | null;
-        };
-        /** TriggerStartedOut */
-        TriggerStartedOut: {
-            /** Run Id */
-            run_id: string;
-        };
-        /** TriggersPaused */
-        TriggersPaused: {
-            /** Paused */
-            paused: boolean;
-        };
         /** TryIn */
         TryIn: {
             /** Project Id */
@@ -12587,7 +11365,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "html" | "svg" | "md" | "image" | "model" | "drawio" | "pdf" | "docx" | "xlsx" | "pptx";
+            kind: "html" | "svg" | "md" | "image" | "drawio" | "pdf" | "docx" | "xlsx" | "pptx";
             /** Note */
             note: string | null;
             /** Path */
@@ -12779,11 +11557,6 @@ export interface components {
             most?: number | null;
             /** Role */
             role: string;
-        };
-        /** WhoRoom */
-        WhoRoom: {
-            /** Room */
-            room: string[];
         };
         /** WhoTeam */
         WhoTeam: {
@@ -13910,38 +12683,6 @@ export interface operations {
             };
         };
     };
-    read_cards_api_cards_get: {
-        parameters: {
-            query?: {
-                project_id?: string | null;
-                since?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CardsOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     catalogue_api_catalog_get: {
         parameters: {
             query?: never;
@@ -14724,37 +13465,6 @@ export interface operations {
             };
         };
     };
-    read_proposals_api_conversations__cid__trigger_proposals_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                cid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerProposalOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     snapshot_api_conversations__conversation_id__get: {
         parameters: {
             query?: never;
@@ -15092,72 +13802,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostMessageOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    rerun_failed_api_conversations__conversation_id__rerun_failed_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PostMessageOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    open_room_api_conversations__conversation_id__rooms_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RoomIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOpenedOut"];
                 };
             };
             /** @description Validation Error */
@@ -15745,37 +14389,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HoldOut"];
-                };
-            };
-        };
-    };
-    webhook_api_hooks__key__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerStartedOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -17750,38 +16363,6 @@ export interface operations {
             };
         };
     };
-    add_suggested_rule_api_projects__project_id__card_suggestions__key__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RulesOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     project_changes_api_projects__project_id__changes_get: {
         parameters: {
             query?: {
@@ -19108,103 +17689,6 @@ export interface operations {
             };
         };
     };
-    list_triggers_api_projects__project_id__triggers_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_trigger_api_projects__project_id__triggers_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggerIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerCreatedOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_changes_api_projects__project_id__triggers_changes_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerChangeOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_providers_api_providers_get: {
         parameters: {
             query?: never;
@@ -20472,231 +18956,6 @@ export interface operations {
             };
         };
     };
-    end_api_rooms__room_id__end_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    follow_api_rooms__room_id__follow_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    more_api_rooms__room_id__more_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RoomMoreIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    pause_api_rooms__room_id__pause_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    say_api_rooms__room_id__posts_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RoomPostIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomPostOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    resume_api_rooms__room_id__resume_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    unfollow_api_rooms__room_id__unfollow_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     cancel_run_api_runs__run_id__cancel_post: {
         parameters: {
             query?: never;
@@ -21869,278 +20128,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TopicOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    approve_proposal_api_trigger_proposals__proposal_id__approve_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                proposal_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reject_proposal_api_trigger_proposals__proposal_id__reject_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                proposal_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerProposalOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_paused_api_triggers_paused_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggersPaused"];
-                };
-            };
-        };
-    };
-    set_paused_api_triggers_paused_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggersPaused"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggersPaused"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_trigger_api_triggers__trigger_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trigger_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_trigger_api_triggers__trigger_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trigger_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    change_trigger_api_triggers__trigger_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trigger_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggerPatch"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    new_key_api_triggers__trigger_id__key_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trigger_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerCreatedOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    run_trigger_api_triggers__trigger_id__run_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trigger_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerStartedOut"];
                 };
             };
             /** @description Validation Error */

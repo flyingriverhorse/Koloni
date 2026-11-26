@@ -20,7 +20,7 @@ from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_agent_writes import wait_status
 from tests.test_agy_agent import FAKE, SKIP, read_record
-from tests.test_claude_native import NOBODY, ORIGIN, nothing_was_asked, unattended
+from tests.test_claude_native import ORIGIN, nothing_was_asked
 from tests.test_codex_app_server_scenarios import card_for, hello, watched
 from tests.test_native_agent import start
 
@@ -551,61 +551,6 @@ def test_an_agy_tool_that_runs_code_or_starts_agents_is_refused_until_measured(
 
 
 # --- 3. A turn nobody is watching -------------------------------------------------------------
-
-
-def test_native_agy_is_not_started_in_a_turn_nobody_is_watching(hooked_app, wait_run, project_dir):
-    client, provider = hooked_app([run_command("pytest -q"), {"say": "done"}])
-    _snap, run, _statuses = unattended(
-        client,
-        project_dir,
-        provider,
-        "full_auto",
-        wait_run,
-        first_line=True,
-        commands=["pytest -q"],
-    )
-    assert not hooked_app.ran()
-
-
-def test_unattended_agy_is_denied_what_its_trigger_does_not_allow_and_nobody_is_asked(
-    hooked_app, wait_run, project_dir
-):
-    client, provider = hooked_app(
-        [
-            run_command("pytest -q", output="ok\n"),
-            run_command("pytest -q && echo x", touches={"ran.txt": "x"}),
-            write_file("hello.py", "changed\n"),
-            {"say": "done"},
-        ]
-    )
-    # (The first line - no CLI with tools of its own starts unwatched - is switched off.)
-    snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
-    )
-    assert run["status"] == "completed", run
-    assert decisions(hooked_app) == ["allow", "deny", "deny"]
-    assert hello(project_dir) == "print('hi')\n" and not (project_dir / "ran.txt").exists()
-    assert [(t["name"], t["status"]) for t in snap["tool_calls"]] == [
-        ("run_command", "succeeded"),
-        ("run_command", "denied"),
-        ("edit_file", "denied"),
-    ]
-    assert all(NOBODY in t["result"] for t in snap["tool_calls"][1:])
-    nothing_was_asked(snap, statuses)
-
-
-def test_unattended_a_tool_koloni_does_not_know_is_refused_and_nobody_is_asked(
-    hooked_app, wait_run, project_dir
-):
-    client, provider = hooked_app(
-        [{"tool": "search_web", "parameters": {"query": "koloni"}}, {"say": "done"}]
-    )
-    snap, run, statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
-    )
-    assert run["status"] == "completed", run
-    assert decisions(hooked_app) == ["deny"]
-    nothing_was_asked(snap, statuses)
 
 
 # --- 4. A hook that cannot be trusted ---------------------------------------------------------

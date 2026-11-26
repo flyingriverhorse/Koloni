@@ -46,4 +46,4 @@ On the Agents page each role chooses who picks its model: **Orchestrator**, **As
 In the chat's model picker, **Orchestrator model: automatic** sends each message to a fast model,
 which judges it easy, normal or hard. The Orchestrator then runs on a fast, balanced or strongest
 model. That is one more request for each message you send. It overrides the Orchestrator role's own
-model and tier. A trigger's message does not use it.
+model and tier.

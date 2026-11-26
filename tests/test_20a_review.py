@@ -17,7 +17,6 @@ from tests.keyed import TestClient
 from tests.test_chat_flow import text
 from tests.test_recovery import seed
 from tests.test_spawn import call, step
-from tests.test_trigger_scenarios import run_now, trigger
 from tests.test_web import Net as Wire
 from tests.test_web import hops, run
 from tests.test_web_tool_scenarios import ORIGIN, Net, get, go, results, setup
@@ -214,32 +213,6 @@ def test_more_names_are_a_secrets(name):
 
 
 # --- 6. an empty body is no body -------------------------------------------------------------
-
-
-def test_with_nobody_watching_an_empty_body_is_no_body(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    assert web.planned("GET", "https://example.com/", None, "")[3] is None
-    net = Net(monkeypatch, {"example.com": (200, "text/plain", "ok")})
-    client, model, pid, cid = setup(
-        make_client,
-        project_dir,
-        [
-            step(
-                get("https://example.com/ok", body=""), get("https://example.com/ok", "i", body="x")
-            ),
-            text("done"),
-        ],
-    )
-    made = trigger(
-        client,
-        pid,
-        cid,
-        permissions={"write": False, "commands": [], "agents": 0, "hosts": ["example.com"]},
-    )
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=10)
-    assert [status for status, _said in results(snap, "http_request")] == ["succeeded", "failed"]
-    assert len(net.asked) == 1
 
 
 # --- 7. a desktop notification where there is none -------------------------------------------

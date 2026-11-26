@@ -23,7 +23,7 @@ export interface SlashCommand {
 }
 
 /** The commands' names: a role of one of these names is left out, not shown as a second one. */
-const COMMANDS = ['new', 'room', 'stop', 'model', 'mode', 'plan', 'compare']
+const COMMANDS = ['new', 'stop', 'model', 'mode', 'plan', 'compare']
 
 /** What the box's commands act on: the Composer's state and its parts that are there or not. */
 export interface SlashOn {
@@ -36,7 +36,6 @@ export interface SlashOn {
   noTopic: boolean
   fresh: boolean
   startTopic: () => void
-  room: boolean
   model: boolean
   compare: boolean
   planFirst: boolean
@@ -53,12 +52,6 @@ function builtIn(on: SlashOn, closed: string | null): SlashCommand[] {
       what: 'Start a new topic with the next message',
       off: on.noTopic || on.fresh ? 'it starts one anyway' : null,
       run: on.startTopic,
-    },
-    {
-      name: 'room',
-      what: 'Open a room: agents work on one goal together',
-      off: closed ?? (on.room ? null : 'no room can be opened here yet'),
-      press: ['.composer-more > button', '.composer-beside button'],
     },
     { name: 'stop', what: 'Stop the work in progress', off: on.running ? null : 'nothing is at work', run: on.onStop },
     {
@@ -139,7 +132,7 @@ export function useSlash(on: SlashOn) {
   const head = role ? draft.slice(0, role.name.length + 2) : ''
   const [shut, setShut] = useState<string | null>(null)
   const [at, setAt] = useState(0)
-  // shortcut: pressed by class, a rename in ModelPicker/WorkTogether breaks /model, /room silently; upgrade to props if it bites.
+  // shortcut: pressed by class, a rename in ModelPicker breaks /model silently; upgrade to props if it bites.
   // shortcut: closed, the row under the box is hidden and so is what these open; upgrade by opening the chat first if asked.
   const closed = on.compact ? 'open the chat for this' : null
   const commands: SlashCommand[] = [

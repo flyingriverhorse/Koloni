@@ -13,11 +13,7 @@ import time
 import pytest
 
 from app import web
-from tests.test_chat_flow import text
-from tests.test_spawn import call, step
-from tests.test_trigger_scenarios import run_now, trigger
 from tests.test_web import DDG, PUBLIC, Net, hops, run
-from tests.test_web_tool_scenarios import get, results, setup
 
 # --- a page cannot hold a thread, nor end the run -----------------------------------------
 
@@ -156,8 +152,8 @@ def test_the_next_address_is_tried_only_when_no_connection_was_made(monkeypatch)
         raise TimeoutError("timed out")  # after the body may have been sent
 
     monkeypatch.setattr(web, "raw", raw)
-    with pytest.raises(web.WebError, match="was not sent"):
-        run(web.notify("https://hooks.example.com/x", "hello"))
+    with pytest.raises(TimeoutError):
+        run(web.fetch("POST", "https://hooks.example.com/x", {}, b"hello"))
     with pytest.raises(TimeoutError):
         run(web.fetch("POST", "https://example.com/", {}, b"data"))
     assert [ip for _m, _u, ip in net.asked] == ["2001:4860:4860::8888"] * 2
@@ -448,37 +444,6 @@ def test_the_users_own_search_address_is_trusted_while_a_redirect_stays_on_it(mo
     with pytest.raises(web.NotReachable):
         run(web.fetch("GET", asked, {}, None, trusted=True))
     assert [url for _m, url, _ip in net.asked] == [asked, "https://example.com/"]
-
-
-def test_with_nobody_watching_a_request_carries_nothing_of_the_agents_own(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    """The host got on the trigger's list by a yes to a GET: a body or a header on one
-    would carry anything out to it."""
-    net = Net(monkeypatch, {"example.com": (200, "text/plain", "ok")})
-    asked = [
-        get("https://example.com/a", "a", headers={"X-Out": "what the project holds"}),
-        get("https://example.com/b", "b", body="what the project holds"),
-        call(
-            "http_request", {"method": "HEAD", "url": "https://example.com/c", "headers": {}}, "c"
-        ),
-    ]
-    client, model, pid, cid = setup(make_client, project_dir, [step(*asked), text("done")])
-    made = trigger(
-        client,
-        pid,
-        cid,
-        permissions={"write": False, "commands": [], "agents": 0, "hosts": ["example.com"]},
-    )
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=10)
-    found = results(snap, "http_request")
-    assert [status for status, _ in found] == ["failed", "failed", "succeeded"]
-    assert all(
-        "nobody is here to ask" in said
-        and "a request to example.com with a body or headers of its own" in said
-        for _status, said in found[:2]
-    )
-    assert [(method, url) for method, url, _ip in net.asked] == [("HEAD", "https://example.com/c")]
 
 
 def test_a_marker_written_another_way_cannot_close_the_frame_either():

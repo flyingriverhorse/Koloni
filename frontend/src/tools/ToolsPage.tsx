@@ -40,7 +40,7 @@ const NOTES = [
   'What a tool changes on disk is not put on record as a change, as what a command changes is not; what it changes inside a working copy is found as a difference when the copy is taken into the project.',
   'Other programs on this machine can see the arguments of the command: put a secret in a variable.',
   'Only the servers added here are started by KOLONİ: a project’s .mcp.json is not read.',
-  'No server’s tool is offered to a CLI that works with its own tools (native), for a trigger’s message, in a project that runs its commands in Docker, or when an agent works only to answer another agent’s message or to speak in a discussion.',
+  'No server’s tool is offered to a CLI that works with its own tools (native), in a project that runs its commands in Docker, or when an agent works only to answer another agent’s message or to speak in a discussion.',
 ]
 
 const KINDS = [

@@ -26,8 +26,6 @@ from tests.test_knowledge_page import expert
 from tests.test_parallel import until
 from tests.test_recipe_run_scenarios import answer, asked
 from tests.test_spawn import begin, call, spawn, step
-from tests.test_trigger_scenarios import NOBODY, run_now, trigger
-from tests.test_web_tool_scenarios import setup
 
 FOUND = "https://a.test/hooks/retry"
 SEARCHING = {**EXPERT, "knowledge": {**EXPERT["knowledge"], "search_answering": True}}
@@ -226,26 +224,6 @@ def test_not_searching_an_expert_made_without_ask_user_asks_the_user_to_allow_a_
     assert "allow a web search?" in told and "never answer it from memory" not in told
     answer(client, asked(snap), "No")
     wait_run(client, cid, run_id)
-
-
-def test_unwatched_it_searches_only_where_the_trigger_lets_it(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    searched = fake_search(monkeypatch, FOUND)
-    docs(project_dir)
-    client, _model, pid, cid = setup(
-        make_client,
-        project_dir,
-        {
-            "Lead": [spawn("Pay expert", "how long are retries?", "e"), text("done")],
-            "Pay expert": [SEARCH, text("I could not search.")],
-        },
-    )
-    expert(client, project_dir, SEARCHING)
-    made = trigger(client, pid, cid, permissions={"write": False, "commands": [], "agents": 1})
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=10)
-    refused = next(t for t in snap["tool_calls"] if t["provider_call_id"] == "w1")
-    assert refused["status"] == "failed" and NOBODY in refused["result"] and searched == []
 
 
 # --- kept in the guide ------------------------------------------------------------------------

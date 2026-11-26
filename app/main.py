@@ -51,7 +51,6 @@ from app.api import (
     backup,
     board,
     builtin_tools,
-    cards,
     categories,
     commands,
     compares,
@@ -77,13 +76,11 @@ from app.api import (
     recipes,
     record,
     roles,
-    rooms,
     runs,
     skills,
     stories,
     teams,
     tiers,
-    triggers,
     undo,
     usage,
     views,
@@ -93,7 +90,7 @@ from app.api import (
 from app.api.deps import carries_key, require_own_origin
 from app.away import send as send_night
 from app.config import Settings, load_settings
-from app.db.models import Agent, Flag, McpServer, Project, Provider, now
+from app.db.models import Agent, Flag, McpServer, Provider, now
 from app.db.session import (
     back_up_daily,
     make_engine,
@@ -114,12 +111,11 @@ from app.views import VIEWER_HEADERS
 
 
 class NoWebhookKeys(logging.Filter):
-    """A webhook's key is part of its address, and the server writes the address of every
-    request into its access log: there, and in anything else the server logs, the key is
-    replaced by "[key]" before the line is written anywhere. So is the page's key, where an
-    address carries it (`?key=`, slice 94)."""
+    """The server writes the address of every request into its access log: there, and in
+    anything else the server logs, the page's key, where an address carries it (`?key=`,
+    slice 94), is replaced by "[key]" before the line is written anywhere."""
 
-    _address = re.compile(r"(/api/hooks/|[?&]key=)[^/?#&\s\"']+", re.IGNORECASE)
+    _address = re.compile(r"([?&]key=)[^/?#&\s\"']+", re.IGNORECASE)
 
     def _without(self, value: object) -> object:
         return self._address.sub(r"\1[key]", value) if isinstance(value, str) else value
@@ -185,10 +181,10 @@ class PageKey:
     image's source; a download is fetched with the header, its address kept in the
     browser's list of downloads). One without it is answered before anything else is looked at: an
     agent's command can say any origin, but it does not know the key. What has a door of
-    its own needs none: health, a webhook, the status line, and what a frame loads."""
+    its own needs none: health, the status line, and what a frame loads."""
 
     OWN_DOORS = re.compile(
-        r"GET /api/health|POST /api/hooks/[^/]+|POST /api/limits/claude-session|POST /api/open"
+        r"GET /api/health|POST /api/limits/claude-session|POST /api/open"
         r"|GET /api/conversations/[^/]+/views/[^/]+/.*|GET /api/projects/[^/]+/raw/.*"
     )
     REFUSED = "open KOLONİ from the link in its window"
@@ -301,16 +297,14 @@ def show_link(port: int, key: str, opening: Callable[[], str] | None = None) -> 
 
 def known_secrets(factory, settings: Settings) -> list[str | None]:
     """Every secret KOLONİ knows, to be kept out of what an agent's CLI wrote (`app.raw`):
-    the providers' keys, the projects' notification addresses, the values of the MCP
+    the providers' keys, the values of the MCP
     servers' variables and the keys in their arguments, the key of the model server it was
-    started with, Gemini's voice key and Claude Code's status line key. (A webhook's key is
-    kept nowhere: only its hash.)"""
+    started with, Gemini's voice key and Claude Code's status line key."""
     with factory() as session:
         servers = session.scalars(select(McpServer)).all()
         return [
             settings.model_api_key,
             *session.scalars(select(Provider.api_key)),
-            *session.scalars(select(Project.notify_url)),
             *(value for server in servers for value in server.env.values()),
             *(key for server in servers for key in mcp_client.keys_in(server.command)),
             *session.scalars(
@@ -363,11 +357,9 @@ def create_app(
 
         clock = None
         if settings.trigger_clock:
-            # What came due while the app was off is looked at once, as missed; from
-            # here on the clock is looked at every few seconds.
+            # Looked at once as the app comes up; from here on every few seconds.
             with contextlib.suppress(Exception):
-                # (What is on disk read off the loop: git and large folders take their time.)
-                await triggers.look(now(), starting=True)
+                await triggers.look(now())
             clock = asyncio.create_task(triggers.run_forever(), name="triggers")
         # The turns that are over and not in the index of what was said: indexed beside
         # everything else, so that neither the start nor a request waits for them.
@@ -488,8 +480,6 @@ def create_app(
     app.state.local_server = LocalServer(
         settings.runtime_root, settings.local_server, settings.nvidia_smi
     )
-    # The unattended turns the previous process left open are told to their triggers.
-    app.state.triggers.settle()
     for module in (
         health,
         projects,
@@ -506,9 +496,7 @@ def create_app(
         agents,
         questions,
         discussions,
-        rooms,
         memory,
-        triggers,
         usage,
         record,
         folders,
@@ -534,7 +522,6 @@ def create_app(
         hold,
         backup,
         knowledge_page,
-        cards,
         judge,
     ):
         app.include_router(module.router)
@@ -655,13 +642,10 @@ def _serve_frontend(app: FastAPI, dist: Path) -> None:
         if path.startswith("api/") or path == "api":
             raise HTTPException(404, "not found")
         found = asset_path(root, path)
-        # K-drawio: the diagram viewer's page is framed by the app, under a policy of its own - and
-        # K-belge-ciktilari's document viewer (`frontend/public/office/`) the same.
+        # K-drawio: the diagram viewer's page is framed by the app, under a policy of its own.
         return FileResponse(
             found or index,
-            headers=VIEWER_HEADERS
-            if found and path.lower().startswith(("drawio/", "office/"))
-            else None,
+            headers=VIEWER_HEADERS if found and path.lower().startswith("drawio/") else None,
         )
 
 
@@ -670,7 +654,7 @@ def asset_path(root: Path, requested: str) -> Path | None:
 
     The path is vetted as text before the file system is touched: on Windows a
     UNC or drive path would otherwise be opened (and a UNC path dialled out to) - and a part
-    ending in a dot or a space is opened without it, so `office./viewer.html` would be the
+    ending in a dot or a space is opened without it, so `drawio./viewer.html` would be the
     viewer's page served without its policy (K-belge-ciktilari review).
     """
     parts = requested.split("/")

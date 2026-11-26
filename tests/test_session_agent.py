@@ -141,7 +141,6 @@ def test_a_session_turn_is_recorded_like_any_other(session_app, wait_run, projec
         "ask_folder",
         "ask_secret",
         "message_agent",
-        "open_room",
         "discuss",
         "read_backlog",
         "add_task",
@@ -150,7 +149,6 @@ def test_a_session_turn_is_recorded_like_any_other(session_app, wait_run, projec
         "offer_away",
         "run_checks",  # (0.1.9: KOLONİ's checks now, the Orchestrator's at its own work)
         "read_status",  # (0.1.9: KOLONİ's records of the project, read)
-        "propose_trigger",
         "post_note",
         "read_notes",
         "remember",
@@ -656,7 +654,7 @@ def test_each_kind_runs_the_way_it_safely_can(client):
     assert add(name="Qoder", kind="qoder_cli").status_code == 422  # (0.1.8: no longer run)
     assert add(name="Codex", kind="codex_cli").json()["mode"] == "session"
 
-    # On a model server of the user's its session is not measured: a step there, unless chosen.
+    # On a model server of the user's too (0.1.10: Codex step by step is cut, and refused).
     def local(**body):  # (an address is set from the app's own page only)
         return client.post(
             "/api/providers",
@@ -664,13 +662,14 @@ def test_each_kind_runs_the_way_it_safely_can(client):
             json={"kind": "codex_cli", "base_url": "http://127.0.0.1:8080/v1", **body},
         ).json()["mode"]
 
-    assert local(name="Codex local") == "step"
-    assert local(name="Codex local s", mode="session") == "session"
+    assert local(name="Codex local") == "session"
+    assert local(name="Codex local n", mode="native") == "native"
     assert client.get("/api/providers").json()[0]["mode"] is None  # an HTTP provider has none
     # A session too since 7 Nov 2026 (its patch tool declined); not reading only, agy's way.
     assert add(name="Codex session", kind="codex_cli", mode="session").json()["mode"] == "session"
-    refused = add(name="Codex reads", kind="codex_cli", mode="reads")
-    assert refused.status_code == 422 and "Codex" in refused.json()["detail"]
+    for way in ("reads", "step"):
+        refused = add(name=f"Codex {way}", kind="codex_cli", mode=way)
+        assert refused.status_code == 422 and "Codex" in refused.json()["detail"]
     assert (
         client.patch(f"/api/providers/{claude['id']}", json={"mode": "step"}).json()["mode"]
         == "step"
@@ -680,7 +679,7 @@ def test_each_kind_runs_the_way_it_safely_can(client):
 
 def test_the_right_client_is_built_for_kind_and_mode(settings):
     from app.db.models import Provider
-    from app.model_cli import ClaudeCliClient, CodexCliClient
+    from app.model_cli import ClaudeCliClient
     from app.model_native import CodexSessionClient
     from app.model_session import ClaudeSessionClient as Session
     from app.providers import Providers
@@ -689,7 +688,7 @@ def test_the_right_client_is_built_for_kind_and_mode(settings):
     cases = [
         ("claude_cli", "session", Session),
         ("claude_cli", "step", ClaudeCliClient),
-        ("codex_cli", "step", CodexCliClient),
+        ("codex_cli", "step", CodexSessionClient),  # (0.1.10: its step by step is cut)
         ("codex_cli", "session", CodexSessionClient),
         ("codex_cli", "reads", CodexSessionClient),
     ]  # a stray value runs the kind's default

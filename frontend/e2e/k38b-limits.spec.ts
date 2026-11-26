@@ -7,7 +7,7 @@ import path from 'node:path'
 import { expect, test, type Locator, type Page } from './fixtures'
 import { contrasts, openFreshConversation } from './helpers'
 
-// Kept for the slice's report, outside the repo (as ac-room-window's are).
+// Kept for the slice's report, outside the repo.
 const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'cv-shots')
 const keep = async (page: Page, name: string) => {
   mkdirSync(SHOTS, { recursive: true })

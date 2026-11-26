@@ -5,7 +5,7 @@ import { when } from '../canvas/turns'
 import { useConfirm } from './Confirm'
 
 /**
- * Over this many MB of kept copies, a warning: none goes by itself, and a trigger over its budget keeps one a firing -
+ * Over this many MB of kept copies, a warning: none goes by itself -
  * 1 GB is some 20 copies of a mid-size project's files.
  */
 export const KEPT_WARN_MB = 1024

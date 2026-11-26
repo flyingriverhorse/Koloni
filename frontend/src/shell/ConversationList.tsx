@@ -2,7 +2,7 @@ import { ArrowClockwise, CaretDown, CaretRight, FolderSimple, ListChecks, Plus }
 import { useEffect, useId, useState } from 'react'
 import { WAITS } from '../agents/agentStatus'
 import { errorText } from '../api/client'
-import type { Board, ConversationsDeleted, ListedConversation, Project, Trigger } from '../api/types'
+import type { Board, ConversationsDeleted, ListedConversation, Project } from '../api/types'
 import { count } from '../board/columns'
 import { standingOf, standingSaid, waitCount } from '../board/waiting'
 import { useConfirm } from './Confirm'
@@ -28,15 +28,11 @@ interface Props {
   onDelete?: (ids: string[]) => Promise<ConversationsDeleted>
   /** The project's Board as last read: how each conversation stands. */
   board?: Board | null
-  /** The project's triggers, once read: an archived conversation's still run, and its row says so. */
-  triggers?: Trigger[] | null
-  /** Every trigger is held back: none of them runs, and no row says one does. */
-  triggersPaused?: boolean
   /** Read the list again: by hand, as the page comes back into view, and every 30 s while it is shown. */
   onRefresh?: () => Promise<void>
 }
 
-/** A chat made or changed elsewhere (another window, a trigger, the To-do list) shows up without a click. */
+/** A chat made or changed elsewhere (another window, the To-do list) shows up without a click. */
 function useRefreshing(onRefresh: (() => Promise<void>) | undefined, onError: (said: null) => void) {
   useEffect(() => {
     if (!onRefresh) return
@@ -163,12 +159,6 @@ function TaskState({ task, on }: { task: ListedConversation['backlog_task']; on?
   return <span className={`tag${task.waiting || task.status === 'blocked' ? ' tag-warn' : ''}`}>{word}</span>
 }
 
-/** The names of an archived chat's triggers that still run: switched on, and not all held back. */
-const stillRunning = (c: ListedConversation, triggers: Props['triggers'], triggersPaused: boolean) =>
-  c.archived_at && !triggersPaused
-    ? (triggers ?? []).filter(t => t.conversation_id === c.id && t.enabled).map(t => t.name)
-    : []
-
 /** What a chat's last turn ran with - its agents, its model, its tokens where they are known; nothing where the Board has no turn of it. */
 const ranOf = (turn: BoardConversation['turn'] | undefined) =>
   turn && [
@@ -176,13 +166,6 @@ const ranOf = (turn: BoardConversation['turn'] | undefined) =>
     ranOn(turn.provider_name, turn.model_id),
     turn.tokens != null && `${turn.tokens.toLocaleString('en-US')} tokens`,
   ]
-
-const triggerNote = (running: string[]) => (
-  <span className="muted conv-trigger">
-    {running.length === 1 ? 'Its trigger' : 'Its triggers'} {running.join(', ')} still{' '}
-    {running.length === 1 ? 'runs' : 'run'}
-  </span>
-)
 
 export function ConversationList({
   conversations,
@@ -193,8 +176,6 @@ export function ConversationList({
   onArchive,
   onDelete,
   board,
-  triggers,
-  triggersPaused = false,
   onRefresh,
 }: Props) {
   const [by, setBy] = useState<'date' | 'name'>('date')
@@ -291,7 +272,6 @@ export function ConversationList({
   const rows = (list: ListedConversation[], underArchived = false) => (
     <ul className="conv-list">
       {list.map(c => {
-        const running = stillRunning(c, triggers, triggersPaused)
         // Its last turn as the Board has it (of the folders it reads): its agents, model and tokens.
         const ran = ranOf(on.get(c.id)?.turn)
         return (
@@ -339,7 +319,6 @@ export function ConversationList({
             >
               {c.archived_at ? 'Unarchive' : 'Archive'}
             </button>
-            {running.length > 0 && triggerNote(running)}
           </li>
         )
       })}

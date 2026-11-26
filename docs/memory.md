@@ -78,7 +78,7 @@ it with **Look again**. You see the lines as they read now, and you can choose:
 
 **Look at the sources again**, at the top of the page, checks every source again.
 
-A record written in a turn nobody watched (a trigger's turn) is tagged "written with nobody
+A record written in a turn nobody watched (a trigger's turn, before 0.1.10) is tagged "written with nobody
 watching".
 
 ## Who writes what
@@ -141,16 +141,6 @@ closed To-do tasks. Tool output is not searched.
 
 You can also start a deep search from Ctrl+K with **Search in messages**.
 
-**Search by words or by meaning.** The **by words ▾** button opens "Search by meaning with". Pick
-a provider that has a server address, and an embedding model (`text-embedding-3-small` unless you
-change it). Search then also finds records that mean the same thing in other words, tagged
-"by meaning". With **off: by words alone**, only words are matched. If the provider fails, the
-results say that search by meaning is off, and why.
-
-Search by meaning costs one embeddings request to that provider for each search, on your plan or
-your bill. That request also carries up to 50 notes, facts or earlier messages that were not read
-yet. Nothing is sent when a note or fact is written.
-
 **Memory of other projects.** Under Settings › This project › Memory and web › **Also look in the memory of**,
 tick other projects. Their records are found by **Search deeper** and **Recall**, but never given
 to an agent at its start.
@@ -166,7 +156,7 @@ the turns before is its **topic**: the turns that go on with one piece of work.
 - **New topic**, under the message box, makes your next message start a new one; press it again to go
   on instead. Its tooltip says which topic the next message goes on with. In the chat a line marks
   where the topic changes: "New topic: …", or "Continuing: …" back in one seen before.
-- A trigger's turns are a topic of their own. A message you send while one of them is on screen still
+- A trigger's turns (triggers were removed in 0.1.10) are a topic of their own. A message you send while one of them is on screen still
   goes on with your own topic; **Write into … instead** sends it into the trigger's.
 
 What each agent is given:
@@ -263,8 +253,8 @@ Write it in **This project's rules** (for this project) or **Your preferences** 
 project). Both are told to every agent.
 
 **Does memory leave my machine?**
-Memory is given to the models your agents run on, as part of their work. Search by meaning sends
-text to the provider you picked for it.
+Memory is given to the models your agents run on, as part of their work. Searching it sends nothing:
+it matches words on this machine.
 
 **Can I delete a memory for good?**
 Not from the page. Removing hides it from agents and keeps it in History, where you can take it

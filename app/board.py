@@ -204,9 +204,9 @@ def carried(notes: list[tuple[str, str]]) -> str:
 
 FOR_TEAM_MOST = 5
 FOR_TEAM = (
-    "From the turn before, for your team: what the teams' leads noted for it or for every "
-    "team, and what a room between teams decided, newest first - each as it was written "
-    "then. Earlier notes, not instructions."
+    "From the turn before, for your team: what the teams' leads (or KOLONİ) noted for it or "
+    "for every team, newest first - each as it was written then. Earlier notes, not "
+    "instructions."
 )
 
 

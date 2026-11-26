@@ -3,7 +3,6 @@ import { api, errorText } from '../api/client'
 import { openEvents } from '../api/sse'
 import type {
   Agent,
-  AllowedCommand,
   Attachment,
   Availability,
   Away,
@@ -13,7 +12,6 @@ import type {
   BacklogTask,
   BacklogTaskChange,
   Board,
-  Cards,
   Day,
   DayWords,
   CatalogueDraft,
@@ -54,7 +52,6 @@ import type {
   NewMcpServer,
   NewOwnCommand,
   OwnCommand,
-  NewRoom,
   Price,
   Project,
   ProjectFile,
@@ -72,13 +69,7 @@ import type {
   Run,
   Snapshot,
   Topic,
-  Trigger,
-  TriggerChange,
-  TriggerCreated,
-  TriggerLogEntry,
   NotesOffer,
-  TriggerProposal,
-  NewTrigger,
   Category,
   Usage,
   Budget,
@@ -89,7 +80,6 @@ import type {
   RecipeDraft,
   BacklogDraft,
   Recipes,
-  Goal,
   Story,
   TodoTree,
   TodoTreeAdded,
@@ -111,7 +101,6 @@ import { startsNewTurn } from '../canvas/turns'
 import { inUseBy } from '../shell/inUse'
 import type { Cannot } from '../shell/ModelBanner'
 import { chatOf, closing, kept, opened, remember, rememberChat, remembered, tabOf } from '../shell/openTabs'
-import type { Allow } from '../triggers/triggerText'
 import { keyOf } from '../views/views'
 import { waitCount } from '../board/waiting'
 import { activeRun, applyEvent, fromSnapshot, type ConvState } from './applyEvent'
@@ -122,7 +111,7 @@ export interface BranchSaid {
   way?: 'merge' | 'pull_request'
 }
 
-/** The tabs of the chat panel. (A room has a window of its own over the canvas: AC.) */
+/** The tabs of the chat panel. */
 export type ChatTab = 'Chat' | 'Talk' | 'Notes'
 
 interface AppStore extends TeamActions, RecipeActions, CategoryActions {
@@ -170,17 +159,6 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** Speak in a discussion, or end it. Both throw ApiError. */
   sayInDiscussion(discussionId: string, content: string): Promise<void>
   endDiscussion(discussionId: string): Promise<void>
-  /**
-   * How each room's window stands, by the room's id (AC): open, or made small - a tab at the
-   * canvas's foot. A room not here has no window; a running one still has its tab.
-   */
-  roomWindows: Record<string, 'open' | 'small'>
-  /** Open a room's window (another open one is made small), the focus going into it. */
-  showRoom(roomId: string): void
-  /** Make a room's window small: a tab, which the focus goes to. */
-  shrinkRoom(roomId: string): void
-  /** Close a room's window: a room that is over leaves the canvas (its line in the chat opens it again). */
-  closeRoom(roomId: string): void
   /** The tab of the chat panel that is shown. */
   chatTab: ChatTab
   /**
@@ -202,16 +180,6 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   readyChats: Record<string, ConvState>
   /** Read the chats whose Board row changed since; `again`: that one too, whatever its row says (a decision made on it) - `true`: all of them. */
   loadReadyChats(again?: string | true): Promise<void>
-  /** Open a room in the open conversation: a turn of its own, whose message is the goal. Throws ApiError. */
-  openRoom(room: NewRoom): Promise<void>
-  /** Speak in a room, end it, or add to what it may spend. All throw ApiError. */
-  sayInRoom(roomId: string, text: string): Promise<void>
-  endRoom(roomId: string): Promise<void>
-  /** 29c: pause a running room (true) or resume it (false). Throws ApiError. */
-  pauseRoom(roomId: string, paused: boolean): Promise<void>
-  /** K-oda-izle: let the turn's Lead follow a room the user opened (true), or stop it. Throws ApiError. */
-  followRoom(roomId: string, on: boolean): Promise<void>
-  giveRoomMore(roomId: string, more: { posts?: number; tokens?: number; minutes?: number }): Promise<void>
   /**
    * The open project's memory, once something asked for it; null until then. How a source
    * stands is as of the last reading: a file can change on disk without a word.
@@ -239,19 +207,12 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   backlogError: string | null
   /** Who "Write it with the Hive keeper" asks, read with it; null until then. */
   drafter: BacklogDrafter | null
-  /** 0.1.8: its stories and goals, read with it; null until then. */
+  /** 0.1.8: its stories, read with it; null until then. (0.1.10: To-do's goal level is hidden.) */
   stories: Story[] | null
-  goals: Goal[] | null
   loadBacklog(): Promise<void>
-  /** A goal or a story of the open project added, changed or deleted (what was under it stays); each throws ApiError. */
-  addGoal(title: string): Promise<Goal>
-  changeGoal(goalId: string, change: { title?: string; position?: number }): Promise<void>
-  deleteGoal(goalId: string): Promise<void>
-  addStory(title: string, goalId?: string | null): Promise<Story>
-  changeStory(
-    storyId: string,
-    change: { title?: string; goal_id?: string | null; position?: number; closed?: boolean },
-  ): Promise<void>
+  /** A story of the open project added, changed or deleted (what was under it stays); each throws ApiError. */
+  addStory(title: string): Promise<Story>
+  changeStory(storyId: string, change: { title?: string; position?: number; closed?: boolean }): Promise<void>
   deleteStory(storyId: string): Promise<void>
   /** The Hive keeper's draft, or a part of it, added at once by your word: what was added. Throws ApiError. */
   addTree(tree: TodoTreeIn): Promise<TodoTreeAdded>
@@ -279,45 +240,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   answerAsk(ask: AwayAsk, yes: boolean): Promise<void>
   /** Take in a job's kept copies, one after another (Take in, Take in all). Throws ApiError. */
   takeIn(mergeIds: string[]): Promise<void>
-  /**
-   * The open project's triggers, once they have been read; null until then. Triggers start
-   * turns with nobody watching, so only this page - the user - makes or changes one.
-   */
-  triggers: Trigger[] | null
-  triggersError: string | null
-  /** The newest things done to the project's triggers, those of deleted ones among them; null until read. */
-  triggerChanges: TriggerLogEntry[] | null
-  /** Every trigger of every project is held back, and none starts a turn. */
-  triggersPaused: boolean
-  loadTriggers(): Promise<void>
-  /** Each of these throws ApiError with the server's reason; the triggers are read again after. */
-  createTrigger(values: NewTrigger): Promise<TriggerCreated>
-  /** A webhook's key made anew: the old address stops; the answer carries the new key, this once. */
-  newTriggerKey(triggerId: string): Promise<TriggerCreated>
-  saveTrigger(triggerId: string, change: TriggerChange): Promise<void>
-  deleteTrigger(triggerId: string): Promise<void>
-  /** "Run now": the trigger's turn, with nobody asked. Answers with the turn's id. */
-  runTrigger(triggerId: string): Promise<string>
-  pauseTriggers(paused: boolean): Promise<void>
-  /** The allow list of one of the project's conversations: the commands a trigger there can be let run. */
-  allowedCommandsOf(conversationId: string): Promise<AllowedCommand[]>
-  /** The hosts one of the project's conversations makes GET requests to without asking: the ones a trigger there can be given. */
-  allowedHostsOf(conversationId: string): Promise<string[]>
-  /** Put a command on a conversation's allow list. It then also runs unasked in that conversation's own turns. */
-  addAllowedCommand(conversationId: string, prefix: string): Promise<AllowedCommand>
-  /**
-   * Something a turn was refused, to be allowed in its trigger: the Triggers page opens that
-   * trigger's form with it filled in. Nothing is saved until the user saves.
-   */
-  triggerDraft: { triggerId: string; allow: Allow } | { proposal: TriggerProposal } | null
-  allowInTrigger(triggerId: string, allow: Allow): void
-  clearTriggerDraft(): void
-  /** An agent's proposed trigger (slice 69): Approve makes it as shown, with the safest leave; Reject puts it away. Throws ApiError. */
-  decideProposal(proposalId: string, decision: 'approve' | 'reject'): Promise<void>
   /** Your word on a Project notes offer (K-bilgi 6): the lines its card showed and those ticked (none: Not now). Throws ApiError; the offers are read again either way. */
   answerNotesOffer(offerId: string, lines: string[], add: string[]): Promise<void>
-  /** Edit on a proposed trigger's card: the Triggers page opens a new trigger's form with it filled in. Nothing is saved until you save. */
-  editProposal(proposal: TriggerProposal): void
   /** Write a note on a turn's shared notebook. Throws ApiError. */
   writeNote(runId: string, content: string): Promise<void>
 
@@ -382,10 +306,6 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   removePrice(modelId: string): Promise<void>
   /** What the agents' models reported, in one project or (null) in all, from a moment on (null: all of it). Throws ApiError. */
   usage(projectId: string | null, since: string | null, runId?: string): Promise<Usage>
-  /** The command cards asked in one project or (null) in all, from a moment on (null: all of it); a project's suggested rules too. Throws ApiError. */
-  cards(projectId: string | null, since: string | null): Promise<Cards>
-  /** The user's click on a suggested rule: KOLONİ adds its line to the project's rules (it takes the key, never text). Throws ApiError. */
-  addCardRule(projectId: string, key: string): Promise<void>
   /** The open project's day from a moment on, counted from the record. Throws ApiError. */
   day(since: string): Promise<Day>
   /** The day's numbers in words, by a conversation's model: asked once; `overBudget`: the user's word to ask it over the month's budget. Throws ApiError. */
@@ -396,15 +316,12 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /**
    * The project's board: every conversation's agents at work, and where two conversations want
    * one file. Read when a conversation opens and whenever its events say something moved; the
-   * events of the project's other conversations do not come here, so its page reads it again.
+   * events of the project's other conversations do not come here, so it is read again every few seconds.
    */
   board: Board | null
-  boardError: string | null
   /** Every chat's board, of every folder and of none (slice 86a): what waits for the user anywhere. Read with the board. */
   everywhere: Board | null
   loadBoard(): Promise<void>
-  /** K-board-sonuc: a new turn in which the Lead opens again its last turn's sub-agents that failed, timed out or went silent. Throws ApiError. */
-  rerunFailed(conversationId: string): Promise<void>
   /** What is known of what is left of a provider's plan; `afresh` has it read now: Codex is asked, which starts it, or Claude Code runs one short turn. Throws ApiError. */
   limits(providerId: string, afresh: boolean): Promise<Limits>
   /** The status line command the user adds to their Claude Code settings to keep its reading fresh. Throws ApiError. */
@@ -657,16 +574,9 @@ let memoryReads = 0
 let backlogReads = 0
 // When each question's answer was last said to be typed (`typing`): once in 30 s is enough to hold it.
 const typed = new Map<string, number>()
-let triggerReads = 0
 // The Board row each of `readyChats` was read for: read again when it changes.
 const readyRows = new Map<string, string>()
 let readyReads = 0
-
-/** The rooms' windows with this one open: one open at a time, any other made small. */
-const withOpen = (windows: Record<string, 'open' | 'small'>, roomId: string): Record<string, 'open' | 'small'> => ({
-  ...Object.fromEntries(Object.keys(windows).map(id => [id, 'small' as const])),
-  [roomId]: 'open',
-})
 
 /** Put the store and its connection back to the initial state (tests only). */
 export function resetStoreForTests(): void {
@@ -697,8 +607,7 @@ async function inUseNow(get: () => AppStore, health: Health | null): Promise<{ r
         .tiers()
         .catch(() => null),
     ])
-    const observes = get().projects.some(one => one.id === chat?.project_id && one.observe_reports)
-    const { ids, cannot } = inUseBy(chat, rows, { ...get(), tiers, observes })
+    const { ids, cannot } = inUseBy(chat, rows, { ...get(), tiers })
     // A reading that fails keeps the last one: one glitch neither quiets the bar nor shows it again after a dismissal.
     // (A provider never read before is left out until it is.)
     const last = (id: string) => get().inUse?.readings.find(one => one.provider_id === id) ?? null
@@ -732,14 +641,6 @@ export const useApp = create<AppStore>()((set, get) => {
     set(s => (s.conv && s.conv.conversation.id === id ? { conv: { ...s.conv, away } } : s))
   }
 
-  /** The open chat's proposed triggers, read again: one was proposed, approved or put away. */
-  async function readProposals() {
-    const id = get().conv?.conversation.id
-    if (!id) return
-    const triggerProposals = await api.get<TriggerProposal[]>('/conversations/' + id + '/trigger-proposals')
-    set(s => (s.conv && s.conv.conversation.id === id ? { conv: { ...s.conv, triggerProposals } } : s))
-  }
-
   /** K-bilgi 6: the open chat's Project notes offers, read again: a turn added to one, or one was answered. */
   async function readNotesOffers() {
     const id = get().conv?.conversation.id
@@ -748,17 +649,15 @@ export const useApp = create<AppStore>()((set, get) => {
     set(s => (s.conv && s.conv.conversation.id === id ? { conv: { ...s.conv, notesOffers } } : s))
   }
 
-  /** The open chat's folder is now this one: another folder's board, budget, memory, backlog and triggers are not shown for it. */
+  /** The open chat's folder is now this one: another folder's board, budget, memory and backlog are not shown for it. */
   function follow(projectId: string | null) {
     if (projectId === get().projectId) return
     // (A reading of the folder left that answers late is not this one's.)
     memoryReads += 1
     backlogReads += 1
-    triggerReads += 1
     set({
       projectId,
       board: null,
-      boardError: null,
       budget: null,
       memory: null,
       memoryError: null,
@@ -766,11 +665,7 @@ export const useApp = create<AppStore>()((set, get) => {
       backlogError: null,
       drafter: null,
       stories: null,
-      goals: null,
       away: null,
-      triggers: null,
-      triggersError: null,
-      triggerChanges: null,
       knowledge: null,
       knowledgeError: null,
     })
@@ -780,8 +675,7 @@ export const useApp = create<AppStore>()((set, get) => {
         projects => set({ projects }),
         () => {},
       )
-    // The top bar says how many triggers are on, on every page; the `/` menu offers the folder's own commands.
-    void get().loadTriggers()
+    // The `/` menu offers the folder's own commands.
     void get()
       .loadOwnCommands()
       .catch(() => {})
@@ -828,12 +722,6 @@ export const useApp = create<AppStore>()((set, get) => {
       // The next task may have started by itself, in a conversation of its own.
       void refreshConversations().catch(() => {})
     }
-    // A trigger was made, changed, paused, came due or saw its turn end.
-    if (type === 'triggers.changed') {
-      void get().loadTriggers()
-      // ...and so may a trigger an agent proposed here (slice 69): its card.
-      void readProposals().catch(() => {})
-    }
     // K-bilgi 6: a turn of the folder added to its Project notes offer, or one was answered.
     if (type === 'notes.offered') void readNotesOffers().catch(() => {})
     // Renamed (its first message names it): its tab keeps the new name once it is left.
@@ -864,20 +752,10 @@ export const useApp = create<AppStore>()((set, get) => {
     if (moved || runMoved || ['claims.changed', 'agent.created', 'run.finished'].includes(type)) void get().loadBoard()
   }
 
-  /** The window an event of the open conversation opens: a room's, a discussion's. */
+  /** The window an event of the open conversation opens: a discussion's. */
   function openWindowOn(type: string, payload: unknown) {
     // Never an agent's (the user's, 21 Nov): the chat shows a turn's work, and on a native provider its Lead's window
     // opened on every message. It opens from its node, the Inspector or a link.
-    // A room is something to watch too: its window opens over the canvas as it opens - the focus left where it is.
-    // (Another's window open - the user may be writing in it: the new one comes as a tab beside it.)
-    if (type === 'room.created') {
-      const roomId = (payload as { id: string }).id
-      set(s => ({
-        roomWindows: Object.values(s.roomWindows).includes('open')
-          ? { ...s.roomWindows, [roomId]: 'small' }
-          : withOpen(s.roomWindows, roomId),
-      }))
-    }
     // A discussion is something to watch: its shared place opens as it starts.
     if (type === 'discussion.created') {
       set({ discussionWindowId: (payload as { id: string }).id, agentWindowId: null, agentWindowRaw: false })
@@ -929,29 +807,6 @@ export const useApp = create<AppStore>()((set, get) => {
       await api.post(`/discussions/${discussionId}/posts`, { content })
     },
 
-    roomWindows: {},
-
-    showRoom(roomId) {
-      set(s => ({ roomWindows: withOpen(s.roomWindows, roomId) }))
-      requestAnimationFrame(() => document.getElementById(`room-${roomId}`)?.focus())
-    },
-
-    shrinkRoom(roomId) {
-      set(s => ({ roomWindows: { ...s.roomWindows, [roomId]: 'small' } }))
-      requestAnimationFrame(() => document.getElementById(`room-tab-${roomId}`)?.focus())
-    },
-
-    closeRoom(roomId) {
-      set(s => ({ roomWindows: Object.fromEntries(Object.entries(s.roomWindows).filter(([id]) => id !== roomId)) }))
-      // Back where it can be opened again: its tab, if it keeps one (something still waits), else its line in the chat.
-      requestAnimationFrame(() =>
-        (
-          document.getElementById(`room-tab-${roomId}`) ??
-          document.querySelector<HTMLElement>(`[data-room-line="${roomId}"]`)
-        )?.focus(),
-      )
-    },
-
     chatTab: 'Chat',
     chatOpenAsked: 0,
     chatAt: null,
@@ -979,8 +834,8 @@ export const useApp = create<AppStore>()((set, get) => {
       const open = get().conv?.conversation.id
       // Each other chat the Board says waits; read again only when what of its row says it waits changed (no events
       // come from it) - not each step its other agents take meanwhile.
-      // shortcut: a chat whose only waiting cards are ones the Board does not count (a proposed trigger, a Project
-      // notes offer, a night to start) is not read; they show in their own chat. Count them on the Board if missed.
+      // shortcut: a chat whose only waiting cards are ones the Board does not count (a Project notes offer, a
+      // night to start) is not read; they show in their own chat. Count them in app/api/board.py if missed.
       const rows = new Map(
         (get().everywhere?.conversations ?? [])
           .filter(c => c.conversation_id !== open && waitCount(c) > 0)
@@ -1016,35 +871,6 @@ export const useApp = create<AppStore>()((set, get) => {
       )
     },
 
-    async openRoom(room) {
-      const conv = get().conv
-      if (!conv) return
-      // (The turn, its message and the room itself arrive as events, like any turn's.)
-      await api.post(`/conversations/${conv.conversation.id}/rooms`, room)
-      set({ turnId: null })
-    },
-
-    async sayInRoom(roomId, text) {
-      await api.post(`/rooms/${roomId}/posts`, { text })
-    },
-
-    async endRoom(roomId) {
-      await api.post(`/rooms/${roomId}/end`)
-    },
-
-    async pauseRoom(roomId, paused) {
-      // (How it stands then arrives as an event, like every change of the room.)
-      await api.post(`/rooms/${roomId}/${paused ? 'pause' : 'resume'}`)
-    },
-
-    async followRoom(roomId, on) {
-      await api.post(`/rooms/${roomId}/${on ? 'follow' : 'unfollow'}`)
-    },
-
-    async giveRoomMore(roomId, more) {
-      await api.post(`/rooms/${roomId}/more`, more)
-    },
-
     async endDiscussion(discussionId) {
       await api.post(`/discussions/${discussionId}/end`)
     },
@@ -1058,102 +884,6 @@ export const useApp = create<AppStore>()((set, get) => {
       set({ agentWindowId: null, agentWindowRaw: false })
     },
 
-    triggers: null,
-    triggersError: null,
-    triggerChanges: null,
-    triggersPaused: false,
-    triggerDraft: null,
-
-    async loadTriggers() {
-      const { projectId } = get()
-      if (!projectId) return
-      // Only the latest reading counts, as with the memory.
-      const mine = ++triggerReads
-      try {
-        const [triggers, { paused }, triggerChanges] = await Promise.all([
-          api.get<Trigger[]>(`/projects/${projectId}/triggers`),
-          api.get<{ paused: boolean }>('/triggers/paused'),
-          api.get<TriggerLogEntry[]>(`/projects/${projectId}/triggers/changes`),
-        ])
-        if (mine === triggerReads) set({ triggers, triggersPaused: paused, triggerChanges, triggersError: null })
-        // B-353: a chat made since the list was read (by the API, another window) is not "gone": the list is read again.
-        const known = get().conversations
-        if (triggers.some(t => t.conversation_id && !known.some(c => c.id === t.conversation_id)))
-          void refreshConversations().catch(() => {})
-      } catch (err) {
-        if (mine === triggerReads) set({ triggersError: errorText(err) })
-      }
-    },
-
-    async createTrigger(values) {
-      const { projectId } = get()
-      if (!projectId) throw new Error('no project is open')
-      const created = await api.post<TriggerCreated>(`/projects/${projectId}/triggers`, values)
-      await get().loadTriggers()
-      return created
-    },
-
-    async newTriggerKey(triggerId) {
-      const renewed = await api.post<TriggerCreated>(`/triggers/${triggerId}/key`)
-      await get().loadTriggers()
-      return renewed
-    },
-
-    async saveTrigger(triggerId, change) {
-      await api.patch(`/triggers/${triggerId}`, change)
-      await get().loadTriggers()
-    },
-
-    async deleteTrigger(triggerId) {
-      await api.delete(`/triggers/${triggerId}`)
-      await get().loadTriggers()
-    },
-
-    async runTrigger(triggerId) {
-      const { run_id } = await api.post<{ run_id: string }>(`/triggers/${triggerId}/run`)
-      void get().loadTriggers()
-      return run_id
-    },
-
-    async pauseTriggers(paused) {
-      const said = await api.put<{ paused: boolean }>('/triggers/paused', { paused })
-      set({ triggersPaused: said.paused })
-      await get().loadTriggers()
-    },
-
-    async allowedCommandsOf(conversationId) {
-      const open = get().conv
-      if (open?.conversation.id === conversationId) return open.allowedCommands
-      return (await api.get<Snapshot>(`/conversations/${conversationId}`)).allowed_commands
-    },
-
-    async allowedHostsOf(conversationId) {
-      const open = get().conv
-      const rules =
-        open?.conversation.id === conversationId
-          ? open.allowedWeb
-          : ((await api.get<Snapshot>(`/conversations/${conversationId}`)).allowed_web ?? [])
-      return rules.filter(rule => rule.kind === 'host').map(rule => rule.host)
-    },
-
-    async addAllowedCommand(conversationId, prefix) {
-      // (The open conversation hears of it as an event, like any change to its list.)
-      return api.post<AllowedCommand>(`/conversations/${conversationId}/allowed-commands`, { prefix })
-    },
-
-    allowInTrigger(triggerId, allow) {
-      set({ triggerDraft: { triggerId, allow } })
-    },
-
-    clearTriggerDraft() {
-      set({ triggerDraft: null })
-    },
-
-    async decideProposal(proposalId, decision) {
-      await api.post(`/trigger-proposals/${proposalId}/${decision}`)
-      await Promise.all([readProposals(), get().loadTriggers()])
-    },
-
     async answerNotesOffer(offerId, lines, add) {
       try {
         await api.post(`/notes-offers/${offerId}/answer`, { lines, add })
@@ -1161,10 +891,6 @@ export const useApp = create<AppStore>()((set, get) => {
         // (Changed meanwhile - 409 - the card shows what it holds now.)
         await readNotesOffers().catch(() => {})
       }
-    },
-
-    editProposal(proposal) {
-      set({ triggerDraft: { proposal } })
     },
 
     memory: null,
@@ -1187,7 +913,6 @@ export const useApp = create<AppStore>()((set, get) => {
     backlogError: null,
     drafter: null,
     stories: null,
-    goals: null,
 
     async loadBacklog() {
       const { projectId } = get()
@@ -1200,31 +925,14 @@ export const useApp = create<AppStore>()((set, get) => {
           api.get<BacklogDrafter>('/projects/' + projectId + '/backlog/drafter' + inChat(get())),
           api.get<TodoTree>('/projects/' + projectId + '/stories'),
         ])
-        if (mine === backlogReads)
-          set({ backlog, drafter, stories: tree.stories, goals: tree.goals, backlogError: null })
+        if (mine === backlogReads) set({ backlog, drafter, stories: tree.stories, backlogError: null })
       } catch (err) {
         if (mine === backlogReads) set({ backlogError: errorText(err) })
       }
     },
 
-    async addGoal(title) {
-      const goal = await api.post<Goal>('/projects/' + get().projectId + '/goals', { title })
-      await get().loadBacklog()
-      return goal
-    },
-
-    async changeGoal(goalId, change) {
-      await api.patch('/goals/' + goalId, change)
-      await get().loadBacklog()
-    },
-
-    async deleteGoal(goalId) {
-      await api.delete('/goals/' + goalId)
-      await get().loadBacklog()
-    },
-
-    async addStory(title, goalId = null) {
-      const story = await api.post<Story>('/projects/' + get().projectId + '/stories', { title, goal_id: goalId })
+    async addStory(title) {
+      const story = await api.post<Story>('/projects/' + get().projectId + '/stories', { title })
       await get().loadBacklog()
       return story
     },
@@ -1589,17 +1297,6 @@ export const useApp = create<AppStore>()((set, get) => {
       return api.get<Usage>(`/usage?${asked}`)
     },
 
-    async cards(projectId, since) {
-      const asked = new URLSearchParams()
-      if (projectId) asked.set('project_id', projectId)
-      if (since) asked.set('since', since)
-      return api.get<Cards>(`/cards?${asked}`)
-    },
-
-    async addCardRule(projectId, key) {
-      await api.post(`/projects/${projectId}/card-suggestions/${encodeURIComponent(key)}`, {})
-    },
-
     day: since => api.get<Day>(`/projects/${get().projectId}/day?since=${encodeURIComponent(since)}`),
     dayWords: (since, conversationId, overBudget) =>
       api.post<DayWords>(`/projects/${get().projectId}/day/words`, {
@@ -1618,13 +1315,7 @@ export const useApp = create<AppStore>()((set, get) => {
     },
 
     board: null,
-    boardError: null,
     everywhere: null,
-
-    async rerunFailed(conversationId) {
-      await api.post(`/conversations/${conversationId}/rerun-failed`)
-      await get().loadBoard()
-    },
 
     async loadBoard() {
       // What waits anywhere is read with it, in a plain chat too (the rail's badge, the toasts, the list).
@@ -1635,21 +1326,20 @@ export const useApp = create<AppStore>()((set, get) => {
           if (JSON.stringify(board) !== JSON.stringify(get().everywhere)) set({ everywhere: board })
           void get().loadReadyChats()
         },
-        () => {}, // (said by the folder's board where there is one; the badge keeps its last reading)
+        () => {}, // (the badge keeps its last reading)
       )
       const { projectId } = get()
       if (!projectId) return
       // Not for a project that was left meanwhile, and not over a later read's answer:
-      // what is shown is what was asked for last, whether it came or failed.
+      // what is kept is what was asked for last. (One that failed keeps the last reading.)
       const asked = ++boardAsked
       const mine = () => get().projectId === projectId && asked === boardAsked
       try {
         const board = await api.get<Board>(`/projects/${projectId}/board`)
         // The same answer keeps the board it had: what reads it is not drawn again for nothing (it is read every few seconds).
-        const same = JSON.stringify(board) === JSON.stringify(get().board)
-        if (mine()) set(same ? { boardError: null } : { board, boardError: null })
-      } catch (err) {
-        if (mine()) set({ boardError: errorText(err) })
+        if (mine() && JSON.stringify(board) !== JSON.stringify(get().board)) set({ board })
+      } catch {
+        // (read again in a few seconds)
       }
     },
 
@@ -1985,7 +1675,6 @@ export const useApp = create<AppStore>()((set, get) => {
               agentWindowId: null,
               agentWindowRaw: false,
               discussionWindowId: null,
-              roomWindows: {},
               filesOpen: false,
               filesRef: null,
               filesAt: { key: null, n: get().filesAt.n },
@@ -1997,7 +1686,7 @@ export const useApp = create<AppStore>()((set, get) => {
       set({ tabs })
       remember(tabs)
       rememberChat(tab, id)
-      // (One made since the list was read - by a trigger, the backlog, another window - has its tab once the list has it.)
+      // (One made since the list was read - by the backlog, another window - has its tab once the list has it.)
       if (!get().conversations.some(c => c.id === id)) void refreshConversations().catch(() => {})
       closeEvents = openEvents(
         id,

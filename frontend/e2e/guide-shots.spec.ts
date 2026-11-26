@@ -204,7 +204,6 @@ test('the To-do tree', async ({ page }) => {
   await openFreshConversation(page)
   const pid = await e2eProject(page)
   const tree = {
-    goal: 'Sign-in holds on every screen',
     stories: [
       {
         title: 'Login works on mobile',
@@ -238,7 +237,7 @@ test('the To-do tree', async ({ page }) => {
     await rail(page, 'To-do').click()
     const list = page.getByRole('list', { name: 'Tasks' })
     await expect(list.getByRole('listitem', { name: 'Password reset' })).toContainText('● running')
-    await expect(list.getByRole('listitem', { name: tree.goal })).toContainText('1 / 2 stories')
+    await expect(list.getByRole('listitem', { name: 'Login works on mobile' })).toContainText('✓ done')
     // (0.1.8: two ticked - the dock under the tree says what Do in chat does.)
     for (const name of ['Rate-limit the reset form', 'The footer shows last year'])
       await list.getByRole('listitem', { name }).getByRole('checkbox').first().check()
@@ -345,7 +344,7 @@ test('a story’s strip and notebook', async ({ page }) => {
   }
 })
 
-test('Memory search, Triggers and Usage', async ({ page, request }) => {
+test('Memory search and Usage', async ({ page, request }) => {
   const id = await openFreshConversation(page)
   await say(page, 'Answer only: The ZEPPELIN hangar is in Kayseri.', 'The ZEPPELIN hangar is in Kayseri.')
   expect(
@@ -360,36 +359,8 @@ test('Memory search, Triggers and Usage', async ({ page, request }) => {
   await expect(search.getByRole('list', { name: 'In earlier messages' }).getByRole('listitem').first()).toBeVisible()
   await picture(page, 'memory-search')
 
-  const pid = await e2eProject(page)
-  const made = await request.post(`/api/projects/${pid}/triggers`, {
-    headers: OWN,
-    data: {
-      name: 'Morning check',
-      kind: 'schedule',
-      conversation_id: id,
-      message: 'Run the tests and say what failed.',
-      config: { at: '07:30', days: 'weekdays' },
-    },
-  })
-  expect(made.ok(), await made.text()).toBe(true)
-  await rail(page, 'Triggers').click()
-  await expect(page.getByRole('article', { name: 'Morning check' })).toBeVisible()
-  await picture(page, 'triggers')
-  expect((await request.delete(`/api/triggers/${(await made.json()).id}`, { headers: OWN })).ok()).toBe(true)
-
-  // (0.1.7: a command card answered, so Cards has one to count - asked at Ask, run once)
-  await openFreshConversation(page)
-  const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('run the tests')
-  await page.getByRole('button', { name: 'Send' }).click()
-  await chat.getByRole('button', { name: 'Run once' }).click()
-  await expect(chat.getByText('The tests pass.')).toBeVisible()
-  await page.reload()
   await rail(page, 'Usage').click()
   await expect(page.getByRole('table', { name: 'Usage by provider and model' })).toBeVisible()
-  const cards = page.getByRole('region', { name: 'Cards' })
-  await expect(cards.getByRole('table', { name: 'Cards by reason' })).toBeVisible()
-  await cards.scrollIntoViewIfNeeded()
   await picture(page, 'usage')
 })
 
@@ -603,7 +574,7 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(settings.getByLabel('Fix rounds')).toBeVisible()
     await picture(page, 'settings-checks')
     await page.getByRole('button', { name: 'Close settings' }).click()
-    // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental CLIs and the
+    // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental features and the
     // Judge model (0.1.9) under Save (read once shown) - the fake model the Fast tier's first, as on a machine set up.
     type Local = { id: string; models: { name: string }[] }
     const local: Local = (await (await page.request.get('/api/providers')).json()).find(
@@ -617,7 +588,7 @@ test.describe('proven finish (0.1.6)', () => {
     await models(tiered)
     try {
       const app = await appSettings(page, 'Agents')
-      const experimental = app.getByRole('checkbox', { name: /Show experimental CLIs/ })
+      const experimental = app.getByRole('checkbox', { name: /Show experimental features/ })
       await expect(experimental).toBeEnabled()
       const judge = app.getByLabel('Judge model')
       await expect(judge).toHaveValue('')

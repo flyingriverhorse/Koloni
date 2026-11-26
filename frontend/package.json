@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
-    "build": "tsc -b && vite build && vite build -c vite.office.config.ts",
+    "build": "tsc -b && vite build",
     "test": "vitest run",
     "lint": "oxlint",
     "typecheck": "tsc -b --noEmit",
@@ -22,16 +22,12 @@
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",
     "@xyflow/react": "^12.12.0",
-    "docx-preview": "^0.4.1",
     "highlight.js": "^11.12.0",
     "mermaid": "12.2.0",
-    "pptx-preview": "^1.0.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "three": "^0.186.1",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -51,11 +47,5 @@
     "typescript": "~5.9",
     "vite": "^8.3.8",
     "vitest": "^5.0.3"
-  },
-  "overrides": {
-    "pptx-preview": {
-      "uuid": "^14.0.3",
-      "echarts": "^6.1.0"
-    }
   }
 }

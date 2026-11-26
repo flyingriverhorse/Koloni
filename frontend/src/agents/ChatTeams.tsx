@@ -212,16 +212,14 @@ export function ChatTeams({
   // A step of the row's recipe whose role cannot run where it is now (B-89), said here too, with another provider for the role.
   const cannot = (row: ChatTeam) =>
     (recipes.find(recipe => recipe.id === runsBy(row))?.graph.steps ?? []).flatMap(step => {
-      const [names, as] = stepRoles(step.who, teams, roles)
+      const names = stepRoles(step.who, teams, roles)
       // Offered only where it could be this step: a model it may run, and not a CLI that also works in the project itself.
       const elsewhere = (name: string) =>
         (models[name]?.run_on ?? []).filter(
-          one =>
-            (as === 'room' ? one.room : one.step) &&
-            providers.find(p => p.id === one.provider_id)?.name !== models[name]?.provider_name,
+          one => one.step && providers.find(p => p.id === one.provider_id)?.name !== models[name]?.provider_name,
         )
       return names.flatMap(name =>
-        cannotOf(models[name], as).map(line => ({
+        cannotOf(models[name], 'step').map(line => ({
           step: step.name,
           role: name,
           line,
@@ -286,7 +284,10 @@ export function ChatTeams({
         </p>
       )}
       {mode === 'lead' && rows.length > 0 && (
-        <p className="muted cmd-approval-note">To change them, switch to Manual: its picks stay there.</p>
+        <p className="muted cmd-approval-note">
+          Beside its picks it calls any built-in role the work needs, though not while a recipe runs. To change them,
+          switch to Manual: its picks stay there.
+        </p>
       )}
     </>
   )

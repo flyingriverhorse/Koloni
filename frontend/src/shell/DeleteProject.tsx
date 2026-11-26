@@ -5,13 +5,12 @@ import { useApp } from '../state/store'
 
 export const KEPT_ON_DISK = 'Its folder on disk is not touched: its files, its git and its .koloni/ stay.'
 
-/** What a delete takes, counted: "12 chats, 34 memory records, 5 To-do tasks, 2 triggers, 0 knowledge topics". */
+/** What a delete takes, counted: "12 chats, 34 memory records, 5 To-do tasks, 0 knowledge topics". */
 function goneWith(preview: ProjectDeletePreview): string {
   const parts: [number, string, string][] = [
     [preview.chats, 'chat', 'chats'],
     [preview.memory, 'memory record', 'memory records'],
     [preview.tasks, 'To-do task', 'To-do tasks'],
-    [preview.triggers, 'trigger', 'triggers'],
     [preview.knowledge, 'knowledge topic', 'knowledge topics'],
   ]
   return parts.map(([n, one, many]) => `${n} ${n === 1 ? one : many}`).join(', ')

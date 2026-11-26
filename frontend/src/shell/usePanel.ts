@@ -3,7 +3,7 @@ import { createContext, useCallback, useLayoutEffect, useRef, useState } from 'r
 /** Between the panel and the window's edge, and between the panel and the row it opens over. */
 const GAP = 8
 
-/** Folds the composer's More: for a panel in it whose work, once done, goes on elsewhere (a room opened). */
+/** Folds the composer's More: for a panel in it whose work, once done, goes on elsewhere. */
 export const CloseMore = createContext<() => void>(() => {})
 
 /**

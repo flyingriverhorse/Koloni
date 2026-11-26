@@ -490,7 +490,7 @@ def test_the_guide_lists_only_what_the_user_ticked():
         ("claude_cli", None, "as a session, KOLONİ's tools"),
         ("claude_cli", "native", "with its own tools, asks first"),
         ("codex_cli", None, "as a session, KOLONİ's tools"),
-        ("codex_cli", "step", "one step at a time"),
+        ("codex_cli", "step", "as a session, KOLONİ's tools"),  # (0.1.10: cut, a session)
         ("codex_cli", "session", "as a session, KOLONİ's tools"),
         ("codex_cli", "native", "with its own tools, asks first"),  # over its app-server (89a)
         ("copilot_cli", "session", "as a session, KOLONİ's tools"),

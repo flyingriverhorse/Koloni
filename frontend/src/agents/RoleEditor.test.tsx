@@ -93,7 +93,7 @@ test('a role names the MCP servers it may use; "on Tools →" goes there', async
   expect(h.onSave.mock.calls[0][1]).not.toHaveProperty('mcp')
   await userEvent.click(card('Documenter'))
   await userEvent.click(screen.getByRole('tab', { name: 'Tools' }))
-  expect(screen.getByText(/^May use/)).toHaveTextContent('May use 2 of 36 tools · 0 MCP servers · 0 skills')
+  expect(screen.getByText(/^May use/)).toHaveTextContent('May use 2 of 34 tools · 0 MCP servers · 0 skills')
 })
 
 test('a built-in role keeps its name, can be reset and cannot be deleted', async () => {
@@ -656,7 +656,7 @@ test('a role’s limits on steps and tokens are whole numbers above zero, or emp
   expect(unheld.closest('.hint')).toBeNull()
   expect(
     screen.getByText(
-      /A change to the limit reaches an agent already open the next time it is told to go on\..*With nobody watching \(a trigger’s message\), what a sub-agent\s+stopped there had changed is not kept.*For a CLI session each message it\s+writes is a step\./s,
+      /A change to the limit reaches an agent already open the next time it is told to go on\..*KOLONİ’s own step limit still holds\..*For a CLI session each message it\s+writes is a step\./s,
     ),
   ).toBeInTheDocument()
   expect(screen.getByText(/an agent carried on for a later\s+message starts again from zero/)).toBeInTheDocument()
@@ -884,25 +884,6 @@ test('a role that has not run has no record, folded or not', async () => {
   expect(screen.getByText('No agent of this role ended in the last 30 days.')).toBeInTheDocument()
 })
 
-test('the Observer has no tools to tick, and is saved with none', async () => {
-  const h = handlers()
-  const observer = role({ id: 'r3', name: 'Observer', tools: [], tier: 'balanced' })
-  render(<AgentsPage roles={[observer]} {...h} />)
-  await userEvent.click(screen.getByRole('button', { name: /^Observer/ }))
-  expect(screen.queryByRole('switch', { name: 'Observer on' })).not.toBeInTheDocument() // KOLONİ asks it: never off
-  await userEvent.click(screen.getByRole('tab', { name: 'Tools' }))
-  expect(screen.getByText(/Tools: none\. Where a project has it on/)).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Read files' })).not.toBeInTheDocument()
-  await userEvent.click(screen.getByRole('tab', { name: 'Instructions' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(h.onSave.mock.calls[0][1]).toMatchObject({ tools: [], tier: 'balanced' })
-  await userEvent.click(screen.getByRole('tab', { name: 'Overview' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Edit model' }))
-  expect(screen.queryByRole('radiogroup', { name: 'Thinking starts at' })).not.toBeInTheDocument() // its one question goes with no level
-  expect(screen.queryByRole('checkbox', { name: /Run inside the CLI/ })).not.toBeInTheDocument()
-})
-
 test('a role shows its model’s window as found and where from, takes one set by you, and goes back to the found one', async () => {
   const h = handlers()
   const onRoleModels = vi
@@ -969,7 +950,11 @@ test('89g: a role may also run inside a Claude Code Lead - off until ticked, and
   const inside = screen.getByRole('checkbox', { name: /Run inside the CLI/ })
   expect(inside).not.toBeChecked()
   // It depends on the agent that opens it running in Claude Code, not on the role's own provider.
-  expect(screen.getByText('Only when the agent opening it runs in Claude Code.')).toBeInTheDocument()
+  expect(
+    screen.getByText(
+      'Only when the agent opening it runs in Claude Code, Native - experimental: Show experimental features in Settings › The app › Agents.',
+    ),
+  ).toBeInTheDocument()
   expect(screen.getByText(/the instructions hold any of % & \| < > !/)).toBeInTheDocument()
   await userEvent.click(inside)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))

@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import literal_column, select
 
-from app import room as rooms
 from app.agent.ctx import Ctx, _NobodyToAsk
 from app.agent.words import (
     ANSWER_TOOLS,
@@ -34,6 +33,7 @@ from app.db.models import (
     settings_of,
 )
 from app.discussion import (
+    NOT_BETWEEN,
     SPEECH_STEPS,
     WHY,
     fit,
@@ -47,11 +47,11 @@ from app.model_native import CodexNativeClient
 from app.providers import NotListed, allowed
 from app.roles import (
     Door,
-    agent_roles,
     can_change_things,
     closed,
     effective_tools,
     find_agent_role,
+    list_roles,
     shown_name,
 )
 from app.serialize import discussion_out, discussion_post_out
@@ -193,7 +193,7 @@ class DiscussionsMixin:
             teams = self._door(session, ctx)
             # (Those it may invite now: as spawn_agent's list, slice 62.)
             role_names = ", ".join(
-                shown_name(r.name) for r in agent_roles(session) if not closed(r, teams, named)
+                shown_name(r.name) for r in list_roles(session) if not closed(r, teams, named)
             )
             here = {c.name.casefold(): c for c in self._ctxs.values() if c.run_id == ctx.run_id}
             # Every invitation is checked before anything is opened or written down.
@@ -242,7 +242,7 @@ class DiscussionsMixin:
                 [ctx.agent_id, *(known.agent_id for known, _spec in plans if known is not None)],
             )
             if between and not self._leads_teams(session, ctx):
-                raise ToolError(rooms.NOT_BETWEEN.format(teams=", ".join(between)))
+                raise ToolError(NOT_BETWEEN.format(teams=", ".join(between)))
         if any(spec is not None for _known, spec in plans):
             await self._recipe_copy_ready(ctx)
         members = self._discuss_opens(ctx, call_id, topic, plans, recipe)
@@ -300,7 +300,7 @@ class DiscussionsMixin:
         self._discuss_told(ctx, members, kept, left, last_word)
         told = ""
         for member, new in members if recipe else ():
-            if new:  # (Its step's places, as a room's members end theirs.)
+            if new:  # (Its step's places, as a step's agents end theirs.)
                 told = (
                     await self._after_step(
                         ctx,
@@ -369,8 +369,8 @@ class DiscussionsMixin:
             )
         if ctx.run_id in self._answered:  # (B-376: none opened after the last answer)
             raise ToolError(TURN_ANSWERED)
-        # The same door as spawn_agent's and a room member's (slice 62).
-        shut = closed(role, teams, named) or self._room_refused(session, ctx, role.name)
+        # The same door as spawn_agent's (slice 62).
+        shut = closed(role, teams, named)
         if shut:
             raise ToolError(f"{shut}. Roles: {role_names}.")
         return role

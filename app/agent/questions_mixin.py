@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import literal_column, select
 from sqlalchemy.orm import object_session
 
-from app import away, memory, observer, parked, raw, signs, topics
+from app import away, earlier, memory, parked, raw, signs, topics
 from app.agent.cards import _answer, lead_pick
 from app.agent.ctx import Ctx, _NobodyToAsk
 from app.agent.words import AGENT_TERMINAL, ANSWER_PREFIX, KOLONIS, READY_FOR_YOU
@@ -460,11 +460,11 @@ class QuestionsMixin:
         (`ask_once`: its `talker`, or a session with none of KOLONİ's tools), never in its session
         at work - only where the chat's away setting is on, or the project is away: it is a
         request of the user's plan, and Full auto alone does not say it may be spent.
-        shortcut: a CLI's one-shot run has the step path's `observer.SECONDS` (90 s), not measured
-        against a CLI's start; give it its own once one is seen to time out.
+        shortcut: a CLI's one-shot run has the summariser's `earlier.SUMMARISER_SECONDS` (90 s),
+        not measured against a CLI's start; give it its own once one is seen to time out.
         A CLI that keeps tools of its own when asked to talk (agy: its reading, search and browser
-        run unasked) is not handed the question, as `team.asked_how_hard` and the Observer pass
-        one over; and at most `LEAD_CLI_MOST` are asked in a turn.
+        run unasked) is not handed the question, as `team.asked_how_hard` passes one over; and at
+        most `LEAD_CLI_MOST` are asked in a turn.
         Codex exec's own web search (`CodexCliClient`, its `talker` too) was measured off on
         4 Nov 2026 (R185).
         What it spent is on a record of its own, the Lead's (`_own_request`): in the turn's
@@ -573,7 +573,7 @@ class QuestionsMixin:
                 model_id = lead.model_name or (await model.info()).model_id
                 asking = replace(lead, model_name=model_id)
                 try:
-                    async with asyncio.timeout(observer.SECONDS):
+                    async with asyncio.timeout(earlier.SUMMARISER_SECONDS):
                         said, answer = await ask_once(model, model_id, asked_now)
                 except BaseException:
                     self._own_request(lead, asking, mode, None)  # sent, and not heard out

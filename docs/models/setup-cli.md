@@ -36,39 +36,34 @@ Models page is left as it is.
 
 | CLI | Choices (the first is the default) |
 |---|---|
-| Claude Code | One session per agent · One run per model step · Native |
-| Codex | One session per agent · Native · One run per model step ([experimental](#experimental-clis)). As a session its own patch tool cannot be switched off: KOLONİ refuses every patch it asks to make, and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, While you're away, recipe steps and comparisons. The default since 7 Nov 2026; a Codex provider added before keeps the way it was saved with. One added with a model server of your own starts as One run per model step, since its session there is not yet measured. |
-| Copilot | One session per agent · Native |
+| Claude Code | One session per agent · One run per model step · Native ([experimental](#experimental-clis)) |
+| Codex | One session per agent · Native ([experimental](#experimental-clis)). As a session its own patch tool cannot be switched off: KOLONİ refuses every patch it asks to make, and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: While you're away, recipe steps and comparisons. On a model server of your own its session is not yet measured. Codex's One run per model step was cut in 0.1.10: a Codex provider saved so runs as One session per agent. |
+| Copilot | One session per agent · Native ([experimental](#experimental-clis)) |
 | agy ([experimental](#experimental-clis)) | Reads with its own tools · Native |
 
 - **One session per agent** and **One run per model step** use KOLONİ's tools and cards, with the CLI's
   own tools off.
-- **Native** uses the CLI's own tools in your folder. Claude Code and agy ask KOLONİ before every tool
+- **Native** uses the CLI's own tools in your folder; it is [experimental](#experimental-clis) since 0.1.10. Claude Code and agy ask KOLONİ before every tool
   they use; Codex before each command and patch, except the commands its own rules count as safe, which
   it runs without asking; Copilot before every tool it uses (on its newer protocol, 1.0.114 on, through
   KOLONİ's own hook; on the older one, before each command, write and read).
   KOLONİ's own team tools reach a Native CLI over its tool bridge: opening sub-agents, asking you, the
-  To-do list, notes and memory, and **Notify you** (only where the project has a notification address or
-  the desktop switch on; at most 6 desktop notifications a minute for one chat, as for any agent). Not
-  **Propose triggers**: a trigger's turn never starts a Native CLI (see
-  [Triggers proposed by agents](../automation/triggers.md#triggers-proposed-by-agents)).
+  To-do list, notes and memory, and **Notify you** (only where the project has its desktop notifications
+  on; at most 6 a minute for one chat, as for any agent).
 - **Reads with its own tools** (agy): it reads, and is started without leave to write or run.
-
-A trigger never starts a CLI that works with its own tools (Native, or agy's reads): with nobody watching,
-only an agent that works with KOLONİ's tools runs.
 
 ## Experimental CLIs
 
-agy, and Codex run **One run per model step**, are experimental since 0.1.8: less measured and tested than
-the rest, so they are not offered unless you ask for them. Turn on **Show experimental CLIs** in
-Settings › The app › Agents (it is kept as you change it). Then **Add a provider**'s **Kind** lists
-**agy (CLI)**, and a Codex provider's **How it runs** lists **One run per model step**, each under
-**Experimental**; and This project › Memory and web offers **Let agy search too**.
+agy is experimental since 0.1.8, and a CLI run **Native** since 0.1.10: less measured and tested than the
+rest, so they are not offered unless you ask for them. Turn on **Show experimental features** in Settings ›
+The app › Agents (it is kept as you change it). Then **Add a provider**'s **Kind** lists **agy (CLI)**,
+and Claude Code's, Codex's and Copilot's **How it runs** list **Native**, each under **Experimental**;
+and This project › Memory and web offers **Let agy search too**. (Codex and Copilot, with Native not
+offered, have one way left: **How it runs** is not shown.)
 
-Nothing that already uses them is hidden or stopped: an agy provider, or a Codex provider run one step at a
-time, keeps working with the switch off, its card tagged **Experimental**, and its window still shows the
-way it runs. A Codex provider added with a model server of your own starts as One run per model step, as
-before, and shows it. A project that already lets agy search keeps its box.
+Nothing that already uses them is hidden or stopped: an agy provider, or a CLI run Native, keeps working
+with the switch off, its card tagged **Experimental**, and its window still shows the way it runs; while
+you edit it, **Native** stays offered. A project that already lets agy search keeps its box.
 
 [![How CLIs are driven: one run per model step, one session per agent, native, and agy's reads; KOLONİ's tool bridge (MCP); how each native CLI asks before its tools act; sign-in folders, going on from the last turn, and compaction](../diagrams/cli-modes.svg)](../diagrams/cli-modes.svg)
 
@@ -90,8 +85,7 @@ one 553,000-token message cost 34.6 AI credits in a measurement), so KOLONİ doe
 it holds **Summarise a long context at (%)** of 100,000 tokens - or of the window set on its role, or with none
 set there of Copilot's own window, where that is smaller: a larger window on the role does not lift the bound - or
 did not say its size, the next turn starts a new
-session sent the chat as KOLONİ keeps it, which KOLONİ summarises - and the agent's record says so. The same holds
-in a trigger's topic. While it works, the agent's details show how full Copilot says its session is; once a
+session sent the chat as KOLONİ keeps it, which KOLONİ summarises - and the agent's record says so. While it works, the agent's details show how full Copilot says its session is; once a
 Native CLI's turn is over no fill is shown, since its tokens in are its turn's model calls added up. Every other
 CLI lead starts each turn anew and is sent the whole chat. KOLONİ compacts that, as it does for an API model, past
 **Summarise a long context at (%)** of the window set on its role, or with none set there, of the window the
@@ -108,9 +102,9 @@ saying so; **Stop** stops that too, and what the summary costs counts in the tur
 no tokens). If its context fills again, the turn fails and says so: use **Compact now** or set a smaller context
 window on the role. Where nothing of its earlier work is left to summarise - a single message larger than its
 model takes, say - nothing is started again, and the failure says that after the CLI's own line: send a shorter
-message, or use a model with a larger context window. Where the lead had opened sub-agents, a room or a team's recipe, the turn is not started
+message, or use a model with a larger context window. Where the lead had opened sub-agents or a team's recipe, the turn is not started
 again: KOLONİ summarises its earlier work after it and the failure says so - send your message again and it goes
-on from the summary. A plan, a To-do task's turn, a night's job and a trigger's turn are neither started again nor
+on from the summary. A plan, a To-do task's turn and a night's job are neither started again nor
 summarised this way. (A lead on an API model is summarised and asked once more inside its step, as before.)
 
 KOLONİ knows such a refusal only by the CLI's own error, never by words its model may have written. GitHub Copilot

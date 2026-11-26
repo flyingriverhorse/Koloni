@@ -19,7 +19,6 @@ import app.web  # noqa: E402, I001
 from tests.test_chat_flow import text  # noqa: E402
 from tests.test_parallel import until  # noqa: E402
 from tests.test_spawn import call, step  # noqa: E402
-from tests.test_trigger_scenarios import run_now, trigger  # noqa: E402
 
 ORIGIN = "http://127.0.0.1:8790"
 PUBLIC = "93.184.216.34"
@@ -250,50 +249,10 @@ def test_a_secret_in_a_header_is_in_no_record(make_client, wait_run, project_dir
     assert "TOP-SECRET-1" not in json.dumps(snap)
 
 
-def test_a_turn_nobody_watches_searches_and_asks_only_what_its_trigger_allows(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    net = Net(
-        monkeypatch,
-        {"duckduckgo.com": (200, "text/html", DDG_PAGE), "example.com": (200, "text/plain", "ok")},
-    )
-    steps = [
-        step(search()),
-        step(get("https://example.com/a", "h1")),
-        step(get("https://other.example.org/b", "h2")),
-        text("done"),
-    ]
-    client, model, pid, cid = setup(make_client, project_dir, steps * 2)
-    closed = trigger(client, pid, cid)
-    snap = wait_run(client, cid, run_now(client, closed["id"]), timeout=10)
-    assert [status for status, _ in results(snap, "web_search")] == ["failed"]
-    assert all("nobody is here to ask" in said for _status, said in results(snap, "http_request"))
-    assert net.asked == []
-    cid2 = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    opened = trigger(
-        client,
-        pid,
-        cid2,
-        permissions={
-            "write": False,
-            "commands": [],
-            "agents": 0,
-            "web": True,
-            "hosts": ["example.com"],
-            "notify": False,
-        },
-    )
-    snap = wait_run(client, cid2, run_now(client, opened["id"]), timeout=10)
-    assert [status for status, _ in results(snap, "web_search")] == ["succeeded"]
-    assert [status for status, _ in results(snap, "http_request")] == ["succeeded", "failed"]
-    assert not [w for w in snap["web_requests"] if w["status"] == "proposed"]
-
-
-def test_where_a_notification_goes_is_the_users_and_is_in_no_record(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    hook = "https://hooks.example.com/services/T000/B000/XYZ-PRIVATE"
-    net = Net(monkeypatch, {"hooks.example.com": (200, "text/plain", "ok")})
+def test_where_a_notification_goes_is_the_users(make_client, wait_run, project_dir, monkeypatch):
+    net, shown = Net(monkeypatch), []
+    monkeypatch.setattr(app.web, "has_desktop", lambda: True)
+    monkeypatch.setattr(app.web, "desktop", lambda title, said: shown.append(said))
     client, model, pid, cid = setup(
         make_client,
         project_dir,
@@ -307,17 +266,14 @@ def test_where_a_notification_goes_is_the_users_and_is_in_no_record(
             ),
             text("done"),
         ],
-        project={"notify_url": hook},
+        project={"notify_desktop": True},
     )
-    shown = client.get("/api/projects").json()[0]
-    assert shown["has_notify_url"] is True and "notify_url" not in shown
     snap = wait_run(client, cid, go(client, cid)["id"])
     assert results(snap, "notify")[0][0] == "succeeded"
-    assert [url for _method, url, _ip in net.asked] == [hook]  # not where the agent said
-    assert "XYZ-PRIVATE" not in json.dumps(snap)
+    assert shown == ["the tests pass"] and net.asked == []  # not where the agent said
 
 
-def test_without_an_address_of_the_users_there_is_no_notify_tool(
+def test_without_the_desktop_on_there_is_no_notify_tool(
     make_client, wait_run, project_dir, monkeypatch
 ):
     Net(monkeypatch)

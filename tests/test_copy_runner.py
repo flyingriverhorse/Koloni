@@ -10,7 +10,6 @@ import asyncio
 import os
 import shutil
 import time
-from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select
@@ -24,7 +23,6 @@ from app.db.models import Agent, Conversation, FileChange, Merge, Message, Proje
 from app.db.session import make_engine, make_session_factory, upgrade_db
 from app.executors.host import copy_python_path
 from app.main import create_app
-from app.model_client import ModelUnavailable
 from tests.conftest import Gate
 from tests.fakes import Script, ScriptedExecutor, ScriptedModel
 from tests.keyed import TestClient
@@ -34,7 +32,6 @@ from tests.test_copy_later_scenarios import MAKES, again, interrupted
 from tests.test_copy_scenarios import files, one, run, seen
 from tests.test_parallel import until
 from tests.test_spawn import call, step
-from tests.test_trigger_scenarios import allow, run_now, trigger
 
 ORIGIN = "http://127.0.0.1:8790"
 
@@ -432,97 +429,6 @@ def test_a_file_the_project_keeps_rewriting_does_not_hold_up_the_rest_when_its_o
     wait_run(client, cid, run_id)
 
 
-def unattended(make_client, project_dir, coder, commands=()):
-    client, model = make_client(
-        {
-            "Lead": [
-                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                text("done"),
-            ],
-            "Coder": coder,
-        }
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    rules = [allow(client, cid, command) for command in commands]
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": rules, "agents": 1})
-    return client, cid, run_now(client, made["id"])
-
-
-def test_nobody_watching_what_a_failed_agent_changed_is_not_taken_and_stays_on_record(
-    make_client, wait_run, project_dir
-):
-    client, cid, run_id = unattended(
-        make_client, project_dir, [step(write("a.txt", "A")), ModelUnavailable("the model is gone")]
-    )
-    snap = wait_run(client, cid, run_id, timeout=10)
-    assert next(r for r in snap["runs"] if r["id"] == run_id)["status"] == "completed"
-    assert not (project_dir / "a.txt").exists()
-    (merge,) = snap["merges"]
-    assert merge["status"] == "discarded" and files(merge) == {"a.txt": "refused"}
-    assert "did not finish" in merge["files"][0]["note"]
-    assert "not applied to the project: a.txt" in calls(snap, "Lead", "spawn_agent")[0][1]
-    # thrown away with the copy: nobody was there to reject it
-    assert snap["file_changes"][0]["status"] == "discarded" and snap["claims"] == []
-
-
-def test_nobody_watching_a_conflict_is_not_written_over_and_the_rest_is_taken(
-    make_client, wait_run, project_dir
-):
-    held = Gate()
-    client, cid, run_id = unattended(
-        make_client,
-        project_dir,
-        [
-            step(edit("hello.py", "hi", "hello")),
-            step(write("a.txt", "A")),
-            held.step(text("A done")),
-        ],
-    )
-    held.wait_partial()
-    (project_dir / "hello.py").write_text("THE USER'S OWN", encoding="utf-8")
-    held.release()
-    snap = wait_run(client, cid, run_id, timeout=10)
-    (merge,) = snap["merges"]
-    assert merge["status"] == "applied"
-    assert files(merge) == {"a.txt": "applied", "hello.py": "conflict"}
-    assert (project_dir / "hello.py").read_text(encoding="utf-8") == "THE USER'S OWN"
-    assert "hello.py (changed in the project meanwhile)" in calls(snap, "Lead", "spawn_agent")[0][1]
-
-
-def test_nobody_watching_a_protected_file_a_command_made_in_the_copy_is_refused_when_taken(
-    make_client, wait_run, project_dir
-):
-    script = (
-        "import os\nos.makedirs('.github/workflows')\n"
-        "open('.github/workflows/x.yml', 'w').write('on: push')\n"
-    )
-    client, cid, run_id = unattended(
-        make_client,
-        project_dir,
-        [
-            step(write("make.py", script)),
-            step(run("python make.py")),
-            text("A done"),
-        ],
-        commands=["python make.py"],
-    )
-    snap = wait_run(client, cid, run_id, timeout=15)
-    assert calls(snap, "Coder", "run_command")[0][0] == "succeeded"
-    (merge,) = snap["merges"]
-    assert files(merge) == {".github/workflows/x.yml": "refused", "make.py": "applied"}
-    assert "no trigger allows" in merge["files"][0]["note"]
-    assert not (project_dir / ".github").exists()
-    assert (project_dir / "make.py").read_text(encoding="utf-8") == script
-    assert ".github/workflows/x.yml (.github:" in calls(snap, "Lead", "spawn_agent")[0][1]
-    # it is nowhere but in the copy, which is kept for that: the user's to discard
-    assert merge["status"] == "kept"
-    assert (Path(merge["kept_in"]) / ".github" / "workflows" / "x.yml").is_file()
-    assert client.post(f"/api/merges/{merge['id']}/reject").status_code == 200
-    assert not Path(merge["kept_in"]).exists()
-
-
 def test_in_a_copy_file_tools_read_what_is_shared_and_do_not_write_what_is_left_out(
     make_client, wait_run, project_dir
 ):
@@ -738,27 +644,6 @@ def test_taking_in_never_writes_or_deletes_through_a_link_of_the_projects(
     nothing_left_the_project(snap, project_dir, outside, other)
 
 
-def test_nobody_watching_taking_in_never_writes_or_deletes_through_a_link_either(
-    make_client, wait_run, project_dir, tmp_path
-):
-    outside, held = links_out(tmp_path, project_dir), Gate()
-    client, cid, run_id = unattended(
-        make_client,
-        project_dir,
-        [
-            step(write("make.py", OUT)),
-            step(run("python make.py")),
-            held.step(text("A done")),
-        ],
-        commands=["python make.py"],
-    )
-    held.wait_partial()
-    other = becomes_a_link(tmp_path, project_dir)
-    held.release()
-    snap = wait_run(client, cid, run_id, timeout=15)
-    nothing_left_the_project(snap, project_dir, outside, other)
-
-
 def unreadable_once(monkeypatch):
     real, failed = copies.Copy.changes, []
 
@@ -791,23 +676,6 @@ def test_a_copy_that_cannot_be_read_is_kept_and_put_before_the_user(
     assert merges(snap) == ["applied"] and snap["runs"][0]["status"] == "completed"
     assert (project_dir / "a.txt").read_text(encoding="utf-8") == "A"
     assert not here(client, snap).exists()
-
-
-def test_nobody_watching_a_copy_that_cannot_be_read_is_not_taken_and_is_on_record(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    unreadable_once(monkeypatch)
-    client, cid, run_id = unattended(
-        make_client, project_dir, [step(write("a.txt", "A")), text("A done")]
-    )
-    snap = wait_run(client, cid, run_id, timeout=10)
-    assert next(r for r in snap["runs"] if r["id"] == run_id)["status"] == "completed"
-    (merge,) = snap["merges"]
-    assert merge["status"] == "discarded" and files(merge) == {"a.txt": "refused"}
-    assert "could not be read" in merge["files"][0]["note"]
-    assert not (project_dir / "a.txt").exists()
-    assert snap["file_changes"][0]["status"] == "discarded"
-    assert "a.txt (the working copy could not be read" in calls(snap, "Lead", "spawn_agent")[0][1]
 
 
 def test_a_fault_at_one_file_loses_neither_it_nor_the_copy(
@@ -1395,34 +1263,6 @@ def test_from_a_copy_a_command_run_in_the_project_by_a_listed_parent_is_refused(
     assert snap["commands"] == [] and not (project_dir / "x.txt").exists()
 
 
-def test_unattended_a_command_naming_the_project_from_a_copy_is_refused_though_ticked(
-    make_client, wait_run, project_dir
-):
-    straight = f"python fix.py {project_dir}"  # (plain: a rule can hold it)
-    client, _model = make_client(
-        {
-            "Lead": [
-                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                text("done"),
-            ],
-            "Coder": [step(write("a.txt", "A")), step(run(straight)), text("A done")],
-        }
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(
-        client,
-        pid,
-        cid,
-        permissions={"write": True, "commands": [allow(client, cid, straight)], "agents": 1},
-    )
-    snap = wait_run(client, cid, run_now(client, made["id"]))
-    (refused,) = [t for t in snap["tool_calls"] if t["name"] == "run_command"]
-    assert refused["status"] == "denied" and "the project folder" in refused["result"]
-    assert snap["commands"] == []
-
-
 def test_in_a_copy_without_links_a_delete_and_kolonis_own_runtime_in_the_project_run_unasked(
     make_client, wait_run, project_dir, settings_env
 ):
@@ -1571,7 +1411,7 @@ def test_closing_the_app_keeps_the_copies_whose_changes_wait_or_are_being_made(
         assert not (project_dir / "a.txt").exists()
 
 
-def at_work(settings_env, project_dir, coder, unattended=False):
+def at_work(settings_env, project_dir, coder):
     """A turn whose Coder is still at work when the app is closed; the conversation's id."""
     held = Gate()
     app_ = create_app(
@@ -1590,20 +1430,14 @@ def at_work(settings_env, project_dir, coder, unattended=False):
         client.headers["Origin"] = ORIGIN
         pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        if unattended:
-            made = trigger(
-                client, pid, cid, permissions={"write": True, "commands": [], "agents": 1}
-            )
-            run_now(client, made["id"])
-        else:
-            assert (
-                client.patch(
-                    f"/api/conversations/{cid}",
-                    json={"permission_mode": "full_auto", "spawn_approval": "never"},
-                ).status_code
-                == 200
-            )
-            client.post(f"/api/conversations/{cid}/messages", json={"content": "go"})
+        assert (
+            client.patch(
+                f"/api/conversations/{cid}",
+                json={"permission_mode": "full_auto", "spawn_approval": "never"},
+            ).status_code
+            == 200
+        )
+        client.post(f"/api/conversations/{cid}/messages", json={"content": "go"})
         held.wait_partial()
     held.release()
     return cid
@@ -1680,25 +1514,6 @@ def test_after_a_restart_a_kept_folder_deleted_by_hand_is_said_to_be_gone(
         snap = client.get(f"/api/conversations/{cid}").json()
         assert [f["status"] for f in snap["file_changes"]] == ["discarded"]
         assert client.post(f"/api/merges/{card['id']}/approve").status_code == 409
-
-
-def test_after_a_restart_a_turn_nobody_watched_still_does_not_get_its_protected_paths(
-    settings_env, project_dir
-):
-    cid = at_work(settings_env, project_dir, [step(write("notes.txt", "seen"))], unattended=True)
-    (folder,) = kept_folders(settings_env)
-    (folder / "tree" / ".claude").mkdir()  # as a command of its would have made it
-    (folder / "tree" / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
-    with again(settings_env) as client:
-        card = card_of(client, cid)
-        assert files(card) == {".claude/settings.json": "refused", "notes.txt": "ready"}
-        assert "no trigger allows" in card["files"][0]["note"]
-        assert client.post(f"/api/merges/{card['id']}/approve").status_code == 200
-        assert (project_dir / "notes.txt").read_text(encoding="utf-8") == "seen"
-        assert not (project_dir / ".claude").exists()
-        # what was refused is nowhere but in the copy: it stays until Discard
-        assert card_of(client, cid)["status"] == "kept"
-        assert (folder / "tree" / ".claude" / "settings.json").is_file()
 
 
 def test_a_copy_stop_threw_away_is_not_kept_at_the_next_start_though_its_folder_was_left(

@@ -19,7 +19,7 @@
   Fixed, Security, Removed, Deprecated.
 - One line per entry: `- **Area**: what the user can now do or will notice, in plain words.` The area is a
   page or part the user knows (Canvas, Chat, Ready, To-do, Agents, Models, Tools, Memory, Knowledge,
-  Triggers, Usage, Settings, CLIs, Install, Docs).
+  Usage, Settings, CLIs, Install, Docs).
 - Say what changed for the user, not how it was built. No commit hashes or internal names. A breaking
   change starts with **Breaking:**.
 - A migration that changes saved data says so.

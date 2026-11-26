@@ -11,7 +11,7 @@ from app.db.models import Team
 from app.recipes import problems
 from app.schemas import RecipeGraph, WhoRole
 from tests.test_chat_flow import text
-from tests.test_chat_teams_scenarios import teams_of
+from tests.test_chat_teams_scenarios import FORMER, former, teams_of
 from tests.test_claim_scenarios import write
 from tests.test_parallel import until
 from tests.test_recipe_run_scenarios import (
@@ -50,19 +50,22 @@ def learned(root, topic, record=True):
 
 
 def recipes(client):
+    """Each team of DEFAULTS by its default recipe - those ready until 0.1.10 made again
+    (`former`)."""
     every = {r["id"]: r for r in client.get("/api/recipes").json()["recipes"]}
     return {
         team: every[found["default_recipe_id"]]
-        for team, found in teams_of(client).items()
+        for team, found in former(client, *(one for one in DEFAULTS if one in FORMER)).items()
         if team in DEFAULTS
     }
 
 
 def test_each_new_default_is_its_teams_and_calls_only_its_roles_and_the_shared_ones(make_client):
     client, _model = make_client({})
+    found = recipes(client)
     teams = teams_of(client)
     with client.app.state.session_factory() as session:
-        for team, recipe in recipes(client).items():
+        for team, recipe in found.items():
             assert recipe["name"] == DEFAULTS[team]
             drawn = RecipeGraph.model_validate(recipe["graph"])
             called = {s.who.role for s in drawn.steps if isinstance(s.who, WhoRole)}
@@ -75,8 +78,8 @@ def test_each_new_default_is_its_teams_and_calls_only_its_roles_and_the_shared_o
 
 def test_the_new_teams_roles_sit_in_their_stages(make_client):
     client, _model = make_client({})
+    teams = former(client, "ML", "DataOps", "DevOps")  # (made as the user would: 0194)
     names = {r["id"]: r["name"] for r in client.get("/api/roles").json()}
-    teams = teams_of(client)
 
     def stages(team):
         return {s["name"]: sorted(names[i] for i in s["roles"]) for s in teams[team]["stages"]}
@@ -103,7 +106,7 @@ def test_the_learned_experts_step_opens_only_an_expert_that_learned(make_client,
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     with client.app.state.session_factory() as session:
-        ml = session.get_one(Team, teams_of(client)["ML"]["id"])
+        ml = session.get_one(Team, former(client, "ML")["ML"]["id"])
         slots = AgentRunner._slots_of(session, ml, str(project_dir), cid)
         assert slots(experts) == []  # (none learned: the step is passed - no Learn of its own)
         learned(project_dir, "MLflow", record=False)
@@ -172,6 +175,7 @@ def test_the_lead_that_picks_ml_is_told_its_experts_step_is_skipped(
             ]
         }
     )
+    former(client, "ML")  # (a ready team until 0.1.10)
     cid, run_id = begin(
         client, project_dir, mode="full_auto", spawn_approval="never", teams_mode="lead"
     )
@@ -208,7 +212,7 @@ def ran(make_client, project_dir, team, lead, said, ready=True):
         mode="auto_edit",
         spawn_approval="never",
         teams_mode="manual",
-        teams=[{"team_id": teams_of(client)[team]["id"], "recipe_id": None}],
+        teams=[{"team_id": former(client, team)[team]["id"], "recipe_id": None}],
     )
     snap = until(
         client,
@@ -442,7 +446,7 @@ def test_a_report_recipe_whose_step_wrote_a_file_ends_at_take_in(
         mode="auto_edit",
         spawn_approval="never",
         teams_mode="manual",
-        teams=[{"team_id": teams_of(client)["Product"]["id"], "recipe_id": None}],
+        teams=[{"team_id": former(client, "Product")["Product"]["id"], "recipe_id": None}],
     )
     snap = until(
         client, cid, lambda s: asked(s) and "Ready for you" in asked(s)["question"], timeout=10

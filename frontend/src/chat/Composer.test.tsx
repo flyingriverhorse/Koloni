@@ -4,7 +4,6 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import type { OwnCommand, Provider, Role } from '../api/types'
 import { ModelPicker } from '../models/ModelPicker'
-import { WorkTogether } from '../room/WorkTogether'
 import { resetStoreForTests, useApp } from '../state/store'
 import { useContext } from 'react'
 import { CloseMore } from '../shell/usePanel'
@@ -345,7 +344,7 @@ test('/ at the start opens the commands above the box; in the middle it is plain
   await userEvent.type(box, '/')
   expect(box).toHaveAttribute('aria-haspopup', 'listbox')
   expect(box).toHaveAttribute('aria-controls', menu()!.id)
-  expect(names()).toEqual(['/new', '/room', '/stop', '/model', '/mode', '/plan', '/compare'])
+  expect(names()).toEqual(['/new', '/stop', '/model', '/mode', '/plan', '/compare'])
   // each says what it does; the first is the one Enter takes
   expect(option(/^\/stop/)).toHaveTextContent('Stop the work in progress')
   expect(box).toHaveAttribute('aria-activedescendant', within(menu()!).getAllByRole('option')[0].id)
@@ -451,17 +450,7 @@ test('/<role> task: a chip with its sign; the message asks the Lead to hand the 
   const box = screen.getByRole('textbox', { name: 'Message' })
   await userEvent.type(box, '/')
   // every role but the Lead's, which the message goes to anyway
-  expect(names()).toEqual([
-    '/new',
-    '/room',
-    '/stop',
-    '/model',
-    '/mode',
-    '/plan',
-    '/compare',
-    '/Coder',
-    '/Security reviewer',
-  ])
+  expect(names()).toEqual(['/new', '/stop', '/model', '/mode', '/plan', '/compare', '/Coder', '/Security reviewer'])
   await userEvent.type(box, 'cod{Tab}')
   const chip = screen.getByText('/Coder')
   expect(chip).toHaveClass('tag', 'tag-accent')
@@ -492,45 +481,33 @@ test('a role written out in full, any case and Turkish letters folded, is a chip
   expect(onSend).not.toHaveBeenCalled()
 })
 
-test('/model, /room and /mode open what their buttons open; closed, the chat says to open it first', async () => {
+test('/model and /mode open what their buttons open; closed, the chat says to open it first', async () => {
   const pick = vi.fn()
   const model = (
     <button type="button" className="model-picker-button" onClick={pick}>
       Model
     </button>
   )
-  const room = (
-    <WorkTogether
-      roles={roles('Coder', 'Reviewer')}
-      providers={[]}
-      limits={{ posts: null, tokens: null, minutes: null }}
-      busy={false}
-      onOpen={vi.fn()}
-    />
-  )
-  const { rerender } = render(<Composer {...props} model={model} beside={room} />)
+  const { rerender } = render(<Composer {...props} model={model} />)
   const box = screen.getByRole('textbox', { name: 'Message' })
   await userEvent.type(box, '/model{Enter}')
   expect(pick).toHaveBeenCalledOnce()
   expect(box).toHaveValue('')
-  await userEvent.type(box, '/room{Enter}')
-  expect(screen.getByRole('form', { name: 'Work together' })).toBeVisible()
-  await userEvent.keyboard('{Escape}')
   await userEvent.type(box, '/mode{Enter}')
   expect(screen.getByRole('dialog', { name: 'Permission level' })).toHaveFocus()
 
-  rerender(<Composer {...props} compact model={model} beside={room} />)
+  rerender(<Composer {...props} compact model={model} />)
   await userEvent.type(box, '/mo')
   expect(option(/^\/model/)).toHaveAttribute('aria-disabled', 'true')
   expect(option(/^\/model/)).toHaveTextContent('open the chat for this')
   expect(option(/^\/mode\b/)).toHaveAttribute('aria-disabled', 'true')
 })
 
-test('without a model or a room to open, /model and /room are off', async () => {
+test('without a model to open, /model is off - and rooms are gone: there is no /room (0.1.10)', async () => {
   render(<Composer {...props} />)
   await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), '/')
   expect(option(/^\/model/)).toHaveAttribute('aria-disabled', 'true')
-  expect(option(/^\/room/)).toHaveAttribute('aria-disabled', 'true')
+  expect(names()).not.toContain('/room')
 })
 
 test('the best match first: named in full, then starting so, then holding it', async () => {
@@ -564,7 +541,7 @@ test('a role of the user named as a command is not a second command of that name
   useApp.setState({ roles: roles('Stop', 'New', 'Coder') })
   render(<Composer {...props} running />)
   await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), '/')
-  expect(names()).toEqual(['/new', '/room', '/stop', '/model', '/mode', '/plan', '/compare', '/Coder'])
+  expect(names()).toEqual(['/new', '/stop', '/model', '/mode', '/plan', '/compare', '/Coder'])
 })
 
 // --- plan first (slice 49) ---------------------------------------------------------------------
@@ -626,7 +603,7 @@ test('own commands are listed under the built-ins, with their line', async () =>
   useApp.setState({ roles: roles('Coder'), ownCommands: [own('test-yaz', 'Write tests for {args}')] })
   render(<Composer {...props} />)
   await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), '/')
-  expect(names()).toEqual(['/new', '/room', '/stop', '/model', '/mode', '/plan', '/compare', '/Coder', '/test-yaz'])
+  expect(names()).toEqual(['/new', '/stop', '/model', '/mode', '/plan', '/compare', '/Coder', '/test-yaz'])
   expect(option(/^\/test-yaz/)).toHaveTextContent("test-yaz's line")
 })
 
@@ -680,7 +657,7 @@ test('an own command named like a role is not offered: the role’s chip is mean
   useApp.setState({ roles: roles('Coder'), ownCommands: [own('coder', 'x'), own('tidy', 'y')] })
   render(<Composer {...props} />)
   await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), '/')
-  expect(names()).toEqual(['/new', '/room', '/stop', '/model', '/mode', '/plan', '/compare', '/Coder', '/tidy'])
+  expect(names()).toEqual(['/new', '/stop', '/model', '/mode', '/plan', '/compare', '/Coder', '/tidy'])
 })
 
 test('with no line of its own, the menu shows the text’s first line, cut at 80', async () => {

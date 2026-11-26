@@ -78,7 +78,7 @@ const loopIn = (graph: ReturnType<typeof deriveGraph>) =>
   (graph.nodes.find(n => n.kind === 'checks')!.data as ChecksData).loop as Loop | null
 const drawn = (graph: ReturnType<typeof deriveGraph>) => graph.nodes.filter(n => n.kind === 'agent').map(n => n.id)
 
-test('S4: a room’s members, opened mid-turn, stay the Orchestrator’s - outside the box, which holds what the passes name', () => {
+test('S4: an agent opened by no call (a room’s member, before 0.1.10) stays the Orchestrator’s - outside the box, which holds what the passes name', () => {
   const look = opened('rv', 'Reviewer', 'review', { role_name: 'Reviewer' })
   const member = opened('m1', 'Coder 2', null, { tool_call_id: null })
   const graph = graphOf(

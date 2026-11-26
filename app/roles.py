@@ -39,7 +39,7 @@ DIAGRAM = ("diagram_image",)
 # kept from showing files.
 # add_skill only proposes: a skill is added on the user's card (slice 45); so does ask_folder
 # a folder outside the project (slice 75). So do add_task and change_task: a task, or a
-# change to one, waits on the user's card (slice 52); and propose_trigger a trigger (69).
+# change to one, waits on the user's card (slice 52).
 # shortcut: the Lead holds every tool, so the backlog's four schemas (some 500 tokens) ride on
 # each of its steps - it must have them to hand them on (`effective_tools`). Tell "may hand
 # on" apart from "offered to itself" if small local models suffer for it.
@@ -58,13 +58,11 @@ ALL_TOOLS = (
     "ask_user",
     "ask_folder",
     "message_agent",
-    "open_room",
     "discuss",
     "read_backlog",
     "add_task",
     "change_task",
     "assess_task",
-    "propose_trigger",
     "post_note",
     "read_notes",
     "remember",
@@ -109,9 +107,6 @@ LEARN = "learn"
 # that knowledge's pages. Not in `EXPERT_MAY`, as no role lists it.
 LOOKUP = "lookup"
 EXPERT_MAY = (*READ, "ask_user", "message_agent", "discuss", *NOTEBOOK, *MEMORY)
-# Asked by KOLONİ itself, with no tools, about a sub-agent's report (slice 33b): never
-# opened as an agent, so no agent is offered it.
-OBSERVER = "Observer"
 # K-rol-adlari (the user, 23 Nov: the old title was company jargon): the To-do list's two roles,
 # named for KOLONİ's hive - by these constants, never by words written out, so a later rename
 # reaches every place. A role of the user's own that had one of these names keeps it; the built-in
@@ -141,7 +136,7 @@ class RoleSpec:
 
 
 # The roles that are always there: no team holds them back, and they are never off (slice 62).
-ALWAYS = frozenset({LEAD, "Planner", OBSERVER})
+ALWAYS = frozenset({LEAD, "Planner"})
 # Karar 5 (kanıtlı bitiş, the user's: some roles must always be there): the built-in roles that do
 # KOLONİ's checks and recipes' work are never off, and keep the tools their job needs - a team's
 # door still holds them back, as any role's (not `ALWAYS`). Migration 0161 for installs.
@@ -160,7 +155,9 @@ def locked_tools(role: Role) -> tuple[str, ...]:
 
 
 # KOLONİ's ready teams (slice 62), made once by migration 0065; a built-in role added later
-# joins those of them that are still there.
+# joins those of them that are still there. Three since 0.1.10 (the user, 26 Nov: the eleven
+# were more than a chat picks from): migration 0194 takes the others away where the user left
+# them as they came - their roles stay, and so does a team the user changed or picked.
 READY_TEAMS = {
     "Web app": (
         "Coder",
@@ -174,26 +171,8 @@ READY_TEAMS = {
         "Copywriter",
         "Accessibility reviewer",
     ),
-    "Backend / API": (
-        "Coder",
-        "Architect",
-        "Database engineer",
-        "Tester",
-        "Reviewer",
-        "Security reviewer",
-        "Performance engineer",
-    ),
-    "Data": ("Data analyst", "Database engineer", "Researcher", "Reviewer"),
     "Docs": ("Docs writer", "Spec writer", "Translator", "Summarizer"),
-    # (Named "Ops" until migration 0103, which renames the ready one where it still is.)
-    "DevOps": ("DevOps", "Security reviewer", "Dependency keeper", "Performance engineer"),
     "Quality": ("Tester", "Reviewer", "Security reviewer", "Debugger"),
-    "Research": ("Researcher", "Summarizer", "Spec writer"),
-    "Product": (HIVE_KEEPER, SCOUT, "Spec writer"),
-    "Maintenance": ("Refactorer", "Dependency keeper", "Debugger", "Tester"),
-    # K-takim-duzen, made by migration 0103 (with the MLflow and Databricks experts in ML).
-    "ML": ("Data scientist", "ML engineer", "Model evaluator", "MLOps engineer", "Tester"),
-    "DataOps": ("Data engineer", "Database engineer", "Data analyst", "Tester"),
 }
 # A team's stages to begin with (slice 63a): today's kinds of work, a role in the one of its
 # kind (`place_in_stages`).
@@ -236,15 +215,12 @@ LEAD_INSTRUCTIONS = (
     "do the work: hand every file job and every finding to the right role - you "
     f"write no file yourself; report to the Orchestrator. {TEAM_SPLITS}"
 )
-# (open_room and discuss: a team's lead meets its step's roles too, slice 84e.)
-# shortcut: only a team made from here on has them - an older team's lead is given them on
-# its card (Tools); add a migration if the ready teams' leads are to have them unasked.
+# (discuss: a team's lead talks with its step's roles too, slice 84e.)
 LEAD_TOOLS = (
     *READ,
     "spawn_agent",
     "ask_user",
     "message_agent",
-    "open_room",
     "discuss",
     *NOTEBOOK,
     *MEMORY,
@@ -272,7 +248,6 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
             "ask_folder",
             "message_agent",
             "discuss",
-            "propose_trigger",
             *NOTEBOOK,
             *MEMORY,
         ),
@@ -494,15 +469,6 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "assessment is an opinion, and whether a task is done is the user's decision.",
         (*READ, "ask_user", "message_agent", *BACKLOG, *NOTEBOOK, *MEMORY),
         "plan",
-    ),
-    OBSERVER: RoleSpec(
-        "Looks over a sub-agent's report, where the project asks for it, and says what of it "
-        "the record shows. Asked with no tools; never opened as an agent.",
-        "Compare what the report says with what is on record of the work: the calls made, "
-        "the files changed and the check. Say what the record shows and what it does not, in "
-        "at most three sentences. Give no score and do not guess.",
-        (),
-        "check",
     ),
     # K-takim-duzen: machine learning and data work, each with an existing role's tools.
     "Data engineer": RoleSpec(  # (the Coder's tools)
@@ -752,22 +718,11 @@ def was_named(name: str) -> str:
     return f" - {name.strip()} is now the {now}" if now else ""
 
 
-def is_observer(role: Role) -> bool:
-    """The built-in Observer - not a role of the user's own that bears its name."""
-    return role.builtin and role.name == OBSERVER
-
-
-def agent_roles(session: Session) -> list[Role]:
-    """The roles an agent may be opened in: all of them but the Observer."""
-    return [role for role in list_roles(session) if not is_observer(role)]
-
-
 def find_agent_role(session: Session, name: str) -> Role | None:
-    """`find_role` for opening an agent: the Observer is no role one is opened in, nor a team's
-    lead - only the Orchestrator opens one, by spawn_agent or in a room (`AgentRunner._team_lead`,
-    84b)."""
+    """`find_role` for opening an agent: a team's lead is no role one is opened in - only the
+    Orchestrator opens one, by spawn_agent (`AgentRunner._team_lead`, 84b)."""
     role = find_role(session, name)
-    return None if role is None or is_observer(role) or is_team_lead(session, role) else role
+    return None if role is None or is_team_lead(session, role) else role
 
 
 def is_team_lead(session: Session, role: Role) -> bool:
@@ -807,11 +762,12 @@ def names_said(names: Iterable[str], said: str | None) -> frozenset[str]:
 
 class Door(NamedTuple):
     """The teams a chat's agents keep to (slice 84b): its rows, the user's or the Lead's; none:
-    any role. `unpicked`: Lead decides before the Lead picks - any role but one only in teams
-    the Lead may not pick."""
+    any role. `lead`: Lead decides - its picks are where it starts, not a fence: any built-in
+    role opens beside them (the user, 26 Nov), and before it picks any role; never one only in
+    teams the Lead may not pick."""
 
     teams: list[Team]
-    unpicked: bool = False
+    lead: bool = False
     # Slice 84b-2: while a row's recipe runs, the roles (casefolded) its opener may open now in
     # place of the teams', and where the recipe is, as its opener is told.
     step: tuple[frozenset[str], str] | None = None
@@ -822,7 +778,7 @@ def chat_teams(session: Session, conversation) -> Door:
     if conversation.teams_mode == "none":
         return Door([])
     rows = [session.get_one(Team, row.team_id) for row in conversation.teams]
-    return Door(rows, unpicked=conversation.teams_mode == "lead" and not rows)
+    return Door(rows, lead=conversation.teams_mode == "lead")
 
 
 def pickable(session: Session) -> list[Team]:
@@ -877,9 +833,10 @@ def stage_order(session: Session, team: Team) -> str:
 def closed(role: Role, door: Door, named: frozenset[str]) -> str | None:
     """Why no agent of `role` is opened now, in the words its opener is told; None: it may
     be. It is off, or outside the chat's teams (`chat_teams`) - unless the user names it in
-    the turn's own message (`named`: `names_said`). The Lead, the Planner and the Observer
-    always may. While a recipe runs, its step's roles are the door (`Door.step`), whatever
-    team they are in.
+    the turn's own message (`named`: `names_said`). The Lead and the Planner always may. While
+    a recipe runs, its step's roles are the door (`Door.step`), whatever team they are in.
+    Where the Lead decides, a built-in role outside its picks opens too (a role of the user's
+    own keeps to them: its teams are the user's), and none only in teams it may not pick.
     shortcut: a CLI working with its own tools (Claude Code's Agent/Task) opens sub-agents of
     its own that never pass here: the chat's teams do not hold them; keep such a CLI from them
     while a chat has teams if that is met."""
@@ -904,13 +861,21 @@ def closed(role: Role, door: Door, named: frozenset[str]) -> str | None:
                 "named there now, with spawn_agent; do not ask the user which"
             )
         )
-    if door.unpicked and role.teams and not any(team.lead_may_pick for team in role.teams):
+    if (
+        door.lead
+        and role.teams
+        and not any(team.lead_may_pick or team in door.teams for team in role.teams)
+    ):
         return (
             f"the {role.name} role is only in teams the Orchestrator may not pick "
             f"({', '.join(team.name for team in role.teams)}): the user picks those in "
             "Teams for this chat (Manual)"
         )
-    if door.teams and not any(team in role.teams for team in door.teams):
+    if (
+        door.teams
+        and not (door.lead and role.builtin)
+        and not any(team in role.teams for team in door.teams)
+    ):
         return (
             f"the {role.name} role is in none of this chat's teams "
             f"({', '.join(team.name for team in door.teams)}): open one of their roles. The "

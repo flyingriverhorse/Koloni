@@ -326,92 +326,22 @@ def test_no_card_where_the_roles_own_model_is_paid_per_token_already(
     assert snap["questions"] == [] and "paid per token" not in (reviewer["chosen_why"] or "")
 
 
-def test_a_paid_move_in_a_turn_nobody_watches_is_refused_also_past_a_cli_it_skips(
+def test_a_discussion_member_on_a_paid_move_is_sent_to_spawn_agent(
     team, wait_run, project_dir, monkeypatch
 ):  # noqa: F811
-    # Review M3: nobody is there to say yes. Past a down Local - and past a CLI that works with
-    # tools of its own, which such a turn never runs (no `moved` said then).
-    from tests.test_triggers import leave, place, run_now, trigger
-
-    for skipped in ("down", "cli"):
-        client, _default, fast = team([spawn("Reviewer"), text("done")], [text("looked")])
-        local, fast_id = both_strongest(team, client)
-        if skipped == "down":
-            _down(client, monkeypatch, local)
-        else:
-            codex = team.providers["Codex"]["id"]
-            assert (
-                client.patch(
-                    f"/api/providers/{local}", json={"models": [{"name": "big-model"}]}
-                ).status_code
-                == 200
-            )
-            assert (
-                client.patch(
-                    f"/api/providers/{codex}",
-                    json={"models": [{"name": "gpt-x", "tier": "strongest"}]},
-                ).status_code
-                == 200
-            )
-            assert (
-                client.put(
-                    "/api/tiers",
-                    json={
-                        "strongest": [
-                            {"provider_id": codex, "model": "gpt-x"},
-                            {"provider_id": fast_id, "model": "deep"},
-                        ],
-                        "balanced": [],
-                        "fast": [{"provider_id": fast_id, "model": "quick"}],
-                    },
-                ).status_code
-                == 200
-            )
-        role_tier(client, "Reviewer", "strongest")
-        pid, cid = place(client, project_dir, permission_mode="full_auto")
-        run_id = run_now(client, trigger(client, pid, cid, permissions=leave(agents=2))["id"])
-        snap = wait_run(client, cid, run_id)
-        (opening,) = [t for t in snap["tool_calls"] if t["name"] == "spawn_agent"]
-        assert opening["status"] != "succeeded", skipped
-        assert "nobody is watching this turn to be asked about money" in opening["result"], opening[
-            "result"
-        ]
-        assert len(snap["agents"]) == 1 and not fast.calls
-
-
-def test_a_paid_move_of_a_room_member_is_asked_and_a_discussion_member_is_sent_to_spawn_agent(
-    team, wait_run, project_dir, monkeypatch
-):  # noqa: F811
-    # Review M2: a room's and a discussion's members are opened on the same rule.
-    room = step(
-        call("open_room", {"goal": "agree", "with": ["Coder", "Reviewer"], "follow": False}, "o")
-    )
+    # Review M2: a discussion's members are opened on the same rule as a sub-agent.
     talk = step(call("discuss", {"topic": "agree", "with": ["Reviewer"], "rounds": 1}, "d"))
-    client, _default, fast = team([talk, room, text("done")], [])
+    client, _default, fast = team([talk, text("done")], [])
     local, _fast = both_strongest(team, client)
     role_tier(client, "Reviewer", "strongest")
     _down(client, monkeypatch, local)
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="auto")
-    snap = until(
-        client,
-        cid,
-        lambda s: any(
-            a["status"] == "proposed" and a["role_name"] == ("Reviewer") for a in s["agents"]
-        ),
-    )
-    reviewer = next(
-        a for a in snap["agents"] if a["status"] == "proposed" and a["role_name"] == "Reviewer"
-    )
-    assert reviewer["provider_name"] == "Fast" and reviewer["chosen_why"].startswith(
-        "Fast is paid per token, Local is not"
-    )
-    assert client.post(f"/api/agents/{reviewer['id']}/reject").status_code == 200
     snap = wait_run(client, cid, run_id)
     said = {t["name"]: t for t in snap["tool_calls"]}
     assert said["discuss"]["status"] == "failed"
     assert "open it with spawn_agent first" in said["discuss"]["result"]
     assert "Fast is paid per token" in said["discuss"]["result"]
-    assert said["open_room"]["status"] != "succeeded" and not fast.calls
+    assert not [a for a in snap["agents"] if a["depth"]]  # (nobody was opened on Fast)
 
 
 def test_a_no_on_a_card_asked_for_more_than_money_does_not_bar_the_provider(

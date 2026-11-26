@@ -8,11 +8,10 @@ import {
   type DiscussionData,
   type PoData,
   type RequestData,
-  type RoomData,
   type RoundData,
   statusWords,
 } from './deriveGraph'
-import { AgentNode, AttachmentNode, DiscussionNode, PlanNode, PoNode, RequestNode, RoomNode, RoundNode } from './nodes'
+import { AgentNode, AttachmentNode, DiscussionNode, PlanNode, PoNode, RequestNode, RoundNode } from './nodes'
 import { useApp } from '../state/store'
 import { NodeActions, ToggleGroup } from './toggleGroup'
 
@@ -223,51 +222,6 @@ test('an agent at work says what it does, how long it has worked, the tokens it 
   }
 })
 
-test('a discussion and a room are three lines too: what about, then who speaks or takes part - or that it waits for you', () => {
-  const data: DiscussionData = {
-    topic: 'Keep hi?',
-    line: 'Ended: agreed',
-    members: ['Lead', 'Web app lead', 'Docs lead'],
-    last: [{ who: 'Lead', text: 'yes' }],
-    speaking: null,
-    running: false,
-  }
-  draw(<DiscussionNode {...props('discussion:t', data)} />)
-  expect(lines()).toEqual(['DiscussionEnded: agreed', 'Keep hi?', 'Lead · Web app lead · Docs lead'])
-  cleanup()
-  draw(<DiscussionNode {...props('discussion:t', { ...data, speaking: 'Docs lead' })} />)
-  expect(lines()[2]).toBe('Docs lead is speaking…')
-  cleanup()
-  const room: RoomData = {
-    goal: 'Ship it',
-    line: 'round 2',
-    members: ['Coder', 'Tester'],
-    watched: 'Lead watches',
-    items: '1 of 3 items done',
-    last: [],
-    running: true,
-    attention: false,
-  }
-  draw(<RoomNode {...props('room:r', room)} />)
-  expect(lines()).toEqual(['Roomround 2', 'Ship it', '1 of 3 items done'])
-  cleanup()
-  // A word the card's width cuts is whole on hover: its head's, and what it is about.
-  const long = 'Ended: fewer than two members were still working'
-  draw(<RoomNode {...props('room:r', { ...room, line: long, goal: 'Review the cart flow and its tests together' })} />)
-  expect(screen.getByText(long)).toHaveAttribute('title', long)
-  expect(screen.getByText('Room')).toHaveAttribute('title', 'Room')
-  expect(screen.getByText('Review the cart flow and its tests together')).toHaveAttribute(
-    'title',
-    'Review the cart flow and its tests together',
-  )
-  cleanup()
-  draw(<DiscussionNode {...props('discussion:t', data)} />)
-  expect(screen.getByText('Keep hi?')).toHaveAttribute('title', 'Keep hi?')
-  cleanup()
-  draw(<RoomNode {...props('room:r', { ...room, attention: true })} />)
-  expect(lines()[2]).toBe('Waits for you')
-})
-
 test('the user’s (4 Nov): a finished agent of a step’s newest round is a chip - a button named by it and how it ended -, an earlier round a line that opens and folds', async () => {
   draw(
     <AgentNode
@@ -331,16 +285,6 @@ test('a card shows only the dots a line uses (21 Nov): every dot kept, the unuse
     speaking: null,
     running: false,
   }
-  const room: RoomData = {
-    goal: 'Ship it',
-    line: 'round 2',
-    members: ['Coder'],
-    watched: '',
-    items: '',
-    last: [],
-    running: false,
-    attention: false,
-  }
   const po: PoData = {
     provider_name: 'Fast',
     model_id: 'gpt-6-luna',
@@ -352,7 +296,7 @@ test('a card shows only the dots a line uses (21 Nov): every dot kept, the unuse
     dropped_more: 0,
   }
   const cards: [ReactNode, string[]][] = [
-    // (Nothing comes into a message or a file; every line to a discussion or a room goes into it; a plan and the Scout have
+    // (Nothing comes into a message or a file; every line to a discussion goes into it; a plan and the Scout have
     // their straight line.)
     [<RequestNode key="request" {...props('request:a', asked)} />, ['right']],
     [
@@ -363,7 +307,6 @@ test('a card shows only the dots a line uses (21 Nov): every dot kept, the unuse
       ['right'],
     ],
     [<DiscussionNode key="discussion" {...props('discussion:t', talk)} />, ['left']],
-    [<RoomNode key="room" {...props('room:r', room)} />, ['left']],
     [<PlanNode key="plan" {...props('plan:p', { status: 'proposed', by: null })} />, []],
     [<PoNode key="po" {...props('po:r', po)} />, []],
     // (An agent keeps both.)

@@ -253,9 +253,8 @@ def test_a_sub_agent_is_never_opened_on_a_model_closed_to_agents(
     assert [m["content"] for m in snap["messages"] if m["role"] == "koloni"] == [told]
 
 
-def test_a_teams_coordinator_and_a_room_member_are_held_to_it_too(make_client, project_dir):
+def test_a_teams_coordinator_is_held_to_it_too(make_client, project_dir):
     # B-385: a team's coordinator runs on the conversation's model (0083) - not one closed to them.
-    from app import room as rooms
     from app.db.models import Conversation, Role, Team
     from app.team import would_run
 
@@ -271,29 +270,8 @@ def test_a_teams_coordinator_and_a_room_member_are_held_to_it_too(make_client, p
         assert would.refused is not None and str(would.refused).startswith(
             f"{lead.name} can't open: no model of Local is open to agents"
         )
-        with pytest.raises(ValueError, match='Tick "Agents may use" on the Models page'):
-            rooms.member_model(session, conversation, lead.name, None, None, lead=lead)
         lead_role = session.query(Role).filter_by(name="Lead").one()
         assert would_run(session, lead_role, conversation).refused is None  # (the Lead's own)
-
-
-def test_a_room_the_user_opens_on_a_model_closed_to_agents_says_what_to_do(
-    make_client, project_dir
-):
-    # B-385: the user who opens the room reads why it does not open, and what to tick.
-    client, _model = make_client([text("hi")])
-    _close_to_agents(client)
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    opened = client.post(
-        f"/api/conversations/{cid}/rooms",
-        headers={"Origin": ORIGIN},
-        json={"goal": "x", "with": [{"role": "Coder"}, {"role": "Reviewer"}]},
-    )
-    assert (
-        opened.status_code == 422
-        and 'Tick "Agents may use" on the Models page' in (opened.json()["detail"])
-    ), opened.text
 
 
 def test_a_lead_that_may_pick_an_open_provider_is_told_so(team, wait_run, project_dir):  # noqa: F811

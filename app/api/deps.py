@@ -32,8 +32,8 @@ def carries_key(scope) -> bool:
 
 
 def keyed_if_read_by_the_app(request: Request, kind: str) -> None:
-    """K-belge-ciktilari: a document the app reads itself (`views.KEYED`) - not one a frame
-    loads - is served on a keyless door only with the key all the same."""
+    """K-belge-ciktilari: a document no frame loads (`views.KEYED`) is served on a keyless door
+    only with the key all the same."""
     if kind in views.KEYED and not carries_key(request.scope):
         raise HTTPException(401, "open KOLONİ from the link in its window")
 

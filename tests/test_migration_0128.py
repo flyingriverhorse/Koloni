@@ -12,6 +12,7 @@ from alembic import command
 from app.roles import BROWSER, BUILTIN_ROLES, DIAGRAM
 from tests.test_migration_0002 import _config
 from tests.test_migration_0109 import _role
+from tests.test_migration_0189 import before_0189
 
 GAIN = {"Lead", "Coder", "Docs writer", "UI designer"}
 
@@ -71,7 +72,7 @@ def test_stock_ones_gain_it_where_app_roles_has_it_and_going_back_is_exact(tmp_p
     assert set(dict(M.ROLES)) == GAIN
     after = _upgrade_and_back(*_before(tmp_path))
     for name in GAIN:
-        assert after[name] == _bare(BUILTIN_ROLES[name].tools), name
+        assert after[name] == _bare(before_0189(name)), name
 
 
 def test_a_list_with_view_image_gains_it_too_after_it(tmp_path):
@@ -88,7 +89,7 @@ def test_a_list_with_view_image_gains_it_too_after_it(tmp_path):
         "diagram_image",
     ]
     for name in GAIN:
-        assert after[name] == list(BUILTIN_ROLES[name].tools), name
+        assert after[name] == before_0189(name), name
 
 
 def test_an_upgraded_lead_in_another_order_or_with_the_browser_appended_gains_it(tmp_path):

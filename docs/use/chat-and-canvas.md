@@ -32,10 +32,9 @@ unread and how many things wait for you.
   A queued message can be removed. **Stop**, on the line over the message, stops the work. If KOLONİ restarts before a queued message
   runs, it stays in the chat as "Not sent: KOLONİ restarted", with **Send** to send it now.
 - **Stop everything**, in the top bar on every page, stops every turn in every chat and holds what
-  starts by itself: triggers, the To-do tasks waiting in a chat's queue, and work while you're away. It asks first, saying
+  starts by itself: the To-do tasks waiting in a chat's queue, and work while you're away. It asks first, saying
   what runs and what will be held. Then the button reads **Held · Resume**; its panel lists the chats it
-  stopped and what is held, with **Resume**. Your own messages still run while it holds. After
-  **Resume**, a trigger waits for its next time: the times missed meanwhile are skipped.
+  stopped and what is held, with **Resume**. Your own messages still run while it holds.
 - On **Stop** or **Stop everything**, an agent on a branch of its own keeps its work committed there, and
   a team's recipe keeps its copy for **Take in**, and so does a job while you're away (see
   [Work while you're away](../automation/overnight.md)). A sub-agent's plain working copy with changes is kept on a
@@ -58,7 +57,7 @@ unread and how many things wait for you.
   [Permission levels](permissions.md) and [Plan first](plan-first.md); while Plan first is on, the level
   reads, say, "Auto-edit · plan"), **Auto-read**, **Dictate** and **Send**.
 - Under the box, quiet words: **Workspace** with its number, **New topic**, **Chat settings**, **More**
-  (Compare and Work together) and, at the right, how many things wait elsewhere ("2 more wait elsewhere"),
+  (Compare) and, at the right, how many things wait elsewhere ("2 more wait elsewhere"),
   which opens Ready for you.
 - **Chat settings** opens this chat's own settings: its teams and folders (each opens its own panel),
   its page scripts, what runs without asking in it, and, read only, what it takes from its project. Its
@@ -67,7 +66,7 @@ unread and how many things wait for you.
   row under the box has no room for all its words, **Chat settings** reads **Settings** and what waits reads
   "2 wait"; at the narrowest **New topic** and **More** keep only their icon, **Settings** its word. The level always shows its name
   ("Ask", "Auto-edit", "Full auto").
-- Type `/` for slash commands: `/new`, `/room`, `/stop`, `/model`, `/mode`, `/plan`, `/compare`, a role's
+- Type `/` for slash commands: `/new`, `/stop`, `/model`, `/mode`, `/plan`, `/compare`, a role's
   name to hand it a task, and your own commands (Settings › This project › Slash commands).
 
 ### What the chat shows
@@ -83,7 +82,7 @@ unread and how many things wait for you.
   by itself while its output comes or when it failed, its output 6 lines tall, then scrolling.
 - Once the turn is over, everything before its answer folds into one line, "Completed 5 steps in 32s",
   which counts what failed or was rejected ("1 failed"); a click opens it. With a step that failed, the first
-  one's reason is a line under it ("↳ …"), so why something did not happen is in sight. Sub-agents, rooms, discussions,
+  one's reason is a line under it ("↳ …"), so why something did not happen is in sight. Sub-agents, discussions,
   a server that still runs and every card that waits for you stay outside it, in sight.
 - The Orchestrator's question waits just above the message box: numbered options, your own answer and
   **Submit**; keys 1-9 pick an option and Enter sends it; "‹ 1/2 ›" when it asks two. In its turn one line
@@ -158,16 +157,16 @@ A plan turn (see [Plan first](plan-first.md#on-the-canvas)) shows a small **Plan
 message, on a short dashed line down from it. In the work turn of an approved plan, the plan stands over
 the Orchestrator, on a dashed line down to it.
 
-In a turn with no team, a discussion or room stands in the column after the agent that opened it, above
+In a turn with no team, a discussion stands in the column after the agent that opened it, above
 its members; several stand in the order they began. The dotted line of each member under it, in a colour
-of its own, goes round the right side of that column and comes into the discussion or room from the
+of its own, goes round the right side of that column and comes into the discussion from the
 right, with an arrow; an opener that takes part comes in at its left, from the column before. An agent
-waiting for a file another agent in its column holds is joined to it the same way. Click a discussion or
-a room to light the agents in it.
+waiting for a file another agent in its column holds is joined to it the same way. Click a discussion to
+light the agents in it.
 
-In a turn with teams, each team has a frame. Discussions and rooms between teams stand in a lane of their
-own, outside every frame; a room opened with two teams' leads stands there too. A member's dotted line
-runs from its team's frame to the lane; the legend calls it "A member's line to its discussion or room:
+In a turn with teams, each team has a frame. Discussions between teams stand in a lane of their
+own, outside every frame. A member's dotted line
+runs from its team's frame to the lane; the legend calls it "A member's line to its discussion:
 with no team, from the members under it round the right of their column and in at its side, with an
 arrow; between teams, from its frame to the lane".
 

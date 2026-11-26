@@ -29,7 +29,7 @@ from app.limits import (
     of_codex,
 )
 from app.main import create_app
-from app.model_cli import ClaudeCliClient, CodexCliClient
+from app.model_cli import ClaudeCliClient
 from app.model_client import ModelUnavailable, OwnStop, _describe
 from app.model_native import ClaudeNativeClient
 from app.model_session import ClaudeSessionClient, CopilotSessionClient
@@ -416,7 +416,6 @@ def test_only_claude_codes_clients_keep_what_they_say(settings):
         ("claude_cli", "session", ClaudeSessionClient),
         ("claude_cli", "step", ClaudeCliClient),
         ("claude_cli", "native", ClaudeNativeClient),
-        ("codex_cli", "step", CodexCliClient),
     ]:
         client = providers._build(Provider(id="p1", name="x", kind=kind, mode=mode), None)
         assert type(client) is built

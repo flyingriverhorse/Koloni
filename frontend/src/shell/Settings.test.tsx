@@ -19,8 +19,6 @@ const project: Project = {
   search_url: null,
   search_order: 'builtin',
   search_agy: false,
-  has_notify_url: false,
-  notify_format: 'slack',
   notify_desktop: false,
   turn_token_limit: null,
   max_agents: null,
@@ -44,12 +42,9 @@ const project: Project = {
   judge_risky: 'refuse',
   disposable_deletes: false,
   memory_links: [],
-  embedding_provider_id: null,
-  embedding_model: 'm',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
-  observe_reports: false,
   suggest_tasks: true,
   suggest_tier: 'fast',
   day_note_at: null,
@@ -67,10 +62,6 @@ const project: Project = {
   spawn_max_agents: 6,
   spawn_max_parallel: 2,
   discussion_budget: null,
-  room_posts: 40,
-  room_tokens: null,
-  room_minutes: 30,
-  room_min_tokens: 60000,
   pass_env: null,
   held_env: [],
   koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
@@ -151,14 +142,14 @@ test('Settings lists its levels in their order, This project › The app, each w
   expect(screen.getByRole('region', { name: 'Your data' })).toBeVisible()
 })
 
-test('Show experimental CLIs, ticked in The app › Agents, offers Let agy search too in This project at once', async () => {
+test('Show experimental features, ticked in The app › Agents, offers Let agy search too in This project at once', async () => {
   server()
   const put = vi.spyOn(api, 'put').mockImplementation(async (_path: string, body: unknown) => body as never)
   render(<Settings {...base} project={project} onSave={vi.fn()} />)
   await userEvent.click(levels().getByRole('button', { name: /^Memory and web/ }))
   expect(screen.queryByLabelText(/^Let agy search too/)).toBeNull()
   await userEvent.click(level('The app'))
-  const box = screen.getByRole('checkbox', { name: /^Show experimental CLIs/ })
+  const box = screen.getByRole('checkbox', { name: /^Show experimental features/ })
   await waitFor(() => expect(box).toBeEnabled())
   expect(box).not.toBeChecked()
   await userEvent.click(box)
@@ -433,7 +424,7 @@ test('This project › Asking and away, and Limits and money: every chat’s sub
   })
 })
 
-test('This project › New chats start with: the teams and other folders a new chat starts with, and what a room may spend (no token limit by default; emptied, no limit)', async () => {
+test('This project › New chats start with: the teams and other folders a new chat starts with (rooms and their limits are gone, 0.1.10)', async () => {
   server()
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<Settings {...base} project={{ ...project, also_in: ['D:/lib'], read_in: ['D:/notes'] }} onSave={onSave} />)
@@ -444,13 +435,8 @@ test('This project › New chats start with: the teams and other folders a new c
       .getAllByRole('listitem')
       .map(li => li.textContent),
   ).toEqual(['D:/lib read and write', 'D:/notes read only'])
-  expect(screen.getByLabelText('Posts, at most')).toHaveValue('40')
-  expect(screen.getByLabelText('Tokens, at most')).toHaveValue('')
-  expect(screen.getByLabelText('Tokens, at most')).toHaveAttribute('placeholder', 'No limit')
-  await userEvent.type(screen.getByLabelText('Tokens, at most'), '400000')
-  await userEvent.clear(screen.getByLabelText('Minutes, at most'))
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ room_tokens: 400000, room_minutes: null })
+  expect(screen.queryByText('A room’s limits')).toBeNull()
+  expect(screen.queryByLabelText('Posts, at most')).toBeNull()
   await userEvent.selectOptions(screen.getByLabelText('New chats’ teams'), 'Orchestrator decides')
   await userEvent.click(screen.getByRole('button', { name: 'Remove D:/notes from new chats' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -459,27 +445,7 @@ test('This project › New chats start with: the teams and other folders a new c
     teams: [],
     also_in: ['D:/lib'],
     read_in: [],
-    room_tokens: 400000,
-    room_minutes: null,
   })
-})
-
-test('B-414: a room’s least tokens is set beside its most; above the most it says the most wins, emptied it is none', async () => {
-  server()
-  const onSave = vi.fn().mockResolvedValue(undefined)
-  render(<Settings {...base} project={{ ...project, room_tokens: 20000 }} onSave={onSave} />)
-  await userEvent.click(levels().getByRole('button', { name: /^New chats start with/ }))
-  const least = screen.getByLabelText('Tokens, at least')
-  expect(least).toHaveValue('60000')
-  expect(screen.getByText(/Above the most: a room gets 20,000, the most wins/)).toBeInTheDocument()
-  await userEvent.clear(least)
-  await userEvent.type(least, '15000')
-  expect(screen.queryByText(/the most wins/)).toBeNull()
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ room_min_tokens: 15000 })
-  await userEvent.clear(least)
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ room_min_tokens: null })
 })
 
 test('Project › Runs without asking: the project’s sites first, then each chat’s commands by its title, each removed here; the open chat is there even with none', async () => {

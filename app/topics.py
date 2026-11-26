@@ -194,29 +194,6 @@ def for_message(
     return topic, True
 
 
-def for_trigger(
-    session: Session, conversation_id: str, trigger_id: str, content: str
-) -> tuple[Topic, bool]:
-    """The topic a trigger's turns are, in the conversation it runs in; made (added to
-    the session, not committed) when this is its first turn there."""
-    topic = session.scalar(
-        select(Topic)
-        .where(Topic.conversation_id == conversation_id, Topic.trigger_id == trigger_id)
-        .order_by(Topic.created_at, literal_column("topics.rowid"))
-        .limit(1)
-    )
-    if topic is not None:
-        return topic, False
-    topic = Topic(
-        conversation_id=conversation_id,
-        trigger_id=trigger_id,
-        title=title_of(content) or "Untitled",
-    )
-    session.add(topic)
-    session.flush()
-    return topic, True
-
-
 def turns_before(session: Session, run: Run) -> list[str]:
     """The turns of the run's topic that came before it and were started, oldest first.
     None for a run that is in no topic."""

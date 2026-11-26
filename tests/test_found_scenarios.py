@@ -274,51 +274,6 @@ def asked_for(client, cid):
     return [c for c in snap["commands"] if c["status"] == "proposed"]
 
 
-def test_a_saved_command_waits_on_a_card_at_ask_and_never_runs_in_a_trigger_turn(
-    make_client, wait_run, project_dir
-):
-    # (Option A, 22 Nov: a save is no leave of the user's - at Ask its run waits on a card, as a
-    # guess's; a trigger's turn still needs its leave for that very command.)
-    from tests.test_triggers import leave, run_now, trigger
-
-    executor = ScriptedExecutor([PASS])
-    client, _model = make_client(
-        [write("a.py", "x = 1\n"), text("done"), write("a.py", "x = 2\n", "w2"), text("done")],
-        executor=executor,
-    )
-    pid = saved_project(client, project_dir)
-    cid, run_id = begin(client, project_dir, mode="ask")
-    # (At Ask the write itself waits on its card first: approved, then the saved command's.)
-    from tests.test_agent_writes import wait_status
-
-    snap = wait_status(client, cid, "waiting_approval")
-    (change,) = [c for c in snap["file_changes"] if c["status"] == "proposed"]
-    assert client.post(f"/api/file-changes/{change['id']}/approve", headers=OWN).status_code == 200
-    (card,) = asked_for(client, cid)
-    assert card["command"] == "python -m pytest -q" and executor.started == []
-    assert (
-        client.post(
-            f"/api/commands/{card['id']}/approve", json={"remember": False}, headers=OWN
-        ).status_code
-        == 200
-    )
-    rows = checked(wait_run(client, cid, run_id))
-    assert (rows[0]["state"], rows[0]["text"]) == (
-        "passed",
-        "Tests passed: python -m pytest -q - 4 passed in 0.1s",
-    ) and len(executor.started) == 1
-    assert "always" not in project(client, project_dir)["tests_found"]["."]  # (a yes, once)
-    client.headers["Origin"] = OWN["Origin"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
-    made = trigger(client, pid, cid, permissions=leave(write=True))
-    second = run_now(client, made["id"])
-    snap = wait_run(client, cid, second)
-    (rows,) = [
-        m["checked"] for m in snap["messages"] if m["role"] == "checked" and m["run_id"] == second
-    ]
-    assert rows[0]["state"] == "not_run" and len(executor.started) == 1, rows
-
-
 def another_chat(client, project_dir, mode="auto_edit") -> tuple[str, str]:
     """A second chat of the project of `project_dir`, its first message sent."""
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]

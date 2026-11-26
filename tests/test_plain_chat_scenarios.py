@@ -43,7 +43,6 @@ from tests.test_copilot_agent import copilot_native  # noqa: F401  (a fixture)
 from tests.test_migration_0002 import _config
 from tests.test_spawn import call, names, spawn, step
 from tests.test_team import team  # noqa: F401  (a fixture)
-from tests.test_trigger_scenarios import trigger
 from tests.test_usage_scenarios import began, turn, usage
 from tests.test_web_tools import events
 
@@ -446,15 +445,9 @@ def test_a_plain_chat_is_held_by_no_projects_budget_but_by_a_providers_limit(
     assert held.status_code == 409 and f"over {local['name']}'s limit" in held.json()["detail"]
 
 
-def test_a_room_a_comparison_or_a_view_in_a_plain_chat_is_refused(make_client):
+def test_a_comparison_or_a_view_in_a_plain_chat_is_refused(make_client):
     client, _ = make_client([])
     cid = plain(client)
-    room = client.post(
-        f"/api/conversations/{cid}/rooms",
-        headers=OWN,
-        json={"goal": "build it", "with": [{"role": "Coder"}, {"role": "Reviewer"}]},
-    )
-    assert room.status_code == 409 and "folder" in room.json()["detail"], room.text
     local = client.get("/api/providers").json()[0]["id"]
     compare = client.post(
         f"/api/conversations/{cid}/compare",
@@ -594,8 +587,8 @@ def test_a_chat_whose_every_change_was_turned_down_moves(
     assert moved.status_code == 200 and moved.json()["project_id"] == there, moved.text
 
 
-@pytest.mark.parametrize("kind", ["copy", "comparison", "trigger", "backlog"])
-def test_a_chat_with_a_kept_copy_a_comparison_a_trigger_or_a_backlog_task_is_not_moved(
+@pytest.mark.parametrize("kind", ["copy", "comparison", "backlog"])
+def test_a_chat_with_a_kept_copy_a_comparison_or_a_backlog_task_is_not_moved(
     make_client, wait_run, project_dir, tmp_path, kind
 ):
     client, _ = make_client([text("hi")])
@@ -605,34 +598,30 @@ def test_a_chat_with_a_kept_copy_a_comparison_a_trigger_or_a_backlog_task_is_not
     there = folder(client, other)
     cid = client.post("/api/conversations", json={"project_id": here}, headers=OWN).json()["id"]
     snap = done(wait_run(client, cid, say(client, cid)))
-    if kind == "trigger":
-        client.headers["Origin"] = ORIGIN  # (made from the app's own page)
-        trigger(client, here, cid)
-    else:
-        with client.app.state.session_factory() as session:
-            if kind == "copy":
-                session.add(
-                    Merge(
-                        run_id=snap["runs"][0]["id"],
-                        agent_id=snap["agents"][0]["id"],
-                        status="interrupted",
-                        files=[],
-                        kept_in="kept-1",
-                    )
+    with client.app.state.session_factory() as session:
+        if kind == "copy":
+            session.add(
+                Merge(
+                    run_id=snap["runs"][0]["id"],
+                    agent_id=snap["agents"][0]["id"],
+                    status="interrupted",
+                    files=[],
+                    kept_in="kept-1",
                 )
-            elif kind == "comparison":  # (waiting for the user's choice of a side)
-                session.add(Compare(conversation_id=cid, sides=[]))
-            else:
-                session.add(
-                    BacklogTask(
-                        project_id=here,
-                        conversation_id=cid,
-                        title="a task",
-                        position=0,
-                        created_by="user",
-                    )
+            )
+        elif kind == "comparison":  # (waiting for the user's choice of a side)
+            session.add(Compare(conversation_id=cid, sides=[]))
+        else:
+            session.add(
+                BacklogTask(
+                    project_id=here,
+                    conversation_id=cid,
+                    title="a task",
+                    position=0,
+                    created_by="user",
                 )
-            session.commit()
+            )
+        session.commit()
     refused = move(client, cid, there)
     assert refused.status_code == 409, refused.text
     assert "open a new chat for other" in refused.json()["detail"]

@@ -11,9 +11,9 @@ needs them. KOLONİ comes with these roles:
 
 Orchestrator, Planner, Coder, Tester, Reviewer, Researcher, Debugger, Architect, Security reviewer,
 Docs writer, Refactorer, UI designer, Data analyst, DevOps, Spec writer, Performance engineer,
-Database engineer, Dependency keeper, Translator, Summarizer, Hive keeper, Scout,
-Observer, Data engineer, ML engineer, Data scientist, Model evaluator, MLOps engineer, Designer,
-SEO specialist, Copywriter, Accessibility reviewer.
+Database engineer, Dependency keeper, Translator, Summarizer, Hive keeper, Scout, Data engineer,
+ML engineer, Data scientist, Model evaluator, MLOps engineer, Designer, SEO specialist, Copywriter,
+Accessibility reviewer.
 
 Two are named for KOLONİ's hive. The **Hive keeper** keeps the To-do list: it turns a goal into
 tasks, each with what makes it done, and puts them in order. The **Scout** keeps watch on the To-do
@@ -32,8 +32,8 @@ changed: one that names an old role is renamed there, by hand.
 
 The **Roles** list on the **Teams & roles** tab shows them all. **Filter roles…** searches it, and the
 buttons **All**, **In no team** and **Off** narrow it. Each role has an on / off switch. The
-Orchestrator, the Planner and the Observer are always on. So are the Coder, Tester, Reviewer, Debugger and
-Security reviewer: KOLONİ's checks and recipes use them, so they have no switch (a chat's teams still decide
+Orchestrator and the Planner are always on. So are the Coder, Tester, Reviewer, Debugger and Security
+reviewer: KOLONİ's checks and recipes use them, so they have no switch (a chat's teams still decide
 whether they are opened there).
 
 ## A role's panel
@@ -116,9 +116,9 @@ Click a role to open its panel. It has four tabs:
   **Who may move it**: **Any provider in the team guide**, **Only these**, or **No one**. An agent that
   moves a sub-agent to another provider must say why.
 
-  **Run inside the CLI**: only when the agent that opens it runs in Claude Code. Cheaper, and counts toward
+  **Run inside the CLI**: only when the agent that opens it runs in Claude Code run **Native** ([experimental](../models/setup-cli.md#experimental-clis)). Cheaper, and counts toward
   no turn or role limit; it is not its own agent on the canvas, stops with the agent that opened it, and
-  is never used while you're away or for a trigger. Not for the Orchestrator, the Observer or a team's lead.
+  is never used while you're away. Not for the Orchestrator or a team's lead.
 - **It may**: **Read and search**, **Write code**, **Run commands**, **Use the web**, or
   **Pick tools one by one**.
 - **This role will** sums up what the role will do, as you change the form.

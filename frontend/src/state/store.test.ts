@@ -415,7 +415,7 @@ test('a new chat is made in the open chat’s folder, or the one asked for, or n
   expect(posted).toEqual(['{"project_id":"p"}', '{"project_id":"q"}', '{"project_id":null}', '{"project_id":null}'])
 })
 
-test('the store follows the open chat’s folder: another folder’s board, budget, memory, backlog and triggers go, and its triggers are read', async () => {
+test('the store follows the open chat’s folder: another folder’s board, budget, memory and backlog go', async () => {
   const asked: string[] = []
   const of = (id: string, project_id: string | null) => ({
     ...snapshot(id),
@@ -442,14 +442,12 @@ test('the store follows the open chat’s folder: another folder’s board, budg
     budget: {} as never,
     memory: {} as never,
     backlog: [],
-    triggers: [],
   })
   asked.length = 0
   await useApp.getState().openConversation('inq')
   const now = useApp.getState()
   expect([now.projectId, now.budget, now.memory, now.backlog]).toEqual(['q', null, null, null])
   expect(now.board).not.toBe(old)
-  expect(asked).toContain('/api/projects/q/triggers')
   expect(asked).toContain('/api/projects/q/board')
   // A chat of the same folder keeps what was read of it.
   useApp.setState({ budget: {} as never })
@@ -458,7 +456,7 @@ test('the store follows the open chat’s folder: another folder’s board, budg
   // A plain chat has no folder: nothing of one is read.
   asked.length = 0
   await useApp.getState().openConversation('plain')
-  expect([useApp.getState().projectId, useApp.getState().board, useApp.getState().triggers]).toEqual([null, null, null])
+  expect([useApp.getState().projectId, useApp.getState().board]).toEqual([null, null])
   expect(asked.filter(url => url.includes('/projects/'))).toEqual([])
 })
 
@@ -773,92 +771,6 @@ test('a turn of another conversation is drawn by opening that conversation first
   expect(useApp.getState().turnId).toBeNull()
 })
 
-// --- triggers (slice 18a) ----------------------------------------------------------------------
-
-test('a trigger in a chat made since the list was read reads the list again: it is not gone (B-353)', async () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string) => {
-      if (url.endsWith('/triggers/paused')) return new Response(JSON.stringify({ paused: false }), { status: 200 })
-      if (url.endsWith('/triggers/changes')) return new Response('[]', { status: 200 })
-      if (url.endsWith('/triggers'))
-        return new Response(JSON.stringify([{ id: 't1', conversation_id: 'made' }]), { status: 200 })
-      if (url.endsWith('/conversations'))
-        return new Response(JSON.stringify([{ ...conversation, id: 'made' }]), { status: 200 })
-      throw new Error(`unexpected ${url}`)
-    }),
-  )
-  useApp.setState({ projectId: 'p', conversations: [] })
-  await useApp.getState().loadTriggers()
-  await vi.waitFor(() => expect(useApp.getState().conversations.map(c => c.id)).toEqual(['made']))
-})
-
-test('the triggers are read with whether they are paused, read again when the server says they changed, and a request from the chat is kept until taken', async () => {
-  const asked: string[] = []
-  let kept: { id: string }[] = [{ id: 't1' }]
-  let paused = false
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string, init?: RequestInit) => {
-      asked.push(`${init?.method ?? 'GET'} ${url}`)
-      if (url.endsWith('/triggers/paused')) {
-        if (init?.method === 'PUT') paused = JSON.parse(String(init.body)).paused
-        return new Response(JSON.stringify({ paused }), { status: 200 })
-      }
-      if (url.endsWith('/run')) return new Response(JSON.stringify({ run_id: 'r9' }), { status: 202 })
-      if (url.endsWith('/triggers') && init?.method === 'POST')
-        return new Response(JSON.stringify({ id: 't2', key: 'secret' }), { status: 201 })
-      if (url.endsWith('/triggers')) return new Response(JSON.stringify(kept), { status: 200 })
-      if (url.endsWith('/triggers/changes'))
-        return new Response(JSON.stringify(kept.map(t => ({ id: `made-${t.id}`, what: 'created' }))), { status: 200 })
-      if (url.endsWith('/allowed-commands'))
-        return new Response(JSON.stringify({ id: 'r2', prefix: 'make test' }), { status: 201 })
-      return new Response(JSON.stringify({ ...snapshot('a'), allowed_commands: [{ id: 'r1', prefix: 'pytest' }] }), {
-        status: 200,
-      })
-    }),
-  )
-  useApp.setState({ projectId: 'p' })
-  expect(useApp.getState().triggers).toBeNull()
-  await useApp.getState().loadTriggers()
-  expect(useApp.getState().triggers).toEqual([{ id: 't1' }])
-  expect(useApp.getState().triggersPaused).toBe(false)
-  // with what was made and changed on them: the project's record, read at the same time
-  expect(asked).toContain('GET /api/projects/p/triggers/changes')
-  expect(useApp.getState().triggerChanges).toEqual([{ id: 'made-t1', what: 'created' }])
-
-  // a trigger came due, or was changed elsewhere: the server says so on the conversation's stream
-  await useApp.getState().openConversation('a')
-  kept = [{ id: 't1' }, { id: 't3' }]
-  FakeEventSource.open()[0].emit('triggers.changed', { project_id: 'p' })
-  await vi.waitFor(() => expect(useApp.getState().triggers).toHaveLength(2))
-  expect(useApp.getState().triggerChanges).toHaveLength(2)
-
-  // made: the answer - with a webhook's key, said this once - is handed on, and kept nowhere in the store
-  const created = await useApp.getState().createTrigger({ name: 'T' } as never)
-  expect(created).toMatchObject({ id: 't2', key: 'secret' })
-  expect(JSON.stringify(useApp.getState())).not.toContain('secret')
-  expect(await useApp.getState().runTrigger('t1')).toBe('r9')
-  expect(asked).toContain('POST /api/triggers/t1/run')
-
-  await useApp.getState().pauseTriggers(true)
-  expect(asked).toContain('PUT /api/triggers/paused')
-  expect(useApp.getState().triggersPaused).toBe(true)
-
-  // a conversation's allow list: the open one's is at hand, another's is read; a command is added to the one named
-  expect(await useApp.getState().allowedCommandsOf('a')).toEqual([{ id: 'r1', prefix: 'pytest' }])
-  const before = asked.length
-  expect(await useApp.getState().allowedCommandsOf('b')).toEqual([{ id: 'r1', prefix: 'pytest' }])
-  expect(asked.slice(before)).toEqual(['GET /api/conversations/b'])
-  expect(await useApp.getState().addAllowedCommand('b', 'make test')).toEqual({ id: 'r2', prefix: 'make test' })
-  expect(asked).toContain('POST /api/conversations/b/allowed-commands')
-
-  useApp.getState().allowInTrigger('t1', { write: true })
-  expect(useApp.getState().triggerDraft).toEqual({ triggerId: 't1', allow: { write: true } })
-  useApp.getState().clearTriggerDraft()
-  expect(useApp.getState().triggerDraft).toBeNull()
-})
-
 // --- topics (slice 18b) ------------------------------------------------------------------------
 
 test('a message is sent to the topic it is said to go to, or as a new one; a topic’s new name is put down as the server answers it', async () => {
@@ -957,24 +869,26 @@ test('the board shown is the answer to the read asked for last, of the project t
   await Promise.all(reads)
   expect(useApp.getState().board?.running).toBe(2)
 
-  // Nor is a late failure of an earlier read said over a later answer...
+  // Nor does a late failure of an earlier read take a later answer away...
   const again = [useApp.getState().loadBoard(), useApp.getState().loadBoard()]
   asked[3].answer(3)
   asked[2].fail()
   await Promise.all(again)
-  expect([useApp.getState().board?.running, useApp.getState().boardError]).toEqual([3, null])
+  expect(useApp.getState().board?.running).toBe(3)
 
-  // ...and neither an answer nor a failure of a project that was left is this one's.
+  // ...and an answer of a project that was left is not this one's.
   const left = [useApp.getState().loadBoard()]
   useApp.setState({ projectId: 'q', board: null })
-  asked[4].fail()
+  asked[4].answer(4)
   await Promise.all(left)
-  expect([useApp.getState().board, useApp.getState().boardError]).toEqual([null, null])
+  expect(useApp.getState().board).toBeNull()
+  // A read that fails keeps the last reading: it is read again in a few seconds.
   useApp.setState({ projectId: 'p' })
+  await Promise.all([useApp.getState().loadBoard()].map(async read => (asked[5].answer(5), await read)))
   const failed = useApp.getState().loadBoard()
-  asked[5].fail()
+  asked[6].fail()
   await failed
-  expect(useApp.getState().boardError).toContain('Failed to fetch')
+  expect(useApp.getState().board?.running).toBe(5)
 })
 
 test('a board read again that says the same keeps the board it had: nothing that reads it is drawn again', async () => {
@@ -1243,43 +1157,6 @@ test("a provider's reading that fails keeps its last one; an older loadHealth an
   expect(useApp.getState().inUse).toEqual(first)
 })
 
-test('a room that opens opens its window; one that opens while another is open comes as a tab; another chat starts with none', async () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string) => {
-      if (url.endsWith('/conversations') || url.endsWith('/projects')) return new Response('[]', { status: 200 })
-      const id = /conversations\/([^/]+)$/.exec(url)?.[1] ?? 'c'
-      return new Response(JSON.stringify({ ...snapshot(id), messages: [], rooms: [] }), { status: 200 })
-    }),
-  )
-  await useApp.getState().openConversation('c')
-  const source = FakeEventSource.open()[0]
-  const room = (id: string) => ({
-    id,
-    run_id: 'r',
-    goal: 'g',
-    agent_id: null,
-    status: 'sharing',
-    outcome: null,
-    why: null,
-    budget: { posts: null, tokens: null, minutes: null },
-    spent: { posts: 0, tokens: null, minutes: 0 },
-    summary: null,
-    members: [],
-    created_at: 't',
-    ended_at: null,
-  })
-  source.emit('room.created', room('o1'), '4')
-  expect(useApp.getState().roomWindows).toEqual({ o1: 'open' })
-  // (the user may be writing in that one: it is not made small under them)
-  source.emit('room.created', room('o2'), '5')
-  expect(useApp.getState().roomWindows).toEqual({ o1: 'open', o2: 'small' })
-  useApp.getState().showRoom('o2')
-  expect(useApp.getState().roomWindows).toEqual({ o1: 'small', o2: 'open' })
-  await useApp.getState().openConversation('d')
-  expect(useApp.getState().roomWindows).toEqual({})
-})
-
 test('a slow read of the conversations list does not overwrite a later one', async () => {
   const answers: ((list: unknown[]) => void)[] = []
   vi.mocked(fetch).mockImplementation(
@@ -1345,12 +1222,6 @@ test('what an event of the open chat has the page read again, in the order it as
   // (Nobody has looked at the memory or the backlog: neither is read.)
   expect(await on('memory.changed')).toEqual([])
   expect(await on('backlog.changed')).toEqual(rest)
-  expect(await on('triggers.changed')).toEqual([
-    'GET /api/projects/p/triggers',
-    'GET /api/triggers/paused',
-    'GET /api/projects/p/triggers/changes',
-    'GET /api/conversations/a/trigger-proposals',
-  ])
   expect(await on('notes.offered')).toEqual(['GET /api/conversations/a/notes-offers'])
   expect(await on('conversation.updated', { ...conversation, id: 'a' })).toEqual(['GET /api/conversations'])
   expect(await on('view.shown')).toEqual([])
@@ -1378,7 +1249,7 @@ test('what an event of the open chat has the page read again, in the order it as
   ])
 })
 
-test('0.1.8: the stories and goals are read with the backlog, and each change of one reads them again', async () => {
+test('0.1.8: the stories are read with the backlog, and each change of one reads them again (0.1.10: no goals)', async () => {
   const asked: string[] = []
   vi.mocked(fetch).mockImplementation(async (url, init) => {
     asked.push(`${init?.method ?? 'GET'} ${String(url)}${init?.body ? ` ${String(init.body)}` : ''}`)
@@ -1389,18 +1260,14 @@ test('0.1.8: the stories and goals are read with the backlog, and each change of
   useApp.setState({ projectId: 'p', conv: null })
   await useApp.getState().loadBacklog()
   expect(useApp.getState().stories).toEqual([{ id: 's' }])
-  expect(useApp.getState().goals).toEqual([{ id: 'g' }])
   asked.length = 0
-  expect(await useApp.getState().addStory('Login', 'g')).toEqual({ id: 'new' })
-  await useApp.getState().changeStory('s', { goal_id: null })
-  await useApp.getState().deleteGoal('g')
+  expect(await useApp.getState().addStory('Login')).toEqual({ id: 'new' })
+  await useApp.getState().changeStory('s', { title: 'Sign-in' })
   const reads = ['GET /api/projects/p/backlog', 'GET /api/projects/p/backlog/drafter', 'GET /api/projects/p/stories']
   expect(asked).toEqual([
-    `POST /api/projects/p/stories ${JSON.stringify({ title: 'Login', goal_id: 'g' })}`,
+    `POST /api/projects/p/stories ${JSON.stringify({ title: 'Login' })}`,
     ...reads,
-    `PATCH /api/stories/s ${JSON.stringify({ goal_id: null })}`,
-    ...reads,
-    'DELETE /api/goals/g',
+    `PATCH /api/stories/s ${JSON.stringify({ title: 'Sign-in' })}`,
     ...reads,
   ])
 })

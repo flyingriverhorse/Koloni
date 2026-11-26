@@ -16,10 +16,6 @@ PROJECT_WIDE = {
     "discussion_budget",
     "when_away",
     "away_minutes",
-    "room_posts",
-    "room_tokens",
-    "room_minutes",
-    "room_min_tokens",
     "lead_work",
     "lead_hands_code",
 }
@@ -29,7 +25,7 @@ PROJECT_WIDE = {
 OWN_ONLY = {
     "POST": re.compile(
         r"(?:https?://[^/]+)?/api/(?:(?:commands|agents|tool-calls|file-changes)"
-        r"/[^/]+/(?:approve|reject|revert)|(?:discussions|rooms)/[^/]+/posts"
+        r"/[^/]+/(?:approve|reject|revert)|discussions/[^/]+/posts"
         r"|providers/[^/]+/default|roles|roles/[^/]+/reset|conversations/[^/]+/attachments/project)"
     ),
     "DELETE": re.compile(r"(?:https?://[^/]+)?/api/(?:providers|roles|allowed-commands)/[^/]+"),

@@ -8,7 +8,6 @@ import { AwayStatus } from './backlog/Away'
 import { BacklogPage } from './backlog/BacklogPage'
 import { OPEN_TODO } from './chat/TodoCards'
 import { doInChat } from './chat/todoActions'
-import { BoardPage } from './board/BoardPage'
 import { ConflictStrip } from './board/ConflictStrip'
 import { QuestionCard } from './agents/QuestionCard'
 import { RoleApproval } from './agents/RoleApproval'
@@ -29,8 +28,6 @@ import { ConversationList } from './shell/ConversationList'
 import { ModelBanner } from './shell/ModelBanner'
 import { KnowledgePage } from './knowledge/KnowledgePage'
 import { MemoryPage } from './memory/MemoryPage'
-import { TriggersPage } from './triggers/TriggersPage'
-import { TriggersStatus } from './triggers/TriggersStatus'
 import { ModelsPage } from './models/ModelsPage'
 import { FirstSteps } from './shell/FirstSteps'
 import { FolderButton } from './shell/FolderButton'
@@ -85,7 +82,7 @@ async function builtAnew(): Promise<boolean> {
     return false // not reached this time: asked again with the next health reading
   }
 }
-// As the Board's own page reads it: the events of the project's other conversations do not come here.
+// The events of the project's other conversations do not come here: what waits there is read again this often.
 const BOARD_POLL_MS = 5000
 // The Agents page reads what each role would run on in a new conversation, with the levels each model takes: one function, read once per change of roles.
 const roleModelsNow = () => useApp.getState().roleModels(null, true)
@@ -121,14 +118,12 @@ const PAGES: [View, string][] = [
   ['canvas', 'Canvas'],
   ['conversations', 'Chats (Conversations)'],
   ['ready', 'Ready for you'],
-  ['board', 'Board'],
   ['backlog', 'To-do'],
   ['agents', 'Agents'],
   ['models', 'Models'],
   ['tools', 'Tools'],
   ['memory', 'Memory'],
   ['knowledge', 'Knowledge'],
-  ['triggers', 'Triggers'],
   ['usage', 'Usage'],
 ]
 
@@ -153,8 +148,6 @@ export function App() {
   const selectedNodeId = useApp(s => s.selectedNodeId)
   const agentWindowId = useApp(s => s.agentWindowId)
   const discussionWindowId = useApp(s => s.discussionWindowId)
-  // The room whose window is open over the canvas, if any (AC): the canvas keeps clear of it too.
-  const roomWindowId = useApp(s => Object.keys(s.roomWindows).find(id => s.roomWindows[id] === 'open') ?? null)
   const select = useApp(s => s.select)
   const turnId = useApp(s => s.turnId)
   const openChange = useApp(s => s.openChange)
@@ -163,11 +156,6 @@ export function App() {
   const memoryError = useApp(s => s.memoryError)
   const knowledge = useApp(s => s.knowledge)
   const knowledgeError = useApp(s => s.knowledgeError)
-  const triggers = useApp(s => s.triggers)
-  const triggersError = useApp(s => s.triggersError)
-  const triggerChanges = useApp(s => s.triggerChanges)
-  const triggersPaused = useApp(s => s.triggersPaused)
-  const triggerDraft = useApp(s => s.triggerDraft)
   const prices = useApp(s => s.prices)
   const cataloguePrices = useApp(s => s.cataloguePrices)
   const mcpServers = useApp(s => s.mcpServers)
@@ -177,14 +165,10 @@ export function App() {
   const budget = useApp(s => s.budget)
   // The plans' windows near their limit, from the top bar's readings: the toasts say each once.
   const [near, setNear] = useState<Near[]>([])
-  // Stop everything holds, as the top bar last read it: the triggers' count says so too.
-  const [held, setHeld] = useState(false)
-  const boardError = useApp(s => s.boardError)
   const backlog = useApp(s => s.backlog)
   const backlogError = useApp(s => s.backlogError)
   const drafter = useApp(s => s.drafter)
   const stories = useApp(s => s.stories)
-  const goals = useApp(s => s.goals)
   const chatList = useApp(s => s.conversations)
   const away = useApp(s => s.away)
   // What waits for your word anywhere (tek-ev §1): the pill, the rail's badge, the panel and the page.
@@ -287,7 +271,7 @@ export function App() {
     if (!projectId) return
     if (view === 'memory' || !useApp.getState().memory) void useApp.getState().loadMemory()
   }, [view, projectId])
-  // So is the To-do list, whatever page is open (Ready for you), and again when the Board counts another number waiting there.
+  // So is the To-do list, whatever page is open (Ready for you), and again when the board read counts another number waiting there.
   const backlogWaiting = board?.backlog_waiting
   useEffect(() => {
     if (projectId) void useApp.getState().loadBacklog()
@@ -305,16 +289,14 @@ export function App() {
     if (projectId && givenFacts && givenShown) void useApp.getState().loadMemory()
   }, [projectId, givenFacts, givenShown, agentWindowId, selectedNodeId])
 
-  // What waits for you in every conversation of every folder (the rail's badge, the toasts): read again -
-  // but on the Board's own page, which reads it itself.
+  // What waits for you in every conversation of every folder (the rail's badge, the toasts): read again.
   useEffect(() => {
-    if (view === 'board') return
     // (Not while the tab is out of sight: the first read after it comes back says what changed.)
     const timer = setInterval(() => document.hidden || void useApp.getState().loadBoard(), BOARD_POLL_MS)
     return () => clearInterval(timer)
-  }, [view])
+  }, [])
 
-  // This month's spend against the budget (the strip, the toast, Usage): read as often as the Board.
+  // This month's spend against the budget (the strip, the toast, Usage): read as often as what waits.
   useEffect(() => {
     if (!projectId) return
     const read = () => {
@@ -338,10 +320,8 @@ export function App() {
     if (projectId && (view === 'knowledge' || view === 'agents')) void useApp.getState().loadKnowledge()
   }, [projectId, view])
 
-  // The triggers are read again when their page opens: one may have come due since.
   useEffect(() => {
-    if (projectId && view === 'triggers') void useApp.getState().loadTriggers()
-    // And the conversations: what the list says of each (changes kept) may be decided since.
+    // The conversations: what the list says of each (changes kept) may be decided since.
     if (view === 'conversations') void useApp.getState().loadConversations()
     // The prices are read when the Usage page opens.
     if (view === 'usage')
@@ -426,12 +406,6 @@ export function App() {
     window.addEventListener('popstate', back)
     return () => window.removeEventListener('popstate', back)
   }, [])
-  // "Allow this in the trigger", from the chat: its page opens, with that trigger's form.
-  useEffect(() => {
-    // (A request made elsewhere changes which page is shown: that is this state.)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (triggerDraft) setView('triggers')
-  }, [triggerDraft])
 
   // Opened from a bookmark, or left open across a restart: without this start's key the page can do nothing.
   if (refused) {
@@ -578,7 +552,7 @@ export function App() {
     )
   }
 
-  /** The top bar: the folder, git, the title, where commands run, and what is said of the plans, the budget, the night, Stop and the triggers. */
+  /** The top bar: the folder, git, the title, where commands run, and what is said of the plans, the budget, the night and Stop. */
   const topBar = () => (
     <TopBar
       folder={
@@ -613,18 +587,10 @@ export function App() {
       <AwayStatus away={away} onOpen={() => show('backlog')} />
       <HoldStatus
         every={BOARD_POLL_MS}
-        onHeld={setHeld}
         onOpen={async id => {
           await useApp.getState().openConversation(id)
           show('canvas')
         }}
-      />
-      <TriggersStatus
-        triggers={triggers}
-        paused={triggersPaused}
-        held={held}
-        onPause={useApp.getState().pauseTriggers}
-        onOpen={() => show('triggers')}
       />
       <RunStatus conv={conv} connection={connection} />
       {/* Ready for you's pill (tek-ev §1): how many wait for your word anywhere; it opens the panel, on every page.
@@ -734,7 +700,7 @@ export function App() {
       onActivity={useApp.getState().roleActivity}
       onHistory={useApp.getState().roleHistory}
       onOpenConversation={async id => {
-        // As the Board's: shown only once it is open.
+        // Shown only once it is open.
         await useApp.getState().openConversation(id)
         setView('canvas')
       }}
@@ -837,28 +803,6 @@ export function App() {
       }
     />
   )
-  const boardPage = () =>
-    !project ? (
-      noFolder('Board')
-    ) : (
-      <BoardPage
-        // (Each folder's own: what one opened, typed or read is not carried to another.)
-        key={project.id}
-        board={board}
-        error={boardError}
-        currentId={conv?.conversation.id ?? null}
-        onLoad={useApp.getState().loadBoard}
-        onRerun={useApp.getState().rerunFailed}
-        waiting={waiting.length}
-        onReady={() => show('ready')}
-        onOpen={async id => {
-          // Only once it is open: one that is gone (deleted since the board was read)
-          // is said on the board, not shown as the conversation that was open before.
-          await useApp.getState().openConversation(id)
-          setView('canvas')
-        }}
-      />
-    )
   const backlogPage = () =>
     !project ? (
       noFolder('To-do')
@@ -890,15 +834,11 @@ export function App() {
           setView('canvas')
         }}
         stories={stories}
-        goals={goals}
         chats={Object.fromEntries(chatList.map(chat => [chat.id, chat.title]))}
         projectId={project.id}
         tree={{
-          onGoal: useApp.getState().changeGoal,
-          onDeleteGoal: useApp.getState().deleteGoal,
           onStory: useApp.getState().changeStory,
           onDeleteStory: useApp.getState().deleteStory,
-          onNewGoal: useApp.getState().addGoal,
           onNewStory: title => useApp.getState().addStory(title),
         }}
       />
@@ -908,8 +848,6 @@ export function App() {
       project={project}
       projects={projects}
       onLoad={useApp.getState().usage}
-      onCards={useApp.getState().cards}
-      onAddCardRule={useApp.getState().addCardRule}
       budget={budget}
       providers={providers}
       onLimits={useApp.getState().limits}
@@ -963,7 +901,6 @@ export function App() {
         onAddPreference={useApp.getState().addPreference}
         onReload={useApp.getState().loadMemory}
         onSearch={useApp.getState().searchMemory}
-        onMeaning={useApp.getState().saveProjectSettings}
         onExport={projectId ? () => download('GET', `/projects/${projectId}/memory/export`) : undefined}
       />
     )
@@ -988,40 +925,11 @@ export function App() {
         onReadFile={useApp.getState().knowledgeFile}
       />
     )
-  const triggersPage = () =>
-    !project ? (
-      noFolder('Triggers')
-    ) : (
-      <TriggersPage
-        key={project.id}
-        triggers={triggers}
-        error={triggersError}
-        changes={triggerChanges}
-        conversations={conversations}
-        draft={triggerDraft}
-        onDraftTaken={useApp.getState().clearTriggerDraft}
-        origin={window.location.origin}
-        onCreate={useApp.getState().createTrigger}
-        onSave={useApp.getState().saveTrigger}
-        onDelete={useApp.getState().deleteTrigger}
-        onRun={useApp.getState().runTrigger}
-        onNewKey={useApp.getState().newTriggerKey}
-        onShowTurn={(conversationId, runId) => {
-          void useApp.getState().openTurn(conversationId, runId)
-          setView('canvas')
-        }}
-        onRules={useApp.getState().allowedCommandsOf}
-        onAddRule={useApp.getState().addAllowedCommand}
-        onHosts={useApp.getState().allowedHostsOf}
-      />
-    )
   const conversationsPage = () => (
     <ConversationList
       conversations={conversations}
       projects={projects}
       board={everywhere}
-      triggers={triggers}
-      triggersPaused={triggersPaused}
       onArchive={useApp.getState().archiveConversation}
       onDelete={useApp.getState().deleteConversations}
       currentId={conv?.conversation.id ?? null}
@@ -1108,12 +1016,11 @@ export function App() {
           turnId={turnId}
           onTurn={useApp.getState().showTurn}
           onRenameTopic={useApp.getState().renameTopic}
-          over={agentWindowId ?? discussionWindowId ?? roomWindowId}
+          over={agentWindowId ?? discussionWindowId}
           turnsIn={turnsIn}
           onOpenNode={(kind, refId) => {
             if (kind === 'agent') useApp.getState().openAgentWindow(refId)
             if (kind === 'discussion') useApp.getState().openDiscussion(refId)
-            if (kind === 'room') useApp.getState().showRoom(refId)
             if (kind === 'memory') setView('memory')
             // (The Scout's node, opened, or its To-do →.)
             if (kind === 'po' || kind === 'backlog') setView('backlog')
@@ -1158,7 +1065,6 @@ export function App() {
         onSelect={select}
         onOpenAgent={agentId => useApp.getState().openAgentWindow(agentId)}
         onOpenDiscussion={id => useApp.getState().openDiscussion(id)}
-        onOpenRoom={useApp.getState().showRoom}
         {...agentAsks}
         renderChange={change => (
           <>
@@ -1177,12 +1083,10 @@ export function App() {
     models: modelsPage,
     tools: toolsPage,
     ready: readyPage,
-    board: boardPage,
     backlog: backlogPage,
     usage: usagePage,
     memory: memoryPage,
     knowledge: knowledgePage,
-    triggers: triggersPage,
     conversations: conversationsPage,
   }
   /** The page shown: the one of its view, else the canvas. */

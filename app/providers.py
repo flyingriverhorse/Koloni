@@ -20,7 +20,6 @@ from app.model_cli import (
     ClaudeCliClient,
     ClaudeSearch,
     CliStepClient,
-    CodexCliClient,
     CodexSearch,
 )
 from app.model_client import (
@@ -63,9 +62,10 @@ IMAGE_CLIS = ("claude_cli", "codex_cli")
 SERVER_CLIS = ("claude_cli", "codex_cli")
 # Agents at work at once on a provider the user set no number for (`Providers.most_at_once`).
 CLI_AT_ONCE, SERVICE_AT_ONCE = 3, 8
-# 0.1.8 (the user, 24 Nov): agy, and Codex run one step at a time, are offered only with Show
-# experimental CLIs on (Settings › The app › Agents; a Flag of this name, which the Models page
-# reads). A provider already set so runs as before, tagged Experimental; nothing here refuses it.
+# 0.1.8 (the user, 24 Nov): agy - and since 0.1.10 Native - are offered only with Show
+# experimental features on (Settings › The app › Agents; a Flag of this name, which the Models
+# page reads). A provider already set so runs as before, tagged Experimental; nothing here
+# refuses it.
 EXPERIMENTAL_FLAG = "experimental_clis"
 # How each CLI can be run, the first being its default. A session needs the CLI's own
 # tools to be really off while KOLONİ's reach it over MCP: Codex's patch tool cannot be
@@ -75,7 +75,8 @@ EXPERIMENTAL_FLAG = "experimental_clis"
 # refuses a write or a command, so nothing has to be asked.
 MODES = {
     "claude_cli": ("session", "step", "native"),
-    "codex_cli": ("session", "step", "native"),
+    # (0.1.10: Codex step by step is cut; a row saved so runs as a session, `mode_of`.)
+    "codex_cli": ("session", "native"),
     "copilot_cli": ("session", "native"),
     "agy_cli": ("reads", "native"),
 }
@@ -393,7 +394,7 @@ class ClosedToAgents(NotListed):
 
 class SwitchedOff(ClosedToAgents):
     """The user switched the provider, or this model of it, off on the Models page: nobody uses
-    it - no chat, no agent, no Observer, no learning - until it is switched on again. A stronger
+    it - no chat, no agent, no learning - until it is switched on again. A stronger
     "closed to agents": the Lead and the chat are held to it too."""
 
 
@@ -932,7 +933,6 @@ class Providers:
             cli = {
                 ("claude_cli", "session"): ClaudeSessionClient,
                 ("claude_cli", "step"): ClaudeCliClient,
-                ("codex_cli", "step"): CodexCliClient,
                 ("codex_cli", "session"): CodexSessionClient,
                 ("codex_cli", "native"): CodexNativeClient,
             }[provider.kind, mode]
@@ -949,7 +949,7 @@ class Providers:
         if provider.kind == "claude_cli" and not provider.base_url:
             # Claude Code says what is left of its plan in every run: the last is kept.
             built.on_limits = partial(self.limits.said, account(provider))
-        elif provider.kind == "codex_cli" and mode != "step" and not provider.base_url:
+        elif provider.kind == "codex_cli" and not provider.base_url:
             # So does Codex's app-server (slice 89a; a session too), in the words its read is
             # answered in.
             built.on_limits = partial(self.limits.codex_said, account(provider))

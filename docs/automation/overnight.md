@@ -6,9 +6,9 @@ line, or tell the Orchestrator you are going. The chat finishes its turn, then t
 project: your project does not change while you are gone. When you are back you decide what comes
 in.
 
-[![Work while you're away and triggers: the To-do tasks Away works through one at a time in their own copies, and the report](../diagrams/night.svg)](../diagrams/night.svg)
+[![Work while you're away: the To-do tasks Away works through one at a time in their own copies, and the report](../diagrams/night.svg)](../diagrams/night.svg)
 
-*Work while you're away (below) and triggers (above): work that runs while nobody watches.*
+*Work while you're away: work that runs while nobody watches.*
 
 ## Going away
 
@@ -111,9 +111,11 @@ there as it goes. How Go away finds the project decides it, once for every job:
   an MCP server's variable a secret's name holds, the page's key, one of the environment's, one given
   on a card, or any value with a secret's shape (`ghp_…`, `sk-…`, a password in an address) and the
   token or password it holds alone - is left out of that commit and stays in the job's worktree only; the job's chat and its push row say which
-  ("· left out: conf.txt (holds a secret KOLONİ knows)"), and the rest of the work goes on. Such a
-  secret never deletes the job's work: only a secret given on a card during the job, which an agent
-  committed on the branch itself, has the branch deleted, and the chat says so.
+  ("· left out: conf.txt (holds a secret KOLONİ knows)"), and the rest of the work goes on. A file an
+  agent committed on the branch itself is on the branch, not left out: the chat and the row do not call
+  it left out, and **Run** refuses the push ("prov.txt on the branch holds a secret KOLONİ knows - take
+  it off the branch first"). Such a secret never deletes the job's work: only a secret given on a card during the
+  job, which an agent committed on the branch itself, has the branch deleted, and the chat says so.
 - **Its second try** after a failure, and the turn that goes on after your decisions in the morning,
   work in the same worktree, on the same branch.
 - KOLONİ also notes your repository's branches, stash, tags and remotes as the job starts and ends:
@@ -229,8 +231,6 @@ waits before you close KOLONİ.
 **Stop everything** in the top bar holds the jobs instead of ending them: the job at work and a job
 that waits for your word are stopped, the next job waits for **Resume**, and the time and money you
 set still end them.
-
-A trigger's budget plays no part here: these jobs are not trigger turns.
 
 If you set up [notifications](../settings.md#notifications), you get one when every task was looked
 at, and one when a limit or Stop all ends Away - none when you come back yourself.

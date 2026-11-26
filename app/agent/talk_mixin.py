@@ -24,7 +24,6 @@ from app import (
     topics,
     views,
 )
-from app import room as rooms
 from app.agent.cards import _changes_nothing
 from app.agent.ctx import Ctx, announce
 from app.agent.summary import _lines_written_out
@@ -44,7 +43,7 @@ from app.db.models import (
 )
 from app.discussion import MEMORY_HEAD
 from app.providers import list_providers
-from app.roles import LEAD, ORCHESTRATOR, agent_roles, closed, pickable, team_roles, tools_off
+from app.roles import LEAD, ORCHESTRATOR, closed, list_roles, pickable, team_roles, tools_off
 from app.schemas import RecipeAgents, RecipeGraph
 from app.serialize import board_post_out, message_out
 from app.team import guide, quoted
@@ -54,13 +53,11 @@ from app.tools import (
     CAN,
     COMMAND_OUTPUT_SCHEMA,
     FOLDER_PROPERTY,
-    FOLLOW_SCHEMAS,
     MAX_MESSAGE_CHARS,
     ON_BRANCH_PROPERTY,
     READ_ATTACHMENT_SCHEMA,
     RECALL_OUTPUT_SCHEMA,
     REPORT_GIT_SCHEMA,
-    ROOM_SCHEMAS,
     STOP_COMMAND_SCHEMA,
     ToolError,
     capped,
@@ -212,16 +209,6 @@ class TalkMixin:
         self: "AgentRunner", ctx: Ctx, tools, always: bool = False, show: bool = False
     ) -> list[dict]:
         """The schemas of `tools` for this agent, as things stand right now."""
-        if not ctx.answering and ctx.agent_id in self._following:
-            # K-oda-lead: following the room it opened, it is offered only that (`_follow_call`).
-            # shortcut: its tools - and the parts of its instructions they gate - change as it
-            # starts and stops following: two prompt-cache rewrites of the opener a room; keep its
-            # own tools offered and refused if that cost is seen to matter.
-            return [
-                ROOM_SCHEMAS["post_to_room"],
-                ROOM_SCHEMAS["invite_to_room"],
-                *FOLLOW_SCHEMAS.values(),
-            ]
         if self._hands_code(ctx):  # (kept in ctx.tools: a sub-agent's are capped by them)
             tools = [tool for tool in tools if tool not in HANDED]
         door, running = None, False
@@ -243,7 +230,7 @@ class TalkMixin:
                     for row, team in self._runs(session, ctx)
                 )
                 named = self._names_past(session, ctx)
-                roles = [role for role in agent_roles(session) if not closed(role, door, named)] + [
+                roles = [role for role in list_roles(session) if not closed(role, door, named)] + [
                     lead for _r, _t, lead in self._rows(session, ctx.cid) if lead and not ctx.depth
                 ]
             # Lead decides (slice 84b): the Lead at its own work picks the chat's teams.
@@ -562,19 +549,6 @@ class TalkMixin:
         if match is None:
             return await self._message_unknown(ctx, call_id, to, body, reachable)
         target, kind = match
-        in_room = self._member_of(ctx)
-        if (
-            in_room is not None
-            and in_room[0].outcome is None
-            and (target.agent_id == in_room[0].lead.agent_id)
-        ):
-            # It would have the lead take a step while its room runs - which one following its
-            # room reads there (K-oda-lead).
-            raise ToolError(
-                rooms.TO_THE_OPENER.format(opener=target.name)
-                if in_room[0].reads
-                else rooms.NOT_THE_LEAD
-            )
         self._within_limit(ctx)
         if kind == "steer":  # (its files only once its CLI took the message)
             return await self._steer_message(ctx, target, body, handed_files)
@@ -764,10 +738,8 @@ class TalkMixin:
         return inbound_id
 
     def _deliver(self: "AgentRunner", ctx: Ctx) -> list[str]:
-        """Hand an agent the notes left for it, what is new to it on the turn's
-        notebook and - a member of a room - in its room; returns them as it will read
-        them."""
-        posts = self._hand_posts(ctx)
+        """Hand an agent the notes left for it and what is new to it on the turn's notebook;
+        returns them as it will read them."""
         with self._factory() as session:
             # Not in a turn taken to answer or to speak: the notebook waits for its own work.
             handed = [] if ctx.answering else self._hand_notes(session, ctx)
@@ -778,7 +750,7 @@ class TalkMixin:
                 .order_by(Message.created_at, literal_column("messages.rowid"))
             ).all()
             if not waiting and not handed:
-                return posts
+                return []
             names = dict(
                 session.execute(
                     select(Agent.id, Agent.name).where(Agent.run_id == ctx.run_id)
@@ -852,19 +824,15 @@ class TalkMixin:
             below = self._ctxs.get(sender)
             return "below" if below is not None and self._is_above(ctx.agent_id, below) else "other"
 
-        return (
-            [
-                # (From nobody: KOLONİ's own word, `_send(koloni=True)`, read as it is.)
-                content
-                if sender is None
-                else self._from(
-                    ctx, message_id, sender, far.get(sender) or name, relation(sender), content
-                )
-                for message_id, sender, name, content in notes
-            ]
-            + from_notebook
-            + posts
-        )
+        return [
+            # (From nobody: KOLONİ's own word, `_send(koloni=True)`, read as it is.)
+            content
+            if sender is None
+            else self._from(
+                ctx, message_id, sender, far.get(sender) or name, relation(sender), content
+            )
+            for message_id, sender, name, content in notes
+        ] + from_notebook
 
     @staticmethod
     def _note_from(ctx: Ctx, writer: str | None, post: BoardPost) -> str:
@@ -931,9 +899,8 @@ class TalkMixin:
         the team of the agent that opened it (K-takimlar-arasi: a Coder Backend's lead opened,
         and its helper, are Backend's, though the Web app comes first and has a Coder too).
         None: the Lead, an agent of no team, a chat with no teams.
-        shortcut: where a row ran, an agent in none (a member of a room the user opened, one kept
-        beside a recipe) is of no team, and every team reads its notes; give it its opener's
-        team if that is met."""
+        shortcut: where a row ran, an agent in none (one kept beside a recipe) is of no team, and
+        every team reads its notes; give it its opener's team if that is met."""
         rows = self._rows(session, cid)
         if not rows:
             return None
@@ -985,11 +952,10 @@ class TalkMixin:
     def _between(
         self: "AgentRunner", session, ctx: Ctx, roles: list[str], agents: list[str]
     ) -> list[str]:
-        """K-not-oda: the teams a room's or a discussion's members come from - of these roles,
-        and agents of the turn - where no one of the chat's teams holds them all: a room
-        between teams. [] within one team, or in a chat with no teams. A role is of each team
-        that has it or is led by it; an agent of its team (`_team_of`); one of no team holds
-        nobody back."""
+        """K-not-oda: the teams a discussion's members come from - of these roles, and agents of
+        the turn - where no one of the chat's teams holds them all: a discussion between teams.
+        [] within one team, or in a chat with no teams. A role is of each team that has it or is
+        led by it; an agent of its team (`_team_of`); one of no team holds nobody back."""
         rows = self._rows(session, ctx.cid)
         if not rows:
             return []
@@ -1007,7 +973,7 @@ class TalkMixin:
         return [team.name for _row, team, _lead in rows if team.id in named]
 
     def _leads_teams(self: "AgentRunner", session, ctx: Ctx) -> bool:
-        """Whether this agent may bring teams together (a room, a note for every team): the
+        """Whether this agent may bring teams together (a discussion, a note for every team): the
         Lead, or the lead of one of the chat's teams that runs it beside another (`_rows`)."""
         return ctx.depth == 0 or any(
             lead is not None and lead.name == ctx.role

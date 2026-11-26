@@ -21,7 +21,6 @@ from tests.test_chat_flow import text
 from tests.test_migration_0002 import _config
 from tests.test_parallel import until
 from tests.test_spawn import call, step
-from tests.test_trigger_scenarios import run_now, trigger
 from tests.test_web_tool_scenarios import DDG_PAGE, ORIGIN, Net, get, go, results, search, setup
 
 FAKE = [sys.executable, str(Path(__file__).with_name("fake_cli.py"))]
@@ -414,7 +413,7 @@ def test_a_name_is_not_even_looked_up_before_the_request_may_go_out(
         app.web, "resolve", lambda host: looked_up.append(host) or ["93.184.216.34"]
     )
     steps = [step(get("https://data.example.com/a")), text("done")]
-    client, model, pid, cid = setup(make_client, project_dir, steps * 3, permission_mode="ask")
+    client, model, pid, cid = setup(make_client, project_dir, steps * 2, permission_mode="ask")
     run_id = go(client, cid)["id"]
     snap, asked = asked_of(client, cid)
     assert looked_up == []  # the card is up, and nothing has left
@@ -425,13 +424,6 @@ def test_a_name_is_not_even_looked_up_before_the_request_may_go_out(
     snap, asked = asked_of(client, cid, 2)
     decide(client, asked)
     wait_run(client, cid, run_id)
-    assert looked_up == ["data.example.com"]
-    # with nobody watching: a host the trigger does not name is refused unlooked-up
-    made = trigger(client, pid, cid, permissions=leave(hosts=["example.com"]))
-    unwatched = run_now(client, made["id"])
-    snap = wait_run(client, cid, unwatched, timeout=10)
-    (refused,) = [t["result"] for t in snap["tool_calls"] if t["run_id"] == unwatched]
-    assert "nobody is here to ask" in refused
     assert looked_up == ["data.example.com"]
 
 
@@ -502,41 +494,29 @@ def test_a_request_left_waiting_by_a_process_that_ended_is_settled_at_the_next_s
 
 # --- the project's settings --------------------------------------------------------------
 
-HOOK = "https://hooks.example.com/services/T000/B000/XYZ-PRIVATE"
 
-
-def test_where_a_search_and_a_notification_go_is_set_from_the_apps_own_page(client, project_dir):
+def test_where_a_search_goes_is_set_from_the_apps_own_page(client, project_dir):
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     shown = client.get("/api/projects").json()[0]
-    assert (shown["search_url"], shown["search_order"], shown["has_notify_url"]) == (
-        None,
-        "builtin",
-        False,
-    )
-    for body in (
-        {"search_url": "http://localhost:8888"},
-        {"notify_url": HOOK},
-        {"search_order": "cli"},
-    ):
+    assert (shown["search_url"], shown["search_order"]) == (None, "builtin")
+    for body in ({"search_url": "http://localhost:8888"}, {"search_order": "cli"}):
         assert client.patch(f"/api/projects/{pid}", json=body).status_code == 403
     client.headers["Origin"] = ORIGIN
     made = client.patch(
         f"/api/projects/{pid}",
-        json={"search_url": " http://localhost:8888 ", "notify_url": HOOK, "search_order": "cli"},
+        json={"search_url": " http://localhost:8888 ", "search_order": "cli"},
     )
-    assert made.status_code == 200 and "XYZ-PRIVATE" not in made.text
+    assert made.status_code == 200
     shown = made.json()
-    assert (shown["search_url"], shown["search_order"], shown["has_notify_url"]) == (
-        "http://localhost:8888",
-        "cli",
-        True,
-    )
-    assert "notify_url" not in shown
+    assert (shown["search_url"], shown["search_order"]) == ("http://localhost:8888", "cli")
     # left out: kept; empty: none
     shown = client.patch(f"/api/projects/{pid}", json={"docker_network": True}).json()
-    assert shown["has_notify_url"] is True and shown["search_url"] == "http://localhost:8888"
-    shown = client.patch(f"/api/projects/{pid}", json={"notify_url": "", "search_url": ""}).json()
-    assert shown["has_notify_url"] is False and shown["search_url"] is None
+    assert shown["search_url"] == "http://localhost:8888"
+    shown = client.patch(f"/api/projects/{pid}", json={"search_url": ""}).json()
+    assert shown["search_url"] is None
+    # (0.1.10: the notification address is gone - one sent by an older page is not kept.)
+    old = client.patch(f"/api/projects/{pid}", json={"notify_url": "https://hooks.example.com/x"})
+    assert old.status_code == 200 and "notify_url" not in old.text
 
 
 @pytest.mark.parametrize(
@@ -544,9 +524,7 @@ def test_where_a_search_and_a_notification_go_is_set_from_the_apps_own_page(clie
     [
         {"search_url": "ftp://localhost:8888"},
         {"search_url": "localhost:8888"},
-        {"notify_url": "https://user:SECRET-PW@hooks.example.com/x"},
-        {"notify_url": "SECRET-PW"},
-        {"notify_url": "https://hooks.example.com/SECRET-PW" + "x" * 500},
+        {"search_url": "https://user:SECRET-PW@localhost:8888/"},
         {"search_order": "fast"},
     ],
 )
@@ -557,177 +535,10 @@ def test_an_address_that_cannot_be_asked_is_refused_without_being_repeated(
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     refused = client.patch(f"/api/projects/{pid}", json=body)
     assert refused.status_code == 422 and "SECRET-PW" not in refused.text
-    assert client.get("/api/projects").json()[0]["has_notify_url"] is False
-
-
-def test_a_notification_that_fails_is_in_no_record_either(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    Net(monkeypatch, {"hooks.example.com": ConnectionError(f"could not reach {HOOK}")})
-    client, model, pid, cid = setup(
-        make_client,
-        project_dir,
-        [step(call("notify", {"message": "done"}, "n")), text("done")],
-        project={"notify_url": HOOK},
-    )
-    snap = wait_run(client, cid, go(client, cid)["id"])
-    ((status, said),) = results(snap, "notify")
-    assert status == "failed" and "was not sent" in said
-    everything = json.dumps(snap) + json.dumps(events(client, cid))
-    assert "XYZ-PRIVATE" not in everything and "hooks.example.com" not in everything
-    assert "notify" in snap["agents"][0]["tools"]
+    assert client.get("/api/projects").json()[0]["search_url"] is None
 
 
 # --- a turn nobody watches ---------------------------------------------------------------
-
-
-def leave(**more):
-    return {"write": False, "commands": [], "agents": 0, **more}
-
-
-def test_a_trigger_keeps_what_its_turns_may_do_on_the_web(make_client, project_dir):
-    client, model, pid, cid = setup(make_client, project_dir, [])
-    # made without a word of the web, or with all of it off: nothing of it is kept or said
-    assert trigger(client, pid, cid)["permissions"] == leave()
-    assert (
-        trigger(client, pid, cid, name="off", permissions=leave(web=False, hosts=[], notify=False))[
-            "permissions"
-        ]
-        == leave()
-    )
-    made = trigger(
-        client,
-        pid,
-        cid,
-        name="web",
-        permissions=leave(
-            web=True, hosts=[" API.Example.com. ", "example.org", "api.example.com"], notify=True
-        ),
-    )
-    assert made["permissions"] == leave(
-        web=True, hosts=["api.example.com", "example.org"], notify=True
-    )
-    assert made["changes"][0]["detail"].startswith(
-        "every 60 minutes; no end; may search the web; may make GET and HEAD requests to: "
-        "api.example.com, example.org; may notify; "
-    )
-    changed = client.patch(
-        f"/api/triggers/{made['id']}", json={"permissions": leave(hosts=["example.org"])}
-    )
-    assert changed.status_code == 200
-    assert (changed.json()["changes"][0]["what"], changed.json()["changes"][0]["detail"]) == (
-        "permissions changed",
-        "may make GET and HEAD requests to: example.org",
-    )
-    # the hosts were picked from one conversation's list: moved to another, it has none
-    other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    moved = client.patch(f"/api/triggers/{made['id']}", json={"conversation_id": other})
-    assert moved.status_code == 200 and moved.json()["permissions"] == leave()
-    for bad in ("https://example.com", "example.com/path", "example.com:8080", "", "a b", "*"):
-        refused = client.post(
-            f"/api/projects/{pid}/triggers",
-            json={
-                "name": "bad",
-                "kind": "schedule",
-                "conversation_id": cid,
-                "message": "m",
-                "config": {"every_minutes": 60},
-                "permissions": leave(hosts=[bad]),
-            },
-        )
-        assert refused.status_code == 422 and "bare name" in refused.text, bad
-        assert (
-            client.patch(
-                f"/api/triggers/{made['id']}", json={"permissions": leave(hosts=[bad])}
-            ).status_code
-            == 422
-        )
-
-
-def test_an_unattended_turn_notifies_only_where_its_trigger_says_so(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    net = Net(monkeypatch, {"hooks.example.com": (200, "text/plain", "ok")})
-    steps = [step(call("notify", {"message": "done"}, "n")), text("done")]
-    client, model, pid, cid = setup(
-        make_client, project_dir, steps * 2, project={"notify_url": HOOK}
-    )
-    closed = trigger(client, pid, cid)
-    snap = wait_run(client, cid, run_now(client, closed["id"]), timeout=10)
-    ((status, said),) = results(snap, "notify")
-    assert status == "failed" and "nobody is here to ask" in said and net.asked == []
-    cid2 = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    opened = trigger(client, pid, cid2, permissions=leave(notify=True))
-    snap = wait_run(client, cid2, run_now(client, opened["id"]), timeout=10)
-    assert results(snap, "notify")[0][0] == "succeeded" and len(net.asked) == 1
-    # the agent was told what this turn may do on the web
-    told = model.calls[-1][0]["content"]
-    assert "make no web search; make no HTTP request; send the user a notification" in told
-
-
-def test_an_unattended_request_is_not_carried_to_another_host_by_a_redirect(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    net = Net(monkeypatch)
-
-    async def raw(method, url, headers, body, ip):
-        net.asked.append((method, url, ip))
-        if "example.com" in url:
-            return app.web.Raw(302, {"location": "https://other.example.org/x"}, b"")
-        return app.web.Raw(200, {"content-type": "text/plain"}, b"ok")
-
-    monkeypatch.setattr(app.web, "raw", raw)
-    client, model, pid, cid = setup(
-        make_client, project_dir, [step(get("https://example.com/go")), text("done")]
-    )
-    made = trigger(client, pid, cid, permissions=leave(hosts=["example.com"]))
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=10)
-    ((status, said),) = results(snap, "http_request")
-    assert status == "failed" and "redirects to other.example.org" in said
-    assert len(net.asked) == 1 and snap["web_requests"] == []
-
-
-def test_an_unattended_request_is_a_get_or_a_head_to_exactly_what_the_trigger_names(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    net = Net(monkeypatch, {"example.com": (200, "text/plain", "ok")})
-    asked = [
-        call(
-            "http_request", {"method": "DELETE", "url": "https://example.com/a", "body": "x"}, "a"
-        ),
-        call("http_request", {"method": "POST", "url": "https://example.com/a"}, "b"),
-        get("http://EXAMPLE.com:9999/b", "c"),
-        get("http://example.com/b", "d"),
-        get("https://example.com:8443/b", "e"),
-        get("https://example.com/ok", "f"),
-        call("http_request", {"method": "HEAD", "url": "https://example.com:443/ok"}, "g"),
-    ]
-    client, model, pid, cid = setup(make_client, project_dir, [step(*asked), text("done")] * 2)
-    made = trigger(client, pid, cid, permissions=leave(hosts=["example.com"]))
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=10)
-    found = results(snap, "http_request")
-    assert [status for status, _ in found] == ["failed"] * 5 + ["succeeded"] * 2
-    assert all("nobody is here to ask" in said for _status, said in found[:5])
-    assert "make a DELETE request to example.com" in found[0][1]
-    assert "make a request to http://example.com:9999" in found[2][1]
-    assert [(method, url) for method, url, _ip in net.asked] == [
-        ("GET", "https://example.com/ok"),
-        ("HEAD", "https://example.com:443/ok"),
-    ]
-    told = model.calls[-1][0]["content"]
-    assert "make GET and HEAD requests to these and no other: example.com" in told
-    # another scheme and port is another thing to name
-    cid2 = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    other = trigger(
-        client, pid, cid2, name="other", permissions=leave(hosts=["http://example.com:9999"])
-    )
-    assert other["changes"][0]["detail"].startswith(
-        "every 60 minutes; no end; may make GET and HEAD requests to: http://example.com:9999; "
-    )
-    snap = wait_run(client, cid2, run_now(client, other["id"]), timeout=10)
-    assert [status for status, _ in results(snap, "http_request")] == (
-        ["failed", "failed", "succeeded"] + ["failed"] * 4
-    )
 
 
 def test_always_is_for_the_scheme_and_port_it_was_given_for(
@@ -790,22 +601,22 @@ def test_a_project_that_asked_for_no_network_reaches_nothing(
         monkeypatch,
         {"duckduckgo.com": (200, "text/html", DDG_PAGE), "example.com": (200, "text/plain", "ok")},
     )
-    asked = [search(), get("https://example.com/"), call("notify", {"message": "done"}, "n")]
+    asked = [search(), get("https://example.com/")]
     client, model, pid, cid = setup(
         make_client,
         project_dir,
         [step(*asked), text("done")] * 2,
-        project={"docker_image": "python:3.12", "exec_location": "docker", "notify_url": HOOK},
+        project={"docker_image": "python:3.12", "exec_location": "docker"},
     )
     snap = wait_run(client, cid, go(client, cid)["id"])
-    assert [t["status"] for t in snap["tool_calls"]] == ["failed"] * 3
+    assert [t["status"] for t in snap["tool_calls"]] == ["failed"] * 2
     assert all("this project's network access is off" in t["result"] for t in snap["tool_calls"])
     assert net.asked == []
     assert client.patch(f"/api/projects/{pid}", json={"docker_network": True}).status_code == 200
     again = go(client, cid)["id"]
     snap = wait_run(client, cid, again)
     # by its run: the snapshot lists calls run by run, not in the order of the runs
-    assert [t["status"] for t in snap["tool_calls"] if t["run_id"] == again] == ["succeeded"] * 3
+    assert [t["status"] for t in snap["tool_calls"] if t["run_id"] == again] == ["succeeded"] * 2
 
 
 def test_half_a_character_in_the_arguments_does_not_end_the_turn(
@@ -963,79 +774,28 @@ def test_at_most_six_desktop_notifications_a_minute(
     assert len(shown) == 6
 
 
-def test_where_one_of_the_two_fails_it_is_said_which_and_the_other_still_goes(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    desk(monkeypatch, fails="a desktop notification is not available on this system")
-    net = Net(monkeypatch, {"hooks.example.com": (200, "text/plain", "ok")})
-    client, model, pid, cid = setup(
-        make_client,
-        project_dir,
-        [step(NOTE), text("done")],
-        project={"notify_desktop": True, "notify_url": HOOK},
-    )
-    snap = wait_run(client, cid, go(client, cid)["id"])
-    ((status, said),) = results(snap, "notify")
-    assert status == "failed" and len(net.asked) == 1
-    assert said == (
-        "sent to the user's notification address, but: a desktop notification is "
-        "not available on this system"
-    )
-    assert "XYZ-PRIVATE" not in json.dumps(snap)
-
-
-def test_with_the_network_off_the_desktop_still_shows_and_the_address_is_refused(
+def test_with_the_network_off_the_desktop_still_shows(
     make_client, wait_run, project_dir, monkeypatch
 ):
     shown = desk(monkeypatch)
     net = Net(monkeypatch)
     docker = {"docker_image": "python:3.12", "exec_location": "docker", "notify_desktop": True}
-    client, model, pid, cid = setup(
-        make_client, project_dir, [step(NOTE), text("done")] * 2, project=docker
-    )
+    client, model, pid, cid = setup(make_client, project_dir, [step(NOTE), text("done")], docker)
     snap = wait_run(client, cid, go(client, cid)["id"])
     assert results(snap, "notify") == [("succeeded", "shown on the user's desktop")]
-    assert client.patch(f"/api/projects/{pid}", json={"notify_url": HOOK}).status_code == 200
-    again = go(client, cid)["id"]
-    snap = wait_run(client, cid, again)
-    ((status, said),) = [
-        (t["status"], t["result"]) for t in snap["tool_calls"] if t["run_id"] == again
-    ]
-    assert status == "failed" and said.startswith("shown on the user's desktop, but: not sent")
-    assert "this project's network access is off" in said
-    assert len(shown) == 2 and net.asked == []
+    assert len(shown) == 1 and net.asked == []
 
 
-def test_a_trigger_that_may_not_notify_shows_nothing_on_the_desktop(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    shown = desk(monkeypatch)
-    Net(monkeypatch)
-    client, model, pid, cid = setup(
-        make_client, project_dir, [step(NOTE), text("done")], project={"notify_desktop": True}
-    )
-    closed = trigger(client, pid, cid)
-    snap = wait_run(client, cid, run_now(client, closed["id"]), timeout=10)
-    ((status, said),) = results(snap, "notify")
-    assert status == "failed" and "nobody is here to ask" in said and shown == []
-
-
-def test_the_desktop_and_the_bodys_form_are_set_from_the_apps_own_page(
-    client, project_dir, monkeypatch
-):
+def test_the_desktop_is_set_from_the_apps_own_page(client, project_dir, monkeypatch):
     monkeypatch.setattr(app.web, "has_desktop", lambda: True)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    shown = client.get(f"/api/projects/{pid}").json()
-    assert (shown["notify_desktop"], shown["notify_format"]) == (False, "slack")
-    for body in ({"notify_desktop": True}, {"notify_format": "text"}):
-        assert client.patch(f"/api/projects/{pid}", json=body).status_code == 403
+    assert client.get(f"/api/projects/{pid}").json()["notify_desktop"] is False
+    assert client.patch(f"/api/projects/{pid}", json={"notify_desktop": True}).status_code == 403
     client.headers["Origin"] = ORIGIN
-    shown = client.patch(
-        f"/api/projects/{pid}", json={"notify_desktop": True, "notify_format": "discord"}
-    ).json()
-    assert (shown["notify_desktop"], shown["notify_format"]) == (True, "discord")
+    shown = client.patch(f"/api/projects/{pid}", json={"notify_desktop": True}).json()
+    assert shown["notify_desktop"] is True
     shown = client.patch(f"/api/projects/{pid}", json={"notify_desktop": False}).json()
-    assert (shown["notify_desktop"], shown["notify_format"]) == (False, "discord")
+    assert shown["notify_desktop"] is False
     assert client.get("/api/projects/nobody").status_code == 404
 
 

@@ -441,7 +441,6 @@ class RecordMixin:
             self._continuation_note(run_id, cid)
         except Exception as exc:  # (it fails nothing of the turn)
             log.warning("run %s: no continuation note: %r", run_id, exc)
-        self._unattended_over(run_id, status, error)
         self.bus.emit(cid, None, "conversation.updated", conversation_payload)
         self.bus.emit(cid, run_id, "run.finished", payload)
         # The user's own message queued behind the turn goes first (`start_next`); then a

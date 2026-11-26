@@ -21,14 +21,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship
 
-# B-414 (live): a room asked for with 5000 tokens ended with no post - one member's step, with its
-# context, came to some 8,500. Its members and the agent that follows it all count (`room_spent`):
-# 60,000 holds one round of posts (a member may post in its sharing step) for up to six members
-# nobody follows, or some three whose opener follows and reads after each post.
-# shortcut: one number whatever the room's size; scale it by its members (and the follower) if a
-# big room is seen ending on its tokens before each has posted.
-ROOM_MIN_TOKENS = 60_000
-
 
 def new_id() -> str:
     return uuid.uuid4().hex
@@ -84,12 +76,7 @@ class Project(Base):
     # Whether a search may be handed to agy too: it cannot be held to its search tool
     # (`app.model_agy.AgySearch`), so only where the user says so.
     search_agy: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # Where `notify` posts. A secret of the user's: no response, event or record shows it.
-    notify_url: Mapped[str | None] = mapped_column(Text, default=None)
-    # The body it posts there: {"text": …} ("slack"), {"content": …} ("discord"), or
-    # the text alone ("text").
-    notify_format: Mapped[str] = mapped_column(String(8), default="slack", server_default="slack")
-    # Whether `notify` also shows on the user's own desktop.
+    # Whether `notify` shows on the user's own desktop (0.1.10: the only place it goes).
     notify_desktop: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # The most tokens a turn's agents may report together (sent + written; a question
     # KOLONİ itself asked a model for the turn counts too) before no further model step
@@ -123,10 +110,6 @@ class Project(Base):
     # a request KOLONİ makes itself, and at most three notes in the journal
     # (`AgentRunner._note_what_it_found`). Off until the user says so.
     auto_notes: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # Whether the Observer role's model is asked, once a sub-agent hands in its report,
-    # what of the report its record shows (`AgentRunner._look_over`). Off until the user
-    # says so: a request KOLONİ makes and the user pays.
-    observe_reports: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Whether the Scout proposes at most three follow-up tasks after a watched turn that
     # did something (`AgentRunner._propose_tasks`), asked of the first model of `suggest_tier`.
     # On by default (the user, 6 Nov).
@@ -141,12 +124,6 @@ class Project(Base):
     # 22c: the other projects of this KOLONİ whose memory and earlier turns `recall` also
     # looks in, read only (`memory.linked`); ids. Nothing of theirs is given at a start.
     memory_links: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
-    # 22c: the provider whose OpenAI-compatible server embeds the memory for a search by
-    # meaning (`app.meaning`), and the model name it is asked for; None: word search alone.
-    embedding_provider_id: Mapped[str | None] = mapped_column(String(32), default=None)
-    embedding_model: Mapped[str] = mapped_column(
-        String(200), default="text-embedding-3-small", server_default="text-embedding-3-small"
-    )
     # Folders outside the project a new chat in it starts with, as they really are (slice
     # 41; its chats' own lists since slice 86b).
     also_in: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
@@ -191,14 +168,6 @@ class Project(Base):
     spawn_max_parallel: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
     # None: no limit (the user, 6 Nov: none by default).
     discussion_budget: Mapped[int | None] = mapped_column(Integer, default=None)
-    room_posts: Mapped[int | None] = mapped_column(Integer, default=40, server_default="40")
-    room_tokens: Mapped[int | None] = mapped_column(Integer, default=None)
-    room_minutes: Mapped[int | None] = mapped_column(Integer, default=30, server_default="30")
-    # B-414: the least tokens an agent's room is given, whatever it asks (`room_tokens` wins
-    # where it is lower); None: none.
-    room_min_tokens: Mapped[int | None] = mapped_column(
-        Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS)
-    )
     # 89m, "Finish only when the tests pass", as the user last set it (None: never said). Kept
     # (0162), read only for `after_change_from_off`: `after_change` holds the setting now.
     finish_tests: Mapped[bool | None] = mapped_column(Boolean, default=None)
@@ -223,8 +192,8 @@ class Project(Base):
     ci_commands: Mapped[dict | None] = mapped_column(JSON, default=None)
     # S5a (0167): which kinds of work KOLONİ checks after a turn wrote them - {kind: on} for
     # "docs", "slides", "diagram", "data", "config", "scripts", "style" (`app.proof_kinds.KINDS`),
-    # S5b's "ui"; a kind left out is on - so a kind added later is on in every project, with no
-    # migration.
+    # S5b's "ui"; a kind left out is on, with no migration - but `proof.OFF_UNLESS_TICKED` (0.1.10:
+    # "ui", and "test", A test for the change), off.
     check_kinds: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     # S1b (0163): the test command KOLONİ saved itself, by folder ("." the root), once it really ran
     # tests - {folder: {"command", "from": "guess" | "agent" | "look", "at"}}; the end check's only,
@@ -245,10 +214,6 @@ class Project(Base):
     disposable_deletes: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     @property
-    def has_notify_url(self) -> bool:
-        return bool(self.notify_url)
-
-    @property
     def after_change_from_off(self) -> bool:
         """0162: Nothing because the user had turned "Finish only when the tests pass" off -
         said in Settings, never silently."""
@@ -265,7 +230,7 @@ class Conversation(Base):
     # ask: confirm edits and commands; auto_edit: only commands; full_auto: nothing.
     permission_mode: Mapped[str] = mapped_column(String(12), default="ask", server_default="ask")
     # Sub-agents: when opening one asks first, and how far the tree may grow in a turn.
-    # These, `lead_work`, `when_away`, `away_minutes` and `room_*` are read from its project
+    # These, `lead_work`, `when_away` and `away_minutes` are read from its project
     # since tek-ev (`settings_of`); a plain chat's are read here.
     spawn_approval: Mapped[str] = mapped_column(String(8), default="auto", server_default="auto")
     spawn_max_depth: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
@@ -306,16 +271,6 @@ class Conversation(Base):
     away_minutes: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
     # The Lead's reasoning level in this conversation ("low" ... "max"); None: its role's.
     lead_effort: Mapped[str | None] = mapped_column(String(8), default=None)
-    # What a room opened here may spend unless the user says otherwise as they open it:
-    # posts by its members, tokens as their models report them, minutes. None: no limit.
-    # (The user, R185: no tokens by default - a room ends on its posts or minutes, or on the
-    # turn's and the project's own limits. A chat that kept 400000 keeps it: 0145.)
-    room_posts: Mapped[int | None] = mapped_column(Integer, default=40, server_default="40")
-    room_tokens: Mapped[int | None] = mapped_column(Integer, default=None)
-    room_minutes: Mapped[int | None] = mapped_column(Integer, default=30, server_default="30")
-    room_min_tokens: Mapped[int | None] = mapped_column(
-        Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS)
-    )
     # Folders outside the project this conversation also works in: its folder's at its
     # start, named in the user's own messages, allowed from a card ("Allow this folder") or
     # added in "This chat's folders" (slice 86b). Its agents use these lists only.
@@ -354,16 +309,12 @@ FOLLOWED = (
     "discussion_budget",
     "when_away",
     "away_minutes",
-    "room_posts",
-    "room_tokens",
-    "room_minutes",
-    "room_min_tokens",
 )
 
 
 def settings_of(session, conversation: Conversation) -> Project | Conversation:
     """Where a chat's sub-agent settings are read - `spawn_*`, `discussion_budget`,
-    `when_away`, `away_minutes`, `room_*` (tek-ev, the user 6 Nov): its project's, for every
+    `when_away`, `away_minutes` (tek-ev, the user 6 Nov): its project's, for every
     chat of it, old ones too. Who changes the files is `lead_work_of`.
     shortcut: a plain chat reads its own row - the defaults, as nothing in the app changes them
     since the chat's Sub-agents panel went; give plain chats settings of their own if missed."""
@@ -830,12 +781,6 @@ class Agent(Base):
     # a turn's budget, a trigger's permissions, the same failure 5 times unwatched): not
     # a failure, in the track record (`app.record`). False for every agent before this.
     stopped_by_koloni: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # What the Observer's model said of its report (at most three sentences): an opinion,
-    # signed by `observed_by` ({"provider_name", "model_id"}, as on `asked_how_hard`).
-    # None with `observation_note` saying why there is none; both None: nobody was asked.
-    observation: Mapped[str | None] = mapped_column(Text, default=None)
-    observation_note: Mapped[str | None] = mapped_column(Text, default=None)
-    observed_by: Mapped[dict | None] = mapped_column(JSON, default=None)
     # The reasoning level its model steps were sent; None: none was (the model's own).
     effort: Mapped[str | None] = mapped_column(String(8), default=None)
     # Its level as its opener picked it, and why (`agent.EFFORT_PICKED`); or why no level went
@@ -1036,7 +981,11 @@ class Room(Base):
     """Two to six agents working on one goal at the same time, in one working copy. The
     user opens it, and it is the whole of its turn until it is over: then the turn's lead,
     who took no part, is given `told` and answers the user. Or an agent opens it, waits
-    for it, and is given its record as its call's answer."""
+    for it, and is given its record as its call's answer.
+    Rooms are gone since 0.1.10 (a discussion lets agents talk; sub-agents work at once, each
+    in its own copy): this table and its members', items' and posts' are kept as they were -
+    what was said there is the user's - and nothing writes them. An old chat's Lead still
+    reads `told` (`_history`); migration 0193 ended any left running."""
 
     __tablename__ = "rooms"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
@@ -1528,7 +1477,7 @@ class Recipe(Base):
 
 class ConversationTeam(Base):
     """A team a chat works with, and its recipe (slice 84b): the user's in Manual, the Lead's
-    where it decides. Its agents open only these teams' roles (`app.roles.closed`)."""
+    where it decides: whose roles its agents may open (`app.roles.closed`)."""
 
     __tablename__ = "conversation_teams"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
@@ -1665,118 +1614,6 @@ class OwnCommand(Base):
     created_at: Mapped[datetime] = mapped_column(default=now)
 
 
-class Trigger(Base):
-    """Something that starts a turn by itself in one conversation: the clock, a change to
-    the project's files, or a request from outside. Such a turn is unattended, and what
-    it may do without asking is written here - not taken from the conversation."""
-
-    __tablename__ = "triggers"
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
-    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"))
-    name: Mapped[str] = mapped_column(String(80))
-    kind: Mapped[str] = mapped_column(String(8))  # "schedule" | "files" | "webhook"
-    config: Mapped[dict] = mapped_column(JSON)
-    message: Mapped[str] = mapped_column(Text)
-    # {"write": bool, "commands": [ids of rules on its conversation's allow list],
-    #  "agents": 0-4}. Which of those rules count is read off that list each time
-    # (`app.commands.ticked`): a rule taken off it is gone from here too.
-    permissions: Mapped[dict] = mapped_column(JSON)
-    # {"steps": a turn's model steps, "minutes": its length, "per_day": turns in a day}
-    budget: Mapped[dict] = mapped_column(JSON)
-    # Run once when KOLONİ starts if a due time passed while it was off.
-    catch_up: Mapped[bool] = mapped_column(Boolean, default=True)
-    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Turns that failed one after another; at three the trigger is switched off, and
-    # `off_because` says why. Both are cleared when the user switches it on again.
-    failures: Mapped[int] = mapped_column(Integer, default=0)
-    off_because: Mapped[str | None] = mapped_column(Text, default=None)
-    last_run_at: Mapped[datetime | None] = mapped_column(default=None)
-    last_result: Mapped[str | None] = mapped_column(String(16), default=None)
-    # A schedule: the moment its times are counted from, and the next one. None until
-    # the scheduler has looked at it once.
-    anchor_at: Mapped[datetime | None] = mapped_column(default=None)
-    next_at: Mapped[datetime | None] = mapped_column(default=None)
-    # A webhook: the SHA-256 of its key. The key itself is shown once and kept nowhere.
-    key_hash: Mapped[str | None] = mapped_column(String(64), default=None)
-    # How its agent ended its last unattended turn, in the agent's words (cut to a size).
-    last_words: Mapped[str | None] = mapped_column(Text, default=None)
-    # When it ends by itself (K-tetik-bitis): {"until": "YYYY-MM-DD"}, the last local day it
-    # runs on, or {"runs": N}; None: it runs until it is switched off. `ran`: the turns it
-    # started since its end was set (or it was switched on again).
-    ends: Mapped[dict | None] = mapped_column(JSON, default=None)
-    ran: Mapped[int] = mapped_column(Integer, default=0)
-    # A schedule whose project's repository stands as it did when its last completed turn
-    # started is skipped (K-tetik-degismedi): that key (`app.triggers.job_key`), unless
-    # `run_unchanged` says to run even so.
-    last_key: Mapped[str | None] = mapped_column(String(64), default=None)
-    run_unchanged: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Its last runs in a row that found nothing (93-B2, `app.triggers.slowed`): from three on,
-    # its times are spaced out. Back to 0 when one finds something or the user touches it.
-    idle: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    created_at: Mapped[datetime] = mapped_column(default=now)
-    # When it was last made, changed or switched (the newest of its `TriggerChange`s).
-    updated_at: Mapped[datetime] = mapped_column(default=now)
-
-
-class TriggerProposal(Base):
-    """A trigger an agent proposed (slice 69, `propose_trigger`): on a card in its chat until
-    the user approves it, makes it their own in the form, or rejects it. Only the user's word
-    on the app's own page makes the trigger - with the safest leave, whatever was proposed."""
-
-    __tablename__ = "trigger_proposals"
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True)
-    run_id: Mapped[str] = mapped_column(String(32))
-    name: Mapped[str] = mapped_column(String(80))
-    kind: Mapped[str] = mapped_column(String(8))  # "schedule" | "files": never a webhook
-    config: Mapped[dict] = mapped_column(JSON)
-    message: Mapped[str] = mapped_column(Text)
-    ends: Mapped[dict] = mapped_column(JSON)
-    # "proposed" | "approved" | "rejected"; approved: the trigger it became.
-    status: Mapped[str] = mapped_column(String(10), default="proposed")
-    trigger_id: Mapped[str | None] = mapped_column(String(32), default=None)
-    created_at: Mapped[datetime] = mapped_column(default=now)
-
-
-class TriggerChange(Base):
-    """One thing that was done to a trigger: made, changed, switched, deleted. A trigger
-    is a standing leave to act with nobody watching, so this stays - also after the
-    trigger itself is gone, which is why it names the trigger without belonging to it."""
-
-    __tablename__ = "trigger_changes"
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    project_id: Mapped[str] = mapped_column(String(32), index=True)
-    trigger_id: Mapped[str] = mapped_column(String(32), index=True)
-    # The trigger's name at that moment.
-    name: Mapped[str] = mapped_column(String(80))
-    at: Mapped[datetime] = mapped_column(default=now)
-    # "created" | "renamed" | "message changed" | "settings changed" |
-    # "permissions changed" | "budget changed" | "switched on" | "switched off" | "deleted"
-    what: Mapped[str] = mapped_column(String(24))
-    # How it stands after the change, in words (what it may do now; why it was
-    # switched off); None where `what` says it all.
-    detail: Mapped[str | None] = mapped_column(Text, default=None)
-
-
-class TriggerRun(Base):
-    """One time a trigger came due: the turn it started, or why it started none."""
-
-    __tablename__ = "trigger_runs"
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    trigger_id: Mapped[str] = mapped_column(ForeignKey("triggers.id"), index=True)
-    run_id: Mapped[str | None] = mapped_column(String(32), default=None)
-    at: Mapped[datetime] = mapped_column(default=now)
-    # "completed" | "failed" | "budget" | "stopped" | "skipped_busy" | "skipped_budget" |
-    # "skipped_month" (the project was over this month's budget), "skipped_limit" (its
-    # Lead's provider was over its limit of spend, 81c), "skipped_same" (nothing changed
-    # since its last completed turn, K-tetik-degismedi); None while it runs.
-    outcome: Mapped[str | None] = mapped_column(String(16), default=None)
-    # Started after its time: KOLONİ was off, or asleep, when it came due.
-    late: Mapped[bool] = mapped_column(Boolean, default=False)
-    note: Mapped[str | None] = mapped_column(Text, default=None)
-
-
 class Price(Base):
     """What the user says a model costs, for a million tokens sent and a million written.
     KOLONİ knows no price of its own: money is shown only from these."""
@@ -1805,7 +1642,7 @@ class LimitReading(Base):
 
 
 class Flag(Base):
-    """A switch of the whole app that outlives a restart ("triggers_paused"), or one of its
+    """A switch of the whole app that outlives a restart, or one of its
     settings (Gemini's voice: its key, which no answer carries, model and voice; app.api.voice)."""
 
     __tablename__ = "flags"
@@ -1946,18 +1783,3 @@ class AwayRun(Base):
     # What its chat had spent at Go away: not counted to its money (`app.away.spent`).
     spent_before: Mapped[float | None] = mapped_column(Float, default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
-
-
-class Embedding(Base):
-    """A vector of a memory record's words, or of what was said in an earlier turn (22c,
-    `app.meaning`): what a search by meaning compares the question's vector with. `kind`
-    "memory" with the record's id, or "turn" with the `said_in_turns` row's rowid; `model`
-    is the name the vector was asked under, and in the key: vectors of different models do
-    not compare, and two projects that embed with different models each keep their own."""
-
-    __tablename__ = "embeddings"
-    kind: Mapped[str] = mapped_column(String(8), primary_key=True)
-    record_id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    project_id: Mapped[str] = mapped_column(String(32), index=True)
-    model: Mapped[str] = mapped_column(String(200), primary_key=True)
-    vector: Mapped[list] = mapped_column(JSON)

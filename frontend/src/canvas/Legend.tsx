@@ -28,7 +28,7 @@ const LINES: [dash: string | undefined, colour: string, width: number, what: str
     DASH.talk,
     'var(--member-line)',
     1.5,
-    'A member’s line to its discussion or room: with no team, from the members under it round the right of their column and in at its side, with an arrow; between teams, from its frame to the lane',
+    'A member’s line to its discussion: with no team, from the members under it round the right of their column and in at its side, with an arrow; between teams, from its frame to the lane',
   ],
   [
     undefined,

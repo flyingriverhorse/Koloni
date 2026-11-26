@@ -123,17 +123,14 @@ async function walk(page: Page, theme: 'light' | 'dark') {
   await snap('3-project-settings')
   await page.getByRole('button', { name: 'Close settings' }).click()
 
-  // 7: how a state reads in the chat, in the turn list, on the canvas - and on the Board.
+  // 7: how a state reads in the chat, in the turn list and on the canvas.
   await say(page, 'review the greeting', 'The reviewer found no problems.')
   await settled(page)
   await snap('7-status-canvas')
   await page.getByLabel('Message').fill('edit the greeting')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect((await openTurns(page)).locator('.turn-row').getByText('waits for you')).toBeVisible({ timeout: 20_000 })
-  await rail(page, 'Board').click()
-  await expect(page.getByRole('listitem').filter({ hasText: 'waits for you' }).first()).toBeVisible()
-  await snap('7-status-board')
-  await rail(page, 'Canvas').click()
+  await page.keyboard.press('Escape')
   await chat.getByRole('button', { name: 'Reject' }).click()
   await expect(chat.getByText('Okay, I left hello.py unchanged.')).toBeVisible({ timeout: 20_000 })
 
@@ -348,8 +345,8 @@ test('a turn of two nodes opens closer and whole; an agent’s header and a role
         .evaluate(element => (element as HTMLElement).offsetHeight),
     ).toBe(80)
 
-    // 7. A state is said by one label - a dot and its word, in one face and size - in the chat, the turn list,
-    // on the canvas and on the Board.
+    // 7. A state is said by one label - a dot and its word, in one face and size - in the chat, the turn list
+    // and on the canvas.
     await say(page, 'review the greeting', 'The reviewer found no problems.')
     const inChat = chat.getByRole('button', { name: /^Reviewer Review hello\.py/ }).locator('.status')
     await openTurns(page)
@@ -372,11 +369,7 @@ test('a turn of two nodes opens closer and whole; an agent’s header and a role
     await page.getByRole('button', { name: 'Send' }).click()
     await openTurns(page)
     await expect(list.locator('.turn-row').getByText('waits for you')).toBeVisible({ timeout: 20_000 })
-    await rail(page, 'Board').click()
-    const onBoard = page.locator('.board-agent .status').filter({ hasText: 'waits for you' }).first()
-    await expect(onBoard).toBeVisible()
-    expect(await look(onBoard)).toEqual(drawn)
-    await rail(page, 'Canvas').click()
+    await page.keyboard.press('Escape')
     await chat.getByRole('button', { name: 'Reject' }).click()
     await expect(chat.getByText('Okay, I left hello.py unchanged.')).toBeVisible({ timeout: 20_000 })
 
@@ -508,7 +501,7 @@ for (const theme of ['light', 'dark'] as const)
         await expect(panel).toHaveCount(0)
       }
 
-      // The canvas: an agent's header; the turn list; the chat's rows; the Board.
+      // The canvas: an agent's header; the turn list; the chat's rows.
       await say(page, 'hello, everything at once', 'Hello! Ask me to read or change a file.')
       await say(page, 'review the greeting', 'The reviewer found no problems.')
       const heads = await check(page.locator('.react-flow__node-agent .node-head').first(), 2)
@@ -532,15 +525,6 @@ for (const theme of ['light', 'dark'] as const)
       await expect(chat.getByText('1 waits for you')).toBeVisible()
       await check(chat, 4)
       await chat.getByRole('button', { name: /^Chat/ }).click()
-      await rail(page, 'Board').click()
-      await expect(page.locator('.board-agent .status').filter({ hasText: 'waits for you' }).first()).toBeVisible()
-      // Its one line to Ready for you says so too (tek-ev §2), and at 1024 px the page does not scroll sideways.
-      await expect(page.locator('.ready-line')).toContainText(/^\d+ things? waits? for you/)
-      await check(page.locator('.memory-page'), 8)
-      await page.setViewportSize({ width: 1024, height: 900 })
-      expect(await page.locator('.memory-page').evaluate(sideways)).toBe(false)
-      await page.setViewportSize({ width: 1440, height: 900 })
-      await rail(page, 'Canvas').click()
       await chat.getByRole('button', { name: 'Reject' }).click()
       await expect(chat.getByText('Okay, I left hello.py unchanged.')).toBeVisible({ timeout: 20_000 })
       // (Workspace opened by itself on the change that waited; closed now)
@@ -637,11 +621,6 @@ for (const theme of ['light', 'dark'] as const)
       await page.getByRole('searchbox', { name: 'Find a tool' }).fill('contract')
       await expect(page.getByRole('table', { name: 'Tools of many' }).getByRole('row')).toHaveCount(19)
       await check(page.locator('.tools-page'), 60)
-      // The Triggers page with none yet: its line, its ⓘ, and where it says there is none (slice 38c).
-      await rail(page, 'Triggers').click()
-      await expect(page.locator('.trigger-empty').getByRole('button', { name: 'New trigger' })).toBeVisible()
-      // (Its how-it-works is behind the one ⓘ now, a piece of its own: fewer pieces than when it had two paragraphs.)
-      await check(page.locator('.triggers-page'), 4)
       // The table pages and Memory (slice 38d): their line on top, what is folded, a table sorted; and none scrolls
       // sideways at 1024 px - Usage's tables scroll in a box of their own, a long conversation name is cut.
       const narrow = async (root: Locator) => {
@@ -699,7 +678,7 @@ test('as the browser itself reads it out: a box named by a note with a hint keep
   await expect(chat.getByRole('form', { name: 'Model for this conversation' })).toBeVisible()
   const [auto] = await readOut(page, /^Orchestrator model: automatic/)
   expect(auto.name).toMatch(
-    /^Orchestrator model: automatic One more request for each message you send: .* asked how hard it is\. It overrides .* does not use it\. The Orchestrator then runs .* else the model above\.$/,
+    /^Orchestrator model: automatic One more request for each message you send: .* asked how hard it is\. It overrides the Orchestrator role’s own model and tier\. The Orchestrator then runs .* else the model above\.$/,
   )
   expect(auto.name).not.toContain('About this')
   await page.keyboard.press('Escape')
@@ -722,7 +701,7 @@ test('as the browser itself reads it out: a box named by a note with a hint keep
   await expect(settings.getByLabel('At most this many agents at work in this project')).toBeVisible()
   await expect(settings.locator('.hint-bubble', { hasText: /waits for a slot/ })).toBeHidden()
   expect(await described()).toMatch(
-    /^Counted over all of this project’s conversations together\. When that many are at work, .* The Board shows who is at work\.$/,
+    /^Counted over all of this project’s conversations together\. When that many are at work, .* The Chats list shows which chats are at work\.$/,
   )
   expect(await described()).not.toContain('About this')
   // A note that warns of what a setting does not hold, or of what it runs, is not folded at all. (0.1.7: Test before

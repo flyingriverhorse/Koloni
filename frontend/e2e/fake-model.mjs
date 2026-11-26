@@ -4,7 +4,6 @@
 import http from 'node:http'
 import path from 'node:path'
 import { OUTSIDE_DIR, SKILL_DIR } from './paths.mjs'
-import { boxStl } from './models58.mjs'
 
 const PORT = Number(process.env.FAKE_MODEL_PORT || 8081)
 
@@ -129,58 +128,6 @@ const VIEWS = {
   Reviewer: 'I would keep hi.',
   Researcher: 'The file prints hi today.',
   Lead: 'Then we keep hi.',
-}
-
-// A member of a room the user opened (told so in its instructions). Before each of its steps
-// it is told how the room stands, so what it does next goes by what it has done so far. The
-// Coder puts its part on the list and takes it in the round before the work, reads the file,
-// cannot go on without the user (a "blocked" post: a question card), then closes its item.
-// The Reviewer adds nothing to the list, waits for a post, and is done.
-function roomStep(messages, tools) {
-  const made = messages.flatMap(m =>
-    m.role === 'assistant' ? (m.tool_calls ?? []).map(call => call.function.name) : [],
-  )
-  // The round in which the work is shared out offers the list and a word, nothing that closes an item.
-  const sharing = !tools.some(tool => tool.function?.name === 'finish_item')
-  const coder = String(messages[0].content).includes('Coder sub-agent')
-  // Slice 84e: a recipe's Room step - the Coder writes its file (in the recipe's copy), the Reviewer looks; both are done.
-  const met = /Meet 84e (\w+)/.exec(String(messages[1]?.content))
-  if (met) {
-    const file = `recipe84e-${met[1]}.txt`
-    if (!coder) return say(sharing ? 'Nothing to add to the list.' : 'Looked at it: fine.')
-    if (sharing)
-      return toolCalls([
-        ['c84e1', 'add_item', { title: 'Write the file', paths: [file] }],
-        ['c84e2', 'take_item', { item: 1 }],
-      ])
-    if (!made.includes('write_file')) return toolCall('c84e3', 'write_file', { path: file, content: 'met\n' })
-    if (!made.includes('finish_item')) return toolCall('c84e4', 'finish_item', { item: 1, result: `Wrote ${file}.` })
-    return say('My part is done.')
-  }
-  if (coder) {
-    if (sharing) {
-      return toolCalls([
-        ['c100', 'add_item', { title: 'Look at the greeting', paths: ['hello.py'] }],
-        ['c101', 'take_item', { item: 1 }],
-      ])
-    }
-    if (!made.includes('read_file')) return toolCall('c102', 'read_file', { path: 'hello.py' })
-    if (!made.includes('post_to_room'))
-      return toolCall('c103', 'post_to_room', { type: 'blocked', text: 'Shall the greeting stay hi?' })
-    // AC: a room told to change the greeting writes it in the room's copy - the room's changes, From you.
-    const change = /Change the greeting/.test(String(messages[1]?.content))
-    if (change && !made.includes('write_file'))
-      return toolCall('c106', 'write_file', { path: 'hello.py', content: "print('hi there')\n" })
-    if (!made.includes('finish_item'))
-      return toolCall('c104', 'finish_item', {
-        item: 1,
-        result: change ? 'hello.py now says hi there.\nRead it, changed it, ran it.' : 'It prints hi, and stays so.',
-      })
-    return say('My part is done.')
-  }
-  if (sharing) return say('Nothing to add to the list.')
-  if (!made.includes('wait_for_post')) return toolCall('c105', 'wait_for_post', {})
-  return say('Looked at it: fine.')
 }
 
 // A note handed over from the shared notebook reaches an agent as a user message. It is
@@ -487,7 +434,6 @@ function nextStep(all, tools = [], model = '') {
       return toolCall('c1', 'read_file', { path: 'hello.py' })
     return say('It prints hi.')
   }
-  if (String(messages[0].content).includes('You are in a room with')) return roomStep(messages, tools)
   // (Kanıtlı bitiş R3: a recipe's check that may run commands runs one first - one that ran none does not pass.)
   const ranFirst = (id, report) =>
     tools.some(tool => tool.function?.name === 'run_command') && !messages.some(m => m.tool_calls?.length)
@@ -532,24 +478,6 @@ function nextStep(all, tools = [], model = '') {
   if (String(messages[0].content).startsWith('You are asked one thing: to write a short guide')) {
     return say(
       '## What it offers\n- `pay(amount)` takes a payment: no card form of your own · docs-uzman/pay.md · official\n## Pitfalls\n- Amounts are in cents · docs-uzman/pay.md · official',
-    )
-  }
-  // K-oda-izle: let follow the room you opened, the Lead waits for what is said to it - your "End it, Lead." ends it.
-  if (messages.some(m => m.role === 'user' && m.content === 'Let the Lead follow it')) {
-    const said = String(last.content)
-    if (last.role === 'tool' && said.startsWith("The user opened a room for this turn's message"))
-      return say('The room is over: the Lead ended it.')
-    if (last.role === 'tool' && said.includes('"End it, Lead."'))
-      return toolCall('cizle2', 'end_room', { summary: 'The Lead ended it, as you asked.' })
-    if (said.includes('may let you follow it') || said.startsWith('The room you follow runs on'))
-      return toolCall(`cizle${messages.length}`, 'wait_for_room', {})
-  }
-  // The lead of a room's turn: it took no part, and is given the room's record when it is over.
-  if (last.role === 'user' && String(last.content).startsWith('The user opened a room')) {
-    return say(
-      String(last.content).includes('It prints hi, and stays so.')
-        ? 'The room is over: the greeting stays hi.'
-        : 'The room is over.',
     )
   }
   // Told what to answer, the lead answers that and nothing else (what is said in a turn is
@@ -840,33 +768,17 @@ function nextStep(all, tools = [], model = '') {
         ['c106c', 'offer_away', { kept_out: ['secret106'] }],
       ])
     }
-    // Slice 69: asked to keep an eye on the dependencies, the Lead proposes a trigger; nothing is made before Approve.
-    if (/check the dependencies on fridays, 69/i.test(last.content)) {
-      return toolCall('c690', 'propose_trigger', {
-        name: 'Dependencies, 69',
-        kind: 'schedule',
-        config: { at: '17:00', days: ['fri'] },
-        message: 'Look over the dependencies: which are not pinned, which are unused. Change nothing.',
-        ends: { runs: 10 },
-      })
-    }
     if (/keep the backlog/i.test(last.content))
       return toolCall('c520', 'add_task', { title: 'Add a farewell', criteria: 'prints bye', priority: 'low' })
     // Slice 46's /<role>: the task handed to a sub-agent in the role the user named.
     const handed = /^Ask a sub-agent in the (.+?) role to do this: (.+)$/s.exec(String(last.content))
     if (handed) return toolCall('c460', 'spawn_agent', { role: handed[1], task: handed[2] })
-    // A trigger's turn (first of all: what a trigger's message carries besides - the last
-    // words of its turn before - is not something asked). It wants to leave a file behind.
-    if (/\bnightly check\b/i.test(last.content))
-      return toolCall('c40', 'write_file', { path: 'made.txt', content: 'checked\n' })
     // K-dosya-grubu: three files at once, which the canvas draws as one card.
     if (/write three files, k-dosya-grubu/i.test(last.content)) {
       return toolCalls(
         ['a', 'b', 'c'].map(name => [`cdg${name}`, 'write_file', { path: `dg-${name}.txt`, content: `${name}\n` }]),
       )
     }
-    // Another trigger's turn wants to run a command.
-    if (/\bnightly run\b/i.test(last.content)) return toolCall('c41', 'run_command', { command: 'python check.py' })
     // Slice 56: a file of its own, so the spec's one change is a change whatever ran before it.
     if (/make the day page of slice 56/i.test(last.content))
       return toolCall('c561', 'write_file', { path: 'day56.html', content: viewPage('day') })
@@ -899,12 +811,6 @@ function nextStep(all, tools = [], model = '') {
     if (/show the game/i.test(last.content)) return toolCall('c423', 'show', { path: 'game42/index.html' })
     if (/start the site/i.test(last.content))
       return toolCall('c421', 'run_command', { command: 'python -u serve42.py', keep_running: true })
-    // Slice 58: a 3D part written, and one a command made shown.
-    if (/make the part/i.test(last.content))
-      return toolCall('c581', 'write_file', { path: 'part58.stl', content: boxStl(10, 20, 30) })
-    if (/show the glb/i.test(last.content))
-      return toolCall('c582', 'show', { path: 'part58.glb', note: 'the part, as glTF' })
-    if (/show the big stl/i.test(last.content)) return toolCall('c583', 'show', { path: 'big341.stl' })
     if (/make a moving page/i.test(last.content))
       return toolCall('c394', 'write_file', { path: 'move39.html', content: movingPage })
     // One Coder on a file the user changes meanwhile, on the same line.
@@ -957,9 +863,6 @@ function nextStep(all, tools = [], model = '') {
     const waitsFor = /make it by the recipe, kb (\w+)/i.exec(last.content)
     if (waitsFor)
       return toolCall('ckb0', 'spawn_agent', { role: 'Coder', task: `Ask, run and write bekleyen-${waitsFor[1]}.txt` })
-    // Slice 84e: a recipe's Room step - the Lead opens the room with the step's roles.
-    const meet84 = /meet by the recipe, 84e (\w+)/i.exec(last.content)
-    if (meet84) return toolCall('c84e', 'open_room', { goal: `Meet 84e ${meet84[1]}`, with: ['Coder', 'Reviewer'] })
     // Slice 48: the Lead writes the file where it is given write_file, and hands it to a Coder where not.
     if (/make farewell/i.test(last.content)) {
       return tools.some(tool => tool.function?.name === 'write_file')
@@ -1155,14 +1058,6 @@ function nextStep(all, tools = [], model = '') {
   if (/write the checked file, k-kanit/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
     return say(result.startsWith('applied') ? 'Wrote kanit.py.' : `kanit.py was not written: ${result}`)
   }
-  // The trigger's turn: refused for want of somebody to ask, it says so and goes on; allowed, it reports.
-  if (/\bnightly check\b/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
-    return say(
-      result.includes('nobody is here to ask')
-        ? 'I could not write made.txt: I would have asked you first.'
-        : 'Wrote made.txt.',
-    )
-  }
   if (/\bnightly run\b/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
     if (result.includes('nobody is here to ask'))
       return say('I could not run python check.py: I would have asked you first.')
@@ -1245,8 +1140,6 @@ function nextStep(all, tools = [], model = '') {
   }
   if (result.startsWith('Coder finished') && result.includes('The user took the work in'))
     return say('The recipe is done and in the project.')
-  if (result.startsWith('You opened a room') && result.includes('The user took the work in'))
-    return say('The meeting is done and in the project.')
   if (result.startsWith('Reviewer finished') && result.includes('Findings to hand on: Coder (1)')) {
     return toolCall('c841', 'spawn_agent', {
       role: 'Coder',
@@ -1259,8 +1152,6 @@ function nextStep(all, tools = [], model = '') {
   if (result.startsWith('proposed task')) return say('Proposed a task for your backlog.')
   if (result.startsWith('A line under your answer offers'))
     return say('Two tasks are on your To-do: press Go away when you go.')
-  if (result.startsWith('proposed: the user sees the trigger'))
-    return say('The trigger is on a card: approve it if you want it.')
   if (result.startsWith('Coder finished'))
     return say(result.includes('goodbye') ? 'The coder changed it: it says goodbye.' : 'The coder added a farewell.')
   if (result.startsWith('The user answered: ')) return say('Going with ' + result.slice(19) + '.')

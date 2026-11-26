@@ -18,6 +18,94 @@ put one back in place of `runtime/data/koloni.db`.
 
 Only what needs your attention after an update; everything else is in the [Changelog](../changelog.md).
 
+### 0.1.10
+
+- **Native is experimental.** Claude Code, Codex and Copilot offer **Native** under **Experimental**
+  in **How it runs** only with **Show experimental features** on (Settings › The app › Agents; the switch
+  that was **Show experimental CLIs**, kept as you had it). A provider you already run Native keeps working
+  as before, its card tagged **Experimental**. Nothing in the database changes.
+- **Pages and A test for the change are off unless ticked.** In Settings › This project › Checks
+  and git › **Check by kind of work**, a project that never changed **Pages** has it off from now
+  on, and **A test for the change** is a new box, off. A turn that wrote a page says "Not checked:
+  pages switched off for this project", and one that changed code and no test says "Not checked: a
+  test for the change switched off for this project". Tick them to have them as before (see
+  [What KOLONİ checked](../use/checked.md#a-test-for-the-change)). Nothing in the database changes.
+- **The Board page is gone.** How each chat stands is on the **Chats** list, what waits for you on
+  **Ready for you**, and a file two chats want still shows above both of them. Its **Re-run the ones
+  that failed** button went with it: ask the chat's Orchestrator to open those sub-agents again. Nothing
+  in the database changes.
+- **To-do has no goal level.** Your stories stand at the top of the tree, those a goal held too; a
+  story's **⋯** no longer offers **Goal**, and the Hive keeper writes a note as stories and tasks only.
+  Your goals are not deleted: they stay in the database, and nothing in it changes.
+- **Three ready teams.** At the first start the database is upgraded (migration 0194), after KOLONİ
+  copies it to `runtime/data/backups/`: of the ready teams only **Web app**, **Quality** and **Docs**
+  stay as they were. Backend / API, Data, DevOps, Research, Product, Maintenance, ML and DataOps go
+  where they are as they came, with their stages and coordinators; one you changed or use (picked in a
+  chat in **Manual**, kept for a project's new chats, named by a recipe's step) stays as your own team.
+  Every role and recipe stays. Fourteen built-in roles are now in no ready team (Architect, Database
+  engineer, Performance engineer, Data analyst, Researcher, DevOps, Dependency keeper, Hive keeper,
+  Scout, Data scientist, ML engineer, Model evaluator, MLOps engineer and Data engineer). The
+  Orchestrator still opens them where the work needs one: with **Orchestrator decides** the teams it
+  picks are where it starts, not a fence, and any built-in role opens beside them (not while a recipe's
+  step holds it to its roles). In **Manual** it reaches one only when you name it, a recipe's step names
+  it, or you put it in one of the chat's teams
+  ([Which roles the Orchestrator opens](../agents/teams.md#which-roles-the-orchestrator-opens)).
+  Going back to 0.1.9 does not bring the eight teams back: only that copy
+  does - stop KOLONİ, return to 0.1.9 and put the copy back in place of `runtime/data/koloni.db`.
+- **The Word, Excel, PowerPoint and 3D model previews are gone.** Such a file is still in the
+  Workspace's files and opens there as any other file that is not a page or a picture: its text where
+  it is text of 256 KB at most (an OBJ, a text STL, a glTF), else "Not text: there is no code to show."
+  or "Too large to show: over 256 KB."; one only in an agent's working copy so far says "It could not
+  be read." until its work is taken in. Open it in its own program from the project's folder. A Word, Excel or PowerPoint file an agent made is still listed among its outputs on the
+  canvas and still checked; a 3D model is no longer an output, and an agent can no longer `show` one.
+  Nothing in the database changes.
+- **The Observer is gone.** At the first start the database is upgraded (migration 0190), after KOLONİ
+  copies it to `runtime/data/backups/`: the built-in Observer role, the switch **Have a model look over
+  each sub-agent's report** and the observations kept on agents are deleted, and an agent's window no
+  longer shows one. What the Orchestrator was told then stays in its chat. A role of your own named
+  "Observer" stays as it is. What a sub-agent's record shows is in **Checked** and **No file changed**
+  (see [What KOLONİ checked](../use/checked.md)). To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and
+  put that copy back in place of `runtime/data/koloni.db`.
+- **Triggers are gone.** At the first start the database is upgraded (migration 0189), after KOLONİ
+  copies it to `runtime/data/backups/`: your triggers, their runs, their record and the triggers agents
+  proposed are deleted, and **Propose triggers** is taken off every role, your own too. The turns triggers
+  started stay in their chats as they were. What still starts by itself: ☾ Away's jobs, a chat's queue of
+  To-do tasks and the day's summary. To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and put that
+  copy back in place of `runtime/data/koloni.db`; your triggers come back with it.
+- **Codex's One run per model step is gone.** A Codex provider saved so runs as **One session per agent**,
+  and its window shows that. On a model server of your own a Codex session is not yet measured: try it
+  there knowing that, or set **How it runs** to **Native**. See
+  [Set up a CLI](../models/setup-cli.md#how-it-runs).
+- **The notification address is gone.** The database upgrade deletes a project's web hook address and
+  the form it was posted in: notifications go to the desktop alone (Settings › This project ›
+  Notifications › **Show a desktop notification**, Windows only). A project whose day's summary went
+  only to the address has its summary's time emptied: switch the desktop on and set the time again.
+  Going back to 0.1.9 brings neither back. The copies in `runtime/data/backups/` made before the
+  upgrade and at the first start of a day still hold the address: delete them once you no longer
+  need them if it is a secret.
+- **The search by meaning is gone.** The database upgrade deletes the vectors it kept and the provider
+  and model a project chose for it. Search deeper and an agent's recall match words, as before. Going
+  back to 0.1.9 brings the setting back off.
+- **Rooms are gone.** At the first start the database is upgraded (migration 0193), after KOLONİ copies
+  it to `runtime/data/backups/`: `open_room` is taken off every role, your own too; what a room may
+  spend is taken off every project and chat; each Room step of your saved recipes becomes an **All at
+  once** group in its place, a step for each of its roles (its arrows and loops kept); a room left
+  running is ended; and each turn that had a room gets one line in its chat, "A room was opened here.
+  Rooms were removed in 0.1.10 …". The steps of a converted group are named "<the step's name> ·
+  <role>". The rooms themselves and what was said in them stay in the database,
+  untouched. A recipe file in a folder's `.koloni/recipes/` is read the same way as it loads, and is
+  written in the new form the next time you save it. In a Room step that reviewed, a role that does the
+  recipe's work at a step of its own works in the group and the others review - where every role does,
+  all of them keep reviewing and the recipe says which "would check its own work": take that role out.
+  A Room step that ran only if a problem was found now always runs. A saved recipe that no longer reads
+  (a Room step near the 60-step limit, as a group past it) is listed under the recipes that are not
+  read, with why. A room between teams no longer leaves its decision on the notebook or in
+  `.koloni/shared/decisions/`; the files there stay readable, and teams agree through `contracts/`.
+  For agents talking a question through, ask for a [discussion](../agents/discussions.md); for
+  work at the same time, sub-agents or a recipe's **All at once** step. To go back to 0.1.9, stop
+  KOLONİ, return to 0.1.9 and put that copy back in place of `runtime/data/koloni.db` - a downgrade of
+  the database alone gives the room budgets back at their defaults, not the values you had.
+
 ### 0.1.8
 
 - **The database** is upgraded at the first start (migrations 0176 to 0182), after KOLONİ copies it to

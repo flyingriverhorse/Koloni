@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Discussion, Merge, Room, Team, WebRequest } from '../api/types'
+import type { Discussion, Merge, Team, WebRequest } from '../api/types'
 import { agent, assistantMessage, command, convState, fileChange, question, run, toolCall } from '../test-fixtures'
 import { place, timeline, took } from './timeline'
 
@@ -238,9 +238,8 @@ test('a wait that never happened is not drawn: a change the CLI made, one approv
   expect([kept.atWork, kept.lanes[0].waits.at(-1)?.to]).toEqual([true, ms(90)])
 })
 
-test('marks: a failure, a stop, a limit reached, and a discussion or a room opened and ended', () => {
+test('marks: a failure, a stop, a limit reached, and a discussion started and ended', () => {
   const talk = { id: 'd', run_id: 'r', agent_id: 'lead', created_at: T(10), ended_at: T(20) } as Discussion
-  const room = { id: 'o', run_id: 'r', agent_id: null, created_at: T(5), ended_at: null } as Room
   const state = convState({
     runs: [run('r', 'failed', { started_at: T(0), ended_at: T(60), error: 'budget: 15 model steps used' })],
     agents: [
@@ -256,7 +255,6 @@ test('marks: a failure, a stop, a limit reached, and a discussion or a room open
       }),
     ],
     discussions: [talk],
-    rooms: [room],
   })
   const line = timeline(state, 'r', ms(90))!
   const said = (marks: { at: number; what: string }[]) => marks.map(m => [m.what, (m.at - ms(0)) / 1000])
@@ -267,10 +265,7 @@ test('marks: a failure, a stop, a limit reached, and a discussion or a room open
   ])
   expect(said(line.lanes[1].marks)).toEqual([['stopped', 30]])
   expect(said(line.lanes[2].marks)).toEqual([['limit reached', 40]])
-  expect(said(line.marks)).toEqual([
-    ['room opened', 5],
-    ['limit reached', 60],
-  ])
+  expect(said(line.marks)).toEqual([['limit reached', 60]])
 })
 
 test('a place on the line is a share of the turn; a turn of no length puts everything at its start', () => {

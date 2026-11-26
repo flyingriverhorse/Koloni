@@ -11,7 +11,6 @@ from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import OWN
 from tests.test_claim_scenarios import write
 from tests.test_spawn import begin, call, names, role_id, spawn, step
-from tests.test_trigger_scenarios import run_now, trigger
 
 FIXER = (
     "Fixed both.\n\n- the total skipped the tax | fixed: added it\n"
@@ -120,41 +119,6 @@ def test_not_now_writes_nothing_and_the_next_turn_offers_nothing_again(
     ).json()["run"]["id"]
     snap = wait_run(client, cid, again)
     assert [one["status"] for one in snap["notes_offers"]] == ["discarded"]
-
-
-def test_a_turn_nobody_watches_only_adds_to_the_offer_the_next_watched_turn_shows(
-    make_client, wait_run, project_dir
-):
-    client, _model = make_client(
-        {
-            "Lead": [spawn("Coder", "fix it", "s1"), text("done"), text("hello")],
-            "Coder": [text("Done.\n\n- the parser crashed on empty input | fixed: guarded it")],
-        }
-    )
-    client.headers["Origin"] = OWN["Origin"]
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(client, pid, cid, permissions={"agents": 1})
-    run_id = run_now(client, made["id"])
-    snap = wait_run(client, cid, run_id, timeout=15)
-    assert next(r for r in snap["runs"] if r["id"] == run_id)["status"] == "completed"
-    assert snap["notes_offers"] == []  # (no card in the trigger's chat)
-    # On record, for no chat yet: it outlives the app's memory.
-    with client.app.state.session_factory() as session:
-        (kept,) = session.query(NotesOffer).all()
-        assert (kept.status, kept.conversation_id) == ("waiting", None)
-    # The user's next turn in the project - another chat, with nothing of its own - shows it.
-    other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    watched = client.post(f"/api/conversations/{other}/messages", json={"content": "hi"}).json()[
-        "run"
-    ]["id"]
-    (offer,) = wait_run(client, other, watched)["notes_offers"]
-    assert offer["run_id"] == watched
-    assert offer["lines"] == [
-        "Coder's report (its words): the parser crashed on empty input - fixed: guarded it"
-    ]
-    assert _say(client, offer, offer["lines"]).status_code == 200
-    assert (project_dir / NOTES / "pages" / "0001.md").exists()
 
 
 def test_what_an_agent_wrote_is_framed_and_noted_where_it_reads_like_orders(client, project_dir):

@@ -12,14 +12,13 @@ import { modelName } from '../shell/modelName'
 
 /**
  * What stands in the way of a role's agent where it runs now, in the server's words (`/roles/models`, B-89): as any
- * agent, and - asked for - as a recipe's step or a room's member. Said before a run, where it was only said in one.
+ * agent, and - asked for - as a recipe's step. Said before a run, where it was only said in one.
  */
-export function cannotOf(row: RoleModel | undefined, ...as: ('step' | 'room')[]): string[] {
+export function cannotOf(row: RoleModel | undefined, ...as: 'step'[]): string[] {
   if (!row) return []
   return [
     row.cannot_run && `It would not run there now: ${row.cannot_run}`,
     as.includes('step') && row.cannot_step && `Not as a recipe’s step: ${row.cannot_step}`,
-    as.includes('room') && row.cannot_room && `Not in a room: ${row.cannot_room}`,
   ].filter((said): said is string => !!said)
 }
 
@@ -63,10 +62,10 @@ export const FROM_LIBRARY = 'library'
 export const draggedRole = (event: DragEvent) => event.dataTransfer.getData('text/plain').split(' ')
 
 const isBuiltin = (role: Role, name: string) => role.builtin && role.name === name
-/** The roles drawn under the Lead: all but the Lead itself (the Observer too: KOLONİ asks it, and its model is set here). */
+/** The roles drawn under the Lead: all but the Lead itself. */
 export const drawn = (roles: Role[]) => roles.filter(role => !isBuiltin(role, 'Lead'))
-/** The Lead, the Planner and the Observer are always there: no switch. */
-export const canSwitch = (role: Role) => !role.builtin || !['Lead', 'Planner', 'Observer'].includes(role.name)
+/** The Lead and the Planner are always there: no switch. */
+export const canSwitch = (role: Role) => !role.builtin || !['Lead', 'Planner'].includes(role.name)
 /** Karar 5: a core role (one with tools it keeps) has no switch either - but a team's door still holds it back, so `inUse` keeps `canSwitch`. */
 export const hasSwitch = (role: Role) => canSwitch(role) && !role.locked_tools?.length
 

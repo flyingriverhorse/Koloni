@@ -368,15 +368,6 @@ def story_named(session: Session, project_id: str, title: str) -> Story | None:
     return _the_one(list(session.scalars(query.order_by(Story.position))), title, "stories")
 
 
-def goal_named(session: Session, project_id: str, title: str) -> Goal | None:
-    """The project's goal of this title, whatever its case (`_the_one`); None if it has none.
-    Refused for a name of what nobody sees: never one such goal an older store held (S1)."""
-    if not name_key(title):
-        raise Refused(NO_GOAL_NAME)
-    query = select(Goal).where(Goal.project_id == project_id).order_by(Goal.position)
-    return _the_one(list(session.scalars(query)), title, "goals")
-
-
 def story_of(session: Session, story_id: str | None, project_id: str | None) -> Story | None:
     """The story of this id where it is one of the project's; None else (a story's id on a
     task or a topic is no key: it may be gone, or another project's)."""

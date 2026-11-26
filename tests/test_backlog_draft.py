@@ -196,7 +196,7 @@ def test_the_po_draft_asks_the_model_of_the_chat_it_is_opened_from(team, project
 T = {"title": "Send the mail", "detail": "d", "criteria": "c", "priority": "high"}
 
 
-def test_a_note_is_drafted_as_a_goal_stories_and_tasks():
+def test_a_note_is_drafted_as_stories_and_tasks_and_a_goal_named_is_not_taken():
     d = backlog.drafted(
         json.dumps(
             {
@@ -206,7 +206,8 @@ def test_a_note_is_drafted_as_a_goal_stories_and_tasks():
             }
         )
     )
-    assert d["goal"] == "Login" and [s["title"] for s in d["stories"]] == ["Reset"]
+    # (0.1.10: To-do's goal level is hidden - a goal the model names is left out)
+    assert d["goal"] is None and [s["title"] for s in d["stories"]] == ["Reset"]
     assert d["stories"][0]["tasks"][0]["kind"] == "task" and len(d["tasks"]) == 1
     assert d["tasks"][0]["kind"] == "bug"
     # (a note that is no text is left out; a long one is cut)
@@ -243,7 +244,7 @@ def test_the_draft_is_cut_to_its_caps():
     assert len(d["stories"]) == backlog.DRAFT_STORIES == 4
     # (the stories' tasks are counted first: 4 x 3 is all there is room for)
     assert sum(len(s["tasks"]) for s in d["stories"]) + len(d["tasks"]) == backlog.DRAFT_MOST == 12
-    assert d["tasks"] == [] and len(d["goal"]) == 200
+    assert d["tasks"] == [] and d["goal"] is None
 
 
 TREE = {

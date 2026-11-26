@@ -118,7 +118,7 @@ test('the badge on the Ready button (tek-ev §1) counts what waits, goes with a 
   const { rerender } = render(<Rail {...props} waiting={waitingTotal(asking)} />)
   // its name stays the page's; the count is its description
   const button = screen.getByRole('button', { name: 'Ready' })
-  expect(screen.getByRole('button', { name: 'Board' })).not.toHaveAttribute('aria-describedby')
+  expect(screen.getByRole('button', { name: 'To-do' })).not.toHaveAttribute('aria-describedby')
   expect(button).toHaveAccessibleDescription('2 waiting')
   expect(within(button).getByText('2')).toHaveClass('tag-warn')
   // a fake approval more, then the decisions
@@ -175,7 +175,7 @@ test('a turn that ends elsewhere says so; nothing is said of the conversation on
 })
 
 test('a turn that ends as the one queued after it starts is told too (K-38f2)', () => {
-  // (the queued turn is the last one on the Board from the moment it is sent)
+  // (the queued turn is its chat's turn in the board reading from the moment it is sent)
   const queued = boardOf(talk('a', 'Docs', { turn: boardTurn('r2', 'queued', null) }))
   const { rerender, container } = render(<Toasts board={queued} shownId={null} onOpen={() => {}} />)
   const started = boardOf(talk('a', 'Docs', { turn: boardTurn('r2', 'running', null, { started_at: 't' }) }))

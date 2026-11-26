@@ -357,13 +357,9 @@ def test_only_a_lead_working_alone_is_started_again(cli_chat):
     runner = turn.client.app.state.runner
     ctx = SimpleNamespace(run_id=lead["run_id"], agent_id=lead["id"])
     assert runner._alone(ctx) is True
-    for held in (runner._rooms, runner._recipe_copy):  # (a room of the turn; a recipe's row)
-        held[ctx.run_id] = object()
-        assert runner._alone(ctx) is False
-        del held[ctx.run_id]
-    runner._following[ctx.agent_id] = object()  # (a room it follows)
+    runner._recipe_copy[ctx.run_id] = "x"  # (a recipe's row)
     assert runner._alone(ctx) is False
-    del runner._following[ctx.agent_id]
+    del runner._recipe_copy[ctx.run_id]
     # (Any other agent of the turn: a sub-agent, at work or back.)
     assert runner._alone(SimpleNamespace(run_id=ctx.run_id, agent_id="another")) is False
 

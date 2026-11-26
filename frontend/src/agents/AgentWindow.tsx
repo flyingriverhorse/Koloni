@@ -25,7 +25,6 @@ import {
 import { stepsOf } from './AgentSteps'
 import { EarlierWork } from './EarlierWork'
 import { STEP_MARK } from './livePlan'
-import { Observation } from './Observation'
 import { SpawnRow } from './SpawnRow'
 import { Story } from './Story'
 
@@ -104,7 +103,6 @@ export function AgentStory({
       <HowItRuns state={state} agent={agent} />
       <h3 className="agent-h">Report</h3>
       <Report state={state} agent={agent} />
-      <Observation agent={agent} />
       <KeyNumbers state={state} agent={agent} />
       <h3 className="agent-h">What it did</h3>
       <LivePlan state={state} agent={agent} />

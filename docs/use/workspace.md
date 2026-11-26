@@ -44,8 +44,7 @@ runs in its copy is asked at every level, Full auto too, when it:
 - names another agent's copy, a worktree of your project, or a place above its copy (`../..`) - also
   past a `cd` KOLONİ cannot follow, where any `..` counts;
 - writes in the linked `node_modules`, `.venv` or `venv`, which are your project's own, or installs
-  into them (in a turn you watch; a trigger's turn runs only the commands its trigger allows, as
-  before);
+  into them (in a turn you watch);
 - stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`), or looks a
   process up and stops it (`lsof -ti:8000 | xargs kill`, `fuser -k`). By its id (`taskkill /PID`,
   `kill 1234`, `Stop-Process -Id 1234`), or one the line itself started (`kill $!`), is fine. In

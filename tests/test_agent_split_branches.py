@@ -16,10 +16,6 @@ from tests.test_knowledge_page import expert
 from tests.test_mcp_scenarios import LONG, ORIGIN, calls, events, give, server
 from tests.test_native_agent import native_app  # noqa: F401
 from tests.test_native_agent import start as start_native
-from tests.test_room_open_scenarios import begin as room_begin
-from tests.test_room_open_scenarios import open_room
-from tests.test_room_scenarios import LONG as ROOM_LONG
-from tests.test_room_scenarios import wait
 from tests.test_skill_scenarios import SKILL_MD
 from tests.test_skills import folder_of
 from tests.test_spawn import begin, call, spawn, step
@@ -81,32 +77,6 @@ def test_a_skill_for_a_role_that_is_not_there_or_a_teams_lead_is_refused_before_
         "give, on the Agents page",
     ), said
     assert snap["pending_skills"] == []
-
-
-def test_an_invitation_whose_role_or_why_is_not_text_invites_nobody(
-    make_client, wait_run, project_dir
-):
-    client, _model, cid, run_id = room_begin(
-        make_client,
-        project_dir,
-        {
-            "Lead": [open_room(), text("ok")],
-            "Coder": [
-                text("Nothing to add."),
-                step(call("invite_to_room", {"role": 7}, "i1")),
-                step(call("invite_to_room", {"role": "Tester", "why": 7}, "i2")),
-                wait(),
-                text("Done."),
-            ],
-            "Reviewer": [text("Nothing to add."), text("Looked: fine.")],
-        },
-    )
-    snap = wait_run(client, cid, run_id, timeout=ROOM_LONG)
-    said = {t["provider_call_id"]: (t["status"], t["result"]) for t in snap["tool_calls"]}
-    assert said["i1"] == ("failed", "error: argument role must be a role's name"), said
-    assert said["i2"] == ("failed", "error: argument why must be a string"), said
-    (room,) = snap["rooms"]
-    assert [m["role"] for m in room["members"]] == ["Coder", "Reviewer"]
 
 
 def test_a_role_whose_sources_are_no_list_is_not_created(make_client, wait_run, project_dir):

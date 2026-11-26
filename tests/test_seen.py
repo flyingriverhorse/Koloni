@@ -1,6 +1,6 @@
-"""Slice 38f-2, beside its acceptance set (`test_archive_scenarios`): the migration, a room
-opened in an archived conversation, the Board's word on each conversation's last turn (what
-the rail's badge, the toasts and the Conversations list read), and one turn's own usage."""
+"""Slice 38f-2, beside its acceptance set (`test_archive_scenarios`): the migration, the Board's
+word on each conversation's last turn (what the rail's badge, the toasts and the Conversations
+list read), and one turn's own usage."""
 
 import sqlite3
 
@@ -12,10 +12,9 @@ from tests.test_claim_scenarios import write
 from tests.test_copy_scenarios import one
 from tests.test_migration_0002 import _config
 from tests.test_parallel import until
-from tests.test_rooms import room_in
 from tests.test_spawn import step
-from tests.test_trigger_scenarios import setup
 from tests.test_usage_scenarios import began, turn, usage
+from tests.turn_helpers import setup
 
 
 # (As the acceptance set's own, which skips as a whole until the code is there.)
@@ -49,17 +48,6 @@ def test_archiving_is_not_activity(make_client, project_dir):
     before = listed(client, pid, cid)["updated_at"]
     assert archive(client, cid)["updated_at"] == before
     assert archive(client, cid, archived=False)["updated_at"] == before
-
-
-def test_a_room_the_user_opens_brings_its_conversation_back(make_client, wait_run, project_dir):
-    client, _model, cid, run_id, _room = room_in(
-        make_client,
-        project_dir,
-        {"Coder": [text("ok")], "Reviewer": [text("ok")]},
-        before=lambda client: archive(client, cid_of(client)),
-    )
-    wait_run(client, cid, run_id, timeout=20.0)
-    assert client.get(f"/api/conversations/{cid}").json()["conversation"]["archived_at"] is None
 
 
 def cid_of(client):

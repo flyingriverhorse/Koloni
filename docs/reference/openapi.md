@@ -12,7 +12,6 @@ link KOLONİ prints at the start, after `#key=`.
 A few doors need no key:
 
 - `GET /api/health`;
-- `POST /api/hooks/{key}`: a trigger's webhook, with its own key in the address, from this machine only;
 - `POST /api/limits/claude-session`: Claude Code's status line;
 - `POST /api/open`: swapping the one-time code for the key;
 - the frames that show files and views.

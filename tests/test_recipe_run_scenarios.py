@@ -1181,31 +1181,6 @@ def test_take_in_that_leaves_files_out_is_not_in_the_project(make_client, wait_r
     assert row(snap)["status"] == "stopped" and row(snap)["why"]
 
 
-def test_a_trigger_turn_starts_no_recipe(make_client, wait_run, project_dir):
-    from tests.test_trigger_scenarios import run_now, trigger
-
-    client, _model = make_client({"Lead": [spawn("Coder", "build"), text("could not")]})
-    client.headers["Origin"] = "http://127.0.0.1:8790"
-    web = teams_of(client)["Web app"]
-    recipe = one_step(client, "Just build", "Coder")
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert (
-        client.patch(
-            f"/api/conversations/{cid}",
-            json={
-                "teams_mode": "manual",
-                "teams": [{"team_id": web["id"], "recipe_id": recipe["id"]}],
-            },
-        ).status_code
-        == 200
-    )
-    run_id = run_now(client, trigger(client, pid, cid)["id"])
-    snap = wait_run(client, cid, run_id)
-    ((status, said),) = by_call(snap)
-    assert status == "failed" and "nobody is here" in said
-
-
 def test_try_again_opens_a_steps_agent_anew_within_what_it_draws(
     make_client, wait_run, project_dir
 ):
@@ -1342,41 +1317,6 @@ def test_a_declined_agent_does_not_use_up_its_step(make_client, wait_run, projec
 
 
 # --- second review round (84b-2) --------------------------------------------------------------
-
-
-def test_no_room_after_a_recipe_ended_either_its_copy_is_still_held(
-    make_client, wait_run, project_dir
-):
-    from tests.test_room_open_scenarios import WORK, open_room
-
-    client, _model = make_client(
-        {
-            "Lead": [spawn("Coder", "build"), open_room(), text("done")],
-            "Coder": [step(write("a.py", "a\n")), text("built")],
-            "Coder 2": WORK["Coder"],
-            "Reviewer": WORK["Reviewer"],
-        }
-    )
-    web = teams_of(client)["Web app"]
-    report = made(
-        client,
-        "Build, report",
-        graph(
-            [part("do", "Build", {"role": "Coder"})],
-            [("start", "do"), ("do", "end")],
-            ends=({"id": "end", "then": "report"},),
-        ),
-    )
-    cid, run_id = manual(client, project_dir, (web, report))
-    # (B-190: a report recipe whose step wrote a file ends at Take in; the room comes after.)
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=15)
-    assert not (project_dir / "a.py").exists()
-    answer(client, asked(snap), "Take in")
-    snap = wait_run(client, cid, run_id, timeout=15)
-    ((status, said),) = [
-        (t["status"], t["result"]) for t in snap["tool_calls"] if t["name"] == "open_room"
-    ]
-    assert status == "failed" and "recipe" in said
 
 
 def test_a_step_agents_own_helpers_are_held_to_the_chats_limit_per_agent(

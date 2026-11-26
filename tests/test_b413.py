@@ -24,14 +24,13 @@ from tests.test_backlog import setup as backlog_setup
 from tests.test_backlog_auto import auto, tasks, worked
 from tests.test_backlog_auto import until as task_until
 from tests.test_chat_flow import start_in_mode, text
-from tests.test_chat_teams_scenarios import teams_of
+from tests.test_chat_teams_scenarios import former
 from tests.test_lead_decides import fire, lead_timers
 from tests.test_parallel import until
 from tests.test_recipe_run_scenarios import answer, asked
 from tests.test_spawn import begin, call, role_id, step
 from tests.test_team_requests_scenarios import agent
-from tests.test_triggers import HeldClock, leave, run_now, run_of, trigger
-from tests.test_triggers import setup as trigger_setup
+from tests.turn_helpers import HeldClock
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 THREE = ("Backend / API", "Web app", "Docs")
@@ -45,7 +44,7 @@ NUDGE = (
 
 
 def three_teams(client, project_dir, mode="ask"):
-    teams = teams_of(client)
+    teams = former(client, *THREE)  # (Backend / API: a ready team until 0.1.10)
     return begin(
         client,
         project_dir,
@@ -268,19 +267,6 @@ def test_the_same_failure_five_times_stops_it_too(make_client, wait_run, project
     assert snap["runs"][0]["error"].startswith(f"{signs.CIRCLING}read_file failed 5 times")
 
 
-def test_a_looping_triggers_turn_ends_with_why_and_asks_nothing(make_client, wait_run, project_dir):
-    client, model, pid, cid = trigger_setup(
-        make_client, project_dir, [*circles(30), text("never said")], permission_mode="full_auto"
-    )
-    made = trigger(
-        client, pid, cid, permissions=leave(), budget={"steps": 200, "minutes": 10, "per_day": 24}
-    )
-    run_id = run_now(client, made["id"])
-    snap = wait_run(client, cid, run_id, timeout=20)
-    assert (run_of(snap, run_id)["status"], run_of(snap, run_id)["error"]) == ("failed", CIRCLES)
-    assert snap["questions"] == [] and len(model.calls) == signs.IDLE_STOP + 1
-
-
 # --- a To-do run: the task is blocked with why, and the next one runs -----------------------------
 
 
@@ -315,12 +301,8 @@ def test_stopped_after_a_copy_was_taken_in_the_turn_is_completed(
 
 def test_what_counts_as_a_repeat():
     counts = signs.Counts()
-    room = ("wait_for_room", "{}", "nobody said anything new")
-    for _ in range(3 * signs.IDLE_STOP):  # (a room at work for long: the same answer each time)
-        counts.heard(*room, waited=True)
-    assert counts.idle == 0
-    for _ in range(3):  # (one back at once with the same words is a repeat)
-        counts.heard(*room)
+    for _ in range(3):  # (the same call with the same words is a repeat)
+        counts.heard("read_file", "{}", "the same")
     assert counts.idle == 2
     counts.moved()
     for _ in range(11):  # (a fan-out of one call in one step is one)
@@ -690,20 +672,6 @@ def test_with_no_ceiling_a_todo_tasks_turn_has_none(
     auto(client, pid, True)
     assert worked(client, wait_run, pid, "one")["status"] == "review"
     assert not [t for t in clock.set if t.delay > 30 * 60]
-
-
-def test_a_triggers_turn_longer_than_the_stuck_minutes_has_their_clock_too(
-    make_client, wait_run, project_dir
-):
-    client, _model, pid, cid = trigger_setup(
-        make_client, project_dir, [text("looked")], permission_mode="full_auto"
-    )
-    clock = client.app.state.runner.call_later = HeldClock()
-    made = trigger(
-        client, pid, cid, permissions=leave(), budget={"steps": 15, "minutes": 60, "per_day": 24}
-    )
-    wait_run(client, cid, run_now(client, made["id"]))
-    assert sorted(t.delay for t in clock.set if t.delay >= 60 * 10) == [30 * 60, 60 * 60]
 
 
 def test_an_answer_to_a_message_is_no_step_of_work_for_the_clock(

@@ -8,19 +8,6 @@ import { talkOf } from '../chat/TalkRow'
 import { atGivenSteps, isKept, pendingMerge } from '../changes/copies'
 import { waitLine } from '../claims/claims'
 import { discussionLine, nameIn, speakerOf } from '../discussion/discussionText'
-import {
-  atWork,
-  byWatcher,
-  held,
-  isRunning,
-  leadOf,
-  memberTag,
-  movesIn,
-  nameIn as nameInRoom,
-  roomLine,
-  waitsForYou,
-  watchedBy,
-} from '../room/roomText'
 import { toolSummary } from '../chat/toolSummary'
 import { TERMINAL, type ConvState } from '../state/applyEvent'
 import { plannedBy } from '../chat/planText'
@@ -39,7 +26,6 @@ export type NodeKind =
   | 'request'
   | 'agent'
   | 'discussion'
-  | 'room'
   // K-shared-bagli: what a team (or an agent, or everyone) shared, noted and remembered - a card by it.
   | 'shared'
   // A plan turn's plan (slice 49): a small node after its request.
@@ -149,21 +135,6 @@ export interface DiscussionData {
   running: boolean
 }
 
-/** A room: its goal, where it stands, who is in it and how each stands, and the last things said. */
-export interface RoomData {
-  goal: string
-  line: string
-  members: string[]
-  /** R178: who watches it though no member, and what it may do there; '' where nobody does. */
-  watched: string
-  /** How far its list is: "2 of 3 items done"; '' while the list is empty. */
-  items: string
-  last: { who: string; text: string }[]
-  running: boolean
-  /** A card of one of its agents, or its changes, waits for the user. */
-  attention: boolean
-}
-
 export interface PlanData {
   status: NonNullable<Run['plan']>['status'] | 'writing'
   /** Who wrote it (`plannedBy`); null while it is being written. */
@@ -257,13 +228,12 @@ export interface GraphNode {
   team?: string
   /** An agent of a step's earlier round: that round's line, which it is folded into. */
   round?: string
-  /** When a discussion or room began: laid out in that order (layout.ts), whichever kind came first. */
+  /** When a discussion began: laid out in that order (layout.ts). */
   at?: string
   data:
     | RequestData
     | AgentData
     | DiscussionData
-    | RoomData
     | SharedData
     | Record<string, never>
     | PlanData
@@ -363,7 +333,7 @@ const ENDED: Partial<Record<AgentData['status'], string>> = {
   failed: 'Failed',
   cancelled: 'Stopped',
   interrupted: 'Interrupted',
-  // (One you declined: as the chat, the Board, the timeline and the legend say it.)
+  // (One you declined: as the chat, the timeline and the legend say it.)
   rejected: 'Rejected',
 }
 
@@ -433,38 +403,13 @@ export function activityOf(agent: Agent, run: Run, state: ConvState, teams: Team
   // Its provider has as many at work as it lets work at once (the lead too): which, and how full.
   const full = agent.status === 'queued' ? agent.queued_on : null
   if (full) return `queued · ${full.provider} full (${full.at_work}/${full.most})`
-  // Only so many agents work at once; this one is next - the lead too, where the room it waits for is kept for it.
+  // Only so many agents work at once; this one is next.
   if (agent.status === 'queued') return 'Waiting for a slot'
   // For a file another agent holds, until that one's work is done.
   if (status === 'blocked') return waitLine(agent, state.conversation.id, teams) ?? 'waits for a file'
   if (status === 'waiting') return waitingFor(agent, run, state, teams)
   if (status === 'running') return workingOn(agent, state)
   return endedAs(agent, run, status)
-}
-
-/** What a waiting agent waits for in its turn's room; null: not for the room. */
-function roomWait(agent: Agent, run: Run, state: ConvState): string | null {
-  // In a turn whose room still runs: the lead waits for all of it; a member for a post, or -
-  // before the work starts - for the others' step in the round that shares it out. Paused, a member the Pause holds waits
-  // for the Resume - the one the room's tags call "paused" (`held`), not one they say waits for a post.
-  const room = state.rooms.find(r => r.run_id === run.id && isRunning(r))
-  if (room && agent.depth === 0) return 'Waiting for the room'
-  if (room?.members.some(m => m.agent_id === agent.id && held(state, room, m))) return 'Paused with the room'
-  if (
-    room &&
-    state.toolCalls.some(t => t.agent_id === agent.id && t.name === 'wait_for_post' && t.status === 'running')
-  ) {
-    return 'Waiting for a post in the room'
-  }
-  if (
-    room &&
-    state.toolCalls.some(t => t.agent_id === agent.id && t.name === 'wait_for_item' && t.status === 'running')
-  ) {
-    return 'Waiting for an item in the room'
-  }
-  if (room?.status === 'sharing' && room.members.some(m => m.agent_id === agent.id))
-    return 'Waiting for the work to be shared out'
-  return null
 }
 
 /**
@@ -480,10 +425,10 @@ function talkWait(agent: Agent, run: Run, state: ConvState): string | null {
   return member.status === 'left' ? 'Left the discussion' : 'Waiting for its turn to speak'
 }
 
-/** What a waiting agent waits for: its turn's room or discussion, another team, a reply, a sub-agent - each called as its node is. */
+/** What a waiting agent waits for: its turn's discussion, another team, a reply, a sub-agent - each called as its node is. */
 function waitingFor(agent: Agent, run: Run, state: ConvState, teams: Team[]): string {
-  const room = roomWait(agent, run, state) ?? talkWait(agent, run, state)
-  if (room !== null) return room
+  const talk = talkWait(agent, run, state)
+  if (talk !== null) return talk
   const child = state.agents.findLast(a => a.parent_agent_id === agent.id && OPEN.has(a.status))
   // Waiting for a reply to a message, or for a sub-agent it opened.
   // Waiting for another team's answer (K-takimlar-arasi): at its request, or once its own work is done.
@@ -1337,10 +1282,9 @@ function awayNodes(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphE
   }
 }
 
-/** The shared places: discussions and rooms, each joined to its members (`teams`: a team's lead named as its box is). */
+/** The shared places: discussions, each joined to its members (`teams`: a team's lead named as its box is). */
 function sharedPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[], teams: Team[]) {
   discussionPlaces(state, nodes, edges, teams)
-  roomPlaces(state, nodes, edges, teams)
 }
 
 // The frame all these agents are drawn in, as a node's `team`; none where they are not all in one.
@@ -1394,59 +1338,6 @@ function discussionPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge
         source,
         target: id,
         active: speaker?.id === member.agent_id,
-        talk: true,
-        ...(laned && { member: true }),
-      })
-    }
-  }
-}
-
-function roomPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[], teams: Team[]) {
-  // A room is a shared place too: one node, by the lead that waits for it, joined to its members.
-  for (const room of state.rooms) {
-    const id = `room:${room.id}`
-    const lead = leadOf(state, room)
-    if (!lead || !nodes.some(n => n.id === `agent:${lead.id}`)) continue
-    const items = state.roomItems.filter(i => i.room_id === room.id)
-    const said = state.roomPosts.filter(p => p.room_id === room.id).sort((a, b) => a.number - b.number)
-    const data: RoomData = {
-      // (Its goal, not who opened it - that left the goal a few letters on the card; its window says who did.)
-      goal: room.goal.slice(0, 140),
-      line: roomLine(room),
-      members: room.members.map(m => memberTag(state, room, m, teams)),
-      watched: watchedBy(state, room, teams),
-      items: items.length ? `${items.filter(i => i.status === 'done').length} of ${items.length} items done` : '',
-      last: said.slice(-2).map(p => ({
-        who: `${nameInRoom(state, p.agent_id, teams)}${byWatcher(state, room, p.agent_id) ? ' (watching)' : ''}`,
-        text: p.text.slice(0, 90),
-      })),
-      running: atWork(room),
-      attention: waitsForYou(state, room),
-    }
-    // A room in a recipe's step (slice 84e) is drawn in the frame its members are in: their team's. One of two teams'
-    // members (the Orchestrator's, with their leads - 5 Nov): in the lane, as a discussion between teams is.
-    const drawn = room.members.map(m => m.agent_id).filter(one => nodes.some(n => n.id === `agent:${one}`))
-    const { team } = frameOfAll(nodes, drawn)
-    const laned = !team && nodes.some(n => n.kind === 'team' && n.runId === room.run_id)
-    nodes.push({
-      id,
-      kind: 'room',
-      runId: room.run_id,
-      refId: room.id,
-      agentId: lead.id,
-      at: room.created_at,
-      data,
-      ...(team && { team }),
-    })
-    headOfColumn(nodes, id, team, drawn)
-    for (const member of room.members) {
-      const source = `agent:${member.agent_id}`
-      if (!nodes.some(n => n.id === source)) continue
-      edges.push({
-        id: `${source}>${id}`,
-        source,
-        target: id,
-        active: movesIn(state, room, member),
         talk: true,
         ...(laned && { member: true }),
       })

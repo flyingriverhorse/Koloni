@@ -24,7 +24,6 @@ write its report: what it did and what is left.
 | Settings › The app › Agents › **Steps an agent may take** | The most steps one sub-agent takes on a job: its task, or one later message it works on. 25 unless you change it, a whole number from 5 to 200. It holds in every project. It does not hold the Orchestrator. |
 | The role's form (Agents page) → **Safety stops for one agent** → **At most this many steps** | A limit of the role's own. Where it is lower than the app's, it holds. It counts the steps an agent of the role takes on its work in the turn, and in the earlier turns it goes on from. Empty: only the app's limit. On the **Lead** role it is the Orchestrator's step limit; empty, it has none. |
 | Settings › This project › Limits and money › **Continue gives this many more steps** | How many more steps **Continue** gives. 25 unless you change it, 1 to 200. |
-| A trigger's **Model steps a run** | The steps of a whole turn a trigger starts, all its agents together. See [Triggers](../automation/triggers.md#budget-and-end). |
 
 ### More steps for coordinators
 
@@ -35,24 +34,22 @@ up to 49 steps. A role's own lower limit still holds over these.
 
 ### The Orchestrator: no step count
 
-The Orchestrator runs the whole turn: it opens the teams, follows its rooms, passes messages on and
+The Orchestrator runs the whole turn: it opens the teams, passes messages on and
 writes the answer. A fixed count of its steps ran out on honest work, after the work was already in
 the project, so it has none. What stops it:
 
 - its work is done;
 - it goes round in circles (below);
-- a limit you set: the **Lead** role's **At most this many steps**, a trigger's **Model steps a run**
-  for the whole turn;
-- in a To-do task's turn, and in a turn nobody watches (a job while you're away, a trigger's whose
-  **Minutes a run** are longer): nothing has moved
+- a limit you set: the **Lead** role's **At most this many steps**;
+- in a To-do task's turn, and in a job while you're away: nothing has moved
   for Settings › The app › **Stuck after this many minutes with no progress** (30 unless you change
   it) - no file of the turn changed, no agent finished its work, no failing command passed. Each of
   those starts the minutes again, so honest work runs as long as it needs. They do not run out while
   a card waits for you, a command or a model step of the turn is under way, or an agent below the
   Orchestrator is at work;
 - a last resort: a To-do task's turn and a job while you're away end after **An unattended turn runs
-  at most (hours)** (8 unless you change it; empty: no limit), however they go. A trigger's
-  **Minutes a run** and a night's stop time hold as before;
+  at most (hours)** (8 unless you change it; empty: no limit), however they go. A night's stop time
+  holds as before;
 - either way the turn fails with the reason, its work kept - never cancelled: a To-do task gets its
   fix round, then is stuck, and its chat's queue goes on; a night tries the job once more, then goes on;
 - money and tokens, where you set them: the project's token limit for a message, its monthly
@@ -73,10 +70,8 @@ KOLONİ watches the Orchestrator's tool calls. It stops it when:
 
 Something moves when a file of the turn changes, it opens an agent, or it sends a message to one it
 had not written to among its last three. A command that succeeds is judged by what it said, like any
-call. A call with other arguments, or one that gets a new result (a room's new post, a team's
-report), is new; the same call made several times in one step counts once. A wait in a room it
-follows counts as neither while it waits, however often it says the same; one back at once with the
-same words is a repeat. From the third repeat on, the Orchestrator is told what is repeating.
+call. A call with other arguments, or one that gets a new result (a team's report), is new; the same
+call made several times in one step counts once. From the third repeat on, the Orchestrator is told what is repeating.
 
 In a turn you started, the first time it is told, in its next step, to try a different approach or
 to report what it did and end. Its counts start again and it goes on; you see nothing. If it goes
@@ -99,10 +94,10 @@ turn's work is already in the project, it ends **completed**, not red, with KOLO
 it ended; otherwise it fails with the reason.
 
 The card waits for you at every level, **Full auto** too. As it goes up, KOLONİ tells you on the
-desktop and at the project's notification address, where you set them (Settings › This project):
+desktop, where you switched that on (Settings › This project › Notifications):
 "The Orchestrator seems stuck: it repeated list_dir with the same result…".
 
-In a turn nobody watches (a trigger's, a job while you're away) there is no card: the Orchestrator
+In a job while you're away there is no card: the Orchestrator
 fails with the reason on record, also where it had written something, and a night goes on with the
 next job. A To-do task's turn is its chat's, so the card comes there too; where the turn fails, the
 task gets its fix round, then is stuck with why, and the chat's queue goes on with the next task.
@@ -136,7 +131,7 @@ What happens depends on who stopped, which limit it reached, and whether it chan
 
 ### The Orchestrator
 
-The Orchestrator reaches a step limit only where you set one: its role's own, or a trigger's. It gets
+The Orchestrator reaches a step limit only where you set one: its role's own. It gets
 no Continue card there. If its teams are still at work it waits for them, then the turn ends. Send a
 message to go on.
 
@@ -212,9 +207,6 @@ is left:
 
 - the Orchestrator itself, at a limit you set (its loop guard asks: see above);
 - a job of [work while you're away](../automation/overnight.md#step-limits-while-away);
-- a turn a trigger started: the trigger's **Model steps a run** holds for the whole turn, and it ends
-  with "budget: stopped after {steps} model steps, the most this trigger gives a turn";
-- a room's members, and a room's sharing step (which has one step of its own);
 - an agent answering another agent's question, or working on another agent's message, a go on
   included: the sender waits for its reply;
 - an agent whose work is kept on a card with Continue;

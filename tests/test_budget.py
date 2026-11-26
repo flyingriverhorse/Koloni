@@ -11,11 +11,10 @@ from sqlalchemy import select
 import app.web
 from app.api.usage import month_start
 from app.db.models import Agent, Message, OwnRequest, Run
-from tests.keyed import TestClient
 from tests.test_budget_scenarios import PRICE, budget
 from tests.test_chat_flow import text
-from tests.test_trigger_scenarios import ORIGIN, one, tick, trigger
 from tests.test_usage_scenarios import began, turn
+from tests.turn_helpers import ORIGIN
 
 
 def over(make_client, wait_run, project_dir, steps, **project):
@@ -74,18 +73,6 @@ def test_going_on_over_the_budget_is_the_users_word(make_client, wait_run, proje
     assert going.status_code == 403
 
 
-def test_a_trigger_starts_nothing_over_the_budget_and_says_why(make_client, wait_run, project_dir):
-    client, pid, cid, _run = over(make_client, wait_run, project_dir, [text("b", 1, 1)])
-    made = trigger(client, pid, cid)
-    assert tick(client, datetime.now(UTC) + timedelta(hours=2)) == []
-    seen = one(client, made["id"])["runs"][0]
-    assert seen["outcome"] == "skipped_month" and "month's budget" in seen["note"]
-    refused = client.post(f"/api/triggers/{made['id']}/run")
-    assert refused.status_code == 409 and "month's budget" in refused.text
-    client.patch(f"/api/projects/{pid}", json={"monthly_budget": None})
-    assert client.post(f"/api/triggers/{made['id']}/run").status_code in (200, 201, 202)
-
-
 def test_the_desktop_is_told_once_a_month_at_80_percent(
     make_client, wait_run, project_dir, monkeypatch
 ):
@@ -141,18 +128,6 @@ def test_costs_in_two_currencies_are_not_added_and_the_budget_holds_nothing_back
     assert (seen["currency"], seen["over"]) == ("USD", True) and seen["spent"] >= 13.5
 
 
-def test_a_room_is_not_opened_over_the_budget_without_the_users_word(
-    make_client, wait_run, project_dir
-):
-    client, _pid, cid, _run = over(make_client, wait_run, project_dir, [text("b", 1, 1)] * 4)
-    room = {"goal": "together", "with": [{"role": "Coder"}, {"role": "Reviewer"}]}
-    refused = client.post(f"/api/conversations/{cid}/rooms", json=room)
-    assert refused.status_code == 409 and "month's budget (10.50 of 10.00 USD)" in refused.text
-    going = client.post(f"/api/conversations/{cid}/rooms", json={**room, "over_budget": True})
-    assert going.status_code == 201, going.text
-    wait_run(client, cid, going.json()["run"]["id"])
-
-
 def test_an_approved_plan_starts_its_work_over_the_budget_only_on_the_users_word(
     make_client, wait_run, project_dir
 ):
@@ -190,14 +165,6 @@ def test_a_message_not_sent_before_a_restart_is_sent_over_the_budget_only_on_the
     going = client.post("/api/runs/q/send", json={"over_budget": True}, headers=own)
     assert going.status_code == 200, going.text
     wait_run(client, cid, "q")
-
-
-def test_a_webhook_starts_nothing_over_the_budget(make_client, wait_run, project_dir):
-    client, pid, cid, _run = over(make_client, wait_run, project_dir, [])
-    key = trigger(client, pid, cid, kind="webhook", config={})["key"]
-    here = TestClient(client.app, base_url=ORIGIN, client=("127.0.0.1", 50000))
-    refused = here.post(f"/api/hooks/{key}", content="build failed")
-    assert refused.status_code == 409 and "month's budget" in refused.text
 
 
 def test_an_agent_is_told_once_its_project_has_used_most_of_its_budget(

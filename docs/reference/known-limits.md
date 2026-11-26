@@ -95,7 +95,6 @@ messages.
   or runs commands might not run on such a provider until this is measured on a newer Codex. Codex has
   also been seen to answer while one of KOLONİ's tools it called still ran; why is not known. KOLONİ
   waits for that call. See [Codex](../models/setup-cli.md#codex).
-- Triggers do not start a turn on a CLI that works with its own tools (Native, or agy).
 - GitHub Copilot CLI's tokens and AI credits run as a session are counted from its usage checkpoint, as
   in **Native**; measured with `copilot -p` (CLI 1.0.103), not yet seen in a live session.
 - Copilot's thinking levels on a model server of your own are not measured.
@@ -216,7 +215,6 @@ messages.
   newest.
 - KOLONİ closed while the morning's lines run: the task is stopped, and what has not run is not run
   again - **Try again** works it in its chat.
-- **Usage › Cards** counts a parked card as not answered.
 - `git` in the middle of a line - `cd sub && git push` - needs the project: Take in first; in a copy
   there is no git.
 
@@ -264,9 +262,12 @@ messages.
 
 ## Recipes
 
-- Recipes do not run in triggers' turns.
-- A chat cannot open a room while a recipe runs.
 - A team as a step's "Who" runs its stages as slots of one step, not one after another.
+- The eight ready teams 0.1.10 took away (Backend / API, Data, DevOps, Research, Product, Maintenance,
+  ML, DataOps) are not followed where something else named one: a night while you're away planned with
+  one runs without it, a recipe file of a folder's own (`.koloni/recipes`) whose step names one is
+  refused when it runs, as naming no team here, and a recipe run the Orchestrator had started on one in
+  a chat is lost with it.
 
 ## The page
 
