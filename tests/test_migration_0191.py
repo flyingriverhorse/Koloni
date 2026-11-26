@@ -15,7 +15,7 @@ ADDRESS = "https://hooks.example.com/secret"
 def test_the_address_goes_and_a_summary_with_nowhere_to_go_loses_its_time(tmp_path):
     db = tmp_path / "old.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0187")
+    command.upgrade(cfg, "0190")
     with sqlite3.connect(db) as conn:
         for pid, desktop in (("hook", 0), ("both", 1)):
             conn.execute(
@@ -33,7 +33,7 @@ def test_the_address_goes_and_a_summary_with_nowhere_to_go_loses_its_time(tmp_pa
             ("hook", None),
         ]
 
-    command.downgrade(cfg, "0187")
+    command.downgrade(cfg, "0190")
     with sqlite3.connect(db) as conn:
         assert conn.execute(
             "SELECT id, notify_url, notify_format FROM projects ORDER BY id"

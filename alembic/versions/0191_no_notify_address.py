@@ -6,15 +6,15 @@ the address to send it to has nowhere to go: its time is emptied.
 Going back, the two columns come back empty (no address, "slack"); the summary's time does not.
 
 Revision ID: 0191
-Revises: 0187
+Revises: 0190
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "0191"
-# (Written on the k-kes-slack branch on 0187: re-chained after main's newest at its merge.)
-down_revision = "0187"
+# (Written on the k-kes-slack branch on 0187; chained after 0190 when it went into 0.1.10.)
+down_revision = "0190"
 branch_labels = None
 depends_on = None
 
