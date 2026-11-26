@@ -1292,8 +1292,7 @@ class ObserveMixin:
 
         shortcut: whatever else changes the project while it works (the user's editor,
         another agent's command) is found here too and on its record, which says who is
-        not known (`IN_THE_PROJECT`) - the first look to find it puts it down, whichever
-        agent's command made it; Undo this turn leaves such a change to its own row.
+        not known (`IN_THE_PROJECT`); Undo this turn leaves such a change to its own row.
         Tell them apart if that is ever wanted."""
         if watch.project is None:
             return
@@ -1301,32 +1300,13 @@ class ObserveMixin:
             found = await asyncio.to_thread(watch.project.changes)
         # All that is found, not one file alone: a look moves on what was last seen, so
         # what it is not asked about now would be found by no later look.
-        mine = [one for one in found if one[0] not in but]
-        watch.straight |= self._found_in_project(ctx, transcript, watch, mine, parent)
-
-    def _found_in_project(
-        self: "AgentRunner",
-        ctx: Ctx,
-        transcript: "_Transcript",
-        watch: "_Watch",
-        found: list[tuple[str, str | None, str | None]],
-        parent: str | None,
-    ) -> set[str]:
-        """What a look over the project a CLI in a copy was made from found, put down to it
-        (`IN_THE_PROJECT`) - but what another such look put on record and the file still holds
-        (`_Watch.taken`); and what it puts down is handed to each other one over the project
-        (k-kucuk-018 L3: their views from before found it again). Before any await, so a look of
-        theirs whose thread is under way takes it too. An agent at work in the project itself
-        keeps its own look after its command (its `LEAD_COMMAND`)."""
-        assert watch.project is not None
-        found = [one for one in found if watch.taken.pop(one[0], "") != sha256_text(one[2])]
-        recorded = self._record_found(ctx, transcript, found, IN_THE_PROJECT, parent)
-        for other in (one for watches in list(self._watches.values()) for one in watches):
-            if other is not watch and other.project and other.project.root == watch.project.root:
-                other.taken.update(
-                    {one[0]: sha256_text(one[2]) for one in found if one[0] in recorded}
-                )
-        return recorded
+        watch.straight |= self._record_found(
+            ctx,
+            transcript,
+            [one for one in found if one[0] not in but],
+            IN_THE_PROJECT,
+            parent,
+        )
 
     async def _settle_watch(self: "AgentRunner", ctx: Ctx, watch: "_Watch") -> None:
         """The CLI is done, or was stopped: say how things it was given leave for ended

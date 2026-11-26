@@ -86,8 +86,8 @@ messages.
   does not hide its secret files. KOLONİ looks at the project after each of its commands and
   records such a change as made in the project by an unknown maker - one look over the project's files
   each time (some 0.1 s for 3,000 files, 0.4 s for 10,000, measured on Windows). With several such
-  agents at work at once, a change is recorded once, under the agent whose look found it first -
-  whichever agent's command made it.
+  agents at work at once, a change can be recorded more than once - by each one's look that finds it,
+  under its own agent; only the record changes, not your files.
 - With Codex run **Native**, a command of Codex's own still at work after 11 minutes is ended as
   failed, and so is Codex's turn; one you allowed that Codex never says it started is ended as "never
   started" at the same 11 minutes.

@@ -286,9 +286,6 @@ class _Watch:
         # there all the same, by a path outside its copy, is seen with what was before.
         self.project: ProjectView | None = None
         self.straight: set[str] = set()  # the project's files it was found to have changed
-        # ...and those another look over the project put on record since, by path: the digest of
-        # what it found there (None: removed) - not put down again while it holds that.
-        self.taken: dict[str, str | None] = {}
         # Its CLI is held to no folder (`_sandboxed`: native agy), as set at its start (`unheld`).
         self.unboxed = False
         # B-310: its CLI (agy) never took KOLONİ's bridge, so it runs the old way: with none of

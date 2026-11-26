@@ -160,15 +160,16 @@ def test_what_a_command_of_native_claude_code_writes_into_the_project_is_found_a
     assert hello(project_dir) == "print('straight in')\n"
 
 
-def test_what_one_look_over_the_project_put_on_record_another_clis_look_does_not_again(
+def test_a_change_written_into_the_project_again_after_it_went_back_is_on_record_again(
     claude_app,
     wait_run,
     project_dir,
     settings_env,  # noqa: F811
 ):
-    """k-kucuk-018 L3: two native CLIs in copies, each looking at the project after its commands
-    (C2). What the first one's look put on record, the second's - its view of the project from
-    before - found and put down again, under its own agent."""
+    """Two native CLIs in copies, each looking at the project after its commands (C2): the
+    first's command changes a file there, the file goes back by hand, the second's command
+    writes the same again - on record twice, once under each. (A hand-off of what one look put
+    on record to the other looks, tried for k-kucuk-018 L3, left the second write on none.)"""
     straight = {
         "tool": "Bash",
         "input": {"command": "python fix.py"},
@@ -184,12 +185,13 @@ def test_what_one_look_over_the_project_put_on_record_another_clis_look_does_not
         [{"koloni": "ask_user", "args": {"question": "Go on?"}}, straight, {"say": "Done."}],
         default_steps=[both, leave, leave, text("The coders did it.")],
     )
+    was = hello(project_dir)
     cid, run_id = begin(client, project_dir, provider)
     # Both at work, each having seen the project before anything was written there.
     snap = until(client, cid, lambda s: len(s["questions"]) >= 2, timeout=20)
     first, second = snap["questions"][:2]
     client.post(f"/api/questions/{first['id']}/answer", json={"answer": "yes"})
-    snap = until(
+    until(
         client,
         cid,
         lambda s: any(
@@ -197,48 +199,14 @@ def test_what_one_look_over_the_project_put_on_record_another_clis_look_does_not
         ),
         timeout=20,
     )
-    assert changes(snap) == [("hello.py", "applied", "cli")], by_the_cli(snap)
+    (project_dir / "hello.py").write_text(was, encoding="utf-8")  # (back, by hand)
     client.post(f"/api/questions/{second['id']}/answer", json={"answer": "yes"})
     snap = wait_run(client, cid, run_id, timeout=20)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert changes(snap) == [("hello.py", "applied", "cli")], by_the_cli(snap)
-    assert by_the_cli(snap).count(f"{IN_THE_PROJECT}: hello.py (+1 -1)") == 1, by_the_cli(snap)
-
-
-def test_a_hand_change_two_asking_clis_in_copies_find_at_their_ends_is_put_on_record_once(
-    native_app,
-    wait_run,
-    project_dir,
-    settings_env,  # noqa: F811
-):
-    """k-kucuk-018 L3, at their last looks (`_native_work`'s end): two CLIs that keep to their
-    copies, each looking at the project when it ends - the second's look found the hand change the
-    first one's had put on record, and put it down again."""
-    both = step(
-        call("spawn_agent", {"role": "Coder", "task": "fix A"}, "s1"),
-        call("spawn_agent", {"role": "Coder", "task": "fix B"}, "s2"),
-    )
-    client, provider, _ = native_app(
-        [{"koloni": "ask_user", "args": {"question": "Go on?"}}, {"say": "Done."}],
-        default_steps=[both, text("The coders did it.")],
-    )
-    cid, run_id = begin(client, project_dir, provider, "auto_edit")
-    snap = until(client, cid, lambda s: len(s["questions"]) >= 2, timeout=20)
-    (project_dir / "notes.md").write_text("by hand\n", encoding="utf-8")
-    for question in snap["questions"][:2]:  # (one ends, then the other)
-        client.post(f"/api/questions/{question['id']}/answer", json={"answer": "yes"})
-        until(
-            client,
-            cid,
-            lambda s, who=question["agent_id"]: any(
-                a["id"] == who and a["status"] == "completed" for a in s["agents"]
-            ),
-            timeout=20,
-        )
-    snap = wait_run(client, cid, run_id, timeout=20)
-    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    found = [said for said in by_the_cli(snap) if said.startswith(f"{IN_THE_PROJECT}: notes.md")]
-    assert len(found) == 1, by_the_cli(snap)
+    said = by_the_cli(snap)
+    assert said.count(f"{IN_THE_PROJECT}: hello.py (+1 -1)") == 2, said
+    by = {c["agent_id"] for c in snap["file_changes"] if c["path"] == "hello.py"}
+    assert by == {first["agent_id"], second["agent_id"]}, snap["file_changes"]
 
 
 def test_one_look_over_a_mid_size_project_after_a_command_costs_little(tmp_path):
