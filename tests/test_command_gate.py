@@ -173,25 +173,31 @@ def _link_out(link: Path, target: Path) -> None:
 
 
 def test_a_read_through_a_link_out_of_the_project_is_no_plain_read(tmp_path):
-    # (k-okuma-yol: `read_file` refuses `out/secret.txt` - "outside the project folder" - and
+    # (k-okuma-yol: `read_file` refuses `out/data.txt` - "outside the project folder" - and
     # this read of it ran unasked below Full auto; a planted link, or a repository's symlink)
     project, outside = tmp_path / "proj", tmp_path / "outside"
     project.mkdir()
     outside.mkdir()
-    (outside / "secret.txt").write_text("s", encoding="utf-8")
+    (outside / "data.txt").write_text("s", encoding="utf-8")
     (project / "a.py").write_text("x = 1\n", encoding="utf-8")
     (project / "notes").mkdir()
     _link_out(project / "out", outside)
-    asked = ["cat out/secret.txt", "head -n 5 out/secret.txt", "ls out", "cat out"]
+    asked = ["cat out/data.txt", "head -n 5 out/data.txt", "ls out", "cat out"]
     if sys.platform == "win32":
-        asked += [r"type out\secret.txt", r"gc -Path:out\secret.txt", "Get-Content out/secret.txt"]
+        asked += [r"type out\data.txt", r"gc -Path:out\data.txt", "Get-Content out/data.txt"]
     for line in asked:
         assert commands.only_reads(line), line  # (by its words alone, a plain read)
         assert not commands.reads_here(line, project, True), line
     # (from a folder below, `..` reads stay what `only_reads` says; the link is still followed)
-    assert not commands.reads_here("cat secret.txt", project, False, "out")
+    assert not commands.reads_here("cat data.txt", project, False, "out")
     for line in ["cat a.py", "ls .", "ls notes", "cat missing.txt", "head -n 5 a.py"]:
         assert commands.reads_here(line, project, True), line
+
+
+def test_a_file_named_secret_is_no_plain_read():
+    # (k-duzelt-away's review: secret.txt and secrets.txt are secrets' names - asked at every level)
+    for line in ["cat secret.txt", "cat secrets.txt", "head -n 5 out/secret.txt"]:
+        assert commands.names_secret(line) and not commands.only_reads(line), line
 
 
 def test_a_link_to_a_secret_in_the_project_is_no_plain_read(tmp_path):
@@ -225,21 +231,21 @@ def test_quotes_inside_a_word_and_option_values_are_followed_too(tmp_path):
     project, outside = tmp_path / "proj", tmp_path / "outside"
     project.mkdir()
     outside.mkdir()
-    (outside / "secret.txt").write_text("s", encoding="utf-8")
+    (outside / "data.txt").write_text("s", encoding="utf-8")
     (project / "README.md").write_text("hi\n", encoding="utf-8")
     (project / ".env").write_text("KEY=1\n", encoding="utf-8")
     _link_out(project / "out", outside)
     asked = [
-        "Get-Content -Path:'out/secret.txt'",
-        "Get-Content -LiteralPath:'out/secret.txt'",
-        "cat out/'secret.txt'",
-        "grep --file=out/secret.txt README.md",
+        "Get-Content -Path:'out/data.txt'",
+        "Get-Content -LiteralPath:'out/data.txt'",
+        "cat out/'data.txt'",
+        "grep --file=out/data.txt README.md",
         "cat .e'nv'",
         'cat ".e"nv',
-        "grep -fout/secret.txt README.md",
+        "grep -fout/data.txt README.md",
     ]
     if sys.platform == "win32":
-        asked += [r'Get-Content -Path:"out\secret.txt"', r"type .\.e'nv'"]
+        asked += [r'Get-Content -Path:"out\data.txt"', r"type .\.e'nv'"]
     for line in asked:
         assert not commands.reads_here(line, project, True), line
     # (the project's own .env by a quoted name is a secret's name: asked at every level)
@@ -274,7 +280,7 @@ def test_an_escaped_name_through_a_link_out_of_the_project_is_no_plain_read(tmp_
     project, outside = tmp_path / "proj", tmp_path / "outside"
     project.mkdir()
     outside.mkdir()
-    (outside / "secret.txt").write_text("s", encoding="utf-8")
+    (outside / "data.txt").write_text("s", encoding="utf-8")
     _link_out(project / "out", outside)
-    assert commands.only_reads(r"cat ou\t/secret.txt")  # (by its words, a plain read)
-    assert not commands.reads_here(r"cat ou\t/secret.txt", project, True)
+    assert commands.only_reads(r"cat ou\t/data.txt")  # (by its words, a plain read)
+    assert not commands.reads_here(r"cat ou\t/data.txt", project, True)

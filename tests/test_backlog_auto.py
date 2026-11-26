@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app import agent, backlog, earlier
 from app.db.models import OwnRequest
+from tests.conftest import scaled
 from tests.test_agent_writes import edit, wait_status
 from tests.test_backlog import run_todo, setup
 from tests.test_chat_flow import text
@@ -69,8 +70,9 @@ def worked(client, wait_run, pid, title):
 
 def until(check, seconds=20.0):
     # A ceiling, not a pace (as `wait_run`'s): a night of two jobs, 0.2 s here, did not end in
-    # 5 s on a CI runner.
-    deadline = time.monotonic() + seconds
+    # 5 s on a CI runner; a story's two turns and its close on a branch (git, 7-15 s alone) went
+    # past 20 s under the whole suite - `scaled` on a runner, as `wait_run`'s.
+    deadline = time.monotonic() + scaled(seconds)
     while not (seen := check()):
         assert time.monotonic() < deadline, "never came"
         time.sleep(0.02)

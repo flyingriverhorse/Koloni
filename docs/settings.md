@@ -95,8 +95,8 @@ The sections are listed on the left, in this order.
 ### Limits and money
 
 Two are in sight: **Monthly budget** and **Stop the work on a message over this many tokens**, a job's budget. The
-rest are under **More limits**, closed until you open it; it says **· set** while one of them is not its default.
-A provider's own limits are on its **Limits** tab (Models), and a night's limits on the **Go away** card.
+rest are under **More limits**, closed until you open it; it says **· set** while one of them is not its default,
+and stays open while one holds a value that cannot be saved - **Save** is off until it is fixed. A provider's own limits are on its **Limits** tab (Models), and a night's limits on the **Go away** card.
 
 | Setting | What it does |
 |---|---|
@@ -212,8 +212,8 @@ jobs while you're away), while a command it started still runs (such as a dev se
 
 **Answer in** and **Summarise a long context at (%)** are in sight. The step limit, the two limits of a turn nobody
 watches, what knowledge reads and KOLONİ's test runs are under **More limits**, closed until you open it (it says
-**· set** while one of them is not its default). The links between **Steps an agent may take** and **Continue gives
-this many more steps** open the other's **More limits**.
+**· set** while one of them is not its default, and stays open while one holds a value that cannot be saved). The
+links between **Steps an agent may take** and **Continue gives this many more steps** open the other's **More limits**.
 
 | Setting | What it does |
 |---|---|

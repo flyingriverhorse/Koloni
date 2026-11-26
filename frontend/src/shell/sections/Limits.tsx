@@ -76,7 +76,7 @@ export function useLimits(project: Project, spend: Budget | null, toApp?: () => 
     <>
       <h2>Limits and money</h2>
       <MoneyLimits budget={budget} turn={turn} spend={spend} />
-      <MoreLimits set={set} open={moreOpen}>
+      <MoreLimits set={set} bad={usual.some(([field]) => field.value === undefined)} open={moreOpen}>
         <AgentLimits most={most} parallel={parallel} depth={depth} per={per} more={more} toApp={toApp} />
         <TalkRow talk={talk} />
       </MoreLimits>
