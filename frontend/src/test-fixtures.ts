@@ -406,7 +406,6 @@ export function memoryRecord(id: string, over: Partial<MemoryRecord> = {}): Memo
     unattended: false,
     created_at: '2026-10-05T10:00:00Z',
     last_change: null,
-    by_meaning: false,
     ...over,
   }
 }

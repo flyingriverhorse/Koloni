@@ -18,6 +18,12 @@ put one back in place of `runtime/data/koloni.db`.
 
 Only what needs your attention after an update; everything else is in the [Changelog](../changelog.md).
 
+### 0.1.10
+
+- **The search by meaning is gone.** The database upgrade deletes the vectors it kept and the provider
+  and model a project chose for it. Search deeper and an agent's recall match words, as before. Going
+  back to 0.1.9 brings the setting back off.
+
 ### 0.1.8
 
 - **The database** is upgraded at the first start (migrations 0176 to 0182), after KOLONİ copies it to

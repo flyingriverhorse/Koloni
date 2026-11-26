@@ -21,6 +21,10 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Removed
+
+- **Memory**: the search by meaning is gone (the Memory page's **by words ▾** / **by meaning ▾** and Settings › This project › Memory and web › **Search by meaning with**, **Embedding model**): Search deeper and an agent's recall match words, as before, in this project and in the projects it also looks in; nothing is sent to a model server to search. The vectors kept for it, and the provider and model chosen for it, are deleted when KOLONİ upgrades the database ([docs](docs/memory.md)).
+
 ## [0.1.9] - 2026-11-26
 
 ### Added

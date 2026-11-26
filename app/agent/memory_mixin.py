@@ -344,15 +344,13 @@ class MemoryMixin:
             project = self._project(session, ctx.cid)
             if project is None:
                 return kept.NOTHING
-            # 22c: the linked projects too, and by meaning where a provider is chosen for it.
-            also = kept.also(session, project, query)
+            # 22c: the linked projects too.
+            also = kept.also(session, project)
             # (93-C5: the agent's work orders what is found, among equals; it never matches.)
             found, shown = kept.looked_up(
                 session, project, query, self._work_of(session, ctx) or "", also
             )
             found += "\n\n" + earlier.told(session, project.id, query, also)
-            if also.off:
-                found += "\n\n" + also.off
         # As it was shown last. What the briefing gave is watched already.
         given = self._given.get(ctx.agent_id) or []
         self._looked_up.setdefault(ctx.agent_id, {}).update(

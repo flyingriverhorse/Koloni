@@ -2531,7 +2531,7 @@ export interface paths {
         /**
          * Delete Project
          * @description KOLONİ's record of the project gone for good, in one transaction: its chats with all
-         *     of their turns, its memory, knowledge, To-do, triggers, nights, usage and vectors. Not
+         *     of their turns, its memory, knowledge, To-do, triggers, nights and usage. Not
          *     while anything of it is at work (409, why in words). Its folder, files, git and .koloni/
          *     are never touched; KOLONİ's own files of its chats go as a chat's delete takes them
          *     (`_forget_files`: CLI sessions, attachments, kept sides of a commit). On the loop, as the
@@ -2579,7 +2579,9 @@ export interface paths {
         };
         /**
          * Read Night
-         * @description The project's night that runs, else its last one; null: it never had one.
+         * @description The project's night that runs, else its last one; null: it never had one. With its strip
+         *     on Ready for you (Part B, `away_night`): read here alone - every decision of the night is
+         *     built, and a chat's snapshot, on the event loop, reads every night it had.
          */
         get: operations["read_night_api_projects__project_id__away_get"];
         put?: never;
@@ -3214,8 +3216,7 @@ export interface paths {
         /**
          * Search Memory
          * @description What an agent's `recall` would find for these words: the same searches, so the
-         *     user sees what an agent would be shown. Words that say nothing find nothing. (Not
-         *     async: a search by meaning asks a server, 22c.)
+         *     user sees what an agent would be shown. Words that say nothing find nothing.
          */
         get: operations["search_memory_api_projects__project_id__memory_search_get"];
         put?: never;
@@ -8596,11 +8597,6 @@ export interface components {
             agent_id: string | null;
             /** Agent Name */
             agent_name: string | null;
-            /**
-             * By Meaning
-             * @default false
-             */
-            by_meaning: boolean;
             /** Checked How */
             checked_how: string | null;
             /** Conversation Id */
@@ -8683,8 +8679,6 @@ export interface components {
          *     and speak to the words, and what was said in earlier turns.
          */
         MemorySearchOut: {
-            /** Meaning Off */
-            meaning_off?: string | null;
             /** Memory */
             memory: components["schemas"]["MemoryOut"][];
             /** Turns */
@@ -9706,10 +9700,6 @@ export interface components {
             docker_image: string | null;
             /** Docker Network */
             docker_network: boolean;
-            /** Embedding Model */
-            embedding_model: string;
-            /** Embedding Provider Id */
-            embedding_provider_id: string | null;
             /**
              * Exec Location
              * @enum {string}
@@ -9907,10 +9897,6 @@ export interface components {
             docker_image?: string | null;
             /** Docker Network */
             docker_network?: boolean | null;
-            /** Embedding Model */
-            embedding_model?: string | null;
-            /** Embedding Provider Id */
-            embedding_provider_id?: string | null;
             /** Exec Location */
             exec_location?: ("host" | "docker") | null;
             /** Finish Way */
@@ -11254,11 +11240,6 @@ export interface components {
         SaidOut: {
             /** At */
             at: string | null;
-            /**
-             * By Meaning
-             * @default false
-             */
-            by_meaning: boolean;
             /** Conversation Id */
             conversation_id: string | null;
             /** Conversation Title */

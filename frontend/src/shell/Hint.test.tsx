@@ -103,8 +103,6 @@ const project: Project = {
   judge_risky: 'refuse',
   disposable_deletes: false,
   memory_links: [],
-  embedding_provider_id: null,
-  embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -219,8 +217,8 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
   [
     'Memory',
     async () => {
-      // The search by meaning on, and a preference suggested.
-      useApp.setState({ projectId: 'p', projects: [{ ...project, embedding_provider_id: 'p1' }], providers: [local] })
+      // A preference suggested.
+      useApp.setState({ projectId: 'p', projects: [project], providers: [local] })
       onTestFinished(() => useApp.setState({ projectId: null, projects: [], providers: [] }))
       const none = vi.fn(async () => {})
       const suggested = memoryRecord('s1', {
@@ -244,15 +242,11 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
           onAddPreference={none}
           onReload={none}
           onSearch={vi.fn()}
-          onMeaning={none}
         />,
       )
       await userEvent.click(screen.getByRole('tab', { name: /^Told/ }))
     },
-    [
-      /^By meaning: One embeddings request to that provider for each search \(it also reads up to 50 notes, facts or earlier messages not read yet\), on your plan or your bill\.$/,
-      /Added, it is told to every agent in every project as your instruction\./,
-    ],
+    [/Added, it is told to every agent in every project as your instruction\./],
   ],
   [
     'Triggers',

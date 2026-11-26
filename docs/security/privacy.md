@@ -40,26 +40,25 @@ Only these, and each only when you set it up or an agent is allowed to:
 
 1. **Model providers**: your messages and the agents' work go to the providers you add. CLIs talk to
    their own vendors.
-2. **Search by meaning**: text goes to the provider you picked for it on the Memory page.
-3. **Web searches**: to your own SearXNG if you set one, then DuckDuckGo and a CLI's search, in the
+2. **Web searches**: to your own SearXNG if you set one, then DuckDuckGo and a CLI's search, in the
    order you set, and last the Anthropic API with a provider's key. Below Full auto a search asks first,
    unless you allowed searching in that chat.
-4. **Web requests** agents make, to public addresses, after a card or a rule.
-5. **The agents' browser**: previews on this machine, and sites you allowed.
-6. **Notifications**, to the address you set.
-7. **Voice**: Gemini's voices send the text they read to Google, only with your key. Speech recognition
+3. **Web requests** agents make, to public addresses, after a card or a rule.
+4. **The agents' browser**: previews on this machine, and sites you allowed.
+5. **Notifications**, to the address you set.
+6. **Voice**: Gemini's voices send the text they read to Google, only with your key. Speech recognition
    is your browser's: in Chrome and Edge what you say is sent to Google's or Microsoft's service. A
    system voice marked online sends what it reads to its maker. KOLONİ keeps no sound and sends none.
-8. **The model catalogue** (models.dev): when you press **Update catalogue**, and at a start once your
+7. **The model catalogue** (models.dev): when you press **Update catalogue**, and at a start once your
    copy is a week old, unless **Keep the catalogue fresh** is off or `KOLONI_CATALOGUE_REFRESH=0`.
-9. **Skills from GitHub**, when you read or add one.
-10. **Checking an MCP package**: its name to npm or PyPI, and to osv.dev for known malware, when you
+8. **Skills from GitHub**, when you read or add one.
+9. **Checking an MCP package**: its name to npm or PyPI, and to osv.dev for known malware, when you
     ask.
-11. **Knowledge**: the pages a topic learns from, its research searches, and a repository cloned
+10. **Knowledge**: the pages a topic learns from, its research searches, and a repository cloned
     from GitHub when you press **Learn**.
-12. **Pull requests**: pushing a branch and opening a pull request, when you choose that.
-13. **Plan and balance checks**: when you press **Check now** or **Read now**.
-14. **What agents' commands and MCP servers reach.** MCP servers run with your own rights, outside
+11. **Pull requests**: pushing a branch and opening a pull request, when you choose that.
+12. **Plan and balance checks**: when you press **Check now** or **Read now**.
+13. **What agents' commands and MCP servers reach.** MCP servers run with your own rights, outside
     KOLONİ's cards.
 
 ## Deleting

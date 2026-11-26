@@ -141,12 +141,6 @@ class Project(Base):
     # 22c: the other projects of this KOLONİ whose memory and earlier turns `recall` also
     # looks in, read only (`memory.linked`); ids. Nothing of theirs is given at a start.
     memory_links: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
-    # 22c: the provider whose OpenAI-compatible server embeds the memory for a search by
-    # meaning (`app.meaning`), and the model name it is asked for; None: word search alone.
-    embedding_provider_id: Mapped[str | None] = mapped_column(String(32), default=None)
-    embedding_model: Mapped[str] = mapped_column(
-        String(200), default="text-embedding-3-small", server_default="text-embedding-3-small"
-    )
     # Folders outside the project a new chat in it starts with, as they really are (slice
     # 41; its chats' own lists since slice 86b).
     also_in: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
@@ -1946,18 +1940,3 @@ class AwayRun(Base):
     # What its chat had spent at Go away: not counted to its money (`app.away.spent`).
     spent_before: Mapped[float | None] = mapped_column(Float, default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
-
-
-class Embedding(Base):
-    """A vector of a memory record's words, or of what was said in an earlier turn (22c,
-    `app.meaning`): what a search by meaning compares the question's vector with. `kind`
-    "memory" with the record's id, or "turn" with the `said_in_turns` row's rowid; `model`
-    is the name the vector was asked under, and in the key: vectors of different models do
-    not compare, and two projects that embed with different models each keep their own."""
-
-    __tablename__ = "embeddings"
-    kind: Mapped[str] = mapped_column(String(8), primary_key=True)
-    record_id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    project_id: Mapped[str] = mapped_column(String(32), index=True)
-    model: Mapped[str] = mapped_column(String(200), primary_key=True)
-    vector: Mapped[list] = mapped_column(JSON)

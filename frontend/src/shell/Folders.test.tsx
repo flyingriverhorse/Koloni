@@ -42,8 +42,6 @@ const project: Project = {
   judge_risky: 'refuse',
   disposable_deletes: false,
   memory_links: [],
-  embedding_provider_id: null,
-  embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,

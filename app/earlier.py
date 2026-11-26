@@ -104,7 +104,6 @@ class Said:
     trigger: bool = False  # said in a turn nobody watched: a trigger's
     # 22c: the name of the linked project it was said in; None for this project's own.
     project: str | None = None
-    by_meaning: bool = False  # found by the search by meaning, not by its words
     tried: bool = False  # a sub-agent's report of work that did not work (K-basarisiz-yontem)
 
     @property
@@ -232,14 +231,6 @@ def unindex_task(session: Session, task_id: str):
     was = session.execute(
         text("SELECT at FROM said_in_turns WHERE run_id = :key"), {"key": key}
     ).first()
-    # (Its vector too, 22c: the index gives a row's number again once the row is gone.)
-    session.execute(
-        text(
-            "DELETE FROM embeddings WHERE kind = 'turn' AND record_id IN "
-            "(SELECT CAST(rowid AS TEXT) FROM said_in_turns WHERE run_id = :key)"
-        ),
-        {"key": key},
-    )
     session.execute(text("DELETE FROM said_in_turns WHERE run_id = :key"), {"key": key})
     return was
 
@@ -365,8 +356,7 @@ def found(
 ) -> list[Said]:
     """What was said in the project's earlier turns that speaks to the query: the best
     matched first (bm25), at most MAX_FOUND. With `also` (22c): the linked projects' turns
-    too, each tagged with its project; and after the word matches, the ones the search
-    by meaning found - never in their place.
+    too, each tagged with its project.
 
     The words that count are the query's, evened out, less the ones that say nothing
     (`memory._STOP`, evened out too: "icin" is "için"); a word of what was said has one of
@@ -381,45 +371,23 @@ def found(
     asked = kept.one_line(query)[: kept.MAX_QUERY]
     wanted = {word for word in _words(asked) if len(word) > 1 and word not in _STOP}
     linked = also.linked if also else {}
-    near = also.near.turns if also and also.near else []
-    if not wanted and not near:
+    if not wanted:
         return []
     # Each word in quotes, so that nothing of it is read as the index's own syntax; the
     # star lets it be the beginning of a word.
-    rows = (
-        session.execute(
-            text(
-                "SELECT rowid, said, conversation_id, run_id, agent, at, project_id, rank "
-                "FROM said_in_turns WHERE said_in_turns MATCH :asked AND project_id IN :projects "
-                "ORDER BY rank LIMIT :most"
-            ).bindparams(bindparam("projects", expanding=True)),
-            {
-                "asked": " OR ".join(f'"{word}"*' for word in sorted(wanted)),
-                "projects": [project_id, *linked],
-                "most": LOOKED_AT,
-            },
-        ).all()
-        if wanted
-        else []
-    )
-    # The ones near in meaning, after the word matches, nearest first (`meaning.search`).
-    by_row = (
+    rows = session.execute(
+        text(
+            "SELECT rowid, said, conversation_id, run_id, agent, at, project_id, rank "
+            "FROM said_in_turns WHERE said_in_turns MATCH :asked AND project_id IN :projects "
+            "ORDER BY rank LIMIT :most"
+        ).bindparams(bindparam("projects", expanding=True)),
         {
-            row.rowid: row
-            for row in session.execute(
-                text(
-                    "SELECT rowid, said, conversation_id, run_id, agent, at, project_id, 0 AS rank "
-                    "FROM said_in_turns WHERE rowid IN :rows AND project_id IN :projects"
-                ).bindparams(
-                    bindparam("rows", expanding=True), bindparam("projects", expanding=True)
-                ),
-                {"rows": near, "projects": [project_id, *linked]},
-            )
-        }
-        if near
-        else {}
-    )
-    tried = _tried(session, [*rows, *by_row.values()])
+            "asked": " OR ".join(f'"{word}"*' for word in sorted(wanted)),
+            "projects": [project_id, *linked],
+            "most": LOOKED_AT,
+        },
+    ).all()
+    tried = _tried(session, list(rows))
 
     def ranked(row) -> float:
         # (bm25's rank is the lower the better, below 0: more of it is a better rank.)
@@ -438,15 +406,11 @@ def found(
             matched.append((row, first))
         if len(matched) == MAX_FOUND:
             break
-    found_by_words = {row.rowid for row, _first in matched}
-    meant = [
-        (by_row[rowid], 0) for rowid in near if rowid in by_row and rowid not in found_by_words
-    ]
     titles = {
         cid: title
         for cid, title in session.execute(
             select(Conversation.id, Conversation.title).where(
-                Conversation.id.in_({row.conversation_id for row, _first in matched + meant})
+                Conversation.id.in_({row.conversation_id for row, _first in matched})
             )
         )
     }
@@ -457,7 +421,7 @@ def found(
         rid
         for rid in session.scalars(
             select(Run.id).where(
-                Run.id.in_({row.run_id for row, _first in matched + meant}),
+                Run.id.in_({row.run_id for row, _first in matched}),
                 Run.unattended.is_(True),
             )
         )
@@ -473,10 +437,9 @@ def found(
             _excerpt(row.said, first),
             trigger=row.run_id in unwatched,
             project=linked.get(row.project_id),
-            by_meaning=row.rowid not in found_by_words,
             tried=(row.run_id, row.agent) in tried,
         )
-        for row, first in matched + meant
+        for row, first in matched
     ]
 
 
@@ -500,8 +463,6 @@ def told(session: Session, project_id: str, query: str, also: "kept.Also | None"
         tag = ", in a trigger's turn" if said.trigger else ""
         if said.project is not None:
             tag += f", in the project {quoted(kept.one_line(said.project))}"
-        if said.by_meaning:
-            tag += f"; {kept.BY_MEANING}"
         if said.tried:
             tag += f"; {TRIED}"
         lines.append(f"- {quoted(kept.one_line(said.excerpt))} ({kind} {who}{where}{when}{tag})")

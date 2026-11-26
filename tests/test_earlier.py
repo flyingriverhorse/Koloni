@@ -726,11 +726,7 @@ def test_the_search_of_the_memory_page_takes_any_words(make_client, wait_run, pr
         assert got.json()["memory"] == [], query
         if got.json()["turns"]:
             assert "password" in query or "rotation" in query, query
-    assert client.get(f"/api/projects/{pid}/memory/search").json() == {
-        "memory": [],
-        "turns": [],
-        "meaning_off": None,
-    }
+    assert client.get(f"/api/projects/{pid}/memory/search").json() == {"memory": [], "turns": []}
     assert client.get("/api/projects/nobody/memory/search", params={"q": "x"}).status_code == 404
 
 

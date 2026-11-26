@@ -14,7 +14,6 @@ Some settings make one more model request each time. Each says so where you swit
 | **Check what I said first** (Settings › This project › Asking and away, under Full auto's judge: **It also lets a delete or a push run when a line you saved names it**) | One request of your Judge model (on a CLI, of your plan) for each harmful-looking command at Full auto. |
 | **Try a real run** (Models page, a CLI) | One short run, on your plan. |
 | **Read now** for Claude Code (a provider's card) | One short request. |
-| Search by meaning (Memory page) | One embeddings request for each search. |
 | Learning a knowledge topic (Knowledge page) | Model requests, up to the limit you set. |
 | Candidates in a recipe | Each candidate is its own agent. |
 | Agents on a CLI working at the same time | They spend your subscription at the same time. |

@@ -92,9 +92,6 @@ export interface ProjectSettingsValues {
   auto_notes?: boolean
   /** 22c: the other projects whose memory an agent's recall also looks in (ids): the whole list. Sent only when changed. */
   memory_links?: string[]
-  /** 22c, from the Memory page: the provider whose server embeds for the search by meaning (null: off), and the model name. */
-  embedding_provider_id?: string | null
-  embedding_model?: string
   /** The extra folders a new chat in this folder starts with (slice 86b), to work and to read only in: each whole list. */
   also_in?: string[]
   read_in?: string[]
