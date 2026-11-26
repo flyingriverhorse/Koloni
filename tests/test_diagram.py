@@ -220,9 +220,6 @@ def test_the_viewer_page_has_its_policy_by_any_case_of_its_address(tmp_path):
     (dist / "drawio").mkdir(parents=True)
     (dist / "index.html").write_text("app", encoding="utf-8")
     (dist / "drawio" / "viewer.html").write_text("viewer", encoding="utf-8")
-    # (K-belge-ciktilari: the document viewer's page is under the same policy.)
-    (dist / "office").mkdir()
-    (dist / "office" / "viewer.html").write_text("viewer", encoding="utf-8")
     app = FastAPI()
     _serve_frontend(app, dist)
     with TestClient(app) as client:
@@ -230,13 +227,10 @@ def test_the_viewer_page_has_its_policy_by_any_case_of_its_address(tmp_path):
             "/drawio/viewer.html",
             "/DRAWIO/viewer.html",
             "/Drawio/Viewer.html",
-            "/office/viewer.html",
-            "/OFFICE/viewer.html",
             # (Windows opens a part without its trailing dot or space: refused.)
-            "/office./viewer.html",
             "/drawio./viewer.html",
-            "/office /viewer.html",
-            "/office/viewer.html.",
+            "/drawio /viewer.html",
+            "/drawio/viewer.html.",
         ):
             answer = client.get(address)
             # (Where the file system tells no case apart, each is the viewer: with its policy.)

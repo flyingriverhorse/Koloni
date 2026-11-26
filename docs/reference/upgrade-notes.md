@@ -18,6 +18,16 @@ put one back in place of `runtime/data/koloni.db`.
 
 Only what needs your attention after an update; everything else is in the [Changelog](../changelog.md).
 
+### 0.1.10
+
+- **The Word, Excel, PowerPoint and 3D model previews are gone.** Such a file is still in the
+  Workspace's files and opens there as any other file that is not a page or a picture: its text where
+  it is text of 256 KB at most (an OBJ, a text STL, a glTF), else "Not text: there is no code to show."
+  or "Too large to show: over 256 KB."; one only in an agent's working copy so far says "It could not
+  be read." until its work is taken in. Open it in its own program from the project's folder. A Word, Excel or PowerPoint file an agent made is still listed among its outputs on the
+  canvas and still checked; a 3D model is no longer an output, and an agent can no longer `show` one.
+  Nothing in the database changes.
+
 ### 0.1.8
 
 - **The database** is upgraded at the first start (migrations 0176 to 0182), after KOLONİ copies it to

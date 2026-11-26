@@ -2579,7 +2579,9 @@ export interface paths {
         };
         /**
          * Read Night
-         * @description The project's night that runs, else its last one; null: it never had one.
+         * @description The project's night that runs, else its last one; null: it never had one. With its strip
+         *     on Ready for you (Part B, `away_night`): read here alone - every decision of the night is
+         *     built, and a chat's snapshot, on the event loop, reads every night it had.
          */
         get: operations["read_night_api_projects__project_id__away_get"];
         put?: never;
@@ -12587,7 +12589,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "html" | "svg" | "md" | "image" | "model" | "drawio" | "pdf" | "docx" | "xlsx" | "pptx";
+            kind: "html" | "svg" | "md" | "image" | "drawio" | "pdf" | "docx" | "xlsx" | "pptx";
             /** Note */
             note: string | null;
             /** Path */

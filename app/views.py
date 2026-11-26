@@ -26,9 +26,6 @@ from app.project_view import UNREAD_FOLDERS, _is_link
 from app.workspace import DEVICES, Workspace, WorkspaceError, has_other_names, is_secret
 
 MAX_BYTES = 5 * 1024 * 1024
-# A 3D model (slice 58), and the buffers a glTF names beside it, may be larger than a page.
-MAX_MODEL_BYTES = 50 * 1024 * 1024
-MODEL_FILES = (".stl", ".obj", ".gltf", ".glb", ".3mf", ".bin")
 MAX_NOTE_CHARS = 200
 KINDS = {
     ".html": "html",
@@ -40,20 +37,15 @@ KINDS = {
     ".jpeg": "image",
     ".gif": "image",
     ".webp": "image",
-    ".stl": "model",
-    ".obj": "model",
-    ".gltf": "model",
-    ".glb": "model",
-    ".3mf": "model",
     ".pdf": "pdf",
-    # K-belge-ciktilari: drawn by the renderer of each, in a frame of no origin (`OFFICE`).
+    # K-belge-ciktilari: an agent's outputs, listed and checked (`proof_kinds`); not previewed.
     ".docx": "docx",
     ".xlsx": "xlsx",
     ".pptx": "pptx",
 }
 # R161: the kinds that read as something an agent made, as the canvas's output card counts them
 # (`frontend/src/canvas/outputs.ts`): not a note (.md), written all the time.
-MADE = frozenset({"html", "svg", "image", "model", "pdf", "docx", "xlsx", "pptx", "drawio"})
+MADE = frozenset({"html", "svg", "image", "pdf", "docx", "xlsx", "pptx", "drawio"})
 # R161: the most of them found after one command, and kept for one agent (`_record_made`); and
 # the most entries a look after a command walks (as many as a copy holds: `copies.MAX_FILES`).
 MOST_MADE = 200
@@ -82,13 +74,6 @@ TYPES = {
     ".woff2": "font/woff2",
     ".ttf": "font/ttf",
     ".otf": "font/otf",
-    ".stl": "model/stl",
-    ".obj": "model/obj",
-    ".gltf": "model/gltf+json",
-    ".glb": "model/gltf-binary",
-    ".3mf": "model/3mf",
-    ".mtl": "text/plain; charset=utf-8",
-    ".bin": "application/octet-stream",
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -156,8 +141,8 @@ PDF_HEADERS = {
 }
 
 
-# K-belge-ciktilari: the documents the app reads itself and posts into the document viewer: on a
-# keyless door, served only with the page's key (`api.deps.keyed_if_read_by_the_app`).
+# K-belge-ciktilari: the documents no frame loads: on a keyless door, served only with the page's
+# key (`api.deps.keyed_if_read_by_the_app`).
 KEYED = frozenset(TYPES[end] for end in (".docx", ".xlsx", ".pptx"))
 # (A document's or a pdf's answer is the app's own page's to read, no other site's.)
 SAME_ORIGIN = {"Cross-Origin-Resource-Policy": "same-origin"}
@@ -240,11 +225,6 @@ def type_of(path: str) -> str | None:
     if path.lower().endswith(DIAGRAMS):
         return "text/plain; charset=utf-8"
     return TYPES.get(PurePosixPath(path).suffix.lower())
-
-
-def max_bytes(path: str) -> int:
-    """The largest a file is served: a model's larger than a page's."""
-    return MAX_MODEL_BYTES if PurePosixPath(path).suffix.lower() in MODEL_FILES else MAX_BYTES
 
 
 def _key(path: str) -> str:
@@ -332,7 +312,7 @@ def _on_disk(ws: Workspace, rel: str) -> tuple[str | None, bool]:
         return None, False
     if not stat.S_ISREG(status.st_mode):
         return None, False
-    if status.st_size > max_bytes(target.name):
+    if status.st_size > MAX_BYTES:
         return None, True
     stamp = (status.st_mtime_ns, status.st_size)
     known = _digests.get(str(target))
@@ -392,17 +372,16 @@ def _vetted(name: str) -> str:
 
 def read_file(ws: Workspace, rel: str, limit: int | None = None) -> bytes:
     """A file of the project (or of a copy) as it is now: never one outside it, by a link
-    or by another name of the same file (a hard link), nor one larger than `max_bytes` - nor a
+    or by another name of the same file (a hard link), nor one larger than `MAX_BYTES` - nor a
     secret (`is_secret`), by its name or by a short name that leads to it (`ENV~1`). `limit`:
-    another largest than `max_bytes` (28e: an image an agent looks at)."""
+    another largest than `MAX_BYTES` (28e: an image an agent looks at)."""
     try:
         target = ws.resolve(rel)
     except (WorkspaceError, ValueError):
         raise Refused(404, "not in the project") from None
     if is_secret(rel) or is_secret(ws.rel(target)) or has_other_names(target):
         raise Refused(404, "not in the project")
-    # (by the name it has, as its type is: `project_files.raw`)
-    limit = limit or max_bytes(target.name)
+    limit = limit or MAX_BYTES
     try:
         # shortcut: resolved, then opened by its name - a link put in its place between the
         # two is followed. Accepted: whoever can put one there can read the file anyway;
@@ -456,10 +435,10 @@ def serve(
                 raise Refused(404, "no such file")
             try:
                 with open(kept, "rb") as file:
-                    data = file.read(max_bytes(rel) + 1)
+                    data = file.read(MAX_BYTES + 1)
             except OSError:
                 raise Refused(404, "no such file") from None
-            if len(data) > max_bytes(rel):
+            if len(data) > MAX_BYTES:
                 raise Refused(413, "too large to show")
         else:
             data = row.after_content.encode("utf-8")
@@ -475,9 +454,8 @@ def check_shown(ws: Workspace, path: str) -> str:
     if kind_of(target.name) is None:
         raise WorkspaceError(
             f"{path!r} is not a kind that can be shown: a page (.html, .htm), a drawing "
-            "(.svg), a note (.md), a picture (.png, .jpg, .gif, .webp), a 3D model (.stl, .obj, "
-            ".gltf, .glb, .3mf), a draw.io diagram (.drawio, .drawio.xml, .dio) or a document "
-            "(.pdf, .docx, .xlsx, .pptx)"
+            "(.svg), a note (.md), a picture (.png, .jpg, .gif, .webp), a draw.io diagram "
+            "(.drawio, .drawio.xml, .dio) or a document (.pdf, .docx, .xlsx, .pptx)"
         )
     if not target.is_file():
         raise WorkspaceError(f"{path!r} does not exist")
