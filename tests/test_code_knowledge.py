@@ -276,7 +276,12 @@ def test_the_topic_code_is_the_scans_and_its_expert_asks_lookup(client, project_
     root = _project(project_dir)
     code_map.scan(root, CODE)
     told = knowledge.brief(root, {**CODE, "max_pages": 500})
-    assert told.startswith(knowledge.CODE_EXPERT) and "pages" not in told.split("\n")[0]
+    expert = knowledge.CODE_EXPERT.replace("{look}", "recall")  # (0.1.10: its look-up tool)
+    assert told.startswith(expert) and "pages" not in told.split("\n")[0]
+    # One that holds lookup alone is told to ask lookup.
+    assert "Ask lookup who calls" in knowledge.brief(
+        root, {**CODE, "max_pages": 500}, tools=["lookup"]
+    )
 
 
 def test_methods_and_self_calls_are_found_and_a_shared_name_is_maybe(project_dir):

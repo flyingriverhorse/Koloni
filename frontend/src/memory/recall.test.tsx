@@ -15,6 +15,7 @@ const handlers = () => ({
   onCorrect: vi.fn().mockResolvedValue(undefined),
   onWrite: vi.fn().mockResolvedValue(undefined),
   onSaveRules: vi.fn().mockResolvedValue(undefined),
+  onSaveProjectNotes: vi.fn().mockResolvedValue(undefined),
   onSavePreferences: vi.fn().mockResolvedValue(undefined),
   onAddPreference: vi.fn().mockResolvedValue(undefined),
   onReload: vi.fn().mockResolvedValue(undefined),

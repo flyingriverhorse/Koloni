@@ -34,3 +34,17 @@ test('no button while the notebook is empty; one note says so; a label stands fo
   rerender(<NotebookButton story={{ title: 's', notes: [note('result', 'r', 'KOLONİ')] }} label="notes" />)
   expect(screen.getByRole('button', { name: 'notes' })).toHaveAttribute('aria-expanded', 'false')
 })
+
+test('0.1.10: a task’s notebook says it is the task’s, and a note left for the whole turn is a Note', async () => {
+  render(
+    <NotebookButton
+      story={{ title: 'fix the parser', notes: [note('note', 'parser in app/parse.py', 'Coder')] }}
+      of="task"
+    />,
+  )
+  await userEvent.click(screen.getByRole('button', { name: '1 note' }))
+  expect(screen.getByRole('dialog', { name: 'Notebook of fix the parser' })).toHaveTextContent(
+    'Given to every turn of the task, as data.',
+  )
+  expect(screen.getByRole('listitem')).toHaveTextContent('Note parser in app/parse.py · Coder')
+})

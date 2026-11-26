@@ -221,11 +221,11 @@ def without_memory(tools):
             for later_input in ("knows", "sources"):
                 tool["function"]["parameters"]["properties"].pop(later_input, None)
         if tool["function"]["name"] == "post_note":
-            # A note for every team came later (K-not-oda): one more input, and its team said.
-            tool["function"]["parameters"]["properties"].pop("everyone", None)
-            tool["function"]["description"] = tool["function"]["description"].replace(
-                " (of your team, where you work in one)", ""
-            )
+            # A note for every team (K-not-oda) and a job's notebook (0.1.10) came later.
+            fn = tool["function"]
+            fn["parameters"]["properties"].pop("everyone", None)
+            said = fn["description"].replace(" (of your team, where you work in one)", "")
+            fn["description"] = said.split(" In a job's turn")[0]
         if tool["function"]["name"] == "spawn_agent":
             # The reason for a pick came later too (slice 25c): one more input, no other word.
             tool["function"]["parameters"]["properties"].pop("why", None)

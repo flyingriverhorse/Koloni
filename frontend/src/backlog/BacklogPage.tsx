@@ -22,6 +22,7 @@ import { usePanel } from '../shell/usePanel'
 import { AwayNight } from './Away'
 import { TodoDock } from './Dock'
 import { DraftTree } from './DraftTree'
+import { NotebookButton } from './Notebook'
 import { StoryPicker } from './StoryPicker'
 import { TaskMarks, TodoBar, TodoTree, type TreeActions } from './TodoTree'
 import { useTreeView } from './tree'
@@ -1009,6 +1010,7 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
             )}
           </div>
           <span className={`tag${tone}`}>{tag}</span>
+          <NotebookButton story={{ title: task.title, notes: task.notes ?? [] }} of="task" />
           {task.conversation_id && (
             <button
               type="button"

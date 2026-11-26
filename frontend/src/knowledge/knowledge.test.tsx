@@ -4,6 +4,7 @@ import { expect, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import type { KnowledgeItem, KnowledgeState, Project, Provider } from '../api/types'
 import { Rail } from '../shell/Rail'
+import { MemoryParts } from '../memory/MemoryParts'
 import { KnowledgePage } from './KnowledgePage'
 
 // K-bilgi part 1: the project's Knowledge page - a card for each knowledge (layout A), opened to its tabs, with Try it, and "+ Add knowledge"
@@ -82,11 +83,22 @@ const page = (over: object = {}) => {
   return props
 }
 
-test('the rail has Knowledge between Memory and Usage', () => {
-  render(<Rail view="knowledge" onView={vi.fn()} theme="dark" onToggleTheme={vi.fn()} waiting={0} />)
+test('0.1.10: the rail has no Knowledge - its sources are Memory’s second part, the Memory button pressed', async () => {
+  const onView = vi.fn()
+  render(<Rail view="knowledge" onView={onView} theme="dark" onToggleTheme={vi.fn()} waiting={0} />)
   const names = screen.getAllByRole('button').map(one => one.getAttribute('aria-label'))
-  expect(names.slice(names.indexOf('Memory'), names.indexOf('Memory') + 3)).toEqual(['Memory', 'Knowledge', 'Usage'])
-  expect(screen.getByRole('button', { name: 'Knowledge' })).toHaveAttribute('aria-pressed', 'true')
+  expect(names.slice(names.indexOf('Memory'), names.indexOf('Memory') + 2)).toEqual(['Memory', 'Usage'])
+  expect(screen.getByRole('button', { name: 'Memory' })).toHaveAttribute('aria-pressed', 'true')
+  cleanup()
+  const onPart = vi.fn()
+  page({ parts: <MemoryParts sources onPart={onPart} /> })
+  const parts = screen.getByRole('group', { name: 'Memory’s parts' })
+  expect(within(parts).getByRole('button', { name: 'Sources to look things up in' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await userEvent.click(within(parts).getByRole('button', { name: 'What the project knows' }))
+  expect(onPart).toHaveBeenCalledWith(false)
 })
 
 const card = (topic: string) => screen.getByRole('article', { name: topic })
@@ -571,30 +583,6 @@ test('the code is offered for a scan, then its card says when, how many files an
   expect(within(scannedCard).queryByRole('meter')).not.toBeInTheDocument()
   await userEvent.click(within(scannedCard).getByRole('button', { name: 'Rescan' }))
   expect(again.onLearn).toHaveBeenCalledWith('kc')
-})
-
-test('Project notes: its notes counted, nothing to learn or to set, Try it as any knowledge', async () => {
-  // K-bilgi 6: written from what the user accepted at a turn's end - no Learn, no sources, no cost.
-  const notes: KnowledgeItem = {
-    ...MLFLOW,
-    id: 'k7',
-    knowledge: { ...MLFLOW.knowledge, topic: 'Project notes', sources: ['notes:'] },
-    state: {
-      ...LEARNED,
-      estimate: null,
-      requests: null,
-      learned: { ...LEARNED.learned!, guide_from: 2, cost: null, left: 0, pages: LEARNED.learned!.pages.slice(0, 2) },
-    },
-  }
-  page({ items: [notes] })
-  expect(card('Project notes')).toHaveTextContent('2 notes')
-  expect(screen.getByText('written as you accept them')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: /Learn/ })).not.toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: /Project notes/ }))
-  expect(screen.queryByLabelText('Sources')).not.toBeInTheDocument()
-  expect(screen.queryByRole('tab', { name: /Not known yet/ })).not.toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Try it' }))
-  expect(screen.getByLabelText(/Try it/)).toBeInTheDocument()
 })
 
 test('Try it says the model that will answer before you ask, and is off where none can', async () => {

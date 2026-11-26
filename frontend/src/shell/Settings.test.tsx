@@ -201,7 +201,7 @@ test('The app › Agents: the Judge model is the Fast tier’s first, named, unt
   expect(screen.queryByText(MEASURED)).toBeNull()
 })
 
-test('a chosen Judge model that cannot be asked now stays chosen and says so; with none to ask, the judge stands aside', async () => {
+test('a chosen Judge model that cannot be asked now stays chosen and says so; with none to ask, each command asks', async () => {
   server([], { ...JUDGE, provider_id: 'gone', model_id: 'old' })
   const { unmount } = render(<Settings {...base} project={null} onSave={vi.fn()} />)
   const judge = screen.getByLabelText('Judge model')
@@ -217,7 +217,7 @@ test('a chosen Judge model that cannot be asked now stays chosen and says so; wi
   render(<Settings {...base} project={null} onSave={vi.fn()} />)
   await waitFor(() => expect(screen.getByLabelText('Judge model')).toHaveDisplayValue('Fast tier’s first (now: none)'))
   expect(
-    screen.getByText(/^No model can be asked: Full auto’s judge stands aside and says so in the chat\./),
+    screen.getByText(/^No model can be asked: each command Full auto’s judge would look at waits for you on a card/),
   ).toBeVisible()
 })
 
@@ -457,6 +457,43 @@ test('This project › Limits and money: the monthly budget and a job’s budget
   render(<Settings {...base} project={{ ...project, spawn_max_parallel: 4 }} onSave={vi.fn()} />)
   await userEvent.click(levels().getByRole('button', { name: /^Limits and money/ }))
   expect(shownMore()).toHaveTextContent('More limits · set')
+})
+
+test('a value under More limits that cannot be saved keeps it open - the field that says why stays in sight while Save is off; fixed, it closes again (N7)', async () => {
+  server()
+  render(<Settings {...base} project={project} onSave={vi.fn()} />)
+  await userEvent.click(levels().getByRole('button', { name: /^Limits and money/ }))
+  const more = shownMore().closest('details')!
+  await openMore()
+  expect(more).toHaveAttribute('open')
+  const steps = screen.getByLabelText('Continue gives this many more steps')
+  await userEvent.clear(steps)
+  await userEvent.type(steps, '0')
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  await openMore() // (closed by the user)
+  await waitFor(() => expect(more).toHaveAttribute('open'))
+  expect(steps).toBeVisible()
+  expect(screen.getByText(/A whole number from 1 to 200/)).toBeVisible()
+  await userEvent.clear(steps)
+  await userEvent.type(steps, '7')
+  expect(more).toHaveAttribute('open') // (fixed: not shut under the cursor)
+  expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+  await openMore()
+  await waitFor(() => expect(more).not.toHaveAttribute('open'))
+})
+
+test('The app › Agents: a step limit that cannot be saved keeps its More limits open (N7)', async () => {
+  server()
+  render(<Settings {...base} project={null} onSave={vi.fn()} />)
+  const steps = await screen.findByLabelText('Steps an agent may take')
+  await vi.waitFor(() => expect(steps).toHaveValue('25'))
+  const more = shownMore().closest('details')!
+  await openMore()
+  await userEvent.clear(steps)
+  await userEvent.type(steps, '1')
+  await openMore()
+  await waitFor(() => expect(more).toHaveAttribute('open'))
+  expect(steps).toBeVisible()
 })
 
 test('The app › Agents: the step limit, the unattended limits, and what knowledge and KOLONİ’s tests may take are under More limits, closed; the language and when a context is summarised stay in sight', async () => {

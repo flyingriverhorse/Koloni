@@ -59,8 +59,9 @@ const SUB_AGENT_DEFAULTS = {
   discussion_budget: null,
   // (Kanıtlı bitiş: the specs written before it count the commands and cards of turns that change files; its own sets it.)
   after_change: 'nothing',
-  // (Full auto's judge, 0.1.9: the e2e app has no Fast-tier model, so at Full auto it would stand aside and say so in each
-  // chat - the specs written before it read those chats; its own turns it on.)
+  // (Full auto's judge, 0.1.9: the e2e app has no Fast-tier model, so at Full auto each command it looks at would wait on
+  // a card - it fails closed since 0.1.10 - and the chat say so; the specs written before it count those cards and read
+  // those chats; its own turns it on.)
   full_auto_judge: false,
 }
 

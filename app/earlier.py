@@ -29,6 +29,7 @@ from sqlalchemy import bindparam, func, literal_column, select, text
 from sqlalchemy.orm import Session
 
 from app import memory as kept
+from app import stories
 from app.db.models import Agent, BacklogTask, Conversation, DiscussionMember, Message, Run
 from app.roles import shown_name
 from app.team import quoted
@@ -123,7 +124,9 @@ def said_in(session: Session, run_id: str) -> list[tuple[str | None, datetime, s
     A trigger's message is not the user's word of that moment and is not among them.
     (Also what a fast model is given of a turn: `AgentRunner._note_what_it_found`.)"""
     said: list[tuple[str | None, datetime, str]] = [
-        (None, at, words)
+        # (0.1.10: a To-do task's message carries its job's notebook - KOLONİ's record of what
+        # agents and the user noted, never the user's words: left out)
+        (None, at, stories.without_notebook(words))
         for at, words in session.execute(
             select(Message.created_at, Message.content)
             .where(Message.run_id == run_id, Message.role == "user", Message.agent_id.is_(None))

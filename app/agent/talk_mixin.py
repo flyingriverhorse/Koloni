@@ -17,9 +17,11 @@ from app import (
     copies,
     git,
     injection,
+    knows,
     mcp_client,
     models_dev,
     recipe_run,
+    stories,
     team_requests,
     topics,
     views,
@@ -38,6 +40,7 @@ from app.db.models import (
     Message,
     Recipe,
     Role,
+    Run,
     ShownFile,
     now,
 )
@@ -324,6 +327,8 @@ class TalkMixin:
             show and ctx.agent_id not in self._read_only_agents,
         )
         schemas = [capped(s, cap) if s["function"]["name"] == "run_command" else s for s in schemas]
+        if ctx.agent_id not in self._read_only_agents:  # (KOLONİ's Reviewer: lookup, no memory)
+            schemas = knows.one_look_up(schemas)  # (0.1.10: one look-up tool)
         # (with the To-do list's tools: the jobs go onto it)
         at = next(
             (i + 1 for i, s in enumerate(schemas) if s["function"]["name"] == "assess_task"),
@@ -1037,6 +1042,23 @@ class TalkMixin:
         self.bus.emit(cid, run_id, "board.posted", payload)
         return payload
 
+    def _into_notebook(
+        self: "AgentRunner", run_id: str, by: str, content: str, agent: bool = True
+    ) -> str | None:
+        """0.1.10: a note for the whole turn (no team's, or for every team's) in a job's turn - a
+        story's, a To-do task's, a night's job's - goes into the job's notebook too
+        (`stories.from_board`); what its writer is told of that, None in a plain chat's turn."""
+        with self._factory() as session:
+            run = session.get_one(Run, run_id)
+            said = stories.from_board(session, run, by, content, agent)
+            if said is None:
+                return None
+            project_id = session.get_one(Conversation, run.conversation_id).project_id
+            session.commit()
+        if project_id:
+            announce(self._factory, self.bus, project_id, "backlog.changed")
+        return said
+
     def _backlog(self: "AgentRunner", ctx: Ctx, name: str, args: dict) -> str:
         """read_backlog, add_task, change_task or assess_task on the backlog of the
         conversation's project (`app.backlog`, whose functions bear the tools' names)."""
@@ -1066,6 +1088,12 @@ class TalkMixin:
         payload = self._write_note(
             ctx.run_id, ctx.cid, ctx.agent_id, note, team, everyone and team is not None
         )
+        kept = (
+            self._into_notebook(ctx.run_id, ctx.name or ctx.role, note)
+            if team is None or everyone
+            else None
+        )
+        also = f" {kept[0].upper()}{kept[1:]}." if kept else ""
         with self._factory() as session:
             post = session.get_one(BoardPost, payload["id"])
             # (Those that read it: not another team's.)
@@ -1083,14 +1111,14 @@ class TalkMixin:
         if not at_work:
             return (
                 "noted: nobody else is at work right now; an agent that starts or goes on "
-                "later in this turn sees it if it takes a step."
+                "later in this turn sees it if it takes a step." + also
             )
         who = (
             "1 other agent at work sees this at its next step, if it takes one"
             if at_work == 1
             else f"{at_work} other agents at work see this at their next step, if they take one"
         )
-        return f"noted: {who}. Nobody replies to a note; go on with your own work."
+        return f"noted: {who}. Nobody replies to a note; go on with your own work.{also}"
 
     async def _record_made(
         self: "AgentRunner", ctx: Ctx, root: Path, paths: Collection[str], copy: copies.Copy | None

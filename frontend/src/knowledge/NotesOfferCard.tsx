@@ -4,7 +4,7 @@ import type { NotesOffer } from '../api/types'
 
 /**
  * K-bilgi 6: "Add to Project notes?" under a turn - what its agents fixed and the docs/ it changed, a tick each, in their
- * words. Answered whenever you like: it never held the turn. Add sends the lines shown and those ticked - an offer a turn
+ * words; since 0.1.10 the Project notes are Memory's (Told tab, the rules' second box). Answered whenever you like: it never held the turn. Add sends the lines shown and those ticked - an offer a turn
  * added to meanwhile is refused and shown again - Not now none. Once answered, a line says what came of it.
  */
 export function NotesOfferCard({
@@ -37,7 +37,8 @@ export function NotesOfferCard({
     <div className="cmd-approval" role="group" aria-label="Add to Project notes?">
       <div className="kicker cmd-approval-kicker">Add to Project notes?</div>
       <p className="card-said">
-        What turns found, as their agents said it - each one ticked becomes a note in this project’s knowledge:
+        What turns found, as their agents said it - each one ticked becomes a line of this project’s Project notes, in
+        Memory, which the Orchestrator is given every turn:
       </p>
       {offer.lines.map(line => (
         <label key={line} className="choice">

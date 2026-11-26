@@ -76,8 +76,9 @@ KOLONİ's own words, as they appear on screen.
   when they look.
 
 **Knowledge**
-: A page of expert topics, each read once from web pages or project files into pages and a guide.
-  Roles that know a topic use it while they work.
+: The Memory page's second part, **Sources to look things up in**: expert topics, each read once from
+  web pages or project files into pages and a guide. Roles that know a topic use it while they work,
+  and an agent's **Recall** looks in its role's. See [Sources](../knowledge.md).
 
 **MCP server**
 : A program on your machine that gives agents more tools. You add it on the Tools page, under
@@ -88,11 +89,17 @@ KOLONİ's own words, as they appear on screen.
   100. It scores candidates.
 
 **Memory**
-: What a project remembers between chats: your preferences, the project's rules, facts and notes.
-  See [Memory](../memory.md).
+: What a project remembers between chats: your preferences, the project's rules and Project notes,
+  facts and notes. See [Memory](../memory.md).
 
 **Note**
 : A piece of memory an agent wrote with its **Remember** tool. See [Memory](../memory.md).
+
+**Notebook**
+: A job's short notebook - a To-do story's, or a task's of no story (a task's chat, a night's job) -
+  given to each of its turns as data, for as long as the job runs. KOLONİ, the Orchestrator, the agents'
+  notes for the whole turn and yours go in. See
+  [The job's notebook](../automation/todo.md#the-storys-notebook).
 
 **Orchestrator**
 : The agent you talk to in a chat. It plans, asks and checks, and hands changes to files to
@@ -129,8 +136,9 @@ KOLONİ's own words, as they appear on screen.
 : A folder your agents work in. Each project has its own settings, memory and To-do list.
 
 **Project notes**
-: A Knowledge topic that KOLONİ fills from what you tick on the **Add to Project notes?** card at the
-  end of a turn.
+: The lines you keep from the **Add to Project notes?** card at the end of a turn: part of
+  [Memory](../memory.md#project-notes), under the project's rules, given to the Orchestrator every turn
+  as notes.
 
 **Provider**
 : Where a model runs: an OpenAI-compatible server, the Anthropic API, or a CLI you are signed in to
@@ -180,7 +188,7 @@ KOLONİ's own words, as they appear on screen.
   only when you close it. It has a short notebook, given to each of its turns as data, and its tasks go
   on in one topic of a chat. A **bug** is a task about something that works wrong. See
   [Stories](../automation/todo.md#goals-and-stories) and
-  [The story's notebook](../automation/todo.md#the-storys-notebook).
+  [The job's notebook](../automation/todo.md#the-storys-notebook).
 
 **Sub-agent**
 : An agent that the Orchestrator (or another agent) opens for a part of the work. It works in its

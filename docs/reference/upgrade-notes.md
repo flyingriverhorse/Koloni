@@ -39,6 +39,23 @@ Only what needs your attention after an update; everything else is in the [Chang
   pages switched off for this project", and one that changed code and no test says "Not checked: a
   test for the change switched off for this project". Tick them to have them as before (see
   [What KOLONİ checked](../use/checked.md#a-test-for-the-change)). Nothing in the database changes.
+- **Project notes are Memory's.** At the first start the database is upgraded (migration 0196), after
+  KOLONİ copies it to `runtime/data/backups/`: where the Orchestrator had a project's **Project notes** on
+  (Agents › **Lead** › **Knowledge**), their lines, as the folder's
+  `.koloni/knowledge/project-notes/learned.json` lists them, are copied into the second box under
+  **This project's rules** on Memory's **Told** tab - the newest that fit in 4 000 characters. Notes you had
+  switched off, or never switched on, are not copied. The folder is only read; the knowledge and its pages
+  stay in the database and in the folder, but no role is given it and the Knowledge page no longer lists it.
+  Lines not copied are still in the folder's `pages/`: add them in the box if you want them. From now on the
+  box is the switch: what is in it, the Orchestrator is given every turn. A To-do task of no story gets a notebook of
+  its own (empty). Going back to 0.1.9 drops both, and 0.1.9 has its Project notes knowledge as it was:
+  Project notes you keep and tasks' notebooks written after the upgrade go with them (the copy in
+  `runtime/data/backups/` is the database as it was before the upgrade, without them).
+- **Knowledge is the Memory page's second part.** The rail's **Knowledge** is gone: press **Memory**,
+  then **Sources to look things up in** (or Ctrl+K, **Knowledge**). Agents look things up with
+  **Recall**, which also reads the pages of a role's knowledge; a role, recipe or prompt of yours that
+  names `lookup` keeps working in 0.1.10 - name **recall** instead before the next release. Nothing in
+  the database changes.
 - **The Board page is gone.** How each chat stands is on the **Chats** list, what waits for you on
   **Ready for you**, and a file two chats want still shows above both of them. Its **Re-run the ones
   that failed** button went with it: ask the chat's Orchestrator to open those sub-agents again. Nothing

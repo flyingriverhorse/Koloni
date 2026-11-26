@@ -406,7 +406,7 @@ class RoomsMixin:
             # (Checked as it runs too: its sources may have changed since the step offered it.)
             if not knowledge.learns_itself(known):
                 raise ToolError(
-                    "this guide is learned only on the Knowledge page: say yours is "
+                    "this guide is learned only on the Memory page's sources: say yours is "
                     "old or not learned yet"
                 )
             no_network = (

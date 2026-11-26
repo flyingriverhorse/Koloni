@@ -80,6 +80,10 @@ works in a copy of the project of its own.
 - **A job that fails** is tried once more in its chat. Failed twice, it could not be done, and the next
   one goes on.
 - **A job that waits for your word** waits, and the next one goes on.
+- **Its notebook:** a job writes in its task's [notebook](todo.md#the-storys-notebook) (its story's, where
+  the task is of one): how each turn ended, the files it changed, the Orchestrator's `Task note:` lines
+  and what its agents noted for the whole turn. The next night that works the task, or your own turn in
+  its chat, goes on from it. **📓** beside the task on To-do opens it.
 
 ### In a git repository: each job on its own branch
 

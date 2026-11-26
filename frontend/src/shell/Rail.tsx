@@ -1,5 +1,4 @@
 import {
-  Books,
   Brain,
   ChatsCircle,
   CheckSquare,
@@ -123,26 +122,16 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
           Tools
         </span>
       </button>
+      {/* 0.1.10: Memory and its sources (once Knowledge) are one page, one button. */}
       <button
         className="icon-btn"
-        aria-pressed={view === 'memory'}
+        aria-pressed={view === 'memory' || view === 'knowledge'}
         aria-label="Memory"
         onClick={() => onView('memory')}
       >
         <Brain size={19} />
         <span className="rail-label" aria-hidden="true">
           Memory
-        </span>
-      </button>
-      <button
-        className="icon-btn"
-        aria-pressed={view === 'knowledge'}
-        aria-label="Knowledge"
-        onClick={() => onView('knowledge')}
-      >
-        <Books size={19} />
-        <span className="rail-label" aria-hidden="true">
-          Knowledge
         </span>
       </button>
       <button className="icon-btn" aria-pressed={view === 'usage'} aria-label="Usage" onClick={() => onView('usage')}>

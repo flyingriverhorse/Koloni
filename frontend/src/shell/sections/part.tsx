@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { type GuidePlace } from '../guide'
 import { Hint } from '../Hint'
 import type { Project } from '../../api/types'
@@ -92,10 +92,32 @@ export function Row({
 /**
  * The limits few change, folded under More limits (the user, 26 Nov: "under an expander, not deleted"); closed unless
  * `open` (a link to one of them), and " · set" on it where one is not its default, as a role's safety stops say it.
+ * `bad`: a value in it cannot be saved - it stays open, so the field that says why is in sight while Save is off.
  */
-export function MoreLimits({ set, open = false, children }: { set: boolean; open?: boolean; children: ReactNode }) {
+export function MoreLimits({
+  set,
+  bad = false,
+  open = false,
+  children,
+}: {
+  set: boolean
+  bad?: boolean
+  open?: boolean
+  children: ReactNode
+}) {
+  const box = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    if (bad && box.current) box.current.open = true
+  }, [bad])
   return (
-    <details className="more more-limits" open={open}>
+    <details
+      ref={box}
+      className="more more-limits"
+      open={open}
+      onToggle={e => {
+        if (bad) e.currentTarget.open = true
+      }}
+    >
       <summary>More limits{set && <span className="muted"> · set</span>}</summary>
       {children}
     </details>

@@ -6,7 +6,7 @@ that changes something takes only a request that says it comes from the app's ow
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from app import earlier, koloni
+from app import earlier, koloni, project_notes, views
 from app import memory as kept
 from app.agent import announce_memory
 from app.api.deps import get_session, require_own_origin
@@ -126,6 +126,26 @@ async def set_rules(
     session.commit()
     announce_memory(request.app.state.session_factory, request.app.state.bus, project.id)
     return {"rules": kept.rules_in_effect(project)}
+
+
+@router.put(
+    "/projects/{project_id}/project-notes",
+    response_model=PreferencesOut,
+    dependencies=[Depends(require_own_origin)],
+)
+async def set_project_notes(
+    project_id: str, body: PreferencesIn, request: Request, session: Session = Depends(get_session)
+):
+    """0.1.10: the Project notes, the rules' second box - what the user kept at turns' ends, a
+    line each, as the user corrects them (`project_notes.check`); one text, as the preferences."""
+    project = _project(session, project_id)
+    try:
+        project.project_notes = project_notes.check(body.text)
+    except views.Refused as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+    session.commit()
+    announce_memory(request.app.state.session_factory, request.app.state.bus, project.id)
+    return {"text": project.project_notes}
 
 
 @router.get("/preferences", response_model=PreferencesOut)

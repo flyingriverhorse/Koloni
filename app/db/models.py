@@ -67,6 +67,8 @@ class Project(Base):
     rules: Mapped[str | None] = mapped_column(Text, default=None)
     # When the rules last changed; None when they never did, or did before this was kept.
     rules_changed_at: Mapped[datetime | None] = mapped_column(default=None)
+    # 0.1.10: the Project notes, the rules' second box (`app.project_notes`): not the user's rules.
+    project_notes: Mapped[str | None] = mapped_column(Text, default=None)
     # The user's own SearXNG, asked first by `web_search`; and which is tried first after
     # it, the built-in search ("builtin") or a CLI ("cli").
     search_url: Mapped[str | None] = mapped_column(Text, default=None)
@@ -441,13 +443,12 @@ class Message(Base):
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), index=True)
     # The agent that wrote it; None for the user's own messages.
     agent_id: Mapped[str | None] = mapped_column(ForeignKey("agents.id"), default=None, index=True)
-    # "user", "assistant", "agent": a message another agent sent to `agent_id`,
-    # "memory": KOLONİ telling `agent_id` that a fact it was given no longer stands, or
-    # "trigger": what started an unattended turn - the trigger's message, not the user's
-    # words of that moment. Or "away": KOLONİ's one line at the end of a night while the
-    # user was away (slice 106), which no agent is given. KOLONİ's lines in the chat:
-    # "git", "koloni", "landed" (where a turn's work is, B-205), "checked" (what KOLONİ checked
-    # at the turn's end, its rows in `blocks`: `checked`).
+    # "user", "assistant", "agent": a message another agent sent to `agent_id`, "memory": KOLONİ
+    # telling `agent_id` that a fact it was given no longer stands, or "trigger": what started an
+    # unattended turn - the trigger's message, not the user's words of that moment. Or "away":
+    # KOLONİ's one line at the end of a night while the user was away (slice 106), which no agent is
+    # given. KOLONİ's lines in the chat: "git", "koloni", "landed" (where a turn's work is, B-205),
+    # "checked" (what KOLONİ checked at the turn's end, its rows in `blocks`: `checked`).
     role: Mapped[str] = mapped_column(String(12))
     from_agent_id: Mapped[str | None] = mapped_column(String(32), default=None)
     # For a message from another agent: when its receiver was given it. A note left for
@@ -946,8 +947,7 @@ class Discussion(Base):
     max_rounds: Mapped[int] = mapped_column(Integer)
     round: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(12), default="running")
-    # agreed | round_limit | ended_by_user | too_few | budget; None while it runs or when
-    # cut off
+    # agreed | round_limit | ended_by_user | too_few | budget; None while it runs or when cut off
     outcome: Mapped[str | None] = mapped_column(String(16), default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
     ended_at: Mapped[datetime | None] = mapped_column(default=None)
@@ -978,14 +978,13 @@ class DiscussionPost(Base):
 
 
 class Room(Base):
-    """Two to six agents working on one goal at the same time, in one working copy. The
-    user opens it, and it is the whole of its turn until it is over: then the turn's lead,
-    who took no part, is given `told` and answers the user. Or an agent opens it, waits
-    for it, and is given its record as its call's answer.
-    Rooms are gone since 0.1.10 (a discussion lets agents talk; sub-agents work at once, each
-    in its own copy): this table and its members', items' and posts' are kept as they were -
-    what was said there is the user's - and nothing writes them. An old chat's Lead still
-    reads `told` (`_history`); migration 0193 ended any left running."""
+    """Two to six agents working on one goal at the same time, in one working copy. The user opens
+    it, and it is the whole of its turn until it is over: then the turn's lead, who took no part, is
+    given `told` and answers the user. Or an agent opens it, waits for it, and is given its record
+    as its call's answer. Rooms are gone since 0.1.10 (a discussion lets agents talk; sub-agents
+    work at once, each in its own copy): this table and its members', items' and posts' are kept as
+    they were - what was said there is the user's - and nothing writes them. An old chat's Lead
+    still reads `told` (`_history`); migration 0193 ended any left running."""
 
     __tablename__ = "rooms"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
@@ -1328,9 +1327,8 @@ class Role(Base):
     teams: Mapped[list["Team"]] = relationship(
         secondary="role_teams", lazy="selectin", order_by="[Team.created_at, Team.id]"
     )
-    # The providers (their ids) an agent may pick for a sub-agent of this role, out of
-    # the team guide. None: every one in the guide; empty: none - the role runs on its
-    # own model.
+    # The providers (their ids) an agent may pick for a sub-agent of this role, out of the team
+    # guide. None: every one in the guide; empty: none - the role runs on its own model.
     pick_from: Mapped[list | None] = mapped_column(JSON, default=None)
     # How far one agent of this role may go: model steps, and tokens as its model reports
     # them (all it sent and all it wrote). None: no limit of the role's.
@@ -1706,6 +1704,8 @@ class BacklogTask(Base):
     # `conversation_id` is not; and whether it is a task or a bug.
     story_id: Mapped[str | None] = mapped_column(String(32), default=None, index=True)
     kind: Mapped[str] = mapped_column(String(4), default="task", server_default="task")
+    # 0.1.10: its notebook, as a story's, where it is of no story (`stories.notebook_of`).
+    notes: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
 
     @property
     def place(self) -> int | None:
