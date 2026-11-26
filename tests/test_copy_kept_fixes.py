@@ -29,12 +29,12 @@ from tests.test_copy_runner import (
     at_work,
     card_of,
     kept_folders,
-    nobody_watched,
     on_record,
     short_name,
     unreadable_once,
 )
 from tests.test_copy_scenarios import files, one, run, seen
+from tests.test_kept_nobody_watched import nobody_watched
 from tests.test_spawn import step
 
 # --- what a decision on a kept card may do ---------------------------------------------------

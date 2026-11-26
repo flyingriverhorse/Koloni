@@ -28,7 +28,7 @@ from tests.keyed import TestClient
 from tests.test_chat_flow import text
 from tests.test_claim_scenarios import agent, calls, write
 from tests.test_copy_later_scenarios import again
-from tests.test_copy_runner import at_work, card_of, kept_folders, nobody_watched
+from tests.test_copy_runner import at_work, card_of, kept_folders
 from tests.test_copy_scenarios import seen
 from tests.test_migration_0002 import _config
 from tests.test_parallel import until
@@ -1464,27 +1464,6 @@ def test_a_commit_of_nothing_and_one_without_a_message_are_refused(
 
 
 # --- the migration ---------------------------------------------------------------------------
-
-
-@needs_git
-def test_a_copy_a_turn_nobody_watched_kept_is_offered_its_commit_once_the_user_takes_it(
-    settings_env, project_dir
-):
-    """A copy kept by a turn nobody watched (a trigger's, before 0.1.10) is the user's own Apply:
-    its commit is offered then - none is made."""
-    (project_dir / "lines.txt").write_bytes(LINES.encode())
-    repository(project_dir)
-    cid = at_work(settings_env, project_dir, [step(write("a.txt", "A"))])
-    nobody_watched(settings_env, cid)
-    with again(settings_env) as client:
-        pid = client.get(f"/api/conversations/{cid}").json()["conversation"]["project_id"]
-        patched = client.patch(f"/api/projects/{pid}", json={"git_commit": True})
-        assert patched.status_code == 200, patched.text
-        card = card_of(client, cid)
-        assert client.post(f"/api/merges/{card['id']}/approve").status_code == 200
-        (merge,) = client.get(f"/api/conversations/{cid}").json()["merges"]
-        assert merge["status"] == "applied" and merge["commit"]["state"] == "offered"
-    assert in_repo(project_dir, "log", "--format=%s") == "as it was"
 
 
 def test_migration_0037_and_back(tmp_path):

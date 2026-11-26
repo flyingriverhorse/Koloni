@@ -9,7 +9,6 @@ Whole turns on the scripted model; commands are real ones, run in the copy.
 import asyncio
 import os
 import shutil
-import sqlite3
 import time
 
 import pytest
@@ -1444,18 +1443,6 @@ def at_work(settings_env, project_dir, coder):
     return cid
 
 
-def nobody_watched(settings_env, cid):
-    """The chat's turn on record as one nobody watched - a trigger's turn from before 0.1.10, whose
-    kept copy outlives the upgrade: its run as such a turn left it."""
-    with sqlite3.connect(load_settings(settings_env).db_path) as conn:
-        changed = conn.execute(
-            "UPDATE runs SET unattended = 1, trigger_id = 'gone', trigger_name = 'Nightly' "
-            "WHERE conversation_id = ?",
-            (cid,),
-        ).rowcount
-    assert changed == 1
-
-
 def card_of(client, cid):
     (card,) = client.get(f"/api/conversations/{cid}").json()["merges"]
     return card
@@ -1527,26 +1514,6 @@ def test_after_a_restart_a_kept_folder_deleted_by_hand_is_said_to_be_gone(
         snap = client.get(f"/api/conversations/{cid}").json()
         assert [f["status"] for f in snap["file_changes"]] == ["discarded"]
         assert client.post(f"/api/merges/{card['id']}/approve").status_code == 409
-
-
-def test_after_a_restart_a_turn_nobody_watched_still_does_not_get_its_protected_paths(
-    settings_env, project_dir
-):
-    cid = at_work(settings_env, project_dir, [step(write("notes.txt", "seen"))])
-    nobody_watched(settings_env, cid)
-    (folder,) = kept_folders(settings_env)
-    (folder / "tree" / ".claude").mkdir()  # as a command of its would have made it
-    (folder / "tree" / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
-    with again(settings_env) as client:
-        card = card_of(client, cid)
-        assert files(card) == {".claude/settings.json": "refused", "notes.txt": "ready"}
-        assert "no trigger allows" in card["files"][0]["note"]
-        assert client.post(f"/api/merges/{card['id']}/approve").status_code == 200
-        assert (project_dir / "notes.txt").read_text(encoding="utf-8") == "seen"
-        assert not (project_dir / ".claude").exists()
-        # what was refused is nowhere but in the copy: it stays until Discard
-        assert card_of(client, cid)["status"] == "kept"
-        assert (folder / "tree" / ".claude" / "settings.json").is_file()
 
 
 def test_a_copy_stop_threw_away_is_not_kept_at_the_next_start_though_its_folder_was_left(
