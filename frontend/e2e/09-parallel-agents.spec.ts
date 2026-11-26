@@ -24,6 +24,8 @@ test('with one agent at a time the second waits for a free slot', async ({ page 
   const chat = page.getByRole('region', { name: 'Chat' })
   // (Every chat of the project follows it: Settings › This project › Limits and money - tek-ev.)
   const settings = await projectSettings(page, /^Limits and money/)
+  // (Under More limits since 0.1.10, closed until opened.)
+  await settings.getByText(/^More limits/).click()
   await settings.getByLabel('Agents at the same time').fill('1')
   await saveSettings(page)
 

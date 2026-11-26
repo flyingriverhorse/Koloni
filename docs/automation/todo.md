@@ -234,7 +234,7 @@ turn the chat asks:
 - **Story done? - "…"**, once every task of a story is done: **Close the story** or **Add a task** (it joins
   the story and this chat's queue).
 
-A task's turn works as long as it makes progress. Once nothing has moved for Settings › The app ›
+A task's turn works as long as it makes progress. Once nothing has moved for Settings › The app › More limits ›
 **Stuck after this many minutes with no progress** (30 unless you change it) - no file of the turn
 changed, no agent finished its work, no failing command passed - it stops, its work kept, and counts
 as not finished: its fix round comes, then it is stuck and the next task goes on. The same happens,

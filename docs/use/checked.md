@@ -991,7 +991,7 @@ them, the line says "Tests not run: you stopped the check".
 
 ![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits; under Save, the Show experimental features switch, off, and the Judge model: Fast tier's first (now: fake-qwen)](../images/settings-app-test-runs.png)
 
-KOLONİ's own test runs queue: **Settings › The app › KOLONİ's test runs at once** (1 unless you
+KOLONİ's own test runs queue: **Settings › The app › More limits › KOLONİ's test runs at once** (1 unless you
 change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says
 "Full tests waiting for another test run to end". **Test processes per run** (2 unless you change
 it, up to 16) is given to each of KOLONİ's runs where its runner reads it: pytest-xdist's

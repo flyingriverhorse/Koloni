@@ -87,7 +87,7 @@ https only, with no tags, submodules or Git LFS files. Nothing of it is run: no 
 settings of the repository's, and none of your own git settings or credentials. Its files are
 counted before they are written out: a repository of more than 50,000 files or 300 MB is refused,
 and so is a clone where less than 2 GB is free (more, for a higher size limit). Both limits are
-yours to change for every project, in **Settings › The app › Agents**: **Knowledge reads at most
+yours to change for every project, in **Settings › The app › Agents** (under **More limits**): **Knowledge reads at most
 (files)**, from 100 to 1,000,000, and **(MB)**, from 1 to 10,240. A learning keeps the limits it
 started with. Cloning and reading together stop after 10 minutes.
 
