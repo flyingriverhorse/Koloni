@@ -835,7 +835,7 @@ export const useApp = create<AppStore>()((set, get) => {
       // Each other chat the Board says waits; read again only when what of its row says it waits changed (no events
       // come from it) - not each step its other agents take meanwhile.
       // shortcut: a chat whose only waiting cards are ones the Board does not count (a Project notes offer, a
-      // night to start) is not read; they show in their own chat. Count them on the Board if missed.
+      // night to start) is not read; they show in their own chat. Count them in app/api/board.py if missed.
       const rows = new Map(
         (get().everywhere?.conversations ?? [])
           .filter(c => c.conversation_id !== open && waitCount(c) > 0)

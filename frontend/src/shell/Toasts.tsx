@@ -76,8 +76,8 @@ function news(before: Board, after: Board, at: number): Note[] {
         at,
       })
     }
-    // A queued turn is the last one on the Board from when it is sent: it starts only once the turn before it ended
-    // (how is not read - that turn is no longer on the Board). One that also ended since it was read queued: its own
+    // A queued turn is its chat's turn in the board reading (/api/board) from when it is sent: it starts only once the
+    // turn before it ended (how is not read - that turn is no longer in it). One that also ended since it was read queued: its own
     // end, just told, says it all (B-200).
     if (!ended && turn?.started_at && old?.turn?.id === turn.id && old.turn.status === 'queued') {
       notes.push({

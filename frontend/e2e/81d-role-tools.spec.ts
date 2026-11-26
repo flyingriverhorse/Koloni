@@ -41,7 +41,8 @@ for (const theme of ['light', 'dark'] as const) {
     await panel.getByRole('tab', { name: 'Tools' }).click()
     const coder = await one(request, 'Coder')
     await expect(panel.getByText(/^May use/)).toContainText(
-      /^May use \d+ of 36 tools · \d+ MCP servers? · \d+ (of \d+ )?skills?$/,
+      // (36 until 0.1.10 took propose_trigger and open_room away)
+      /^May use \d+ of 34 tools · \d+ MCP servers? · \d+ (of \d+ )?skills?$/,
     )
     await expect(panel.getByRole('button', { name: 'Write files' })).toHaveAttribute('aria-pressed', 'true')
     await expect(panel.getByRole('button', { name: 'Write files' })).toContainText('asks')

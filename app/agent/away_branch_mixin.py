@@ -262,15 +262,23 @@ class AwayBranchMixin:
             )
             self._koloni_line(ctx.cid, ctx.run_id, NOT_ON_BRANCH_END.format(why=exc))
             return
-        if secret := [path for path, why in left.items() if why == SECRET_IN_COPY]:
-            # (HIGH-1: kept out of git - its name masked too, MEDIUM-3 -, said; the rest goes on)
-            named = [raw.hide(path, copy.every_secret()) for path in secret]
-            held = {**held, "left_out": named}
-            self._koloni_line(ctx.cid, ctx.run_id, LEFT_OUT.format(files=_few(named)))
         look = await self._branch_look(copy)
         if gone := await self._secret_branch_gone(ctx, copy, look):
             self._koloni_line(ctx.cid, ctx.run_id, gone)
             return
+        secret = [path for path, why in left.items() if why == SECRET_IN_COPY]
+        # (one its agent committed itself is on the branch with it: the push's refusal alone names
+        # it, PUSH_SECRET - asked of the branch's own files, as `holding` counts one it lacks)
+        if mine := [path for path in secret if look["files"].get(path, "D") != "D"]:
+            mine = await asyncio.to_thread(
+                git.holding, copy.project, look["tip"], mine, _secret_forms(copy)
+            )
+        # (HIGH-1: kept out of git - its name masked too, MEDIUM-3 -, said; the rest goes on. Each
+        # turn's own: a later turn of the job carries the earlier one's record)
+        named = [raw.hide(path, copy.every_secret()) for path in secret if path not in mine]
+        held = {**held, "left_out": named}
+        if named:
+            self._koloni_line(ctx.cid, ctx.run_id, LEFT_OUT.format(files=_few(named)))
         held |= await self._branch_on_record(ctx, copy, look, held)
         self._set_agent(ctx.cid, ctx.agent_id, copy={**record, "away": held})
         self._push_row(ctx, copy, held, look["into"], status == "completed")

@@ -31,7 +31,8 @@ for (const theme of ['light', 'dark'] as const) {
 
     const held = page.getByRole('dialog', { name: 'Everything is held' })
     await expect(held.getByRole('region', { name: 'Stopped' }).getByRole('button', { name: title })).toBeVisible()
-    await expect(held).toContainText('times missed while held are skipped')
+    await expect(held.getByRole('region', { name: 'Held' })).toContainText('New work while you’re away')
+    await expect(held).toContainText(/Resume: \d+ stopped turns? stays? stopped - send a message to go on\./)
     await expect(chat.getByText('Run this command?')).toHaveCount(0)
     await shot(page, `hold-stopped-${theme}`)
     await page.keyboard.press('Escape')

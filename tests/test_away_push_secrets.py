@@ -13,13 +13,17 @@ from app.away_branch import titled
 from app.db.models import BacklogTask, McpServer
 from tests.test_agent_writes import write
 from tests.test_away_branch_scenarios import (
+    MORNING,
     ONE,
     origin_of,
     repo,  # noqa: F401  (a fixture)
 )
+from tests.test_away_park import chat
+from tests.test_away_park import run as command
 from tests.test_away_push import name_of, night_with_origin, on_origin, push, row_now
 from tests.test_away_scenarios import ended, evening, go_away
-from tests.test_away_waiting import waiting
+from tests.test_away_waiting import decide, waiting
+from tests.test_backlog_auto import until
 from tests.test_chat_flow import text
 from tests.test_git_view import run
 from tests.test_take_in_scenarios import needs_git
@@ -132,6 +136,58 @@ def test_claude_codes_own_token_is_left_out_and_never_goes_up(
     assert ran(client, done, row)["decision"] == "run"
     pushed = at_origin(origin, job)
     assert "new.txt" in pushed and "token.txt" not in pushed and token not in pushed
+
+
+def test_a_file_its_agent_committed_is_not_said_left_out_only_refused(make_client, wait_run, repo):
+    # (Fable, 0.1.10: prov.txt, committed by the agent itself, was said "left out of the branch's
+    # commit" too - it was on the branch; the push's refusal alone names it)
+    steps = [
+        write("prov.txt", f"token = {TOKEN}\n", "w1"),
+        command("git add prov.txt", "c1"),
+        command("git commit -m prov", "c2"),
+        write("conf.txt", f"token = {TOKEN}\n", "w2"),
+        text("one done"),
+    ]
+    client, done, job, row, origin = night(
+        make_client, wait_run, repo, steps, {"GITHUB_TOKEN": TOKEN}
+    )
+    assert row is not None and "left out: conf.txt (" in row["what"], job
+    assert "prov.txt" not in row["what"], row
+    snap = client.get(f"/api/conversations/{job['conversation_id']}").json()
+    lines = [m["content"] or "" for m in snap["messages"]]
+    assert any("conf.txt left out" in line for line in lines), lines
+    assert not any("prov.txt left out" in line for line in lines), lines
+    after = ran(client, done, row)
+    assert after["decision"] is None, after
+    assert "prov.txt on the branch holds a secret KOLONİ knows" in after["result"], after
+    assert on_origin(origin, name_of(job)) == ""
+
+
+def test_a_file_left_out_then_committed_by_its_agent_is_not_left_out_any_more(
+    make_client, wait_run, repo
+):
+    # (a later turn of the job carries the earlier one's record: what it left out is its own)
+    steps = [
+        write("conf.txt", f"token = {TOKEN}\n", "w1"),
+        write("other.py", "x = 1\n", "w2"),  # (a push row: the branch changes a file)
+        command(MORNING, "c1"),
+        text("one done"),
+        # (the going-on turn, once the parked line ran)
+        command("git add conf.txt", "c2"),
+        command("git commit -m conf", "c3"),
+        text("went on"),
+    ]
+    client, done, job, row, _origin = night(
+        make_client, wait_run, repo, steps, {"GITHUB_TOKEN": TOKEN}
+    )
+    assert row is not None and "left out: conf.txt (" in row["what"], job
+    (line,) = [one for one in waiting(client, done["id"]) if one["kind"] == "command"]
+    assert decide(client, done["id"], line["id"], "run").status_code == 200
+    cid = job["conversation_id"]
+    until(lambda: len(chat(client, cid)["runs"]) == 2)
+    until(lambda: chat(client, cid)["runs"][1]["status"] == "completed")
+    after = row_now(client, done)
+    assert after["tip"] != row["tip"] and "left out" not in after["what"], after
 
 
 def test_a_secret_in_a_files_name_never_goes_up(make_client, wait_run, repo):
