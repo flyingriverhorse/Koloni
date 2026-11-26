@@ -484,6 +484,100 @@ def test_a_folders_recipe_file_with_a_room_step_is_read_as_a_group(project_dir):
     ]
 
 
+# What a Room step's converter leaves for the schema to refuse (0.1.10's review): a malformed one
+# is said, never a failure of the page.
+MALFORMED = {
+    "a list for an id": [{"id": ["m"], "name": "m", "who": {"room": ["Coder", "Tester"]}}],
+    "a room of 11 roles": [{"id": "m", "name": "m", "who": {"room": [f"R{n}" for n in range(11)]}}],
+    "a room that is no list": [{"id": "m", "name": "m", "who": {"room": "Coder"}}],
+}
+
+
+def test_a_malformed_room_step_is_refused_as_any_malformed_recipe(make_client, project_dir):
+    client, _model = make_client({})
+    for name, steps in MALFORMED.items():
+        drawn = {"version": 1, "steps": steps, "ends": [{"id": "end"}], "arrows": []}
+        saved = client.post("/api/recipes", headers=OWN, json={"name": "x", "graph": drawn})
+        assert saved.status_code == 422, (name, saved.text)
+    for name, (groups, ends) in {"groups no list": (5, []), "ends no list": ([], "e")}.items():
+        room = [{"id": "m", "name": "m", "who": {"room": ["Coder", "Tester"]}}]
+        drawn = {"version": 1, "steps": room, "groups": groups}
+        drawn["ends"] = ends
+        saved = client.post("/api/recipes", headers=OWN, json={"name": "x", "graph": drawn})
+        assert saved.status_code == 422, (name, saved.text)
+    # A folder's file of such a shape is listed as broken, beside the rest.
+    folder = project_dir / ".koloni" / "recipes"
+    folder.mkdir(parents=True)
+    drawn = {"version": 1, "steps": MALFORMED["a list for an id"], "groups": 5}
+    (folder / "bad.json").write_text(json.dumps({"name": "Bad", "graph": drawn}), "utf-8")
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    listed = client.get(f"/api/recipes?project_id={pid}")
+    assert listed.status_code == 200, listed.text
+    assert [line.split(" is not read")[0] for line in listed.json()["broken"]] == [
+        ".koloni/recipes/bad.json"
+    ]
+    assert listed.json()["recipes"]  # (KOLONİ's own still there)
+
+
+def test_two_room_steps_of_one_role_are_saved_again_and_a_review_of_writers_only_says_so(
+    make_client,
+):
+    client, _model = make_client({})
+    # Named "<its name> · <role>", one of each name: saved again, as the board saves it.
+    twice = graph(
+        [
+            part("a", "Meet", {"room": ["Coder", "Tester"]}),
+            part("b", "Meet", {"room": ["Coder", "Tester"]}),
+        ],
+        [("start", "a"), ("a", "b"), ("b", "end")],
+    )
+    saved = made(client, "Twice", twice)
+    assert [s["name"] for s in saved["graph"]["steps"]] == [
+        "Meet · Coder",
+        "Meet · Tester",
+        "Meet · Coder 2",
+        "Meet · Tester 2",
+    ]
+    again = client.put(
+        f"/api/recipes/{saved['id']}",
+        headers=OWN,
+        json={"name": "Twice", "graph": saved["graph"]},
+    )
+    assert again.status_code == 200, again.text
+    # A review whose every role works at a step of its own keeps its review: the recipe says
+    # who would check its own work, rather than losing the review unseen.
+    writers = graph(
+        [
+            part("build", "Build it", {"role": "Coder"}),
+            part("test", "Test it", {"role": "Tester"}),
+            part("meet", "Look", {"room": ["Coder", "Tester"]}, done_when="no_findings"),
+        ],
+        [("start", "build"), ("build", "test"), ("test", "meet"), ("meet", "end")],
+    )
+    refused = client.post("/api/recipes", headers=OWN, json={"name": "W", "graph": writers})
+    assert refused.status_code == 422 and "would check its own work" in refused.text
+
+
+def test_a_saved_recipe_that_no_longer_reads_is_listed_as_broken(make_client):
+    # A Room step of 0.1.9 near the step limit is past it as a group: that recipe is said, the
+    # list is not a failure.
+    from app.db.models import Recipe
+
+    client, _model = make_client({})
+    steps = [part(f"s{n}", f"Step {n}", {"role": "Coder"}) for n in range(59)]
+    drawn = graph(
+        [*steps, part("meet", "Meet", {"room": ["Coder", "Tester"]})],
+        [("start", "s0"), ("s0", "meet"), ("meet", "end")],
+    )
+    with client.app.state.session_factory() as session:
+        session.add(Recipe(name="Too long now", graph=drawn))
+        session.commit()
+    listed = client.get("/api/recipes")
+    assert listed.status_code == 200, listed.text
+    assert any(line.startswith("Too long now is not read") for line in listed.json()["broken"])
+    assert listed.json()["recipes"]
+
+
 # --- review round (84e): the Take-in guarantee on every way --------------------------------------
 
 

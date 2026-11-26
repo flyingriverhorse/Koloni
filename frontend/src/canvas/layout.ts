@@ -1197,7 +1197,7 @@ function straight(points: Point[]): Point[] {
 
 /**
  * A frame's own line - from its door, or between two of its nodes, not on an arc - as the canvas draws it: its ends (a
- * line to a node of an earlier column - a member's to its room, a helper's spawn line - is drawn from that one, `turned`:
+ * line to a node of an earlier column - a member's to its discussion, a helper's spawn line - is drawn from that one, `turned`:
  * its arrow at its start), and its points where it goes round a card (`laneLine`); none: React Flow draws it from its
  * handles (`laneLegs`). `boxes`: the frame's nodes and its walls (`wallsOf`).
  */

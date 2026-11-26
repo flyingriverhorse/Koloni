@@ -178,8 +178,9 @@ def schemas(runner: "AgentRunner", session, ctx: "Ctx") -> list[dict]:
 
 
 READ = (
-    "Read the teams' shared folder (.koloni/shared/): contracts/, decisions/ and each team's "
-    "own folder. Every team reads all of it."
+    "Read the teams' shared folder (.koloni/shared/): contracts/ and each team's own folder "
+    "(and decisions/, what rooms between teams decided before 0.1.10). Every team reads all "
+    "of it."
 )
 WRITE = (
     "Write a file into the teams' shared folder: a spec, findings or a hand-over in your "

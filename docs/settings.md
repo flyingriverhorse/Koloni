@@ -202,7 +202,7 @@ The folder on disk is not touched: its files, its git and its `.koloni/` stay. O
 makes it a new, empty project. What KOLONİ kept of its chats under `runtime/` goes, as a chat's delete
 takes it: their attachments and their CLI sessions.
 
-While anything of the project is at work (a turn, a sub-agent, a room, the To-do's turn,
+While anything of the project is at work (a turn, a sub-agent, the To-do's turn,
 jobs while you're away), while a command it started still runs (such as a dev server), while finished work waits for
 **Take in** or **Discard**, or while its knowledge is learning, the delete is refused and says why.
 

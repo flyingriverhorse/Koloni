@@ -17,6 +17,7 @@ from app import copies
 from app.commands import held_back
 from app.judge_schemas import Judged
 from app.raw import MIN_SECRET
+from app.recipe_rooms import MOST_STEPS, without_rooms
 from app.roles import CORE
 from app.schemas_away import AwayJobOut, AwayTried
 from app.skills import GROUPS as SKILL_GROUPS
@@ -2867,81 +2868,6 @@ class WhoExperts(Shut):
     experts: Literal["all", "stale", "learned"]
 
 
-def without_rooms(graph: object) -> object:
-    """0.1.10, rooms are gone: a Room step ({"room": [roles]}, slice 84e) of a recipe drawn
-    before - saved, a folder's file, a run's state - read as an "All at once" group in its place
-    (its id, name and spot, so its arrows and loops still meet it) with a step of each role, each
-    keeping the step's other choices. One role, or none, is a plain step of it (none: "" - no role
-    here, which the board says). Anything else is left as it is, for the schema to judge.
-    shortcut: a room that ran only if a problem was found (`when`) becomes a group that always runs
-    - a group runs on no condition; draw a review before it and the condition by hand if one is
-    seen to cost too much."""
-    if not isinstance(graph, dict) or not isinstance(graph.get("steps"), list):
-        return graph
-    steps, groups = [], list(graph.get("groups") or [])
-    taken = {
-        one.get("id")
-        for one in [*graph["steps"], *groups, *(graph.get("ends") or [])]
-        if isinstance(one, dict)
-    }
-    # The roles that do the recipe's work at a step of their own (no review).
-    writers = {
-        str(who.get("role") or who.get("candidates")).casefold()
-        for one in graph["steps"]
-        if isinstance(one, dict)
-        and isinstance(who := one.get("who"), dict)
-        and (who.get("role") or who.get("candidates"))
-        and one.get("done_when") != "no_findings"
-    }
-    for step in graph["steps"]:
-        who = step.get("who") if isinstance(step, dict) else None
-        if not (isinstance(who, dict) and isinstance(who.get("room"), list)):
-            steps.append(step)
-            continue
-        roles = list(dict.fromkeys(one for one in who["room"] if isinstance(one, str)))
-        rest = {key: value for key, value in step.items() if key not in ("id", "name", "who")}
-        if len(roles) < 2 or rest.get("group") is not None:
-            # (A room in a group was never ready: its roles go into that group.)
-            ids = [step.get("id")] + [_fresh(step.get("id"), taken) for _one in roles[1:]]
-            names = [step.get("name", ""), *roles[1:]]  # (the first keeps the step's own)
-            steps += [
-                {**rest, "id": i, "name": name, "who": {"role": one}}
-                for i, name, one in zip(ids, names, roles or [""], strict=False)
-            ]
-            continue
-        group = {"id": step.get("id"), "name": step.get("name", "")}
-        if rest.get("pos") is not None:
-            group["pos"] = rest["pos"]
-        groups.append(group)
-        # A room ran as a whole, and so did its condition and its review: a step in a group runs
-        # on no condition of its own, and a role that does the work elsewhere would check its own
-        # there - it works in the group, the others review.
-        rest = {**rest, "group": step.get("id")}
-        rest.pop("pos", None)
-        rest.pop("when", None)
-        review = rest.get("done_when") == "no_findings"
-        steps += [
-            {
-                **rest,
-                "id": _fresh(step.get("id"), taken),
-                "name": one,
-                "who": {"role": one},
-                **({"done_when": "done"} if review and one.casefold() in writers else {}),
-            }
-            for one in roles
-        ]
-    return {**graph, "steps": steps, "groups": groups} if steps != graph["steps"] else graph
-
-
-def _fresh(base: object, taken: set) -> str:
-    """`without_rooms`: an id no node of the recipe has, from its Room step's (`NodeId`)."""
-    n = 1
-    while (made := f"{str(base)[:36]}-{n}") in taken:
-        n += 1
-    taken.add(made)
-    return made
-
-
 # K-tarif-surukle: where the user dragged a part on the board (a group's step: from its group's
 # corner); a whole number or not, never a string, NaN or one far off the board.
 Coord = Annotated[float, Field(strict=True, allow_inf_nan=False, ge=-100_000, le=100_000)]
@@ -3031,7 +2957,7 @@ class RecipeChecks(Shut):
 class RecipeGraph(Shut):
     _no_rooms = model_validator(mode="before")(without_rooms)
     version: Literal[1] = 1
-    steps: list[RecipeStep] = Field(max_length=60)
+    steps: list[RecipeStep] = Field(max_length=MOST_STEPS)
     groups: list[RecipeGroup] = Field([], max_length=20)
     ends: list[RecipeEnd] = Field([], max_length=10)
     arrows: list[RecipeArrow] = Field([], max_length=200)

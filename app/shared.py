@@ -107,7 +107,7 @@ def may(
     name) (None: an agent of no team); `lead`: it is a team's lead; `others`: the chat's other
     teams - one whose folder would be the same ("Web app", "web-app") makes it nobody's."""
     if folder == DECISIONS:
-        return "decisions/ is KOLONİ's own: what teams decided together, kept there"
+        return "decisions/ is KOLONİ's own, kept from before 0.1.10: write a contract in contracts/"
     if team is None:
         return "only an agent of a team writes in the shared folder"
     if folder == CONTRACTS:

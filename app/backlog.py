@@ -1390,9 +1390,8 @@ def read_backlog(session: Session, project_id: str, args: dict) -> str:
 def add_task(session: Session, project_id: str, args: dict, chat: str | None = None) -> str:
     """`chat`: the one it is proposed in (☾ Away ticks it there)."""
     fields = _fields(args, title_required=True)
-    # The first task not done yet that looks like this one (as a room's item is,
-    # `room.looks_like`): said, never refused - a likeness wrongly seen must not hold the
-    # work up.
+    # The first task not done yet that looks like this one: said, never refused - a likeness
+    # wrongly seen must not hold the work up.
     like = next(
         (
             one
