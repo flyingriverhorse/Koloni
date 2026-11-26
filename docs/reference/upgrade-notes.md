@@ -25,8 +25,12 @@ Only what needs your attention after an update; everything else is in the [Chang
   stay as they were. Backend / API, Data, DevOps, Research, Product, Maintenance, ML and DataOps go
   where they are as they came, with their stages and coordinators; one you changed or use (picked in a
   chat in **Manual**, kept for a project's new chats, named by a recipe's step) stays as your own team.
-  Every role and recipe stays. To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and put that copy back
-  in place of `runtime/data/koloni.db`.
+  Every role and recipe stays. Fourteen built-in roles are now in no ready team (Architect, Database
+  engineer, Performance engineer, Data analyst, Researcher, DevOps, Dependency keeper, Hive keeper,
+  Scout, Data scientist, ML engineer, Model evaluator, MLOps engineer and Data engineer): in a chat with
+  picked teams the Orchestrator reaches one only when you name it, a recipe's step names it, or you put
+  it in a team of your own. Going back to 0.1.9 does not bring the eight teams back: only that copy
+  does - stop KOLONİ, return to 0.1.9 and put the copy back in place of `runtime/data/koloni.db`.
 - **The Word, Excel, PowerPoint and 3D model previews are gone.** Such a file is still in the
   Workspace's files and opens there as any other file that is not a page or a picture: its text where
   it is text of 256 KB at most (an OBJ, a text STL, a glTF), else "Not text: there is no code to show."

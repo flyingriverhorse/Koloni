@@ -265,6 +265,11 @@ messages.
 
 - A chat cannot open a room while a recipe runs.
 - A team as a step's "Who" runs its stages as slots of one step, not one after another.
+- The eight ready teams 0.1.10 took away (Backend / API, Data, DevOps, Research, Product, Maintenance,
+  ML, DataOps) are not followed where something else named one: a night while you're away planned with
+  one runs without it, a recipe file of a folder's own (`.koloni/recipes`) whose step names one is
+  refused when it runs, as naming no team here, and a recipe run the Orchestrator had started on one in
+  a chat is lost with it.
 
 ## The page
 

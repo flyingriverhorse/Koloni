@@ -7,6 +7,9 @@ import sqlite3
 
 from alembic import command
 
+from app import roles
+from app.db.session import make_engine, make_session_factory
+from tests.test_chat_teams_scenarios import FORMER
 from tests.test_migration_0002 import _config
 from tests.test_migration_0109 import _role
 from tests.test_migration_0177 import AT
@@ -208,3 +211,44 @@ def test_a_new_database_has_the_three(tmp_path):
     with sqlite3.connect(tmp_path / "new.db") as conn:
         assert _left(conn) == {"Web app", "Docs", "Quality"}
         assert conn.execute("SELECT COUNT(*) FROM roles WHERE kind = 'lead'").fetchone() == (3,)
+
+
+def test_where_a_role_sits_and_an_expert_taken_out_tell_a_changed_team(tmp_path, monkeypatch):
+    """Seeded as 0.1.9 seeds a start - each role in its kind's stage - then: a role moved to
+    another stage, and an expert taken out of ML, are the user's changes; a placement from
+    before 0103 moved a role's kind (the Dependency keeper in Write & keep up) is not."""
+    db = tmp_path / "seeded.db"
+    cfg = _config(db)
+    command.upgrade(cfg, "0190")
+    eleven = dict(roles.READY_TEAMS) | {
+        name: tuple(one for one in held if not one.endswith(" expert"))
+        for name, (held, _recipe) in FORMER.items()
+    }
+    monkeypatch.setattr(roles, "READY_TEAMS", eleven)
+    with make_session_factory(make_engine(db))() as session:
+        roles.seed_builtin_roles(session)
+    with sqlite3.connect(db) as conn:
+        teams = dict(conn.execute("SELECT name, id FROM teams"))
+        ids = dict(conn.execute("SELECT name, id FROM roles"))
+
+        def stage(team: str, name: str) -> str:
+            return conn.execute(
+                "SELECT id FROM team_stages WHERE team_id = ? AND name = ?", (teams[team], name)
+            ).fetchone()[0]
+
+        def sit(team: str, role: str, at: str) -> None:
+            conn.execute(
+                "UPDATE role_teams SET stage_id = ? WHERE team_id = ? AND role_id = ?",
+                (stage(team, at), teams[team], ids[role]),
+            )
+
+        sit("Backend / API", "Tester", "Build")  # (its kind's is Check)
+        conn.execute(
+            "DELETE FROM role_teams WHERE team_id = ? AND role_id = ?",
+            (teams["ML"], ids["MLflow expert"]),
+        )
+        sit("Maintenance", "Dependency keeper", "Write & keep up")  # (before 0103)
+
+    command.upgrade(cfg, "0194")
+    with sqlite3.connect(db) as conn:
+        assert _left(conn) == {"Web app", "Docs", "Quality", "Backend / API", "ML"}

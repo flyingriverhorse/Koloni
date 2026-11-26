@@ -10,13 +10,20 @@ check**) and **Docs** (**Docs**). You can change them, or make your own with **N
 
 Until 0.1.10 there were eleven. At the first start of 0.1.10 the other eight - Backend / API, Data,
 DevOps, Research, Product, Maintenance, ML and DataOps - are taken away where they are as they came.
-One you changed (renamed it, put a role in or took one out, changed its stages, its coordinator, its
-default recipe or whether the Orchestrator may pick it) stays as your own, and so does one you use:
+One you changed (renamed it, put a role in or took one out, changed its stages or moved a role to
+another stage, its coordinator, its default recipe or whether the Orchestrator may pick it) stays as
+your own, and so does one you use:
 picked for a chat in **Manual**, kept for a project's new chats, or named by a recipe's step. Their
 roles all stay: put the ones you need in a team with **New team**, and give it the ready recipe of
 your choice (**Bugfix**, **Spec**, **Research**, **Analysis**, **Upkeep**, **Model change**,
 **Pipeline change** or **Infra change**) as its **Default recipe**. A chat the Orchestrator had picked
 one of them for keeps its other teams; with none left, the Orchestrator picks again.
+
+Fourteen built-in roles are in none of the three: Architect, Database engineer, Performance engineer,
+Data analyst, Researcher, DevOps, Dependency keeper, Hive keeper, Scout, Data scientist, ML engineer,
+Model evaluator, MLOps engineer and Data engineer. With **No teams** the Orchestrator opens any of them
+as before. In a chat with picked teams it reaches one only when you name it in your message, when a
+recipe's step names it, or when you put it in a team of your own.
 
 To build a website, the Web app team also has a Copywriter for the site's words and an SEO specialist
 in **Build**, and an Accessibility reviewer in **Check**: the SEO specialist makes the site easy to

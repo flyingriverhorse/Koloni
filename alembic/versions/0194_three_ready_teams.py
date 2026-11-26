@@ -4,16 +4,19 @@ Product, Maintenance, ML and DataOps - go, with their stages, their lead and the
 picked them in. Their roles stay.
 
 Only a team as it came goes. One the user changed stays as theirs: renamed (no longer the ready
-one, as 0093 and 0103 tell it), its members not the ready ones (a role taken out, or one of the
-user's put in), its stages not Plan, Build, Check and Write & keep up one after another, its
-lead switched off or not left to the Lead's pick, its recipe not its ready one, or its lead
-role saved since it was made. So does one the user uses: picked in a chat (Manual), kept for a
+one, as 0093 and 0103 tell it), its members not the ready ones (a role taken out - one of 0103's
+experts too - or one of the user's put in), its stages not Plan, Build, Check and Write & keep up
+one after another, a role moved to another stage than its kind's, its lead switched off or not
+left to the Lead's pick, its recipe not its ready one, or its lead role saved since it was made. So does one the user uses: picked in a chat (Manual), kept for a
 project's new chats, or named by a recipe's step. A chat the Lead had picked one for keeps its
 other rows; with none left it works as a deleted team's chat does (`delete_team`): the Lead
 picks again where it decides, and any role may open in Manual.
 
-shortcut: a role moved to another of a ready team's stages is not seen as a change; tell it by
-the stage each role sits in if a user is seen to lose such a team.
+shortcut: what names a gone team elsewhere is not followed: a night while you're away planned
+with one runs without it (its chat gets the evening's teams, or none); a folder's own recipe
+(.koloni/recipes) whose step names one is refused when it runs, as naming no team here; and the
+state of a recipe run on a Lead's row that goes is lost with the row. Look for them if a user is
+seen to miss one.
 
 Going back, the eight do not come back: put back the copy KOLONİ made of the database before
 this upgrade (runtime/data/backups/).
@@ -67,7 +70,44 @@ GONE = {
 }
 # 0103's two experts of ML: roles of the user's kind, in the team as it came.
 EXPERTS = {"ML": {"MLflow expert", "Databricks expert"}}
-STAGES = ["Plan", "Build", "Check", "Write & keep up"]
+# The stage each of their roles sits in as KOLONİ placed it (`app.roles.place_in_stages`: the one
+# of its kind, a Data, ML or Ops role's Build, the Data scientist's Plan), or before 0103 moved
+# its kind (Build; the Dependency keeper's Write & keep up). None: not placed yet.
+PLAN, BUILD, CHECK, WRITE = "Plan", "Build", "Check", "Write & keep up"
+PLACED = {
+    **dict.fromkeys(
+        ("Architect", "Hive keeper", "Researcher", "Scout", "MLflow expert", "Databricks expert"),
+        {PLAN},
+    ),
+    **dict.fromkeys(
+        (
+            "Coder",
+            "Data engineer",
+            "Database engineer",
+            "Debugger",
+            "DevOps",
+            "ML engineer",
+            "MLOps engineer",
+            "Refactorer",
+        ),
+        {BUILD},
+    ),
+    **dict.fromkeys(
+        (
+            "Data analyst",
+            "Model evaluator",
+            "Performance engineer",
+            "Reviewer",
+            "Security reviewer",
+            "Tester",
+        ),
+        {CHECK},
+    ),
+    **dict.fromkeys(("Spec writer", "Summarizer"), {WRITE}),
+    "Data scientist": {PLAN, BUILD},
+    "Dependency keeper": {BUILD, WRITE},
+}
+STAGES = [PLAN, BUILD, CHECK, WRITE]
 # As `app.roles._BUILT_IN`: a built-in role named so beside the user's own of its name.
 BUILT_IN = re.compile(r" \(built-in(?: \d+)?\)$")
 STOCK = "name = :team AND created_at = (SELECT MIN(created_at) FROM teams)"
@@ -96,26 +136,34 @@ def _named_by_recipes(bind) -> set[str]:
     return named
 
 
-def _as_it_came(bind, team: str, found, builtin_names: set[str]) -> bool:
-    """Whether the ready team `found` is as KOLONİ made it: its members, stages, lead and
-    recipe."""
+def _as_it_came(bind, team: str, found, builtin_names: set[str], own_names: set[str]) -> bool:
+    """Whether the ready team `found` is as KOLONİ made it: its members and where they sit,
+    its stages, lead and recipe. `builtin_names` and `own_names`: the built-in roles there are,
+    and the user's."""
     team_id, lead_id, lead_on, may_pick, recipe_id = found
     ready, recipe = GONE[team]
-    members = bind.execute(
-        sa.text(
-            "SELECT r.name, r.builtin FROM role_teams rt JOIN roles r ON r.id = rt.role_id "
-            "WHERE rt.team_id = :id"
-        ),
-        {"id": team_id},
-    ).fetchall()
-    names = {BUILT_IN.sub("", name) if builtin else name for name, builtin in members}
+    members = [
+        (BUILT_IN.sub("", name) if builtin else name, builtin, stage)
+        for name, builtin, stage in bind.execute(
+            sa.text(
+                "SELECT r.name, r.builtin, s.name FROM role_teams rt "
+                "JOIN roles r ON r.id = rt.role_id "
+                "LEFT JOIN team_stages s ON s.id = rt.stage_id WHERE rt.team_id = :id"
+            ),
+            {"id": team_id},
+        )
+    ]
+    names = {name for name, _builtin, _stage in members}
+    experts = EXPERTS.get(team, set())
     theirs = any(
-        not (BUILT_IN.sub("", name) in ready if builtin else name in EXPERTS.get(team, ()))
-        for name, builtin in members
+        not (name in ready if builtin else name in experts) for name, builtin, _stage in members
+    )
+    moved = any(
+        stage is not None and stage not in PLACED.get(name, ()) for name, _b, stage in members
     )
     # (A ready role not made yet - an older install, or a new one before its first start - is
     # no role taken out: `seed_builtin_roles` adds it to the ready teams still there.)
-    taken_out = (set(ready) & builtin_names) - names
+    taken_out = ((set(ready) & builtin_names) | (experts & own_names)) - names
     stages = bind.execute(
         sa.text("SELECT name, together FROM team_stages WHERE team_id = :id ORDER BY position"),
         {"id": team_id},
@@ -135,6 +183,7 @@ def _as_it_came(bind, team: str, found, builtin_names: set[str]) -> bool:
     )
     return (
         not theirs
+        and not moved
         and not taken_out
         and [name for name, _ in stages] == STAGES
         and not any(together for _, together in stages)
@@ -151,6 +200,9 @@ def upgrade() -> None:
     builtin_names = {
         BUILT_IN.sub("", name)
         for (name,) in bind.execute(sa.text("SELECT name FROM roles WHERE builtin"))
+    }
+    own_names = {
+        name for (name,) in bind.execute(sa.text("SELECT name FROM roles WHERE NOT builtin"))
     }
     kept_for_projects = {
         row.get("team_id")
@@ -184,7 +236,7 @@ def upgrade() -> None:
             picked is not None
             or team_id in kept_for_projects
             or team.casefold() in by_recipes
-            or not _as_it_came(bind, team, found, builtin_names)
+            or not _as_it_came(bind, team, found, builtin_names, own_names)
         ):
             continue
         for table in ("conversation_teams", "role_teams", "team_stages"):

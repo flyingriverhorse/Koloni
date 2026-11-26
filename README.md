@@ -18,7 +18,7 @@
 
 <p align="center">
   <img src="pages/assets/real-run.gif" width="100%"
-       alt="A real run, sped up: one message asks three teams for a small command-line tool; the Orchestrator opens the Backend, Web app and Docs teams on the canvas; the Web app team designs in a room; the work comes back on one card and Take in brings four files into the project. Every role on Claude Code with haiku.">
+       alt="A real run, sped up: one message asks three teams for a small command-line tool; the Orchestrator opens the Web app and Docs teams and a Backend team (a ready team then) on the canvas; the Web app team designs in a room; the work comes back on one card and Take in brings four files into the project. Every role on Claude Code with haiku.">
 </p>
 
 KOLONİ runs Claude Code, Codex, GitHub Copilot CLI and agy, plus a local llama.cpp server or
