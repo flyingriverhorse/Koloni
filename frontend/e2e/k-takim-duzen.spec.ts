@@ -3,27 +3,34 @@ import path from 'node:path'
 import { expect, type Locator, type Page, test } from './fixtures'
 import { OWN, contrasts, openFreshConversation, settled, setProject } from './helpers'
 
-// K-takim-duzen: the roles in seven categories on the Agents page - Data, ML and Ops after Build - and the ML team's
-// own default recipe, Model change, run with the fake model: the Data scientist plans, the experts' step is skipped (none
-// has learned - the strip says so), the ML engineer builds, the Tester and the Model evaluator check at once, the Reviewer reviews.
+// K-takim-duzen: the roles in seven categories on the Agents page - Data, ML and Ops after Build - and the ready recipe
+// Model change (the ML team's default until 0.1.10; a team's recipe in Manual now), run with the fake model: the Data
+// scientist plans, the experts' step is skipped (none has learned - the strip says so), the ML engineer builds, the Tester
+// and the Model evaluator check at once, the Reviewer reviews.
 const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'td-shots')
 const shot = (target: Page | Locator, name: string) => target.screenshot({ path: path.join(SHOTS, `${name}.png`) })
 const lowContrast = async (target: Locator) => (await target.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`the roles in seven categories, and the ML team runs by Model change (${theme})`, async ({ page, request }) => {
+  test(`the roles in seven categories, and a team runs by Model change (${theme})`, async ({ page, request }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
     const id = await openFreshConversation(page, { leadWrites: false })
 
-    const ml = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
-      t => t.name === 'ML',
+    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+      t => t.name === 'Web app',
     )
+    const recipes = (await (await request.get('/api/recipes')).json()) as { recipes: { id: string; name: string }[] }
+    const modelChange = recipes.recipes.find(r => r.name === 'Model change')
     await setProject(page, { spawn_approval: 'never' })
     const set = await request.patch(`/api/conversations/${id}`, {
       headers: OWN,
-      data: { permission_mode: 'full_auto', teams_mode: 'manual', teams: [{ team_id: ml!.id, recipe_id: null }] },
+      data: {
+        permission_mode: 'full_auto',
+        teams_mode: 'manual',
+        teams: [{ team_id: web!.id, recipe_id: modelChange!.id }],
+      },
     })
     expect(set.ok()).toBe(true)
     await page.getByLabel('Message').fill(`model change it, mc ${theme}`)

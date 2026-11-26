@@ -699,7 +699,7 @@ def test_a_team_that_has_to_work_the_lead_skips_is_asked_for_twice_then_named(
     # (B-161: in Manual that is the Lead's choice - here Product has to work, picked by the Lead's own
     # pick_teams, unpatched.)
     # (Told, it works on again by itself - then, told a second time, only answers: that stands.)
-    from tests.test_chat_teams_scenarios import pick
+    from tests.test_chat_teams_scenarios import former, pick
 
     client, model = make_client(
         {
@@ -714,6 +714,7 @@ def test_a_team_that_has_to_work_the_lead_skips_is_asked_for_twice_then_named(
             ]
         }
     )
+    former(client, "Product")  # (a ready team until 0.1.10)
     cid, run_id = begin(
         client, project_dir, mode="auto_edit", spawn_approval="never", teams_mode="lead"
     )

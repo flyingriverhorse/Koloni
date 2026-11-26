@@ -10,7 +10,7 @@ from app.agent.words import RAN_NOTHING, REPRODUCE_FIRST, RUN_TO_PASS
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import cmd
 from tests.test_chat_flow import text
-from tests.test_chat_teams_scenarios import OWN, teams_of
+from tests.test_chat_teams_scenarios import OWN, former, teams_of
 from tests.test_claim_scenarios import write
 from tests.test_parallel import until
 from tests.test_recipe_conditions import FAILING
@@ -48,7 +48,7 @@ TESTED = {
 def bugfix_run(client, project_dir, mode="full_auto", ready=False):
     """The Backend / API team by a Bugfix drawn as `TESTED` - or, `ready`, by its default: the
     ready Bugfix; at Full auto its commands run unasked."""
-    backend = teams_of(client)["Backend / API"]
+    backend = former(client, "Backend / API")["Backend / API"]  # (a ready team until 0.1.10)
     assert backend["default_recipe_id"] == recipe_named(client, "Bugfix")["id"]
     drawn = None if ready else made(client, "Bugfix with tests", TESTED)["id"]
     return begin(

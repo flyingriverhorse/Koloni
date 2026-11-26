@@ -9,7 +9,7 @@ from app import proof
 from app.agent import review_mixin, stronger_mixin
 from tests.fakes import ScriptedExecutor
 from tests.test_chat_flow import text
-from tests.test_chat_teams_scenarios import teams_of
+from tests.test_chat_teams_scenarios import former, teams_of
 from tests.test_claim_scenarios import write
 from tests.test_proof_end_scenarios import checked, texts
 from tests.test_recipe_run_scenarios import made, recipe_named, row
@@ -329,7 +329,7 @@ def test_a_ready_bugfix_checks_its_tests_in_a_project_at_nothing(
     client, _model = make_client(
         {"Lead": THIN, "Debugger": list(REPRODUCES), "Coder": fixed()}, executor=executor
     )
-    backend = teams_of(client)["Backend / API"]
+    backend = former(client, "Backend / API")["Backend / API"]  # (a ready team until 0.1.10)
     cid, run_id = begin_at(
         client,
         project_dir,

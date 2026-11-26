@@ -66,7 +66,7 @@ def _all(conn):
 def test_a_fresh_database_up_down_and_up_again(tmp_path):
     db = tmp_path / "fresh.db"
     cfg = _config(db)
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0190")  # (0194 then takes eight ready teams away)
     with sqlite3.connect(db) as conn:
         first = _all(conn)
         assert [key for key, _name, _at in _categories(conn)] == [
@@ -122,7 +122,7 @@ def test_a_fresh_database_up_down_and_up_again(tmp_path):
             == []
         )
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0190")  # (0194 then takes eight ready teams away)
     with sqlite3.connect(db) as conn:
         assert _all(conn) == first
 
@@ -165,7 +165,7 @@ def test_an_old_database_keeps_what_the_user_changed(tmp_path):
         )
         conn.execute("UPDATE teams SET default_recipe_id = 'mine' WHERE name = 'Research'")
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0190")  # (0194 then takes eight ready teams away)
     with sqlite3.connect(db) as conn:
         assert [(key, name) for key, name, _at in _categories(conn)] == [
             ("plan", "Plan"),
@@ -201,8 +201,8 @@ def test_an_old_database_keeps_what_the_user_changed(tmp_path):
         assert _members(conn, "ML") == ["Databricks expert", "Tester"]
         assert _members(conn, "DataOps") == ["Data analyst", "Database engineer", "Tester"]
 
-    # At the next start: the new built-in roles join, each in its stage; the user's own
-    # Data engineer is left as it is.
+    # At the next start the user's own Data engineer is left as it is. (0.1.10: ML is no ready
+    # team of `READY_TEAMS` any more - 0194 takes it away - so no new built-in role joins it.)
     with make_session_factory(make_engine(db))() as session:
         roles.seed_builtin_roles(session)
         mine = session.scalar(select(Role).where(Role.name == "Data engineer"))
@@ -213,14 +213,7 @@ def test_an_old_database_keeps_what_the_user_changed(tmp_path):
             session.get_one(Role, link.role_id).name: stage[link.stage_id]
             for link in session.scalars(select(RoleTeam).where(RoleTeam.team_id == ml.id))
         }
-        assert placed == {
-            "Data scientist": "Plan",
-            "ML engineer": "Build",
-            "MLOps engineer": "Build",
-            "Model evaluator": "Check",
-            "Tester": "Check",
-            "Databricks expert": "Plan",
-        }
+        assert placed == {"Tester": "Check", "Databricks expert": "Plan"}
 
     command.downgrade(cfg, "0102")
     with sqlite3.connect(db) as conn:
@@ -251,13 +244,13 @@ def test_a_users_own_ml_team_is_given_no_role_and_an_expert_they_changed_stays(t
         )
         conn.execute("INSERT INTO role_teams (role_id, team_id) VALUES ('Mine', 'u')")
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0190")  # (0194 then takes eight ready teams away)
     for _start in range(2):  # (each start seeds: a built-in role joins only a ready team)
         with make_session_factory(make_engine(db))() as session:
             roles.seed_builtin_roles(session)
     with sqlite3.connect(db) as conn:
         assert _members(conn, "ML") == ["Mine"] and _defaults(conn)["ML"] is None
-        assert "Tester" in _members(conn, "DataOps")
+        assert "Tester" in _members(conn, "Quality")  # (a ready team still, since 0.1.10)
         conn.execute("UPDATE roles SET updated_at = ? WHERE name = 'Databricks expert'", (AT,))
 
     command.downgrade(cfg, "0102")

@@ -24,10 +24,11 @@ found.
 
 ## Which team runs which
 
-Each ready team has a ready recipe as its default: Web app runs **Feature**, Backend / API **Bugfix**,
-Quality **Quality check**, Product **Spec**, Data **Analysis**, Maintenance **Upkeep**, ML **Model
-change**, DataOps **Pipeline change**, DevOps **Infra change**, and Docs and Research the recipes of their
-names. You can change a team's **Default recipe** on the Agents page.
+Each ready team has a ready recipe as its default: Web app runs **Feature**, Quality **Quality check**
+and Docs **Docs**. The other ready recipes are no ready team's default since 0.1.10: pick one for a
+team in **Teams for this chat** (**Manual**), or make it a team's **Default recipe** on the Agents
+page - **Bugfix** for a team with a Debugger, a Coder and a Tester, **Spec** for one with the Hive
+keeper and a Spec writer, and so on.
 
 In Bugfix the Debugger only shows the bug: it writes a test that fails because of it, runs it and
 reports the failing output, and fixes nothing; the Coder's fix must make that test pass. Its Checks

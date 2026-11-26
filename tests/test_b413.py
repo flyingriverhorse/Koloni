@@ -24,7 +24,7 @@ from tests.test_backlog import setup as backlog_setup
 from tests.test_backlog_auto import auto, tasks, worked
 from tests.test_backlog_auto import until as task_until
 from tests.test_chat_flow import start_in_mode, text
-from tests.test_chat_teams_scenarios import teams_of
+from tests.test_chat_teams_scenarios import former
 from tests.test_lead_decides import fire, lead_timers
 from tests.test_parallel import until
 from tests.test_recipe_run_scenarios import answer, asked
@@ -44,7 +44,7 @@ NUDGE = (
 
 
 def three_teams(client, project_dir, mode="ask"):
-    teams = teams_of(client)
+    teams = former(client, *THREE)  # (Backend / API: a ready team until 0.1.10)
     return begin(
         client,
         project_dir,

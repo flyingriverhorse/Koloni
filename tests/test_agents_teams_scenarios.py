@@ -172,8 +172,12 @@ def test_an_always_role_runs_on_its_tier_and_the_lead_cannot_change_it(team, wai
 def test_ready_teams_and_the_users_own(team):  # noqa: F811
     client, _default, _fast = team([], [])
     teams = {t["name"]: t for t in client.get("/api/teams").json()}
-    assert {"Web app", "Backend / API", "Docs", "Quality"} <= set(teams)
+    # Three since 0.1.10 (migration 0194); their roles are all still there.
+    assert set(teams) == {"Web app", "Docs", "Quality"}
     assert "Coder" in teams["Web app"]["roles"] and "Translator" in teams["Docs"]["roles"]
+    assert {"Architect", "Data scientist", "Hive keeper", "DevOps"} <= {
+        one["name"] for one in client.get("/api/roles").json()
+    }
     assert client.post("/api/teams", json={"name": "Game"}).status_code == 403  # own page only
     made = client.post("/api/teams", json={"name": "Game"}, headers={"Origin": ORIGIN})
     assert made.status_code == 201, made.text

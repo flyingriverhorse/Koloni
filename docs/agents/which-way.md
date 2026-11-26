@@ -33,8 +33,8 @@ to the Coder, at most twice. You take the work in on the **Teams' work is ready*
 [A web app with a team](../examples/team-web-app.md).
 
 **"Fix this crash, and make sure it stays fixed."**
-The **Bugfix** recipe: in **Teams for this chat** choose **Manual**, then the **Backend / API** team,
-whose default recipe is Bugfix. A Debugger reproduces the crash with a test that fails, a Coder fixes
+The **Bugfix** recipe: in **Teams for this chat** choose **Manual**, then a team - the **Web app** team,
+say - and **Bugfix** as its recipe. A Debugger reproduces the crash with a test that fails, a Coder fixes
 it, then KOLONİ runs the tests - and has a big or security-touching change reviewed; a test that still
 fails goes back to the Coder. Cheaper than Feature: two agents, no spec and no review of a small fix.
 
