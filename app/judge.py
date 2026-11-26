@@ -369,7 +369,9 @@ def verdict(
         return None
     word, quote, why = (got.get(key) for key in ("verdict", "quote", "why"))
     quote = whole(quote) if isinstance(quote, str) else ""
-    why = whole(" ".join(why.split())[:WHY_CHARS]) if isinstance(why, str) else ""
+    from app.masking import masked  # (here: app.masking reads this module)
+
+    why = masked(why)[:WHY_CHARS] if isinstance(why, str) else ""  # (K3: masked before the cut)
     source, shown, context = source_of(quote, said)
     unit = _plain(shown)
     holds = (

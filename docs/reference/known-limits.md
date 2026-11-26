@@ -174,7 +174,25 @@ messages.
 - In the morning **Run** does not look at what the job changed in its copy: you see that at Take in.
 - A line that runs a program an agent wrote is refused after **Run** too. A script given to an
   interpreter (`python tool.py`, `node x.js`) is not read so: it runs on your **Run** - but only as it
-  was when the line was parked (the list says "Runs a file an agent wrote").
+  was when the line was parked (the list says "Runs a file an agent wrote", of any part of a chained,
+  piped, wrapped or grouped line too - `python hello.py && python q.py`, `cmd /c "python q.py"` - and
+  "maybe" where it cannot read all of the line, or the line runs code no word of it names as a file:
+  a shell or an interpreter handed its code on stdin or on the line (`cat x.sh | sh`, `python -c`),
+  `iex`, `npx`, find's `-exec`, a test runner - the tests an agent wrote).
+- A branch's commit, merge and push look for a secret KOLONİ knows byte for byte, in a file's content
+  and its name: one an agent wrote base64'd, reversed, or split across files or in parts is not
+  found. A saved key made of lowercase words alone (a provider's `not-needed`, `correct-horse`) is
+  not looked for, nor a file's path given under a secret's name (`GOOGLE_APPLICATION_CREDENTIALS`,
+  `*_FILE`); of an MCP server's variables, and the environment's (what a project passes to its
+  commands among them), only those a secret's name or a secret's shape holds (`..._TOKEN`,
+  `..._KEY`, a password; `ghp_…`, `sk-…`, a password in an address) - and the token or the
+  address's password such a value holds alone, unless it reads as a word
+  (`postgres://postgres:postgres@…` makes no secret of `postgres`). A key whose shape KOLONİ does
+  not know - it knows GitHub's, `sk-…`, Slack's, AWS's, a JWT, GitLab's `glpat-…`, Google's
+  `AIza…`, Hugging Face's `hf_…`, npm's `npm_…` and Stripe's `sk_live_…` - is looked for only by
+  its variable's name. A word under a secret's name is a secret all the same
+  (`POSTGRES_PASSWORD=postgres`): a file holding it (`psycopg2  # postgresql driver`) is left out
+  of KOLONİ's commit and stays in the branch's worktree - never deleted - and KOLONİ says which.
 - If anything in the job's copy changed after a line was parked, **Run** does not run it - so a test
   line parked early in a job is usually closed by the work after it: run it yourself. What stays out
   of that look: the dependency folders a copy links to the project's own (`node_modules`, `.venv`,
@@ -239,7 +257,8 @@ messages.
   cleans them up (`git gc`).
 - Your own `pre-commit` and `pre-push` hooks run neither for the job's commits nor for KOLONİ's push.
 - KOLONİ's checks run before its last commit at the job's end; that commit holds the same files,
-  apart from one holding a secret given in the job or a new file your project already has.
+  apart from one holding a secret KOLONİ knows (left out, and its push row says so) or a new file your
+  project already has.
 - The branch's name is told to the job before its worktree is made: where a branch of that name was
   there already, the worktree is on the next free name, and its row says which.
 

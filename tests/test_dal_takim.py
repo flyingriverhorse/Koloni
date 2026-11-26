@@ -1028,7 +1028,7 @@ def test_a_secret_the_agent_committed_itself_is_never_merged_not_even_on_a_click
     """Finding 4."""
     from app.agent import AgentRunner
 
-    monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id: ["s3cr3t-value"])
+    monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id=None: ["s3cr3t-value"])
     client, cid, _run_id = on_branch(
         make_client,
         repo,
@@ -1041,7 +1041,7 @@ def test_a_secret_the_agent_committed_itself_is_never_merged_not_even_on_a_click
         ],
     )
     merge = card(client, cid)
-    assert "holds a secret given this turn" in merge["branch"]["note"]
+    assert "holds a secret KOLONİ knows" in merge["branch"]["note"]
     assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 200
     merge = card(client, cid)  # (still asked: nothing merged)
     assert not (repo / "token.txt").exists()
@@ -1055,7 +1055,7 @@ def test_stop_while_a_card_waits_on_a_secret_deletes_the_branch_and_says_so(
     - `git branch -d` keeps an unmerged one - though no branch holding such a secret is kept."""
     from app.agent import AgentRunner
 
-    monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id: ["s3cr3t-value"])
+    monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id=None: ["s3cr3t-value"])
     client, cid, run_id = on_branch(
         make_client,
         repo,
@@ -1067,7 +1067,7 @@ def test_stop_while_a_card_waits_on_a_secret_deletes_the_branch_and_says_so(
             text("A done"),
         ],
     )
-    assert "holds a secret given this turn" in card(client, cid)["branch"]["note"]
+    assert "holds a secret KOLONİ knows" in card(client, cid)["branch"]["note"]
     if how == "stop":
         assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
         snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -1091,7 +1091,7 @@ def test_stop_while_the_check_of_a_card_blocked_by_a_secret_runs_deletes_the_bra
     runs - drops a branch holding a secret given this turn, not only Stop at the card."""
     from app.agent import AgentRunner
 
-    monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id: ["s3cr3t-value"])
+    monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id=None: ["s3cr3t-value"])
     runs = (tmp_path / "runs").as_posix()  # (the first run, before the card, at once)
     client, cid, run_id = on_branch(
         make_client,
@@ -1110,7 +1110,7 @@ def test_stop_while_the_check_of_a_card_blocked_by_a_secret_runs_deletes_the_bra
         project=root_runs(),
     )
     merge = card(client, cid)
-    assert "holds a secret given this turn" in merge["branch"]["note"]
+    assert "holds a secret KOLONİ knows" in merge["branch"]["note"]
     assert client.post(f"/api/merges/{merge['id']}/check").status_code == 200
     until(client, cid, lambda s: "running" in [c["status"] for c in s["commands"]], timeout=LONG)
     assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
@@ -1533,7 +1533,7 @@ def test_a_secret_given_this_turn_goes_into_no_commit_message(
 ):
     from app.agent import AgentRunner
 
-    monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id: ["two"])
+    monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id=None: ["two"])
     client, cid, run_id = on_branch(
         make_client,
         repo,
@@ -2015,7 +2015,7 @@ def test_the_first_finished_branch_on_github_asks_which_way_and_a_pull_request_i
     assert "--head=koloni/fix" in create and "--base=main" in create
     assert "--title=fix two" in create and "--repo=owner/repo" in create
     body = log.with_name("gh.log.body").read_text(encoding="utf-8")
-    assert "`lines.txt` (M)" in body and "A done" in body
+    assert "```\nlines.txt (M)\n```" in body and "```\nA done\n```" in body  # (L-3: fenced)
     assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
     project = client.get("/api/projects").json()[0]
     assert project["finish_way"] == "pull_request"
@@ -2061,12 +2061,12 @@ def test_the_users_own_commits_not_on_origin_never_go_up_with_a_pull_request(
 ):
     bare, log = github
     client, cid, run_id = pr_run(make_client, repo, lambda: None)  # (main not pushed)
-    # (At Full auto too, asked first: the user's branches hold commits not on GitHub.)
+    # (At Full auto too, asked first: the user's commits not on origin - its push address here.)
     merge = until(
         client,
         cid,
         lambda s: (
-            "not on GitHub yet" in ((s["merges"] or [{}])[0].get("branch") or {}).get("note", "")
+            "not on origin yet" in ((s["merges"] or [{}])[0].get("branch") or {}).get("note", "")
             or ""
         ),
         timeout=LONG,
@@ -2796,7 +2796,7 @@ def test_a_branch_opened_again_and_dropped_for_a_secret_says_its_earlier_work_we
     from app.agent import AgentRunner
 
     given: list[str] = []
-    monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id: given)
+    monkeypatch.setattr(AgentRunner, "given_spellings", lambda self, run_id=None: given)
     client, cid, first = on_branch(
         make_client,
         repo,

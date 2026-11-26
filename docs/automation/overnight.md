@@ -107,7 +107,13 @@ there as it goes. How Go away finds the project decides it, once for every job:
   its Orchestrator is told why, and its row says "In a copy: …".
 - **At its end** KOLONİ commits what the job left on the branch and keeps the worktree for your Take in -
   the same card as a copy's, file by file. Nothing of it goes into your project by itself, at Full auto
-  too. A branch that holds a secret given during the job is deleted, and the chat says so.
+  too. A file that holds a secret KOLONİ knows - in its content or its name: a provider key you saved,
+  an MCP server's variable a secret's name holds, the page's key, one of the environment's, one given
+  on a card, or any value with a secret's shape (`ghp_…`, `sk-…`, a password in an address) and the
+  token or password it holds alone - is left out of that commit and stays in the job's worktree only; the job's chat and its push row say which
+  ("· left out: conf.txt (holds a secret KOLONİ knows)"), and the rest of the work goes on. Such a
+  secret never deletes the job's work: only a secret given on a card during the job, which an agent
+  committed on the branch itself, has the branch deleted, and the chat says so.
 - **Its second try** after a failure, and the turn that goes on after your decisions in the morning,
   work in the same worktree, on the same branch.
 - KOLONİ also notes your repository's branches, stash, tags and remotes as the job starts and ends:
@@ -320,8 +326,9 @@ of all), on the summary, on the To-do page and on the report.
   it is. It waits for the task's other rows and its going-on turn ("Waits for this task's other
   decisions and its going-on turn"), and is made again with the branch's new commit after that turn: a
   yes is never for a commit you did not see. Just before it pushes, KOLONİ looks again: a branch
-  deleted or moved since the job ended, a secret KOLONİ knows in what would go up, a branch of that
-  name on origin, commits of yours on `main` not on origin ("push main first"; KOLONİ asks origin
+  deleted or moved since the job ended, a secret KOLONİ knows in what would go up - a file's content
+  or its name, one an agent committed on the branch itself ("take it off the branch first") -, a
+  branch of that name on origin ("origin already has a branch named …"), commits of yours on `main` not on origin ("push main first"; KOLONİ asks origin
   itself, never your remote-tracking branches), origin's `main` ahead of what you fetched ("fetch
   first"), an address git's config rewrites, the project on another branch
   than the one the job ended on, a branch changed since you read the row - nothing goes up, the row

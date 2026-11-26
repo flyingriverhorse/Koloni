@@ -5,6 +5,7 @@ import { commandSeconds } from '../commands/commandStatus'
 import { StatusLabel } from '../shell/StatusLabel'
 import { useApp } from '../state/store'
 import { keyOf } from '../views/views'
+import type { End } from './toolRuns'
 import { shotOf, toolName, toolSummary, webNote } from './toolSummary'
 
 export const TOOL_STATUS: Record<ToolCall['status'], [label: string, color: string]> = {
@@ -14,6 +15,12 @@ export const TOOL_STATUS: Record<ToolCall['status'], [label: string, color: stri
   failed: ['failed', 'var(--del)'],
   denied: ['rejected', 'var(--warn)'],
   interrupted: ['interrupted', 'var(--warn)'],
+}
+/** A run's line's ends (`End`, `runHead`): a call's own, and a command parked or refused by a judge (F411). */
+export const RUN_MARKS: Record<End, [label: string, color: string]> = {
+  ...TOOL_STATUS,
+  parked: ['parked', 'var(--warn)'],
+  judged: ['refused by the judge', 'var(--warn)'],
 }
 
 function StatusIcon({ status }: { status: ToolCall['status'] }) {

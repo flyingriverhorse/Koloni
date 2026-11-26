@@ -993,7 +993,7 @@ BRANCH_THEIRS = (
     "merge would write over it"
 )
 BRANCH_SECRET = (
-    "{files} on the branch holds a secret given this turn: not merged - take it off "
+    "{files} on the branch holds a secret KOLONİ knows: not merged - take it off "
     "the branch first, or Discard, which deletes the branch"
 )
 BRANCH_SPECIAL = (
@@ -1044,12 +1044,7 @@ BRANCH_KEPT_TOLD = "The branch {branch} is kept, as you asked"
 BRANCH_NOT_KEPT = (
     "The branch {branch} was not kept: one of its agents' commits holds a secret given in this turn"
 )
-PR_BODY = (
-    "{task}\n\nMade by KOLONİ's agents ({name}) on the branch `{branch}`, pushed as one "
-    "commit.\n\n### Changed files\n{files}\n\n### Check\n{check}\n\n"
-    "### {name}'s notes\n{notes}\n"
-)
-PR_NOTES = 4000
+# (its body: `away_branch.team_pr_body`, L-3)
 PR_CONFIG = (
     ".git/config changed during this turn - a push runs what it names (an address, a "
     "credential helper, an ssh command): look at it, then Open pull request"
@@ -1057,9 +1052,8 @@ PR_CONFIG = (
 PR_NAMED_SECRET = "{files}: named as a secret - it goes to GitHub only on your click"
 # ... and where the user holds commits origin does not, or a stash: what an agent copied of them
 # into a commit of its own (a squash, a pick, an amend) its history does not show - always asked.
-PR_UNPUSHED = (
-    "you have {commits} not on GitHub yet: before a pull request, check its files are "
-    "the agent's work"
+PR_UNPUSHED = (  # (D2: "GitHub" only where origin is GitHub's - `AgentRunner._origin_is`)
+    "you have {commits} not on {where} yet: before a push, check its files are the agent's work"
 )
 # ... said with its commits where another worktree of the user's holds one (`git.unpushed_places`):
 # by its folder, and one deleted by hand is still git's until it is pruned.
@@ -3653,9 +3647,9 @@ class AgentRunner(
                     .order_by(Message.created_at)
                     .limit(1)
                 )
-        first = ((task or "").strip().splitlines() or [branch])[0][:COMMIT_LINE]
-        for one in copy.secrets():  # (a secret given this turn goes into no commit's message)
-            first = first.replace(one, "***") if one else first
+        first = ((task or "").strip().splitlines() or [branch])[0]
+        # (no secret KOLONİ checks, nor a mention, goes into its commit's message or title: R2)
+        first = away_branch.titled(first, copy.every_secret())[:COMMIT_LINE]
         try:
             held = await self._commit_line(ctx, copy, first)
             look = await self._branch_look(copy)
@@ -3978,9 +3972,9 @@ class AgentRunner(
                 if not copies.under(path.split("/"), copies.LINKED | copies.NOT_COPIED)
             }
         )
-        # Not committed: a file holding a secret given this turn, and a new one where the project
+        # Not committed: a file holding a secret KOLONİ checks, and a new one where the project
         # has its own file (git ignores it there - the merge would write over the user's).
-        held = {path: SECRET_IN_COPY for path in changed if _secret_in(copy, path)} | {
+        held = {path: SECRET_IN_COPY for path in changed if _secret_in(copy, path, True)} | {
             path: BRANCH_THEIRS
             for path, kind, state in found
             if kind == "new" and state == "conflict"
@@ -4143,20 +4137,11 @@ class AgentRunner(
             if check
             else "the project has no check command"
         )
-        body = PR_BODY.format(
-            task=first,
-            name=ctx.name,
-            branch=branch,
-            files="\n".join(
-                f"- `{path}` ({letter})" for path, letter in list(look["files"].items())[:200]
-            ),
-            check=tested,
-            notes=notes[:PR_NOTES] or "(none)",
+        known = copy.every_secret()  # (MEDIUM-2: its files' names too, MEDIUM-3)
+        body = away_branch.team_pr_body(
+            first, ctx.name, branch, look["files"], tested, notes, known
         )
-        title = first
-        for one in copy.secrets():
-            if one:
-                body, title = body.replace(one, "***"), title.replace(one, "***")
+        title = raw.hide(first, known)
         if sent.get("tip") == look["tip"]:
             sha = sent["sha"]  # (pushed already: only the pull request failed - opened again)
         else:
@@ -4245,7 +4230,7 @@ class AgentRunner(
         )
         said += ["a stash" if stashes == 1 else f"{stashes} stashes"] if stashes else []
         if said:
-            return PR_UNPUSHED.format(commits=" and ".join(said))
+            return PR_UNPUSHED.format(commits=" and ".join(said), where=await self._origin_is(copy))
         return PR_SNAPSHOT if copy.snapshot_sha else None
 
     async def _sent(self, copy: copies.Copy, look: dict) -> str:
@@ -5594,6 +5579,7 @@ class AgentRunner(
                 session.commit()
                 payloads = [("file_change.updated", file_change_out(row)) for row in rows]
             else:
+                before, after = copy.ends_kept(path, before, after, rows)  # (T1: its line ends)
                 failure, payloads = self._apply_text(
                     session, ctx, ws, path, rows, (before, after), (here, there), together
                 )
@@ -6340,8 +6326,8 @@ class AgentRunner(
         """`_tool_call`, its part 4."""
         if request.name == "recall_output":
             status, output = "succeeded", self._recall_output(ctx, args)
-        elif request.name == "run_checks":
-            status, output = "succeeded", await self._run_checks(ctx, call_id)
+        elif request.name in ("run_checks", "read_status"):  # (0.1.9: the Orchestrator's own)
+            status, output = "succeeded", await self._own_tool(ctx, call_id, request.name)
         elif request.name in SERVING_TOOLS:
             status, output = "succeeded", await self._serving_call(ctx, request.name, args)
         elif request.name in BROWSER_TOOLS:

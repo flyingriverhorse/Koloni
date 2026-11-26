@@ -251,21 +251,20 @@ def test_close_turned_down_on_its_card_keeps_the_branch_and_the_story_open(make_
     assert not (repo / "one.py").exists()
 
 
-def test_a_secret_kolonI_knows_on_the_storys_branch_holds_it_at_close(
+def test_a_secret_kolonI_knows_never_enters_the_storys_branch_and_the_rest_goes_in(
     make_client, repo, monkeypatch
 ):
-    # (The review's L4: only this turn's given secrets were looked for - none, at Close.)
+    # (The review's L4: only this turn's given secrets were looked for - none, at Close. HIGH-1:
+    # KOLONİ's own commit leaves such a file out, so the secret never enters git at all.)
     key = "sk-live-0123456789abcdef0123"
     monkeypatch.setenv("KOLONI_TEST_API_KEY", key)
     client, pid, cid, s, ids = two_tasks(
         make_client, repo, second=write("two.py", f"KEY = {key!r}\n", "w2")
     )
-    (branch,) = branches(repo)
     close_after_done(client, s, ids)
-    until(lambda: task(client, ids[1])["status"] == "blocked")
-    assert "holds a secret" in task(client, ids[1])["stuck"]
-    assert closed_at(client, pid) is None and branches(repo) == [branch]
-    assert not (repo / "two.py").exists()
+    until(lambda: closed_at(client, pid))
+    assert (repo / "one.py").read_text() == "1\n" and not (repo / "two.py").exists()
+    assert key not in run(repo, "log", "--all", "-p")
 
 
 def test_a_chat_holding_a_storys_branch_is_not_deleted_and_a_deleted_story_says_its_branch_stays(

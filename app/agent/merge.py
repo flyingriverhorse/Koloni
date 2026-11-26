@@ -254,7 +254,7 @@ def _merge_file(
     }
     # Why such a file waits on the card at every level (nobody watching: refused instead).
     standing = stands_over_later_turns(Workspace(copy.project), path)
-    one = {
+    one: dict = {
         "path": path,
         "kind": kind,
         "state": state,
@@ -498,27 +498,24 @@ def _branch_files(
     return found
 
 
-def _secret_forms(copy: copies.Copy) -> list[bytes]:
-    """K-dal-takim: the secrets given in a branch copy's turn (`Copy.secrets`) as they are looked
-    for in bytes: UTF-8 and UTF-16-LE."""
-    return [
-        form
-        for one in copy.secrets()
-        if one
-        for form in (one.encode("utf-8"), one.encode("utf-16-le"))
-    ]
+def _secret_forms(copy: copies.Copy, every: bool = True) -> list[bytes]:
+    """K-dal-takim: the secrets given in a branch copy's turn (`Copy.secrets`) - and, `every` (S1,
+    MEDIUM-2), all KOLONİ checks (`Copy.every_secret`) - as they are looked for in bytes: UTF-8 and
+    UTF-16-LE. Not `every`: what drops a branch whole (`_secret_branch_gone`) - the turn's alone."""
+    known = copy.every_secret() if every else copy.secrets()
+    return [form for one in known if one for form in (one.encode("utf-8"), one.encode("utf-16-le"))]
 
 
-def _secret_in(copy: copies.Copy, path: str) -> bool:
-    """K-dal-takim: whether a file of a branch's worktree holds a secret given in its turn
-    (`Copy.secrets`), as UTF-8 or UTF-16 bytes, in a file of any text or none: it is not
-    committed - git would keep it after the branch is gone."""
-    place, forms = copy.here(path), _secret_forms(copy)
+def _secret_in(copy: copies.Copy, path: str, every: bool = False) -> bool:
+    """K-dal-takim: whether a file of a copy holds a secret given in its turn (`Copy.secrets`;
+    `every`: all KOLONİ checks - a branch's own commit, HIGH-1) as UTF-8 or UTF-16 bytes, in a file
+    of any text or none, or in its name (MEDIUM-3): it is not committed - git would keep it."""
+    place, forms = copy.here(path), _secret_forms(copy, every)
     try:
         data = place.read_bytes() if forms and place and place.is_file() else b""
     except OSError:
         return False
-    return any(form in data for form in forms)
+    return any(form in data or form in path.encode() for form in forms)
 
 
 def kept_work(copy: copies.Copy, lead_id: str) -> list[tuple[proof.Change, str]]:

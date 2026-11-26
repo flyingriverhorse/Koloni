@@ -56,18 +56,32 @@ _feeding: contextvars.ContextVar[str | None] = contextvars.ContextVar("raw_agent
 _source: Callable[[], Iterable[str | None]] = tuple  # none, until `use` says where from
 _secrets: list[str] = []
 _read_at = 0.0
+# ...and of those, the values only what is shown is masked of (`known`, HIGH-1)
+_loose_source: Callable[[], Iterable[str | None]] = tuple
+_loose: frozenset[str] = frozenset()
+_loose_at = 0.0
+# HIGH-1: a value KOLONİ keeps that reads as a word - a provider's key "not-needed" - is no secret a
+# look at a branch may stop work on (`app.main.loose_values`).
+# shortcut: a real saved key of lowercase words alone ("correcthorse") is not looked for there - it
+# is still masked where text is shown (`hidden`); look for one if such a key is met.
+WORDISH = re.compile(r"[a-z]+(?:[-_. ][a-z]+)*")
 
 
-def use(source: Callable[[], Iterable[str | None]]) -> None:
-    """Where the secrets KOLONİ knows are read from (`app.main`)."""
-    global _source, _secrets, _read_at
+def use(
+    source: Callable[[], Iterable[str | None]],
+    loose: Callable[[], Iterable[str | None]] = tuple,
+) -> None:
+    """Where the secrets KOLONİ knows are read from (`app.main`) - all of them, which what is shown
+    is masked of (`hidden`) -, and `loose`: those of them no scan stops on (`known`)."""
+    global _source, _secrets, _read_at, _loose_source, _loose, _loose_at
     _source, _secrets, _read_at = source, [], 0.0
+    _loose_source, _loose, _loose_at = loose, frozenset(), 0.0
 
 
 def read_again() -> None:
     """A secret was just given (slice 91): the next look reads them anew, not a second on."""
-    global _read_at
-    _read_at = 0.0
+    global _read_at, _loose_at
+    _read_at = _loose_at = 0.0
 
 
 def spellings(secrets: Iterable[object]) -> list[str]:
@@ -92,6 +106,17 @@ def _known(fresh: bool = False) -> list[str]:
     _read_at = time.monotonic()  # also when the read fails: not tried again at every line
     _secrets = spellings(_source())
     return _secrets
+
+
+def known() -> list[str]:
+    """The secrets KOLONİ knows that a branch's commit, merge and push look for (S1) and a kept
+    reason is masked of (K3), as they are looked for: not `use`'s `loose` ones (HIGH-1: an MCP
+    server's value no secret's name holds, a kept value that reads as a word - `WORDISH`)."""
+    global _loose, _loose_at
+    if time.monotonic() - _loose_at >= FRESH_SECONDS:
+        _loose_at = time.monotonic()  # (also when the read fails, as `_known`)
+        _loose = frozenset(spellings(_loose_source()))
+    return [one for one in _known() if one not in _loose]
 
 
 def hide(text: str, secrets: Iterable[str]) -> str:

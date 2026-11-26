@@ -24,6 +24,7 @@ from app.db.models import (
     project_of,
 )
 from app.limits import has_room
+from app.masking import masked
 from app.providers import ask_once, mode_of
 from app.roles import LEAD, find_role
 from app.serialize import run_out
@@ -371,7 +372,7 @@ class PoMixin:
                 add, why = decided[n]
                 task.status = "todo" if add else task.status
                 # (its why masked as it is kept, as the judge's is: Decided for you shows it)
-                lead = {"lead": "add" if add else "no", "lead_why": raw.hidden(why)}
+                lead = {"lead": "add" if add else "no", "lead_why": masked(why)}
                 task.po = {**(task.po or {}), **lead}
                 added += add
             session.commit()

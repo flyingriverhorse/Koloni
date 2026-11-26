@@ -2,7 +2,7 @@ import { CaretDown, CaretRight } from '@phosphor-icons/react'
 import { type ReactNode, useState } from 'react'
 import type { Command, FileChange, ToolCall } from '../api/types'
 import { StatusLabel } from '../shell/StatusLabel'
-import { TOOL_STATUS } from './ToolRow'
+import { RUN_MARKS } from './ToolRow'
 import { runHead } from './toolRuns'
 
 // Calls whose line was left open, kept while the page is open (a reload closes them): by every
@@ -25,9 +25,9 @@ export function ToolRun({ calls, state, children, live = false }: Props) {
   const [, redraw] = useState(0)
   const open = calls.some(call => opened.has(call.id)) || (live && !shut.has(calls[0].id))
   const { what, marks, status } = runHead(calls, state)
-  const [label, color] = TOOL_STATUS[status]
-  // "1 failed", "2 rejected", "1 interrupted": what did not end well is never folded away.
-  const marked = marks.map(([end, count]) => `${count} ${TOOL_STATUS[end][0]}`)
+  const [label, color] = RUN_MARKS[status]
+  // "1 failed", "2 rejected", "3 refused by the judge", "4 parked": what did not end well is never folded away.
+  const marked = marks.map(([end, count]) => `${count} ${RUN_MARKS[end][0]}`)
   return (
     <div className="tool-run">
       <button

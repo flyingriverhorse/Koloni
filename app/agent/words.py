@@ -30,7 +30,7 @@ GO_ON_AT = "Go on at "
 RECONNECT = "Reconnect"
 
 # A file of a working copy that holds one is left there (`_merge_file`).
-SECRET_IN_COPY = "holds a secret given this turn: written in the copy only"
+SECRET_IN_COPY = "holds a secret KOLONİ knows: written in the copy only, not committed"
 
 NO_TRIGGER_ALLOWS = (
     "{name}: such a file tells later turns what they may do, or runs by itself, which "
