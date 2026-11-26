@@ -418,7 +418,7 @@ def _scan(
             elif not every and _key(relative) not in keys and _key(relative) not in above:
                 first, _slash, below = relative.partition("/")
                 shown = f"{first}/" if below or entry.is_dir(follow_symlinks=False) else first
-                if left is not None and shown not in left:
+                if left is not None and shown not in left and shown != ".koloni/":  # (KOLONİ's)
                     left.append(shown)
             elif entry.is_dir(follow_symlinks=False):
                 todo.append((f"{relative}/", every or _key(relative) in keys))
@@ -1009,9 +1009,9 @@ def make(
     if held is None:
         raise OSError(NO_PLACE)
     if held == in_project(project, runtime_root, FOLDER):  # (git-less: ignored once git comes)
-        from app import koloni  # (here: koloni reads project files, which import this)
-
-        koloni.ignored(str(project))
+        held.mkdir(parents=True, exist_ok=True)
+        with contextlib.suppress(FileExistsError), open(held.parent / ".gitignore", "xb") as out:
+            out.write(b"*\n")  # (all of the area, itself too; never through one already there)
     project, root = Path(project).resolve(), held / _plain(name) / TREE
     listed, left = None, []
     # A project that holds the copies folder does not copy the copies into themselves.
@@ -1362,8 +1362,7 @@ def _plain(name: str) -> str:
 def place(runtime_root: Path, name: str) -> Path:
     """Where the copy of that name is: a folder directly inside one of the copies
     folders (`folders`: the one that has it, else where copies are made), and nothing
-    else - ValueError for a name that would lead anywhere else, and (K-koloni-alan's review) for
-    one more than one of them holds: an agent's folder of that name in `.koloni/` is no copy's."""
+    else - ValueError for a name that would lead anywhere else, or more than one holds (review)."""
     held = folders(runtime_root)
     found = [one for one in held if os.path.lexists(one / _plain(name))]
     if len(found) > 1:

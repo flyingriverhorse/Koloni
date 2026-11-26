@@ -70,9 +70,10 @@ KOLONİ reads the command as written: a path built in a script is not seen.
   `git init`, the next copy is made outside.
 - The first time a worktree is made, KOLONİ adds `/.koloni/worktrees/` and `/.koloni/copies/` to your
   repository's own `.git/info/exclude` (in a linked worktree of yours, the main repository's), so
-  `git status` stays clean. Your `.gitignore` is not touched. KOLONİ's own `.koloni/.gitignore` lists
-  them too (a line it lacks is added after yours), so a git-less project's copies stay out of the git
-  it gets later.
+  `git status` stays clean. Your `.gitignore` is not touched. In a project with no git,
+  `.koloni/copies/` holds a `.gitignore` of its own that ignores all of it, so the copies stay out of
+  the git it gets later; KOLONİ's `.koloni/.gitignore` lists `worktrees/` and `copies/` too once it
+  writes one for its scratch (a line it lacks is added after yours).
 - Each is one agent's work: that agent works in it as its own folder; any other agent, or a command
   at the project's root, may look in but not write, delete or run anything there
   ([permissions](permissions.md#the-folders-koloni)).

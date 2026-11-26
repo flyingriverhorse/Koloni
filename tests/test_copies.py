@@ -45,11 +45,12 @@ def test_the_scratch_under_koloni_tmp_is_neither_copied_nor_offered(project, run
 
 
 def tree(top: Path) -> dict[str, bytes]:
-    """Every file under a folder with what it holds, links followed."""
+    """Every file under a folder with what it holds, links followed - but KOLONİ's copies in its
+    `.koloni/copies/` (K-koloni-alan: a project with no git holds them there)."""
     return {
         path.relative_to(top).as_posix(): path.read_bytes()
         for path in sorted(top.rglob("*"))
-        if path.is_file()
+        if path.is_file() and not path.relative_to(top).as_posix().startswith(".koloni/copies/")
     }
 
 

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from app import commands, copies, copy_git, git, project_files, scratch_delete
+from app import commands, copies, copy_git, git, koloni, project_files, scratch_delete
 from app.project_view import ProjectView, standing
 from app.workspace import (
     Workspace,
@@ -238,12 +238,12 @@ def test_a_project_with_no_git_has_its_copies_in_its_own_koloni_and_no_copy_hold
     assert held is not None and first.root == held / "a1" / copies.TREE
     assert held.parent == project_dir.resolve() / ".koloni" / "copies"
     second = copies.make(project_dir, run_root, "a2")
-    assert files_of(second.root) == {"hello.py", ".koloni/.gitignore"}  # (no copy, nor itself)
+    assert files_of(second.root) == {"hello.py"}  # (not the first copy, nor itself)
     assert held in copies.folders(run_root) and copies.place(run_root, "a2") == held / "a2"
     assert copies.named(run_root, str(second.root)) == "a2"
     assert copies.free(run_root, "a1") == "a1-2"
     # (the project's own look sees neither)
-    assert sorted(ProjectView(project_dir).paths()) == [".koloni/.gitignore", "hello.py"]
+    assert ProjectView(project_dir).paths() == ["hello.py"]
     assert not [path for path in standing(project_dir) if "/copies/" in path]
     copies.clear(run_root)
     assert not os.path.lexists(held / "a1") and not os.path.lexists(held / "a2")
@@ -251,11 +251,16 @@ def test_a_project_with_no_git_has_its_copies_in_its_own_koloni_and_no_copy_hold
 
 @needs_git
 def test_a_git_less_projects_copies_stay_out_of_the_git_it_gets_later(tmp_path, project_dir):
+    """Review: `.koloni/.gitignore` lists the two areas too, a missing line added after the user's
+    bytes (`koloni.ignored`, as the scratch is made); and a git-less copy's area ignores itself
+    (its own `.gitignore`), so `git add -A` after a `git init` takes none of it."""
     (project_dir / ".koloni").mkdir()
     (project_dir / ".koloni" / ".gitignore").write_bytes(b"*.log\r\n")  # (the user's bytes)
     copies.make(project_dir, tmp_path / "runtime", "a1")
+    assert (project_dir / ".koloni" / ".gitignore").read_bytes() == b"*.log\r\n"  # (untouched)
+    koloni.ignored(str(project_dir))
     ignore = (project_dir / ".koloni" / ".gitignore").read_bytes()
-    assert ignore.startswith(b"*.log\r\n") and b"copies/" in ignore and b"worktrees/" in ignore
+    assert ignore.startswith(b"*.log\r\n") and b"copies/\n" in ignore and b"worktrees/" in ignore
     subprocess.run(["git", "init", "-q"], cwd=project_dir, check=True)
     added = run(project_dir, "add", "-A", "-n")
     assert ".koloni/copies" not in added and "hello.py" in added
@@ -268,7 +273,7 @@ def test_a_project_given_git_later_has_its_next_copy_outside(tmp_path, project_d
     outside = copies.make(project_dir, run_root, "a2")
     assert ".koloni" in inside.root.parts and ".koloni" not in outside.root.parts
     assert outside.root == copies.folder(run_root) / "a2" / copies.TREE
-    assert files_of(outside.root) == {"hello.py", ".koloni/.gitignore"}
+    assert files_of(outside.root) == {"hello.py"}
 
 
 def test_a_copy_made_outside_before_is_still_found_and_kept_or_cleared(tmp_path, project_dir):
@@ -351,7 +356,7 @@ def test_the_files_window_and_the_agents_search_pass_by_koloni_trees(tmp_path, p
     copies.make(project_dir, tmp_path / "runtime", "a1")
     (project_dir / ".koloni" / "rules.md").write_text("mine")
     listed = [one["name"] for one in project_files.listing(str(project_dir), ".koloni")]
-    assert listed == [".gitignore", "rules.md"]
+    assert listed == ["rules.md"]
     matches = Workspace(project_dir).search("print")[0]
     assert [path for path, _line, _text in matches] == ["hello.py"]
     # (a secret an agent made in its copy alone is still found for a whole-folder search)

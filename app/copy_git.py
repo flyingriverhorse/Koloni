@@ -140,6 +140,11 @@ def drop_project(project: Path, runtime_root: Path) -> None:
                     copies._remove(Path(entry.path))
         for empty in (held, held.parent, held.parent.parent):
             with contextlib.suppress(OSError):
+                ignore = (
+                    empty / ".gitignore"
+                )  # (the area's own, `copies.make`: when it is all left)
+                if empty == held.parent and os.listdir(empty) == [ignore.name]:
+                    ignore.unlink()
                 empty.rmdir()
         if area == copies.WORKTREES:
             with contextlib.suppress(git.Refused, OSError):
