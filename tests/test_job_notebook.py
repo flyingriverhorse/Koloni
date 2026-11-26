@@ -110,4 +110,8 @@ def test_a_turn_belongs_to_its_job_and_its_agents_keep_three_notes_a_turn_there(
             KEPT.replace("task", "story")
         )
         assert story.notes[-1]["kind"] == "note" and story.notes[-1]["text"] == "s"
+        # A job that is over - its task done, its story closed (the user's word) - has no turn.
+        task.status, story.closed_at = "done", now()
+        assert stories.notebook_of_run(session, runs["user"]) is None
+        assert stories.notebook_of_run(session, runs["story user"]) is None
         session.rollback()

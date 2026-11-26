@@ -86,3 +86,26 @@ def test_the_notes_lines_are_copied_into_memory_and_go_back_with_their_column(tm
     with sqlite3.connect(db) as conn:
         assert "project_notes" not in columns(conn, "projects")
         assert "notes" not in columns(conn, "backlog_tasks")
+
+
+def test_a_notes_file_reached_through_a_link_is_passed_over(tmp_path):
+    import os
+
+    import pytest
+
+    elsewhere, root = tmp_path / "elsewhere", tmp_path / "linked"
+    elsewhere.mkdir()
+    root.mkdir()
+    _learned(elsewhere, [{"line": "read from outside the folder"}])
+    try:
+        os.symlink(elsewhere / ".koloni", root / ".koloni", target_is_directory=True)
+    except OSError:
+        pytest.skip("no symbolic link can be made here")
+    db = tmp_path / "old.db"
+    cfg = _config(db)
+    command.upgrade(cfg, "0195")
+    with sqlite3.connect(db) as conn:
+        _project(conn, "linked", root, ["notes:"])
+    command.upgrade(cfg, "0196")
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT project_notes FROM projects").fetchone() == (None,)

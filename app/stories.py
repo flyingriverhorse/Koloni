@@ -658,7 +658,8 @@ def notebook_of(session: Session, task: BacklogTask) -> Book:
 def notebook_of_run(session: Session, run: Run) -> Book | None:
     """0.1.10: the job a turn is of, whose notebook it is given and writes in: its task's
     (`notebook_of`) - a To-do task's turn, a night's job's - else its topic's story's, else the
-    task whose turns its topic holds (the user's turn there); None for a plain chat's turn."""
+    task whose turns its topic holds (the user's turn there); None for a plain chat's turn - and
+    for one of a job that is over: its story closed, its task done (the user's word)."""
     task = session.get(BacklogTask, run.task_id) if run.task_id else None
     topic = session.get(Topic, run.topic_id) if run.topic_id else None
     if task is None and topic is not None and topic.story_id is None:
@@ -669,11 +670,15 @@ def notebook_of_run(session: Session, run: Run) -> Book | None:
             .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
             .limit(1)
         )
-    if task is not None:
-        return notebook_of(session, task)
-    if topic is not None and topic.story_id:
-        return story_of(session, topic.story_id, _project_of(session, topic))
-    return None
+    book = (
+        notebook_of(session, task)
+        if task is not None
+        else story_of(session, topic.story_id, _project_of(session, topic))
+        if topic is not None and topic.story_id
+        else None
+    )
+    over = book.closed_at is not None if isinstance(book, Story) else book and book.status == "done"
+    return None if over else book
 
 
 def from_board(session: Session, run: Run, by: str, text: str, agent: bool) -> str | None:
