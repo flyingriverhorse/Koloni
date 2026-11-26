@@ -6,6 +6,7 @@ import pytest
 
 import app.git
 import app.web
+from app.db.models import SPAWN, Conversation
 
 OWN = {"Origin": "http://127.0.0.1:8790"}  # as the app's own page says where it is from
 NO_ORIGIN = (403, "origin not allowed")
@@ -145,6 +146,21 @@ def test_a_chat_takes_these_from_anybody(client, plain, tmp_path):
     # (Planning switched off, and a folder to read in taken off, are leave given.)
     assert answer(client, plain, {"plan_first": False}, own=False) == NO_ORIGIN
     assert answer(client, plain, {"read_in": []}, own=False) == NO_ORIGIN
+
+
+@pytest.mark.parametrize(
+    ("name", "value"), [(name, 3) for name in SPAWN[1:]] + [("discussion_budget", 9000)]
+)
+def test_what_a_projects_chat_follows_is_never_its_own(client, plain, chat, pid, name, value):
+    # (0.1.10: one PATCH moving a plain chat into a project wrote its own limit on its row - read by
+    # nothing then, its project's shown and followed: a silent second value)
+    assert answer(client, chat, {name: value}) == PROJECT_WIDE
+    assert answer(client, plain, {"project_id": pid, name: value}) == PROJECT_WIDE
+    with client.app.state.session_factory() as session:
+        row = session.get_one(Conversation, plain.rsplit("/", 1)[1])
+        assert (row.project_id, getattr(row, name)) != (pid, value)
+    project = client.get(f"/api/projects/{pid}").json()
+    assert client.get(chat).json()["conversation"][name] == project[name]
 
 
 def test_a_chat_is_refused_for_the_first_rule_it_breaks(
