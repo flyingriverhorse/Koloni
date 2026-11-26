@@ -436,11 +436,6 @@ a.btn {
   background: var(--surface);
 }
 
-/* (The Hive keeper's box, closed: it stays mounted, so that a draft written is not lost.) */
-.backlog-add[hidden] {
-  display: none;
-}
-
 .backlog-add:focus-within {
   border-color: var(--accent);
 }
@@ -483,18 +478,6 @@ a.btn {
 .todo-filters [aria-pressed='true'] {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-.todo-story .backlog-row-text {
-  overflow-wrap: anywhere;
-}
-
-.todo-depth-1 > .backlog-row {
-  padding-left: 32px;
-}
-
-.todo-section {
-  padding: 8px 12px 4px;
 }
 
 .todo-rename {
@@ -768,31 +751,6 @@ a.btn {
   align-items: center;
   align-self: flex-start;
   gap: 6px;
-}
-.away-strip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  border: 1.5px solid var(--tool-files);
-  border-radius: var(--radius-lg);
-  padding: 8px 12px;
-  margin-bottom: 8px;
-}
-.away-strip > b {
-  color: var(--tool-files);
-}
-.away-meter {
-  width: 140px;
-  height: 7px;
-  border-radius: 99px;
-  background: var(--border);
-  overflow: hidden;
-}
-.away-meter i {
-  display: block;
-  height: 100%;
-  background: var(--tool-files);
 }
 .away-status {
   display: inline-flex;

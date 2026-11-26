@@ -1,5 +1,5 @@
 import { Moon } from '@phosphor-icons/react'
-import { type CSSProperties, type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import type { Away, AwayJob } from '../api/types'
 import { AwayPanel } from '../chat/AwayPanel'
 import { useAsk } from '../memory/useAsk'
@@ -343,88 +343,6 @@ export function JobRow({
       </div>
       <span className="away-tag">{word}</span>
     </li>
-  )
-}
-
-/** The night's strip: since when, what it spent against its limit, and Stop all while it runs. */
-function Strip({ away }: { away: Away }) {
-  const { busy, error, ask } = useAsk()
-  const share = away.spent != null && away.money ? Math.min(1, away.spent / away.money) : null
-  return (
-    <div className="away-strip" role="status">
-      <b>{away.status === 'running' ? "☾ Working while you're away" : '☾ While you were away'}</b>
-      <span className="muted">
-        started {clock(away.started_at)} · {lasted(away.started_at, away.ended_at)}
-      </span>
-      {share !== null && (
-        <span className="away-meter" aria-hidden="true">
-          <i style={{ width: `${share * 100}%` } as CSSProperties} />
-        </span>
-      )}
-      <span className="muted">
-        {away.spent == null
-          ? 'spent: not known'
-          : `${away.at_least ? 'at least ' : ''}${amount(away.spent, away.currency)}`}
-        {away.money != null && ` of ${amount(away.money, away.currency)}`}
-      </span>
-      {away.status === 'running' && (
-        <button
-          type="button"
-          className="btn btn-small"
-          disabled={busy}
-          onClick={() => void ask(() => useApp.getState().awayDo(away.id, 'stop'))}
-        >
-          Stop all
-        </button>
-      )}
-      {away.status === 'ended' && away.why && <span className="muted">{away.why}</span>}
-      {error && (
-        <div role="alert" className="alert">
-          {error}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** A job that waits for you, or has a decision of yours on its row: a Take in, a Try again. */
-const needsYou = (away: Away, job: AwayJob) =>
-  job.state === 'waits' ||
-  (job.state === 'done' && job.kept.length > 0) ||
-  ((job.state === 'failed' || job.state === 'stopped') && away.status === 'ended' && !!job.task_id)
-
-/**
- * The To-do page's part of a night: one line, which opens on the strip and each job as it stands right
- * now - open by itself, never folded, while a job waits for your decision.
- */
-export function AwayNight({ away, onOpen }: { away: Away; onOpen: (cid: string) => void }) {
-  const night = (
-    <>
-      <Strip away={away} />
-      <WaitingForYou away={away} />
-      <ol className="away-jobs">
-        {away.jobs.map(job => (
-          <JobRow key={job.task_id ?? job.title} away={away} job={job} onOpen={onOpen} />
-        ))}
-      </ol>
-    </>
-  )
-  const done = away.jobs.filter(job => job.state === 'done').length
-  return (
-    <section className="memory-section" aria-label="While you're away">
-      {away.jobs.some(job => needsYou(away, job)) ? (
-        night
-      ) : (
-        // (Stop all is in the top bar too, while it runs.)
-        <details className="more">
-          <summary>
-            ☾ {away.status === 'running' ? "While you're away" : 'While you were away'}: {done} of {away.jobs.length}{' '}
-            done
-          </summary>
-          {night}
-        </details>
-      )}
-    </section>
   )
 }
 
