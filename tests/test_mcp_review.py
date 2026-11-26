@@ -495,7 +495,6 @@ def test_a_number_that_is_not_one_keeps_no_tool_and_fails_no_step(
             "description": "x",
             "input_schema": nested(200),
         },  # (deeper than pydantic shows on Linux too)
-        {"description": "half \ud83d", "input_schema": NOTHING},
         {"description": "x"},  # not a tool as one is kept
     ],
 )
@@ -523,6 +522,29 @@ def test_a_server_whose_kept_tools_cannot_be_shown_is_still_listed_and_can_be_de
     again = client.get("/api/mcp-servers").json()[1]
     assert (again["tools"], again["read_error"]) == ([], "The server ended without an answer.")
     assert client.delete(f"/api/mcp-servers/{one['id']}").status_code == 204
+
+
+def test_a_kept_tool_with_half_an_emoji_is_shown_with_a_replacement_character(
+    make_client, tmp_path
+):
+    """The database reads half an emoji as U+FFFD (0.1.9), so such a kept tool is no longer one that cannot be shown."""
+    client, _ = make_client([text("x")])
+    server(client, tmp_path)
+    with client.app.state.session_factory() as session:
+        row = session.scalar(select(McpServer).where(McpServer.name == "fake"))
+        kept = {
+            "name": "old",
+            "unusable": None,
+            "mark": "free",
+            "description": "half \ud83d",
+            "input_schema": NOTHING,
+        }
+        row.tools = [kept]
+        session.commit()
+    listed = client.get("/api/mcp-servers")
+    assert listed.status_code == 200, listed.text
+    (one,) = listed.json()
+    assert ([t["description"] for t in one["tools"]], one["read_error"]) == (["half �"], None)
 
 
 # --- what the user is shown where they give leave ----------------------------------------------
