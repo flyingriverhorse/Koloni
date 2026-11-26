@@ -29,7 +29,6 @@ from app.agent.merge import _git_parts, _put_back
 from app.agent.summary import compact_at
 from app.agent.words import (
     FINDING_KINDS,
-    IN_THE_PROJECT,
     NATIVE_NEEDS_A_FOLDER,
 )
 from app.db.models import Agent, Conversation, Provider, Run, ToolCall, Topic, now
@@ -753,9 +752,8 @@ class NativeMixin:
             )
             if watch.project is not None:
                 # Before its copy is taken in: that is not its doing in the project.
-                self._record_found(
-                    ctx, transcript, await watch.look(watch.project.changes), IN_THE_PROJECT
-                )
+                found = await watch.look(watch.project.changes)
+                self._found_in_project(ctx, transcript, watch, found, None)
         except Exception:  # the last look must not cost the transcript its ending
             pass
         finally:
