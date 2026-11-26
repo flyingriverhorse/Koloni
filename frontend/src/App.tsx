@@ -8,7 +8,6 @@ import { AwayStatus } from './backlog/Away'
 import { BacklogPage } from './backlog/BacklogPage'
 import { OPEN_TODO } from './chat/TodoCards'
 import { doInChat } from './chat/todoActions'
-import { BoardPage } from './board/BoardPage'
 import { ConflictStrip } from './board/ConflictStrip'
 import { QuestionCard } from './agents/QuestionCard'
 import { RoleApproval } from './agents/RoleApproval'
@@ -83,7 +82,7 @@ async function builtAnew(): Promise<boolean> {
     return false // not reached this time: asked again with the next health reading
   }
 }
-// As the Board's own page reads it: the events of the project's other conversations do not come here.
+// The events of the project's other conversations do not come here: what waits there is read again this often.
 const BOARD_POLL_MS = 5000
 // The Agents page reads what each role would run on in a new conversation, with the levels each model takes: one function, read once per change of roles.
 const roleModelsNow = () => useApp.getState().roleModels(null, true)
@@ -119,7 +118,6 @@ const PAGES: [View, string][] = [
   ['canvas', 'Canvas'],
   ['conversations', 'Chats (Conversations)'],
   ['ready', 'Ready for you'],
-  ['board', 'Board'],
   ['backlog', 'To-do'],
   ['agents', 'Agents'],
   ['models', 'Models'],
@@ -169,7 +167,6 @@ export function App() {
   const budget = useApp(s => s.budget)
   // The plans' windows near their limit, from the top bar's readings: the toasts say each once.
   const [near, setNear] = useState<Near[]>([])
-  const boardError = useApp(s => s.boardError)
   const backlog = useApp(s => s.backlog)
   const backlogError = useApp(s => s.backlogError)
   const drafter = useApp(s => s.drafter)
@@ -277,7 +274,7 @@ export function App() {
     if (!projectId) return
     if (view === 'memory' || !useApp.getState().memory) void useApp.getState().loadMemory()
   }, [view, projectId])
-  // So is the To-do list, whatever page is open (Ready for you), and again when the Board counts another number waiting there.
+  // So is the To-do list, whatever page is open (Ready for you), and again when the board read counts another number waiting there.
   const backlogWaiting = board?.backlog_waiting
   useEffect(() => {
     if (projectId) void useApp.getState().loadBacklog()
@@ -295,16 +292,14 @@ export function App() {
     if (projectId && givenFacts && givenShown) void useApp.getState().loadMemory()
   }, [projectId, givenFacts, givenShown, agentWindowId, selectedNodeId])
 
-  // What waits for you in every conversation of every folder (the rail's badge, the toasts): read again -
-  // but on the Board's own page, which reads it itself.
+  // What waits for you in every conversation of every folder (the rail's badge, the toasts): read again.
   useEffect(() => {
-    if (view === 'board') return
     // (Not while the tab is out of sight: the first read after it comes back says what changed.)
     const timer = setInterval(() => document.hidden || void useApp.getState().loadBoard(), BOARD_POLL_MS)
     return () => clearInterval(timer)
-  }, [view])
+  }, [])
 
-  // This month's spend against the budget (the strip, the toast, Usage): read as often as the Board.
+  // This month's spend against the budget (the strip, the toast, Usage): read as often as what waits.
   useEffect(() => {
     if (!projectId) return
     const read = () => {
@@ -708,7 +703,7 @@ export function App() {
       onActivity={useApp.getState().roleActivity}
       onHistory={useApp.getState().roleHistory}
       onOpenConversation={async id => {
-        // As the Board's: shown only once it is open.
+        // Shown only once it is open.
         await useApp.getState().openConversation(id)
         setView('canvas')
       }}
@@ -811,28 +806,6 @@ export function App() {
       }
     />
   )
-  const boardPage = () =>
-    !project ? (
-      noFolder('Board')
-    ) : (
-      <BoardPage
-        // (Each folder's own: what one opened, typed or read is not carried to another.)
-        key={project.id}
-        board={board}
-        error={boardError}
-        currentId={conv?.conversation.id ?? null}
-        onLoad={useApp.getState().loadBoard}
-        onRerun={useApp.getState().rerunFailed}
-        waiting={waiting.length}
-        onReady={() => show('ready')}
-        onOpen={async id => {
-          // Only once it is open: one that is gone (deleted since the board was read)
-          // is said on the board, not shown as the conversation that was open before.
-          await useApp.getState().openConversation(id)
-          setView('canvas')
-        }}
-      />
-    )
   const backlogPage = () =>
     !project ? (
       noFolder('To-do')
@@ -1122,7 +1095,6 @@ export function App() {
     models: modelsPage,
     tools: toolsPage,
     ready: readyPage,
-    board: boardPage,
     backlog: backlogPage,
     usage: usagePage,
     memory: memoryPage,

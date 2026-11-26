@@ -18,14 +18,14 @@
 2038 app/memory.py
 5734 app/model_native.py
 1984 app/proof_kinds.py
-4973 app/schemas.py
+4956 app/schemas.py
 1842 app/tools.py
 1564 frontend/src/agents/RecipesTab.tsx
 1582 frontend/src/canvas/deriveGraph.ts
 1509 frontend/src/canvas/lines.test.ts
 2602 frontend/src/chat/MessageList.test.tsx
 1729 frontend/src/chat/MessageList.tsx
-2311 frontend/src/state/store.ts
+2300 frontend/src/state/store.ts
 
 # tests/
 2392 tests/test_agy_agent.py

@@ -2027,21 +2027,6 @@ class BoardAgent(BaseModel):
     own_questions: int
 
 
-class BoardOutcome(BaseModel):
-    """How a sub-agent of a turn came out (K-board-sonuc): "nothing" - it finished having done
-    and said nothing; "timed_out", "silent" (its stall timer cut it) or "error"."""
-
-    id: str
-    name: str
-    role: str
-    provider_name: str | None
-    model_id: str | None
-    status: AgentStatus
-    outcome: Literal["nothing", "timed_out", "silent", "error"]
-    # "Re-run the ones that failed" opens it again: it failed, and was not opened again since.
-    rerun: bool
-
-
 class BoardTurn(BaseModel):
     id: str
     status: RunStatus
@@ -2056,8 +2041,6 @@ class BoardTurn(BaseModel):
     tokens: int | None
     # It wrote a plan that waits for the user's yes or no (slice 49).
     plan_waits: bool
-    # Its sub-agents that ended with a class (`app.api.board.outcome`), oldest first.
-    outcomes: list[BoardOutcome] = []
 
 
 class BoardConversation(BaseModel):

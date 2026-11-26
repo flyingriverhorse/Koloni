@@ -123,8 +123,8 @@ for (const theme of ['light', 'dark'] as const) {
   })
 }
 
-// Slice 38d: the table pages and Memory - Usage after a turn (and in a smaller window), the
-// Board while a turn waits for you, Conversations with a long name, and Memory.
+// Slice 38d: the table pages and Memory - Usage after a turn (and in a smaller window),
+// Conversations with a long name while a turn waits for you, and Memory.
 const LONG_NAME =
   'A conversation with a long name about the greeting module, what the reviewer said of it and what is left to do'
 for (const theme of ['light', 'dark'] as const) {
@@ -156,9 +156,6 @@ for (const theme of ['light', 'dark'] as const) {
       timeout: 20_000,
     })
     await page.keyboard.press('Escape')
-    await rail(page, 'Board').click()
-    await expect(page.locator('.board-agent .status').filter({ hasText: 'waits for you' }).first()).toBeVisible()
-    await snap('board')
     await page.getByRole('button', { name: 'Chats', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Conversations' })).toBeVisible()
     await snap('conversations')

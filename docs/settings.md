@@ -181,7 +181,7 @@ Before a sub-agent's work is added, the tests it wrote or changed run in its wor
 | **Post it as** | `JSON {"text": …}` (Slack, Mattermost), `JSON {"content": …}` (Discord) or Plain text (ntfy). |
 | **Show a desktop notification** | Windows only. At most 6 a minute for one chat. |
 | **Remove the notification address** | Shown when an address is set. |
-| **Send the day's summary at** | A time of day, by this computer's clock, for a daily summary: the Board's Today numbers as text, counted from the record; no model is asked. Needs an address or desktop notifications. If KOLONİ is closed then, it sends the summary late, when it next opens, and only for the last day it missed. |
+| **Send the day's summary at** | A time of day, by this computer's clock, for a daily summary: Usage's Today numbers for the project as text, counted from the record; no model is asked. Needs an address or desktop notifications. If KOLONİ is closed then, it sends the summary late, when it next opens, and only for the last day it missed. |
 
 ### Slash commands
 

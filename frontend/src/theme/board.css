@@ -1,97 +1,6 @@
-/* --- the project's board ----------------------------------------------------- */
+/* --- a project's agents at work, and two chats that want one file ------------------ */
 
-/* On a narrow window the line of counts goes under the title and the two buttons. */
-.board-head {
-  flex-wrap: wrap;
-  gap: 8px 12px;
-}
-
-/* At work and Ended today side by side (slice 60b); on a narrow window, one under another. */
-.board-columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
-  align-items: start;
-}
-
-.board-column {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  padding: 10px;
-  border-radius: var(--radius);
-  background: var(--panel);
-  box-shadow: var(--shadow-sm);
-}
-
-.board-column h3 {
-  margin: 0;
-}
-
-/* Side by side, a long column scrolls in itself and the page keeps its height; its heading stays on top. */
-@media (min-width: 900px) {
-  .board-column {
-    max-height: max(260px, calc(100dvh - 230px));
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-
-  .board-column h3 {
-    position: sticky;
-    top: -10px;
-    z-index: 1;
-    margin: -10px -10px 0;
-    padding: 10px 10px 4px;
-    background: var(--panel);
-  }
-}
-
-.board-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.board-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  padding: 8px 10px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.board-title {
-  font-weight: var(--weight-title);
-  font-size: var(--text-heading);
-  overflow-wrap: anywhere;
-}
-
-.board-title[aria-current='true'] {
-  text-decoration: underline;
-}
-
-.board-facts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 8px;
-  margin: 0;
-  font-size: var(--text-meta);
-}
-
-.board-older {
-  font-size: var(--text-note);
-}
-
-.board-agents,
-.board-conflicts {
+.board-agents {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -112,32 +21,14 @@
   font-weight: var(--weight-strong);
 }
 
-/* The Board's one line to Ready for you: the page's width, not the chat's inset. */
-.memory-page > .ready-line {
-  margin: 0;
-}
-
-/* A conflict on the board: its line, and Open at the right. */
-.board-conflict {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-/* Two conversations want one file: on the board, and above each of the two. */
-.board-conflicts,
+/* Two conversations want one file: above each of the two. */
 .board-strip {
+  margin: 0 14px;
   padding: 8px 12px;
-  border-radius: var(--radius);
+  border-radius: 0 0 var(--radius) var(--radius);
   background: color-mix(in srgb, var(--warn) 17%, transparent);
   color: var(--warn);
   font-size: var(--text-body);
-}
-
-.board-strip {
-  margin: 0 14px;
-  border-radius: 0 0 var(--radius) var(--radius);
 }
 
 /* --- what waits for you, seen from anywhere (slice 38f-2) --------------------------- */
@@ -410,39 +301,6 @@
 .ready-panel .cmd-approval-command {
   max-height: none;
   overflow: visible;
-}
-
-/* The chat's one line: what waits outside it, and the way to the panel. */
-.ready-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 10px 6px;
-  padding: 5px 10px;
-  border: 1px solid var(--warn);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--warn) 8%, var(--panel));
-}
-
-/* One line, however narrow: its words cut short (its button says them whole), never the chat's messages pushed away. */
-.ready-line > span:nth-child(2) {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.ready-line > button {
-  flex: none;
-  white-space: nowrap;
-}
-
-.ready-line .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--warn);
 }
 
 .ready-count {

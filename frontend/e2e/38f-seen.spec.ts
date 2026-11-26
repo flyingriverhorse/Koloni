@@ -16,7 +16,7 @@ async function waiting(page: Page) {
   return id ? Number((await page.locator(`#${id}`).textContent())?.split(' ')[0]) : 0
 }
 
-/** The badge once it stopped changing: after the Board, each other chat where something waits is read on its own. */
+/** The badge once it stopped changing: after every chat's board, each other chat where something waits is read on its own. */
 async function steady(page: Page) {
   let last = NaN
   await expect
@@ -49,18 +49,15 @@ for (const theme of ['light', 'dark'] as const) {
     const chat = page.getByRole('region', { name: 'Chat' })
     const toasts = page.locator('.toasts')
     await openFreshConversation(page)
-    // How things stand before: the Board, read on its own page.
+    // How things stand before: what waits everywhere, read again every few seconds.
     // (The badge counts every project's: /api/board, not this project's /projects/…/board.)
-    const read = page.waitForResponse(r => new URL(r.url()).pathname === '/api/board' && r.ok())
-    await rail(page, 'Board').click()
-    await read
+    await page.waitForResponse(r => new URL(r.url()).pathname === '/api/board' && r.ok())
     const before = await steady(page)
-    await rail(page, 'Canvas').click()
 
     // The turn starts here, and the user goes to another page before it asks.
     await page.getByLabel('Message').fill(title)
     await page.getByRole('button', { name: 'Send' }).click()
-    await rail(page, 'Board').click()
+    await rail(page, 'To-do').click()
     await expect(toasts.getByText(`Orchestrator waits for you · ${title}`)).toBeVisible({ timeout: 15_000 })
     await expect.poll(() => waiting(page)).toBe(before + 1)
     await expect(rail(page, 'Ready')).toHaveAccessibleName('Ready')

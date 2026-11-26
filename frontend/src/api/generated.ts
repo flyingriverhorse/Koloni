@@ -1303,36 +1303,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/conversations/{conversation_id}/rerun-failed": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Rerun Failed
-         * @description K-board-sonuc: "Re-run the ones that failed" on a Board card. The sub-agents of the
-         *     conversation's last turn that failed - timed out, went silent or broke - and were not
-         *     opened again since (`board.outcomes`) are opened again in a new turn of its topic, by its
-         *     Lead, which alone opens agents: the message asks it for exactly those, each with its role
-         *     and task. The turn is made here, not by `post_message`: its words are KOLONİ's and the
-         *     agents', so no folder they name is read in and no role they name is the user's word for it
-         *     (`by_user`); and it is no plan to write first. The budget holds it as any message.
-         *     shortcut: over the month's budget it is refused, and the card only says why (it has no
-         *     "go on over it"); give it one if that is met often.
-         *     shortcut: one a team's lead opened is asked of the turn's Lead too, which opens it
-         *     directly; ask it of its team if a team's work is seen to need its lead.
-         */
-        post: operations["rerun_failed_api_conversations__conversation_id__rerun_failed_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/conversations/{conversation_id}/rooms": {
         parameters: {
             query?: never;
@@ -5706,35 +5676,6 @@ export interface components {
             /** Running */
             running: number;
         };
-        /**
-         * BoardOutcome
-         * @description How a sub-agent of a turn came out (K-board-sonuc): "nothing" - it finished having done
-         *     and said nothing; "timed_out", "silent" (its stall timer cut it) or "error".
-         */
-        BoardOutcome: {
-            /** Id */
-            id: string;
-            /** Model Id */
-            model_id: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Outcome
-             * @enum {string}
-             */
-            outcome: "nothing" | "timed_out" | "silent" | "error";
-            /** Provider Name */
-            provider_name: string | null;
-            /** Rerun */
-            rerun: boolean;
-            /** Role */
-            role: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "proposed" | "queued" | "running" | "waiting" | "blocked" | "completed" | "failed" | "cancelled" | "rejected" | "interrupted";
-        };
         /** BoardPostIn */
         BoardPostIn: {
             /** Content */
@@ -5781,11 +5722,6 @@ export interface components {
             id: string;
             /** Model Id */
             model_id: string | null;
-            /**
-             * Outcomes
-             * @default []
-             */
-            outcomes: components["schemas"]["BoardOutcome"][];
             /** Plan Waits */
             plan_waits: boolean;
             /** Provider Name */
@@ -14448,37 +14384,6 @@ export interface operations {
                 "application/json": components["schemas"]["MessageIn"];
             };
         };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PostMessageOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    rerun_failed_api_conversations__conversation_id__rerun_failed_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             201: {

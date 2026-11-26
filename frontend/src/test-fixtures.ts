@@ -98,7 +98,6 @@ export function boardTurn(
     model_id: null,
     tokens: null,
     plan_waits: false,
-    outcomes: [],
     ...over,
   }
 }

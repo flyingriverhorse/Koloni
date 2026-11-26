@@ -351,15 +351,12 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /**
    * The project's board: every conversation's agents at work, and where two conversations want
    * one file. Read when a conversation opens and whenever its events say something moved; the
-   * events of the project's other conversations do not come here, so its page reads it again.
+   * events of the project's other conversations do not come here, so it is read again every few seconds.
    */
   board: Board | null
-  boardError: string | null
   /** Every chat's board, of every folder and of none (slice 86a): what waits for the user anywhere. Read with the board. */
   everywhere: Board | null
   loadBoard(): Promise<void>
-  /** K-board-sonuc: a new turn in which the Lead opens again its last turn's sub-agents that failed, timed out or went silent. Throws ApiError. */
-  rerunFailed(conversationId: string): Promise<void>
   /** What is known of what is left of a provider's plan; `afresh` has it read now: Codex is asked, which starts it, or Claude Code runs one short turn. Throws ApiError. */
   limits(providerId: string, afresh: boolean): Promise<Limits>
   /** The status line command the user adds to their Claude Code settings to keep its reading fresh. Throws ApiError. */
@@ -702,7 +699,6 @@ export const useApp = create<AppStore>()((set, get) => {
     set({
       projectId,
       board: null,
-      boardError: null,
       budget: null,
       memory: null,
       memoryError: null,
@@ -1452,13 +1448,7 @@ export const useApp = create<AppStore>()((set, get) => {
     },
 
     board: null,
-    boardError: null,
     everywhere: null,
-
-    async rerunFailed(conversationId) {
-      await api.post(`/conversations/${conversationId}/rerun-failed`)
-      await get().loadBoard()
-    },
 
     async loadBoard() {
       // What waits anywhere is read with it, in a plain chat too (the rail's badge, the toasts, the list).
@@ -1469,21 +1459,20 @@ export const useApp = create<AppStore>()((set, get) => {
           if (JSON.stringify(board) !== JSON.stringify(get().everywhere)) set({ everywhere: board })
           void get().loadReadyChats()
         },
-        () => {}, // (said by the folder's board where there is one; the badge keeps its last reading)
+        () => {}, // (the badge keeps its last reading)
       )
       const { projectId } = get()
       if (!projectId) return
       // Not for a project that was left meanwhile, and not over a later read's answer:
-      // what is shown is what was asked for last, whether it came or failed.
+      // what is kept is what was asked for last. (One that failed keeps the last reading.)
       const asked = ++boardAsked
       const mine = () => get().projectId === projectId && asked === boardAsked
       try {
         const board = await api.get<Board>(`/projects/${projectId}/board`)
         // The same answer keeps the board it had: what reads it is not drawn again for nothing (it is read every few seconds).
-        const same = JSON.stringify(board) === JSON.stringify(get().board)
-        if (mine()) set(same ? { boardError: null } : { board, boardError: null })
-      } catch (err) {
-        if (mine()) set({ boardError: errorText(err) })
+        if (mine() && JSON.stringify(board) !== JSON.stringify(get().board)) set({ board })
+      } catch {
+        // (read again in a few seconds)
       }
     },
 
