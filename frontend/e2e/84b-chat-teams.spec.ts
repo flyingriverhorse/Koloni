@@ -25,7 +25,7 @@ for (const theme of ['light', 'dark'] as const) {
     await window(page).getByRole('button', { name: '+ Add a team with a recipe' }).click()
     await window(page).getByLabel('Team 1').selectOption({ label: 'Docs' })
     await expect(window(page).getByLabel('Recipe for Docs')).toBeVisible()
-    await window(page).getByLabel('Recipe for Docs').selectOption({ label: 'Feature · 6–16 agents' }) // (each recipe says how many agents its run opens)
+    await window(page).getByLabel('Recipe for Docs').selectOption({ label: 'Feature · 3–7 agents' }) // (each recipe says how many agents its run opens)
     await expect(page.getByRole('button', { name: 'Teams for this chat: 1 team, Manual' })).toBeVisible()
     await shot(page, `84b-teams-manual-${theme}`)
     expect(await lowContrast(page)).toEqual([])
@@ -36,7 +36,7 @@ for (const theme of ['light', 'dark'] as const) {
     await open(page)
     await expect(window(page).getByLabel('Team 1').locator('option:checked')).toHaveText('Docs')
     await expect(window(page).getByLabel('Recipe for Docs').locator('option:checked')).toHaveText(
-      'Feature · 6–16 agents',
+      'Feature · 3–7 agents',
     )
     await page.keyboard.press('Escape')
 

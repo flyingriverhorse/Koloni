@@ -69,18 +69,18 @@ for (const theme of ['light', 'dark'] as const) {
     await page.setViewportSize({ width: 1440, height: 900 })
     await openFreshConversation(page)
     await recipesTab(page)
-    // The ready ones first; Feature on the board, read-only: four reviews at once, at most two rounds back.
+    // The ready ones first; Feature on the board, read-only: its UI review, at most two rounds back (T3: no other review
+    // of its own - KOLONİ's Checks run the tests and look at a big change).
     await expect(page.getByRole('button', { name: /^Feature/ })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByRole('button', { name: /^Bugfix/ })).toContainText('ready')
-    await expect(page.getByRole('button', { name: /^Security review/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^UI review/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Security review/ })).toHaveCount(0)
     await expect(page.getByText('back, at most 2 rounds')).toBeVisible()
     await expect(page.getByRole('button', { name: '+ Step' })).toBeDisabled()
     await expect(page.getByRole('button', { name: 'Save recipe' })).toHaveCount(0)
     // A part chosen: who does it and what it gets, shown and not changed.
     await page.getByRole('button', { name: /^Build it/ }).click()
-    await expect(part(page)).toContainText(
-      'the work of Write the spec, and the findings of All at once, wait for all when looped back',
-    )
+    await expect(part(page)).toContainText('the work of Write the spec, and the findings of UI review when looped back')
     await expect(part(page).getByLabel('Who')).toBeDisabled()
     await shot(page, `84a-recipes-ready-${theme}`)
     expect(await lowContrast(page)).toEqual([])

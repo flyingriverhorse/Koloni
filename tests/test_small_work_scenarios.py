@@ -88,9 +88,9 @@ def test_a_small_change_under_orchestrator_decides_picks_no_team_and_is_checked(
     )
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    # (Told so, with the ready recipes' counts - the migrated ones: Feature's is T1's to keep.)
+    # (Told so, with the ready recipes' counts - the migrated ones: Feature's is T3's, 0195.)
     told = picks(model.tool_args[0])["description"]
-    assert SMALL in told and "- Feature: 6-16 agents" in told, told
+    assert SMALL in told and "- Feature: 3-7 agents" in told, told
     calls = model.calls_of["Lead"]
     assert len(calls) == 4, said(calls)
     assert "say in one line why no team works on it" in calls[2][-1]["content"], said(calls)

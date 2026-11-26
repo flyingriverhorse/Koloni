@@ -607,9 +607,11 @@ class ProofMixin:
 
     def _recipe_spent(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether a recipe of this turn ran a test-to-fix loop of its own to its last round (S4's
-        Bugfix: its checking step runs the tests - a test step, or the Tester): its fix rounds were
-        the turn's, and the end check sends nothing back on top of them. A review's loop or a
-        candidates' `again` that ran out leaves the end check's own rounds."""
+        Bugfix: its checking step runs the tests - a test step, or the Tester - or, as Quality
+        check's and Upkeep's, its fixer loops back to one): its fix rounds were the turn's, and the
+        end check sends nothing back on top of them - a fix round, which keeps the rounds spent
+        (T3a), would only run the test step again. A review's loop or a candidates' `again` that
+        ran out leaves the end check's own rounds."""
         from app.agent import TEST_STEPS  # (where S4 keeps them; this module is imported first)
 
         with self._factory() as session:
@@ -627,7 +629,7 @@ class ProofMixin:
             }
             if any(
                 loop.rounds
-                and loop.from_ in tests
+                and (loop.from_ in tests or loop.to in tests)
                 and state.get("rounds", {}).get(recipe_run.part_of(graph, loop.from_), 0)
                 >= loop.rounds
                 for loop in graph.loops

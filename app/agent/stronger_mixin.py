@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, or_, select
 
-from app import copies, injection, proof, proof_before
+from app import copies, injection, proof, proof_before, recipe_run
 from app.agent.ctx import Ctx
 from app.api.usage import over_limit, over_month
 from app.db.models import Agent, Conversation, FileChange, Merge, Message, Provider, now
@@ -907,11 +907,12 @@ class StrongerMixin:
         `_round_left` granted, counted there alone (Fix rounds or until it passes; none once
         `held.halted`) - sends the rows back to work, as a wordless Ask for changes: at their end
         no role is opened, and the Lead may not write (delegates) - the recipe's own roles fix
-        it, in its copy."""
+        it, in its copy. Unlike the user's Ask for changes it gives their loops no rounds again
+        (T3a): a review whose loop ran out runs once more, its findings then the user's."""
         rounds = was.rounds if (was := self._proofs.get(ctx.run_id)) else 0
         if (said := await self._proof_left(ctx)) is not None:
             fixing = (was := self._proofs.get(ctx.run_id)) is not None and was.rounds > rounds
-            back = self._rows_to(ctx, "Ask for changes", "") if fixing else ""
+            back = self._rows_to(ctx, "Ask for changes", "", anew=False) if fixing else ""
             return f"\n\n{said}" + (FIX_IN_RECIPE.format(back=back) if back else "")
         if was := self._proofs.get(ctx.run_id):  # (not again at the Lead's end, `_proof_left`)
             self._mark_ready(ctx, was)
@@ -933,7 +934,13 @@ class StrongerMixin:
         if (held := self._proofs.get(ctx.run_id)) is not None and held.passed_by_stronger:
             return None
 
-        left = any((state.get("why") or "").startswith(FINDINGS_LEFT) for _team, state in rows)
+        # (Stopped before a next step, G1.2: a last review's findings, said at the end since T3, are
+        # no failing test's.)
+        left = any(
+            (state.get("why") or "").startswith(FINDINGS_LEFT)
+            and state.get("at") not in {end.id for end in recipe_run.graph_of(state).ends}
+            for _team, state in rows
+        )
         return RECIPE_FAILING if left and self._recipe_spent(ctx) else None
 
     def _not_taken_row(

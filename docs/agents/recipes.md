@@ -27,7 +27,7 @@ The ready recipes include Feature, Bugfix, Review only, Integration, Quality che
 Pipeline change, Infra change, Docs, Research, Spec, Analysis, Upkeep and Evolve.
 
 Each recipe in the list, and in the chat's recipe picker, says how many agents a run of it opens,
-counted from its drawing: "Feature · 6–16 agents" - the fewest where no review finds a problem (a
+counted from its drawing: "Feature · 3–7 agents" - the fewest where no review finds a problem (a
 step that runs only on a problem left out), the most where every loop goes back all its rounds. A
 team's experts or stages count as one agent there, and the helpers a step's agents open are not
 counted. The number is the recipe's alone: the Orchestrator, each team's lead and what KOLONİ's
@@ -82,7 +82,14 @@ agent's CLI keeps its own commands off KOLONİ's record, its report is taken as 
 
 **All at once** runs steps side by side. It waits for **all branches** or for **the first one done**.
 
-**Loop back** goes back to an earlier step, **at most** 1 to 5 rounds.
+**Loop back** goes back to an earlier step, **at most** 1 to 5 rounds. **Ask for changes** gives a
+recipe's loops their rounds again: your word is a new start. A fix round of KOLONİ's checks goes back
+the same way but does not: a review whose loop ran out runs once more, and what it finds then is yours
+on the card - it names the findings and offers **Fix the findings** - not another round of the loop.
+Where a recipe's fixer loops back to its tests (Quality check, Upkeep) and those rounds ran out, KOLONİ
+sends no fix round on top: it would only run the tests again. In **Integration**, whose one loop goes
+back to Plan, a fix round plans again, has the experts check the plan, and stops before Build if they
+find something again.
 
 A **Room** step of a recipe drawn before 0.1.10 (rooms are gone) opens as an **All at once** group in
 its place, with a step for each of its roles: they run side by side, as sub-agents, in the recipe's
@@ -126,10 +133,11 @@ as a fix round, as a failing test does. With every check off, the answer says "N
 recipe's Checks step checks nothing". The choice is kept with the recipe - in a folder's
 `.koloni/recipes/*.json` too, as its graph's `checks`.
 
-The ready recipes come set: **Bugfix** and **Feature** check their tests and a review, **Docs** its
-documents and a review, **Evolve** its tests; the others follow the project. A recipe set for itself
+The ready recipes come set: **Bugfix**, **Feature**, **Model change** and **Pipeline change** check
+their tests and a review, **Docs** its documents and a review, **Evolve** its tests; the others follow
+the project. A recipe set for itself
 checks so even in a project at **Nothing** - set its Checks step to **Follow the project** to leave it
-to the project. Only a recipe you picked (**Teams for this chat**: Manual) can check less than the
+to the project (a ready recipe cannot be changed: copy it, and set the copy's Checks step). Only a recipe you picked (**Teams for this chat**: Manual) can check less than the
 project does; one the Orchestrator picked (Orchestrator decides) only adds to the project's checks
 and takes the larger Fix rounds - it never turns them off. A recipe's turn follows its Checks step,
 never the chat's **Test and review changes** switch. Rounds never stack: where the recipe's own
