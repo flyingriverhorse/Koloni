@@ -149,7 +149,6 @@ def test_a_session_turn_is_recorded_like_any_other(session_app, wait_run, projec
         "assess_task",
         "offer_away",
         "run_checks",  # (0.1.9: KOLONİ's checks now, the Orchestrator's at its own work)
-        "propose_trigger",
         "post_note",
         "read_notes",
         "remember",

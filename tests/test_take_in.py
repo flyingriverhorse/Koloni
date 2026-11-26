@@ -42,7 +42,6 @@ from tests.test_take_in_scenarios import (
     OWN,
     card,
     edit,
-    guessed,
     lines,
     meanwhile,
     needs_git,
@@ -54,7 +53,6 @@ from tests.test_take_in_scenarios import (
     start,
 )
 from tests.test_take_in_scenarios import git as in_repo
-from tests.test_trigger_scenarios import allow, run_now, trigger
 
 NUMBERS = ["one", "two", "three", "four", "five", "six", "seven"]
 
@@ -1243,55 +1241,6 @@ def test_without_a_check_command_no_check_can_be_started(make_client, wait_run, 
     wait_run(client, cid, run_id, timeout=LONG)
 
 
-@needs_git
-def test_nobody_watching_a_clash_is_not_decided_and_nothing_is_taken_unchecked(
-    make_client, wait_run, project_dir
-):
-    """The trigger lets the check run - but not on what nobody chose: the copy is kept."""
-    (project_dir / "lines.txt").write_bytes(LINES.encode())
-    (project_dir / "check.py").write_bytes(CHECK.encode())
-    held = Gate()
-    client, _model = make_client(
-        {
-            "Lead": [
-                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                text("done"),
-            ],
-            "Coder": [
-                step(edit("two", "TWO-agent", "e1")),
-                step(write("a.txt", "A")),
-                own_test("one"),
-                held.step(text("A done")),
-            ],
-        }
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json=root_runs()).status_code == 200
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(
-        client,
-        pid,
-        cid,
-        permissions={"write": True, "commands": [allow(client, cid, CHECKED)], "agents": 1},
-    )
-    run_id = run_now(client, made["id"])
-    held.wait_partial()
-    meanwhile(project_dir, "two", "TWO-other")
-    held.release()
-    snap = wait_run(client, cid, run_id, timeout=LONG)
-    (merge,) = snap["merges"]
-    assert merge["status"] == "kept" and merge["kept_in"]
-    assert merge["check"]["state"] == "not_run" and snap["commands"] == []
-    assert {f["path"]: f["state"] for f in merge["files"]} == {
-        "a.txt": "ready",
-        "lines.txt": "conflict",
-        OWN: "ready",
-    }
-    assert not (project_dir / "a.txt").exists() and lines(project_dir) == with_(two="TWO-other")
-    assert "kept in" in calls(snap, "Lead", "spawn_agent")[0][1]
-
-
 # --- the commit ------------------------------------------------------------------------------
 
 
@@ -1512,47 +1461,6 @@ def test_a_commit_of_nothing_and_one_without_a_message_are_refused(
     refused = client.post(f"/api/merges/{merge['id']}/commit", json={"message": "take it"})
     assert refused.status_code == 409 and "nothing to commit" in refused.json()["detail"]
     assert in_repo(project_dir, "log", "--format=%s") == "by hand\nas it was"
-
-
-@needs_git
-@pytest.mark.parametrize("yours", [True, False])
-def test_what_a_turn_nobody_watched_left_is_offered_its_commit_only_once_the_user_takes_it(
-    make_client, wait_run, project_dir, monkeypatch, yours
-):
-    """Never in the trigger's own turn; a copy it kept is then the user's own Apply."""
-    (project_dir / "lines.txt").write_bytes(LINES.encode())
-    (project_dir / "check.py").write_bytes(CHECK.encode())
-    repository(project_dir)
-    client, _model = make_client(
-        {
-            "Lead": [
-                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                text("done"),
-            ],
-            "Coder": [step(write("a.txt", "A")), own_test("NEVER-THERE"), text("A done")],
-        }
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    # (the user's own test command runs in such a turn; KOLONİ's guess never - 0.1.7 round 2)
-    if not yours:
-        guessed(monkeypatch, project_dir)
-    project = (
-        root_runs(git_commit=True) if yours else {"git_commit": True, "after_change": "nothing"}
-    )
-    assert client.patch(f"/api/projects/{pid}", json=project).status_code == 200
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": [], "agents": 1})
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=LONG)
-    (merge,) = snap["merges"]
-    # taken in the turn itself where the check may not run, kept where it ran and failed
-    assert merge["status"] == ("kept" if yours else "applied")
-    assert merge["commit"] is None
-    if yours:
-        done = client.post(f"/api/merges/{merge['id']}/approve")
-        assert done.status_code == 200 and done.json()["status"] == "applied"
-        assert done.json()["commit"]["state"] == "offered"
-    assert in_repo(project_dir, "log", "--format=%s") == "as it was"  # and none is made
 
 
 # --- the migration ---------------------------------------------------------------------------

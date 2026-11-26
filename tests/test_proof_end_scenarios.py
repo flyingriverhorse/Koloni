@@ -533,46 +533,6 @@ def test_claude_code_lead_is_checked_once_by_the_end_gate(claude_app, wait_run, 
     assert texts(snap) == ["Tests passed: python check.py - 3 passed"]
 
 
-def test_a_trigger_turn_runs_only_what_its_trigger_allows(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    from tests.test_triggers import allow, leave, run_now, setup, trigger
-
-    # (KOLONİ's guess: the user's own test of a part counts as ticked - `project_map.own_test` -
-    # and the old Test before adding, which did not, is gone: 0.1.7)
-    guess(monkeypatch)
-    executor = ScriptedExecutor([PASS])
-    client, _model, pid, cid = setup(
-        make_client,
-        project_dir,
-        [write("a.py", "x = 1\n"), text("done"), write("a.py", "x = 2\n", "w2"), text("done")],
-        executor=executor,
-    )
-    client.patch(f"/api/projects/{pid}", json={"lead_work": "itself"})
-    made = trigger(client, pid, cid, permissions=leave(write=True))
-    first = run_now(client, made["id"])
-    snap = wait_run(client, cid, first)
-    (row,) = [m["checked"] for m in snap["messages"] if m["role"] == "checked"][0]
-    assert row["state"] == "not_run" and row["text"].startswith("Tests not run: ")
-    assert "python check.py" in row["text"] and executor.started == []
-    # Its trigger's leave for this very command: it runs, unasked.
-    assert (
-        client.patch(
-            f"/api/triggers/{made['id']}",
-            json={
-                "permissions": leave(write=True, commands=[allow(client, cid, "python check.py")])
-            },
-        ).status_code
-        == 200
-    )
-    second = run_now(client, made["id"])
-    snap = wait_run(client, cid, second)
-    rows = [
-        m["checked"] for m in snap["messages"] if m["role"] == "checked" and m["run_id"] == second
-    ][0]
-    assert rows[0]["state"] == "passed" and len(executor.started) == 1
-
-
 ONE_JOB = {"jobs": [{"title": "one"}], "kept_out": []}
 
 

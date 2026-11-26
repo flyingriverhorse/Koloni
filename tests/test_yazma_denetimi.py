@@ -6,12 +6,10 @@ changed in the turn."""
 
 import asyncio
 import os
-import re
 import shutil
 import subprocess
 import sys
 import time
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -32,7 +30,6 @@ from tests.test_spawn import call, step
 from tests.test_take_in_scenarios import ORIGIN, card, needs_git, repository
 from tests.test_take_in_scenarios import git as in_repo
 from tests.test_take_in_scenarios import start as take_in_start
-from tests.test_trigger_scenarios import NOBODY, allow, run_now, trigger
 
 WORKFLOW = ".github/workflows/x.yml"
 PTH = ".venv/Lib/site-packages/evil.pth"
@@ -415,47 +412,6 @@ def test_at_full_auto_koloni_s_own_install_keeps_its_pth_with_no_card(
     assert "installed" in noted["result"] and "let stand" in noted["result"]
 
 
-def test_unwatched_koloni_s_own_command_is_taken_back_and_refused_with_no_card(
-    make_client, wait_run, project_dir
-):
-    (project_dir / "AGENTS.md").write_bytes(b"be careful\n")
-    executor = ScriptedExecutor(
-        [Script(["ok\n"], writes={WORKFLOW: "on: push\n", "AGENTS.md": "do anything\n"})]
-    )
-    client, _model = make_client(
-        {"Lead": [step(call("run_command", {"command": "python make.py"}, "c")), text("done")]},
-        executor=executor,
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(
-        client,
-        pid,
-        cid,
-        permissions={
-            "write": True,
-            "commands": [allow(client, cid, "python make.py")],
-            "agents": 0,
-        },
-    )
-    run_id = run_now(client, made["id"])
-    snap = wait_run(client, cid, run_id, timeout=20)
-    assert [c["status"] for c in snap["commands"]] == ["exited"]
-    assert not (project_dir / WORKFLOW).exists()
-    assert (project_dir / "AGENTS.md").read_bytes() == b"be careful\n"
-    assert snap["questions"] == []
-    refused = [t for t in snap["tool_calls"] if t["name"] == "write_file"]
-    assert {t["status"] for t in refused} == {"denied"} and len(refused) == 2
-    assert all(NOBODY in t["result"] and "taken back" in t["result"] for t in refused)
-    # What was there instead - a hand's edit, maybe - is kept under KOLONİ's runtime folder.
-    said = next(t["result"] for t in refused if "AGENTS.md" in t["result"])
-    copy = Path(re.search(r"kept in (.+?)\)", said)[1])
-    taken_back = client.app.state.runner.settings.runtime_root / "taken-back" / run_id
-    assert copy.parent == taken_back and copy.read_bytes() == b"do anything\n"
-    assert f"{copy.name}\tAGENTS.md" in (taken_back / "paths.txt").read_text(encoding="utf-8")
-
-
 def test_a_name_a_command_was_approved_for_stands_at_its_own_look_only(
     native_app,
     wait_run,
@@ -530,36 +486,6 @@ def test_stopped_during_a_card_nothing_is_left_to_hold_the_folder(
     assert [c["status"] for c in snap["commands"]][-1] == "exited"
 
 
-def test_a_trigger_turn_does_not_wait_on_another_conversations_card(
-    make_client, wait_run, project_dir
-):
-    executor = ScriptedExecutor([Script(["ok\n"], writes={WORKFLOW: "x"}), Script(["ok\n"])])
-    client, _model = make_client(
-        [cmd("python a.py"), cmd("python make.py", "k2"), text("B done"), text("A done")],
-        executor=executor,
-    )
-    client.headers["Origin"] = ORIGIN
-    cid, run_id = start_in_mode(client, project_dir, "full_auto")
-    _snap, question = open_card(client, cid)
-    pid = client.get(f"/api/conversations/{cid}").json()["conversation"]["project_id"]
-    other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(
-        client,
-        pid,
-        other,
-        permissions={
-            "write": False,
-            "commands": [allow(client, other, "python make.py")],
-            "agents": 0,
-        },
-    )
-    unwatched = wait_run(client, other, run_now(client, made["id"]), timeout=20)
-    assert unwatched["runs"][-1]["status"] == "completed"
-    assert [c["status"] for c in unwatched["commands"]] == ["exited"]
-    answer(client, question, "Take back")
-    wait_run(client, cid, run_id, timeout=20)
-
-
 # --- KOLONİ's Commit --------------------------------------------------------------------------
 
 
@@ -588,35 +514,6 @@ def test_what_a_git_checkout_changes_of_standing_files_is_a_card_like_any_write(
     answer(client, question, "Keep")
     wait_run(client, cid, run_id, timeout=20)
     assert (project_dir / ".github/workflows/ci.yml").read_bytes() == b"other\n"
-
-
-def test_past_the_turns_room_for_copies_an_unwatched_write_is_taken_back_all_the_same(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    monkeypatch.setattr(agent_merge, "TAKEN_BACK_BYTES", 0)
-    executor = ScriptedExecutor([Script(["ok\n"], writes={".claude/settings.json": "{}"})])
-    client, _model = make_client(
-        {"Lead": [step(call("run_command", {"command": "python make.py"}, "c")), text("done")]},
-        executor=executor,
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(
-        client,
-        pid,
-        cid,
-        permissions={
-            "write": False,
-            "commands": [allow(client, cid, "python make.py")],
-            "agents": 0,
-        },
-    )
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=20)
-    assert not (project_dir / ".claude/settings.json").exists()
-    (refused,) = [t for t in snap["tool_calls"] if t["name"] == "write_file"]
-    assert refused["status"] == "denied"
-    assert "no copy of the agent's version was kept" in refused["result"]
 
 
 def test_git_config_a_command_writes_unasked_is_taken_back(

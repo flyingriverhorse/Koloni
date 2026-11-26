@@ -13,7 +13,6 @@ from tests.test_chat_flow import text
 from tests.test_observer_scenarios import SAME_FAILURE, agent, miss, record, spawn, told, watched
 from tests.test_session_agent import session_app, start  # noqa: F401 - a fixture
 from tests.test_spawn import begin, role_id
-from tests.test_trigger_scenarios import finished, run_now, setup, trigger
 
 
 def test_only_what_differs_every_time_is_left_out_of_an_error():
@@ -72,28 +71,6 @@ def test_a_sub_agent_at_work_in_between_starts_the_count_again_and_the_sign_is_e
     assert not any("times" in result for result in results[4:])
     sign = agent(snap)["sign"]
     assert sign["count"] == 3 and sign["text"].startswith(signs.EARLIER)
-
-
-def test_a_sub_agent_stopped_at_five_unwatched_is_stopped_by_koloni_and_its_opener_hears_it_once(
-    make_client, wait_run, project_dir
-):
-    client, model, pid, cid = setup(
-        make_client,
-        project_dir,
-        {
-            "Lead": [spawn("s"), text("It got stuck.")],
-            "Coder": [*(miss(str(n)) for n in range(7)), text("never said")],
-        },
-    )
-    made = trigger(client, pid, cid, permissions={"write": False, "commands": [], "agents": 1})
-    run_id = run_now(client, made["id"])
-    snap = finished(client, wait_run, cid, run_id)
-    coder = agent(snap, "Coder")
-    assert coder["status"] == "failed" and SAME_FAILURE.format(n=5) in coder["error"]
-    (result,) = told(model)
-    assert result.count(SAME_FAILURE.format(n=5)) == 1
-    ended = record(client)["Coder"]["ended"]
-    assert (ended["stopped_by_koloni"], ended["failed"]) == (1, 0)
 
 
 def test_the_record_is_made_once_a_turn(make_client, wait_run, project_dir, monkeypatch):

@@ -1161,7 +1161,7 @@ def is_kept_code(parts: Sequence[str]) -> bool:
     """Whether a folder of the project, by its path's parts, is a repository's code a knowledge
     keeps as text (`knowledge.KEPT`: `.koloni/knowledge/<topic>/code`) - another project's files,
     thousands of them: no look of this project's goes in (its changes, its standing files, a
-    working copy, its git status, a search of it, its map or its triggers)."""
+    working copy, its git status, a search of it or its map)."""
     return (
         len(parts) == 4
         and _name(parts[0]) == ".koloni"

@@ -8,7 +8,6 @@ from tests.test_recall_scenarios import memory
 from tests.test_spawn import begin
 from tests.test_team import team  # noqa: F401  (a fixture)
 from tests.test_tier_scenarios import ORIGIN
-from tests.test_trigger_scenarios import run_now, trigger
 
 PLAN = "PLAN: 1. look. 2. say done."
 
@@ -63,18 +62,6 @@ def test_with_no_strongest_model_the_conversations_own_writes_the_plan(
         == 200
     )
     assert client.patch(f"/api/conversations/{cid}", json={"plan_first": True}).status_code == 200
-
-
-def test_a_triggers_turn_never_plans(team, wait_run, project_dir):  # noqa: F811
-    client, _default, _fast = team([text("first"), text("from the trigger")])
-    client.headers["Origin"] = ORIGIN
-    cid, first = begin(client, project_dir, plan_first=True)
-    wait_run(client, cid, first)
-    pid = client.get(f"/api/conversations/{cid}").json()["conversation"]["project_id"]
-    run_id = run_now(client, trigger(client, pid, cid)["id"])
-    snap = wait_run(client, cid, run_id)
-    run = next(r for r in snap["runs"] if r["id"] == run_id)
-    assert (run["status"], run["plan"], run["plan_turn"]) == ("completed", None, False)
 
 
 def test_an_older_plan_is_not_approved_once_a_later_turn_has_started_but_may_be_turned_down(

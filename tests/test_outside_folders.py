@@ -15,7 +15,6 @@ from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import text
 from tests.test_migration_0002 import _config
 from tests.test_spawn import call, spawn, step
-from tests.test_trigger_scenarios import NOBODY, finished, results, run_now, setup, trigger
 
 ORIGIN = "http://127.0.0.1:8790"
 HOME = Path(os.path.expanduser("~"))  # the real one: what a test makes of Path.home() is not
@@ -103,20 +102,6 @@ def test_a_conversations_list_is_added_to_from_the_apps_own_page_only(
         f"/api/conversations/{cid}", json={"also_in": [str(other)]}, headers={"Origin": ORIGIN}
     )
     assert patched.status_code == 200 and patched.json()["also_in"] == [str(other)]
-
-
-def test_an_unattended_turn_asks_nobody_and_does_not_go_outside(
-    make_client, wait_run, project_dir, other
-):
-    client, _model, pid, cid = setup(
-        make_client,
-        project_dir,
-        {"Lead": [step(call("read_file", {"path": str(other / "notes.md")}, "r")), text("ok")]},
-    )
-    run_id = run_now(client, trigger(client, pid, cid)["id"])
-    snap = finished(client, wait_run, cid, run_id)
-    ((name, status, said),) = results(snap, run_id)
-    assert status == "denied" and NOBODY in said
 
 
 def test_a_change_outside_the_project_is_reverted_where_it_is(

@@ -146,29 +146,6 @@ def test_a_sub_agent_a_room_a_discussion_its_talk_and_a_compare_go_with_it(
         assert [(kind.__name__, key) for kind, key in kept if session.get(kind, key)] == []
 
 
-def test_one_with_a_trigger_is_not_deleted_and_the_rest_are(make_client, wait_run, project_dir):
-    client, _model, pid, cid = began(make_client, project_dir, [text("a", 1, 1)])
-    turn(client, wait_run, cid)
-    other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = client.post(
-        f"/api/projects/{pid}/triggers",
-        json={
-            "name": "Nightly",
-            "kind": "schedule",
-            "conversation_id": cid,
-            "message": "look",
-            "config": {"every_minutes": 60},
-        },
-    )
-    assert made.status_code == 201, made.text
-    for one in (cid, other):
-        assert client.patch(f"/api/conversations/{one}", json={"archived": True}).status_code == 200
-    told = delete(client, cid, other)
-    assert told["deleted"] == [other]
-    assert told["refused"][0]["id"] == cid and "Nightly" in told["refused"][0]["why"]
-    assert client.get(f"/api/conversations/{cid}").status_code == 200
-
-
 def test_one_at_work_or_with_changes_still_to_decide_is_not_deleted(
     make_client, wait_run, project_dir
 ):

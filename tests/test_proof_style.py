@@ -571,35 +571,6 @@ def test_a_run_with_no_card_is_no_yes_when_the_level_drops_it_asks(
 
 
 @pytest.mark.no_po
-@pytest.mark.parametrize("leave", [False, True])
-def test_in_a_turn_nobody_watches_a_tool_runs_only_on_its_triggers_leave_for_the_line(
-    make_client, wait_run, project_dir, leave
-):
-    from tests.test_triggers import allow, run_now, setup, trigger
-    from tests.test_triggers import leave as given
-
-    set_up(project_dir)
-    executor = ScriptedExecutor([PASS, RUFF_CLEAN])
-    client, _model, pid, cid = setup(
-        make_client, project_dir, [write("app.py", FIXED), text("done")], executor=executor
-    )
-    patched = client.patch(
-        f"/api/projects/{pid}", json={"check_command": "python check.py", "lead_work": "itself"}
-    )
-    assert patched.status_code == 200, patched.text
-    rules = [allow(client, cid, "python check.py"), *([allow(client, cid, LINE)] if leave else [])]
-    made = trigger(client, pid, cid, permissions=given(write=True, commands=rules))
-    rows = texts(wait_run(client, cid, run_now(client, made["id"])))
-    ran = [command for command, _cwd in executor.started]
-    if leave:  # (its leave for this very line: run, unasked)
-        assert ran == ["python check.py", LINE]
-        assert "ruff: no problems on the lines this turn changed (1 files)" in rows, rows
-    else:
-        assert ran == ["python check.py"]
-        assert any(one.startswith("ruff: not checked - it needs your leave once") for one in rows)
-
-
-@pytest.mark.no_po
 def test_a_part_test_that_does_not_run_this_turn_does_not_stand_for_the_tool(
     make_client, wait_run, project_dir
 ):
@@ -1174,49 +1145,6 @@ def test_an_always_rule_does_not_cover_a_program_an_agent_wrote(
 
 @pytest.mark.no_po
 @pytest.mark.parametrize(
-    ("mode", "line", "rule"),
-    [
-        ("auto_edit", TSC_LINE, TSC_LINE),
-        ("full_auto", TSC_LINE, TSC_LINE),
-        # (W6: a package runner's line - a trigger's leave is a rule of the very line)
-        ("auto_edit", "npx tsc --noEmit", "npx tsc --noEmit"),
-    ],
-)
-def test_a_triggers_leave_does_not_run_a_program_an_agent_wrote(
-    make_client, wait_run, project_dir, mode, line, rule
-):
-    """W2 where nobody watches (the re-review's probe): a trigger with write leave and a ticked
-    rule for tsc's line - the agent writes over the project's tsc and runs the line: refused,
-    its why in the result, at any level."""
-    from tests.test_agent_commands import cmd
-    from tests.test_triggers import allow, leave, run_now, setup, trigger
-
-    (project_dir / TSC).parent.mkdir(parents=True)
-    (project_dir / TSC).write_text("@echo the project's\n", encoding="utf-8")
-    executor = ScriptedExecutor([PASS, PASS, PASS, PASS])
-    client, model, pid, cid = setup(
-        make_client,
-        project_dir,
-        [write(TSC, "@echo PLANTED %*\n", "w1"), cmd(line, "k1"), text("done")],
-        executor=executor,
-        permission_mode=mode,
-    )
-    rules = [allow(client, cid, rule)]
-    made = trigger(client, pid, cid, permissions=leave(write=True, commands=rules))
-    snap = wait_run(client, cid, run_now(client, made["id"]))
-    assert (project_dir / TSC).read_text() == "@echo PLANTED %*\n"
-    assert line not in [one for one, _cwd in executor.started], executor.started
-    (refused,) = [one for one in snap["commands"] if one["command"] == line]
-    assert refused["status"] == "refused", snap["commands"]
-    said = [str(m["content"]) for m in model.calls[-1] if m["role"] == "tool"]
-    assert any(
-        "an agent wrote its program (node_modules)" in one and "nobody is here to ask" in one
-        for one in said
-    ), said
-
-
-@pytest.mark.no_po
-@pytest.mark.parametrize(
     ("line", "written", "asked"),
     [
         ("npx tsc --noEmit", TSC, "node_modules"),  # (the second session's Q9b)
@@ -1410,27 +1338,6 @@ def test_a_node_runners_rule_stops_at_a_manifest_an_agent_wrote_anywhere(  # noq
     assert line not in [one for one, _cwd in executor.started]
     client.post(f"/api/commands/{card['id']}/reject")
     wait_run(client, cid, second["run"]["id"])
-
-
-@pytest.mark.no_po
-def test_a_triggers_leave_never_runs_npm_exec_in_another_package(
-    make_client, wait_run, project_dir
-):
-    """W7b where nobody watches: a trigger's ticked rule of the very line - not run."""
-    from tests.test_agent_commands import cmd
-    from tests.test_triggers import allow, leave, run_now, setup, trigger
-
-    _monorepo(project_dir)
-    line = "npm exec tsc -w sub096 -- --noEmit"
-    executor = ScriptedExecutor([PASS, PASS])
-    client, model, pid, cid = setup(
-        make_client, project_dir, [cmd(line, "k1"), text("done")], executor=executor
-    )
-    made = trigger(client, pid, cid, permissions=leave(commands=[allow(client, cid, line)]))
-    wait_run(client, cid, run_now(client, made["id"]))
-    assert line not in [one for one, _cwd in executor.started], executor.started
-    said = [str(m["content"]) for m in model.calls[-1] if m["role"] == "tool"]
-    assert any("nobody is here to ask" in one for one in said), said
 
 
 def test_a_package_runner_finds_its_program_up_the_tree_or_anywhere_it_cannot_place(tmp_path):
@@ -1886,41 +1793,6 @@ def proof_style_planted(place: str) -> str:
     from app.command_runner import PLANTED
 
     return PLANTED.format(place=place)
-
-
-@pytest.mark.no_po
-@pytest.mark.parametrize(
-    ("line", "written", "planted"),
-    [
-        ("uv run ruff check .", "packages/x096/pyproject.toml", MANIFESTS["pyproject.toml"]),
-        ("npx tsc --noEmit", "tsconfig.json", '{"compilerOptions": {"generateTrace": "../x"}}\n'),
-    ],
-)
-def test_a_triggers_leave_does_not_run_a_runner_whose_setting_an_agent_wrote(  # noqa: PLR0913
-    make_client, wait_run, project_dir, line, written, planted
-):
-    """F395, W7 where nobody watches: a trigger with write leave and a ticked rule of the very
-    line - the agent writes a workspace member's pyproject.toml, a tsconfig.json, and runs the
-    line: not run, its why in the result."""
-    from tests.test_agent_commands import cmd
-    from tests.test_triggers import allow, leave, run_now, setup, trigger
-
-    executor = ScriptedExecutor([PASS, PASS])
-    client, model, pid, cid = setup(
-        make_client,
-        project_dir,
-        [write(written, planted, "w1"), cmd(line, "k1"), text("done")],
-        executor=executor,
-    )
-    rules = [allow(client, cid, line)]
-    made = trigger(client, pid, cid, permissions=leave(write=True, commands=rules))
-    wait_run(client, cid, run_now(client, made["id"]))
-    assert line not in [one for one, _cwd in executor.started], executor.started
-    said = [str(m["content"]) for m in model.calls[-1] if m["role"] == "tool"]
-    assert any(
-        f"an agent wrote its program ({written})" in one and "nobody is here to ask" in one
-        for one in said
-    ), said
 
 
 # --- the second session's round (W3-W5): what a tool said, how long its lines take ------------

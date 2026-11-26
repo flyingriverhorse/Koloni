@@ -30,7 +30,7 @@ from app.agent.words import (
     USER_STOPPED_HERE,
 )
 from app.api.usage import month_spend
-from app.commands import danger, is_exactly, ticked
+from app.commands import is_exactly
 from app.db.models import (
     Agent,
     Command,
@@ -44,7 +44,6 @@ from app.db.models import (
     Question,
     Run,
     ToolCall,
-    Trigger,
     now,
 )
 from app.model_client import ModelClient, OwnStop
@@ -180,14 +179,9 @@ class LimitsMixin:
 
     def _watch_the_budget(self: "AgentRunner", session, run: Run) -> None:
         """An unattended turn starts: from here on it is one, and its time is counted.
-        A trigger that is gone gives it nothing - no step, and no leave."""
-        trigger = session.get(Trigger, run.trigger_id) if run.trigger_id else None
-        budget = trigger.budget if trigger else {}
+        With triggers gone (0.1.10) nothing gives it a step, or a leave."""
         unwatched = self._unwatched[run.id] = _Unwatched(
-            trigger.id if trigger else None,
-            run.trigger_name or "",
-            steps=int(budget.get("steps") or 0),
-            minutes=int(budget.get("minutes") or 0),
+            None, run.trigger_name or "", steps=0, minutes=0
         )
         unwatched.left = unwatched.minutes * MINUTE
         self._count_minutes(run.id)
@@ -1011,10 +1005,10 @@ class LimitsMixin:
         unwatched = self._unwatched.get(ctx.run_id)
         if unwatched is None:
             return None
+        # (Triggers are gone, 0.1.10: a turn nobody watches has no leave of its own.)
+        leave: dict = {}
+        lines: list[str] = []
         with self._factory() as session:
-            trigger = session.get(Trigger, unwatched.trigger_id) if unwatched.trigger_id else None
-            leave = trigger.permissions if trigger and isinstance(trigger.permissions, dict) else {}
-            lines = [rule.prefix for rule in ticked(session, trigger)] if leave else []
             tests = (
                 session.scalar(
                     select(Project.test_commands)
@@ -1088,17 +1082,8 @@ class LimitsMixin:
         return UNATTENDED_NOT_THIS.format(provider=ctx.provider or "This CLI")
 
     def _leave(self: "AgentRunner", run_id: str) -> dict:
-        """What the trigger of an unattended turn allows, as it stands right now; nothing
-        when the trigger is gone. Its `commands` are the lines themselves: the texts of
-        the rules it has ticked that are still on its conversation's allow list."""
-        unwatched = self._unwatched[run_id]
-        with self._factory() as session:
-            trigger = session.get(Trigger, unwatched.trigger_id) if unwatched.trigger_id else None
-            if trigger is None or not isinstance(trigger.permissions, dict):
-                return {}
-            # (a rule stored before slice 90 for one that deletes covers nothing: not promised)
-            lines = [rule.prefix for rule in ticked(session, trigger) if not danger(rule.prefix)]
-            return {**trigger.permissions, "commands": lines}
+        """What the trigger of an unattended turn allows: nothing, with triggers gone (0.1.10)."""
+        return {}
 
     def _leave_in_words(self: "AgentRunner", run_id: str) -> str:
         """What the trigger of an unattended turn allows, for the agent's instructions."""

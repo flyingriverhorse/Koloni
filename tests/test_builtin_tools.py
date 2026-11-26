@@ -17,10 +17,7 @@ from tests.test_knowledge_page import expert
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_native_agent import start as codex_start
 from tests.test_spawn import begin, spawn
-from tests.test_trigger_scenarios import run_now, trigger
 from tests.test_usage_scenarios import began
-from tests.test_web_tool_scenarios import setup
-from tests.test_web_tools import leave
 
 
 def names(tools):
@@ -220,14 +217,3 @@ def test_codex_working_natively_has_its_own_search_off_only_while_switched_off(
     wait_run(client, cid, run_id)
     argv = native_app.record()["argv"]
     assert "features.apps=false" in argv and "web_search='disabled'" not in argv
-
-
-def test_an_unattended_turn_is_not_told_it_may_use_a_web_tool_switched_off(
-    make_client, wait_run, project_dir
-):
-    client, model, pid, cid = setup(make_client, project_dir, [text("done")])
-    switch(client, "web_search", False)
-    switch(client, "http_request", False)
-    made = trigger(client, pid, cid, permissions=leave(web=True, hosts=["a.test"]))
-    wait_run(client, cid, run_now(client, made["id"]), timeout=10)
-    assert "make no web search; make no HTTP request" in model.calls[-1][0]["content"]

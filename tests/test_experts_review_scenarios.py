@@ -21,7 +21,6 @@ from tests.test_experts_scenarios import (
 from tests.test_experts_work_scenarios import docs, offered_to
 from tests.test_knowledge_page import expert
 from tests.test_spawn import begin, call, spawn, step
-from tests.test_trigger_scenarios import NOBODY, run_now, trigger
 from tests.test_web_tool_scenarios import go, setup
 
 # --- an agent and its expert ----------------------------------------------------------------
@@ -228,27 +227,6 @@ def test_a_model_that_does_not_answer_is_said_on_the_knowledge_tab(
     pid = snap["conversation"]["project_id"]
     state = client.get(f"/api/roles/{role['id']}/knowledge", params={"project_id": pid}).json()
     assert "isn't answering" in state["failed"]
-
-
-def test_an_unattended_turn_learns_only_where_its_trigger_lets_it_write(
-    make_client, wait_run, project_dir
-):
-    docs(project_dir)
-    client, _model, pid, cid = setup(
-        make_client,
-        project_dir,
-        {
-            "Lead": [spawn("Pay expert", "learn", "e"), text("done")],
-            "Pay expert": [step(call("learn", {}, "l1")), text("could not")],
-        },
-    )
-    expert(client, project_dir, EXPERT)
-    made = trigger(client, pid, cid, permissions={"write": False, "commands": [], "agents": 1})
-    run_id = run_now(client, made["id"])
-    snap = wait_run(client, cid, run_id, timeout=10)
-    learned = next(t for t in snap["tool_calls"] if t["provider_call_id"] == "l1")
-    assert learned["status"] == "failed" and NOBODY in learned["result"]
-    assert not (project_dir / ".koloni").exists()
 
 
 def test_a_project_with_no_network_learns_from_no_address(

@@ -25,7 +25,6 @@ from app.db.models import (
     Merge,
     Message,
     Project,
-    Role,
     Room,
     Run,
     Story,
@@ -36,11 +35,9 @@ from app.db.models import (
 )
 from app.judge import whole
 from app.likeness import alike as alike
-from app.model_client import OwnStop
-from app.providers import works_with_own_tools
-from app.roles import HIVE_KEEPER, LEAD
+from app.roles import HIVE_KEEPER
 from app.serialize import conversation_out, message_out, run_out, topic_out
-from app.team import quoted, would_run
+from app.team import quoted
 
 log = logging.getLogger(__name__)
 PRIORITIES = stories.PRIORITIES
@@ -410,28 +407,6 @@ def away(session: Session, project_id: str) -> bool:
         )
         is not None
     )
-
-
-def held_lead(session: Session, chat: Conversation) -> tuple[str, str] | None:
-    """What a chat's Orchestrator would run on in a turn nobody watches (`would_run`), and
-    how to change it, where that works with tools of its own - which such a turn refuses
-    (`AgentRunner._not_unattended`): a trigger's. None: it can run, or no provider is set up
-    (a turn says so).
-    shortcut: the Orchestrator role's, not a team chat's lead; judge that one too if a team
-    chat's trigger is seen to fail so."""
-    lead = session.scalar(select(Role).where(Role.name == LEAD))
-    try:
-        would = would_run(session, lead, chat, unattended=True)
-    except OwnStop:
-        return None
-    name = would.provider.name
-    if not works_with_own_tools(would.provider):
-        return None
-    if would.source == "role":
-        return f"The Orchestrator role's model ({name})", "give the role another model"
-    if would.source == "conversation":
-        return name, "choose another provider"
-    return f"Default ({name})", "choose a provider"
 
 
 HOW = {"failed": "failed", "cancelled": "was stopped", "interrupted": "was cut short by a restart"}

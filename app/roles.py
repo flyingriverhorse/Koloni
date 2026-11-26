@@ -39,7 +39,7 @@ DIAGRAM = ("diagram_image",)
 # kept from showing files.
 # add_skill only proposes: a skill is added on the user's card (slice 45); so does ask_folder
 # a folder outside the project (slice 75). So do add_task and change_task: a task, or a
-# change to one, waits on the user's card (slice 52); and propose_trigger a trigger (69).
+# change to one, waits on the user's card (slice 52).
 # shortcut: the Lead holds every tool, so the backlog's four schemas (some 500 tokens) ride on
 # each of its steps - it must have them to hand them on (`effective_tools`). Tell "may hand
 # on" apart from "offered to itself" if small local models suffer for it.
@@ -64,7 +64,6 @@ ALL_TOOLS = (
     "add_task",
     "change_task",
     "assess_task",
-    "propose_trigger",
     "post_note",
     "read_notes",
     "remember",
@@ -272,7 +271,6 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
             "ask_folder",
             "message_agent",
             "discuss",
-            "propose_trigger",
             *NOTEBOOK,
             *MEMORY,
         ),

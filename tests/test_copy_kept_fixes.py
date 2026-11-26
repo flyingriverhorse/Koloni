@@ -20,7 +20,7 @@ from app.db.session import make_engine, make_session_factory, upgrade_db
 from app.main import create_app
 from tests.keyed import TestClient
 from tests.test_chat_flow import text
-from tests.test_claim_scenarios import calls, write
+from tests.test_claim_scenarios import write
 from tests.test_copy_later_scenarios import MAKES, again, interrupted
 from tests.test_copy_runner import (
     ORIGIN,
@@ -34,8 +34,7 @@ from tests.test_copy_runner import (
     unreadable_once,
 )
 from tests.test_copy_scenarios import files, one, run, seen
-from tests.test_spawn import call, step
-from tests.test_trigger_scenarios import allow, run_now, trigger
+from tests.test_spawn import step
 
 # --- what a decision on a kept card may do ---------------------------------------------------
 
@@ -98,30 +97,6 @@ def test_after_a_restart_a_card_apply_took_nothing_of_is_as_it_was_shown_again(
         assert (project_dir / "a.txt").read_text(encoding="utf-8") == "A"
         assert (project_dir / "b.txt").read_text(encoding="utf-8") == "THE USER'S OWN"
         assert kept_folders(settings_env) == []
-
-
-def test_apply_for_a_turn_nobody_watched_looks_again_at_where_each_path_leads(
-    settings_env, project_dir
-):
-    """A folder of the project became a link into a protected one after the card was shown:
-    the file is refused, and its copy is not thrown away with an Apply that took nothing."""
-    cid = at_work(settings_env, project_dir, [step(write("sub/new.txt", "x"))], unattended=True)
-    (folder,) = kept_folders(settings_env)
-    with again(settings_env) as client:
-        card = card_of(client, cid)
-        assert files(card) == {"sub/new.txt": "ready"}
-        (project_dir / ".claude").mkdir()
-        copies._link(project_dir / "sub", project_dir / ".claude")
-        said = client.post(f"/api/merges/{card['id']}/approve")
-        assert said.status_code == 409 and said.json()["detail"].startswith("sub/new.txt changed")
-        said = card_of(client, cid)
-        assert said["status"] == "kept" and files(said) == {"sub/new.txt": "refused"}
-        assert "no trigger allows" in said["files"][0]["note"]
-        assert list((project_dir / ".claude").iterdir()) == []
-        assert (folder / "tree" / "sub" / "new.txt").read_text(encoding="utf-8") == "x"
-        # nothing of it is left to apply: only to discard
-        assert client.post(f"/api/merges/{card['id']}/approve").status_code == 409
-        assert (folder / "tree" / "sub" / "new.txt").is_file()
 
 
 def test_a_decision_on_one_kept_folder_leaves_the_records_of_the_agents_other_one(
@@ -214,43 +189,6 @@ def test_a_copy_kept_by_an_error_is_shown_at_once_as_it_is_after_a_restart(
         .joinpath(card["agent_id"])
         .exists()
     )
-
-
-def test_nobody_watching_and_no_leave_to_write_the_agent_is_not_told_its_changes_are_taken(
-    make_client, wait_run, project_dir
-):
-    (project_dir / "make.py").write_text("open('made.txt', 'w').write('m')\n", encoding="utf-8")
-    client, model = make_client(
-        {
-            "Lead": [
-                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                text("done"),
-            ],
-            "Coder": [step(run("python make.py")), text("A done")],
-        }
-    )
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    made = trigger(
-        client,
-        pid,
-        cid,
-        permissions={
-            "write": False,
-            "commands": [allow(client, cid, "python make.py")],
-            "agents": 1,
-        },
-    )
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=15)
-    status, said = calls(snap, "Coder", "run_command")[0]
-    assert status == "succeeded" and "you work in a copy of the project of your own" in said
-    assert "taken into the project when" not in said
-    assert (
-        "this turn may not change the project: what you or your commands change in the "
-        "copy is not taken into it. git does not work in the copy."
-    ) in said
-    assert not (project_dir / "made.txt").exists()
 
 
 # --- what a kept copy's folder is trusted with -----------------------------------------------
@@ -546,23 +484,6 @@ def test_apply_on_a_two_way_card_writes_what_it_showed_and_discard_touches_nothi
         assert client.post(f"/api/merges/{card['id']}/reject").json()["status"] == "rejected"
         assert not (project_dir / "a.txt").exists() and kept_folders(settings_env) == []
         assert (project_dir / "hello.py").read_text(encoding="utf-8") == "print('hi')\n"
-
-
-def test_a_two_way_card_of_a_turn_nobody_watched_still_does_not_give_its_protected_paths(
-    settings_env, project_dir
-):
-    cid = at_work(settings_env, project_dir, [step(write("notes.txt", "seen"))], unattended=True)
-    (folder,) = kept_folders(settings_env)
-    (folder / "tree" / ".claude").mkdir()
-    (folder / "tree" / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
-    lose_the_base(folder, None)
-    with again(settings_env) as client:
-        card = card_of(client, cid)
-        assert files(card) == {".claude/settings.json": "refused", "notes.txt": "conflict"}
-        assert "no trigger allows" in card["files"][0]["note"]
-        assert client.post(f"/api/merges/{card['id']}/approve").status_code == 200
-        assert (project_dir / "notes.txt").read_text(encoding="utf-8") == "seen"
-        assert not (project_dir / ".claude").exists()
 
 
 def test_a_watched_turns_kept_card_says_why_its_protected_path_is_asked_about(

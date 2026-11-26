@@ -1,6 +1,6 @@
 """Stop everything (K-hepsini-durdur): one Stop for every turn of every chat, each as its own
 Stop does (`runs.stop`) - a night's job as its Stop all cuts it (`away.stop`); and what
-starts by itself - triggers, a chat's queue of To-do tasks, a night's next job - waits until
+starts by itself - a chat's queue of To-do tasks, a night's next job - waits until
 Resume (`backlog.held`). The user's own messages are not held: what the user sends still starts.
 The hold is a row of `flags`, so it outlives a restart with no table of its own.
 shortcut: KOLONİ's own model calls after a turn that ended (a task's assessment, the note of
@@ -19,7 +19,7 @@ from app import away, backlog
 from app.agent import TERMINAL, announce
 from app.api.deps import get_session, require_own_origin
 from app.api.runs import stop
-from app.db.models import AwayRun, BacklogTask, Conversation, Flag, Project, Run, Trigger, now
+from app.db.models import AwayRun, BacklogTask, Conversation, Flag, Project, Run, now
 from app.schemas import HoldOut
 
 router = APIRouter(prefix="/api", tags=["hold"])
@@ -88,9 +88,6 @@ def _state(session: Session) -> dict:
         "running": session.scalar(
             select(func.count()).select_from(Run).where(Run.status.not_in(TERMINAL))
         ),
-        "triggers": session.scalar(
-            select(func.count()).select_from(Trigger).where(Trigger.enabled)
-        ),
         # (0.1.8: the projects with To-do tasks waiting in a chat's queue - they wait for Resume.)
         "backlogs": sorted(
             {
@@ -150,16 +147,15 @@ async def stop_everything(request: Request, session: Session = Depends(get_sessi
 
 @router.post("/hold/resume", response_model=HoldOut, dependencies=OWN)
 async def resume(request: Request, session: Session = Depends(get_session)):
-    """What was held goes on: each trigger from its next time, each backlog that works
-    itself with its next task, each night with its next job. What was stopped stays stopped,
-    and the answer says so (`stays_stopped`, read before the hold that lists them goes)."""
+    """What was held goes on: each backlog that works itself with its next task, each night
+    with its next job. What was stopped stays stopped, and the answer says so (`stays_stopped`,
+    read before the hold that lists them goes)."""
     flag = session.get(Flag, backlog.HOLD)
     stays = _state(session)["stays_stopped"]
     if flag is not None:
         session.delete(flag)
         session.commit()
         state = request.app.state
-        state.triggers.resumed(now())
         # (The chats' queues of To-do tasks: their next task, or a fix round due.)
         for project_id in session.scalars(
             select(BacklogTask.project_id)

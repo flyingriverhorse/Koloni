@@ -21,7 +21,6 @@ from tests.test_chat_flow import text
 from tests.test_migration_0002 import _config
 from tests.test_parallel import until
 from tests.test_spawn import call, step
-from tests.test_trigger_scenarios import run_now, trigger
 from tests.test_web_tool_scenarios import DDG_PAGE, ORIGIN, Net, get, go, results, search, setup
 
 FAKE = [sys.executable, str(Path(__file__).with_name("fake_cli.py"))]
@@ -404,37 +403,6 @@ def test_a_yes_for_one_host_is_not_a_yes_for_where_it_redirects(
     assert len(net.asked) == 1
 
 
-def test_a_name_is_not_even_looked_up_before_the_request_may_go_out(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    """Looking a name up already tells somebody outside: a name can carry data."""
-    Net(monkeypatch, {"example.com": (200, "text/plain", "ok")})
-    looked_up = []
-    monkeypatch.setattr(
-        app.web, "resolve", lambda host: looked_up.append(host) or ["93.184.216.34"]
-    )
-    steps = [step(get("https://data.example.com/a")), text("done")]
-    client, model, pid, cid = setup(make_client, project_dir, steps * 3, permission_mode="ask")
-    run_id = go(client, cid)["id"]
-    snap, asked = asked_of(client, cid)
-    assert looked_up == []  # the card is up, and nothing has left
-    decide(client, asked, "reject")
-    wait_run(client, cid, run_id)
-    assert looked_up == []
-    run_id = go(client, cid)["id"]
-    snap, asked = asked_of(client, cid, 2)
-    decide(client, asked)
-    wait_run(client, cid, run_id)
-    assert looked_up == ["data.example.com"]
-    # with nobody watching: a host the trigger does not name is refused unlooked-up
-    made = trigger(client, pid, cid, permissions=leave(hosts=["example.com"]))
-    unwatched = run_now(client, made["id"])
-    snap = wait_run(client, cid, unwatched, timeout=10)
-    (refused,) = [t["result"] for t in snap["tool_calls"] if t["run_id"] == unwatched]
-    assert "nobody is here to ask" in refused
-    assert looked_up == ["data.example.com"]
-
-
 def test_no_more_than_so_many_searches_go_out_in_a_minute(
     make_client, wait_run, project_dir, monkeypatch
 ):
@@ -579,155 +547,6 @@ def test_a_notification_that_fails_is_in_no_record_either(
 
 
 # --- a turn nobody watches ---------------------------------------------------------------
-
-
-def leave(**more):
-    return {"write": False, "commands": [], "agents": 0, **more}
-
-
-def test_a_trigger_keeps_what_its_turns_may_do_on_the_web(make_client, project_dir):
-    client, model, pid, cid = setup(make_client, project_dir, [])
-    # made without a word of the web, or with all of it off: nothing of it is kept or said
-    assert trigger(client, pid, cid)["permissions"] == leave()
-    assert (
-        trigger(client, pid, cid, name="off", permissions=leave(web=False, hosts=[], notify=False))[
-            "permissions"
-        ]
-        == leave()
-    )
-    made = trigger(
-        client,
-        pid,
-        cid,
-        name="web",
-        permissions=leave(
-            web=True, hosts=[" API.Example.com. ", "example.org", "api.example.com"], notify=True
-        ),
-    )
-    assert made["permissions"] == leave(
-        web=True, hosts=["api.example.com", "example.org"], notify=True
-    )
-    assert made["changes"][0]["detail"].startswith(
-        "every 60 minutes; no end; may search the web; may make GET and HEAD requests to: "
-        "api.example.com, example.org; may notify; "
-    )
-    changed = client.patch(
-        f"/api/triggers/{made['id']}", json={"permissions": leave(hosts=["example.org"])}
-    )
-    assert changed.status_code == 200
-    assert (changed.json()["changes"][0]["what"], changed.json()["changes"][0]["detail"]) == (
-        "permissions changed",
-        "may make GET and HEAD requests to: example.org",
-    )
-    # the hosts were picked from one conversation's list: moved to another, it has none
-    other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    moved = client.patch(f"/api/triggers/{made['id']}", json={"conversation_id": other})
-    assert moved.status_code == 200 and moved.json()["permissions"] == leave()
-    for bad in ("https://example.com", "example.com/path", "example.com:8080", "", "a b", "*"):
-        refused = client.post(
-            f"/api/projects/{pid}/triggers",
-            json={
-                "name": "bad",
-                "kind": "schedule",
-                "conversation_id": cid,
-                "message": "m",
-                "config": {"every_minutes": 60},
-                "permissions": leave(hosts=[bad]),
-            },
-        )
-        assert refused.status_code == 422 and "bare name" in refused.text, bad
-        assert (
-            client.patch(
-                f"/api/triggers/{made['id']}", json={"permissions": leave(hosts=[bad])}
-            ).status_code
-            == 422
-        )
-
-
-def test_an_unattended_turn_notifies_only_where_its_trigger_says_so(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    net = Net(monkeypatch, {"hooks.example.com": (200, "text/plain", "ok")})
-    steps = [step(call("notify", {"message": "done"}, "n")), text("done")]
-    client, model, pid, cid = setup(
-        make_client, project_dir, steps * 2, project={"notify_url": HOOK}
-    )
-    closed = trigger(client, pid, cid)
-    snap = wait_run(client, cid, run_now(client, closed["id"]), timeout=10)
-    ((status, said),) = results(snap, "notify")
-    assert status == "failed" and "nobody is here to ask" in said and net.asked == []
-    cid2 = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    opened = trigger(client, pid, cid2, permissions=leave(notify=True))
-    snap = wait_run(client, cid2, run_now(client, opened["id"]), timeout=10)
-    assert results(snap, "notify")[0][0] == "succeeded" and len(net.asked) == 1
-    # the agent was told what this turn may do on the web
-    told = model.calls[-1][0]["content"]
-    assert "make no web search; make no HTTP request; send the user a notification" in told
-
-
-def test_an_unattended_request_is_not_carried_to_another_host_by_a_redirect(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    net = Net(monkeypatch)
-
-    async def raw(method, url, headers, body, ip):
-        net.asked.append((method, url, ip))
-        if "example.com" in url:
-            return app.web.Raw(302, {"location": "https://other.example.org/x"}, b"")
-        return app.web.Raw(200, {"content-type": "text/plain"}, b"ok")
-
-    monkeypatch.setattr(app.web, "raw", raw)
-    client, model, pid, cid = setup(
-        make_client, project_dir, [step(get("https://example.com/go")), text("done")]
-    )
-    made = trigger(client, pid, cid, permissions=leave(hosts=["example.com"]))
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=10)
-    ((status, said),) = results(snap, "http_request")
-    assert status == "failed" and "redirects to other.example.org" in said
-    assert len(net.asked) == 1 and snap["web_requests"] == []
-
-
-def test_an_unattended_request_is_a_get_or_a_head_to_exactly_what_the_trigger_names(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    net = Net(monkeypatch, {"example.com": (200, "text/plain", "ok")})
-    asked = [
-        call(
-            "http_request", {"method": "DELETE", "url": "https://example.com/a", "body": "x"}, "a"
-        ),
-        call("http_request", {"method": "POST", "url": "https://example.com/a"}, "b"),
-        get("http://EXAMPLE.com:9999/b", "c"),
-        get("http://example.com/b", "d"),
-        get("https://example.com:8443/b", "e"),
-        get("https://example.com/ok", "f"),
-        call("http_request", {"method": "HEAD", "url": "https://example.com:443/ok"}, "g"),
-    ]
-    client, model, pid, cid = setup(make_client, project_dir, [step(*asked), text("done")] * 2)
-    made = trigger(client, pid, cid, permissions=leave(hosts=["example.com"]))
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=10)
-    found = results(snap, "http_request")
-    assert [status for status, _ in found] == ["failed"] * 5 + ["succeeded"] * 2
-    assert all("nobody is here to ask" in said for _status, said in found[:5])
-    assert "make a DELETE request to example.com" in found[0][1]
-    assert "make a request to http://example.com:9999" in found[2][1]
-    assert [(method, url) for method, url, _ip in net.asked] == [
-        ("GET", "https://example.com/ok"),
-        ("HEAD", "https://example.com:443/ok"),
-    ]
-    told = model.calls[-1][0]["content"]
-    assert "make GET and HEAD requests to these and no other: example.com" in told
-    # another scheme and port is another thing to name
-    cid2 = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    other = trigger(
-        client, pid, cid2, name="other", permissions=leave(hosts=["http://example.com:9999"])
-    )
-    assert other["changes"][0]["detail"].startswith(
-        "every 60 minutes; no end; may make GET and HEAD requests to: http://example.com:9999; "
-    )
-    snap = wait_run(client, cid2, run_now(client, other["id"]), timeout=10)
-    assert [status for status, _ in results(snap, "http_request")] == (
-        ["failed", "failed", "succeeded"] + ["failed"] * 4
-    )
 
 
 def test_always_is_for_the_scheme_and_port_it_was_given_for(
@@ -1004,20 +823,6 @@ def test_with_the_network_off_the_desktop_still_shows_and_the_address_is_refused
     assert status == "failed" and said.startswith("shown on the user's desktop, but: not sent")
     assert "this project's network access is off" in said
     assert len(shown) == 2 and net.asked == []
-
-
-def test_a_trigger_that_may_not_notify_shows_nothing_on_the_desktop(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    shown = desk(monkeypatch)
-    Net(monkeypatch)
-    client, model, pid, cid = setup(
-        make_client, project_dir, [step(NOTE), text("done")], project={"notify_desktop": True}
-    )
-    closed = trigger(client, pid, cid)
-    snap = wait_run(client, cid, run_now(client, closed["id"]), timeout=10)
-    ((status, said),) = results(snap, "notify")
-    assert status == "failed" and "nobody is here to ask" in said and shown == []
 
 
 def test_the_desktop_and_the_bodys_form_are_set_from_the_apps_own_page(

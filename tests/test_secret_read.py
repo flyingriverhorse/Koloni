@@ -16,12 +16,10 @@ from tests.test_claude_native import (
     FAKE,
     claude_app,  # noqa: F401  (a fixture)
     start,
-    unattended,
 )
 from tests.test_outside_folders_scenarios import ORIGIN, conversation, converse, project
 from tests.test_secret_read_scenarios import SECRET, sent, tool
 from tests.test_spawn import call, step
-from tests.test_triggers import NOBODY, leave, run_now, setup, trigger
 
 
 def env(project_dir):
@@ -53,21 +51,6 @@ def test_rejected_the_agent_is_told_it_is_the_users_word(make_client, wait_run, 
     client.post(f"/api/tool-calls/{pending['id']}/reject", headers={"Origin": ORIGIN})
     said = wait_run(client, cid, run_id)["tool_calls"][0]["result"]
     assert "a secret file" in said and "outside the project" not in said
-
-
-def test_a_triggers_turn_refuses_a_secret_read_and_says_why(make_client, wait_run, project_dir):
-    env(project_dir)
-    client, model, pid, cid = setup(
-        make_client,
-        project_dir,
-        [tool("read_file", {"path": ".env"}), text("ok")],
-        permission_mode="full_auto",
-    )
-    run_id = run_now(client, trigger(client, pid, cid, permissions=leave(write=True))["id"])
-    (refused,) = wait_run(client, cid, run_id, timeout=10)["tool_calls"]
-    assert refused["status"] == "denied"
-    assert NOBODY in refused["result"] and "a secret file" in refused["result"]
-    assert "sk-koloni-test" not in sent(model)
 
 
 def test_search_leaves_out_a_secret_it_is_pointed_at(make_client, wait_run, project_dir):
@@ -186,21 +169,6 @@ def test_an_edit_of_a_secret_waits_on_the_card_and_tells_nothing(
     assert (project_dir / ".env").read_text(encoding="utf-8") == SECRET + "\n"
 
 
-def test_a_triggers_turn_refuses_an_edit_of_a_secret(make_client, wait_run, project_dir):
-    env(project_dir)
-    guess = {"path": ".env", "old_string": "KEY=sk-k", "new_string": "KEY=sk-k"}
-    client, model, pid, cid = setup(
-        make_client,
-        project_dir,
-        [tool("edit_file", guess), text("ok")],
-        permission_mode="full_auto",
-    )
-    run_id = run_now(client, trigger(client, pid, cid, permissions=leave(write=True))["id"])
-    (refused,) = wait_run(client, cid, run_id, timeout=10)["tool_calls"]
-    assert refused["status"] == "denied" and NOBODY in refused["result"]
-    assert "a secret file" in refused["result"] and "found" not in model.calls[1][-1]["content"]
-
-
 def test_two_reads_of_a_secret_in_one_step_are_two_cards(make_client, wait_run, project_dir):
     env(project_dir)
     both = step(call("read_file", {"path": ".env"}, "a"), call("read_file", {"path": ".env"}, "b"))
@@ -298,19 +266,6 @@ def test_claude_codes_read_of_a_secret_allowed_is_allowed_once(
         assert approved.status_code == 200, approved.text
     wait_run(client, cid, run_id, timeout=20)
     assert [one["behavior"] for one in claude_app.record()["asked"]] == ["allow", "allow"]
-
-
-def test_claude_codes_read_of_a_secret_in_a_triggers_turn_is_refused(
-    claude_app,
-    wait_run,
-    project_dir,  # noqa: F811
-):
-    env(project_dir)
-    client, provider, _ = claude_app([read("PROJECT/.env"), {"say": "done"}])
-    snap, _run, statuses = unattended(client, project_dir, provider, "full_auto", wait_run)
-    assert "waiting_approval" not in statuses
-    (verdict,) = claude_app.record()["asked"]
-    assert verdict["behavior"] == "deny" and NOBODY in verdict["message"]
 
 
 # --- a key by its shape, whatever the file's name (K-75-kalan) --------------------------------

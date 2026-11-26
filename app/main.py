@@ -83,7 +83,6 @@ from app.api import (
     stories,
     teams,
     tiers,
-    triggers,
     undo,
     usage,
     views,
@@ -114,12 +113,11 @@ from app.views import VIEWER_HEADERS
 
 
 class NoWebhookKeys(logging.Filter):
-    """A webhook's key is part of its address, and the server writes the address of every
-    request into its access log: there, and in anything else the server logs, the key is
-    replaced by "[key]" before the line is written anywhere. So is the page's key, where an
-    address carries it (`?key=`, slice 94)."""
+    """The server writes the address of every request into its access log: there, and in
+    anything else the server logs, the page's key, where an address carries it (`?key=`,
+    slice 94), is replaced by "[key]" before the line is written anywhere."""
 
-    _address = re.compile(r"(/api/hooks/|[?&]key=)[^/?#&\s\"']+", re.IGNORECASE)
+    _address = re.compile(r"([?&]key=)[^/?#&\s\"']+", re.IGNORECASE)
 
     def _without(self, value: object) -> object:
         return self._address.sub(r"\1[key]", value) if isinstance(value, str) else value
@@ -185,10 +183,10 @@ class PageKey:
     image's source; a download is fetched with the header, its address kept in the
     browser's list of downloads). One without it is answered before anything else is looked at: an
     agent's command can say any origin, but it does not know the key. What has a door of
-    its own needs none: health, a webhook, the status line, and what a frame loads."""
+    its own needs none: health, the status line, and what a frame loads."""
 
     OWN_DOORS = re.compile(
-        r"GET /api/health|POST /api/hooks/[^/]+|POST /api/limits/claude-session|POST /api/open"
+        r"GET /api/health|POST /api/limits/claude-session|POST /api/open"
         r"|GET /api/conversations/[^/]+/views/[^/]+/.*|GET /api/projects/[^/]+/raw/.*"
     )
     REFUSED = "open KOLONİ from the link in its window"
@@ -303,8 +301,7 @@ def known_secrets(factory, settings: Settings) -> list[str | None]:
     """Every secret KOLONİ knows, to be kept out of what an agent's CLI wrote (`app.raw`):
     the providers' keys, the projects' notification addresses, the values of the MCP
     servers' variables and the keys in their arguments, the key of the model server it was
-    started with, Gemini's voice key and Claude Code's status line key. (A webhook's key is
-    kept nowhere: only its hash.)"""
+    started with, Gemini's voice key and Claude Code's status line key."""
     with factory() as session:
         servers = session.scalars(select(McpServer)).all()
         return [
@@ -347,11 +344,9 @@ def create_app(
 
         clock = None
         if settings.trigger_clock:
-            # What came due while the app was off is looked at once, as missed; from
-            # here on the clock is looked at every few seconds.
+            # Looked at once as the app comes up; from here on every few seconds.
             with contextlib.suppress(Exception):
-                # (What is on disk read off the loop: git and large folders take their time.)
-                await triggers.look(now(), starting=True)
+                await triggers.look(now())
             clock = asyncio.create_task(triggers.run_forever(), name="triggers")
         # The turns that are over and not in the index of what was said: indexed beside
         # everything else, so that neither the start nor a request waits for them.
@@ -471,8 +466,6 @@ def create_app(
     app.state.local_server = LocalServer(
         settings.runtime_root, settings.local_server, settings.nvidia_smi
     )
-    # The unattended turns the previous process left open are told to their triggers.
-    app.state.triggers.settle()
     for module in (
         health,
         projects,
@@ -491,7 +484,6 @@ def create_app(
         discussions,
         rooms,
         memory,
-        triggers,
         usage,
         record,
         folders,

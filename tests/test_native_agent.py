@@ -30,7 +30,7 @@ from tests.test_questions import OWN
 from tests.test_recipe_run_scenarios import asked
 from tests.test_slow_model import ASKED, armed
 from tests.test_spawn import reported, role_id, spawn
-from tests.test_triggers import HeldClock
+from tests.turn_helpers import HeldClock
 
 FAKE = [sys.executable, str(Path(__file__).with_name("fake_codex_app_server.py"))]
 
@@ -251,7 +251,7 @@ def test_codex_reaches_other_agents_and_the_user_through_koloni(native_app, wait
         "change_task",
         "assess_task",
         "offer_away",
-        "run_checks",  # (0.1.9; notify only where the project notifies, 0.1.8; no propose_trigger)
+        "run_checks",  # (0.1.9; notify only where the project notifies, 0.1.8)
         "post_note",
         "read_notes",
         "remember",

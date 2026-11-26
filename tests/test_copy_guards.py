@@ -7,18 +7,12 @@ import os
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select
 
 from app import copies, observer
 from app.agent import IN_THE_PROJECT
 from app.api.undo import BY_WHOM
 from app.config import load_settings
-from app.db.models import Merge
-from app.db.session import make_engine, make_session_factory
-from app.main import create_app
 from tests.conftest import Gate
-from tests.fakes import ScriptedModel
-from tests.keyed import TestClient
 from tests.test_agy_agent import agy_app  # noqa: F401  (a fixture)
 from tests.test_chat_flow import text
 from tests.test_claim_scenarios import agent, calls, write
@@ -31,7 +25,6 @@ from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_native_copies import LEAD, WRITE, begin, changes, copies_left
 from tests.test_parallel import until
 from tests.test_spawn import call, role_id, spawn, step
-from tests.test_trigger_scenarios import run_now, trigger
 
 
 def by_the_cli(snap):
@@ -715,45 +708,6 @@ def test_a_file_apply_on_a_kept_card_shows_again_is_labelled_as_a_kept_copys_fil
         assert said["status"] == "kept" and files(said) == {"data.bin": "conflict"}
         assert said["files"][0]["whole"] is True
         assert (project_dir / "data.bin").read_bytes() == b"\xfe1"
-
-
-def test_a_copy_kept_as_the_app_closes_is_shown_as_of_a_turn_nobody_watched(
-    settings_env, project_dir
-):
-    """What no trigger lets such a turn change is refused on its card from the first -
-    not offered until the next start looks again."""
-    held = Gate()
-    app_ = create_app(
-        load_settings(settings_env),
-        model=ScriptedModel(
-            {
-                "Lead": [
-                    step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                    text("done"),
-                ],
-                "Coder": [step(write("notes.txt", "seen")), held.step(text("A done"))],
-            }
-        ),
-    )
-    with TestClient(app_, base_url="http://127.0.0.1:8790") as client:
-        client.headers["Origin"] = ORIGIN
-        pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-        cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-        made = trigger(client, pid, cid, permissions={"write": True, "commands": [], "agents": 1})
-        run_now(client, made["id"])
-        held.wait_partial()
-        (folder,) = kept_folders(settings_env)
-        (folder / "tree" / ".claude").mkdir()  # as a command could
-        (folder / "tree" / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
-    held.release()
-    with make_session_factory(make_engine(load_settings(settings_env).db_path))() as s:
-        (merge,) = s.scalars(select(Merge)).all()
-        assert merge.status == "interrupted"
-        assert {one["path"]: one["state"] for one in merge.files} == {
-            ".claude/settings.json": "refused",
-            "notes.txt": "ready",
-        }
-        assert "no trigger allows" in merge.files[0]["note"]
 
 
 def test_what_a_copy_was_made_from_is_not_read_through_a_link(tmp_path, project_dir):

@@ -14,8 +14,8 @@ from tests.test_migration_0002 import _config
 from tests.test_parallel import until
 from tests.test_rooms import room_in
 from tests.test_spawn import step
-from tests.test_trigger_scenarios import setup
 from tests.test_usage_scenarios import began, turn, usage
+from tests.turn_helpers import setup
 
 
 # (As the acceptance set's own, which skips as a whole until the code is there.)

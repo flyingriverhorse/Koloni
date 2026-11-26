@@ -12,7 +12,6 @@ from tests.test_max_agents import cancel, queued
 from tests.test_spawn import begin, call, role_id, step
 from tests.test_team import results, team  # noqa: F401  (a fixture)
 from tests.test_tier_scenarios import ORIGIN, WHY, role_tier, spawn, tiered
-from tests.test_trigger_scenarios import run_now, trigger
 
 
 def table(client, cid=None):
@@ -316,39 +315,6 @@ def strongest_on_codex(team, client):  # noqa: F811
         ).status_code
         == 200
     )
-
-
-def test_in_a_turn_nobody_watches_a_tier_does_not_land_on_a_cli_with_its_own_tools(
-    team,
-    wait_run,
-    project_dir,  # noqa: F811
-):
-    client, default, fast = team([step(spawn("Coder")), text("the coder looked"), text("done")])
-    strongest_on_codex(team, client)
-    role_tier(client, "Lead", "strongest")
-    role_tier(client, "Coder", "strongest")
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert (
-        client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}).status_code
-        == 200
-    )
-    # with the user there both run on it, which is what the table says
-    rows = table(client, cid)
-    assert [(rows[role]["provider_name"], rows[role]["source"]) for role in ("Lead", "Coder")] == [
-        ("Codex", "tier")
-    ] * 2
-    made = trigger(client, pid, cid, permissions={"write": False, "commands": [], "agents": 1})
-    snap = wait_run(client, cid, run_now(client, made["id"]))
-    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    lead, coder = snap["agents"]
-    # the tier decided nothing there: the next rule did, for the lead and for whom it opened
-    assert (lead["provider_name"], coder["provider_name"], coder["status"]) == (
-        "Local",
-        "Local",
-        "completed",
-    )
-    assert team.stubs["Codex"].started == 0
 
 
 def test_a_tier_lands_on_codex_for_a_coder_the_opener_leaves_no_commands(
@@ -919,17 +885,6 @@ def test_a_turn_stopped_while_it_stands_in_line_for_the_question_leaves_no_recor
         assert session.scalars(select(OwnRequest)).all() == []
     gate.release()
     wait_run(client, a, run_a)
-
-
-def test_in_a_turn_nobody_watches_nobody_is_asked_how_hard_it_is(team, wait_run, project_dir):  # noqa: F811
-    client, default, fast = team([text("looked it over")])
-    tiered(team, client)
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={"lead_auto": True}).status_code == 200
-    snap = wait_run(client, cid, run_now(client, trigger(client, pid, cid)["id"]))
-    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert fast.calls == [] and snap["agents"][0]["chosen_why"] is None
 
 
 def test_a_tier_says_why_each_one_before_its_pick_was_passed_over_in_sentences():

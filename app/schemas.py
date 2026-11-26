@@ -625,7 +625,6 @@ class ProjectDeletePreviewOut(BaseModel):
     chats: int
     memory: int
     tasks: int
-    triggers: int
     knowledge: int
 
 
@@ -2603,8 +2602,6 @@ class SnapshotOut(BaseModel):
     attachments: list[AttachmentOut] = []
     # The "While you're away" cards its Lead put here, with their nights (slice 106).
     away: list["AwayOut"] = []
-    # The triggers its agents proposed, decided or not (slice 69).
-    trigger_proposals: list["TriggerProposalOut"] = []
     # K-bilgi 6: the "Add to Project notes?" offers under its turns, decided or not.
     notes_offers: list["NotesOfferOut"] = []
     warnings: list[WarningOut] = []
@@ -4273,216 +4270,6 @@ class PreferencesOut(BaseModel):
     text: str | None
 
 
-class TriggerPermissions(BaseModel):
-    """What a trigger's turns may do without asking. Nothing, to begin with: such a turn
-    reads, and writes notes. The conversation's own level and allow list do not count."""
-
-    write: bool = False
-    # The ids of rules on the allow list of the trigger's own conversation. With nobody
-    # watching, a ticked rule lets exactly one command run: the one that is its text.
-    commands: list[str] = Field(default_factory=list, max_length=20)
-    # How many sub-agents a turn may open, all told.
-    agents: int = Field(default=0, ge=0, le=4)
-    # Whether a turn may search the web.
-    web: bool = False
-    # The hosts a turn may make HTTP requests to: bare names, matched exactly.
-    hosts: list[str] = Field(default_factory=list, max_length=20)
-    # Whether a turn may send the user a notification.
-    notify: bool = False
-
-
-class TriggerLeave(TypedDict):
-    """A trigger's permissions as they are kept and shown. What it may do on the web is
-    there only where it is allowed: left out, its turns may not."""
-
-    write: bool
-    commands: list[str]
-    agents: int
-    web: NotRequired[bool]
-    hosts: NotRequired[list[str]]
-    notify: NotRequired[bool]
-
-
-class TriggerBudget(BaseModel):
-    """A turn's model steps (all its agents together) and its length in minutes; and how
-    many turns the trigger may start in a day. There is no "unlimited"."""
-
-    steps: int = Field(default=15, ge=1, le=200)
-    minutes: int = Field(default=10, ge=1, le=240)
-    per_day: int = Field(default=24, ge=1, le=500)
-
-
-TriggerKind = Literal["schedule", "files", "webhook"]
-
-
-class TriggerIn(BaseModel):
-    name: str
-    kind: TriggerKind
-    conversation_id: str
-    message: str
-    # schedule: {"every_minutes": N} or {"at": "HH:MM", "days": "daily" | "weekdays" | a list
-    # of "mon".."sun", in week order}; files: {"glob": "src/**/*.py"}; webhook: {}.
-    config: dict = Field(default_factory=dict)
-    permissions: TriggerPermissions = Field(default_factory=TriggerPermissions)
-    budget: TriggerBudget = Field(default_factory=TriggerBudget)
-    catch_up: bool = True
-    enabled: bool = True
-    # {"runs": N} or {"until": "YYYY-MM-DD"}; None: no end (`app.triggers.check_ends`).
-    ends: dict | None = None
-    # A schedule runs even when nothing changed since its last completed run.
-    run_unchanged: bool = False
-    # Made from an agent's proposal, in the form (slice 69): that card is done with.
-    proposal_id: str | None = None
-
-
-class TriggerPatch(BaseModel):
-    """Left out: kept as it is. A trigger's kind does not change. `ends` sent as null: no
-    end."""
-
-    name: str | None = None
-    conversation_id: str | None = None
-    message: str | None = None
-    config: dict | None = None
-    permissions: TriggerPermissions | None = None
-    budget: TriggerBudget | None = None
-    catch_up: bool | None = None
-    enabled: bool | None = None
-    ends: dict | None = None
-    run_unchanged: bool | None = None
-
-
-class TriggerEnds(TypedDict, total=False):
-    """When a trigger ends by itself: after so many runs, or after a day (the last it runs on)."""
-
-    runs: int
-    until: str
-
-
-class TriggerRunOut(Out):
-    """One time a trigger came due."""
-
-    id: str
-    # The turn it started; None when it started none.
-    run_id: str | None
-    at: datetime
-    # None while its turn is still running. "stopped": the user stopped the turn.
-    outcome: (
-        Literal[
-            "completed",
-            "failed",
-            "budget",
-            "stopped",
-            "skipped_busy",
-            "skipped_budget",
-            "skipped_month",
-            "skipped_limit",
-            "skipped_same",
-        ]
-        | None
-    )
-    late: bool
-    note: str | None
-
-
-class TriggerChangeOut(BaseModel):
-    """One thing that was done to a trigger: made, changed, switched or deleted."""
-
-    id: str
-    project_id: str
-    trigger_id: str
-    # The trigger's name at that moment.
-    name: str
-    at: datetime
-    what: Literal[
-        "created",
-        "renamed",
-        "message changed",
-        "settings changed",
-        "permissions changed",
-        "budget changed",
-        "switched on",
-        "switched off",
-        "new key",
-        "deleted",
-    ]
-    # How it stood afterwards, in words: what it may do now, why it was switched off.
-    detail: str | None
-
-
-class TriggerOut(BaseModel):
-    id: str
-    project_id: str
-    conversation_id: str
-    name: str
-    kind: TriggerKind
-    config: dict
-    message: str
-    # Its `commands` are the ticked rules still on its conversation's allow list.
-    permissions: TriggerLeave
-    # The texts of those rules, in the same order: the command lines it may run.
-    command_lines: list[str]
-    budget: TriggerBudget
-    catch_up: bool
-    enabled: bool
-    # Its end, None for none; and the turns it started since that was set.
-    ends: TriggerEnds | None
-    ran: int
-    run_unchanged: bool
-    failures: int
-    # Why KOLONİ switched it off ("ended: 10 runs done" too); None while it is on, or when
-    # the user switched it off.
-    off_because: str | None
-    last_run_at: datetime | None
-    last_result: str | None
-    # A schedule's next time; None for the other kinds, and before the first look.
-    next_at: datetime | None
-    # 93-B2: its last runs in a row that found nothing, where that has spaced its times out;
-    # None while it keeps its own times.
-    slowed: int | None
-    # Its last runs in a row that found nothing, whether or not that has slowed it yet (R125).
-    idle: int
-    last_words: str | None
-    created_at: datetime
-    # When it was last made, changed or switched.
-    updated_at: datetime
-    # The last fifty things done to it, newest first.
-    changes: list[TriggerChangeOut]
-    # The last twenty times it came due, newest first.
-    runs: list[TriggerRunOut]
-
-
-class TriggerCreatedOut(TriggerOut):
-    # A webhook's key, shown this once and kept nowhere; None for the other kinds.
-    key: str | None
-
-
-class TriggerStartedOut(BaseModel):
-    run_id: str
-
-
-class TriggerProposalOut(BaseModel):
-    """A trigger an agent proposed (slice 69), on its card until the user's word. Approved,
-    it reads only, opens no sub-agent and has the usual budget."""
-
-    id: str
-    conversation_id: str
-    # The turn that proposed it: its card is under that turn.
-    run_id: str
-    name: str
-    kind: Literal["schedule", "files"]
-    config: dict
-    message: str
-    ends: TriggerEnds
-    status: Literal["proposed", "approved", "rejected"]
-    # Approved: the trigger it became.
-    trigger_id: str | None
-    created_at: datetime
-
-
-class TriggersPaused(BaseModel):
-    paused: bool
-
-
 class HoldStopped(BaseModel):
     run_id: str
     conversation_id: str
@@ -4494,14 +4281,13 @@ class HoldStopped(BaseModel):
 
 class HoldOut(BaseModel):
     """Stop everything (`app.api.hold`): whether it holds, since when, how many turns of every
-    chat have not ended, and what a hold holds (triggers on, the projects with To-do tasks
+    chat have not ended, and what a hold holds (the projects with To-do tasks
     waiting in a chat's queue - `backlogs` - and the projects' nights while the user is away) -
     and, while it holds, the turns it stopped."""
 
     held: bool
     since: datetime | None
     running: int
-    triggers: int
     backlogs: list[str]
     nights: list[str]
     stopped: list[HoldStopped]

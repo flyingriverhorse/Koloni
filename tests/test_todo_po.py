@@ -26,7 +26,6 @@ from tests.test_spawn import call, step
 from tests.test_team import team  # noqa: F401  (a fixture)
 from tests.test_tier_order_scenarios import _down
 from tests.test_tier_scenarios import ORIGIN, tiered
-from tests.test_trigger_scenarios import run_now, trigger
 
 SECRET = "tok-9d8c7b6a5f4e3d2c"
 PASSED = "build-label-7f6e5d4c"  # (no secret by its name: masked as the project passes it)
@@ -515,21 +514,6 @@ def test_a_nights_jobs_propose_and_nothing_is_added_for_the_user(team, project_d
     assert [(one["title"], one["status"], one["po"]["lead"]) for one in found] == [
         ("Add CLI help", "proposed", None)
     ]
-    assert not any(asked[-1]["content"].startswith(backlog.DECIDE) for asked in default.calls)
-
-
-def test_a_triggers_turn_proposes_and_nothing_is_added_for_the_user(team, project_dir, ended):  # noqa: F811
-    client, default, _fast = team(
-        [FAILED, text(ANSWER)], [po(task("Add CLI help", "the CLI help text"))]
-    )
-    tiered(team, client)
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
-    ended(run_now(client, trigger(client, pid, cid)["id"]))
-    ((one),) = tasks(client, pid)
-    assert (one["status"], one["po"]["lead"]) == ("proposed", None)
     assert not any(asked[-1]["content"].startswith(backlog.DECIDE) for asked in default.calls)
 
 

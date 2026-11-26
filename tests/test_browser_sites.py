@@ -17,13 +17,12 @@ import pytest
 
 import app.web
 from app import browser
-from app.db.models import AllowedWeb, BacklogTask
+from app.db.models import AllowedWeb
 from app.workspace import Workspace
 from tests.test_browser import FAKE, REAL, _calls, closed_server  # noqa: F401
 from tests.test_chat_flow import text
 from tests.test_parallel import until
 from tests.test_spawn import call, step
-from tests.test_trigger_scenarios import run_now, trigger
 
 ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 PAGE = b"<!doctype html><title>Site</title><h1>SITE-MARKER</h1><button id=b>Start</button>"
@@ -378,37 +377,6 @@ def test_an_allowed_site_opens_unasked_below_full_auto_and_a_no_is_on_record_as_
     assert [t["status"] for t in opened] == ["succeeded", "denied"]
     assert "declined this site" in opened[1]["result"]
     assert asked == ["/"]  # (other.test was never asked for)
-
-
-def test_a_turn_nobody_watches_opens_no_site_and_asks_nothing(
-    fake, site, make_client, wait_run, project_dir
-):
-    port, asked = site
-    opens = [step(call("browser_open", {"url": f"http://site.test:{port}/"}, "b1")), text("done")]
-    client, pid, cid = _setup(make_client, project_dir, opens * 2, "full_auto")
-    _allow(client, cid, "site.test")
-    made = trigger(client, pid, cid)
-    snap = wait_run(client, cid, run_now(client, made["id"]), timeout=15)
-    (opened,) = [t for t in snap["tool_calls"] if t["name"] == "browser_open"]
-    assert opened["status"] == "denied" and "nobody is watching this turn" in opened["result"]
-    assert snap["web_requests"] == [] and asked == []
-    # A backlog task's chat: the same, though its turn is an ordinary one.
-    cid2 = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    with client.app.state.session_factory() as session:
-        session.add(
-            BacklogTask(
-                project_id=pid,
-                title="t",
-                status="doing",
-                position=0,
-                created_by="user",
-                conversation_id=cid2,
-            )
-        )
-        session.commit()
-    snap = wait_run(client, cid2, _go(client, cid2))
-    (opened,) = [t for t in snap["tool_calls"] if t["name"] == "browser_open"]
-    assert opened["status"] == "denied" and asked == []
 
 
 def test_a_project_without_a_network_opens_no_site_but_its_previews(

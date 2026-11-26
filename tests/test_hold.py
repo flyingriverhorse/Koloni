@@ -1,31 +1,24 @@
 """Stop everything (K-hepsini-durdur, `app.api.hold`): every turn of every chat stops, what
 starts by itself waits until Resume, the user's own messages do not, and the hold outlives a
-restart. Time is handed to the triggers (`tick`), as in tests/test_triggers.py."""
+restart."""
 
 import asyncio
 import threading
 import time
-from datetime import datetime, timedelta
 
 from app.api import hold
 from app.db.models import now
 from app.model_client import ModelUnavailable
 from tests.conftest import Gate
-from tests.keyed import TestClient
 from tests.test_agent_writes import edit
 from tests.test_away_scenarios import ended, evening, go_away, night
 from tests.test_chat_flow import text
 from tests.test_spawn import call, step
-from tests.test_triggers import (
-    ORIGIN,
-    T0,
-    one,
+from tests.turn_helpers import (
     place,
     run_of,
     setup,
     started,  # noqa: F401  (a fixture)
-    tick,
-    trigger,
 )
 
 
@@ -42,7 +35,7 @@ def until(check, seconds=5.0):
 
 
 def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume_lets_it_go(
-    make_client, wait_run, project_dir, gate
+    make_client, wait_run, project_dir
 ):
     task_gate, mine_gate = Gate(), Gate()
     client, model, pid, cid = setup(
@@ -50,24 +43,17 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
         project_dir,
         {
             "Lead": [
-                gate.step(text("unattended")),
                 task_gate.step(text("task")),
                 mine_gate.step(text("busy")),
                 text("mine"),
                 text("two done"),
                 text("waits done"),  # (the task that waited in the queue, after Resume)
-                text("next time"),
             ]
         },
     )
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    clock = trigger(client, pid, cid, catch_up=True)
-    hook = trigger(client, pid, cid, kind="webhook", config={})
-    here = TestClient(client.app, base_url=ORIGIN, client=("127.0.0.1", 50000))
     try:
-        # a trigger's turn, a backlog task's turn, a turn of the user's and one queued behind it
-        (unattended,) = tick(client, T0)
-        gate.wait_partial()
+        # a backlog task's turn, a turn of the user's and one queued behind it
         task = client.post(f"/api/projects/{pid}/backlog", json={"title": "one"}).json()["id"]
         waits = client.post(f"/api/projects/{pid}/backlog", json={"title": "waits"}).json()["id"]
         client.post(f"/api/projects/{pid}/backlog/do-in-chat", json={"task_ids": [task, waits]})
@@ -81,10 +67,9 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
         ).json()["run"]
         assert queued["status"] == "queued"
         before = client.get("/api/hold").json()
-        assert (before["held"], before["running"], before["triggers"], before["backlogs"]) == (
+        assert (before["held"], before["running"], before["backlogs"]) == (
             False,
-            4,
-            2,
+            3,
             [project_dir.name],  # (0.1.8: a project with To-do tasks waiting in a chat's queue)
         )
 
@@ -94,12 +79,11 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
         )
         held = client.post("/api/hold").json()
     finally:
-        for one_gate in (gate, task_gate, mine_gate):
+        for one_gate in (task_gate, mine_gate):
             one_gate.release()
     task_chat = tasks(client, pid)["one"]["conversation_id"]
     assert held["held"] is True and held["since"] and held["running"] == 0
     assert {(s["run_id"], s["conversation_id"]) for s in held["stopped"]} == {
-        (unattended, cid),
         (busy, other),
         (queued["id"], other),
         (client.get(f"/api/conversations/{task_chat}").json()["runs"][0]["id"], task_chat),
@@ -113,12 +97,9 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
     assert tasks(client, pid)["one"]["status"] == "todo"
     assert tasks(client, pid)["one"]["place"] == 1 and tasks(client, pid)["waits"]["place"] == 2
 
-    # while held nothing starts by itself: no next task, no trigger, whichever way
+    # while held nothing starts by itself: no next task
     client.post(f"/api/projects/{pid}/backlog", json={"title": "two"})
     assert tasks(client, pid)["two"]["conversation_id"] is None
-    assert tick(client, T0 + timedelta(hours=1)) == []
-    assert here.post(f"/api/hooks/{hook['key']}", content="x").status_code == 409
-    assert client.post(f"/api/triggers/{clock['id']}/run").status_code == 409
     # but the user's own message runs - and its end starts no task either
     mine = client.post(
         f"/api/conversations/{other}/messages", json={"content": "mine, while held"}
@@ -134,7 +115,7 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
     resumed = client.post("/api/hold/resume").json()
     assert (resumed["held"], resumed["stopped"]) == (False, [])
     # R147: what it stopped stays stopped, and Resume says so
-    said = "4 stopped turns stay stopped - send a message to go on."
+    said = "3 stopped turns stay stopped - send a message to go on."
     assert held["stays_stopped"] == said and resumed["stays_stopped"] == said
     assert client.get("/api/hold").json()["stays_stopped"] is None
     # the chat's queue goes on: the task stopped first, in its chat
@@ -144,22 +125,14 @@ def test_stop_everything_stops_every_turn_holds_what_starts_by_itself_and_resume
     )
     assert again["task_id"] == tasks(client, pid)["one"]["id"]
     wait_run(client, chat, again["id"])
-    # the hour missed while held is not made up for, though the trigger catches up: it waits
-    assert tick(client, T0 + timedelta(hours=1, minutes=1)) == []
-    next_at = datetime.fromisoformat(one(client, clock["id"])["next_at"])
-    assert next_at > T0 + timedelta(hours=1)
-    (again,) = tick(client, next_at)
-    assert run_of(wait_run(client, cid, again), again)["status"] == "completed"
 
 
 def test_the_hold_outlives_a_restart(started, project_dir):  # noqa: F811
     client = started([])
-    pid, cid = place(client, project_dir)
-    trigger(client, pid, cid)
+    place(client, project_dir)
     assert client.post("/api/hold").json()["held"] is True
     client = started([text("one")])
     assert client.get("/api/hold").json()["held"] is True
-    assert tick(client, T0, starting=True) == [] and tick(client, T0) == []
     assert client.post("/api/hold/resume").json()["held"] is False
     assert client.get("/api/hold").json()["held"] is False
 

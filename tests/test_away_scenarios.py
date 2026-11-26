@@ -451,39 +451,6 @@ def test_the_offer_is_one_line_and_starts_nothing(make_client, wait_run, project
     ]
 
 
-def test_no_offer_from_a_turn_nobody_watches(make_client, wait_run, project_dir):
-    from tests.test_trigger_scenarios import run_now, trigger
-
-    client, model = make_client(
-        [
-            step(call("offer_away", OFFER)),
-            text("offered"),
-            step(call("offer_away", OFFER, "p2")),
-            text("tried"),
-        ]
-    )
-    client.headers.update(ORIGIN)
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    wait_run(
-        client,
-        cid,
-        client.post(f"/api/conversations/{cid}/messages", json={"content": "sleep"}).json()["run"][
-            "id"
-        ],
-    )
-    (planned,) = client.get(f"/api/conversations/{cid}/away").json()
-    started = run_now(client, trigger(client, pid, cid)["id"])
-    snap = wait_run(client, cid, started)
-    (result,) = [t["result"] for t in snap["tool_calls"] if t["run_id"] == started]
-    assert "offer_away is the Orchestrator's, at a turn of the user's own" in result
-    # nor is that turn's Lead told to call it
-    assert told_when_offered(model) == [True, True, False, False]
-    assert [c["status"] for c in client.get(f"/api/conversations/{cid}/away").json()] == [
-        planned["status"]
-    ]
-
-
 def test_a_night_left_running_by_a_restart_is_over_and_nothing_starts_again(
     make_client, wait_run, project_dir, gate
 ):

@@ -17,7 +17,6 @@ from tests.test_command_safety_scenarios import waiting
 from tests.test_copy_runner import here
 from tests.test_project_map import _link, _put, map_ready  # noqa: F401  (a fixture)
 from tests.test_spawn import call, step
-from tests.test_triggers import allow, leave, run_now, trigger
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 WHERE = "python -c \"import os;print('AT='+os.getcwd())\""
@@ -278,25 +277,6 @@ def test_a_search_from_a_part_is_judged_from_its_folder(
     )
 
 
-def test_a_triggers_turn_in_a_chat_with_a_part_runs_its_ticked_command(
-    make_client, wait_run, tmp_path
-):
-    client, model, pid, cid = in_part(
-        make_client,
-        two_parts(tmp_path / "repo"),
-        [*commands_of(["python --version"]), text("done")],
-        ran=1,
-    )
-    given = leave(commands=[allow(client, cid, "python --version")])
-    run_id = run_now(client, trigger(client, pid, cid, permissions=given)["id"])
-    snap = wait_run(client, cid, run_id, timeout=15)
-    assert [(c["command"], c["status"]) for c in snap["commands"]] == [
-        ("python --version", "exited")
-    ]
-    # (It is told where its commands run in this turn: the trigger allowed them at the root.)
-    assert "runs at the project root in this turn" in model.calls[0][0]["content"]
-
-
 def test_a_part_whose_folder_is_gone_is_taken_off_the_chat_and_the_lead_told(
     make_client, wait_run, tmp_path
 ):
@@ -372,30 +352,3 @@ def test_the_users_own_test_command_runs_unasked_in_its_part_below_full_auto(
         'its test command is "pytest -q", run in that folder (the user\'s own: run_command '
         "runs it there without a card, as it is)"
     ) in model.calls[0][0]["content"]
-
-
-def test_in_a_triggers_turn_the_users_own_test_command_runs_in_its_part_unticked(
-    make_client, wait_run, tmp_path
-):
-    client, _model, pid, cid = in_part(
-        make_client,
-        two_parts(tmp_path / "repo"),
-        [run_in("pytest -q", "core", "c0"), run_in("pytest -q", None, "c1"), text("done")],
-        ran=1,
-    )
-    assert (
-        client.put(
-            f"/api/projects/{pid}/map/test", json={"path": "core/", "command": "pytest -q"}
-        ).status_code
-        == 200
-    )
-    run_id = run_now(client, trigger(client, pid, cid, permissions=leave())["id"])
-    snap = wait_run(client, cid, run_id, timeout=15)
-    assert [(c["command"], c["cwd"], c["status"]) for c in snap["commands"]] == [
-        ("pytest -q", "core", "exited")
-    ]
-    # (given no cwd it would run at the root in this turn: not the part's folder - refused)
-    assert [t["status"] for t in snap["tool_calls"] if t["name"] == "run_command"] == [
-        "succeeded",
-        "denied",
-    ]

@@ -1,5 +1,5 @@
 """A project deleted from KOLONİ (Settings › This project): every row of it goes in one go - its
-chats with their turns, memory, knowledge, To-do, triggers, nights, usage, vectors - and another
+chats with their turns, memory, knowledge, To-do, nights, usage, vectors - and another
 project's rows and the app's own stay. Its folder on disk, .koloni/ too, is never touched. Not
 while anything of it is at work, and only from the app's own page."""
 
@@ -26,22 +26,11 @@ from tests.test_usage_scenarios import ORIGIN, turn
 
 
 def made(client, wait_run, root, factory) -> tuple[str, str, str]:
-    """A project in `root` with a chat that had a turn, a trigger, memory, a task, knowledge
+    """A project in `root` with a chat that had a turn, memory, a task, knowledge
     and a vector: its id, its chat's and its knowledge's."""
     pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     run_id = turn(client, wait_run, cid)["id"]
-    trigger = client.post(
-        f"/api/projects/{pid}/triggers",
-        json={
-            "name": "Nightly",
-            "kind": "schedule",
-            "conversation_id": cid,
-            "message": "look",
-            "config": {"every_minutes": 60},
-        },
-    )
-    assert trigger.status_code == 201, trigger.text
     with factory() as session:
         note = Memory(
             project_id=pid,
@@ -114,7 +103,7 @@ def test_the_preview_counts_and_a_delete_leaves_only_what_was_there_without_it(
 
     preview = client.get(f"/api/projects/{gone}/delete-preview")
     assert preview.status_code == 200, preview.text
-    assert preview.json() == {"chats": 1, "memory": 1, "tasks": 1, "triggers": 1, "knowledge": 1}
+    assert preview.json() == {"chats": 1, "memory": 1, "tasks": 1, "knowledge": 1}
 
     assert client.delete(f"/api/projects/{gone}", headers=OWN).status_code == 204
     assert rows(factory) == before  # every row of it gone, every other row as it was

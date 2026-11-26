@@ -837,7 +837,7 @@ def test_a_room_inside_a_recipe_takes_in_one_more_of_its_steps_roles_and_its_wor
 def test_a_room_in_a_recipe_that_ends_on_its_minutes_leaves_its_work_in_the_copy(
     make_client, wait_run, project_dir
 ):
-    from tests.test_triggers import NOT_SLOW, HeldClock, on_loop
+    from tests.turn_helpers import NOT_SLOW, HeldClock, on_loop
 
     held, clock = Gate(), HeldClock(but=NOT_SLOW)
     client, _model = make_client(

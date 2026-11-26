@@ -1116,32 +1116,6 @@ def _in_a_shell(command: str) -> bool:
     return bool(words) and _program(words[0]) in _SHELLS
 
 
-def ticked(session, trigger) -> list[AllowedCommand]:
-    """The rules a trigger's turns may run, in the order they were ticked: the ids its
-    permissions name that are, right now, on the allow list of the conversation its
-    turns go into. Read off that list every time, so a rule the user takes off it - or
-    a trigger moved to another conversation - leaves nothing behind. Whatever is not a
-    rule's id (a command's text, as triggers once kept) is no rule."""
-    leave = trigger.permissions if trigger is not None else None
-    ids = leave.get("commands") if isinstance(leave, dict) else None
-    if not isinstance(ids, list):
-        return []
-    wanted = [rule_id for rule_id in ids if isinstance(rule_id, str) and rule_id]
-    if not wanted:
-        return []
-    found = {
-        rule.id: rule
-        for rule in session.scalars(
-            select(AllowedCommand).where(
-                AllowedCommand.conversation_id == trigger.conversation_id,
-                AllowedCommand.project_id == trigger.project_id,
-                AllowedCommand.id.in_(wanted),
-            )
-        )
-    }
-    return [found[rule_id] for rule_id in dict.fromkeys(wanted) if rule_id in found]
-
-
 def rules_here(conversation):
     """The "Always run" rules that hold in a chat now: its own, made in the folder it is in
     (slice 86a). A plain chat has none."""

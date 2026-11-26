@@ -1,6 +1,5 @@
 """A job while the user is away (slice 106, `app.away`) and a turn nobody watches: what waits
-for the morning and what is asked, its deadline, the trigger it proposes, and how such a turn
-ends - `AwayMixin`.
+for the morning and what is asked, and its deadline - `AwayMixin`.
 """
 
 import asyncio
@@ -603,38 +602,6 @@ class AwayMixin(AwayBranchMixin):
             project_id = session.get_one(Conversation, ctx.cid).project_id
         announce(self._factory, self.bus, project_id, "backlog.changed")
         return said
-
-    def _propose_trigger(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
-        """A trigger on a card in the chat (slice 69): nothing is made, nobody waits. Never in
-        a turn nobody is watching - a trigger's turn would go on proposing triggers."""
-        # (Here, not at the top: app.triggers reads this module.)
-        from app import triggers as trigger_rules
-
-        if not self._watched(ctx.run_id):
-            raise ToolError("propose_trigger is for a turn the user started")
-        with self._factory() as session:
-            conversation = session.get_one(Conversation, ctx.cid)
-            try:
-                said = trigger_rules.propose(
-                    session,
-                    conversation,
-                    ctx.run_id,
-                    args,
-                    self.trigger_day() if self.trigger_day else trigger_rules.local_day(now()),
-                )
-            except trigger_rules.Invalid as exc:
-                raise ToolError(str(exc)) from None
-            session.commit()
-            project_id = conversation.project_id
-        announce(self._factory, self.bus, project_id, "triggers.changed")
-        return said
-
-    def _unattended_over(self: "AgentRunner", run_id: str, status: str, error: str | None) -> None:
-        if run_id in self._unwatched and self.unattended_ended is not None:
-            # Its trigger keeps how it went. A failure to write that down must not keep
-            # the turn itself from ending; it is settled when the app next starts.
-            with contextlib.suppress(Exception):
-                self.unattended_ended(run_id, status, error)
 
     # --- §10: what the user decided runs, and the same agent goes on -------------------------
 

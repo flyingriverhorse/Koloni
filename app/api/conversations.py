@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import bindparam, delete, literal_column, or_, select, text, update
 from sqlalchemy.orm import Session
 
-from app import attachments, away, backlog, injection, project_map, project_notes, topics, triggers
+from app import attachments, away, backlog, injection, project_map, project_notes, topics
 from app.agent import NEW_CONVERSATION, TERMINAL, announce, folders_of, prune_commit_sides
 from app.api.board import outcomes
 from app.api.deps import get_session, require_origin, require_own_origin
@@ -47,7 +47,6 @@ from app.db.models import (
     Story,
     ToolCall,
     Topic,
-    Trigger,
     WebRequest,
     new_chat,
     now,
@@ -392,7 +391,6 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
                 .order_by(AwayRun.created_at)
             )
         ],
-        "trigger_proposals": triggers.proposals_of(session, conversation_id),
         "notes_offers": project_notes.offers_of(session, conversation_id),
         "warnings": injection.listed(session, conversation_id),
         "last_event_id": last_event_id,
@@ -402,7 +400,7 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
 def _left_in(session: Session, cid: str) -> str | None:
     """What of a chat holds a path in its folder - how a message says it ("changed files
     in"), or None: a change of a file that was made or still may be, a working copy kept
-    or waiting, a trigger, a backlog task."""
+    or waiting, a backlog task."""
     runs = select(Run.id).where(Run.conversation_id == cid)
     if session.scalar(
         select(FileChange.id)
@@ -419,8 +417,6 @@ def _left_in(session: Session, cid: str) -> str | None:
         select(Compare.id).where(Compare.conversation_id == cid, Compare.status == "open").limit(1)
     ):
         return "has a comparison waiting in"
-    if session.scalar(select(Trigger.id).where(Trigger.conversation_id == cid).limit(1)):
-        return "has a trigger in"
     if session.scalar(select(BacklogTask.id).where(BacklogTask.conversation_id == cid).limit(1)):
         return "works on a To-do task of"
     return None
@@ -485,9 +481,9 @@ def delete_conversations(
     """Archived conversations deleted for good (slice 76): their turns and all that hangs off
     them - messages, agents, their calls, changes and notes, events, and recall's index of
     what was said. The project's files and git are not touched, nor its memory: a record of
-    one only stops pointing at it. One that is not archived, has a turn at work, has a
-    trigger, or has changes still the user's to apply or discard is not deleted, and says
-    why; the others are."""
+    one only stops pointing at it. One that is not archived, has a turn at work, or has
+    changes still the user's to apply or discard is not deleted, and says why; the others
+    are."""
     deleted, refused = [], []
     ids = list(dict.fromkeys(body.ids))
     # A write first, that changes nothing: no other writer commits until this does, so what
@@ -542,14 +538,6 @@ def _kept_from_deleting(session: Session, conversation: Conversation) -> str | N
     runs = select(Run.id).where(Run.conversation_id == conversation.id)
     if session.scalar(runs.where(Run.status.not_in(TERMINAL)).limit(1)):
         return "a turn of it is at work or waits to start"
-    named = session.scalars(
-        select(Trigger.name).where(Trigger.conversation_id == conversation.id)
-    ).all()
-    if named:
-        return (
-            f"it has the trigger{'s' * (len(named) > 1)} {', '.join(named)}: "
-            f"delete {'them' if len(named) > 1 else 'it'} first"
-        )
     if _copy_waits(session, runs):
         return "it has changes that are still yours to take in or discard"
     if session.scalar(
@@ -600,8 +588,8 @@ def _delete_for_good(session: Session, ids: list[str]) -> None:
             task.status = "todo"
     runs = select(Run.id).where(Run.conversation_id.in_(ids))
     agents = select(Agent.id).where(Agent.run_id.in_(runs))
-    # What points at them by id alone (a memory record, a backlog task, a trigger's past
-    # run) is kept, pointing nowhere: first, while the ids are still there to be found.
+    # What points at them by id alone (a memory record, a backlog task) is kept, pointing
+    # nowhere: first, while the ids are still there to be found.
     for table in Base.metadata.sorted_tables:
         for name, gone in (("conversation_id", ids), ("run_id", runs), ("agent_id", agents)):
             column = table.c.get(name)

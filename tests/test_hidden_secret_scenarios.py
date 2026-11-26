@@ -22,7 +22,7 @@ from tests.test_chat_flow import start_in_mode, text
 from tests.test_claim_scenarios import setup as copy_setup
 from tests.test_host_executor import py
 from tests.test_spawn import call, step
-from tests.test_triggers import everything_kept, run_now, setup, trigger, until
+from tests.turn_helpers import everything_kept, until
 
 NAME = "STRIPE_API_KEY"
 # Long enough to be looked for, and no token's shape: only knowing it hides it.
@@ -178,15 +178,6 @@ def test_a_name_that_is_no_variable_or_kolonis_own_is_refused_unasked(
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     ((_, status, said),) = results(wait_run(client, cid, run_id))
     assert status == "failed" and said.startswith("error: name:")
-
-
-def test_an_unattended_turn_is_refused_nobody_is_here_to_give_it(
-    make_client, wait_run, project_dir
-):
-    client, _, pid, cid = setup(make_client, project_dir, [ask(), text("went on")])
-    run_id = run_now(client, trigger(client, pid, cid)["id"])
-    ((_, status, said),) = results(wait_run(client, cid, run_id))
-    assert status == "denied" and "nobody is here to ask" in said
 
 
 # --- Docker: by its name, never its value on the command line -------------------------------

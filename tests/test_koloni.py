@@ -515,7 +515,7 @@ def test_200_files_an_agent_writes_in_the_scratch_run_unasked_and_no_reader_of_c
     from tests.test_take_in_scenarios import repository
 
     repository(project_dir)
-    before, view = git.state(project_dir), ProjectView(project_dir)
+    view = ProjectView(project_dir)
     many = (
         "python -c \"import os; os.makedirs('.koloni/tmp/p', exist_ok=True); "
         "[open(f'.koloni/tmp/p/{n}.txt', 'w').write('x') for n in range(200)]\""
@@ -540,8 +540,8 @@ def test_200_files_an_agent_writes_in_the_scratch_run_unasked_and_no_reader_of_c
         ).stdout
         == ""
     )
-    # The trigger's "nothing changed", the Changes tab, the looks for changes and standing files.
-    assert git.state(project_dir) == before and git.changes(project_dir) == []
+    # The Changes tab, the looks for changes and standing files.
+    assert git.changes(project_dir) == []
     # (`.koloni/.gitignore` alone: KOLONİ's own write, which no CLI's look puts on its record -
     # the test below)
     assert [one[0] for one in view.changes()] == [".koloni/.gitignore"]
@@ -717,25 +717,6 @@ def test_a_command_of_claude_codes_that_names_a_folder_to_run_in_is_asked_at_eve
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert asked["status"] == "proposed"
     assert asked["danger"] == CWD_NOT_KNOWN.format(cwd='".claude"')
-
-
-def test_a_command_with_a_cwd_in_its_input_is_refused_where_nobody_is_there_to_ask(
-    claude_app,
-    wait_run,
-    project_dir,  # noqa: F811
-):
-    from tests.test_claude_native import BASH, NOBODY, unattended
-
-    client, provider, _ = claude_app(
-        [{**BASH, "input": {"command": "pytest -q", "cwd": "sub"}}, {"say": "ok"}]
-    )
-    snap, run, _statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
-    )
-    assert run["status"] == "completed", run
-    (verdict,) = claude_app.record()["asked"]
-    assert verdict["behavior"] == "deny" and NOBODY in verdict["message"]
-    assert snap["commands"] == []
 
 
 def test_a_bash_call_of_claude_codes_own_sub_agent_runs_where_it_is_not_known(

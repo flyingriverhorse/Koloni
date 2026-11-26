@@ -26,8 +26,7 @@ from tests.test_parallel import now_snap, until
 from tests.test_recipe_run_scenarios import answer, asked
 from tests.test_spawn import begin, spawn
 from tests.test_team_requests_scenarios import agent
-from tests.test_triggers import HeldClock, leave, on_loop, run_now, trigger
-from tests.test_triggers import setup as trigger_setup
+from tests.turn_helpers import HeldClock, on_loop
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 SLOW = WATCHED_SLOW_MINUTES * 60.0
@@ -403,15 +402,3 @@ def test_a_sub_agent_has_no_slow_clock(make_client, wait_run, project_dir, gate)
     assert not slow_timers(clock)
     gate.release()
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
-
-
-def test_a_turn_nobody_watches_has_no_slow_clock(make_client, wait_run, project_dir):
-    client, _model, pid, cid = trigger_setup(
-        make_client, project_dir, [text("looked")], permission_mode="full_auto"
-    )
-    clock = client.app.state.runner.call_later = HeldClock()
-    made = trigger(
-        client, pid, cid, permissions=leave(), budget={"steps": 15, "minutes": 60, "per_day": 24}
-    )
-    wait_run(client, cid, run_now(client, made["id"]))
-    assert not [t for t in clock.set if t.delay == SLOW]
