@@ -391,7 +391,7 @@ export function FilesWindow({
   const waiting = [...latest]
     .filter(([, c]) => c.status === 'proposed')
     .map(([key]) => key)
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
   const next = () => show(waiting[(waiting.indexOf(chosen ?? '') + 1) % waiting.length])
   /**
    * A folder asked for (K-shared-bagli: the shared folder, from the canvas's column): it and the folders over it, open -

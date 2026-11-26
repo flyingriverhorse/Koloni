@@ -39,7 +39,7 @@ export function DecidedForYou({ state }: { state: ConvState }) {
   )
   if (count === 0) return said || null
   // (By the time itself, not as the clock says it: a night goes past midnight.)
-  const times = items.map(q => q.answered_at ?? '').sort()
+  const times = items.map(q => q.answered_at ?? '').sort((a, b) => a.localeCompare(b))
   const [from, to] = [clock(times[0]), clock(times.at(-1) ?? null)]
   const span = from === to ? from : `${from}–${to}`
   return (

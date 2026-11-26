@@ -276,7 +276,7 @@ function columnLine(e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edg
 }
 
 /** A talk line's two ends, in one order: who talked with whom, whichever spoke first. */
-const pairOf = (e: GraphEdge) => [e.source, e.target].sort().join('|')
+const pairOf = (e: GraphEdge) => [e.source, e.target].sort((a, b) => a.localeCompare(b)).join('|')
 
 /** Talk on a line: whether it is drawn as talk - one of edges.tsx's lines - and its pair's colour. */
 const talkOf = (e: GraphEdge, drawn: Partial<Edge>, talkHues: Map<string, string>) => ({
@@ -1152,7 +1152,9 @@ export function CanvasView({
         nameOf={nameOf}
         // (Its pair's colour: the line's it was said on - the agents', or the talk line's picked.)
         colourOf={m =>
-          talkHues.get([`agent:${m.from_agent_id}`, `agent:${m.to_agent_id}`].sort().join('|')) ??
+          talkHues.get(
+            [`agent:${m.from_agent_id}`, `agent:${m.to_agent_id}`].sort((a, b) => a.localeCompare(b)).join('|'),
+          ) ??
           (talkEdge && talkHues.get(pairOf(talkEdge))) ??
           'var(--accent)'
         }

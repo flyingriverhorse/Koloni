@@ -116,7 +116,10 @@ function talkLine(e: GraphEdge, messages: number, drawn: Set<string>, folded: Fo
   if (!source || !target || source === target) return
   // (Several on one way, one line: they add up, its last words the newest.)
   const same = edges.find(
-    one => one.messages && [one.source, one.target].sort().join() === [source, target].sort().join(),
+    one =>
+      one.messages &&
+      [one.source, one.target].sort((a, b) => a.localeCompare(b)).join() ===
+        [source, target].sort((a, b) => a.localeCompare(b)).join(),
   )
   if (!same) edges.push({ ...e, id: `${e.id}@${source === e.source ? target : source}`, source, target, cross: false })
   else
