@@ -20,7 +20,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import git
+from app import git, raw
 from app.commands import _commands_in, _git_sub, _program
 from app.db.models import Agent, Run
 
@@ -200,22 +200,25 @@ def titled(text: str, secrets: Iterable[str] = ()) -> str:
     """R2: a To-do task's line - which an agent may have written (the Scout) - as a commit's subject
     or a pull request's title says it: no control or format character (a line break, a bidi
     override), each of `secrets` masked - before the joiner could split one - and a zero-width
-    joiner after each `@` that would mention someone and each `#` a closing keyword would close
-    (`Fixes #12`, L-3). The rest as written: a link's or code's marks there are only text."""
+    joiner after each `@` that would mention someone and before each issue's number a closing
+    keyword would close (`Fixes #12`, `Fixes GH-9`, an issue's link: L-3). The rest as written: a
+    link's or code's marks there are only text."""
     shown = "".join(ch for ch in text if unicodedata.category(ch) not in ("Cc", "Cf"))
     for one in filter(None, secrets):
         shown = shown.replace(one, "***")
     return _MENTION.sub("@\u200d", _CLOSES.sub("\\1\u200d", shown))
 
 
-# L-3: a closing keyword before an issue's number (`Fixes #12`, `closes owner/repo#3`), which
-# GitHub acts on from a commit's message or a pull request's words.
+# L-3: a closing keyword before an issue's number (`Fixes #12`, `closes owner/repo#3`, `Fixes GH-9`,
+# `fixes https://github.com/o/r/issues/8`), which GitHub acts on from a commit's message or a pull
+# request's words - after no letter or digit (`_fixes #10`), its space perhaps gone (a tab dropped).
 _CLOSES = re.compile(
-    r"(?i)\b((?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b[\s:]+(?:[\w.-]+/[\w.-]+)?#)(?=\d)"
+    r"(?i)(?<![^\W_])((?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b[\s:]*"
+    r"(?:(?:[\w.-]+/[\w.-]+)?#|gh-|https?://\S+?/issues/))(?=\d)"
 )
 # D2's team pull request: its body (`AgentRunner._pull_request`). What an agent wrote - its task's
-# name, the files' names, its notes - goes in fenced (`fenced`, L-3): no @mention, closing keyword
-# or link of it is read by GitHub.
+# name, the files' names, the check, its notes, the role's name - goes in fenced (`fenced`, L-3): no
+# @mention, closing keyword or link of it is read by GitHub.
 TEAM_PR_BODY = (
     "{task}\n\nMade by KOLONİ's agents ({name}) on the branch `{branch}`, pushed as one "
     "commit.\n\n### Changed files\n{files}\n\n### Check\n{check}\n\n"
@@ -224,22 +227,31 @@ TEAM_PR_BODY = (
 TEAM_PR_NOTES = 4000
 
 
-def fenced(text: str) -> str:
-    """`text` as a code block whose fence is longer than any run of backticks in it."""
+def fenced(text: str, inline: bool = False) -> str:
+    """`text` as a code block whose fence is longer than any run of backticks in it - or, `inline`,
+    as code on one line (in a sentence, a heading)."""
     longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    if inline:
+        return f"{'`' * (longest + 1)} {' '.join(text.split())} {'`' * (longest + 1)}"
     fence = "`" * max(3, longest + 1)
     return f"{fence}\n{text}\n{fence}"
 
 
-def team_pr_body(task: str, name: str, branch: str, files: dict, check: str, notes: str) -> str:
-    """A team's pull request's body (`TEAM_PR_BODY`): its task, files and notes fenced."""
+def team_pr_body(
+    task: str, name: str, branch: str, files: dict, check: str, notes: str, secrets: list[str]
+) -> str:
+    """A team's pull request's body (`TEAM_PR_BODY`): `secrets` masked out of all it says - its
+    notes before they are cut -, what an agent wrote fenced."""
     listed = "\n".join(f"{path} ({letter})" for path, letter in list(files.items())[:200])
+    task, name, branch, listed, check, notes = (
+        raw.hide(one, secrets) for one in (task, name, branch, listed, check, notes)
+    )
     return TEAM_PR_BODY.format(
         task=fenced(task),
-        name=name,
+        name=fenced(name, inline=True),
         branch=branch,
         files=fenced(listed),
-        check=check,
+        check=fenced(check),
         notes=fenced(notes[:TEAM_PR_NOTES] or "(none)"),
     )
 

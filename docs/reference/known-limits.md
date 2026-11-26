@@ -183,9 +183,16 @@ messages.
   and its name: one an agent wrote base64'd, reversed, or split across files or in parts is not
   found. A saved key made of lowercase words alone (a provider's `not-needed`, `correct-horse`) is
   not looked for, nor a file's path given under a secret's name (`GOOGLE_APPLICATION_CREDENTIALS`,
-  `*_FILE`); of an MCP server's variables, and the environment's, only those a secret's name or a
-  secret's shape holds (`..._TOKEN`, `..._KEY`, a password; `ghp_…`, `sk-…`, a password in an
-  address).
+  `*_FILE`); of an MCP server's variables, and the environment's (what a project passes to its
+  commands among them), only those a secret's name or a secret's shape holds (`..._TOKEN`,
+  `..._KEY`, a password; `ghp_…`, `sk-…`, a password in an address) - and the token or the
+  address's password such a value holds alone, unless it reads as a word
+  (`postgres://postgres:postgres@…` makes no secret of `postgres`). A key whose shape KOLONİ does
+  not know - it knows GitHub's, `sk-…`, Slack's, AWS's, a JWT, GitLab's `glpat-…`, Google's
+  `AIza…`, Hugging Face's `hf_…`, npm's `npm_…` and Stripe's `sk_live_…` - is looked for only by
+  its variable's name. A word under a secret's name is a secret all the same
+  (`POSTGRES_PASSWORD=postgres`): a file holding it (`psycopg2  # postgresql driver`) is left out
+  of KOLONİ's commit and stays in the branch's worktree - never deleted - and KOLONİ says which.
 - If anything in the job's copy changed after a line was parked, **Run** does not run it - so a test
   line parked early in a job is usually closed by the work after it: run it yourself. What stays out
   of that look: the dependency folders a copy links to the project's own (`node_modules`, `.venv`,

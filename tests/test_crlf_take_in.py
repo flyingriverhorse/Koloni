@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import copies
+from app import copies, git
 from tests.test_agent_writes import edit
 from tests.test_away_branch_scenarios import branch_night, repo  # noqa: F401  (a fixture)
 from tests.test_chat_flow import text
@@ -75,3 +75,16 @@ def test_line_ends_are_turned_only_where_git_stores_them_alike(
     git_run(repo, "config", "core.autocrlf", autocrlf)
     copy = SimpleNamespace(branch="koloni/x", project=repo, names={})
     assert copies.Copy.ends_kept(copy, "f.txt", project, agents, []) == (project, taken)
+
+
+def test_where_git_says_nothing_the_texts_are_not_alike(tmp_path, monkeypatch):
+    # (the review: git timed out or did not start - `Refused` reached Take in's look)
+    repo = tmp_path / "r"
+    repo.mkdir()
+    git_run(repo, "init", "-q")
+
+    def refused(*_args, **_kwargs):
+        raise git.Refused("git did not answer")
+
+    monkeypatch.setattr(git, "_fed", refused)
+    assert copies._stored_alike(repo, "f.txt", b"a\n", b"a\r\n") is False

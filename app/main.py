@@ -335,19 +335,6 @@ def loose_values(factory) -> list[str]:
     ]
 
 
-def passed_values(factory, project: Path | None) -> list[tuple[str, str]]:
-    """MEDIUM-2: the variables - name, value - the project at folder `project` passes to its
-    commands (`pass_env`: what an agent can see; `secret_set.checked`) - no other project's."""
-    if project is None:
-        return []
-    with factory() as session:
-        rows = session.execute(select(Project.root_path, Project.pass_env)).all()
-    names = next(
-        (passed or "" for root, passed in rows if Path(root).resolve() == project.resolve()), ""
-    ).split(",")
-    return [(name.strip(), value) for name in names if (value := os.environ.get(name.strip()))]
-
-
 def create_app(
     settings: Settings,
     model: ModelClient | None = None,
@@ -493,7 +480,6 @@ def create_app(
         ],
         lambda: loose_values(factory),
     )
-    secret_set.passed = lambda project: passed_values(factory, project)
     app.state.bus = EventBus(factory)
     # Set by the server's exit signal (`ClosingServer`): the page's open streams end on it.
     app.state.closing = asyncio.Event()

@@ -5681,10 +5681,10 @@ _SECRET_PARTS = frozenset(
 # Secrets that are known by their shape, wherever they come from.
 _TOKENS = re.compile(
     # (`sk-` with a digit in it, and not inside a word: `task-runner-...` is no key)
-    r"\b(?:(?<![\w-])sk-(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{20,}"
-    r"|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}"
-    r"|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}"
-    r"|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})"
+    r"\b(?:(?<![\w-])sk-(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9]{36}"
+    r"|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|glpat-[A-Za-z0-9_-]{20,}"
+    r"|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[A-Za-z0-9_-]{35}|hf_[A-Za-z0-9]{30,}"
+    r"|[rs]k_live_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})"
 )
 _BEARER = re.compile(r"(\bBearer[ \t]+)[A-Za-z0-9._~+/=-]{16,}", re.IGNORECASE)
 _ADDRESS_PASSWORD = re.compile(r"(://[^\s:/@]*:)[^\s@/]+(@)")  # `redis://:pass@` too

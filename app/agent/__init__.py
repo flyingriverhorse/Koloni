@@ -4137,11 +4137,11 @@ class AgentRunner(
             if check
             else "the project has no check command"
         )
-        body = away_branch.team_pr_body(first, ctx.name, branch, look["files"], tested, notes)
-        title = first
-        for one in copy.every_secret():  # (MEDIUM-2: its files' names too, MEDIUM-3)
-            if one:
-                body, title = body.replace(one, "***"), title.replace(one, "***")
+        known = copy.every_secret()  # (MEDIUM-2: its files' names too, MEDIUM-3)
+        body = away_branch.team_pr_body(
+            first, ctx.name, branch, look["files"], tested, notes, known
+        )
+        title = raw.hide(first, known)
         if sent.get("tip") == look["tip"]:
             sha = sent["sha"]  # (pushed already: only the pull request failed - opened again)
         else:

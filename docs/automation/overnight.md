@@ -109,8 +109,8 @@ there as it goes. How Go away finds the project decides it, once for every job:
   the same card as a copy's, file by file. Nothing of it goes into your project by itself, at Full auto
   too. A file that holds a secret KOLONİ knows - in its content or its name: a provider key you saved,
   an MCP server's variable a secret's name holds, the page's key, one of the environment's, one given
-  on a card, or any value with a secret's shape (`ghp_…`, `sk-…`, a password in an address) - is left
-  out of that commit and stays in the job's worktree only; the job's chat and its push row say which
+  on a card, or any value with a secret's shape (`ghp_…`, `sk-…`, a password in an address) and the
+  token or password it holds alone - is left out of that commit and stays in the job's worktree only; the job's chat and its push row say which
   ("· left out: conf.txt (holds a secret KOLONİ knows)"), and the rest of the work goes on. Such a
   secret never deletes the job's work: only a secret given on a card during the job, which an agent
   committed on the branch itself, has the branch deleted, and the chat says so.

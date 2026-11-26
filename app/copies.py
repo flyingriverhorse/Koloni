@@ -798,7 +798,7 @@ class Copy:
         commit, merge and push for (`secret_set.checked`), as they are looked for."""
         from app import secret_set  # (here: app.secret_set reads app.commands, which reads this)
 
-        return secret_set.checked(self.secrets(), self.project)
+        return secret_set.checked(self.secrets())
 
     def changes(
         self, base: dict[str, str] | None = None, names: dict[str, str] | None = None
@@ -1127,28 +1127,28 @@ def _stored_alike(project: Path, path: str, one: bytes, other: bytes) -> bool:
     repository's run (`git._no_filters`). False where git does not say."""
     from app import git  # (here: git's executors import commands, which imports this)
 
+    found = set()
     try:
         exe, _folder = git.repository(project)
         off = git._no_filters(project, exe, git.SHORT_SECONDS)
-    except git.Refused:
+        for data in (one, other):
+            code, out, _said = git._fed(
+                project,
+                exe,
+                data,
+                *git.UNASKED,
+                "hash-object",
+                f"--path={path}",
+                "--stdin",
+                seconds=git.SHORT_SECONDS,
+                **git.UNASKED_ENV,
+                **off,
+            )
+            if code != 0:
+                return False
+            found.add(out.strip())
+    except git.Refused:  # (git timed out or did not start)
         return False
-    found = set()
-    for data in (one, other):
-        code, out, _said = git._fed(
-            project,
-            exe,
-            data,
-            *git.UNASKED,
-            "hash-object",
-            f"--path={path}",
-            "--stdin",
-            seconds=git.SHORT_SECONDS,
-            **git.UNASKED_ENV,
-            **off,
-        )
-        if code != 0:
-            return False
-        found.add(out.strip())
     return len(found) == 1
 
 

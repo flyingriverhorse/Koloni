@@ -28,16 +28,16 @@ pytestmark = needs_git
 TOKEN = "tok-0123456789abcdef-mcp-value"
 
 
-def night(make_client, wait_run, repo, steps, env, before=True):
+def night(make_client, wait_run, repo, steps, env, before=True, plan=ONE):
     """An Away night in `repo` with an origin whose one job plays `steps`, an MCP server with `env`
-    saved before it (or, not `before`, after it): (client, the night, the job, its push row,
-    origin)."""
+    saved before it (or, not `before`, after it), `plan` the Scout's: (client, the night, the job,
+    its push row, origin)."""
     origin = origin_of(repo)
     client, _model, pid, cid, run_id = evening(
         make_client,
         repo,
         steps,
-        plan=ONE,
+        plan=plan,
         check_command=f"{sys.executable} check.py",
         lead_work="itself",
     )
@@ -168,3 +168,16 @@ def test_the_pushed_commits_subject_is_the_task_name_mentioning_nobody(make_clie
     )
     subject = got.stdout.decode("utf-8").strip()  # (as written: a zero-width joiner in it)
     assert subject == titled(TITLE) and "@octocat" not in subject
+
+
+def test_a_secret_where_the_jobs_commit_subject_is_cut_is_masked_whole(
+    make_client, wait_run, repo, monkeypatch
+):
+    # (masked, then cut at 72 characters: its head went into the job's commit before)
+    monkeypatch.setenv("NIGHT_TOKEN", TOKEN)
+    plan = {"jobs": [{"title": "t" * 60 + " " + TOKEN}], "kept_out": []}
+    steps = [write("out.txt", "work\n", "w1"), text("one done")]
+    night(make_client, wait_run, repo, steps, {}, plan=plan)
+    (branch,) = run(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/koloni/").split()
+    subject = run(repo, "log", "-1", "--format=%s", branch)
+    assert TOKEN[:8] not in subject and "t" * 60 in subject, subject

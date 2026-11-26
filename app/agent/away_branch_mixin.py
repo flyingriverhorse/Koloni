@@ -250,9 +250,9 @@ class AwayBranchMixin:
         held = record.get("away")
         if copy is None or not copy.branch or copy.start is None or not isinstance(held, dict):
             return
-        first = ((task.title if task else "").strip().splitlines() or [copy.branch])[0][:72]
-        for one in copy.every_secret():  # (no secret KOLONİ checks goes into a commit's message)
-            first = first.replace(one, "***") if one else first
+        first = ((task.title if task else "").strip().splitlines() or [copy.branch])[0]
+        # (no secret KOLONİ checks, nor a mention, goes into a commit's message - masked, then cut)
+        first = away_branch.titled(first, copy.every_secret())[:72]
         try:
             left = await self._commit_line(ctx, copy, first)
         except git.Refused as exc:  # (its worktree on another branch now: a plain copy)
@@ -394,7 +394,7 @@ class AwayBranchMixin:
         if on_branch is None:
             return {"state": "refused", "why": TAKEN}
         # (S1, MEDIUM-2: the set a branch's merge and push look for)
-        known = secret_set.checked(project=Path(what["root"]))
+        known = secret_set.checked()
         # (no secret KOLONİ knows, nor a mention, goes up in a commit's message or a PR's words: R2)
         what["title"] = away_branch.titled(what["title"], known)[:72]
         for one in known:
