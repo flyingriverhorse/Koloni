@@ -393,7 +393,7 @@ class ClosedToAgents(NotListed):
 
 class SwitchedOff(ClosedToAgents):
     """The user switched the provider, or this model of it, off on the Models page: nobody uses
-    it - no chat, no agent, no Observer, no learning - until it is switched on again. A stronger
+    it - no chat, no agent, no learning - until it is switched on again. A stronger
     "closed to agents": the Lead and the chat are held to it too."""
 
 

@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from sqlalchemy import func, literal_column, or_, select, text
 from sqlalchemy.orm import Session
 
-from app import board, injection, knowledge, knows, observer, team_requests, web
+from app import board, earlier, injection, knowledge, knows, team_requests, web
 from app import memory as kept
 from app import room as rooms
 from app.agent.cards import _answer, _places, lead_pick
@@ -48,7 +48,6 @@ from app.providers import NotListed, allowed, ask_once, mode_of
 from app.roles import (
     LEARN,
     LOOKUP,
-    agent_roles,
     chat_teams,
     check_name,
     check_tools,
@@ -57,6 +56,7 @@ from app.roles import (
     find_role,
     is_team_lead,
     landing_kind,
+    list_roles,
 )
 from app.schemas import Knowledge
 from app.serialize import (
@@ -1932,7 +1932,7 @@ class RoomsMixin:
             named, door = self._names_past(session, ctx), self._door(session, room.lead)
             have = {member.ctx.role.casefold() for member in room.members.values()}
             roles = []
-            for role in agent_roles(session):
+            for role in list_roles(session):
                 if role.name.casefold() in have or closed(role, door, named):
                     continue
                 with contextlib.suppress(ValueError, OwnStop):
@@ -2000,7 +2000,7 @@ class RoomsMixin:
             model_id = lead.model_name or (await lead.model.info()).model_id
             asking = replace(lead, model_name=model_id)
             try:
-                async with asyncio.timeout(observer.SECONDS):
+                async with asyncio.timeout(earlier.SUMMARISER_SECONDS):
                     said, answer = await ask_once(lead.model, model_id, asked)
             except BaseException:
                 self._own_request(lead, asking, mode_of(provider), None)  # sent, not heard out

@@ -44,7 +44,7 @@ from app.db.models import (
 )
 from app.discussion import MEMORY_HEAD
 from app.providers import list_providers
-from app.roles import LEAD, ORCHESTRATOR, agent_roles, closed, pickable, team_roles, tools_off
+from app.roles import LEAD, ORCHESTRATOR, closed, list_roles, pickable, team_roles, tools_off
 from app.schemas import RecipeAgents, RecipeGraph
 from app.serialize import board_post_out, message_out
 from app.team import guide, quoted
@@ -243,7 +243,7 @@ class TalkMixin:
                     for row, team in self._runs(session, ctx)
                 )
                 named = self._names_past(session, ctx)
-                roles = [role for role in agent_roles(session) if not closed(role, door, named)] + [
+                roles = [role for role in list_roles(session) if not closed(role, door, named)] + [
                     lead for _r, _t, lead in self._rows(session, ctx.cid) if lead and not ctx.depth
                 ]
             # Lead decides (slice 84b): the Lead at its own work picks the chat's teams.

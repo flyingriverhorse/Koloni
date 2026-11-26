@@ -1653,8 +1653,7 @@ def test_every_role_has_the_memory_tools_and_they_are_no_work():
     assert ALL_TOOLS[-2:] == NEW_TOOLS and COLLABORATION_TOOLS[-2:] == NEW_TOOLS
     assert set(NEW_TOOLS) <= NOT_WORK
     for name, spec in BUILTIN_ROLES.items():
-        # (but the Observer: it is asked with no tools at all - slice 33b)
-        assert spec.tools[-2:] == NEW_TOOLS or (name, spec.tools) == ("Observer", ()), name
+        assert spec.tools[-2:] == NEW_TOOLS, name
     from app.tools import RECALL_SCHEMA, REMEMBER_SCHEMA
 
     assert list(REMEMBER_SCHEMA["function"]["parameters"]["properties"]) == [

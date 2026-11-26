@@ -60,8 +60,6 @@ def test_built_in_roles_match_the_design():
         # slice 52
         "Hive keeper",
         "Scout",
-        # slice 33b: asked by KOLONİ itself, with no tools
-        "Observer",
         # K-takim-duzen
         "Data engineer",
         "ML engineer",
@@ -163,7 +161,6 @@ def test_built_in_roles_match_the_design():
         *NOTEBOOK,
         *MEMORY,
     ]
-    assert tools["Observer"] == []
 
     # K-takim-duzen: each takes an existing role's tools as they are - slice 51's browser aside,
     # which only the six roles that try a page hold, and K-drawio's diagrams, the five's
@@ -202,7 +199,6 @@ def test_built_in_roles_match_the_design():
         "Summarizer": "write",
         "Hive keeper": "plan",
         "Scout": "plan",
-        "Observer": "check",
         # K-takim-duzen: the Data, ML and Ops categories; the Model evaluator checks
         "Data engineer": "data",
         "ML engineer": "ml",
@@ -224,8 +220,8 @@ def test_built_in_roles_exist_after_startup(client):
     listed = client.get("/api/roles").json()
     # (Then migration 0103's two experts: the user's own roles.)
     assert [r["name"] for r in listed] == [*BUILTIN_ROLES, "MLflow expert", "Databricks expert"]
-    assert len(BUILTIN_ROLES) == 32
-    assert all(r["builtin"] and not r["created_by_agent"] for r in listed[:32])
+    assert len(BUILTIN_ROLES) == 31
+    assert all(r["builtin"] and not r["created_by_agent"] for r in listed[:31])
     assert roles(client)["Reviewer"]["tools"] == [
         *READ,
         "ask_user",

@@ -127,7 +127,7 @@ def hide(text: str, secrets: Iterable[str]) -> str:
 
 def hidden(text: str) -> str:
     """Text with every secret KOLONİ knows now masked - for what is sent out of the raw
-    stream too (the Observer's request: `app.observer`)."""
+    stream too (a task's changes as the Scout is given them: `handoff.diffs`)."""
     return hide(text, _known())
 
 

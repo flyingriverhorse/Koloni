@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 
-from app import away, backlog
+from app import away, backlog, handoff
 from app.agent import recover_interrupted
 from app.db import models
 from app.db.models import BacklogTask, Run
@@ -392,3 +392,30 @@ def test_an_approved_proposal_makes_its_story_the_users_and_its_row_names_it(cli
     assert client.patch(f"/api/backlog/{moved['id']}", json={"story_id": None}).status_code == 200
     with client.app.state.session_factory() as session:
         assert [s.title for s in session.query(models.Story).all()] == ["Login"]
+
+
+def test_a_tasks_changes_for_the_scout_are_masked_and_kept_to_one_budget(monkeypatch):
+    """`diffs` (the Observer's once, the Scout's now): each change quoted with its path, every
+    secret KOLONİ knows masked before the cut, and the rest left out once the budget is spent."""
+    from types import SimpleNamespace
+
+    from app import raw
+    from app.memory import CUT
+
+    monkeypatch.setattr(raw, "_known", lambda fresh=False: ["T0-SECRET-abcdef"])
+    monkeypatch.setattr(handoff, "DIFF_CHARS", 45)  # a.txt's header and its first word
+
+    def change(path, after):
+        return SimpleNamespace(
+            path=path, kind="add", status="applied", before_content="", after_content=after
+        )
+
+    seen = handoff.diffs(
+        [
+            change("a.txt", "T0-SECRET-abcdef is it"),
+            change("b.txt", "B-LINE"),
+        ]
+    )
+    assert "T0-SECRET" not in seen and "***" in seen
+    assert seen.startswith('"a.txt" (add, applied): ') and "b.txt" not in seen
+    assert seen.endswith(CUT)

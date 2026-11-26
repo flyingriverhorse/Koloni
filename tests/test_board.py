@@ -103,18 +103,14 @@ def test_migration_0014_and_back(tmp_path):
 def test_every_built_in_role_may_use_the_notebook():
     assert list(ALL_TOOLS[-4:-2]) == NOTEBOOK  # the memory tools came after
     for name, spec in BUILTIN_ROLES.items():
-        # (but the Observer: it is asked with no tools at all - slice 33b)
-        assert list(spec.tools[-4:-2]) == NOTEBOOK or (name, spec.tools) == ("Observer", ()), name
+        assert list(spec.tools[-4:-2]) == NOTEBOOK, name
     assert check_tools(["read_notes", "read_file", "post_note"]) == ["read_file", *NOTEBOOK]
 
 
 def test_a_new_database_has_the_notebook_in_every_role(client):
     # (0103's experts, roles of the user's own, have the notebook as the page makes one: no remember.)
     for role in [r for r in client.get("/api/roles").json() if not r["knows"]]:
-        assert role["tools"][-4:-2] == NOTEBOOK or (role["name"], role["tools"]) == (
-            "Observer",
-            [],
-        ), role["name"]
+        assert role["tools"][-4:-2] == NOTEBOOK, role["name"]
 
 
 # --- writing a note -------------------------------------------------------------------

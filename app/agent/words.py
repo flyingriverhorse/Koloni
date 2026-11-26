@@ -5,7 +5,6 @@ A constant only one module reads lives in that module; one read by several lives
 
 from sqlalchemy import select
 
-from app import observer
 from app.command_runner import CARRY_ON
 from app.commands import CANARY
 from app.db.models import RoomMember
@@ -171,7 +170,11 @@ NATIVE_NEEDS_A_FOLDER = (
 
 # How a change is on record that is found in the project while a CLI works in a copy: it
 # may be the CLI's, or the user's or another agent's (K-70-kimin; Undo this turn skips it).
-IN_THE_PROJECT = observer.IN_THE_PROJECT  # (which the Observer's record leaves out)
+# Not the agent's work, so not in its record either: what the user wrote goes to no model.
+IN_THE_PROJECT = (
+    "changed in the project itself, outside the CLI's working copy, while it "
+    "worked: by the CLI or by someone else - who changed it is not known"
+)
 
 # How often failing tests send work back in a turn (the Take-in check's own, the end check's -
 # `ProofMixin`), and how much of the end of their output goes with it.
