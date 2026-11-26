@@ -41,8 +41,6 @@ const project: Project = {
   judge_risky: 'refuse',
   disposable_deletes: false,
   memory_links: [],
-  embedding_provider_id: null,
-  embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -578,15 +576,7 @@ test('a chosen section alone is shown, each field under its label as before', as
     [/^Asking and away/, ['Opening a sub-agent', 'When you’re away', /^It also lets a delete or a push run/]],
     [/^New chats start with/, ['New chats’ teams', 'Posts, at most', 'Minutes, at most', 'Tokens, at most']],
     [/^Checks/, ['After a change', /^Save each sub-agent’s work as a git commit/]],
-    [
-      /^Memory and web/,
-      [
-        /^Note what the work found, by itself/,
-        'Search by meaning with',
-        'Search address (SearXNG)',
-        'Otherwise search with',
-      ],
-    ],
+    [/^Memory and web/, [/^Note what the work found, by itself/, 'Search address (SearXNG)', 'Otherwise search with']],
     [/^Notifications/, [/^Show a desktop notification/, 'Send the day’s summary at']],
     [
       /^Limits and money/,

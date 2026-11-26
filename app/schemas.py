@@ -227,11 +227,8 @@ class ProjectOut(Out):
     # Whether a fast model is asked, after each turn that completed, what the turn found.
     auto_notes: bool
     # 22c: the other projects whose memory and earlier turns `recall` also looks in (ids),
-    # read only; the provider whose server embeds for a search by meaning (null: off) and
-    # the model name it is asked for.
+    # read only.
     memory_links: list[str]
-    embedding_provider_id: str | None
-    embedding_model: str
     # Whether the Scout proposes follow-up tasks after a turn, and on which tier.
     suggest_tasks: bool
     suggest_tier: "Tier"
@@ -355,10 +352,6 @@ class ProjectPatch(BaseModel):
     auto_notes: bool | None = None
     # 22c. Left out: kept as it is. The whole list of project ids, as it is to be.
     memory_links: list[str] | None = Field(default=None, max_length=50)
-    # Sent as null to switch the search by meaning off; left out to keep it.
-    embedding_provider_id: str | None = Field(default=None, max_length=32)
-    # Left out: kept as it is. Empty: the default model name.
-    embedding_model: str | None = Field(default=None, max_length=200)
     suggest_tasks: bool | None = None
     suggest_tier: "Tier | None" = None
     # Left out: kept as it is. The whole list, as it is to be.
@@ -4031,8 +4024,6 @@ class MemoryOut(BaseModel):
     source_state: Literal["unchanged", "changed", "moved", "none", "elsewhere"]
     # 22c: the name of the linked project a found record is from; null for this project's.
     from_project: str | None = None
-    # 22c: found by the search by meaning, not by its words.
-    by_meaning: bool = False
     found_at: MemoryFoundAt | None
     # The noted lines as they are on disk now, cut to a size; null when there is no file
     # or nothing can be read there.
@@ -4156,7 +4147,6 @@ class SaidOut(Out):
     trigger: bool  # said in a turn nobody watched: a trigger's
     # 22c: the name of the linked project it was said in; null for this project's own.
     project: str | None = None
-    by_meaning: bool = False
 
 
 class MemorySearchOut(BaseModel):
@@ -4165,9 +4155,6 @@ class MemorySearchOut(BaseModel):
 
     memory: list[MemoryOut]
     turns: list[SaidOut]
-    # 22c: why the search by meaning did not run, when a provider is chosen for it and it
-    # did not ("search by meaning is off: …"); null otherwise.
-    meaning_off: str | None = None
 
 
 class MemoryIn(BaseModel):

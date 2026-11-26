@@ -59,21 +59,16 @@ async def read_memory(project_id: str, session: Session = Depends(get_session)):
 @router.get("/projects/{project_id}/memory/search", response_model=MemorySearchOut)
 def search_memory(project_id: str, q: str = "", session: Session = Depends(get_session)):
     """What an agent's `recall` would find for these words: the same searches, so the
-    user sees what an agent would be shown. Words that say nothing find nothing. (Not
-    async: a search by meaning asks a server, 22c.)"""
+    user sees what an agent would be shown. Words that say nothing find nothing."""
     project = _project(session, project_id)
     query = kept.one_line(q)[: kept.MAX_QUERY]
-    also = kept.also(session, project, query)
+    also = kept.also(session, project)
     return {
         "memory": [
-            {
-                **kept.out(session, project.root_path, record, also.linked.get(record.project_id)),
-                "by_meaning": record.id in also.by_meaning,
-            }
+            kept.out(session, project.root_path, record, also.linked.get(record.project_id))
             for record in kept.matching(session, project, query, also=also)
         ],
         "turns": earlier.found(session, project.id, query, also),
-        "meaning_off": also.off,
     }
 
 

@@ -12,13 +12,13 @@
 3436 app/agent/spawn_mixin.py
 1696 app/browser.py
 6746 app/commands.py
-1832 app/db/models.py
+1811 app/db/models.py
 4112 app/git.py
 2950 app/knowledge.py
-2038 app/memory.py
+2013 app/memory.py
 5734 app/model_native.py
 1984 app/proof_kinds.py
-4966 app/schemas.py
+4953 app/schemas.py
 1841 app/tools.py
 1564 frontend/src/agents/RecipesTab.tsx
 1582 frontend/src/canvas/deriveGraph.ts

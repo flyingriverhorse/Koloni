@@ -143,15 +143,6 @@ def back_up_daily(db_path: Path, at: datetime | None = None) -> None:
             part.unlink(missing_ok=True)
 
 
-# A vector nothing can find any more (`app.meaning`): its project, its record or its model gone.
-STALE_VECTORS = (
-    "DELETE FROM embeddings WHERE project_id NOT IN (SELECT id FROM projects)",
-    "DELETE FROM embeddings WHERE kind = 'memory' AND record_id NOT IN (SELECT id FROM memories)",
-    "DELETE FROM embeddings WHERE kind = 'turn' AND NOT EXISTS (SELECT 1 FROM said_in_turns "
-    "WHERE said_in_turns.rowid = CAST(embeddings.record_id AS INTEGER))",
-    # (A linked project's records are kept under the model of the project that asked.)
-    "DELETE FROM embeddings WHERE model NOT IN (SELECT embedding_model FROM projects)",
-)
 # An event is kept for a page that reconnects (`EventBus.replay`, after the snapshot it loaded):
 # the page itself is drawn from the tables, never from old events. Kept all the same: injection
 # warnings (`app.injection` lists them all) and the newest, whose id SQLite would hand out again.
@@ -166,13 +157,12 @@ VACUUM_FREE_SHARE = 0.25
 
 
 def tidy_db(db_path: Path) -> None:
-    """At the start, nothing running yet (0.1.0-hijyen): stale vectors and old events deleted,
+    """At the start, nothing running yet (0.1.0-hijyen): old events deleted,
     then the file compacted where much of it is free. Two pragmas when there is nothing to do."""
     conn = sqlite3.connect(db_path)
     try:
         with conn:
-            for statement in (*STALE_VECTORS, OLD_EVENTS):
-                conn.execute(statement)
+            conn.execute(OLD_EVENTS)
         (pages,), (free,), (size,) = (
             conn.execute(f"PRAGMA {name}").fetchone()
             for name in ("page_count", "freelist_count", "page_size")

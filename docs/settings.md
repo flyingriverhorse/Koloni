@@ -167,7 +167,6 @@ Before a sub-agent's work is added, the tests it wrote or changed run in its wor
 | Setting | What it does |
 |---|---|
 | **Note what the work found, by itself** | After each message's work, a fast model writes at most three notes of what it found. One more model request after every message. Off by default. See [Memory](memory.md). |
-| **Search by meaning with** | The provider whose server embeds the memory for the search by meaning, and its **Embedding model**; off, the search goes by words alone. One embeddings request for each search. The Memory page sets it too. |
 | **Also look in the memory of** | Tick other projects. Agents' look-ups and your deep search find their memory too. |
 | **Search address (SearXNG)** | Your own SearXNG server, for example `http://localhost:8888`. An agent's web search asks it first; turn on its JSON format. When it does not answer, the search goes on as below and says so. |
 | **Otherwise search with** | **The built-in search first, then a CLI** or **A CLI first, then the built-in search**. |

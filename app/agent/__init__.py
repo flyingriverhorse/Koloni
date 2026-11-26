@@ -6294,7 +6294,7 @@ class AgentRunner(
                 ),
             )  # (a job's lines are its copy's: the project has not changed)
         elif request.name == "recall":
-            # (In a thread: a search by meaning asks a server, 22c.)
+            # (In a thread: it reads the memory and the index of earlier turns.)
             status, output = "succeeded", await asyncio.to_thread(self._recall, ctx, args)
         elif request.name in BACKLOG_TOOLS:
             status, output = "succeeded", self._backlog(ctx, request.name, args)

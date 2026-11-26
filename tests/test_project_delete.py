@@ -1,5 +1,5 @@
 """A project deleted from KOLONİ (Settings › This project): every row of it goes in one go - its
-chats with their turns, memory, knowledge, To-do, nights, usage, vectors - and another
+chats with their turns, memory, knowledge, To-do, nights, usage - and another
 project's rows and the app's own stay. Its folder on disk, .koloni/ too, is never touched. Not
 while anything of it is at work, and only from the app's own page."""
 
@@ -12,7 +12,6 @@ from app.db.models import (
     AwayRun,
     BacklogTask,
     Base,
-    Embedding,
     Memory,
     Merge,
     Project,
@@ -43,10 +42,6 @@ def made(client, wait_run, root, factory) -> tuple[str, str, str]:
         known = ProjectKnowledge(project_id=pid, topic="Pay", sources=[], max_pages=1, max_usd=1)
         session.add_all(
             [note, known, BacklogTask(project_id=pid, title="do it", position=0, created_by="user")]
-        )
-        session.flush()
-        session.add(
-            Embedding(kind="memory", record_id=note.id, project_id=pid, model="m", vector=[1.0])
         )
         session.commit()
         return pid, cid, known.id

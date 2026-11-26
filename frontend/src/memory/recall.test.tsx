@@ -2,7 +2,6 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, onTestFinished, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
-import type { Project, Provider } from '../api/types'
 import { useApp } from '../state/store'
 import { conversation, convState, memoryRecord, projectMemory, run } from '../test-fixtures'
 import { MemoryPage } from './MemoryPage'
@@ -98,7 +97,7 @@ test('a newer search is never overwritten by an older one’s answer, and the an
 
 test('Enter searches deeper, as an agent’s recall does: the memory, and what earlier messages said, each in its own group', async () => {
   const onSearch = vi.fn().mockResolvedValue({
-    memory: [{ ...auto, by_meaning: true }],
+    memory: [auto],
     turns: [
       {
         who: 'You',
@@ -130,8 +129,6 @@ test('Enter searches deeper, as an agent’s recall does: the memory, and what e
   await userEvent.type(screen.getByLabelText(BOX), '  greeting  {Enter}')
   expect(onSearch).toHaveBeenCalledWith('greeting')
   const memory = await within(search()).findByRole('list', { name: 'What an agent would find in the memory' })
-  // found by meaning: the words on the page would not have found it
-  expect(memory).toHaveTextContent('by meaning')
   expect(memory).toHaveTextContent('hello.py prints the greeting at start.')
   const said = within(within(search()).getByRole('list', { name: 'In earlier messages' })).getAllByRole('listitem')
   expect(said[0]).toHaveTextContent('“How is the greeting spelled?”')
@@ -223,15 +220,14 @@ test('come from Ctrl+K, the search box is scrolled into sight, has the focus and
   expect(await screen.findByText('Nothing on record speaks to “greeting”.')).toBeInTheDocument()
 })
 
-// --- 22c: another project's memory, and the search by meaning ---------------------------------
+// --- 22c: another project's memory ---------------------------------------------------------
 
-test('what a linked project holds is its own group, tagged with the project and not checked here; what was found by meaning says so; and why the search by meaning is off', async () => {
+test('what a linked project holds is its own group, tagged with the project and not checked here', async () => {
   const onSearch = vi.fn().mockResolvedValue({
     memory: [
       memoryRecord('w', { text: 'retry payment on 502' }),
       memoryRecord('m', {
         text: 'Payments are retried thrice',
-        by_meaning: true,
         from_project: 'Other one',
         source_state: 'elsewhere',
         source: { path: 'notes.md', start: 3, end: 4 },
@@ -247,10 +243,8 @@ test('what a linked project holds is its own group, tagged with the project and 
         at: '2026-10-13T10:00:00Z',
         excerpt: 'payments were retried thrice',
         project: 'Other one',
-        by_meaning: true,
       },
     ],
-    meaning_off: 'search by meaning is off: model server unreachable: connection refused',
   })
   render(<MemoryPage memory={projectMemory()} {...handlers()} onSearch={onSearch} />)
   await userEvent.type(screen.getByLabelText(BOX), 'retry payment{Enter}')
@@ -259,18 +253,17 @@ test('what a linked project holds is its own group, tagged with the project and 
   ).getAllByRole('listitem')
   expect(own).toHaveLength(1)
   expect(own[0]).toHaveTextContent('retry payment on 502')
-  expect(own[0]).not.toHaveTextContent('by meaning')
   const linked = within(within(search()).getByRole('list', { name: 'In linked projects' })).getAllByRole('listitem')
   expect(linked[0]).toHaveTextContent('from project Other one')
   expect(linked[0]).toHaveTextContent('its files are not in this project: it could not be checked here')
-  expect(linked[0]).toHaveTextContent('by meaning')
   expect(linked[0]).toHaveTextContent('not checked here: the file is in another project')
   expect(linked[1]).toHaveTextContent('“payments were retried thrice”')
   expect(linked[1]).toHaveTextContent('from project Other one')
-  expect(linked[1]).toHaveTextContent('by meaning')
   // said in another project: not under this one's earlier messages
   expect(within(search()).queryByRole('list', { name: 'In earlier messages' })).toBeNull()
-  expect(search()).toHaveTextContent('search by meaning is off: model server unreachable: connection refused')
+  // (0.1.10: the search by meaning is cut - no way to choose it, no tag)
+  expect(screen.queryByRole('button', { name: /by words|by meaning/ })).toBeNull()
+  expect(search()).not.toHaveTextContent('by meaning')
 })
 
 test('the status line is empty until words are typed, then says what the page has and that Enter searches deeper; what only another project said is its own group', async () => {
@@ -302,68 +295,4 @@ test('the status line is empty until words are typed, then says what the page ha
   expect(within(search()).getByRole('heading', { name: 'Searched deeper for “thrice”' })).toBeInTheDocument()
   expect(within(search()).getByText('Nothing on record speaks to “thrice”.')).toBeInTheDocument()
   expect(within(search()).getByText('Nothing said in earlier messages speaks to “thrice”.')).toBeInTheDocument()
-})
-
-test('by words / by meaning ▾ is the project’s setting, in a small window: a provider with a server address, what it costs in sight, and only what changed is sent', async () => {
-  useApp.setState({
-    projectId: 'p',
-    projects: [
-      { id: 'p', name: 'demo', embedding_provider_id: null, embedding_model: 'text-embedding-3-small' },
-    ] as Project[],
-    providers: [
-      { id: 'srv', name: 'llama', kind: 'openai_compat', base_url: 'http://127.0.0.1:8080/v1' },
-      { id: 'cc', name: 'Claude Code', kind: 'claude_cli', base_url: null },
-    ] as Provider[],
-  })
-  onTestFinished(() => useApp.setState({ projectId: null, projects: [], providers: [] }))
-  const onMeaning = vi.fn().mockResolvedValue(undefined)
-  render(<MemoryPage memory={projectMemory()} {...handlers()} onSearch={vi.fn()} onMeaning={onMeaning} />)
-  const open = screen.getByRole('button', { name: 'by words ▾' })
-  expect(open).toHaveAttribute('aria-expanded', 'false')
-  expect(screen.queryByRole('dialog')).toBeNull()
-  await userEvent.click(open)
-  const picker = within(screen.getByRole('dialog', { name: 'How the memory is searched' })).getByRole('form', {
-    name: 'Search by meaning',
-  })
-  // what it spends, in sight beside the choice: not behind a "?"
-  expect(
-    within(picker).getByText(
-      /^One embeddings request to that provider for each search \(it also reads up to 50 notes, facts or earlier messages/,
-    ),
-  ).toBeVisible()
-  const choice = within(picker).getByLabelText('Search by meaning with')
-  expect(
-    within(choice)
-      .getAllByRole('option')
-      .map(o => o.textContent),
-  ).toEqual(['off: by words alone', 'llama'])
-  expect(within(picker).getByLabelText('Embedding model')).toBeDisabled()
-  expect(within(picker).getByRole('button', { name: 'Save' })).toBeDisabled()
-  // off, the page says nothing of a cost
-  expect(screen.queryByText(/^By meaning: /)).toBeNull()
-  await userEvent.selectOptions(choice, 'srv')
-  // closed and opened again, the choice not yet saved is still there
-  await userEvent.keyboard('{Escape}')
-  expect(screen.queryByRole('dialog')).toBeNull()
-  expect(open).toHaveFocus()
-  await userEvent.click(open)
-  expect(within(picker).getByLabelText('Search by meaning with')).toHaveValue('srv')
-  await userEvent.click(within(picker).getByRole('button', { name: 'Save' }))
-  expect(onMeaning).toHaveBeenLastCalledWith({ embedding_provider_id: 'srv' })
-  await userEvent.clear(within(picker).getByLabelText('Embedding model'))
-  await userEvent.type(within(picker).getByLabelText('Embedding model'), 'nomic-embed')
-  await userEvent.click(within(picker).getByRole('button', { name: 'Save' }))
-  expect(onMeaning).toHaveBeenLastCalledWith({ embedding_provider_id: 'srv', embedding_model: 'nomic-embed' })
-  // saved on the project, the button says so, and what each search spends is in sight under the box, the window closed
-  useApp.setState({
-    projects: [{ id: 'p', name: 'demo', embedding_provider_id: 'srv', embedding_model: 'nomic-embed' }] as Project[],
-  })
-  const button = await screen.findByRole('button', { name: 'by meaning ▾' })
-  await userEvent.click(button)
-  expect(screen.queryByRole('dialog')).toBeNull()
-  expect(
-    within(screen.getByRole('region', { name: 'Search' })).getByText(
-      /^By meaning: One embeddings request to that provider for each search \(/,
-    ),
-  ).toBeVisible()
 })

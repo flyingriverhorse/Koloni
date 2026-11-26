@@ -229,7 +229,7 @@ a.btn {
   overflow-wrap: anywhere;
 }
 
-/* The one search on top: the box, Search deeper, by words / by meaning ▾, and what it found by tab. */
+/* The one search on top: the box, Search deeper, and what it found by tab. */
 .memory-find {
   display: flex;
   align-items: center;
@@ -244,16 +244,6 @@ a.btn {
 
 .memory-find-form .input {
   flex: 1;
-}
-
-.memory-meaning[hidden] {
-  display: none;
-}
-
-.memory-meaning-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .memory-hit {

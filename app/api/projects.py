@@ -17,7 +17,6 @@ from app import (
     knowledge,
     knows,
     koloni,
-    meaning,
     project_files,
     project_map,
     shared,
@@ -40,7 +39,6 @@ from app.db.models import (
     Memory,
     Project,
     ProjectKnowledge,
-    Provider,
     Role,
     Run,
     ToolCall,
@@ -135,7 +133,7 @@ async def delete_project(
     project_id: str, request: Request, session: Session = Depends(get_session)
 ):
     """KOLONİ's record of the project gone for good, in one transaction: its chats with all
-    of their turns, its memory, knowledge, To-do, nights, usage and vectors. Not
+    of their turns, its memory, knowledge, To-do, nights and usage. Not
     while anything of it is at work (409, why in words). Its folder, files, git and .koloni/
     are never touched; KOLONİ's own files of its chats go as a chat's delete takes them
     (`_forget_files`: CLI sessions, attachments, kept sides of a commit). On the loop, as the
@@ -168,7 +166,7 @@ async def delete_project(
     if chats:
         _delete_for_good(session, chats)
     session.execute(text("DELETE FROM said_in_turns WHERE project_id = :p"), {"p": project_id})
-    # Rows kept by the project's id alone (its vectors, ...).
+    # Rows kept by the project's id alone (its allowed commands, ...).
     for table in Base.metadata.sorted_tables:
         column = table.c.get("project_id")
         if column is not None and not column.foreign_keys:
@@ -708,7 +706,7 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
         project.check_kinds = {**(project.check_kinds or {}), **body.check_kinds}
 
 
-def _change_memory(session: Session, project: Project, body: ProjectPatch, embedded: bool) -> None:
+def _change_memory(session: Session, project: Project, body: ProjectPatch) -> None:
     if body.memory_links is not None:
         # 22c: whose memory its recall also reads - projects of this KOLONİ, never itself.
         others = list(dict.fromkeys(body.memory_links))
@@ -716,15 +714,6 @@ def _change_memory(session: Session, project: Project, body: ProjectPatch, embed
         if project.id in others or set(others) - known:
             raise HTTPException(422, "a project to look in is another project of this KOLONİ")
         project.memory_links = others
-    if embedded:
-        # 22c: the server that embeds for a search by meaning: any provider with an address.
-        if body.embedding_provider_id is not None and not (
-            (chosen := session.get(Provider, body.embedding_provider_id)) and chosen.base_url
-        ):
-            raise HTTPException(422, "the search by meaning needs a provider with a server address")
-        project.embedding_provider_id = body.embedding_provider_id
-    if body.embedding_model is not None:
-        project.embedding_model = body.embedding_model.strip() or meaning.DEFAULT_MODEL
 
 
 def _change_addresses_and_day_note(
@@ -780,7 +769,6 @@ async def patch_project(
         "continue_steps",
         "longest_command",
         "memory_links",
-        "embedding_model",
         "when_away",
         "away_minutes",
         "full_auto_judge",
@@ -806,14 +794,12 @@ async def patch_project(
     crowded = "max_agents" in body.model_fields_set  # the same: null takes it away
     noted = "day_note_at" in body.model_fields_set  # the same: null sends it no more
     budgeted = "monthly_budget" in body.model_fields_set  # the same
-    embedded = "embedding_provider_id" in body.model_fields_set  # the same: null is off
     rounds = "fix_rounds" in body.model_fields_set  # the same: null is Until it passes
     if (
         limited
         or crowded
         or noted
         or budgeted
-        or embedded
         or rounds
         or spends
         or any(getattr(body, name) is not None for name in users_own)
@@ -842,7 +828,7 @@ async def patch_project(
     if budgeted:
         project.monthly_budget = body.monthly_budget
     _change_switches(project, body, spends)
-    _change_memory(session, project, body, embedded)
+    _change_memory(session, project, body)
     _change_addresses_and_day_note(request, project, body, noted)
     changed = {
         name: getattr(project, name)

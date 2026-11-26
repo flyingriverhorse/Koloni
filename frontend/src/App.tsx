@@ -937,7 +937,6 @@ export function App() {
         onAddPreference={useApp.getState().addPreference}
         onReload={useApp.getState().loadMemory}
         onSearch={useApp.getState().searchMemory}
-        onMeaning={useApp.getState().saveProjectSettings}
         onExport={projectId ? () => download('GET', `/projects/${projectId}/memory/export`) : undefined}
       />
     )

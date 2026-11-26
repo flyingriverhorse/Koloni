@@ -24,7 +24,7 @@ import json
 import os
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -32,7 +32,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import meaning, project_files, views
+from app import project_files, views
 from app.db.models import (
     Agent,
     Conversation,
@@ -112,7 +112,6 @@ SOURCE_SAYS = {
 ELSEWHERE = (
     "from the project {name} - its files are not in this project: it could not be checked here"
 )
-BY_MEANING = "found by meaning, not by its words"
 CHANGED_SINCE = "source changed since it was noted: check again"
 MOVED_SINCE = (
     "source moved since it was noted: check again. The same lines stand somewhere else in "
@@ -611,14 +610,11 @@ def source_state(root: str | Path, record) -> State:
 # --- as an agent reads it -------------------------------------------------------------------
 
 
-def shown(
-    record, who: str | None, state: State, elsewhere: str | None = None, by_meaning: bool = False
-) -> str:
+def shown(record, who: str | None, state: State, elsewhere: str | None = None) -> str:
     """One record as an agent reads it: the words in quotes on one line, then who wrote
     them, when, and what they rest on. Whatever a model or a file system chose - the
     words, the agent's name, the path - is in quotes; the rest is KOLONİ's. 22c:
-    `elsewhere` is the name of the linked project it is from; `by_meaning`, that the
-    search by meaning found it and not its words."""
+    `elsewhere` is the name of the linked project it is from."""
     by = (
         _by_user(record)
         if record.origin == "user"
@@ -641,8 +637,6 @@ def shown(
         rests = SOURCE_SAYS["none"]
     if elsewhere is not None:
         by = f"{ELSEWHERE.format(name=quoted(one_line(elsewhere)))}; {by}"
-    if by_meaning:
-        rests += f"; {BY_MEANING}"
     return f"- {quoted(one_line(record.text))} ({by} on {record.observed_at:%Y-%m-%d}; {rests})"
 
 
@@ -1608,18 +1602,9 @@ def withdrawn(
 
 @dataclass
 class Also:
-    """What else a search looks in (22c): the linked projects, each id with its name, and
-    what the search by meaning found (None: no provider is chosen for it). `by_meaning`:
-    of the records `matching` gave, the ones only the search by meaning found."""
+    """What else a search looks in (22c): the linked projects, each id with its name."""
 
     linked: dict[str, str]
-    near: meaning.Hits | None
-    by_meaning: set[str] = field(default_factory=set)
-
-    @property
-    def off(self) -> str | None:
-        """Why the search by meaning did not run, when one is chosen and it did not."""
-        return self.near.off if self.near else None
 
 
 def linked(session: Session, project: Project) -> dict[str, str]:
@@ -1634,11 +1619,9 @@ def linked(session: Session, project: Project) -> dict[str, str]:
     }
 
 
-def also(session: Session, project: Project, query: str) -> Also:
-    """What else `recall` and the page's search look in for this query: the linked
-    projects, and what the search by meaning finds in this project and in them."""
-    links = linked(session, project)
-    return Also(links, meaning.search(session, project, [project.id, *links], query))
+def also(session: Session, project: Project) -> Also:
+    """What else `recall` and the page's search look in: the linked projects."""
+    return Also(linked(session, project))
 
 
 def matching(
@@ -1647,8 +1630,7 @@ def matching(
     """The notes and facts in effect that speak to a query (`search`): what `recall`
     shows an agent - the ones that share a word with its work (`intent`) first among
     equals - and what the Memory page's search shows the user. With `also` (22c): the
-    linked projects' too, and after the word matches the ones the search by meaning
-    found - never in their place."""
+    linked projects' too."""
     records = list(
         session.scalars(
             select(Memory).where(
@@ -1657,13 +1639,7 @@ def matching(
             )
         )
     )
-    found = search(query, records, intent)
-    if also and also.near:
-        shown_ = {record.id for record in found}
-        by_id = {record.id: record for record in records}
-        also.by_meaning = {rid for rid in also.near.memory if rid in by_id and rid not in shown_}
-        found += [by_id[rid] for rid in also.near.memory if rid in also.by_meaning]
-    return found
+    return search(query, records, intent)
 
 
 def looked_up(
@@ -1694,7 +1670,6 @@ def looked_up(
                     names.get(record.agent_id or ""),
                     states[record.id],
                     linked_.get(record.project_id),
-                    record.id in (also.by_meaning if also else ()),
                 )
                 for record in found
             ),
