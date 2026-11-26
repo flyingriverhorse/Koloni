@@ -358,7 +358,7 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   addKnowledge(body: KnowledgeIn): Promise<KnowledgeItem>
   saveKnowledge(knowledgeId: string, body: Knowledge): Promise<void>
   deleteKnowledge(knowledgeId: string): Promise<void>
-  learnKnowledge(knowledgeId: string): Promise<void>
+  learnKnowledge(knowledgeId: string, overBudget?: boolean): Promise<void>
   /** Its guide copied into another of the user's projects; a guide's section read. */
   copyKnowledge(knowledgeId: string, toProjectId: string, replace?: boolean): Promise<void>
   knowledgeFile(path: string): Promise<ProjectFile>
@@ -1493,8 +1493,8 @@ export const useApp = create<AppStore>()((set, get) => {
       await api.delete(`/knowledge/${knowledgeId}?project_id=${get().projectId}`)
       await Promise.all([get().loadKnowledge(), get().loadRoles()])
     },
-    async learnKnowledge(knowledgeId) {
-      await api.post(`/knowledge/${knowledgeId}/learn`, { project_id: get().projectId })
+    async learnKnowledge(knowledgeId, overBudget = false) {
+      await api.post(`/knowledge/${knowledgeId}/learn`, { project_id: get().projectId, over_budget: overBudget })
       await get().loadKnowledge()
     },
     async copyKnowledge(knowledgeId, toProjectId, replace = false) {

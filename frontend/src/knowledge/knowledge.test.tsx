@@ -757,3 +757,14 @@ test('Remove asks first - one of every project is taken from all of them - and a
   expect(props.onDelete).toHaveBeenCalledWith('k2')
   expect(await within(card('tomli')).findByRole('alert')).toHaveTextContent(/^a role still uses it$/)
 })
+
+test('a learning held over the month’s budget asks to go on, as a new turn does', async () => {
+  const { ApiError } = await import('../api/client')
+  const held = new ApiError(409, "this project is over this month's budget (10.50 of 10.00 USD): say to go on over it")
+  const props = page({ onLearn: vi.fn().mockRejectedValueOnce(held).mockResolvedValue(undefined) })
+  await userEvent.click(within(card('MLflow')).getByRole('button', { name: 'Learn more' }))
+  expect(await screen.findByRole('group', { name: 'Over this month’s budget' })).toHaveTextContent('Learn anyway?')
+  await userEvent.click(screen.getByRole('button', { name: 'Go on anyway' }))
+  expect(props.onLearn).toHaveBeenLastCalledWith('k1', true)
+  expect(screen.queryByRole('group', { name: 'Over this month’s budget' })).not.toBeInTheDocument()
+})

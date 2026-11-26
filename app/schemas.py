@@ -2498,7 +2498,7 @@ class Placed(BaseModel):
     stage_id: str
 
 
-class LearnIn(BaseModel):
+class LearnIn(SendIn):  # (`over_budget`: the user's word to learn over the month's budget)
     project_id: str
 
 

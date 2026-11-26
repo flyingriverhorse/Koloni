@@ -60,7 +60,7 @@ USD). It covers this calendar month, by this machine's clock.
 
 - At 80%, KOLONİ tells you once, and the top bar shows it.
 - At 100%, a new message asks first: "Over this month's budget. Send it anyway?" Press **Go on anyway**
-  or **Cancel**.
+  or **Cancel**. **Learn** on a knowledge asks the same way.
 - Work on a model with no price is not counted.
 - If your prices are in more than one currency, the budget is not enforced, and the page says so.
 - A plain chat (no folder) belongs to no budget.

@@ -1,5 +1,5 @@
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useState } from 'react'
-import { errorText } from '../api/client'
+import { errorText, overWhat } from '../api/client'
 import type {
   Knowledge,
   KnowledgeIn,
@@ -28,7 +28,8 @@ interface Props {
   /** Each of these throws ApiError with the server's reason. */
   onSave(knowledgeId: string, body: Knowledge): Promise<void>
   onDelete(knowledgeId: string): Promise<void>
-  onLearn(knowledgeId: string): Promise<void>
+  /** `overBudget`: the user's word to learn over the project's monthly budget. */
+  onLearn(knowledgeId: string, overBudget?: boolean): Promise<void>
   onTry(knowledgeId: string, question: string): Promise<string>
   onCopy(knowledgeId: string, toProjectId: string, replace?: boolean): Promise<void>
   /** A file of the project: a section of a guide. */
@@ -148,9 +149,16 @@ export function KnowledgePage(props: Props) {
     const again = setTimeout(() => void onReload(), 1000)
     return () => clearTimeout(again)
   }, [learning, items, onReload])
-  const learn = (id: string) => {
+  // Held over the month's budget, as a new turn is: the user is asked to go on (`over`: which, and why).
+  const [over, setOver] = useState<{ id: string; said: string } | null>(null)
+  const learn = (id: string, overBudget = false) => {
     setSaid(null)
-    onLearn(id).catch(err => setSaid(errorText(err)))
+    setOver(null)
+    ;(overBudget ? onLearn(id, true) : onLearn(id)).catch(err => {
+      const held = overBudget ? null : overWhat(err)
+      if (held) setOver({ id, said: held })
+      else setSaid(errorText(err))
+    })
   }
   const [scanning, setScanning] = useState(false)
   // Its card, once asked for: a knowledge of the project like any other, that roles turn on on their Knowledge tab.
@@ -183,6 +191,17 @@ export function KnowledgePage(props: Props) {
       {(error || said) && (
         <div role="alert" className="alert">
           {error ?? said}
+        </div>
+      )}
+      {over && (
+        <div role="group" aria-label={over.said} className="composer-warning composer-budget">
+          <span role="alert">{over.said}. Learn anyway?</span>
+          <button type="button" className="btn btn-small" autoFocus onClick={() => learn(over.id, true)}>
+            Go on anyway
+          </button>
+          <button type="button" className="btn btn-small" onClick={() => setOver(null)}>
+            Cancel
+          </button>
         </div>
       )}
       {items === null ? (

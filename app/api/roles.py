@@ -755,4 +755,4 @@ async def learn(
 ):
     """Learn (again), as on the Knowledge page."""
     row, project = _expert_in(session, role_id, body.project_id)
-    return knowledge_page.start_learning(request, session, row, project)
+    return knowledge_page.start_learning(request, session, row, project, body.over_budget)

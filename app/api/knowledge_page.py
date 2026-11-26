@@ -17,7 +17,7 @@ from app import code_map, knowledge, knows, koloni, project_notes, roles
 from app import memory as kept
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
-from app.api.usage import over_limit
+from app.api.usage import over_limit, over_month
 from app.config import is_local
 from app.db.models import Flag, NotesOffer, Project, ProjectKnowledge, Provider, Role, now
 from app.model_client import ModelUnavailable
@@ -359,11 +359,16 @@ def learner(
 
 
 def start_learning(
-    request: Request, session: Session, row: ProjectKnowledge, project: Project
+    request: Request,
+    session: Session,
+    row: ProjectKnowledge,
+    project: Project,
+    over_budget: bool = False,
 ) -> KnowledgeStateOut:
     """Learn (again): its sources read and its guide written in the project, in the background -
     the page reads how it went. What its requests spend is on Usage as "KOLONİ itself", in the
-    project's budget (K-56)."""
+    project's budget (K-56) - and so it is held over that budget as a new turn is, unless the
+    user said to go on over it (`over_budget`)."""
     root, known = project.root_path, knows.knowledge_of(row)
     if knowledge.is_code(known):
         return scanning(root, known)
@@ -381,6 +386,8 @@ def start_learning(
             "this project's network access is off: its commands run in Docker without a network",
         )
     provider, model = learner(session, row)
+    if (over := over_month(session, project)) and not over_budget:
+        raise HTTPException(409, f"this project is {over}: say to go on over it")
     client = request.app.state.providers.client(provider, model)
     name, key, pid = provider.name, provider.api_key, provider.id
     asked = (name, mode_of(provider))  # (the guide is asked in the background, after this)
@@ -477,7 +484,7 @@ async def learn(
 ):
     project = project_of(session, body.project_id)
     row = row_in(session, knowledge_id, body.project_id)
-    start_learning(request, session, row, project)
+    start_learning(request, session, row, project, body.over_budget)
     return out(session, row, project.root_path)
 
 

@@ -7583,6 +7583,11 @@ export interface components {
         };
         /** LearnIn */
         LearnIn: {
+            /**
+             * Over Budget
+             * @default false
+             */
+            over_budget: boolean;
             /** Project Id */
             project_id: string;
         };

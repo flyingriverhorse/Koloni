@@ -19,6 +19,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 ### Fixed
 
 - **Workspace**: in ☾ Away, a file holding a secret KOLONİ knows that a job's agent committed on the branch itself is no longer said to be left out - its chat said "left out of the branch's commit … the rest of the work is on the branch" and its push row "· left out", though the file was on the branch. **Run** refuses that push, naming the file ("… on the branch holds a secret KOLONİ knows - take it off the branch first"), as before; "left out" is said only of a file KOLONİ's own commit left out ([docs](automation/overnight.md#in-a-git-repository-each-job-on-its-own-branch)).
+- **Knowledge**: **Learn** is held over the project's monthly budget, as a new message is: what a learning spends counts toward that budget, but it used to start all the same. It now asks first - "Over this month's budget. Learn anyway?" - with **Go on anyway** or **Cancel** ([docs](knowledge.md#adding-knowledge)).
 
 ### Removed
 
