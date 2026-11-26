@@ -161,7 +161,7 @@ def test_what_a_fork_cannot_run_is_refused(make_client):
     ) in said(client, round_)
 
 
-def test_a_loop_a_room_or_a_condition_on_a_way_and_two_candidates_are_refused(make_client):
+def test_a_loop_or_a_condition_on_a_way_and_two_candidates_are_refused(make_client):
     client, _ = make_client({})
     on_way = {**DIAMOND, "loops": [{"from": "b", "to": "a", "rounds": 2}]}
     assert said(client, on_way) == [
@@ -179,9 +179,8 @@ def test_a_loop_a_room_or_a_condition_on_a_way_and_two_candidates_are_refused(ma
             DIAMOND["steps"][3],
         ],
     }
-    assert said(client, room) == [
-        ("c", "Talk: a room meets on its own, not at once with other steps")
-    ]
+    # (A Room step drawn before 0.1.10 is a group of its roles: one group is a way as any.)
+    assert said(client, room) == []
     when = {
         **DIAMOND,
         "steps": [

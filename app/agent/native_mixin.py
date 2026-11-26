@@ -58,9 +58,7 @@ from app.workspace import Outside, Workspace, WorkspaceError, opened
 if TYPE_CHECKING:
     from app.agent import AgentRunner
 
-# What a CLI working with its own tools still needs KOLONİ for. Not open_room: an agent on
-# such a CLI changes the project with no copy of its own, so the members of a room it
-# opened would write straight into the project.
+# What a CLI working with its own tools still needs KOLONİ for.
 # shortcut: not add_skill - a native CLI's Lead proposes no skill; add it here (and to its
 # rules' words) when one should.
 # notify (0.1.8) as an API model's Lead has it, over the same call (`_run_call`): only where the
@@ -685,7 +683,6 @@ class NativeMixin:
             # agent with tools of its own - a sub-agent it opens, say - may work.
             async with hold.away():
                 status, output = await self._run_from_cli(ctx, call_id, request)
-                await self._while_paused(ctx)  # (29c, as a session's: `_session_loop`)
         finally:
             async with watch.looking:
                 await asyncio.to_thread(view.changes)  # taken in, not reported

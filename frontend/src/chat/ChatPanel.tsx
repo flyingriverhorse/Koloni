@@ -12,7 +12,7 @@ import {
 import { waitingIn } from '../board/waiting'
 import { inProject } from '../changes/copies'
 import { currentTurn, turnOf, turnRows } from '../canvas/turns'
-import type { Project, Provider, Role } from '../api/types'
+import type { Provider, Role } from '../api/types'
 import { activeRun, type ConvState } from '../state/applyEvent'
 import { type ChatTab, useApp } from '../state/store'
 import { AutoReader } from '../voice/useAutoRead'
@@ -21,9 +21,6 @@ import { ModelPicker } from '../models/ModelPicker'
 import { modelName } from '../shell/modelName'
 import { NotesPanel } from '../notes/NotesPanel'
 import { notebookRun } from '../notes/notesText'
-import { RoomTabs, RoomWindow } from '../room/RoomWindow'
-import { waitsForYou } from '../room/roomText'
-import { WorkTogether } from '../room/WorkTogether'
 import { unseenOn } from './attachments'
 import { ChannelPanel } from './ChannelPanel'
 import { ChatSheet } from './ChatSheet'
@@ -440,12 +437,8 @@ function useChatOpen(conv: ConvState | null, tab: ChatTab) {
 
   function toggle() {
     moved.current = true
-    // Opened while a card waits: on the chat, where it is - and, a room's card among them, Ready for you's panel too,
-    // which has it (the room's window opens only at your word).
-    if (!open && conv && waitingCards(conv) > 0) {
-      setTab('Chat')
-      if (conv.rooms.some(room => waitsForYou(conv, room))) useApp.getState().showReady(true)
-    }
+    // Opened while a card waits: on the chat, where it is.
+    if (!open && conv && waitingCards(conv) > 0) setTab('Chat')
     setOpen(!open)
     keep(OPEN_KEY, open ? '0' : '1')
   }
@@ -505,7 +498,6 @@ function ChatPane({ conv, tab }: { conv: ConvState | null; tab: ChatTab }) {
       {...handlersOf()}
       onDecidePlan={app.decidePlan}
       onOpenDiscussion={id => useApp.getState().openDiscussion(id)}
-      onOpenRoom={app.showRoom}
       roles={roles}
       providers={providers}
       onUsage={turnUsage}
@@ -518,7 +510,7 @@ function ChatPane({ conv, tab }: { conv: ConvState | null; tab: ChatTab }) {
   )
 }
 
-/** The cards' words, as the chat and a room's window take them. */
+/** The cards' words, as the chat takes them. */
 function handlersOf(): RequestHandlers {
   const app = useApp.getState()
   return {
@@ -534,69 +526,6 @@ function handlersOf(): RequestHandlers {
     onCommitMerge: app.commitMerge,
     onAnswer: app.answerQuestion,
   }
-}
-
-/** The rooms' windows over the canvas, and their tabs at its foot (AC). */
-function Rooms({ conv }: { conv: ConvState | null }) {
-  const roomWindows = useApp(s => s.roomWindows)
-  const roles = useApp(s => s.roles)
-  const providers = useApp(s => s.providers)
-  if (!conv) return null
-  const app = useApp.getState()
-  return (
-    <>
-      <RoomTabs state={conv} windows={roomWindows} onOpen={app.showRoom} />
-      {conv.rooms
-        .filter(room => roomWindows[room.id] === 'open')
-        .map(room => (
-          <RoomWindow
-            key={room.id}
-            state={conv}
-            room={room}
-            on={handlersOf()}
-            roles={roles}
-            providers={providers}
-            onSay={app.sayInRoom}
-            onEnd={app.endRoom}
-            onMore={app.giveRoomMore}
-            onPause={app.pauseRoom}
-            onFollow={app.followRoom}
-            onShrink={() => useApp.getState().shrinkRoom(room.id)}
-            onClose={() => useApp.getState().closeRoom(room.id)}
-          />
-        ))}
-    </>
-  )
-}
-
-/** Another way to start a turn, under More: a room ("Work together…"), where there are roles to fill it. */
-function roomStarter(
-  conv: ConvState | null,
-  roles: Role[],
-  providers: Provider[],
-  project: Project | undefined,
-): ReactNode {
-  if (!conv || roles.length === 0) return null
-  // (The project's: every chat of it follows them - tek-ev.)
-  const limits = project
-    ? { posts: project.room_posts, tokens: project.room_tokens, minutes: project.room_minutes }
-    : {
-        posts: conv.conversation.room_posts,
-        tokens: conv.conversation.room_tokens,
-        minutes: conv.conversation.room_minutes,
-      }
-  return (
-    <WorkTogether
-      // (What was written in it is not carried to another conversation.)
-      key={`room-${conv.conversation.id}`}
-      roles={roles}
-      providers={providers}
-      limits={limits}
-      busy={activeRun(conv) !== null}
-      onOpen={useApp.getState().openRoom}
-      onModels={useApp.getState().providerModels}
-    />
-  )
 }
 
 /** The conversation's model: its button, where there is a provider to choose from. */
@@ -714,7 +643,6 @@ export function ChatPanel() {
         workspace={workspace.button('chat')}
         // What waits for you outside this chat (tek-ev §1): quiet words under the box, which open Ready for you.
         waits={{ count: elsewhere, onOpen: () => useApp.getState().showReady(true) }}
-        beside={roomStarter(conv, roles, providers, project)}
         model={modelPicker(conv, providers, roles)}
       />
     </section>
@@ -724,7 +652,6 @@ export function ChatPanel() {
       {chat}
       <AutoReader />
       {!open && <div className="chat-dock">{workspace.button('dock')}</div>}
-      <Rooms conv={conv} />
       {workspace.window}
     </>
   )

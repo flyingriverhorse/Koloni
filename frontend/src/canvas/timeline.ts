@@ -57,7 +57,7 @@ export interface Timeline extends Span {
   agents: number
   tokens: Pick<Run, 'input_tokens' | 'output_tokens'>
   lanes: Lane[]
-  /** What happened to the turn itself, not to one agent: a room opened for it, its budget ran out. */
+  /** What happened to the turn itself, not to one agent: its budget ran out. */
   marks: Mark[]
 }
 
@@ -368,10 +368,6 @@ function marksOf({ state, run, agents, here }: Turn, lane: Map<string, Lane>): M
   for (const d of here(state.discussions)) {
     mark(d.agent_id, time(d.created_at), 'discussion started')
     mark(d.agent_id, time(d.ended_at), 'discussion ended')
-  }
-  for (const r of here(state.rooms)) {
-    mark(r.agent_id, time(r.created_at), 'room opened')
-    mark(r.agent_id, time(r.ended_at), 'room ended')
   }
   for (const a of agents) {
     const limited = a.failure === 'rate_limited' || a.failure === 'credits_exhausted'

@@ -25,7 +25,6 @@ from sqlalchemy import and_, func, literal_column, or_, select
 from sqlalchemy.orm import object_session
 
 from app import away, backlog, copies, git, koloni, project_view, proof, recipe_run, web
-from app import room as rooms
 from app.agent.ctx import TERMINAL, Ctx
 from app.agent.words import (
     AGENT_TERMINAL,
@@ -591,7 +590,6 @@ def kept_on_record(
     line: list[str],
     why: str,
     always: bool = False,
-    room_id: str | None = None,
 ) -> Merge | None:
     """Put a working copy that is left on disk on record as that: what of it was on its
     way into the project is "interrupted", with where the copy is, and each file that
@@ -599,10 +597,7 @@ def kept_on_record(
     agents below it that changed files in it. `why`: what broke it off. None, and
     nothing changed, for a copy that holds nothing of theirs the project lacks - unless
     `always`: the copy is kept whatever is on record of it. Its change records stay
-    "in_copy": that is where the changes are. `room_id`: the room whose copy it is.
-    shortcut: a room's copy kept at a restart, and every merge from before 0082, has no
-    room on record (nothing is filled in): its card is the lead's, not the room's tab's -
-    look for the room by its run if that is missed."""
+    "in_copy": that is where the changes are."""
     changes = (
         session.scalars(
             select(FileChange)
@@ -633,7 +628,6 @@ def kept_on_record(
             run_id=session.get_one(Agent, line[0]).run_id,
             agent_id=line[0],
             files=_files_on_record(changes, "refused", note),
-            room_id=room_id,
         )
         session.add(merge)
     else:
@@ -1375,9 +1369,9 @@ def recover_interrupted(session_factory, notes: list | None = None) -> int:
             message.status = "complete"
         for talk in session.scalars(select(Discussion).where(Discussion.status == "running")):
             talk.status, talk.ended_at = "interrupted", now()
-        # A room that was running: its members are not started again, and how long its
-        # clock ran on after the last time that was written down is not known.
-        for room in session.scalars(select(Room).where(Room.status.in_(rooms.RUNNING))):
+        # A room that was running (rooms are gone since 0.1.10; one from before a restart that
+        # far back): nothing starts it again, and how long its clock ran on is not known.
+        for room in session.scalars(select(Room).where(Room.status.in_(("sharing", "working")))):
             room.status, room.ended_at, room.clock_since = "interrupted", now(), None
             room.paused = False  # (29c: nothing is left to resume)
         _recover_teams(session)

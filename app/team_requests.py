@@ -15,14 +15,13 @@ Functions of the runner's: `runner` is the `AgentRunner`.
 """
 
 import asyncio
-import contextlib
 import json
 import logging
 import uuid
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, literal_column, or_, select
+from sqlalchemy import func, literal_column, select
 
 from app import injection, shared
 from app.db.models import (
@@ -30,7 +29,6 @@ from app.db.models import (
     FileChange,
     Message,
     Role,
-    RoomMember,
     Run,
     ToolCall,
     now,
@@ -180,8 +178,9 @@ def schemas(runner: "AgentRunner", session, ctx: "Ctx") -> list[dict]:
 
 
 READ = (
-    "Read the teams' shared folder (.koloni/shared/): contracts/, decisions/ and each team's "
-    "own folder. Every team reads all of it."
+    "Read the teams' shared folder (.koloni/shared/): contracts/ and each team's own folder "
+    "(and decisions/, what rooms between teams decided before 0.1.10). Every team reads all "
+    "of it."
 )
 WRITE = (
     "Write a file into the teams' shared folder: a spec, findings or a hand-over in your "
@@ -270,7 +269,7 @@ async def wait_for_team(runner: "AgentRunner", ctx: "Ctx", args: dict) -> str:
     with runner._factory() as session:
         who = ", ".join(
             f"{one.name} {one.status}"
-            for one in _leads(runner, session, ctx, found[1])
+            for one in _leads(session, ctx, found[1])
             if one.status in OPEN
         )
     return STILL_AT_WORK.format(team=found[0], minutes=WAIT_SECONDS // 60, who=who)
@@ -326,24 +325,13 @@ def _heard(session, ctx: "Ctx") -> int:
     )
 
 
-def _leads(runner: "AgentRunner", session, ctx: "Ctx", lead: str) -> list[Agent]:
+def _leads(session, ctx: "Ctx", lead: str) -> list[Agent]:
     """A team's coordinators of this turn - the one the Orchestrator opened, and any a request
-    opened - not one that only met in a room (K-oda-takim) unless taken up from it to run its
-    team: each runs the team's work under it, so the team is at work while one is."""
+    opened: each runs the team's work under it, so the team is at work while one is."""
     return list(
         session.scalars(
             select(Agent)
-            .where(
-                Agent.run_id == ctx.run_id,
-                Agent.depth == 1,
-                Agent.role_name == lead,
-                or_(
-                    Agent.id.not_in(
-                        select(RoomMember.agent_id).where(RoomMember.agent_id.is_not(None))
-                    ),
-                    Agent.id.in_(runner._taken_up),
-                ),
-            )
+            .where(Agent.run_id == ctx.run_id, Agent.depth == 1, Agent.role_name == lead)
             .order_by(Agent.created_at)
         )
     )
@@ -354,7 +342,7 @@ def _team_now(runner: "AgentRunner", ctx: "Ctx", team: str, lead: str, heard: in
     with runner._factory() as session:
         if _heard(session, ctx) > heard:
             return MESSAGE_CAME
-        leads = _leads(runner, session, ctx, lead)
+        leads = _leads(session, ctx, lead)
         if not leads:
             return NOT_OPENED.format(team=team)
         # (Ended once its record is whole: its report is written with its end, `_take_in`.)
@@ -456,26 +444,6 @@ def write_shared(runner: "AgentRunner", ctx: "Ctx", args: dict) -> str:
     except Refused as exc:
         raise ToolError(str(exc)) from None
     return f"written: .koloni/shared/{rel} - every team reads it with read_shared"
-
-
-def decided(
-    runner: "AgentRunner", ctx: "Ctx", teams: tuple[str, ...], goal: str, text: str
-) -> None:
-    """K-not-oda: what a room between teams decided, into decisions/ as well as the note."""
-    if ctx.root is None:
-        return
-    with runner._factory() as session:
-        turn = turn_of(session, ctx.run_id)
-    # (A full disk or a link in the way loses the file, not the room's note.)
-    with contextlib.suppress(Refused, OSError):
-        shared.write(
-            ctx.root,
-            shared.DECISIONS,
-            shared.name_of(goal),
-            text,
-            shared.header("KOLONİ", turn, now(), **{"for": ", ".join(teams)}),
-            unique=True,
-        )
 
 
 async def request_work(

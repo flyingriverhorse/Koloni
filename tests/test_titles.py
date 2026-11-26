@@ -1,12 +1,10 @@
 """A conversation's title, beyond slice 67's acceptance set (`test_conversation_title_scenarios`):
 lines that say nothing, a long word after a short head, a mark on a letter, what a cut does not
-end on, the joiners inside a word - and a room's goal and a trigger's name going through it."""
+end on, the joiners inside a word - and a trigger's name going through it."""
 
 import pytest
 
 from app.topics import one_line, title_from
-from tests.test_chat_flow import text
-from tests.test_room_scenarios import start
 
 ZWSP, BOM, LRM, ZWJ, ZWNJ = "​", "﻿", "‎", "‍", "‌"
 LINK = "https://example.com/" + "a" * 60
@@ -107,14 +105,3 @@ def test_a_message_of_nothing_printable_keeps_the_conversations_name(client, pro
         client.get(f"/api/conversations/{cid}").json()["conversation"]["title"]
         == "New conversation"
     )
-
-
-def test_a_rooms_goal_names_its_conversation_cut_at_a_words_end(make_client, wait_run, project_dir):
-    goal = "make the calculator page together (HTML+CSS+JS in one file, no libraries)"
-    client, _model, cid, run_id, _room = start(
-        make_client, project_dir, {"Coder": [text("Done.")], "Reviewer": [text("Done.")]}, goal=goal
-    )
-    assert client.get(f"/api/conversations/{cid}").json()["conversation"]["title"] == (
-        "make the calculator page together…"
-    )  # (not inside the bracket it opened)
-    wait_run(client, cid, run_id)

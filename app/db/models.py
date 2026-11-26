@@ -21,14 +21,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship
 
-# B-414 (live): a room asked for with 5000 tokens ended with no post - one member's step, with its
-# context, came to some 8,500. Its members and the agent that follows it all count (`room_spent`):
-# 60,000 holds one round of posts (a member may post in its sharing step) for up to six members
-# nobody follows, or some three whose opener follows and reads after each post.
-# shortcut: one number whatever the room's size; scale it by its members (and the follower) if a
-# big room is seen ending on its tokens before each has posted.
-ROOM_MIN_TOKENS = 60_000
-
 
 def new_id() -> str:
     return uuid.uuid4().hex
@@ -176,14 +168,6 @@ class Project(Base):
     spawn_max_parallel: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
     # None: no limit (the user, 6 Nov: none by default).
     discussion_budget: Mapped[int | None] = mapped_column(Integer, default=None)
-    room_posts: Mapped[int | None] = mapped_column(Integer, default=40, server_default="40")
-    room_tokens: Mapped[int | None] = mapped_column(Integer, default=None)
-    room_minutes: Mapped[int | None] = mapped_column(Integer, default=30, server_default="30")
-    # B-414: the least tokens an agent's room is given, whatever it asks (`room_tokens` wins
-    # where it is lower); None: none.
-    room_min_tokens: Mapped[int | None] = mapped_column(
-        Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS)
-    )
     # 89m, "Finish only when the tests pass", as the user last set it (None: never said). Kept
     # (0162), read only for `after_change_from_off`: `after_change` holds the setting now.
     finish_tests: Mapped[bool | None] = mapped_column(Boolean, default=None)
@@ -246,7 +230,7 @@ class Conversation(Base):
     # ask: confirm edits and commands; auto_edit: only commands; full_auto: nothing.
     permission_mode: Mapped[str] = mapped_column(String(12), default="ask", server_default="ask")
     # Sub-agents: when opening one asks first, and how far the tree may grow in a turn.
-    # These, `lead_work`, `when_away`, `away_minutes` and `room_*` are read from its project
+    # These, `lead_work`, `when_away` and `away_minutes` are read from its project
     # since tek-ev (`settings_of`); a plain chat's are read here.
     spawn_approval: Mapped[str] = mapped_column(String(8), default="auto", server_default="auto")
     spawn_max_depth: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
@@ -287,16 +271,6 @@ class Conversation(Base):
     away_minutes: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
     # The Lead's reasoning level in this conversation ("low" ... "max"); None: its role's.
     lead_effort: Mapped[str | None] = mapped_column(String(8), default=None)
-    # What a room opened here may spend unless the user says otherwise as they open it:
-    # posts by its members, tokens as their models report them, minutes. None: no limit.
-    # (The user, R185: no tokens by default - a room ends on its posts or minutes, or on the
-    # turn's and the project's own limits. A chat that kept 400000 keeps it: 0145.)
-    room_posts: Mapped[int | None] = mapped_column(Integer, default=40, server_default="40")
-    room_tokens: Mapped[int | None] = mapped_column(Integer, default=None)
-    room_minutes: Mapped[int | None] = mapped_column(Integer, default=30, server_default="30")
-    room_min_tokens: Mapped[int | None] = mapped_column(
-        Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS)
-    )
     # Folders outside the project this conversation also works in: its folder's at its
     # start, named in the user's own messages, allowed from a card ("Allow this folder") or
     # added in "This chat's folders" (slice 86b). Its agents use these lists only.
@@ -335,16 +309,12 @@ FOLLOWED = (
     "discussion_budget",
     "when_away",
     "away_minutes",
-    "room_posts",
-    "room_tokens",
-    "room_minutes",
-    "room_min_tokens",
 )
 
 
 def settings_of(session, conversation: Conversation) -> Project | Conversation:
     """Where a chat's sub-agent settings are read - `spawn_*`, `discussion_budget`,
-    `when_away`, `away_minutes`, `room_*` (tek-ev, the user 6 Nov): its project's, for every
+    `when_away`, `away_minutes` (tek-ev, the user 6 Nov): its project's, for every
     chat of it, old ones too. Who changes the files is `lead_work_of`.
     shortcut: a plain chat reads its own row - the defaults, as nothing in the app changes them
     since the chat's Sub-agents panel went; give plain chats settings of their own if missed."""
@@ -1011,7 +981,11 @@ class Room(Base):
     """Two to six agents working on one goal at the same time, in one working copy. The
     user opens it, and it is the whole of its turn until it is over: then the turn's lead,
     who took no part, is given `told` and answers the user. Or an agent opens it, waits
-    for it, and is given its record as its call's answer."""
+    for it, and is given its record as its call's answer.
+    Rooms are gone since 0.1.10 (a discussion lets agents talk; sub-agents work at once, each
+    in its own copy): this table and its members', items' and posts' are kept as they were -
+    what was said there is the user's - and nothing writes them. An old chat's Lead still
+    reads `told` (`_history`); migration 0193 ended any left running."""
 
     __tablename__ = "rooms"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)

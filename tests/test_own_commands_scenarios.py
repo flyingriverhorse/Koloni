@@ -3,7 +3,7 @@ code.
 
 A command the user saves has a name, a line on what it does, a text with `{args}` where what is
 typed after it goes, and, if chosen, a role the Lead is asked to hand it to. It belongs to one
-project or to all. A name the box already uses (`new`, `room`, `stop`, `model`, `mode`, `plan`) is
+project or to all. A name the box already uses (`new`, `stop`, `model`, `mode`, `plan`) is
 refused, as is a second command of the same name where it would be seen. Only from the app's own
 page.
 
@@ -63,7 +63,7 @@ def test_a_command_is_saved_for_a_project_or_for_all(client, pid, project_dir):
 
 
 @pytest.mark.parametrize(
-    "name", ["new", "room", "stop", "model", "mode", "plan", "compare", "Stop", "has space", ""]
+    "name", ["new", "stop", "model", "mode", "plan", "compare", "Stop", "has space", ""]
 )
 def test_a_name_the_box_uses_or_no_name_is_refused(client, pid, name):
     assert make(client, name=name, description="x", template="x {args}").status_code == 422

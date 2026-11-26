@@ -176,12 +176,6 @@ export type Question = Schemas['QuestionOut']
 export type Discussion = Schemas['DiscussionOut']
 export type DiscussionPost = Schemas['DiscussionPostOut']
 export type BoardPost = Schemas['BoardPostOut']
-/** Two to four agents working on one goal at the same time, in one working copy: opened by the user, as a turn of its own. */
-export type Room = Schemas['RoomOut']
-/** One piece of a room's work: it has one holder, and a file is changed only under an item of one's own. */
-export type RoomItem = Schemas['RoomItemOut']
-/** Something said in a room: by a member, by you ("said"), or by KOLONİ for a member whose work is over or that failed. */
-export type RoomPost = Schemas['RoomPostOut']
 /** A file of the conversation to be seen beside the chat: one an agent wrote, or put before the user with `show`. */
 export type View = Schemas['ViewOut']
 export type ProjectEntry = Schemas['ProjectEntryOut']
@@ -201,8 +195,6 @@ export type ProjectFile = Schemas['ProjectFileOut']
 export type OthersInstructions = Schemas['OthersInstructionsOut']
 export type ProjectMap = Schemas['ProjectMapOut']
 export type Frame = Schemas['FrameOut']
-/** What is sent to open a room: its goal, its members and - where it is not the conversation's own - what it may spend. */
-export type NewRoom = Schemas['RoomIn']
 export type Provider = Schemas['ProviderOut']
 export type ProviderTest = Schemas['ProviderTestOut']
 /** Whether each model of a provider can be used now, and what to run when its CLI is missing or signed out. */

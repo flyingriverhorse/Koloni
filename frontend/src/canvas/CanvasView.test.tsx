@@ -395,7 +395,7 @@ test('the legend: its button among the canvas’s opens what the states, lines a
     // (Talk on a spawn or door line keeps that line's colour: only a line of its own has the pair's.)
     'Talk between two agents, of a team or of none: on the line that already joins them, or else on a line of its own - in a team, an arc over or under the work line, round its agents, like findings back - “💬 2 messages”; between two teams, agent to agent in the margin beside their frames. A line of its own has its pair’s colour (talk on a line already there keeps that line’s), and a click shows what was said',
     'From your message down to its plan, and from an approved plan down to the Orchestrator that carries it out',
-    'A member’s line to its discussion or room: with no team, from the members under it round the right of their column and in at its side, with an arrow; between teams, from its frame to the lane',
+    'A member’s line to its discussion: with no team, from the members under it round the right of their column and in at its side, with an arrow; between teams, from its frame to the lane',
     // (Every line drawn has its row: a file handed on, a request between teams.)
     'From a file you attached to the agent it was handed to (its dashes never move)',
     'A request from one team to another: dashed and moving while it is open, solid once it is over',
@@ -559,33 +559,6 @@ test('a discussion picked lights who took part; pointed at, it fades nothing', a
   expect([faded('agent:d'), faded('agent:rev'), faded('discussion:t')]).toEqual([false, false, false])
 })
 
-test('a room picked lights who is in it, as a discussion does', async () => {
-  const room = {
-    id: 'o',
-    run_id: 'd',
-    agent_id: 'd',
-    goal: 'Build it together',
-    status: 'working',
-    outcome: null,
-    why: null,
-    members: ['rev'].map(agent_id => ({ agent_id, role: 'Reviewer', status: 'in' })),
-  }
-  const conv = convState({
-    runs: [run('d')],
-    messages: [userMessage('d', 'work together')],
-    agents: [
-      agent('d'),
-      agent('d', 'completed', { id: 'rev', parent_agent_id: 'd', role_name: 'Reviewer', depth: 1 }),
-      agent('d', 'completed', { id: 'res', parent_agent_id: 'd', role_name: 'Researcher', depth: 1 }),
-    ],
-    rooms: [room] as unknown as ConvState['rooms'],
-  })
-  const faded = (id: string) => node(id)!.classList.contains('canvas-faded')
-  render(<CanvasView state={conv} onSelect={() => {}} selectedId="room:o" />)
-  await waitFor(() => expect(faded('agent:res')).toBe(true))
-  expect([faded('agent:rev'), faded('room:o')]).toEqual([false, false])
-})
-
 /** A line's last two corners as drawn: where it comes into its card from. */
 const lastLeg = (id: string) => {
   const d = document.querySelector(`.react-flow__edge[data-id="${id}"] .react-flow__edge-path`)?.getAttribute('d') ?? ''
@@ -654,7 +627,6 @@ test('the user’s (4 Nov): a step’s earlier round is one line that opens in p
     name,
     state: now ? ('now' as const) : ('next' as const),
     round: 0,
-    room: false,
     own_check: false,
     left_out: [],
     group,
@@ -730,7 +702,6 @@ test('talk on a work line into a folded round names nobody on its 💬, not "an 
     name,
     state: now ? ('now' as const) : ('next' as const),
     round: 0,
-    room: false,
     own_check: false,
     left_out: [],
     group,
@@ -1002,7 +973,6 @@ test('findings handed out of a team’s frame to an agent outside it get their l
     name: 'Review',
     state: 'now' as const,
     round: 0,
-    room: false,
     own_check: false,
     left_out: [],
     group: false,
@@ -1077,7 +1047,6 @@ test('a wait out of a team’s frame keeps React Flow’s line, not option A’s
     name: 'Review',
     state: 'now' as const,
     round: 0,
-    room: false,
     own_check: false,
     left_out: [],
     group: false,
@@ -1134,161 +1103,12 @@ test('a wait out of a team’s frame keeps React Flow’s line, not option A’s
   )
 })
 
-test('21 Nov: inside a frame each arrow points at the line’s real end - a room’s members’ into the room, though drawn from it', async () => {
-  // (A line to a node of an earlier column is drawn from that one: its arrow was at the member, as if the room led to it.)
-  const { measure, stage } = laidOut()
-  const step = (id: string, name: string, group = false) => ({
-    id,
-    name,
-    state: 'now' as const,
-    round: 0,
-    room: false,
-    own_check: false,
-    left_out: [],
-    group,
-  })
-  const ids = ['sp', 'rv', 'sc', 'ts']
-  const conv = convState({
-    conversation: {
-      ...conversation,
-      teams_mode: 'manual',
-      teams: [
-        {
-          team_id: 'web',
-          recipe_id: null,
-          no_recipe: false,
-          picked_by: 'user',
-          why: null,
-          state: {
-            run_id: 't',
-            team: 'Web app',
-            recipe: 'Feature',
-            status: 'running',
-            why: null,
-            steps: [step('spec', 'Spec'), step('reviews', 'Reviews', true)],
-            agents: ['wl', ...ids],
-            ended_ready: false,
-            passes: [
-              { part: 'spec', agents: ['sp'] },
-              { part: 'reviews', agents: ['rv', 'sc', 'ts'] },
-            ],
-          },
-        },
-      ],
-    },
-    runs: [run('t')],
-    messages: [userMessage('t', 'Review it')],
-    agents: [
-      agent('t'),
-      agent('t', 'running', { id: 'wl', role_name: 'Web app coordinator', parent_agent_id: 't', depth: 1 }),
-      ...ids.map(id => agent('t', 'running', { id, name: id, role_name: id, parent_agent_id: 'wl', depth: 2 })),
-    ],
-    rooms: [
-      {
-        id: 'o',
-        run_id: 't',
-        agent_id: 'wl',
-        goal: 'Review it',
-        status: 'working',
-        outcome: null,
-        why: null,
-        members: ['rv', 'sc', 'ts'].map(agent_id => ({ agent_id, role: 'Reviewer', status: 'in' })),
-      },
-    ] as unknown as ConvState['rooms'],
-  })
-  render(<CanvasView state={conv} selectedId={null} onSelect={() => {}} />)
-  await waitFor(() => expect(node('agent:ts')).not.toBeNull())
-  measure()
-  stage(1200)
-  await waitFor(() => expect(document.querySelector('.react-flow__edge[data-id="agent:ts>room:o"]')).not.toBeNull())
-  const arrows = (id: string) => {
-    const path = document.querySelector(`.react-flow__edge[data-id="${id}"] .react-flow__edge-path`)
-    return [path?.hasAttribute('marker-start'), path?.hasAttribute('marker-end')]
-  }
-  // Under the room, from its foot up into it; beside the one under it - the agents at once -, drawn from the room: the
-  // arrow at its start, the room.
-  expect(arrows('agent:rv>room:o')).toEqual([false, true])
-  expect(arrows('agent:sc>room:o')).toEqual([true, false])
-  expect(arrows('agent:ts>room:o')).toEqual([true, false])
-})
-
-test('21 Nov: a member’s straight line to its room in the column before is drawn from the room, its arrow at the room', async () => {
-  // (Nothing in its way: React Flow's line between the two dots, not a way round - its arrow turned too.)
-  const { measure, stage } = laidOut()
-  const step = (id: string, name: string) => ({
-    id,
-    name,
-    state: 'now' as const,
-    round: 0,
-    room: false,
-    own_check: false,
-    left_out: [],
-    group: false,
-  })
-  const conv = convState({
-    conversation: {
-      ...conversation,
-      teams_mode: 'manual',
-      teams: [
-        {
-          team_id: 'web',
-          recipe_id: null,
-          no_recipe: false,
-          picked_by: 'user',
-          why: null,
-          state: {
-            run_id: 't',
-            team: 'Web app',
-            recipe: 'Feature',
-            status: 'running',
-            why: null,
-            steps: [step('spec', 'Spec'), step('build', 'Build')],
-            agents: ['sp', 'cd'],
-            ended_ready: false,
-            passes: [
-              { part: 'spec', agents: ['sp'] },
-              { part: 'build', agents: ['cd'] },
-            ],
-          },
-        },
-      ],
-    },
-    runs: [run('t')],
-    messages: [userMessage('t', 'Build it')],
-    agents: [
-      agent('t'),
-      ...['sp', 'cd'].map(id => agent('t', 'running', { id, name: id, role_name: id, parent_agent_id: 't', depth: 1 })),
-    ],
-    rooms: [
-      {
-        id: 'o',
-        run_id: 't',
-        agent_id: 't',
-        goal: 'Build it together',
-        status: 'working',
-        outcome: null,
-        why: null,
-        members: ['sp', 'cd'].map(agent_id => ({ agent_id, role: 'Coder', status: 'in' })),
-      },
-    ] as unknown as ConvState['rooms'],
-  })
-  render(<CanvasView state={conv} selectedId={null} onSelect={() => {}} />)
-  await waitFor(() => expect(node('agent:cd')).not.toBeNull())
-  measure()
-  stage(1200)
-  await waitFor(() => expect(document.querySelector('.react-flow__edge[data-id="agent:cd>room:o"]')).not.toBeNull())
-  const path = document.querySelector('.react-flow__edge[data-id="agent:cd>room:o"] .react-flow__edge-path')
-  expect(look('agent:cd>room:o')[0]).toBe('react-flow__edge react-flow__edge-lane nopan animated selectable')
-  expect([path?.hasAttribute('marker-start'), path?.hasAttribute('marker-end')]).toEqual([true, false])
-})
-
 test('a team’s frame is drawn behind, never dragged or picked; an agent picked dims it; Fold all and Open all fold every frame', async () => {
   const step = (id: string, name: string) => ({
     id,
     name,
     state: 'now' as const,
     round: 0,
-    room: false,
     own_check: false,
     left_out: [],
     group: false,
@@ -1386,7 +1206,6 @@ test('the user’s (6 Nov): talk between two agents of a team is drawn on an arc
     name,
     state: 'now' as const,
     round: 0,
-    room: false,
     own_check: false,
     left_out: [],
     group,

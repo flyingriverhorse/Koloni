@@ -428,7 +428,7 @@ test('with the browser’s storage closed the chat is open at its default width,
   }
 })
 
-test('under the message box: the model, the level, ⚙ Chat and Send; More holds Work together and Compare (Voice is The app’s, in Settings)', async () => {
+test('under the message box: the model, the level, ⚙ Chat and Send; More holds Compare (Voice is The app’s, in Settings; rooms are gone, 0.1.10)', async () => {
   const local = {
     id: 'p1',
     name: 'Local',
@@ -464,7 +464,7 @@ test('under the message box: the model, the level, ⚙ Chat and Send; More holds
   expect(more).toHaveAttribute('aria-expanded', 'true')
   // (The sub-agents' settings and the rules are the project's, in Settings - tek-ev: a link there.)
   expect(screen.queryByRole('button', { name: 'Sub-agents' })).not.toBeInTheDocument()
-  const names = ['Work together…', 'Compare…']
+  const names = ['Compare…']
   for (const name of names) expect(screen.getByRole('button', { name })).toBeVisible()
   // in that order, all in the one place More opens
   const held = Array.from(document.getElementById(more.getAttribute('aria-controls')!)!.querySelectorAll('button')).map(

@@ -6,7 +6,6 @@ import {
   Robot,
   TerminalWindow,
   User,
-  UsersThree,
   Wrench,
   X,
 } from '@phosphor-icons/react'
@@ -45,7 +44,6 @@ import { CHANGE_LABEL } from '../changes/changeLabel'
 import { CommandRow } from '../commands/CommandRow'
 import { TOOL_STATUS, ToolRow } from '../chat/ToolRow'
 import { toolSummary } from '../chat/toolSummary'
-import { memberTag, nameIn as nameInRoom, roomLine, spentLines } from '../room/roomText'
 import { StatusLabel } from '../shell/StatusLabel'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
@@ -53,8 +51,6 @@ import { useApp } from '../state/store'
 interface Props {
   /** Open a discussion's shared place. */
   onOpenDiscussion?: (discussionId: string) => void
-  /** Open a room's window. */
-  onOpenRoom?: (roomId: string) => void
   /** Open an agent's own window: what it said and did, as it happens. */
   onOpenAgent?: (agentId: string) => void
   state: ConvState | null
@@ -309,44 +305,6 @@ function discussionPanel({ state, kind, refId, teams, onClose, onOpenDiscussion 
         {said.slice(-3).map(p => (
           <p key={p.id}>
             <span className="mono">{nameIn(state, p.agent_id, teams)}:</span> {p.content}
-          </p>
-        ))}
-      </div>
-    </>
-  )
-}
-
-/** A room: its goal, who is in it, what it spent and what was said last. */
-function roomPanel({ state, kind, refId, teams, onClose, onOpenRoom }: Shown): ReactNode {
-  if (!(kind === 'room' && state.rooms.some(r => r.id === refId))) return null
-  const room = state.rooms.find(r => r.id === refId)!
-  const said = state.roomPosts.filter(p => p.room_id === room.id).sort((a, b) => a.number - b.number)
-  return (
-    <>
-      <Header
-        icon={<UsersThree size={16} />}
-        title="Room"
-        sub={roomLine(room)}
-        onClose={onClose}
-        action={
-          onOpenRoom && (
-            <button type="button" className="btn btn-small" onClick={() => onOpenRoom(room.id)}>
-              Open the room
-            </button>
-          )
-        }
-      />
-      <div className="insp-body">
-        <p className="insp-request">{room.goal}</p>
-        <div className="kicker">In it</div>
-        <p className="mono">{room.members.map(m => memberTag(state, room, m, teams)).join(' · ')}</p>
-        <div className="kicker">Spent of its budget</div>
-        <p className="mono">{spentLines(room).join(' · ')}</p>
-        <div className="kicker">Said last</div>
-        {said.length === 0 && <p className="muted">Nothing yet.</p>}
-        {said.slice(-3).map(p => (
-          <p key={p.id}>
-            <span className="mono">{nameInRoom(state, p.agent_id, teams)}:</span> {p.text}
           </p>
         ))}
       </div>
@@ -675,7 +633,6 @@ const PANELS = [
   filesPanel,
   agentPanel,
   discussionPanel,
-  roomPanel,
   planPanel,
   subAgentPanel,
   toolsPanel,

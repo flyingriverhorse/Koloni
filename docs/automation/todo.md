@@ -79,7 +79,7 @@ of the fast tier, or of the tier you chose. It skips a provider that is down, at
 plan, or whose pay-per-token use you refused in that turn. With no such model nothing is suggested.
 The model is sent what was said in the turn, the files it changed, the steps that failed and the open
 tasks' titles. The secrets KOLONİ knows, and the variables the project passes to its commands, are
-masked. Jobs while you're away and To-do tasks' turns get suggestions too; rooms and discussions get
+masked. Jobs while you're away and To-do tasks' turns get suggestions too; discussions get
 none. Nothing is asked while the project is over its monthly budget.
 
 After a turn of a story - one of its tasks' turns, or yours in its topic - a suggestion goes into that story,

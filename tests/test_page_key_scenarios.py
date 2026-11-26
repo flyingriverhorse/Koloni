@@ -89,7 +89,6 @@ def test_the_key_opens_the_api(bare):
         ("post", "/api/file-changes/nope/approve"),
         ("post", "/api/file-changes/nope/revert"),
         ("post", "/api/discussions/nope/posts"),
-        ("post", "/api/rooms/nope/posts"),
         ("post", "/api/providers/nope/default"),
         ("delete", "/api/providers/nope"),
         ("post", "/api/roles"),
@@ -104,8 +103,8 @@ def test_the_key_opens_the_api(bare):
     ],
 )
 def test_an_approval_with_the_key_but_not_from_the_apps_own_page_is_refused(bare, method, path):
-    """Security review 0.1.0, 9: past the key, a card's yes (an "always" too), a revert, a word
-    in a room and a provider's or a role's change say they come from the app's own page."""
+    """Security review 0.1.0, 9: past the key, a card's yes (an "always" too), a revert and a
+    provider's or a role's change say they come from the app's own page."""
     app, client = bare
     key = {HEADER: app.state.page_key}
     body = {"json": {}} if method == "post" else {}

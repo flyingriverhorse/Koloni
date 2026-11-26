@@ -21,9 +21,12 @@ _spec.loader.exec_module(M)
 
 
 def before_0189(name: str) -> list[str]:
-    """A built-in role's tools as app.roles had them before 0189 took propose_trigger off: what
-    the older migrations' tests compare with."""
+    """A built-in role's tools as app.roles had them before 0189 took propose_trigger off (and
+    0193 open_room, the Lead's after message_agent): what the older migrations' tests compare
+    with."""
     tools = list(BUILTIN_ROLES[name].tools)
+    if name == "Lead":
+        tools.insert(tools.index("message_agent") + 1, "open_room")
     if name in M.AFTER:
         tools.insert(tools.index(M.AFTER[name]) + 1, M.TOOL)
     return tools

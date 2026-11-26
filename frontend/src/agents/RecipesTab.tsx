@@ -45,7 +45,6 @@ import {
   type Who,
   addEnd,
   addGroup,
-  addRoom,
   addStep,
   before,
   branches,
@@ -73,7 +72,6 @@ import {
   setChecks,
   remove,
   renameGroup,
-  roomOf,
   setLoop,
   stepRoles,
   summary,
@@ -119,9 +117,7 @@ const whoValue = (who: Who) =>
         ? `role:${who.role}`
         : 'candidates' in who
           ? `candidates:${who.candidates}`
-          : 'team' in who
-            ? `team:${who.team}`
-            : 'room'
+          : `team:${who.team}`
 const whoOf = (value: string): Who =>
   value === 'lead'
     ? { lead: true }
@@ -145,15 +141,13 @@ const whoLine = (who: Who, teams: Team[]): [string, string] =>
             ? 'the team’s experts that have learned, at once'
             : 'the team’s experts, at once',
       ]
-    : 'room' in who
-      ? ['Room', who.room.join(' · ') || 'no roles yet']
-      : 'lead' in who
-        ? ['Orchestrator picks', 'the Orchestrator picks who']
-        : 'role' in who
-          ? ['role', who.most ? `${who.role}, up to ${who.most}` : who.role]
-          : 'candidates' in who
-            ? ['Candidates', candidatesLine(who)]
-            : ['team stages', `${who.team} → ${stagesOf(teams.find(team => team.name === who.team))}`]
+    : 'lead' in who
+      ? ['Orchestrator picks', 'the Orchestrator picks who']
+      : 'role' in who
+        ? ['role', who.most ? `${who.role}, up to ${who.most}` : who.role]
+        : 'candidates' in who
+          ? ['Candidates', candidatesLine(who)]
+          : ['team stages', `${who.team} → ${stagesOf(teams.find(team => team.name === who.team))}`]
 
 interface NodeData extends Record<string, unknown> {
   /** "checks": the recipe's locked Checks step (S5c), after its last step(s). */
@@ -513,10 +507,9 @@ interface PanelProps {
   onModels?: LoadModels
 }
 
-/** What stands in the way of a step's agents where their roles run now (B-89): a role's, a team's stages', a room's members'. */
+/** What stands in the way of a step's agents where their roles run now (B-89): a role's, a team's stages'. */
 function stepCannot(who: Who, teams: Team[], roles: Role[], models?: Record<string, RoleModel>): string[] {
-  const [names, as] = stepRoles(who, teams, roles)
-  return names.flatMap(name => cannotOf(models?.[name], as).map(line => `${name}: ${line}`))
+  return stepRoles(who, teams, roles).flatMap(name => cannotOf(models?.[name], 'step').map(line => `${name}: ${line}`))
 }
 
 type OneRole = Extract<Who, { role: string }>
@@ -657,7 +650,6 @@ function PartPanel({
   // A Who that names what is not here is kept on show: the server says so as it is saved.
   const who = step ? whoValue(step.who) : 'lead'
   const known = knownWho(who, roles, teams)
-  const room = roomOf(step?.who)
   const { one, candidates, picks } = whoShapes(step)
   const guided = providers.filter(p => p.for_agents && p.enabled !== false)
   // B-388: one whose agent of this role works in the project itself (`step` false, as the spawn refuses it) cannot be a candidate.
@@ -665,28 +657,6 @@ function PartPanel({
   const inCopy = (id: string) => runOn?.find(r => r.provider_id === id)?.step !== false
   const setPick = (at: number, pick: CandidateModel) =>
     candidates && picks && change({ who: { ...candidates, models: picks.map((one, i) => (i === at ? pick : one)) } })
-
-  /** A Room step (slice 84e): 2 to 6 roles that meet in one room; one named that is not here is kept on show. */
-  const roomRow = (room: string[]) => (
-    <div className="recipe-row" role="group" aria-label="Who meets in the room">
-      <span className="muted">Who</span>
-      <div className="recipe-nexts">
-        {[...new Set([...roles.map(role => role.name), ...room])].map(name => (
-          <label key={name} className="choice">
-            <input
-              type="checkbox"
-              checked={room.includes(name)}
-              onChange={e =>
-                change({ who: { room: e.target.checked ? [...room, name] : room.filter(one => one !== name) } })
-              }
-            />
-            <span>{roles.some(role => role.name === name) ? name : `${name} (not here)`}</span>
-          </label>
-        ))}
-        <span className="muted">2 to 6 roles, in one room.</span>
-      </div>
-    </div>
-  )
 
   /** Any other step's Who: the Orchestrator, the team's experts, a role, candidates of a role, or a team's stages. */
   const whoRow = () => (
@@ -891,7 +861,7 @@ function PartPanel({
   /** A step's rows: who does it and how many, what it gets, when it is done, if it fails, and what it waits for. */
   const stepRows = (step: RecipeStep) => (
     <>
-      {room ? roomRow(room) : whoRow()}
+      {whoRow()}
       {one && mostRow(one)}
       {candidates && candidateRows(candidates)}
       <Cannot said={stepCannot(step.who, teams, roles, models)} />
@@ -906,9 +876,7 @@ function PartPanel({
           value={step.done_when}
           onChange={e => change({ done_when: e.target.value as RecipeStep['done_when'] })}
         >
-          <option value="done">
-            {room ? 'the room ends: all say done, or its time or budget is up' : 'its agents say done'}
-          </option>
+          <option value="done">its agents say done</option>
           <option value="no_findings">no finding is left (a review)</option>
         </select>
       </label>
@@ -935,25 +903,22 @@ function PartPanel({
         />
         <span>Only if the step before found a problem</span>
       </label>
-      {/* (A room meets on its own, never at once with other steps.) */}
-      {!room && (
-        <label className="recipe-row">
-          <span className="muted">At once</span>
-          <select
-            className="input"
-            aria-label="At the same time as"
-            value={step.group ?? ''}
-            onChange={e => change({ group: e.target.value || null })}
-          >
-            <option value="">no: on its own</option>
-            {graph.groups.map(one => (
-              <option key={one.id} value={one.id}>
-                in “{one.name}”
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      <label className="recipe-row">
+        <span className="muted">At once</span>
+        <select
+          className="input"
+          aria-label="At the same time as"
+          value={step.group ?? ''}
+          onChange={e => change({ group: e.target.value || null })}
+        >
+          <option value="">no: on its own</option>
+          {graph.groups.map(one => (
+            <option key={one.id} value={one.id}>
+              in “{one.name}”
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="recipe-row">
         <span className="muted">Tiers</span>
         <span className="muted">as each role’s rule (the Orchestrator picks within it)</span>
@@ -1481,15 +1446,6 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
             onClick={() => chosenPart && change(loopBack(draft.graph, chosenPart))}
           >
             + Loop back
-          </button>
-          <button
-            type="button"
-            className="recipe-tool"
-            title="Its roles meet in one room"
-            disabled={readOnly}
-            onClick={() => add(addRoom(draft.graph, chosenPart))}
-          >
-            + Room
           </button>
           <button
             type="button"

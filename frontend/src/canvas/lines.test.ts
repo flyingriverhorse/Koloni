@@ -6,7 +6,6 @@ import type {
   ChatTeamState,
   Discussion,
   DiscussionPost,
-  Room,
   Team,
 } from '../api/types'
 import {
@@ -71,7 +70,6 @@ const step = (id: string, name: string, state: 'done' | 'now' | 'next', group = 
   name,
   state,
   round: 0,
-  room: false,
   own_check: false,
   left_out: [],
   group,
@@ -446,95 +444,12 @@ function memberLines(g: ReturnType<typeof deriveGraph>) {
   }
 }
 
-test('a room the Lead opened with two teams’ leads stands in the lane, out of both frames; a room of one team’s stays in its frame', () => {
-  // (Live, 5 Nov: the Orchestrator's room with the Web app and Docs leads was drawn in Web app's frame, by its first
-  // member, and the Docs lead's line to it ran frame to frame from a corner - B-392 - beside their own 💬 line.)
-  const room = (id: string, members: string[]) =>
-    ({
-      id,
-      run_id: 'r',
-      agent_id: 'r',
-      goal: 'One API?',
-      status: 'working',
-      outcome: null,
-      why: null,
-      members: members.map(agent_id => ({ agent_id, role: 'Lead', status: 'in' })),
-    }) as unknown as Room
-  const talked = [said('m1', 'wl', 'bl', 'message', 'One API?'), said('m2', 'bl', 'wl', 'reply', 'Yes.')]
-  const g = foldGraph(
-    deriveGraph(twoTeams({ rooms: [room('o', ['wl', 'bl']), room('p', ['wl', 'wc'])], channelMessages: talked })),
-    {},
-  )
-  expect(g.nodes.find(n => n.id === 'room:o')?.team).toBeUndefined()
-  expect(g.nodes.find(n => n.id === 'room:p')?.team).toBe('team:r:web')
-  // Its members' lines run from their frames to the lane; no grey line frame to frame - the leads' talk is the one across.
-  expect(ways(g, e => e.target === 'room:o' && e.member)).toEqual(['agent:wl>room:o', 'agent:bl>room:o'])
-  expect(
-    ways(g, e => e.talk && !e.messages && !e.member && g.nodes.find(n => n.id === e.source)?.kind === 'team'),
-  ).toEqual([])
-  expect(ways(g, e => e.cross)).toEqual(['agent:wl>agent:bl'])
-  const { positions, sizes } = layoutGraph(g.nodes, g.edges)
-  const ready = positions[g.nodes.find(n => n.kind === 'ready')!.id]
-  expect(positions['room:o'].x).toBeLessThan(ready.x)
-  for (const frame of ['team:r:web', 'team:r:api'])
-    expect(positions['room:o'].x).toBeGreaterThan(positions[frame].x + sizes[frame].width)
-})
-
-test('in the lane a room and a discussion between teams stand in the order they began, the room first when it opened first', () => {
-  // (deriveGraph puts every discussion before every room: a room opened first stood under a discussion held after it.)
-  const room = {
-    id: 'o',
-    run_id: 'r',
-    agent_id: 'r',
-    goal: 'One API?',
-    status: 'working',
-    outcome: null,
-    why: null,
-    created_at: at,
-    members: ['wl', 'bl'].map(agent_id => ({ agent_id, role: 'Lead', status: 'in' })),
-  } as unknown as Room
-  const later = '2026-10-05T11:00:00Z'
-  const talk = {
-    id: 'd',
-    run_id: 'r',
-    agent_id: 'r',
-    tool_call_id: 'x',
-    topic: 'Ship it?',
-    status: 'ended',
-    outcome: 'agreed',
-    round: 1,
-    max_rounds: 3,
-    created_at: later,
-    ended_at: later,
-    members: ['wc', 'bc'].map(agent_id => ({ agent_id, status: 'in', opened_here: false })),
-  } as unknown as Discussion
-  const g = foldGraph(deriveGraph(twoTeams({ rooms: [room], discussions: [talk] })), {})
-  // Both in the lane: joined to their members by lines `member`.
-  expect(['room:o', 'discussion:d'].map(id => g.edges.some(e => e.member && e.target === id))).toEqual([true, true])
-  const { positions } = layoutGraph(g.nodes, g.edges)
-  const [o, d] = [positions['room:o'], positions['discussion:d']]
-  expect(d.x).toBe(o.x)
-  expect(o.y).toBeLessThan(d.y)
-})
-
-test('a discussion or room between teams names a team’s lead its coordinator, as the lead’s own box does', () => {
+test('a discussion between teams names a team’s lead its coordinator, as the lead’s own box does', () => {
   const teams = [
     ['web', 'Web app'],
     ['api', 'Backend'],
   ].map(([id, name]) => ({ id, name, roles: [], lead: { name: `${name} lead` } }) as unknown as Team)
   const leads = ['wl', 'bl']
-  const room = {
-    id: 'o',
-    run_id: 'r',
-    agent_id: 'wl',
-    lead_follows: 'on',
-    goal: 'One API?',
-    status: 'working',
-    outcome: null,
-    why: null,
-    created_at: at,
-    members: leads.map(agent_id => ({ agent_id, role: 'Lead', status: 'in' })),
-  } as unknown as Room
   const talk = {
     id: 'd',
     run_id: 'r',
@@ -558,15 +473,11 @@ test('a discussion or room between teams names a team’s lead its coordinator, 
     content: 'Yes.',
     created_at: at,
   } as unknown as DiscussionPost
-  const g = deriveGraph(twoTeams({ rooms: [room], discussions: [talk], discussionPosts: [post] }), teams)
+  const g = deriveGraph(twoTeams({ discussions: [talk], discussionPosts: [post] }), teams)
   const data = (id: string) => g.nodes.find(n => n.id === id)?.data
   expect(data('discussion:d')).toMatchObject({
     members: ['Orchestrator', 'Web app coordinator', 'Backend coordinator'],
     last: [{ who: 'Backend coordinator', text: 'Yes.' }],
-  })
-  expect(data('room:o')).toMatchObject({
-    members: ['Web app coordinator · at work', 'Backend coordinator · at work'],
-    watched: 'Watched by Web app coordinator · can post, invite, end',
   })
 })
 
@@ -1089,20 +1000,10 @@ function frameLegs({ g, byId, box, cards }: ReturnType<typeof drawn>) {
   })
 }
 
-// The user's (5 Nov): a step at once - a room and its four agents (Reviewer 2, Security, Tester, UI designer) -, the room at
-// their head. Side by side, the work line forks into each from above, and the room's lines fan out to them.
-const atOnce = () => {
-  const room = {
-    id: 'o',
-    run_id: 'r',
-    agent_id: 'wl',
-    goal: 'Review it',
-    status: 'working',
-    outcome: null,
-    why: null,
-    members: ['rv', 'sc', 'ts', 'ux'].map(agent_id => ({ agent_id, role: 'Reviewer', status: 'in' })),
-  } as unknown as Room
-  return convState({
+// The user's (5 Nov): a step at once - its four agents (Reviewer 2, Security, Tester, UI designer). Side by side, the work
+// line forks into each from above.
+const atOnce = () =>
+  convState({
     conversation: {
       ...conversation,
       teams_mode: 'manual',
@@ -1128,9 +1029,7 @@ const atOnce = () => {
       sub('cd', 'Coder', 'wl'),
       ...['rv', 'sc', 'ts', 'ux'].map(id => sub(id, id, 'wl', 'running')),
     ],
-    rooms: [room],
   })
-}
 
 test('5 Nov: no line of a frame runs under a card or over its header - nor under its own ends, but where it leaves and comes in', () => {
   const two = convState({
@@ -1174,20 +1073,13 @@ test('5 Nov: no line of a frame runs under a card or over its header - nor under
   }
 })
 
-test('5 Nov: steps at once stand side by side, the work line into each from above, the room’s lines fanned out to them', () => {
+test('5 Nov: steps at once stand side by side, three to a row', () => {
+  // (Their work lines came down into each from above under the room that stood at their head; rooms are gone, 0.1.10.)
   const turn = drawn(atOnce())
-  const [rv, sc, ts, ux, room] = ['agent:rv', 'agent:sc', 'agent:ts', 'agent:ux', 'room:o'].map(turn.box)
-  // Three to a row, the fourth under the first; the room at their head.
+  const [rv, sc, ts, ux] = ['agent:rv', 'agent:sc', 'agent:ts', 'agent:ux'].map(turn.box)
+  // Three to a row, the fourth under the first.
   expect([sc.y, ts.y]).toEqual([rv.y, rv.y])
   expect([sc.x > rv.x, ts.x > sc.x, ux.x, ux.y > rv.y]).toEqual([true, true, rv.x, true])
-  expect(room.y + room.height).toBeLessThanOrEqual(rv.y)
-  const lines = frameLegs(turn)
-  // Into each of the row but the first, from above: its last leg comes down into its top.
-  for (const id of ['agent:sc', 'agent:ts']) {
-    const fork = lines.find(({ e }) => e.work && e.target === id)!
-    const last = fork.legs[fork.legs.length - 1]
-    expect([last[0], last[2], last[3] === turn.box(id).y], id).toEqual([last[2], turn.box(id).x + NODE_W / 2, true])
-  }
 })
 
 // The user's screenshots (5 Nov): three teams one under the other - Web app, Data, Docs -, their agents talking across:

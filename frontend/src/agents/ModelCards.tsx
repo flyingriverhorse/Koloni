@@ -1084,7 +1084,7 @@ export function ModelAnswers({
           />
         )}
       </div>
-      <Cannot said={cannotOf(runs, 'step', 'room')} />
+      <Cannot said={cannotOf(runs, 'step')} />
     </section>
   )
 }

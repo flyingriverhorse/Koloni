@@ -1,14 +1,12 @@
 """Slice 81c, after review: a provider's limit holds wherever its provider would spend - a
-sub-agent and a room's member, each side of a comparison, the model asked for the day's
+sub-agent, each side of a comparison, the model asked for the day's
 words, a trigger's turn - and is read once a request; a limit in dollars is not kept against
 prices in another currency; a Lead moved by a limit says why from the start."""
 
-import pytest
 from sqlalchemy import select
 
 from app.api import usage
-from app.db.models import Agent, Conversation
-from app.room import member_model
+from app.db.models import Agent
 from tests.test_agents_teams_scenarios import patch_role, spawn
 from tests.test_budget_scenarios import PRICE
 from tests.test_chat_flow import text
@@ -197,24 +195,3 @@ def test_a_lead_moved_by_a_limit_says_why_from_the_start(team, wait_run, project
     assert lead["chosen_why"] == (
         "over Local's limit of 5.00 USD a day (10.50 spent today): the next strongest model"
     )
-
-
-def test_a_rooms_members_are_held_to_their_providers_limits(make_client, wait_run, project_dir):
-    client, _model, _pid, cid = began(make_client, project_dir, [text("a", 10, 10), text("b")])
-    run = turn(client, wait_run, cid)
-    other(client, run, for_agents=True)  # open to agents: this test is about the limit (B-385)
-    # The user's room: asked first, as a message is, of a member's provider too.
-    room = {
-        "goal": "together",
-        "with": [{"role": "Coder", "provider": "Other"}, {"role": "Reviewer"}],
-    }
-    refused = client.post(f"/api/conversations/{cid}/rooms", json=room)
-    assert refused.status_code == 409 and "over Other's limit" in refused.text
-    # An agent's room: a member past its provider's limit is not opened, as a sub-agent is not.
-    with client.app.state.session_factory() as session:
-        conversation = session.get_one(Conversation, cid)
-        conversation.provider_id = next(
-            p["id"] for p in client.get("/api/providers").json() if p["name"] == "Other"
-        )
-        with pytest.raises(ValueError, match="Other is over Other's limit"):
-            member_model(session, conversation, "Coder", None, None)

@@ -380,14 +380,13 @@ def test_a_reviewer_whose_own_model_is_codex_runs_there_read_only(
     assert reviewer["provider_name"] == "Codex" and team.stubs["Codex"].started == 1
 
 
-def test_the_table_says_before_any_run_where_a_role_could_be_no_recipe_step_and_no_room_member(
+def test_the_table_says_before_any_run_where_a_role_could_be_no_recipe_step(
     team,
     wait_run,
     project_dir,  # noqa: F811
 ):
-    """B-89: an agy Reviewer refused as a recipe's step, a Codex Coder as a room's member -
-    found only as they ran. The table says it with the words the opener would be told."""
-    from app.room import member_model
+    """B-89: an agy Reviewer refused as a recipe's step - found only as it ran. The table says
+    it with the words the opener would be told."""
     from app.team import ONLY_IN_THE_PROJECT
 
     client, default, fast = team([text("done")])
@@ -402,10 +401,7 @@ def test_the_table_says_before_any_run_where_a_role_could_be_no_recipe_step_and_
     rows = table(client)
     # (The stand-in is a CLI of its own tools not started in a copy, as native agy is.)
     assert rows["Coder"]["cannot_step"] == ONLY_IN_THE_PROJECT.format(provider="Codex")
-    with client.app.state.session_factory() as session, pytest.raises(ValueError) as refused:
-        member_model(session, None, "Coder", None, None, by_user=True)
-    assert rows["Coder"]["cannot_room"] == str(refused.value)
-    assert (rows["Tester"]["cannot_step"], rows["Tester"]["cannot_room"]) == (None, None)
+    assert rows["Tester"]["cannot_step"] is None
 
 
 # --- one tier up, said to the opener --------------------------------------------------------
@@ -974,13 +970,9 @@ def test_the_table_says_where_a_roles_agents_could_run_instead_and_with_what_mod
     )
     on = {one["provider_id"]: one for one in table(client)["Coder"]["run_on"]}
     assert (on[ids["Paid Api"]]["model_id"], on[ids["Paid Api"]]["step"]) == ("silver", True)
-    assert (on[ids["Fast"]]["model_id"], on[ids["Fast"]]["step"], on[ids["Fast"]]["room"]) == (
-        "quick",
-        True,
-        True,
-    )
+    assert (on[ids["Fast"]]["model_id"], on[ids["Fast"]]["step"]) == ("quick", True)
     # (the stand-in works in the project itself, with tools of its own)
-    assert (on[ids["Codex"]]["step"], on[ids["Codex"]]["room"]) == (False, False)
+    assert on[ids["Codex"]]["step"] is False
 
 
 def test_past_its_plan_share_a_cli_steps_down_on_its_own_plan_or_another_kind_never_another_account():

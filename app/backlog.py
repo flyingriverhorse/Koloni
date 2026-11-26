@@ -25,7 +25,6 @@ from app.db.models import (
     Merge,
     Message,
     Project,
-    Room,
     Run,
     Story,
     ToolCall,
@@ -1022,10 +1021,9 @@ PROPOSE = (
 
 
 def po_asked(session: Session, run: Run) -> bool:
-    """Whether the Scout is asked about a turn that ended: not a room's or a
-    discussion's, and one that did something - a file changed, a command, a step that failed,
-    or work handed to a sub-agent. (The caller rules out the rest: a plan, a side of a
-    comparison.)"""
+    """Whether the Scout is asked about a turn that ended: not a discussion's, and one that did
+    something - a file changed, a command, a step that failed, or work handed to a sub-agent.
+    (The caller rules out the rest: a plan, a side of a comparison.)"""
 
     def has(model, *where) -> bool:
         return (
@@ -1033,7 +1031,7 @@ def po_asked(session: Session, run: Run) -> bool:
             is not None
         )
 
-    if has(Room) or has(Discussion):
+    if has(Discussion):
         return False
     return (
         has(FileChange)
@@ -1391,9 +1389,8 @@ def read_backlog(session: Session, project_id: str, args: dict) -> str:
 def add_task(session: Session, project_id: str, args: dict, chat: str | None = None) -> str:
     """`chat`: the one it is proposed in (☾ Away ticks it there)."""
     fields = _fields(args, title_required=True)
-    # The first task not done yet that looks like this one (as a room's item is,
-    # `room.looks_like`): said, never refused - a likeness wrongly seen must not hold the
-    # work up.
+    # The first task not done yet that looks like this one: said, never refused - a likeness
+    # wrongly seen must not hold the work up.
     like = next(
         (
             one

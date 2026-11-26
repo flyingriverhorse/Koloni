@@ -445,15 +445,9 @@ def test_a_plain_chat_is_held_by_no_projects_budget_but_by_a_providers_limit(
     assert held.status_code == 409 and f"over {local['name']}'s limit" in held.json()["detail"]
 
 
-def test_a_room_a_comparison_or_a_view_in_a_plain_chat_is_refused(make_client):
+def test_a_comparison_or_a_view_in_a_plain_chat_is_refused(make_client):
     client, _ = make_client([])
     cid = plain(client)
-    room = client.post(
-        f"/api/conversations/{cid}/rooms",
-        headers=OWN,
-        json={"goal": "build it", "with": [{"role": "Coder"}, {"role": "Reviewer"}]},
-    )
-    assert room.status_code == 409 and "folder" in room.json()["detail"], room.text
     local = client.get("/api/providers").json()[0]["id"]
     compare = client.post(
         f"/api/conversations/{cid}/compare",

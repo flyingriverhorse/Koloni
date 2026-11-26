@@ -33,10 +33,8 @@ from app.providers import (
     NotListed,
     allowed,
     list_providers,
-    works_with_own_tools,
 )
 from app.roles import BUILTIN_ROLES, shown_name
-from app.room import NO_MEMBER_ON
 from app.schemas import (
     AskedModel,
     ExpertIn,
@@ -488,7 +486,6 @@ def _run_on(session: Session, providers) -> list[tuple[str, RunOn, object]]:
                         provider_id=provider.id,
                         model_id=model,
                         step=not only_in_project(client),
-                        room=not works_with_own_tools(provider),
                     ),
                     client,
                 )
@@ -535,9 +532,6 @@ def _who_uses_what(request: Request, conversation_id: str | None) -> tuple[list,
             told.append(
                 RoleModelOut(
                     cannot_step=cannot_step,
-                    cannot_room=NO_MEMBER_ON.format(provider=on, role=shown_name(role.name))
-                    if works_with_own_tools(would.provider)
-                    else None,
                     role=role.name,
                     provider_name=would.provider.name,
                     model_id=would.model_id,

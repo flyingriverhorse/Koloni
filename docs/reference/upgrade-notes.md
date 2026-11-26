@@ -82,6 +82,25 @@ Only what needs your attention after an update; everything else is in the [Chang
 - **The search by meaning is gone.** The database upgrade deletes the vectors it kept and the provider
   and model a project chose for it. Search deeper and an agent's recall match words, as before. Going
   back to 0.1.9 brings the setting back off.
+- **Rooms are gone.** At the first start the database is upgraded (migration 0193), after KOLONİ copies
+  it to `runtime/data/backups/`: `open_room` is taken off every role, your own too; what a room may
+  spend is taken off every project and chat; each Room step of your saved recipes becomes an **All at
+  once** group in its place, a step for each of its roles (its arrows and loops kept); a room left
+  running is ended; and each turn that had a room gets one line in its chat, "A room was opened here.
+  Rooms were removed in 0.1.10 …". The steps of a converted group are named "<the step's name> ·
+  <role>". The rooms themselves and what was said in them stay in the database,
+  untouched. A recipe file in a folder's `.koloni/recipes/` is read the same way as it loads, and is
+  written in the new form the next time you save it. In a Room step that reviewed, a role that does the
+  recipe's work at a step of its own works in the group and the others review - where every role does,
+  all of them keep reviewing and the recipe says which "would check its own work": take that role out.
+  A Room step that ran only if a problem was found now always runs. A saved recipe that no longer reads
+  (a Room step near the 60-step limit, as a group past it) is listed under the recipes that are not
+  read, with why. A room between teams no longer leaves its decision on the notebook or in
+  `.koloni/shared/decisions/`; the files there stay readable, and teams agree through `contracts/`.
+  For agents talking a question through, ask for a [discussion](../agents/discussions.md); for
+  work at the same time, sub-agents or a recipe's **All at once** step. To go back to 0.1.9, stop
+  KOLONİ, return to 0.1.9 and put that copy back in place of `runtime/data/koloni.db` - a downgrade of
+  the database alone gives the room budgets back at their defaults, not the values you had.
 
 ### 0.1.8
 

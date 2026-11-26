@@ -154,7 +154,7 @@ export function LimitsTab({
                 ['At most $', 'a day'],
                 day,
                 setDay,
-                'Spent at your prices, in every project; empty for no limit. Past it, a new message whose Orchestrator runs here asks you first, a model picked by tier is the next one of its tier, and no sub-agent or room member is opened here.',
+                'Spent at your prices, in every project; empty for no limit. Past it, a new message whose Orchestrator runs here asks you first, a model picked by tier is the next one of its tier, and no sub-agent is opened here.',
                 'It asks you as a project’s budget does.',
               )}
               {field(

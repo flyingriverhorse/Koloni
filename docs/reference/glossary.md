@@ -154,8 +154,10 @@ KOLONİ's own words, as they appear on screen.
   Debugger, Architect and Docs writer. You can add your own.
 
 **Room**
-: Two to six agents working on one goal at the same time, in one working copy. They share the work
-  out first, and each file has one holder. You open one with **Work together…** under **More**.
+: Until 0.1.10, two to six agents working on one goal at the same time, in one working copy. Rooms are
+  gone: a [discussion](../agents/discussions.md) lets agents talk a question through, and sub-agents
+  (or a recipe's **All at once** step) work at the same time, each on its own part. An old chat's room
+  is one line where it was; what was said in it is kept in KOLONİ's record.
 
 **Scout**
 : The built-in role that keeps watch on the To-do list: it splits vague tasks, asks what is

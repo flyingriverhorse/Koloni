@@ -20,7 +20,7 @@ from app.agent.ctx import Ctx
 from app.agent.words import MAX_WHY
 from app.api.usage import month_spend
 from app.copilot_offers import LISTED_REFUSED, offered
-from app.db.models import Agent, Conversation, Message, Provider, Room, Run
+from app.db.models import Agent, Conversation, Message, Provider, Run
 from app.model_client import ModelClient, ModelUnavailable, OwnStop
 from app.providers import TIERS, NotListed, allowed, ask_once, list_providers, mode_of, own_request
 from app.roles import LEAD, find_role, shown_name, title_of
@@ -348,23 +348,6 @@ class TiersMixin:
                 agent.nano_aiu = (agent.nano_aiu or 0) + nano_aiu
             if premium is not None:
                 agent.premium_requests = (agent.premium_requests or 0) + premium
-            # A member's steps while its room runs are the room's - and (K-oda-lead, S7) its
-            # opener's while it follows it - as billed: all each step sent and wrote, as usage
-            # and a turn's token limit count it. B-390: only while it runs - not what the agents
-            # spent before it, nor (a coordinator taken up) after it.
-            room = self._rooms.get(ctx.run_id)
-            counted = (
-                room
-                if room is not None and room.outcome is None and (ctx.agent_id in room.members)
-                else (None if ctx.answering else self._following.get(ctx.agent_id))
-            )
-            if (
-                counted is not None
-                and counted.outcome is None
-                and (sent is not None or made is not None)
-            ):
-                row = session.get_one(Room, counted.id)
-                row.tokens = (row.tokens or 0) + (sent or 0) + (made or 0)
             for holder in holders:
                 if sent is not None and step:
                     # Each step resends the whole history, so the latest prompt size is
@@ -378,7 +361,6 @@ class TiersMixin:
         self.bus.emit(ctx.cid, ctx.run_id, "agent.updated", agent_payload)
         if ctx.depth == 0:
             self.bus.emit(ctx.cid, ctx.run_id, "run.updated", run_payload)
-        self._hold_room_to(ctx.run_id, "tokens", ctx.agent_id)
 
     def _ran_on(self: "AgentRunner", ctx: Ctx, model: str | None, why: str | None = None) -> None:
         """Put the model a CLI says it used on record: that, not the name it was asked

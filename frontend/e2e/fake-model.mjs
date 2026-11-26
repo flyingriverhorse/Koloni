@@ -130,58 +130,6 @@ const VIEWS = {
   Lead: 'Then we keep hi.',
 }
 
-// A member of a room the user opened (told so in its instructions). Before each of its steps
-// it is told how the room stands, so what it does next goes by what it has done so far. The
-// Coder puts its part on the list and takes it in the round before the work, reads the file,
-// cannot go on without the user (a "blocked" post: a question card), then closes its item.
-// The Reviewer adds nothing to the list, waits for a post, and is done.
-function roomStep(messages, tools) {
-  const made = messages.flatMap(m =>
-    m.role === 'assistant' ? (m.tool_calls ?? []).map(call => call.function.name) : [],
-  )
-  // The round in which the work is shared out offers the list and a word, nothing that closes an item.
-  const sharing = !tools.some(tool => tool.function?.name === 'finish_item')
-  const coder = String(messages[0].content).includes('Coder sub-agent')
-  // Slice 84e: a recipe's Room step - the Coder writes its file (in the recipe's copy), the Reviewer looks; both are done.
-  const met = /Meet 84e (\w+)/.exec(String(messages[1]?.content))
-  if (met) {
-    const file = `recipe84e-${met[1]}.txt`
-    if (!coder) return say(sharing ? 'Nothing to add to the list.' : 'Looked at it: fine.')
-    if (sharing)
-      return toolCalls([
-        ['c84e1', 'add_item', { title: 'Write the file', paths: [file] }],
-        ['c84e2', 'take_item', { item: 1 }],
-      ])
-    if (!made.includes('write_file')) return toolCall('c84e3', 'write_file', { path: file, content: 'met\n' })
-    if (!made.includes('finish_item')) return toolCall('c84e4', 'finish_item', { item: 1, result: `Wrote ${file}.` })
-    return say('My part is done.')
-  }
-  if (coder) {
-    if (sharing) {
-      return toolCalls([
-        ['c100', 'add_item', { title: 'Look at the greeting', paths: ['hello.py'] }],
-        ['c101', 'take_item', { item: 1 }],
-      ])
-    }
-    if (!made.includes('read_file')) return toolCall('c102', 'read_file', { path: 'hello.py' })
-    if (!made.includes('post_to_room'))
-      return toolCall('c103', 'post_to_room', { type: 'blocked', text: 'Shall the greeting stay hi?' })
-    // AC: a room told to change the greeting writes it in the room's copy - the room's changes, From you.
-    const change = /Change the greeting/.test(String(messages[1]?.content))
-    if (change && !made.includes('write_file'))
-      return toolCall('c106', 'write_file', { path: 'hello.py', content: "print('hi there')\n" })
-    if (!made.includes('finish_item'))
-      return toolCall('c104', 'finish_item', {
-        item: 1,
-        result: change ? 'hello.py now says hi there.\nRead it, changed it, ran it.' : 'It prints hi, and stays so.',
-      })
-    return say('My part is done.')
-  }
-  if (sharing) return say('Nothing to add to the list.')
-  if (!made.includes('wait_for_post')) return toolCall('c105', 'wait_for_post', {})
-  return say('Looked at it: fine.')
-}
-
 // A note handed over from the shared notebook reaches an agent as a user message. It is
 // something to know, not something asked: the next step is decided without it.
 // (So is the user's word on KOLONİ's card, told the Lead after the call it answered - B-125: the step goes on from that call.)
@@ -486,7 +434,6 @@ function nextStep(all, tools = [], model = '') {
       return toolCall('c1', 'read_file', { path: 'hello.py' })
     return say('It prints hi.')
   }
-  if (String(messages[0].content).includes('You are in a room with')) return roomStep(messages, tools)
   // (Kanıtlı bitiş R3: a recipe's check that may run commands runs one first - one that ran none does not pass.)
   const ranFirst = (id, report) =>
     tools.some(tool => tool.function?.name === 'run_command') && !messages.some(m => m.tool_calls?.length)
@@ -531,24 +478,6 @@ function nextStep(all, tools = [], model = '') {
   if (String(messages[0].content).startsWith('You are asked one thing: to write a short guide')) {
     return say(
       '## What it offers\n- `pay(amount)` takes a payment: no card form of your own · docs-uzman/pay.md · official\n## Pitfalls\n- Amounts are in cents · docs-uzman/pay.md · official',
-    )
-  }
-  // K-oda-izle: let follow the room you opened, the Lead waits for what is said to it - your "End it, Lead." ends it.
-  if (messages.some(m => m.role === 'user' && m.content === 'Let the Lead follow it')) {
-    const said = String(last.content)
-    if (last.role === 'tool' && said.startsWith("The user opened a room for this turn's message"))
-      return say('The room is over: the Lead ended it.')
-    if (last.role === 'tool' && said.includes('"End it, Lead."'))
-      return toolCall('cizle2', 'end_room', { summary: 'The Lead ended it, as you asked.' })
-    if (said.includes('may let you follow it') || said.startsWith('The room you follow runs on'))
-      return toolCall(`cizle${messages.length}`, 'wait_for_room', {})
-  }
-  // The lead of a room's turn: it took no part, and is given the room's record when it is over.
-  if (last.role === 'user' && String(last.content).startsWith('The user opened a room')) {
-    return say(
-      String(last.content).includes('It prints hi, and stays so.')
-        ? 'The room is over: the greeting stays hi.'
-        : 'The room is over.',
     )
   }
   // Told what to answer, the lead answers that and nothing else (what is said in a turn is
@@ -934,9 +863,6 @@ function nextStep(all, tools = [], model = '') {
     const waitsFor = /make it by the recipe, kb (\w+)/i.exec(last.content)
     if (waitsFor)
       return toolCall('ckb0', 'spawn_agent', { role: 'Coder', task: `Ask, run and write bekleyen-${waitsFor[1]}.txt` })
-    // Slice 84e: a recipe's Room step - the Lead opens the room with the step's roles.
-    const meet84 = /meet by the recipe, 84e (\w+)/i.exec(last.content)
-    if (meet84) return toolCall('c84e', 'open_room', { goal: `Meet 84e ${meet84[1]}`, with: ['Coder', 'Reviewer'] })
     // Slice 48: the Lead writes the file where it is given write_file, and hands it to a Coder where not.
     if (/make farewell/i.test(last.content)) {
       return tools.some(tool => tool.function?.name === 'write_file')
@@ -1214,8 +1140,6 @@ function nextStep(all, tools = [], model = '') {
   }
   if (result.startsWith('Coder finished') && result.includes('The user took the work in'))
     return say('The recipe is done and in the project.')
-  if (result.startsWith('You opened a room') && result.includes('The user took the work in'))
-    return say('The meeting is done and in the project.')
   if (result.startsWith('Reviewer finished') && result.includes('Findings to hand on: Coder (1)')) {
     return toolCall('c841', 'spawn_agent', {
       role: 'Coder',

@@ -21,7 +21,6 @@ def test_a_chat_made_before_follows_a_changed_project_setting(client, project_di
             json={
                 "spawn_approval": "always",
                 "spawn_max_agents": 1,
-                "room_tokens": 9000,
                 "discussion_budget": None,
             },
             headers=OWN,
@@ -29,18 +28,7 @@ def test_a_chat_made_before_follows_a_changed_project_setting(client, project_di
         == 200
     )
     got = client.get(f"/api/conversations/{cid}").json()["conversation"]
-    assert (got["spawn_approval"], got["spawn_max_agents"], got["room_tokens"]) == (
-        "always",
-        1,
-        9000,
-    )
-    # ...and a turn reads them: a room of two is more than the turn may open now
-    opened = client.post(
-        f"/api/conversations/{cid}/rooms",
-        headers=OWN,
-        json={"goal": "fix it", "with": [{"role": "Coder"}, {"role": "Reviewer"}]},
-    )
-    assert opened.status_code == 422 and "open 1 sub-agent" in opened.text
+    assert (got["spawn_approval"], got["spawn_max_agents"]) == ("always", 1)
     for bad in (0, 21, True):
         assert (
             client.patch(
@@ -64,10 +52,6 @@ def test_a_chat_with_no_project_has_the_defaults(client, project_dir):
             "lead_work",
             "when_away",
             "away_minutes",
-            "room_posts",
-            "room_tokens",
-            "room_minutes",
-            "room_min_tokens",
         )
     } == {
         "spawn_approval": "auto",
@@ -78,14 +62,7 @@ def test_a_chat_with_no_project_has_the_defaults(client, project_dir):
         "lead_work": "delegates",
         "when_away": "waits",
         "away_minutes": 10,
-        "room_posts": 40,
-        "room_tokens": None,
-        "room_minutes": 30,
-        "room_min_tokens": 60_000,
     }
-    # (B-414: and a new project's, which its chats follow)
-    project = client.post("/api/projects", json={"root_path": str(project_dir)}).json()
-    assert project["room_min_tokens"] == 60_000
 
 
 def test_a_nights_job_follows_the_project_not_the_evenings_chat(make_client, wait_run, project_dir):
@@ -154,13 +131,12 @@ def test_a_project_chat_is_refused_its_projects_settings_and_a_plain_chat_keeps_
     for body in (
         {"spawn_approval": "never"},
         {"spawn_max_parallel": 4},
-        {"room_tokens": None},
         {"discussion_budget": 5},
         {"when_away": "lead"},
         {"away_minutes": 3},
         {"lead_work": "itself"},
         {"lead_hands_code": False},
-        {"title": "t", "room_posts": 5},
+        {"title": "t", "spawn_max_depth": 1},
     ):
         # (`request`: the test client sends these to the project, as Settings does - keyed.py)
         refused = client.request("PATCH", f"/api/conversations/{cid}", json=body, headers=OWN)

@@ -141,7 +141,6 @@ def test_a_session_turn_is_recorded_like_any_other(session_app, wait_run, projec
         "ask_folder",
         "ask_secret",
         "message_agent",
-        "open_room",
         "discuss",
         "read_backlog",
         "add_task",

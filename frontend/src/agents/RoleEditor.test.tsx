@@ -93,7 +93,7 @@ test('a role names the MCP servers it may use; "on Tools →" goes there', async
   expect(h.onSave.mock.calls[0][1]).not.toHaveProperty('mcp')
   await userEvent.click(card('Documenter'))
   await userEvent.click(screen.getByRole('tab', { name: 'Tools' }))
-  expect(screen.getByText(/^May use/)).toHaveTextContent('May use 2 of 35 tools · 0 MCP servers · 0 skills')
+  expect(screen.getByText(/^May use/)).toHaveTextContent('May use 2 of 34 tools · 0 MCP servers · 0 skills')
 })
 
 test('a built-in role keeps its name, can be reset and cannot be deleted', async () => {

@@ -455,7 +455,7 @@ class AnthropicClient:
         (the newest send none unasked), or with a budget - and the answer comes back whole
         (`StepResult.blocks`), its thinking signed, to be sent back as it came. `think`
         False: asked so only where its model thinks unasked (THINKS "on") - none of it would
-        be sent back (a room's member, told how its room stands at each step and never again).
+        be sent back (a discussion's speaker, told how it stands at each step and never again).
         shortcut: the UI shows that it is thinking, not the summary's words; show them if
         asked for."""
         system, history = to_anthropic(messages)

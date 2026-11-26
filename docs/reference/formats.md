@@ -36,7 +36,8 @@ hand. A file KOLONİ cannot read is listed with the reason.
     - `{"role": "Coder", "most": 2}`: a role, with at most 1 to 5 agents;
     - `{"team": "Web app"}`: a team's stages;
     - `{"lead": true}`: the Orchestrator picks;
-    - `{"room": ["Coder", "Reviewer"]}`: a room of 2 to 6 roles;
+    - `{"room": ["Coder", "Reviewer"]}` (before 0.1.10): read as an "all at once" group in its place, a step of
+      each role;
     - `{"experts": "all"}` (or `"stale"`, `"learned"`): the team's experts;
     - `{"candidates": "Coder", "most": 3, "target": 80, "models": "auto"}`: 2 to 5 candidates;
       `models` is `"auto"`, `"same"`, or a list of `{"provider_id", "model_id"}`.

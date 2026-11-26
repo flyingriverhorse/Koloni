@@ -162,27 +162,17 @@ export function addGroup(graph: RecipeGraph, after: string | null): [RecipeGraph
   return [goesOn(graph, after) ? connect(added, after, id) : added, id]
 }
 
-/** A Room step (slice 84e): its roles meet in one room, never at once with other steps - after the part that is chosen. */
-export function addRoom(graph: RecipeGraph, after: string | null): [RecipeGraph, string] {
-  const id = fresh(graph, 's')
-  const added = { ...graph, steps: [...graph.steps, { ...newStep(graph, id, 'Meeting'), who: { room: [] } }] }
-  return [goesOn(graph, after) ? connect(added, after, id) : added, id]
-}
-
-export const roomOf = (who: Who | undefined): string[] | null => (who && 'room' in who ? who.room : null)
-
 /** K-evrim: a step of candidates, as a card and a list say it: "Coder ×3 · target 80". */
 export const candidatesLine = (who: Extract<Who, { candidates: string }>) =>
   `${who.candidates} ×${who.most}${who.target != null ? ` · target ${who.target}` : ''}`
 
-/** The roles a step's agents are of, by name - its role's, its team's stages', its room's members' - and how they work in it. */
-export function stepRoles(who: Who, teams: Team[], roles: Role[]): [names: string[], as: 'step' | 'room'] {
-  if ('role' in who) return [[who.role], 'step']
-  if ('candidates' in who) return [[who.candidates], 'step']
-  if ('room' in who) return [who.room, 'room']
-  if (!('team' in who)) return [[], 'step']
+/** The roles a step's agents are of, by name - its role's, or its team's stages'. */
+export function stepRoles(who: Who, teams: Team[], roles: Role[]): string[] {
+  if ('role' in who) return [who.role]
+  if ('candidates' in who) return [who.candidates]
+  if (!('team' in who)) return []
   const ids = teams.find(one => one.name === who.team)?.stages.flatMap(stage => stage.roles) ?? []
-  return [roles.filter(role => ids.includes(role.id)).map(role => role.name), 'step']
+  return roles.filter(role => ids.includes(role.id)).map(role => role.name)
 }
 
 /** "Ask me, then in": an end, after the part that is chosen. */

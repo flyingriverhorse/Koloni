@@ -1,19 +1,13 @@
-"""Slice 84e's acceptance set: rooms and discussions inside a recipe; the drawing sets the limit.
-Written before the code.
+"""Slice 84e's acceptance set: discussions inside a recipe; the drawing sets the limit. Written
+before the code. (Its rooms went with rooms, 0.1.10: a Room step drawn before is an "All at once"
+group of its roles.)
 
 Design: `tasarim/specs/2026-10-23-dilim-63-84-takimlar-tarifler-design.md` §6 item 5 (84e).
 
 Contract:
-- While a recipe runs, the Lead - or a team's lead - may open a room inside a step: its members
-  are the step's roles (spawn_agent's door), they work in the recipe's one copy, and the room
-  never takes its work into the project itself. Its members are the step's agents: the step goes
-  on when the room is over. The project gets the work only through "Ready for you" -> Take in.
 - A discussion inside a recipe: its new members are the step's agents; it writes no files.
-- A step of kind Room (Who: {"room": [roles]}): its roles meet in one room. spawn_agent is
-  refused there ("open_room"); open_room with all of its roles opens it. Saved, it is checked:
-  2 to 4 roles that are here, not in an "all at once" group; it may be a loop's source or target.
 - The drawing sets the limit: a step opens as many agents as it draws (a role one, a team a role
-  each, a room a member each), whatever the chat's "Sub-agents per turn"; the run's total is
+  each), whatever the chat's "Sub-agents per turn"; the run's total is
   counted from the drawing (`recipe_run.cap`) and told with the step. Outside a recipe the
   chat's limit holds as before.
 """
@@ -21,26 +15,21 @@ Contract:
 import json
 from types import SimpleNamespace
 
-from app.agent import AgentRunner
 from app.config import load_settings
 from app.main import create_app
 from app.recipe_run import cap, slot_map
 from app.schemas import RecipeGraph
-from app.tools import ToolError
-from tests.conftest import Gate
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import OWN, teams_of
+from tests.test_claims import edit
 from tests.test_discussion import discuss
 from tests.test_parallel import until
-from tests.test_recipe_run_scenarios import READY, answer, asked, by_call, made, manual, row
+from tests.test_recipe_run_scenarios import READY, asked, by_call, made, manual, row
 from tests.test_recipes_scenarios import graph
 from tests.test_recipes_scenarios import step as part
-from tests.test_room_open_scenarios import WORK, open_room
-from tests.test_room_scenarios import add, edit, finish, post, take, wait
 from tests.test_spawn import begin, call, spawn, step
-from tests.test_take_in_scenarios import needs_git, repository
 
 HI, YO = b"print('hi')\n", b"print('yo')\n"
 
@@ -59,347 +48,8 @@ def at_once(client, name, roles, end="in"):
     )
 
 
-def meeting(client, roles=("Coder", "Reviewer")):
-    return made(
-        client,
-        "Meet on it",
-        graph(
-            [part("meet", "Design meeting", {"room": list(roles)})],
-            [("start", "meet"), ("meet", "end")],
-        ),
-    )
-
-
 def call_of(snap, name):
     return next((t["status"], t["result"]) for t in snap["tool_calls"] if t["name"] == name)
-
-
-# --- a room inside a step: the Take-in guarantee ----------------------------------------------
-
-
-def test_a_room_inside_a_step_leaves_the_project_untouched_without_take_in(
-    make_client, wait_run, project_dir
-):
-    client, _model = make_client(
-        {
-            "Lead": [open_room(), text("done")],
-            **WORK,
-        }
-    )
-    web = teams_of(client)["Web app"]
-    cid, run_id = manual(
-        client, project_dir, (web, at_once(client, "Fix it together", ["Coder", "Reviewer"]))
-    )
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=15)
-    # The room is over and its step with it: its work waits in the recipe's copy.
-    assert (project_dir / "hello.py").read_bytes() == HI
-    assert snap["rooms"][0]["status"] == "ended" and row(snap)["status"] == "ready"
-    members = {m["agent_id"] for m in snap["rooms"][0]["members"]}
-    assert members <= set(row(snap)["agents"]) and len(members) == 2
-    assert not [m for m in snap["merges"] if m["status"] == "pending"]
-    answer(client, asked(snap), "Ask for changes")  # (no Take in: the turn then ends)
-    snap = wait_run(client, cid, run_id, timeout=15)
-    assert (project_dir / "hello.py").read_bytes() == HI
-    assert row(snap)["status"] == "stopped"
-    status, said = call_of(snap, "open_room")
-    assert status == "succeeded" and "Take in" in said and "at its end" in said
-
-
-def test_a_room_step_runs_to_ready_for_you_and_take_in_takes_its_work_in(
-    make_client, wait_run, project_dir
-):
-    client, model = make_client(
-        {
-            "Lead": [
-                spawn("Coder", "fix it", "c0"),
-                open_room(members=("Coder", "Tester"), id="o0"),
-                open_room(),
-                text("done"),
-            ],
-            **WORK,
-        }
-    )
-    web = teams_of(client)["Web app"]
-    cid, run_id = manual(client, project_dir, (web, meeting(client)))
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=15)
-    assert (project_dir / "hello.py").read_bytes() == HI
-    # The step strip says it is a room.
-    assert [(s["name"], s["room"]) for s in row(snap)["steps"]] == [
-        ("Design meeting", True),
-        ("You", False),
-    ]
-    # The Lead was told the step is a room, with its roles.
-    offered = next(
-        t["function"] for t in model.tool_args[0] if t["function"]["name"] == "spawn_agent"
-    )
-    assert "a room" in offered["description"] and "open_room" in offered["description"]
-    answer(client, asked(snap), "Take in")
-    snap = wait_run(client, cid, run_id, timeout=15)
-    assert (project_dir / "hello.py").read_bytes() == YO and row(snap)["status"] == "in"
-    refused, partial = (
-        by_call(snap)[0],
-        [t for t in snap["tool_calls"] if t["name"] == "open_room"][0],
-    )
-    assert refused[0] == "failed" and "open_room" in refused[1]
-    assert partial["status"] == "failed" and "Reviewer" in partial["result"]
-
-
-@needs_git
-def test_a_room_steps_take_in_is_the_rooms_and_its_commit_is_named_by_its_goal(
-    make_client, wait_run, project_dir
-):
-    # B-120 (live): the merge of a recipe's room step had no room_id, and its commit was offered as "Lead".
-    repository(project_dir)
-    client, _model = make_client({"Lead": [open_room(), text("done")], **WORK})
-    cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], meeting(client)))
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=15)
-    pid = snap["conversation"]["project_id"]
-    assert (
-        client.patch(f"/api/projects/{pid}", json={"git_commit": True}, headers=OWN).status_code
-        == 200
-    )
-    answer(client, asked(snap), "Take in")
-    snap = until(client, cid, lambda s: any(m["commit"] for m in s["merges"]), timeout=15)
-    (merge,) = [m for m in snap["merges"] if m["status"] == "applied"]
-    assert merge["room_id"] == snap["rooms"][0]["id"]
-    assert merge["commit"]["message"] == "Room: Fix the greeting together"
-    wait_run(client, cid, run_id, timeout=15)
-
-
-def meet_then_build(client):
-    return made(
-        client,
-        "Meet then build",
-        graph(
-            [
-                part("meet", "Design meeting", {"room": ["Coder", "Reviewer"]}),
-                part("build", "Build it", {"role": "Coder"}),
-            ],
-            [("start", "meet"), ("meet", "build"), ("build", "end")],
-        ),
-    )
-
-
-def taken_in(make_client, project_dir, lead, recipe):
-    """A recipe's turn taken in, with commits on: its merge once it is offered, and the snapshot."""
-    repository(project_dir)
-    client, _model = make_client(
-        {"Lead": [*lead, text("done")], **WORK, "Coder 2": [text("built")]}
-    )
-    cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], recipe(client)))
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=15)
-    pid = snap["conversation"]["project_id"]
-    assert (
-        client.patch(f"/api/projects/{pid}", json={"git_commit": True}, headers=OWN).status_code
-        == 200
-    )
-    answer(client, asked(snap), "Take in")
-    snap = until(client, cid, lambda s: any(m["commit"] for m in s["merges"]), timeout=15)
-    until(client, cid, lambda s: s["runs"][0]["status"] == "completed", timeout=15)
-    return next(m for m in snap["merges"] if m["status"] == "applied"), snap
-
-
-@needs_git
-def test_a_room_opened_inside_a_step_is_not_the_recipes_take_in(make_client, wait_run, project_dir):
-    # (The review: the turn's newest room was taken for a Room step's, its goal for the commit.)
-    merge, _snap = taken_in(
-        make_client,
-        project_dir,
-        [open_room()],
-        lambda client: at_once(client, "Fix it together", ["Coder", "Reviewer"]),
-    )
-    assert merge["room_id"] is None and not merge["commit"]["message"].startswith("Room:")
-
-
-@needs_git
-def test_a_room_step_beside_other_steps_does_not_name_the_whole_commit(
-    make_client, wait_run, project_dir
-):
-    merge, snap = taken_in(
-        make_client, project_dir, [open_room(), spawn("Coder", "build it", "c1")], meet_then_build
-    )
-    assert merge["room_id"] == snap["rooms"][0]["id"]
-    assert not merge["commit"]["message"].startswith("Room:")
-
-
-def kept_then_taken(make_client, wait_run, project_dir, lead, recipe):
-    """A recipe's turn ended at Ready for you without Take in (its work kept), its kept copy then
-    taken in, with commits on: its merge once a commit is offered, and the snapshot."""
-    repository(project_dir)
-    client, _model = make_client(
-        {"Lead": [*lead, text("done")], **WORK, "Coder 2": [text("built")]}
-    )
-    cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], recipe(client)))
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=15)
-    pid = snap["conversation"]["project_id"]
-    assert (
-        client.patch(f"/api/projects/{pid}", json={"git_commit": True}, headers=OWN).status_code
-        == 200
-    )
-    answer(client, asked(snap), "Ask for changes")  # (and the Lead ends its turn)
-    snap = wait_run(client, cid, run_id, timeout=15)
-    (kept,) = [m for m in snap["merges"] if m["status"] == "kept"]
-    taken = client.post(f"/api/merges/{kept['id']}/approve", json={"choices": {}}, headers=OWN)
-    assert taken.status_code == 200, taken.text
-    snap = until(client, cid, lambda s: any(m["commit"] for m in s["merges"]), timeout=15)
-    return next(m for m in snap["merges"] if m["id"] == kept["id"]), snap
-
-
-@needs_git
-def test_a_room_steps_work_kept_and_taken_in_later_is_the_rooms(make_client, wait_run, project_dir):
-    # (batch-20: B-120's room was on a Take in at Ready for you only - not on its kept copy's.)
-    merge, snap = kept_then_taken(make_client, wait_run, project_dir, [open_room()], meeting)
-    assert merge["status"] == "applied" and merge["room_id"] == snap["rooms"][0]["id"]
-    assert merge["commit"]["message"] == "Room: Fix the greeting together"
-
-
-@needs_git
-def test_a_room_step_beside_others_kept_and_taken_in_later_does_not_name_the_commit(
-    make_client, wait_run, project_dir
-):
-    merge, snap = kept_then_taken(
-        make_client,
-        wait_run,
-        project_dir,
-        [open_room(), spawn("Coder", "build it", "c1")],
-        meet_then_build,
-    )
-    assert merge["room_id"] == snap["rooms"][0]["id"]
-    assert not merge["commit"]["message"].startswith("Room:")
-
-
-def test_a_teams_lead_opens_a_room_in_its_step_and_its_work_is_the_recipes(
-    make_client, wait_run, project_dir
-):
-    client, _model = make_client(
-        {
-            "Lead": [
-                step(
-                    call("spawn_agent", {"role": "Web app lead", "task": "the page"}, "l1"),
-                    call("spawn_agent", {"role": "Docs lead", "task": "the words"}, "l2"),
-                ),
-                text("done"),
-            ],
-            "Web app lead": [open_room(), text("web done")],
-            "Docs lead": [spawn("Docs writer", "write b.md", "d"), text("docs done")],
-            "Docs writer": [
-                step(call("write_file", {"path": "b.md", "content": "b\n"}, "w")),
-                text("written"),
-            ],
-            **WORK,
-        }
-    )
-    teams = teams_of(client)
-    lead = teams["Web app"]["lead"]
-    assert (
-        client.patch(
-            f"/api/roles/{lead['id']}", json={"tools": [*lead["tools"], "open_room"]}, headers=OWN
-        ).status_code
-        == 200
-    )
-    words = made(
-        client,
-        "Just write",
-        graph([part("do", "Write", {"role": "Docs writer"})], [("start", "do"), ("do", "end")]),
-    )
-    cid, run_id = manual(
-        client,
-        project_dir,
-        (teams["Web app"], at_once(client, "Fix it together", ["Coder", "Reviewer"])),
-        (teams["Docs"], words),
-    )
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=20)
-    assert (project_dir / "hello.py").read_bytes() == HI and not (project_dir / "b.md").exists()
-    answer(client, asked(snap), "Take in")
-    snap = wait_run(client, cid, run_id, timeout=15)
-    # Not a copy of the team lead's own, left behind: the room's work came in with the recipe's.
-    assert (project_dir / "hello.py").read_bytes() == YO and (project_dir / "b.md").exists()
-
-
-def test_a_teams_lead_whose_room_call_ended_while_its_cards_waited_opens_it_again_at_ask(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    """B-412 (live, Ask): a team lead's open_room ended on KOLONİ's side while its members' cards
-    waited for the user (a CLI that gave up on the call) - its members stayed in the step's
-    places, and its next open_room was refused ("draws 2 agents, and has them", "Coder is already
-    at work"); the lead gave up and its Lead asked the user. The members of a room call that ends
-    unopened free their places: the next call opens the room, which runs once its cards are approved."""
-    first = []
-    original = AgentRunner._users_no
-
-    async def withdrawn_once(self, ctx, ids):
-        if not first:
-            first.append(ids)
-            # The live trigger is its session's ToolServer.close() cancelling the call; a cancel
-            # here would stop this in-process turn as a Stop does, so the call ends by a raise.
-            raise ToolError("the call was withdrawn")
-        return await original(self, ctx, ids)
-
-    monkeypatch.setattr(AgentRunner, "_users_no", withdrawn_once)
-    client, _model = make_client(
-        {
-            "Lead": [
-                step(
-                    call("spawn_agent", {"role": "Web app lead", "task": "the page"}, "l1"),
-                    call("spawn_agent", {"role": "Docs lead", "task": "the words"}, "l2"),
-                ),
-                text("done"),
-            ],
-            "Web app lead": [open_room(id="o1"), open_room(id="o2"), text("web done")],
-            "Docs lead": [spawn("Docs writer", "write b.md", "d"), text("docs done")],
-            "Docs writer": [
-                step(call("write_file", {"path": "b.md", "content": "b\n"}, "w")),
-                text("written"),
-            ],
-            # (the second call's members: the first call's names stay on record, turned down)
-            "Coder 2": WORK["Coder"],
-            "Reviewer 2": WORK["Reviewer"],
-        }
-    )
-    teams = teams_of(client)
-    lead = teams["Web app"]["lead"]
-    assert (
-        client.patch(
-            f"/api/roles/{lead['id']}", json={"tools": [*lead["tools"], "open_room"]}, headers=OWN
-        ).status_code
-        == 200
-    )
-    words = made(
-        client,
-        "Just write",
-        graph([part("do", "Write", {"role": "Docs writer"})], [("start", "do"), ("do", "end")]),
-    )
-    cid, run_id = begin(
-        client,
-        project_dir,
-        mode="ask",
-        teams_mode="manual",
-        teams=[
-            {"team_id": teams["Web app"]["id"], "recipe_id": meeting(client)["id"]},
-            {"team_id": teams["Docs"]["id"], "recipe_id": words["id"]},
-        ],
-    )
-
-    def approved(snap):  # (the user says yes to every card that waits)
-        for agent in [a for a in snap["agents"] if a["status"] == "proposed"]:
-            client.post(f"/api/agents/{agent['id']}/approve", headers=OWN)
-        assert snap["runs"][0]["status"] != "failed", snap["runs"][0]["error"]
-        return asked(snap) and READY in asked(snap)["question"]
-
-    snap = until(client, cid, approved, timeout=20)
-    opened = [(t["status"], t["result"]) for t in snap["tool_calls"] if t["name"] == "open_room"]
-    assert opened[0][0] == "failed" and len(opened) == 2
-    assert opened[1][0] == "succeeded", opened[1][1]
-    # Its first members were never opened: not on record as at work, nor in the step's places.
-    gone = {a["id"]: a["status"] for a in snap["agents"] if a["id"] in first[0]}
-    assert set(gone.values()) == {"rejected"}, gone
-    assert not set(first[0]) & set(row(snap)["agents"])
-    assert snap["rooms"][0]["status"] == "ended" and row(snap)["status"] == "ready"
-    # Nobody asked the user anything but Ready for you.
-    assert [q["question"] for q in snap["questions"] if READY not in q["question"]] == []
-    answer(client, asked(snap), "Take in")
-    wait_run(client, cid, run_id, timeout=15)
-    assert (project_dir / "hello.py").read_bytes() == YO
 
 
 def test_a_teams_lead_asks_the_user_nothing_while_its_recipe_runs_its_roles_do_the_work(
@@ -427,7 +77,7 @@ def test_a_teams_lead_asks_the_user_nothing_while_its_recipe_runs_its_roles_do_t
                 spawn("Coder", "change the greeting", "c"),
                 text("web done"),
             ],
-            "Coder": [step(edit("hi", "yo")), text("changed")],
+            "Coder": [edit("hi", "yo"), text("changed")],
             "Docs lead": [spawn("Docs writer", "write b.md", "d"), text("docs done")],
             "Docs writer": [
                 step(call("write_file", {"path": "b.md", "content": "b\n"}, "w")),
@@ -679,6 +329,7 @@ def test_the_runs_total_comes_from_the_drawing():
         part(f"r{at}", role, {"role": role}, group="g", done_when="no_findings")
         for at, role in enumerate(("Reviewer", "Tester", "UI designer", "Security reviewer"))
     ]
+    # (A Room step drawn before 0.1.10: an "All at once" group of its three roles now.)
     looped = RecipeGraph.model_validate(
         graph(
             [
@@ -693,11 +344,7 @@ def test_the_runs_total_comes_from_the_drawing():
     )
 
     def one_each(step):
-        return (
-            [(role,) for role in step.who.room]
-            if hasattr(step.who, "room")
-            else [(getattr(step.who, "role", "x"),)]
-        )
+        return [(getattr(step.who, "role", "x"),)]
 
     # The meeting's 3, then Build and its 4 reviews 4 times over (once, and 3 rounds back): 3 + 20.
     assert cap(looped, slot_map(looped, one_each)) == 23
@@ -733,182 +380,205 @@ def test_the_chats_limit_still_holds_outside_a_recipe(make_client, wait_run, pro
     assert calls[0][0] == "succeeded" and calls[1][0] == "failed" and "per turn" in calls[1][1]
 
 
-# --- a Room step is checked as it is saved ------------------------------------------------------
+# --- a Room step drawn before 0.1.10 -------------------------------------------------------------
 
 
-def saving(client, drawn):
-    return client.post("/api/recipes", json={"name": "Meet", "graph": drawn}, headers=OWN)
+def test_a_room_step_drawn_before_is_an_all_at_once_group_of_its_roles(
+    make_client, wait_run, project_dir
+):
+    # Rooms are gone: saved (or in a folder's file) it reads as a group in its place - its arrows
+    # still meet it - with a step of each role, which the Lead opens at once with spawn_agent.
+    client, model = make_client({"Lead": [text("nothing to do")]})
+    saved = made(
+        client,
+        "Meet on it",
+        graph(
+            [part("meet", "Design meeting", {"room": ["Coder", "Reviewer"]}, ask_me=True)],
+            [("start", "meet"), ("meet", "end")],
+        ),
+    )
+    # (saved: nothing keeps it from running)
+    assert saved["agents"] == {"least": 2, "most": 2}, saved
+    assert saved["graph"]["groups"] == [{"id": "meet", "name": "Design meeting"}]
+    assert [(s["id"], s["who"], s["group"], s["ask_me"]) for s in saved["graph"]["steps"]] == [
+        ("meet-1", {"role": "Coder"}, "meet", True),
+        ("meet-2", {"role": "Reviewer"}, "meet", True),
+    ]
+    assert saved["graph"]["arrows"] == [
+        {"from": "start", "to": "meet"},
+        {"from": "meet", "to": "end"},
+    ]
+    cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], saved))
+    wait_run(client, cid, run_id)
+    offered = next(
+        t["function"] for t in model.tool_args[0] if t["function"]["name"] == "spawn_agent"
+    )
+    assert "for Coder, Reviewer: it draws 2 agents, 2 in all for the run" in offered["description"]
 
 
-def test_a_room_step_is_checked_as_it_is_saved(make_client):
+def test_a_room_step_that_ran_in_0_1_9_still_runs(make_client):
+    # Whatever a Room step could carry - a condition, a review with the builder among its roles,
+    # a loop to it or from it - its recipe is still saved, as one that runs.
     client, _model = make_client({})
-    one = saving(
-        client, graph([part("m", "Meet", {"room": ["Coder"]})], [("start", "m"), ("m", "end")])
-    )
-    seven = saving(
-        client, graph([part("m", "Meet", {"room": list(SEVEN)})], [("start", "m"), ("m", "end")])
-    )
-    nobody = saving(
-        client,
-        graph([part("m", "Meet", {"room": ["Coder", "Nobody"]})], [("start", "m"), ("m", "end")]),
-    )
-    twice = saving(
-        client,
-        graph([part("m", "Meet", {"room": ["Coder", "coder"]})], [("start", "m"), ("m", "end")]),
-    )
-    grouped = saving(
-        client,
-        graph(
-            [
-                part("m", "Meet", {"room": ["Coder", "Reviewer"]}, group="g"),
-                part("b", "Build", {"role": "Coder"}, group="g"),
-            ],
-            [("start", "g"), ("g", "end")],
-            groups=[{"id": "g", "name": "At once"}],
+    build = part("build", "Build it", {"role": "Coder"})
+    looked = part("look", "Code review", {"role": "Reviewer"}, done_when="no_findings")
+    cases = {
+        # (A group runs on no condition: the room's own is dropped, and the group always runs.)
+        "on a problem": (
+            [build, looked, part("meet", "Talk", {"room": ["Coder", "Tester"]}, when="problem")],
+            [("start", "build"), ("build", "look"), ("look", "meet"), ("meet", "end")],
+            [],
         ),
-    )
-    for refused in (one, seven, nobody, twice, grouped):
-        assert refused.status_code == 422, refused.text
-        assert any(p.get("at") == "m" for p in refused.json()["detail"]), refused.text
-    # A room may be a loop's target: findings go back to the meeting.
-    looped = saving(
-        client,
-        graph(
+        # (A role that built works in the group; the others review.)
+        "a review with its builder": (
             [
-                part("m", "Meet", {"room": ["Coder", "Reviewer"]}),
-                part("r", "Review", {"role": "Reviewer"}, done_when="no_findings"),
+                build,
+                part(
+                    "meet", "Look at it", {"room": ["Coder", "Reviewer"]}, done_when="no_findings"
+                ),
             ],
-            [("start", "m"), ("m", "r"), ("r", "end")],
-            loops=[{"from": "r", "to": "m", "rounds": 2}],
+            [("start", "build"), ("build", "meet"), ("meet", "end")],
+            [{"from": "meet", "to": "build", "rounds": 2}],
         ),
+        "a loop back to it": (
+            [part("meet", "Build together", {"room": ["Coder", "Tester"]}), looked],
+            [("start", "meet"), ("meet", "look"), ("look", "end")],
+            [{"from": "look", "to": "meet", "rounds": 2}],
+        ),
+    }
+    for name, (steps, arrows, loops) in cases.items():
+        saved = client.post(
+            "/api/recipes",
+            headers=OWN,
+            json={"name": name, "graph": graph(steps, arrows, loops=loops)},
+        )
+        assert saved.status_code == 201, (name, saved.text)
+        meet = [s for s in saved.json()["graph"]["steps"] if s["group"] == "meet"]
+        assert all(s.get("when") is None for s in meet), name
+        if name == "a review with its builder":
+            assert [(s["who"]["role"], s["done_when"]) for s in meet] == [
+                ("Coder", "done"),
+                ("Reviewer", "no_findings"),
+            ]
+
+
+def test_a_folders_recipe_file_with_a_room_step_is_read_as_a_group(project_dir):
+    from app.recipes import folder_recipes
+
+    folder = project_dir / ".koloni" / "recipes"
+    folder.mkdir(parents=True)
+    drawn = graph(
+        [part("meet", "Design meeting", {"room": ["Coder", "Reviewer"]})],
+        [("start", "meet"), ("meet", "end")],
     )
-    assert looped.status_code == 201, looped.text
+    (folder / "meet.json").write_text(
+        json.dumps({"name": "Meet", "graph": drawn}), encoding="utf-8"
+    )
+    found, broken = folder_recipes(str(project_dir))
+    assert broken == []
+    ((file, recipe),) = found
+    assert file == "meet" and [g.id for g in recipe.graph.groups] == ["meet"]
+    assert [(s.who.role, s.group) for s in recipe.graph.steps] == [
+        ("Coder", "meet"),
+        ("Reviewer", "meet"),
+    ]
+
+
+# What a Room step's converter leaves for the schema to refuse (0.1.10's review): a malformed one
+# is said, never a failure of the page.
+MALFORMED = {
+    "a list for an id": [{"id": ["m"], "name": "m", "who": {"room": ["Coder", "Tester"]}}],
+    "a room of 11 roles": [{"id": "m", "name": "m", "who": {"room": [f"R{n}" for n in range(11)]}}],
+    "a room that is no list": [{"id": "m", "name": "m", "who": {"room": "Coder"}}],
+}
+
+
+def test_a_malformed_room_step_is_refused_as_any_malformed_recipe(make_client, project_dir):
+    client, _model = make_client({})
+    for name, steps in MALFORMED.items():
+        drawn = {"version": 1, "steps": steps, "ends": [{"id": "end"}], "arrows": []}
+        saved = client.post("/api/recipes", headers=OWN, json={"name": "x", "graph": drawn})
+        assert saved.status_code == 422, (name, saved.text)
+    for name, (groups, ends) in {"groups no list": (5, []), "ends no list": ([], "e")}.items():
+        room = [{"id": "m", "name": "m", "who": {"room": ["Coder", "Tester"]}}]
+        drawn = {"version": 1, "steps": room, "groups": groups}
+        drawn["ends"] = ends
+        saved = client.post("/api/recipes", headers=OWN, json={"name": "x", "graph": drawn})
+        assert saved.status_code == 422, (name, saved.text)
+    # A folder's file of such a shape is listed as broken, beside the rest.
+    folder = project_dir / ".koloni" / "recipes"
+    folder.mkdir(parents=True)
+    drawn = {"version": 1, "steps": MALFORMED["a list for an id"], "groups": 5}
+    (folder / "bad.json").write_text(json.dumps({"name": "Bad", "graph": drawn}), "utf-8")
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    listed = client.get(f"/api/recipes?project_id={pid}")
+    assert listed.status_code == 200, listed.text
+    assert [line.split(" is not read")[0] for line in listed.json()["broken"]] == [
+        ".koloni/recipes/bad.json"
+    ]
+    assert listed.json()["recipes"]  # (KOLONİ's own still there)
+
+
+def test_two_room_steps_of_one_role_are_saved_again_and_a_review_of_writers_only_says_so(
+    make_client,
+):
+    client, _model = make_client({})
+    # Named "<its name> · <role>", one of each name: saved again, as the board saves it.
+    twice = graph(
+        [
+            part("a", "Meet", {"room": ["Coder", "Tester"]}),
+            part("b", "Meet", {"room": ["Coder", "Tester"]}),
+        ],
+        [("start", "a"), ("a", "b"), ("b", "end")],
+    )
+    saved = made(client, "Twice", twice)
+    assert [s["name"] for s in saved["graph"]["steps"]] == [
+        "Meet · Coder",
+        "Meet · Tester",
+        "Meet · Coder 2",
+        "Meet · Tester 2",
+    ]
+    again = client.put(
+        f"/api/recipes/{saved['id']}",
+        headers=OWN,
+        json={"name": "Twice", "graph": saved["graph"]},
+    )
+    assert again.status_code == 200, again.text
+    # A review whose every role works at a step of its own keeps its review: the recipe says
+    # who would check its own work, rather than losing the review unseen.
+    writers = graph(
+        [
+            part("build", "Build it", {"role": "Coder"}),
+            part("test", "Test it", {"role": "Tester"}),
+            part("meet", "Look", {"room": ["Coder", "Tester"]}, done_when="no_findings"),
+        ],
+        [("start", "build"), ("build", "test"), ("test", "meet"), ("meet", "end")],
+    )
+    refused = client.post("/api/recipes", headers=OWN, json={"name": "W", "graph": writers})
+    assert refused.status_code == 422 and "would check its own work" in refused.text
+
+
+def test_a_saved_recipe_that_no_longer_reads_is_listed_as_broken(make_client):
+    # A Room step of 0.1.9 near the step limit is past it as a group: that recipe is said, the
+    # list is not a failure.
+    from app.db.models import Recipe
+
+    client, _model = make_client({})
+    steps = [part(f"s{n}", f"Step {n}", {"role": "Coder"}) for n in range(59)]
+    drawn = graph(
+        [*steps, part("meet", "Meet", {"room": ["Coder", "Tester"]})],
+        [("start", "s0"), ("s0", "meet"), ("meet", "end")],
+    )
+    with client.app.state.session_factory() as session:
+        session.add(Recipe(name="Too long now", graph=drawn))
+        session.commit()
+    listed = client.get("/api/recipes")
+    assert listed.status_code == 200, listed.text
+    assert any(line.startswith("Too long now is not read") for line in listed.json()["broken"])
+    assert listed.json()["recipes"]
 
 
 # --- review round (84e): the Take-in guarantee on every way --------------------------------------
-
-
-def test_a_room_inside_a_recipe_takes_in_one_more_of_its_steps_roles_and_its_work_stays_in_the_copy(
-    make_client, wait_run, project_dir
-):
-    client, _model = make_client(
-        {
-            "Lead": [open_room(), text("done")],
-            "Coder": [
-                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                step(call("invite_to_room", {"role": "Architect"}, "i1")),
-                step(call("invite_to_room", {"role": "Debugger"}, "i2")),
-                step(edit("hi", "yo")),
-                step(finish(1, "hello.py prints yo", "f1")),
-                text("My part is done."),
-            ],
-            "Reviewer": WORK["Reviewer"],
-            "Debugger": [
-                step(add("Debug it", ["b.py"], "a3"), take(3, "t3")),
-                step(call("write_file", {"path": "b.py", "content": "b\n"}, "w3")),
-                step(finish(3, "b.py written", "f3")),
-                text("Done here."),
-            ],
-        }
-    )
-    web = teams_of(client)["Web app"]
-    cid, run_id = manual(
-        client,
-        project_dir,
-        (web, at_once(client, "Three of us", ["Coder", "Reviewer", "Debugger"])),
-    )
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=20)
-    invites = [
-        (t["status"], t["result"]) for t in snap["tool_calls"] if t["name"] == "invite_to_room"
-    ]
-    # Not one of the step's roles: refused at the step's door. One of them: a member, and the step's.
-    assert invites[0][0] == "failed" and "Architect" in invites[0][1]
-    assert invites[1][0] == "succeeded"
-    debugger = next(a["id"] for a in snap["agents"] if a["role_name"] == "Debugger")
-    assert debugger in row(snap)["agents"]
-    assert (project_dir / "hello.py").read_bytes() == HI and not (project_dir / "b.py").exists()
-    answer(client, asked(snap), "Take in")
-    wait_run(client, cid, run_id, timeout=15)
-    assert (project_dir / "hello.py").read_bytes() == YO and (
-        project_dir / "b.py"
-    ).read_bytes() == b"b\n"
-
-
-def test_a_room_in_a_recipe_that_ends_on_its_minutes_leaves_its_work_in_the_copy(
-    make_client, wait_run, project_dir
-):
-    from tests.turn_helpers import NOT_SLOW, HeldClock, on_loop
-
-    held, clock = Gate(), HeldClock(but=NOT_SLOW)
-    client, _model = make_client(
-        {
-            "Lead": [open_room(), text("done")],
-            "Coder": [
-                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                step(edit("hi", "yo")),
-                held.step(text("never said")),
-            ],
-            "Reviewer": [text("Nothing to add."), wait(), text("never said")],
-        }
-    )
-    client.app.state.runner.call_later = clock
-    web = teams_of(client)["Web app"]
-    cid, run_id = manual(client, project_dir, (web, meeting(client)))
-    held.wait_partial()
-    assert len(clock.set) == 1
-    on_loop(client, clock.set[0].fire)
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=20)
-    held.release()
-    assert snap["rooms"][0]["outcome"] == "budget" and (project_dir / "hello.py").read_bytes() == HI
-    answer(client, asked(snap), "Take in")
-    wait_run(client, cid, run_id, timeout=15)
-    assert (project_dir / "hello.py").read_bytes() == YO
-
-
-def test_a_room_steps_failed_member_is_skipped_or_stopped_never_tried_again_alone(
-    make_client, wait_run, project_dir
-):
-    client, _model = make_client(
-        {
-            "Lead": [open_room(), text("done")],
-            "Coder": WORK["Coder"],
-            "Reviewer": [RuntimeError("its model broke")],
-        }
-    )
-    web = teams_of(client)["Web app"]
-    cid, run_id = manual(client, project_dir, (web, meeting(client)))
-    card = asked(
-        until(client, cid, lambda s: asked(s) and "failed" in asked(s)["question"], timeout=20)
-    )
-    assert card["options"] == ["Skip", "Stop"]
-    answer(client, card, "Stop")
-    snap = wait_run(client, cid, run_id, timeout=15)
-    assert row(snap)["status"] == "stopped" and (project_dir / "hello.py").read_bytes() == HI
-
-
-def test_a_room_step_two_of_whose_members_failed_asks_once_for_the_step(
-    make_client, wait_run, project_dir
-):
-    """B-203 (live): two members of a Room step ran out of steps - and the user was asked Skip
-    or Stop twice for one step. One answer is the step's."""
-    roles = ("Coder", "Reviewer", "Tester")
-    client, _model = make_client(
-        {
-            "Lead": [open_room(members=roles), text("done")],
-            "Coder": WORK["Coder"],
-            "Reviewer": [RuntimeError("its model broke")],
-            "Tester": [RuntimeError("its model broke too")],
-        }
-    )
-    web = teams_of(client)["Web app"]
-    cid, run_id = manual(client, project_dir, (web, meeting(client, roles)))
-    card = asked(
-        until(client, cid, lambda s: asked(s) and "failed" in asked(s)["question"], timeout=20)
-    )
-    answer(client, card, "Skip")
-    snap = wait_run(client, cid, run_id, timeout=15)
-    # (Its room ended at once, two of three gone: nothing was written, so no Take in.)
-    assert [q["id"] for q in snap["questions"]] == [card["id"]] and row(snap)["status"] == "done"
 
 
 def test_an_agent_beside_a_recipe_is_kept_for_the_user_and_its_kept_copy_is_not_the_recipes(
@@ -1002,48 +672,3 @@ def test_a_project_that_cannot_be_copied_runs_no_recipe(
     assert status == "failed" and "could not be copied" in said and "Take in" in said
     assert (row(snap)["status"], "could not be copied" in row(snap)["why"]) == ("failed", True)
     assert [a["name"] for a in snap["agents"]] == ["Lead"]
-
-
-def test_a_room_step_its_lead_follows_ends_its_step_as_one_it_waits_for(
-    make_client, wait_run, project_dir
-):
-    """K-oda-lead: followed, the room of a step is over the same way: its record and where the
-    recipe is now come with whichever call of the Lead's sees its end."""
-    held = Gate()
-    client, _model = make_client(
-        {
-            "Lead": [open_room(follow=True), step(call("wait_for_room", {}, "w")), text("done")],
-            "Coder": WORK["Coder"],
-            # (it tells the Lead, which wakes it)
-            "Reviewer": [
-                step(add("Review the greeting", id="a2"), take(2, "t2")),
-                step(post("result", "Reviewing it.", "p1", to="Lead")),
-                held.step(step(finish(2, "It prints yo, as asked.", "f2"))),
-                text("Looked at it: fine."),
-            ],
-        }
-    )
-    web = teams_of(client)["Web app"]
-    cid, run_id = manual(
-        client, project_dir, (web, at_once(client, "Fix it together", ["Coder", "Reviewer"]))
-    )
-    until(
-        client,
-        cid,
-        lambda s: any(
-            t["name"] == "open_room" and t["status"] == "succeeded" for t in s["tool_calls"]
-        ),
-        timeout=15,
-    )
-    held.release()  # (the room ends once the Lead follows it)
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=15)
-    assert (project_dir / "hello.py").read_bytes() == HI
-    assert snap["rooms"][0]["status"] == "ended" and row(snap)["status"] == "ready"
-    answer(client, asked(snap), "Ask for changes")
-    snap = wait_run(client, cid, run_id, timeout=15)
-    assert (project_dir / "hello.py").read_bytes() == HI
-    assert row(snap)["status"] == "stopped"
-    status, said = call_of(snap, "open_room")
-    assert status == "succeeded" and "The room you follow runs on" in said
-    status, said = call_of(snap, "wait_for_room")
-    assert status == "succeeded" and "Take in" in said and "at its end" in said

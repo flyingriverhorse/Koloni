@@ -57,10 +57,6 @@ const SUB_AGENT_DEFAULTS = {
   when_away: 'waits',
   away_minutes: 10,
   discussion_budget: null,
-  room_posts: 40,
-  room_tokens: null,
-  room_minutes: 30,
-  room_min_tokens: 60000,
   // (Kanıtlı bitiş: the specs written before it count the commands and cards of turns that change files; its own sets it.)
   after_change: 'nothing',
   // (Full auto's judge, 0.1.9: the e2e app has no Fast-tier model, so at Full auto it would stand aside and say so in each
@@ -144,7 +140,7 @@ export async function steps(chat: Locator) {
 
 /**
  * Opens More under the message box, where it is not open (slice 38b): the
- * sub-agents, what runs without asking and Work together are in it.
+ * sub-agents and what runs without asking are in it.
  */
 /** Settings › This project, opened from ⚙ on the rail, at a section (tek-ev); ⚙ again closes it. */
 export async function projectSettings(page: Page, section?: RegExp) {

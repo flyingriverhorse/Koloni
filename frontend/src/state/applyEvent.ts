@@ -18,9 +18,6 @@ import type {
   PendingRole,
   PendingSkill,
   Question,
-  Room,
-  RoomItem,
-  RoomPost,
   Run,
   Snapshot,
   ToolCall,
@@ -56,10 +53,6 @@ export interface ConvState {
   /** Discussions between agents, and everything said in them (also by you). */
   discussions: Discussion[]
   discussionPosts: DiscussionPost[]
-  /** The rooms you opened, their lists of items and everything said in them (also by you). */
-  rooms: Room[]
-  roomItems: RoomItem[]
-  roomPosts: RoomPost[]
   /** The shared notebook of every turn: what agents and you noted for the others. */
   boardPosts: BoardPost[]
   /**
@@ -141,16 +134,12 @@ function workOf(s: Snapshot) {
   }
 }
 
-/** What its agents asked you and said to each other: questions, discussions, rooms, the notebook. */
+/** What its agents asked you and said to each other: questions, discussions, the notebook. */
 function sharedOf(s: Snapshot) {
   return {
     questions: s.questions,
     discussions: s.discussions,
     discussionPosts: s.discussion_posts,
-    // (A server from before rooms sends none.)
-    rooms: s.rooms ?? [],
-    roomItems: s.room_items ?? [],
-    roomPosts: s.room_posts ?? [],
     boardPosts: s.board_posts,
   }
 }
@@ -193,7 +182,7 @@ export function applyEvent(state: ConvState, id: number | null, type: string, pa
   return (
     runEvent(state, type, payload) ??
     agentEvent(state, id, type, payload) ??
-    roomEvent(state, type, payload) ??
+    sharedEvent(state, type, payload) ??
     requestEvent(state, type, payload) ??
     messageEvent(state, type, payload) ??
     toolEvent(state, type, payload) ??
@@ -264,18 +253,9 @@ function agentEvent(state: ConvState, id: number | null, type: string, payload: 
   }
 }
 
-/** A room, its items and posts; the notebook; a question to you. */
-function roomEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
+/** The notebook; a question to you. */
+function sharedEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
   switch (type) {
-    case 'room.created':
-    case 'room.updated':
-      return { ...state, rooms: upsert(state.rooms, payload as Room) }
-    case 'room_item.created':
-    case 'room_item.updated':
-      return { ...state, roomItems: upsert(state.roomItems, payload as RoomItem) }
-    case 'room_post.created':
-    case 'room_post.updated':
-      return { ...state, roomPosts: upsert(state.roomPosts, payload as RoomPost) }
     case 'board.posted':
       return { ...state, boardPosts: upsert(state.boardPosts, payload as BoardPost) }
     case 'question.created':

@@ -464,7 +464,7 @@ def _over_limit(session: Session, provider: Provider) -> str | None:
 
 
 def past_its_limit(session: Session, provider: Provider) -> str | None:
-    """Why no agent is opened on this provider now (a sub-agent, a room's member), in an
+    """Why no agent is opened on this provider now (a sub-agent, a discussion's member), in an
     agent's words; None where it is under its limits."""
     over = over_limit(session, provider)
     return (

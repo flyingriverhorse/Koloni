@@ -357,7 +357,7 @@ class ProofMixin:
         """The agents the turn's Lead opened by a call of its own, oldest first - a spawn, or a
         message that went on with an agent of an earlier turn (`_go_on` opens it by that call; a
         message that only messaged opens none): never one of KOLONİ's (`PROOF_CALL`), nor a
-        member of a room or a discussion (opened by those calls)."""
+        member of a discussion (opened by that call)."""
         with self._factory() as session:
             return list(
                 session.scalars(

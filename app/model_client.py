@@ -63,7 +63,7 @@ class StepResult:
 
 
 class Transient(dict):
-    """A message sent with this step only, at the end of what is sent (how a room stands
+    """A message sent with this step only, at the end of what is sent (how a discussion stands
     now, word that a call has returned): the next step does not send it again. To every
     client it is a message like any other; one that keeps a cache marks what is before it."""
 

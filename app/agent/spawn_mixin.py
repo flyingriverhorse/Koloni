@@ -33,7 +33,6 @@ from app import (
     topics,
 )
 from app import memory as kept
-from app import room as rooms
 from app.agent.cards import (
     _asked_about,
     _at_a_step_limit,
@@ -61,7 +60,6 @@ from app.agent.words import (
     BRANCH_NOT_IN_RECIPE,
     GIVEN_ONCE,
     HOW_RAISE,
-    IN_A_ROOM,
     MAX_WHAT,
     MAX_WHY,
     NO_STEPS_LEFT,
@@ -789,7 +787,7 @@ class SpawnMixin:
 
     def _names_past(self: "AgentRunner", session, ctx: Ctx) -> frozenset[str]:
         """The roles the user's message names that pass the chat's door (`_named`) - none for
-        the Lead beside teams' leads (B-100: it opened a team's room itself, by the roles the
+        the Lead beside teams' leads (B-100: it opened a team's roles itself, by the roles the
         message named, and that team's lead never ran): their teams' work is their leads' -
         in a turn the teams were picked for (`_teams_of_turn`); a later one opens whom it needs."""
         if (
@@ -1414,8 +1412,6 @@ class SpawnMixin:
                         Agent.run_id == ctx.run_id,
                         Agent.depth == 1,
                         Agent.status != "rejected",
-                        # (K-oda-takim: a room's coordinator ran no team - unless taken up, B-386)
-                        or_(Agent.id.not_in(IN_A_ROOM), Agent.id.in_(self._taken_up)),
                     )
                 )
             }
@@ -1959,7 +1955,6 @@ class SpawnMixin:
                     else (
                         self._outrun_role(session, ctx, role)
                         or closed(role, door, named)
-                        or (self._room_refused(session, ctx, role.name))
                         or untiered
                     )
                 )
@@ -2066,9 +2061,6 @@ class SpawnMixin:
             raise ToolError(TIER_WHY_NEEDED.format(tier=tier))
         if tier is not None and len(why or "") > MAX_WHY:
             raise ToolError(f"why has at most {MAX_WHY} characters: one sentence")
-        if self._member_of(ctx) is not None and self._cannot_be_held(model, provider):
-            # Such a CLI writes with its own tools, where no item of the member's holds it.
-            raise ToolError(rooms.OWN_TOOLS_HERE.format(provider=shown_name(provider.name)))
         if not isinstance(task, str) or not task.strip():
             raise ToolError(
                 "task is required: write everything the sub-agent needs to know, "
@@ -2105,32 +2097,23 @@ class SpawnMixin:
         # opened (`_in_run`): a Stop, or another branch done first, since it was decided.
         if call_id in self._chained and not self._still_next(ctx, call_id, role.name):
             raise ToolError(BRANCH_GONE.format(role=role.name))
-        # B-386 (the user): "the coordinator is the lead" - one that agreed for its team in a
-        # room goes on to run it, with what was said there; no second lead is opened.
-        taken = self._take_up(ctx, call_id, role, task) if led else None
-        child, asks = (
-            taken
-            if taken is not None
-            else self._propose(
-                ctx,
-                call_id,
-                role,
-                task,
-                provider,
-                model_name,
-                model,
-                chosen,
-                not_to_be_had,
-                why=said,
-                effort=effort,
-                tiered=tier is not None or moved is not None,
-                yes=put is not None,
-                tier=tier,
-                users=users if mine is not None else None,
-            )
+        child, asks = self._propose(
+            ctx,
+            call_id,
+            role,
+            task,
+            provider,
+            model_name,
+            model,
+            chosen,
+            not_to_be_had,
+            why=said,
+            effort=effort,
+            tiered=tier is not None or moved is not None,
+            yes=put is not None,
+            tier=tier,
+            users=users if mine is not None else None,
         )
-        if taken is not None and effort:  # (taken up from its room: the level, as a fresh one)
-            child = self._ctxs[child.agent_id] = replace(child, effort=effort)
         if asked and effort:  # (the opener's pick, and its reason, after what its record says)
             self._effort_note(
                 child,
@@ -2196,8 +2179,8 @@ class SpawnMixin:
                 # tasks: as a path relative to wherever the sub-agent works - the project's
                 # own path would lead one working in a copy out of it.
                 # shortcut: the temp folder as Python names it - not its 8.3 short name nor
-                # one reached by a link - and only in a spawn task, not a message, a room's
-                # goal or a discussion's topic; widen it if another spelling is seen there.
+                # one reached by a link - and only in a spawn task, not a message or a
+                # discussion's topic; widen it if another spelling is seen there.
                 folders.append((CLI_TEMP, "the caller's own temp folder"))
             task = _said_from_here(task, folders)
         return task
@@ -2490,9 +2473,7 @@ class SpawnMixin:
             conversation = session.get_one(Conversation, ctx.cid)
             # Going on with an agent opens one: the same door as spawn_agent's (slice 62).
             self._start_runs(session, ctx, None)
-            shut = closed(role, self._door(session, ctx), self._names_past(session, ctx)) or (
-                self._room_refused(session, ctx, role.name)
-            )
+            shut = closed(role, self._door(session, ctx), self._names_past(session, ctx))
             if shut:
                 raise ToolError(f"{earlier.name} cannot be gone on with: {shut}")
             would = would_run(
@@ -2933,8 +2914,8 @@ class SpawnMixin:
                 # known not to be: the user may be asked first.
                 # K-devir-0: its reads before its first write, counted once it is over -
                 # None on a CLI whose reads KOLONİ does not see (`handoff.READS_SEEN`).
-                # shortcut: counted here only, at a spawned sub-agent's end; a room member's
-                # or an orphaned agent's stays None - count it in `_set_agent` if that is missed.
+                # shortcut: counted here only, at a spawned sub-agent's end; an orphaned
+                # agent's stays None - count it in `_set_agent` if that is missed.
                 with self._factory() as session:
                     reads = (
                         handoff.rediscovery(session, child.agent_id)
@@ -3026,13 +3007,7 @@ class SpawnMixin:
         decision, lead_why = await self._spawn_word(ctx, child, went_on=told is not None)
         if decision == "reject":
             # On record at once; the opener then takes its place again to go on.
-            # (B-386: a coordinator taken up from its room ran there - it stays counted.)
-            self._set_agent(
-                ctx.cid,
-                child.agent_id,
-                ended_at=now(),
-                status="completed" if (child.agent_id in self._taken_up) else "rejected",
-            )
+            self._set_agent(ctx.cid, child.agent_id, ended_at=now(), status="rejected")
             await self._settle(ctx)
             if lead_why:
                 declined = LEAD_DECLINED.format(why=lead_why[0])

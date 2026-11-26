@@ -4,9 +4,9 @@ A recipe is the drawn steps of a piece of work: who does each step, what runs at
 back and how it ends. "A chat's team runs by the recipe picked for it, else by its team's default."
 Recipes are on the Agents page, tab **Recipes**.
 
-[![Teams, recipes, rooms and discussions: a team's stages, a lane between teams, and a recipe's steps, loops, candidates and Evolve](../diagrams/teams.svg)](../diagrams/teams.svg)
+[![Teams, recipes and discussions: a team's stages, a lane between teams, and a recipe's steps, loops, candidates and Evolve](../diagrams/teams.svg)](../diagrams/teams.svg)
 
-*Teams, recipes, rooms and discussions in one picture.*
+*Teams, recipes and discussions in one picture.*
 
 ## Making a recipe
 
@@ -36,8 +36,7 @@ one-step recipe says "1 agent", and a turn of it may open several more.
 
 ## The parts of a recipe
 
-The toolbar adds parts to the drawing: **+ Step**, **+ All at once**, **+ Loop back**, **+ Room** and
-**+ Ask me**. **Tidy up** lays the drawing out again.
+The toolbar adds parts to the drawing: **+ Step**, **+ All at once**, **+ Loop back** and **+ Ask me**. **Tidy up** lays the drawing out again.
 
 **A step** says who does it:
 
@@ -85,7 +84,13 @@ agent's CLI keeps its own commands off KOLONİ's record, its report is taken as 
 
 **Loop back** goes back to an earlier step, **at most** 1 to 5 rounds.
 
-**Room** puts 2 to 6 roles in one room. See [Rooms](rooms.md).
+A **Room** step of a recipe drawn before 0.1.10 (rooms are gone) opens as an **All at once** group in
+its place, with a step for each of its roles: they run side by side, as sub-agents, in the recipe's
+copy. Its arrows and loops are kept. Each of its steps is named "<the step's name> · <role>". A Room step that reviewed (**no finding is
+left**) becomes a review by each of its roles but one that does the recipe's work at a step of its own:
+that one works in the group (a role does not check its own work); where every role does, all keep
+reviewing and the recipe says which would check its own work. A Room step that ran only if the step before found a
+problem now always runs: a group runs on no condition.
 
 **Ask me** is an end: **Ask me, then in**, or **Tell me what was found**. Every recipe needs an end.
 

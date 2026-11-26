@@ -92,17 +92,6 @@ The sections are listed on the left, in this order.
 | **New chats' teams** | **Orchestrator decides**, **Manual** or **No teams**. With Manual, the teams a chat kept with **Use for new chats in this project**. |
 | **Other folders** | The folders a new chat starts with, besides the project. Remove one here; add one from a chat's folder button with **Keep for this project**. |
 
-**A room's limits**: "What a room opened in any chat of this project may spend, unless you say
-otherwise as you open it. Empty: no limit." This is their one place: **Work together…** sets a room's
-own.
-
-| Setting | What it does |
-|---|---|
-| **Posts, at most** | 1 to 1000. |
-| **Minutes, at most** | 1 to 1440. |
-| **Tokens, at most** | A token budget for the room. |
-| **Tokens, at least** | 60,000 by default. A room an agent opens with a smaller token budget gets this many, because one member's step takes about 8,000 to 9,000 tokens. If it is higher than **Tokens, at most**, the room gets the most. Empty: an agent's room gets what it asks for. |
-
 ### Limits and money
 
 | Setting | What it does |
@@ -209,7 +198,7 @@ The folder on disk is not touched: its files, its git and its `.koloni/` stay. O
 makes it a new, empty project. What KOLONİ kept of its chats under `runtime/` goes, as a chat's delete
 takes it: their attachments and their CLI sessions.
 
-While anything of the project is at work (a turn, a sub-agent, a room, the To-do's turn,
+While anything of the project is at work (a turn, a sub-agent, the To-do's turn,
 jobs while you're away), while a command it started still runs (such as a dev server), while finished work waits for
 **Take in** or **Discard**, or while its knowledge is learning, the delete is refused and says why.
 

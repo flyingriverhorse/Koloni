@@ -3,11 +3,8 @@
 A constant only one module reads lives in that module; one read by several lives here, once.
 """
 
-from sqlalchemy import select
-
 from app.command_runner import CARRY_ON
 from app.commands import CANARY
-from app.db.models import RoomMember
 from app.roles import LOOKUP
 from app.tools import READ_TOOLS, WRITE_TOOLS
 
@@ -230,10 +227,7 @@ TURN_ANSWERED = (
 )
 # B-379 (live): told "neither an agent nor a role", a Lead spent ten calls on a room of team
 # leads before any team started. Said where a team's lead is asked for before it is opened.
-LEADS_LATER = (
-    "team leads exist once their team starts: start the teams (spawn their leads); "
-    "they can meet in a room before working"
-)
+LEADS_LATER = "team leads exist once their team starts: start the teams (spawn their leads)"
 
 # B-164: what cannot reach an agent at work in its CLI (Copilot's and agy's own sessions).
 CANT_UNDO = "can't be undone: "  # (a Change's: not said of a message)
@@ -358,9 +352,6 @@ OUTRUN_TOLD = (
     "work is not wanted - do not open it again. It is no failure: no other model, "
     "tier or provider is needed"
 )
-
-# K-oda-takim: the agents a room opened - a team's coordinator among them ran no team.
-IN_A_ROOM = select(RoomMember.agent_id).where(RoomMember.agent_id.is_not(None))
 
 # What every role has: an agent with these and nothing else can do no work.
 NOT_WORK = frozenset(

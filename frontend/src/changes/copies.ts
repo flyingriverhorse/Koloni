@@ -10,18 +10,18 @@ import type { ConvState } from '../state/applyEvent'
  */
 
 const nameOf = (agent: Agent) => agent.name || agent.role_name
-/** A lead's copy is its turn's room's - or, in a side of a comparison (slice 54), the side's own. */
-const roomsCopy = (state: Pick<ConvState, 'runs'>, lead: Agent) =>
+/** A lead's copy is its turn's (a night's job, a branch's, Fix it's) - or, in a side of a comparison (slice 54), the side's own. */
+const turnsCopy = (state: Pick<ConvState, 'runs'>, lead: Agent) =>
   !state.runs.some(r => r.id === lead.run_id && r.compare_id)
 type Seen = Pick<ConvState, 'agents' | 'runs'> & Partial<Pick<ConvState, 'conversation'>>
-/** Whose a lead's copy is said to be: its turn's recipe's (slice 84b-2: a chat team's agents work in one), its room's; null: a side's own. */
+/** Whose a lead's copy is said to be: its turn's recipe's (slice 84b-2: a chat team's agents work in one), its turn's; null: a side's own. */
 const leadsCopy = (state: Seen, lead: Agent) =>
   // (B-107: also once the chat's teams changed after its turn.)
   state.conversation?.teams.some(row => row.state?.run_id === lead.run_id) ||
   state.runs.some(run => run.id === lead.run_id && run.teams?.length)
     ? 'the recipe’s'
-    : roomsCopy(state, lead)
-      ? 'the room’s'
+    : turnsCopy(state, lead)
+      ? 'the turn’s'
       : null
 
 /** The agent whose copy this agent changes files in: itself, or the one above it that has one. */
@@ -40,7 +40,7 @@ export function copyLine(state: Seen, agent: Agent): string | null {
   if (agent.copy?.state === 'failed') return 'could not be copied — works in the project'
   const owner = copyOwner(state, agent)
   if (!owner) return null
-  // A lead works in the project: a copy in its name is the one its turn's room, or recipe, works in.
+  // A lead works in the project: a copy in its name is the one its turn, or recipe, works in.
   const whose = owner.depth === 0 ? leadsCopy(state, owner) : null
   if (whose) return owner.id === agent.id ? `holds ${whose} copy` : `works in ${whose} copy`
   if (owner.id !== agent.id) return `works in ${nameOf(owner)}'s copy`

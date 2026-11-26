@@ -15,7 +15,7 @@ SQLite, and runs agents as asyncio tasks.
   FastAPI's own docs pages are switched off.
 - **`api/`**: the HTTP routes, all under `/api`.
 - **`agent/`**: the agent runner. `AgentRunner` runs one turn per asyncio task. It is split into mixins
-  (spawning sub-agents, cards and approvals, memory, limits, rooms, discussions, work while you're away and more); the
+  (spawning sub-agents, cards and approvals, memory, limits, discussions, work while you're away and more); the
   package docstring lists them.
 - **Model clients**: `model_client.py` (OpenAI-compatible), `model_anthropic.py` (the Anthropic Messages
   API), `model_cli.py` (a CLI as one step per model step), `model_session.py` (a CLI session whose only
@@ -76,7 +76,7 @@ a turn has agents, and an agent has messages, tool calls, file changes, commands
 Memory, knowledge and to-do tasks belong to a project; providers, roles, teams and recipes are
 the same for every project. Working copies are folders, not rows.
 
-[![The data model: project, chat, turn, agent, message, tool call, file change, command and merge; rooms and discussions; memory, knowledge, to-do tasks and the nights while you're away; providers, roles, teams and recipes](../diagrams/data-model.svg)](../diagrams/data-model.svg)
+[![The data model: project, chat, turn, agent, message, tool call, file change, command and merge; discussions; memory, knowledge, to-do tasks and the nights while you're away; providers, roles, teams and recipes](../diagrams/data-model.svg)](../diagrams/data-model.svg)
 
 *The main tables, their keys and how they link. ([full size](../diagrams/data-model.svg))*
 
@@ -87,6 +87,6 @@ loops: in step mode KOLONİ builds the history (compacting it when it is too lon
 runs each tool call it asks for. A CLI in session or native mode keeps the loop itself. Limits, slots,
 observing, recording and the rest work around every step.
 
-[![Inside the agent runner: a turn starts, tiers pick the model, the loop runs context, compaction, the model step and the tool calls; tool calls go to files, commands, outside, spawn, rooms, discussions, questions and talk; limits, slots, observe, record, claims, memory, merge and away work around every step](../diagrams/runner.svg)](../diagrams/runner.svg)
+[![Inside the agent runner: a turn starts, tiers pick the model, the loop runs context, compaction, the model step and the tool calls; tool calls go to files, commands, outside, spawn, discussions, questions and talk; limits, slots, observe, record, claims, memory, merge and away work around every step](../diagrams/runner.svg)](../diagrams/runner.svg)
 
 *The agent runner's parts and how a step flows through them. ([full size](../diagrams/runner.svg))*

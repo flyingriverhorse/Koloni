@@ -61,7 +61,6 @@ import {
   PoNode,
   ReadyNode,
   RequestNode,
-  RoomNode,
   RoundNode,
   TeamNode,
 } from './nodes'
@@ -98,7 +97,6 @@ const nodeTypes = {
   request: RequestNode,
   agent: AgentNode,
   discussion: DiscussionNode,
-  room: RoomNode,
   plan: PlanNode,
   po: PoNode,
   checks: ChecksNode,
@@ -162,12 +160,12 @@ const CENTRE_ZOOM = 0.8
 
 /**
  * What lies over the stage (`.stage`, which the canvas fills) without narrowing it: the chat,
- * which floats over its corner or wherever it was moved, the view window, and an agent's or a
- * room's window - where each really is (slice 38e). (Not the two buttons beside the small chat: a
+ * which floats over its corner or wherever it was moved, the view window, and an agent's window -
+ * where each really is (slice 38e). (Not the two buttons beside the small chat: a
  * strip at the very foot, they would leave no part of the stage whole beside the chat.) And the chat's teams button in
  * the top right corner: a node kept in view is not drawn under it (R73).
  */
-const OVER = '.chat, .view-panel:not(.view-panel-wide), .agent-window, .room-window, .chat-teams'
+const OVER = '.chat, .view-panel:not(.view-panel-wide), .agent-window, .chat-teams'
 /** What the turn is drawn clear of: the chat, the view window (slice 39) - not one expanded over all of it - and the canvas's buttons, its teams button too. */
 const CHAT = '.chat, .view-panel:not(.view-panel-wide), .react-flow__controls, .chat-teams'
 
@@ -287,8 +285,8 @@ const talkOf = (e: GraphEdge, drawn: Partial<Edge>, talkHues: Map<string, string
 })
 
 /**
- * A line's colour: a card's, a request's, findings', its talk pair's, at work or handed, a member's to its discussion or
- * room (talk with no messages: its own colour, not a sub-agent's grey - the user's, 21 Nov), or none of those.
+ * A line's colour: a card's, a request's, findings', its talk pair's, at work or handed, a member's to its discussion
+ * (talk with no messages: its own colour, not a sub-agent's grey - the user's, 21 Nov), or none of those.
  */
 const edgeColour = (e: GraphEdge, talkHue: string | undefined, talking: boolean): string =>
   e.shared
@@ -356,9 +354,9 @@ const edgeDash = (e: GraphEdge, talking: boolean): string | undefined =>
                     : undefined
 
 /** What lights its lines and the nodes at their ends when picked. */
-const FOCUSED: ReadonlySet<string> = new Set(['agent', 'discussion', 'room'])
+const FOCUSED: ReadonlySet<string> = new Set(['agent', 'discussion'])
 
-/** What is in focus: the talk line whose words are shown, else the card or frame lit, else the agent, discussion or room picked. */
+/** What is in focus: the talk line whose words are shown, else the card or frame lit, else the agent or discussion picked. */
 function focusOf(
   byId: Map<string, GraphNode>,
   talkEdge: GraphEdge | undefined,
@@ -1114,7 +1112,7 @@ export function CanvasView({
           strokeWidth: edgeWidth(e, lit, talking),
           ...(talking && { strokeLinecap: 'round' as const }),
           // A hand-off to a sub-agent reads differently from an agent's own output.
-          // A member's line to its discussion or room: a finer, dotted line. An agent that waits for a file another
+          // A member's line to its discussion: a finer, dotted line. An agent that waits for a file another
           // holds: a thin dashed line to that agent, for as long as it waits. To a card: a team's line plain, an
           // agent's (no team) and a contract's arm dotted.
           strokeDasharray: edgeDash(e, talking),

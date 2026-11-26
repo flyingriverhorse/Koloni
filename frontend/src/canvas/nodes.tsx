@@ -10,7 +10,6 @@ import {
   Moon,
   Robot,
   User,
-  UsersThree,
 } from '@phosphor-icons/react'
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { type CSSProperties, type ReactNode, useContext, useEffect, useState } from 'react'
@@ -39,7 +38,6 @@ import {
   SCOUT_DOES,
   type ReadyData,
   type RequestData,
-  type RoomData,
   type RoundData,
   type TeamData,
   statusWords,
@@ -196,7 +194,7 @@ export function DiscussionNode({ data, selected }: NodeProps<Node<DiscussionData
       label={data.line}
       tone={data.running ? 'running' : 'idle'}
       selected={selected}
-      // (Every line to a discussion or a room goes into it. One inside a frame may be drawn from its right dot, but its
+      // (Every line to a discussion goes into it. One inside a frame may be drawn from its right dot, but its
       // arrow is there and covers the dot.)
       unused="out"
     >
@@ -212,31 +210,6 @@ export function DiscussionNode({ data, selected }: NodeProps<Node<DiscussionData
         <div className="node-meta mono" title={data.members.join(' · ')}>
           {data.members.join(' · ')}
         </div>
-      )}
-    </Card>
-  )
-}
-
-/** A room: its goal, and whether it waits for you - else how far its list is, or who is in it. */
-export function RoomNode({ data, selected }: NodeProps<Node<RoomData & Record<string, unknown>>>) {
-  return (
-    <Card
-      icon={<UsersThree size={13} />}
-      title="Room"
-      label={data.line}
-      tone={data.attention ? 'approval' : data.running ? 'running' : 'idle'}
-      selected={selected}
-      unused="out"
-    >
-      <div className="node-line" title={data.goal}>
-        {data.goal}
-      </div>
-      {data.attention ? (
-        <div className="node-meta mono" style={{ color: 'var(--warn)' }}>
-          Waits for you
-        </div>
-      ) : (
-        <div className="node-meta mono">{data.items || data.members.join(' · ')}</div>
       )}
     </Card>
   )
@@ -820,7 +793,6 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
               {/* K-evrim-model: this round's, each with its model - "Coder 2 (gpt-luna): 85 · Coder (sonnet): 61". */}
               {step.scores && ` · ${step.scores}`}
               {step.missed != null && ` · target ${step.missed} not reached`}
-              {step.room && <span className="team-step-room">Room</span>}
               {stepEnd(step)}
             </li>
           ))}

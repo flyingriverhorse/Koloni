@@ -81,6 +81,12 @@ def test_each_project_takes_the_strictest_of_its_chats_and_a_turn_reads_that(tmp
         ):
             conn.execute(CHAT_WITH, (row[0], row[1], AT, AT, *row[2:]))
 
+    # A room's budgets as 0147 left them (0193 took them off with rooms): the strictest too.
+    command.upgrade(cfg, "0147")
+    with sqlite3.connect(db) as conn:
+        assert conn.execute(
+            "SELECT id, room_posts, room_minutes, room_tokens FROM projects ORDER BY id"
+        ).fetchall() == [("p", 20, 60, 50_000), ("q", 40, 30, None), ("r", 40, 30, None)]
     # (To the head, not 0147: `settings_of` reads through today's models, whose select names every
     # column added since - 0150's on projects too - so a database left at 0147 cannot be read.)
     command.upgrade(cfg, "head")
@@ -90,9 +96,6 @@ def test_each_project_takes_the_strictest_of_its_chats_and_a_turn_reads_that(tmp
         "spawn_max_depth",
         "spawn_max_agents",
         "spawn_max_parallel",
-        "room_posts",
-        "room_minutes",
-        "room_tokens",
         "discussion_budget",
         "when_away",
         "away_minutes",
@@ -108,18 +111,18 @@ def test_each_project_takes_the_strictest_of_its_chats_and_a_turn_reads_that(tmp
         }
     engine.dispose()
     # (the new columns from the chats alone; when_away, away_minutes, lead_work the project's own too)
-    strict_p = ("always", 3, 3, 4, 20, 60, 50_000, None, "waits", 30, "decides")
+    strict_p = ("always", 3, 3, 4, None, "waits", 30, "decides")
     assert read == {
         "c1": strict_p,
         "c2": strict_p,
         "c4": strict_p,
-        "c3": ("auto", 2, 6, 2, 40, 30, None, 5000, "waits", 10, "delegates"),
+        "c3": ("auto", 2, 6, 2, 5000, "waits", 10, "delegates"),
     }
     # a project with no chats keeps the defaults
     with sqlite3.connect(db) as conn:
         assert conn.execute(
             f"SELECT {', '.join(names)} FROM projects WHERE id = 'r'"
-        ).fetchone() == ("auto", 2, 6, 2, 40, 30, None, None, "waits", 10)
+        ).fetchone() == ("auto", 2, 6, 2, None, "waits", 10)
     # Back to 0146: each chat takes what it followed, none looser than it was.
     command.downgrade(cfg, "0146")
     with sqlite3.connect(db) as conn:
@@ -128,6 +131,6 @@ def test_each_project_takes_the_strictest_of_its_chats_and_a_turn_reads_that(tmp
         ).fetchall() == [
             ("c1", *strict_p),
             ("c2", *strict_p),
-            ("c3", "auto", 2, 6, 2, 40, 30, None, 5000, "waits", 10, "delegates"),
+            ("c3", "auto", 2, 6, 2, 5000, "waits", 10, "delegates"),
             ("c4", *strict_p),
         ]

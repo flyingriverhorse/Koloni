@@ -18,7 +18,7 @@
 
 <p align="center">
   <img src="pages/assets/real-run.gif" width="100%"
-       alt="A real run, sped up: one message asks three teams for a small command-line tool; the Orchestrator opens the Web app and Docs teams and a Backend team (a ready team then) on the canvas; the Web app team designs in a room; the work comes back on one card and Take in brings four files into the project. Every role on Claude Code with haiku.">
+       alt="A real run, sped up: one message asks three teams for a small command-line tool; the Orchestrator opens the Web app and Docs teams and a Backend team (a ready team then) on the canvas; the Web app team designs in a room (rooms were removed in 0.1.10); the work comes back on one card and Take in brings four files into the project. Every role on Claude Code with haiku.">
 </p>
 
 KOLONİ runs Claude Code, Codex, GitHub Copilot CLI and agy, plus a local llama.cpp server or
@@ -67,7 +67,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 ## What is in the box
 
 - **Agents and teams**: roles, teams with stages (Plan → Build → Check → Write & keep up), recipes
-  (draw, copy, or describe in a sentence), discussions and rooms, Compare (one message to two
+  (draw, copy, or describe in a sentence), discussions, Compare (one message to two
   models, each in its own copy). [Roles](docs/agents/roles.md) · [Teams](docs/agents/teams.md) · [Recipes](docs/agents/recipes.md)
 - **Evidence**: the canvas and each agent's window show the tools, commands and real diffs as
   recorded. Undo a turn; Stop or Stop everything keeps half-done work behind a card.

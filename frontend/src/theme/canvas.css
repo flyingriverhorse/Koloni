@@ -1295,7 +1295,7 @@ button.shared-row:hover,
   }
 
   /* B-157: lying over the stage's right side, the inspector is kept clear of by the windows over the stage - the
-     agent's, a discussion's, a room's, Workspace - and the Teams button: they stand to its left (--inspector-w). */
+     agent's, a discussion's, Workspace - and the Teams button: they stand to its left (--inspector-w). */
   .stage:has(~ .inspector) {
     --inspector-w: var(--inspector-size);
   }
@@ -1914,16 +1914,6 @@ button.shared-row:hover,
   border-color: var(--team);
   background: color-mix(in srgb, var(--team) 30%, var(--surface));
   color: var(--text);
-  font-weight: 600;
-}
-
-/* A Room step (slice 84e): its roles meet in one room. */
-.team-step-room {
-  margin-left: 4px;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--team) 18%, transparent);
-  font-size: 0.85em;
   font-weight: 600;
 }
 

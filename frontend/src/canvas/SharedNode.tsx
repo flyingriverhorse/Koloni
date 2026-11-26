@@ -9,9 +9,9 @@ import { FOLDER, PREVIEW_OF, keyOf } from '../views/views'
 import type { SharedData, SharedRow } from './sharedColumn'
 import { NodeActions, ToggleGroup } from './toggleGroup'
 
-// The calls that may write the shared folder: an agent's own file, a request's contract, a room's decision.
+// The calls that may write the shared folder: an agent's own file, a request's contract.
 // (A CLI's over KOLONİ's MCP server are on record by the same names.)
-const WRITES: ReadonlySet<string> = new Set(['write_shared', 'request_work', 'open_room'])
+const WRITES: ReadonlySet<string> = new Set(['write_shared', 'request_work'])
 
 /** K-ortak-klasor: the files of the project's `.koloni/shared/`, read again whenever a call that may write it ends. */
 export function useSharedFiles(state: ConvState | null): SharedFile[] {
