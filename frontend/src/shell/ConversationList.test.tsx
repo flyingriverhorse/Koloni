@@ -787,7 +787,9 @@ test('a chat’s row says what waits for your word in it - Ready for you’s own
   expect(within(rows[0].closest('li')!).getByRole('img', { name: 'waits for your word' })).toBeInTheDocument()
   expect(rows[1]).toHaveTextContent('Done')
   const now = screen.getByRole('complementary', { name: 'Now every folder' })
-  expect(now).toHaveTextContent('Nothing at work, 2 wait for your word; today 1 done. What waits is on Ready for you.')
+  expect(now).toHaveTextContent(
+    'Nothing at work; 2 things wait for your word. Today 1 done. What waits is on Ready for you.',
+  )
   expect(
     within(now)
       .getAllByRole('img')

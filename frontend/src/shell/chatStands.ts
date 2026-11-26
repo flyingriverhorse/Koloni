@@ -81,8 +81,10 @@ export function chatStands(
 /** The sentence under the comb: what is at work, what waits for your word (the top bar's pill's number), and today's. */
 export function nowSaid(working: number, waits: number, stuck: number, done: number, read: boolean): string {
   const waiting =
-    waits === 0 ? 'nothing waits for your word' : `${waits} ${waits === 1 ? 'waits' : 'wait'} for your word`
+    waits === 0
+      ? 'nothing waits for your word'
+      : `${count(waits, 'thing')} ${waits === 1 ? 'waits' : 'wait'} for your word`
   if (!read) return `How the chats stand is not read yet; ${waiting}.`
   const today = [done > 0 && `${done} done`, stuck > 0 && `${stuck} stuck`].filter(Boolean).join(', ')
-  return `${working > 0 ? `${working} at work` : 'Nothing at work'}, ${waiting}${today && `; today ${today}`}.`
+  return `${working > 0 ? `${count(working, 'chat')} at work` : 'Nothing at work'}; ${waiting}.${today && ` Today ${today}.`}`
 }

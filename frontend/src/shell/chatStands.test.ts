@@ -55,8 +55,8 @@ test('a chat stands as its cell says: at work with who and on which branch; stuc
 })
 
 test('Now’s sentence: at work, what waits for your word, and today’s; before the Board is read only what waits', () => {
-  expect(nowSaid(2, 2, 1, 0, true)).toBe('2 at work, 2 wait for your word; today 1 stuck.')
-  expect(nowSaid(0, 1, 0, 3, true)).toBe('Nothing at work, 1 waits for your word; today 3 done.')
-  expect(nowSaid(0, 0, 0, 0, true)).toBe('Nothing at work, nothing waits for your word.')
-  expect(nowSaid(0, 3, 0, 0, false)).toBe('How the chats stand is not read yet; 3 wait for your word.')
+  expect(nowSaid(2, 2, 1, 0, true)).toBe('2 chats at work; 2 things wait for your word. Today 1 stuck.')
+  expect(nowSaid(0, 1, 0, 3, true)).toBe('Nothing at work; 1 thing waits for your word. Today 3 done.')
+  expect(nowSaid(0, 0, 0, 0, true)).toBe('Nothing at work; nothing waits for your word.')
+  expect(nowSaid(0, 3, 0, 0, false)).toBe('How the chats stand is not read yet; 3 things wait for your word.')
 })

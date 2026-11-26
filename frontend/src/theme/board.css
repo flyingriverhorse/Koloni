@@ -171,7 +171,12 @@
   background: var(--hover);
 }
 
+/* The open chat: a honey line on its row's left edge. */
 .conv-main .conv-row[aria-current='true'] {
+  box-shadow: none;
+}
+
+.conv-main .conv-item:has(.conv-row[aria-current='true']) {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
