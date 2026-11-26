@@ -21,7 +21,8 @@ The chat panel has three tabs:
 - **Chat**: "Your conversation with the Orchestrator".
 - **Talk**: "What the agents say to each other, to hand work on or ask one another".
 - **Notes**: "A shared notebook: you and the agents leave notes here, kept from message to message and
-  given to new agents".
+  given to new agents". In a To-do story's or task's turn, and a night's job's, a note for the whole turn
+  also goes into that job's [notebook](../automation/todo.md#the-storys-notebook).
 
 **Hide chat** (or Esc) folds it to one line at the canvas's bottom left that says how many messages are
 unread and how many things wait for you.

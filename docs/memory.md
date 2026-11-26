@@ -1,8 +1,13 @@
 # Memory
 
-Memory is what a project remembers between chats: your preferences, the project's rules, facts
-you approved, and notes agents wrote while they worked. Open it with **Memory** on the left rail.
-Each project has its own memory.
+Memory is what a project remembers between chats: your preferences, the project's rules and its
+Project notes, facts you approved, and notes agents wrote while they worked. Open it with **Memory**
+on the left rail. Each project has its own memory.
+
+Memory is one of the two places KOLONİ keeps notes. The other is a job's
+[notebook](automation/todo.md#the-storys-notebook): what a To-do story's or task's turns, or a night's
+job, note for the turns after them, for as long as the job runs. Memory is what stays true of the
+project.
 
 KOLONİ never shows a memory as surer than it is. A fact rests on lines of a file, and KOLONİ
 checks those lines again each time it reads the fact.
@@ -17,6 +22,7 @@ checks those lines again each time it reads the fact.
 |---|---|---|
 | **Your preferences** | You. One text, used in every project. | **Told** tab |
 | **This project's rules** | You. Kept in the folder's `.koloni/rules.md`, so they go into git with the project. | **Told** tab |
+| **Project notes** | You, ticking lines on the **Add to Project notes?** card at the end of a turn. | **Told** tab, under the rules |
 | **Facts** (the core) | You, or an agent's proposal that you approved. | **Facts** tab |
 | **Notes** (the journal) | Agents, while they work, and KOLONİ's own note-taker if you switch it on. | **Notes** tab |
 
@@ -33,12 +39,28 @@ folder's text, with **Use the folder's rules here** to take it into the box. Ful
 KOLONİ may also suggest a preference. It shows under **Your preferences** with a "suggested" tag
 and the buttons **Add** and **Reject**.
 
+### Project notes
+
+At the end of a turn, KOLONİ may ask **Add to Project notes?** It lists findings that were fixed and
+changes to the project's `docs/`, at most 8, in the words of the agent or the file. Tick the ones to keep
+and press **Add**, or **Not now**. The card never holds the turn: answer it whenever you like.
+
+Each line you add goes into the second box under **This project's rules**, on the **Told** tab, as
+`- <line>`. The Orchestrator is given them every turn, each line in quotes, as notes written from the
+agents' work: they are not your instructions. They are not written to `.koloni/rules.md`, and Full auto's
+check of your words does not read them. Correct a line or take it out in the box, then press **Save
+Project notes**. They hold at most 4 000 characters; past that, **Add** asks you to take some lines out
+first, and the card waits.
+
+Before 0.1.10 the Project notes were a topic of [Knowledge](knowledge.md). At the upgrade their lines
+were copied here ([Upgrade notes](reference/upgrade-notes.md#0110)).
+
 ## The three ways memory reaches an agent
 
 The page has four tabs. The first three are the three ways memory reaches an agent:
 
 1. **Told**: "Said to every agent, always." Your preferences and the project's rules are put in
-   every agent's briefing.
+   every agent's briefing. The Orchestrator is also given the [Project notes](#project-notes), every turn.
 2. **Facts**: "Given to an agent when its work names the subject." When every word of a fact's
    subject appears in the agent's task, the fact is given to it. The agent is also told how many
    other facts exist, so it can look them up. A fact whose subject is too general to match is
@@ -200,17 +222,11 @@ with a short history - cheaper, and nothing of the other work leads it astray - 
 Copilot or Codex with a new session. Keep going in the topic when the message builds on what was just done: the Orchestrator
 sees that work, and can go on with the agents that did it.
 
-## Project notes and Knowledge are not memory
+## Knowledge is not memory
 
-- **Knowledge** (its own page on the rail) holds expert topics learned from web pages or project
-  files. Roles use them while they work. See [Knowledge and experts](knowledge.md).
-- **Project notes** is a Knowledge topic that KOLONİ fills from what you tick on the
-  **Add to Project notes?** card at the end of a turn. The project's Orchestrator can look them up
-  where the notes were first made by a version that gives them to it; otherwise, and for any other
-  role, only once you switch them on ([Project notes](knowledge.md#project-notes)).
-
-Neither is on the Memory page. Memory is short facts and notes, each checked against its source.
-Knowledge is longer material an expert reads.
+**Knowledge** (its own page on the rail) holds expert topics learned from web pages or project files.
+Roles use them while they work. See [Knowledge and experts](knowledge.md). Memory is short facts and
+notes, each checked against its source; Knowledge is longer material an expert reads.
 
 ## History and Export
 

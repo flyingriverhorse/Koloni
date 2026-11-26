@@ -143,16 +143,20 @@ it). A story whose tasks are all filtered out still shows when its own state fit
 
 *Stories and their tasks and bugs; the tasks of no story last.*
 
-### The story's notebook
+### The job's notebook {#the-storys-notebook}
 
 Each story keeps a short notebook: **📓 N notes** beside it on this page, and **📓 notes** on the
-[strip over a chat](../use/chat-and-canvas.md#what-the-chat-shows) the story works in. Each note is one
-line - a **decision**, a **file**, a **result** or a **question** - with who wrote it:
+[strip over a chat](../use/chat-and-canvas.md#what-the-chat-shows) the story works in. A task of no story
+keeps its own (since 0.1.10): a task done in a chat, and a [night's job](overnight.md#how-the-jobs-run),
+with **📓 N notes** beside the task. It is the job's notebook, for as long as the job runs: what its next
+turns go on from. Each note is one line - a **decision**, a **file**, a **result**, a **question** or a
+**note** - with who wrote it:
 
 - **KOLONİ** notes how each turn of the story's tasks ended - *“Add the reset mail” — done?*, *— stuck: …*
   or *— not finished: …* - and the files that turn changed in the project, five at most.
 - The task's **Orchestrator** is asked to end its answer with up to three lines
-  `Story note: <decision|file|result|question>: <one line>`; KOLONİ reads them off its answer. A note
+  `Story note: <decision|file|result|question>: <one line>` (`Task note: …` for a task of no story);
+  KOLONİ reads them off its answer. A note
   is a line that starts so, at the very start of the line: before it only up to three spaces, a list's
   `- `, `* ` or `+ `, bold, or backticks round `Story note:` alone; a numbered list's item
   (`1. Story note: …`) is not one. One in a code block, a quote, a table, a heading, inline code, an
@@ -160,14 +164,19 @@ line - a **decision**, a **file**, a **result** or a **question** - with who wro
   blank line) is not, nor is a line right after a quote's with no blank line between: Markdown reads
   it as the quote's too.
 - The **Hive keeper** adds its notes as it drafts a story.
+- A **note** left for the whole turn on the chat's shared notebook - the
+  [Notes](../use/chat-and-canvas.md) tab - goes in too: yours, and an agent's `post_note`, at most three
+  of the agents' a turn (a team's note to its own team stays the turn's). The agent is told whether it
+  went in.
 
 ![A chat working through a story: the strip over it reads "Story · Two-step sign-in · 2 / 3 · next: Turn it on in Settings · notes", and its notebook is open - the Hive keeper's decision and KOLONİ's result line for the first task](../images/story-notebook.png)
 
 *The strip over a chat a story works in, and its notebook opened from it.*
 
-Every turn of the story is given the notebook, quoted as data, not instructions: each task's first message
+Every turn of the job is given the notebook, quoted as data, not instructions: each task's first message
 and its fix round carry it, and so do the Orchestrator's instructions in a turn of yours in the story's
-topic, as the notebook stood when that turn began. A session that summarises itself keeps short notes
+(or the task's) topic, as the notebook stood when that turn began. Any agent of the turn reads it with
+`read_notes`; in place of the notebook of the turn before, which a turn of a plain chat is given. A session that summarises itself keeps short notes
 it was given and loses details read in passing (in one measured run, 5 of 5 notes against 0 of 5 details
 buried in a long log): the notebook is what is not lost. Long content - a file, an output - is read
 again when it is needed.
