@@ -130,7 +130,7 @@ def test_claude_code_is_given_neither_notify_where_the_project_sends_none_nor_pr
     argv = claude_app.record()["argv"]
     allowed = set(argv[argv.index("--allowedTools") + 1].split(","))
     assert "mcp__koloni__propose_trigger" not in allowed
-    assert "mcp__koloni__notify" not in allowed  # (no address, no desktop: as `_lead_tools`)
+    assert "mcp__koloni__notify" not in allowed  # (no desktop: as `_lead_tools`)
     # Its calls of the ones not offered never reached KOLONİ: no card.
     assert koloni_calls(snap, "notify") == []
     assert koloni_calls(snap, "propose_trigger") == []
