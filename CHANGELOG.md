@@ -21,6 +21,11 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Removed
+
+- **Workspace**: the Word, Excel and PowerPoint previews and the 3D model preview (STL, OBJ, glTF, GLB, 3MF) are gone. Such a file opens in the Workspace as any file that is not text - "Not text: there is no code to show." (an OBJ, a text STL or a glTF shows its text); open it in its own program. A Word, Excel or PowerPoint file an agent made is still listed among its outputs and still checked; a 3D model is no longer an output, and an agent can no longer `show` one ([docs](docs/reference/upgrade-notes.md#0110)).
+- For contributors: `docx-preview`, `pptx-preview`, SheetJS (`xlsx`) and three.js are no longer dependencies, and `npm run build` no longer builds the document viewer (`dist/office/`, about 1.8 MB).
+
 ## [0.1.9] - 2026-11-26
 
 ### Added
