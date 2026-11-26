@@ -8,7 +8,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Changed
 
-- **Settings**: Checked's **Pages** (a changed page in KOLONİ's browser at three widths) and **A test for the change** (the Orchestrator asked for a test where code changed and no test did) are off unless you tick them in Settings › This project › Checks and git › **Check by kind of work**; **A test for the change** is a new box there, and ticked it asks under Tests only too. A project that never changed Pages has it off from now on, and a turn that wrote a page says “Not checked: pages switched off for this project”; one where you ticked it on keeps it. The tests and code style stay on ([docs](use/checked.md#a-test-for-the-change)).
+- **Settings**: Checked's **Pages** (a changed page in KOLONİ's browser at three widths) and **A test for the change** (the Orchestrator asked for a test where code changed and no test did) are off unless you tick them in Settings › This project › Checks and git › **Check by kind of work**; **A test for the change** is a new box there, and ticked it asks under Tests only too. A project that never changed Pages has it off from now on, and a turn that wrote a page says “Not checked: pages switched off for this project”; one where you ticked it on keeps it. Unticked, a turn that changed code and no test says “Not checked: a test for the change switched off for this project”. The tests and code style stay on ([docs](use/checked.md#a-test-for-the-change)).
 
 ### Removed
 

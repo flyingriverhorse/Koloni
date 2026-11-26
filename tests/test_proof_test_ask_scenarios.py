@@ -84,7 +84,10 @@ def test_a_project_with_the_box_off_is_not_asked(make_client, wait_run, project_
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert asked(model) == 0
-    assert texts(snap) == ["Tests passed: python check.py - 4 passed in 0.1s"]
+    assert texts(snap) == [
+        "Tests passed: python check.py - 4 passed in 0.1s",
+        "Not checked: a test for the change switched off for this project",
+    ]
 
 
 def test_a_turn_with_a_test_changed_is_not_asked(make_client, wait_run, project_dir):

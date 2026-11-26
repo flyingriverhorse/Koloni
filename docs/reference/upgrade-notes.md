@@ -20,6 +20,12 @@ Only what needs your attention after an update; everything else is in the [Chang
 
 ### 0.1.10
 
+- **Pages and A test for the change are off unless ticked.** In Settings › This project › Checks
+  and git › **Check by kind of work**, a project that never changed **Pages** has it off from now
+  on, and **A test for the change** is a new box, off. A turn that wrote a page says "Not checked:
+  pages switched off for this project", and one that changed code and no test says "Not checked: a
+  test for the change switched off for this project". Tick them to have them as before (see
+  [What KOLONİ checked](../use/checked.md#a-test-for-the-change)). Nothing in the database changes.
 - **The Word, Excel, PowerPoint and 3D model previews are gone.** Such a file is still in the
   Workspace's files and opens there as any other file that is not a page or a picture: its text where
   it is text of 256 KB at most (an OBJ, a text STL, a glTF), else "Not text: there is no code to show."

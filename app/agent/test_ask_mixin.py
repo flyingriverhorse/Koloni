@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import proof
+from app import proof, proof_kinds
 from app.agent.ctx import Ctx
 from app.agent.words import TEST_ASKED
 from app.db.models import Message
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 NAMED = 3  # files named in a line, then "+N more"
 MOST_SAID = 120  # characters of the Orchestrator's line quoted
+TEST_OFF = proof_kinds.NOT_CHECKED_KIND.format(kind="a test for the change")
 
 
 def named(paths: list[str]) -> str:
@@ -55,7 +56,8 @@ class TestAskMixin:
         """S2's rows, from the turn's changes as they stand at its end: the tests it added or
         changed; each test it removed that was there before (failed - the Reviewer judges it
         too); where it was asked and wrote none, the first line of the Orchestrator's last
-        answer - its reason (an answer with no tool call ended the turn: no pass after it)."""
+        answer - its reason (an answer with no tool call ended the turn: no pass after it); where
+        it would have been asked but the project's box is off, that it was not."""
         removed = proof.removed_tests(found)
         # (CL-329 G: and each a command deleted - on no record, read off git)
         removed += [path for path in held.gone_tests if path not in removed]
@@ -78,6 +80,9 @@ class TestAskMixin:
                     proof.NO_NEW_TEST.format(line=self._last_line(session, run_id, lead_id)),
                 )
             )
+        elif "tests" in held.checks.on and not held.checks.ask_test and proof.untested(found):
+            # (0.1.10: off unless ticked - said as a kind switched off is)
+            rows.append(proof.row("test", "note", TEST_OFF))
         return rows
 
     @staticmethod

@@ -665,8 +665,9 @@ out. A text's opacity (its own or a parent's), its shadow, an outline drawn by a
 ## A test for the change
 
 Off unless you tick **A test for the change** in **Settings › This project › Checks and git ›
-Check by kind of work** (since 0.1.10). Ticked, it is asked under **Test and review** and **Tests
-only** alike. A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
+Check by kind of work** (since 0.1.10). Unticked, a turn that changed code and no test says "Not
+checked: a test for the change switched off for this project". Ticked, it is asked under **Test
+and review** and **Tests only** alike. A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
 is asked, once, for a test: "Not the end yet: `a.py` changed and no test did." The Orchestrator
 has one written - by an agent that writes code, or itself; for a bug fix, first a test that fails
 without the fix - and KOLONİ runs the tests again on it. Where no test fits (documents, settings, a
