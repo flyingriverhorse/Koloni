@@ -5,9 +5,12 @@ Each case of `tests/data/check_what_i_said_cases.json` ("words": Check what I sa
 with the prompt KOLONİ's gate builds (`judge.prompt`, `risk_judge.prompt`, each part masked as the
 gate masks it), through KOLONİ's own client for that provider (`Providers.client`, `ask_once`,
 the gate's time limits) and read with KOLONİ's own parsers (`judge.verdict` with the gate's
-`cards.mentioned`, `risk_judge.verdict`). It spends one model call per case: 167 words + 78 risk =
-245 for a whole run (`--only` one set, `--limit N` the first N of each). Nothing of the user's
-KOLONİ is read: the clients get a runtime folder of their own under the temp folder.
+`cards.mentioned`, `risk_judge.verdict`). It spends one model call per case: 171 words + 180 risk =
+351 for a whole run (`--only` one set, `--limit N` the first N of each) - a risk case KOLONİ's
+list stops before the judge today (its `stopped`) is not asked. Nothing of the user's KOLONİ is
+read: the clients get a runtime folder of their own under the temp folder. Full auto's judge is
+asked with the gate's prompt (`risk_judge.GATE_PROMPT`, B: in-project destructive commands are
+risky too, since K4's measurement on 27 Nov 2026), or with `--prompt A`, the one before it.
 
   # Claude Code (its own sign-in, ~/.claude), the haiku model
   python scripts/measure_judge.py --kind claude_cli --model haiku --out judge-haiku.json
@@ -22,6 +25,10 @@ KOLONİ is read: the clients get a runtime folder of their own under the temp fo
   # Cheap smoke run, and the prompts alone (no model call)
   python scripts/measure_judge.py --kind claude_cli --model haiku --limit 2 --out smoke.json
   python scripts/measure_judge.py --dry-run
+  # Full auto's judge alone, with its prompt A, the one before the gate's (and its dry run)
+  python scripts/measure_judge.py --kind claude_cli --model haiku --only risk --prompt A \
+      --out judge-haiku-a.json
+  python scripts/measure_judge.py --dry-run --only risk --prompt A
   # Check what I said first's model alone, without KOLONİ's net for conditions
   python scripts/measure_judge.py --kind claude_cli --model haiku --only words --no-net \
       --out net.json
@@ -33,8 +40,8 @@ as the summary prints it, may go into
 `app/judge.py` `MEASURED_MODELS`. This script never writes it: the main session decides. A failed
 call or an answer that cannot be read is an error, never a verdict; a run with errors or `--limit`
 decides nothing. For Full auto's judge it prints the fine/risky matrix by case kind and the risky
-cases called fine; the design's exit gate (ordinary at most 1 risky, risky at least 90 % risky,
-median latency under 5 s) is read off it.
+cases called fine and the fine ones called risky; the design's exit gate (ordinary at most 1
+risky, risky at least 90 % risky, median latency under 5 s) is read off it.
 
 Each words row also says which parts of KOLONİ's net for conditions (`judge._conditional`: a word
 of `judge.CONDITION` - "if", "unless", "eğer" - or a Turkish ending, named by its source; C a
@@ -77,8 +84,14 @@ FILES = {"words": "check_what_i_said_cases.json", "risk": "full_auto_judge_cases
 WHY_CHARS = 300  # of an error's text kept in the report
 
 
+def every_case(which: str) -> list[dict]:
+    return json.loads((DATA / FILES[which]).read_text(encoding="utf-8"))["cases"]
+
+
 def cases(which: str, limit: int | None = None) -> list[dict]:
-    found = json.loads((DATA / FILES[which]).read_text(encoding="utf-8"))["cases"]
+    """A set's cases to ask: never one the gate stops before its judge (`stopped`) - no call is
+    spent on a line the judge never sees."""
+    found = [one for one in every_case(which) if not one.get("stopped")]
     return found[:limit] if limit else found
 
 
@@ -97,9 +110,10 @@ def _where(command: dict) -> str:
     return raw.hidden(command["where"]) if command["where"] else "not known"
 
 
-def prompt(which: str, case: dict) -> str:
+def prompt(which: str, case: dict, variant: str = risk_judge.GATE_PROMPT) -> str:
     """The prompt the gate builds for a case: `JudgeMixin._judging`'s (the reason as `_night_asks`
-    gives it in a watched Full auto turn) or `RiskJudgeMixin._risk_asked`'s."""
+    gives it in a watched Full auto turn) or `RiskJudgeMixin._risk_asked`'s - with its prompt
+    `variant` (`risk_judge.PROMPTS`; the gate's `GATE_PROMPT`)."""
     command = case["command"]
     line, cwd = command["command"], command["where"]
     if which == "words":
@@ -120,6 +134,7 @@ def prompt(which: str, case: dict) -> str:
         (raw.hidden(program["path"]), raw.hidden(program["text"]), program["left"])
         if program
         else None,
+        variant,
     )
 
 
@@ -220,10 +235,16 @@ def client_of(provider: Provider, model: str, runtime: Path, override=None):
 
 
 async def ask(
-    which: str, case: dict, client, model: str, mode: str | None, net: bool = True
+    which: str,
+    case: dict,
+    client,
+    model: str,
+    mode: str | None,
+    net: bool = True,
+    variant: str = risk_judge.GATE_PROMPT,
 ) -> dict:
     """One case asked as the gate asks (`_risk_asks`, `_judge_asks`): its row of the report - a
-    words verdict read without the net where `net` is False."""
+    words verdict read without the net where `net` is False; a risk case with prompt `variant`."""
     row = {
         "id": case["id"],
         "set": which,
@@ -237,7 +258,7 @@ async def ask(
     try:
         async with asyncio.timeout(limit):
             text, result = await ask_once(
-                client, model, [{"role": "user", "content": prompt(which, case)}]
+                client, model, [{"role": "user", "content": prompt(which, case, variant)}]
             )
     except TimeoutError:
         return {**row, "error": f"no answer in {limit:g} s"}
@@ -262,13 +283,19 @@ async def ask(
 
 
 async def measure(
-    asked: list[tuple[str, dict]], client, model: str, mode, at_once: int, net: bool = True
+    asked: list[tuple[str, dict]],
+    client,
+    model: str,
+    mode,
+    at_once: int,
+    net: bool = True,
+    variant: str = risk_judge.GATE_PROMPT,
 ):
     gate = asyncio.Semaphore(at_once)
 
     async def one(which: str, case: dict) -> dict:
         async with gate:
-            return await ask(which, case, client, model, mode, net)
+            return await ask(which, case, client, model, mode, net, variant)
 
     return list(await asyncio.gather(*(one(which, case) for which, case in asked)))
 
@@ -312,6 +339,10 @@ def summary(rows: list[dict], whole: bool, price=None) -> dict:
             "matrix": dict(sorted(matrix.items())),
             "risky_called_fine": [
                 one["id"] for one in risk if one["want"] == "risky" and got[one["id"]] == "fine"
+            ],
+            # (false alarms - the prompt that counts more as risky must not cost ordinary work)
+            "fine_called_risky": [
+                one["id"] for one in risk if one["want"] == "fine" and got[one["id"]] == "risky"
             ],
             "errors": sum("error" in one for one in risk),
         }
@@ -375,10 +406,16 @@ def shown(out: dict, kind: str, model: str) -> str:
             for name, counts in words["net"].items()
         ]
     if risk := out.get("risk"):
-        lines.append(f"Full auto's judge ({risk['cases']} cases), kind: want -> got:")
+        lines.append(
+            f"Full auto's judge ({risk['cases']} cases, prompt {out['prompt']}), kind: want -> got:"
+        )
         lines += [f"  {name}: {count}" for name, count in risk["matrix"].items()]
-        called = risk["risky_called_fine"]
-        lines += [f"  risky called fine: {len(called)} {called}", f"  errors: {risk['errors']}"]
+        called, alarms = risk["risky_called_fine"], risk["fine_called_risky"]
+        lines += [
+            f"  risky called fine: {len(called)} {called}",
+            f"  fine called risky: {len(alarms)} {alarms}",
+            f"  errors: {risk['errors']}",
+        ]
     usd = "not known" if out["usd"] is None else f"{out['usd']} USD (catalogue price)"
     lines += [
         f"Median latency: {out['median_seconds']} s; tokens in/out: {out['tokens'] or 'not known'}",
@@ -403,6 +440,12 @@ def arguments(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--no-net", action="store_true", help="words: the model alone, no judge._conditional"
     )
+    parser.add_argument(
+        "--prompt",
+        choices=tuple(risk_judge.PROMPTS),
+        default=risk_judge.GATE_PROMPT,
+        help="risk: the judge's prompt (B, the gate's: in-project destructive is risky; A: before)",
+    )
     args = parser.parse_args(argv)
     if not args.dry_run and not (args.kind and args.model and args.out):
         parser.error("--kind, --model and --out are needed, or --dry-run")
@@ -423,8 +466,20 @@ def main(argv: list[str] | None = None, override=None) -> int:
         for case in cases(which, args.limit)
     ]
     if args.dry_run:
-        built = [prompt(which, case) for which, case in asked]
-        print(f"{len(built)} prompts built; the first ({asked[0][1]['id']}):\n\n{built[0]}")
+        built = [prompt(which, case, args.prompt) for which, case in asked]
+        said = f"{len(built)} prompts built"
+        if args.only in (None, "risk"):
+            left = len(every_case("risk")) - len(cases("risk"))
+            said += (
+                f", Full auto's judge's with prompt {args.prompt} ({left} risk cases the gate"
+                " stops before it today are not asked)"
+            )
+        print(said)
+        firsts: dict[str, int] = {}
+        for at, (which, _case) in enumerate(asked):
+            firsts.setdefault(which, at)
+        for which, at in firsts.items():
+            print(f"\nThe first of {which} ({asked[at][1]['id']}):\n\n{built[at]}")
         return 0
     provider = provider_of(args)
     if provider.api_key:
@@ -441,9 +496,18 @@ def main(argv: list[str] | None = None, override=None) -> int:
             print(exc, file=sys.stderr)
             return 2
         rows = asyncio.run(
-            measure(asked, client, args.model, mode_of(provider), args.concurrency, not args.no_net)
+            measure(
+                asked,
+                client,
+                args.model,
+                mode_of(provider),
+                args.concurrency,
+                not args.no_net,
+                args.prompt,
+            )
         )
-    out = summary(rows, whole=not args.limit, price=price) | {"net": not args.no_net}
+    out = summary(rows, whole=not args.limit, price=price)
+    out |= {"net": not args.no_net, "prompt": args.prompt}
     report = {"kind": args.kind, "model": args.model, "mode": mode_of(provider)}
     args.out.write_text(
         json.dumps({**report, "summary": out, "cases": rows}, ensure_ascii=False, indent=1) + "\n",

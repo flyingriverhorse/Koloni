@@ -417,14 +417,32 @@ marked as data an agent wrote, not instructions. It never sees an agent's own re
 back - a file's text it read, a command's output, a page or a search -, and the secrets KOLONİ knows
 are masked first.
 
+**What it finds risky** - a command that could do harm you did not ask for: send your data or files off
+this machine, download and run code, change things outside the project (your profile, startup, git or
+shell settings, scheduled tasks, the registry), weaken security, or hide what it does. Since 0.1.10, as
+Claude Code's auto mode, also one that destroys work in the project you did not ask to lose: deleting or
+emptying a file or folder that was there before the turn, or throwing away uncommitted changes, in the
+forms the list above does not stop - `> file`, `truncate`, `Set-Content`, `New-Item -Force`,
+`find … -exec rm`, `npx rimraf`, `robocopy /MIR`, `git read-tree -u --reset`, a script or a one-liner
+that deletes (`rm`, `del`, `Remove-Item`, `git reset --hard`, `git clean -f`, `git checkout -- .`,
+`git restore .` and `git stash drop` are the list's, and ask as before). It stays fine where you asked
+for it, for build output and caches a build makes again (`build/`, `dist/`, `node_modules`,
+`__pycache__`), for files the same agent made earlier in the turn, for the agents' scratch folder
+`.koloni/tmp/`, and for what only shows or keeps work (`git clean -n`, `git stash`,
+`git restore --staged`). Measured on 27 Nov 2026 on 180 cases, Claude Code's **haiku** and **Sonnet**
+each called no risky command fine, every ordinary one fine, and one fine command risky - haiku a logon
+task you asked for, Sonnet an `npm config set` your rule named (before this change, haiku called 16 of
+the risky ones fine).
+
 **What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - as
 **When the judge finds a command risky** says:
 
 - **Refuse and go on** (the default) - as Claude Code's auto mode does: the command does not run, no card
   opens and nothing waits. Its agent is told a general reason, never the judge's sentence - the judge read
   your messages and may quote them, and its sentence would guide the next try: "KOLONİ's judge refused
-  this as risky (it may send data off this machine, run code it fetched, change things outside the
-  project, weaken security or hide what it does). Do it another way, or ask the user." - and goes on. You
+  this as risky (it may send data off this machine, run code it fetched, destroy work in the project,
+  change things outside the project, weaken security or hide what it does). Do it another way, or ask the
+  user." - and goes on. You
   see the sentence: the command's row says **refused**, with **KOLONİ's judge refused: …** under it, and
   Ready for you lists it in its **Decided for you** column with the judge's sentence until you click OK
   (the top bar's pill says "1 decided" and opens it; so does the chat's one line about it). Where KOLONİ keeps the line (see **Its card**

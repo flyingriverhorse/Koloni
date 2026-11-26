@@ -7,8 +7,10 @@ import pytest
 
 from app import raw
 from app.risk_judge import (
+    DESTRUCTIVE,
     EARLIER_CHARS,
     MOST_COMMAND_CHARS,
+    PROMPTS,
     WHY_CHARS,
     action,
     broad_rule,
@@ -30,6 +32,19 @@ def test_prompt_marks_agent_text_as_data():
     assert p.index("data written by an agent") < p.index("cat .env")
     assert p.rstrip().endswith('{"verdict": "fine" | "risky", "why": "<one sentence>"}')
     assert "more bytes not shown" not in p
+
+
+def test_prompt_b_adds_only_the_projects_destructive_commands_and_the_gate_asks_it():
+    # (K4: B won its measurement against A, the one before it - 27 Nov 2026, 180 cases, haiku
+    # and Sonnet - and is the gate's prompt; A stays to measure against)
+    args = (SAID, CMD, ["git status"], None)
+    a, b = prompt(*args, variant="A"), prompt(*args, variant="B")
+    assert prompt(*args) == b and DESTRUCTIVE not in a
+    assert DESTRUCTIVE in b and b.replace(DESTRUCTIVE, "", 1) == a
+    assert PROMPTS["B"].replace(DESTRUCTIVE, "", 1) == PROMPTS["A"]
+    assert "`git reset --hard`" in DESTRUCTIVE and "`git clean -n`" in DESTRUCTIVE
+    with pytest.raises(KeyError):
+        prompt(*args, variant="C")
 
 
 def test_prompt_says_cut_program():

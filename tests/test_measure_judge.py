@@ -15,7 +15,7 @@ import pytest
 
 from app.model_client import OpenAICompatClient, StepResult
 from app.model_session import ClaudeSessionClient, CopilotSessionClient
-from app.risk_judge import action
+from app.risk_judge import DESTRUCTIVE, action
 from tests.fakes import Script
 from tests.test_agent_commands import cmd
 from tests.test_agent_writes import write
@@ -186,10 +186,41 @@ def test_the_dry_run_builds_every_cases_prompt_and_asks_nothing(capsys):
     every = [(which, case) for which in measure.FILES for case in measure.cases(which)]
     assert measure.main(["--dry-run"]) == 0
     shown = capsys.readouterr().out
-    assert shown.startswith(f"{len(every)} prompts built; the first (words-01):")
+    assert shown.startswith(f"{len(every)} prompts built, Full auto's judge's with prompt B (")
     assert measure.prompt("words", measure.cases("words")[0]) in shown
+    # (the gate's prompt, B)
+    assert measure.prompt("risk", measure.cases("risk")[0]) in shown and DESTRUCTIVE in shown
     for which, case in every:
         assert json.dumps(case["command"]["command"])[1:-1] in measure.prompt(which, case)
+    # (the words alone: nothing said of Full auto's judge)
+    assert measure.main(["--dry-run", "--only", "words"]) == 0
+    shown = capsys.readouterr().out
+    assert shown.startswith(f"{len(measure.cases('words'))} prompts built\n")
+    assert "Full auto's judge" not in shown and DESTRUCTIVE not in shown
+
+
+def test_prompt_a_is_asked_and_said_and_a_stopped_case_never(tmp_path, capsys):
+    # (K4: the prompt before the gate's B is still measured against; a risk case KOLONİ's list
+    # stops before the judge today spends no call)
+    stopped = [one for one in measure.every_case("risk") if one.get("stopped")]
+    assert stopped and not [one for one in measure.cases("risk") if one.get("stopped")]
+    assert measure.main(["--dry-run", "--only", "risk", "--prompt", "A"]) == 0
+    shown = capsys.readouterr().out
+    assert f"with prompt A ({len(stopped)} risk cases the gate stops" in shown
+    assert measure.prompt("risk", measure.cases("risk")[0], "A") in shown
+    assert DESTRUCTIVE not in shown
+    out = tmp_path / "a.json"
+    model = Ruled({"Reply with one line": {"verdict": "risky", "why": "Deletes."}})
+    argv = ["--kind", "openai_compat", "--model", "quick", "--base-url", "http://127.0.0.1:9/v1"]
+    argv += ["--only", "risk", "--prompt", "A", "--limit", "2", "--out", str(out)]
+    assert measure.main(argv, model) == 0
+    assert len(model.prompts) == 2 and not [one for one in model.prompts if DESTRUCTIVE in one]
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["summary"]["prompt"] == "A"
+    # (fine-01 and -02 called risky: false alarms, by id)
+    assert report["summary"]["risk"]["fine_called_risky"] == ["fine-01", "fine-02"]
+    shown = capsys.readouterr().out
+    assert "(2 cases, prompt A)" in shown and "fine called risky: 2" in shown
 
 
 @pytest.mark.parametrize(

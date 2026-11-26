@@ -11,7 +11,15 @@ from pathlib import Path
 import pytest
 
 from app import judge, risk_judge
-from app.commands import harm_class, harms, names_secret, only_reads, standing_asked, with_cwd
+from app.commands import (
+    harm_class,
+    harms,
+    names_secret,
+    only_reads,
+    scratch_delete_only,
+    standing_asked,
+    with_cwd,
+)
 
 DATA = Path(__file__).parent / "data"
 RISK = json.loads((DATA / "full_auto_judge_cases.json").read_text(encoding="utf-8"))["cases"]
@@ -43,13 +51,20 @@ def test_full_auto_judges_cases_are_each_of_a_kind_with_enough_of_each():
     assert {case["want"] for case in RISK if case["kind"] == "context"} == {"fine", "risky"}
 
 
-def test_each_of_them_reaches_the_judge():
+def test_each_of_them_reaches_the_judge_but_those_marked_stopped(tmp_path):
     # One a gate stops before the judge - the list, a read, the ordinary lines' short way, a
-    # secret, what is asked at every level, or what is a card unasked - measures nothing.
+    # secret, what is asked at every level, or what is a card unasked - measures nothing: it is
+    # marked "stopped" and the measurement leaves it out. (K4, 26 Nov: in-project destructive
+    # lines the list stops today - `git reset --hard`, `rm` - kept for when K3 sends them to the
+    # judge; then this fails on each, and its mark goes.) The list as a watched Full auto turn
+    # reads it (`AgentRunner._night_asks`): no instruction file alone, no delete only in the
+    # agents' scratch (B-336).
     stopped = {}
     for case in RISK:
         line, program = case["command"]["command"], _program(case)
         unasked = risk_judge.risky_unasked(line, program and program[1], case["earlier"])
+        command = with_cwd(line, case["command"]["where"])
+        listed = bool(harms(command, False)) and not scratch_delete_only(command, str(tmp_path))
         why = [
             name
             for name, stops in (
@@ -57,14 +72,16 @@ def test_each_of_them_reaches_the_judge():
                 ("reads", only_reads(line)),
                 ("secret", names_secret(line)),
                 ("standing", bool(standing_asked(line, False))),
-                ("list", bool(harms(line))),
+                ("list", listed),
                 ("unasked", bool(unasked)),
             )
             if stops
         ]
         if why:
             stopped[case["id"]] = why
-    assert stopped == {}
+    assert stopped == {case["id"]: case["stopped"] for case in RISK if "stopped" in case}
+    # (the list's only: a case stopped for another reason is a case to write again)
+    assert {tuple(why) for why in stopped.values()} <= {("list",)}
 
 
 def test_the_injections_are_ones_the_scan_misses():
@@ -83,17 +100,21 @@ def test_the_injections_are_ones_the_scan_misses():
 @pytest.mark.parametrize("case", RISK, ids=[case["id"] for case in RISK])
 def test_a_risk_case_makes_its_prompt_and_reads_its_answer(case):
     said, program = _said(case), _program(case)
+    # (a key mistyped - "stoped" - would be a case measured that should not be)
+    keys = {"id", "kind", "want", "said", "command", "earlier", "program"}
+    assert set(case) - {"note", "stopped"} == keys, case["id"]
     assert set(case["command"]) == {"command", "where", "by"}
     assert all(isinstance(one, str) for one in case["earlier"])
     assert len(case["earlier"]) <= risk_judge.EARLIER
     if program:
         assert len(program[1].encode()) <= risk_judge.PROGRAM_BYTES and program[2] >= 0
-    asked = risk_judge.prompt(said, case["command"], case["earlier"], program)
-    assert json.dumps(case["command"], ensure_ascii=False) in asked
-    assert all(one in asked for kind in said.values() for one in kind)
-    assert asked.rstrip().endswith(REPLY)
-    if program:
-        assert json.dumps(program[1], ensure_ascii=False) in asked
+    for variant in risk_judge.PROMPTS:
+        asked = risk_judge.prompt(said, case["command"], case["earlier"], program, variant)
+        assert json.dumps(case["command"], ensure_ascii=False) in asked
+        assert all(one in asked for kind in said.values() for one in kind)
+        assert asked.rstrip().endswith(REPLY)
+        if program:
+            assert json.dumps(program[1], ensure_ascii=False) in asked
     # The stand-in model says the verdict the case wants: it is read back as it was said.
     answer = json.dumps({"verdict": case["want"], "why": "The stand-in's sentence."})
     assert risk_judge.verdict(answer) == {
