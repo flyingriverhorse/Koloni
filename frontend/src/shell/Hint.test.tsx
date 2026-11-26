@@ -108,7 +108,6 @@ const project: Project = {
   git_commit: false,
   finish_way: null,
   auto_notes: false,
-  observe_reports: false,
   suggest_tasks: true,
   suggest_tier: 'fast',
   day_note_at: null,
@@ -158,7 +157,6 @@ test('a note with a hint loses nothing: its first sentence stands, the rest is b
     /the tests the sub-agent wrote or changed run in its working copy - only those/,
     /a search with it uses your plan/,
     /a CLI that reports no tokens is not limited by this/,
-    /is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked/,
     /at most 90 seconds\) it holds a place like any model step, so the next message may wait for one/,
     // tek-ev: what every chat's sub-agents, discussions and rooms spend
     /Agents on a CLI that work at the same time spend your subscription at the same time/,

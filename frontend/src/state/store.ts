@@ -697,8 +697,7 @@ async function inUseNow(get: () => AppStore, health: Health | null): Promise<{ r
         .tiers()
         .catch(() => null),
     ])
-    const observes = get().projects.some(one => one.id === chat?.project_id && one.observe_reports)
-    const { ids, cannot } = inUseBy(chat, rows, { ...get(), tiers, observes })
+    const { ids, cannot } = inUseBy(chat, rows, { ...get(), tiers })
     // A reading that fails keeps the last one: one glitch neither quiets the bar nor shows it again after a dismissal.
     // (A provider never read before is left out until it is.)
     const last = (id: string) => get().inUse?.readings.find(one => one.provider_id === id) ?? null

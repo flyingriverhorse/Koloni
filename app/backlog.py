@@ -10,7 +10,7 @@ from collections.abc import Callable
 from sqlalchemy import and_, case, literal_column, or_, select
 from sqlalchemy.orm import Session
 
-from app import copies, earlier, observer, stories, topics
+from app import copies, earlier, stories, topics
 from app.api.usage import over_budget
 from app.db.models import (
     Agent,
@@ -1266,8 +1266,10 @@ KEPT_CHANGES = (
 
 def to_assess(task: BacklogTask, turn: str, changes) -> str:
     """The task, its turn as `AgentRunner._turn_in_words` says it and the changes taken
-    into the project in it (`observer.diffs`) - or a night job's, kept in its copy - as the
+    into the project in it (`handoff.diffs`) - or a night job's, kept in its copy - as the
     Scout is given them: in quotes."""
+    from app import handoff  # (imported where it is used: it pulls in app.tools, which reads this)
+
     kept = [one for one in changes if one.status == "in_copy"]
     taken = [one for one in changes if one.status != "in_copy"]
     return "\n".join(
@@ -1280,8 +1282,8 @@ def to_assess(task: BacklogTask, turn: str, changes) -> str:
             "The turn:",
             turn,
             "",
-            *(["Its changes:\n" + observer.diffs(taken)] if taken else []),
-            *([f"{KEPT_CHANGES}\n{observer.diffs(kept)}"] if kept else []),
+            *(["Its changes:\n" + handoff.diffs(taken)] if taken else []),
+            *([f"{KEPT_CHANGES}\n{handoff.diffs(kept)}"] if kept else []),
             *([] if changes else ["No change of a file is on record in it."]),
         ]
     )

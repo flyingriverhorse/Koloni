@@ -48,7 +48,6 @@ const project: Project = {
   git_commit: false,
   finish_way: null,
   auto_notes: false,
-  observe_reports: false,
   suggest_tasks: true,
   suggest_tier: 'fast',
   day_note_at: null,
@@ -773,18 +772,6 @@ test('an image typed for Docker and then left for this machine is still sent wit
   expect(onSave).toHaveBeenCalledWith({ exec_location: 'host', docker_image: 'python:3.12', docker_network: false })
 })
 
-test('a model looking over each sub-agent’s report is the user’s to switch on, and is said to spend', async () => {
-  const onSave = vi.fn().mockResolvedValue(undefined)
-  render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Agents/)
-  const box = screen.getByRole('checkbox', { name: /^Have a model look over each sub-agent’s report/ })
-  expect(box).not.toBeChecked()
-  expect(box).toHaveAccessibleName(/One more model request after every sub-agent’s report, on your plan or your bill/)
-  await userEvent.click(box)
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ observe_reports: true })
-})
-
 test('follow-up tasks after each turn are on by default, say what they cost, and come from the tier chosen', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<ProjectSettings {...base} onSave={onSave} />)
@@ -799,19 +786,6 @@ test('follow-up tasks after each turn are on by default, say what they cost, and
   expect(screen.queryByLabelText('Follow-up tasks from')).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ suggest_tasks: false }))
-})
-
-test('the switch says what the observer is sent, and to which model, in sight', async () => {
-  render(<ProjectSettings {...base} onSave={vi.fn()} />)
-  await choose(/^Agents/)
-  const shown = screen.getByText(/^One more model request after every sub-agent’s report/)
-  expect(shown.closest('.hint')).toBeNull()
-  expect(shown).toHaveTextContent(
-    /The Observer role’s model \(set on the Agents page\) is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked\./,
-  )
-  expect(screen.getByRole('checkbox', { name: /^Have a model look over/ })).toHaveAccessibleName(
-    /the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked/,
-  )
 })
 
 test('the day’s summary is sent at a time set here; emptied, it is not sent any more', async () => {

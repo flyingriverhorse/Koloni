@@ -27,7 +27,6 @@ from app.roles import (
     STAGES,
     effective_tools,
     find_role,
-    is_observer,
     is_team_lead,
     list_roles,
 )
@@ -289,8 +288,8 @@ def place_role(
     role = session.get(Role, role_id)
     if role is None:
         raise HTTPException(404, "role not found")
-    # (The Lead runs every team, the Observer is asked, no agent opened in it: neither sits in one.)
-    if is_team_lead(session, role) or is_observer(role) or (role.builtin and role.name == LEAD):
+    # (The Lead runs every team: it sits in none.)
+    if is_team_lead(session, role) or (role.builtin and role.name == LEAD):
         raise HTTPException(422, f"the {role.name} is in no team's stage")
     if not any(stage.id == body.stage_id for stage in team.stages):
         raise HTTPException(422, "that stage is not one of this team's")

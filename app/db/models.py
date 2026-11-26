@@ -123,10 +123,6 @@ class Project(Base):
     # a request KOLONİ makes itself, and at most three notes in the journal
     # (`AgentRunner._note_what_it_found`). Off until the user says so.
     auto_notes: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # Whether the Observer role's model is asked, once a sub-agent hands in its report,
-    # what of the report its record shows (`AgentRunner._look_over`). Off until the user
-    # says so: a request KOLONİ makes and the user pays.
-    observe_reports: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Whether the Scout proposes at most three follow-up tasks after a watched turn that
     # did something (`AgentRunner._propose_tasks`), asked of the first model of `suggest_tier`.
     # On by default (the user, 6 Nov).
@@ -830,12 +826,6 @@ class Agent(Base):
     # a turn's budget, a trigger's permissions, the same failure 5 times unwatched): not
     # a failure, in the track record (`app.record`). False for every agent before this.
     stopped_by_koloni: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # What the Observer's model said of its report (at most three sentences): an opinion,
-    # signed by `observed_by` ({"provider_name", "model_id"}, as on `asked_how_hard`).
-    # None with `observation_note` saying why there is none; both None: nobody was asked.
-    observation: Mapped[str | None] = mapped_column(Text, default=None)
-    observation_note: Mapped[str | None] = mapped_column(Text, default=None)
-    observed_by: Mapped[dict | None] = mapped_column(JSON, default=None)
     # The reasoning level its model steps were sent; None: none was (the model's own).
     effort: Mapped[str | None] = mapped_column(String(8), default=None)
     # Its level as its opener picked it, and why (`agent.EFFORT_PICKED`); or why no level went

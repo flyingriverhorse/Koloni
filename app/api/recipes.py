@@ -28,7 +28,7 @@ from app.db.models import (
 from app.model_client import UNREACHABLE, ModelUnavailable
 from app.providers import LIST_DOWN_SECONDS, TIERS, ask_own, down_now, looked_down, mode_of
 from app.providers import Refused as RefusedClient
-from app.roles import LEAD, agent_roles, find_role
+from app.roles import LEAD, find_role, list_roles
 from app.schemas import (
     RecipeAgents,
     RecipeDraftIn,
@@ -495,7 +495,7 @@ async def draft_recipe(
     )
     if isinstance(can, str):
         raise HTTPException(409, can)
-    roles = [role.name for role in agent_roles(session) if not (role.builtin and role.name == LEAD)]
+    roles = [role.name for role in list_roles(session) if not (role.builtin and role.name == LEAD)]
     question = recipes.draw_question(session, body.text, roles)
     provider, said, model_id = await ask_in_turn(
         request,

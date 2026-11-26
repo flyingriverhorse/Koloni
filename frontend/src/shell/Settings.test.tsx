@@ -49,7 +49,6 @@ const project: Project = {
   git_commit: false,
   finish_way: null,
   auto_notes: false,
-  observe_reports: false,
   suggest_tasks: true,
   suggest_tier: 'fast',
   day_note_at: null,

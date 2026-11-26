@@ -410,11 +410,11 @@ from app.roles import (
     LOOKUP,
     READ,
     Door,
-    agent_roles,
     chat_teams,
     effective_tools,
     find_agent_role,
     find_role,
+    list_roles,
     shown_name,
     stage_roles,
     team_roles,
@@ -8427,12 +8427,12 @@ class AgentRunner(
     def _checkers(self, state: dict) -> list[str]:
         """Who may check a row's work in place of its writer ("Who checks?"): the roles that
         are on whose kind is to check and that did not do the work, as the Roles page lists
-        them - not the Observer nor a team's lead (`agent_roles`), never opened for a step."""
+        them - not a team's lead (`list_roles`), never opened for a step."""
         wrote = recipe_run.writers(state)
         with self._factory() as session:
             return [
                 role.name
-                for role in agent_roles(session)
+                for role in list_roles(session)
                 if role.enabled and role.kind == "check" and role.name.casefold() not in wrote
             ]
 

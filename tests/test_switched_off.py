@@ -1,5 +1,5 @@
 """A provider, or a model of it, switched off on the Models page: nobody uses it - no chat, no
-sub-agent, no Observer - and it keeps its key and settings until it is switched on again."""
+sub-agent - and it keeps its key and settings until it is switched on again."""
 
 import sqlite3
 
@@ -7,7 +7,6 @@ from alembic import command
 
 from tests.test_chat_flow import text
 from tests.test_migration_0002 import _config
-from tests.test_observer_model_scenarios import REPORT, TASK, child_of, project, turn
 from tests.test_spawn import begin, role_id, spawn
 from tests.test_team import results, team  # noqa: F401  (a fixture)
 
@@ -139,28 +138,6 @@ def test_a_sub_agent_on_a_provider_switched_off_is_not_opened_and_the_user_is_to
     assert status == "failed" and "Fast is switched off by the user" in said
     assert [a["name"] for a in snap["agents"]] == ["Lead"] and fast.calls == []
     assert [m["content"] for m in snap["messages"] if m["role"] == "koloni"] == [OFF]
-
-
-def test_the_observer_on_a_provider_switched_off_is_not_asked(team, wait_run, project_dir):  # noqa: F811
-    client, default, fast = team([spawn("Reviewer", TASK), text(REPORT), text("Good.")])
-    fast_id = team.providers["Fast"]["id"]
-    observer = role_id(client, "Observer")
-    assert (
-        client.patch(
-            f"/api/roles/{observer}",
-            headers=OWN,
-            json={"provider_id": fast_id, "model_id": "quick"},
-        ).status_code
-        == 200
-    )
-    switch(client, fast_id, enabled=False)
-    cid, run_id = turn(client, project(client, project_dir, observe_reports=True))
-    snap = wait_run(client, cid, run_id)
-    kid = child_of(snap)
-    assert kid["observation"] is None and "Fast is switched off by the user" in (
-        kid["observation_note"] or ""
-    )
-    assert fast.calls == [] and snap["runs"][0]["status"] == "completed"
 
 
 def test_migration_0144_switches_every_provider_from_before_on_and_back(tmp_path):

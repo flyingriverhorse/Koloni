@@ -639,7 +639,7 @@ class ObserveMixin:
         hidden = {one[0] for one in found if how == IN_THE_PROJECT and secret_in_project(one[0])}
         for relative in sorted(hidden)[:MAX_CHANGES_PER_LOOK]:
             # Maybe the user's own: what a secret file holds is kept nowhere and shown to no
-            # model (the Observer reads the agent's changes) - its name only.
+            # model (a task's changes go to the Scout: `handoff.diffs`) - its name only.
             self._note(
                 ctx,
                 transcript,

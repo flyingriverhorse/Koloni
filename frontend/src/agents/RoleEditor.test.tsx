@@ -884,25 +884,6 @@ test('a role that has not run has no record, folded or not', async () => {
   expect(screen.getByText('No agent of this role ended in the last 30 days.')).toBeInTheDocument()
 })
 
-test('the Observer has no tools to tick, and is saved with none', async () => {
-  const h = handlers()
-  const observer = role({ id: 'r3', name: 'Observer', tools: [], tier: 'balanced' })
-  render(<AgentsPage roles={[observer]} {...h} />)
-  await userEvent.click(screen.getByRole('button', { name: /^Observer/ }))
-  expect(screen.queryByRole('switch', { name: 'Observer on' })).not.toBeInTheDocument() // KOLONİ asks it: never off
-  await userEvent.click(screen.getByRole('tab', { name: 'Tools' }))
-  expect(screen.getByText(/Tools: none\. Where a project has it on/)).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Read files' })).not.toBeInTheDocument()
-  await userEvent.click(screen.getByRole('tab', { name: 'Instructions' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(h.onSave.mock.calls[0][1]).toMatchObject({ tools: [], tier: 'balanced' })
-  await userEvent.click(screen.getByRole('tab', { name: 'Overview' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Edit model' }))
-  expect(screen.queryByRole('radiogroup', { name: 'Thinking starts at' })).not.toBeInTheDocument() // its one question goes with no level
-  expect(screen.queryByRole('checkbox', { name: /Run inside the CLI/ })).not.toBeInTheDocument()
-})
-
 test('a role shows its model’s window as found and where from, takes one set by you, and goes back to the found one', async () => {
   const h = handlers()
   const onRoleModels = vi

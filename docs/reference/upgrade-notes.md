@@ -27,6 +27,13 @@ Only what needs your attention after an update; everything else is in the [Chang
   be read." until its work is taken in. Open it in its own program from the project's folder. A Word, Excel or PowerPoint file an agent made is still listed among its outputs on the
   canvas and still checked; a 3D model is no longer an output, and an agent can no longer `show` one.
   Nothing in the database changes.
+- **The Observer is gone.** At the first start the database is upgraded (migration 0190), after KOLONİ
+  copies it to `runtime/data/backups/`: the built-in Observer role, the switch **Have a model look over
+  each sub-agent's report** and the observations kept on agents are deleted, and an agent's window no
+  longer shows one. What the Orchestrator was told then stays in its chat. A role of your own named
+  "Observer" stays as it is. What a sub-agent's record shows is in **Checked** and **No file changed**
+  (see [What KOLONİ checked](../use/checked.md)). To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and
+  put that copy back in place of `runtime/data/koloni.db`.
 
 ### 0.1.8
 

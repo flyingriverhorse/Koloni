@@ -95,9 +95,9 @@ def test_teams_are_renamed_and_deleted_from_the_own_page_and_a_conversation_foll
     assert client.get(f"/api/conversations/{cid}").json()["conversation"]["teams"] == []
 
 
-def test_the_lead_the_planner_and_the_observer_are_never_off(team):  # noqa: F811
+def test_the_lead_and_the_planner_are_never_off(team):  # noqa: F811
     client, _default, _fast = team([])
-    for name in ("Lead", "Planner", "Observer"):
+    for name in ("Lead", "Planner"):
         assert patch_role(client, name, enabled=False).status_code == 422, name
     assert (
         client.patch(

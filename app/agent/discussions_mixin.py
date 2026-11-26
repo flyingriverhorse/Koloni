@@ -47,11 +47,11 @@ from app.model_native import CodexNativeClient
 from app.providers import NotListed, allowed
 from app.roles import (
     Door,
-    agent_roles,
     can_change_things,
     closed,
     effective_tools,
     find_agent_role,
+    list_roles,
     shown_name,
 )
 from app.serialize import discussion_out, discussion_post_out
@@ -193,7 +193,7 @@ class DiscussionsMixin:
             teams = self._door(session, ctx)
             # (Those it may invite now: as spawn_agent's list, slice 62.)
             role_names = ", ".join(
-                shown_name(r.name) for r in agent_roles(session) if not closed(r, teams, named)
+                shown_name(r.name) for r in list_roles(session) if not closed(r, teams, named)
             )
             here = {c.name.casefold(): c for c in self._ctxs.values() if c.run_id == ctx.run_id}
             # Every invitation is checked before anything is opened or written down.

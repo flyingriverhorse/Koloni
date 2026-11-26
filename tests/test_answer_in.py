@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from app import backlog, knowledge, observer
+from app import backlog, knowledge
 from app import memory as kept
 from app.agent import COULD_NOT, KEPT_ENGLISH, LANGUAGE_PROMPT
 from tests.test_chat_flow import text
@@ -136,12 +136,6 @@ def test_auto_adds_nothing(make_client, wait_run, project_dir):
     lead, reviewer = model.calls[0][0]["content"], model.calls[1][0]["content"]
     assert "Write everything you say" not in lead + reviewer
     assert LANGUAGE_PROMPT in lead
-
-
-def test_the_observer_is_asked_in_it_last():
-    asked = observer.question("Look closely.", "task", "report", "record", LINE + ".")
-    assert asked[0]["content"] == f"Look closely.\n\n{observer.ASK}\n\n{LINE}."
-    assert observer.question("", "t", "r", "x")[0]["content"] == observer.ASK
 
 
 def test_a_guide_is_asked_in_it_last_with_its_parts_kept_english():

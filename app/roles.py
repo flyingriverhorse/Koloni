@@ -109,9 +109,6 @@ LEARN = "learn"
 # that knowledge's pages. Not in `EXPERT_MAY`, as no role lists it.
 LOOKUP = "lookup"
 EXPERT_MAY = (*READ, "ask_user", "message_agent", "discuss", *NOTEBOOK, *MEMORY)
-# Asked by KOLONİ itself, with no tools, about a sub-agent's report (slice 33b): never
-# opened as an agent, so no agent is offered it.
-OBSERVER = "Observer"
 # K-rol-adlari (the user, 23 Nov: the old title was company jargon): the To-do list's two roles,
 # named for KOLONİ's hive - by these constants, never by words written out, so a later rename
 # reaches every place. A role of the user's own that had one of these names keeps it; the built-in
@@ -141,7 +138,7 @@ class RoleSpec:
 
 
 # The roles that are always there: no team holds them back, and they are never off (slice 62).
-ALWAYS = frozenset({LEAD, "Planner", OBSERVER})
+ALWAYS = frozenset({LEAD, "Planner"})
 # Karar 5 (kanıtlı bitiş, the user's: some roles must always be there): the built-in roles that do
 # KOLONİ's checks and recipes' work are never off, and keep the tools their job needs - a team's
 # door still holds them back, as any role's (not `ALWAYS`). Migration 0161 for installs.
@@ -495,15 +492,6 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         (*READ, "ask_user", "message_agent", *BACKLOG, *NOTEBOOK, *MEMORY),
         "plan",
     ),
-    OBSERVER: RoleSpec(
-        "Looks over a sub-agent's report, where the project asks for it, and says what of it "
-        "the record shows. Asked with no tools; never opened as an agent.",
-        "Compare what the report says with what is on record of the work: the calls made, "
-        "the files changed and the check. Say what the record shows and what it does not, in "
-        "at most three sentences. Give no score and do not guess.",
-        (),
-        "check",
-    ),
     # K-takim-duzen: machine learning and data work, each with an existing role's tools.
     "Data engineer": RoleSpec(  # (the Coder's tools)
         "Builds and changes data pipelines: ingestion, ETL and the schemas they write.",
@@ -752,22 +740,11 @@ def was_named(name: str) -> str:
     return f" - {name.strip()} is now the {now}" if now else ""
 
 
-def is_observer(role: Role) -> bool:
-    """The built-in Observer - not a role of the user's own that bears its name."""
-    return role.builtin and role.name == OBSERVER
-
-
-def agent_roles(session: Session) -> list[Role]:
-    """The roles an agent may be opened in: all of them but the Observer."""
-    return [role for role in list_roles(session) if not is_observer(role)]
-
-
 def find_agent_role(session: Session, name: str) -> Role | None:
-    """`find_role` for opening an agent: the Observer is no role one is opened in, nor a team's
-    lead - only the Orchestrator opens one, by spawn_agent or in a room (`AgentRunner._team_lead`,
-    84b)."""
+    """`find_role` for opening an agent: a team's lead is no role one is opened in - only the
+    Orchestrator opens one, by spawn_agent or in a room (`AgentRunner._team_lead`, 84b)."""
     role = find_role(session, name)
-    return None if role is None or is_observer(role) or is_team_lead(session, role) else role
+    return None if role is None or is_team_lead(session, role) else role
 
 
 def is_team_lead(session: Session, role: Role) -> bool:
@@ -877,9 +854,8 @@ def stage_order(session: Session, team: Team) -> str:
 def closed(role: Role, door: Door, named: frozenset[str]) -> str | None:
     """Why no agent of `role` is opened now, in the words its opener is told; None: it may
     be. It is off, or outside the chat's teams (`chat_teams`) - unless the user names it in
-    the turn's own message (`named`: `names_said`). The Lead, the Planner and the Observer
-    always may. While a recipe runs, its step's roles are the door (`Door.step`), whatever
-    team they are in.
+    the turn's own message (`named`: `names_said`). The Lead and the Planner always may. While
+    a recipe runs, its step's roles are the door (`Door.step`), whatever team they are in.
     shortcut: a CLI working with its own tools (Claude Code's Agent/Task) opens sub-agents of
     its own that never pass here: the chat's teams do not hold them; keep such a CLI from them
     while a chat has teams if that is met."""

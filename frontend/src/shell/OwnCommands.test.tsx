@@ -102,7 +102,6 @@ test('the project settings list it as a section of its own, with no Save of the 
     monthly_budget: null,
     git_commit: false,
     auto_notes: false,
-    observe_reports: false,
     day_note_at: null,
     also_in: [],
     read_in: [],

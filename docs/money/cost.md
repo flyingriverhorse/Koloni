@@ -7,7 +7,6 @@ Some settings make one more model request each time. Each says so where you swit
 | What | When it spends |
 |---|---|
 | **Note what the work found, by itself** (Settings › This project › Memory and web) | One request after every message. |
-| **Have a model look over each sub-agent's report** (Settings › This project › Agents) | One request after every sub-agent's report. |
 | **Orchestrator model: automatic** (the chat's model picker) | One request for each message you send. |
 | **The Orchestrator answers what it safely can** (Settings › This project › Asking and away › When you're away), on a CLI | One request of your plan for each answer. |
 | **Full auto's judge** (Settings › This project › Asking and away; on by default) | One request of your Judge model (Settings › The app › Agents; the Fast tier's first unless you choose one - on a CLI, of your plan) for each command at Full auto the list does not stop that is not a read or ordinary work. |

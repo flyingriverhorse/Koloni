@@ -237,8 +237,6 @@ class ProjectOut(Out):
     memory_links: list[str]
     embedding_provider_id: str | None
     embedding_model: str
-    # Whether the Observer role's model looks over each sub-agent's report.
-    observe_reports: bool
     # Whether the Scout proposes follow-up tasks after a turn, and on which tier.
     suggest_tasks: bool
     suggest_tier: "Tier"
@@ -368,7 +366,6 @@ class ProjectPatch(BaseModel):
     embedding_provider_id: str | None = Field(default=None, max_length=32)
     # Left out: kept as it is. Empty: the default model name.
     embedding_model: str | None = Field(default=None, max_length=200)
-    observe_reports: bool | None = None
     suggest_tasks: bool | None = None
     suggest_tier: "Tier | None" = None
     # Left out: kept as it is. The whole list, as it is to be.
@@ -1857,12 +1854,6 @@ class AgentOut(Out):
     sign: SignOut | None
     # When it last took a model step or a tool of its started or ended; None: neither yet.
     last_event_at: datetime | None
-    # What the Observer's model said of its report: an opinion, at most three sentences,
-    # signed by `observed_by`. None, with `observation_note` saying why, where it said
-    # nothing; all three None where nobody was asked.
-    observation: str | None
-    observation_note: str | None
-    observed_by: AskedModel | None
     # The reasoning level its model steps were sent; None: none was (the model's own).
     effort: Effort | None
     # Why no level went from some step on: its service refused the one it was sent.

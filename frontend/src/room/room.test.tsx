@@ -1213,13 +1213,6 @@ test('an open_room call that was refused is not shown as the room a later call o
   expect(screen.getAllByRole('button', { name: /^Room · Fix the greeting together/ })).toHaveLength(1)
 })
 
-test('the Observer is not offered as a member', async () => {
-  form({ roles: [...ROLES, role('Observer')] })
-  await userEvent.click(screen.getByRole('button', { name: /Work together/ }))
-  const offered = Array.from(screen.getByLabelText('Role of member 1').querySelectorAll('option'), o => o.textContent)
-  expect(offered).toEqual(['Lead', 'Coder', 'Tester', 'Reviewer'])
-})
-
 test('R178: the Orchestrator watching a room is said on its window and its card, and its own post is marked', () => {
   const watched = convState({
     ...state,

@@ -266,16 +266,15 @@ def test_renaming_a_team_is_a_change_to_its_lead(make_client):
     assert teams(client)["Site"]["lead"]["updated_at"] > web["lead"]["updated_at"]
 
 
-def test_the_lead_and_the_observer_sit_in_no_stage(make_client):
+def test_the_lead_sits_in_no_stage(make_client):
     client, _ = make_client([])
     web = teams(client)["Web app"]
-    for name in ("Lead", "Observer"):
-        placed = client.put(
-            f"/api/teams/{web['id']}/roles/{role_id(client, name)}",
-            json={"stage_id": web["stages"][0]["id"]},
-            headers=OWN,
-        )
-        assert placed.status_code == 422, name
+    placed = client.put(
+        f"/api/teams/{web['id']}/roles/{role_id(client, 'Lead')}",
+        json={"stage_id": web["stages"][0]["id"]},
+        headers=OWN,
+    )
+    assert placed.status_code == 422
 
 
 def test_a_command_is_for_no_teams_lead(make_client):

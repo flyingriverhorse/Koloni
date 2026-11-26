@@ -42,9 +42,7 @@ const isLimit = (text: string) => !text.trim() || (/^\d+$/.test(text.trim()) && 
  * in one working copy. You name the goal, who is in it (a role each, and a model of your
  * own choosing where you want one) and what it may spend.
  */
-export function WorkTogether({ roles: all, providers, limits, busy, onOpen, onModels }: Props) {
-  // The Observer is asked one question by KOLONİ, never opened as a member.
-  const roles = all.filter(r => !(r.builtin && r.name === 'Observer'))
+export function WorkTogether({ roles, providers, limits, busy, onOpen, onModels }: Props) {
   const { open, setOpen, close, button, panel } = usePanel<HTMLFormElement>()
   const closeMore = useContext(CloseMore)
   const [goal, setGoal] = useState('')

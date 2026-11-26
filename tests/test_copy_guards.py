@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
-from app import copies, observer
+from app import copies
 from app.agent import IN_THE_PROJECT
 from app.api.undo import BY_WHOM
 from app.config import load_settings
@@ -102,12 +102,8 @@ def test_a_hand_change_in_the_project_while_an_asking_cli_works_in_its_copy_is_o
     said = client.get(f"/api/runs/{run_id}/undo").json()
     assert {"path": "notes.md", "why": BY_WHOM} in said["skip"] and "notes.md" not in said["revert"]
     assert (project_dir / "notes.md").read_text(encoding="utf-8") == "by hand\n"
-    # Nor is it the CLI's work in the project, where a team's is told (B-84's `_taken`), nor in
-    # what the Observer reads of its work: what the user wrote goes to no model.
+    # Nor is it the CLI's work in the project, where a team's is told (B-84's `_taken`).
     assert client.app.state.runner._taken(run_id) == set()
-    (cli,) = [a for a in snap["agents"] if a["depth"] == 1]
-    with client.app.state.session_factory() as session:
-        assert "notes.md" not in observer.on_record(session, cli["id"])
 
 
 def test_a_secret_file_changed_by_hand_beside_a_cli_in_its_copy_is_named_and_kept_nowhere(
@@ -116,8 +112,8 @@ def test_a_secret_file_changed_by_hand_beside_a_cli_in_its_copy_is_named_and_kep
     project_dir,
     settings_env,  # noqa: F811
 ):
-    """B4-04's review: the user's .env edit became a change of the CLI's, with what it held -
-    which the Observer would read. Only its name is on record."""
+    """B4-04's review: the user's .env edit became a change of the CLI's, with what it held.
+    Only its name is on record."""
     client, provider, _ = native_app(
         [{"koloni": "ask_user", "args": {"question": "Go on?"}}, {"say": "Done."}],
         default_steps=LEAD,

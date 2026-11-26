@@ -54,12 +54,6 @@ const JUDGE_RISKY: [value: Project['judge_risky'], label: string][] = [
 const RISKY_WHY =
   'Refuse and go on: the command does not run - its agent is told a general reason (never the judge’s sentence, which may quote your messages) and goes on another way, with no card and nothing waiting; the command’s row and Decided for you show you the sentence. After 3 refusals in a turn the next risky one waits for you on a card. Ask me: it waits for you on a card, “KOLONİ’s judge: …”. In a job while you’re away it is always parked for you, and a card the judge could not answer for (no answer in time, none it could read, no room to ask) waits at either.'
 
-/** What a look over each report costs, and what is sent to which model, in sight under its box; the rest behind ⓘ. */
-const OBSERVE_SHOWN =
-  'One more model request after every sub-agent’s report, on your plan or your bill; Usage shows it under that model. The Observer role’s model (set on the Agents page) is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked.'
-const OBSERVE_REST =
-  'It says, with no tools, what of the report the record shows. The Orchestrator takes its words as an opinion, not a fact.'
-
 /** The Scout at a turn's end (6 Nov): who it is and what it costs, in sight; the rest behind ⓘ. */
 const SUGGEST_SHOWN =
   'The Scout looks for what is left after each turn that did something (changed a file, ran a command, handed work on or had a step fail): one small model request, on your plan or your bill; Usage shows it under that model. At Full auto the Orchestrator’s model decides them with one more.'
@@ -71,17 +65,15 @@ const SUGGEST_TIERS: [value: Project['suggest_tier'], label: string][] = [
   ['strongest', 'Strongest tier'],
 ]
 
-/** This project › Agents: who changes the files, and what is checked of their work. */
+/** This project › Agents: who changes the files, and the follow-up tasks after a turn. */
 export function useAgents(project: Project) {
   // (A server older than the page has no such field yet: a chat's default.)
   const savedWork = project.lead_work ?? 'delegates'
   const [leadWork, setLeadWork] = useState(savedWork)
-  const [observe, setObserve] = useState(project.observe_reports)
   const [suggest, setSuggest] = useState(project.suggest_tasks)
   const [suggestTier, setSuggestTier] = useState(project.suggest_tier)
   const patch = {
     ...(leadWork !== savedWork && { lead_work: leadWork }),
-    ...(observe !== project.observe_reports && { observe_reports: observe }),
     ...(suggest !== project.suggest_tasks && { suggest_tasks: suggest }),
     ...(suggestTier !== project.suggest_tier && { suggest_tier: suggestTier }),
   }
@@ -110,21 +102,6 @@ export function useAgents(project: Project) {
           ))}
         </select>
       </Row>
-      <label className="choice">
-        {/* Named by all of its note, as the commit box is: a browser leaves a closed hint out of a name. */}
-        <input
-          type="checkbox"
-          aria-label={`Have a model look over each sub-agent’s report ${OBSERVE_SHOWN} ${OBSERVE_REST}`}
-          checked={observe}
-          onChange={e => setObserve(e.target.checked)}
-        />
-        <span>
-          Have a model look over each sub-agent’s report
-          <span className="choice-note">
-            {OBSERVE_SHOWN} <Hint doc={GUIDE.observer}>{OBSERVE_REST}</Hint>
-          </span>
-        </span>
-      </label>
       <label className="choice">
         <input type="checkbox" checked={suggest} onChange={e => setSuggest(e.target.checked)} />
         <span>

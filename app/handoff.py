@@ -16,7 +16,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import git, injection
+from app import git, injection, raw
 from app import memory as kept
 from app.db.models import (
     Agent,
@@ -34,7 +34,7 @@ from app.record import TURNED_DOWN
 from app.roles import shown_name
 from app.team import quoted
 from app.tools import READ_TOOLS, WRITE_TOOLS
-from app.workspace import in_scratch
+from app.workspace import in_scratch, unified_diff
 
 DAYS = 30  # an agent that ended longer ago is not handed on
 MOST = 3  # agents handed on to one
@@ -315,6 +315,31 @@ def _ended(agent: Agent) -> str:
     # (An error KOLONİ did not name is the provider's or the CLI's own words: in quotes.)
     said = ENDED.get(why) or (quoted(why) if why else "no reason on record")
     return f"stopped by KOLONİ: {said}" if agent.stopped_by_koloni else f"failed: {said}"
+
+
+# shortcut: one budget for all of the diff, filled file by file in order; give each file
+# its share when long changes to one file crowd the rest out.
+DIFF_CHARS = 8000
+
+
+def diffs(changes) -> str:
+    """Changes to files as a model is given them: a diff each, quoted with its path, kind
+    and where it got to - all of them within one budget."""
+    shown, room = [], DIFF_CHARS
+    for change in changes:
+        if room <= 0:
+            shown.append(kept.CUT)  # the budget is spent: the rest is not even made
+            break
+        # Masked before it is cut: a secret is not left half shown at the cut.
+        diff = raw.hidden(
+            unified_diff(change.before_content or "", change.after_content or "", change.path)[0]
+        )
+        cut = diff if len(diff) <= room else diff[:room] + " " + kept.CUT
+        shown.append(
+            f"{quoted(raw.hidden(change.path))} ({change.kind}, {change.status}): " + quoted(cut)
+        )
+        room -= len(diff)
+    return "\n".join(shown)
 
 
 def _cut(said: str, most: int = SAID) -> str:

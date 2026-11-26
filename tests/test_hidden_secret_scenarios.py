@@ -305,7 +305,7 @@ def test_a_file_in_a_working_copy_that_holds_it_is_not_taken_into_the_project(
 def test_what_hides_secrets_everywhere_knows_a_given_one_at_once(
     make_client, wait_run, project_dir, gate
 ):
-    """The app-wide masker (a CLI's raw stream, the Observer, a CLI's own commands) hides a
+    """The app-wide masker (a CLI's raw stream, a CLI's own commands) hides a
     value the moment it is given - not a second later, when its list is read again."""
     from app import raw
     from app.commands import OutputMask, secret_values

@@ -60,7 +60,7 @@ def _check(session: Session, command: OwnCommand) -> None:
     if command.project_id is not None and session.get(Project, command.project_id) is None:
         raise HTTPException(422, "unknown project")
     if command.role is not None:
-        # (One an agent may be opened in: not the Observer, nor a team's lead, slice 63a.)
+        # (One an agent may be opened in: not a team's lead, slice 63a.)
         role = find_agent_role(session, command.role)
         if role is None:
             raise HTTPException(422, f"there is no role named {command.role}")

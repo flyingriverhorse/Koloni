@@ -60,8 +60,6 @@ export interface ProjectSettingsValues {
   git_commit?: boolean
   /** K-dal-takim D2: how a team's finished branch reaches yours - merged here, or as a pull request. Sent only when changed. */
   finish_way?: 'merge' | 'pull_request'
-  /** Whether the Observer's model looks over each sub-agent's report. Sent only when changed. */
-  observe_reports?: boolean
   /** Whether the Scout suggests follow-up tasks after each turn, and from which tier. Sent only when changed. */
   suggest_tasks?: boolean
   suggest_tier?: Project['suggest_tier']
