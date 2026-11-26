@@ -5895,6 +5895,12 @@ fieldset.choice > label .choice-note,
   color: var(--muted);
 }
 
+/* Settings' More limits (sections/part.tsx): the limits few change, folded under the ones in sight. */
+.more-limits {
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
 .rules-chat {
   padding: 8px 0;
   border-top: 1px solid var(--border);

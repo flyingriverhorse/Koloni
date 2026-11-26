@@ -23,7 +23,9 @@ On the canvas, while it runs, the agent that opened it says "Waiting for the dis
 opened for it "Waiting for its turn to speak".
 
 Each step of a speech sends the speaker's whole work so far again, so the token count grows faster
-than the talk does. The budget is set under Settings › This project › Limits and money › **A discussion's tokens, at most**. Empty means
+than the talk does. The budget is set under Settings › This project › Limits and money › More limits › **A discussion's tokens, at
+most**. Its speakers count toward the job's budget (**Stop the work on a message over this many tokens**) too: above
+that, the job stops first. Empty means
 no limit. It applies to discussions opened after you save it. A chat with no folder has no token limit
 for its discussions.
 

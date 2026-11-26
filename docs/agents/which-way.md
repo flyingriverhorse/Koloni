@@ -48,7 +48,7 @@ where 2 to 6 agents wrote in one copy at once, are gone since 0.1.10.)
 **"Should we keep SQLite or move to Postgres?"**
 A discussion. Ask the Orchestrator to have the Architect and a Database engineer discuss it. Nobody
 changes anything; you can join in and end it. Set a token limit under Settings › This project ›
-Limits and money › **A discussion's tokens, at most**. See [Discussions](discussions.md).
+Limits and money › More limits › **A discussion's tokens, at most**. See [Discussions](discussions.md).
 
 **"Make this function faster, and keep the fastest version."**
 **Evolve**. First set a **Measure command** (Settings › This project › Checks and git) whose last line is a score

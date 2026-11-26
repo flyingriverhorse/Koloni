@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Budget, Project } from '../../api/types'
 import { UNENFORCED, unenforced } from '../../usage/budgetText'
 import { GUIDE } from '../guide'
-import { limitOf, part, Row, sent, type Setter, typed, within } from './part'
+import { limitOf, MoreLimits, part, Row, sent, type Setter, typed, within } from './part'
 
 /** What so many levels allow: "Orchestrator → sub-agent → its own sub-agent" for 2. */
 function levelsChain(levels: number): string {
@@ -22,8 +22,11 @@ function useField<T>(start: string, read: (text: string) => T): Field<T> {
   return { text, set, value: read(text) }
 }
 
-/** This project › Limits and money: how many agents, how many steps, how many tokens, and what a month may cost. */
-export function useLimits(project: Project, spend: Budget | null, toApp?: () => void) {
+/**
+ * This project › Limits and money: what a month may cost and a job's budget up front; under More limits (closed unless
+ * `moreOpen`: the app's link to Continue's steps) how many agents, Continue's steps and a discussion's tokens.
+ */
+export function useLimits(project: Project, spend: Budget | null, toApp?: () => void, moreOpen = false) {
   // Empty: no limit. Anything else has to be a whole number from 1 to 1000 - nothing else is sent.
   const most = useField(typed(project.max_agents || null), text =>
     text.trim() === '' ? null : /^[1-9]\d{0,3}$/.test(text.trim()) && Number(text) <= 1000 ? Number(text) : undefined,
@@ -57,13 +60,26 @@ export function useLimits(project: Project, spend: Budget | null, toApp?: () => 
     ...sent('discussion_budget', talk.value, project.discussion_budget ?? null),
     ...sent('monthly_budget', budget.value, project.monthly_budget),
   }
+  // (Anything under More limits not at its default: said on it while it is closed.)
+  const usual: [Field<unknown>, number | null][] = [
+    [most, null],
+    [parallel, 2],
+    [depth, 2],
+    [per, 6],
+    [more, 25],
+    [talk, null],
+  ]
+  const set = usual.some(([field, value]) => field.value !== value)
   return part(
     patch,
     fields.every(field => field.value !== undefined),
     <>
       <h2>Limits and money</h2>
-      <AgentLimits most={most} parallel={parallel} depth={depth} per={per} more={more} toApp={toApp} />
-      <TokenLimits turn={turn} talk={talk} budget={budget} spend={spend} />
+      <MoneyLimits budget={budget} turn={turn} spend={spend} />
+      <MoreLimits set={set} open={moreOpen}>
+        <AgentLimits most={most} parallel={parallel} depth={depth} per={per} more={more} toApp={toApp} />
+        <TalkRow talk={talk} />
+      </MoreLimits>
     </>,
   )
 }
@@ -171,72 +187,18 @@ function AgentLimits({
   )
 }
 
-/** What one message, one discussion and one month may spend. */
-function TokenLimits({
+/** Up front: what one month may cost, and a job's budget - what one turn of work may spend. */
+function MoneyLimits({
   turn,
-  talk,
   budget,
   spend,
 }: {
   turn: Field<number | null | undefined>
-  talk: Field<number | null | undefined>
   budget: Field<number | null | undefined>
   spend: Budget | null
 }) {
   return (
     <>
-      <Row
-        label="Stop the work on a message over this many tokens"
-        htmlFor="turn-token-limit"
-        warn={
-          <span className="choice-note">
-            <span id="turn-token-limit-note">
-              {turn.value === undefined ? 'A whole number above zero, or empty for no limit. ' : ''}
-              Tokens sent and written by all the agents working on one message, together.
-            </span>{' '}
-            <span id="turn-token-limit-more">
-              Checked before each model step, and for a CLI session as its messages arrive. Once over, whatever is still
-              at work is stopped and the work ends as failed, saying so. Only what a model reports is counted: a CLI
-              that reports no tokens is not limited by this, and one that reports only at its end can go past it. Agents
-              at work at the same time can each take one more step before the limit is seen.
-            </span>
-          </span>
-        }
-      >
-        <input
-          id="turn-token-limit"
-          className="input mono"
-          inputMode="numeric"
-          value={turn.text}
-          placeholder="No limit"
-          aria-invalid={turn.value === undefined || undefined}
-          aria-describedby="turn-token-limit-note turn-token-limit-more"
-          onChange={e => turn.set(e.target.value)}
-        />
-      </Row>
-      <Row
-        label="A discussion’s tokens, at most"
-        htmlFor="discussion-budget"
-        doc={GUIDE.discussionsEnd}
-        why="Each step of a speech sends the speaker’s whole work so far again, so the count grows faster than the talk does."
-        warn={
-          <span className="choice-note">
-            {talk.value === undefined ? 'A whole number above 0, or empty for no limit. ' : ''}
-            Sent and written by its speakers, together; a model that reports no tokens is not limited. It holds for
-            discussions opened after it is saved.
-          </span>
-        }
-      >
-        <input
-          id="discussion-budget"
-          className="input mono"
-          inputMode="numeric"
-          placeholder="No limit"
-          value={talk.text}
-          aria-invalid={talk.value === undefined || undefined}
-          onChange={e => talk.set(e.target.value)}
-        />
-      </Row>
       <Row
         label="Monthly budget"
         htmlFor="monthly-budget"
@@ -262,7 +224,67 @@ function TokenLimits({
           onChange={e => budget.set(e.target.value)}
         />
       </Row>
+      <Row
+        label="Stop the work on a message over this many tokens"
+        htmlFor="turn-token-limit"
+        warn={
+          <span className="choice-note">
+            <span id="turn-token-limit-note">
+              {turn.value === undefined ? 'A whole number above zero, or empty for no limit. ' : ''}A job’s budget:
+              tokens sent and written by all the agents working on one message, together - yours, a To-do task’s, or a
+              job’s while you’re away. A job tried again, or a message that goes on with it, starts from zero.
+            </span>{' '}
+            <span id="turn-token-limit-more">
+              Checked before each model step, and for a CLI session as its messages arrive. Once over, whatever is still
+              at work is stopped and the work ends as failed, saying so. Only what a model reports is counted: a CLI
+              that reports no tokens is not limited by this, and one that reports only at its end can go past it. Agents
+              at work at the same time can each take one more step before the limit is seen.
+            </span>
+          </span>
+        }
+      >
+        <input
+          id="turn-token-limit"
+          className="input mono"
+          inputMode="numeric"
+          value={turn.text}
+          placeholder="No limit"
+          aria-invalid={turn.value === undefined || undefined}
+          aria-describedby="turn-token-limit-note turn-token-limit-more"
+          onChange={e => turn.set(e.target.value)}
+        />
+      </Row>
     </>
+  )
+}
+
+/** Under More limits: what one discussion may spend - within the job's budget, which holds its speakers too. */
+function TalkRow({ talk }: { talk: Field<number | null | undefined> }) {
+  return (
+    <Row
+      label="A discussion’s tokens, at most"
+      htmlFor="discussion-budget"
+      doc={GUIDE.discussionsEnd}
+      why="Each step of a speech sends the speaker’s whole work so far again, so the count grows faster than the talk does."
+      warn={
+        <span className="choice-note">
+          {talk.value === undefined ? 'A whole number above 0, or empty for no limit. ' : ''}
+          Sent and written by its speakers, together; a model that reports no tokens is not limited. It holds for
+          discussions opened after it is saved. Its speakers count toward the job’s budget too: above that, the job
+          stops first.
+        </span>
+      }
+    >
+      <input
+        id="discussion-budget"
+        className="input mono"
+        inputMode="numeric"
+        placeholder="No limit"
+        value={talk.text}
+        aria-invalid={talk.value === undefined || undefined}
+        onChange={e => talk.set(e.target.value)}
+      />
+    </Row>
   )
 }
 

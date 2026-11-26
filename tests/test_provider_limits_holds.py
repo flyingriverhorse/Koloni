@@ -3,6 +3,7 @@ sub-agent, each side of a comparison, the model asked for the day's
 words, a trigger's turn - and is read once a request; a limit in dollars is not kept against
 prices in another currency; a Lead moved by a limit says why from the start."""
 
+import pytest
 from sqlalchemy import select
 
 from app.api import usage
@@ -68,7 +69,9 @@ def other(client, run, name="Other", model="other-model", **more):
     return made
 
 
-def test_no_sub_agent_opens_past_its_providers_limit(team, wait_run, project_dir):  # noqa: F811
+# k-butce (the user, 26 Nov: "hepsini kontrol edelim"): the month's limit holds as the day's.
+@pytest.mark.parametrize(("limit", "per"), [("day_limit", "a day"), ("month_limit", "a month")])
+def test_no_sub_agent_opens_past_its_providers_limit(team, wait_run, project_dir, limit, per):  # noqa: F811
     client, _default, _fast = team(
         [
             text("a", 1_000_000, 500_000),
@@ -88,14 +91,16 @@ def test_no_sub_agent_opens_past_its_providers_limit(team, wait_run, project_dir
     first = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()
     wait_run(client, cid, first["run"]["id"])
     client.put("/api/prices", json={**PRICE, "model_id": "big-model"})
-    assert client.patch(f"/api/providers/{local_id}", json={"day_limit": 5}).status_code == 200
+    assert client.patch(f"/api/providers/{local_id}", json={limit: 5}).status_code == 200
     went = client.post(
         f"/api/conversations/{cid}/messages", json={"content": "check it", "over_budget": True}
     ).json()
     snap = wait_run(client, cid, went["run"]["id"])
     # Every strongest model past its limit, so the conversation's (Local); the role's own (Local).
     assert [status for status, _said in results(snap)] == ["failed", "failed"]
-    assert all("over Local's limit of 5.00 USD a day" in said for _status, said in results(snap))
+    assert all(
+        f"over Local's limit of 5.00 USD {per}" in said for _status, said in results(snap)
+    ), results(snap)
     assert {agent["role_name"] for agent in snap["agents"]} == {"Lead"}
 
 

@@ -94,16 +94,20 @@ The sections are listed on the left, in this order.
 
 ### Limits and money
 
+Two are in sight: **Monthly budget** and **Stop the work on a message over this many tokens**, a job's budget. The
+rest are under **More limits**, closed until you open it; it says **· set** while one of them is not its default.
+A provider's own limits are on its **Limits** tab (Models), and a night's limits on the **Go away** card.
+
 | Setting | What it does |
 |---|---|
+| **Monthly budget** | For this calendar month's messages, in the currency of your prices (else USD). At 80% you are told. At 100% a new message asks before its work starts. Work on a model with no price is not counted. |
+| **Stop the work on a message over this many tokens** | A job's budget, in tokens: all the agents working on one message together - yours, a To-do task's, or a job's while you're away. Over it, the work stops as failed and says so: "this turn used N tokens, over the project's limit of M". A job tried again, or a message that goes on with it, starts from zero. Only what a model reports is counted. Empty: no limit. See [Usage](money/usage.md#a-jobs-budget). |
 | **At most this many agents at work in this project** | Counted over all of this project's chats together. A new agent waits for a free place. Empty: no limit. |
 | **Agents at the same time** | The most agents at work at once for one message. 1 to 32. Each provider has its own limit too. Above 8 the page warns that this may strain this machine and your subscription. |
 | **Sub-agent levels** | How deep sub-agents may open their own, from 1 to 4. |
 | **Sub-agents per request** | The most sub-agents opened for one message outside a recipe. 1 to 20. |
 | **Continue gives this many more steps** | How many more steps **Continue** gives an agent that stopped at a step limit, on its card or on its kept work's card. 25 unless you change it, 1 to 200. A go on by message gives a new step limit instead. The step limit itself is the app's: **Steps an agent may take**, a link away. See [Step limits](agents/step-limits.md). |
-| **Stop the work on a message over this many tokens** | Empty: no limit. |
-| **A discussion's tokens, at most** | A token budget for each discussion. Empty: no limit. See [Discussions](agents/discussions.md#when-it-ends). |
-| **Monthly budget** | For this calendar month's messages, in the currency of your prices (else USD). At 80% you are told. At 100% a new message asks before its work starts. Work on a model with no price is not counted. |
+| **A discussion's tokens, at most** | A token budget for each discussion. Empty: no limit. Its speakers count toward the job's budget too: above that, the job stops first. See [Discussions](agents/discussions.md#when-it-ends). |
 
 ### Commands and secrets
 
@@ -205,6 +209,11 @@ jobs while you're away), while a command it started still runs (such as a dev se
 ## The app
 
 ### Agents, in every project
+
+**Answer in** and **Summarise a long context at (%)** are in sight. The step limit, the two limits of a turn nobody
+watches, what knowledge reads and KOLONİ's test runs are under **More limits**, closed until you open it (it says
+**· set** while one of them is not its default). The links between **Steps an agent may take** and **Continue gives
+this many more steps** open the other's **More limits**.
 
 | Setting | What it does |
 |---|---|

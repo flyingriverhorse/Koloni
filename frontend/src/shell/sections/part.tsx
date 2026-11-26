@@ -88,3 +88,16 @@ export function Row({
     </div>
   )
 }
+
+/**
+ * The limits few change, folded under More limits (the user, 26 Nov: "under an expander, not deleted"); closed unless
+ * `open` (a link to one of them), and " · set" on it where one is not its default, as a role's safety stops say it.
+ */
+export function MoreLimits({ set, open = false, children }: { set: boolean; open?: boolean; children: ReactNode }) {
+  return (
+    <details className="more more-limits" open={open}>
+      <summary>More limits{set && <span className="muted"> · set</span>}</summary>
+      {children}
+    </details>
+  )
+}

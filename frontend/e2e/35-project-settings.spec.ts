@@ -138,6 +138,8 @@ for (const theme of ['light', 'dark'] as const) {
 
     // A short explanation behind ⓘ opens from its button over the page, inside the window however narrow it is; Esc closes it alone.
     await settings.getByRole('button', { name: /^Limits and money/ }).click()
+    // (Its row is under More limits since 0.1.10, closed until opened.)
+    await settings.getByText(/^More limits/).click()
     const hint = settings.locator('.hint', { hasText: /waits for a slot/ })
     const bubble = hint.locator('.hint-bubble')
     await hint.getByRole('button', { name: 'About this' }).click()
