@@ -1098,7 +1098,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Snapshot */
+        /**
+         * Snapshot
+         * @description A chat as it is: every turn - or, of `turns` (the page opening a long chat), its newest that
+         *     many, every older one that still waits for the user, and how many are left out (`older`):
+         *     `before` reads the page before that run. What needs the whole history (search, the decision
+         *     log, the night's report) reads it on the server, not here.
+         */
         get: operations["snapshot_api_conversations__conversation_id__get"];
         put?: never;
         post?: never;
@@ -3590,28 +3596,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/providers/{provider_id}/offers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Provider Offers
-         * @description What a Copilot account offers, as the Models page and the chat's model panel open: asked
-         *     (`models.list` and `account.getQuota`, no model turn) where that is due, the provider's rows
-         *     switched by it; the provider as it then is. Any other provider is answered as it is.
-         */
-        post: operations["provider_offers_api_providers__provider_id__offers_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/providers/{provider_id}/test": {
         parameters: {
             query?: never;
@@ -5482,6 +5466,8 @@ export interface components {
             conflicts: components["schemas"]["BoardConflict"][];
             /** Conversations */
             conversations: components["schemas"]["BoardConversation"][];
+            /** Decided */
+            decided?: number | null;
             /** Limit */
             limit: number | null;
             /** Running */
@@ -7607,6 +7593,11 @@ export interface components {
         };
         /** LearnIn */
         LearnIn: {
+            /**
+             * Over Budget
+             * @default false
+             */
+            over_budget: boolean;
             /** Project Id */
             project_id: string;
         };
@@ -8201,17 +8192,18 @@ export interface components {
         };
         /**
          * MergeChoices
-         * @description For each file whose two sides clash, by its path: whose is taken - the agent's
-         *     ("agent") or the project's ("project"). `shown`: of Apply, each file the card showed,
-         *     by path, as its `shown` - where one is not as the card has it now, nothing is taken.
-         *     None (a Take in that shows no files): as the card was last shown - and choices
-         *     without it are refused (a page from before `shown`). As many as a copy has files.
+         * @description For each file whose two sides clash, by its path: whose is taken ("agent" or "project").
+         *     `shown`: of Apply, each file the card showed, by path, as its `shown` - one not as the card has
+         *     it now, and nothing is taken; None (a Take in that shows no files): as last shown, and choices
+         *     without it are refused. `files`: of Take in, only these (T93-01); the rest stay on the card.
          */
         MergeChoices: {
             /** Choices */
             choices?: {
                 [key: string]: "agent" | "project";
             };
+            /** Files */
+            files?: string[] | null;
             /**
              * Keep Branch
              * @default false
@@ -10780,6 +10772,10 @@ export interface components {
              * @default []
              */
             notes_offers: components["schemas"]["NotesOfferOut"][];
+            /** Older */
+            older?: number | null;
+            /** Older From */
+            older_from?: string | null;
             /** Pending Roles */
             pending_roles: components["schemas"]["PendingRoleOut"][];
             /** Pending Skills */
@@ -13493,7 +13489,10 @@ export interface operations {
     };
     snapshot_api_conversations__conversation_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                turns?: number | null;
+                before?: string | null;
+            };
             header?: never;
             path: {
                 conversation_id: string;
@@ -18223,37 +18222,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderModelsOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    provider_offers_api_providers__provider_id__offers_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                provider_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProviderOut"];
                 };
             };
             /** @description Validation Error */

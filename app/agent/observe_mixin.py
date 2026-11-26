@@ -744,6 +744,9 @@ class ObserveMixin:
         if kind == "live":  # (89j, `run_native`: shown, on no record)
             self._show_live(ctx, item)
             return
+        if kind == "commands_held":  # (C2's twin: Copilot's own session, as it starts)
+            watch.held = item.get("held") is True
+            return
         self._touch(ctx)
         if kind == "skill_not_given":  # (B-151, `run_native`: said once, as a skill refused)
             self._note(

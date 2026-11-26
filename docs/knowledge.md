@@ -49,6 +49,10 @@ Then:
 
 Press **Add and learn**, or **Add without learning** to learn later.
 
+What a learning spends counts toward the project's monthly budget (Usage shows it as "KOLONİ itself"). Over that
+budget, **Learn** asks first, as a new message does: "Over this month's budget. Learn anyway?" Press **Go on anyway** or
+**Cancel**.
+
 ## What learning does
 
 KOLONİ reads every page under the sources, up to the page cap, and keeps their text in the project's

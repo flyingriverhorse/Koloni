@@ -16,7 +16,8 @@ question off.
   on the left and, beside it, **Decided for you**: what was decided for you in the project, with
   **OK** and **Change**. See [Decisions](decisions.md).
 - **The pill in the top bar**, such as "2 wait". It opens the **Ready for you** panel. When nothing
-  waits but the Orchestrator decided things for you in this chat, the pill says how many it decided.
+  waits but things were decided for you, it says how many wait for your OK in the project ("5 decided"),
+  the count **Not seen** lists - or, in a chat with no folder, in that chat.
 - **In the chat**, where the card was asked. A closed chat's line says how many wait for you, and a
   chat says under its message box when more wait elsewhere ("2 more wait elsewhere").
 - Ctrl+K lists **Ready for you** too.
@@ -27,7 +28,8 @@ The **Ready for you** panel opens from the right. Esc closes it.
 
 - **This chat** lists what waits in the open chat in two parts: **Needs your answer** (questions and
   approvals) and **Ready to take in** (work in a copy), then one line on what was decided for you in
-  it, with **Open in Ready for you**. What was decided is not counted with what waits.
+  the project and waits for your OK - the pill's count, **Not seen**'s -, with **Open in Ready for you**.
+  What was decided is not counted with what waits.
 - **Elsewhere** lists what waits in other chats, the To-do list, memory and work while you're away.
 - **Open all as a page →** opens the Ready page.
 
@@ -46,6 +48,8 @@ made for you since you left. Once a [☾ Away](../automation/overnight.md) of th
 page opens on that night under it: a lane for each job from its start to its end, the decisions made for
 you on its lane at their times, **Not checked**, what it spent, **The whole report** and **Copy as
 Markdown** - see [The night on Ready for you](../automation/overnight.md#the-night-on-ready-for-you).
+KOLONİ opened after that night opens on this page, until the night has been on screen - not where you
+opened another page before it was read.
 It lists everything that waits, oldest first - what the night parked for you first -, under **Needs your answer**
 and **Ready to take in**; beside it (under it on a narrow screen), **Decided for you** lists the
 project's decisions, with **OK** and **Change**: see [Decisions](decisions.md). The buttons at the

@@ -387,7 +387,7 @@ test('the last note that waited, decided, leaves its line saying nothing waits, 
   expect(screen.queryByRole('button', { name: /for your word/ })).toBeNull()
 })
 
-test('notes are rows with who wrote them, filtered by topic and by writer', async () => {
+test('notes are rows with who wrote them, filtered by topic and by writer (the Lead as the Orchestrator)', async () => {
   const withFile = memoryRecord('n1', {
     text: 'The greeting is printed by hello.py.',
     about: 'greeting',
@@ -420,14 +420,15 @@ test('notes are rows with who wrote them, filtered by topic and by writer', asyn
     within(writers)
       .getAllByRole('option')
       .map(o => o.textContent),
-  ).toEqual(['Anyone', 'Reviewer', 'Lead', 'fast model'])
+  ).toEqual(['Anyone', 'Reviewer', 'Orchestrator', 'fast model'])
+  expect(within(notes).getAllByRole('article')[1]).toHaveTextContent('noted by Orchestrator')
   await userEvent.selectOptions(writers, 'fast model')
   expect(within(notes).getByRole('article')).toHaveTextContent('Paginate the list.')
   await userEvent.selectOptions(writers, '')
   const topic = within(notes).getByLabelText('Topic')
   await userEvent.selectOptions(topic, '=greeting')
   expect(within(notes).getAllByRole('article')).toHaveLength(2)
-  await userEvent.selectOptions(writers, 'Lead')
+  await userEvent.selectOptions(writers, 'Orchestrator')
   expect(within(notes).queryByRole('article')).toBeNull()
   expect(within(notes).getByText('No note matches.')).toBeInTheDocument()
 })
@@ -845,7 +846,7 @@ test('as you type, all that is on the page is sifted, grouped by tab, and said; 
   )
   // filters that would hide the hits
   await tab('Notes')
-  await userEvent.selectOptions(within(panel('Notes')).getByLabelText('Written by'), 'Lead')
+  await userEvent.selectOptions(within(panel('Notes')).getByLabelText('Written by'), 'Orchestrator')
   await tab('Facts')
   await userEvent.selectOptions(within(panel('Facts')).getByLabelText('Topic'), '=greeting')
   const box = screen.getByLabelText('Search everything this project remembers')

@@ -473,6 +473,56 @@ def test_its_sandbox_line_is_said_once_where_it_starts_anew(copilot, tmp_path):
     assert said(items, "sandbox") == [NO_SANDBOX] and len(said(items, "session")) == 1
 
 
+@pytest.mark.parametrize(
+    ("more", "denied", "held"),
+    [
+        ({}, (), True),  # (its sandbox keeps its commands' writes to the folder it works in)
+        ({"sandbox": {"supported": False, "capabilities": []}}, (), False),  # (none here)
+        ({}, None, False),  # (secrets not hidden: no sandbox asked for)
+    ],
+)
+def test_its_commands_are_held_only_where_its_session_has_a_sandbox(
+    copilot, tmp_path, more, denied, held
+):
+    """C2's twin (k-kucuk-018 L7): with no sandbox a command of its can write into the project
+    from the copy it works in by a path it does not name - so its watch looks at the project after
+    each of its commands, as for Claude Code (`_Watch.unheld`). Its session says which as it
+    starts, to that run alone; the client every chat shares keeps nothing of it."""
+    cli = copilot(**more)
+    _, items = run(cli, tmp_path, FIRST, denied=denied)
+    assert held_said(items) == [held]
+    assert cli.commands_held is False  # (until a session of its says otherwise: unheld)
+
+
+def held_said(items: list[dict]) -> list[bool]:
+    return [item["held"] for item in items if item.get("type") == "commands_held"]
+
+
+def test_two_sessions_on_one_client_each_tell_their_own_watch(copilot, tmp_path):
+    """The review of the C2 twin: the flag was the shared client's, set by the last session to
+    start - a sandboxed session in one chat made another chat's unsandboxed one read as held."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.agent.ctx import _Watch
+    from app.agent.observe_mixin import ObserveMixin
+    from app.project_view import ProjectView
+
+    cli, watches = copilot(), []
+    # A's project hides no secrets: its session has no sandbox. B's does: it has one, and starts last.
+    for name, denied in (("a", None), ("b", ())):
+        root = tmp_path / name
+        root.mkdir()
+        watch = _Watch(ProjectView(root))
+        watch.project, watch.held = ProjectView(root), cli.commands_held
+        watches.append(watch)
+        assert watch.unheld  # (from its start, before its session says anything)
+        for item in run(cli, root, FIRST, denied=denied)[1]:
+            if item.get("type") == "commands_held":  # (as `_native_work`'s on_item, its own watch)
+                asyncio.run(ObserveMixin._observe(SimpleNamespace(), None, None, watch, "", item))
+    assert [watch.unheld for watch in watches] == [True, False]
+
+
 def test_homes_no_agent_names_are_swept_and_named_ones_stay(tmp_path):
     runtime = tmp_path / "runtime"
     homes = runtime / "cli-homes" / COPILOT_SESSIONS

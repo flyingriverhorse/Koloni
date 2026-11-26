@@ -130,7 +130,7 @@ const offers: NonNullable<Provider['offers']> = {
 }
 
 test('once its account was asked, a routing offers only its tiers, by its names; one it lacks is dimmed with why', async () => {
-  const onOffers = vi.fn(async () => {})
+  const onProviders = vi.fn(async () => {})
   const rows: Provider['models'] = [
     { name: 'auto', note: null, tier: 'fast', agents: true, routing: 'efficiency' },
     { name: 'fusion', note: null, tier: null, agents: true, routing: 'high' },
@@ -140,11 +140,12 @@ test('once its account was asked, a routing offers only its tiers, by its names;
       providers={[github({ offers, models: rows })]}
       {...handlers}
       onSave={vi.fn(async () => {})}
-      onOffers={onOffers}
+      onProviders={onProviders}
     />,
   )
-  // Asked as the page opens: the server asks the account at most once in 10 minutes.
-  expect(onOffers).toHaveBeenCalledWith('gh')
+  // As the page opens the providers are read again as kept - what the account offered when last asked: no account is
+  // asked (F417), so no row is switched by a look.
+  expect(onProviders).toHaveBeenCalledWith()
   await userEvent.click(screen.getByRole('button', { name: /^Copilot/ }))
   const dialog = screen.getByRole('dialog', { name: 'Copilot' })
   const auto = within(dialog).getByLabelText('Routing of auto')
@@ -165,7 +166,7 @@ test('a window open on Copilot shows the rows its account switched once the prov
   const { rerender } = render(<ModelsPage providers={[github()]} {...props} />)
   const dialog = screen.getByRole('dialog', { name: 'Copilot' })
   expect(within(dialog).queryByText('off')).not.toBeInTheDocument()
-  // (As POST /offers gives it back: gpt-x switched off with why, the provider marked changed.)
+  // (As GET /providers gives it back after the plan meter's reading: gpt-x switched off with why, the provider marked changed.)
   const why = 'not on your Copilot plan now: Copilot’s own list does not offer it'
   const switched = github({
     offers,
@@ -176,8 +177,8 @@ test('a window open on Copilot shows the rows its account switched once the prov
   expect(await within(dialog).findByText(why)).toBeInTheDocument()
 })
 
-test('the chat’s model panel asks Copilot’s account as it opens on it, and offers only its tiers', async () => {
-  const onOffers = vi.fn(async () => {})
+test('the chat’s model panel reads Copilot’s provider again as it opens on it, asking no account, and offers only its tiers', async () => {
+  const onProviders = vi.fn(async () => {})
   render(
     <ModelPicker
       providers={[github({ offers })]}
@@ -185,12 +186,12 @@ test('the chat’s model panel asks Copilot’s account as it opens on it, and o
       modelId="auto"
       onSave={async () => {}}
       onRouting={async () => {}}
-      onOffers={onOffers}
+      onProviders={onProviders}
     />,
   )
-  expect(onOffers).not.toHaveBeenCalled() // (not before it is opened)
+  expect(onProviders).not.toHaveBeenCalled() // (not before it is opened)
   await userEvent.click(screen.getByRole('button', { name: /^Model:/ }))
-  expect(onOffers).toHaveBeenCalledWith('gh')
+  expect(onProviders).toHaveBeenCalledWith()
   expect(options(screen.getByLabelText('Routing'))).toEqual(['Default', 'Standard', 'Fast'])
 })
 

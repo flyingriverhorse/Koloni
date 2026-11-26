@@ -220,6 +220,31 @@ def test_a_clis_card_says_why_too(tmp_path):
             assert session.get_one(Command, command_id).asked_reason == reason, line
 
 
+@pytest.mark.parametrize(("mode", "said"), [("auto_edit", True), ("full_auto", False)])
+def test_a_clis_card_says_why_a_rule_does_not_cover_its_line_below_full_auto(tmp_path, mode, said):
+    """F394, a CLI's command (`ask_for`): as KOLONİ's own. At Full auto no rule is why it asks."""
+    import asyncio
+
+    from app.db.models import AllowedCommand
+    from app.serialize import command_out
+    from tests.test_disposable import runner_at
+
+    runner, factory = runner_at(tmp_path, mode)
+    with factory() as session:
+        session.add(AllowedCommand(conversation_id="c", project_id="p", prefix="npm exec tsc"))
+        session.commit()
+    line = "npm exec tsc --globalconfig=./evil096.npmrc -- --noEmit"
+    _ran, command_id = asyncio.run(
+        runner.ask_for("r", "c", "a", "t0", line, cwd=".", always=mode == "full_auto")
+    )
+    with factory() as session:
+        card = command_out(session.get_one(Command, command_id))
+    expected = cards.KEPT_OFF.format(
+        rule="npm exec tsc", why=cards.SETTINGS_WHY.format(option="--globalconfig")
+    )
+    assert (card["danger"] == expected) is said, card["danger"]
+
+
 # S: any line of the user's words that names the path - one that allows it or one that forbids it:
 # no word list tells the two apart (the review's misses and false refusals, each said by a list of
 # words).
@@ -382,3 +407,44 @@ def _decided(rules: str, quote: str, command: str) -> str:
 def test_a_delete_of_dot_slash_x_names_x():
     assert cards._targets("rm -rf ./x", ".") == ["x"]
     assert cards._targets("rm -rf ./", ".") is None and cards._targets("rm -rf ./*", ".") is None
+
+
+@pytest.mark.parametrize(
+    ("command", "why"),
+    [
+        # (W7b: another package's own `bin`)
+        ("npm exec tsc -w sub096 -- --noEmit", cards.ELSEWHERE_WHY),
+        ("npm exec tsc --workspace=sub096 -- --noEmit", cards.ELSEWHERE_WHY),
+        # (W7c: a settings file of the line's own, named - KOLONİ's own spelling of the option)
+        (
+            "npm exec tsc --globalconfig=./evil096.npmrc -- --noEmit",
+            cards.SETTINGS_WHY.format(option="--globalconfig"),
+        ),
+        (
+            "npm exec tsc --userconfig ./evil096.npmrc -- --noEmit",
+            cards.SETTINGS_WHY.format(option="--userconfig"),
+        ),
+        # (any other option no rule covers: never echoed)
+        ("npm exec tsc --shell=./evil096 -- --noEmit", cards.OPTION_WHY),
+    ],
+)
+def test_a_card_says_why_a_rule_whose_words_begin_the_line_does_not_cover_it(command, why):
+    """F394: KOLONİ's words, its family "No rule covers it"; nothing of the line but the rule."""
+    said = cards.kept_off(command, ["pytest", "npm exec tsc"])
+    assert said == cards.KEPT_OFF.format(rule="npm exec tsc", why=why)
+    assert "evil096" not in said and "sub096" not in said
+    assert cards.family(said) == "rule"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "npm exec tsc --silent -- --noEmit",  # (covered: a harmless option)
+        "npm exec tsc -- --globalconfig=x",  # (past `--`: tsc's own, covered)
+        "npm test --globalconfig=./evil096.npmrc",  # (no rule's words begin it)
+        "npm exec tscx --noEmit",  # (nor here: a word is a word)
+        "rm -rf build",  # (another reason, its card's own)
+    ],
+)
+def test_no_reason_of_a_rule_is_said_where_none_begins_the_line_or_one_covers_it(command):
+    assert cards.kept_off(command, ["npm exec tsc", "rm"]) == ""

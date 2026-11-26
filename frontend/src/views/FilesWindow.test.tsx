@@ -914,6 +914,31 @@ test('a Word document, a workbook, a deck or a 3D model has no preview: it opens
   expect(document.querySelector('iframe, canvas')).toBeNull()
 })
 
+test('an agent’s document still only in its working copy is read there, with the page’s key, not said unreadable', async () => {
+  const plain = vi.mocked(fetch).getMockImplementation()!
+  localStorage.setItem('koloni-key', 'k')
+  const docx = view('d1', 'report.docx', { kind: 'docx', status: 'shown' })
+  const notes = view('n1', 'notes.txt', { kind: 'md', status: 'shown' })
+  vi.mocked(fetch).mockImplementation(async (url, init) => {
+    const where = new URL(String(url), 'http://app')
+    // Not in the project yet: its file there is none.
+    if (where.pathname.endsWith('/file')) return new Response('{"detail":"no such file"}', { status: 404 })
+    if (where.pathname === new URL(docx.url, 'http://app').pathname)
+      return new Response(new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00, 0xff]), { status: 200 })
+    if (where.pathname === new URL(notes.url, 'http://app').pathname) return new Response('one\ntwo\n', { status: 200 })
+    return plain(url, init)
+  })
+  const { unmount } = panel({ views: [docx] }, 'preview-of:report.docx')
+  expect(await screen.findByText('Not text: there is no code to show.')).toBeInTheDocument()
+  expect(screen.queryByText('It could not be read.')).toBeNull()
+  const read = vi.mocked(fetch).mock.calls.find(([url]) => String(url).startsWith(docx.url))!
+  expect(new Headers(read[1]?.headers).get('X-KOLONI-Key')).toBe('k')
+  unmount()
+  // An agent's text file there is shown as its code, from the copy too.
+  panel({ views: [notes] }, 'notes.txt')
+  expect(await screen.findByText('two')).toBeInTheDocument()
+})
+
 // --- the Changes tab (K-degisenler)---------------------------------------------------------------
 
 const listTabs = () => within(screen.getByRole('tablist', { name: 'Show' })).getAllByRole('tab')

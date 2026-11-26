@@ -113,8 +113,8 @@ const things = (n: number, done: string, many: string) => (n === 1 ? `1 thing ${
 /** What a chat's line says: what was decided for you in it and waits for your OK, and what waits for your word. */
 export function decidedSentence(decided: number, waiting: number): string {
   const parts = [
-    decided > 0 && things(decided, 'was decided for you', 'were decided for you'),
-    waiting > 0 && (waiting === 1 ? '1 waits for you' : `${waiting} wait for you`),
+    decided > 0 && things(decided, 'was decided for you in this project', 'were decided for you in this project'),
+    waiting > 0 && (waiting === 1 ? '1 waits for you here' : `${waiting} wait for you here`),
   ].filter(Boolean)
   return `While you were away, ${parts.join(' and ')}.`
 }

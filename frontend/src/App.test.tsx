@@ -67,6 +67,7 @@ const snapshot = {
   last_event_id: 0,
 }
 /** What the server answers: the project, the model, one chat in the project (opened at the start) - or what `over` says of a path. */
+const BOARD = { limit: null, running: 0, conversations: [], conflicts: [], backlog_waiting: 0 }
 const answer = (url: string, over: Record<string, unknown> = {}) => {
   const said: Record<string, unknown> = {
     '/api/projects': [project],
@@ -218,7 +219,7 @@ test('in a project whose conversations are all archived, none is opened, and the
   await userEvent.click(screen.getByRole('button', { name: 'Hide the first steps' }))
   expect(await screen.findByText(/Local isn't answering at/)).toBeInTheDocument()
   const asked = vi.mocked(fetch).mock.calls.map(([url]) => String(url))
-  expect(asked).not.toContain('/api/conversations/a')
+  expect(asked.filter(url => url.startsWith('/api/conversations/a'))).toEqual([])
 })
 
 test('a server that runs another API than the page was built against, or does not say which, is to be restarted', async () => {
@@ -540,10 +541,14 @@ test("the top bar's pill says what the Lead decided for you when nothing waits; 
   })
   vi.stubGlobal(
     'fetch',
-    emptyPages({ '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], questions: [decided] } }),
+    emptyPages({
+      '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], questions: [decided] },
+      // (K1: the project's count - Not seen's, every chat's - not the open chat's)
+      '/api/projects/p/board': { ...BOARD, decided: 1 },
+    }),
   )
   render(<App />)
-  const pill = await screen.findByRole('button', { name: '1 decided for you' })
+  const pill = await screen.findByRole('button', { name: '1 decided for you in this project' })
   expect(pill).toHaveTextContent(/^1 decided$/)
   expect(pill).toHaveAttribute('aria-expanded', 'false')
   expect(document.getElementById('ready-panel')).toBeNull()
@@ -591,16 +596,27 @@ function refusedByTheJudge() {
 
 test("the pill counts a command Full auto's judge refused; the chat says it in one line, and Ready for you has its OK", async () => {
   const { refused, log } = refusedByTheJudge()
-  const read = emptyPages({
+  let seen = false
+  const pages = emptyPages({
     '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] },
     '/api/projects/p/decisions': log,
     '/api/commands/k/seen': { ...refused, judged: { ...refused.judged, seen: true } },
+    // (K1: the pill, the chat's line and Not seen say the project's one count)
+    get '/api/projects/p/board'() {
+      return { ...BOARD, decided: seen ? 0 : 1 }
+    },
+  })
+  const read = vi.fn(async (url: string, _init?: RequestInit) => {
+    if (url === '/api/commands/k/seen') seen = true
+    return pages(url)
   })
   vi.stubGlobal('fetch', read)
   render(<App />)
-  await userEvent.click(await screen.findByRole('button', { name: '1 decided for you' }))
+  await userEvent.click(await screen.findByRole('button', { name: '1 decided for you in this project' }))
   const panel = document.getElementById('ready-panel')!
-  expect(within(panel).getByText('While you were away, 1 thing was decided for you.')).toBeInTheDocument()
+  expect(
+    within(panel).getByText('While you were away, 1 thing was decided for you in this project.'),
+  ).toBeInTheDocument()
   await userEvent.click(within(panel).getByRole('button', { name: 'Open in Ready for you' }))
   const decided = await screen.findByRole('region', { name: /^Decided for you 1, 1 not seen/ })
   await vi.waitFor(() => expect(decided).toHaveFocus())
@@ -615,8 +631,8 @@ test("the pill counts a command Full auto's judge refused; the chat says it in o
   const calls = read.mock.calls as unknown as [string, RequestInit | undefined][]
   const asked = calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)
   expect(asked).toContain('POST /api/commands/k/seen')
-  // (the open chat's: told at once - the pill has nothing more)
-  await vi.waitFor(() => expect(screen.queryByRole('button', { name: '1 decided for you' })).toBeNull())
+  // (the project's board is read again after the OK - the pill has nothing more)
+  await vi.waitFor(() => expect(screen.queryByRole('button', { name: /decided for you/ })).toBeNull())
 })
 
 test("Usage's Today says the day's decisions in one line; Open in Ready for you brings its Decided for you in view, once", async () => {
@@ -624,6 +640,7 @@ test("Usage's Today says the day's decisions in one line; Open in Ready for you 
   const pages = emptyPages({
     '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] },
     '/api/projects/p/decisions': log,
+    '/api/projects/p/board': { ...BOARD, decided: 1 },
   })
   const day = { turns: 0, agents: [], changed_files: [], waiting: 0, failed: 0, conversations: [] }
   const read = vi.fn(async (url: string) =>
@@ -631,7 +648,7 @@ test("Usage's Today says the day's decisions in one line; Open in Ready for you 
   )
   vi.stubGlobal('fetch', read)
   render(<App />)
-  await screen.findByRole('button', { name: '1 decided for you' })
+  await screen.findByRole('button', { name: '1 decided for you in this project' })
   const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
   await userEvent.click(rail('Usage'))
   expect(await screen.findByText("1 decision was made for you today, 1 of them you haven't seen.")).toBeInTheDocument()
@@ -646,6 +663,90 @@ test("Usage's Today says the day's decisions in one line; Open in Ready for you 
   const again = await screen.findByRole('region', { name: /^Decided for you/ })
   await within(again).findByText("KOLONİ's judge")
   expect(again).not.toHaveFocus()
+})
+
+/** A night of project p that ended and is not seen yet. */
+const endedNight = {
+  id: 'a1',
+  project_id: 'p',
+  conversation_id: 'c',
+  run_id: 'r',
+  status: 'ended',
+  jobs: [],
+  kept_out: [],
+  until: null,
+  money: null,
+  started_at: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+  ended_at: new Date(Date.now() - 3600 * 1000).toISOString(),
+  why: null,
+  seen_at: null,
+  tried: [],
+  slipped: [],
+  spent: null,
+  currency: 'USD',
+  job_minutes: null,
+  at_least: false,
+  counts: {},
+  proposed: [],
+  decided: [],
+}
+
+test('after a night while you were away KOLONİ opens on Ready for you, where its strip is, and marks it seen', async () => {
+  const read = vi.fn(async (url: string) =>
+    url === '/api/projects/p/away' ? new Response(JSON.stringify(endedNight), { status: 200 }) : answer(url),
+  )
+  vi.stubGlobal('fetch', read)
+  render(<App />)
+  expect(await screen.findByRole('heading', { name: /^Ready for you/ })).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: /^Last night/ })).toBeInTheDocument()
+  await vi.waitFor(() => expect(read.mock.calls.some(([url]) => url === '/api/away/a1/seen')).toBe(true))
+})
+
+test('a page you opened before the night was read is never taken from you: the morning leaves it (M1)', async () => {
+  let release = () => {}
+  const held = new Promise<void>(go => (release = go))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url !== '/api/projects/p/away') return answer(url)
+      await held
+      return new Response(JSON.stringify(endedNight), { status: 200 })
+    }),
+  )
+  render(<App />)
+  const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
+  await screen.findByText('this machine')
+  await userEvent.click(rail('To-do'))
+  release()
+  await vi.waitFor(() => expect(useApp.getState().away?.id).toBe('a1'))
+  await act(async () => {})
+  expect(rail('To-do')).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.queryByRole('heading', { name: /^Ready for you/ })).toBeNull()
+})
+
+test('the morning is asked of the first answer about the night alone: a later one never moves you (M1)', async () => {
+  // (the first read fails; the next, a minute later, finds the night ended - you may be typing by then)
+  let failed = false
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url !== '/api/projects/p/away') return answer(url)
+      if (!failed) {
+        failed = true
+        return new Response('{"detail":"down"}', { status: 500 })
+      }
+      return new Response(JSON.stringify(endedNight), { status: 200 })
+    }),
+  )
+  render(<App />)
+  await screen.findByText('this machine')
+  await vi.waitFor(() => expect(failed).toBe(true))
+  await act(async () => {
+    await useApp.getState().loadAway()
+  })
+  expect(useApp.getState().away?.id).toBe('a1')
+  expect(screen.queryByRole('heading', { name: /^Ready for you/ })).toBeNull()
+  expect(screen.getByLabelText('Message')).toBeVisible()
 })
 
 test("an agent's window and a discussion's open over the canvas only with a chat; selecting a node opens the inspector", async () => {

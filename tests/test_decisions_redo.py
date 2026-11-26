@@ -384,6 +384,26 @@ def test_its_work_is_the_copy_its_agent_worked_in(client, tmp_path, started, sta
     assert started["resume"] == [(started["start"][0], mine or leads)]
 
 
+@pytest.mark.parametrize(
+    ("copy", "leads"),
+    [(None, True), ({"state": "too_big"}, False), ({"state": "failed"}, False)],
+)
+def test_an_asker_that_never_had_a_copy_goes_on_in_the_leads(
+    client, tmp_path, started, copy, leads
+):
+    # (0.1.10: a Reviewer that never wrote has no copy on record - a fresh turn was started and the
+    # Lead's kept copy, where it read, was left; one too big to copy worked in the project itself)
+    pid, _cid, ids = finished(client, tmp_path)
+    with client.app.state.session_factory() as session:
+        asker = session.get_one(Agent, session.get_one(Question, ids["answer"]).agent_id)
+        asker.copy = copy
+        session.commit()
+        run_id, lead_id = asker.run_id, asker.parent_agent_id
+    kept = kept_by(client, run_id, lead_id)
+    assert redo_it(client, pid, ids["answer"]).status_code == 204
+    assert started["resume"] == ([(started["start"][0], kept)] if leads else [])
+
+
 def test_hostile_words_arrive_quoted_and_masked(client, tmp_path, started, monkeypatch):
     monkeypatch.setattr(raw, "_known", lambda fresh=False: raw.spellings([SECRET]))
     pid, _cid, ids = finished(client, tmp_path)

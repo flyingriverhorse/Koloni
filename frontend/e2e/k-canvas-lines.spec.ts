@@ -152,8 +152,9 @@ for (const theme of ['light', 'dark'] as const) {
     await say(page, 'hello, the canvas lines', 'Hello! Ask me to read or change a file.')
     const record = await twoTeams(page, id)
     const runId = (record.runs as Json[])[0].id as string
-    await page.route(`**/api/conversations/${id}`, route =>
-      route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+    await page.route(
+      url => url.pathname === `/api/conversations/${id}`,
+      route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
     )
     await page.reload()
     await expect(page.locator('.team-frame')).toHaveCount(2)
@@ -373,8 +374,9 @@ test('a chat whose teams have no recipe has its agents framed by their roles, on
     agents: [lead, agent('a1', web.lead.name), agent('a2', web.roles[0], 'a1'), agent('b1', theirs)],
     channel_messages: [said('m1', 'a2', 'a1', 'message', 'Done?'), said('m2', 'a1', 'a2', 'reply', 'Yes, ship it.')],
   }
-  await page.route(`**/api/conversations/${id}`, route =>
-    route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+  await page.route(
+    url => url.pathname === `/api/conversations/${id}`,
+    route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
   )
   await page.reload()
   await expect(page.locator('.team-frame')).toHaveCount(2)
@@ -397,8 +399,9 @@ test('what was said is clear of the chat', async ({ page }) => {
   const id = await openFreshConversation(page)
   await say(page, 'hello, where it is said', 'Hello! Ask me to read or change a file.')
   const record = await twoTeams(page, id)
-  await page.route(`**/api/conversations/${id}`, route =>
-    route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+  await page.route(
+    url => url.pathname === `/api/conversations/${id}`,
+    route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
   )
   await page.reload()
   await settled(page)
@@ -418,8 +421,9 @@ test('a team at work has its head in its frame: title, Stop and Finish now on on
   const id = await openFreshConversation(page)
   await say(page, 'hello, the head', 'Hello! Ask me to read or change a file.')
   const record = await twoTeams(page, id)
-  await page.route(`**/api/conversations/${id}`, route =>
-    route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+  await page.route(
+    url => url.pathname === `/api/conversations/${id}`,
+    route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
   )
   await page.reload()
   await settled(page)
@@ -482,8 +486,9 @@ test('talk between agents of no team is a bubble too, and a pick shows what was 
       said('m2', 't1', 'c1', 'reply', 'All green.'),
     ],
   }
-  await page.route(`**/api/conversations/${id}`, route =>
-    route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+  await page.route(
+    url => url.pathname === `/api/conversations/${id}`,
+    route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
   )
   await page.reload()
   await settled(page)

@@ -114,6 +114,12 @@ You can see and remove the rules you made under Settings › This project › **
   --prefix x` is covered), and past a rule that names a runner's package (`npx tsc`) the words are
   that tool's (`npx tsc -p tsconfig.json` is covered).
 
+Where one of your rules begins the line but such an option, or a node runner sent to another package or
+folder (below), keeps it off, the card says so, in KOLONİ's words: "your rule “npm exec tsc” does not cover
+this line: --globalconfig has it read a settings file, which can load code - run it once or reject it". It
+names an option only where that is npm's settings file (`--globalconfig`, `--userconfig`); any other is
+"an option past the rule's words".
+
 Below Full auto, a command that keeps running (a server) asks every time, even with a rule.
 
 Nor does a rule - or a yes you gave before - cover a command whose program, named by its path in

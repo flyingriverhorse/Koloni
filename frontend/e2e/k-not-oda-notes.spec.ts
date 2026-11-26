@@ -82,8 +82,9 @@ for (const theme of ['light', 'dark'] as const) {
     const record = await twoTeams(page, id)
     // The real turn did what it was asked with no agent: KOLONİ noted nothing of it.
     expect((await (await page.request.get(`/api/conversations/${id}`)).json()).board_posts).toEqual([])
-    await page.route(`**/api/conversations/${id}`, route =>
-      route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+    await page.route(
+      url => url.pathname === `/api/conversations/${id}`,
+      route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
     )
     await page.reload()
 

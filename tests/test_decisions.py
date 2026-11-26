@@ -716,3 +716,29 @@ def test_change_acts_on_the_orchestrators_word_as_its_row_showed_it(client, tmp_
     pending = task_row(client, pid, cid, "no", "todo", CHANGE)
     kept = client.post(f"/api/backlog/{pending}/decide", json={"decision": "approve"})
     assert kept.status_code == 200 and task_now(client, pending)[0] == "Retitled by an agent"
+
+
+def test_one_count_of_what_waits_for_your_ok_project_wide_whatever_the_cut(
+    client, tmp_path, monkeypatch
+):
+    # K1: the top bar's pill, a chat's line and Not seen counted three things (the open chat;
+    # it and its To-do picks; the project). One count now - the project's Not seen, of any age,
+    # of every chat - read with the project's board, not cut at the newest MOST.
+    pid, cid = chat(client, tmp_path / "a")
+    other = client.post("/api/conversations", json={"project_id": pid}).json()["id"]
+    old = seed(client, pid, cid, minutes=-60 * 24 * 30)
+    seed(client, pid, other)
+
+    def board() -> int:
+        got = client.get(f"/api/projects/{pid}/board")
+        assert got.status_code == 200, got.text
+        return got.json()["decided"]
+
+    unseen = client.get(f"/api/projects/{pid}/decisions", params={"unseen": "true"}).json()
+    assert board() == len(unseen["rows"]) >= 4 and not unseen["more"]
+    monkeypatch.setattr(decisions, "MOST", 2)
+    assert board() == len(unseen["rows"])
+    ask_ok(client, old["answer"])
+    assert board() == len(unseen["rows"]) - 1
+    # (Every chat's board, of every folder and of none, has no one project's log.)
+    assert client.get("/api/board").json()["decided"] is None

@@ -81,9 +81,13 @@ messages.
   the version it runs. Only Windows was measured.
 - A sub-agent on Claude Code run **Native** works in a working copy, but its commands are not
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
-  script) changes the project directly. KOLONİ looks at the project after each of its commands and
+  script) changes the project directly. So do those of GitHub Copilot CLI run **Native** where it works
+  in a working copy and its session has no sandbox - this machine cannot give it one, or the project
+  does not hide its secret files. KOLONİ looks at the project after each of its commands and
   records such a change as made in the project by an unknown maker - one look over the project's files
-  each time (some 0.1 s for 3,000 files, 0.4 s for 10,000, measured on Windows).
+  each time (some 0.1 s for 3,000 files, 0.4 s for 10,000, measured on Windows). With several such
+  agents at work at once, a change can be recorded more than once - by each one's look that finds it,
+  under its own agent; only the record changes, not your files.
 - With Codex run **Native**, a command of Codex's own still at work after 11 minutes is ended as
   failed, and so is Codex's turn; one you allowed that Codex never says it started is ended as "never
   started" at the same 11 minutes.
@@ -109,6 +113,21 @@ messages.
   repository's. A submodule's own changes are not taken into a branch.
 - A junction deep inside a new folder is not taken, but git reads through it while the branch is made;
   one that leads to a large folder can make the branch start from your last commit instead.
+- A branch's start from your folder, and a ☾ Away job's commit on its branch, leave a file out by its
+  name alone: a secret's name (`.env`, `.env.local`, `env.production`, a key file, `credentials.json`,
+  `client_secret….json`, `serviceAccountKey.json`, `.secrets`, `secret.txt`, `access_token.txt`), a
+  data file named `credentials`, `api_keys` / `api-key` or `token` (`.json`, `.yaml`, `.toml`,
+  `.txt`), a copy of a `.env` but `.env.example` (`.env.sample`, `.env.template`,
+  `.env.local.example`), and what is in a folder named `credentials` or `secrets` but source code and
+  docs. Code and Markdown so named go in (`credentials.py`, `api-keys.ts`, `tokens.py`), and so does
+  `tokens.json` (design tokens). A team's pull request asks first for every such file. A secret under
+  any other name - `password.txt`, `.vault_pass`, an npm token in `.yarnrc.yml`, a name spelt with a
+  look-alike letter - is left out only where it holds one KOLONİ knows. A file in a folder named like
+  an installed one (`venv`, `node_modules`, `site-packages`) is never judged by its name. In a
+  `credentials` or `secrets` folder a config, data or text file is left out even where it is no
+  secret (`secrets/README`, `k8s/secrets/deployment.yaml`), and so is a test's
+  `tests/fixtures/credentials.json`. A team's or a story's branch commits what its agents wrote under
+  such a name: its merge stays on this machine. A file left out is never deleted.
 
 ## GitHub
 
@@ -210,8 +229,10 @@ messages.
 - A line whose folder its CLI did not say does not run: **Reject** it, or run it yourself.
 - Where you took some of a job's copy in, its going-on turn works in a fresh copy, and the lines you
   said **Run** run in the project itself.
-- A job tried twice parked its lines in two copies: each line runs in its own, the going-on turn in the
-  newest.
+- A job tried twice in a copy (not on a branch) keeps each try's copy: each line runs in the copy it
+  was parked in, and the going-on turn goes on in the newest copy any of its lines was parked in - a
+  try that parked nothing keeps its copy for your Take in. A job that parked only questions goes on in
+  the newest copy the turns that asked them kept.
 - KOLONİ closed while the morning's lines run: the task is stopped, and what has not run is not run
   again - **Try again** works it in its chat.
 - `git` in the middle of a line - `cd sub && git push` - needs the project: Take in first; in a copy
@@ -254,8 +275,8 @@ messages.
   cleans them up (`git gc`).
 - Your own `pre-commit` and `pre-push` hooks run neither for the job's commits nor for KOLONİ's push.
 - KOLONİ's checks run before its last commit at the job's end; that commit holds the same files,
-  apart from one holding a secret KOLONİ knows (left out, and its push row says so) or a new file your
-  project already has.
+  apart from one holding a secret KOLONİ knows or named as one (left out, and its push row says so) or
+  a new file your project already has.
 - The branch's name is told to the job before its worktree is made: where a branch of that name was
   there already, the worktree is on the next free name, and its row says which.
 

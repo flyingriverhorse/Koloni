@@ -1,19 +1,25 @@
 """Why each command card was asked (0.1.7), kept on its record (`Command.asked_reason`); and
 which line of the user's words names a delete's target (`mentioned`, for "Check what I said
-first"). 0.1.10: Usage's Cards - the counts and the rules they suggested - is cut.
+first"). 0.1.10: Usage's Cards - the counts and the rules they suggested - is cut; a card asked
+as no rule covers its line says why a rule whose words begin it does not (F394, `kept_off`).
 
 Every word here is KOLONİ's: a card's reason is the gate's own family of it (`card_reason`, when
 the card opens - never an agent's words)."""
 
 import fnmatch
 import re
+from collections.abc import Iterable
 
 from app.commands import (
     SEARCHES_FOLDER,
+    _past_the_rule,
     _words,
+    elsewhere,
     harms,
+    matches,
     names_secret,
 )
+from app.db.models import ToolCall
 
 # The families of why a card was asked, in KOLONİ's words (a parked card's why: `parked`).
 REASONS = {
@@ -48,6 +54,7 @@ _FAMILIES = (
     ("standing", r"(?:Names|Sets this project's git|Applies a patch)\b"),
     ("outside", r"(?:it names|it writes in|Climbs out|Makes a link|Opens a git worktree)\b"),
     ("web", r"web is off\b"),
+    ("rule", r"your rule “"),  # (`KEPT_OFF`)
     ("judge", r"KOLONİ's judge: "),  # (Full auto's judge's card: `risk_judge.CARD`)
 )
 _FAMILY = [(name, re.compile(pattern)) for name, pattern in _FAMILIES]
@@ -196,3 +203,44 @@ def _globbed(line: str, targets: list[str]) -> bool:
                 ):
                     return True
     return False
+
+
+# F394: why a rule whose words begin a line does not cover it, on its card - KOLONİ's words, never
+# the line's (an option is named only where it is one of `_SETTINGS`).
+KEPT_OFF = "your rule “{rule}” does not cover this line: {why} - run it once or reject it"
+ELSEWHERE_WHY = "it runs another package's or folder's own program"
+OPTION_WHY = "an option past the rule's words can run another program, fetch code or write outside"
+SETTINGS_WHY = "{option} has it read a settings file, which can load code"
+# npm's settings files by option (W7c: `--globalconfig=x`'s `node-options` loaded an agent's code).
+_SETTINGS = ("--globalconfig", "--userconfig")
+
+
+def kept_off(command: str, rules: Iterable[str]) -> str:
+    """F394: why a rule whose words begin `command` does not cover it (`matches`): it runs in
+    another package or folder (`elsewhere`), or an option past the rule's words (up to `--`) is one
+    no rule covers (`_past_the_rule`) - a settings file's named; "" for none such (any other reason
+    is its card's own: a delete's, a shell's)."""
+    normal = " ".join(command.split())
+    for rule in rules:
+        if not rule or not (normal + " ").startswith(rule + " ") or matches(command, rule):
+            continue
+        extra = normal[len(rule) :].split()
+        if elsewhere(command):
+            return KEPT_OFF.format(rule=rule, why=ELSEWHERE_WHY)
+        if _past_the_rule(normal.split(), extra):
+            own = extra[: extra.index("--")] if "--" in extra else extra
+            named = next(
+                (one for word in own for one in _SETTINGS if word.split("=")[0] == one), ""
+            )
+            why = SETTINGS_WHY.format(option=named) if named else OPTION_WHY
+            return KEPT_OFF.format(rule=rule, why=why)
+    return ""
+
+
+def rule_kept_off(session, row, rules: list[str], below_full_auto: bool) -> None:
+    """F394: on the card of a command `row` asked only as no rule covers it (`card_reason`'s
+    "rule"), below Full auto, why a rule whose words begin it does not (`kept_off`) - its call's
+    `why_asked`, where a card's reason is said, as for a program an agent wrote."""
+    call = session.get(ToolCall, row.tool_call_id) if row.tool_call_id else None
+    if call is not None and row.asked_reason == "rule" and below_full_auto and not call.why_asked:
+        call.why_asked = kept_off(row.command, rules) or None

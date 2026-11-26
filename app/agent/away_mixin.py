@@ -731,13 +731,9 @@ class AwayMixin(AwayBranchMixin):
             )
         held = await self._hold_merges(rows, cid)
         with self._factory() as session:
-            kept = away.kept_copies(session, cid)
-            # (untouched: nothing of it taken in - its Take in held off by this morning itself)
-            last = (
-                kept[-1]
-                if kept and not any(f["state"] == "applied" for f in kept[-1].files)
-                else None
-            )
+            # (untouched - its Take in held off by this morning itself - and its rows' own, by
+            # their record: never the chat's newest of another turn)
+            last = parked.gone_on_in(session, run_id)
             places = {row.id: parked.where(session, row) for row in rows}
         opened: dict[str, copies.Copy] = {}
         common: list[str] | None = None  # (F411 P4: the secrets held back, said once - `told`)

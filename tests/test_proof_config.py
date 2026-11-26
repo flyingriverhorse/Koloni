@@ -344,9 +344,13 @@ def test_a_secret_file_is_never_read(tmp_path):
         ("note", "config/.env.json: not checked: a secret file is never read"),
     ]
     # (Not secrets by name elsewhere, but they often hold one: not read here either.)
-    names = ["credentials.json", "token.json", "kubeconfig.yaml", "client_secret_1.apps.json"]
+    names = ["credentials.json", "token.json", "kubeconfig.yaml"]
     assert said(tmp_path, dict.fromkeys(names, "{")) == [
         ("note", f"{one}: not checked: it may hold a secret") for one in names
+    ]
+    # (Google's OAuth client file is a secret by its name since 0.1.10 - W-1's re-review.)
+    assert said(tmp_path, {"client_secret_1.apps.json": "{"}) == [
+        ("note", "client_secret_1.apps.json: not checked: a secret file is never read")
     ]
 
 

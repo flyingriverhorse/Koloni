@@ -1,5 +1,5 @@
-import { useId, useState } from 'react'
-import { errorText } from '../api/client'
+import { useEffect, useId, useState } from 'react'
+import { api, errorText } from '../api/client'
 import type { Away, AwayJob, Decision, Waiting } from '../api/types'
 import { STATE_WORD, clock } from '../backlog/awayText'
 import { stamp, whoOf } from './decisionLog'
@@ -170,10 +170,15 @@ function Head({ id, away, parked, onReport }: { id: string; away: Away; parked: 
  * from its start to its end as its turns' records say (none where they lack either), the decisions made for you in its
  * chat that night at their times, filled while they wait for your OK; what was not checked and what it spent; the whole
  * report and Copy as Markdown of it. Nothing of it is guessed: a time, a state or a cost no record holds is not drawn.
+ * On screen, the night is seen: KOLONİ opened from now on does not open Ready for you on it again (the morning, App).
  */
 export function NightStrip({ away, parked, onReport }: { away: Away; parked: Waiting[]; onReport?: () => void }) {
   const id = useId()
   const axis = away.status === 'ended' ? axisOf(away) : null
+  const unseen = axis && !away.seen_at ? away.id : null
+  useEffect(() => {
+    if (unseen) void api.post('/away/' + unseen + '/seen').catch(() => {})
+  }, [unseen])
   if (!axis) return null
   const pushes = new Set(parked.flatMap(row => (row.kind === 'push' && !row.decision ? [row.task_id] : [])))
   return (

@@ -1178,12 +1178,12 @@ def _keep_aside(keep_in: Path, rel: str, data: bytes) -> str:
 
 
 def prune_commit_sides(runtime_root: Path, session) -> None:
-    """Take away what was kept of taken files for their commit (`_keep_sides`: copies of
-    the project's files) where none is offered any more: its merge gone, or committed."""
+    """Take away what was kept of taken files for their commit (`_keep_sides`: copies of the
+    project's files) where none is offered, nor will be by a kept card (L1): gone, or committed."""
     with contextlib.suppress(OSError):
         for folder in (runtime_root / "commit-sides").iterdir():
-            merge = session.get(Merge, folder.name)
-            if merge is None or (merge.commit or {}).get("state") != "offered":
+            m = session.get(Merge, folder.name)
+            if (m and (m.commit or {}).get("state", m.status)) not in ("offered", "interrupted"):
                 shutil.rmtree(folder, ignore_errors=True)
 
 

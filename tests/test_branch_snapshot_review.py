@@ -20,6 +20,7 @@ from app.agent import (
     PR_UNPUSHED,
     AgentRunner,
 )
+from app.workspace import secret_in_branch, secret_in_push
 from tests import test_dal_takim
 from tests.conftest import Gate, scaled
 from tests.test_branch_snapshot import has_object, needs_merge_base, porcelain
@@ -405,6 +406,37 @@ def test_secrets_by_their_names_stay_out_and_code_named_like_one_is_taken(repo, 
     assert not {"credentials.json", "token.json", ".env"} & set(taken)
     assert left == [".env", "credentials.json", "token.json"] and why is None
     assert not has_object(repo, run(repo, "hash-object", "token.json"))
+
+
+@needs_merge_base
+def test_data_files_named_as_secrets_and_a_secrets_folder_stay_out_code_goes_in(repo, runtime):
+    # (W-1's review, 0.1.10: these went into the snapshot - the project's rules take them for text)
+    for path in ("credentials/README.md", "config/secrets/loader.py"):
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text("committed\n")
+    run(repo, "add", "credentials/README.md", "config/secrets/loader.py")
+    run(repo, "commit", "-qm", "a tracked credentials folder")
+    out = (
+        "token.txt",
+        "credentials.yaml",
+        "api_keys.json",
+        ".env.sample",
+        ".env.template",
+        ".env.local.example",
+        "credentials/prod.json",
+        "config/secrets/db.txt",
+    )
+    taken = ("tokens.py", "tokens.json", "src/api_keys.ts", "src/.env.example")
+    for path in (*out, *taken, "config/secrets/loader.py", "credentials/README.md"):
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text(f"SECRET {path}\n")
+    snapshot, why, left = left_of(repo, runtime)
+    assert why is None and left == sorted(out), left
+    held_now = set(held(repo, snapshot))
+    assert {*taken, "config/secrets/loader.py", "credentials/README.md"} <= held_now
+    assert not set(out) & held_now
+    assert not has_object(repo, run(repo, "hash-object", "credentials/prod.json"))
+    assert (repo / ".env.sample").read_text() == "SECRET .env.sample\n"  # (never deleted)
 
 
 @needs_merge_base
@@ -1208,3 +1240,57 @@ def test_an_agents_commit_a_branch_of_yours_holds_too_stays_yours(repo, runtime)
     with pytest.raises(git.Refused, match="agent.txt in it is your work not pushed yet"):
         push_pr(repo, runtime, copy)
     assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "api-key.txt",
+        "api-keys.json",
+        "env.production",
+        ".secrets",
+        ".secrets.toml",
+        ".secrets.yaml",
+        "client_secret_1.apps.googleusercontent.com.json",
+        "serviceAccountKey.json",
+        "service_account.json",
+        "access_token.txt",
+        "secret.txt",
+        "secrets.txt",
+        "token.yml",
+        "SECRETS/db.txt",
+        "secrets/README",
+        "k8s/secrets/db.yaml",
+    ],
+)
+def test_more_names_a_branch_leaves_out(path):
+    # (W-1's re-review, 0.1.10: each went into a branch's snapshot and a job's commit)
+    assert secret_in_branch(path) and secret_in_push(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tokens.py",
+        "tokens.json",
+        "credentials.py",
+        "api-keys.ts",
+        ".env.example",
+        "token_bucket.txt",
+        "secrets/App.vue",
+        "secrets/x.svelte",
+        "secrets/x.css",
+        "secrets/x.html",
+        "secrets/run.sh",
+        "secrets/schema.sql",
+        "credentials/x.c",
+        "credentials/X.kt",
+        "credentials/__init__.pyi",
+        "credentials/py.typed",
+        "secrets/README.md",
+        "docs/secrets/overview.rst",
+    ],
+)
+def test_code_and_docs_named_like_secrets_go_into_a_branch(path):
+    # (...and source and docs in a credentials or secrets folder were left out with them)
+    assert not secret_in_branch(path)
