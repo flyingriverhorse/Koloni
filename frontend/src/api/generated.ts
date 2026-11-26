@@ -2929,7 +2929,8 @@ export interface paths {
         };
         /**
          * List Knowledge
-         * @description The project's knowledge and every project's, oldest first.
+         * @description The project's knowledge and every project's, oldest first - not the Project notes of
+         *     0.1.9, which are Memory's since 0.1.10 (`project_notes`).
          */
         get: operations["list_knowledge_api_projects__project_id__knowledge_get"];
         put?: never;
@@ -3097,6 +3098,27 @@ export interface paths {
         /** Others Instructions */
         get: operations["others_instructions_api_projects__project_id__others_instructions_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/project-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Project Notes
+         * @description 0.1.10: the Project notes, the rules' second box - what the user kept at turns' ends, a
+         *     line each, as the user corrects them (`project_notes.check`); one text, as the preferences.
+         */
+        put: operations["set_project_notes_api_projects__project_id__project_notes_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5330,6 +5352,8 @@ export interface components {
              * @default false
              */
             not_in: boolean;
+            /** Notes */
+            notes?: components["schemas"]["StoryNoteOut"][] | null;
             /** Pending */
             pending: {
                 [key: string]: unknown;
@@ -9040,6 +9064,8 @@ export interface components {
             past: components["schemas"]["MemoryOut"][];
             /** Preferences */
             preferences?: string | null;
+            /** Project Notes */
+            project_notes?: string | null;
             /** Proposals */
             proposals: components["schemas"]["MemoryOut"][];
             /** Rules */
@@ -17309,6 +17335,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OthersInstructionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_project_notes_api_projects__project_id__project_notes_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
                 };
             };
             /** @description Validation Error */

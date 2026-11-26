@@ -103,6 +103,8 @@ def used_here(
             or_(ProjectKnowledge.project_id.is_(None), ProjectKnowledge.project_id == project_id),
         )
     ).all()
+    # (0.1.10: the Project notes are Memory's now - `project_notes.told` - not a knowledge.)
+    rows = [row for row in rows if not knowledge.is_notes(knowledge_of(row))]
     return sorted(rows, key=lambda row: (row.project_id is None, ids.index(row.id)))
 
 

@@ -194,12 +194,14 @@ def test_every_task_brief_and_fix_round_carry_the_notebook_as_data(make_client, 
     assert backlog.SAY_NOT_FINISHED in first and fix.startswith("KOLONİ: this task is not finished")
     # the fix round is given how its turn before ended
     assert '- result: "“one” — not finished: model server unreachable' in fix, fix
-    # a task of no story is told nothing of a notebook
+    # 0.1.10: a task of no story is told of its own notebook - empty here
     with db(client) as session:
         task = session.get_one(BacklogTask, tid)
         task.story_id = None
-        assert stories.brief(session, task, None) == ""
-        assert backlog.fix_message(session, task, "why.") == backlog.FIX.format(why="why")
+        assert stories.brief(session, task, None) == stories.SAY_TASK_NOTE
+        assert backlog.fix_message(session, task, "why.") == (
+            backlog.FIX.format(why="why") + "\n\n" + stories.SAY_TASK_NOTE
+        )
 
 
 def test_the_users_own_turn_in_a_story_topic_gets_the_notebook_in_its_instructions(

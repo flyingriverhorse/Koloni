@@ -16,7 +16,18 @@ from typing import TYPE_CHECKING
 from sqlalchemy import literal_column, select
 from sqlalchemy.orm import Session
 
-from app import attachments, board, catalog, evolve, injection, models_dev, topics, views, web
+from app import (
+    attachments,
+    board,
+    catalog,
+    evolve,
+    injection,
+    models_dev,
+    stories,
+    topics,
+    views,
+    web,
+)
 from app.agent.cards import _who
 from app.agent.ctx import Ctx
 from app.agent.summary import _without
@@ -28,6 +39,7 @@ from app.db.models import (
     BoardPost,
     Command,
     FileChange,
+    Project,
     Provider,
     Run,
     ToolCall,
@@ -564,7 +576,9 @@ class AttachmentsMixin:
     def _read_notes(self: "AgentRunner", ctx: Ctx) -> str:
         """The notebook as this agent knows it: what it wrote and what it was handed.
         What it has not been handed yet is not repeated here: it reaches the agent once,
-        the usual way, right after this result."""
+        the usual way, right after this result. In a job's turn (0.1.10: a story's, a To-do
+        task's, a night's job's) the job's notebook follows, for every agent of it - in place
+        of the Lead's notebook of the turn before, which a plain chat's Lead is given."""
         with self._factory() as session:
             seen = session.scalar(select(Agent.board_seen).where(Agent.id == ctx.agent_id)) or 0
             reads = self._reader(session, ctx)
@@ -609,8 +623,14 @@ class AttachmentsMixin:
                 )
                 if post.seq <= seen or post.agent_id == ctx.agent_id
             ]
+            book = stories.notebook_of_run(session, session.get_one(Run, ctx.run_id))
+            job = (
+                stories.notebook_text(book, session.get_one(Project, book.project_id).pass_env)
+                if book is not None
+                else ""
+            )
             # The Lead was given a short block of the turn before (`board.pushed`): here is all.
-            before = self._notes_before(session, ctx) if ctx.depth == 0 else []
+            before = self._notes_before(session, ctx) if ctx.depth == 0 and book is None else []
             if before:
                 names |= dict(
                     session.execute(
@@ -618,6 +638,8 @@ class AttachmentsMixin:
                     ).all()
                 )
         listed = board.listing(known, len(posts) - len(known))
+        if book is not None:
+            return f"{listed}\n\n{job or stories.EMPTY_NOTEBOOK}"
         return (
             listed
             + "\n\n"

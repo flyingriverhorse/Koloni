@@ -147,7 +147,8 @@ def checked(session: Session, sent: Knowledge, root: str) -> dict:
 
 @router.get("/projects/{project_id}/knowledge", response_model=list[KnowledgeOut])
 def list_knowledge(project_id: str, session: Session = Depends(get_session)):
-    """The project's knowledge and every project's, oldest first."""
+    """The project's knowledge and every project's, oldest first - not the Project notes of
+    0.1.9, which are Memory's since 0.1.10 (`project_notes`)."""
     project = project_of(session, project_id)
     return [
         out(session, row, project.root_path)
@@ -160,6 +161,7 @@ def list_knowledge(project_id: str, session: Session = Depends(get_session)):
             )
             .order_by(ProjectKnowledge.created_at, ProjectKnowledge.id)
         )
+        if not knowledge.is_notes(knows.knowledge_of(row))
     ]
 
 

@@ -28,6 +28,7 @@ from app import (
     koloni,
     ledger,
     models_dev,
+    project_notes,
     proof,
     record,
     stories,
@@ -136,9 +137,9 @@ KEPT_ENGLISH = (
     "`Already failing before:`, `Pre-existing:`, `(pre-existing)`, `(already failing before)`, "
     "`| fixed:`, `| disputed:`, "
     + ", ".join(f"`## {heading}`" for heading in handoff.HEADINGS)
-    + f", `{backlog.NOT_FINISHED}`, `{backlog.NEEDS_PROJECT}`, `{stories.STORY_NOTE}`, `Say:`, "
-    "and the keys of JSON and StructuredOutput; for nothing found or nothing checked write "
-    "exactly `Findings: none` or `Checked: none`"
+    + f", `{backlog.NOT_FINISHED}`, `{backlog.NEEDS_PROJECT}`, `{stories.STORY_NOTE}`, "
+    f"`{stories.TASK_NOTE}`, `Say:`, and the keys of JSON and StructuredOutput; for nothing "
+    "found or nothing checked write exactly `Findings: none` or `Checked: none`"
 )
 # Told to the lead only, while its conversation has it hand code to sub-agents (slice 48):
 # it is not given the tools that write files, and "Do small jobs yourself" is not for those.
@@ -1653,16 +1654,14 @@ class ContextMixin:
             system += "\n\n" + DECIDES_PROMPT
         if others:
             system += "\n\n" + others
-        # A knowledge its role uses as a map - the project's notes, unless the user took them
-        # away (`project_notes.accept`): where its guide is, as a sub-agent's role is told.
+        project_id = session.get_one(Conversation, cid).project_id
+        # A knowledge its role uses as a map: where its guide is, as a sub-agent's role is told.
         if mapped := knows.map_of(
-            session,
-            find_role(session, ctx.role),
-            session.get_one(Conversation, cid).project_id,
-            ctx.root,
-            LOOKUP in has,
+            session, find_role(session, ctx.role), project_id, ctx.root, LOOKUP in has
         ):
             system += "\n\n" + mapped
+        if notes := project_notes.told(session.get(Project, project_id) if project_id else None):
+            system += "\n\n" + notes
         if told := self._map_told(ctx):
             system += "\n\n" + told
         if not (ctx.answering or ctx.discussion or ctx.run_id in self._sides) and (
@@ -1823,7 +1822,8 @@ class ContextMixin:
         """For the lead: of the notebook of the turn before this one, one short block (G7)."""
         cid = ctx.cid
         carried = None
-        if ctx.depth == 0:
+        turn = session.get(Run, ctx.run_id)  # (0.1.10: a job's turn is given its notebook instead)
+        if ctx.depth == 0 and (turn is None or stories.notebook_of_run(session, turn) is None):
             try:
                 before = self._notes_before(session, ctx)
                 carried = board.pushed(

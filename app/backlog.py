@@ -810,8 +810,8 @@ def turn_ended(session: Session, run: Run, status: str) -> list[str]:
             set_flow(task, fix=why)  # (still doing: its fix round comes next)
         else:
             task.status = "review" if status == "completed" else "todo"
-        if task.story_id:
-            stories.turn_notes(session, run, task, last_word(session, run))
+        # (0.1.10: a task of no story keeps its own notebook - `stories.notebook_of`)
+        stories.turn_notes(session, run, task, last_word(session, run))
     if task.away_run_id is not None or not (stopped or limited):
         return [task.id]
     if stopped and held(session):  # (Stop everything: it starts again first, at Resume)
