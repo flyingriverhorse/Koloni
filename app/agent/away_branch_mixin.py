@@ -191,8 +191,9 @@ class AwayBranchMixin:
     ) -> dict[str, str]:
         """W-1: what a job's commit on its branch leaves out for its name alone - a file there named
         as a secret (`workspace.secret_in_branch`: .env.sample, api_keys.json; its deletion goes
-        in), its push going to origin. Nothing in another turn's: a team's branch's pull request
-        asks first (`PR_NAMED_SECRET`)."""
+        in), its push going to origin. Nothing in another turn's: a team's or a story's branch
+        commits them - its merge stays on this machine, its pull request asks first
+        (`workspace.secret_in_push`, `PR_NAMED_SECRET`)."""
         if ctx.run_id not in self._away_jobs:
             return {}
         return {

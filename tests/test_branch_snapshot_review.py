@@ -20,6 +20,7 @@ from app.agent import (
     PR_UNPUSHED,
     AgentRunner,
 )
+from app.workspace import secret_in_branch, secret_in_push
 from tests import test_dal_takim
 from tests.conftest import Gate, scaled
 from tests.test_branch_snapshot import has_object, needs_merge_base, porcelain
@@ -1239,3 +1240,57 @@ def test_an_agents_commit_a_branch_of_yours_holds_too_stays_yours(repo, runtime)
     with pytest.raises(git.Refused, match="agent.txt in it is your work not pushed yet"):
         push_pr(repo, runtime, copy)
     assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "api-key.txt",
+        "api-keys.json",
+        "env.production",
+        ".secrets",
+        ".secrets.toml",
+        ".secrets.yaml",
+        "client_secret_1.apps.googleusercontent.com.json",
+        "serviceAccountKey.json",
+        "service_account.json",
+        "access_token.txt",
+        "secret.txt",
+        "secrets.txt",
+        "token.yml",
+        "SECRETS/db.txt",
+        "secrets/README",
+        "k8s/secrets/db.yaml",
+    ],
+)
+def test_more_names_a_branch_leaves_out(path):
+    # (W-1's re-review, 0.1.10: each went into a branch's snapshot and a job's commit)
+    assert secret_in_branch(path) and secret_in_push(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tokens.py",
+        "tokens.json",
+        "credentials.py",
+        "api-keys.ts",
+        ".env.example",
+        "token_bucket.txt",
+        "secrets/App.vue",
+        "secrets/x.svelte",
+        "secrets/x.css",
+        "secrets/x.html",
+        "secrets/run.sh",
+        "secrets/schema.sql",
+        "credentials/x.c",
+        "credentials/X.kt",
+        "credentials/__init__.pyi",
+        "credentials/py.typed",
+        "secrets/README.md",
+        "docs/secrets/overview.rst",
+    ],
+)
+def test_code_and_docs_named_like_secrets_go_into_a_branch(path):
+    # (...and source and docs in a credentials or secrets folder were left out with them)
+    assert not secret_in_branch(path)

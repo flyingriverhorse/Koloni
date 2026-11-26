@@ -110,15 +110,20 @@ messages.
 - A junction deep inside a new folder is not taken, but git reads through it while the branch is made;
   one that leads to a large folder can make the branch start from your last commit instead.
 - A branch's start from your folder, and a ☾ Away job's commit on its branch, leave a file out by its
-  name alone: a secret's name (`.env`, `.env.local`, a key file, `credentials.json`), a data file
-  named `credentials`, `api_keys` or `token` (`.json`, `.yaml`, `.toml`, `.txt`), a copy of a `.env`
-  but `.env.example` (`.env.sample`, `.env.template`, `.env.local.example`), and what is in a folder
-  named `credentials` or `secrets` but source code and Markdown. Code and Markdown so named go in
-  (`credentials.py`, `api_keys.ts`, `tokens.py`), and so does `tokens.json` (design tokens). A secret
-  under any other name is left out only where it holds one KOLONİ knows. A team's branch commits what
-  its agents wrote under such a name: its merge stays on this machine, and its pull request asks first
-  where a part of the path is a secret's name (`.env.sample`, `credentials/…` - not `secrets/db.txt`).
-  A file left out is never deleted.
+  name alone: a secret's name (`.env`, `.env.local`, `env.production`, a key file, `credentials.json`,
+  `client_secret….json`, `serviceAccountKey.json`, `.secrets`, `secret.txt`, `access_token.txt`), a
+  data file named `credentials`, `api_keys` / `api-key` or `token` (`.json`, `.yaml`, `.toml`,
+  `.txt`), a copy of a `.env` but `.env.example` (`.env.sample`, `.env.template`,
+  `.env.local.example`), and what is in a folder named `credentials` or `secrets` but source code and
+  docs. Code and Markdown so named go in (`credentials.py`, `api-keys.ts`, `tokens.py`), and so does
+  `tokens.json` (design tokens). A team's pull request asks first for every such file. A secret under
+  any other name - `password.txt`, `.vault_pass`, an npm token in `.yarnrc.yml`, a name spelt with a
+  look-alike letter - is left out only where it holds one KOLONİ knows. A file in a folder named like
+  an installed one (`venv`, `node_modules`, `site-packages`) is never judged by its name. In a
+  `credentials` or `secrets` folder a config, data or text file is left out even where it is no
+  secret (`secrets/README`, `k8s/secrets/deployment.yaml`), and so is a test's
+  `tests/fixtures/credentials.json`. A team's or a story's branch commits what its agents wrote under
+  such a name: its merge stays on this machine. A file left out is never deleted.
 
 ## GitHub
 
