@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { BacklogTask, Goal, Story } from '../api/types'
+import type { BacklogTask, Story } from '../api/types'
 import { inFilter, treeOf, type TreeRow } from './tree'
 
 const task = (over: Partial<BacklogTask>): BacklogTask => ({
@@ -35,23 +35,12 @@ const story = (over: Partial<Story>): Story => ({
   ...over,
 })
 
-const goal: Goal = {
-  id: 'g',
-  title: 'Kullanıcı girişi sağlam olsun',
-  position: 0,
-  created_by: 'user',
-  stories_done: 1,
-  stories_all: 2,
-}
-
 const label = (row: TreeRow) =>
-  row.kind === 'goal'
-    ? `goal:${row.goal.title}`
-    : row.kind === 'story'
-      ? `story:${row.story.title}`
-      : row.kind === 'task'
-        ? `task:${row.task.title}`
-        : `section:${row.title}`
+  row.kind === 'story'
+    ? `story:${row.story.title}`
+    : row.kind === 'task'
+      ? `task:${row.task.title}`
+      : `section:${row.title}`
 
 const stories = [
   story({ title: 'Şifre sıfırlama', goal_id: 'g', position: 1, state: 'running' }),
@@ -66,9 +55,8 @@ const tasks = [
   task({ title: 'An agent’s idea', status: 'proposed', position: 6 }),
 ]
 
-test('goals, then their stories, then the stories without a goal, then the tasks without a story', () => {
-  expect(treeOf(tasks, stories, [goal], 'all').map(label)).toEqual([
-    'goal:Kullanıcı girişi sağlam olsun',
+test('the stories in their order - those a goal holds too (0.1.10: no goal level) - then the tasks without a story', () => {
+  expect(treeOf(tasks, stories, 'all').map(label)).toEqual([
     'story:Login düzelt',
     'task:Hatayı bul',
     'task:Test ekle',
@@ -78,17 +66,16 @@ test('goals, then their stories, then the stories without a goal, then the tasks
     'section:Without a story',
     'task:Footer’daki yıl yanlış',
   ])
-  const depths = treeOf(tasks, stories, [goal], 'all').map(row => ('depth' in row ? row.depth : null))
-  expect(depths).toEqual([null, 1, 2, 2, 2, 1, 2, null, 0])
-  // A story of no goal comes after the goals, its tasks one step in; a plain list has no heading.
+  const depths = treeOf(tasks, stories, 'all').map(row => ('depth' in row ? row.depth : null))
+  expect(depths).toEqual([null, 1, 1, 1, null, 1, null, 0])
+  // A story of no goal stands among them by its place, its tasks one step in; a plain list has no heading.
   const alone = treeOf(
     [task({ title: 'a', story_id: 'Solo' }), task({ title: 'b' })],
     [story({ title: 'Solo' })],
-    [],
     'all',
   )
   expect(alone.map(label)).toEqual(['story:Solo', 'task:a', 'section:Without a story', 'task:b'])
-  expect(treeOf([task({ title: 'b' })], [], [], 'all').map(label)).toEqual(['task:b'])
+  expect(treeOf([task({ title: 'b' })], [], 'all').map(label)).toEqual(['task:b'])
 })
 
 test('the filters', () => {
@@ -100,35 +87,27 @@ test('the filters', () => {
   expect(inFilter(task({ status: 'doing' }), 'running')).toBe(true)
   expect(inFilter(task({ status: 'done' }), 'done')).toBe(true)
   expect(inFilter(task({ status: 'done' }), 'todo')).toBe(false)
-  // Under Done: the done tasks, their stories and their goal; a story with none left shows by its own state.
-  expect(treeOf(tasks, stories, [goal], 'done').map(label)).toEqual([
-    'goal:Kullanıcı girişi sağlam olsun',
+  // Under Done: the done tasks and their stories; a story with none left shows by its own state.
+  expect(treeOf(tasks, stories, 'done').map(label)).toEqual([
     'story:Login düzelt',
     'task:Hatayı bul',
     'task:Test ekle',
     'task:Mobilde buton kayık',
   ])
-  expect(treeOf(tasks, stories, [goal], 'running').map(label)).toEqual([
-    'goal:Kullanıcı girişi sağlam olsun',
-    'story:Şifre sıfırlama',
-    'task:E-posta gönderimi',
-  ])
+  expect(treeOf(tasks, stories, 'running').map(label)).toEqual(['story:Şifre sıfırlama', 'task:E-posta gönderimi'])
   // (nothing shown over the tasks of no story: no heading)
-  expect(treeOf(tasks, stories, [goal], 'todo').map(label)).toEqual(['task:Footer’daki yıl yanlış'])
+  expect(treeOf(tasks, stories, 'todo').map(label)).toEqual(['task:Footer’daki yıl yanlış'])
   // A story at done?, its task waiting for your word: under Running, not Done.
   const waits = [task({ title: 'w', story_id: 'Waits', status: 'review' })]
   const asked = [story({ title: 'Waits', state: 'done?' })]
-  expect(treeOf(waits, asked, [], 'running').map(label)).toEqual(['story:Waits', 'task:w'])
-  expect(treeOf(waits, asked, [], 'done')).toEqual([])
+  expect(treeOf(waits, asked, 'running').map(label)).toEqual(['story:Waits', 'task:w'])
+  expect(treeOf(waits, asked, 'done')).toEqual([])
 })
 
 test('a story of the agent with only proposed tasks is not shown', () => {
   const theirs = story({ title: 'Agent’s', created_by: 'agent' })
   const proposed = task({ title: 'idea', story_id: 'Agent’s', status: 'proposed' })
-  expect(treeOf([proposed], [theirs], [], 'all')).toEqual([])
+  expect(treeOf([proposed], [theirs], 'all')).toEqual([])
   // Once one of its tasks is added, it is.
-  expect(treeOf([{ ...proposed, status: 'todo' }], [theirs], [], 'all').map(label)).toEqual([
-    'story:Agent’s',
-    'task:idea',
-  ])
+  expect(treeOf([{ ...proposed, status: 'todo' }], [theirs], 'all').map(label)).toEqual(['story:Agent’s', 'task:idea'])
 })

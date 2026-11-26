@@ -86,7 +86,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Knowledge and memory**: experts learn from docs, a public GitHub repository or a folder on
   this machine (code kept as text, a free symbol map, answers with file:line); notes agents keep
   and you approve. [Knowledge](docs/knowledge.md) · [Memory](docs/memory.md)
-- **Work over time**: a To-do list of goals, stories and their tasks and bugs - a rough note written
+- **Work over time**: a To-do list of stories and their tasks and bugs - a rough note written
   as one by the Hive keeper - ticked tasks done in a chat one by one, at its level and on its model
   (each story in a topic of its own with a short notebook, on a git branch of its own that is checked,
   then merged or sent as a pull request when you close the story), with suggested tasks, and

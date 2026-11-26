@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import type { BacklogTask, Goal, Story } from '../api/types'
+import type { BacklogTask, Story } from '../api/types'
 import { AwayPanel } from '../chat/AwayPanel'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
@@ -9,26 +9,22 @@ import { useApp } from '../state/store'
 import { NotebookButton } from './Notebook'
 import { tickable, type Filter, type TreeRow } from './tree'
 
-/** What the tree changes of a goal or a story; each throws ApiError, and the list is read again after it. */
+/** What the tree changes of a story; each throws ApiError, and the list is read again after it. */
 export interface TreeActions {
-  onGoal: (goalId: string, change: { title?: string }) => Promise<void>
-  onDeleteGoal: (goalId: string) => Promise<void>
-  onStory: (storyId: string, change: { title?: string; goal_id?: string | null; closed?: boolean }) => Promise<void>
+  onStory: (storyId: string, change: { title?: string; closed?: boolean }) => Promise<void>
   onDeleteStory: (storyId: string) => Promise<void>
-  onNewGoal: (title: string) => Promise<Goal>
 }
 
 interface Props extends TreeActions {
   rows: TreeRow[]
   tasks: BacklogTask[]
-  goals: Goal[]
   /** The ticked tasks, and ticking (or not) some at once. */
   selected: Set<string>
   onSelect: (taskIds: string[], on: boolean) => void
   /** The project's chats' titles, by id: where a running story is. */
   chats: Record<string, string>
   /** A task's row, as the list draws it. */
-  taskRow: (task: BacklogTask, depth: 0 | 1 | 2) => ReactNode
+  taskRow: (task: BacklogTask, depth: 0 | 1) => ReactNode
 }
 
 const STATE_WORD: Record<Story['state'], string> = {
@@ -147,10 +143,10 @@ function Deleting({
   )
 }
 
-type Doing = 'rename' | 'goal' | 'delete' | null
+type Doing = 'rename' | 'delete' | null
 type Item = [string, () => void]
 
-/** What a row's ⋯ opened (Rename, Goal, Delete) - and, once that is done or left, the focus back on its ⋯. */
+/** What a row's ⋯ opened (Rename, Delete) - and, once that is done or left, the focus back on its ⋯. */
 function useDoing(menuId: string) {
   const [doing, setDoing] = useState<Doing>(null)
   const [back, setBack] = useState(0)
@@ -170,7 +166,7 @@ const closable = (story: Story, tasks: BacklogTask[]) => {
   return story.state === 'done?' && own.length > 0 && own.every(task => task.status === 'done')
 }
 
-/** A story's ⋯: Rename, Goal, Delete - and, once all its tasks are done, Close the story (done is only ever yours), or Open it again. */
+/** A story's ⋯: Rename, Delete - and, once all its tasks are done, Close the story (done is only ever yours), or Open it again. */
 const storyItems = (
   story: Story,
   canClose: boolean,
@@ -178,149 +174,22 @@ const storyItems = (
   close: (closed: boolean) => void,
 ): Item[] => [
   ['Rename', () => set('rename')],
-  ['Goal', () => set('goal')],
   ...(canClose ? [['Close the story', () => close(true)] as Item] : []),
   ...(story.state === 'done' ? [['Open it again', () => close(false)] as Item] : []),
   ['Delete', () => set('delete')],
 ]
 
-/** A goal: its title, how many of its stories are done, and a bar of it. */
-function GoalRow({ row, actions }: { row: Extract<TreeRow, { kind: 'goal' }>; actions: TreeActions }) {
-  const { busy, error, ask } = useAsk()
-  const { goal, done, all } = row
-  const id = `goal-${goal.id}`
-  const { doing, setDoing, done: back } = useDoing(`${id}-more`)
-  return (
-    <li className="todo-goal" aria-labelledby={`${id}-title`}>
-      <div className="backlog-row">
-        <span className="kicker">Goal</span>
-        {doing === 'rename' ? (
-          <Rename
-            id={`${id}-name`}
-            title={goal.title}
-            onSave={title => void ask(() => actions.onGoal(goal.id, { title })).then(ok => ok && back())}
-            onCancel={back}
-          />
-        ) : (
-          <strong id={`${id}-title`} className="backlog-row-text">
-            {goal.title}
-          </strong>
-        )}
-        <span className="muted">{`${done} / ${all} stories`}</span>
-        <span
-          className="todo-progress"
-          role="progressbar"
-          aria-label={`${goal.title}: stories done`}
-          aria-valuemin={0}
-          aria-valuemax={all}
-          aria-valuenow={done}
-        >
-          <span style={{ width: `${all ? (100 * done) / all : 0}%` }} />
-        </span>
-        {doing === 'delete' ? (
-          <Deleting
-            title={goal.title}
-            busy={busy}
-            onDelete={() => void ask(() => actions.onDeleteGoal(goal.id))}
-            onKeep={back}
-          />
-        ) : (
-          <RowMenu
-            id={`${id}-more`}
-            name={goal.title}
-            items={[
-              ['Rename', () => setDoing('rename')],
-              ['Delete', () => setDoing('delete')],
-            ]}
-          />
-        )}
-      </div>
-      {error && (
-        <div role="alert" className="alert">
-          {error}
-        </div>
-      )}
-    </li>
-  )
-}
-
-/** A story's goal chosen: none, one of the project's, or a new one named here. */
-function GoalChoice({
-  id,
-  story,
-  goals,
-  actions,
-  onDone,
-}: {
-  id: string
-  story: Story
-  goals: Goal[]
-  actions: TreeActions
-  onDone: () => void
-}) {
-  const { busy, error, ask } = useAsk()
-  const [naming, setNaming] = useState(false)
-  const set = (goalId: string | null) =>
-    void ask(() => actions.onStory(story.id, { goal_id: goalId })).then(ok => ok && onDone())
-  return (
-    <div className="todo-rename">
-      {naming ? (
-        <Rename
-          id={`${id}-new-goal`}
-          title=""
-          onSave={title =>
-            void ask(async () => {
-              const goal = await actions.onNewGoal(title)
-              await actions.onStory(story.id, { goal_id: goal.id })
-            }).then(ok => ok && onDone())
-          }
-          onCancel={onDone}
-        />
-      ) : (
-        <>
-          <label className="visually-hidden" htmlFor={`${id}-goal`}>{`Goal of ${story.title}`}</label>
-          <select
-            id={`${id}-goal`}
-            className="input"
-            autoFocus
-            disabled={busy}
-            value={story.goal_id ?? ''}
-            onChange={e => (e.target.value === NEW ? setNaming(true) : set(e.target.value || null))}
-            onKeyDown={e => e.key === 'Escape' && onDone()}
-          >
-            <option value="">No goal</option>
-            {goals.map(goal => (
-              <option key={goal.id} value={goal.id}>
-                {goal.title}
-              </option>
-            ))}
-            <option value={NEW}>New goal…</option>
-          </select>
-        </>
-      )}
-      {error && (
-        <div role="alert" className="alert">
-          {error}
-        </div>
-      )}
-    </div>
-  )
-}
-
-const NEW = '__new__'
-
 interface StoryProps {
   row: Extract<TreeRow, { kind: 'story' }>
   tasks: BacklogTask[]
-  goals: Goal[]
   selected: Set<string>
   onSelect: Props['onSelect']
   chats: Props['chats']
   actions: TreeActions
 }
 
-/** A story: a tick for its open tasks, its state, its notebook, the chat it runs in, and ⋯ (Rename, Goal, Delete). */
-function StoryRow({ row, tasks, goals, selected, onSelect, chats, actions }: StoryProps) {
+/** A story: a tick for its open tasks, its state, its notebook, the chat it runs in, and ⋯ (Rename, Delete). */
+function StoryRow({ row, tasks, selected, onSelect, chats, actions }: StoryProps) {
   const { busy, error, ask } = useAsk()
   const { story } = row
   const id = `story-${story.id}`
@@ -330,7 +199,7 @@ function StoryRow({ row, tasks, goals, selected, onSelect, chats, actions }: Sto
   const at = tasks.find(task => task.story_id === story.id && task.status === 'doing' && task.conversation_id)
   const chat = story.state === 'running' && at?.conversation_id ? chats[at.conversation_id] : undefined
   return (
-    <li className={`todo-story todo-depth-${row.depth}`} aria-labelledby={`${id}-title`}>
+    <li className="todo-story" aria-labelledby={`${id}-title`}>
       <div className="backlog-row">
         <input
           type="checkbox"
@@ -375,7 +244,6 @@ function StoryRow({ row, tasks, goals, selected, onSelect, chats, actions }: Sto
           />
         )}
       </div>
-      {doing === 'goal' && <GoalChoice id={id} story={story} goals={goals} actions={actions} onDone={back} />}
       {error && (
         <div role="alert" className="alert">
           {error}
@@ -385,19 +253,16 @@ function StoryRow({ row, tasks, goals, selected, onSelect, chats, actions }: Sto
   )
 }
 
-/** The To-do list as a tree (0.1.8): goals, their stories, tasks and bugs, and the tasks of no story under their heading. */
-export function TodoTree({ rows, tasks, goals, selected, onSelect, chats, taskRow, ...actions }: Props) {
+/** The To-do list as a tree (0.1.8): stories, their tasks and bugs, and the tasks of no story under their heading. */
+export function TodoTree({ rows, tasks, selected, onSelect, chats, taskRow, ...actions }: Props) {
   return (
     <ol className="backlog-rows todo-tree" aria-label="Tasks">
       {rows.map(row =>
-        row.kind === 'goal' ? (
-          <GoalRow key={`g-${row.goal.id}`} row={row} actions={actions} />
-        ) : row.kind === 'story' ? (
+        row.kind === 'story' ? (
           <StoryRow
             key={`s-${row.story.id}`}
             row={row}
             tasks={tasks}
-            goals={goals}
             selected={selected}
             onSelect={onSelect}
             chats={chats}
@@ -488,8 +353,7 @@ export function TodoBar({
         ))}
       </div>
       <Hint doc={GUIDE.todoStories}>
-        A goal holds stories; a story holds the tasks and bugs that go on together. A story is done only when you close
-        it.
+        A story holds the tasks and bugs that go on together. A story is done only when you close it.
       </Hint>
       <button type="button" className="btn btn-small" onClick={focusAdd}>
         + Task

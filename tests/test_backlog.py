@@ -323,8 +323,8 @@ def test_a_task_whose_turn_waits_for_the_user_is_at_work_while_another_agent_of_
 
 def test_add_task_puts_a_proposal_in_a_story_named_by_its_title(client, project_dir):
     """0.1.8: an agent's add_task names a story by its title - an open one of the project, whatever
-    its case, or a new one of its own (with a goal, new or of that name); turned down, the story it
-    opened goes, and so does its goal once it holds no story."""
+    its case, or a new one of its own - under no goal since 0.1.10, whatever goal an older prompt
+    names (the goal level is hidden); turned down, the story it opened goes."""
     pid, _ = setup(client, project_dir)
     said = agent(
         client, pid, "add_task", title="Mobile button", story="Login", goal="Auth", kind="bug"
@@ -337,9 +337,8 @@ def test_add_task_puts_a_proposal_in_a_story_named_by_its_title(client, project_
     }  # (an agent's story holding only proposals: not shown)
     with client.app.state.session_factory() as session:
         (story,) = session.query(models.Story).all()
-        (goal,) = session.query(models.Goal).all()
-        assert (story.title, story.created_by, story.goal_id) == ("Login", "agent", goal.id)
-        assert (goal.title, goal.created_by) == ("Auth", "agent")
+        assert (story.title, story.created_by, story.goal_id) == ("Login", "agent", None)
+        assert session.query(models.Goal).count() == 0
     agent(client, pid, "add_task", title="Check the form", story="login")
     tasks = client.get(f"/api/projects/{pid}/backlog").json()
     assert {(t["title"], t["status"], t["kind"]) for t in tasks} == {
@@ -372,21 +371,20 @@ def test_add_task_puts_a_proposal_in_a_story_named_by_its_title(client, project_
 
 
 def test_an_approved_proposal_makes_its_story_the_users_and_its_row_names_it(client, project_dir):
-    """Review M2 / M3: a proposal's row says its story and goal, and that an agent opened them;
-    added, both are the user's - kept though its tasks go. A proposal moved out of a story an
-    agent opened for it leaves no empty story behind."""
+    """Review M2 / M3: a proposal's row says its story, and that an agent opened it; added, it is
+    the user's - kept though its tasks go. A proposal moved out of a story an agent opened for it
+    leaves no empty story behind."""
     pid, _ = setup(client, project_dir)
-    agent(client, pid, "add_task", title="Mobile button", story="Login", goal="Auth", kind="bug")
+    agent(client, pid, "add_task", title="Mobile button", story="Login", kind="bug")
     (task,) = client.get(f"/api/projects/{pid}/backlog").json()
     said = (task["story_title"], task["story_by"], task["goal_title"], task["goal_by"])
-    assert said == ("Login", "agent", "Auth", "agent")
+    assert said == ("Login", "agent", None, None)
     client.post(f"/api/backlog/{task['id']}/decide", json={"decision": "approve"})
     (task,) = client.get(f"/api/projects/{pid}/backlog").json()
-    assert (task["status"], task["story_by"], task["goal_by"]) == ("todo", "user", "user")
+    assert (task["status"], task["story_by"]) == ("todo", "user")
     assert client.delete(f"/api/backlog/{task['id']}").status_code == 204
     tree = client.get(f"/api/projects/{pid}/stories").json()
     assert [s["title"] for s in tree["stories"]] == ["Login"]
-    assert [g["title"] for g in tree["goals"]] == ["Auth"]
     agent(client, pid, "add_task", title="Elsewhere", story="Fresh")
     (moved,) = client.get(f"/api/projects/{pid}/backlog").json()
     assert client.patch(f"/api/backlog/{moved['id']}", json={"story_id": None}).status_code == 200

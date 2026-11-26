@@ -25,8 +25,8 @@ test.afterEach(async ({ page }) => {
     expect((await page.request.delete(`/api/goals/${goal.id}`, { headers: OWN })).ok()).toBe(true)
 })
 
-/** 0.1.8: a goal over a stuck story with a note and a bug, made through the Hive keeper's way in - its rows read at 4.5
- *  too. */
+/** 0.1.8: a stuck story with a note and a bug, made through the Hive keeper's way in - its rows read at 4.5 too. Its
+ *  goal, made by the API as before 0.1.10, is not shown: the story stands at the top. */
 async function storyRows(page: Page, theme: string) {
   const pid = await e2eProject(page)
   const tree = {
@@ -48,8 +48,7 @@ async function storyRows(page: Page, theme: string) {
   )
   const tasks = page.getByRole('list', { name: 'Tasks' })
   await expect(tasks.getByRole('listitem', { name: `A stuck story (${theme})` })).toContainText('⚠ stuck')
-  await expect(tasks.getByRole('listitem', { name: `A goal to read (${theme})` })).toContainText('0 / 1 stories')
-  await reads(tasks.getByRole('listitem', { name: `A goal to read (${theme})` }), 3)
+  await expect(tasks.getByRole('listitem', { name: `A goal to read (${theme})` })).toHaveCount(0)
   await reads(tasks.getByRole('listitem', { name: `A stuck story (${theme})` }), 4)
   await reads(tasks.getByRole('listitem', { name: `A stuck bug (${theme})` }), 3)
 }

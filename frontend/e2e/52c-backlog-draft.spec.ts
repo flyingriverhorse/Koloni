@@ -1,6 +1,7 @@
 // The To-do page's "Write it with the Hive keeper" (6 Nov; 0.1.8 as a tree): a rough note typed in its box, written by the
-// scripted model as a goal, its stories and their tasks - shown to change, each story added only by the user's word, under
-// the goal; and "Plan it in a chat", which opens a chat in the project whose first message asks for the Hive keeper.
+// scripted model as stories and their tasks - shown to change, each story added only by the user's word (a goal the model
+// names is not taken: 0.1.10); and "Plan it in a chat", which opens a chat in the project whose first message asks for
+// the Hive keeper.
 import { expect, test } from './fixtures'
 import { OWN, e2eProject, openFreshConversation, rail } from './helpers'
 
@@ -25,9 +26,7 @@ test.afterEach(async ({ page }) => {
     expect((await page.request.delete(`/api/goals/${goal.id}`, { headers: OWN })).ok()).toBe(true)
 })
 
-test('a rough note is written as a goal, stories and tasks, added by your word; or planned in a chat', async ({
-  page,
-}) => {
+test('a rough note is written as stories and tasks, added by your word; or planned in a chat', async ({ page }) => {
   await openFreshConversation(page)
   await rail(page, 'To-do').click()
   await page
@@ -40,7 +39,7 @@ test('a rough note is written as a goal, stories and tasks, added by your word; 
   await expect(box.locator('#draft-who')).toContainText('writes them: one request')
   await box.getByRole('button', { name: 'Write it', exact: true }).click()
   const drafts = page.getByRole('region', { name: 'Drafted tasks' })
-  await expect(drafts.getByLabel('Goal')).toHaveValue(GOAL)
+  await expect(drafts.getByLabel('Goal')).toHaveCount(0)
   const login = drafts.getByRole('group', { name: 'Story 1' })
   await expect(login.getByLabel('Story')).toHaveValue(STORY)
   await expect(login).toContainText('The form is shared with the desktop page.')
@@ -61,9 +60,9 @@ test('a rough note is written as a goal, stories and tasks, added by your word; 
   await expect(box.getByLabel('Your note')).toHaveValue(NOTE)
   await first.getByLabel('Title').fill(ADDED)
   await login.getByRole('button', { name: 'Add', exact: true }).click()
-  // In the tree: the goal, its story, the task - a bug, as the Hive keeper wrote it.
-  await expect(tasks.getByRole('listitem', { name: GOAL })).toContainText('0 / 1 stories')
+  // In the tree: the story at the top - no goal over it - and the task, a bug, as the Hive keeper wrote it.
   await expect(tasks.getByRole('listitem', { name: STORY })).toBeVisible()
+  await expect(tasks.getByRole('listitem', { name: GOAL })).toHaveCount(0)
   await expect(tasks.getByRole('listitem', { name: ADDED })).toContainText('bug')
   // The other story left out, a task at a time: the draft is gone.
   await drafts.getByRole('button', { name: 'Remove draft 1' }).click()

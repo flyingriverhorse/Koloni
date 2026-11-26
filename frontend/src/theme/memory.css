@@ -485,11 +485,6 @@ a.btn {
   color: var(--accent);
 }
 
-.todo-goal {
-  box-shadow: inset 3px 0 0 var(--accent-fill);
-}
-
-.todo-goal .backlog-row-text,
 .todo-story .backlog-row-text {
   overflow-wrap: anywhere;
 }
@@ -498,27 +493,8 @@ a.btn {
   padding-left: 32px;
 }
 
-.todo-depth-2 > .backlog-row {
-  padding-left: 52px;
-}
-
 .todo-section {
   padding: 8px 12px 4px;
-}
-
-.todo-progress {
-  display: inline-block;
-  width: 64px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--border);
-  overflow: hidden;
-}
-
-.todo-progress > span {
-  display: block;
-  height: 100%;
-  background: var(--accent-fill);
 }
 
 .todo-rename {

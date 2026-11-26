@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { BacklogTask, Goal, Story } from '../api/types'
+import type { BacklogTask, Story } from '../api/types'
 
 /** The To-do page's filters (0.1.8): every task, those to do, those at work, those done. */
 export type Filter = 'all' | 'todo' | 'running' | 'done'
@@ -12,11 +12,10 @@ export function inFilter(task: BacklogTask, filter: Filter): boolean {
   return true
 }
 
-/** One row of the To-do tree: a goal with its stories done of all, a story, a task or bug, or the heading of the tasks of no story. */
+/** One row of the To-do tree: a story, a task or bug, or the heading of the tasks of no story. */
 export type TreeRow =
-  | { kind: 'goal'; goal: Goal; done: number; all: number }
-  | { kind: 'story'; story: Story; depth: 0 | 1 }
-  | { kind: 'task'; task: BacklogTask; depth: 0 | 1 | 2 }
+  | { kind: 'story'; story: Story }
+  | { kind: 'task'; task: BacklogTask; depth: 0 | 1 }
   | { kind: 'section'; title: 'Without a story' }
 
 const RANK: Record<BacklogTask['priority'], number> = { high: 0, normal: 1, low: 2 }
@@ -34,38 +33,23 @@ const storyIn = (state: Story['state'], filter: Filter) =>
   (filter === 'done' && state === 'done')
 
 /**
- * The To-do list as a tree: the goals in their order, each with its stories and their tasks (priority, then place);
- * the stories of no goal after them; last "Without a story" and the tasks of no story. Proposals are not in it (they
- * wait for your word above), nor a story an agent opened that holds only proposals; under a filter, a story with no
- * task left is shown only where its own state is under it, a goal only with a story shown.
+ * The To-do list as a tree: the stories in their order, each with its tasks (priority, then place); last "Without a
+ * story" and the tasks of no story. Proposals are not in it (they wait for your word above), nor a story an agent
+ * opened that holds only proposals; under a filter, a story with no task left is shown only where its own state is
+ * under it. 0.1.10: no goal level - a story a goal holds (made before) stands at the top like any other.
  */
-export function treeOf(tasks: BacklogTask[], stories: Story[], goals: Goal[], filter: Filter): TreeRow[] {
+export function treeOf(tasks: BacklogTask[], stories: Story[], filter: Filter): TreeRow[] {
   const listed = tasks.filter(task => task.status !== 'proposed')
   const shown = stories.filter(story => story.created_by !== 'agent' || listed.some(t => t.story_id === story.id))
   const ids = new Set(shown.map(story => story.id))
   // (A task of a story not shown - gone since the list was read - stands with those of no story.)
   const of = (story: string | null) =>
     inOrder(listed.filter(task => (task.story_id && ids.has(task.story_id) ? task.story_id : null) === story))
-  const storyRows = (story: Story, depth: 0 | 1): TreeRow[] => {
+  const rows = byPosition(shown).flatMap((story): TreeRow[] => {
     const own = of(story.id).filter(task => inFilter(task, filter))
     if (!own.length && !storyIn(story.state, filter)) return []
-    return [
-      { kind: 'story', story, depth },
-      ...own.map(task => ({ kind: 'task' as const, task, depth: (depth + 1) as 1 | 2 })),
-    ]
-  }
-  const rows: TreeRow[] = []
-  for (const goal of byPosition(goals)) {
-    const under = byPosition(shown.filter(story => story.goal_id === goal.id)).flatMap(story => storyRows(story, 1))
-    if (under.length || filter === 'all')
-      rows.push({ kind: 'goal', goal, done: goal.stories_done, all: goal.stories_all }, ...under)
-  }
-  const known = new Set(goals.map(goal => goal.id))
-  rows.push(
-    ...byPosition(shown.filter(story => !story.goal_id || !known.has(story.goal_id))).flatMap(story =>
-      storyRows(story, 0),
-    ),
-  )
+    return [{ kind: 'story', story }, ...own.map(task => ({ kind: 'task' as const, task, depth: 1 as const }))]
+  })
   const loose = of(null).filter(task => inFilter(task, filter))
   // (A list with nothing shown over them is a plain list: no heading.)
   if (loose.length && rows.length) rows.push({ kind: 'section', title: 'Without a story' })
@@ -82,13 +66,12 @@ export const tickable = (task: BacklogTask) => (task.status === 'todo' || task.s
 export function useTreeView(
   listed: BacklogTask[],
   stories: Story[] | null | undefined,
-  goals: Goal[] | null | undefined,
   onNewStory: (title: string) => Promise<Story>,
 ) {
   const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const own = { stories: stories ?? [], goals: goals ?? [] }
-  const rows = treeOf(listed, own.stories, own.goals, filter)
+  const own = { stories: stories ?? [] }
+  const rows = treeOf(listed, own.stories, filter)
   const select = (ids: string[], on: boolean) =>
     setSelected(now => new Set(on ? [...now, ...ids] : [...now].filter(one => !ids.includes(one))))
   const shown = rows.flatMap(row => (row.kind === 'task' ? [row.task] : []))
@@ -105,7 +88,7 @@ export function useTreeView(
     selected,
     select,
     beside,
-    // (Nothing at all yet - no task, story or goal: the page says how to start.)
+    // (Nothing at all yet - no task or story: the page says how to start.)
     empty: filter === 'all' && rows.length === 0,
     choice: { stories: own.stories, onNewStory: async (title: string) => (await onNewStory(title)).id },
   }

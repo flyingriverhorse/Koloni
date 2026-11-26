@@ -24,6 +24,7 @@ How to write an entry (every release looks the same):
 ### Changed
 
 - **Settings**: Checked's **Pages** (a changed page in KOLONİ's browser at three widths) and **A test for the change** (the Orchestrator asked for a test where code changed and no test did) are off unless you tick them in Settings › This project › Checks and git › **Check by kind of work**; **A test for the change** is a new box there, and ticked it asks under Tests only too. A project that never changed Pages has it off from now on, and a turn that wrote a page says “Not checked: pages switched off for this project”; one where you ticked it on keeps it. Unticked, a turn that changed code and no test says “Not checked: a test for the change switched off for this project”. The tests and code style stay on ([docs](docs/use/checked.md#a-test-for-the-change)).
+- **To-do**: the goal level over stories is hidden. **Your tasks** shows the stories at the top - a story a goal held stands there like any other - with no goal row, no "1 / 2 stories" bar and no **Goal** in a story's **⋯**; **Write it with the Hive keeper** writes a rough note as stories and tasks only, an agent's `add_task` takes no goal, and a proposal's card no longer names one. Nothing is deleted: the goals you made stay in the database ([docs](docs/automation/todo.md#goals-and-stories)).
 
 ### Removed
 

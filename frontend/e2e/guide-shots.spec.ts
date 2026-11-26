@@ -204,7 +204,6 @@ test('the To-do tree', async ({ page }) => {
   await openFreshConversation(page)
   const pid = await e2eProject(page)
   const tree = {
-    goal: 'Sign-in holds on every screen',
     stories: [
       {
         title: 'Login works on mobile',
@@ -238,7 +237,7 @@ test('the To-do tree', async ({ page }) => {
     await rail(page, 'To-do').click()
     const list = page.getByRole('list', { name: 'Tasks' })
     await expect(list.getByRole('listitem', { name: 'Password reset' })).toContainText('● running')
-    await expect(list.getByRole('listitem', { name: tree.goal })).toContainText('1 / 2 stories')
+    await expect(list.getByRole('listitem', { name: 'Login works on mobile' })).toContainText('✓ done')
     // (0.1.8: two ticked - the dock under the tree says what Do in chat does.)
     for (const name of ['Rate-limit the reset form', 'The footer shows last year'])
       await list.getByRole('listitem', { name }).getByRole('checkbox').first().check()
