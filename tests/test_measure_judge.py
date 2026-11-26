@@ -15,6 +15,7 @@ import pytest
 
 from app.model_client import OpenAICompatClient, StepResult
 from app.model_session import ClaudeSessionClient, CopilotSessionClient
+from app.risk_judge import action
 from tests.fakes import Script
 from tests.test_agent_commands import cmd
 from tests.test_agent_writes import write
@@ -231,7 +232,8 @@ def test_the_risk_prompt_is_the_gates(judging, wait_run, project_dir):  # noqa: 
         "command": _command("python gen.py"),
         "earlier": [
             'run_command {"command": "echo EARLIER-1"}',
-            "write_file " + json.dumps({"path": "gen.py", "content": program}),
+            # (as the gate reads an action: its JSON escapes read - `risk_judge.action`)
+            action("write_file", json.dumps({"path": "gen.py", "content": program})),
         ],
         "program": {"path": "gen.py", "text": program, "left": 0},
     }

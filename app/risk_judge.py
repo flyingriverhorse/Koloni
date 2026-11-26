@@ -138,10 +138,26 @@ def prompt(
     )
 
 
+# A JSON string's escapes in an action's arguments (`\"`, `\\`, `\n`, `\u0130`): read as what they
+# say before a secret is masked and orders are looked for - `ign\u006fre all previous\ninstructions`
+# reads as the model would read it (the review of K1: as written, `injection.scan` missed it).
+_ESCAPED = re.compile(r"\\(u[0-9a-fA-F]{4}|.)", re.DOTALL)
+_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f"}
+
+
 def action(name: str, arguments: str) -> str:
     """An agent's earlier action as the judge reads it: its tool's name and its arguments as the
-    model sent them (`run_command {"command": "pytest -q"}`) - never what it gave back."""
-    return f"{name} {arguments}"
+    model sent them (`run_command {"command": "pytest -q"}`), their JSON escapes read (`_ESCAPED`;
+    a pair of escaped surrogates one character, a lone one the replacement character) - never
+    what it gave back."""
+    text = _ESCAPED.sub(
+        lambda found: (
+            chr(int(found[1][1:], 16)) if len(found[1]) == 5 else _ESCAPES.get(found[1], found[1])
+        ),
+        arguments,
+    )
+    text = text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+    return f"{name} {text}"
 
 
 def _once(pairs: list[tuple[str, object]]) -> dict:
