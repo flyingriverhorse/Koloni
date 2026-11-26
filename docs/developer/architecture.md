@@ -76,7 +76,7 @@ a turn has agents, and an agent has messages, tool calls, file changes, commands
 Memory, knowledge and to-do tasks belong to a project; providers, roles, teams and recipes are
 the same for every project. Working copies are folders, not rows.
 
-[![The data model: project, chat, turn, agent, message, tool call, file change, command and merge; rooms and discussions; memory, knowledge and to-do tasks; providers, roles, teams and recipes](../diagrams/data-model.svg)](../diagrams/data-model.svg)
+[![The data model: project, chat, turn, agent, message, tool call, file change, command and merge; rooms and discussions; memory, knowledge, to-do tasks and the nights while you're away; providers, roles, teams and recipes](../diagrams/data-model.svg)](../diagrams/data-model.svg)
 
 *The main tables, their keys and how they link. ([full size](../diagrams/data-model.svg))*
 

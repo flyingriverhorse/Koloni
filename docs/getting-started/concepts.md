@@ -3,7 +3,7 @@
 KOLONİ's words, each in two or three sentences, with a link to the page that goes deeper. The map shows
 how they hang together.
 
-[![Concept map: project, chat, turn, Orchestrator, sub-agent, role, team, recipe, room, discussion, memory, knowledge, To-do (goal, story, task or bug: ticked tasks run in a chat's queue) and card](../diagrams/concept-map.svg)](../diagrams/concept-map.svg)
+[![Concept map: project, chat, turn, Orchestrator, sub-agent, role, team, recipe, room, discussion, memory, knowledge, To-do (goal, story, task or bug: ticked tasks run in a chat's queue), ☾ Away and card](../diagrams/concept-map.svg)](../diagrams/concept-map.svg)
 
 *KOLONİ's words and how they hang together.*
 

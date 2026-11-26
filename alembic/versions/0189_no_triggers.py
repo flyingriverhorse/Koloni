@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0189"
-# (Written on the k-tetik-sil branch on 0187, with 0188 another branch's: re-chain at its merge.)
+# (Written on the k-tetik-sil branch on 0187, 0.1.9's head; 0188 was reverted and is no revision.)
 down_revision = "0187"
 branch_labels = None
 depends_on = None
