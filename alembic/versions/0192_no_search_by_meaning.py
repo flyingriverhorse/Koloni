@@ -5,15 +5,15 @@ Going back, the table and the two columns come back empty: no provider chosen (w
 alone), the default model name.
 
 Revision ID: 0192
-Revises: 0187
+Revises: 0191
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "0192"
-# (Written on the k-kes-anlam branch on 0187: re-chained after main's newest at its merge.)
-down_revision = "0187"
+# (Written on the k-kes-anlam branch on 0187; chained after 0191 when it went into 0.1.10.)
+down_revision = "0191"
 branch_labels = None
 depends_on = None
 

@@ -12,7 +12,7 @@ from tests.test_migration_0177 import AT, columns
 def test_the_vectors_and_the_choice_go_and_come_back_empty(tmp_path):
     db = tmp_path / "old.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0187")
+    command.upgrade(cfg, "0191")
     with sqlite3.connect(db) as conn:
         conn.execute(
             "INSERT INTO projects (id, name, root_path, created_at, memory_links, "
@@ -33,7 +33,7 @@ def test_the_vectors_and_the_choice_go_and_come_back_empty(tmp_path):
         ).fetchone()
         assert conn.execute("SELECT id, memory_links FROM projects").fetchall() == [("p", '["q"]')]
 
-    command.downgrade(cfg, "0187")
+    command.downgrade(cfg, "0191")
     with sqlite3.connect(db) as conn:
         assert conn.execute(
             "SELECT embedding_provider_id, embedding_model FROM projects"
