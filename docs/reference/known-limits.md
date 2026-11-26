@@ -148,9 +148,13 @@ messages.
 - [Full auto's judge](../use/permissions.md#full-autos-judge) is a net, not a wall:
     - It is a model's decision: it can call a risky command fine, and then the command runs, as it did
       at Full auto before the judge.
-    - Text aimed at the judge inside a command or a program an agent wrote can still sway the model:
-      the judge is told it is an agent's data, and a few known phrases make a card without asking,
-      but other wordings reach it.
+    - Text aimed at the judge inside a command, an agent's earlier action (a file it wrote, the
+      arguments of a tool it called) or a program an agent wrote can still sway the model: the judge
+      is told it is an agent's data, and a few known phrases make a card without asking, but other
+      wordings reach it. What a tool gave back - a file read, a command's output, a page - never
+      reaches it; but an agent can copy such text into what it writes.
+    - It reads the same agent's last 8 actions, each cut to 300 characters: an earlier one, or what an
+      action held past its first 300 characters, is not seen.
     - Hidden work may not be seen: a tool an agent changed but did not write, a program past its first
       4 KB, a program that imports another file.
     - Test runners and build tools load the project's test and settings code by design - a
@@ -167,15 +171,28 @@ messages.
       working copy (or with `PYTHONPATH` set), a runner KOLONİ does not know, a file it did not find, a
       folder it does not know - is asked about every time, and its card has no box: it fails closed, at
       the cost of more questions.
-    - A command the judge could not look at - too long, orders in it, no room to ask, no answer in time
-      or none it could read, its program changed while it looked - is never kept: a Run on its card
-      runs it once, and its card has no box.
+    - A command the judge could not look at - too long, orders in it, no model to ask or no room to ask,
+      no answer in time or none it could read, its program changed while it looked - is never kept: a
+      Run on its card runs it once, and its card has no box. With no model to ask at all, every command
+      it would look at is such a card (it fails closed): pick a Judge model, or turn the judge off.
     - What a kept program imports in turn is not looked at - not even a file in its folder that shadows
       a standard module (a `json.py` beside `x.py`): a changed import does not make `python x.py`
       another line.
     - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
     - Each command it looks at waits for one model request and a few seconds; where only a CLI can be
       asked, from that CLI's quota, and each such command waits for the CLI to start.
+    - A narrow **Always run** rule (`npm run build`, `make build`) lets its very line by with no
+      judge, at the project's root, as Claude Code's auto mode does: what that script, target or
+      tool then runs - a `package.json` script or a Makefile recipe you wrote, a script that recipe
+      calls, a tool's settings - is not looked at (a Makefile, a `package.json` or a script it is
+      handed that an agent wrote is). A broad rule (`npm`, `make`, `python`, `pytest -x`, `npm
+      install`, `docker run`, `git remote`) does not; a sub-command KOLONİ does not list as taking
+      whatever it is handed counts as narrow.
+    - A file an agent made with a command - `cp`, `tar`, `git clone`, a download - is not on record
+      as the agent's: a narrow rule whose line runs it, or the user's own test command, lets it by
+      with no judge, and the judge is not shown its text.
+    - Three refusals in a row ask you; any command of the turn that starts ends a row - an agent
+      that runs something harmless between refusals is asked only at 20 refusals in the turn.
     - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
       git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
       asked about.

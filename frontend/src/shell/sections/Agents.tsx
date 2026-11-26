@@ -45,14 +45,14 @@ const WORDS_WHY =
 const JUDGE_SHOWN =
   'A small model looks at each command the list does not stop. One request of your Judge model (Settings › The app › Agents) for each such command, on your plan or your bill.'
 const JUDGE_REST =
-  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky is refused, or waits for you on a card, as you choose below. Reads, ordinary work (tests, compilers and checkers, local git), and your own test command (unless it runs a program an agent wrote) are not asked about. One it cannot get an answer for waits for you on a card, whichever you choose; only where there is no model to ask does it stand aside for the turn, and it says so in the chat. Off: Full auto as before.'
+  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky is refused, or waits for you on a card, as you choose below. Reads, ordinary work (tests, compilers and checkers, local git), and your own test command (unless it runs a program an agent wrote) are not asked about. One it cannot get an answer for - no model to ask among them - waits for you on a card, whichever you choose, and the chat says why. Off: Full auto as before.'
 /** What the judge does with a command it finds risky (25 Nov): refused, as Claude Code's auto mode does, or a card. */
 const JUDGE_RISKY: [value: Project['judge_risky'], label: string][] = [
   ['refuse', 'Refuse and go on'],
   ['ask', 'Ask me'],
 ]
 const RISKY_WHY =
-  'Refuse and go on: the command does not run - its agent is told a general reason (never the judge’s sentence, which may quote your messages) and goes on another way, with no card and nothing waiting; the command’s row and Decided for you show you the sentence. After 3 refusals in a turn the next risky one waits for you on a card. Ask me: it waits for you on a card, “KOLONİ’s judge: …”. In a job while you’re away it is always parked for you, and a card the judge could not answer for (no answer in time, none it could read, no room to ask) waits at either.'
+  'Refuse and go on: the command does not run - its agent is told a general reason (never the judge’s sentence, which may quote your messages) and goes on another way, with no card and nothing waiting; the command’s row and Decided for you show you the sentence. After 3 refusals in a row (a command that ran ends a row) or 20 in a turn, each risky one waits for you on a card for the rest of the turn. Ask me: it waits for you on a card, “KOLONİ’s judge: …”. In a job while you’re away it is always parked for you, and a card the judge could not answer for (no answer in time, none it could read, no room to ask) waits at either.'
 
 /** The Scout at a turn's end (6 Nov): who it is and what it costs, in sight; the rest behind ⓘ. */
 const SUGGEST_SHOWN =

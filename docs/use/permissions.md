@@ -391,23 +391,31 @@ It is not asked about:
 - your own test command (the project map's) - but it is, where the line runs a program an agent wrote -,
   a skill's script you let run, and a delete KOLONİ found disposable where you allowed [such
   deletes](#disposable-deletes);
+- the very line of a narrow **Always run** rule of the chat, run at the project's root in a chat you
+  watch - not a broad rule's (see **Always run rules at Full auto** below), and not where it runs a
+  program an agent wrote;
 - a command KOLONİ already asks about for a reason of its own - the list, a secret, `.koloni`, a file that
   steers agents, a working copy's reason: that card stays as it was (a delete or a send the list stops is
   put to [your words](#check-what-i-said-first) instead, where that box works). The judge never runs a
   command that asks, and never takes such a card away: only its own **risky** may be refused.
 
-**What it reads:** your preferences, this project's rules as saved on the [Memory](../memory.md) page and
-your messages in the chat (in a job while you're away, in the chat you went away from) - at most your last
-6, newest first, and 4,000 characters of them together, the last one cut where a line or a sentence ends:
-a newest message longer than that with no line or sentence break in its first 4,000 characters gives
-"(none)" for your messages; the command, its
-folder and who runs it (the Orchestrator or a sub-agent's role); the last 5 commands the same agent ran in
-the turn (only ones that started, each cut to 300 characters); and, where the line runs or reads a file an
-agent wrote - a script (`node x.js`, `python x.py`, `python -m x`, `./x.sh`, `x.ps1`, `powershell -File
-x.ps1`, `x.cmd`), make's Makefile, a Dockerfile, a `package.json` -, the first 4 KB of that
-file. Everything but your own words is marked as
-data an agent wrote, not instructions. It never sees an agent's messages, a tool's result or a file an
-agent read, and the secrets KOLONİ knows are masked first.
+**What it reads** - since 0.1.10 as Claude Code's auto mode's classifier: your words and what the agent
+did, never what came back to it. Your preferences, this project's rules as saved on the
+[Memory](../memory.md) page and your messages in the chat (in a job while you're away, in the chat you went
+away from) - at most your last 6, newest first, and 4,000 characters of them together, the last one cut
+where a line or a sentence ends: a newest message longer than that with no line or sentence break in its
+first 4,000 characters gives "(none)" for your messages; the command, its folder and who runs it (the
+Orchestrator or a sub-agent's role); the same agent's last 8 actions in the turn - its tool calls by
+name and arguments, such as `run_command {"command": "…"}`, `read_file {"path": "notes.md"}` or
+`write_file {"path": "gen.py", "content": "…"}`, only ones that ended and were not refused or turned
+down, each cut to 300 characters; and, where the line runs or reads a file an agent wrote - a script
+(`node x.js`, `python x.py`, `python -m x`, `./x.sh`, `x.ps1`, `powershell -File x.ps1`, `x.cmd`), make's
+Makefile, a Dockerfile, a `package.json` -, the first 4 KB of that file as the agent's write left it. A
+file in the agents' scratch (`.koloni/tmp/`) that no write of an agent's made - `curl -o
+.koloni/tmp/x.py …`, a command's output - is named, its text not shown. Everything but your own words is
+marked as data an agent wrote, not instructions. It never sees an agent's own replies, what a tool gave
+back - a file's text it read, a command's output, a page or a search -, and the secrets KOLONİ knows
+are masked first.
 
 **What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - as
 **When the judge finds a command risky** says:
@@ -421,10 +429,12 @@ agent read, and the secrets KOLONİ knows are masked first.
   Ready for you lists it in its **Decided for you** column with the judge's sentence until you click OK
   (the top bar's pill says "1 decided" and opens it; so does the chat's one line about it). Where KOLONİ keeps the line (see **Its card**
   below for which lines it keeps), the same line is refused again in that turn without asking the model;
-  any other line is asked about each time it runs. After **3** refusals in a turn - counted for all its
-  agents, sub-agents too - the next risky command waits for you on its card, and the chat says once
-  "Full auto's judge refused 3 commands this turn; the next risky one asks you.": an agent cannot try
-  variant after variant until one is called fine.
+  any other line is asked about each time it runs. After **3** refusals in a row - counted for all its
+  agents, sub-agents too; a command that runs ends a row, one refused, turned down or waiting does not -
+  or **20** in the turn, as Claude Code's auto mode, each risky command waits for you on its card for the
+  rest of the turn, and the chat says once "Full auto's judge refused 3 commands in a row this turn; each
+  risky one asks you now." ("… refused 20 commands this turn; …"): an agent cannot try variant after
+  variant until one is called fine. A new turn starts again at none.
 - **Ask me** - it waits for you on a card that says **KOLONİ's judge: …**, the model's one sentence; once
   answered, that sentence stays under the command's row.
 
@@ -435,8 +445,8 @@ verdict, the decision is yours, never a silent refusal. A command over 4,000 cha
 the program an agent wrote that
 it runs, or one of the earlier commands it would be shown - reads like orders to a model, is a card without
 asking. So is one the judge gave no answer for in 20 seconds (90 for a model on a CLI), gave an answer it
-could not read for, or could not be asked about now - no room on its model's provider (its limit, this
-month's budget) or the turn past its token limit: "it could not be asked: …", and the chat says once in
+could not read for, or could not be asked about now - no model to ask, no room on its model's provider (its
+limit, this month's budget) or the turn past its token limit: "it could not be asked: …", and the chat says once in
 the turn `Full auto's judge could not be asked this turn: {why}. Each command it would look at asks you.` -,
 and one whose program changed while the judge looked (a link pointed elsewhere too): every time - an agent
 can write a command that slows, confuses or spends the judge, so none of these lets a command run.
@@ -472,12 +482,39 @@ package run by its `__main__.py` (`python -m pkg`, `python pkg`), a Python line 
 working copy (its commands get the copy first on `PYTHONPATH`, so a `sitecustomize.py` there runs before
 the script) or where KOLONİ's own environment sets `PYTHONPATH`, `bun`, `Rscript`, any other runner
 KOLONİ does not know, a file it did not find (`python -m x` with no `x.py`), or a line whose folder is not
-known (a CLI that does not say). No **Always run** is offered, and an Always run rule does not let a command past the
-judge: a rule matches by its first words, and `python` would cover `python -c …`.
+known (a CLI that does not say). No **Always run** is offered on its card.
 
-**Where it stands aside:** only with no model to ask - no Judge model chosen that can be asked, and none in
-the Fast tier. It says once in the chat "Full auto's judge is off for this turn: …" and the rest of the
-turn runs as Full auto did before.
+**Always run rules at Full auto** (since 0.1.10, as Claude Code's auto mode): a **narrow** rule of the
+chat, one that names its task (`npm test`, `npm run build`, `python gen.py`, `make build`, `gh pr
+list`), lets **its very line** by with no judge - the rule's words and nothing more: `npm test -- --x`,
+`make build CC=./x` or `python manage.py shell -c …` under the rules `npm test`, `make build` and `python
+manage.py` are looked at, as one word more may be another task, or a file the program is told to load -,
+run at the project's root (the same words in another folder run another file), in a chat you watch: not
+in a job while you're away, nor in a To-do task's turn, which may run with nobody there. Nor does it
+where the line runs a program an agent wrote (the judge reads that one), where it is an interpreter's or
+a runner's line whose file KOLONİ does not find (`uv run python x.py`, `npx x`), or a tool's run that
+builds the folder's code (`cargo run`, `go run .`, `dotnet run`): what it runs is not known, and the
+judge looks. A **broad** rule never lets a line by:
+
+- one with no word past its program that is not an option (`npm`, `git`, `docker`, `make`, `gh`,
+  `pytest -x`);
+- one whose sub-command takes whatever it is handed - an install (`npm install` / `i` / `add` / `ci` /
+  `update`, `pnpm add`, `yarn add`, `pip install`, `python -m pip install`, `uv pip`, `uv add`, `poetry
+  add`, `pdm add`), a container (`docker run`, `docker exec`, `docker compose`, `docker container`) or
+  a remote (`git remote`) - even where KOLONİ offered it on a card;
+- one KOLONİ would offer no rule for at all - a shell's, a wrapped line, an interpreter or a package
+  runner with no script or package named, a runner's `run` or `exec` with nothing named (`bash …`, `env
+  …`, `python -c …`, `npx`, `npm run`, `uv run`).
+
+What a broad rule covers is looked at by the judge as if there were no rule. Below Full auto rules work
+as they always did.
+
+**With no model to ask** - no Judge model chosen that can be asked, and none in the Fast tier - it does
+not step aside (since 0.1.10; as Claude Code's auto mode, it fails closed): each command it would look at
+waits for you on a card, "KOLONİ's judge: it could not be asked: no judge model answered - …", and the chat
+says once in the turn `Full auto's judge could not be asked this turn: no judge model answered - choose a
+Judge model in Settings › The app › Agents, or give a model the Fast tier. Each command it would look at
+asks you.` To have Full auto as it was before the judge, turn the judge's switch off for the project.
 
 **Which model:** Settings › The app › Agents › **Judge model** - **Fast tier's first (now: …)** unless you
 choose one of the models listed (those of every tier that answer with no tools - a CLI with tools of its
