@@ -269,9 +269,17 @@ def measured(**listed) -> dict:
 
 
 def offers_of_api(client, provider_id: str) -> dict:
-    answer = client.post(f"/api/providers/{provider_id}/offers", headers=ORIGIN)
-    assert answer.status_code == 200, answer.text
-    return answer.json()
+    """The provider after the plan meter's look (GET /limits: its account asked where that is due,
+    in the background) and the reading it started, if any, is over."""
+    assert client.get(f"/api/providers/{provider_id}/limits").status_code == 200
+    limits = client.app.state.providers.limits
+
+    async def read() -> None:
+        if (reading := limits._reading.get(account(Provider(kind="copilot_cli")))) is not None:
+            await reading
+
+    client.portal.call(read)
+    return next(one for one in client.get("/api/providers").json() if one["id"] == provider_id)
 
 
 def test_the_account_is_asked_at_most_once_in_ten_minutes_and_its_rows_follow_it(
@@ -476,6 +484,38 @@ def test_a_copilot_on_a_server_of_ones_own_is_never_asked(client, monkeypatch):
     )
     assert made.status_code == 201, made.text
     assert offers_of_api(client, made.json()["id"])["offers"] is None and asked == []
+
+
+def test_opening_the_model_panel_or_the_models_page_asks_no_account(client, monkeypatch):
+    # F417: what the panel and the page read as they open is what the account offered when last
+    # asked - no Copilot is started, and no row is switched by a look. (The plan meter's GET
+    # /limits asks it, at most once in 10 minutes: the top bar's, not theirs.)
+    asked = stand_in(monkeypatch, [])
+    signed = []
+
+    async def signed_in(*args):
+        signed.append(args)
+        return True
+
+    monkeypatch.setattr(app.limits, "copilot_signed_in", signed_in)
+    rows = [{"name": "gpt-6-luna"}, {"name": "auto", "routing": "fast"}]
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Copilot", "kind": "copilot_cli", "models": rows},
+    ).json()
+    pid = made["id"]
+    for path in (
+        "/api/providers",
+        f"/api/providers/{pid}/models",
+        f"/api/providers/{pid}/model-facts?model=auto",
+        f"/api/providers/{pid}/availability?free=true",
+    ):
+        assert client.get(path, headers=ORIGIN).status_code == 200, path
+    # (Its old door, which asked the account as they opened, is gone.)
+    assert client.post(f"/api/providers/{pid}/offers", headers=ORIGIN).status_code in (404, 405)
+    listed = next(one for one in client.get("/api/providers").json() if one["id"] == pid)
+    assert (asked, signed, listed["models"], listed["offers"]) == ([], [], made["models"], None)
 
 
 def test_a_fill_and_a_models_list_offer_only_what_the_account_offers(client, monkeypatch):

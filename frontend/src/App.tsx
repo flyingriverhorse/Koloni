@@ -61,7 +61,8 @@ import { PlanUse } from './usage/PlanUse'
 import { ReadyPage, ReadyPanel } from './ready/ReadyViews'
 import { useReady } from './ready/useReady'
 import { READY_PANEL } from './ready/ready'
-import { decidedOf, judgedCommands, waitingId } from './chat/waiting'
+import { waitingId } from './chat/waiting'
+import { useDecided } from './chat/DecidedLine'
 
 const HEALTH_POLL_MS = 15000
 // (A hash has no order: which of the two is newer is not known, so all three steps are said.)
@@ -174,8 +175,7 @@ export function App() {
   // What waits for your word anywhere (tek-ev §1): the pill, the rail's badge, the panel and the page.
   const waiting = useReady()
   const readyPanel = useApp(s => s.readyPanel)
-  // (and the commands decided on your words, or refused by Full auto's judge: Decided for you is reached by the pill)
-  const decided = conv ? decidedOf(conv).length + judgedCommands(conv).length : 0
+  const { decided, where: decidedWhere } = useDecided(conv)
   const [view, setView] = useState<View>('canvas')
   // Whether you opened another page since KOLONİ opened: the morning never takes you off it (M1).
   const opened = useRef(false)
@@ -536,7 +536,7 @@ export function App() {
     const pillSaid =
       waiting.length > 0
         ? `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'} for you`
-        : `${decided} decided for you`
+        : `${decided} decided for you ${decidedWhere}`
     return (
       (waiting.length > 0 || decided > 0) && (
         <button
@@ -731,7 +731,7 @@ export function App() {
       onFill={useApp.getState().fillFromCatalogue}
       onFillNew={useApp.getState().fillNewFromCatalogue}
       onAvailability={useApp.getState().availability}
-      onOffers={useApp.getState().readOffers}
+      onProviders={useApp.getState().loadProviders}
       onFacts={useApp.getState().modelFacts}
       onSuggest={useApp.getState().suggest}
       onUpdateCatalogue={useApp.getState().updateCatalogue}

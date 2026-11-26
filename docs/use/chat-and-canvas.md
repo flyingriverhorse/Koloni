@@ -108,6 +108,10 @@ unread and how many things wait for you.
   next: Add a test · 📓 notes** - the story, the place of its task at work among its tasks, and its next
   task while one waits in the chat's queue. **📓 notes**, there once the notebook has a note, opens the
   story's [notebook](../automation/todo.md#the-storys-notebook). In a narrow chat only the story and its place stay.
+- A long chat opens on its newest 40 turns, and on every older one that still waits for you (a card to take in, a
+  question, a decision to OK). Over them, **Show 40 earlier turns** reads the 40 before, as often as you press it;
+  "560 older turns are not shown" says how many are left. The canvas's turns, the Workspace's **Changes** and
+  Undo reach the turns read so far; search, the decision log and the night's report read the whole chat.
 
 ### Undo and restore
 

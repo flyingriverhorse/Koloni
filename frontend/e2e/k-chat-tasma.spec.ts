@@ -105,8 +105,9 @@ for (const theme of ['light', 'dark'] as const)
         })),
       ],
     }
-    await page.route(`**/api/conversations/${id}`, route =>
-      route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+    await page.route(
+      url => url.pathname === `/api/conversations/${id}`,
+      route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
     )
     await page.reload()
     const chat = page.getByRole('region', { name: 'Chat' })
@@ -217,8 +218,9 @@ test('at its narrowest the chat has nothing that scrolls sideways, a long approv
       },
     ],
   }
-  await page.route(`**/api/conversations/${id}`, route =>
-    route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+  await page.route(
+    url => url.pathname === `/api/conversations/${id}`,
+    route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
   )
   await page.reload()
   const chat = page.getByRole('region', { name: 'Chat' })

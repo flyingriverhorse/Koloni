@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import and_, func, literal_column, or_, select, true
 from sqlalchemy.orm import Session
 
-from app import backlog
+from app import backlog, decisions
 from app.agent import AGENT_TERMINAL, _line_on_record
 from app.api.deps import get_session
 from app.changes import in_copy
@@ -87,7 +87,9 @@ async def board(project_id: str, request: Request, session: Session = Depends(ge
     if project is None:
         raise HTTPException(404, "project not found")
     changed = await asyncio.to_thread(_copies_counted, session, project)
-    return board_of(session, project, request.app.state.runner, changed)
+    # K1: what was decided for the user and waits for their OK - one count, the project's.
+    decided = await asyncio.to_thread(decisions.unseen_count, session, project.id)
+    return {**board_of(session, project, request.app.state.runner, changed), "decided": decided}
 
 
 def waiting_in(conversation: dict) -> int:

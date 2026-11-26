@@ -42,9 +42,9 @@ interface Props {
   hasHistory?: boolean
   /** Copilot's auto's or fusion's routing changed: its provider's list to save, at once. */
   onRouting?: (providerId: string, models: ListedModel[]) => Promise<void>
-  /** Copilot on your GitHub account: what its account offers, asked as the panel opens on it (the server asks it at
-   *  most once in 10 minutes); the provider is read again with it. */
-  onOffers?: (providerId: string) => Promise<void>
+  /** The providers read again as kept, as the panel opens on Copilot on your GitHub account: what its account offered
+   *  when last asked (the plan meter asks it). Opening the panel asks no account (F417). */
+  onProviders?: () => Promise<void>
 }
 
 /**
@@ -185,13 +185,13 @@ function switches(
   )
 }
 
-/** The panel open on Copilot on your GitHub account: what its account offers is asked (`onOffers`); a failure says
- *  nothing here - the menus stay as they were. */
-function useOffers(open: boolean, picked: Provider | undefined, onOffers: Props['onOffers']) {
+/** The panel open on Copilot on your GitHub account: its provider read again as kept (`onProviders`) - nothing is asked
+ *  of its account; a failure says nothing here, the menus stay as they were. */
+function useOffers(open: boolean, picked: Provider | undefined, onProviders: Props['onProviders']) {
   const copilot = open && picked?.kind === 'copilot_cli' && !picked.base_url ? picked.id : null
   useEffect(() => {
-    if (copilot) onOffers?.(copilot).catch(() => {})
-  }, [copilot, onOffers])
+    if (copilot) onProviders?.().catch(() => {})
+  }, [copilot, onProviders])
 }
 
 /** Copilot's auto or fusion on your GitHub account, listed on its provider: its routing, saved at once on its Models row. */
@@ -251,7 +251,7 @@ export function ModelPicker({
   lead,
   hasHistory = false,
   onRouting,
-  onOffers,
+  onProviders,
 }: Props) {
   const [provider, setProvider] = useState(providerId ?? '')
   const [model, setModel] = useState(modelId ?? '')
@@ -279,7 +279,7 @@ export function ModelPicker({
   const facts = useModelFacts(open ? onFacts : undefined, lookedUpId, lookedUpModel)
   const takes = takesOf(facts)
   const switching = switches(hasHistory, used, picked, model, usedModel)
-  useOffers(open, picked, onOffers)
+  useOffers(open, picked, onProviders)
 
   function toggle() {
     if (open) {

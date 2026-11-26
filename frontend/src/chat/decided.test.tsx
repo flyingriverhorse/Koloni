@@ -112,9 +112,13 @@ test('the box says who decided each, as Ready for you’s Decided for you does',
 
 test('a project’s chat says it in one line - no box -, and Ready for you opens at its Decided for you', async () => {
   const inProject = convState({ ...state, conversation })
+  // (K1: the project's count - Not seen's and the pill's, every chat's - not this chat's three)
+  useApp.setState({
+    board: { limit: null, running: 0, conversations: [], conflicts: [], backlog_waiting: 0, decided: 5 },
+  })
   render(<WaitingList state={inProject} on={on} onDecidePlan={vi.fn()} known={known} />)
   expect(screen.queryByRole('region', { name: /Decided for you/ })).toBeNull()
-  expect(screen.getByText('While you were away, 3 things were decided for you.')).toBeInTheDocument()
+  expect(screen.getByText('While you were away, 5 things were decided for you in this project.')).toBeInTheDocument()
   const asked = vi.fn()
   window.addEventListener(OPEN_DECISIONS, asked)
   await userEvent.click(screen.getByRole('button', { name: 'Open in Ready for you' }))
@@ -124,8 +128,13 @@ test('a project’s chat says it in one line - no box -, and Ready for you opens
 })
 
 test('the line counts what was decided and what waits besides, and is not there where nothing was decided', () => {
-  expect(decidedSentence(3, 2)).toBe('While you were away, 3 things were decided for you and 2 wait for you.')
-  expect(decidedSentence(1, 1)).toBe('While you were away, 1 thing was decided for you and 1 waits for you.')
+  useApp.setState({ board: null })
+  expect(decidedSentence(3, 2)).toBe(
+    'While you were away, 3 things were decided for you in this project and 2 wait for you here.',
+  )
+  expect(decidedSentence(1, 1)).toBe(
+    'While you were away, 1 thing was decided for you in this project and 1 waits for you here.',
+  )
   const quiet = convState({ conversation, runs: [run('r', 'running')] })
   const { container } = render(<DecidedLine conv={quiet} />)
   expect(container).toBeEmptyDOMElement()

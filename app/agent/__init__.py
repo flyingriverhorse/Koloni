@@ -223,6 +223,7 @@ from app.agent.merge import writes_nothing as writes_nothing
 from app.agent.native_mixin import COLLABORATION_TOOLS as COLLABORATION_TOOLS
 from app.agent.native_mixin import REPORT_SCHEMA as REPORT_SCHEMA
 from app.agent.native_mixin import NativeMixin
+from app.agent.not_applied import not_applied
 from app.agent.observe_mixin import KEEP_CARDS as KEEP_CARDS
 from app.agent.observe_mixin import LEAD_COMMAND as LEAD_COMMAND
 from app.agent.observe_mixin import UNREAD_TOLD as UNREAD_TOLD
@@ -893,10 +894,6 @@ IN_A_SIDE = (
     "your changes stay in your copy: the user compares your work with another model's and "
     "takes one side's into the project"
 )
-NOT_APPLIED = (
-    "These changes of {name}'s were not applied to the project: {files}. Do not go on "
-    "as if they were there"
-)
 TURNED_DOWN = (
     "the user discarded them - their decision, not an error: do not make these changes "
     "again yourself; ask what they would like instead"
@@ -906,19 +903,8 @@ KEPT = (
     "of it and took is in the project; whatever else it holds is not, and is kept in "
     "{folder} for the user to look at"
 )
-MEANWHILE = "changed in the project meanwhile"
 # What became of a file both sides changed, where the user said the project's is kept.
 KEPT_THE_PROJECTS = "the project's own file was kept: the user chose it"
-PROJECTS_LINES = (
-    "In {files} the user kept the project's own lines where {name} had changed the same "
-    "ones: {name}'s version of those lines is not there."
-)
-# Of a file taken together with the project's own changes (B-59: the user's line was taken
-# for the agent's). Each file with the lines of it that are the project's, where it added any.
-THEIRS_KEPT = (
-    "In {files} the project's own changes made meanwhile were kept beside {name}'s: they "
-    "are not {name}'s doing."
-)
 # The project's check command, run in the copy on what is about to be taken: as long as
 # any command may run (`CommandRunner.longest`), and this much of the end of what it wrote goes
 # on the card.
@@ -2968,7 +2954,7 @@ class AgentRunner(
         self._release(owner)
 
     async def decide_kept(
-        self, merge_id: str, decision: str, choices: dict[str, str] | None = None
+        self, merge_id: str, decision: str, choices: dict | None = None, only: list | None = None
     ) -> bool:
         """The user's decision on a working copy that was kept (its merge is
         "interrupted"): its turn is over, so only files and their records move - no
@@ -2981,12 +2967,12 @@ class AgentRunner(
         nothing to apply or the copy is not read at all (its tree is a link) - such a
         copy is only to discard. One with nothing to say what it was made from is taken
         as its card showed it: against the project alone (`copies.kept`). `choices`:
-        whose side is taken of each file that clashes (`_join`)."""
+        whose side is taken of each file that clashes (`_join`); `only`: Apply takes those alone."""
         if merge_id in self._deciding:
             return False  # a decision on it is being carried out: that one is the decision
         self._deciding.add(merge_id)
         try:
-            return await self._decide_kept(merge_id, decision, choices or {})
+            return await self._decide_kept(merge_id, decision, choices or {}, only)
         finally:
             self._deciding.discard(merge_id)
 
@@ -2998,17 +2984,23 @@ class AgentRunner(
         times: dict,
         choices: dict[str, str],
         unattended: bool,
+        only: list[str] | None,
     ) -> None:
-        """Apply on a kept copy's card (`_decide_kept`): what it showed is taken, all or none."""
+        """Apply on a kept copy's card (`_decide_kept`): what it showed is taken, all or none - of
+        `only`, those alone."""
         taken = None
         async with self._way_in(copy.project), self._looks_held(copy.project):
             # What a merge comes to is kept in memory alone, and this may be another
             # process than the one that showed the card: made again, off the event loop.
             await asyncio.to_thread(_look_again, copy, files, times, choices)
-            # All of the card or none of it: one file shown again, and nothing is taken.
-            if not [one for one in files.values() if one.pop("again", False)]:
-                self._join(copy, files, choices)
-                taken = self._apply(ctx, copy, files, True, unattended=unattended, choices=choices)
+            chosen = files if only is None else {p: one for p, one in files.items() if p in only}
+            # All of what is taken or none of it: one file shown again, and nothing is taken.
+            if not {path for path, one in files.items() if one.pop("again", False)} & set(chosen):
+                self._join(copy, chosen, choices)
+                taken = self._apply(ctx, copy, chosen, True, unattended=unattended, choices=choices)
+                # (One the copy no longer changes left `chosen` there: it leaves the card too.)
+                for gone in [path for path in only or () if path in files and path not in chosen]:
+                    del files[gone]
         if taken is not None:
             await self._seen_by_watchers(ctx, taken)
         for one in files.values():  # shown again: labelled as a kept copy's files are
@@ -3027,9 +3019,10 @@ class AgentRunner(
                 merge.check = {**merge.check, "stale": _is_stale(merge.check, files)}
             changes = []
             if not left:
+                # (A Discard after a Take in of some of it: what was taken is the card's.)
                 taken = any(one["state"] == "applied" for one in files.values())
                 merge.status = (
-                    "rejected" if decision == "reject" else "applied" if taken else "discarded"
+                    "applied" if taken else "rejected" if decision == "reject" else "discarded"
                 )
                 merge.kept_in = None
                 closed = select(FileChange).where(
@@ -3061,7 +3054,9 @@ class AgentRunner(
             ]
         return applied, payloads
 
-    async def _decide_kept(self, merge_id: str, decision: str, choices: dict[str, str]) -> bool:
+    async def _decide_kept(
+        self, merge_id: str, decision: str, choices: dict[str, str], only: list[str] | None
+    ) -> bool:
         # shortcut: compared and written on the event loop, as a live card's Apply is;
         # hand it to a thread if a large kept copy is felt.
         runtime = self.settings.runtime_root
@@ -3105,7 +3100,7 @@ class AgentRunner(
                 )
             except (OSError, ValueError):
                 return False
-            await self._kept_taken(ctx, copy, files, times, choices, unattended)
+            await self._kept_taken(ctx, copy, files, times, choices, unattended, only)
         # (A file the copy no longer changes has left the card: nothing of it is kept.)
         # Nor does it go while it holds files that were never offered, or were refused
         # (a path through a link): what they hold is nowhere else, and deleting it is
@@ -3160,7 +3155,7 @@ class AgentRunner(
         "check": run the project's check command and ask again; D2, on a branch's card,
         "resolve": an agent puts the conflicts together - with whose side they chose of each
         file that clashes, and (`said`) of a branch whether it is kept after its merge and
-        which way it goes; False if nothing waits."""
+        which way it goes, of Take in which files alone (`only`); False if nothing waits."""
         future = self._merge_decisions.get(merge_id)
         if future is None or future.done():
             return False
@@ -4298,16 +4293,17 @@ class AgentRunner(
             finally:
                 self._merge_decisions.pop(merge_id, None)
                 choices = self._merge_choices.pop(merge_id, {})
+                only = self._branch_said.pop(merge_id, {}).get("only")
                 self._update_run(ctx.run_id, ctx.cid, status="running")
             if decision == "reject":
-                self._record_merge(ctx, merge_id, "rejected", files, check)
-                self._drop_copy(ctx.agent_id, "rejected")
-                return self._not_applied(ctx, files, TURNED_DOWN)
+                return await self._turned_down(ctx, copy, files, check, merge_id)
             if decision == "check":
                 await self._check_clicked(ctx, copy, files, check, choices, merge_id)
                 continue
+            # (A Take in of some of it takes those alone: the rest stay on the card, asked again.)
+            chosen = files if only is None else {p: one for p, one in files.items() if p in only}
             async with self._way_in(copy.project), self._looks_held(copy.project):
-                if await asyncio.to_thread(_moved, copy, files, choices):
+                if await asyncio.to_thread(_moved, copy, chosen, choices):
                     # All of the card or none of it: a file is not as it was shown, and the
                     # card is shown again as it is now (the API says why).
                     # shortcut: one the user moves between here and its write is still not
@@ -4315,10 +4311,22 @@ class AgentRunner(
                     # hold the files if that is seen.
                     continue
                 # No await from here to the last file written.
-                self._join(copy, files, choices)
-                taken = self._apply(ctx, copy, files, True, choices=choices)
+                self._join(copy, chosen, choices)
+                taken = self._apply(ctx, copy, chosen, True, choices=choices)
             await self._seen_by_watchers(ctx, taken)
         return await self._merge_over(ctx, copy, files, check, merge_id)
+
+    async def _turned_down(
+        self, ctx: Ctx, copy: copies.Copy, files: dict, check: dict | None, merge_id: str
+    ) -> str:
+        """Discard on a turn's card (`_merge`): the copy goes. After a Take in of some of it, what
+        was taken stays taken - the card is of that, and its commit is offered."""
+        taken = any(one["state"] == "applied" for one in files.values())
+        self._record_merge(ctx, merge_id, "applied" if taken else "rejected", files, check)
+        if taken:
+            await self._offer(ctx, merge_id, files, copy)
+        self._drop_copy(ctx.agent_id, "rejected")
+        return self._not_applied(ctx, files, TURNED_DOWN)
 
     async def _check_clicked(
         self,
@@ -5080,51 +5088,7 @@ class AgentRunner(
         files.update(sorted({**kept, **fresh}.items()))
         return why
 
-    @staticmethod
-    def _not_applied(ctx: Ctx, files: dict, why: str | None) -> str:
-        """What an agent's opener is told of the changes that did not reach the project
-        ("" when all did). `why`: one reason for all of them, else each has its own.
-        And of a file that did, with the project's own lines where the two clashed: the
-        agent's version of those lines is not there, by the user's word."""
-        left = [one for one in files.values() if one["state"] != "applied"]
-        lines = [
-            path
-            for path, one in files.items()
-            if one["state"] == "applied" and one.get("chose") == "project"
-        ]
-        theirs = [
-            f"{path} ({one['theirs']})" if one["theirs"] else path
-            for path, one in files.items()
-            if one["state"] == "applied" and "theirs" in one
-        ]
-        kept_lines = " ".join(
-            filter(
-                None,
-                [
-                    PROJECTS_LINES.format(name=ctx.name, files=", ".join(lines[:MAX_PATHS_TOLD]))
-                    if lines
-                    else "",
-                    THEIRS_KEPT.format(name=ctx.name, files=", ".join(theirs[:MAX_PATHS_TOLD]))
-                    if theirs
-                    else "",
-                ],
-            )
-        )
-        if not left:
-            return kept_lines
-        # Each reason once, with the files it goes for.
-        by_reason: dict[str, list[str]] = {}
-        for one in left[:MAX_PATHS_TOLD]:
-            reason = "" if why else one.get("note") or MEANWHILE
-            by_reason.setdefault(reason, []).append(one["path"])
-        told = [
-            ", ".join(paths) + (f" ({reason})" if reason else "")
-            for reason, paths in by_reason.items()
-        ]
-        if len(left) > MAX_PATHS_TOLD:
-            told.append(f"and {len(left) - MAX_PATHS_TOLD} more")
-        said = NOT_APPLIED.format(name=ctx.name, files="; ".join(told))
-        return " ".join(filter(None, [f"{said}: {why}." if why else f"{said}.", kept_lines]))
+    _not_applied = staticmethod(not_applied)
 
     def _taken_now(
         self,

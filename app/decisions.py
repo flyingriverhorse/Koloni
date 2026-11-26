@@ -483,6 +483,14 @@ def as_shown(task: BacklogTask, expect: str) -> bool:
     return expect == "added" and unseen and task.status == "todo"
 
 
+def unseen_count(session: Session, project_id: str) -> int:
+    """How many of the project's decisions wait for your OK, of any age and of every chat: Not
+    seen's rows, uncut - the one count the top bar's pill and a chat's line say too (K1).
+    shortcut: reads all the project's judged commands, answers and tasks at each board read (every
+    5 s; 86 ms at 3,000 judged commands, measured 26 Nov): count in SQL if a log grows past that."""
+    return len(of(session, project_id, unseen=True, undo=False, every=True).rows)
+
+
 def of(
     session: Session,
     project_id: str,

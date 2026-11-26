@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import git
 from app.agent import CHECK_NOT_KEPT, as_shown, not_as_seen, unchosen, writes_nothing
+from app.agent.words import OPEN
 from app.api.deps import get_session, require_own_origin
 from app.db.models import Compare, Merge, Run
 from app.schemas import MergeChoices, MergeCommitIn, MergeOut
@@ -24,6 +25,20 @@ PARTLY_AS_SEEN = (
     "{taken} taken in; {files} changed since you looked and {was} not. Check the card again"
 )
 OLD_CARD = "Reload the page: this card is from before an update"
+
+
+def _some(merge: Merge, decision: str, only: list[str], card: dict[str, dict]) -> list[str]:
+    """T93-01: a Take in of some of a card's files - the open ones of it alone, never none, not of
+    a branch (merged whole) nor of a check (it runs on what Take in would take): 409 says why. The
+    card's other open files, which stay on it."""
+    open_ = [path for path, one in card.items() if one["state"] in OPEN]
+    if decision != "approve" or merge.branch:
+        raise HTTPException(409, "only Take in takes some of a card's files: all of it goes here")
+    if not only:
+        raise HTTPException(409, "choose at least one file to take in")
+    if other := sorted(set(only) - set(open_)):
+        raise HTTPException(409, f"not on this card to take: {', '.join(other[:20])}")
+    return [path for path in open_ if path not in only]
 
 
 def _to_decide(session: Session, merge_id: str, decision: str) -> Merge:
@@ -51,11 +66,12 @@ async def _decide_kept(
     choices: dict[str, str],
     request: Request,
     session: Session,
+    only: list[str] | None = None,
 ) -> None:
     if decision == "check":
         raise HTTPException(409, CHECK_NOT_KEPT)
     # A copy kept over a restart: no agent task waits, the decision is carried out here.
-    if not await request.app.state.runner.decide_kept(merge.id, decision, choices):
+    if not await request.app.state.runner.decide_kept(merge.id, decision, choices, only):
         raise HTTPException(409, "nothing of these changes can be decided like this")
     session.refresh(merge)
 
@@ -91,6 +107,8 @@ async def _decide(
     seen = body.shown if body and body.shown is not None else as_shown(card)
     before, taken_before = as_shown(card, how=True), _taken(merge.files)
     keep = [path for path, one in card.items() if writes_nothing(one, choices)]
+    if (only := body.files if body else None) is not None:
+        keep += _some(merge, decision, only, card)  # (what stays on the card is not asked about)
 
     def as_seen(after: bool = False) -> None:
         # (A file not as it was seen: nothing of the card is taken, and it is shown again.)
@@ -116,7 +134,11 @@ async def _decide(
         )
 
     as_seen()
-    left = unchosen(merge.files, choices) if decision != "reject" else []
+    left = [
+        path
+        for path in (unchosen(merge.files, choices) if decision != "reject" else [])
+        if only is None or path in only
+    ]
     if left:
         # Nothing is chosen for the user, and nothing is taken (or checked) without it.
         raise HTTPException(409, f"say whose side is taken of: {', '.join(left[:20])}")
@@ -126,13 +148,13 @@ async def _decide(
         raise HTTPException(409, "no agent can resolve conflicts on these changes")
     decided = merge.decided_at
     if merge.status == "interrupted":
-        await _decide_kept(merge, decision, choices, request, session)
+        await _decide_kept(merge, decision, choices, request, session, only)
         as_seen(after=True)
         return merge_out(merge)
     if decision == "check" and not (merge.check or {}).get("command"):
         # (0.1.7: none written, or none its part's command can run alone - the card says why)
         raise HTTPException(409, "no test of its own can be run before it is added")
-    said = {"keep_branch": body.keep_branch, "way": body.way} if body else None
+    said = {"keep_branch": body.keep_branch, "way": body.way, "only": only} if body else None
     if not request.app.state.runner.decide_merge(merge_id, decision, choices, said):
         if merge.status == "pending" and (merge.check or {}).get("state") == "running":
             # Nothing is asked while its check runs: the card asks again with the result.

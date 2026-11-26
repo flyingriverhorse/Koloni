@@ -1649,14 +1649,14 @@ Side = Literal["agent", "project"]
 
 
 class MergeChoices(BaseModel):
-    """For each file whose two sides clash, by its path: whose is taken - the agent's
-    ("agent") or the project's ("project"). `shown`: of Apply, each file the card showed,
-    by path, as its `shown` - where one is not as the card has it now, nothing is taken.
-    None (a Take in that shows no files): as the card was last shown - and choices
-    without it are refused (a page from before `shown`). As many as a copy has files."""
+    """For each file whose two sides clash, by its path: whose is taken ("agent" or "project").
+    `shown`: of Apply, each file the card showed, by path, as its `shown` - one not as the card has
+    it now, and nothing is taken; None (a Take in that shows no files): as last shown, and choices
+    without it are refused. `files`: of Take in, only these (T93-01); the rest stay on the card."""
 
     choices: dict[str, Side] = Field(default_factory=dict, max_length=copies.MAX_FILES)
     shown: dict[str, list[str | None]] | None = Field(default=None, max_length=copies.MAX_FILES)
+    files: list[str] | None = Field(default=None, max_length=copies.MAX_FILES)
     # D2, of a branch's Merge: keep the branch after it ("Keep this branch after merging") -
     # and, where the card asks which way finished work goes, the user's choice, saved to the
     # project (a pull request is their consent to push its branches).
@@ -2011,8 +2011,7 @@ class BoardConversation(BaseModel):
     # Its agents' changes that wait for the user's decision (a merge card in its chat), and its
     # copies kept for Take in that hold a file.
     merges_pending: int
-    # Its last turn; None before its first.
-    turn: BoardTurn | None
+    turn: BoardTurn | None  # its last turn; None before its first
     # The folder it is in (None: a chat with none): every chat's board tags another's (B-72).
     project_id: str | None = None
 
@@ -2041,6 +2040,7 @@ class BoardOut(BaseModel):
     # What waits for the user on the project's backlog: tasks and changes agents proposed,
     # and tasks whose turn ended and wait for review (slice 52).
     backlog_waiting: int
+    decided: int | None = None  # decisions not OK'd yet: Not seen's (`decisions.unseen_count`)
 
 
 class ChannelMessageOut(Out):
@@ -2403,19 +2403,19 @@ class SnapshotOut(BaseModel):
     discussions: list[DiscussionOut]
     discussion_posts: list[DiscussionPostOut]
     board_posts: list[BoardPostOut]
-    # The files of the project held right now, by agents of any of its conversations.
-    claims: list[ClaimOut]
-    # The working copies of this conversation's agents that were, or are to be, taken
-    # into the project.
-    merges: list[MergeOut]
-    # The files added to its messages, and those added to the next one, not sent yet.
-    attachments: list[AttachmentOut] = []
+    claims: list[ClaimOut]  # the project's files held now, by agents of any of its chats
+    merges: list[MergeOut]  # its agents' working copies taken into the project, or to be
+    attachments: list[AttachmentOut] = []  # its messages' files, and the next one's not sent yet
     # The "While you're away" cards its Lead put here, with their nights (slice 106).
     away: list["AwayOut"] = []
     # K-bilgi 6: the "Add to Project notes?" offers under its turns, decided or not.
     notes_offers: list["NotesOfferOut"] = []
     warnings: list[WarningOut] = []
     last_event_id: int
+    # Of `?turns=N` (a long chat's page): how many turns before these were not sent, and the run to
+    # read the page before from (`before=`) - 0 or None: every turn is here.
+    older: int | None = None
+    older_from: str | None = None
 
 
 class PostMessageOut(BaseModel):
@@ -2498,7 +2498,7 @@ class Placed(BaseModel):
     stage_id: str
 
 
-class LearnIn(BaseModel):
+class LearnIn(SendIn):  # (`over_budget`: the user's word to learn over the month's budget)
     project_id: str
 
 

@@ -72,6 +72,11 @@ agent finished, nothing clashes and the tests it wrote passed. See [Permission l
   only at Full auto, so at Auto-edit the card waits for this click. One that wrote no test has none to
   run: "No tests of its own to run before it is added - KOLONİ's check at the turn's end runs every
   test." See [Checked](checked.md#when-the-tests-fail).
+- **Part of it taken**: a card can take some of its files and keep the rest - a file that changed since you
+  looked is shown again, not taken, and the API's Take in may name the files it takes (`files`). Those taken
+  say they are in the project; the rest wait on the same card for **Take in** or **Discard**, the agent's
+  copy kept for them. **Discard** then throws away only the rest: what was taken stays, and the card says
+  its work was taken in.
 
 A team's recipe keeps its work in one copy until you press **Take in** on the **Teams' work is ready** card. See
 [Ready and approval cards](ready.md).

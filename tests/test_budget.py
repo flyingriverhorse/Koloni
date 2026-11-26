@@ -226,3 +226,33 @@ def test_a_projects_month_is_not_added_up_for_it_at_every_step(
     client.patch(f"/api/projects/{pid}", json={"monthly_budget": 1000})  # far under it
     turn(client, wait_run, cid)
     assert len(added) == 1  # three steps, one reading
+
+
+def test_a_knowledge_learning_is_held_over_the_budget_like_a_new_turn(
+    make_client, wait_run, project_dir
+):
+    # Its requests are in the project's budget (K-56): starting one is held as a turn is.
+    client, pid, _cid, _run = over(make_client, wait_run, project_dir, [text("learned", 1, 1)])
+    (project_dir / "docs").mkdir()
+    (project_dir / "docs" / "api.md").write_text("pay(amount)", encoding="utf-8")
+    row = client.post(
+        f"/api/projects/{pid}/knowledge", json={"topic": "Pay", "sources": ["docs/api.md"]}
+    ).json()
+    role = client.post(
+        "/api/roles", json={"name": "Pay expert", "description": "", "tools": ["read_file"]}
+    ).json()
+    assert (
+        client.put(f"/api/knowledge/{row['id']}/roles/{role['id']}", json={"mode": "full"})
+    ).status_code == 200
+    for learn in (f"/api/knowledge/{row['id']}/learn", f"/api/roles/{role['id']}/learn"):
+        held = client.post(learn, json={"project_id": pid})
+        assert held.status_code == 409, held.text
+        assert held.json()["detail"] == (
+            "this project is over this month's budget (10.50 of 10.00 USD): say to go on over it"
+        )
+    listed = client.get(f"/api/projects/{pid}/knowledge").json()
+    assert not next(one for one in listed if one["id"] == row["id"])["state"]["learning"]
+    going = client.post(
+        f"/api/knowledge/{row['id']}/learn", json={"project_id": pid, "over_budget": True}
+    )
+    assert going.status_code == 202, going.text

@@ -44,8 +44,9 @@ them in one line, "The judge let 12 commands run".
 
 Choose the period: **Since I left** (since your last ☾ Away began; shown, and chosen first, only if
 the project had one), **Today** (since midnight here) or **Week** (since Monday). **Not seen** lists
-what waits for your OK in the whole project, however old. The chat's line and the top bar's pill count
-only the open chat's, so **Not seen** can list more than they say.
+what waits for your OK in the whole project, however old. The top bar's pill ("5 decided") and a chat's
+line ("5 things were decided for you in this project") say the same count: **Not seen**'s, of every chat of
+the project. A chat with no folder has no decision log: its pill counts that chat's own, "in this chat".
 
 Each row says when, who, the chat it is in (or To-do), what was decided, the question, command or task
 it was about, and the reason in quotes. The newest come first. Five rows show, then **Show all**. A

@@ -1625,6 +1625,11 @@ a.view-run {
   overflow-y: auto;
 }
 
+/* A long chat's older turns, not read yet: over its oldest one shown. */
+.msg-earlier {
+  padding: 8px 14px 0;
+}
+
 /* Back to the latest: sticks to the list's bottom right while the reader is scrolled up. */
 .jump-bottom {
   position: sticky;
