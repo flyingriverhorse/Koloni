@@ -102,11 +102,6 @@ KOLONİ's own words, as they appear on screen.
 **Note**
 : A piece of memory an agent wrote with its **Remember** tool. See [Memory](../memory.md).
 
-**Observer**
-: A built-in role that never works on its own. If you switch on **Have a model look over each
-  sub-agent's report**, its model reads each sub-agent's report and says what the record shows.
-  Its words are an opinion, not a fact.
-
 **Orchestrator**
 : The agent you talk to in a chat. It plans, asks and checks, and hands changes to files to
   sub-agents, unless you let it change files itself (Settings › This project › Agents › **Who

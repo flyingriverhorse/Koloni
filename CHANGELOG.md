@@ -21,6 +21,10 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Removed
+
+- **Agents**: the **Observer** is gone: the built-in role whose model, once a sub-agent handed in its report, said in a few sentences which of the report's claims the record shows, and its switch **Have a model look over each sub-agent's report** in Settings › This project › Agents. **Checked** and **No file changed** already say what a sub-agent's record shows, from KOLONİ's own records, with no model request. When the database is upgraded the built-in Observer role and the observations kept on agents are deleted (an agent's window no longer shows one); a role of your own named "Observer" stays as it is ([docs](docs/reference/upgrade-notes.md#0110)).
+
 ## [0.1.9] - 2026-11-26
 
 ### Added
@@ -441,7 +445,7 @@ How to write an entry (every release looks the same):
 - **Agents**: rooms: two to six agents on one goal at once, with a budget, Pause, Resume and End ([docs](docs/agents/rooms.md)).
 - **Agents**: a room an agent opens gets at least 60,000 tokens, so a small budget no longer ends it before anyone posts. Change the number under **Tokens, at least** in Settings › This project › New chats start with; the most still wins. Existing projects and chats get 60,000 too ([docs](docs/settings.md#new-chats-start-with)).
 - **Agents**: discussions: agents talk one question through in rounds, and you can join in ([docs](docs/agents/discussions.md)).
-- **Agents**: reviewers end with findings that go to the role they name; the **Observer**, when on, says what each sub-agent's record shows ([docs](docs/agents/observer.md)).
+- **Agents**: reviewers end with findings that go to the role they name; the **Observer**, when on, says what each sub-agent's record shows ([docs](https://github.com/flyingriverhorse/Koloni/blob/v0.1.9/docs/agents/observer.md)).
 - **Agents**: tell an agent something while it works; at its step limit a card offers **Continue (+25 steps)** or **Stop here**, and **Steps an agent may take** sets the limit ([docs](docs/agents/step-limits.md)).
 - **Agents**: when you are away, the Orchestrator answers the safe questions, if you switch it on (Settings › This project › Asking and away), and shows them under **Decided for you** ([docs](docs/automation/answering-for-you.md)).
 - **Models**: an OpenAI-compatible server with tool calls, such as llama.cpp's llama-server or a hosted API, the Anthropic API, and CLIs, side by side; each agent shows the provider and model it really ran on ([docs](docs/models/providers.md)).

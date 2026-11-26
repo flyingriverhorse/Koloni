@@ -56,7 +56,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
    API key. Each role can run on a different one; a role on Copilot can take `auto` or `fusion`.
 2. **Open a folder** and write what you want, at one of three levels: **Ask before changes**,
    **Auto-edit files** or **Full auto**. **Plan first** adds a plan to approve before anything moves.
-3. **The Orchestrator works or delegates.** 32 built-in roles (Coder, Reviewer, Tester, Researcher,
+3. **The Orchestrator works or delegates.** 31 built-in roles (Coder, Reviewer, Tester, Researcher,
    UI designer, Security reviewer, …) and your own; teams with stages; recipes you draw.
 4. **Take it in.** Before an answer ends a turn that changed code, KOLONİ tests the work itself and
    says under it what was checked. A sub-agent's changes come back as a card with the diff; the tests it

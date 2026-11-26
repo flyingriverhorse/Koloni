@@ -42,7 +42,6 @@ nav = [
     { "Recipe cookbook" = "agents/recipe-cookbook.md" },
     { "Rooms" = "agents/rooms.md" },
     { "Discussions" = "agents/discussions.md" },
-    { "Observer" = "agents/observer.md" },
   ] },
   { "Models" = [
     { "Providers" = "models/providers.md" },
