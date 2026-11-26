@@ -8,7 +8,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Removed
 
-- **Agents**: the **Observer** is gone: the built-in role whose model, once a sub-agent handed in its report, said in a few sentences which of the report's claims the record shows, and its switch **Have a model look over each sub-agent's report** in Settings › This project › Agents. **Checked** and **No file changed** already say what a sub-agent's record shows, from KOLONİ's own records, with no model request. When the database is upgraded the built-in Observer role and the observations kept on agents are deleted (an agent's window no longer shows one); a role of your own named "Observer" stays as it is ([docs](reference/upgrade-notes.md#0110)).
+- **Agents**: **Breaking:** the **Observer** is gone: the built-in role whose model, once a sub-agent handed in its report, said in a few sentences which of the report's claims the record shows, and its switch **Have a model look over each sub-agent's report** in Settings › This project › Agents. **Checked** and **No file changed** already say what a sub-agent's record shows, from KOLONİ's own records, with no model request. When the database is upgraded the built-in Observer role and the observations kept on agents are deleted (an agent's window no longer shows one); a role of your own named "Observer" stays as it is ([docs](reference/upgrade-notes.md#0110)).
 
 ## [0.1.9] - 2026-11-26
 

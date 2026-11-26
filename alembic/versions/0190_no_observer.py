@@ -1,4 +1,4 @@
-"""The Observer is gone (0.1.10, the user's 26 Nov: Checked, "No file changed" and the claim checks
+"""The Observer is gone (0.1.10, the user's call: Checked, "No file changed" and the claim checks
 already say what a sub-agent's record shows): the project's switch for it (`observe_reports`), what
 it said on each agent (`observation`, `observation_note`, `observed_by`) and the built-in role. A
 role of the user's own named "Observer" is theirs and stays. Going back, the columns come back as

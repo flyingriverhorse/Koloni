@@ -65,7 +65,7 @@ const SUGGEST_TIERS: [value: Project['suggest_tier'], label: string][] = [
   ['strongest', 'Strongest tier'],
 ]
 
-/** This project › Agents: who changes the files, and what is checked of their work. */
+/** This project › Agents: who changes the files, and the follow-up tasks after a turn. */
 export function useAgents(project: Project) {
   // (A server older than the page has no such field yet: a chat's default.)
   const savedWork = project.lead_work ?? 'delegates'
