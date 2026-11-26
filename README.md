@@ -39,7 +39,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 <td width="50%"><img src="docs/images/take-in.png" alt="The Ready for you panel asks: take the work into the project?"><br><sub><b>The card.</b> A team's work stays in its copy until you say Take in, or Ask for changes in your own words.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/images/away-panel.png" alt="The Away panel over the message box: two To-do tasks ticked, what the Orchestrator decides for you and what always waits, a stop time and a spend limit"><br><sub><b>☾ Away.</b> Your To-do tasks worked through one at a time, each in its own copy, until you are back.</sub></td>
+<td width="50%"><img src="docs/images/ready-morning.png" alt="Ready for you the morning after a night while you were away: the night&#39;s report with a row per job, what waits for your word, and To-do&#39;s cards on the right"><br><sub><b>The morning.</b> ☾ Away works your To-do through while you are away; Ready for you says what was done, what waits for your word, and your To-do beside it.</sub></td>
 <td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
 </tr>
 <tr>
