@@ -309,7 +309,8 @@ def nights_of_answers(client, root, answers, nights=3):
 def queries(client, url: str) -> Counter[str]:
     """The queries the GET of `url` makes, by their statement's first line. The secrets KOLONİ
     knows are read before it, not within it: kept a second (`raw.FRESH_SECONDS`), they were read
-    anew in one of two GETs a second apart under load (50 == 46, 3 queries, `-n 4`)."""
+    anew in one of two GETs a second apart under load (`-n 4`: 50 == 46 - 4 queries while the
+    notification address was one of them, 3 since)."""
     engine = client.app.state.session_factory.kw["bind"]
     found = Counter[str]()
 
