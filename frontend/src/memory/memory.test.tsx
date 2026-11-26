@@ -14,6 +14,7 @@ const handlers = () => ({
   onCorrect: vi.fn().mockResolvedValue(undefined),
   onWrite: vi.fn().mockResolvedValue(undefined),
   onSaveRules: vi.fn().mockResolvedValue(undefined),
+  onSaveProjectNotes: vi.fn().mockResolvedValue(undefined),
   onSavePreferences: vi.fn().mockResolvedValue(undefined),
   onAddPreference: vi.fn().mockResolvedValue(undefined),
   onReload: vi.fn().mockResolvedValue(undefined),
@@ -591,6 +592,22 @@ test('this project’s rules are one text with a counter, saved as written; what
   await tab('Told')
   await userEvent.click(within(rules).getByRole('button', { name: 'Save rules' }))
   expect(h.onSaveRules).toHaveBeenCalledWith('Sign off commits. No force-push.')
+})
+
+test('0.1.10: the Project notes are the rules’ second box - a line each, up to 4 000, saved as corrected', async () => {
+  const h = handlers()
+  const kept = '- Coder’s report (its words): the tax - fixed: added it'
+  render(<MemoryPage memory={projectMemory({ project_notes: kept })} {...h} />)
+  await tab('Told')
+  const rules = section('This project’s rules')
+  expect(within(rules).getByText(/The Orchestrator is given them every turn/)).toBeInTheDocument()
+  const box = within(rules).getByLabelText('Project notes')
+  expect(box).toHaveValue(kept)
+  expect(box).toHaveAttribute('maxlength', '4000')
+  await userEvent.clear(box)
+  await userEvent.click(within(rules).getByRole('button', { name: 'Save Project notes' }))
+  expect(h.onSaveProjectNotes).toHaveBeenCalledWith('')
+  expect(h.onSaveRules).not.toHaveBeenCalled()
 })
 
 test('the first save that puts the rules into the folder’s .koloni/ says so, once', async () => {

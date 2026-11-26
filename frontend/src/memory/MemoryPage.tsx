@@ -4,7 +4,7 @@ import type { MemoryRecord, MemorySearch, ProjectMemory } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { Find } from './Find'
-import { FolderRules, type NewFact, RulesBox, WriteBox } from './forms'
+import { FolderRules, type NewFact, ProjectNotes, RulesBox, WriteBox } from './forms'
 import {
   byTopic,
   decisionId,
@@ -38,6 +38,8 @@ interface Props {
   onCorrect: (id: string, changes: { text: string; about: string | null }) => Promise<void>
   onWrite: (fact: NewFact) => Promise<void>
   onSaveRules: (rules: string) => Promise<void>
+  /** 0.1.10: the Project notes, the rules' second box - what you kept at turns' ends. */
+  onSaveProjectNotes: (text: string) => Promise<void>
   /** Your own preferences (22b), one text for every project; and a suggested line into them. */
   onSavePreferences: (text: string) => Promise<void>
   onAddPreference: (id: string) => Promise<void>
@@ -239,7 +241,7 @@ export function MemoryPage({ memory, error, onReload, onSearch, onExport, search
   const lastAuto = lastAutoText(memory.last_auto, lastTurn)
   const waiting = memory.proposals.length
   const counts: Record<Tab, number> = {
-    told: linesOf(memory.preferences).length + linesOf(memory.rules).length,
+    told: linesOf(memory.preferences).length + linesOf(memory.rules).length + linesOf(memory.project_notes).length,
     facts: memory.core.length,
     notes: memory.journal.length,
     history: memory.decisions.length + memory.past.length,
@@ -342,6 +344,7 @@ export function MemoryPage({ memory, error, onReload, onSearch, onExport, search
           </p>
         )}
         {memory.rules_not_read && <p className="alert">{memory.rules_not_read}</p>}
+        <ProjectNotes text={memory.project_notes} onSave={on.onSaveProjectNotes} />
       </Section>
     </div>
   )

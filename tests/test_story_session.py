@@ -271,7 +271,7 @@ def test_topic_for_a_day_later_and_for_another_projects_story(story, client, tmp
     t["t3"].story_id = foreign["id"]
     lone, made = stories.topic_for(session, cid, t["t3"])
     assert made and lone.story_id is None and lone.title == "t3"
-    assert stories.brief(session, t["t3"], None) == ""
+    assert stories.brief(session, t["t3"], None) == stories.SAY_TASK_NOTE  # (its own, 0.1.10)
 
 
 def test_after_a_stuck_task_the_storys_next_starts_a_topic_anew_told_the_story_so_far(

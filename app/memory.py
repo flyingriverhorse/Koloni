@@ -213,9 +213,9 @@ def text_key(text: str) -> str:
     return key.rstrip(" .!?;:,…") or key
 
 
-def check_rules(rules: object, what: str = "rules") -> str | None:
-    """The user's rules (or preferences, 22b: the same shape and size), tidied line by
-    line; None when nothing is left."""
+def check_rules(rules: object, what: str = "rules", most: int = MAX_RULES) -> str | None:
+    """The user's rules (or preferences, 22b, or the Project notes, `most` long), tidied line
+    by line; None when nothing is left."""
     if not isinstance(rules, str):
         raise Refused(f"{what} must be text")
     lines = [
@@ -223,8 +223,8 @@ def check_rules(rules: object, what: str = "rules") -> str | None:
         for line in rules.splitlines()
     ]
     tidy = "\n".join(lines).strip()
-    if len(tidy) > MAX_RULES:
-        raise Refused(f"the {what} have at most {MAX_RULES} characters")
+    if len(tidy) > most:
+        raise Refused(f"the {what} have at most {most} characters")
     return tidy or None
 
 
@@ -1713,11 +1713,10 @@ def looked_up_earlier(found: str, can_recall: bool = True) -> str:
 
 
 def changed_in_turn(session: Session, root: str | Path, run_id: str, path: str) -> bool:
-    """Whether this file changed during a turn: the turn has a change to it on record (an
-    agent's write, or what a CLI was seen to change on disk), or the file itself is newer
-    than the turn - a command can write a file and leave nothing on record. Such a file
-    may say only what an agent just put there. A file that cannot be asked counts as
-    changed."""
+    """Whether this file changed during a turn: the turn has a change to it on record (an agent's
+    write, or what a CLI was seen to change on disk), or the file itself is newer than the turn - a
+    command can write a file and leave nothing on record. Such a file may say only what an agent
+    just put there. A file that cannot be asked counts as changed."""
     paths = session.scalars(select(FileChange.path).where(FileChange.run_id == run_id))
     if any(known.casefold() == path.casefold() for known in paths):
         return True
@@ -2004,6 +2003,7 @@ def overview(session: Session, project: Project) -> dict:
         # K-yargic: Full auto's check reads the saved ones, never the folder's file.
         "rules_differ": folder is not None and (folder or None) != project.rules,
         "rules_saved": project.rules,
+        "project_notes": project.project_notes,
         "rules_not_read": rules_unread(project.root_path),
         "rules_changed_at": project.rules_changed_at,
         "decisions": decisions(session, project),

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app import code_map, knowledge, knows, koloni, project_notes, roles
 from app import memory as kept
-from app.agent import announce
+from app.agent import announce, announce_memory
 from app.api.deps import get_session, require_own_origin
 from app.api.usage import over_limit, over_month
 from app.config import is_local
@@ -147,7 +147,8 @@ def checked(session: Session, sent: Knowledge, root: str) -> dict:
 
 @router.get("/projects/{project_id}/knowledge", response_model=list[KnowledgeOut])
 def list_knowledge(project_id: str, session: Session = Depends(get_session)):
-    """The project's knowledge and every project's, oldest first."""
+    """The project's knowledge and every project's, oldest first - not the Project notes of
+    0.1.9, which are Memory's since 0.1.10 (`project_notes`)."""
     project = project_of(session, project_id)
     return [
         out(session, row, project.root_path)
@@ -160,6 +161,7 @@ def list_knowledge(project_id: str, session: Session = Depends(get_session)):
             )
             .order_by(ProjectKnowledge.created_at, ProjectKnowledge.id)
         )
+        if not knowledge.is_notes(knows.knowledge_of(row))
     ]
 
 
@@ -623,7 +625,7 @@ def notes_offers(cid: str, session: Session = Depends(get_session)):
 
 @router.post(
     "/notes-offers/{offer_id}/answer", response_model=NotesOfferOut, dependencies=OWN
-)  # (it writes into the project's knowledge)
+)  # (it writes into the project's Memory: its Project notes)
 async def answer_notes_offer(
     offer_id: str, body: NotesAnswerIn, request: Request, session: Session = Depends(get_session)
 ):
@@ -643,4 +645,6 @@ async def answer_notes_offer(
     announce(
         request.app.state.session_factory, request.app.state.bus, project.id, project_notes.OFFERED
     )
+    if offer.status == "added":  # (Memory's Told tab: its Project notes box)
+        announce_memory(request.app.state.session_factory, request.app.state.bus, project.id)
     return project_notes.out(offer)

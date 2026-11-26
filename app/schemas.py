@@ -1542,13 +1542,12 @@ class MergeFileOut(BaseModel):
 
     path: str
     kind: Literal["new", "changed", "deleted"]
-    # "ready": can be taken; "merged": the project changed it too, on other lines - the
-    # two went together, and that is what is taken; "conflict": the project's file
-    # changed meanwhile and the two do not go together by themselves - the user says
-    # which side is taken (`whole`); "applied": in the project; "refused": not taken,
-    # and `note` says why; "left_out": of a copy with nothing to say what it was made
-    # from - the file differs from the project's and is not offered at all (nothing
-    # says the agent changed it).
+    # "ready": can be taken; "merged": the project changed it too, on other lines - the two went
+    # together, and that is what is taken; "conflict": the project's file changed meanwhile and the
+    # two do not go together by themselves - the user says which side is taken (`whole`); "applied":
+    # in the project; "refused": not taken, and `note` says why; "left_out": of a copy with nothing
+    # to say what it was made from - the file differs from the project's and is not offered at all
+    # (nothing says the agent changed it).
     state: Literal["ready", "merged", "applied", "conflict", "refused", "left_out"]
     # From what the project holds to what would be taken: the copy's file; for "merged"
     # the two sides together; for a "conflict" of lines (`whole` false) what goes in
@@ -3361,11 +3360,10 @@ class RoleModelOut(BaseModel):
     cannot_step: str | None = None
     # Where its agents could run instead, as their own model; [] where none could.
     run_on: list[RunOn] = []
-    # Of the team guide (the role's own list is judged too, so not `pick_from` alone), the
-    # providers a pick could not open in this conversation now (a CLI with its own tools,
-    # at this permission level or for this role's tools): the
-    # provider's name -> why, as the agent that picks it is told. In a turn nobody is
-    # watching nothing is picked at all, which no row says.
+    # Of the team guide (the role's own list is judged too, so not `pick_from` alone), the providers
+    # a pick could not open in this conversation now (a CLI with its own tools, at this permission
+    # level or for this role's tools): the provider's name -> why, as the agent that picks it is
+    # told. In a turn nobody is watching nothing is picked at all, which no row says.
     cannot_pick: dict[str, str]
     # Asked for (`?levels=1`): the reasoning levels that model takes; [] where it takes none
     # or its provider does not say them without a cost - no level is sent to it. None: not
@@ -3720,8 +3718,7 @@ class ModelFactsOut(BaseModel):
     catalogue_date: str | None
     # A lookup that was needed (the server on this machine, Anthropic) did not answer.
     failed: bool = False
-    # What it takes besides text, each kind someone said (slice 85b); a kind left out is
-    # not known.
+    # What it takes besides text, each kind someone said (slice 85b); a kind left out is not known.
     inputs: list["ModelInputOut"] = []
 
 
@@ -3943,6 +3940,8 @@ class ProjectMemoryOut(BaseModel):
     rules_differ: bool = False
     # The rules as saved here (`Project.rules`): `rules` are the folder's where it is read.
     rules_saved: str | None = None
+    # 0.1.10: the Project notes, the rules' second box (`Project.project_notes`); null: none.
+    project_notes: str | None = None
     # Why the folder's .koloni/rules.md is not read, as the page says it; null: it is, or is
     # not there.
     rules_not_read: str | None = None
@@ -4108,9 +4107,8 @@ class PriceIn(PriceOut):
 class CostOut(BaseModel):
     amount: float
     currency: str
-    # True where an agent of the row is unknown, or tokens of it are not priced
-    # (`cache_unpriced`): the amount is the least it cost. Left out where everything of
-    # the row is known and priced.
+    # True where an agent of the row is unknown, or tokens of it are not priced (`cache_unpriced`):
+    # the amount is the least it cost. Left out where everything of the row is known and priced.
     at_least: bool | None = None
     # True where tokens of the row were read from a cache or written to one and the user
     # wrote no price for that: they are not in the amount at all. Left out otherwise.
@@ -4454,6 +4452,8 @@ class BacklogTaskOut(Out):
     story_id: str | None = None
     kind: TaskKind = "task"
     place: int | None = None
+    # 0.1.10: its notebook, where it is of no story (`stories.notebook_of`); always a list here.
+    notes: "list[StoryNoteOut] | None" = None
     # Its story's title and its goal's, and who opened each ("agent": an agent's proposal opened
     # it, the user has not added one of its tasks yet) - read by the backlog's list only, so that a
     # proposal's card says where adding it puts it.

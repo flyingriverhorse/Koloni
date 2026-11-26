@@ -28,6 +28,7 @@ from app.agent.words import (
 from app.db.models import Agent, Conversation, Merge, Message, Project, Run, ToolCall, now
 from app.roles import find_role
 from app.serialize import message_out
+from app.stories import YOU
 from app.tools import ToolError, parse_arguments
 from app.workspace import Workspace, WorkspaceError
 
@@ -356,7 +357,9 @@ class MemoryMixin:
             return "this turn is over: its notebook is closed"
         if status == "queued":
             return "this turn has not started yet"
-        return self._write_note(run_id, cid, None, content)
+        note = self._write_note(run_id, cid, None, content)
+        self._into_notebook(run_id, YOU, content, agent=False)  # (a job's turn: its notebook too)
+        return note
 
     async def _reply_turn(
         self: "AgentRunner", ctx: Ctx, target: Ctx, kind: str, body: str, koloni: bool = False

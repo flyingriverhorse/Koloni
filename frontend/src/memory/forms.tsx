@@ -3,13 +3,20 @@ import { useConfirm } from '../shell/Confirm'
 import { spaced } from './memoryText'
 import { MAX_ABOUT, MAX_TEXT, useAsk } from './useAsk'
 
-const MAX_RULES = 1500
+type Told = 'rules' | 'preferences' | 'notes'
+const MOST: Record<Told, number> = { rules: 1500, preferences: 1500, notes: 4000 }
+const LABEL: Record<Told, string> = { rules: 'Rules', preferences: 'Preferences', notes: 'Project notes' }
+const EXAMPLE: Record<Told, string> = {
+  rules: 'For example: sign off every commit.',
+  preferences: 'For example: answer in Turkish; keep answers short.',
+  notes: 'A line each, as you added them at the end of a turn (Add to Project notes?).',
+}
 
 interface RulesProps {
   rules: string | null
   onSave: (rules: string) => Promise<void>
-  /** The same box for your preferences (22b): one text for every project. */
-  what?: 'rules' | 'preferences'
+  /** The same box for your preferences (22b): one text for every project - and (0.1.10) for the Project notes. */
+  what?: Told
 }
 
 const RULES_DIFFER = 'The folder’s rules.md differs from what you saved here; Full auto’s check goes by what you saved.'
@@ -56,27 +63,23 @@ export function RulesBox({ rules, onSave, what = 'rules' }: RulesProps) {
       }}
     >
       <div className="field">
-        <label htmlFor={`memory-${what}`}>{what === 'rules' ? 'Rules' : 'Preferences'}</label>
+        <label htmlFor={`memory-${what}`}>{LABEL[what]}</label>
         <textarea
           id={`memory-${what}`}
           className="input"
           rows={5}
-          maxLength={MAX_RULES}
+          maxLength={MOST[what]}
           value={draft}
-          placeholder={
-            what === 'rules'
-              ? 'For example: sign off every commit.'
-              : 'For example: answer in Turkish; keep answers short.'
-          }
+          placeholder={EXAMPLE[what]}
           onChange={e => setDraft(e.target.value)}
         />
       </div>
       <div className="memory-actions">
         <button type="submit" className="btn btn-small btn-primary" disabled={busy || draft === (rules ?? '')}>
-          Save {what}
+          Save {what === 'notes' ? 'Project notes' : what}
         </button>
         <span className="mono muted memory-count">
-          {spaced(draft.length)} / {spaced(MAX_RULES)}
+          {spaced(draft.length)} / {spaced(MOST[what])}
         </span>
       </div>
       {error && (
@@ -85,6 +88,24 @@ export function RulesBox({ rules, onSave, what = 'rules' }: RulesProps) {
         </div>
       )}
     </form>
+  )
+}
+
+/**
+ * 0.1.10: the rules' second box - the Project notes, what you kept at turns' ends ("Add to Project notes?"), a line
+ * each; the Orchestrator is given them every turn as notes, never as your rules.
+ */
+export function ProjectNotes({ text, onSave }: { text?: string | null; onSave: (text: string) => Promise<void> }) {
+  return (
+    <>
+      <p className="muted memory-hint">
+        Project notes: what you kept at the end of a turn (Add to Project notes?), a line each - a fixed finding or a
+        change to docs/. The Orchestrator is given them every turn, as notes written from agents’ work: not as your
+        instructions, and never in the folder’s rules.md. Adding more waits once they hold 4 000 characters.
+      </p>
+      {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}
+      <RulesBox key={text ?? ''} rules={text ?? null} what="notes" onSave={onSave} />
+    </>
   )
 }
 

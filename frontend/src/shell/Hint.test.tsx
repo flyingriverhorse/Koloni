@@ -227,6 +227,7 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
           onCorrect={none}
           onWrite={none}
           onSaveRules={none}
+          onSaveProjectNotes={none}
           onSavePreferences={none}
           onAddPreference={none}
           onReload={none}
