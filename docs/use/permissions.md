@@ -334,8 +334,7 @@ remove, a path above the folder or with a link in it, a line the shell continues
 whose folder KOLONİ does not know or that its model names, and any of GitHub Copilot CLI's own
 commands (it has no sandbox) asks as before. A delete whose folder changed
 between KOLONİ's look and its run - a card of the turn was answered meanwhile - asks too. At
-**Ask before changes**, in a turn nobody watches,
-a side of a comparison and a job while you are away, every delete asks or waits
+**Ask before changes**, in a side of a comparison and a job while you are away, every delete asks or waits
 as before. No **Always run** rule covers a delete either way.
 
 ## Sub-agents

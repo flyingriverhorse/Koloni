@@ -455,7 +455,7 @@ def settings_env(tmp_path: Path) -> dict[str, str]:
         "KOLONI_MCP_HOME": str(tmp_path / "mcp-home"),  # never the user's own (97)
         "KOLONI_MODEL_BASE_URL": "http://127.0.0.1:9/v1",
         "KOLONI_DETECT_CLI": "0",  # what is installed on this machine is not the test's business
-        "KOLONI_TRIGGER_CLOCK": "0",  # a test hands the scheduler its time: tick(now)
+        "KOLONI_CLOCK": "0",  # a test hands the scheduler its time: tick(now)
         "KOLONI_CATALOGUE_REFRESH": "0",  # no download at the start
         # Never this machine's llama-server or graphics card (slice 64): a test gives its own.
         "KOLONI_LOCAL_SERVER": str(tmp_path / "no-llama-server.exe"),

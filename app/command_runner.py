@@ -685,8 +685,8 @@ class CommandRunner:
         held_into: list[str] | None = None,
     ) -> tuple[str, str]:
         """Returns the tool call's final status and the result text for the model.
-        `ask` is False where the command has its leave already and nobody can be asked
-        (an unattended turn, by its trigger): it runs, whatever the conversation says.
+        `ask` is False where the command has its leave already (a skill's script the user lets
+        run, the user's own Run): it runs, whatever the conversation says.
         `ws` is where it runs: the project folder, or the agent's working copy.
         `where`: asked once the command may run, for where it then runs - an agent's
         working copy is made by its first command, and not for one that is refused.

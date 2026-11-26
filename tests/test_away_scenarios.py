@@ -343,7 +343,7 @@ def test_the_night_stops_at_its_time(make_client, wait_run, project_dir, gate):
     started = go_away(client, cid).json()
     gate.wait_partial()
     # (the clock's look: a job at work takes no step meanwhile)
-    client.app.state.triggers.tick(now() + timedelta(days=1))
+    client.app.state.clock.tick(now() + timedelta(days=1))
     done = ended(client, pid)
     assert done["why"].startswith("Stopped at ") and done["why"].endswith("the time you set.")
     assert done["jobs"][0]["state"] == "stopped" and done["id"] == started["id"]
@@ -392,7 +392,7 @@ def test_one_notification_once_every_task_was_looked_at_and_none_at_im_back(
         and summary(said.removeprefix("Every To-do task was looked at. ")) == "2 of 2 To-do done."
     )
     # Away lasts until the user is back: none again at the clock's look, none at I'm back
-    client.app.state.triggers.tick(now())
+    client.app.state.clock.tick(now())
     assert night(client, pid)["status"] == "running"
     ended(client, pid)
     assert len(shown) == 1
@@ -1002,7 +1002,7 @@ def test_the_chat_finishes_its_turn_first_and_a_task_added_meanwhile_does_not_jo
     gate.wait_partial()
     assert go_away(client, cid).status_code == 200
     # the chat's turn is at work: To-do waits for it
-    client.app.state.triggers.tick(now())
+    client.app.state.clock.tick(now())
     assert [job["conversation_id"] for job in night(client, pid)["jobs"]] == [None, None]
     gate.release()
     wait_run(client, cid, later)
@@ -1074,7 +1074,7 @@ def test_the_spend_limit_counts_only_what_was_spent_after_go_away_and_cuts_the_c
     assert started["spent"] == 0
     gate.release()
     second.wait_partial()  # (and 10.50 more after it)
-    client.app.state.triggers.tick(now())
+    client.app.state.clock.tick(now())
     done = night(client, pid)
     assert (done["status"], done["why"]) == (
         "ended",

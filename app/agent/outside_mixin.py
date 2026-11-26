@@ -85,8 +85,7 @@ class OutsideMixin:
 
         What is never reachable is refused first, before anybody is asked. A search and
         a request are asked about unless the conversation runs at full auto or has a
-        rule for it; a notification is not - it goes only where the user said. In a turn
-        nobody watches nothing is asked: the trigger allows it, or it is not done.
+        rule for it; a notification is not - it goes only where the user said.
         """
         cid = ctx.cid
         with self._factory() as session:
@@ -132,32 +131,15 @@ class OutsideMixin:
             # leaves this machine, and a name can carry data; it is looked up, and what
             # it stands for judged, once the request may go (`web.fetch`).
             web.host_of(url)
-            # What a rule and a trigger name: the scheme, the host and the port, as one.
+            # What a rule names: the scheme, the host and the port, as one.
             host = web.rule_of(url)
-            # With nobody watching, what the trigger names is asked with GET and HEAD
-            # only: the name got on the list by a yes to "Always allow GET". And with
-            # nothing of the agent's own on it: a body or a header carries anything out.
             reads = verb in ("GET", "HEAD")
             bare = body is None and not headers
-            refused = self._nobody_to_ask(
-                ctx,
-                "host" if reads and bare else "",
-                f"make a {'' if reads else verb + ' '}request to {host}"
-                f"{'' if bare or not reads else ' with a body or headers of its own'}",
-                host=host,
-            )
-            if refused:
-                return "failed", refused
-            unwatched = refused == ""
             # A rule is for a GET with nothing of the agent's own on it, here too.
             plain = verb == "GET" and bare
             # At Full auto only a bare GET or HEAD goes unasked - as in a job while the user is
             # away (K-fullauto-sorma): a body, a header or another verb carries anything out.
-            if (
-                not unwatched
-                and (asks or not (reads and bare))
-                and not (plain and host in self._web_rules(cid)[1])
-            ):
+            if (asks or not (reads and bare)) and not (plain and host in self._web_rules(cid)[1]):
                 asked = WebRequest(
                     kind="http",
                     method=verb,
@@ -171,15 +153,13 @@ class OutsideMixin:
 
             def may(other: str) -> bool:
                 """Whether a redirect to another place is followed: a request to it
-                needs the leave this one had - the trigger names it, or a rule of the
-                conversation covers it. (The user's yes was for the one asked.)"""
-                if unwatched:
-                    return self._nobody_to_ask(ctx, "host", "", host=other) == ""
+                needs the leave this one had - a rule of the conversation covers it. (The
+                user's yes was for the one asked.)"""
                 return verb == "GET" and other in self._web_rules(cid)[1]
 
             self._within(self._requests, cid, "30 requests")
             return "succeeded", await web.request(
-                verb, url, headers, args.get("body"), may if unwatched or asks else None
+                verb, url, headers, args.get("body"), may if asks else None
             )
         except web.WebError as exc:
             raise ToolError(str(exc)) from None
@@ -188,9 +168,6 @@ class OutsideMixin:
         self: "AgentRunner", ctx: Ctx, args: dict, on_desktop: bool, title: str
     ) -> tuple[str, str]:
         """`_web`'s notification, on the user's desktop (a `web.WebError` is `_web`'s to turn)."""
-        refused = self._nobody_to_ask(ctx, "notify", "send a notification")
-        if refused:
-            return "failed", refused
         if not on_desktop:
             raise ToolError("the user has not switched desktop notifications on for this project")
         message = web.note(args.get("message"))
@@ -218,12 +195,9 @@ class OutsideMixin:
         if not isinstance(query, str) or not query.strip():
             raise ToolError("missing required argument: query")
         query = web.query_of(query)
-        refused = self._nobody_to_ask(ctx, "web", "search the web")
-        if refused:
-            return "failed", refused
         # (K-fullauto-sorma: at Full auto the expert's search is not asked either -
         # it costs nothing, `paid=not expert`.)
-        if refused is None and asks and (expert or not self._web_rules(cid)[0]):
+        if asks and (expert or not self._web_rules(cid)[0]):
             asked = WebRequest(kind="search", target=query)
             if await self._ask_web(ctx, call_id, asked) == "reject":
                 return "denied", WEB_REJECTED.format(what="search")
@@ -358,16 +332,15 @@ class OutsideMixin:
         A CLI that works with its own tools is offered them too, among KOLONİ's own over
         its MCP bridge (K-native-tools): KOLONİ runs each call, held to the same rules -
         the CLI is given no server, no command and no secret of one. None for a CLI that
-        cannot be handed KOLONİ's tools (agy: `_native_work` says so); none
-        in a turn nobody watches; none in a project that runs its commands in Docker
-        (the server would run on this machine, outside the container the user chose);
+        cannot be handed KOLONİ's tools (agy: `_native_work` says so); none in a project that
+        runs its commands in Docker (the server would run on this machine, outside the container
+        the user chose);
         none in a turn taken to answer somebody, where an agent only reads; none in a side
         of a comparison, which changes nothing outside its copy before the user's choice."""
         if (
             not ctx.mcp
             or ctx.answering
             or not getattr(ctx.model, "collaborates", True)
-            or not self._watched(ctx.run_id)
             or ctx.run_id in self._sides
             or ctx.run_id in self._away_jobs
         ):
@@ -696,8 +669,8 @@ class OutsideMixin:
             # (A search hides such a key in its lines instead: `_read`.)
             # shortcut: a write's answer and a CLI's own Read and Grep are not looked into by
             # what a file holds; look there too if a key is seen to pass.
-            # shortcut: a fake key of a test's (sk-test-...) is a card at every read and
-            # refused nobody watching (the well-known samples are not: `holds_a_key`); let
+            # shortcut: a fake key of a test's (sk-test-...) is a card at every read (the
+            # well-known samples are not: `holds_a_key`); let
             # one be allowed for the chat if that tires.
             if (
                 (name == "read_file" or name in WRITE_TOOLS)
@@ -793,18 +766,9 @@ class OutsideMixin:
         folder is allowed once: what it would hold is not known yet). No `folder`: any yes
         is for this one call - of `path`, a secret file in the project, or one named in a
         chat with no folder, which the card says `why` and `shown` where it leads. Their
-        word ("once" or "folder"); _NobodyToAsk where nobody is there to ask, or the user
-        says no."""
+        word ("once" or "folder"); _NobodyToAsk where the user says no."""
         why = why or (SECRET_CARD if folder is None else None)
         secret = why == SECRET_CARD
-        wanted = (
-            f"open {quoted(path)}, a secret file (keys, passwords)"
-            if secret
-            else f"open {quoted(path)}, outside the project"
-        )
-        refused = self._nobody_to_ask(ctx, "outside", wanted)
-        if refused:
-            raise _NobodyToAsk(refused)
         future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
         self._outside_asks[call_id] = future
         # On the card: where the path really leads, which "Allow this folder" would open -

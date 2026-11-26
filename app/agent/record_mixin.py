@@ -13,9 +13,9 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, func, literal_column, or_, select, true
 
 from app import away, backlog, board, earlier, git, recipe_run
-from app.agent.ctx import TERMINAL, Ctx, _NobodyToAsk, announce
+from app.agent.ctx import TERMINAL, Ctx, announce
 from app.agent.merge import _forget_secrets, landed
-from app.agent.words import NOBODY, UNFINISHED
+from app.agent.words import UNFINISHED
 from app.db.models import (
     Agent,
     BacklogTask,
@@ -45,7 +45,6 @@ from app.serialize import (
     tool_call_out,
     web_request_out,
 )
-from app.team import quoted
 from app.workspace import in_scratch
 
 if TYPE_CHECKING:
@@ -219,14 +218,6 @@ class RecordMixin:
         # Several agents may be waiting on the user at once: the turn waits for approval
         # until the last of them has its decision.
         if fields == {"status": "waiting_approval"}:
-            if run_id in self._unwatched:
-                # Should never be reached: everything that waits asks `_nobody_to_ask`
-                # first. If something ever does not, it is refused here, not waited for.
-                raise _NobodyToAsk(
-                    NOBODY.format(
-                        trigger=quoted(self._unwatched[run_id].trigger_name), what="do this"
-                    )
-                )
             self._asking[run_id] = self._asking.get(run_id, 0) + 1
             if run_id in self._away_jobs:  # (after what it waits for is on record)
                 asyncio.get_running_loop().call_soon(self._job_waits, run_id, True)

@@ -500,7 +500,7 @@ class RiskJudgeMixin:
         reason and record: given back as they are). ("", record) - it runs, its record "fine";
         ("", None) - not judged; (`CARD`, record "risky") - its card; ("", record "refuse") - not
         run, its agent told so (`risk_judge.REFUSED`).
-        Not judged: not a watched Full auto turn nor a job's at Full auto (a trigger's never), a
+        Not judged: not a watched Full auto turn nor a job's at Full auto, a
         line the user lets run or KOLONİ asks of anyway (`exempt`: a skill's script they allowed,
         a disposable delete, a reason in a working copy, a role that runs no command),
         the project's switch off (read at each command), one that only reads, their own test

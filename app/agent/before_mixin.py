@@ -568,7 +568,7 @@ class BeforeMixin:
 
     def _may_rerun(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun) -> bool:
         """Whether `run` may be run again - alone, on the old code - with no card: it goes
-        unasked (your own command, Full auto, a trigger's leave). A guess whose card was said yes
+        unasked (your own command, Full auto). A guess whose card was said yes
         to is not: no second card is raised for it."""
         how = self._may_run_tests(ctx, run)
         return how == "run" or how == "ask" and (run.yours or self._full_auto(ctx))

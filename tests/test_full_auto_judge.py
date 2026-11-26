@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import select
 
 from app import risk_judge
-from app.agent.ctx import Ctx, _Unwatched
+from app.agent.ctx import Ctx
 from app.agent.risk_judge_mixin import ASIDE, NO_MODEL
 from app.db.judge_models import JudgeAllowed
 from app.db.models import AllowedCommand, BacklogTask, Command, OwnRequest
@@ -644,7 +644,7 @@ def test_dont_ask_again_is_only_a_judges_cards_and_with_no_rule(judging, wait_ru
         assert session.scalars(select(JudgeAllowed)).all() == []
 
 
-@pytest.mark.parametrize("where", ["trigger", "exempt", "found"])
+@pytest.mark.parametrize("where", ["exempt", "found"])
 def test_the_gate_stands_aside(judging, monkeypatch, project_dir, where):
     client, *_ = judging([], [], [])
     runner = client.app.state.runner
@@ -654,14 +654,9 @@ def test_the_gate_stands_aside(judging, monkeypatch, project_dir, where):
 
     monkeypatch.setattr("app.agent.risk_judge_mixin.ask_once", never)
     found = ("", {"verdict": "run"}) if where == "found" else ("", None)
-    if where == "trigger":
-        runner._unwatched["r"] = _Unwatched(None, "a trigger", 10, 10)
     ctx = Ctx(run_id="r", cid="c", root=None, agent_id="a", role="Lead", tools=(), depth=0)
     judged = functools.partial(runner._risk_judged, exempt=where == "exempt")
-    try:
-        assert client.portal.call(judged, ctx, "python gen.py", ".", project_dir, found) == found
-    finally:
-        runner._unwatched.pop("r", None)
+    assert client.portal.call(judged, ctx, "python gen.py", ".", project_dir, found) == found
 
 
 def test_a_to_do_tasks_turn_in_a_chat_at_full_auto_is_judged(judging, wait_run, project_dir):

@@ -78,16 +78,6 @@ UNFINISHED = "interrupted: this tool call did not finish"
 # A command its CLI asked about again for the same call: it ran under the second record.
 ASKED_AGAIN = "asked again: its CLI's own request for it named more, and it ran as asked there"
 
-# What every refusal in a turn nobody is watching (a trigger started it) says: nothing
-# waits, and nothing is done that would have to be asked about. The words are for the
-# agent, and the user reads them afterwards as what it would have asked.
-NOBODY = (
-    "not done: nobody is here to ask. This turn was started by the trigger {trigger}, "
-    "which does not allow it to {what}. That is the user's standing decision, not a tool "
-    "error: do not try it another way. Go on with what you may do, and say in your "
-    "report what you would have asked for."
-)
-
 # What an agent may use in a turn taken to answer a message or to speak in a discussion:
 # it reads, and it may look in the project's memory. It writes nothing, there either.
 ANSWER_TOOLS = READ_TOOLS | {"recall", LOOKUP}
@@ -147,14 +137,6 @@ NO_MORE_GO_ON = (
 )
 
 TEAM_STOPPED = "Stopped by you: the user stopped this team"
-
-UNATTENDED_NOT_THIS = (
-    "{provider} cannot work in a turn nobody is watching: it works with its own tools - "
-    "KOLONİ sees of them only what the CLI asks about - so it cannot be "
-    "held to what the trigger allows, and nobody is here to ask. Choose another provider "
-    "for this conversation or role, or set this one to a way of working that uses "
-    "KOLONİ's tools (a session, or one step at a time)."
-)
 
 # A minute of a turn's budget, in seconds.
 MINUTE = 60.0
@@ -261,11 +243,6 @@ PAID_SWITCH = "{to} is paid per token, {from_} is not: the user says whether it 
 PAID_NO = (
     "not opened on {to}: the user said no to its pay-per-token use in this turn - "
     "do this part another way, or say why it cannot be done"
-)
-PAID_UNATTENDED = (
-    "not opened on {to}: it is paid per token, and nobody is watching this turn "
-    "to be asked about money - whatever the chat's spawn approval says, even "
-    '"never" - so it is not used; do this part another way'
 )
 
 # The finding a review that found nothing but said not what it checked (`NOT_CHECKED`) is on

@@ -217,9 +217,7 @@ class ObserveMixin:
         agent's approved writes (`watch.named`); `but`, files KOLONİ has just written there
         itself; and at the look just after a `command` what it names (`_command_names`; its
         standing name only where the user `approved` it). Never another agent's names."""
-        paths, names = _command_names(
-            command, approved, not self._watched(ctx.run_id) or self._full_auto(ctx)
-        )
+        paths, names = _command_names(command, approved, self._full_auto(ctx))
         paths |= watch.named | {one.casefold() for one in but}
         async with watch.looking:
             taken, let = await asyncio.to_thread(
@@ -255,9 +253,7 @@ class ObserveMixin:
         put back all the same, with no card and nothing waited for. `stand`: what others wrote
         meanwhile, on record, by path and the digests it left (S6: a test run that outlives its
         turn) - not its to put back while it holds that (`_put_back`)."""
-        paths, names = _command_names(
-            command, approved, not self._watched(ctx.run_id) or self._full_auto(ctx)
-        )
+        paths, names = _command_names(command, approved, self._full_auto(ctx))
         taken, let = await asyncio.shield(
             asyncio.to_thread(
                 _put_back,
@@ -358,11 +354,10 @@ class ObserveMixin:
         by: str | None = None,
     ) -> list[asyncio.Task]:
         """Put on record what `_put_back` took back of an agent's (`taken`), and the `.pth`
-        files its install added that were `kept` (nobody watching). With somebody watching,
-        each file taken back is a card that offers to keep what the agent wrote
-        (`_keep_or_not`, which it returns); with nobody - or `ask` False, its turn being
-        over - it stays taken back, refused. One that could not be put back is said. `by`: who
-        wrote it, where that is not the agent (KOLONİ's own test run)."""
+        files its install added that were `kept` (at Full auto). Each file taken back is a card
+        that offers to keep what the agent wrote (`_keep_or_not`, which it returns); with `ask`
+        False, its turn being over, it stays taken back, refused. One that could not be put back
+        is said. `by`: who wrote it, where that is not the agent (KOLONİ's own test run)."""
         cards: list[asyncio.Task] = []
         held = self._keeps.setdefault(ctx.folder, {})
         for rel in kept or []:
@@ -394,16 +389,10 @@ class ObserveMixin:
                     parent,
                 )
                 continue
-            refused = self._nobody_to_ask(
-                ctx,
-                "standing file",
-                f"write {quoted(rel)} without naming it: such a file tells "
-                "later turns what they may do, or runs by itself",
-            )
             # shortcut: a card each for the first KEEP_CARDS of one look, the rest refused; ask
             # about them together if a CLI is seen to write many such files at once.
-            if refused is not None or not ask or len(cards) >= KEEP_CARDS:
-                why = refused or (
+            if not ask or len(cards) >= KEEP_CARDS:
+                why = (
                     "its turn was over"
                     if not ask
                     else f"more than {KEEP_CARDS} at once are not asked about one by one"
@@ -464,7 +453,7 @@ class ObserveMixin:
                     {"question": mcp_client.visible(question), "options": ["Keep", "Take back"]},
                     leave=True,
                 )
-            except _NobodyToAsk as exc:  # (as where nobody watches: it stays taken back)
+            except _NobodyToAsk as exc:  # (it stays taken back)
                 self._set_call(
                     ctx.cid,
                     call_id,
@@ -511,8 +500,8 @@ class ObserveMixin:
     async def _keeps_answered(self: "AgentRunner", ctx: Ctx, own: bool = False) -> None:
         """Wait while a card of `_keep_or_not` of this turn is open in its project folder -
         one of this agent's, `own` -, holding no place meanwhile (`_users_word`: the card's
-        answer takes one back). Never where nobody is there to answer; never cancels one."""
-        if not ctx.root or not self._watched(ctx.run_id):
+        answer takes one back). Never cancels one."""
+        if not ctx.root:
             return
 
         async def answered(cards: list[asyncio.Task]) -> str:

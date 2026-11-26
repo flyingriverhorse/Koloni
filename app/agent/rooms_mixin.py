@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app import knowledge, knows, web
 from app import memory as kept
-from app.agent.ctx import Ctx, _NobodyToAsk
+from app.agent.ctx import Ctx
 from app.agent.words import LEADS_LATER
 from app.api.usage import over_limit
 from app.db.models import (
@@ -244,10 +244,6 @@ class RoomsMixin:
             mode = session.get_one(Conversation, ctx.cid).permission_mode
         if taken:
             raise ToolError(taken)
-        refused = self._nobody_to_ask(ctx, "role", f"create the role {name}")
-        if refused is not None:
-            # At every level of the conversation: a new role is the user's to agree to.
-            raise _NobodyToAsk(refused)
 
         if mode == "ask" or (reads_web and mode != "full_auto"):
             proposal = {
@@ -395,9 +391,7 @@ class RoomsMixin:
         """K-uzman: an expert reads its sources again and has its guide written - as Learn on
         its Knowledge tab, on the model it learns with, else its own; once a turn. Its plain GETs
         go on the user's leave for its sources (`app.knowledge`; `_open_agent` gives it this only
-        under an opener that makes web requests); in a turn nobody watches, only to a place the
-        trigger names, and where the trigger lets it write (it writes `.koloni/knowledge`), and
-        never from a project whose network is off."""
+        under an opener that makes web requests); never from a project whose network is off."""
         if LEARN not in ctx.tools:  # (no role lists it: the role's gate does not hold it)
             raise ToolError(
                 "learn is not available while answering a message: if your guide is old, say so"
@@ -428,15 +422,11 @@ class RoomsMixin:
                 f"nothing was learned: {', '.join(switched)} is switched off on the "
                 "Tools page; only the user can switch it on"
             )
-        urls = [one for one in known["sources"] if one.startswith(("http://", "https://"))]
         if knowledge.reads_web(known) and no_network:
             raise ToolError(
                 "this project's network access is off (its commands run in Docker "
                 "without a network): only the user can switch it on"
             )
-        refused = self._learn_refused(ctx, known, urls)
-        if refused:
-            return "failed", refused
         try:
             added = knowledge.additions(args.get("add"))
         except ValueError as exc:
@@ -478,17 +468,6 @@ class RoomsMixin:
                 raise ToolError(f"nothing was learned: the model it learns with is {over}")
         return chosen, provider, model
 
-    def _learn_refused(self: "AgentRunner", ctx: Ctx, known: dict, urls: list[str]) -> str | None:
-        """`_learn` in a turn nobody watches: why its trigger does not let it, if it does not."""
-        refused = self._nobody_to_ask(ctx, "write", "write its guide in .koloni/knowledge")
-        for url in urls:
-            refused = refused or self._nobody_to_ask(
-                ctx, "host", f"read {web.rule_of(url)} to learn", host=web.rule_of(url)
-            )
-        if "web_search" in knowledge.web_tools(known):
-            refused = refused or self._nobody_to_ask(ctx, "web", "search the web to learn")
-        return refused
-
     async def _learn_now(
         self: "AgentRunner",
         ctx: Ctx,
@@ -510,14 +489,6 @@ class RoomsMixin:
             except ToolError as exc:
                 raise web.WebError(str(exc)) from None
             return await searching(query)
-
-        def may(url: str) -> str | None:
-            """Unwatched, a page a search found is read only on a site the trigger names."""
-            return (
-                None
-                if self._nobody_to_ask(ctx, "host", "", host=web.rule_of(url)) in (None, "")
-                else "the trigger does not name this site"
-            )
 
         try:
             model = model or (await client.info()).model_id
@@ -552,8 +523,7 @@ class RoomsMixin:
                 price,
                 f"{name} · {model}",
                 search,
-                may,
-                added,
+                added=added,
                 # (nobody clicked: only what changed is written again)
                 extend=False,
                 write_in=write_in,

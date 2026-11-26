@@ -34,11 +34,6 @@ from app.workspace import Workspace, WorkspaceError
 if TYPE_CHECKING:
     from app.agent import AgentRunner
 
-NOBODY_FOR_THE_CORE = (
-    "nothing is put forward for the core in a turn nobody is watching: nobody is here to "
-    "ask. Leave propose out to keep it as a note."
-)
-
 
 class MemoryMixin:
     # --- the project's memory ---------------------------------------------------
@@ -157,9 +152,7 @@ class MemoryMixin:
                         *(
                             (
                                 koloni.instructions(project.root_path, ctx.part),
-                                project_map.told(
-                                    ctx.part, self._map_now(ctx), self._watched(ctx.run_id)
-                                ),
+                                project_map.told(ctx.part, self._map_now(ctx)),
                             )
                             if ctx.part
                             else ()
@@ -264,12 +257,8 @@ class MemoryMixin:
                 "nothing is written into the memory in a turn taken on a message or in a discussion"
             )
         own_tools = bool(getattr(ctx.model, "native", False))
-        unattended = not self._watched(ctx.run_id)
         try:
             asked = kept.plan_remember(args)
-            if asked.propose and unattended:
-                # Putting a note forward is asking the user: there is nobody to ask.
-                raise ToolError(NOBODY_FOR_THE_CORE)
             source, checked = None, None
             with self._factory() as session:
                 project_id = session.get_one(Conversation, ctx.cid).project_id
@@ -311,7 +300,6 @@ class MemoryMixin:
                     conversation_id=ctx.cid,
                     source=source,
                     checked_how=checked,
-                    unattended=unattended,
                 )
                 waits, wants = note.status == "proposed", note.wants_core
         except kept.Refused as exc:

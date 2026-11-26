@@ -35,7 +35,7 @@ SQLite, and runs agents as asyncio tasks.
   Scout's follow-up tasks. **`stories.py`**: stories (and the goals over them, hidden since 0.1.10), a story's topic and its notebook.
 - **`away.py`**: ☾ Away, the To-do tasks worked through while you are away.
 - **`cli_surface.py`**: the version and protocol of each CLI KOLONİ runs, and whether it was measured.
-- **`triggers.py`**: the app's clock: it looks at each night while you are away, and sends the day's summary.
+- **`clock.py`**: the app's clock: it looks at each night while you are away, and sends the day's summary.
 - **`mcp_client.py`**: the client for the user's MCP servers. **`mcp_bridge.py`**: the small program a CLI
   starts as its MCP server, which relays to KOLONİ's own tools.
 

@@ -11,9 +11,9 @@ from app import web
 from app.api import day as day_api
 from app.api import projects as projects_api
 from app.api.board import waiting_in
+from app.clock import local_day
 from app.db.models import FileChange
 from app.model_client import ModelUnavailable
-from app.triggers import local_day
 from tests.test_agent_writes import write
 from tests.test_chat_flow import text
 from tests.test_usage_scenarios import ORIGIN, began, turn
@@ -48,7 +48,7 @@ def at(day, hour, minute=0, midnight=MIDNIGHT):
 
 def looker(client):
     """Look at the clock at a moment, and wait for what that sent (it goes off the clock)."""
-    triggers = client.app.state.triggers
+    triggers = client.app.state.clock
     triggers.zone = UTC
 
     async def look(moment):
@@ -202,7 +202,7 @@ def test_a_slow_address_never_holds_the_clock(make_client, project_dir, monkeypa
         await held.wait()
 
     monkeypatch.setattr(web, "show", slow)
-    triggers = client.app.state.triggers
+    triggers = client.app.state.clock
     triggers.zone = UTC
     # back at once, while the address has not answered - and marked sent already
     client.portal.call(triggers.day_notes, at(0, 9))
@@ -239,7 +239,7 @@ def test_one_project_that_cannot_be_counted_keeps_no_other_from_its_note(
         return day_api.day_note(session, project, since, runner, until)
 
     monkeypatch.setattr(web, "show", post)
-    monkeypatch.setattr(client.app.state.triggers, "_day_note", note)
+    monkeypatch.setattr(client.app.state.clock, "_day_note", note)
     look = looker(client)
     look(at(0, 9))
     assert len(sent) == 1  # the other project's

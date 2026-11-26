@@ -998,7 +998,7 @@ def note_by_itself(
     run_id: str,
     conversation_id: str,
     noted_by: dict,
-    unattended: bool,
+    unattended: bool = False,
 ) -> dict:
     """Keep what a fast model noted of a turn (`AgentRunner._note_what_it_found`): how
     many notes went into the journal, how many of its were not kept, and - when none was

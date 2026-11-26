@@ -1565,17 +1565,13 @@ def test_codexs_own_command_failing_the_same_way_is_counted_as_koloni_s_are(
     assert sign["text"].startswith("run_command failed 3 times")
 
     # Counted apart from KOLONİ's own calls: four of its own and one of KOLONİ's, the same
-    # failure, are no five that stop it in a turn nobody watches.
+    # failure, are no five that stop it.
     runner = client.app.state.runner
     lead = SimpleNamespace(agent_id=snap["agents"][0]["id"], run_id=run_id, cid=cid, depth=0)
     same = ToolCallRequest("x", "run_command", json.dumps({"command": "pytest"}))
-    runner._unwatched[run_id] = SimpleNamespace(trigger_id=None)
-    try:
-        for _ in range(4):
-            runner._counted(lead, "x", same, "failed", "exit code 1", own=True)
-        said = runner._counted(lead, "x", same, "failed", "exit code 1")
-    finally:
-        runner._unwatched.pop(run_id)
+    for _ in range(4):
+        runner._counted(lead, "x", same, "failed", "exit code 1", own=True)
+    said = runner._counted(lead, "x", same, "failed", "exit code 1")
     assert "Counted by KOLONİ" not in said and lead.agent_id not in runner._stuck
 
 

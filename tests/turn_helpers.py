@@ -84,7 +84,7 @@ def until(check, what, seconds=10.0):
 
 def on_loop(client, work):
     """Do something on the app's event loop, from the test's thread."""
-    return client.app.state.triggers._on_loop(work)
+    return client.app.state.clock._on_loop(work)
 
 
 def everything_kept(client) -> bytes:

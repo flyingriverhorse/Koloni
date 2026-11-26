@@ -14,7 +14,7 @@ from sqlalchemy.orm import object_session
 
 from app import away, earlier, memory, parked, raw, signs, topics
 from app.agent.cards import _answer, lead_pick
-from app.agent.ctx import Ctx, _NobodyToAsk
+from app.agent.ctx import Ctx
 from app.agent.words import AGENT_TERMINAL, ANSWER_PREFIX, KOLONIS, READY_FOR_YOU
 from app.api.usage import over_month, past_its_limit
 from app.db.models import (
@@ -212,9 +212,6 @@ class QuestionsMixin:
         itself (`_users_word`). `call_id` None: a card of the turn's own, under no call.
         `aside` False: asked beside the agent's work, which goes on and keeps its place (K-yavas:
         its model is slow) - as `_spawn_word` waits for an opener that went on."""
-        refused = self._nobody_to_ask(ctx, "question", "ask the user anything")
-        if refused is not None:
-            raise _NobodyToAsk(refused)  # no question is put on record: none can be answered
         text, options = plan_question(args)
         with self._factory() as session:
             question = Question(

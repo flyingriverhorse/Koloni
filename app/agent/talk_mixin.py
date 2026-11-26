@@ -168,7 +168,7 @@ class TalkMixin:
             return f"not to the {ctx.role} role"
         if ctx.answering:
             return "not while answering a message"
-        if not self._watched(ctx.run_id) or ctx.run_id in self._away_jobs:
+        if ctx.run_id in self._away_jobs:
             return "not in a turn nobody watches"
         return None
 

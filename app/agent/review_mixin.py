@@ -878,8 +878,8 @@ class ReviewMixin:
         """Decision 6: a command of KOLONİ's Reviewer runs, unasked (True), only where it only
         reads (`reads_here`: git's only at the folder's root, with no secret file there) or is
         one of the project's approved test commands to the letter, in its folder
-        (`_approved_tests`) - and stops by itself, is asked at no level (`_asked_anyway`) and,
-        where nobody watches, has a trigger's leave; else it is refused by raising, the
+        (`_approved_tests`) - and stops by itself and is asked at no level (`_asked_anyway`);
+        else it is refused by raising, the
         approved ones named so it can run one. (K-yargic's check is not needed: neither a read
         nor such a test line looks harmful.)"""
         command, cwd = planned.command, planned.cwd_rel
@@ -909,11 +909,6 @@ class ReviewMixin:
                 )
         # What `CommandRunner.run` asks at every level is never asked for it: refused.
         self._never_asked(True, command, await self._asked_anyway(root, command, cwd))
-        # (A turn nobody watches: as any agent's command - a ticked rule, or a part's own test.)
-        if refused := self._nobody_to_ask(
-            ctx, "command", f"run {command}", command=command, cwd=cwd
-        ):
-            raise ToolError(refused)
         return True
 
     @staticmethod

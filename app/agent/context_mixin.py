@@ -502,13 +502,7 @@ HELD_NOT_GIVEN = (
     "a place KOLONİ never opens."
 )
 
-UNATTENDED_PROMPT = (
-    "This turn was started by a trigger, not by a message the user wrote just now: nobody "
-    "is watching, and nobody can be asked. What would need the user's leave is refused "
-    "instead of waited for; do not try it another way. Without asking, this turn may "
-    "{leave}. When you are done, say what you found or did, and what you would have "
-    "asked for."
-)
+# (An old chat's trigger turns, from before 0.1.10: their message said to be the trigger's.)
 STARTED_BY = (
     "[This turn was started by the trigger {trigger}, not by a message the user wrote "
     "just now. What follows is the trigger's message.]"
@@ -666,11 +660,6 @@ class ContextMixin:
             if project is None or not project.auto_notes:
                 return
             project_id = project.id
-        # The turn's own clock is not what this request runs on: a trigger's minutes
-        # are for its turn.
-        unwatched = self._unwatched.pop(ctx.run_id, None)
-        if unwatched is not None and unwatched.timer is not None:
-            unwatched.timer.cancel()
         self._give(ctx)
         outcome = {"noted": 0, "skipped": 0, "note": SUMMARISER_STOPPED}
         try:
@@ -701,8 +690,7 @@ class ContextMixin:
         Lead's model, as the day's words do, if users miss it. Who wrote a view is not
         kept either: the card says "an agent's view" for this one and assess_task's.
         shortcut: this view replaces one an agent wrote with assess_task in the turn; keep
-        both if users want the agent's own word too.
-        shortcut: a trigger's turn is never a task's, so no trigger's timer is stopped here."""
+        both if users want the agent's own word too."""
         try:
             self._give(ctx)  # (the turn is over: its lead holds no place)
             with self._factory() as session:
@@ -773,7 +761,6 @@ class ContextMixin:
         `_note_what_it_found`, returns first for a chat with no project."""
         nothing = {"noted": 0, "skipped": 0}
         with self._factory() as session:
-            run = session.get_one(Run, ctx.run_id)
             conversation = session.get_one(Conversation, ctx.cid)
             project = session.get_one(Project, conversation.project_id)
             # What KOLONİ asks a model for a turn counts in what the turn may spend.
@@ -786,7 +773,6 @@ class ContextMixin:
                 return {**nothing, "note": NO_SUMMARISER}
             asking, mode = self._on(session, ctx, *fast)
             turn = self._turn_in_words(session, ctx)
-            unattended = run.unattended
             write_in = kept.write_in(session, f"the JSON keys, `{kept.FEEDBACK}`")
         before = self._ctxs[ctx.agent_id]
         self._ctxs[ctx.agent_id] = asking  # its place is counted where the request goes
@@ -828,7 +814,6 @@ class ContextMixin:
                 _answer(said),
                 run_id=ctx.run_id,
                 conversation_id=ctx.cid,
-                unattended=unattended,
                 # The model as it was asked for, as on a lead that was asked how hard.
                 noted_by={"provider_name": asking.provider, "model_id": asking.model_name},
             )
@@ -945,10 +930,9 @@ class ContextMixin:
 
     def _propose_lasting(self: "AgentRunner", ctx: Ctx, state: str) -> None:
         """What a working state calls lasting facts is put forward for the project's core,
-        for the user to decide on (`memory.propose_lasting`) - never in a turn nobody
-        watches, where there is nobody to ask."""
+        for the user to decide on (`memory.propose_lasting`)."""
         facts = _sections(state).get("Lasting facts")
-        if not facts or not self._watched(ctx.run_id):
+        if not facts:
             return
         with self._factory() as session:
             project_id = session.get_one(Conversation, ctx.cid).project_id
@@ -1592,7 +1576,7 @@ class ContextMixin:
                 )
                 if turn.spoken.get("style"):
                     system += " " + SAY_STYLE.format(style=quoted(turn.spoken["style"]))
-        if "ask_user" in ctx.tools and self._watched(ctx.run_id):
+        if "ask_user" in ctx.tools:
             system += "\n\n" + ASK_PROMPT + (" " + ASKED_IN_WORDS if ctx.depth == 0 else "")
         if "offer_away" in has:
             system += "\n\n" + AWAY_PROMPT
@@ -1724,11 +1708,7 @@ class ContextMixin:
             # K-devir-1: at its task only, whose report is read for what it left.
             + (" " + handoff.REPORT_PROMPT if not ctx.in_turn and not ctx.discussion else "")
             + (" " + NOTE_PROMPT if "post_note" in ctx.tools else "")
-            + (
-                " " + ASK_NOT_REPORT
-                if "ask_user" in ctx.tools and self._watched(ctx.run_id)
-                else ""
-            )
+            + (" " + ASK_NOT_REPORT if "ask_user" in ctx.tools else "")
         )
         # Only at its task, whose report is read: not in a turn on a message or a speech.
         kind_of = find_role(session, ctx.role)
@@ -1793,12 +1773,6 @@ class ContextMixin:
             messages[0]["content"] += "\n\n" + write_in
         if skills:
             messages[0]["content"] += self._skills_told(ctx, "use_skill" in has)
-        if not self._watched(ctx.run_id):
-            # Every agent of an unattended turn is told how it runs, and what the
-            # trigger allows as things stand at this step.
-            messages[0]["content"] += "\n\n" + UNATTENDED_PROMPT.format(
-                leave=self._leave_in_words(ctx.run_id)
-            )
 
     def _history_files(
         self: "AgentRunner",

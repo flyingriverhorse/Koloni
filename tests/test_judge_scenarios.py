@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
 from app import koloni, raw
-from app.agent.ctx import Ctx, _Unwatched
+from app.agent.ctx import Ctx
 from app.agent.judge_mixin import CHECK_STOOD_ASIDE
 from app.command_runner import CARRY_ON
 from app.commands import harms
@@ -308,8 +308,8 @@ def test_at_auto_edit_or_with_the_setting_off_the_judge_is_never_asked(
     assert asked["status"] == "proposed" and asked["judged"] is None and judge.calls == []
 
 
-@pytest.mark.parametrize("where", ["side", "night", "trigger"])
-def test_the_gate_stands_aside_in_a_side_a_night_job_and_a_trigger(judging, monkeypatch, where):
+@pytest.mark.parametrize("where", ["side", "night"])
+def test_the_gate_stands_aside_in_a_side_and_a_night_job(judging, monkeypatch, where):
     client, *_ = judging([], [], [])
     runner = client.app.state.runner
 
@@ -319,17 +319,15 @@ def test_the_gate_stands_aside_in_a_side_a_night_job_and_a_trigger(judging, monk
     monkeypatch.setattr("app.agent.judge_mixin.ask_once", never)
     if where == "side":
         runner._sides["r"] = "a"
-    elif where == "night":
-        runner._away_jobs["r"] = "a"
     else:
-        runner._unwatched["r"] = _Unwatched(None, "a trigger", 10, 10)
+        runner._away_jobs["r"] = "a"
     ctx = Ctx(run_id="r", cid="c", root=None, agent_id="a", role="Lead", tools=(), depth=0)
     try:
         assert client.portal.call(
             runner._judged, ctx, "rm -rf build", ".", "Deletes files or disks."
         ) == ("Deletes files or disks.", None)
     finally:
-        for kept in (runner._sides, runner._away_jobs, runner._unwatched):
+        for kept in (runner._sides, runner._away_jobs):
             kept.pop("r", None)
 
 

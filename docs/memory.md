@@ -120,9 +120,6 @@ three notes of what it found. That is one more model request after every message
 your bill. These notes go into the journal, signed as that model's. They never go into the core
 by themselves and never replace an agent's note or a fact.
 
-**In a turn nobody watches**, agents can still write notes, but nothing is put forward for the
-core.
-
 ## Searching memory
 
 One search box sits above the tabs: "Search everything this project remembers".

@@ -184,6 +184,28 @@ def test_only_a_message_of_the_users_never_begun_is_sent_again(tmp_path, over):
         assert model.calls == []
 
 
+def test_an_old_trigger_turn_that_reaches_the_runner_fails_closed(tmp_path, wait_run):
+    """Triggers are gone (0.1.10) and nothing makes such a run; one a database written by hand
+    puts in the queue ends failed, its old message never a prompt: no model is asked, no agent
+    opened, nothing written."""
+    from app.agent import OLD_TRIGGER_TURN
+
+    settings, factory = queued_then_restarted(tmp_path)
+    model = ScriptedModel([text("It ran.")])
+    with TestClient(create_app(settings, model=model), base_url="http://127.0.0.1:8790") as client:
+        with factory() as s:
+            r2 = s.get_one(Run, "r2")
+            r2.status, r2.unattended, r2.trigger_name = "queued", True, "Nightly"
+            s.commit()
+        client.portal.call(client.app.state.runner.start_next, "c")
+        snap = wait_run(client, "c", "r2")
+        run = next(r for r in snap["runs"] if r["id"] == "r2")
+        assert (run["status"], run["error"]) == ("failed", OLD_TRIGGER_TURN)
+        assert model.calls == []
+        assert [a for a in snap["agents"] if a["run_id"] == "r2"] == []
+        assert [m["id"] for m in snap["messages"] if m["run_id"] == "r2"] == ["q"]
+
+
 def test_a_message_sent_again_brings_its_archived_chat_back(tmp_path):
     settings, factory = queued_then_restarted(tmp_path)
     with factory() as s:

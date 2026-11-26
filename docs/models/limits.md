@@ -34,6 +34,6 @@ or **Cancel**.
 If KOLONİ would open a sub-agent on a provider that is paid per token, while the chat runs on one that
 is not, it asks on the **Open this sub-agent?** card. The card's reason says that the new provider is
 paid per token and the other is not. Press **Open agent** or **Reject**. Your answer counts for that
-provider for the rest of the turn. In a turn nobody watches, such an agent is not opened.
+provider for the rest of the turn.
 
 See also [Usage and budgets](../money/usage.md).
