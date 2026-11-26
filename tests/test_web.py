@@ -174,7 +174,6 @@ def test_the_next_address_of_a_name_is_tried_when_one_cannot_be_connected_to(mon
         "2001:4860:4860::8888",
         PUBLIC,
     ]
-    assert "sent" in run(web.notify("https://example.com/hook", "hi"))
     # when none can be, the last failure is the request's
     monkeypatch.setattr(web, "resolve", lambda host: ["2001:4860:4860::8888"])
     with pytest.raises(OSError):
@@ -530,47 +529,6 @@ def test_a_request_that_fails_says_so_in_few_words(monkeypatch):
         run(web.request("GET", "https://example.com/", None, None))
 
 
-# --- a notification ----------------------------------------------------------------------
-
-HOOK = "https://hooks.example.com/services/T000/B000/XYZ-PRIVATE"
-
-
-def test_a_notification_is_posted_as_json_to_the_users_address(monkeypatch):
-    net = Net(monkeypatch, {"hooks.example.com": (200, "text/plain", "ok")})
-    said = run(web.notify(HOOK, "the tests pass — ✓"))
-    assert net.asked == [("POST", HOOK, PUBLIC)]
-    headers, body = net.sent[0]
-    assert headers == {"Content-Type": "application/json"}
-    assert json.loads(body) == {"text": "the tests pass — ✓"}
-    assert "XYZ-PRIVATE" not in said and "hooks.example.com" not in said
-
-
-def test_a_notification_that_fails_never_says_where_it_was_going(monkeypatch):
-    for answer in (
-        ConnectionError(f"could not reach {HOOK}"),
-        (403, "text/plain", HOOK),
-        (302, {"location": HOOK + "/moved"}, ""),
-    ):
-        Net(monkeypatch, {"hooks.example.com": answer})
-        with pytest.raises(web.WebError) as failed:
-            run(web.notify(HOOK, "hello"))
-        assert "XYZ-PRIVATE" not in str(failed.value) and "hooks.example" not in str(failed.value)
-    Net(monkeypatch, names={"hooks.example.com": ["10.0.0.7"]})
-    with pytest.raises(web.NotReachable) as failed:
-        run(web.notify(HOOK, "hello"))
-    assert "XYZ-PRIVATE" not in str(failed.value) and "hooks.example" not in str(failed.value)
-
-
-def test_a_notification_is_a_text_of_at_most_two_thousand_characters(monkeypatch):
-    net = Net(monkeypatch, {"hooks.example.com": (200, "text/plain", "ok")})
-    for bad in ("", "   ", None, 5, "x" * 2001):
-        with pytest.raises(web.WebError):
-            run(web.notify(HOOK, bad))
-    assert net.asked == []
-    run(web.notify(HOOK, "x" * 2000))
-    assert len(net.asked) == 1
-
-
 # --- what is kept ------------------------------------------------------------------------
 
 
@@ -700,19 +658,6 @@ def test_what_is_shown_on_the_desktop_is_a_notifications_text(monkeypatch):
         with pytest.raises(web.WebError):
             run(web.show("t", bad))
     assert shown == [] and "desktop" in run(web.show("t", "hi")) and shown == [("t", "hi")]
-
-
-@pytest.mark.parametrize(
-    "form, kind, body",
-    [
-        ("discord", "application/json", b'{"content": "caf\\u00e9 & <b>"}'),
-        ("text", "text/plain; charset=utf-8", "café & <b>".encode()),
-    ],
-)
-def test_a_notifications_body_is_in_the_form_asked_for(monkeypatch, form, kind, body):
-    net = Net(monkeypatch, {"hooks.example.com": (200, "text/plain", "ok")})
-    run(web.notify(HOOK, "café & <b>", form))
-    assert net.sent == [({"Content-Type": kind}, body)]
 
 
 def test_a_field_named_like_a_secret_is_hidden_in_an_address():

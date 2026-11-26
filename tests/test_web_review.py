@@ -152,8 +152,8 @@ def test_the_next_address_is_tried_only_when_no_connection_was_made(monkeypatch)
         raise TimeoutError("timed out")  # after the body may have been sent
 
     monkeypatch.setattr(web, "raw", raw)
-    with pytest.raises(web.WebError, match="was not sent"):
-        run(web.notify("https://hooks.example.com/x", "hello"))
+    with pytest.raises(TimeoutError):
+        run(web.fetch("POST", "https://hooks.example.com/x", {}, b"hello"))
     with pytest.raises(TimeoutError):
         run(web.fetch("POST", "https://example.com/", {}, b"data"))
     assert [ip for _m, _u, ip in net.asked] == ["2001:4860:4860::8888"] * 2

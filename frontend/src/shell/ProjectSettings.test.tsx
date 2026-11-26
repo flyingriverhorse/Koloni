@@ -18,8 +18,6 @@ const project: Project = {
   search_url: null,
   search_order: 'builtin',
   search_agy: false,
-  has_notify_url: false,
-  notify_format: 'slack',
   notify_desktop: false,
   turn_token_limit: null,
   max_agents: null,
@@ -254,27 +252,23 @@ test('a project moved from the old switch says so once', async () => {
   expect(screen.queryByTestId('after-change-from-off')).toBeNull()
 })
 
-test('where a search and a notification go is set here, and only what was changed is sent', async () => {
+test('where a search goes is set here, and only what was changed is sent', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Notifications/)
-  expect(screen.getByText('No notification address is set.')).toBeInTheDocument()
+  // (0.1.10: no notification address - the desktop alone.)
+  expect(screen.queryByLabelText('Notification address')).not.toBeInTheDocument()
   await choose(/^Memory and web/)
   await userEvent.type(screen.getByLabelText('Search address (SearXNG)'), ' http://localhost:8888 ')
   await userEvent.selectOptions(screen.getByLabelText('Otherwise search with'), 'A CLI first, then the built-in search')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ search_url: 'http://localhost:8888', search_order: 'cli' })
-  await choose(/^Notifications/)
-  await userEvent.type(screen.getByLabelText('Notification address'), 'https://hooks.example.com/x')
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ notify_url: 'https://hooks.example.com/x' })
   unmount()
-  // One that is set is never shown: only that there is one, and it can be replaced or removed.
   onSave.mockClear()
   render(
     <ProjectSettings
       {...base}
-      project={{ ...project, search_url: 'http://localhost:8888', search_order: 'cli', has_notify_url: true }}
+      project={{ ...project, search_url: 'http://localhost:8888', search_order: 'cli' }}
       onSave={onSave}
     />,
   )
@@ -283,14 +277,6 @@ test('where a search and a notification go is set here, and only what was change
   await userEvent.clear(screen.getByLabelText('Search address (SearXNG)'))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ search_url: '' })
-  await choose(/^Notifications/)
-  expect(screen.getByLabelText('Notification address')).toHaveValue('')
-  expect(
-    screen.getByText('A notification address is set. It is not shown again; type a new one to replace it.'),
-  ).toBeInTheDocument()
-  await userEvent.click(screen.getByLabelText('Remove the notification address'))
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ notify_url: '' })
 })
 
 test('agy searches only where the box is ticked, which says why it is a risk; it is sent only when changed', async () => {
@@ -323,29 +309,20 @@ test('agy searches only where the box is ticked, which says why it is a risk; it
   expect(onSave).not.toHaveBeenCalled()
 })
 
-test('the desktop notification and the form of the posted body are set here, and sent only when changed', async () => {
+test('the desktop notification is set here, and sent only when changed', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Notifications/)
   const desktop = screen.getByLabelText(/^Show a desktop notification/)
   expect(desktop).not.toBeChecked()
-  expect(screen.getByLabelText('Post it as')).toHaveValue('slack')
   await userEvent.click(desktop)
-  await userEvent.selectOptions(screen.getByLabelText('Post it as'), 'Plain text - ntfy')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenCalledWith({ notify_format: 'text', notify_desktop: true })
+  expect(onSave).toHaveBeenCalledWith({ notify_desktop: true })
   unmount()
   // What is set is shown, and taking the box off is sent as that.
   onSave.mockClear()
-  render(
-    <ProjectSettings
-      {...base}
-      project={{ ...project, notify_format: 'discord', notify_desktop: true }}
-      onSave={onSave}
-    />,
-  )
+  render(<ProjectSettings {...base} project={{ ...project, notify_desktop: true }} onSave={onSave} />)
   await choose(/^Notifications/)
-  expect(screen.getByLabelText('Post it as')).toHaveValue('discord')
   await userEvent.click(screen.getByLabelText(/^Show a desktop notification/))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ notify_desktop: false })
@@ -610,7 +587,7 @@ test('a chosen section alone is shown, each field under its label as before', as
         'Otherwise search with',
       ],
     ],
-    [/^Notifications/, ['Notification address', 'Post it as', /^Show a desktop notification/]],
+    [/^Notifications/, [/^Show a desktop notification/, 'Send the day’s summary at']],
     [
       /^Limits and money/,
       [
@@ -672,18 +649,6 @@ test('a value that cannot be sent is marked as not saved, and keeps only its own
   expect(onSave).toHaveBeenCalledWith({ auto_notes: true })
 })
 
-test('a notification address once saved is cleared from its field, and the section is no longer marked', async () => {
-  const onSave = vi.fn().mockResolvedValue(undefined)
-  const { rerender } = render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Notifications/)
-  await userEvent.type(screen.getByLabelText('Notification address'), 'https://hooks.example.com/x')
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenCalledWith({ notify_url: 'https://hooks.example.com/x' })
-  rerender(<ProjectSettings {...base} project={{ ...project, has_notify_url: true }} onSave={onSave} />)
-  expect(screen.getByLabelText('Notification address')).toHaveValue('')
-  expect(screen.getByRole('button', { name: /^Notifications/ })).not.toHaveTextContent('not saved')
-})
-
 test('Docker not running is one line under the Docker choice, with what Docker said behind ⓘ, and nowhere else', async () => {
   const said =
     'Docker is not running (failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine)'
@@ -724,7 +689,7 @@ test('the list and then the fields are reached in turn by the keyboard, each “
   for (let i = 0; i < 4; i++) await userEvent.tab({ shift: true })
   expect(rows()[8]).toHaveFocus()
   await userEvent.keyboard('{Enter}')
-  expect(screen.getByLabelText('Notification address')).toBeInTheDocument()
+  expect(screen.getByLabelText(/^Show a desktop notification/)).toBeInTheDocument()
 })
 
 test('a section whose Save is refused keeps what was said: it is not shown under another one chosen meanwhile', async () => {

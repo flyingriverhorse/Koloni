@@ -17,14 +17,13 @@ import app.main
 from app import backup, copies
 from app.backlog import HOLD
 from app.config import REPO_ROOT
-from app.db.models import Attachment, Conversation, Flag, McpServer, Project, Provider, Run, Skill
+from app.db.models import Attachment, Conversation, Flag, McpServer, Provider, Run, Skill
 from app.db.session import make_engine, make_session_factory
 from app.main import known_secrets
 from tests.keyed import TestClient
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 KEY = "sk-test-0123456789abcdefghijklmnop"
-HOOK = "https://hooks.example.test/T000/B000/xyzSECRETxyz"
 MCP_KEY = "ghp_0123456789abcdefghijklmnopqrstuvwxyz"
 VOICE = "AIzaVoiceKey0123456789abcdefghij"
 
@@ -35,7 +34,6 @@ def _fill(app_) -> None:
         session.add(
             Provider(name="Keyed", kind="openai_compat", base_url="http://x/v1", api_key=KEY)
         )
-        session.add(Project(name="Proj", root_path="C:/nowhere/proj", notify_url=HOOK))
         session.add(
             McpServer(
                 name="gh", command=["gh-mcp", "--token", MCP_KEY], env={"GITHUB_TOKEN": MCP_KEY}
@@ -118,7 +116,6 @@ def test_export_holds_the_database_the_stores_and_a_manifest_and_no_secret(
     assert set(manifest["parts"]) >= {backup.DB, "skills", "attachments", "local-server.json"}
     assert {
         "provider Keyed",
-        "project Proj's notification address",
         "MCP server gh",
         "Gemini voice",
         "Claude Code's status line (set it up again)",
@@ -132,7 +129,7 @@ def test_export_holds_the_database_the_stores_and_a_manifest_and_no_secret(
     # Every secret the house knows of is gone - and gone from the file's bytes, too.
     assert _secrets_in(db, settings) == []
     raw = db.read_bytes() + archive.read("local-server.json")
-    for secret in (KEY, HOOK, MCP_KEY, VOICE):
+    for secret in (KEY, MCP_KEY, VOICE):
         assert secret.encode() not in raw
     # ...from the copy only: the live database keeps them.
     assert KEY in _secrets_in(settings.db_path, settings)
@@ -143,7 +140,7 @@ def test_export_with_the_secrets_keeps_them(client, tmp_path, settings):
     archive = _export(client, secrets=True)
     manifest = json.loads(archive.read(backup.MANIFEST))
     assert manifest["secrets"] is True and manifest["need_keys"] == []
-    assert {KEY, HOOK, MCP_KEY, VOICE} <= set(_secrets_in(_snapshot(archive, tmp_path), settings))
+    assert {KEY, MCP_KEY, VOICE} <= set(_secrets_in(_snapshot(archive, tmp_path), settings))
     assert KEY in archive.read("local-server.json").decode()
 
 

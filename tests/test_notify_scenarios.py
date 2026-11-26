@@ -1,5 +1,6 @@
-"""Slice 20a's acceptance set: a desktop notification, the notification's body, a host
-allowed by hand, and secrets written in an address or a body. Written before the code.
+"""Slice 20a's acceptance set: a desktop notification (0.1.10: the only place a notification
+goes), a host allowed by hand, and secrets written in an address or a body. Written before the
+code.
 
 No test touches the real network or the real desktop: `app.web.raw`, `app.web.resolve` and
 `app.web.desktop` (the one place a desktop notification is shown from) are stood in for.
@@ -19,7 +20,6 @@ from tests.test_parallel import until  # noqa: E402
 from tests.test_spawn import call, step  # noqa: E402
 from tests.test_web_tool_scenarios import Net, get, go, results, setup  # noqa: E402
 
-HOOK = "https://hooks.example.com/services/T000/B000/XYZ-PRIVATE"
 SAYS = call("notify", {"message": 'the tests <pass> & "done"'}, "n")
 
 
@@ -57,22 +57,6 @@ def test_a_desktop_notification_needs_no_address(make_client, wait_run, project_
     assert client.get(f"/api/projects/{pid}").json()["notify_desktop"] is True
 
 
-def test_with_an_address_and_the_desktop_it_goes_to_both(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    shown, out = desk(monkeypatch), sent(monkeypatch)
-    client, model, pid, cid = setup(
-        make_client,
-        project_dir,
-        [step(SAYS), text("done")],
-        project={"notify_desktop": True, "notify_url": HOOK},
-    )
-    snap = wait_run(client, cid, go(client, cid)["id"])
-    ((status, said),) = results(snap, "notify")
-    assert status == "succeeded" and len(shown) == 1 and len(out) == 1
-    assert "XYZ-PRIVATE" not in json.dumps(snap)
-
-
 def test_a_desktop_that_cannot_show_it_is_said_and_nothing_is_made_up(
     make_client, wait_run, project_dir, monkeypatch
 ):
@@ -88,31 +72,6 @@ def test_a_desktop_that_cannot_show_it_is_said_and_nothing_is_made_up(
     snap = wait_run(client, cid, go(client, cid)["id"])
     ((status, said),) = results(snap, "notify")
     assert status == "failed" and "not available" in said
-
-
-@pytest.mark.parametrize(
-    "form, kind, body",
-    [
-        (None, "application/json", {"text": 'the tests <pass> & "done"'}),
-        ("slack", "application/json", {"text": 'the tests <pass> & "done"'}),
-        ("discord", "application/json", {"content": 'the tests <pass> & "done"'}),
-        ("text", "text/plain", 'the tests <pass> & "done"'),
-    ],
-)
-def test_the_body_is_in_the_form_the_user_chose(
-    make_client, wait_run, project_dir, monkeypatch, form, kind, body
-):
-    out = sent(monkeypatch)
-    project = {"notify_url": HOOK, **({"notify_format": form} if form else {})}
-    client, model, pid, cid = setup(
-        make_client, project_dir, [step(SAYS), text("done")], project=project
-    )
-    snap = wait_run(client, cid, go(client, cid)["id"])
-    assert results(snap, "notify")[0][0] == "succeeded"
-    ((url, headers, went),) = out
-    assert url == HOOK and headers["content-type"].startswith(kind)
-    assert (went.decode() if kind == "text/plain" else json.loads(went)) == body
-    assert client.patch(f"/api/projects/{pid}", json={"notify_format": "xml"}).status_code == 422
 
 
 def test_a_host_allowed_by_hand_is_asked_without_a_card(

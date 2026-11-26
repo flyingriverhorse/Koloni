@@ -2080,9 +2080,9 @@ class AgentRunner(
         lead_tools = list(lead.tools if lead else ALL_TOOLS)
         if project is None:  # a plain chat: what needs no folder, and so for all under it
             lead_tools = [tool for tool in lead_tools if tool in PLAIN_TOOLS]
-        elif not (project.notify_url or project.notify_desktop):
-            # A notification goes where the user said: with no address there is no
-            # such tool in the turn - for the lead, and so for nobody under it.
+        elif not project.notify_desktop:
+            # A notification goes to the user's desktop: with it off there is no such tool
+            # in the turn - for the lead, and so for nobody under it.
             lead_tools = [tool for tool in lead_tools if tool != "notify"]
         instructions = lead.instructions if lead else ""
         # shortcut: only a turn the user's message started plans (`post_message`); a

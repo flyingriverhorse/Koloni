@@ -84,12 +84,7 @@ class Project(Base):
     # Whether a search may be handed to agy too: it cannot be held to its search tool
     # (`app.model_agy.AgySearch`), so only where the user says so.
     search_agy: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # Where `notify` posts. A secret of the user's: no response, event or record shows it.
-    notify_url: Mapped[str | None] = mapped_column(Text, default=None)
-    # The body it posts there: {"text": …} ("slack"), {"content": …} ("discord"), or
-    # the text alone ("text").
-    notify_format: Mapped[str] = mapped_column(String(8), default="slack", server_default="slack")
-    # Whether `notify` also shows on the user's own desktop.
+    # Whether `notify` shows on the user's own desktop (0.1.10: the only place it goes).
     notify_desktop: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # The most tokens a turn's agents may report together (sent + written; a question
     # KOLONİ itself asked a model for the turn counts too) before no further model step
@@ -239,10 +234,6 @@ class Project(Base):
     # folder, a clean worktree, a merged branch) without a card, at Auto-edit and Full auto in a
     # watched turn. The user's own setting, off until they allow it.
     disposable_deletes: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-
-    @property
-    def has_notify_url(self) -> bool:
-        return bool(self.notify_url)
 
     @property
     def after_change_from_off(self) -> bool:

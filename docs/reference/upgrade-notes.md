@@ -44,6 +44,11 @@ Only what needs your attention after an update; everything else is in the [Chang
   and its window shows that. On a model server of your own a Codex session is not yet measured: try it
   there knowing that, or set **How it runs** to **Native**. See
   [Set up a CLI](../models/setup-cli.md#how-it-runs).
+- **The notification address is gone.** The database upgrade deletes a project's web hook address and
+  the form it was posted in: notifications go to the desktop alone (Settings › This project ›
+  Notifications › **Show a desktop notification**, Windows only). A project whose day's summary went
+  only to the address has its summary's time emptied: switch the desktop on and set the time again.
+  Going back to 0.1.9 brings neither back.
 
 ### 0.1.8
 

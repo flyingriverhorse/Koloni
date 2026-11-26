@@ -9512,8 +9512,6 @@ export interface components {
             full_auto_judge: boolean;
             /** Git Commit */
             git_commit: boolean;
-            /** Has Notify Url */
-            has_notify_url: boolean;
             /**
              * Held Env
              * @description The secret variables of KOLONİ's environment its commands are not given: the
@@ -9552,11 +9550,6 @@ export interface components {
             name: string;
             /** Notify Desktop */
             notify_desktop: boolean;
-            /**
-             * Notify Format
-             * @enum {string}
-             */
-            notify_format: "slack" | "discord" | "text";
             /** Pass Env */
             pass_env: string | null;
             /** Read In */
@@ -9725,10 +9718,6 @@ export interface components {
             monthly_budget?: number | null;
             /** Notify Desktop */
             notify_desktop?: boolean | null;
-            /** Notify Format */
-            notify_format?: ("slack" | "discord" | "text") | null;
-            /** Notify Url */
-            notify_url?: string | null;
             /** Pass Env */
             pass_env?: string | null;
             /** Read In */

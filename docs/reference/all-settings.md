@@ -20,7 +20,7 @@ message box. See [Settings](../settings.md#this-chat).
 | **Runs without asking** | Sites agents open · Commands and requests, by chat |
 | **Checks and git** | After a change · Fix rounds · Then a stronger model · Check by kind of work · Found by KOLONİ · Measure command · Save each sub-agent's work as a git commit · How a team's finished branch reaches yours |
 | **Memory and web** | Note what the work found, by itself · Search by meaning with · Also look in the memory of · Search address (SearXNG) · Otherwise search with · Let agy search too |
-| **Notifications** | Notification address · Post it as · Show a desktop notification · Send the day's summary at |
+| **Notifications** | Show a desktop notification · Send the day's summary at |
 | **Slash commands** | Name · What it does · Text it puts in the box · Hand it to a role · In every project |
 | **This folder** | Project map · This folder's rules |
 

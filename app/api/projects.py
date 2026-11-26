@@ -675,7 +675,6 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
     for name in (
         "search_order",
         "search_agy",
-        "notify_format",
         "notify_desktop",
         "auto_notes",
         "suggest_tasks",
@@ -731,17 +730,13 @@ def _change_memory(session: Session, project: Project, body: ProjectPatch, embed
 def _change_addresses_and_day_note(
     request: Request, project: Project, body: ProjectPatch, noted: bool
 ) -> None:
-    for name in ("search_url", "notify_url"):
-        value = getattr(body, name)
-        if value is None:
-            continue
-        address = value.strip()
+    if body.search_url is not None:
+        address = body.search_url.strip()
         if address and not web.settable(address):
-            # Said without the address: the notification address is a secret.
             raise HTTPException(
-                422, f"{name} must be an http or https address, without a user name or password"
+                422, "search_url must be an http or https address, without a user name or password"
             )
-        setattr(project, name, address or None)
+        project.search_url = address or None
     if noted:
         if body.day_note_at and not project.day_note_at:
             # Switched on: a day it was off is no day to send late (`Triggers.day_notes`).
@@ -749,11 +744,11 @@ def _change_addresses_and_day_note(
             project.day_note_sent = max(project.day_note_sent or yesterday, yesterday)
         project.day_note_at = body.day_note_at
     # As the project is after this change: a time with nowhere to send it is never kept.
-    if project.day_note_at and not (project.notify_url or project.notify_desktop):
+    if project.day_note_at and not project.notify_desktop:
         raise HTTPException(
             422,
-            "the day's summary is sent to the notification address or the desktop "
-            "notification: keep one, or empty the summary's time",
+            "the day's summary is sent as a desktop notification: keep it on, or empty the "
+            "summary's time",
         )
 
 
@@ -771,8 +766,6 @@ async def patch_project(
         "search_order",
         "search_url",
         "search_agy",
-        "notify_url",
-        "notify_format",
         "notify_desktop",
         "measure_command",
         "git_commit",

@@ -92,7 +92,7 @@ from app.api import (
 from app.api.deps import carries_key, require_own_origin
 from app.away import send as send_night
 from app.config import Settings, load_settings
-from app.db.models import Agent, Flag, McpServer, Project, Provider, now
+from app.db.models import Agent, Flag, McpServer, Provider, now
 from app.db.session import (
     back_up_daily,
     make_engine,
@@ -299,7 +299,7 @@ def show_link(port: int, key: str, opening: Callable[[], str] | None = None) -> 
 
 def known_secrets(factory, settings: Settings) -> list[str | None]:
     """Every secret KOLONİ knows, to be kept out of what an agent's CLI wrote (`app.raw`):
-    the providers' keys, the projects' notification addresses, the values of the MCP
+    the providers' keys, the values of the MCP
     servers' variables and the keys in their arguments, the key of the model server it was
     started with, Gemini's voice key and Claude Code's status line key."""
     with factory() as session:
@@ -307,7 +307,6 @@ def known_secrets(factory, settings: Settings) -> list[str | None]:
         return [
             settings.model_api_key,
             *session.scalars(select(Provider.api_key)),
-            *session.scalars(select(Project.notify_url)),
             *(value for server in servers for value in server.env.values()),
             *(key for server in servers for key in mcp_client.keys_in(server.command)),
             *session.scalars(

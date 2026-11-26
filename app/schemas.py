@@ -35,7 +35,6 @@ class ProjectIn(BaseModel):
 
 
 ExecLocation = Literal["host", "docker"]
-NotifyFormat = Literal["slack", "discord", "text"]
 
 
 # An image's name as Docker takes one (registry/name:tag@digest) - never an option of its
@@ -207,11 +206,7 @@ class ProjectOut(Out):
     search_order: Literal["builtin", "cli"]
     # Whether a search may be handed to agy too.
     search_agy: bool
-    # Whether a notification address is set. The address itself is never given back.
-    has_notify_url: bool
-    # The body posted there: {"text": …}, {"content": …}, or the text alone.
-    notify_format: NotifyFormat
-    # Whether a notification is also shown on the user's desktop.
+    # Whether an agent's notification is shown on the user's desktop.
     notify_desktop: bool
     # The most tokens a turn's agents may report before it is stopped; None: no limit.
     turn_token_limit: int | None
@@ -335,8 +330,6 @@ class ProjectPatch(BaseModel):
     search_url: str | None = Field(default=None, max_length=500)
     search_order: Literal["builtin", "cli"] | None = None
     search_agy: bool | None = None
-    notify_url: str | None = Field(default=None, max_length=500)
-    notify_format: NotifyFormat | None = None
     notify_desktop: bool | None = None
     # Sent as null to take the limit away; left out to keep it.
     # A whole number as such: not `true`, not "50".
