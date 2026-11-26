@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, type Page, test } from './fixtures'
-import { clickCanvas, contrasts, openFreshConversation, say, settled } from './helpers'
+import { OWN, clickCanvas, contrasts, openFreshConversation, say, settled } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 // K-takimlar-arasi + K-ortak-klasor (mockup Z): the Web app's Coder asked Backend / API for GET /api/items. One real turn
@@ -29,6 +29,9 @@ async function asked(page: Page, id: string, answered = false, backendFirst = fa
     messages: Json[]
   }
   const teams = (await (await page.request.get('/api/teams')).json()) as { id: string; name: string }[]
+  // Backend / API was a ready team until 0.1.10 (migration 0194): made here as the user would, gone after the test.
+  if (!teams.some(t => t.name === 'Backend / API'))
+    teams.push(await (await page.request.post('/api/teams', { headers: OWN, data: { name: 'Backend / API' } })).json())
   const [web, api] = ['Web app', 'Backend / API'].map(name => teams.find(t => t.name === name)!.id)
   const [lead, run] = [snap.agents[0], { ...snap.runs[0], status: 'running', ended_at: null }]
   const L = lead.id as string
@@ -148,6 +151,11 @@ function sharedBefore() {
 test.use({ deviceScaleFactor: 2 })
 // (The shared folder left behind would give the specs after these a card for it: K-shared-bagli's "All shared files".)
 test.afterAll(() => rmSync(PLACE, { recursive: true, force: true }))
+test.afterEach(async ({ request }) => {
+  const teams = (await (await request.get('/api/teams')).json()) as { id: string; name: string }[]
+  for (const team of teams.filter(t => t.name === 'Backend / API'))
+    await request.delete(`/api/teams/${team.id}`, { headers: OWN })
+})
 
 for (const theme of ['light', 'dark'] as const) {
   test(`a request between two teams is one line from frame to frame, with badges, and a card of what each shared (${theme})`, async ({

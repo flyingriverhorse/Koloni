@@ -5,8 +5,18 @@ the Agents page, tab **Teams & roles**.
 
 ## The ready teams
 
-KOLONİ comes with these teams: Web app, Backend / API, Data, Docs, DevOps, Quality, Research,
-Product, Maintenance, ML and DataOps. You can change them, or make your own with **New team**.
+KOLONİ comes with three teams: **Web app** (with the **Feature** recipe), **Quality** (**Quality
+check**) and **Docs** (**Docs**). You can change them, or make your own with **New team**.
+
+Until 0.1.10 there were eleven. At the first start of 0.1.10 the other eight - Backend / API, Data,
+DevOps, Research, Product, Maintenance, ML and DataOps - are taken away where they are as they came.
+One you changed (renamed it, put a role in or took one out, changed its stages, its coordinator, its
+default recipe or whether the Orchestrator may pick it) stays as your own, and so does one you use:
+picked for a chat in **Manual**, kept for a project's new chats, or named by a recipe's step. Their
+roles all stay: put the ones you need in a team with **New team**, and give it the ready recipe of
+your choice (**Bugfix**, **Spec**, **Research**, **Analysis**, **Upkeep**, **Model change**,
+**Pipeline change** or **Infra change**) as its **Default recipe**. A chat the Orchestrator had picked
+one of them for keeps its other teams; with none left, the Orchestrator picks again.
 
 To build a website, the Web app team also has a Copywriter for the site's words and an SEO specialist
 in **Build**, and an Accessibility reviewer in **Check**: the SEO specialist makes the site easy to

@@ -22,7 +22,7 @@ from app.team import ONLY_IN_THE_PROJECT
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_chat_flow import text
-from tests.test_chat_teams_scenarios import OWN, teams_of
+from tests.test_chat_teams_scenarios import OWN, former, teams_of
 from tests.test_copilot_agent import HEADLESS, SERVER
 from tests.test_parallel import until
 from tests.test_recipe_run_scenarios import READY, answer, asked, by_call, made, manual
@@ -162,7 +162,9 @@ LEAD = [
 def taken_in(client, project_dir, wait_run):
     """The Product team's recipe run to Ready for you, its spec still only in the recipe's copy;
     then taken in. The spawn results."""
-    cid, run_id = manual(client, project_dir, (teams_of(client)["Product"], product_recipe(client)))
+    cid, run_id = manual(
+        client, project_dir, (former(client, "Product")["Product"], product_recipe(client))
+    )
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=60)
     assert not (project_dir / "docs").exists()  # KOLONİ's write_file wrote in the recipe's copy
     answer(client, asked(snap), "Take in")

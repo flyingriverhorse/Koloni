@@ -31,9 +31,76 @@ def teams_of(client):
     return {t["name"]: t for t in client.get("/api/teams").json()}
 
 
+# The ready teams migration 0194 took away (0.1.10), as KOLONİ made them: their roles and recipe.
+FORMER = {
+    "Backend / API": (
+        (
+            "Coder",
+            "Architect",
+            "Database engineer",
+            "Tester",
+            "Reviewer",
+            "Security reviewer",
+            "Performance engineer",
+        ),
+        "Bugfix",
+    ),
+    "Data": (("Data analyst", "Database engineer", "Researcher", "Reviewer"), "Analysis"),
+    "DevOps": (
+        ("DevOps", "Security reviewer", "Dependency keeper", "Performance engineer"),
+        "Infra change",
+    ),
+    "Research": (("Researcher", "Summarizer", "Spec writer"), "Research"),
+    "Product": (("Hive keeper", "Scout", "Spec writer"), "Spec"),
+    "Maintenance": (("Refactorer", "Dependency keeper", "Debugger", "Tester"), "Upkeep"),
+    # (with 0103's two experts, roles of the user's kind)
+    "ML": (
+        (
+            "Data scientist",
+            "ML engineer",
+            "Model evaluator",
+            "MLOps engineer",
+            "Tester",
+            "MLflow expert",
+            "Databricks expert",
+        ),
+        "Model change",
+    ),
+    "DataOps": (
+        ("Data engineer", "Database engineer", "Data analyst", "Tester"),
+        "Pipeline change",
+    ),
+}
+
+
+def former(client, *names):
+    """These teams as KOLONİ's ready ones were before 0.1.10, made again as the user would make
+    them - New team, its roles, its default recipe - where they are not there; the teams after."""
+    have = teams_of(client)
+    for name in (one for one in names if one not in have):
+        held, ready = FORMER[name]
+        made = client.post("/api/teams", json={"name": name}, headers=OWN)
+        assert made.status_code == 201, made.text
+        team = made.json()["id"]
+        recipe_id = recipe(client, ready)["id"]
+        patched = client.patch(
+            f"/api/teams/{team}", json={"default_recipe_id": recipe_id}, headers=OWN
+        )
+        assert patched.status_code == 200, patched.text
+        for role in client.get("/api/roles").json():
+            if role["name"] in held:
+                put = client.patch(
+                    f"/api/roles/{role['id']}", json={"teams": [*role["teams"], team]}, headers=OWN
+                )
+                assert put.status_code == 200, put.text
+    return teams_of(client)
+
+
 def no_recipe(client, *names):
-    """These ready teams with no default recipe (migration 0093 gives three of them one), so the
-    Lead runs them itself; the teams after it."""
+    """These teams with no default recipe (migration 0093 gives the ready ones one), so the Lead
+    runs them itself; the teams after it. One of the ready teams before 0.1.10 is made again
+    (`former`)."""
+    former(client, *(name for name in names if name in FORMER))
     for name in names:
         assert (
             client.patch(
@@ -152,7 +219,7 @@ def test_the_lead_picks_teams_it_may_pick_with_a_reason_and_is_held_to_them(
             text("done"),
         ]
     )
-    teams = teams_of(client)
+    teams = former(client, "DevOps")  # (a ready team until 0.1.10)
     assert (
         client.patch(
             f"/api/teams/{teams['DevOps']['id']}", json={"lead_may_pick": False}, headers=OWN

@@ -36,7 +36,7 @@ def test_every_untouched_lead_runs_on_the_chats_model_and_gets_its_rule_back_goi
         )
     before = rules(db)
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0190")  # (0194 then takes eight ready teams away)
 
     after = rules(db)
     assert (after["Docs"], after["Data"]) == (("strongest", "balanced"), (None, "fast"))

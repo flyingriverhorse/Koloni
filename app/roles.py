@@ -156,7 +156,9 @@ def locked_tools(role: Role) -> tuple[str, ...]:
 
 
 # KOLONİ's ready teams (slice 62), made once by migration 0065; a built-in role added later
-# joins those of them that are still there.
+# joins those of them that are still there. Three since 0.1.10 (the user, 26 Nov: the eleven
+# were more than a chat picks from): migration 0194 takes the others away where the user left
+# them as they came - their roles stay, and so does a team the user changed or picked.
 READY_TEAMS = {
     "Web app": (
         "Coder",
@@ -170,26 +172,8 @@ READY_TEAMS = {
         "Copywriter",
         "Accessibility reviewer",
     ),
-    "Backend / API": (
-        "Coder",
-        "Architect",
-        "Database engineer",
-        "Tester",
-        "Reviewer",
-        "Security reviewer",
-        "Performance engineer",
-    ),
-    "Data": ("Data analyst", "Database engineer", "Researcher", "Reviewer"),
     "Docs": ("Docs writer", "Spec writer", "Translator", "Summarizer"),
-    # (Named "Ops" until migration 0103, which renames the ready one where it still is.)
-    "DevOps": ("DevOps", "Security reviewer", "Dependency keeper", "Performance engineer"),
     "Quality": ("Tester", "Reviewer", "Security reviewer", "Debugger"),
-    "Research": ("Researcher", "Summarizer", "Spec writer"),
-    "Product": (HIVE_KEEPER, SCOUT, "Spec writer"),
-    "Maintenance": ("Refactorer", "Dependency keeper", "Debugger", "Tester"),
-    # K-takim-duzen, made by migration 0103 (with the MLflow and Databricks experts in ML).
-    "ML": ("Data scientist", "ML engineer", "Model evaluator", "MLOps engineer", "Tester"),
-    "DataOps": ("Data engineer", "Database engineer", "Data analyst", "Tester"),
 }
 # A team's stages to begin with (slice 63a): today's kinds of work, a role in the one of its
 # kind (`place_in_stages`).

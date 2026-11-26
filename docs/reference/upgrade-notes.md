@@ -20,6 +20,13 @@ Only what needs your attention after an update; everything else is in the [Chang
 
 ### 0.1.10
 
+- **Three ready teams.** At the first start the database is upgraded (migration 0194), after KOLONİ
+  copies it to `runtime/data/backups/`: of the ready teams only **Web app**, **Quality** and **Docs**
+  stay as they were. Backend / API, Data, DevOps, Research, Product, Maintenance, ML and DataOps go
+  where they are as they came, with their stages and coordinators; one you changed or use (picked in a
+  chat in **Manual**, kept for a project's new chats, named by a recipe's step) stays as your own team.
+  Every role and recipe stays. To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and put that copy back
+  in place of `runtime/data/koloni.db`.
 - **The Word, Excel, PowerPoint and 3D model previews are gone.** Such a file is still in the
   Workspace's files and opens there as any other file that is not a page or a picture: its text where
   it is text of 256 KB at most (an OBJ, a text STL, a glTF), else "Not text: there is no code to show."

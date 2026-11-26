@@ -51,7 +51,7 @@ how they hang together.
 
 **Team**
 : A named group of roles, set out in stages: Plan, Build, Check, and Write & keep up. KOLONİ comes with
-  teams such as Web app, Backend / API, Docs and Quality. **Teams for this chat** on the canvas decides
+  three teams: Web app, Quality and Docs. **Teams for this chat** on the canvas decides
   whether the Orchestrator picks teams, you pick them, or no teams are used. See [Teams](../agents/teams.md).
 
 **Recipe**
