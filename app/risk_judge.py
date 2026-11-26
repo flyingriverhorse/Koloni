@@ -222,15 +222,38 @@ def ordinary(command: str, npm_run: bool = False) -> bool:
     )
 
 
+# Sub-commands whose task is whatever they are handed - a package to fetch and install, an image or
+# a container to run in, a remote to point at: a rule of one is broad, whatever it names past them
+# (the review of K1: `npm install`, `docker run`, `git remote` are offered on a card).
+_ANY_TASK = {
+    "npm": frozenset({"install", "i", "add", "ci", "update"}),
+    "pnpm": frozenset({"install", "i", "add", "update"}),
+    "yarn": frozenset({"add", "install", "up"}),
+    "pip": frozenset({"install", "download"}),
+    "uv": frozenset({"pip", "add", "tool", "sync"}),
+    "poetry": frozenset({"add", "install"}),
+    "pdm": frozenset({"add", "install"}),
+    "docker": frozenset({"run", "exec", "compose", "container", "create", "start"}),
+    "git": frozenset({"remote"}),
+}
+
+
 def broad_rule(rule: str) -> bool:
     """0.1.10 (as Claude Code's auto mode drops `Bash(*)`, `Bash(python*)`): whether an "Always
     run" rule names no task, so at Full auto the judge still looks at what it covers - no word past
-    its program that is no option (`npm`, `make`, `gh`, `pytest -x`), or no rule KOLONİ would offer
-    for it (`commands._offer`): a shell's, a wrapped line, an interpreter or a package runner with
-    no script or package named, a runner's `run` / `exec` with nothing named (`bash x.sh`, `env x`,
-    `python -c x`, `npx`, `npm run`, `uv run`), not one plain line (`*`). A narrow one names its
-    task: `npm test`, `npm run build`, `python gen.py`, `make build`, `gh pr list`."""
-    return not _offer(rule) or all(word.startswith("-") for word in _words(rule.strip())[1:])
+    its program that is no option (`npm`, `make`, `gh`, `pytest -x`), a sub-command whose task is
+    whatever it is handed (`_ANY_TASK`: `npm install`, `pip install`, `python -m pip install`,
+    `docker run`, `git remote`), or no rule KOLONİ would offer for it (`commands._offer`): a
+    shell's, a wrapped line, an interpreter or a package runner with no script or package named, a
+    runner's `run` / `exec` with nothing named (`bash x.sh`, `env x`, `python -c x`, `npx`, `npm
+    run`, `uv run`), not one plain line (`*`). A narrow one names its task: `npm test`, `npm run
+    build`, `python gen.py`, `make build`, `gh pr list`."""
+    words = [word.strip("'\"") for word in _words(rule.strip())]
+    if words[:1] and _PYTHON.fullmatch(_program(words[0])) and words[1:3] == ["-m", "pip"]:
+        words = words[2:]  # (`python -m pip install x` is pip's)
+    if len(words) > 1 and words[1].lower() in _ANY_TASK.get(_program(words[0]), ()):
+        return True
+    return not _offer(rule) or all(word.startswith("-") for word in words[1:])
 
 
 def risky_unasked(command: str, program_text: str | None, earlier: Sequence[str] = ()) -> str:

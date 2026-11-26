@@ -218,7 +218,8 @@ def test_refusals_in_a_row_and_in_a_turn(turn, want):
 @pytest.mark.parametrize(
     "rule",
     ["npm test", "npm run build", "python gen.py", "python -m pytest", "make build", "gh pr list"]
-    + ["cargo test", "git status", "uv run pytest", "npx tsc", "docker build -t app ."],
+    + ["cargo test", "git status", "uv run pytest", "npx tsc", "docker build -t app ."]
+    + ["python manage.py migrate"],
 )
 def test_a_rule_that_names_its_task_is_narrow(rule):
     assert not broad_rule(rule)
@@ -230,7 +231,12 @@ def test_a_rule_that_names_its_task_is_narrow(rule):
     ["npm", "git", "docker", "make", "gh", "pytest -x", "npm --version"]
     # (an interpreter, a shell, a wrapper or a runner with nothing named; not one plain line)
     + ["python", "python -c x", "node -e x", "bash x.sh", "cmd /c x", "powershell x", "env x"]
-    + ["npx", "npm run", "npm exec", "uv run", "corepack", "*", "python*", "bash *", ""],
+    + ["npx", "npm run", "npm exec", "uv run", "corepack", "*", "python*", "bash *", ""]
+    # (a sub-command that takes whatever it is handed - the review of K1: offered on a card)
+    + ["npm install", "npm install lodash", "npm i x", "pnpm add x", "yarn add x", "npm ci"]
+    + ["pip install -r requirements.txt", "python -m pip install x", "uv pip install x"]
+    + ["poetry add x", "docker run --rm img pytest", "docker exec app ls", "docker compose up"]
+    + ["git remote -v", "git remote add origin x"],
 )
 def test_a_rule_that_names_no_task_is_broad(rule):
     assert broad_rule(rule)

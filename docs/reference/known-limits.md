@@ -181,13 +181,18 @@ messages.
     - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
     - Each command it looks at waits for one model request and a few seconds; where only a CLI can be
       asked, from that CLI's quota, and each such command waits for the CLI to start.
-    - A narrow **Always run** rule (`npm run build`, `make build`) lets what it covers by with no
-      judge, as Claude Code's auto mode does: what that script, target or tool then runs - a
-      `package.json` script or a Makefile recipe you wrote, a script that recipe calls, a tool's
-      own build (`go run .`, `cargo run`), a tool's settings - is not looked at (a Makefile, a
-      `package.json` or a script it is handed that an agent wrote is). A broad rule (`npm`, `make`,
-      `python`, `pytest -x`) does not. A two-word rule such as `docker run` is narrow, and covers
-      what any image is run with.
+    - A narrow **Always run** rule (`npm run build`, `make build`) lets its very line by with no
+      judge, at the project's root, as Claude Code's auto mode does: what that script, target or
+      tool then runs - a `package.json` script or a Makefile recipe you wrote, a script that recipe
+      calls, a tool's settings - is not looked at (a Makefile, a `package.json` or a script it is
+      handed that an agent wrote is). A broad rule (`npm`, `make`, `python`, `pytest -x`, `npm
+      install`, `docker run`, `git remote`) does not; a sub-command KOLONİ does not list as taking
+      whatever it is handed counts as narrow.
+    - A file an agent made with a command - `cp`, `tar`, `git clone`, a download - is not on record
+      as the agent's: a narrow rule whose line runs it, or the user's own test command, lets it by
+      with no judge, and the judge is not shown its text.
+    - Three refusals in a row ask you; any command of the turn that starts ends a row - an agent
+      that runs something harmless between refusals is asked only at 20 refusals in the turn.
     - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
       git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
       asked about.

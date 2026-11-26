@@ -27,7 +27,7 @@ from app.commands import (
     _parts,
     _program,
     _words,
-    is_allowed,
+    is_exactly,
     is_plain,
     is_wrapped,
     names_secret,
@@ -472,6 +472,17 @@ def _program_read(path: Path, root: Path) -> tuple[tuple[str, str, int], str]:
     return (rel, head.decode("utf-8", "replace"), left), _digest(path)
 
 
+# Tools whose `run` builds the folder's code and runs it (`cargo run`, `go run .`, `dotnet run`):
+# what an agent wrote there is no one file KOLONİ finds, so a rule never lets such a line by.
+_BUILDS_AND_RUNS = commands._RUNS_AFTER_DASHES | {("go", "run")}
+
+
+def _builds_and_runs(command: str) -> bool:
+    """Whether a line is one of `_BUILDS_AND_RUNS`'s, by its program and first word."""
+    words = [word.strip("'\"") for word in _words(command.strip())]
+    return len(words) > 1 and (_program(words[0]), words[1].lower()) in _BUILDS_AND_RUNS
+
+
 def _refused(judged: object) -> bool:
     """Whether a command's record of the judge is its refusal (Refuse and go on)."""
     return (
@@ -576,9 +587,10 @@ class RiskJudgeMixin:
         )
         if path is None:
             # (a ruled interpreter's or runner's line whose file is not found - `uv run python
-            # x.py`, `npx x` - is judged: what it runs is not known. shortcut: a tool's own build
-            # (`go run .`, `cargo run`) and what a found file runs in turn are not looked at)
-            unknown = ruled and not ordinary and _hands_on(command)
+            # x.py`, `npx x` -, or a tool's run that builds the folder's code - `cargo run`, `go
+            # run .` - is judged: what it runs is not known. shortcut: what a found file runs in
+            # turn - a Makefile recipe's script, a package script - is not looked at)
+            unknown = ruled and not ordinary and (_hands_on(command) or _builds_and_runs(command))
             return plain and not unknown, None, None, "", False
         shown, digest = _program_read(path, root)
         written = _agents(self._factory, ctx.cid, root, path, scratch=False)
@@ -610,7 +622,17 @@ class RiskJudgeMixin:
                 for rule in session.scalars(rules_here(conversation))
                 if not risk_judge.broad_rule(rule.prefix)
             ]
-            ruled = known and ctx.run_id not in self._away_jobs and is_allowed(command, narrow)
+            # (the review of K1: only its very line - one word more and it is another task, its
+            # program's options or a file it is told to load -, at the project's root - the same
+            # words in another folder run another file -, in a turn the user watches: not a job
+            # while away, nor a To-do task's, which may run with nobody there)
+            ruled = (
+                known
+                and (cwd or ".") == "."
+                and ctx.run_id not in self._away_jobs
+                and ctx.run_id not in self._todo_turns
+                and any(is_exactly(command, one) for one in narrow)
+            )
             project_id = project.id
             own = project_map.own_test(project.test_commands, command, cwd)
             earlier = self._risk_earlier(session, ctx)

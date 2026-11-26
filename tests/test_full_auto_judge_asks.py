@@ -117,20 +117,30 @@ def again(client, cid):
     return sent.json()["run"]["id"]
 
 
-@pytest.mark.parametrize("broad", [True, False])
+@pytest.mark.parametrize(
+    ("line", "broad"),
+    [
+        ("make build", False),
+        ("make", True),
+        ("npm install", True),
+        ("docker run myimg", True),
+        ("git remote -v", True),
+    ],
+)
 def test_a_broad_rule_does_not_go_round_the_judge_a_narrow_one_does(
-    judging, wait_run, project_dir, monkeypatch, broad
+    judging, wait_run, project_dir, line, broad
 ):
-    # (0.1.10, decision 6 - as Claude Code's auto mode: `npm` covers `npm install x` and names no
-    # task, so the judge still looks; `npm install lodash` names one, and lets it by unjudged.
-    # With the broad check stubbed out, the broad rule went round the judge.)
-    line = "npm install lodash"
+    # (0.1.10, decision 6 - as Claude Code's auto mode: `make build` names its task and lets its
+    # very line by unjudged; `make` names none, and `npm install`, `docker run`, `git remote` take
+    # whatever they are handed - offered on a card, they cover anything. With the broad check
+    # stubbed out, each went round the judge.)
     client, _lead, judge, executor = judging(
-        [text("ok"), cmd(line), text("left it")], [said("risky", "It installs.")], [Script([])]
+        [text("ok"), cmd(line), text("left it")], [said("risky", "Not asked for.")], [Script([])]
     )
+    (project_dir / "Makefile").write_text("build:\n\techo hi\n", encoding="utf-8")
     pid, cid, first = go(client, project_dir, risky="ask")
     wait_run(client, cid, first)
-    rule(client, pid, cid, "npm" if broad else line)
+    rule(client, pid, cid, line)
     run_id = again(client, cid)
     if not broad:
         (ran,) = wait_run(client, cid, run_id)["commands"]
@@ -139,7 +149,64 @@ def test_a_broad_rule_does_not_go_round_the_judge_a_narrow_one_does(
         return
     asked = card(client, cid)
     wait_run(client, cid, run_id)
-    assert asked["danger"] == "KOLONİ's judge: It installs." and len(judge.calls) == 1
+    assert asked["danger"] == "KOLONİ's judge: Not asked for." and len(judge.calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("narrow", "line", "pre", "cwd"),
+    [
+        # (one word past the rule: a file its program is told to load, a variable, another task)
+        ("npm test", "npm test -- --config=lib/v.js", ("lib/v.js", "// AGENTS-7731\n"), "."),
+        ("npm test", "npm test -- --require ./lib/v.js", ("lib/v.js", "// AGENTS-7731\n"), "."),
+        ("make build", "make build --eval=SHELL=./x.sh", ("x.sh", "echo AGENTS-7731\n"), "."),
+        ("make build", "make build CC=./x.sh", ("x.sh", "echo AGENTS-7731\n"), "."),
+        ("python manage.py", "python manage.py shell -c AGENTS7731", None, "."),
+        # (a tool's run that builds the folder's code: no one file of it is looked at)
+        ("cargo run", "cargo run", ("src/main.rs", "fn main() { /* AGENTS-7731 */ }\n"), "."),
+        # (the same words in another folder run another file)
+        ("python gen.py", "python gen.py", None, "sub"),
+    ],
+)
+def test_a_narrow_rule_lets_only_its_very_line_by_at_the_root(
+    judging, wait_run, project_dir, narrow, line, pre, cwd
+):
+    # (the review of K1: each of these ran with no judge under a narrow rule)
+    steps = [text("ok"), *([write(*pre)] if pre else []), cmd(line, cwd=cwd), text("left it")]
+    client, _lead, judge, executor = judging(steps, [said("risky", "Not asked for.")], [Script([])])
+    (project_dir / "Makefile").write_text("build:\n\techo hi\n", encoding="utf-8")
+    (project_dir / "package.json").write_text('{"scripts": {"test": "vitest"}}\n', "utf-8")
+    for one in ("manage.py", "gen.py", "sub/gen.py"):
+        (project_dir / one).parent.mkdir(exist_ok=True)
+        (project_dir / one).write_text("print('mine')\n", encoding="utf-8")
+    pid, cid, first = go(client, project_dir, risky="ask")
+    wait_run(client, cid, first)
+    rule(client, pid, cid, narrow)
+    run_id = again(client, cid)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert asked["command"] == line and len(judge.calls) == 1, (asked, judge.calls)
+    # (KOLONİ's own check of the turn's write may run the project's tests: not the line)
+    assert line not in [one[0] for one in executor.started], executor.started
+
+
+def test_a_to_do_tasks_turn_gets_no_rule_past_the_judge(judging, wait_run, project_dir):
+    # (the review of K1: a To-do task's turn may run with nobody there - as a job while away)
+    from tests.test_todo_chat import do_in_chat, ended
+
+    client, _lead, judge, executor = judging(
+        [text("ok"), cmd("make build"), text("task done")], [said("risky", "Not asked for.")], []
+    )
+    (project_dir / "Makefile").write_text("build:\n\techo hi\n", encoding="utf-8")
+    pid, cid, first = go(client, project_dir, risky="ask")
+    wait_run(client, cid, first)
+    rule(client, pid, cid, "make build")
+    task = client.post(f"/api/projects/{pid}/backlog", json={"title": "build"}, headers=OWN)
+    client.headers.update(OWN)
+    assert do_in_chat(client, pid, [task.json()["id"]], cid).status_code == 200
+    asked = card(client, cid)
+    ended(client, cid, 2)
+    assert asked["command"] == "make build" and asked["danger"] == "KOLONİ's judge: Not asked for."
+    assert executor.started == []
 
 
 @pytest.mark.parametrize("line", ["python gen.py", "uv run python gen.py"])
