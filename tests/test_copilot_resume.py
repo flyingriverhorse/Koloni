@@ -473,6 +473,25 @@ def test_its_sandbox_line_is_said_once_where_it_starts_anew(copilot, tmp_path):
     assert said(items, "sandbox") == [NO_SANDBOX] and len(said(items, "session")) == 1
 
 
+@pytest.mark.parametrize(
+    ("more", "denied", "held"),
+    [
+        ({}, (), True),  # (its sandbox keeps its commands' writes to the folder it works in)
+        ({"sandbox": {"supported": False, "capabilities": []}}, (), False),  # (none here)
+        ({}, None, False),  # (secrets not hidden: no sandbox asked for)
+    ],
+)
+def test_its_commands_are_held_only_where_its_session_has_a_sandbox(
+    copilot, tmp_path, more, denied, held
+):
+    """C2's twin (k-kucuk-018 L7): with no sandbox a command of its can write into the project
+    from the copy it works in by a path it does not name - so its watch looks at the project after
+    each of its commands, as for Claude Code (`_Watch.unheld`). Known once its session starts."""
+    cli = copilot(**more)
+    run(cli, tmp_path, FIRST, denied=denied)
+    assert cli.commands_held is held
+
+
 def test_homes_no_agent_names_are_swept_and_named_ones_stay(tmp_path):
     runtime = tmp_path / "runtime"
     homes = runtime / "cli-homes" / COPILOT_SESSIONS

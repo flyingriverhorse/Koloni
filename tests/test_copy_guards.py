@@ -181,6 +181,26 @@ def test_one_look_over_a_mid_size_project_after_a_command_costs_little(tmp_path)
     assert took < (30 if os.environ.get("CI") else 5), took
 
 
+def test_a_watch_reads_whether_its_clis_commands_are_held_at_each_look(tmp_path):
+    """C2's twin: Copilot says whether its session has a sandbox only once that session starts -
+    after its watch was made - so the watch reads it at each look, never once at its start."""
+    from types import SimpleNamespace
+
+    from app.agent.ctx import _Watch
+    from app.project_view import ProjectView
+
+    model = SimpleNamespace(commands_held=True)
+    watch = _Watch(ProjectView(tmp_path))
+    watch.ctx = SimpleNamespace(model=model)
+    assert not watch.unheld  # (in the project: no look over it)
+    watch.project = ProjectView(tmp_path)  # (in a copy)
+    assert not watch.unheld
+    model.commands_held = False  # (its session started with no sandbox)
+    assert watch.unheld
+    model.commands_held, watch.unboxed = True, True  # (native agy: held to no folder)
+    assert watch.unheld
+
+
 def test_what_a_native_codex_sub_agent_would_write_straight_into_the_project_is_refused(
     native_app,
     wait_run,

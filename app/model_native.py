@@ -5213,6 +5213,7 @@ class CopilotNativeClient(CodexNativeClient):
                 sandbox: dict = {}
                 if no is None and denied is not None:
                     sandbox = await self._sandbox(ask, denied, also, on_item)
+                self.commands_held = bool(sandbox)  # (C2's twin: `_Watch.unheld`)
                 if no is None:
                     flat = {
                         **sandbox,
@@ -5364,9 +5365,8 @@ class CopilotNativeClient(CodexNativeClient):
                 "sandboxConfig": {
                     "enabled": True,
                     "allowBypass": False,
-                    # KOLONİ's bridge reaches 127.0.0.1: it is not sandboxed. No
-                    # network policy: Copilot's default stays (a closed one breaks
-                    # npm install).
+                    # KOLONİ's bridge reaches 127.0.0.1: it is not sandboxed. No network policy:
+                    # Copilot's default stays (a closed one breaks npm install).
                     "sandboxMcpServers": False,
                     "addCurrentWorkingDirectory": True,
                     # Measured on 1.0.103 (24 Oct 2026): a write outside the folder

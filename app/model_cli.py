@@ -468,6 +468,10 @@ class CliStepClient:
     effort_words: dict[str, str] = {}
     # A CLI keeps its own context in its own session: KOLONİ does not summarise its history.
     compacts_itself = True
+    # Whether something keeps its commands' writes to the folder it works in (Codex's sandbox;
+    # Copilot's where its session has one, set as that starts): where not, from a working copy
+    # its watch looks at the project after each of its commands (C2, `_Watch.unheld`).
+    commands_held = True
     # The secret variables of its own sign-in it is given (`_inherited`); None: it is given
     # every one - it runs no command of its own (KOLONİ's tools only). (An MCP server gets
     # less: `mcp_client._Starter`.)

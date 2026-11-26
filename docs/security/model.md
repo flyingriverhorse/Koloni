@@ -199,7 +199,8 @@ What is not framed:
 ## Other walls
 
 - **Sub-agents** work in working copies, not in your folder, until you take their work in. The commands of
-  Claude Code run **Native** there are not sandboxed: at Full auto, one that reaches the project by a path it does not
+  Claude Code run **Native** there are not sandboxed, nor those of GitHub Copilot CLI run **Native** where its session
+  has no sandbox: at Full auto, one that reaches the project by a path it does not
   spell out changes it directly, and KOLONİ records that change after the command, by an unknown maker
   ([Known limits](../reference/known-limits.md#clis)).
 - **Agents beside each other**: a sub-agent's command that names another agent's copy, a worktree or a
