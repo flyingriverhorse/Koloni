@@ -414,13 +414,13 @@ def scan(
     text = (
         f"# This project's code\n\nKOLONİ scanned {len(files)} files of it ({symbols} "
         "symbols), with no model: a line for each file - what it defines (at which line), "
-        "imports and is imported by, and its tests, found by name. Ask lookup who calls a "
+        "imports and is imported by, and its tests, found by name. Ask recall who calls a "
         "name or where it is defined.\n"
     )
     for at, rel in enumerate(files):
         line = "\n- " + section(rel, found)
         if len(text) + len(line) > MAX_GUIDE:
-            text += f"\n- … {len(files) - at} files more: ask lookup."
+            text += f"\n- … {len(files) - at} files more: ask recall."
             break
         text += line
     koloni.write(root, f"{WHERE}/{knowledge.GUIDE}", text)

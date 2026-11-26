@@ -26,7 +26,7 @@ from app.agent.words import (
     NO_STEPS_LEFT,
 )
 from app.db.models import Agent, Conversation, Merge, Message, Project, Run, ToolCall, now
-from app.roles import find_role
+from app.roles import LOOKUP, find_role
 from app.serialize import message_out
 from app.stories import YOU
 from app.tools import ToolError, parse_arguments
@@ -346,6 +346,25 @@ class MemoryMixin:
             {record: state for record, state in shown.items() if record not in given}
         )
         return found
+
+    async def _look_up(self: "AgentRunner", ctx: Ctx, name: str, args: dict) -> str:
+        """0.1.10, one look-up: recall looks in what the agent holds - the project's memory and its
+        earlier turns (`_recall`) where its role has recall and it is not KOLONİ's read-only
+        Reviewer, then the pages of the knowledge its role uses (`_lookup`, its `topic`) where it
+        has lookup. lookup, its old name for one release, looks in those pages alone, as it did."""
+        query = args.get("query", args.get("question"))
+        memory = name == "recall" and "recall" in ctx.tools
+        memory = memory and ctx.agent_id not in self._read_only_agents
+        pages = LOOKUP in ctx.tools or name == LOOKUP  # (lookup: its own refusal where none)
+        if not (memory or pages):
+            raise ToolError(f"recall is not available to the {ctx.role} role here")
+        said = []
+        if memory:
+            # (In a thread: it reads the memory and the index of earlier turns.)
+            said.append(await asyncio.to_thread(self._recall, ctx, {"query": query}))
+        if pages:
+            said.append(await self._lookup(ctx, {"question": query, "topic": args.get("topic")}))
+        return "\n\n".join(said)
 
     def note_from_user(self: "AgentRunner", run_id: str, content: str) -> dict | str:
         """The user writes on a turn's notebook; the reason, when the turn is not one

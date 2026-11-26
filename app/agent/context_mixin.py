@@ -80,7 +80,7 @@ from app.db.models import (
 from app.executors.host import shell_name, shell_writes
 from app.model_client import ModelInfo, ModelUnavailable, OwnStop, Transient
 from app.providers import ask_once, list_providers
-from app.roles import LEAD, LEARN, LOOKUP, find_role, shown_name, tools_off
+from app.roles import LEAD, LEARN, find_role, shown_name, tools_off
 from app.team import asked_how_hard, guide, quoted, would_run
 from app.tools import NOT_A_MODEL, WRITE_TOOLS, ToolError, parse_arguments
 from app.workspace import WorkspaceError, in_scratch, never
@@ -1657,7 +1657,7 @@ class ContextMixin:
         project_id = session.get_one(Conversation, cid).project_id
         # A knowledge its role uses as a map: where its guide is, as a sub-agent's role is told.
         if mapped := knows.map_of(
-            session, find_role(session, ctx.role), project_id, ctx.root, LOOKUP in has
+            session, find_role(session, ctx.role), project_id, ctx.root, has, ctx.tools
         ):
             system += "\n\n" + mapped
         if notes := project_notes.told(session.get(Project, project_id) if project_id else None):
@@ -1716,7 +1716,7 @@ class ContextMixin:
             # K-uzman: its guide as it is now - learned again a step ago, it is this one.
             known = known if "web_search" not in off else {**known, "search_answering": False}
             system += "\n\n" + knowledge.brief(ctx.root, known, LEARN in ctx.tools, ctx.tools)
-        if mapped := knows.map_of(session, kind_of, here, ctx.root, LOOKUP in has):
+        if mapped := knows.map_of(session, kind_of, here, ctx.root, has, ctx.tools):
             system += "\n\n" + mapped
         if about := self._about.get(ctx.agent_id):
             system += "\n\n" + about

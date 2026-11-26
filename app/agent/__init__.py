@@ -5989,8 +5989,8 @@ class AgentRunner(
             status, output = await self._create_role(ctx, call_id, args)
         elif request.name == LEARN:
             status, output = await self._learn(ctx, args)
-        elif request.name == LOOKUP:
-            status, output = "succeeded", await self._lookup(ctx, args)
+        elif request.name in (LOOKUP, "recall"):  # (0.1.10: one look-up, either name)
+            status, output = "succeeded", await self._look_up(ctx, request.name, args)
         elif request.name == "add_skill":
             status, output = await self._add_skill(ctx, call_id, args)
         elif request.name == "use_skill":
@@ -6057,9 +6057,6 @@ class AgentRunner(
                     args,
                 ),
             )  # (a job's lines are its copy's: the project has not changed)
-        elif request.name == "recall":
-            # (In a thread: it reads the memory and the index of earlier turns.)
-            status, output = "succeeded", await asyncio.to_thread(self._recall, ctx, args)
         elif request.name in BACKLOG_TOOLS:
             status, output = "succeeded", self._backlog(ctx, request.name, args)
         elif request.name == "show":
@@ -6156,7 +6153,9 @@ class AgentRunner(
             )
         # (show is every agent's at its own work: a role's list does not grant it)
         role_tool = request.name in ALL_TOOLS and request.name != "show"
-        if role_tool and request.name not in ctx.tools:
+        # (0.1.10: recall and lookup are one look-up, held as either - `_look_up`)
+        held = {"recall", LOOKUP} if request.name in ("recall", LOOKUP) else {request.name}
+        if role_tool and not held & set(ctx.tools):
             raise ToolError(f"{request.name} is not available to the {ctx.role} role")
         if request.name in self._off():  # (slice 61: offered before it was switched off)
             raise ToolError(f"{request.name} is not available")
