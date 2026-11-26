@@ -576,6 +576,7 @@ def test_what_goes_up_carries_no_trailer_and_github_reads_no_mention_of_the_agen
     message = git_run(origin, "log", "-1", "--format=%B", f"refs/heads/{name_of(job)}")
     assert message.splitlines()[0] == "one" and "Signed-off-by: Someone" not in message
     (body,) = bodies
+    assert "\n### ` " in body and " `'s notes\n" in body  # (the role's name: code, as L-3's)
     fenced = body.split("'s notes\n")[1]
     assert fenced.startswith("````\n" + notes + "\n````")
 

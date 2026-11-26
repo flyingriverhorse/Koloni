@@ -66,7 +66,7 @@ INTO_MOVED = (
     "the project is on {now} now, not on {into} as when the job ended: switch back to {into}, "
     "then Run again - nothing was pushed"
 )
-# A pull request's body: what an agent wrote (its notes, the files' names) in a code block, so
+# A pull request's body: what an agent wrote (its notes, the files' names, its name) in code, so
 # that no @mention, closing keyword or link of it is read by GitHub (`away_branch.fenced`).
 PUSH_BODY = (
     "{task}\n\nMade by KOLONİ's agents ({name}) while you were away, on the branch `{branch}`, "
@@ -479,7 +479,7 @@ class AwayBranchMixin:
         repo, off = await asyncio.to_thread(git.pr_ready, copy.project)
         body = PUSH_BODY.format(
             task=_fenced(what["title"]),
-            name=what["name"],
+            name=_fenced(what["name"], inline=True),
             branch=copy.branch,
             files=_fenced(
                 "\n".join(
