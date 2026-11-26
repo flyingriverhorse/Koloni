@@ -35,6 +35,7 @@ How to write an entry (every release looks the same):
 
 - **Workspace**: in ☾ Away, a file holding a secret KOLONİ knows that a job's agent committed on the branch itself is no longer said to be left out - its chat said "left out of the branch's commit … the rest of the work is on the branch" and its push row "· left out", though the file was on the branch. **Run** refuses that push, naming the file ("… on the branch holds a secret KOLONİ knows - take it off the branch first"), as before; "left out" is said only of a file KOLONİ's own commit left out ([docs](docs/automation/overnight.md#in-a-git-repository-each-job-on-its-own-branch)).
 - **Knowledge**: **Learn** is held over the project's monthly budget, as a new message is: what a learning spends counts toward that budget, but it used to start all the same. It now asks first - "Over this month's budget. Learn anyway?" - with **Go on anyway** or **Cancel** ([docs](docs/knowledge.md#adding-knowledge)).
+- **Models**: opening the **Models** page or the chat's model panel no longer starts Copilot to ask your GitHub account what it offers, so opening one no longer switches Copilot's model rows off under your cursor. They show what your account offered when it was last asked; its rows still follow that answer, which the top bar's plan meter reads at most once in 10 minutes; **Read now** on its card and a model Copilot refused ask it at once, a fill of its tiers where it is due ([docs](docs/models/copilot.md#what-koloni-asks-and-when)).
 
 ### Removed
 

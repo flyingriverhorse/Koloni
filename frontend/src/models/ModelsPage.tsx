@@ -122,9 +122,9 @@ export interface Props {
   onFillNew?: (draft: CatalogueDraft) => Promise<CatalogueFill>
   /** Whether each model can be used now; runs no model. */
   onAvailability?: (providerId: string, free?: boolean) => Promise<Availability>
-  /** Copilot on your GitHub account: what its account offers, asked as the page opens (the server asks it at most
-   *  once in 10 minutes); its rows are switched by it and the provider read again. */
-  onOffers?: (providerId: string) => Promise<void>
+  /** The providers read again as kept, as the page opens: what each Copilot account offered when last asked (the plan
+   *  meter asks it). Opening the page asks no account (F417). */
+  onProviders?: () => Promise<void>
   /** What is known of the default model being typed: its levels, window, price, tier. */
   onFacts?: LoadFacts
   /** For a provider not added yet: the catalogue's names, a service's address and key name. */
@@ -200,7 +200,7 @@ export function ModelsPage({
   onTiers,
   onSaveTiers,
   onLimits,
-  onOffers,
+  onProviders,
   onUsage,
   prices = [],
   ...handlers
@@ -294,14 +294,8 @@ export function ModelsPage({
       }
   }, [providers, openId, onAvailability])
   const availOf = (id: string) => full[id] ?? free[id]
-  // What each Copilot account on GitHub's plan offers, asked as the page opens; a failure leaves what was known.
-  const copilots = providers
-    .filter(p => p.kind === 'copilot_cli' && !p.base_url)
-    .map(p => p.id)
-    .join(' ')
-  useEffect(() => {
-    for (const id of copilots.split(' ').filter(Boolean)) onOffers?.(id).catch(() => {})
-  }, [copilots, onOffers])
+  // The providers as kept, read again as the page opens - nothing is asked of any account; a failure leaves what was known.
+  useEffect(() => void onProviders?.().catch(() => {}), [onProviders])
   // What each CLI last said of its plan, and when a plan key's quota was last seen used up: read as it is, nothing
   // is started.
   const [limits, setLimits] = useState<Record<string, Limits | null>>({})

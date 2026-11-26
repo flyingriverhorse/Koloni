@@ -264,9 +264,6 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   testProvider(providerId: string, run?: boolean): Promise<ProviderTest>
   /** Model names a provider can offer; never throws for a provider that lists none. */
   providerModels(providerId: string): Promise<OfferedModels>
-  /** Copilot on your GitHub account: what its account offers, asked where due (at most once in 10 minutes), the
-   *  provider then as the server has it - its rows switched by it. Throws ApiError. */
-  readOffers(providerId: string): Promise<void>
   /** A team guide proposed from the catalogue; nothing is saved. Throws ApiError. */
   fillFromCatalogue(providerId: string): Promise<CatalogueFill>
   /** The same for a provider not added yet: the catalogue only. Throws ApiError. */
@@ -1211,11 +1208,6 @@ export const useApp = create<AppStore>()((set, get) => {
 
     async providerModels(providerId) {
       return api.get<OfferedModels>(`/providers/${providerId}/models`)
-    },
-
-    async readOffers(providerId) {
-      const provider = await api.post<Provider>(`/providers/${providerId}/offers`)
-      set(s => ({ providers: s.providers.map(p => (p.id === provider.id ? provider : p)) }))
     },
 
     async fillFromCatalogue(providerId) {

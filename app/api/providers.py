@@ -664,23 +664,6 @@ async def read_offers(request: Request, session: Session, provider: Provider) ->
         session.refresh(provider)
 
 
-@router.post(
-    "/{provider_id}/offers",
-    response_model=ProviderOut,
-    dependencies=[Depends(require_own_origin)],  # (it may switch the provider's rows)
-)
-async def provider_offers(
-    provider_id: str, request: Request, session: Session = Depends(get_session)
-):
-    """What a Copilot account offers, as the Models page and the chat's model panel open: asked
-    (`models.list` and `account.getQuota`, no model turn) where that is due, the provider's rows
-    switched by it; the provider as it then is. Any other provider is answered as it is."""
-    provider = _provider(session, provider_id)
-    if provider.kind == "copilot_cli":
-        await read_offers(request, session, provider)
-    return provider
-
-
 @router.get("/{provider_id}/models", response_model=ProviderModelsOut)
 async def provider_models(
     provider_id: str, request: Request, session: Session = Depends(get_session)

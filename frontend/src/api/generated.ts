@@ -3568,28 +3568,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/providers/{provider_id}/offers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Provider Offers
-         * @description What a Copilot account offers, as the Models page and the chat's model panel open: asked
-         *     (`models.list` and `account.getQuota`, no model turn) where that is due, the provider's rows
-         *     switched by it; the provider as it then is. Any other provider is answered as it is.
-         */
-        post: operations["provider_offers_api_providers__provider_id__offers_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/providers/{provider_id}/test": {
         parameters: {
             query?: never;
@@ -18167,37 +18145,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderModelsOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    provider_offers_api_providers__provider_id__offers_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                provider_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProviderOut"];
                 };
             };
             /** @description Validation Error */
