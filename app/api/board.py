@@ -3,10 +3,9 @@ waits and for what, which files each holds, and where two conversations want one
 Read from the agents' records and from who holds what now; it changes nothing."""
 
 import asyncio
-import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import and_, func, literal_column, or_, select, true, union
+from sqlalchemy import and_, func, literal_column, or_, select, true
 from sqlalchemy.orm import Session
 
 from app import backlog
@@ -16,7 +15,6 @@ from app.changes import in_copy
 from app.db.models import (
     Agent,
     BacklogTask,
-    Command,
     Conversation,
     FileChange,
     Merge,
@@ -28,119 +26,6 @@ from app.db.models import (
 from app.schemas import BoardOut
 
 router = APIRouter(prefix="/api", tags=["board"])
-
-# How a sub-agent's model was cut, in the words KOLONİ's clients end it with (`model_client`,
-# `model_anthropic`, `model_cli`, `model_session`, `model_native`): its stall timer - nothing
-# came for a while after it began - or its time limit.
-# shortcut: matched on those English phrases; add one when a client says its timer otherwise.
-SILENT = re.compile(r"\b(?:sent nothing|did not answer) for \d", re.IGNORECASE)
-TIMED_OUT = re.compile(r"\bdid not (?:start answering|answer) within \d", re.IGNORECASE)
-# A report that is an error: one that starts with one ("Error: ...", "API Error (529)", a
-# bare "Error"), not one that has the word, nor "Error handling added" or "Error-free now".
-STARTS_WITH_ERROR = re.compile(r"^\W*(?:api\s+)?error\W*(?:[:(\d]|$)", re.IGNORECASE)
-# shortcut: a report of fewer words says nothing of substance; read what it says if a short
-# one that did its work is seen tagged.
-SUBSTANCE_WORDS = 12
-
-
-def outcome(
-    status: str,
-    error: str | None,
-    report: str | None,
-    called: bool,
-    stopped_by_koloni: bool = False,
-) -> str | None:
-    """K-board-sonuc: how a sub-agent that ended came out, where that is worth a tag:
-    "silent" (cut by its stall timer), "timed_out", "error" (it failed another way, or its
-    report starts with an error), "nothing" (it finished having called no tool at all - not
-    even to read - changed no file, run no command: `called`; and said nothing of substance).
-    None for one that did its work, one KOLONİ's own limit stopped, and one stopped or declined
-    by the user.
-    shortcut: what a CLI does with its own tools is not all on record (its edits are, its
-    reads are not): such an agent is "nothing" only when its report is short too."""
-    if status == "failed" and not stopped_by_koloni:
-        said = error or ""
-        return (
-            "silent" if SILENT.search(said) else "timed_out" if TIMED_OUT.search(said) else "error"
-        )
-    if status != "completed":
-        return None
-    if STARTS_WITH_ERROR.match(report or ""):
-        return "error"
-    return "nothing" if not called and len((report or "").split()) < SUBSTANCE_WORDS else None
-
-
-def outcomes(session: Session, runs: list[str]) -> dict[str, list[tuple]]:
-    """Of these turns, their sub-agents that ended with a class (`outcome`), by turn, oldest
-    first: (the agent's row, its class, whether "Re-run the ones that failed" opens it again).
-    Only one that failed is opened again - not one that finished, whatever its report says -
-    and not one the Lead already opened again in that turn (a later one of its role and task
-    that finished). One closed with its turn (the Lead's failure, given to those still at
-    work) has no class: its turn's failure is its card's. Two queries, however many turns."""
-    # (Read every few seconds: of its report only the start, which is all `outcome` reads.)
-    ended = session.execute(
-        select(
-            Agent.id,
-            Agent.run_id,
-            Agent.name,
-            Agent.role_name,
-            Agent.task,
-            Agent.provider_name,
-            Agent.model_id,
-            Agent.status,
-            Agent.error,
-            Agent.stopped_by_koloni,
-            Agent.ended_at,
-            Run.error.label("run_error"),
-            Run.ended_at.label("run_ended_at"),
-            func.substr(Agent.report, 1, 400).label("report"),
-        )
-        .join(Run, Run.id == Agent.run_id)
-        .where(Agent.run_id.in_(runs), Agent.depth > 0, Agent.status.in_(("completed", "failed")))
-        .order_by(Agent.created_at, literal_column("agents.rowid"))
-    ).all()
-    ids = [agent.id for agent in ended]
-    # A call of any tool, a change, a command. (By the turns too: their ids are indexed.)
-    called = set(
-        session.scalars(
-            union(
-                select(FileChange.agent_id).where(
-                    FileChange.run_id.in_(runs), FileChange.agent_id.in_(ids)
-                ),
-                select(Command.agent_id).where(Command.run_id.in_(runs), Command.agent_id.in_(ids)),
-                select(ToolCall.agent_id).where(
-                    ToolCall.run_id.in_(runs), ToolCall.agent_id.in_(ids)
-                ),
-            )
-        )
-    )
-    found: dict[str, list[tuple]] = {}
-    for at, agent in enumerate(ended):
-        if (
-            agent.error
-            and agent.error == agent.run_error
-            and agent.ended_at
-            and agent.run_ended_at
-            and agent.ended_at >= agent.run_ended_at
-        ):
-            continue  # (`AgentRunner._close_agents`: ended with its turn, as its turn did)
-        came = outcome(
-            agent.status, agent.error, agent.report, agent.id in called, agent.stopped_by_koloni
-        )
-        if came is None:
-            continue
-        retried = any(
-            later.status == "completed"
-            and later.run_id == agent.run_id
-            and later.role_name == agent.role_name
-            and later.task == agent.task
-            for later in ended[at + 1 :]
-        )
-        found.setdefault(agent.run_id, []).append(
-            (agent, came, agent.status == "failed" and not retried)
-        )
-    return found
-
 
 # Each copy's counts by its agent, with how many changes its line has in it and the last of
 # them: the board is read every few seconds, and a copy is diffed again only once it changed.
@@ -359,7 +244,6 @@ def board_of(
             )
         )
     }
-    came = outcomes(session, ran)
     turns = {}
     for run in runs:
         # No agent started: what the turn itself kept.
@@ -376,19 +260,6 @@ def board_of(
             "tokens": None if sent is None or made is None else sent + made,
             "plan_waits": run.status == "completed"
             and (run.plan or {}).get("status") == "proposed",
-            "outcomes": [
-                {
-                    "id": agent.id,
-                    "name": agent.name,
-                    "role": agent.role_name,
-                    "provider_name": agent.provider_name,
-                    "model_id": agent.model_id,
-                    "status": agent.status,
-                    "outcome": how,
-                    "rerun": again,
-                }
-                for agent, how, again in came.get(run.id, [])
-            ],
         }
     agents: dict[str, list[dict]] = {}
     conflicts: dict[tuple[str, str], dict] = {}

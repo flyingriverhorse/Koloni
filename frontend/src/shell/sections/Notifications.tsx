@@ -21,7 +21,7 @@ export function useNotifications(project: Project, desktopAvailable: boolean) {
         label="Send the day’s summary at"
         htmlFor="day-note-at"
         doc={GUIDE.settingsNotifications}
-        why="Once a day, by this computer’s clock: the Board’s Today numbers as text, shown as a desktop notification. Counted from the record; no model is asked. Empty: not sent."
+        why="Once a day, by this computer’s clock: Usage’s Today numbers for this project as text, shown as a desktop notification. Counted from the record; no model is asked. Empty: not sent."
       >
         <input
           id="day-note-at"

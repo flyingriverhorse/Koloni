@@ -19,10 +19,6 @@ KOLONİ's own words, as they appear on screen.
 : A button on a command's card. It keeps a rule for that chat, so the same kind of command runs
   without a card next time. See [Permission levels](../use/permissions.md).
 
-**Board**
-: A page with every chat of the project in three columns: at work, waiting for you, and done
-  today.
-
 **Branch (a team's)**
 : A git branch `koloni/<name>` that the Orchestrator can give a team's work. It starts from your folder
   as it is, your uncommitted files too, and its card carries the agent's work alone. Stopped, the

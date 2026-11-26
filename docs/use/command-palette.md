@@ -5,7 +5,7 @@ Type to filter, use the arrow keys to move, Enter to go, Esc to close.
 
 It finds:
 
-- **Pages**: Canvas, Chats, Ready for you, Board, To-do, Agents, Models, Tools, Memory, Knowledge,
+- **Pages**: Canvas, Chats, Ready for you, To-do, Agents, Models, Tools, Memory, Knowledge,
   Usage, Settings.
 - **Conversations**, by title.
 - **Roles** and **Models**.

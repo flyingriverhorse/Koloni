@@ -177,7 +177,7 @@ Before a sub-agent's work is added, the tests it wrote or changed run in its wor
 | Setting | What it does |
 |---|---|
 | **Show a desktop notification** | Windows only. Where an agent's notifications go, and what KOLONİ tells you while you are away; off, agents have no notify tool. At most 6 a minute for one chat. |
-| **Send the day's summary at** | A time of day, by this computer's clock, for a daily summary: the Board's Today numbers as text, counted from the record; no model is asked. Needs desktop notifications. If KOLONİ is closed then, it sends the summary late, when it next opens, and only for the last day it missed. |
+| **Send the day's summary at** | A time of day, by this computer's clock, for a daily summary: Usage's Today numbers for the project as text, counted from the record; no model is asked. Needs desktop notifications. If KOLONİ is closed then, it sends the summary late, when it next opens, and only for the last day it missed. |
 
 ### Slash commands
 

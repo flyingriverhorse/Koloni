@@ -869,24 +869,26 @@ test('the board shown is the answer to the read asked for last, of the project t
   await Promise.all(reads)
   expect(useApp.getState().board?.running).toBe(2)
 
-  // Nor is a late failure of an earlier read said over a later answer...
+  // Nor does a late failure of an earlier read take a later answer away...
   const again = [useApp.getState().loadBoard(), useApp.getState().loadBoard()]
   asked[3].answer(3)
   asked[2].fail()
   await Promise.all(again)
-  expect([useApp.getState().board?.running, useApp.getState().boardError]).toEqual([3, null])
+  expect(useApp.getState().board?.running).toBe(3)
 
-  // ...and neither an answer nor a failure of a project that was left is this one's.
+  // ...and an answer of a project that was left is not this one's.
   const left = [useApp.getState().loadBoard()]
   useApp.setState({ projectId: 'q', board: null })
-  asked[4].fail()
+  asked[4].answer(4)
   await Promise.all(left)
-  expect([useApp.getState().board, useApp.getState().boardError]).toEqual([null, null])
+  expect(useApp.getState().board).toBeNull()
+  // A read that fails keeps the last reading: it is read again in a few seconds.
   useApp.setState({ projectId: 'p' })
+  await Promise.all([useApp.getState().loadBoard()].map(async read => (asked[5].answer(5), await read)))
   const failed = useApp.getState().loadBoard()
-  asked[5].fail()
+  asked[6].fail()
   await failed
-  expect(useApp.getState().boardError).toContain('Failed to fetch')
+  expect(useApp.getState().board?.running).toBe(5)
 })
 
 test('a board read again that says the same keeps the board it had: nothing that reads it is drawn again', async () => {

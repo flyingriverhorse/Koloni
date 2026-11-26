@@ -26,6 +26,10 @@ Only what needs your attention after an update; everything else is in the [Chang
   pages switched off for this project", and one that changed code and no test says "Not checked: a
   test for the change switched off for this project". Tick them to have them as before (see
   [What KOLONİ checked](../use/checked.md#a-test-for-the-change)). Nothing in the database changes.
+- **The Board page is gone.** How each chat stands is on the **Chats** list, what waits for you on
+  **Ready for you**, and a file two chats want still shows above both of them. Its **Re-run the ones
+  that failed** button went with it: ask the chat's Orchestrator to open those sub-agents again. Nothing
+  in the database changes.
 - **The Word, Excel, PowerPoint and 3D model previews are gone.** Such a file is still in the
   Workspace's files and opens there as any other file that is not a page or a picture: its text where
   it is text of 256 KB at most (an OBJ, a text STL, a glTF), else "Not text: there is no code to show."

@@ -9,7 +9,7 @@ interface Props {
 
 /**
  * How a state is said - of an agent, a turn, a tool call or a command - wherever it is
- * said: in the chat, in the turn list, on the canvas and on the Board. A dot and the word,
+ * said: in the chat, in the turn list, on the canvas and in the Chats list. A dot and the word,
  * in the state's colour; the dot is drawn, so the word alone is what is read out.
  */
 export function StatusLabel({ color, children }: Props) {

@@ -135,14 +135,16 @@ test('a note with a hint loses nothing: its first sentence stands, the rest is b
   await userEvent.click(screen.getByRole('button', { name: /^Limits and money/ }))
   const field = screen.getByLabelText('At most this many agents at work in this project')
   const first = screen.getByText('Counted over all of this project’s conversations together.')
-  const rest = screen.getByText(/^When that many are at work, a new agent .* The Board shows who is at work\.$/)
+  const rest = screen.getByText(
+    /^When that many are at work, a new agent .* The Chats list shows which chats are at work\.$/,
+  )
   expect(first.closest('.hint')).toBeNull()
   expect(rest).not.toBeVisible()
   // The field is described by the first sentence and by the rest, in the order they were written, and not by
   // the button that opens it - closed as well as open (e2e/31 holds the browser to that).
   expect(field).toHaveAttribute('aria-describedby', `${first.id} ${rest.id}`)
   expect(field).toHaveAccessibleDescription(
-    /^Counted over all of this project’s conversations together\. When that many are at work, .* holds no slot\. The Board shows who is at work\.$/,
+    /^Counted over all of this project’s conversations together\. When that many are at work, .* holds no slot\. The Chats list shows which chats are at work\.$/,
   )
   // every hint on this page, section by section: none of them open, each with something in it;
   // and what warns of what a setting runs, spends or does not hold is never behind one: it is read before the field is set

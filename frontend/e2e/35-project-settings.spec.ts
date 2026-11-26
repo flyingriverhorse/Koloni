@@ -200,8 +200,8 @@ for (const theme of ['light', 'dark'] as const) {
     await settings.getByRole('button', { name: /^Limits and money/ }).click()
     await expect(settings.getByLabel('Stop the work on a message over this many tokens')).toHaveValue('')
     // A page chosen on the rail closes it too.
-    await rail(page, 'Board').click()
+    await rail(page, 'To-do').click()
     await expect(settings).toHaveCount(0)
-    await expect(page.getByRole('region', { name: 'Ended today' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'To-do' })).toBeVisible()
   })
 }

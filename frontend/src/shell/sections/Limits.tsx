@@ -92,7 +92,7 @@ function AgentLimits({
         htmlFor="max-agents"
         whyId="max-agents-more"
         doc={GUIDE.settingsLimits}
-        why="When that many are at work, a new agent (a conversation’s Orchestrator too) waits for a slot and starts in its turn when one is free. An agent that waits for you, for a file or for its sub-agents holds no slot. The Board shows who is at work."
+        why="When that many are at work, a new agent (a conversation’s Orchestrator too) waits for a slot and starts in its turn when one is free. An agent that waits for you, for a file or for its sub-agents holds no slot. The Chats list shows which chats are at work."
         warn={
           <span id="max-agents-note" className="choice-note">
             {most.value === undefined ? 'A whole number from 1 to 1000, or empty for no limit. ' : ''}

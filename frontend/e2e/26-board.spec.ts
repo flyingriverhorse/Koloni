@@ -1,5 +1,5 @@
 import { expect, test, type Page } from './fixtures'
-import { OWN, openFreshConversation, rail, shot } from './helpers'
+import { OWN, openFreshConversation, shot } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -10,12 +10,23 @@ test.afterEach(async ({ request }) => {
   }
 })
 
+/** A conversation opened from the Chats list, by its title. */
+async function open(page: Page, title: string) {
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Chats', exact: true }).click()
+  await page.getByRole('searchbox', { name: 'Search conversations' }).fill(title)
+  await page
+    .getByRole('button', { name: new RegExp(`^${title}`) })
+    .first()
+    .click()
+  await expect(page.getByRole('region', { name: 'Chat' }).getByText(title, { exact: true })).toBeVisible()
+}
+
 async function ask(page: Page, message: string) {
   await page.getByLabel('Message').fill(message)
   await page.getByRole('button', { name: 'Send' }).click()
 }
 
-test('two conversations of one project: the limit, the board, and the file both want', async ({ page }) => {
+test('two conversations of one project: the limit, and the file both want', async ({ page }) => {
   const FIRST = 'flip the greeting, a first time'
   const SECOND = 'flip the greeting, a second time'
   const WANTED = `hello.py: held by Orchestrator in «${FIRST}», waited for by Orchestrator in «${SECOND}»`
@@ -45,41 +56,19 @@ test('two conversations of one project: the limit, the board, and the file both 
   await expect(strip).toHaveText(WANTED, { timeout: 15_000 })
   await shot(page, '26-strip')
 
-  // The board: both conversations, who waits for what, and the file both want on top.
-  await rail(page, 'Board').click()
-  await expect(page.getByText('0 of 1 agents at work')).toBeVisible()
-  await expect(page.getByText(/^“Re-run the ones that failed” sends a new message/)).toBeVisible()
-  await expect(page.getByRole('list', { name: 'Two conversations want one file' }).locator('li > span')).toHaveText(
-    WANTED,
-  )
-  // What the first asks is on Ready for you: one line here leads there.
-  await expect(page.getByRole('button', { name: 'Open Ready for you →' })).toBeVisible()
-  // Both at work: the first waits for you, holding the file; the second waits for the file.
-  const first = page.getByRole('region', { name: 'At work' }).getByRole('listitem', { name: FIRST, exact: true })
-  const second = page.getByRole('region', { name: 'At work' }).getByRole('listitem', { name: SECOND, exact: true })
-  await expect(first.getByRole('listitem')).toContainText('waits for you')
-  await expect(first.getByRole('listitem')).toContainText('holds hello.py')
-  await expect(second.getByRole('listitem')).toContainText('waiting for a file')
-  await expect(second.getByRole('listitem')).toContainText('hello.py, held by Orchestrator')
-  await shot(page, '26-board')
-
-  // A row opens its conversation, which shows the same warning; its change is turned down.
-  await first.getByRole('button', { name: FIRST }).click()
+  // The first conversation shows the same warning; its change is turned down. (0.1.10: no Board page - the Chats
+  // list opens it.)
+  await open(page, FIRST)
   await expect(strip).toHaveText(WANTED)
   await page.getByRole('button', { name: /^Workspace/ }).click()
   await changes.getByRole('button', { name: 'Reject' }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText('Okay, I left hello.py unchanged.')).toBeVisible()
-  // The file is the second lead's now: nobody waits for anybody, and the board says so by itself.
+  // The file is the second lead's now: nobody waits for anybody, and the strip goes by itself.
   await expect(strip).toHaveCount(0)
-  await rail(page, 'Board').click()
-  await expect(page.getByRole('list', { name: 'Two conversations want one file' })).toHaveCount(0)
-  // The second waits for you now; the first one's turn ended today.
-  const asking = page.getByRole('region', { name: 'At work' }).getByRole('listitem', { name: SECOND, exact: true })
-  await expect(asking.getByRole('listitem')).toContainText('waits for you')
-  await expect(page.getByRole('region', { name: 'Ended today' }).getByRole('button', { name: FIRST })).toBeVisible()
 
   // The second one's change is turned down too.
-  await asking.getByRole('button', { name: SECOND }).click()
+  await open(page, SECOND)
+  await expect(strip).toHaveCount(0)
   await page.getByRole('button', { name: /^Workspace/ }).click()
   await changes.getByRole('button', { name: 'Reject' }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText('Okay, I left hello.py unchanged.')).toBeVisible()
