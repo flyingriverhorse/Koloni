@@ -363,7 +363,7 @@ const ENDED: Partial<Record<AgentData['status'], string>> = {
   failed: 'Failed',
   cancelled: 'Stopped',
   interrupted: 'Interrupted',
-  // (One you declined: as the chat, the Board, the timeline and the legend say it.)
+  // (One you declined: as the chat, the timeline and the legend say it.)
   rejected: 'Rejected',
 }
 

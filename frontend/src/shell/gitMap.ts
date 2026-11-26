@@ -64,7 +64,7 @@ const folder = (path: string) => path.replaceAll('\\', '/').replace(/\/+$/, '').
 /**
  * The open chat's working copies (`state`, of this project), each by how it stands (`copyStands`). A copy goes into the
  * project's branch when you take it in, or when it finishes where the chat does not ask (`permission_mode`).
- * shortcut: only the open chat's copies; the project's other chats' are on the Board. Read them from the server if
+ * shortcut: only the open chat's copies; the project's other chats' are in those chats. Read them from the server if
  * users miss them here. A check command can still hold a copy that goes in "when it finishes".
  */
 function copyRows(git: GitStatus, state: ConvState): Row[] {
