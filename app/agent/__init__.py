@@ -743,6 +743,9 @@ PLAN_DELEGATES = (
     "In the work turn you change no files yourself: sub-agents do. For each change, say which "
     "sub-agent or role makes it."
 )
+# A run a trigger started (`runs.unattended`) never runs again: triggers are gone since 0.1.10,
+# and no turn of the app's makes one (`_old_trigger_turn`).
+OLD_TRIGGER_TURN = "a trigger's turn from before 0.1.10 does not run"
 # A CLI that would plan with tools of its own that act unasked, and cannot be started with
 # them off.
 NO_PLAN_ON = (
@@ -1830,6 +1833,10 @@ class AgentRunner(
     # --- one run -------------------------------------------------------------
 
     async def execute(self, run_id: str) -> None:
+        if not self._old_trigger_turn(run_id):
+            await self._execute(run_id)
+
+    async def _execute(self, run_id: str) -> None:
         t = _LeadTurn()
         try:
             ctx, cid = self._lead_turn(run_id, t)
@@ -1884,6 +1891,19 @@ class AgentRunner(
                 self._po_later(t.po)
             if ended_later:
                 await self._stopped_later(ended_later)
+
+    def _old_trigger_turn(self, run_id: str) -> bool:
+        """Fail closed: a run on record as a trigger's (`runs.unattended`) - only a trigger made
+        one, and only a database written by hand or another process could start one now - ends
+        failed before anything of it is opened or asked of a model, and the chat's queue goes on.
+        Its old message is never a prompt at the chat's level."""
+        with self._factory() as session:
+            run = session.get(Run, run_id)
+            if run is None or not run.unattended:
+                return False
+        if cid := self._force_fail(run_id, OLD_TRIGGER_TURN):
+            self.start_next(cid)
+        return True
 
     def _lead_turn(self, run_id: str, t: _LeadTurn) -> tuple[Ctx, str]:
         """`execute`'s start: the turn's lead, its tools and model set up, opened."""
