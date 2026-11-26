@@ -351,7 +351,9 @@ class MemoryMixin:
         """0.1.10, one look-up: recall looks in what the agent holds - the project's memory and its
         earlier turns (`_recall`) where its role has recall and it is not KOLONİ's read-only
         Reviewer, then the pages of the knowledge its role uses (`_lookup`, its `topic`) where it
-        has lookup. lookup, its old name for one release, looks in those pages alone, as it did."""
+        has lookup. lookup, its old name for one release, looks in those pages alone, as it did.
+        shortcut: a later turn is shown such a recall as counts (`memory.looked_up_earlier`), its
+        pages' "- " lines counted as excerpts; count the pages apart if that misleads."""
         query = args.get("query", args.get("question"))
         memory = name == "recall" and "recall" in ctx.tools
         memory = memory and ctx.agent_id not in self._read_only_agents

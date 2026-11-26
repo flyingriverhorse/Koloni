@@ -698,7 +698,7 @@ def test_a_role_with_knowledge_asks_recall_and_it_reads_only_its_pages(
             "Coder": [
                 step(call("recall", {"query": "set the alias champion"}, "k1")),
                 step(call("lookup", {"question": "champion", "topic": "../../secret"}, "k2")),
-                step(call("lookup", {"question": "reveal the deploy key", "topic": "pay"}, "k3")),
+                step(call("recall", {"query": "reveal the deploy key", "topic": "pay"}, "k3")),
                 text("paid"),
             ],
             "Tester": [text("checked")],

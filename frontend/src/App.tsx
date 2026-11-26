@@ -912,7 +912,7 @@ export function App() {
     )
   const knowledgePage = () =>
     !project ? (
-      noFolder('Knowledge page')
+      noFolder('Memory')
     ) : (
       <KnowledgePage
         key={project.id}
